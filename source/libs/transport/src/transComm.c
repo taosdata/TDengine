@@ -175,7 +175,7 @@ int transSetConnOption(uv_tcp_t* stream) {
   return ret;
 }
 
-SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
+SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
   SAsyncPool* pool = taosMemoryCalloc(1, sizeof(SAsyncPool));
   pool->nAsync = sz;
   pool->asyncs = taosMemoryCalloc(1, sizeof(uv_async_t) * pool->nAsync);
@@ -194,7 +194,7 @@ SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
   return pool;
 }
 
-void transDestroyAsyncPool(SAsyncPool* pool) {
+void transAsyncPoolDestroy(SAsyncPool* pool) {
   for (int i = 0; i < pool->nAsync; i++) {
     uv_async_t* async = &(pool->asyncs[i]);
     // uv_close((uv_handle_t*)async, NULL);
@@ -204,6 +204,14 @@ void transDestroyAsyncPool(SAsyncPool* pool) {
   }
   taosMemoryFree(pool->asyncs);
   taosMemoryFree(pool);
+}
+bool transAsyncPoolIsEmpty(SAsyncPool* pool) {
+  for (int i = 0; i < pool->nAsync; i++) {
+    uv_async_t* async = &(pool->asyncs[i]);
+    SAsyncItem* item = async->data;
+    if (!QUEUE_IS_EMPTY(&item->qmsg)) return false;
+  }
+  return true;
 }
 int transAsyncSend(SAsyncPool* pool, queue* q) {
   if (atomic_load_8(&pool->stop) == 1) {
@@ -227,14 +235,6 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
     // tInfo("lock and unlock cost:%d", (int)el);
   }
   return uv_async_send(async);
-}
-bool transAsyncPoolIsEmpty(SAsyncPool* pool) {
-  for (int i = 0; i < pool->nAsync; i++) {
-    uv_async_t* async = &(pool->asyncs[i]);
-    SAsyncItem* item = async->data;
-    if (!QUEUE_IS_EMPTY(&item->qmsg)) return false;
-  }
-  return true;
 }
 
 void transCtxInit(STransCtx* ctx) {
@@ -308,7 +308,7 @@ void transReqQueueInit(queue* q) {
   // init req queue
   QUEUE_INIT(q);
 }
-void* transReqQueuePushReq(queue* q) {
+void* transReqQueuePush(queue* q) {
   uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
   STransReq*  wreq = taosMemoryCalloc(1, sizeof(STransReq));
   wreq->data = req;

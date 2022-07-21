@@ -26,7 +26,7 @@ typedef struct SCliConn {
 
   SConnBuffer readBuf;
   STransQueue cliMsgs;
-  queue       conn;
+  queue       q;
   uint64_t    expireTime;
 
   STransCtx  ctx;
@@ -451,7 +451,7 @@ void cliTimeoutCb(uv_timer_t* handle) {
   while (p != NULL) {
     while (!QUEUE_IS_EMPTY(&p->conn)) {
       queue*    h = QUEUE_HEAD(&p->conn);
-      SCliConn* c = QUEUE_DATA(h, SCliConn, conn);
+      SCliConn* c = QUEUE_DATA(h, SCliConn, q);
       if (c->expireTime < currentTime) {
         QUEUE_REMOVE(h);
         transUnrefCliHandle(c);
@@ -475,7 +475,7 @@ void* destroyConnPool(void* pool) {
   while (connList != NULL) {
     while (!QUEUE_IS_EMPTY(&connList->conn)) {
       queue*    h = QUEUE_HEAD(&connList->conn);
-      SCliConn* c = QUEUE_DATA(h, SCliConn, conn);
+      SCliConn* c = QUEUE_DATA(h, SCliConn, q);
       cliDestroyConn(c, true);
     }
     connList = taosHashIterate((SHashObj*)pool, connList);
@@ -501,11 +501,11 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
     return NULL;
   }
   queue*    h = QUEUE_HEAD(&plist->conn);
-  SCliConn* conn = QUEUE_DATA(h, SCliConn, conn);
+  SCliConn* conn = QUEUE_DATA(h, SCliConn, q);
   conn->status = ConnNormal;
-  QUEUE_REMOVE(&conn->conn);
-  QUEUE_INIT(&conn->conn);
-  assert(h == &conn->conn);
+  QUEUE_REMOVE(&conn->q);
+  QUEUE_INIT(&conn->q);
+  assert(h == &conn->q);
   return conn;
 }
 static int32_t allocConnRef(SCliConn* conn, bool update) {
@@ -560,8 +560,8 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
   // list already create before
   assert(plist != NULL);
-  QUEUE_INIT(&conn->conn);
-  QUEUE_PUSH(&plist->conn, &conn->conn);
+  QUEUE_INIT(&conn->q);
+  QUEUE_PUSH(&plist->conn, &conn->q);
   assert(!QUEUE_IS_EMPTY(&plist->conn));
 }
 static void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
@@ -614,7 +614,7 @@ static SCliConn* cliCreateConn(SCliThrd* pThrd) {
   transReqQueueInit(&conn->wreqQueue);
 
   transQueueInit(&conn->cliMsgs, NULL);
-  QUEUE_INIT(&conn->conn);
+  QUEUE_INIT(&conn->q);
   conn->hostThrd = pThrd;
   conn->status = ConnNormal;
   conn->broken = 0;
@@ -626,8 +626,8 @@ static SCliConn* cliCreateConn(SCliThrd* pThrd) {
 }
 static void cliDestroyConn(SCliConn* conn, bool clear) {
   tTrace("%s conn %p remove from conn pool", CONN_GET_INST_LABEL(conn), conn);
-  QUEUE_REMOVE(&conn->conn);
-  QUEUE_INIT(&conn->conn);
+  QUEUE_REMOVE(&conn->q);
+  QUEUE_INIT(&conn->q);
   transRemoveExHandle(transGetRefMgt(), conn->refId);
   conn->refId = -1;
 
@@ -735,7 +735,7 @@ void cliSend(SCliConn* pConn) {
     CONN_SET_PERSIST_BY_APP(pConn);
   }
 
-  uv_write_t* req = transReqQueuePushReq(&pConn->wreqQueue);
+  uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
   uv_write(req, (uv_stream_t*)pConn->stream, &wb, 1, cliSendCb);
   return;
 _RETURN:
@@ -990,7 +990,7 @@ static SCliThrd* createThrdObj() {
   pThrd->loop = (uv_loop_t*)taosMemoryMalloc(sizeof(uv_loop_t));
   uv_loop_init(pThrd->loop);
 
-  pThrd->asyncPool = transCreateAsyncPool(pThrd->loop, 5, pThrd, cliAsyncCb);
+  pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 5, pThrd, cliAsyncCb);
   uv_timer_init(pThrd->loop, &pThrd->timer);
   pThrd->timer.data = pThrd;
 
@@ -1009,7 +1009,7 @@ static void destroyThrdObj(SCliThrd* pThrd) {
   CLI_RELEASE_UV(pThrd->loop);
   taosThreadMutexDestroy(&pThrd->msgMtx);
   TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SCliMsg, destroyCmsg);
-  transDestroyAsyncPool(pThrd->asyncPool);
+  transAsyncPoolDestroy(pThrd->asyncPool);
 
   transDQDestroy(pThrd->delayQueue, destroyCmsg);
   taosMemoryFree(pThrd->loop);
@@ -1336,19 +1336,18 @@ int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMs
   tGDebug("%s send request at thread:%08" PRId64 ", dst:%s:%d, app:%p", transLabel(pTransInst), pThrd->pid,
           EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
 
-  if (0 != transAsyncSend(pThrd->asyncPool, &cliMsg->q)) {
-    tsem_destroy(sem);
-    taosMemoryFree(sem);
+  int ret = transAsyncSend(pThrd->asyncPool, &cliMsg->q);
+  if (ret != 0) {
     destroyCmsg(cliMsg);
-    transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
-    return -1;
+    goto _RETURN;
   }
   tsem_wait(sem);
+
+_RETURN:
   tsem_destroy(sem);
   taosMemoryFree(sem);
-
   transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
-  return 0;
+  return ret;
 }
 /*
  *
