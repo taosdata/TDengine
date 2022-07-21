@@ -80,9 +80,6 @@ int32_t tqMetaOpen(STQ* pTq) {
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     tDecodeSTqHandle(&decoder, &handle);
     handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
-    /*for (int32_t i = 0; i < 5; i++) {*/
-    /*handle.execHandle.pExecReader[i] = tqOpenReader(pTq->pVnode);*/
-    /*}*/
     if (handle.execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       SReadHandle reader = {
           .meta = pTq->pVnode->pMeta,
@@ -93,7 +90,7 @@ int32_t tqMetaOpen(STQ* pTq) {
       };
 
       handle.execHandle.execCol.task =
-          qCreateQueueExecTaskInfo(handle.execHandle.execCol.qmsg, &reader, &handle.execHandle.numOfCols);
+          qCreateQueueExecTaskInfo(handle.execHandle.execCol.qmsg, &reader, &handle.execHandle.numOfCols, &handle.execHandle.pSchemaWrapper);
       ASSERT(handle.execHandle.execCol.task);
       void* scanner = NULL;
       qExtractStreamScanner(handle.execHandle.execCol.task, &scanner);
