@@ -1054,6 +1054,12 @@ static void doDelayTask(void* param) {
   cliHandleReq(pMsg, pThrd);
 }
 
+static void doCloseIdleConn(void* param) {
+  STaskArg* arg = param;
+  SCliConn* conn = arg->param1;
+  SCliThrd* pThrd = arg->param2;
+}
+
 static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
   STransConnCtx* pCtx = pMsg->ctx;
 
@@ -1075,7 +1081,7 @@ void cliCompareAndSwap(int8_t* val, int8_t exp, int8_t newVal) {
   }
 }
 
-bool cliTryToExtractEpSet(STransMsg* pResp, SEpSet* dst) {
+bool cliTryExtractEpSet(STransMsg* pResp, SEpSet* dst) {
   if ((pResp == NULL || pResp->info.hasEpSet == 0)) {
     return false;
   }
@@ -1116,7 +1122,8 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
    */
   STransConnCtx* pCtx = pMsg->ctx;
   int32_t        code = pResp->code;
-  bool           retry = (pTransInst->retry != NULL && pTransInst->retry(code, pResp->msgType - 1)) ? true : false;
+
+  bool retry = (pTransInst->retry != NULL && pTransInst->retry(code, pResp->msgType - 1)) ? true : false;
   if (retry) {
     pMsg->sent = 0;
     pCtx->retryCnt += 1;
@@ -1125,6 +1132,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
       if (pCtx->retryCnt < pCtx->retryLimit) {
         transUnrefCliHandle(pConn);
         EPSET_FORWARD_INUSE(&pCtx->epSet);
+        transFreeMsg(pResp->pCont);
         cliSchedMsgToNextNode(pMsg, pThrd);
         return -1;
       }
@@ -1148,7 +1156,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
 
   STraceId* trace = &pResp->info.traceId;
 
-  bool hasEpSet = cliTryToExtractEpSet(pResp, &pCtx->epSet);
+  bool hasEpSet = cliTryExtractEpSet(pResp, &pCtx->epSet);
   if (hasEpSet) {
     char tbuf[256] = {0};
     EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
