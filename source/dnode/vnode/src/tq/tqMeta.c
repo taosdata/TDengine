@@ -84,23 +84,22 @@ int32_t tqMetaOpen(STQ* pTq) {
     /*handle.execHandle.pExecReader[i] = tqOpenReader(pTq->pVnode);*/
     /*}*/
     if (handle.execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-      for (int32_t i = 0; i < 5; i++) {
-        SReadHandle reader = {
-            .meta = pTq->pVnode->pMeta,
-            .vnode = pTq->pVnode,
-            .initTableReader = true,
-            .initTqReader = true,
-            .version = handle.snapshotVer,
-        };
+      SReadHandle reader = {
+          .meta = pTq->pVnode->pMeta,
+          .vnode = pTq->pVnode,
+          .initTableReader = true,
+          .initTqReader = true,
+          .version = handle.snapshotVer,
+      };
 
-        handle.execHandle.execCol.task[i] = qCreateQueueExecTaskInfo(handle.execHandle.execCol.qmsg, &reader, &handle.execHandle.numOfCols);
-        ASSERT(handle.execHandle.execCol.task[i]);
-        void* scanner = NULL;
-        qExtractStreamScanner(handle.execHandle.execCol.task[i], &scanner);
-        ASSERT(scanner);
-        handle.execHandle.pExecReader[i] = qExtractReaderFromStreamScanner(scanner);
-        ASSERT(handle.execHandle.pExecReader[i]);
-      }
+      handle.execHandle.execCol.task =
+          qCreateQueueExecTaskInfo(handle.execHandle.execCol.qmsg, &reader, &handle.execHandle.numOfCols);
+      ASSERT(handle.execHandle.execCol.task);
+      void* scanner = NULL;
+      qExtractStreamScanner(handle.execHandle.execCol.task, &scanner);
+      ASSERT(scanner);
+      handle.execHandle.pExecReader = qExtractReaderFromStreamScanner(scanner);
+      ASSERT(handle.execHandle.pExecReader);
     } else {
       handle.execHandle.execDb.pFilterOutTbUid =
           taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
