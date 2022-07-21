@@ -958,6 +958,7 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
     return false;
   }
 
+  cJSON_Delete(binDesc);
   taosMemoryFree(intervals);
   return true;
 }
@@ -1425,6 +1426,17 @@ static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
 }
 
 static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // forbid null as first/last input, since first(c0, null, 1) may have different number of input
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+
+  for (int32_t i = 0; i < numOfParams; ++i) {
+    uint8_t nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, i));
+    uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, i))->resType.type;
+    if (IS_NULL_TYPE(paraType) && QUERY_NODE_VALUE == nodeType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+  }
+
   pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   return TSDB_CODE_SUCCESS;
 }
@@ -1435,6 +1447,15 @@ static int32_t translateFirstLastImpl(SFunctionNode* pFunc, char* pErrBuf, int32
   uint8_t paraType = ((SExprNode*)pPara)->resType.type;
   int32_t paraBytes = ((SExprNode*)pPara)->resType.bytes;
   if (isPartial) {
+    int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+    for (int32_t i = 0; i < numOfParams; ++i) {
+      uint8_t nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, i));
+      uint8_t pType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, i))->resType.type;
+      if (IS_NULL_TYPE(pType) && QUERY_NODE_VALUE == nodeType) {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+      }
+    }
+
     pFunc->node.resType =
         (SDataType){.bytes = getFirstLastInfoSize(paraBytes) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   } else {

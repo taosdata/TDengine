@@ -16,6 +16,7 @@ from tmqCommon import *
 
 class TDTestCase:
     def __init__(self):
+        self.snapshot   = 0
         self.vgroups    = 4
         self.ctbNum     = 1000
         self.rowsPerTbl = 1000
@@ -44,7 +45,7 @@ class TDTestCase:
                     'pollDelay':  3,
                     'showMsg':    1,
                     'showRow':    1,
-                    'snapshot':   1}
+                    'snapshot':   0}
 
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
@@ -84,13 +85,14 @@ class TDTestCase:
                     'ctbStartIdx': 0,
                     'ctbNum':     1000,
                     'rowsPerTbl': 1000,
-                    'batchNum':   400,
+                    'batchNum':   1000,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  5,
                     'showMsg':    1,
                     'showRow':    1,
-                    'snapshot':   1}
+                    'snapshot':   0}
 
+        paraDict['snapshot'] = self.snapshot
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
@@ -131,10 +133,10 @@ class TDTestCase:
             totalConsumeRows += resultList[i]
 
         tdSql.query(queryString)
-        totalRowsInserted = tdSql.getRows()
+        totalRowsFromQuery = tdSql.getRows()
         
-        if totalConsumeRows != totalRowsInserted:
-            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, totalRowsInserted))
+        tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, totalRowsFromQuery))
+        if totalConsumeRows != totalRowsFromQuery:            
             tdLog.exit("tmq consume rows error!")
 
         tdSql.query("drop topic %s"%topicFromStb1)
@@ -163,6 +165,7 @@ class TDTestCase:
                     'showRow':    1,
                     'snapshot':   0}
 
+        paraDict['snapshot'] = self.snapshot
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
@@ -180,12 +183,13 @@ class TDTestCase:
         #                                        startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
         tdLog.info("create topics from stb1")
         topicFromStb1 = 'topic_stb1'                
-        queryString = "select ts, c1, c2 from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
+        # queryString = "select ts, c1, c2 from %s.%s "%(paraDict['dbName'], paraDict['stbName'])
+        queryString = "select ts, c1, c2 from %s.%s where t4 == 'shanghai' or t4 == 'changsha'"%(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
         
-        consumerId     = 0
+        consumerId     = 1
         expectrowcnt   = paraDict["rowsPerTbl"] * paraDict["ctbNum"] * 2
         topicList      = topicFromStb1
         ifcheckdata    = 0
@@ -210,10 +214,10 @@ class TDTestCase:
             totalConsumeRows += resultList[i]
 
         tdSql.query(queryString)
-        totalRowsInserted = tdSql.getRows()
+        totalRowsFromQuery = tdSql.getRows()
         
-        if totalConsumeRows != totalRowsInserted:
-            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, totalRowsInserted))
+        tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, totalRowsFromQuery))
+        if totalConsumeRows != totalRowsFromQuery:            
             tdLog.exit("tmq consume rows error!")
 
         tdSql.query("drop topic %s"%topicFromStb1)
@@ -222,10 +226,18 @@ class TDTestCase:
 
 
     def run(self):
-        tdSql.prepare()
         self.prepareTestEnv()
+        tdLog.printNoPrefix("=============================================")
+        tdLog.printNoPrefix("======== snapshot is 0: only consume from wal")
         self.tmqCase1()
-        # self.tmqCase2()     TD-17267
+        self.tmqCase2()
+        
+        self.prepareTestEnv()
+        tdLog.printNoPrefix("====================================================================")
+        tdLog.printNoPrefix("======== snapshot is 1: firstly consume from tsbs, and then from wal")
+        self.snapshot = 1
+        self.tmqCase1()
+        self.tmqCase2()
         
 
     def stop(self):

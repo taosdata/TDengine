@@ -2210,7 +2210,7 @@ static int32_t smlParseTelnetLine(SSmlHandle *info, void *data) {
       (SSmlSTableMeta **)taosHashGet(info->superTables, (*oneTable)->sTableName, (*oneTable)->sTableNameLen);
   if (tableMeta) {  // update meta
     ret = smlUpdateMeta((*tableMeta)->colHash, (*tableMeta)->cols, cols, &info->msgBuf);
-    if (!hasTable && ret) {
+    if (!hasTable && ret == TSDB_CODE_SUCCESS) {
       ret = smlUpdateMeta((*tableMeta)->tagHash, (*tableMeta)->tags, (*oneTable)->tags, &info->msgBuf);
     }
     if (ret != TSDB_CODE_SUCCESS) {

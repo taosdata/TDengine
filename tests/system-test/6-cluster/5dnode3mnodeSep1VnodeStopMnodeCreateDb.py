@@ -68,10 +68,10 @@ class TDTestCase:
     def fiveDnodeThreeMnode(self,dnodeNumbers,mnodeNums,restartNumbers,stopRole):
         tdLog.printNoPrefix("======== test case 1: ")
         paraDict = {'dbName':     'db',
-                    'dbNumbers':   6,
+                    'dbNumbers':   10,
                     'dropFlag':   1,
                     'event':      '',
-                    'vgroups':    4,
+                    'vgroups':    2,
                     'replica':    1,
                     'stbName':    'stb',
                     'stbNumbers': 100,
@@ -170,7 +170,7 @@ class TDTestCase:
 
     def run(self): 
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=2,stopRole='mnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=10,stopRole='mnode')
 
     def stop(self):
         tdSql.close()

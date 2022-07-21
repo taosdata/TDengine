@@ -265,6 +265,10 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   int64_t   consumerId = be64toh(pReq->consumerId);
 
   SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, consumerId);
+  if (pConsumer == NULL) {
+    terrno = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
+    return -1;
+  }
 
   atomic_store_32(&pConsumer->hbStatus, 0);
 

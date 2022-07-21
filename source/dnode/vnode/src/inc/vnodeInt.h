@@ -142,6 +142,7 @@ void    tqClose(STQ*);
 int     tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
 int     tqCommit(STQ*);
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
+int32_t tqCheckColModifiable(STQ* pTq, int32_t colId);
 int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen);
