@@ -9,14 +9,15 @@
 
 from taostest import TDCase, T
 from subprocess import Popen, PIPE, STDOUT
+from .cloud_case import CloudCase
 import os
 import time
 
 
-class Prometheus(TDCase):
+class Prometheus(TDCase, CloudCase):
 
     def init(self):
-        os.environ.update(self.env_setting["env"])
+        self.set_env()
         self.cwd = self.env_setting["work_dir"] + "/prometheus/prometheus"
         self.init_config()
 

@@ -9,12 +9,13 @@
 import subprocess as sp
 
 from taostest import TDCase, T
+from .cloud_case import CloudCase
 
 
-class Telegraf(TDCase):
+class Telegraf(TDCase, CloudCase):
 
     def init(self):
-        pass
+        self.set_env()
 
     def cleanup(self):
         pass

@@ -4,24 +4,21 @@
 启动命令： tt --case=cloud/cli.py --use=cloud_test.yaml
 """
 
-import os
+from subprocess import run
 
 from taostest import TDCase, T
-from subprocess import run
 from .cloud_case import CloudCase
 
 
 class TDengineCLI(TDCase, CloudCase):
     def init(self):
         self.set_env()
-        print(os.environ)
 
     def cleanup(self):
         pass
 
     def run(self):
-        pass
-        # run(["taos", "-s", "show databases"], check=True, timeout=10)
+        run(["taos", "-s", "show databases"], check=True, timeout=10)
 
     def desc(self) -> str:
         return "Test connect to cloud using CLI"
