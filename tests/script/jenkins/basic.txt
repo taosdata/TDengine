@@ -96,7 +96,7 @@
 # jira ./test.sh -f tsim/parser/columnValue.sim
 ./test.sh -f tsim/parser/commit.sim
 # jira ./test.sh -f tsim/parser/condition.sim
-## ./test.sh -f tsim/parser/constCol.sim
+./test.sh -f tsim/parser/constCol.sim
 ./test.sh -f tsim/parser/create_db.sim
 ./test.sh -f tsim/parser/create_mt.sim
 # jira ./test.sh -f tsim/parser/create_tb_with_tag_name.sim
@@ -113,11 +113,11 @@
 # ./test.sh -f tsim/parser/groupby.sim
 # ./test.sh -f tsim/parser/having_child.sim
 ## ./test.sh -f tsim/parser/having.sim
-## ./test.sh -f tsim/parser/import.sim
-# ./test.sh -f tsim/parser/import_commit1.sim
-# ./test.sh -f tsim/parser/import_commit2.sim
-# ./test.sh -f tsim/parser/import_commit3.sim
-## ./test.sh -f tsim/parser/import_file.sim
+./test.sh -f tsim/parser/import_commit1.sim
+./test.sh -f tsim/parser/import_commit2.sim
+./test.sh -f tsim/parser/import_commit3.sim
+# jira ./test.sh -f tsim/parser/import_file.sim
+./test.sh -f tsim/parser/import.sim
 ## ./test.sh -f tsim/parser/insert_multiTbl.sim
 # ./test.sh -f tsim/parser/insert_tb.sim
 ## ./test.sh -f tsim/parser/interp.sim
@@ -159,7 +159,7 @@
 ./test.sh -f tsim/parser/stableOp.sim
 # ./test.sh -f tsim/parser/tags_dynamically_specifiy.sim
 # ./test.sh -f tsim/parser/tags_filter.sim
-# jira ./test.sh -f tsim/parser/tbnameIn.sim
+./test.sh -f tsim/parser/tbnameIn.sim
 ./test.sh -f tsim/parser/timestamp.sim
 ./test.sh -f tsim/parser/top_groupby.sim
 ./test.sh -f tsim/parser/topbot.sim
@@ -328,7 +328,7 @@
 ./test.sh -f tsim/vnode/stable_replica3_vnode3.sim
 
 # --- sync
-./test.sh -f tsim/sync/3Replica1VgElect.sim
+# jira ./test.sh -f tsim/sync/3Replica1VgElect.sim
 ./test.sh -f tsim/sync/3Replica5VgElect.sim
 ./test.sh -f tsim/sync/oneReplica1VgElect.sim
 ./test.sh -f tsim/sync/oneReplica5VgElect.sim
