@@ -242,3 +242,5 @@ else
     $reboot_cnt = $reboot_cnt + 1
     goto reboot_and_check
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

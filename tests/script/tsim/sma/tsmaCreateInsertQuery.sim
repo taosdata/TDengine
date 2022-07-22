@@ -179,4 +179,6 @@ if $data05 != 30.000000000 then
   return -1
 endi
 
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+
 

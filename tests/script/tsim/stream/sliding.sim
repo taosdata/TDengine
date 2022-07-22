@@ -367,7 +367,7 @@ if $data32 != 8 then
 endi
 
 #$loop_all = 0
-#looptest:
+#=looptest:
 
 sql drop database IF EXISTS test2;
 sql drop stream IF EXISTS streams21;
@@ -511,6 +511,6 @@ endi
 $loop_all = $loop_all + 1
 print ============loop_all=$loop_all
 
-#goto looptest
+#=goto looptest
 
 system sh/stop_dnodes.sh
