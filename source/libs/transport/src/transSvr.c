@@ -434,7 +434,7 @@ static void uvStartSendRespInternal(SSvrMsg* smsg) {
   uvPrepareSendData(smsg, &wb);
 
   transRefSrvHandle(pConn);
-  uv_write_t* req = transReqQueuePushReq(&pConn->wreqQueue);
+  uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
   uv_write(req, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
 }
 static void uvStartSendResp(SSvrMsg* smsg) {
@@ -697,7 +697,7 @@ static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
   // conn set
   QUEUE_INIT(&pThrd->conn);
 
-  pThrd->asyncPool = transCreateAsyncPool(pThrd->loop, 1, pThrd, uvWorkerAsyncCb);
+  pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 1, pThrd, uvWorkerAsyncCb);
   uv_pipe_connect(&pThrd->connect_req, pThrd->pipe, pipeName, uvOnPipeConnectionCb);
   // uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
   return true;
@@ -976,7 +976,7 @@ void destroyWorkThrd(SWorkThrd* pThrd) {
   taosThreadJoin(pThrd->thread, NULL);
   SRV_RELEASE_UV(pThrd->loop);
   TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SSvrMsg, destroySmsg);
-  transDestroyAsyncPool(pThrd->asyncPool);
+  transAsyncPoolDestroy(pThrd->asyncPool);
   taosMemoryFree(pThrd->loop);
   taosMemoryFree(pThrd);
 }
