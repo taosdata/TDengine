@@ -174,7 +174,7 @@ class TDTestCase:
         os.system("taos -s 'select count(*) from {}.{}';".format(dbname,stablename))
 
     def check_insert_rows(self, dbname, stablename , tb_nums , row_nums, append_rows):
-    
+
         tdSql.execute("use {}".format(dbname))
         
         tdSql.query("select count(*) from {}.{}".format(dbname,stablename))
@@ -220,6 +220,7 @@ class TDTestCase:
             status_OK = self.mycheckRows("select distinct tbname from {}.{}".format(dbname,stablename) ,tb_nums)
             tdLog.info(" ==== check insert tbnames first failed , this is {}_th retry check tbnames of database {}".format(count , dbname))
             count += 1
+
     def _get_stop_dnode_id(self,dbname):
         tdSql.query("show {}.vgroups".format(dbname))
         vgroup_infos = tdSql.queryResult
@@ -382,7 +383,7 @@ class TDTestCase:
         
             # begin stop dnode 
             start = time.time()
-            tdDnodes[self.stop_dnode_id-1].stoptaosd()
+            tdDnodes[self.stop_dnode_id-1].forcestop()
         
             self.wait_stop_dnode_OK()
 
@@ -420,8 +421,13 @@ class TDTestCase:
             start = time.time()
             tdDnodes=cluster.dnodes
             self.stop_dnode_id = self._get_stop_dnode_id(dbname)
+            while not self.stop_dnode_id:
+                time.sleep(0.5)
+                self.stop_dnode_id = self._get_stop_dnode_id(dbname)
             # begin restart dnode
-            tdDnodes[self.stop_dnode_id-1].stoptaosd()
+            
+            # force stop taosd by kill -9 
+            self.force_stop_dnode(self.stop_dnode_id)
             self.wait_stop_dnode_OK()
             tdDnodes[self.stop_dnode_id-1].starttaosd()
             self.wait_start_dnode_OK()
@@ -476,14 +482,33 @@ class TDTestCase:
 
             self.current_thread.join()
 
+    def force_stop_dnode(self, dnode_id ):
+
+        tdSql.query("show dnodes")
+        port = None
+        for dnode_info in tdSql.queryResult:
+            if dnode_id == dnode_info[0]:
+                port = dnode_info[1].split(":")[-1] 
+                break
+            else:
+                continue
+        if port:
+            tdLog.info(" ==== dnode {} will be force stop by kill -9 ====".format(dnode_id))
+            psCmd = '''netstat -anp|grep -w LISTEN|grep -w %s |grep -o "LISTEN.*"|awk '{print $2}'|cut -d/ -f1|head -n1''' %(port)
+            processID = subprocess.check_output(
+                psCmd, shell=True).decode("utf-8")
+            ps_kill_taosd = ''' kill -9 {} '''.format(processID)
+            # print(ps_kill_taosd)
+            os.system(ps_kill_taosd)
+
 
     def run(self): 
 
         # basic insert and check of cluster
         self.check_setup_cluster_status()
         self.create_db_check_vgroups()
-        self.sync_run_case()
-        # self.unsync_run_case()
+        # self.sync_run_case()
+        self.unsync_run_case()
 
         
 

@@ -174,10 +174,14 @@ class TDTestCase:
         os.system("taos -s 'select count(*) from {}.{}';".format(dbname,stablename))
 
     def check_insert_rows(self, dbname, stablename , tb_nums , row_nums, append_rows):
-
+    
         tdSql.execute("use {}".format(dbname))
         
         tdSql.query("select count(*) from {}.{}".format(dbname,stablename))
+
+        while not tdSql.queryResult:
+            time.sleep(0.1)
+            tdSql.query("select count(*) from {}.{}".format(dbname,stablename))
 
         status_OK = self.mycheckData("select count(*) from {}.{}".format(dbname,stablename) ,0 , 0 , tb_nums*row_nums+append_rows)
         
@@ -189,12 +193,18 @@ class TDTestCase:
                 break
             time.sleep(0.1)
             tdSql.query("select count(*) from {}.{}".format(dbname,stablename))
+            while not tdSql.queryResult:
+                time.sleep(0.1)
+                tdSql.query("select count(*) from {}.{}".format(dbname,stablename))
             status_OK = self.mycheckData("select count(*) from {}.{}".format(dbname,stablename) ,0 , 0 , tb_nums*row_nums+append_rows)
             tdLog.info(" ==== check insert rows first failed , this is {}_th retry check rows of database {}".format(count , dbname))
             count += 1
         
 
         tdSql.query("select distinct tbname from {}.{}".format(dbname,stablename))
+        while not tdSql.queryResult:
+            time.sleep(0.1)
+            tdSql.query("select distinct tbname from {}.{}".format(dbname,stablename))
         status_OK = self.mycheckRows("select distinct tbname from {}.{}".format(dbname,stablename) ,tb_nums)
         count = 0 
         while not status_OK :
@@ -204,10 +214,13 @@ class TDTestCase:
                 break
             time.sleep(0.1)
             tdSql.query("select distinct tbname from {}.{}".format(dbname,stablename))
+            while not tdSql.queryResult:
+                time.sleep(0.1)
+                tdSql.query("select distinct tbname from {}.{}".format(dbname,stablename))
             status_OK = self.mycheckRows("select distinct tbname from {}.{}".format(dbname,stablename) ,tb_nums)
             tdLog.info(" ==== check insert tbnames first failed , this is {}_th retry check tbnames of database {}".format(count , dbname))
             count += 1
-
+            
     def _get_stop_dnode_id(self,dbname):
         tdSql.query("show {}.vgroups".format(dbname))
         vgroup_infos = tdSql.queryResult
