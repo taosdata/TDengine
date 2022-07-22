@@ -13,6 +13,7 @@
 
 import random
 import string
+from datetime import datetime
 from util import constant
 from util.log import *
 from util.cases import *
@@ -55,7 +56,7 @@ class TDTestCase:
             else:
                 tdLog.exit(f'{col_name} data check failure')
         elif col_type.lower() == 'timestamp':
-            tdSql.checkEqual(str(tdSql.queryResult[0][0]),str(datetime.datetime.fromtimestamp(value/1000).strftime("%Y-%m-%d %H:%M:%S.%f")))
+            tdSql.checkEqual(str(tdSql.queryResult[0][0]),str(datetime.fromtimestamp(value/1000).strftime("%Y-%m-%d %H:%M:%S.%f")))
         else:
             tdSql.checkEqual(tdSql.queryResult[0][0],value)
     def update_and_check_data(self,tbname,col_name,col_type,value,dbname):
@@ -242,8 +243,11 @@ class TDTestCase:
         self.error_check(self.ctbname,self.column_dict,'ctb',self.stbname)
 
     def run(self):
-        self.update_check()
-        self.update_check_error()
+        #!bug TD-17708 and TD-17709
+        # for i in range(10):
+            self.update_check()
+            self.update_check_error()
+            # i+=1
         
     def stop(self):
         tdSql.close()
