@@ -1,13 +1,10 @@
 # 500 seconds (at most)
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_concat.py --keep --containers
-
-# 400 seconds (at most)
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/split/stable_str_concat_2.py --keep --containers
-
-# 300 seconds (at most)
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/split/stable_query_union_1.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/split/stable_query_union_2.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/split/stable_query_union_3.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/split/stable_query_union_4.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/split/stable_query_1.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/split/stable_query_2.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/stable_query_null.py --keep --containers
@@ -79,9 +76,20 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeri
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_tail.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_unique.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_mode.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_sample.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_count.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_first.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_last.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_last_row.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_mode.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_tail.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_unique.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_sample.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_hyperloglog.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_count.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_first.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_last.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_last_row.py --keep --containers
 
 
 # 150 seconds (at most)
@@ -121,17 +129,6 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/t
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_abs.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_hyperloglog.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_func_error.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_sample.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_count.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_first.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_last.py --keep --containers
-#taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_last_row.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_sample.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_hyperloglog.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_count.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_first.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_last.py --keep --containers
-#taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_last_row.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_func_error.py --keep
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/split/stable_str_cast_1.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/split/stable_str_cast_2.py --keep --containers
