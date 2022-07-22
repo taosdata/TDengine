@@ -195,6 +195,8 @@ int32_t qStreamInput(qTaskInfo_t tinfo, void* pItem);
 
 int32_t qStreamPrepareRecover(qTaskInfo_t tinfo, int64_t startVer, int64_t endVer);
 
+STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key);
+
 #ifdef __cplusplus
 }
 #endif

@@ -131,7 +131,8 @@ int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numO
   return code;
 }
 
-qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols, SSchemaWrapper** pSchemaWrapper) {
+qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols,
+                                     SSchemaWrapper** pSchemaWrapper) {
   if (msg == NULL) {
     // TODO create raw scan
     return NULL;
@@ -157,7 +158,7 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* n
   SDataBlockDescNode* pDescNode = pPlan->pNode->pOutputDataBlockDesc;
   *numOfCols = 0;
 
-  SNode*  pNode;
+  SNode* pNode;
   FOREACH(pNode, pDescNode->pSlots) {
     SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
     if (pSlotDesc->output) {
@@ -605,6 +606,9 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
       if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
         SStreamScanInfo* pInfo = pOperator->info;
         if (pOffset->type == TMQ_OFFSET__LOG) {
+          STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
+          tsdbReaderClose(pTSInfo->dataReader);
+          pTSInfo->dataReader = NULL;
 #if 0
           if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.lastStatus) &&
               pInfo->tqReader->pWalReader->curVersion != pOffset->version) {
@@ -631,11 +635,20 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
               return -1;
             }
           }
+
           /*if (pTaskInfo->streamInfo.lastStatus.type != TMQ_OFFSET__SNAPSHOT_DATA ||*/
           /*pTaskInfo->streamInfo.lastStatus.uid != uid || pTaskInfo->streamInfo.lastStatus.ts != ts) {*/
           STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
           int32_t         tableSz = taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList);
-          bool            found = false;
+
+#ifndef NDEBUG
+
+          qDebug("switch to next table %ld (cursor %d), %ld rows returned", uid, pTableScanInfo->currentTable,
+                 pInfo->pTableScanOp->resultInfo.totalRows);
+          pInfo->pTableScanOp->resultInfo.totalRows = 0;
+#endif
+
+          bool found = false;
           for (int32_t i = 0; i < tableSz; i++) {
             STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, i);
             if (pTableInfo->uid == uid) {
@@ -647,6 +660,14 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
 
           // TODO after dropping table, table may be not found
           ASSERT(found);
+
+          if (pTableScanInfo->dataReader == NULL) {
+            if (tsdbReaderOpen(pTableScanInfo->readHandle.vnode, &pTableScanInfo->cond,
+                               pTaskInfo->tableqinfoList.pTableList, &pTableScanInfo->dataReader, NULL) < 0 ||
+                pTableScanInfo->dataReader == NULL) {
+              ASSERT(0);
+            }
+          }
 
           tsdbSetTableId(pTableScanInfo->dataReader, uid);
           int64_t oldSkey = pTableScanInfo->cond.twindows.skey;
@@ -671,6 +692,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
   }
   return 0;
 }
+
 
 #if 0
 int32_t qStreamPrepareTsdbScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts) {

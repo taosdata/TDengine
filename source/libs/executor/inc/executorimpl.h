@@ -546,9 +546,10 @@ typedef struct SProjectOperatorInfo {
   SOptrBasicInfo     binfo;
   SAggSupporter      aggSup;
   SNode*             pFilterNode;  // filter info, which is push down by optimizer
-  SSDataBlock*       existDataBlock;
   SArray*            pPseudoColInfo;
   SLimitInfo         limitInfo;
+  bool               mergeDataBlocks;
+  SSDataBlock*       pFinalRes;
 } SProjectOperatorInfo;
 
 typedef struct SIndefOperatorInfo {

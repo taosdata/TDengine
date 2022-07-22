@@ -815,20 +815,17 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
 
   if (pInterval->offset > 0) {
     start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision);
-    if (start > t) {
-      start = taosTimeAdd(start, -pInterval->interval, pInterval->intervalUnit, precision);
-    } else {
-      // try to move current window to the left-hande-side, due to the offset effect.
-      int64_t end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision) - 1;
 
-      int64_t newEnd = end;
-      while(newEnd >= t) {
-        end = newEnd;
-        newEnd = taosTimeAdd(newEnd, -pInterval->sliding, pInterval->slidingUnit, precision);
-      }
+    // try to move current window to the left-hande-side, due to the offset effect.
+    int64_t end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision) - 1;
 
-      start = taosTimeAdd(end, -pInterval->interval, pInterval->intervalUnit, precision) + 1;
+    int64_t newEnd = end;
+    while (newEnd >= t) {
+      end = newEnd;
+      newEnd = taosTimeAdd(newEnd, -pInterval->sliding, pInterval->slidingUnit, precision);
     }
+
+    start = taosTimeAdd(end, -pInterval->interval, pInterval->intervalUnit, precision) + 1;
   }
 
   return start;

@@ -29,8 +29,16 @@ extern "C" {
 typedef enum EDataOrderLevel {
   DATA_ORDER_LEVEL_NONE = 1,
   DATA_ORDER_LEVEL_IN_BLOCK,
-  DATA_ORDER_LEVEL_IN_GROUP
+  DATA_ORDER_LEVEL_IN_GROUP,
+  DATA_ORDER_LEVEL_GLOBAL
 } EDataOrderLevel;
+
+typedef enum EGroupAction {
+  GROUP_ACTION_NONE = 1,
+  GROUP_ACTION_SET,
+  GROUP_ACTION_KEEP,
+  GROUP_ACTION_CLEAR
+} EGroupAction;
 
 typedef struct SLogicNode {
   ENodeType          type;
@@ -44,6 +52,7 @@ typedef struct SLogicNode {
   SNode*             pSlimit;
   EDataOrderLevel    requireDataOrder;  // requirements for input data
   EDataOrderLevel    resultDataOrder;   // properties of the output data
+  EGroupAction       groupAction;
 } SLogicNode;
 
 typedef enum EScanType {
