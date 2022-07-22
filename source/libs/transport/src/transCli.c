@@ -187,7 +187,7 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
       pThrd = (SCliThrd*)(exh)->pThrd;                \
     }                                                 \
   } while (0)
-#define CONN_PERSIST_TIME(para)    (para * 20)
+#define CONN_PERSIST_TIME(para)    ((para) == 0 ? 3 * 1000 : 10 * (para))
 #define CONN_GET_HOST_THREAD(conn) (conn ? ((SCliConn*)conn)->hostThrd : NULL)
 #define CONN_GET_INST_LABEL(conn)  (((STrans*)(((SCliThrd*)(conn)->hostThrd)->pTransInst))->label)
 #define CONN_SHOULD_RELEASE(conn, head)                                                                           \
@@ -1078,7 +1078,8 @@ static void doCloseIdleConn(void* param) {
   STaskArg* arg = param;
   SCliConn* conn = arg->param1;
   SCliThrd* pThrd = arg->param2;
-
+  tTrace("%s conn %p idle, close it", CONN_GET_INST_LABEL(conn), conn);
+  conn->task = NULL;
   cliDestroyConn(conn, true);
   taosMemoryFree(arg);
 }
