@@ -25,18 +25,6 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
         
-    def waitSubscriptionExit(self, max_wait_count=20):
-        wait_cnt = 0
-        while (wait_cnt < max_wait_count):
-            tdSql.query("show subscriptions")
-            if tdSql.getRows() == 0:
-                break
-            else:
-                time.sleep(1)
-                wait_cnt += 1
-                
-        tdLog.info("wait subscriptions exit for %d s"%wait_cnt)
-    
     # drop some ntbs
     def tmqCase1(self):
         tdLog.printNoPrefix("======== test case 1: ")
@@ -115,7 +103,7 @@ class TDTestCase:
             tdLog.exit("tmq consume rows error with snapshot = 0!")
         
         tdLog.info("wait subscriptions exit ....")      
-        self.waitSubscriptionExit()
+        tmqCom.waitSubscriptionExit(tdSql)
             
         tdSql.query("drop topic %s"%topicFromDb)
         tdLog.info("success dorp topic: %s"%topicFromDb)
@@ -208,7 +196,7 @@ class TDTestCase:
             tdLog.exit("tmq consume rows error with snapshot = 0!")
         
         tdLog.info("wait subscriptions exit ....")      
-        self.waitSubscriptionExit()
+        tmqCom.waitSubscriptionExit(tdSql)
             
         tdSql.query("drop topic %s"%topicFromDb)
         tdLog.info("success dorp topic: %s"%topicFromDb)

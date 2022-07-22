@@ -110,7 +110,6 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
   // TODO
   ret = rpcMallocCont(cap);
   ret->header.vgId = vgId;
-  ret->version = htonl(1);
   ret->length = sizeof(SSubmitReq);
   ret->numOfBlocks = htonl(sz);
 

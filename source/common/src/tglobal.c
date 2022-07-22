@@ -183,7 +183,7 @@ bool tsStartUdfd = true;
 int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
 int32_t tsTtlUnit = 86400;
-int32_t tsTtlPushInterval = 60;
+int32_t tsTtlPushInterval = 86400;
 int32_t tsGrantHBInterval = 60;
 
 void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary) {
@@ -226,8 +226,17 @@ static int32_t taosSetTfsCfg(SConfig *pCfg) {
   }
 
   if (tsDataDir[0] == 0) {
-    uError("datadir not set");
-    return -1;
+    if (pItem->str != NULL) {
+      taosAddDataDir(0, pItem->str, 0, 1);
+      tstrncpy(tsDataDir, pItem->str, PATH_MAX);
+      if (taosMulMkDir(tsDataDir) != 0) {
+        uError("failed to create dataDir:%s since %s", tsDataDir, terrstr());
+        return -1;
+      }
+    } else {
+      uError("datadir not set");
+      return -1;
+    }
   }
 
   return 0;
@@ -466,7 +475,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "ttlUnit", tsTtlUnit, 1, 86400 * 365, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "ttlPushInterval", tsTtlPushInterval, 1, 10000, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "ttlPushInterval", tsTtlPushInterval, 1, 100000, 1) != 0) return -1;
 
   if (cfgAddBool(pCfg, "udf", tsStartUdfd, 0) != 0) return -1;
   return 0;
