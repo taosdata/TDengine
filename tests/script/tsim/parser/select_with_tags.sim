@@ -62,9 +62,6 @@ while $i < $tbNum
 
 endw
 
-sleep 100
-
-
 #======================= only check first table tag, TD-4827
 sql select count(*) from $mt where t1 in (0)  
 if $rows != 1 then 
@@ -178,15 +175,15 @@ if $data03 != @abc15@ then
 endi
 
 sql select top(c6, 3) from select_tags_mt0 interval(10a)
-sql select top(c3,10) from select_tags_mt0 interval(10a) group by tbname,t1,t2
-sql select top(c6, 3) from select_tags_mt0 interval(10a) group by tbname;
+sql select top(c3,10) from select_tags_mt0 partition by tbname,t1,t2 interval(10a)
+sql select top(c6, 3) from select_tags_mt0 partition by tbname interval(10a)
 
 sql select top(c6, 10) from select_tags_mt0 interval(10a);
 if $rows != 12800 then
   return -1
 endi
 
-sql select top(c1, 80), tbname, t1, t2 from select_tags_mt0;
+sql select _rowts, top(c1, 80), tbname, t1, t2 from select_tags_mt0;
 if $rows != 80 then
    return -1
 endi

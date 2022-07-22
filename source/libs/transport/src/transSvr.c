@@ -434,7 +434,7 @@ static void uvStartSendRespInternal(SSvrMsg* smsg) {
   uvPrepareSendData(smsg, &wb);
 
   transRefSrvHandle(pConn);
-  uv_write_t* req = transReqQueuePushReq(&pConn->wreqQueue);
+  uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
   uv_write(req, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
 }
 static void uvStartSendResp(SSvrMsg* smsg) {
@@ -697,7 +697,7 @@ static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
   // conn set
   QUEUE_INIT(&pThrd->conn);
 
-  pThrd->asyncPool = transCreateAsyncPool(pThrd->loop, 1, pThrd, uvWorkerAsyncCb);
+  pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 1, pThrd, uvWorkerAsyncCb);
   uv_pipe_connect(&pThrd->connect_req, pThrd->pipe, pipeName, uvOnPipeConnectionCb);
   // uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
   return true;
@@ -976,7 +976,7 @@ void destroyWorkThrd(SWorkThrd* pThrd) {
   taosThreadJoin(pThrd->thread, NULL);
   SRV_RELEASE_UV(pThrd->loop);
   TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SSvrMsg, destroySmsg);
-  transDestroyAsyncPool(pThrd->asyncPool);
+  transAsyncPoolDestroy(pThrd->asyncPool);
   taosMemoryFree(pThrd->loop);
   taosMemoryFree(pThrd);
 }
@@ -1034,7 +1034,7 @@ void transUnrefSrvHandle(void* handle) {
   }
 }
 
-void transReleaseSrvHandle(void* handle) {
+int transReleaseSrvHandle(void* handle) {
   SRpcHandleInfo* info = handle;
   SExHandle*      exh = info->handle;
   int64_t         refId = info->refId;
@@ -1053,16 +1053,16 @@ void transReleaseSrvHandle(void* handle) {
   tTrace("%s conn %p start to release", transLabel(pThrd->pTransInst), exh->handle);
   transAsyncSend(pThrd->asyncPool, &m->q);
   transReleaseExHandle(transGetRefMgt(), refId);
-  return;
+  return 0;
 _return1:
   tTrace("handle %p failed to send to release handle", exh);
   transReleaseExHandle(transGetRefMgt(), refId);
-  return;
+  return -1;
 _return2:
   tTrace("handle %p failed to send to release handle", exh);
-  return;
+  return -1;
 }
-void transSendResponse(const STransMsg* msg) {
+int transSendResponse(const STransMsg* msg) {
   SExHandle* exh = msg->info.handle;
   int64_t    refId = msg->info.refId;
   ASYNC_CHECK_HANDLE(exh, refId);
@@ -1082,18 +1082,18 @@ void transSendResponse(const STransMsg* msg) {
   tGTrace("conn %p start to send resp (1/2)", exh->handle);
   transAsyncSend(pThrd->asyncPool, &m->q);
   transReleaseExHandle(transGetRefMgt(), refId);
-  return;
+  return 0;
 _return1:
   tTrace("handle %p failed to send resp", exh);
   rpcFreeCont(msg->pCont);
   transReleaseExHandle(transGetRefMgt(), refId);
-  return;
+  return -1;
 _return2:
   tTrace("handle %p failed to send resp", exh);
   rpcFreeCont(msg->pCont);
-  return;
+  return -1;
 }
-void transRegisterMsg(const STransMsg* msg) {
+int transRegisterMsg(const STransMsg* msg) {
   SExHandle* exh = msg->info.handle;
   int64_t    refId = msg->info.refId;
   ASYNC_CHECK_HANDLE(exh, refId);
@@ -1112,16 +1112,17 @@ void transRegisterMsg(const STransMsg* msg) {
   tTrace("%s conn %p start to register brokenlink callback", transLabel(pTransInst), exh->handle);
   transAsyncSend(pThrd->asyncPool, &m->q);
   transReleaseExHandle(transGetRefMgt(), refId);
-  return;
+  return 0;
 
 _return1:
   tTrace("handle %p failed to register brokenlink", exh);
   rpcFreeCont(msg->pCont);
   transReleaseExHandle(transGetRefMgt(), refId);
-  return;
+  return -1;
 _return2:
   tTrace("handle %p failed to register brokenlink", exh);
   rpcFreeCont(msg->pCont);
+  return -1;
 }
 
 int transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }

@@ -78,6 +78,8 @@ endi
 #### case 1: tag NULL, or 'NULL'
 sql create table mt2 (ts timestamp, col1 int, col3 float, col5 binary(8), col6 bool, col9 nchar(8)) tags (tag1 binary(8), tag2 nchar(8), tag3 int, tag5 bool)
 sql create table st2 using mt2 tags (NULL, 'NULL', 102, 'true')
+sql insert into st2 (ts, col1) values(now, 1)
+
 sql select tag1, tag2, tag3, tag5 from st2
 if $rows != 1 then
   return -1
@@ -115,6 +117,7 @@ if $rows != 0 then
 endi
 
 sql create table st3 using mt2 tags (NULL, 'ABC', 103, 'FALSE')
+sql insert into st3 (ts, col1) values(now, 1)
 sql select tag1, tag2, tag3, tag5 from st3
 if $rows != 1 then
   return -1
@@ -134,9 +137,10 @@ if $data03 != 0 then
 endi
 
 ### bool:
-sql_error create table stx using mt2 tags ('NULL', '123aBc', 104, '123')
-sql_error create table sty using mt2 tags ('NULL', '123aBc', 104, 'xtz')
+sql create table stx using mt2 tags ('NULL', '123aBc', 104, '123')
+sql create table sty using mt2 tags ('NULL', '123aBc', 104, 'xtz')
 sql create table st4 using mt2 tags ('NULL', '123aBc', 104, 'NULL')
+sql insert into st4 (ts, col1) values(now, 1)
 sql select tag1,tag2,tag3,tag5 from st4
 if $rows != 1 then
   return -1
@@ -150,12 +154,13 @@ endi
 if $data02 != 104 then
   return -1
 endi
-if $data03 != NULL then
+if $data03 != 0 then
   print ==6== expect: NULL, actually: $data03
   return -1
 endi
 
 sql create table st5 using mt2 tags ('NULL', '123aBc', 105, NULL)
+sql insert into st5 (ts, col1) values(now, 1)
 sql select tag1,tag2,tag3,tag5 from st5
 if $rows != 1 then
   return -1
@@ -173,8 +178,6 @@ if $data03 != NULL then
   return -1
 endi
 
-
-
 #### case 2: dynamic create table using super table when insert into
 sql create table mt3 (ts timestamp, col1 int, col3 float, col5 binary(8), col6 bool, col9 nchar(8)) tags (tag1 binary(8), tag2 nchar(8), tag3 int, tag5 bool)
 sql_error insert into st31 using mt3 tags (NULL, 'NULL', 102, 'true')     values (now+1s, 31, 31, 'bin_31', '123', 'nchar_31')
@@ -182,10 +185,10 @@ sql_error insert into st32 using mt3 tags (NULL, 'ABC', 103, 'FALSE')     values
 sql_error insert into st33 using mt3 tags ('NULL', '123aBc', 104, 'NULL') values (now+3s, 33, 33, 'bin_33', 'false123', 'nchar_33')
 sql_error insert into st34 using mt3 tags ('NULL', '123aBc', 105, NULL)   values (now+4s, 34, 34.12345, 'bin_34', 'true123', 'nchar_34')
 
-
 #### case 3: set tag value
 sql create table mt4 (ts timestamp, c1 int) tags (tag_binary binary(16), tag_nchar nchar(16), tag_int int, tag_bool bool, tag_float float, tag_double double)
 sql create table st41 using mt4 tags ("beijing", 'nchar_tag', 100, false, 9.12345, 7.123456789)
+sql insert into st41 (ts, c1) values(now, 1)
 sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from st41
 if $rows != 1 then
   return -1
@@ -245,7 +248,7 @@ endi
 ################### nchar
 sql alter table st41 set tag tag_nchar = "��˼����"
 sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
-#sleep 100
+
 #if $data01 != ��˼���� then
 #  print ==== expect ��˼����, actually $data01
 #  return -1

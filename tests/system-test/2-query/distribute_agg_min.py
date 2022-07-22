@@ -209,7 +209,7 @@ class TDTestCase:
         tdSql.checkData(0,0,0.00000)
 
         # group by
-        tdSql.execute("use testdb ")
+        tdSql.execute(f"use {dbname} ")
         tdSql.query(f"select min(c1),c1  from {dbname}.stb1 group by t1 ")
         tdSql.checkRows(20)
         tdSql.query(f"select min(c1),c1  from {dbname}.stb1 group by c1 ")

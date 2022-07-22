@@ -13,6 +13,7 @@
 
 import random
 import string
+from datetime import datetime
 from util import constant
 from util.log import *
 from util.cases import *
@@ -55,7 +56,7 @@ class TDTestCase:
             else:
                 tdLog.exit(f'{col_name} data check failure')
         elif col_type.lower() == 'timestamp':
-            tdSql.checkEqual(str(tdSql.queryResult[0][0]),str(datetime.datetime.fromtimestamp(value/1000).strftime("%Y-%m-%d %H:%M:%S.%f")))
+            tdSql.checkEqual(str(tdSql.queryResult[0][0]),str(datetime.fromtimestamp(value/1000).strftime("%Y-%m-%d %H:%M:%S.%f")))
         else:
             tdSql.checkEqual(tdSql.queryResult[0][0],value)
     def update_and_check_data(self,tbname,col_name,col_type,value,dbname):
@@ -81,39 +82,63 @@ class TDTestCase:
             if col_type.lower() == 'double':
                 for error_value in [tdCom.getLongName(self.str_length),True,False,1.1*constant.DOUBLE_MIN,1.1*constant.DOUBLE_MAX]:
                     tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')
+                    if tb_type == 'ctb':
+                        tdSql.error(f'insert into {stbname} values({self.ts},{error_value})')
             elif col_type.lower() == 'float':
                 for error_value in [tdCom.getLongName(self.str_length),True,False,1.1*constant.FLOAT_MIN,1.1*constant.FLOAT_MAX]:
                     tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')
+                    if tb_type == 'ctb':
+                        tdSql.error(f'insert into {stbname} values({self.ts},{error_value})')
             elif 'binary' in col_type.lower() or 'nchar' in col_type.lower():
                 for error_value in [tdCom.getLongName(str_length)]:
                     tdSql.error(f'insert into {tbname} values({self.ts},"{error_value}")')
+                    if tb_type == 'ctb':
+                        tdSql.error(f'insert into {stbname} values({self.ts},{error_value})')
             elif col_type.lower() == 'bool':
                 for error_value in [tdCom.getLongName(self.str_length)]:
                     tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')
+                    if tb_type == 'ctb':
+                        tdSql.error(f'insert into {stbname} values({self.ts},{error_value})')
             elif col_type.lower() == 'tinyint':
                 for error_value in [constant.TINYINT_MIN-1,constant.TINYINT_MAX+1,random.uniform(constant.FLOAT_MIN,constant.FLOAT_MAX),tdCom.getLongName(self.str_length),True,False]:
                     tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')
+                    if tb_type == 'ctb':
+                        tdSql.error(f'insert into {stbname} values({self.ts},{error_value})')
             elif col_type.lower() == 'smallint':
                 for error_value in [constant.SMALLINT_MIN-1,constant.SMALLINT_MAX+1,random.uniform(constant.FLOAT_MIN,constant.FLOAT_MAX),tdCom.getLongName(self.str_length),True,False]:
                     tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')
+                    if tb_type == 'ctb':
+                        tdSql.error(f'insert into {stbname} values({self.ts},{error_value})')
             elif col_type.lower() == 'int':
                 for error_value in [constant.INT_MIN-1,constant.INT_MAX+1,random.uniform(constant.FLOAT_MIN,constant.FLOAT_MAX),tdCom.getLongName(self.str_length),True,False]:
                     tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')
+                    if tb_type == 'ctb':
+                        tdSql.error(f'insert into {stbname} values({self.ts},{error_value})')
             elif col_type.lower() == 'bigint':
                 for error_value in [constant.BIGINT_MIN-1,constant.BIGINT_MAX+1,random.uniform(constant.FLOAT_MIN,constant.FLOAT_MAX),tdCom.getLongName(self.str_length),True,False]:
                     tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')
+                    if tb_type == 'ctb':
+                        tdSql.error(f'insert into {stbname} values({self.ts},{error_value})')
             elif col_type.lower() == 'tinyint unsigned':
                 for error_value in [constant.TINYINT_UN_MIN-1,constant.TINYINT_UN_MAX+1,random.uniform(constant.FLOAT_MIN,constant.FLOAT_MAX),tdCom.getLongName(self.str_length),True,False]:
-                    tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')     
+                    tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')   
+                    if tb_type == 'ctb':
+                        tdSql.error(f'insert into {stbname} values({self.ts},{error_value})')  
             elif col_type.lower() == 'smallint unsigned':
                 for error_value in [constant.SMALLINT_UN_MIN-1,constant.SMALLINT_UN_MAX+1,random.uniform(constant.FLOAT_MIN,constant.FLOAT_MAX),tdCom.getLongName(self.str_length),True,False]:
                     tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')
+                    if tb_type == 'ctb':
+                        tdSql.error(f'insert into {stbname} values({self.ts},{error_value})')
             elif col_type.lower() == 'int unsigned':
                 for error_value in [constant.INT_UN_MIN-1,constant.INT_UN_MAX+1,random.uniform(constant.FLOAT_MIN,constant.FLOAT_MAX),tdCom.getLongName(self.str_length),True,False]:
                     tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')
+                    if tb_type == 'ctb':
+                        tdSql.error(f'insert into {stbname} values({self.ts},{error_value})')
             elif col_type.lower() == 'bigint unsigned':
                 for error_value in [constant.BIGINT_UN_MIN-1,constant.BIGINT_UN_MAX+1,random.uniform(constant.FLOAT_MIN,constant.FLOAT_MAX),tdCom.getLongName(self.str_length),True,False]:
-                    tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')           
+                    tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')    
+                    if tb_type == 'ctb':
+                        tdSql.error(f'insert into {stbname} values({self.ts},{error_value})')       
             tdSql.execute(f'drop table {tbname}')
             if tb_type == 'ctb':
                 tdSql.execute(f'drop table {stbname}')
@@ -218,8 +243,11 @@ class TDTestCase:
         self.error_check(self.ctbname,self.column_dict,'ctb',self.stbname)
 
     def run(self):
-        self.update_check()
-        self.update_check_error()
+        #!bug TD-17708 and TD-17709
+        # for i in range(10):
+            self.update_check()
+            self.update_check_error()
+            # i+=1
         
     def stop(self):
         tdSql.close()
