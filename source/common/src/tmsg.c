@@ -5623,6 +5623,33 @@ int32_t tDecodeSTqOffset(SDecoder *pDecoder, STqOffset *pOffset) {
   return 0;
 }
 
+int32_t tEncodeSCheckAlterInfo(SEncoder *pEncoder, const SCheckAlterInfo *pInfo) {
+  if (tEncodeCStr(pEncoder, pInfo->topic) < 0) return -1;
+  if (tEncodeI64(pEncoder, pInfo->ntbUid) < 0) return -1;
+  int32_t sz = taosArrayGetSize(pInfo->colIdList);
+  if (tEncodeI32(pEncoder, sz) < 0) return -1;
+  for (int32_t i = 0; i < sz; i++) {
+    int16_t colId = *(int16_t *)taosArrayGet(pInfo->colIdList, i);
+    if (tEncodeI16(pEncoder, colId) < 0) return -1;
+  }
+  return pEncoder->pos;
+}
+
+int32_t tDecodeSCheckAlterInfo(SDecoder *pDecoder, SCheckAlterInfo *pInfo) {
+  if (tDecodeCStrTo(pDecoder, pInfo->topic) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pInfo->ntbUid) < 0) return -1;
+  int32_t sz;
+  if (tDecodeI32(pDecoder, &sz) < 0) return -1;
+  pInfo->colIdList = taosArrayInit(sz, sizeof(int16_t));
+  if (pInfo->colIdList == NULL) return -1;
+  for (int32_t i = 0; i < sz; i++) {
+    int16_t colId;
+    if (tDecodeI16(pDecoder, &colId) < 0) return -1;
+    taosArrayPush(pInfo->colIdList, &colId);
+  }
+  return 0;
+}
+
 int32_t tEncodeDeleteRes(SEncoder *pCoder, const SDeleteRes *pRes) {
   int32_t nUid = taosArrayGetSize(pRes->uidList);
 

@@ -201,10 +201,12 @@ int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataR
       if (pRsp->withTbName) {
         int64_t uid = pExec->pExecReader->msgIter.uid;
         if (tqAddTbNameToRsp(pTq, uid, pRsp) < 0) {
+          blockDataFreeRes(&block);
           continue;
         }
       }
       tqAddBlockDataToRsp(&block, pRsp, taosArrayGetSize(block.pDataBlock));
+      blockDataFreeRes(&block);
       tqAddBlockSchemaToRsp(pExec, pRsp);
       pRsp->blockNum++;
     }
@@ -220,10 +222,12 @@ int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataR
       if (pRsp->withTbName) {
         int64_t uid = pExec->pExecReader->msgIter.uid;
         if (tqAddTbNameToRsp(pTq, uid, pRsp) < 0) {
+          blockDataFreeRes(&block);
           continue;
         }
       }
       tqAddBlockDataToRsp(&block, pRsp, taosArrayGetSize(block.pDataBlock));
+      blockDataFreeRes(&block);
       tqAddBlockSchemaToRsp(pExec, pRsp);
       pRsp->blockNum++;
     }
