@@ -1241,10 +1241,14 @@ int transReleaseCliHandle(void* handle) {
     return -1;
   }
   STransMsg tmsg = {.info.handle = handle};
-  SCliMsg*  cmsg = taosMemoryCalloc(1, sizeof(SCliMsg));
+  TRACE_SET_MSGID(&tmsg.info.traceId, tGenIdPI64());
+
+  SCliMsg* cmsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cmsg->msg = tmsg;
   cmsg->type = Release;
 
+  STraceId* trace = &tmsg.info.traceId;
+  tGDebug("send release request at thread:%08" PRId64 ", dst:%s:%d, app:%p", pThrd->pid);
   if (0 != transAsyncSend(pThrd->asyncPool, &cmsg->q)) {
     return -1;
   }
