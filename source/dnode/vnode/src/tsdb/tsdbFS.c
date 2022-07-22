@@ -541,7 +541,7 @@ int32_t tsdbFSClose(STsdb *pTsdb) {
     taosMemoryFree(pSet->pSmaF);
   }
 
-  taosArrayClear(pTsdb->fs.aDFileSet);
+  taosArrayDestroy(pTsdb->fs.aDFileSet);
 
   return code;
 }
