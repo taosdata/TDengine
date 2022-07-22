@@ -204,7 +204,7 @@ python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
-#python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
+python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
 #python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
 python3 ./test.py -f 7-tmq/tmqUpdate-1ctb.py
 python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot0.py
