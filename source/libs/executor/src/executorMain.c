@@ -341,11 +341,20 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
               return -1;
             }
           }
+
           /*if (pTaskInfo->streamInfo.lastStatus.type != TMQ_OFFSET__SNAPSHOT_DATA ||*/
           /*pTaskInfo->streamInfo.lastStatus.uid != uid || pTaskInfo->streamInfo.lastStatus.ts != ts) {*/
           STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
           int32_t         tableSz = taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList);
-          bool            found = false;
+
+#ifndef NDEBUG
+
+          qDebug("switch to next table %ld (cursor %d), %ld rows returned", uid,
+                 pTableScanInfo->currentTable, pInfo->pTableScanOp->resultInfo.totalRows);
+          pInfo->pTableScanOp->resultInfo.totalRows = 0;
+#endif
+
+          bool found = false;
           for (int32_t i = 0; i < tableSz; i++) {
             STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, i);
             if (pTableInfo->uid == uid) {
