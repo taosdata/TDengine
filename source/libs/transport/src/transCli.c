@@ -1248,7 +1248,7 @@ int transReleaseCliHandle(void* handle) {
   cmsg->type = Release;
 
   STraceId* trace = &tmsg.info.traceId;
-  tGDebug("send release request at thread:%08" PRId64 ", dst:%s:%d, app:%p", pThrd->pid);
+  tGDebug("send release request at thread:%08" PRId64 "", pThrd->pid);
   if (0 != transAsyncSend(pThrd->asyncPool, &cmsg->q)) {
     return -1;
   }
