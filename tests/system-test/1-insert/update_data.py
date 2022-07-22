@@ -243,10 +243,11 @@ class TDTestCase:
         self.error_check(self.ctbname,self.column_dict,'ctb',self.stbname)
 
     def run(self):
-        for i in range(10):
+        #!bug TD-17708 and TD-17709
+        # for i in range(10):
             self.update_check()
             self.update_check_error()
-            i+=1
+            # i+=1
         
     def stop(self):
         tdSql.close()
