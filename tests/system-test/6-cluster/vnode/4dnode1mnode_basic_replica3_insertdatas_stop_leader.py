@@ -33,7 +33,7 @@ class TDTestCase:
         self.tb_nums = 10 
         self.row_nums = 100
         self.stop_dnode_id = None
-        self.loop_restart_times = 50
+        self.loop_restart_times = 10
         self.current_thread = None
         self.max_restart_time = 5
 
@@ -459,12 +459,29 @@ class TDTestCase:
             tdDnodes=cluster.dnodes
             self.stop_dnode_id = self._get_stop_dnode_id(dbname)
             # begin restart dnode
-            
-            # get leader info before stop 
-            before_leader_infos = self.get_leader_infos(db_name)
 
             tdDnodes[self.stop_dnode_id-1].stoptaosd()
 
+            tbname = "sub_{}_{}".format(stablename , 0)
+            tdLog.info(" ==== begin  append rows of exists table {} when dnode {} offline ====".format(tbname , self.stop_dnode_id))
+            self.append_rows_of_exists_tables(db_name ,stablename , tbname , 100 )
+            tdLog.info(" ==== check  append rows of exists table {} when dnode {} offline ====".format(tbname , self.stop_dnode_id))
+            self.check_insert_rows(db_name ,stablename ,tb_nums=10 , row_nums= 10 ,append_rows=100)
+
+            # create new stables
+            tdLog.info(" ==== create new stable {} when  dnode {} offline ====".format('new_stb1' , self.stop_dnode_id))
+            self.create_stable_insert_datas(dbname = db_name , stablename = 'new_stb1' , tb_nums= 10 ,row_nums= 10 )
+            tdLog.info(" ==== check new stable {} when  dnode {} offline ====".format('new_stb1' , self.stop_dnode_id))
+            self.check_insert_rows(db_name ,'new_stb1' ,tb_nums=10 , row_nums= 10 ,append_rows=0)
+
+            # create new stables again 
+            tdLog.info(" ==== create new stable {} when  dnode {} restart ====".format('new_stb2' , self.stop_dnode_id))
+            self.create_stable_insert_datas(dbname = db_name , stablename = 'new_stb2' , tb_nums= 10 ,row_nums= 10 )
+            tdLog.info(" ==== check new stable {} when  dnode {} restart ====".format('new_stb2' , self.stop_dnode_id))
+            self.check_insert_rows(db_name ,'new_stb2' ,tb_nums=10 , row_nums= 10 ,append_rows=0)
+
+            # # get leader info before stop 
+            # before_leader_infos = self.get_leader_infos(db_name)
             # self.wait_stop_dnode_OK()
 
             # check revote leader when restart servers
@@ -508,23 +525,6 @@ class TDTestCase:
             # check rows of datas
             self.check_insert_rows(db_name ,stablename ,tb_nums=10 , row_nums= 10 ,append_rows=0)
 
-            tbname = "sub_{}_{}".format(stablename , 0)
-            tdLog.info(" ==== begin  append rows of exists table {} when dnode {} offline ====".format(tbname , self.stop_dnode_id))
-            self.append_rows_of_exists_tables(db_name ,stablename , tbname , 100 )
-            tdLog.info(" ==== check  append rows of exists table {} when dnode {} offline ====".format(tbname , self.stop_dnode_id))
-            self.check_insert_rows(db_name ,stablename ,tb_nums=10 , row_nums= 10 ,append_rows=100)
-
-            # create new stables
-            tdLog.info(" ==== create new stable {} when  dnode {} offline ====".format('new_stb1' , self.stop_dnode_id))
-            self.create_stable_insert_datas(dbname = db_name , stablename = 'new_stb1' , tb_nums= 10 ,row_nums= 10 )
-            tdLog.info(" ==== check new stable {} when  dnode {} offline ====".format('new_stb1' , self.stop_dnode_id))
-            self.check_insert_rows(db_name ,'new_stb1' ,tb_nums=10 , row_nums= 10 ,append_rows=0)
-
-            # create new stables again 
-            tdLog.info(" ==== create new stable {} when  dnode {} restart ====".format('new_stb2' , self.stop_dnode_id))
-            self.create_stable_insert_datas(dbname = db_name , stablename = 'new_stb2' , tb_nums= 10 ,row_nums= 10 )
-            tdLog.info(" ==== check new stable {} when  dnode {} restart ====".format('new_stb2' , self.stop_dnode_id))
-            self.check_insert_rows(db_name ,'new_stb2' ,tb_nums=10 , row_nums= 10 ,append_rows=0)
 
             self.current_thread.join()
 
@@ -534,11 +534,8 @@ class TDTestCase:
         # basic insert and check of cluster
         self.check_setup_cluster_status()
         self.create_db_check_vgroups()
-        # self.sync_run_case()
-        self.unsync_run_case()
-
-        
-
+        self.sync_run_case()
+        # self.unsync_run_case()
 
     def stop(self):
         tdSql.close()
