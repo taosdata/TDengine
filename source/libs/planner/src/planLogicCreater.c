@@ -478,8 +478,9 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   }
 
   pAgg->hasLastRow = pSelect->hasLastRowFunc;
+  pAgg->hasTimeLineFunc = pSelect->hasTimeLineFunc;
   pAgg->node.groupAction = GROUP_ACTION_SET;
-  pAgg->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  pAgg->node.requireDataOrder = pAgg->hasTimeLineFunc ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_NONE;
   pAgg->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -928,7 +929,7 @@ static int32_t createDistinctLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
   int32_t code = TSDB_CODE_SUCCESS;
   // set grouyp keys, agg funcs and having conditions
   SNodeList* pGroupKeys = NULL;
-  SNode* pProjection = NULL;
+  SNode*     pProjection = NULL;
   FOREACH(pProjection, pSelect->pProjectionList) {
     code = nodesListMakeStrictAppend(&pGroupKeys, createGroupingSetNode(pProjection));
     if (TSDB_CODE_SUCCESS != code) {
