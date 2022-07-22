@@ -740,7 +740,7 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
 static void destroyBlockDistScanOperatorInfo(void* param, int32_t numOfOutput) {
   SBlockDistInfo* pDistInfo = (SBlockDistInfo*)param;
   blockDataDestroy(pDistInfo->pResBlock);
-
+  tsdbReaderClose(pDistInfo->pHandle);
   taosMemoryFreeClear(param);
 }
 
@@ -2051,8 +2051,8 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
         uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
         int32_t  code = metaGetTableEntryByUid(&mr, suid);
         if (code != TSDB_CODE_SUCCESS) {
-          qError("failed to get super table meta, cname:%s, suid:0x%" PRIx64 ", code:%s, %s", 
-                 pInfo->pCur->mr.me.name, suid, tstrerror(terrno), GET_TASKID(pTaskInfo));
+          qError("failed to get super table meta, cname:%s, suid:0x%" PRIx64 ", code:%s, %s", pInfo->pCur->mr.me.name,
+                 suid, tstrerror(terrno), GET_TASKID(pTaskInfo));
           metaReaderClear(&mr);
           metaCloseTbCursor(pInfo->pCur);
           pInfo->pCur = NULL;
@@ -2158,7 +2158,6 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
   }
 }
 
-
 static SSDataBlock* sysTableScanUserSTables(SOperatorInfo* pOperator) {
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SSysTableScanInfo* pInfo = pOperator->info;
@@ -2184,12 +2183,13 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
     getDBNameFromCondition(pInfo->pCondition, dbName);
     sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
   }
-  
+
   if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, TSDB_TABLE_FNAME_LEN) == 0) {
     return sysTableScanUserTables(pOperator);
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TAGS, TSDB_TABLE_FNAME_LEN) == 0) {
     return sysTableScanUserTags(pOperator);
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_STABLES, TSDB_TABLE_FNAME_LEN) == 0 && IS_SYS_DBNAME(pInfo->req.db)) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_STABLES, TSDB_TABLE_FNAME_LEN) == 0 &&
+             IS_SYS_DBNAME(pInfo->req.db)) {
     return sysTableScanUserSTables(pOperator);
   } else {  // load the meta from mnode of the given epset
     if (pOperator->status == OP_EXEC_DONE) {
