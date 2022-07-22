@@ -38,9 +38,15 @@ TEST_F(PlanIntervalTest, fill) {
   run("SELECT COUNT(*) FROM t1 WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
       "INTERVAL(10s) FILL(LINEAR)");
 
+  run("SELECT COUNT(*) FROM st1 WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
+      "INTERVAL(10s) FILL(LINEAR)");
+
   run("SELECT COUNT(*), SUM(c1) FROM t1 "
       "WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
       "INTERVAL(10s) FILL(VALUE, 10, 20)");
+
+  run("SELECT COUNT(*) FROM st1 WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
+      "PARTITION BY TBNAME interval(10s) fill(prev)");
 }
 
 TEST_F(PlanIntervalTest, selectFunc) {
