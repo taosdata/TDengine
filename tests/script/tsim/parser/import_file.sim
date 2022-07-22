@@ -7,7 +7,7 @@ sql drop database if exists indb
 sql create database if not exists indb
 sql use indb
 
-$inFileName = '~/data.csv'
+$inFileName = '/tmp/data.csv'
 $numOfRows = 10000
 system tsim/parser/gendata.sh
 
@@ -16,8 +16,8 @@ sql create table stbx (ts TIMESTAMP, collect_area NCHAR(12), device_id BINARY(16
 sql create table tbx (ts TIMESTAMP, collect_area NCHAR(12), device_id BINARY(16), imsi BINARY(16),  imei BINARY(16),  mdn BINARY(10), net_type BINARY(4), mno NCHAR(4), province NCHAR(10), city NCHAR(16), alarm BINARY(2))
 print ====== create tables success, starting insert data
 
-sql insert into tbx file '~/data.sql'
-sql import into tbx file '~/data.sql'
+sql insert into tbx file '/tmp/data.sql'
+sql import into tbx file '/tmp/data.sql'
 
 sql select count(*) from tbx
 if $rows != 1 then
@@ -31,8 +31,8 @@ endi
 
 sql drop table tbx;
 
-sql insert into tbx using stbx tags(1,'abc') file '~/data.sql';
-sql insert into tbx using stbx tags(1,'abc') file '~/data.sql';
+sql insert into tbx using stbx tags(1,'abc') file '/tmp/data.sql';
+sql insert into tbx using stbx tags(1,'abc') file '/tmp/data.sql';
 
 sql select count(*) from tbx
 if $rows != 1 then
@@ -44,7 +44,7 @@ if $data00 != 3 then
 endi
 
 sql drop table tbx;
-sql insert into tbx using stbx(b) tags('abcf') file '~/data.sql';
+sql insert into tbx using stbx(b) tags('abcf') file '/tmp/data.sql';
 
 sql select ts,a,b from tbx;
 if $rows != 3 then
@@ -64,6 +64,6 @@ if $data02 != @abcf@ then
   return -1
 endi
 
-system rm -f ~/data.sql
+system rm -f /tmp/data.sql
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

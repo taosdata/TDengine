@@ -438,12 +438,15 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUi
 }
 
 int metaTtlDropTable(SMeta *pMeta, int64_t ttl, SArray *tbUids) {
-  metaWLock(pMeta);
   int ret = metaTtlSmaller(pMeta, ttl, tbUids);
   if (ret != 0) {
-    metaULock(pMeta);
     return ret;
   }
+  if (taosArrayGetSize(tbUids) == 0){
+    return 0;
+  }
+
+  metaWLock(pMeta);
   for (int i = 0; i < taosArrayGetSize(tbUids); ++i) {
     tb_uid_t *uid = (tb_uid_t *)taosArrayGet(tbUids, i);
     metaDropTableByUid(pMeta, *uid, NULL);

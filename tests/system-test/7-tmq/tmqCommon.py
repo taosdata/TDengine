@@ -535,6 +535,18 @@ class TMQCom:
                 column_value_str = column_value_str.rstrip()[:-1]
                 insert_sql = f'insert into {dbname}.{tbname_prefix}{tblIdx+tbname_index_start_num} values ({column_value_str});'
                 tsql.execute(insert_sql)
+        
+    def waitSubscriptionExit(self, tsql, max_wait_count=20):
+        wait_cnt = 0
+        while (wait_cnt < max_wait_count):
+            tsql.query("show subscriptions")
+            if tsql.getRows() == 0:
+                break
+            else:
+                time.sleep(2)
+                wait_cnt += 1
+                
+        tdLog.info("wait subscriptions exit for %d s"%wait_cnt)
 
     def close(self):
         self.cursor.close()
