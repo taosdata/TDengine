@@ -186,7 +186,7 @@ class TDTestCase:
         tdLog.info("check dnode number:")
         clusterComCheck.checkDnodes(dnodeNumbers)
         tdSql.query("show databases")
-        tdLog.debug("we find %d databases but exepect to create %d  databases "%(tdSql.queryRows-2,allDbNumbers-2))
+        tdLog.debug("we find %d databases but exepect to create %d  databases "%(tdSql.queryRows-2,allDbNumbers))
 
         # tdLog.info("check DB Rows:")
         # clusterComCheck.checkDbRows(allDbNumbers)
