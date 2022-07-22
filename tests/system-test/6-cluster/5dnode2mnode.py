@@ -127,7 +127,7 @@ class TDTestCase:
             tdLog.notice(" The election  still  succeeds  when leader of both mnodes are killed ")
         except Exception:
             pass
-        tdSql.error("create user user1 pass '123';")
+        # tdSql.error("create user user1 pass '123';")
         tdLog.info("start leader")
         tdDnodes[0].starttaosd()
         if clusterComCheck.checkMnodeStatus(2) :
