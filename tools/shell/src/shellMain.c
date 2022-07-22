@@ -19,8 +19,10 @@
 SShellObj shell = {0};
 
 int main(int argc, char *argv[]) {
+#ifdef WEBSOCKET
   shell.args.timeout = 10;
   shell.args.cloud = true;
+#endif
 
   if (shellCheckIntSize() != 0) {
     return -1;
