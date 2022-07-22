@@ -173,8 +173,8 @@ class TestPerf(TDCase):
         self.replace_keys.insert(0, f"STABLENAME=stb")
         self.replace_keys.insert(0, f"DROPENABLE=yes")
         for node in taosd_nodes:
-            if not node["fqdn"] is None:
-                taosd_fqdn = node["fqdn"]
+            if (not node["spec"] is None) and (not node["spec"]["dnodes"] is None):
+                taosd_fqdn = node["spec"]["dnodes"]
             if (not node["spec"] is None) and (not node["spec"]["config"] is None) and (not node["spec"]["config"]["firstEP"] is None):
                 host = node["spec"]["config"]["firstEP"].split(":")[0]
                 port = node["spec"]["config"]["firstEP"].split(":")[1]
