@@ -19,6 +19,7 @@ import shutil
 class TaosTools(TDCase, CloudCase):
     def init(self):
         self.cwd = self.env_setting["work_dir"] + '/tools'
+        self.dump_dir = os.path.join(self.cwd, "dumped_data")
         self.set_env()
         self.cql = CloudSql()
 
@@ -38,15 +39,15 @@ class TaosTools(TDCase, CloudCase):
     def test_taos_dump(self):
         self.logger.info("-------------------Test taosdump---------------------------")
         try:
-            os.mkdir('dumped_data')
+            os.mkdir(self.dump_dir)
         except:
             self.cleanup()
-            os.mkdir('dumped_data')
+            os.mkdir(self.dump_dir)
 
         run(['taosdump', '-D', 'benchmark', '-o', 'dumped_data'], check=True, timeout=20, cwd=self.cwd)
 
     def cleanup(self):
-        shutil.rmtree("./dumped_data", ignore_errors=True)
+        shutil.rmtree(self.dump_dir, ignore_errors=True)
 
     def desc(self) -> str:
         return "Test basic function of taosBenchmark"
