@@ -19,10 +19,11 @@ class TaosBenchMark(TDCase, CloudCase):
         self.cql = CloudSql()
 
     def run(self):
-        # 创建 1 张表，写 100 条数据
-        run(['taosBenchmark', '--database', 'benchmark', '-T', '1', '-t', '1', '--records', '10', '-y'], check=True, timeout=20)
+        # 创建 1 张表，写 records 条数据
+        records = 10
+        run(['taosBenchmark', '--database', 'benchmark', '-T', '1', '-t', '1', '--records', records, '-y'], check=True, timeout=20)
         count = self.cql.count("benchmark", "meters")
-        assert count == 10
+        assert count == records
 
     def cleanup(self):
         pass
