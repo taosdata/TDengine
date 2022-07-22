@@ -3880,11 +3880,11 @@ int32_t elapsedFunction(SqlFunctionCtx* pCtx) {
       if (pCtx->end.key != INT64_MIN) {
         pInfo->min = pCtx->end.key;
       } else {
-        pInfo->min = ptsList[0];
+        pInfo->min = ptsList[start];
       }
     } else {
       if (pCtx->start.key == INT64_MIN) {
-        pInfo->min = (pInfo->min > ptsList[0]) ? ptsList[0] : pInfo->min;
+        pInfo->min = (pInfo->min > ptsList[start]) ? ptsList[start] : pInfo->min;
       } else {
         pInfo->min = pCtx->start.key;
       }
