@@ -27,6 +27,7 @@ class TaosTools(TDCase, CloudCase):
         self.test_taos_dump()
 
     def test_taos_benchmark(self):
+        self.logger.info("-------------------Test taosBenchmark---------------------------")
         # 创建 1 张表，写 records 条数据
         records = 10
         run(['taosBenchmark', '--database', 'benchmark', '-T', '1', '-t', '1', '--records', str(records), '-y'],
@@ -35,6 +36,7 @@ class TaosTools(TDCase, CloudCase):
         assert count == records
 
     def test_taos_dump(self):
+        self.logger.info("-------------------Test taosdump---------------------------")
         try:
             os.mkdir('dumped_data')
         except:
