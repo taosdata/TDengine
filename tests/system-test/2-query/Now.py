@@ -12,24 +12,24 @@ class TDTestCase:
         tdSql.init(conn.cursor(),True)
         self.setsql = TDSetSql()
         # name of normal table
-        self.ntbname = 'ntb'    
+        self.ntbname = 'ntb'
         # name of stable
-        self.stbname = 'stb'    
+        self.stbname = 'stb'
         # structure of column
-        self.column_dict = {    
+        self.column_dict = {
             'ts':'timestamp',
             'c1':'int',
             'c2':'float',
             'c3':'double'
         }
         # structure of tag
-        self.tag_dict = {       
+        self.tag_dict = {
             't0':'int'
         }
         # number of child tables
-        self.tbnum = 2       
+        self.tbnum = 2
         # values of tag,the number of values should equal to tbnum
-        self.tag_values = [     
+        self.tag_values = [
             f'10',
             f'100'
         ]
@@ -43,7 +43,7 @@ class TDTestCase:
         self.db_percision = ['ms','us','ns']
     def tbtype_check(self,tb_type):
         if tb_type == 'normal table' or tb_type == 'child table':
-            tdSql.checkRows(len(self.values_list))  
+            tdSql.checkRows(len(self.values_list))
         elif tb_type == 'stable':
             tdSql.checkRows(len(self.values_list) * self.tbnum)
     def data_check(self,tbname,tb_type):
@@ -98,7 +98,7 @@ class TDTestCase:
 
         self.now_check_ntb()
         self.now_check_stb()
-        
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
