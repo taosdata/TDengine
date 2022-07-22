@@ -222,9 +222,9 @@ class TDTestCase:
             if vgroups_num >= 2:
                 tdLog.info(f'This scene with {vgroups_num} vgroups is ok!')
                 continue
-            else:
-                tdLog.exit(
-                    f'This scene does not meet the requirements with {vgroups_num} vgroup!\n')
+            # else:
+            #     tdLog.exit(
+            #         f'This scene does not meet the requirements with {vgroups_num} vgroup!\n')
 
         for i in range(self.tbnum):
             for j in range(self.rowNum):
