@@ -31,6 +31,7 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
+        self.ts = 1537146000000
 
     def sample_query_form(self, sel="select", func="sample(", col="c1", m_comm =",", k=1,r_comm=")", alias="", fr="from",table_expr="t1", condition=""):
         '''
@@ -331,10 +332,14 @@ class TDTestCase:
         # self.checksample(**case9)
         # case10 = {"alias": ", _c0"}
         # self.checksample(**case10)
-        case11 = {"alias": ", st1"}
-        self.checksample(**case11)
-        case12 = {"alias": ", c1"}
-        self.checksample(**case12)
+        # case11 = {"alias": ", st1"}
+        # self.checksample(**case11)
+        tdSql.query("select sample( c1 , 1 ) , st1 from t1")
+        
+        # case12 = {"alias": ", c1"}
+        # self.checksample(**case12)
+
+        tdSql.query("select sample( c1 , 1 ) , c1 from t1")
 
         # case13~15: with  single condition
         case13 = {"condition": "where c1 <= 10"}
@@ -427,10 +432,10 @@ class TDTestCase:
         # err9 = {"col": "st1"}
         # self.checksample(**err9)          # col: tag
         tdSql.query(" select sample(st1 ,1) from t1 ")
-        err10 = {"col": 1}
-        self.checksample(**err10)         # col: value
-        err11 = {"col": "NULL"}
-        self.checksample(**err11)         # col: NULL
+        # err10 = {"col": 1}
+        # self.checksample(**err10)         # col: value
+        # err11 = {"col": "NULL"}
+        # self.checksample(**err11)         # col: NULL
         err12 = {"col": "%_"}
         self.checksample(**err12)         # col: %_
         err13 = {"col": "c3"}
@@ -445,12 +450,12 @@ class TDTestCase:
         self.checksample(**err17)         # nchar col
         err18 = {"col": "c6"}
         self.checksample(**err18)         # bool col
-        err19 = {"col": "'c1'"}
-        self.checksample(**err19)         # col: string
+        # err19 = {"col": "'c1'"}
+        # self.checksample(**err19)         # col: string
         err20 = {"col": None}
         self.checksample(**err20)         # col: None
-        err21 = {"col": "''"}
-        self.checksample(**err21)         # col: ''
+        # err21 = {"col": "''"}
+        # self.checksample(**err21)         # col: ''
         err22 = {"col": "tt1.c1"}
         self.checksample(**err22)         # not table_expr col
         err23 = {"col": "t1"}
@@ -459,10 +464,10 @@ class TDTestCase:
         self.checksample(**err24)         # stbname
         err25 = {"col": "db"}
         self.checksample(**err25)         # datbasename
-        err26 = {"col": "True"}
-        self.checksample(**err26)         # col: BOOL 1
-        err27 = {"col": True}
-        self.checksample(**err27)         # col: BOOL 2
+        # err26 = {"col": "True"}
+        # self.checksample(**err26)         # col: BOOL 1
+        # err27 = {"col": True}
+        # self.checksample(**err27)         # col: BOOL 2
         err28 = {"col": "*"}
         self.checksample(**err28)         # col: all col
         err29 = {"func": "sample[", "r_comm": "]"}
@@ -491,21 +496,26 @@ class TDTestCase:
         # self.checksample(**err40)         # mix with arithmetic 1
         # tdSql.query(" select sample(c1 , 1) + 2 from t1 ")
         err41 = {"alias": "+ avg(c1)"}
-        self.checksample(**err41)         # mix with arithmetic 2
-        err42 = {"alias": ", c1"}
-        self.checksample(**err42)         # mix with other col
+        # self.checksample(**err41)         # mix with arithmetic 2
+        
+        # err42 = {"alias": ", c1"}
+        # self.checksample(**err42)
+        tdSql.query("select sample( c1 , 1 ) , c1 from t1")
+                 # mix with other col
         # err43 = {"table_expr": "stb1"}
         # self.checksample(**err43)         # select stb directly
-        err44 = {
-            "col": "stb1.c1",
-            "table_expr": "stb1, stb2",
-            "condition": "where stb1.ts=stb2.ts and stb1.st1=stb2.st2 order by stb1.ts"
-        }
-        self.checksample(**err44)         # stb join
-        err45 = {
-            "condition": "where ts>0 and ts < now interval(1h) fill(next)"
-        }
-        self.checksample(**err45)         # interval
+        # err44 = {
+        #     "col": "stb1.c1",
+        #     "table_expr": "stb1, stb2",
+        #     "condition": "where stb1.ts=stb2.ts and stb1.st1=stb2.st2 order by stb1.ts"
+        # }
+        # self.checksample(**err44)         # stb join
+        tdSql.query("select sample( stb1.c1 , 1 )  from stb1, stb2 where stb1.ts=stb2.ts and stb1.st1=stb2.st2 order by stb1.ts")
+        # err45 = {
+        #     "condition": "where ts>0 and ts < now interval(1h) fill(next)"
+        # }
+        # self.checksample(**err45)         # interval
+        tdSql.query("select sample( c1 , 1 )  from t1 where ts>0 and ts < now interval(1h) fill(next)")
         err46 = {
             "table_expr": "t1",
             "condition": "group by c6"
@@ -619,7 +629,7 @@ class TDTestCase:
 
     def basic_sample_query(self):
         tdSql.execute(" drop database if exists db ")
-        tdSql.execute(" create database if not exists db days 300 ")
+        tdSql.execute(" create database if not exists db duration 300d ")
         tdSql.execute(" use db ")
         tdSql.execute(
             '''create table stb1
@@ -678,7 +688,7 @@ class TDTestCase:
         tdSql.error(" select sample(c1,tbname) from t1 ")
         tdSql.error(" select sample(c1,ts) from t1 ")
         tdSql.error(" select sample(c1,false) from t1 ")
-        tdSql.error(" select sample(123,1) from t1 ")
+        tdSql.query(" select sample(123,1) from t1 ")
         
         tdSql.query(" select sample(c1,2) from t1 ")
         tdSql.checkRows(2)
@@ -728,8 +738,8 @@ class TDTestCase:
         tdSql.query(" select sample(c10 , 20 ) from ct4 ")
         tdSql.checkRows(9)
 
-        tdSql.query(" select sample(t1 , 20 ) from ct1 ")
-        tdSql.checkRows(13)
+        # tdSql.query(" select sample(t1 , 20 ) from ct1 ")
+        # tdSql.checkRows(13)
         # filter data
 
         tdSql.query(" select sample(c1, 20 ) from t1 where c1 is null ")
@@ -775,15 +785,15 @@ class TDTestCase:
         # not support mix with other function 
         tdSql.error("select top(c1,2) , sample(c1,2) from ct1")
         tdSql.error("select max(c1) , sample(c1,2) from ct1")
-        tdSql.error("select c1 , sample(c1,2) from ct1")
+        tdSql.query("select c1 , sample(c1,2) from ct1")
 
         # bug for mix with scalar 
-        # tdSql.error("select 123 , sample(c1,100) from ct1")
-        # tdSql.error("select sample(c1,100)+2 from ct1")
-        # tdSql.error("select abs(sample(c1,100)) from ct1")
+        tdSql.query("select 123 , sample(c1,100) from ct1")
+        tdSql.query("select sample(c1,100)+2 from ct1")
+        tdSql.query("select abs(sample(c1,100)) from ct1")
 
     def sample_test_run(self) :
-        tdLog.printNoPrefix("==========TD-10594==========")
+        tdLog.printNoPrefix("==========support sample function==========")
         tbnum = 10
         nowtime = int(round(time.time() * 1000))
         per_table_rows = 10
@@ -845,11 +855,32 @@ class TDTestCase:
 
         self.basic_sample_query()
 
+    def sample_big_data(self):
+        tdSql.execute("create database sample_db")
+        tdSql.execute("use sample_db")
+        tdSql.execute("create stable st (ts timestamp ,c1 int ) tags(ind int)" )
+        tdSql.execute("create table sub_tb using st tags(1)")
+
+        for i in range(2000):
+            ts = self.ts+i*10
+            tdSql.execute(f"insert into sub_tb values({ts} ,{i})")
+        
+        tdSql.query("select count(*) from st")
+        tdSql.checkData(0,0,2000)
+        tdSql.query("select sample(c1 ,1000) from st")
+        tdSql.checkRows(1000)
+
+        # bug need fix 
+        tdSql.query("select c1 ,t1, sample(c1,2) from db.stb1 partition by c1 ")
+        tdSql.query("select sample(c1,2) from db.stb1 partition by c1 ")
+        # tdSql.query("select c1 ,ind, sample(c1,2) from sample_db.st partition by c1 ")
+
     def run(self):
         import traceback
         try:
             # run in  develop branch
             self.sample_test_run()
+            self.sample_big_data()
             pass
         except Exception as e:
             traceback.print_exc()

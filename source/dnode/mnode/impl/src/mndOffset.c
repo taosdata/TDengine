@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndOffset.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
@@ -36,13 +36,15 @@ static int32_t mndOffsetActionUpdate(SSdb *pSdb, SMqOffsetObj *pOffset, SMqOffse
 static int32_t mndProcessCommitOffsetReq(SRpcMsg *pReq);
 
 int32_t mndInitOffset(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_OFFSET,
-                     .keyType = SDB_KEY_BINARY,
-                     .encodeFp = (SdbEncodeFp)mndOffsetActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndOffsetActionDecode,
-                     .insertFp = (SdbInsertFp)mndOffsetActionInsert,
-                     .updateFp = (SdbUpdateFp)mndOffsetActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndOffsetActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_OFFSET,
+      .keyType = SDB_KEY_BINARY,
+      .encodeFp = (SdbEncodeFp)mndOffsetActionEncode,
+      .decodeFp = (SdbDecodeFp)mndOffsetActionDecode,
+      .insertFp = (SdbInsertFp)mndOffsetActionInsert,
+      .updateFp = (SdbUpdateFp)mndOffsetActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndOffsetActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_COMMIT_OFFSET, mndProcessCommitOffsetReq);
 
@@ -183,7 +185,10 @@ static int32_t mndProcessCommitOffsetReq(SRpcMsg *pMsg) {
 
   for (int32_t i = 0; i < commitOffsetReq.num; i++) {
     SMqOffset *pOffset = &commitOffsetReq.offsets[i];
+    mInfo("commit offset %" PRId64 " to vgId:%d of consumer group %s on topic %s", pOffset->offset, pOffset->vgId,
+          pOffset->cgroup, pOffset->topicName);
     if (mndMakePartitionKey(key, pOffset->cgroup, pOffset->topicName, pOffset->vgId) < 0) {
+      mError("submit offset to topic %s failed", pOffset->topicName);
       return -1;
     }
     bool          create = false;
@@ -192,7 +197,7 @@ static int32_t mndProcessCommitOffsetReq(SRpcMsg *pMsg) {
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, pOffset->topicName);
       if (pTopic == NULL) {
         terrno = TSDB_CODE_MND_TOPIC_NOT_EXIST;
-        mError("submit offset to topic %s failed since  %s", pOffset->topicName, terrstr());
+        mError("submit offset to topic %s failed since %s", pOffset->topicName, terrstr());
         continue;
       }
       pOffsetObj = taosMemoryMalloc(sizeof(SMqOffsetObj));

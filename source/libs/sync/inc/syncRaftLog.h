@@ -26,10 +26,16 @@ extern "C" {
 #include "syncInt.h"
 #include "syncRaftEntry.h"
 #include "taosdef.h"
+#include "wal.h"
 
 typedef struct SSyncLogStoreData {
   SSyncNode* pSyncNode;
   SWal*      pWal;
+
+  TdThreadMutex mutex;
+  SWalReader*   pWalHandle;
+
+  // SyncIndex       beginIndex;  // valid begin index, default 0, may be set beginIndex > 0
 } SSyncLogStoreData;
 
 SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode);
@@ -39,14 +45,7 @@ char*          logStore2Str(SSyncLogStore* pLogStore);
 cJSON*         logStoreSimple2Json(SSyncLogStore* pLogStore);
 char*          logStoreSimple2Str(SSyncLogStore* pLogStore);
 
-// SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore);
-// SyncIndex       logStoreLastIndex(SSyncLogStore* pLogStore);
-// SyncTerm        logStoreLastTerm(SSyncLogStore* pLogStore);
-// SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index);
-// int32_t         logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
-// int32_t         logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex);
-// int32_t         logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index);
-// SyncIndex       logStoreGetCommitIndex(SSyncLogStore* pLogStore);
+SyncIndex logStoreFirstIndex(SSyncLogStore* pLogStore);
 
 // for debug
 void logStorePrint(SSyncLogStore* pLogStore);

@@ -767,32 +767,36 @@ void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8
         keyValue[4] = (keyValue[4] == '+' ? '-' : '+');
         keyValue[10] = 0;
         sprintf(winStr, "TZ=%s:00", &(keyValue[1]));
+        *tsTimezone = taosStr2Int32(&keyValue[4], NULL, 10);
       }
       break;
     }
   }
-  char *p = strchr(inTimezoneStr, '+');
-  if (p == NULL) p = strchr(inTimezoneStr, '-');
-  if (p == NULL) {
-    sprintf(winStr, "TZ=UTC+00:00:00");
-  } else {
-    sprintf(winStr, "TZ=UTC%c%c%c:%c%c:00", (p[0] == '+' ? '-' : '+'), p[1], p[2], p[3], p[4]);
+  if (winStr[0] == 0) {
+    char *p = strchr(inTimezoneStr, '+');
+    if (p == NULL) p = strchr(inTimezoneStr, '-');
+    if (p != NULL) {
+      char *pp = strchr(inTimezoneStr, '(');
+      char *ppp = strchr(inTimezoneStr, ',');
+      int indexStr;
+      if (pp == NULL || ppp == NULL) {
+        indexStr = sprintf(winStr, "TZ=UTC");
+      } else {
+        memcpy(winStr, "TZ=", 3);
+        pp++;
+        memcpy(&winStr[3], pp, ppp - pp);
+        indexStr = ppp - pp + 3;
+      }
+      sprintf(&winStr[indexStr], "%c%c%c:%c%c:00", (p[0] == '+'? '-' : '+'), p[1], p[2], p[3], p[4]);
+      *tsTimezone = taosStr2Int32(p, NULL, 10);
+    } else {
+      *tsTimezone = 0;
+    }
   }
   _putenv(winStr);
   _tzset();
-#ifdef _MSC_VER
-#if _MSC_VER >= 1900
-  int64_t timezone = _timezone;
-  int32_t daylight = _daylight;
-  char  **tzname = _tzname;
-#endif
-#endif
-
-  int32_t tz = (int32_t)((-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR);
-  *tsTimezone = tz;
-  tz += daylight;
-  sprintf(outTimezoneStr, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
-  *outDaylight = daylight;
+  strcpy(outTimezoneStr, inTimezoneStr);
+  *outDaylight = 0;
 
 #elif defined(_TD_DARWIN_64)
 
@@ -822,34 +826,27 @@ void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8
 void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
 #ifdef WINDOWS 
   char value[100];
+  char keyPath[100];
   DWORD bufferSize = sizeof(value);
-  char *buf = getenv("TZ");
-  if (buf == NULL || strlen(buf) == 0) {
-    RegGetValue(HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\TimeZoneInformation", "TimeZoneKeyName", RRF_RT_ANY, NULL, (PVOID)&value, &bufferSize);
-    strcpy(outTimezoneStr, "not configured");
-    if (bufferSize > 0) {
-      for (size_t i = 0; i < 139; i++) {
-        if (strcmp(win_tz[i][0],value) == 0) {
-          strcpy(outTimezoneStr, win_tz[i][1]);
-          break;
+  RegGetValue(HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\TimeZoneInformation", "TimeZoneKeyName", RRF_RT_ANY, NULL, (PVOID)&value, &bufferSize);
+  strcpy(outTimezoneStr, "not configured");
+  *tsTimezone = 0;
+  if (bufferSize > 0) {
+    for (size_t i = 0; i < 139; i++) {
+      if (strcmp(win_tz[i][0],value) == 0) {
+        strcpy(outTimezoneStr, win_tz[i][1]);
+        bufferSize = sizeof(value);
+        sprintf(keyPath, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Time Zones\\%s",value);
+        RegGetValue(HKEY_LOCAL_MACHINE, keyPath, "Display", RRF_RT_ANY, NULL, (PVOID)&value, &bufferSize);
+        if (bufferSize > 0) {
+          // value[4] = (value[4] == '+' ? '-' : '+');
+          sprintf(outTimezoneStr, "%s (UTC, %c%c%c%c%c)", outTimezoneStr, value[4], value[5], value[6], value[8], value[9]);
+          *tsTimezone = taosStr2Int32(&value[4], NULL, 10);
         }
+        break;
       }
     }
-  } else {
-    strcpy(outTimezoneStr, buf);
   }
-#ifdef _MSC_VER
-#if _MSC_VER >= 1900
-  // see https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
-  int64_t timezone = _timezone;
-  int32_t daylight = _daylight;
-  char  **tzname = _tzname;
-#endif
-#endif
-  int32_t tz = (int32_t)((-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR);
-  *tsTimezone = tz;
-  tz += daylight;
-  sprintf(outTimezoneStr, "%s (%s, %s%02d00)", outTimezoneStr, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
 #elif defined(_TD_DARWIN_64)
   char  buf[4096] = {0};
   char *tz = NULL;
@@ -860,19 +857,27 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
       return;
     }
     buf[n] = '\0';
-    for (int i = n - 1; i >= 0; --i) {
-      if (buf[i] == '/') {
-        if (tz) {
-          tz = buf + i + 1;
-          break;
-        }
-        tz = buf + i + 1;
-      }
-    }
-    if (!tz || 0 == strchr(tz, '/')) {
+
+    char *zi = strstr(buf, "zoneinfo");
+    if (!zi) {
       printf("parsing /etc/localtime failed");
       return;
     }
+    tz = zi + strlen("zoneinfo") + 1;
+
+    //for (int i = n - 1; i >= 0; --i) {
+    //  if (buf[i] == '/') {
+    //    if (tz) {
+    //      tz = buf + i + 1;
+    //      break;
+    //    }
+    //    tz = buf + i + 1;
+    //  }
+    //}
+    //if (!tz || 0 == strchr(tz, '/')) {
+    //  printf("parsing /etc/localtime failed");
+    //  return;
+    //}
 
     setenv("TZ", tz, 1);
     tzset();
@@ -903,7 +908,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
     int n = readlink("/etc/localtime", buf, sizeof(buf));
     if (n < 0) {
       printf("read /etc/localtime error, reason:%s", strerror(errno));
-      
+
       if (taosCheckExistFile("/etc/timezone")) {
         /*
         * NOTE: do not remove it.
@@ -965,19 +970,27 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
       return;
     }
     buf[n] = '\0';
-    for (int i = n - 1; i >= 0; --i) {
-      if (buf[i] == '/') {
-        if (tz) {
-          tz = buf + i + 1;
-          break;
-        }
-        tz = buf + i + 1;
-      }
-    }
-    if (!tz || 0 == strchr(tz, '/')) {
+
+    char *zi = strstr(buf, "zoneinfo");
+    if (!zi) {
       printf("parsing /etc/localtime failed");
       return;
     }
+    tz = zi + strlen("zoneinfo") + 1;
+
+    //for (int i = n - 1; i >= 0; --i) {
+    //  if (buf[i] == '/') {
+    //    if (tz) {
+    //      tz = buf + i + 1;
+    //      break;
+    //    }
+    //    tz = buf + i + 1;
+    //  }
+    //}
+    //if (!tz || 0 == strchr(tz, '/')) {
+    //  printf("parsing /etc/localtime failed");
+    //  return;
+    //}
 
     setenv("TZ", tz, 1);
     tzset();

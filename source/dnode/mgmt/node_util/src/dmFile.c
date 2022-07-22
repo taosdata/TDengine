@@ -127,15 +127,25 @@ TdFilePtr dmCheckRunning(const char *dataDir) {
     return NULL;
   }
 
-  int32_t ret = taosLockFile(pFile);
-  if (ret != 0) {
+  int32_t retryTimes = 0;
+  int32_t ret = 0;
+  do {
+    ret = taosLockFile(pFile);
+    if (ret == 0) break;
     terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to lock file:%s since %s", filepath, terrstr());
+    taosMsleep(1000);
+    retryTimes++;
+    dError("failed to lock file:%s since %s, retryTimes:%d", filepath, terrstr(), retryTimes);
+  } while (retryTimes < 12);
+
+  if (ret < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     taosCloseFile(&pFile);
     return NULL;
   }
 
-  dDebug("file:%s is locked", filepath);
+  terrno = 0;
+  dDebug("lock file:%s to prevent repeated starts", filepath);
   return pFile;
 }
 

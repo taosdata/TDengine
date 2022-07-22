@@ -14,27 +14,19 @@
  */
 
 #include "query.h"
-#include "schedulerInt.h"
+#include "schInt.h"
 
 tsem_t schdRspSem;
+SSchDebug gSCHDebug = {0};
 
-void schdExecCallback(SQueryResult* pResult, void* param, int32_t code) {
+void schdExecCallback(SExecResult* pResult, void* param, int32_t code) {
   if (code) {
     pResult->code = code;
   }
   
-  *(SQueryResult*)param = *pResult;
+  *(SExecResult*)param = *pResult;
 
   taosMemoryFree(pResult);
-
-  tsem_post(&schdRspSem);
-}
-
-void schdFetchCallback(void* pResult, void* param, int32_t code) {
-  SSchdFetchParam* fParam = (SSchdFetchParam*)param;
-
-  *fParam->pData = pResult;
-  *fParam->code = code;
 
   tsem_post(&schdRspSem);
 }

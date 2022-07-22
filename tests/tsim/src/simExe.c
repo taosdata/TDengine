@@ -39,13 +39,26 @@ void simLogSql(char *sql, bool useSharp) {
 
 char *simParseArbitratorName(char *varName) {
   static char hostName[140];
+#ifdef WINDOWS
+  taosGetFqdn(hostName);
+  sprintf(&hostName[strlen(hostName)], ":%d", 8000);
+#else
   sprintf(hostName, "%s:%d", "localhost", 8000);
+#endif
   return hostName;
 }
 
 char *simParseHostName(char *varName) {
   static char hostName[140];
+#ifdef WINDOWS
+  hostName[0] = '\"';
+  taosGetFqdn(&hostName[1]);
+  int strEndIndex = strlen(hostName);
+  hostName[strEndIndex] = '\"';
+  hostName[strEndIndex + 1] = '\0';
+#else
   sprintf(hostName, "%s", "localhost");
+#endif
   return hostName;
 }
 
@@ -399,7 +412,8 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
   sprintf(buf, "cd %s; ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
 #else
-  sprintf(buf, "%s%s", simScriptDir, option);
+  sprintf(buf, "%s", simScriptDir);
+  simVisuallizeOption(script, option, buf + strlen(buf));
   simReplaceStr(buf, ".sh", ".bat");
 #endif
 
@@ -458,11 +472,17 @@ bool simExecuteSystemContentCmd(SScript *script, char *option) {
   char buf[4096] = {0};
   char buf1[4096 + 512] = {0};
   char filename[400] = {0};
-  sprintf(filename, "%s/%s.tmp", simScriptDir, script->fileName);
+  sprintf(filename, "%s" TD_DIRSEP "%s.tmp", simScriptDir, script->fileName);
 
+#ifdef WINDOWS
+  sprintf(buf, "cd %s && ", simScriptDir);
+  simVisuallizeOption(script, option, buf + strlen(buf));
+  sprintf(buf1, "%s > %s 2>nul", buf, filename);
+#else
   sprintf(buf, "cd %s; ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
   sprintf(buf1, "%s > %s 2>/dev/null", buf, filename);
+#endif
 
   sprintf(script->system_exit_code, "%d", system(buf1));
   simStoreSystemContentResult(script, filename);
@@ -615,7 +635,7 @@ bool simCreateTaosdConnect(SScript *script, char *rest) {
 bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
   char       timeStr[30] = {0};
   time_t     tt;
-  struct tm *tp;
+  struct tm  tp;
   SCmdLine  *line = &script->lines[script->linePos];
   int32_t    ret = -1;
 
@@ -748,20 +768,9 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               } else {
                 tt = (*(int64_t *)row[i]) / 1000000000;
               }
-              /* comment out as it make testcases like select_with_tags.sim fail.
-                but in windows, this may cause the call to localtime crash if tt < 0,
-                need to find a better solution.
-              if (tt < 0) {
-                tt = 0;
-              }
-              */
 
-#ifdef WINDOWS
-              if (tt < 0) tt = 0;
-#endif
-
-              tp = taosLocalTime(&tt, NULL);
-              strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", tp);
+              taosLocalTime(&tt, &tp);
+              strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", &tp);
               if (precision == TSDB_TIME_PRECISION_MILLI) {
                 sprintf(value, "%s.%03d", timeStr, (int32_t)(*((int64_t *)row[i]) % 1000));
               } else if (precision == TSDB_TIME_PRECISION_MICRO) {

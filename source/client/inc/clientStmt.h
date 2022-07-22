@@ -72,7 +72,6 @@ typedef struct SStmtBindInfo {
 typedef struct SStmtExecInfo {
   int32_t      affectedRows;
   SRequestObj* pRequest;
-  SHashObj*    pVgHash;
   SHashObj*    pBlockHash;
   bool         autoCreateTbl;
 } SStmtExecInfo;
@@ -88,6 +87,7 @@ typedef struct SStmtSQLInfo {
   SArray*           nodeList;
   SStmtQueryResInfo queryRes;
   bool              autoCreateTbl;
+  SHashObj*         pVgHash;
 } SStmtSQLInfo;
 
 typedef struct STscStmt {
@@ -107,7 +107,7 @@ typedef struct STscStmt {
 #define STMT_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
 #define STMT_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
 
-TAOS_STMT *stmtInit(TAOS *taos);
+TAOS_STMT *stmtInit(STscObj* taos);
 int stmtClose(TAOS_STMT *stmt);
 int stmtExec(TAOS_STMT *stmt);
 const char *stmtErrstr(TAOS_STMT *stmt);

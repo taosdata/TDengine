@@ -45,8 +45,20 @@ TEST_F(PlanJoinTest, withWhere) {
       "WHERE t1.c1 > t2.c1 AND t1.c2 = 'abc' AND t2.c2 = 'qwe'");
 }
 
+TEST_F(PlanJoinTest, withAggAndOrderBy) {
+  useDb("root", "test");
+
+  run("SELECT t1.ts, TOP(t2.c1, 10) FROM st1s1 t1 JOIN st1s2 t2 ON t1.ts = t2.ts ORDER BY t2.ts");
+}
+
 TEST_F(PlanJoinTest, multiJoin) {
   useDb("root", "test");
 
   run("SELECT t1.c1, t2.c1 FROM st1s1 t1 JOIN st1s2 t2 ON t1.ts = t2.ts JOIN st1s3 t3 ON t1.ts = t3.ts");
+}
+
+TEST_F(PlanJoinTest, stable) {
+  useDb("root", "test");
+
+  run("SELECT t1.c1, t2.c1 FROM st1 t1 JOIN st2 t2 ON t1.ts = t2.ts ");
 }

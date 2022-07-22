@@ -33,6 +33,8 @@ TEST_F(MndTestUser, 01_Show_User) {
 TEST_F(MndTestUser, 02_Create_User) {
   {
     SCreateUserReq createReq = {0};
+    createReq.enable = 1;
+    createReq.sysInfo = 1;
     strcpy(createReq.user, "");
     strcpy(createReq.pass, "p1");
 
@@ -47,6 +49,8 @@ TEST_F(MndTestUser, 02_Create_User) {
 
   {
     SCreateUserReq createReq = {0};
+    createReq.enable = 1;
+    createReq.sysInfo = 1;
     strcpy(createReq.user, "u1");
     strcpy(createReq.pass, "");
 
@@ -61,6 +65,8 @@ TEST_F(MndTestUser, 02_Create_User) {
 
   {
     SCreateUserReq createReq = {0};
+    createReq.enable = 1;
+    createReq.sysInfo = 1;
     strcpy(createReq.user, "root");
     strcpy(createReq.pass, "1");
 
@@ -75,6 +81,8 @@ TEST_F(MndTestUser, 02_Create_User) {
 
   {
     SCreateUserReq createReq = {0};
+    createReq.enable = 1;
+    createReq.sysInfo = 1;
     strcpy(createReq.user, "u1");
     strcpy(createReq.pass, "p1");
 
@@ -108,9 +116,11 @@ TEST_F(MndTestUser, 02_Create_User) {
 
   {
     SCreateUserReq createReq = {0};
+    createReq.enable = 1;
+    createReq.sysInfo = 1;
     strcpy(createReq.user, "u2");
     strcpy(createReq.pass, "p1");
-    createReq.superUser = 1;
+    createReq.superUser = 0;
 
     int32_t contLen = tSerializeSCreateUserReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
@@ -144,9 +154,11 @@ TEST_F(MndTestUser, 02_Create_User) {
 TEST_F(MndTestUser, 03_Alter_User) {
   {
     SCreateUserReq createReq = {0};
+    createReq.enable = 1;
+    createReq.sysInfo = 1;
     strcpy(createReq.user, "u3");
     strcpy(createReq.pass, "p1");
-    createReq.superUser = 1;
+    createReq.superUser = 0;
 
     int32_t contLen = tSerializeSCreateUserReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
@@ -225,7 +237,7 @@ TEST_F(MndTestUser, 03_Alter_User) {
     alterReq.alterType = TSDB_ALTER_USER_SUPERUSER;
     strcpy(alterReq.user, "u3");
     strcpy(alterReq.pass, "1");
-    alterReq.superUser = 1;
+    alterReq.superUser = 0;
 
     int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
@@ -303,7 +315,7 @@ TEST_F(MndTestUser, 03_Alter_User) {
     createReq.compression = 2;
     createReq.replications = 1;
     createReq.strict = 1;
-    createReq.cacheLastRow = 0;
+    createReq.cacheLast = 0;
     createReq.ignoreExist = 1;
 
     int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
@@ -361,7 +373,7 @@ TEST_F(MndTestUser, 03_Alter_User) {
     SGetUserAuthRsp authRsp = {0};
     tDeserializeSGetUserAuthRsp(pRsp->pCont, pRsp->contLen, &authRsp);
     EXPECT_STREQ(authRsp.user, "u3");
-    EXPECT_EQ(authRsp.superAuth, 1);
+    EXPECT_EQ(authRsp.superAuth, 0);
     int32_t numOfReadDbs = taosHashGetSize(authRsp.readDbs);
     int32_t numOfWriteDbs = taosHashGetSize(authRsp.writeDbs);
     EXPECT_EQ(numOfReadDbs, 1);
@@ -436,6 +448,8 @@ TEST_F(MndTestUser, 05_Drop_User) {
 
   {
     SCreateUserReq createReq = {0};
+    createReq.enable = 1;
+    createReq.sysInfo = 1;
     strcpy(createReq.user, "u1");
     strcpy(createReq.pass, "p1");
 
@@ -468,6 +482,8 @@ TEST_F(MndTestUser, 05_Drop_User) {
 TEST_F(MndTestUser, 06_Create_Drop_Alter_User) {
   {
     SCreateUserReq createReq = {0};
+    createReq.enable = 1;
+    createReq.sysInfo = 1;
     strcpy(createReq.user, "u1");
     strcpy(createReq.pass, "p1");
 
@@ -482,6 +498,8 @@ TEST_F(MndTestUser, 06_Create_Drop_Alter_User) {
 
   {
     SCreateUserReq createReq = {0};
+    createReq.enable = 1;
+    createReq.sysInfo = 1;
     strcpy(createReq.user, "u2");
     strcpy(createReq.pass, "p2");
 

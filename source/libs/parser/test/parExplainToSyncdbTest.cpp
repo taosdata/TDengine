@@ -19,7 +19,7 @@ using namespace std;
 
 namespace ParserTest {
 
-class ParserExplainToSyncdbTest : public ParserTestBase {};
+class ParserExplainToSyncdbTest : public ParserDdlTest {};
 
 TEST_F(ParserExplainToSyncdbTest, explain) {
   useDb("root", "test");
@@ -40,11 +40,71 @@ TEST_F(ParserExplainToSyncdbTest, grant) {
   run("GRANT READ, WRITE ON test.* TO wxy");
 }
 
+TEST_F(ParserExplainToSyncdbTest, insert) {
+  useDb("root", "test");
+
+  run("INSERT INTO t1 SELECT * FROM t1");
+}
+
 // todo kill connection
 // todo kill query
 // todo kill stream
-// todo merge vgroup
-// todo redistribute vgroup
+
+TEST_F(ParserExplainToSyncdbTest, mergeVgroup) {
+  useDb("root", "test");
+
+  SMergeVgroupReq expect = {0};
+
+  auto setMergeVgroupReqFunc = [&](int32_t vgId1, int32_t vgId2) {
+    expect.vgId1 = vgId1;
+    expect.vgId2 = vgId2;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_MERGE_VGROUP_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_MERGE_VGROUP);
+    SMergeVgroupReq req = {0};
+    ASSERT_EQ(tDeserializeSMergeVgroupReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(req.vgId1, expect.vgId1);
+    ASSERT_EQ(req.vgId2, expect.vgId2);
+  });
+
+  setMergeVgroupReqFunc(1, 2);
+  run("MERGE VGROUP 1 2");
+}
+
+TEST_F(ParserExplainToSyncdbTest, redistributeVgroup) {
+  useDb("root", "test");
+
+  SRedistributeVgroupReq expect = {0};
+
+  auto setRedistributeVgroupReqFunc = [&](int32_t vgId, int32_t dnodeId1, int32_t dnodeId2 = -1,
+                                          int32_t dnodeId3 = -1) {
+    expect.vgId = vgId;
+    expect.dnodeId1 = dnodeId1;
+    expect.dnodeId2 = dnodeId2;
+    expect.dnodeId3 = dnodeId3;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_REDISTRIBUTE_VGROUP_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_REDISTRIBUTE_VGROUP);
+    SRedistributeVgroupReq req = {0};
+    ASSERT_EQ(tDeserializeSRedistributeVgroupReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req),
+              TSDB_CODE_SUCCESS);
+    ASSERT_EQ(req.vgId, expect.vgId);
+    ASSERT_EQ(req.dnodeId1, expect.dnodeId1);
+    ASSERT_EQ(req.dnodeId2, expect.dnodeId2);
+    ASSERT_EQ(req.dnodeId3, expect.dnodeId3);
+  });
+
+  setRedistributeVgroupReqFunc(3, 1);
+  run("REDISTRIBUTE VGROUP 3 DNODE 1");
+
+  setRedistributeVgroupReqFunc(5, 10, 20, 30);
+  run("REDISTRIBUTE VGROUP 5 DNODE 10 DNODE 20 DNODE 30");
+}
+
 // todo reset query cache
 
 TEST_F(ParserExplainToSyncdbTest, revoke) {

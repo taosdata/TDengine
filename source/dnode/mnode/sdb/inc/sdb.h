@@ -22,6 +22,7 @@
 #include "tlockfree.h"
 #include "tlog.h"
 #include "tmsg.h"
+#include "wal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,6 +36,8 @@ extern "C" {
 #define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", DEBUG_DEBUG, mDebugFlag, __VA_ARGS__); }}
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
 // clang-format on
+
+#define SDB_WRITE_DELTA 20
 
 #define SDB_GET_VAL(pData, dataPos, val, pos, func, type) \
   {                                                       \
@@ -134,17 +137,18 @@ typedef enum {
   SDB_USER = 7,
   SDB_AUTH = 8,
   SDB_ACCT = 9,
-  SDB_STREAM = 10,
-  SDB_OFFSET = 11,
-  SDB_SUBSCRIBE = 12,
-  SDB_CONSUMER = 13,
-  SDB_TOPIC = 14,
-  SDB_VGROUP = 15,
-  SDB_SMA = 16,
-  SDB_STB = 17,
-  SDB_DB = 18,
-  SDB_FUNC = 19,
-  SDB_MAX = 20
+  SDB_STREAM_CK = 10,
+  SDB_STREAM = 11,
+  SDB_OFFSET = 12,
+  SDB_SUBSCRIBE = 13,
+  SDB_CONSUMER = 14,
+  SDB_TOPIC = 15,
+  SDB_VGROUP = 16,
+  SDB_SMA = 17,
+  SDB_STB = 18,
+  SDB_DB = 19,
+  SDB_FUNC = 20,
+  SDB_MAX = 21
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -165,12 +169,15 @@ typedef struct SSdbRow {
 
 typedef struct SSdb {
   SMnode        *pMnode;
+  SWal          *pWal;
   char          *currDir;
   char          *tmpDir;
-  int64_t        lastCommitVer;
-  int64_t        lastCommitTerm;
-  int64_t        curVer;
-  int64_t        curTerm;
+  int64_t        commitIndex;
+  int64_t        commitTerm;
+  int64_t        commitConfig;
+  int64_t        applyIndex;
+  int64_t        applyTerm;
+  int64_t        applyConfig;
   int64_t        tableVer[SDB_MAX];
   int64_t        maxId[SDB_MAX];
   EKeyType       keyTypes[SDB_MAX];
@@ -205,6 +212,7 @@ typedef struct {
 typedef struct SSdbOpt {
   const char *path;
   SMnode     *pMnode;
+  SWal       *pWal;
 } SSdbOpt;
 
 /**
@@ -253,7 +261,7 @@ int32_t sdbReadFile(SSdb *pSdb);
  * @param pSdb The sdb object.
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t sdbWriteFile(SSdb *pSdb);
+int32_t sdbWriteFile(SSdb *pSdb, int32_t delta);
 
 /**
  * @brief Parse and write raw data to sdb, then free the pRaw object
@@ -301,7 +309,7 @@ void sdbRelease(SSdb *pSdb, void *pObj);
  * @return void* The next iterator of the table.
  */
 void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj);
-void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStatus *status) ;
+void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStatus *status);
 
 /**
  * @brief Cancel a traversal
@@ -357,10 +365,8 @@ int64_t sdbGetTableVer(SSdb *pSdb, ESdbType type);
  * @param index The update value of the apply index.
  * @return int32_t The current index of sdb
  */
-void    sdbSetApplyIndex(SSdb *pSdb, int64_t index);
-int64_t sdbGetApplyIndex(SSdb *pSdb);
-void    sdbSetApplyTerm(SSdb *pSdb, int64_t term);
-int64_t sdbGetApplyTerm(SSdb *pSdb);
+void sdbSetApplyInfo(SSdb *pSdb, int64_t index, int64_t term, int64_t config);
+void sdbGetCommitInfo(SSdb *pSdb, int64_t *index, int64_t *term, int64_t *config);
 
 SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen);
 void     sdbFreeRaw(SSdbRaw *pRaw);
@@ -383,15 +389,16 @@ SSdbRow *sdbAllocRow(int32_t objSize);
 void    *sdbGetRowObj(SSdbRow *pRow);
 void     sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc);
 
-int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter);
+int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter, int64_t *index, int64_t *term, int64_t *config);
 int32_t sdbStopRead(SSdb *pSdb, SSdbIter *pIter);
 int32_t sdbDoRead(SSdb *pSdb, SSdbIter *pIter, void **ppBuf, int32_t *len);
 
 int32_t sdbStartWrite(SSdb *pSdb, SSdbIter **ppIter);
-int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply);
+int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, int64_t term, int64_t config);
 int32_t sdbDoWrite(SSdb *pSdb, SSdbIter *pIter, void *pBuf, int32_t len);
 
 const char *sdbTableName(ESdbType type);
+const char *sdbStatusName(ESdbStatus status);
 void        sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);
 int32_t     sdbGetIdFromRaw(SSdb *pSdb, SSdbRaw *pRaw);
 

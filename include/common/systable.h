@@ -35,12 +35,14 @@ extern "C" {
 #define TSDB_INS_TABLE_USER_INDEXES           "user_indexes"
 #define TSDB_INS_TABLE_USER_STABLES           "user_stables"
 #define TSDB_INS_TABLE_USER_TABLES            "user_tables"
+#define TSDB_INS_TABLE_USER_TAGS              "user_tags"
 #define TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED "user_table_distributed"
 #define TSDB_INS_TABLE_USER_USERS             "user_users"
 #define TSDB_INS_TABLE_LICENCES               "grants"
 #define TSDB_INS_TABLE_VGROUPS                "vgroups"
 #define TSDB_INS_TABLE_VNODES                 "vnodes"
 #define TSDB_INS_TABLE_CONFIGS                "configs"
+#define TSDB_INS_TABLE_DNODE_VARIABLES        "dnode_variables"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS          "smas"
@@ -52,6 +54,7 @@ extern "C" {
 #define TSDB_PERFS_TABLE_OFFSETS       "offsets"
 #define TSDB_PERFS_TABLE_TRANS         "trans"
 #define TSDB_PERFS_TABLE_STREAMS       "streams"
+#define TSDB_PERFS_TABLE_APPS          "apps"
 
 typedef struct SSysDbTableSchema {
   const char*   name;

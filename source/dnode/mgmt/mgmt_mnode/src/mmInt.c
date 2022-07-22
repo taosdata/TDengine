@@ -27,7 +27,7 @@ static bool mmDeployRequired(const SMgmtInputOpt *pInput) {
 static int32_t mmRequire(const SMgmtInputOpt *pInput, bool *required) {
   SMnodeMgmt mgmt = {0};
   mgmt.path = pInput->path;
-  if (mmReadFile(&mgmt, required) != 0) {
+  if (mmReadFile(&mgmt, NULL, required) != 0) {
     return -1;
   }
 
@@ -43,33 +43,19 @@ static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, const SMgmtInputOpt *pInpu
   pOption->deploy = true;
   pOption->msgCb = pMgmt->msgCb;
   pOption->dnodeId = pMgmt->pData->dnodeId;
-
-  pOption->replica = 1;
-  pOption->selfIndex = 0;
-
-  SReplica *pReplica = &pOption->replicas[0];
-  pReplica->id = 1;
-  pReplica->port = tsServerPort;
-  tstrncpy(pReplica->fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+  pOption->replica.id = 1;
+  pOption->replica.port = tsServerPort;
+  tstrncpy(pOption->replica.fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
 }
 
-static void mmBuildOptionForOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
-  pOption->deploy = false;
+static void mmBuildOptionForOpen(SMnodeMgmt *pMgmt, const SReplica *pReplica, SMnodeOpt *pOption) {
   pOption->standby = false;
+  pOption->deploy = false;
   pOption->msgCb = pMgmt->msgCb;
   pOption->dnodeId = pMgmt->pData->dnodeId;
-
-  if (pMgmt->replica > 0) {
+  if (pReplica->id > 0) {
     pOption->standby = true;
-    pOption->replica = 1;
-    pOption->selfIndex = 0;
-    SReplica *pReplica = &pOption->replicas[0];
-    for (int32_t i = 0; i < pMgmt->replica; ++i) {
-      if (pMgmt->replicas[i].id != pMgmt->pData->dnodeId) continue;
-      pReplica->id = pMgmt->replicas[i].id;
-      pReplica->port = pMgmt->replicas[i].port;
-      memcpy(pReplica->fqdn, pMgmt->replicas[i].fqdn, TSDB_FQDN_LEN);
-    }
+    pOption->replica = *pReplica;
   }
 }
 
@@ -105,15 +91,13 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
   pMgmt->msgCb = pInput->msgCb;
-  pMgmt->msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)mmPutRpcMsgToQueryQueue;
-  pMgmt->msgCb.queueFps[READ_QUEUE] = (PutToQueueFp)mmPutRpcMsgToReadQueue;
-  pMgmt->msgCb.queueFps[WRITE_QUEUE] = (PutToQueueFp)mmPutRpcMsgToWriteQueue;
-  pMgmt->msgCb.queueFps[SYNC_QUEUE] = (PutToQueueFp)mmPutRpcMsgToSyncQueue;
+  pMgmt->msgCb.putToQueueFp = (PutToQueueFp)mmPutMsgToQueue;
   pMgmt->msgCb.mgmt = pMgmt;
   taosThreadRwlockInit(&pMgmt->lock, NULL);
 
-  bool deployed = false;
-  if (mmReadFile(pMgmt, &deployed) != 0) {
+  bool     deployed = false;
+  SReplica replica = {0};
+  if (mmReadFile(pMgmt, &replica, &deployed) != 0) {
     dError("failed to read file since %s", terrstr());
     mmClose(pMgmt);
     return -1;
@@ -126,7 +110,7 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     mmBuildOptionForDeploy(pMgmt, pInput, &option);
   } else {
     dInfo("mnode start to open");
-    mmBuildOptionForOpen(pMgmt, &option);
+    mmBuildOptionForOpen(pMgmt, &replica, &option);
   }
 
   pMgmt->pMnode = mndOpen(pMgmt->path, &option);
@@ -144,8 +128,7 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
   tmsgReportStartup("mnode-worker", "initialized");
 
-  if (!deployed || pMgmt->replica > 0) {
-    pMgmt->replica = 0;
+  if (!deployed || replica.id > 0) {
     deployed = true;
     if (mmWriteFile(pMgmt, NULL, deployed) != 0) {
       dError("failed to write mnode file since %s", terrstr());
@@ -165,6 +148,11 @@ static int32_t mmStart(SMnodeMgmt *pMgmt) {
 
 static void mmStop(SMnodeMgmt *pMgmt) {
   dDebug("mnode-mgmt start to stop");
+  mndPreClose(pMgmt->pMnode);
+  taosThreadRwlockWrlock(&pMgmt->lock);
+  pMgmt->stopped = 1;
+  taosThreadRwlockUnlock(&pMgmt->lock);
+
   mndStop(pMgmt->pMnode);
 }
 
@@ -180,23 +168,4 @@ SMgmtFunc mmGetMgmtFunc() {
   mgmtFunc.getHandlesFp = mmGetMsgHandles;
 
   return mgmtFunc;
-}
-
-int32_t mmAcquire(SMnodeMgmt *pMgmt) {
-  int32_t code = 0;
-
-  taosThreadRwlockRdlock(&pMgmt->lock);
-  if (pMgmt->stopped) {
-    code = -1;
-  } else {
-    atomic_add_fetch_32(&pMgmt->refCount, 1);
-  }
-  taosThreadRwlockUnlock(&pMgmt->lock);
-  return code;
-}
-
-void mmRelease(SMnodeMgmt *pMgmt) {
-  taosThreadRwlockRdlock(&pMgmt->lock);
-  atomic_sub_fetch_32(&pMgmt->refCount, 1);
-  taosThreadRwlockUnlock(&pMgmt->lock);
 }

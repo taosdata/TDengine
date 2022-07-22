@@ -15,6 +15,7 @@
 
 #include "planTestUtil.h"
 #include "planner.h"
+#include "tglobal.h"
 
 using namespace std;
 
@@ -33,10 +34,28 @@ TEST_F(PlanOtherTest, createStream) {
       "interval(10s)");
 }
 
+TEST_F(PlanOtherTest, createStreamUseSTable) {
+  useDb("root", "test");
+
+  run("CREATE STREAM IF NOT EXISTS s1 as SELECT COUNT(*) FROM st1 INTERVAL(10s)");
+
+  run("CREATE STREAM IF NOT EXISTS s1 as SELECT COUNT(*) FROM st1 PARTITION BY TBNAME INTERVAL(10s)");
+}
+
 TEST_F(PlanOtherTest, createSmaIndex) {
   useDb("root", "test");
 
-  run("create sma index index1 on t1 function(max(c1), min(c3 + 10), sum(c4)) interval(10s)");
+  run("CREATE SMA INDEX idx1 ON t1 FUNCTION(MAX(c1), MIN(c3 + 10), SUM(c4)) INTERVAL(10s)");
+
+  run("SELECT SUM(c4) FROM t1 INTERVAL(10s)");
+
+  run("SELECT _WSTART, MIN(c3 + 10) FROM t1 "
+      "WHERE ts BETWEEN TIMESTAMP '2022-04-01 00:00:00' AND TIMESTAMP '2022-04-30 23:59:59.999' INTERVAL(10s)");
+
+  run("SELECT SUM(c4), MAX(c3) FROM t1 INTERVAL(10s)");
+
+  tsQuerySmaOptimize = 0;
+  run("SELECT SUM(c4) FROM t1 INTERVAL(10s)");
 }
 
 TEST_F(PlanOtherTest, explain) {
@@ -53,4 +72,32 @@ TEST_F(PlanOtherTest, show) {
   useDb("root", "test");
 
   run("SHOW DATABASES");
+
+  run("SHOW TABLE DISTRIBUTED t1");
+
+  run("SHOW TABLE DISTRIBUTED st1");
+
+  run("SHOW DNODE 1 VARIABLES");
+}
+
+TEST_F(PlanOtherTest, delete) {
+  useDb("root", "test");
+
+  run("DELETE FROM t1");
+
+  run("DELETE FROM t1 WHERE ts > now - 2d and ts < now - 1d");
+
+  run("DELETE FROM st1");
+
+  run("DELETE FROM st1 WHERE ts > now - 2d and ts < now - 1d AND tag1 = 10");
+}
+
+TEST_F(PlanOtherTest, insert) {
+  useDb("root", "test");
+
+  run("INSERT INTO t1 SELECT * FROM t1");
+
+  run("INSERT INTO t1 (ts, c1, c2) SELECT ts, c1, c2 FROM st1");
+
+  run("INSERT INTO t1 (ts, c1, c2) SELECT ts, c1, c2 FROM st1s1 UNION ALL SELECT ts, c1, c2 FROM st2");
 }

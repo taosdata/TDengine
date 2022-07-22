@@ -38,6 +38,6 @@ add_subdirectory(tests)
 add_subdirectory(examples/c)
 
 # docs 
-add_subdirectory(docs)
+add_subdirectory(docs/doxgen)
 
 # tests (TODO)

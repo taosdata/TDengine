@@ -58,7 +58,7 @@
 
 static const int32_t TEST_NUMBER = 1;
 #define is_bigendian()     ((*(char *)&TEST_NUMBER) == 0)
-#define SIMPLE8B_MAX_INT64 ((uint64_t)2305843009213693951L)
+#define SIMPLE8B_MAX_INT64 ((uint64_t)2305843009213693951LL)
 
 #define safeInt64Add(a, b)  (((a >= 0) && (b <= INT64_MAX - a)) || ((a < 0) && (b >= INT64_MIN - a)))
 #define ZIGZAG_ENCODE(T, v) ((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1)  // zigzag encode

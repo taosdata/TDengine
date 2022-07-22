@@ -17,14 +17,14 @@ sql use test
 
 
 sql create table t1(ts timestamp, a int, b int , c int, d double);
-sql create stream streams1 trigger at_once  into streamt as select  _wstartts, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s);
+sql create stream streams1 trigger at_once  into streamt as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s);
 sql insert into t1 values(1648791213000,1,2,3,1.0);
 sql insert into t1 values(1648791223001,2,2,3,1.1);
 sql insert into t1 values(1648791233002,3,2,3,2.1);
 sql insert into t1 values(1648791243003,4,2,3,3.1);
 sql insert into t1 values(1648791213004,4,2,3,4.1);
 sleep 1000
-sql select `_wstartts`, c1, c2 ,c3 ,c4, c5 from streamt;
+sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 if $rows != 4 then
   print ======$rows
@@ -254,7 +254,7 @@ endi
 
 sql insert into t1 values(1648791223002,12,14,13,11.1);
 sleep 100
-sql select `_wstartts`, c1, c2 ,c3 ,c4, c5 from streamt;
+sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 1
 if $data11 != 2 then
@@ -284,7 +284,7 @@ endi
 
 sql insert into t1 values(1648791223003,12,14,13,11.1);
 sleep 100
-sql select `_wstartts`, c1, c2 ,c3 ,c4, c5 from streamt;
+sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 1
 if $data11 != 3 then
@@ -316,7 +316,7 @@ sql insert into t1 values(1648791223001,1,1,1,1.1);
 sql insert into t1 values(1648791223002,2,2,2,2.1);
 sql insert into t1 values(1648791223003,3,3,3,3.1);
 sleep 100
-sql select `_wstartts`, c1, c2 ,c3 ,c4, c5 from streamt;
+sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 1
 if $data11 != 3 then
@@ -348,7 +348,7 @@ sql insert into t1 values(1648791233003,3,2,3,2.1);
 sql insert into t1 values(1648791233002,5,6,7,8.1);
 sql insert into t1 values(1648791233002,3,2,3,2.1);
 sleep 100
-sql select `_wstartts`, c1, c2 ,c3 ,c4, c5 from streamt;
+sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 2
 if $data21 != 2 then
@@ -378,7 +378,7 @@ endi
 
 sql insert into t1 values(1648791213004,4,2,3,4.1) (1648791213006,5,4,7,9.1) (1648791213004,40,20,30,40.1) (1648791213005,4,2,3,4.1);
 sleep 100
-sql select `_wstartts`, c1, c2 ,c3 ,c4, c5 from streamt;
+sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 0
 if $data01 != 4 then
@@ -391,13 +391,13 @@ if $data02 != 4 then
   return -1
 endi
 
-if $data03 != 14 then
-  print ======$data03
+if $data03 != 50 then
+  print ======$data03 != 50
   return -1
 endi
 
-if $data04 != 4 then
-  print ======$data04
+if $data04 != 20 then
+  print ======$data04 != 20
   return -1
 endi
 
@@ -408,7 +408,7 @@ endi
 
 sql insert into t1 values(1648791223004,4,2,3,4.1) (1648791233006,5,4,7,9.1) (1648791223004,40,20,30,40.1) (1648791233005,4,2,3,4.1);
 sleep 100
-sql select `_wstartts`, c1, c2 ,c3 ,c4, c5 from streamt;
+sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 1
 if $data11 != 4 then
@@ -421,13 +421,13 @@ if $data12 != 4 then
   return -1
 endi
 
-if $data13 != 10 then
-  print ======$data13
+if $data13 != 46 then
+  print ======$data13 != 46
   return -1
 endi
 
-if $data14 != 3 then
-  print ======$data14
+if $data14 != 20 then
+  print ======$data14 != 20
   return -1
 endi
 
@@ -462,6 +462,130 @@ if $data25 != 3 then
   return -1
 endi
 
+sql create database test2 vgroups 1
+sql show databases
 
+sql use test2
+sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+sql create table t3 using st tags(2,2,2);
+sql create table t4 using st tags(2,2,2);
+sql create table t5 using st tags(2,2,2);
+sql create stream streams2 trigger at_once  into streamt as select  _wstart, count(*) c1, sum(a) c3,max(b) c4 from st partition by tbname interval(10s);
+sql create stream streams3 trigger at_once  into streamt3 as select  _wstart, count(*) c1, sum(a) c3,max(b) c4, now c5 from st partition by tbname interval(10s);
+
+sql insert into t1 values(1648791213000,1,1,1,1.0) t2 values(1648791213000,2,2,2,2.0) t3 values(1648791213000,3,3,3,3.0) t4 values(1648791213000,4,4,4,4.0);
+
+$loop_count = 0
+
+loop0:
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt;
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop0
+endi
+
+sql insert into t1 values(1648791213000,5,5,5,5.0) t2 values(1648791213000,6,6,6,6.0) t5 values(1648791213000,7,7,7,7.0);
+
+
+$loop_count = 0
+
+loop1:
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt order by c4 desc;
+
+if $rows != 5 then
+  print =====rows=$rows
+  goto loop1
+endi
+
+# row 0
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop1
+endi
+
+if $data02 != 7 then
+  print =====data02=$data02
+  goto loop1
+endi
+
+# row 1
+if $data11 != 1 then
+  print =====data11=$data11
+  goto loop1
+endi
+
+if $data12 != 6 then
+  print =====data12=$data12
+  goto loop1
+endi
+
+# row 2
+if $data21 != 1 then
+  print =====data21=$data21
+  goto loop1
+endi
+
+if $data22 != 5 then
+  print =====data22=$data22
+  goto loop1
+endi
+
+sql insert into t1 values(1648791213000,8,8,8,8.0);
+
+$loop_count = 0
+
+loop2:
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt order by c4 desc;
+
+# row 0
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop2
+endi
+
+if $data02 != 8 then
+  print =====data02=$data02
+  goto loop2
+endi
+
+$loop_count = 0
+loop3:
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select count(*) from streamt3;
+# row 0
+if $data00 != 5 then
+  print =====data00=$data00
+  goto loop3
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

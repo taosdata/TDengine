@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndBnode.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndDnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
@@ -30,25 +30,25 @@ static int32_t  mndBnodeActionInsert(SSdb *pSdb, SBnodeObj *pObj);
 static int32_t  mndBnodeActionUpdate(SSdb *pSdb, SBnodeObj *pOld, SBnodeObj *pNew);
 static int32_t  mndBnodeActionDelete(SSdb *pSdb, SBnodeObj *pObj);
 static int32_t  mndProcessCreateBnodeReq(SRpcMsg *pReq);
-static int32_t  mndProcessCreateBnodeRsp(SRpcMsg *pRsp);
 static int32_t  mndProcessDropBnodeReq(SRpcMsg *pReq);
-static int32_t  mndProcessDropBnodeRsp(SRpcMsg *pRsp);
 static int32_t  mndRetrieveBnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextBnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitBnode(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_BNODE,
-                     .keyType = SDB_KEY_INT32,
-                     .encodeFp = (SdbEncodeFp)mndBnodeActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndBnodeActionDecode,
-                     .insertFp = (SdbInsertFp)mndBnodeActionInsert,
-                     .updateFp = (SdbUpdateFp)mndBnodeActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndBnodeActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_BNODE,
+      .keyType = SDB_KEY_INT32,
+      .encodeFp = (SdbEncodeFp)mndBnodeActionEncode,
+      .decodeFp = (SdbDecodeFp)mndBnodeActionDecode,
+      .insertFp = (SdbInsertFp)mndBnodeActionInsert,
+      .updateFp = (SdbUpdateFp)mndBnodeActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndBnodeActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_BNODE, mndProcessCreateBnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_BNODE, mndProcessDropBnodeReq);
-  mndSetMsgHandle(pMnode, TDMT_DND_CREATE_BNODE_RSP, mndProcessCreateBnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_DND_DROP_BNODE_RSP, mndProcessDropBnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_CREATE_BNODE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_DROP_BNODE_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_BNODE, mndRetrieveBnodes);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_BNODE, mndCancelGetNextBnode);
@@ -269,7 +269,6 @@ static int32_t mndProcessCreateBnodeReq(SRpcMsg *pReq) {
   int32_t          code = -1;
   SBnodeObj       *pObj = NULL;
   SDnodeObj       *pDnode = NULL;
-  SUserObj        *pUser = NULL;
   SMCreateBnodeReq createReq = {0};
 
   if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
@@ -278,6 +277,9 @@ static int32_t mndProcessCreateBnodeReq(SRpcMsg *pReq) {
   }
 
   mDebug("bnode:%d, start to create", createReq.dnodeId);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_BNODE) != 0) {
+    goto _OVER;
+  }
 
   pObj = mndAcquireBnode(pMnode, createReq.dnodeId);
   if (pObj != NULL) {
@@ -293,16 +295,6 @@ static int32_t mndProcessCreateBnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto _OVER;
-  }
-
-  if (mndCheckNodeAuth(pUser)) {
-    goto _OVER;
-  }
-
   code = mndCreateBnode(pMnode, pReq, pDnode, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -313,7 +305,6 @@ _OVER:
 
   mndReleaseBnode(pMnode, pObj);
   mndReleaseDnode(pMnode, pDnode);
-  mndReleaseUser(pMnode, pUser);
   return code;
 }
 
@@ -382,7 +373,6 @@ _OVER:
 static int32_t mndProcessDropBnodeReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
-  SUserObj      *pUser = NULL;
   SBnodeObj     *pObj = NULL;
   SMDropBnodeReq dropReq = {0};
 
@@ -392,6 +382,9 @@ static int32_t mndProcessDropBnodeReq(SRpcMsg *pReq) {
   }
 
   mDebug("bnode:%d, start to drop", dropReq.dnodeId);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_BNODE) != 0) {
+    goto _OVER;
+  }
 
   if (dropReq.dnodeId <= 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -400,16 +393,6 @@ static int32_t mndProcessDropBnodeReq(SRpcMsg *pReq) {
 
   pObj = mndAcquireBnode(pMnode, dropReq.dnodeId);
   if (pObj == NULL) {
-    goto _OVER;
-  }
-
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto _OVER;
-  }
-
-  if (mndCheckNodeAuth(pUser)) {
     goto _OVER;
   }
 
@@ -422,19 +405,7 @@ _OVER:
   }
 
   mndReleaseBnode(pMnode, pObj);
-  mndReleaseUser(pMnode, pUser);
-
   return code;
-}
-
-static int32_t mndProcessCreateBnodeRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
-}
-
-static int32_t mndProcessDropBnodeRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
 }
 
 static int32_t mndRetrieveBnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {

@@ -19,14 +19,59 @@ using namespace std;
 
 namespace ParserTest {
 
-class ParserShowToUseTest : public ParserTestBase {};
+class ParserShowToUseTest : public ParserDdlTest {};
 
 // todo SHOW accounts
 // todo SHOW apps
 // todo SHOW connections
-// todo SHOW create database
-// todo SHOW create stable
-// todo SHOW create table
+
+TEST_F(ParserShowToUseTest, showConsumers) {
+  useDb("root", "test");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SELECT_STMT); });
+
+  run("SHOW CONSUMERS");
+}
+
+TEST_F(ParserShowToUseTest, showCreateDatabase) {
+  useDb("root", "test");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SHOW_CREATE_DATABASE_STMT);
+    ASSERT_EQ(pQuery->execMode, QUERY_EXEC_MODE_LOCAL);
+    ASSERT_TRUE(pQuery->haveResultSet);
+    ASSERT_NE(((SShowCreateDatabaseStmt*)pQuery->pRoot)->pCfg, nullptr);
+  });
+
+  run("SHOW CREATE DATABASE test");
+}
+
+TEST_F(ParserShowToUseTest, showCreateSTable) {
+  useDb("root", "test");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SHOW_CREATE_STABLE_STMT);
+    ASSERT_EQ(pQuery->execMode, QUERY_EXEC_MODE_LOCAL);
+    ASSERT_TRUE(pQuery->haveResultSet);
+    ASSERT_NE(((SShowCreateTableStmt*)pQuery->pRoot)->pCfg, nullptr);
+  });
+
+  run("SHOW CREATE STABLE st1");
+}
+
+TEST_F(ParserShowToUseTest, showCreateTable) {
+  useDb("root", "test");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SHOW_CREATE_TABLE_STMT);
+    ASSERT_EQ(pQuery->execMode, QUERY_EXEC_MODE_LOCAL);
+    ASSERT_TRUE(pQuery->haveResultSet);
+    ASSERT_NE(((SShowCreateTableStmt*)pQuery->pRoot)->pCfg, nullptr);
+  });
+
+  run("SHOW CREATE TABLE t1");
+}
 
 TEST_F(ParserShowToUseTest, showDatabases) {
   useDb("root", "test");
@@ -40,6 +85,12 @@ TEST_F(ParserShowToUseTest, showDnodes) {
   run("SHOW dnodes");
 }
 
+TEST_F(ParserShowToUseTest, showDnodeVariables) {
+  useDb("root", "test");
+
+  run("SHOW DNODE 1 VARIABLES");
+}
+
 TEST_F(ParserShowToUseTest, showFunctions) {
   useDb("root", "test");
 
@@ -47,6 +98,12 @@ TEST_F(ParserShowToUseTest, showFunctions) {
 }
 
 // todo SHOW licence
+
+TEST_F(ParserShowToUseTest, showLocalVariables) {
+  useDb("root", "test");
+
+  run("SHOW LOCAL VARIABLES");
+}
 
 TEST_F(ParserShowToUseTest, showIndexes) {
   useDb("root", "test");
@@ -95,6 +152,15 @@ TEST_F(ParserShowToUseTest, showStreams) {
   run("SHOW streams");
 }
 
+TEST_F(ParserShowToUseTest, showSubscriptions) {
+  useDb("root", "test");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SELECT_STMT); });
+
+  run("SHOW SUBSCRIPTIONS");
+}
+
 TEST_F(ParserShowToUseTest, showTransactions) {
   useDb("root", "test");
 
@@ -113,6 +179,12 @@ TEST_F(ParserShowToUseTest, showTables) {
   run("SHOW test.tables like 'c%'");
 }
 
+TEST_F(ParserShowToUseTest, showTableDistributed) {
+  useDb("root", "test");
+
+  run("SHOW TABLE DISTRIBUTED st1");
+}
+
 // todo SHOW topics
 
 TEST_F(ParserShowToUseTest, showUsers) {
@@ -121,7 +193,11 @@ TEST_F(ParserShowToUseTest, showUsers) {
   run("SHOW users");
 }
 
-// todo SHOW variables
+TEST_F(ParserShowToUseTest, showVariables) {
+  useDb("root", "test");
+
+  run("SHOW VARIABLES");
+}
 
 TEST_F(ParserShowToUseTest, showVgroups) {
   useDb("root", "test");
@@ -133,7 +209,43 @@ TEST_F(ParserShowToUseTest, showVgroups) {
 
 // todo SHOW vnodes
 
-// todo split vgroup
+TEST_F(ParserShowToUseTest, splitVgroup) {
+  useDb("root", "test");
+
+  SSplitVgroupReq expect = {0};
+
+  auto setSplitVgroupReqFunc = [&](int32_t vgId) { expect.vgId = vgId; };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SPLIT_VGROUP_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_SPLIT_VGROUP);
+    SSplitVgroupReq req = {0};
+    ASSERT_EQ(tDeserializeSSplitVgroupReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(req.vgId, expect.vgId);
+  });
+
+  setSplitVgroupReqFunc(15);
+  run("SPLIT VGROUP 15");
+}
+
+TEST_F(ParserShowToUseTest, trimDatabase) {
+  useDb("root", "test");
+
+  STrimDbReq expect = {0};
+
+  auto setTrimDbReq = [&](const char* pDb) { snprintf(expect.db, sizeof(expect.db), "0.%s", pDb); };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_TRIM_DATABASE_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_TRIM_DB);
+    STrimDbReq req = {0};
+    ASSERT_EQ(tDeserializeSTrimDbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(std::string(req.db), std::string(expect.db));
+  });
+
+  setTrimDbReq("wxy_db");
+  run("TRIM DATABASE wxy_db");
+}
 
 TEST_F(ParserShowToUseTest, useDatabase) {
   useDb("root", "test");

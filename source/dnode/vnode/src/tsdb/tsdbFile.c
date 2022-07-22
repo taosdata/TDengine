@@ -15,436 +15,221 @@
 
 #include "tsdb.h"
 
-static const char *TSDB_FNAME_SUFFIX[] = {
-    "head",  // TSDB_FILE_HEAD
-    "data",  // TSDB_FILE_DATA
-    "last",  // TSDB_FILE_LAST
-    "smad",  // TSDB_FILE_SMAD
-    "smal",  // TSDB_FILE_SMAL
-    "",      // TSDB_FILE_MAX
-    "meta",  // TSDB_FILE_META
-};
+int32_t tPutHeadFile(uint8_t *p, SHeadFile *pHeadFile) {
+  int32_t n = 0;
 
-static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char* dname, char *fname);
-// static int   tsdbRollBackMFile(SMFile *pMFile);
-static int   tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo);
-static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo);
-static int   tsdbRollBackDFile(SDFile *pDFile);
+  n += tPutI64v(p ? p + n : p, pHeadFile->commitID);
+  n += tPutI64v(p ? p + n : p, pHeadFile->size);
+  n += tPutI64v(p ? p + n : p, pHeadFile->offset);
 
-// ============== Operations on SDFile
-void tsdbInitDFile(STsdb *pRepo, SDFile *pDFile, SDiskID did, int fid, uint32_t ver, TSDB_FILE_T ftype) {
-  char fname[TSDB_FILENAME_LEN];
-
-  TSDB_FILE_SET_STATE(pDFile, TSDB_FILE_STATE_OK);
-
-  TSDB_FILE_SET_CLOSED(pDFile);
-
-  memset(&(pDFile->info), 0, sizeof(pDFile->info));
-  pDFile->info.magic = TSDB_FILE_INIT_MAGIC;
-  pDFile->info.fver = tsdbGetDFSVersion(ftype);
-
-  tsdbGetFilename(REPO_ID(pRepo), fid, ver, ftype, pRepo->dir, fname);
-  tfsInitFile(REPO_TFS(pRepo), &(pDFile->f), did, fname);
+  return n;
 }
 
-void tsdbInitDFileEx(SDFile *pDFile, SDFile *pODFile) {
-  *pDFile = *pODFile;
-  TSDB_FILE_SET_CLOSED(pDFile);
+static int32_t tGetHeadFile(uint8_t *p, SHeadFile *pHeadFile) {
+  int32_t n = 0;
+
+  n += tGetI64v(p + n, &pHeadFile->commitID);
+  n += tGetI64v(p + n, &pHeadFile->size);
+  n += tGetI64v(p + n, &pHeadFile->offset);
+
+  return n;
 }
 
-int tsdbEncodeSDFile(void **buf, SDFile *pDFile) {
-  int tlen = 0;
+int32_t tPutDataFile(uint8_t *p, SDataFile *pDataFile) {
+  int32_t n = 0;
 
-  tlen += tsdbEncodeDFInfo(buf, &(pDFile->info));
-  tlen += tfsEncodeFile(buf, &(pDFile->f));
+  n += tPutI64v(p ? p + n : p, pDataFile->commitID);
+  n += tPutI64v(p ? p + n : p, pDataFile->size);
 
-  return tlen;
+  return n;
 }
 
-void *tsdbDecodeSDFile(STsdb *pRepo, void *buf, SDFile *pDFile) {
-  buf = tsdbDecodeDFInfo(buf, &(pDFile->info));
-  buf = tfsDecodeFile(REPO_TFS(pRepo), buf, &(pDFile->f));
-  TSDB_FILE_SET_CLOSED(pDFile);
+static int32_t tGetDataFile(uint8_t *p, SDataFile *pDataFile) {
+  int32_t n = 0;
 
-  return buf;
+  n += tGetI64v(p + n, &pDataFile->commitID);
+  n += tGetI64v(p + n, &pDataFile->size);
+
+  return n;
 }
 
-static int tsdbEncodeSDFileEx(void **buf, SDFile *pDFile) {
-  int tlen = 0;
+int32_t tPutLastFile(uint8_t *p, SLastFile *pLastFile) {
+  int32_t n = 0;
 
-  tlen += tsdbEncodeDFInfo(buf, &(pDFile->info));
-  tlen += taosEncodeString(buf, TSDB_FILE_FULL_NAME(pDFile));
+  n += tPutI64v(p ? p + n : p, pLastFile->commitID);
+  n += tPutI64v(p ? p + n : p, pLastFile->size);
 
-  return tlen;
+  return n;
 }
 
-static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
-  char *aname = NULL;
+static int32_t tGetLastFile(uint8_t *p, SLastFile *pLastFile) {
+  int32_t n = 0;
 
-  buf = tsdbDecodeDFInfo(buf, &(pDFile->info));
-  buf = taosDecodeString(buf, &aname);
-  strncpy(TSDB_FILE_FULL_NAME(pDFile), aname, TSDB_FILENAME_LEN);
-  TSDB_FILE_SET_CLOSED(pDFile);
-  taosMemoryFreeClear(aname);
+  n += tGetI64v(p + n, &pLastFile->commitID);
+  n += tGetI64v(p + n, &pLastFile->size);
 
-  return buf;
+  return n;
 }
 
-int tsdbCreateDFile(STsdb *pRepo, SDFile *pDFile, bool updateHeader, TSDB_FILE_T fType) {
-  ASSERT(pDFile->info.size == 0 && pDFile->info.magic == TSDB_FILE_INIT_MAGIC);
+int32_t tPutSmaFile(uint8_t *p, SSmaFile *pSmaFile) {
+  int32_t n = 0;
 
-  pDFile->pFile = taosOpenFile(TSDB_FILE_FULL_NAME(pDFile), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (pDFile->pFile == NULL) {
-    if (errno == ENOENT) {
-      // Try to create directory recursively
-      char *s = strdup(TSDB_FILE_REL_NAME(pDFile));
-      if (tfsMkdirRecurAt(REPO_TFS(pRepo), taosDirName(s), TSDB_FILE_DID(pDFile)) < 0) {
-        taosMemoryFreeClear(s);
-        return -1;
-      }
-      taosMemoryFreeClear(s);
+  n += tPutI64v(p ? p + n : p, pSmaFile->commitID);
+  n += tPutI64v(p ? p + n : p, pSmaFile->size);
 
-      pDFile->pFile = taosOpenFile(TSDB_FILE_FULL_NAME(pDFile), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-      if (pDFile->pFile == NULL) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        return -1;
-      }
-    } else {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      return -1;
-    }
-  }
-
-  if (!updateHeader) {
-    return 0;
-  }
-
-  pDFile->info.size += TSDB_FILE_HEAD_SIZE;
-  pDFile->info.fver = tsdbGetDFSVersion(fType);
-
-  if (tsdbUpdateDFileHeader(pDFile) < 0) {
-    tsdbCloseDFile(pDFile);
-    tsdbRemoveDFile(pDFile);
-    return -1;
-  }
-
-  return 0;
+  return n;
 }
 
-int tsdbUpdateDFileHeader(SDFile *pDFile) {
-  char buf[TSDB_FILE_HEAD_SIZE] = "\0";
+static int32_t tGetSmaFile(uint8_t *p, SSmaFile *pSmaFile) {
+  int32_t n = 0;
 
-  if (tsdbSeekDFile(pDFile, 0, SEEK_SET) < 0) {
-    return -1;
-  }
+  n += tGetI64v(p + n, &pSmaFile->commitID);
+  n += tGetI64v(p + n, &pSmaFile->size);
 
-  void *ptr = buf;
-  // taosEncodeFixedU32(&ptr, 0); // fver moved to SDFInfo and saved to current
-  tsdbEncodeDFInfo(&ptr, &(pDFile->info));
-
-  taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
-  if (tsdbWriteDFile(pDFile, buf, TSDB_FILE_HEAD_SIZE) < 0) {
-    return -1;
-  }
-
-  return 0;
+  return n;
 }
 
-int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
-  char     buf[TSDB_FILE_HEAD_SIZE] = "\0";
-  uint32_t _version;
-
-  ASSERT(TSDB_FILE_OPENED(pDFile));
-
-  if (tsdbSeekDFile(pDFile, 0, SEEK_SET) < 0) {
-    return -1;
-  }
-
-  if (tsdbReadDFile(pDFile, buf, TSDB_FILE_HEAD_SIZE) < 0) {
-    return -1;
-  }
-
-  if (!taosCheckChecksumWhole((uint8_t *)buf, TSDB_FILE_HEAD_SIZE)) {
-    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    return -1;
-  }
-
-  void *pBuf = buf;
-  // pBuf = taosDecodeFixedU32(pBuf, &_version);
-  pBuf = tsdbDecodeDFInfo(pBuf, pInfo);
-  return 0;
+// EXPOSED APIS ==================================================
+void tsdbHeadFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SHeadFile *pHeadF, char fname[]) {
+  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTsdb->pVnode->pTfs, did),
+           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), fid, pHeadF->commitID, ".head");
 }
 
-static int tsdbScanAndTryFixDFile(STsdb *pRepo, SDFile *pDFile) {
-  SDFile df;
-
-  tsdbInitDFileEx(&df, pDFile);
-
-  if (!taosCheckExistFile(TSDB_FILE_FULL_NAME(pDFile))) {
-    tsdbError("vgId:%d data file %s not exit, report to upper layer to fix it", REPO_ID(pRepo),
-              TSDB_FILE_FULL_NAME(pDFile));
-    // pRepo->state |= TSDB_STATE_BAD_DATA;
-    TSDB_FILE_SET_STATE(pDFile, TSDB_FILE_STATE_BAD);
-    return 0;
-  }
-  int64_t file_size = 0;
-  if (taosStatFile(TSDB_FILE_FULL_NAME(&df), &file_size, NULL) < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
-  if (pDFile->info.size < file_size) {
-    // if (tsdbOpenDFile(&df, O_WRONLY) < 0) {
-    if (tsdbOpenDFile(&df, TD_FILE_WRITE) < 0) {
-      return -1;
-    }
-
-    if (taosFtruncateFile(df.pFile, df.info.size) < 0) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      tsdbCloseDFile(&df);
-      return -1;
-    }
-
-    if (tsdbUpdateDFileHeader(&df) < 0) {
-      tsdbCloseDFile(&df);
-      return -1;
-    }
-
-    tsdbCloseDFile(&df);
-    tsdbInfo("vgId:%d file %s is truncated from %" PRId64 " to %" PRId64, REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
-             file_size, pDFile->info.size);
-  } else if (pDFile->info.size > file_size) {
-    tsdbError("vgId:%d data file %s has wrong size %" PRId64 " expected %" PRId64 ", report to upper layer to fix it",
-              REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile), file_size, pDFile->info.size);
-    // pRepo->state |= TSDB_STATE_BAD_DATA;
-    TSDB_FILE_SET_STATE(pDFile, TSDB_FILE_STATE_BAD);
-    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    return 0;
-  } else {
-    tsdbDebug("vgId:%d file %s passes the scan", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile));
-  }
-
-  return 0;
+void tsdbDataFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SDataFile *pDataF, char fname[]) {
+  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTsdb->pVnode->pTfs, did),
+           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), fid, pDataF->commitID, ".data");
 }
 
-static int tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo) {
-  int tlen = 0;
-
-  tlen += taosEncodeFixedU32(buf, pInfo->magic);
-  tlen += taosEncodeFixedU32(buf, pInfo->fver);
-  tlen += taosEncodeFixedU32(buf, pInfo->len);
-  tlen += taosEncodeFixedU32(buf, pInfo->totalBlocks);
-  tlen += taosEncodeFixedU32(buf, pInfo->totalSubBlocks);
-  tlen += taosEncodeFixedU32(buf, pInfo->offset);
-  tlen += taosEncodeFixedU64(buf, pInfo->size);
-  tlen += taosEncodeFixedU64(buf, pInfo->tombSize);
-
-  return tlen;
+void tsdbLastFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SLastFile *pLastF, char fname[]) {
+  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTsdb->pVnode->pTfs, did),
+           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), fid, pLastF->commitID, ".last");
 }
 
-static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo) {
-  buf = taosDecodeFixedU32(buf, &(pInfo->magic));
-  buf = taosDecodeFixedU32(buf, &(pInfo->fver));
-  buf = taosDecodeFixedU32(buf, &(pInfo->len));
-  buf = taosDecodeFixedU32(buf, &(pInfo->totalBlocks));
-  buf = taosDecodeFixedU32(buf, &(pInfo->totalSubBlocks));
-  buf = taosDecodeFixedU32(buf, &(pInfo->offset));
-  buf = taosDecodeFixedU64(buf, &(pInfo->size));
-  buf = taosDecodeFixedU64(buf, &(pInfo->tombSize));
-
-  return buf;
+void tsdbSmaFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSmaFile *pSmaF, char fname[]) {
+  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTsdb->pVnode->pTfs, did),
+           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), fid, pSmaF->commitID, ".sma");
 }
 
-static int tsdbApplyDFileChange(SDFile *from, SDFile *to) {
-  ASSERT(from != NULL || to != NULL);
+bool tsdbDelFileIsSame(SDelFile *pDelFile1, SDelFile *pDelFile2) { return pDelFile1->commitID == pDelFile2->commitID; }
 
-  if (from != NULL) {
-    if (to == NULL) {
-      tsdbRemoveDFile(from);
-    } else {
-      if (tfsIsSameFile(TSDB_FILE_F(from), TSDB_FILE_F(to))) {
-        if (from->info.size > to->info.size) {
-          tsdbRollBackDFile(to);
-        }
-      } else {
-        (void)tsdbRemoveDFile(from);
-      }
-    }
-  }
+int32_t tsdbDFileRollback(STsdb *pTsdb, SDFileSet *pSet, EDataFileT ftype) {
+  int32_t   code = 0;
+  int64_t   size;
+  int64_t   n;
+  TdFilePtr pFD;
+  char      fname[TSDB_FILENAME_LEN];
+  char      hdr[TSDB_FHDR_SIZE] = {0};
 
-  return 0;
-}
-
-static int tsdbRollBackDFile(SDFile *pDFile) {
-  SDFile df = *pDFile;
-
-  // if (tsdbOpenDFile(&df, O_WRONLY) < 0) {
-  if (tsdbOpenDFile(&df, TD_FILE_WRITE) < 0) {
-    return -1;
-  }
-
-  if (taosFtruncateFile(TSDB_FILE_PFILE(&df), pDFile->info.size) < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    tsdbCloseDFile(&df);
-    return -1;
-  }
-
-  if (tsdbUpdateDFileHeader(&df) < 0) {
-    tsdbCloseDFile(&df);
-    return -1;
-  }
-
-  TSDB_FILE_FSYNC(&df);
-
-  tsdbCloseDFile(&df);
-  return 0;
-}
-
-// ============== Operations on SDFileSet
-void tsdbInitDFileSet(STsdb *pRepo, SDFileSet *pSet, SDiskID did, int fid, uint32_t ver) {
-  TSDB_FSET_FID(pSet) = fid;
-  TSDB_FSET_VER(pSet) = TSDB_LATEST_FSET_VER;
-  TSDB_FSET_STATE(pSet) = 0;
-  pSet->reserve = 0;
-
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    SDFile *pDFile = TSDB_DFILE_IN_SET(pSet, ftype);
-    tsdbInitDFile(pRepo, pDFile, did, fid, ver, ftype);
-  }
-}
-
-void tsdbInitDFileSetEx(SDFileSet *pSet, SDFileSet *pOSet) {
-  TSDB_FSET_FID(pSet) = TSDB_FSET_FID(pOSet);
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    tsdbInitDFileEx(TSDB_DFILE_IN_SET(pSet, ftype), TSDB_DFILE_IN_SET(pOSet, ftype));
-  }
-}
-
-int tsdbEncodeDFileSet(void **buf, SDFileSet *pSet) {
-  int tlen = 0;
-
-  tlen += taosEncodeFixedI32(buf, TSDB_FSET_FID(pSet));
-  // state not included
-  tlen += taosEncodeFixedU8(buf, TSDB_FSET_VER(pSet));
-  tlen += taosEncodeFixedU16(buf, pSet->reserve);
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    tlen += tsdbEncodeSDFile(buf, TSDB_DFILE_IN_SET(pSet, ftype));
-  }
-
-  return tlen;
-}
-
-void *tsdbDecodeDFileSet(STsdb *pRepo, void *buf, SDFileSet *pSet) {
-  buf = taosDecodeFixedI32(buf, &(TSDB_FSET_FID(pSet)));
-  TSDB_FSET_STATE(pSet) = 0;
-  buf = taosDecodeFixedU8(buf, &(TSDB_FSET_VER(pSet)));
-  buf = taosDecodeFixedU16(buf, &(pSet->reserve));
-
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    buf = tsdbDecodeSDFile(pRepo, buf, TSDB_DFILE_IN_SET(pSet, ftype));
-  }
-  return buf;
-}
-
-int tsdbEncodeDFileSetEx(void **buf, SDFileSet *pSet) {
-  int tlen = 0;
-
-  tlen += taosEncodeFixedI32(buf, TSDB_FSET_FID(pSet));
-  tlen += taosEncodeFixedU8(buf, TSDB_FSET_VER(pSet));
-  tlen += taosEncodeFixedU16(buf, pSet->reserve);
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    tlen += tsdbEncodeSDFileEx(buf, TSDB_DFILE_IN_SET(pSet, ftype));
-  }
-
-  return tlen;
-}
-
-void *tsdbDecodeDFileSetEx(void *buf, SDFileSet *pSet) {
-  buf = taosDecodeFixedI32(buf, &(TSDB_FSET_FID(pSet)));
-  buf = taosDecodeFixedU8(buf, &(TSDB_FSET_VER(pSet)));
-  buf = taosDecodeFixedU16(buf, &(pSet->reserve));
-
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    buf = tsdbDecodeSDFileEx(buf, TSDB_DFILE_IN_SET(pSet, ftype));
-  }
-  return buf;
-}
-
-int tsdbApplyDFileSetChange(SDFileSet *from, SDFileSet *to) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    SDFile *pDFileFrom = (from) ? TSDB_DFILE_IN_SET(from, ftype) : NULL;
-    SDFile *pDFileTo = (to) ? TSDB_DFILE_IN_SET(to, ftype) : NULL;
-    if (tsdbApplyDFileChange(pDFileFrom, pDFileTo) < 0) {
-      return -1;
-    }
-  }
-
-  return 0;
-}
-
-int tsdbCreateDFileSet(STsdb *pRepo, SDFileSet *pSet, bool updateHeader) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    if (tsdbCreateDFile(pRepo, TSDB_DFILE_IN_SET(pSet, ftype), updateHeader, ftype) < 0) {
-      tsdbCloseDFileSet(pSet);
-      tsdbRemoveDFileSet(pSet);
-      return -1;
-    }
-  }
-
-  return 0;
-}
-
-int tsdbUpdateDFileSetHeader(SDFileSet *pSet) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    if (tsdbUpdateDFileHeader(TSDB_DFILE_IN_SET(pSet, ftype)) < 0) {
-      return -1;
-    }
-  }
-  return 0;
-}
-
-int tsdbScanAndTryFixDFileSet(STsdb *pRepo, SDFileSet *pSet) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    if (tsdbScanAndTryFixDFile(pRepo, TSDB_DFILE_IN_SET(pSet, ftype)) < 0) {
-      return -1;
-    }
-  }
-  return 0;
-}
-
-int tsdbParseDFilename(const char *fname, int *vid, int *fid, TSDB_FILE_T *ftype, uint32_t *_version) {
-  char *p = NULL;
-  *_version = 0;
-  *ftype = TSDB_FILE_MAX;
-
-  sscanf(fname, "v%df%d.%m[a-z]-ver%" PRIu32, vid, fid, &p, _version);
-  for (TSDB_FILE_T i = 0; i < TSDB_FILE_MAX; i++) {
-    if (strcmp(p, TSDB_FNAME_SUFFIX[i]) == 0) {
-      *ftype = i;
+  // truncate
+  switch (ftype) {
+    case TSDB_DATA_FILE:
+      size = pSet->pDataF->size;
+      tsdbDataFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pDataF, fname);
+      tPutDataFile(hdr, pSet->pDataF);
       break;
-    }
+    case TSDB_SMA_FILE:
+      size = pSet->pSmaF->size;
+      tsdbSmaFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pSmaF, fname);
+      tPutSmaFile(hdr, pSet->pSmaF);
+      break;
+    default:
+      ASSERT(0);
   }
 
-  taosMemoryFreeClear(p);
-  return 0;
+  taosCalcChecksumAppend(0, hdr, TSDB_FHDR_SIZE);
+
+  // open
+  pFD = taosOpenFile(fname, TD_FILE_WRITE);
+  if (pFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // ftruncate
+  if (taosFtruncateFile(pFD, size) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // update header
+  n = taosLSeekFile(pFD, 0, SEEK_SET);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  n = taosWriteFile(pFD, hdr, TSDB_FHDR_SIZE);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // sync
+  if (taosFsyncFile(pFD) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // close
+  taosCloseFile(&pFD);
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb rollback file failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  return code;
 }
 
-static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char *dname, char *fname) {
-  ASSERT(ftype != TSDB_FILE_MAX);
+int32_t tPutDFileSet(uint8_t *p, SDFileSet *pSet) {
+  int32_t n = 0;
 
-  if (ftype < TSDB_FILE_MAX) {
-    if (ver == 0) {
-      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/%s/data/v%df%d.%s", vid, dname, vid, fid,
-               TSDB_FNAME_SUFFIX[ftype]);
-    } else {
-      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/%s/data/v%df%d.%s-ver%" PRIu32, vid, dname, vid, fid,
-               TSDB_FNAME_SUFFIX[ftype], ver);
-    }
-  } else {
-    if (ver == 0) {
-      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/%s", vid, TSDB_FNAME_SUFFIX[ftype]);
-    } else {
-      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/%s-ver%" PRIu32, vid, TSDB_FNAME_SUFFIX[ftype], ver);
-    }
-  }
+  n += tPutI32v(p ? p + n : p, pSet->diskId.level);
+  n += tPutI32v(p ? p + n : p, pSet->diskId.id);
+  n += tPutI32v(p ? p + n : p, pSet->fid);
+  n += tPutHeadFile(p ? p + n : p, pSet->pHeadF);
+  n += tPutDataFile(p ? p + n : p, pSet->pDataF);
+  n += tPutLastFile(p ? p + n : p, pSet->pLastF);
+  n += tPutSmaFile(p ? p + n : p, pSet->pSmaF);
+
+  return n;
+}
+
+int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
+  int32_t n = 0;
+
+  n += tGetI32v(p + n, &pSet->diskId.level);
+  n += tGetI32v(p + n, &pSet->diskId.id);
+  n += tGetI32v(p + n, &pSet->fid);
+  n += tGetHeadFile(p + n, pSet->pHeadF);
+  n += tGetDataFile(p + n, pSet->pDataF);
+  n += tGetLastFile(p + n, pSet->pLastF);
+  n += tGetSmaFile(p + n, pSet->pSmaF);
+
+  return n;
+}
+
+// SDelFile ===============================================
+void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]) {
+  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%dver%" PRId64 "%s", tfsGetPrimaryPath(pTsdb->pVnode->pTfs),
+           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), pFile->commitID, ".del");
+}
+
+int32_t tPutDelFile(uint8_t *p, SDelFile *pDelFile) {
+  int32_t n = 0;
+
+  n += tPutI64v(p ? p + n : p, pDelFile->commitID);
+  n += tPutI64v(p ? p + n : p, pDelFile->size);
+  n += tPutI64v(p ? p + n : p, pDelFile->offset);
+
+  return n;
+}
+
+int32_t tGetDelFile(uint8_t *p, SDelFile *pDelFile) {
+  int32_t n = 0;
+
+  n += tGetI64v(p + n, &pDelFile->commitID);
+  n += tGetI64v(p + n, &pDelFile->size);
+  n += tGetI64v(p + n, &pDelFile->offset);
+
+  return n;
 }

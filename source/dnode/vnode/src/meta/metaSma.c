@@ -28,19 +28,19 @@ int32_t metaCreateTSma(SMeta *pMeta, int64_t version, SSmaCfg *pCfg) {
   int         vLen = 0;
   const void *pKey = NULL;
   const void *pVal = NULL;
-  void       *pBuf = NULL;
+  void *      pBuf = NULL;
   int32_t     szBuf = 0;
-  void       *p = NULL;
+  void *      p = NULL;
   SMetaReader mr = {0};
 
   // validate req
+  // save smaIndex
   metaReaderInit(&mr, pMeta, 0);
   if (metaGetTableEntryByUid(&mr, pCfg->indexUid) == 0) {
-// TODO: just for pass case
 #if 1
-    terrno = TSDB_CODE_TDB_TSMA_ALREADY_EXIST;
+    terrno = TSDB_CODE_TSMA_ALREADY_EXIST;
     metaReaderClear(&mr);
-    return -1;
+    return -1;  // don't goto _err;
 #else
     metaReaderClear(&mr);
     return 0;
@@ -57,12 +57,12 @@ int32_t metaCreateTSma(SMeta *pMeta, int64_t version, SSmaCfg *pCfg) {
 
   if (metaHandleSmaEntry(pMeta, &me) < 0) goto _err;
 
-  metaDebug("vgId:%d tsma is created, name:%s uid: %" PRId64, TD_VID(pMeta->pVnode), pCfg->indexName, pCfg->indexUid);
+  metaDebug("vgId:%d, tsma is created, name:%s uid: %" PRId64, TD_VID(pMeta->pVnode), pCfg->indexName, pCfg->indexUid);
 
   return 0;
 
 _err:
-  metaError("vgId:%d failed to create tsma: %s uid: %" PRId64 " since %s", TD_VID(pMeta->pVnode), pCfg->indexName,
+  metaError("vgId:%d, failed to create tsma: %s uid: %" PRId64 " since %s", TD_VID(pMeta->pVnode), pCfg->indexName,
             pCfg->indexUid, tstrerror(terrno));
   return -1;
 }
@@ -83,8 +83,8 @@ int32_t metaDropTSma(SMeta *pMeta, int64_t indexUid) {
 
 static int metaSaveSmaToDB(SMeta *pMeta, const SMetaEntry *pME) {
   STbDbKey tbDbKey;
-  void    *pKey = NULL;
-  void    *pVal = NULL;
+  void *   pKey = NULL;
+  void *   pVal = NULL;
   int      kLen = 0;
   int      vLen = 0;
   SEncoder coder = {0};

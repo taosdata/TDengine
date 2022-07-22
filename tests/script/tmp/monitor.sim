@@ -6,30 +6,21 @@ system sh/cfg.sh -n dnode1 -c monitorInterval -v 1
 system sh/cfg.sh -n dnode1 -c monitorComp -v 1
 #system sh/cfg.sh -n dnode1 -c supportVnodes -v 128
 
+#system sh/cfg.sh -n dnode1 -c telemetryReporting -v 1
+#system sh/cfg.sh -n dnode1 -c telemetryInterval -v 1
+#system sh/cfg.sh -n dnode1 -c telemetryServer -v localhost
+#system sh/cfg.sh -n dnode1 -c telemetryPort -v 80
+
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
 print =============== show dnodes
-sleep 2000
 sql create database db vgroups 2;
-sleep 2000
+sql use db;
+sql create table db.stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 binary(16)) comment "abd";
 
 print =============== create drop qnode 1
 sql create qnode on dnode 1
 sql create snode on dnode 1
 sql create bnode on dnode 1
 
-return
-print =============== restart
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
-system sh/exec.sh -n dnode1 -s start
-
-
-return 
-system sh/deploy.sh -n dnode2 -i 2
-system sh/exec.sh -n dnode2 -s start
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
-system sh/exec.sh -n dnode2 -s start
-
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
-system sh/exec.sh -n dnode2 -s stop -x SIGINT

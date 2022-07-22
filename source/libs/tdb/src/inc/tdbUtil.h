@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#if __STDC_VERSION__ >= 201112L
+#if __STDC_VERSION__ >= 201112LL
 #define TDB_STATIC_ASSERT(op, info) static_assert(op, info)
 #else
 #define TDB_STATIC_ASSERT(op, info)

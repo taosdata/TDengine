@@ -48,21 +48,21 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
     #output = child.readline()
     #print (output.decode())
     if len(expectString) != 0:
-        i = child.expect([expectString, taosExpect.TIMEOUT, taosExpect.EOF], timeout=6)
+        i = child.expect([expectString, taosExpect.TIMEOUT, taosExpect.EOF], timeout=20)
     else:
-        i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=6)
+        i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=20)
 
     if platform.system().lower() == 'windows':
         retResult = child.before
     else:
         retResult = child.before.decode()
     print("cmd return result:\n%s\n"%retResult)
-    #print(child.after.decode())
+    # print(child.after.decode())
     if i == 0:
         print ('taos login success! Here can run sql, taos> ')
         if len(sqlString) != 0:
             child.sendline (sqlString)
-            w = child.expect(["Query OK", taosExpect.TIMEOUT, taosExpect.EOF], timeout=1)
+            w = child.expect(["Query OK", taosExpect.TIMEOUT, taosExpect.EOF], timeout=10)
             if platform.system().lower() == 'windows':
                 retResult = child.before
             else:
@@ -162,28 +162,28 @@ class TDTestCase:
         keyDict['h'] = 'abc'
         retCode, retVal = taos_command(buildPath, "h", keyDict['h'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
-            tdLog.info("taos -h %s test suceess"%keyDict['h'])
+            tdLog.info("taos -h %s test success"%keyDict['h'])
         else:
             tdLog.exit("taos -h %s fail"%keyDict['h'])
 
         keyDict['h'] = '\'abc\''
         retCode, retVal = taos_command(buildPath, "h", keyDict['h'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
-            tdLog.info("taos -h %s test suceess"%keyDict['h'])
+            tdLog.info("taos -h %s test success"%keyDict['h'])
         else:
             tdLog.exit("taos -h %s fail"%keyDict['h'])
 
         keyDict['h'] = '3'
         retCode, retVal = taos_command(buildPath, "h", keyDict['h'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
-            tdLog.info("taos -h %s test suceess"%keyDict['h'])
+            tdLog.info("taos -h %s test success"%keyDict['h'])
         else:
             tdLog.exit("taos -h %s fail"%keyDict['h'])
 
         keyDict['h'] = '\'3\''
         retCode, retVal = taos_command(buildPath, "h", keyDict['h'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
-            tdLog.info("taos -h %s test suceess"%keyDict['h'])
+            tdLog.info("taos -h %s test success"%keyDict['h'])
         else:
             tdLog.exit("taos -h %s fail"%keyDict['h'])
 
@@ -193,42 +193,42 @@ class TDTestCase:
         keyDict['P'] = 'abc'
         retCode, retVal = taos_command(buildPath, "P", keyDict['P'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Invalid port" in retVal):
-            tdLog.info("taos -P %s test suceess"%keyDict['P'])
+            tdLog.info("taos -P %s test success"%keyDict['P'])
         else:
             tdLog.exit("taos -P %s fail"%keyDict['P'])
 
         keyDict['P'] = '\'abc\''
         retCode, retVal = taos_command(buildPath, "P", keyDict['P'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Invalid port" in retVal):
-            tdLog.info("taos -P %s test suceess"%keyDict['P'])
+            tdLog.info("taos -P %s test success"%keyDict['P'])
         else:
             tdLog.exit("taos -P %s fail"%keyDict['P'])
 
         keyDict['P'] = '3'
         retCode, retVal = taos_command(buildPath, "P", keyDict['P'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
-            tdLog.info("taos -P %s test suceess"%keyDict['P'])
+            tdLog.info("taos -P %s test success"%keyDict['P'])
         else:
             tdLog.exit("taos -P %s fail"%keyDict['P'])
 
         keyDict['P'] = '\'3\''
         retCode, retVal = taos_command(buildPath, "P", keyDict['P'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
-            tdLog.info("taos -P %s test suceess"%keyDict['P'])
+            tdLog.info("taos -P %s test success"%keyDict['P'])
         else:
             tdLog.exit("taos -P %s fail"%keyDict['P'])
 
         keyDict['P'] = '12ab'
         retCode, retVal = taos_command(buildPath, "P", keyDict['P'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
-            tdLog.info("taos -P %s test suceess"%keyDict['P'])
+            tdLog.info("taos -P %s test success"%keyDict['P'])
         else:
             tdLog.exit("taos -P %s fail"%keyDict['P'])
 
         keyDict['P'] = '\'12ab\''
         retCode, retVal = taos_command(buildPath, "P", keyDict['P'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
-            tdLog.info("taos -P %s test suceess"%keyDict['P'])
+            tdLog.info("taos -P %s test success"%keyDict['P'])
         else:
             tdLog.exit("taos -P %s fail"%keyDict['P'])
  
@@ -293,7 +293,7 @@ class TDTestCase:
         keyDict['p'] = 'errorPassword'  
         retCode, retVal = taos_command(buildPath, "u", keyDict['u'], "taos>", keyDict['c'], sqlString, 'p', keyDict['p'])
         if retCode == "TAOS_FAIL" and "Authentication failure" in retVal:
-            tdLog.info("taos -p %s test suceess"%keyDict['p'])
+            tdLog.info("taos -p %s test success"%keyDict['p'])
         else:
             tdLog.exit("taos -u %s -p %s"%(keyDict['u'], keyDict['p']))
 

@@ -11,14 +11,15 @@ from util.sql import *
 from util.cases import *
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 , 
+    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
     "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
-    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"fnDebugFlag":143}
+    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
-    
+        self.ts = 1420041600000 # 2015-01-01 00:00:00  this is begin time for first record
+
     def prepare_datas(self):
         tdSql.execute(
             '''create table stb1
@@ -26,7 +27,7 @@ class TDTestCase:
             tags (t1 int)
             '''
         )
-        
+
         tdSql.execute(
             '''
             create table t1
@@ -68,7 +69,7 @@ class TDTestCase:
             ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             '''
         )
-    
+
     def test_errors(self):
         error_sql_lists = [
             # "select statecount(c1,'GT',5) from t1"
@@ -85,8 +86,8 @@ class TDTestCase:
             "select statecount(c1 ,'GT','*') from t1",
             "select statecount(c1 ,'GT',ts) from t1",
             "select statecount(c1 ,'GT',max(c1)) from t1",
-            "select statecount(abs(c1) ,'GT',1) from t1",
-            "select statecount(c1+2 ,'GT',1) from t1",
+            # "select statecount(abs(c1) ,'GT',1) from t1",
+            # "select statecount(c1+2 ,'GT',1) from t1",
             "select statecount(c1 ,'GT',1,1u) from t1",
             "select statecount(c1 ,'GT',1,now) from t1",
             "select statecount(c1 ,'GT','1') from t1",
@@ -110,35 +111,35 @@ class TDTestCase:
         for error_sql in error_sql_lists:
             tdSql.error(error_sql)
             pass
-    
+
     def support_types(self):
         other_no_value_types = [
-            "select statecount(ts,'GT',1) from t1" , 
+            "select statecount(ts,'GT',1) from t1" ,
             "select statecount(c7,'GT',1) from t1",
             "select statecount(c8,'GT',1) from t1",
             "select statecount(c9,'GT',1) from t1",
-            "select statecount(ts,'GT',1) from ct1" , 
+            "select statecount(ts,'GT',1) from ct1" ,
             "select statecount(c7,'GT',1) from ct1",
             "select statecount(c8,'GT',1) from ct1",
             "select statecount(c9,'GT',1) from ct1",
-            "select statecount(ts,'GT',1) from ct3" , 
+            "select statecount(ts,'GT',1) from ct3" ,
             "select statecount(c7,'GT',1) from ct3",
             "select statecount(c8,'GT',1) from ct3",
             "select statecount(c9,'GT',1) from ct3",
-            "select statecount(ts,'GT',1) from ct4" , 
+            "select statecount(ts,'GT',1) from ct4" ,
             "select statecount(c7,'GT',1) from ct4",
             "select statecount(c8,'GT',1) from ct4",
             "select statecount(c9,'GT',1) from ct4",
-            "select statecount(ts,'GT',1) from stb1 partition by tbname" , 
+            "select statecount(ts,'GT',1) from stb1 partition by tbname" ,
             "select statecount(c7,'GT',1) from stb1 partition by tbname",
             "select statecount(c8,'GT',1) from stb1 partition by tbname",
-            "select statecount(c9,'GT',1) from stb1 partition by tbname" 
+            "select statecount(c9,'GT',1) from stb1 partition by tbname"
         ]
-        
+
         for type_sql in other_no_value_types:
             tdSql.error(type_sql)
             tdLog.info("support type ok ,  sql is : %s"%type_sql)
-        
+
         type_sql_lists = [
             "select statecount(c1,'GT',1) from t1",
             "select statecount(c2,'GT',1) from t1",
@@ -168,8 +169,8 @@ class TDTestCase:
             "select statecount(c5,'GT',1) from stb1 partition by tbname",
             "select statecount(c6,'GT',1) from stb1 partition by tbname",
 
-            "select statecount(c6,'GT',1) as alisb from stb1 partition by tbname", 
-            "select statecount(c6,'GT',1) alisb from stb1 partition by tbname", 
+            "select statecount(c6,'GT',1) as alisb from stb1 partition by tbname",
+            "select statecount(c6,'GT',1) alisb from stb1 partition by tbname",
         ]
 
         for type_sql in type_sql_lists:
@@ -177,7 +178,7 @@ class TDTestCase:
 
     def support_opers(self):
         oper_lists =  ['LT','lt','Lt','lT','GT','gt','Gt','gT','LE','le','Le','lE','GE','ge','Ge','gE','NE','ne','Ne','nE','EQ','eq','Eq','eQ']
-    
+
         oper_errors = [",","*","NULL","tbname","ts","sum","_c0"]
 
         for oper in oper_lists:
@@ -190,7 +191,7 @@ class TDTestCase:
 
     def basic_statecount_function(self):
 
-        # basic query 
+        # basic query
         tdSql.query("select c1 from ct3")
         tdSql.checkRows(0)
         tdSql.query("select c1 from t1")
@@ -211,9 +212,9 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query("select statecount(c6,'GT',1) from ct3")
 
-        # will support _rowts mix with 
+        # will support _rowts mix with
         # tdSql.query("select (c6,'GT',1),_rowts from ct3")
-        
+
         # auto check for t1 table
         # used for regular table
         tdSql.query("select statecount(c6,'GT',1) from t1")
@@ -229,17 +230,17 @@ class TDTestCase:
         tdSql.error("select statecount(c6,'GT',1),tbname from ct1")
         tdSql.error("select statecount(c6,'GT',1),t1 from ct1")
 
-        # unique with common col 
+        # unique with common col
         tdSql.error("select statecount(c6,'GT',1) ,ts  from ct1")
         tdSql.error("select statecount(c6,'GT',1) ,c1  from ct1")
 
-        # unique with scalar function 
+        # unique with scalar function
         tdSql.error("select statecount(c6,'GT',1) ,abs(c1)  from ct1")
         tdSql.error("select statecount(c6,'GT',1) , unique(c2) from ct1")
         tdSql.error("select statecount(c6,'GT',1) , abs(c2)+2 from ct1")
-  
 
-        # unique with aggregate function 
+
+        # unique with aggregate function
         tdSql.error("select statecount(c6,'GT',1) ,sum(c1)  from ct1")
         tdSql.error("select statecount(c6,'GT',1) ,max(c1)  from ct1")
         tdSql.error("select statecount(c6,'GT',1) ,csum(c1)  from ct1")
@@ -262,16 +263,16 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1)
         tdSql.checkData(1, 0, 2)
         tdSql.checkData(6, 0, -1)
-     
 
-        # unique with union all 
+
+        # unique with union all
         tdSql.query("select statecount(c1,'GT',1) from ct4 union all select statecount(c1,'GT',1) from ct1")
         tdSql.checkRows(25)
         tdSql.query("select statecount(c1,'GT',1) from ct4 union all select distinct(c1) from ct4")
         tdSql.checkRows(22)
 
-        # unique with join 
-        # prepare join datas with same ts 
+        # unique with join
+        # prepare join datas with same ts
 
         tdSql.execute(" use db ")
         tdSql.execute(" create stable st1 (ts timestamp , num int) tags(ind int)")
@@ -323,7 +324,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, None)
         tdSql.checkData(1, 0, 0.000000000)
         tdSql.checkData(3, 0, -1.000000000)
-        
+
 
         # bug for stable
         #partition by tbname
@@ -332,21 +333,22 @@ class TDTestCase:
 
         # tdSql.query(" select unique(c1) from stb1 partition by tbname ")
         # tdSql.checkRows(21)
-        
-        # group by 
-        tdSql.query("select statecount(c1,'GT',1) from ct1 group by c1")
+
+        # group by
+        tdSql.error("select statecount(c1,'GT',1) from ct1 group by c1")
         tdSql.error("select statecount(c1,'GT',1) from ct1 group by tbname")
 
         # super table
-        
+
     def check_unit_time(self):
         tdSql.execute(" use db ")
         tdSql.error("select stateduration(c1,'GT',1,1b) from ct1")
         tdSql.error("select stateduration(c1,'GT',1,1u) from ct1")
+        tdSql.error("select stateduration(c1,'GT',1,1000s) from t1")
+        tdSql.error("select stateduration(c1,'GT',1,10m) from t1")
+        tdSql.error("select stateduration(c1,'GT',1,10d) from t1")
         tdSql.query("select stateduration(c1,'GT',1,1s) from t1")
         tdSql.checkData(10,0,63072035)
-        tdSql.query("select stateduration(c1,'GT',1,1000s) from t1")
-        tdSql.checkData(10,0,int(63072035/1000))
         tdSql.query("select stateduration(c1,'GT',1,1m) from t1")
         tdSql.checkData(10,0,int(63072035/60))
         tdSql.query("select stateduration(c1,'GT',1,1h) from t1")
@@ -355,8 +357,60 @@ class TDTestCase:
         tdSql.checkData(10,0,int(63072035/60/24/60))
         tdSql.query("select stateduration(c1,'GT',1,1w) from t1")
         tdSql.checkData(10,0,int(63072035/60/7/24/60))
-        
-    
+
+    def query_precision(self):
+        def generate_data(precision="ms"):
+            tdSql.execute("create database if not exists db_%s precision '%s';" %(precision, precision))
+            tdSql.execute("use db_%s;" %precision)
+            tdSql.execute("create stable db_%s.st (ts timestamp , id int) tags(ind int);"%precision)
+            tdSql.execute("create table db_%s.tb1 using st tags(1);"%precision)
+            tdSql.execute("create table db_%s.tb2 using st tags(2);"%precision)
+
+            if precision == "ms":
+                start_ts = self.ts
+                step = 10000
+            elif precision == "us":
+                start_ts = self.ts*1000
+                step = 10000000
+            elif precision == "ns":
+                start_ts = self.ts*1000000
+                step = 10000000000
+            else:
+                pass
+
+            for i in range(10):
+
+                sql1 = "insert into db_%s.tb1 values (%d,%d)"%(precision ,start_ts+i*step,i)
+                sql2 = "insert into db_%s.tb1 values (%d,%d)"%(precision, start_ts+i*step,i)
+                tdSql.execute(sql1)
+                tdSql.execute(sql2)
+
+        time_units = ["1s","1a","1u","1b"]
+
+        precision_list = ["ms","us","ns"]
+        for pres in precision_list:
+            generate_data(pres)
+
+            for index,unit in enumerate(time_units):
+
+                if pres == "ms":
+                    if unit in ["1u","1b"]:
+                        tdSql.error("select stateduration(id,'GT',1,%s) from db_%s.tb1 "%(unit,pres))
+                        pass
+                    else:
+                        tdSql.query("select stateduration(id,'GT',1,%s) from db_%s.tb1 "%(unit,pres))
+                elif pres == "us" and unit in ["1b"]:
+                    if unit in ["1b"]:
+                        tdSql.error("select stateduration(id,'GT',1,%s) from db_%s.tb1 "%(unit,pres))
+                        pass
+                    else:
+                        tdSql.query("select stateduration(id,'GT',1,%s) from db_%s.tb1 "%(unit,pres))
+                else:
+
+                    tdSql.query("select stateduration(id,'GT',1,%s) from db_%s.tb1 "%(unit,pres))
+                    basic_result = 70
+                    tdSql.checkData(9,0,basic_result*pow(1000,index))
+
     def check_boundary_values(self):
 
         tdSql.execute("drop database if exists bound_test")
@@ -384,11 +438,11 @@ class TDTestCase:
         tdSql.execute(
                 f"insert into sub1_bound values ( now(), -2147483643, -9223372036854775803, -32763, -123, -3.39E+38, -1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        
+
         tdSql.error(
                 f"insert into sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        
+
         tdSql.query("select statecount(c1,'GT',1) from sub1_bound")
         tdSql.checkRows(5)
 
@@ -396,31 +450,33 @@ class TDTestCase:
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
-        
+
         self.prepare_datas()
 
-        tdLog.printNoPrefix("==========step2:test errors ==============")    
+        tdLog.printNoPrefix("==========step2:test errors ==============")
 
         self.test_errors()
-        
-        tdLog.printNoPrefix("==========step3:support types ============") 
+
+        tdLog.printNoPrefix("==========step3:support types ============")
 
         self.support_types()
 
-        tdLog.printNoPrefix("==========step4:support opers ============") 
+        tdLog.printNoPrefix("==========step4:support opers ============")
         self.support_opers()
 
-        tdLog.printNoPrefix("==========step5: statecount basic query ============") 
+        tdLog.printNoPrefix("==========step5: statecount basic query ============")
 
         self.basic_statecount_function()
 
-        tdLog.printNoPrefix("==========step6: statecount boundary query ============") 
+        tdLog.printNoPrefix("==========step6: statecount boundary query ============")
 
         self.check_boundary_values()
 
-        tdLog.printNoPrefix("==========step6: statecount unit time test ============") 
+        tdLog.printNoPrefix("==========step6: statecount unit time test ============")
 
         self.check_unit_time()
+        self.query_precision()
+
 
 
     def stop(self):

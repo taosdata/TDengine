@@ -21,10 +21,36 @@ namespace ParserTest {
 
 class ParserInitialDTest : public ParserDdlTest {};
 
-// todo delete
-// todo desc
+// DELETE FROM table_name [WHERE condition]
+TEST_F(ParserInitialDTest, delete) {
+  useDb("root", "test");
+
+  run("DELETE FROM t1");
+
+  run("DELETE FROM t1 WHERE ts > now - 2d and ts < now - 1d");
+
+  run("DELETE FROM st1");
+
+  run("DELETE FROM st1 WHERE ts > now - 2d and ts < now - 1d AND tag1 = 10");
+}
+
+TEST_F(ParserInitialDTest, deleteSemanticCheck) {
+  useDb("root", "test");
+
+  run("DELETE FROM t1 WHERE c1 > 10", TSDB_CODE_PAR_INVALID_DELETE_WHERE, PARSER_STAGE_TRANSLATE);
+}
+
+// DESC table_name
+TEST_F(ParserInitialDTest, describe) {
+  useDb("root", "test");
+
+  run("DESC t1");
+
+  run("DESCRIBE st1");
+}
+
 // todo describe
-// todo drop account
+// todo DROP account
 
 TEST_F(ParserInitialDTest, dropBnode) {
   useDb("root", "test");
@@ -33,13 +59,14 @@ TEST_F(ParserInitialDTest, dropBnode) {
 }
 
 // DROP CONSUMER GROUP [ IF EXISTS ] cgroup_name ON topic_name
-TEST_F(ParserInitialDTest, dropCGroup) {
+TEST_F(ParserInitialDTest, dropConsumerGroup) {
   useDb("root", "test");
 
   SMDropCgroupReq expect = {0};
 
-  auto setDropCgroupReqFunc = [&](const char* pTopicName, const char* pCGroupName, int8_t igNotExists = 0) {
-    memset(&expect, 0, sizeof(SMDropCgroupReq));
+  auto clearDropCgroupReq = [&]() { memset(&expect, 0, sizeof(SMDropCgroupReq)); };
+
+  auto setDropCgroupReq = [&](const char* pTopicName, const char* pCGroupName, int8_t igNotExists = 0) {
     snprintf(expect.topic, sizeof(expect.topic), "0.%s", pTopicName);
     strcpy(expect.cgroup, pCGroupName);
     expect.igNotExists = igNotExists;
@@ -55,58 +82,156 @@ TEST_F(ParserInitialDTest, dropCGroup) {
     ASSERT_EQ(req.igNotExists, expect.igNotExists);
   });
 
-  setDropCgroupReqFunc("tp1", "cg1");
+  setDropCgroupReq("tp1", "cg1");
   run("DROP CONSUMER GROUP cg1 ON tp1");
+  clearDropCgroupReq();
 
-  setDropCgroupReqFunc("tp1", "cg1", 1);
+  setDropCgroupReq("tp1", "cg1", 1);
   run("DROP CONSUMER GROUP IF EXISTS cg1 ON tp1");
+  clearDropCgroupReq();
 }
 
-// todo drop database
-// todo drop dnode
-// todo drop function
+// todo DROP database
+
+// todo DROP dnode
+TEST_F(ParserInitialDTest, dropDnode) {
+  useDb("root", "test");
+
+  SDropDnodeReq expect = {0};
+
+  auto clearDropDnodeReq = [&]() { memset(&expect, 0, sizeof(SDropDnodeReq)); };
+
+  auto setDropDnodeReqById = [&](int32_t dnodeId) { expect.dnodeId = dnodeId; };
+
+  auto setDropDnodeReqByEndpoint = [&](const char* pFqdn, int32_t port) {
+    strcpy(expect.fqdn, pFqdn);
+    expect.port = port;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_DROP_DNODE_STMT);
+    SDropDnodeReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSDropDnodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(req.dnodeId, expect.dnodeId);
+    ASSERT_EQ(std::string(req.fqdn), std::string(expect.fqdn));
+    ASSERT_EQ(req.port, expect.port);
+  });
+
+  setDropDnodeReqById(1);
+  run("DROP DNODE 1");
+  clearDropDnodeReq();
+
+  setDropDnodeReqByEndpoint("host1", 7030);
+  run("DROP DNODE 'host1:7030'");
+  clearDropDnodeReq();
+}
+
+// todo DROP function
 
 TEST_F(ParserInitialDTest, dropIndex) {
   useDb("root", "test");
 
-  run("drop index index1 on t1");
+  SMDropSmaReq expect = {0};
+
+  auto clearDropSmaReq = [&]() { memset(&expect, 0, sizeof(SMDropSmaReq)); };
+
+  auto setDropSmaReq = [&](const char* pName, int8_t igNotExists = 0) {
+    sprintf(expect.name, "0.test.%s", pName);
+    expect.igNotExists = igNotExists;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_DROP_INDEX_STMT);
+    SMDropSmaReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSMDropSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(std::string(req.name), std::string(expect.name));
+    ASSERT_EQ(req.igNotExists, expect.igNotExists);
+  });
+
+  setDropSmaReq("index1");
+  run("DROP INDEX index1");
+  clearDropSmaReq();
+
+  setDropSmaReq("index2", 1);
+  run("DROP INDEX IF EXISTS index2");
+  clearDropSmaReq();
 }
 
 TEST_F(ParserInitialDTest, dropMnode) {
   useDb("root", "test");
 
-  run("drop mnode on dnode 1");
+  run("DROP mnode on dnode 1");
 }
 
 TEST_F(ParserInitialDTest, dropQnode) {
   useDb("root", "test");
 
-  run("drop qnode on dnode 1");
+  run("DROP qnode on dnode 1");
 }
 
 TEST_F(ParserInitialDTest, dropSnode) {
   useDb("root", "test");
 
-  run("drop snode on dnode 1");
+  run("DROP snode on dnode 1");
 }
 
-// todo drop stable
-// todo drop stream
-// todo drop table
+TEST_F(ParserInitialDTest, dropSTable) {
+  useDb("root", "test");
+
+  run("DROP STABLE st1");
+}
+
+TEST_F(ParserInitialDTest, dropStream) {
+  useDb("root", "test");
+
+  SMDropStreamReq expect = {0};
+
+  auto clearDropStreamReq = [&]() { memset(&expect, 0, sizeof(SMDropStreamReq)); };
+
+  auto setDropStreamReq = [&](const char* pStream, int8_t igNotExists = 0) {
+    sprintf(expect.name, "0.%s", pStream);
+    expect.igNotExists = igNotExists;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_DROP_STREAM_STMT);
+    SMDropStreamReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSMDropStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(std::string(req.name), std::string(expect.name));
+    ASSERT_EQ(req.igNotExists, expect.igNotExists);
+  });
+
+  setDropStreamReq("s1");
+  run("DROP STREAM s1");
+  clearDropStreamReq();
+
+  setDropStreamReq("s2", 1);
+  run("DROP STREAM IF EXISTS s2");
+  clearDropStreamReq();
+}
+
+TEST_F(ParserInitialDTest, dropTable) {
+  useDb("root", "test");
+
+  run("DROP TABLE t1");
+}
 
 TEST_F(ParserInitialDTest, dropTopic) {
   useDb("root", "test");
 
-  run("drop topic tp1");
+  run("DROP topic tp1");
 
-  run("drop topic if exists tp1");
+  run("DROP topic if exists tp1");
 }
 
 TEST_F(ParserInitialDTest, dropUser) {
   login("root");
   useDb("root", "test");
 
-  run("drop user wxy");
+  run("DROP user wxy");
 }
 
 }  // namespace ParserTest

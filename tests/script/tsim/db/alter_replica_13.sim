@@ -12,11 +12,11 @@ sql connect
 print =============== step1: create dnodes
 sql create dnode $hostname port 7200
 
-$loop_cnt = 0
+$x = 0
 step1:
-	$loop_cnt = $loop_cnt + 1
+	$ = $x + 1
 	sleep 1000
-	if $loop_cnt == 10 then
+	if $x == 10 then
 	  print ====> dnode not ready!
 		return -1
 	endi
@@ -73,11 +73,11 @@ print =============== step3: create dnodes
 sql create dnode $hostname port 7300
 sql create dnode $hostname port 7400
 
-$loop_cnt = 0
+$x = 0
 step3:
-	$loop_cnt = $loop_cnt + 1
+	$x = $x + 1
 	sleep 1000
-	if $loop_cnt == 10 then
+	if $x == 10 then
 	  print ====> dnode not ready!
 		return -1
 	endi
@@ -103,22 +103,38 @@ if $data(4)[4] != ready then
   goto step3
 endi
 
-return
 print ============= step4: alter database
 sql alter database db replica 3
-if $rows != 3 then 
-  return -1
+
+$x = 0
+step4:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql show db.vgroups
+print ===> rows: $rows 
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+if $data[0][4] != leader then
+  goto step4
 endi
-if $data(db)[4] != 3 then 
-  return -1
+if $data[0][6] != follower then
+  goto step4
 endi
+if $data[0][8] != follower then
+  goto step4
+endi
+
+print ============= step5: stop dnode 2
 
 sql select * from db.stb
 if $rows != 1 then
   return -1
 endi
 
-
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec.sh -n dnode4 -s stop -x SIGINT

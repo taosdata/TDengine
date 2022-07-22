@@ -122,7 +122,7 @@ void qwtBuildQueryReqMsg(SRpcMsg *queryRpc) {
   qwtqueryMsg.taskId = htobe64(1);
   qwtqueryMsg.phyLen = htonl(100);
   qwtqueryMsg.sqlLen = 0;
-  queryRpc->msgType = TDMT_VND_QUERY;
+  queryRpc->msgType = TDMT_SCH_QUERY;
   queryRpc->pCont = &qwtqueryMsg;
   queryRpc->contLen = sizeof(SSubQueryMsg) + 100;
 }
@@ -131,7 +131,7 @@ void qwtBuildFetchReqMsg(SResFetchReq *fetchMsg, SRpcMsg *fetchRpc) {
   fetchMsg->sId = htobe64(1);
   fetchMsg->queryId = htobe64(atomic_load_64(&qwtTestQueryId));
   fetchMsg->taskId = htobe64(1);
-  fetchRpc->msgType = TDMT_VND_FETCH;
+  fetchRpc->msgType = TDMT_SCH_FETCH;
   fetchRpc->pCont = fetchMsg;
   fetchRpc->contLen = sizeof(SResFetchReq);
 }
@@ -140,7 +140,7 @@ void qwtBuildDropReqMsg(STaskDropReq *dropMsg, SRpcMsg *dropRpc) {
   dropMsg->sId = htobe64(1);
   dropMsg->queryId = htobe64(atomic_load_64(&qwtTestQueryId));
   dropMsg->taskId = htobe64(1);
-  dropRpc->msgType = TDMT_VND_DROP_TASK;
+  dropRpc->msgType = TDMT_SCH_DROP_TASK;
   dropRpc->pCont = dropMsg;
   dropRpc->contLen = sizeof(STaskDropReq);
 }
@@ -172,8 +172,7 @@ int32_t qwtPutReqToFetchQueue(void *node, struct SRpcMsg *pMsg) {
   return 0;
 }
 
-
-int32_t qwtPutReqToQueue(void *node, struct SRpcMsg *pMsg) {
+int32_t qwtPutReqToQueue(void *node, EQueueType qtype, struct SRpcMsg *pMsg) {
   taosWLockLatch(&qwtTestQueryQueueLock);
   struct SRpcMsg *newMsg = (struct SRpcMsg *)taosMemoryCalloc(1, sizeof(struct SRpcMsg));
   memcpy(newMsg, pMsg, sizeof(struct SRpcMsg));
@@ -181,7 +180,7 @@ int32_t qwtPutReqToQueue(void *node, struct SRpcMsg *pMsg) {
   if (qwtTestQueryQueueWIdx >= qwtTestQueryQueueSize) {
     qwtTestQueryQueueWIdx = 0;
   }
-  
+
   qwtTestQueryQueueNum++;
 
   if (qwtTestQueryQueueWIdx == qwtTestQueryQueueRIdx) {
@@ -203,7 +202,8 @@ void qwtSendReqToDnode(void* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq)
 void qwtRpcSendResponse(const SRpcMsg *pRsp) {
 
   switch (pRsp->msgType) {
-    case TDMT_VND_QUERY_RSP: {
+    case TDMT_SCH_QUERY_RSP:
+    case TDMT_SCH_MERGE_QUERY_RSP: {
       SQueryTableRsp *rsp = (SQueryTableRsp *)pRsp->pCont;
 
       if (pRsp->code) {
@@ -214,7 +214,8 @@ void qwtRpcSendResponse(const SRpcMsg *pRsp) {
       rpcFreeCont(rsp);
       break;
     }
-    case TDMT_VND_FETCH_RSP: {
+    case TDMT_SCH_FETCH_RSP:
+    case TDMT_SCH_MERGE_FETCH_RSP: {
       SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)pRsp->pCont;
   
       if (0 == pRsp->code && 0 == rsp->completed) {
@@ -230,7 +231,7 @@ void qwtRpcSendResponse(const SRpcMsg *pRsp) {
       
       break;
     }
-    case TDMT_VND_DROP_TASK_RSP: {
+    case TDMT_SCH_DROP_TASK_RSP: {
       STaskDropRsp *rsp = (STaskDropRsp *)pRsp->pCont;
       rpcFreeCont(rsp);
 
@@ -331,7 +332,7 @@ void qwtEndPut(DataSinkHandle handle, uint64_t useconds) {
   qwtTestSinkQueryEnd = true;
 }
 
-void qwtGetDataLength(DataSinkHandle handle, int32_t* pLen, bool* pQueryEnd) {
+void qwtGetDataLength(DataSinkHandle handle, int64_t* pLen, bool* pQueryEnd) {
   static int32_t in = 0;
 
   if (in > 0) {
@@ -702,9 +703,9 @@ void *qwtclientThread(void *param) {
 
   while (!qwtTestStop) {
     qwtTestCaseFinished = false;
-    
+
     qwtBuildQueryReqMsg(&queryRpc);
-    qwtPutReqToQueue((void *)0x1, &queryRpc);
+    qwtPutReqToQueue((void *)0x1, QUERY_QUEUE, &queryRpc);
 
     while (!qwtTestCaseFinished) {
       taosUsleep(1);
@@ -757,9 +758,9 @@ void *queryQueueThread(void *param) {
       }
     }
     
-    if (TDMT_VND_QUERY == queryRpc->msgType) {
+    if (TDMT_SCH_QUERY == queryRpc->msgType) {
       qWorkerProcessQueryMsg(mockPointer, mgmt, queryRpc, 0);
-    } else if (TDMT_VND_QUERY_CONTINUE == queryRpc->msgType) {
+    } else if (TDMT_SCH_QUERY_CONTINUE == queryRpc->msgType) {
       qWorkerProcessCQueryMsg(mockPointer, mgmt, queryRpc, 0);
     } else {
       printf("unknown msg in query queue, type:%d\n", queryRpc->msgType);
@@ -814,13 +815,14 @@ void *fetchQueueThread(void *param) {
     }
 
     switch (fetchRpc->msgType) {
-      case TDMT_VND_FETCH:
+      case TDMT_SCH_FETCH:
+      case TDMT_SCH_MERGE_FETCH:
         qWorkerProcessFetchMsg(mockPointer, mgmt, fetchRpc, 0);
         break;
-      case TDMT_VND_CANCEL_TASK:
+      case TDMT_SCH_CANCEL_TASK:
         qWorkerProcessCancelMsg(mockPointer, mgmt, fetchRpc, 0);
         break;
-      case TDMT_VND_DROP_TASK:
+      case TDMT_SCH_DROP_TASK:
         qWorkerProcessDropMsg(mockPointer, mgmt, fetchRpc, 0);
         break;
       default:
@@ -874,7 +876,7 @@ TEST(seqTest, normalCase) {
   
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
-  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
@@ -907,10 +909,10 @@ TEST(seqTest, cancelFirst) {
 
   stubSetStringToPlan();
   stubSetRpcSendResponse();
-  
+
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
-  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
@@ -944,10 +946,10 @@ TEST(seqTest, randCase) {
   stubSetCreateExecTask();
 
   taosSeedRand(taosGetTimestampSec());
-  
+
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
-  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
@@ -1015,10 +1017,10 @@ TEST(seqTest, multithreadRand) {
   stubSetGetDataBlock();
 
   taosSeedRand(taosGetTimestampSec());
-  
+
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
-  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
@@ -1081,7 +1083,7 @@ TEST(rcTest, shortExecshortDelay) {
 
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
-  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
@@ -1165,7 +1167,7 @@ TEST(rcTest, longExecshortDelay) {
 
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
-  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
@@ -1251,7 +1253,7 @@ TEST(rcTest, shortExeclongDelay) {
 
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
-  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
@@ -1332,10 +1334,10 @@ TEST(rcTest, dropTest) {
   stubSetGetDataBlock();
 
   taosSeedRand(taosGetTimestampSec());
-  
+
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
-  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 

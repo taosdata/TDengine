@@ -158,82 +158,58 @@ void taosqsort(void *src, int64_t numOfElem, int64_t size, const void *param, __
   taosMemoryFreeClear(buf);
 }
 
-void *taosbsearch(const void *key, const void *base, int64_t nmemb, int64_t size, __compar_fn_t compar, int32_t flags) {
-  // TODO: need to check the correctness of this function
-  int32_t l = 0;
-  int32_t r = (int32_t)nmemb;
-  int32_t idx = 0;
-  int32_t comparison;
+void *taosbsearch(const void *key, const void *base, int32_t nmemb, int32_t size, __compar_fn_t compar, int32_t flags) {
+  uint8_t *p;
+  int32_t  lidx;
+  int32_t  ridx;
+  int32_t  midx;
+  int32_t  c;
 
-  if (flags == TD_EQ) {
-    return bsearch(key, base, nmemb, size, compar);
-  } else if (flags == TD_GE) {
-    if (nmemb <= 0) return NULL;
-    if ((*compar)(key, elePtrAt(base, size, 0)) <= 0) return elePtrAt(base, size, 0);
-    if ((*compar)(key, elePtrAt(base, size, nmemb - 1)) > 0) return NULL;
+  if (nmemb <= 0) return NULL;
 
-    while (l < r) {
-      idx = (l + r) / 2;
-      comparison = (*compar)(key, elePtrAt(base, size, idx));
-      if (comparison < 0) {
-        r = idx;
-      } else if (comparison > 0) {
-        l = idx + 1;
-      } else {
-        return elePtrAt(base, size, idx);
+  lidx = 0;
+  ridx = nmemb - 1;
+  while (lidx <= ridx) {
+    midx = (lidx + ridx) / 2;
+    p = (uint8_t *)base + size * midx;
+
+    c = compar(key, p);
+    if (c == 0) {
+      if (flags == TD_GT){
+        lidx = midx + 1;
+      } else if(flags == TD_LT){
+        ridx = midx - 1;
+      }else{
+        break;
       }
-    }
-
-    if ((*compar)(key, elePtrAt(base, size, idx)) < 0) {
-      return elePtrAt(base, size, idx);
+    } else if (c < 0) {
+      ridx = midx - 1;
     } else {
-      if (idx + 1 > nmemb - 1) {
-        return NULL;
-      } else {
-        return elePtrAt(base, size, idx + 1);
-      }
+      lidx = midx + 1;
     }
-  } else if (flags == TD_LE) {
-    if (nmemb <= 0) return NULL;
-    if ((*compar)(key, elePtrAt(base, size, nmemb - 1)) >= 0) return elePtrAt(base, size, nmemb - 1);
-    if ((*compar)(key, elePtrAt(base, size, 0)) < 0) return NULL;
-
-    while (l < r) {
-      idx = (l + r) / 2;
-      comparison = (*compar)(key, elePtrAt(base, size, idx));
-      if (comparison < 0) {
-        r = idx;
-      } else if (comparison > 0) {
-        l = idx + 1;
-      } else {
-        return elePtrAt(base, size, idx);
-      }
-    }
-
-    if ((*compar)(key, elePtrAt(base, size, idx)) > 0) {
-      return elePtrAt(base, size, idx);
-    } else {
-      if (idx == 0) {
-        return NULL;
-      } else {
-        return elePtrAt(base, size, idx - 1);
-      }
-    }
-
-  } else {
-    assert(0);
-    return NULL;
   }
 
-  return NULL;
+  if (flags == TD_EQ) {
+    return c ? NULL : p;
+  } else if (flags == TD_GE) {
+    return (c <= 0) ? p : (midx + 1 < nmemb ? p + size : NULL);
+  } else if (flags == TD_LE) {
+    return (c >= 0) ? p : (midx > 0 ? p - size : NULL);
+  } else if (flags == TD_GT) {
+    return (c < 0) ? p : (midx + 1 < nmemb ? p + size : NULL);
+  } else if (flags == TD_LT) {
+    return (c > 0) ? p : (midx > 0 ? p - size : NULL);
+  } else {
+    ASSERT(0);
+  }
 }
 
 void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const void *parcompar,
-                    __ext_compar_fn_t compar, char* buf, bool maxroot) {
+                    __ext_compar_fn_t compar, char *buf, bool maxroot) {
   int32_t parent;
   int32_t child;
 
-  char* tmp = NULL;
+  char *tmp = NULL;
   if (buf == NULL) {
     tmp = taosMemoryMalloc(size);
   } else {
@@ -288,7 +264,7 @@ void taosheapsort(void *base, int32_t size, int32_t len, const void *parcompar, 
                   bool maxroot) {
   int32_t i;
 
-  char* buf = taosMemoryCalloc(1, size);
+  char *buf = taosMemoryCalloc(1, size);
   if (buf == NULL) {
     return;
   }

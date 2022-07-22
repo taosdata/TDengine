@@ -28,7 +28,7 @@ int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq *pMsg, SSubmitRsp *
   // scan and convert
   if (tsdbScanAndConvertSubmitMsg(pTsdb, pMsg) < 0) {
     if (terrno != TSDB_CODE_TDB_TABLE_RECONFIGURE) {
-      tsdbError("vgId:%d failed to insert data since %s", REPO_ID(pTsdb), tstrerror(terrno));
+      tsdbError("vgId:%d, failed to insert data since %s", TD_VID(pTsdb->pVnode), tstrerror(terrno));
     }
     return -1;
   }
@@ -39,7 +39,7 @@ int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq *pMsg, SSubmitRsp *
     SSubmitBlkRsp r = {0};
     tGetSubmitMsgNext(&msgIter, &pBlock);
     if (pBlock == NULL) break;
-    if (tsdbInsertTableData(pTsdb, &msgIter, pBlock, &r) < 0) {
+    if (tsdbInsertTableData(pTsdb, version, &msgIter, pBlock, &r) < 0) {
       return -1;
     }
 
@@ -59,7 +59,7 @@ static FORCE_INLINE int tsdbCheckRowRange(STsdb *pTsdb, STable *pTable, STSRow *
                                           TSKEY now) {
   TSKEY rowKey = TD_ROW_KEY(row);
   if (rowKey < minKey || rowKey > maxKey) {
-    tsdbError("vgId:%d table %s tid %d uid %" PRIu64 " timestamp is out of range! now %" PRId64 " minKey %" PRId64
+    tsdbError("vgId:%d, table %s tid %d uid %" PRIu64 " timestamp is out of range! now %" PRId64 " minKey %" PRId64
               " maxKey %" PRId64 " row key %" PRId64,
               REPO_ID(pTsdb), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable), now, minKey, maxKey,
               rowKey);
@@ -75,9 +75,9 @@ static FORCE_INLINE int tsdbCheckRowRange(STsdb *pTsdb, tb_uid_t uid, STSRow *ro
                                           TSKEY now) {
   TSKEY rowKey = TD_ROW_KEY(row);
   if (rowKey < minKey || rowKey > maxKey) {
-    tsdbError("vgId:%d table uid %" PRIu64 " timestamp is out of range! now %" PRId64 " minKey %" PRId64
+    tsdbError("vgId:%d, table uid %" PRIu64 " timestamp is out of range! now %" PRId64 " minKey %" PRId64
               " maxKey %" PRId64 " row key %" PRId64,
-              REPO_ID(pTsdb), uid, now, minKey, maxKey, rowKey);
+              TD_VID(pTsdb->pVnode), uid, now, minKey, maxKey, rowKey);
     terrno = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
     return -1;
   }
@@ -92,7 +92,7 @@ int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
   SSubmitBlk    *pBlock = NULL;
   SSubmitBlkIter blkIter = {0};
   STSRow        *row = NULL;
-  STsdbKeepCfg  *pCfg = REPO_KEEP_CFG(pTsdb);
+  STsdbKeepCfg  *pCfg = &pTsdb->keepCfg;
   TSKEY          now = taosGetTimestamp(pCfg->precision);
   TSKEY          minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep2;
   TSKEY          maxKey = now + tsTickPerMin[pCfg->precision] * pCfg->days;
@@ -115,7 +115,7 @@ int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
 
 #if 0
     if (pBlock->tid <= 0 || pBlock->tid >= pMeta->maxTables) {
-      tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pTsdb), pBlock->uid,
+      tsdbError("vgId:%d, failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pTsdb), pBlock->uid,
                 pBlock->tid);
       terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
       return -1;
@@ -123,14 +123,14 @@ int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
 
     STable *pTable = pMeta->tables[pBlock->tid];
     if (pTable == NULL || TABLE_UID(pTable) != pBlock->uid) {
-      tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pTsdb), pBlock->uid,
+      tsdbError("vgId:%d, failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pTsdb), pBlock->uid,
                 pBlock->tid);
       terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
       return -1;
     }
 
     if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
-      tsdbError("vgId:%d invalid action trying to insert a super table %s", REPO_ID(pTsdb), TABLE_CHAR_NAME(pTable));
+      tsdbError("vgId:%d, invalid action trying to insert a super table %s", REPO_ID(pTsdb), TABLE_CHAR_NAME(pTable));
       terrno = TSDB_CODE_TDB_INVALID_ACTION;
       return -1;
     }

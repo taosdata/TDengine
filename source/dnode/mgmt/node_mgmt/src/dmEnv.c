@@ -50,26 +50,26 @@ static int32_t dmInitMonitor() {
 }
 
 int32_t dmInit(int8_t rtype) {
-  dInfo("start to init env");
+  dInfo("start to init dnode env");
   if (dmCheckRepeatInit(dmInstance()) != 0) return -1;
   if (dmInitSystem() != 0) return -1;
   if (dmInitMonitor() != 0) return -1;
   if (dmInitDnode(dmInstance(), rtype) != 0) return -1;
 
-  dInfo("env is initialized");
+  dInfo("dnode env is initialized");
   return 0;
 }
 
 static int32_t dmCheckRepeatCleanup(SDnode *pDnode) {
   if (atomic_val_compare_exchange_8(&pDnode->once, DND_ENV_READY, DND_ENV_CLEANUP) != DND_ENV_READY) {
-    dError("env is already cleaned up");
+    dError("dnode env is already cleaned up");
     return -1;
   }
   return 0;
 }
 
 void dmCleanup() {
-  dDebug("start to cleanup env");
+  dDebug("start to cleanup dnode env");
   SDnode *pDnode = dmInstance();
   if (dmCheckRepeatCleanup(pDnode) != 0) return;
   dmCleanupDnode(pDnode);
@@ -79,7 +79,7 @@ void dmCleanup() {
   udfcClose();
   udfStopUdfd();
   taosStopCacheRefreshWorker();
-  dInfo("env is cleaned up");
+  dInfo("dnode env is cleaned up");
 
   taosCloseLog();
   taosCleanupCfg();
@@ -123,10 +123,12 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     dError("node:%s, failed to create since %s", pWrapper->name, terrstr());
   } else {
     dInfo("node:%s, has been created", pWrapper->name);
-    (void)dmOpenNode(pWrapper);
-    (void)dmStartNode(pWrapper);
-    pWrapper->required = true;
+    code = dmOpenNode(pWrapper);
+    if (code == 0) {
+      code = dmStartNode(pWrapper);
+    }
     pWrapper->deployed = true;
+    pWrapper->required = true;
     pWrapper->proc.ptype = pDnode->ptype;
   }
 

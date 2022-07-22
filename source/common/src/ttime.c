@@ -76,22 +76,28 @@ void           deltaToUtcInitOnce() {
 
 static int64_t parseFraction(char* str, char** end, int32_t timePrec);
 static int32_t parseTimeWithTz(const char* timestr, int64_t* time, int32_t timePrec, char delim);
-static int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec);
-static int32_t parseLocaltimeDst(char* timestr, int64_t* time, int32_t timePrec);
+static int32_t parseLocaltime(char* timestr, int32_t len, int64_t* utime, int32_t timePrec, char delim);
+static int32_t parseLocaltimeDst(char* timestr, int32_t len, int64_t* utime, int32_t timePrec, char delim);
 static char*   forwardToTimeStringEnd(char* str);
 static bool    checkTzPresent(const char* str, int32_t len);
 
-static int32_t (*parseLocaltimeFp[])(char* timestr, int64_t* time, int32_t timePrec) = {parseLocaltime,
-                                                                                        parseLocaltimeDst};
+static int32_t (*parseLocaltimeFp[])(char* timestr, int32_t len, int64_t* utime, int32_t timePrec, char delim) = {parseLocaltime,
+                                                                                                                  parseLocaltimeDst};
 
-int32_t taosParseTime(const char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
+int32_t taosParseTime(const char* timestr, int64_t* utime, int32_t len, int32_t timePrec, int8_t day_light) {
   /* parse datatime string in with tz */
   if (strnchr(timestr, 'T', len, false) != NULL) {
-    return parseTimeWithTz(timestr, time, timePrec, 'T');
-  } else if (checkTzPresent(timestr, len)) {
-    return parseTimeWithTz(timestr, time, timePrec, 0);
+    if (checkTzPresent(timestr, len)) {
+      return parseTimeWithTz(timestr, utime, timePrec, 'T');
+    } else {
+      return (*parseLocaltimeFp[day_light])((char*)timestr, len, utime, timePrec, 'T');
+    }
   } else {
-    return (*parseLocaltimeFp[day_light])((char*)timestr, time, timePrec);
+    if (checkTzPresent(timestr, len)) {
+      return parseTimeWithTz(timestr, utime, timePrec, 0);
+    } else {
+      return (*parseLocaltimeFp[day_light])((char*)timestr, len, utime, timePrec, 0);
+    }
   }
 }
 
@@ -309,13 +315,49 @@ int32_t parseTimeWithTz(const char* timestr, int64_t* time, int32_t timePrec, ch
   return 0;
 }
 
-int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
+static FORCE_INLINE bool validateTm(struct tm* pTm) {
+  if (pTm == NULL) {
+    return false;
+  }
+
+  int32_t dayOfMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+  int32_t leapYearMonthDay = 29;
+  int32_t year = pTm->tm_year + 1900;
+  bool isLeapYear = ((year % 100) == 0)? ((year % 400) == 0):((year % 4) == 0);
+
+  if (isLeapYear && (pTm->tm_mon == 1)) {
+    if (pTm->tm_mday > leapYearMonthDay) {
+      return false;
+    }
+  } else {
+    if (pTm->tm_mday > dayOfMonth[pTm->tm_mon]) {
+      return false;
+    }
+  }
+
+  return  true;
+}
+
+int32_t parseLocaltime(char* timestr, int32_t len, int64_t* time, int32_t timePrec, char delim) {
   *time = 0;
   struct tm tm = {0};
 
-  char* str = taosStrpTime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
-  if (str == NULL) {
-    return -1;
+  char *str;
+  if (delim == 'T') {
+    str = taosStrpTime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
+  } else if (delim == 0) {
+    str = taosStrpTime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
+  } else {
+    str = NULL;
+  }
+
+  if (str == NULL || (((str - timestr) < len) && (*str != '.')) || !validateTm(&tm)) {
+    //if parse failed, try "%Y-%m-%d" format
+    str = taosStrpTime(timestr, "%Y-%m-%d", &tm);
+    if (str == NULL || (((str - timestr) < len) && (*str != '.')) || !validateTm(&tm)) {
+      return -1;
+    }
   }
 
 #ifdef _MSC_VER
@@ -343,14 +385,26 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
   return 0;
 }
 
-int32_t parseLocaltimeDst(char* timestr, int64_t* time, int32_t timePrec) {
+int32_t parseLocaltimeDst(char* timestr, int32_t len, int64_t* time, int32_t timePrec, char delim) {
   *time = 0;
   struct tm tm = {0};
   tm.tm_isdst = -1;
 
-  char* str = taosStrpTime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
-  if (str == NULL) {
-    return -1;
+  char *str;
+  if (delim == 'T') {
+    str = taosStrpTime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
+  } else if (delim == 0) {
+    str = taosStrpTime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
+  } else {
+    str = NULL;
+  }
+
+  if (str == NULL || (((str - timestr) < len) && (*str != '.')) || !validateTm(&tm)) {
+    //if parse failed, try "%Y-%m-%d" format
+    str = taosStrpTime(timestr, "%Y-%m-%d", &tm);
+    if (str == NULL || (((str - timestr) < len) && (*str != '.')) || !validateTm(&tm)) {
+      return -1;
+    }
   }
 
   /* mktime will be affected by TZ, set by using taos_options */
@@ -535,7 +589,7 @@ int32_t convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec
       return TSDB_CODE_FAILED;
     }
     newColData[len] = 0;
-    int32_t ret = taosParseTime(newColData, timeVal, len + 1, (int32_t)timePrec, tsDaylight);
+    int32_t ret = taosParseTime(newColData, timeVal, len, (int32_t)timePrec, tsDaylight);
     if (ret != TSDB_CODE_SUCCESS) {
       taosMemoryFree(newColData);
       return ret;
@@ -646,6 +700,8 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
     numOfMonth *= 12;
   }
 
+  int64_t fraction = t % TSDB_TICK_PER_SECOND(precision);
+
   struct tm tm;
   time_t    tt = (time_t)(t / TSDB_TICK_PER_SECOND(precision));
   taosLocalTime(&tt, &tm);
@@ -653,7 +709,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
 
-  return (int64_t)(taosMktime(&tm) * TSDB_TICK_PER_SECOND(precision));
+  return (int64_t)(taosMktime(&tm) * TSDB_TICK_PER_SECOND(precision) + fraction);
 }
 
 int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision) {
@@ -764,11 +820,14 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
     } else {
       // try to move current window to the left-hande-side, due to the offset effect.
       int64_t end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision) - 1;
-      ASSERT(end >= t);
-      end = taosTimeAdd(end, -pInterval->sliding, pInterval->slidingUnit, precision);
-      if (end >= t) {
-        start = taosTimeAdd(start, -pInterval->sliding, pInterval->slidingUnit, precision);
+
+      int64_t newEnd = end;
+      while(newEnd >= t) {
+        end = newEnd;
+        newEnd = taosTimeAdd(newEnd, -pInterval->sliding, pInterval->slidingUnit, precision);
       }
+
+      start = taosTimeAdd(end, -pInterval->interval, pInterval->intervalUnit, precision) + 1;
     }
   }
 
@@ -822,7 +881,7 @@ const char* fmtts(int64_t ts) {
 
 void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precision) {
   char       ts[40] = {0};
-  struct tm* ptm;
+  struct tm  ptm;
 
   int32_t fractionLen;
   char*   format = NULL;
@@ -859,10 +918,10 @@ void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precision) 
       assert(false);
   }
 
-  ptm = taosLocalTime(&quot, NULL);
-  int32_t length = (int32_t)strftime(ts, 40, "%Y-%m-%dT%H:%M:%S", ptm);
+  taosLocalTime(&quot, &ptm);
+  int32_t length = (int32_t)strftime(ts, 40, "%Y-%m-%dT%H:%M:%S", &ptm);
   length += snprintf(ts + length, fractionLen, format, mod);
-  length += (int32_t)strftime(ts + length, 40 - length, "%z", ptm);
+  length += (int32_t)strftime(ts + length, 40 - length, "%z", &ptm);
 
   tstrncpy(buf, ts, bufLen);
 }

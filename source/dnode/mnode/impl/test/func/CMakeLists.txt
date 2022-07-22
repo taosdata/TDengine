@@ -5,9 +5,7 @@ target_link_libraries(
     PUBLIC sut
 )
 
-if(NOT TD_WINDOWS)
-    add_test(
-        NAME funcTest
-        COMMAND funcTest
-    )
-endif(NOT TD_WINDOWS)
+add_test(
+    NAME funcTest
+    COMMAND funcTest
+)

@@ -45,13 +45,13 @@ int32_t BUILDIN_CLZL(uint64_t val) {
 #else
   _MyBitScanReverse64(&r, val);
 #endif
-  return (int)(r >> 3);
+  return (int)(63 - r);
 }
 
 int32_t BUILDIN_CLZ(uint32_t val) {
   unsigned long r = 0;
   _BitScanReverse(&r, val);
-  return (int)(r >> 3);
+  return (int)(31 - r);
 }
 
 int32_t BUILDIN_CTZL(uint64_t val) {
@@ -61,13 +61,13 @@ int32_t BUILDIN_CTZL(uint64_t val) {
 #else
   _MyBitScanForward64(&r, val);
 #endif
-  return (int)(r >> 3);
+  return (int)(r);
 }
 
 int32_t BUILDIN_CTZ(uint32_t val) {
   unsigned long r = 0;
   _BitScanForward(&r, val);
-  return (int)(r >> 3);
+  return (int)(r);
 }
 
 #endif

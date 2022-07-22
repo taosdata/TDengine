@@ -49,7 +49,7 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root)-len("/build/bin")]
@@ -84,21 +84,21 @@ class TDTestCase:
     def test_stmt_insert_multi(self,conn):
         # type: (TaosConnection) -> None
 
-        dbname = "pytest_taos_stmt_multi"
+        dbname = "db_stmt"
         try:
             conn.execute("drop database if exists %s" % dbname)
             conn.execute("create database if not exists %s" % dbname)
             conn.select_db(dbname)
 
             conn.execute(
-                "create table if not exists log(ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
+                "create table if not exists stb1(ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
                 bi bigint, tu tinyint unsigned, su smallint unsigned, iu int unsigned, bu bigint unsigned, \
                 ff float, dd double, bb binary(100), nn nchar(100), tt timestamp)",
             )
             # conn.load_table_info("log")
-
+            tdLog.debug("statement start")
             start = datetime.now()
-            stmt = conn.statement("insert into log values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+            stmt = conn.statement("insert into stb1 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 
             params = new_multi_binds(16)
             params[0].timestamp((1626861392589, 1626861392590, 1626861392591))
@@ -118,14 +118,17 @@ class TDTestCase:
             params[14].nchar(["涛思数据", None, "a long string with 中文字符"])
             params[15].timestamp([None, None, 1626861392591])
             # print(type(stmt))
+            tdLog.debug("bind_param_batch start")
             stmt.bind_param_batch(params)
+            tdLog.debug("bind_param_batch end")
             stmt.execute()
+            tdLog.debug("execute end")
             end = datetime.now()
             print("elapsed time: ", end - start)
             assert stmt.affected_rows == 3
             
-            #query
-            querystmt=conn.statement("select ?,bu from log")
+            #query 1
+            querystmt=conn.statement("select ?,bu from stb1")
             queryparam=new_bind_params(1)
             print(type(queryparam))
             queryparam[0].binary("ts")
@@ -135,15 +138,16 @@ class TDTestCase:
             # rows=result.fetch_all()
             # print( querystmt.use_result())
 
-            # result = conn.query("select * from log")
+            # result = conn.query("select * from stb1")
             rows=result.fetch_all()
             # rows=result.fetch_all()
             print(rows)
             assert rows[1][0] == "ts"
             assert rows[0][1] == 3
+            assert rows[2][1] == None
 
-            #query
-            querystmt1=conn.statement("select * from log where bu < ?")
+            #query 2
+            querystmt1=conn.statement("select * from stb1 where bu < ?")
             queryparam1=new_bind_params(1)
             print(type(queryparam1))
             queryparam1[0].int(4)
@@ -154,7 +158,7 @@ class TDTestCase:
             print(rows1)
             assert str(rows1[0][0]) == "2021-07-21 17:56:32.589000"
             assert rows1[0][10] == 3
-
+            tdLog.debug("close start")
 
             stmt.close()
 

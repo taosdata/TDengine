@@ -13,48 +13,68 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "executorimpl.h"
 #include "function.h"
 #include "os.h"
 #include "querynodes.h"
-#include "tdatablock.h"
-#include "tmsg.h"
-#include "executorimpl.h"
 #include "tcompare.h"
+#include "tdatablock.h"
 #include "thash.h"
+#include "tmsg.h"
 #include "ttypes.h"
 
-static void setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode);
+static void         setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode);
 static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator);
-static void destroyMergeJoinOperator(void* param, int32_t numOfOutput);
-static void extractTimeCondition(SJoinOperatorInfo *Info, SLogicConditionNode* pLogicConditionNode);
+static void         destroyMergeJoinOperator(void* param, int32_t numOfOutput);
+static void         extractTimeCondition(SJoinOperatorInfo* Info, SLogicConditionNode* pLogicConditionNode);
 
-SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SExprInfo* pExprInfo,
-                                           int32_t numOfCols, SSDataBlock* pResBlock, SNode* pOnCondition,
-                                           SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SJoinPhysiNode* pJoinNode,
+    SExecTaskInfo* pTaskInfo) {
   SJoinOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SJoinOperatorInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL || pInfo == NULL) {
     goto _error;
   }
 
-  initResultSizeInfo(pOperator, 4096);
+  SSDataBlock*    pResBlock = createResDataBlock(pJoinNode->node.pOutputDataBlockDesc);
 
-  pInfo->pRes           = pResBlock;
-  pOperator->name       = "MergeJoinOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_JOIN;
-  pOperator->blocking   = false;
-  pOperator->status     = OP_NOT_OPENED;
-  pOperator->pExpr      = pExprInfo;
-  pOperator->numOfExprs = numOfCols;
-  pOperator->info       = pInfo;
-  pOperator->pTaskInfo  = pTaskInfo;
+  int32_t numOfCols = 0;
+  SExprInfo* pExprInfo = createExprInfo(pJoinNode->pTargets, NULL, &numOfCols);
 
-  if (nodeType(pOnCondition) == QUERY_NODE_OPERATOR) {
-    SOperatorNode* pNode = (SOperatorNode*)pOnCondition;
+  initResultSizeInfo(&pOperator->resultInfo, 4096);
+
+  pInfo->pRes             = pResBlock;
+  pOperator->name         = "MergeJoinOperator";
+  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN;
+  pOperator->blocking     = false;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->exprSupp.pExprInfo   = pExprInfo;
+  pOperator->exprSupp.numOfExprs  = numOfCols;
+  pOperator->info         = pInfo;
+  pOperator->pTaskInfo    = pTaskInfo;
+
+  SNode* pMergeCondition = pJoinNode->pMergeCondition;
+  if (nodeType(pMergeCondition) == QUERY_NODE_OPERATOR) {
+    SOperatorNode* pNode = (SOperatorNode*)pMergeCondition;
     setJoinColumnInfo(&pInfo->leftCol, (SColumnNode*)pNode->pLeft);
     setJoinColumnInfo(&pInfo->rightCol, (SColumnNode*)pNode->pRight);
-  } else if (nodeType(pOnCondition) == QUERY_NODE_LOGIC_CONDITION) {
-    extractTimeCondition(pInfo, (SLogicConditionNode*) pOnCondition);
+  } else {
+    ASSERT(false);
+  }
+
+  if (pJoinNode->pOnConditions != NULL && pJoinNode->node.pConditions != NULL) {
+    pInfo->pCondAfterMerge = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+    SLogicConditionNode* pLogicCond = (SLogicConditionNode*)(pInfo->pCondAfterMerge);
+    pLogicCond->pParameterList = nodesMakeList();
+    nodesListMakeAppend(&pLogicCond->pParameterList, nodesCloneNode(pJoinNode->pOnConditions));
+    nodesListMakeAppend(&pLogicCond->pParameterList, nodesCloneNode(pJoinNode->node.pConditions));
+    pLogicCond->condType = LOGIC_COND_TYPE_AND;
+  } else if (pJoinNode->pOnConditions != NULL) {
+    pInfo->pCondAfterMerge = nodesCloneNode(pJoinNode->pOnConditions);
+  } else if (pJoinNode->node.pConditions != NULL) {
+    pInfo->pCondAfterMerge = nodesCloneNode(pJoinNode->node.pConditions);
+  } else {
+    pInfo->pCondAfterMerge = NULL;
   }
 
   pOperator->fpSet =
@@ -66,7 +86,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
 
   return pOperator;
 
-  _error:
+_error:
   taosMemoryFree(pInfo);
   taosMemoryFree(pOperator);
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
@@ -83,14 +103,13 @@ void setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode) {
 
 void destroyMergeJoinOperator(void* param, int32_t numOfOutput) {
   SJoinOperatorInfo* pJoinOperator = (SJoinOperatorInfo*)param;
+  nodesDestroyNode(pJoinOperator->pCondAfterMerge);
+  
+  taosMemoryFreeClear(param);
 }
 
-SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
+static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) {
   SJoinOperatorInfo* pJoinInfo = pOperator->info;
-
-  SSDataBlock* pRes = pJoinInfo->pRes;
-  blockDataCleanup(pRes);
-  blockDataEnsureCapacity(pRes, 4096);
 
   int32_t nrows = 0;
 
@@ -127,10 +146,10 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
     // only the timestamp match support for ordinary table
     ASSERT(pLeftCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
     if (*(int64_t*)pLeftVal == *(int64_t*)pRightVal) {
-      for (int32_t i = 0; i < pOperator->numOfExprs; ++i) {
+      for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, i);
 
-        SExprInfo* pExprInfo = &pOperator->pExpr[i];
+        SExprInfo* pExprInfo = &pOperator->exprSupp.pExprInfo[i];
 
         int32_t blockId = pExprInfo->base.pParam[0].pCol->dataBlockId;
         int32_t slotId = pExprInfo->base.pParam[0].pCol->slotId;
@@ -176,14 +195,35 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
       break;
     }
   }
+}
 
+SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
+  SJoinOperatorInfo* pJoinInfo = pOperator->info;
+
+  SSDataBlock* pRes = pJoinInfo->pRes;
+  blockDataCleanup(pRes);
+  blockDataEnsureCapacity(pRes, 4096);
+  while (true) {
+    int32_t numOfRowsBefore = pRes->info.rows;
+    doMergeJoinImpl(pOperator, pRes);
+    int32_t numOfNewRows = pRes->info.rows - numOfRowsBefore;
+    if (numOfNewRows == 0) {
+      break;
+    }
+    if (pJoinInfo->pCondAfterMerge != NULL) {
+      doFilter(pJoinInfo->pCondAfterMerge, pRes);
+    }
+    if (pRes->info.rows >= pOperator->resultInfo.threshold) {
+      break;
+    }
+  }
   return (pRes->info.rows > 0) ? pRes : NULL;
 }
 
-static void extractTimeCondition(SJoinOperatorInfo *pInfo, SLogicConditionNode* pLogicConditionNode) {
+static void extractTimeCondition(SJoinOperatorInfo* pInfo, SLogicConditionNode* pLogicConditionNode) {
   int32_t len = LIST_LENGTH(pLogicConditionNode->pParameterList);
 
-  for(int32_t i = 0; i < len; ++i) {
+  for (int32_t i = 0; i < len; ++i) {
     SNode* pNode = nodesListGetNode(pLogicConditionNode->pParameterList, i);
     if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
       SOperatorNode* pn1 = (SOperatorNode*)pNode;

@@ -65,7 +65,7 @@ const char *sdbTableName(ESdbType type) {
   }
 }
 
-static const char *sdbStatusName(ESdbStatus status) {
+const char *sdbStatusName(ESdbStatus status) {
   switch (status) {
     case SDB_STATUS_CREATING:
       return "creating";
@@ -83,6 +83,7 @@ static const char *sdbStatusName(ESdbStatus status) {
 }
 
 void sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper) {
+#if 0
   EKeyType keyType = pSdb->keyTypes[pRow->type];
 
   if (keyType == SDB_KEY_BINARY) {
@@ -96,6 +97,7 @@ void sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper) {
            pRow->refCount, oper, pRow->pObj, sdbStatusName(pRow->status));
   } else {
   }
+#endif
 }
 
 static SHashObj *sdbGetHash(SSdb *pSdb, int32_t type) {
@@ -151,22 +153,21 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
     return terrno;
   }
 
-  taosThreadRwlockUnlock(pLock);
-
   int32_t     code = 0;
   SdbInsertFp insertFp = pSdb->insertFps[pRow->type];
   if (insertFp != NULL) {
     code = (*insertFp)(pSdb, pRow->pObj);
     if (code != 0) {
       code = terrno;
-      taosThreadRwlockWrlock(pLock);
       taosHashRemove(hash, pRow->pObj, keySize);
-      taosThreadRwlockUnlock(pLock);
       sdbFreeRow(pSdb, pRow, false);
       terrno = code;
+      taosThreadRwlockUnlock(pLock);
       return terrno;
     }
   }
+
+  taosThreadRwlockUnlock(pLock);
 
   if (pSdb->keyTypes[pRow->type] == SDB_KEY_INT32) {
     pSdb->maxId[pRow->type] = TMAX(pSdb->maxId[pRow->type], *((int32_t *)pRow->pObj));
@@ -192,7 +193,6 @@ static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   SSdbRow *pOldRow = *ppOldRow;
   pOldRow->status = pRaw->status;
   sdbPrintOper(pSdb, pOldRow, "update");
-  taosThreadRwlockUnlock(pLock);
 
   int32_t     code = 0;
   SdbUpdateFp updateFp = pSdb->updateFps[pNewRow->type];
@@ -200,6 +200,7 @@ static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
     code = (*updateFp)(pSdb, pOldRow->pObj, pNewRow->pObj);
   }
 
+  taosThreadRwlockUnlock(pLock);
   sdbFreeRow(pSdb, pNewRow, false);
 
   pSdb->tableVer[pOldRow->type]++;

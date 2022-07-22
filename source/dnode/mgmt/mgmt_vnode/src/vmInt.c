@@ -18,20 +18,17 @@
 
 SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId) {
   SVnodeObj *pVnode = NULL;
-  int32_t    refCount = 0;
 
   taosThreadRwlockRdlock(&pMgmt->lock);
   taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
-  if (pVnode == NULL) {
+  if (pVnode == NULL || pVnode->dropped) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
+    pVnode = NULL;
   } else {
-    refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
+    int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
+    // dTrace("vgId:%d, acquire vnode, ref:%d", pVnode->vgId, refCount);
   }
   taosThreadRwlockUnlock(&pMgmt->lock);
-
-  if (pVnode != NULL) {
-    dTrace("vgId:%d, acquire vnode, refCount:%d", pVnode->vgId, refCount);
-  }
 
   return pVnode;
 }
@@ -41,8 +38,8 @@ void vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
 
   taosThreadRwlockRdlock(&pMgmt->lock);
   int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
+  // dTrace("vgId:%d, release vnode, ref:%d", pVnode->vgId, refCount);
   taosThreadRwlockUnlock(&pMgmt->lock);
-  dTrace("vgId:%d, release vnode, refCount:%d", pVnode->vgId, refCount);
 }
 
 int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
@@ -53,10 +50,9 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   }
 
   pVnode->vgId = pCfg->vgId;
-  pVnode->refCount = 0;
   pVnode->vgVersion = pCfg->vgVersion;
+  pVnode->refCount = 0;
   pVnode->dropped = 0;
-  pVnode->accessState = TSDB_VN_ALL_ACCCESS;
   pVnode->path = tstrdup(pCfg->path);
   pVnode->pImpl = pImpl;
 
@@ -80,27 +76,32 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
 void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   char path[TSDB_FILENAME_LEN] = {0};
 
+  vnodePreClose(pVnode->pImpl);
+
   taosThreadRwlockWrlock(&pMgmt->lock);
   taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t));
   taosThreadRwlockUnlock(&pMgmt->lock);
-
   vmReleaseVnode(pMgmt, pVnode);
+
+  dTrace("vgId:%d, wait for vnode ref become 0", pVnode->vgId);
   while (pVnode->refCount > 0) taosMsleep(10);
+  dTrace("vgId:%d, wait for vnode queue is empty", pVnode->vgId);
+
   while (!taosQueueEmpty(pVnode->pWriteQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pSyncQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pApplyQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pFetchQ)) taosMsleep(10);
-  while (!taosQueueEmpty(pVnode->pMergeQ)) taosMsleep(10);
+  while (!taosQueueEmpty(pVnode->pStreamQ)) taosMsleep(10);
+  dTrace("vgId:%d, vnode queue is empty", pVnode->vgId);
 
   vmFreeQueue(pMgmt, pVnode);
   vnodeClose(pVnode->pImpl);
   pVnode->pImpl = NULL;
-
   dDebug("vgId:%d, vnode is closed", pVnode->vgId);
 
   if (pVnode->dropped) {
-    dDebug("vgId:%d, vnode is destroyed for dropped:%d", pVnode->vgId, pVnode->dropped);
+    dInfo("vgId:%d, vnode is destroyed, dropped:%d", pVnode->vgId, pVnode->dropped);
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pVnode->vgId);
     vnodeDestroy(path, pMgmt->pTfs);
   }
@@ -138,13 +139,13 @@ static void *vmOpenVnodeInThread(void *param) {
     }
   }
 
-  dDebug("thread:%d, total vnodes:%d, opened:%d failed:%d", pThread->threadIndex, pThread->vnodeNum, pThread->opened,
+  dDebug("thread:%d, numOfVnodes:%d, opened:%d failed:%d", pThread->threadIndex, pThread->vnodeNum, pThread->opened,
          pThread->failed);
   return NULL;
 }
 
 static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
-  pMgmt->hash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  pMgmt->hash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (pMgmt->hash == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     dError("failed to init vnode hash since %s", terrstr());
@@ -160,7 +161,8 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
 
   pMgmt->state.totalVnodes = numOfVnodes;
 
-  int32_t threadNum = 1;  // tsNumOfCores;
+  int32_t threadNum = tsNumOfCores / 2;
+  if (threadNum < 1) threadNum = 1;
   int32_t vnodesPerThread = numOfVnodes / threadNum + 1;
 
   SVnodeThread *threads = taosMemoryCalloc(threadNum, sizeof(SVnodeThread));
@@ -176,7 +178,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
     pThread->pCfgs[pThread->vnodeNum++] = pCfgs[v];
   }
 
-  dInfo("start %d threads to open %d vnodes", threadNum, numOfVnodes);
+  dInfo("open %d vnodes with %d threads", numOfVnodes, threadNum);
 
   for (int32_t t = 0; t < threadNum; ++t) {
     SVnodeThread *pThread = &threads[t];
@@ -207,7 +209,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
     dError("there are total vnodes:%d, opened:%d", pMgmt->state.totalVnodes, pMgmt->state.openVnodes);
     return -1;
   } else {
-    dInfo("total vnodes:%d open successfully", pMgmt->state.totalVnodes);
+    dInfo("successfully opened %d vnodes", pMgmt->state.totalVnodes);
     return 0;
   }
 }
@@ -253,12 +255,7 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
   pMgmt->msgCb = pInput->msgCb;
-  pMgmt->msgCb.queueFps[WRITE_QUEUE] = (PutToQueueFp)vmPutRpcMsgToWriteQueue;
-  pMgmt->msgCb.queueFps[SYNC_QUEUE] = (PutToQueueFp)vmPutRpcMsgToSyncQueue;
-  pMgmt->msgCb.queueFps[APPLY_QUEUE] = (PutToQueueFp)vmPutRpcMsgToApplyQueue;
-  pMgmt->msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)vmPutRpcMsgToQueryQueue;
-  pMgmt->msgCb.queueFps[FETCH_QUEUE] = (PutToQueueFp)vmPutRpcMsgToFetchQueue;
-  pMgmt->msgCb.queueFps[MERGE_QUEUE] = (PutToQueueFp)vmPutRpcMsgToMergeQueue;
+  pMgmt->msgCb.putToQueueFp = (PutToQueueFp)vmPutRpcMsgToQueue;
   pMgmt->msgCb.qsizeFp = (GetQueueSizeFp)vmGetQueueSize;
   pMgmt->msgCb.mgmt = pMgmt;
   taosThreadRwlockInit(&pMgmt->lock, NULL);

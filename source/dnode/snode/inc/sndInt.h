@@ -30,15 +30,6 @@
 extern "C" {
 #endif
 
-enum {
-  STREAM_STATUS__RUNNING = 1,
-  STREAM_STATUS__STOPPED,
-  STREAM_STATUS__CREATING,
-  STREAM_STATUS__STOPING,
-  STREAM_STATUS__RESTORING,
-  STREAM_STATUS__DELETING,
-};
-
 typedef struct {
   SHashObj* pHash;  // taskId -> SStreamTask
 } SStreamMeta;
@@ -56,7 +47,6 @@ SStreamTask* sndMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
 int32_t      sndMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
 
 int32_t sndDropTaskOfStream(SStreamMeta* pMeta, int64_t streamId);
-
 int32_t sndStopTaskOfStream(SStreamMeta* pMeta, int64_t streamId);
 int32_t sndResumeTaskOfStream(SStreamMeta* pMeta, int64_t streamId);
 

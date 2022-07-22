@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "dmNodes.h"
+#include "index.h"
 #include "qworker.h"
 
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
@@ -127,7 +128,7 @@ static void dmClearVars(SDnode *pDnode) {
 }
 
 int32_t dmInitDnode(SDnode *pDnode, EDndNodeType rtype) {
-  dInfo("start to create dnode");
+  dDebug("start to create dnode");
   int32_t code = -1;
   char    path[PATH_MAX + 100] = {0};
 
@@ -212,6 +213,8 @@ void dmCleanupDnode(SDnode *pDnode) {
   dmCleanupClient(pDnode);
   dmCleanupServer(pDnode);
   dmClearVars(pDnode);
+  rpcCleanup();
+  indexCleanup();
   dDebug("dnode is closed, ptr:%p", pDnode);
 }
 
@@ -229,7 +232,7 @@ SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType ntype) {
   taosThreadRwlockRdlock(&pWrapper->lock);
   if (pWrapper->deployed) {
     int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
-    dTrace("node:%s, is acquired, ref:%d", pWrapper->name, refCount);
+    // dTrace("node:%s, is acquired, ref:%d", pWrapper->name, refCount);
   } else {
     terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
     pRetWrapper = NULL;
@@ -245,7 +248,7 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
   taosThreadRwlockRdlock(&pWrapper->lock);
   if (pWrapper->deployed || (InParentProc(pWrapper) && pWrapper->required)) {
     int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
-    dTrace("node:%s, is marked, ref:%d", pWrapper->name, refCount);
+    // dTrace("node:%s, is marked, ref:%d", pWrapper->name, refCount);
   } else {
     terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
     code = -1;
@@ -261,7 +264,7 @@ void dmReleaseWrapper(SMgmtWrapper *pWrapper) {
   taosThreadRwlockRdlock(&pWrapper->lock);
   int32_t refCount = atomic_sub_fetch_32(&pWrapper->refCount, 1);
   taosThreadRwlockUnlock(&pWrapper->lock);
-  dTrace("node:%s, is released, ref:%d", pWrapper->name, refCount);
+  // dTrace("node:%s, is released, ref:%d", pWrapper->name, refCount);
 }
 
 static void dmGetServerStartupStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {

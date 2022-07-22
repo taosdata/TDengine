@@ -53,86 +53,90 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   // open env
   ret = tdbOpen(pMeta->path, pVnode->config.szPage, pVnode->config.szCache, &pMeta->pEnv);
   if (ret < 0) {
-    metaError("vgId:%d failed to open meta env since %s", TD_VID(pVnode), tstrerror(terrno));
+    metaError("vgId:%d, failed to open meta env since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pTbDb
   ret = tdbTbOpen("table.db", sizeof(STbDbKey), -1, tbDbKeyCmpr, pMeta->pEnv, &pMeta->pTbDb);
   if (ret < 0) {
-    metaError("vgId:%d failed to open meta table db since %s", TD_VID(pVnode), tstrerror(terrno));
+    metaError("vgId:%d, failed to open meta table db since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pSkmDb
   ret = tdbTbOpen("schema.db", sizeof(SSkmDbKey), -1, skmDbKeyCmpr, pMeta->pEnv, &pMeta->pSkmDb);
   if (ret < 0) {
-    metaError("vgId:%d failed to open meta schema db since %s", TD_VID(pVnode), tstrerror(terrno));
+    metaError("vgId:%d, failed to open meta schema db since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pUidIdx
   ret = tdbTbOpen("uid.idx", sizeof(tb_uid_t), sizeof(int64_t), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pUidIdx);
   if (ret < 0) {
-    metaError("vgId:%d failed to open meta uid idx since %s", TD_VID(pVnode), tstrerror(terrno));
+    metaError("vgId:%d, failed to open meta uid idx since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pNameIdx
   ret = tdbTbOpen("name.idx", -1, sizeof(tb_uid_t), NULL, pMeta->pEnv, &pMeta->pNameIdx);
   if (ret < 0) {
-    metaError("vgId:%d failed to open meta name index since %s", TD_VID(pVnode), tstrerror(terrno));
+    metaError("vgId:%d, failed to open meta name index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pCtbIdx
   ret = tdbTbOpen("ctb.idx", sizeof(SCtbIdxKey), 0, ctbIdxKeyCmpr, pMeta->pEnv, &pMeta->pCtbIdx);
   if (ret < 0) {
-    metaError("vgId:%d failed to open meta child table index since %s", TD_VID(pVnode), tstrerror(terrno));
+    metaError("vgId:%d, failed to open meta child table index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
-  // open pTagIdx
-#ifdef USE_INVERTED_INDEX
-  // TODO(yihaoDeng), refactor later
+  // open pSuidIdx
+  ret = tdbTbOpen("suid.idx", sizeof(tb_uid_t), 0, uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pSuidIdx);
+  if (ret < 0) {
+    metaError("vgId:%d, failed to open meta super table index since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
   char indexFullPath[128] = {0};
   sprintf(indexFullPath, "%s/%s", pMeta->path, "invert");
   taosMkDir(indexFullPath);
-  ret = indexOpen(indexOptsCreate(), indexFullPath, (SIndex **)&pMeta->pTagIvtIdx);
+
+  SIndexOpts opts = {.cacheSize = 8 * 1024 * 1024};
+  ret = indexOpen(&opts, indexFullPath, (SIndex **)&pMeta->pTagIvtIdx);
   if (ret < 0) {
-    metaError("vgId:%d failed to open meta tag index since %s", TD_VID(pVnode), tstrerror(terrno));
+    metaError("vgId:%d, failed to open meta tag index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
-#else
   ret = tdbTbOpen("tag.idx", -1, 0, tagIdxKeyCmpr, pMeta->pEnv, &pMeta->pTagIdx);
   if (ret < 0) {
-    metaError("vgId:%d failed to open meta tag index since %s", TD_VID(pVnode), tstrerror(terrno));
+    metaError("vgId:%d, failed to open meta tag index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
-#endif
 
   // open pTtlIdx
   ret = tdbTbOpen("ttl.idx", sizeof(STtlIdxKey), 0, ttlIdxKeyCmpr, pMeta->pEnv, &pMeta->pTtlIdx);
   if (ret < 0) {
-    metaError("vgId:%d failed to open meta ttl index since %s", TD_VID(pVnode), tstrerror(terrno));
+    metaError("vgId:%d, failed to open meta ttl index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pSmaIdx
   ret = tdbTbOpen("sma.idx", sizeof(SSmaIdxKey), 0, smaIdxKeyCmpr, pMeta->pEnv, &pMeta->pSmaIdx);
   if (ret < 0) {
-    metaError("vgId:%d failed to open meta sma index since %s", TD_VID(pVnode), tstrerror(terrno));
+    metaError("vgId:%d, failed to open meta sma index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open index
   if (metaOpenIdx(pMeta) < 0) {
-    metaError("vgId:%d failed to open meta index since %s", TD_VID(pVnode), tstrerror(terrno));
+    metaError("vgId:%d, failed to open meta index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
-  metaDebug("vgId:%d meta is opened", TD_VID(pVnode));
+  metaDebug("vgId:%d, meta is opened", TD_VID(pVnode));
 
   *ppMeta = pMeta;
   return 0;
@@ -141,12 +145,10 @@ _err:
   if (pMeta->pIdx) metaCloseIdx(pMeta);
   if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
   if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
-#ifdef USE_INVERTED_INDEX
   if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
-#else
   if (pMeta->pTagIdx) tdbTbClose(pMeta->pTagIdx);
-#endif
   if (pMeta->pCtbIdx) tdbTbClose(pMeta->pCtbIdx);
+  if (pMeta->pSuidIdx) tdbTbClose(pMeta->pSuidIdx);
   if (pMeta->pNameIdx) tdbTbClose(pMeta->pNameIdx);
   if (pMeta->pUidIdx) tdbTbClose(pMeta->pUidIdx);
   if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);
@@ -162,12 +164,10 @@ int metaClose(SMeta *pMeta) {
     if (pMeta->pIdx) metaCloseIdx(pMeta);
     if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
     if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
-#ifdef USE_INVERTED_INDEX
     if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
-#else
     if (pMeta->pTagIdx) tdbTbClose(pMeta->pTagIdx);
-#endif
     if (pMeta->pCtbIdx) tdbTbClose(pMeta->pCtbIdx);
+    if (pMeta->pSuidIdx) tdbTbClose(pMeta->pSuidIdx);
     if (pMeta->pNameIdx) tdbTbClose(pMeta->pNameIdx);
     if (pMeta->pUidIdx) tdbTbClose(pMeta->pUidIdx);
     if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);

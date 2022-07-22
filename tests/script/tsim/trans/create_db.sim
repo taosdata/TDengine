@@ -7,44 +7,28 @@ system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 sql connect
 
-print =============== show dnodes
-sql show dnodes;
-if $rows != 1 then 
-  return -1
-endi
-
-if $data00 != 1 then 
-  return -1
-endi
-
-sql show mnodes;
-if $rows != 1 then 
-  return -1
-endi
-
-if $data00 != 1 then 
-  return -1
-endi
-
-if $data02 != LEADER then 
-  return -1
-endi
-
 print =============== create dnodes
 sql create dnode $hostname port 7200
-sleep 2000
 
-sql show dnodes;
-if $rows != 2 then 
-   return -1
-endi
-
-if $data00 != 1 then 
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql show dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
   return -1
 endi
-
-if $data10 != 2 then 
-  return -1
+if $data(1)[4] != ready then
+  goto step1
+endi
+if $data(2)[4] != ready then
+  goto step1
 endi
 
 print =============== kill dnode2
@@ -68,7 +52,7 @@ if $data[0][0] != 7 then
   return -1
 endi
 
-if $data[0][2] != undoAction then
+if $data[0][2] != redoAction then
   return -1
 endi
 
@@ -80,58 +64,117 @@ sql_error create database d1 vgroups 2;
 
 print =============== start dnode2
 system sh/exec.sh -n dnode2 -s start
-sleep 3000
+
+$x = 0
+step2:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql show dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step2
+endi
+if $data(2)[4] != ready then
+  goto step2
+endi
 
 sql show transactions
 if $rows != 0 then
   return -1
 endi
 
-sql create database d1 vgroups 2;
+sql_error create database d1 vgroups 2;
 
 print =============== kill dnode2
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 
-print =============== create database
-sql show transactions
-if $rows != 0 then
-  return -1
-endi
+system_content printf %OS%
+if $system_content != Windows_NT then
+  print =============== create database
+  sql show transactions
+  if $rows != 0 then
+    return -1
+  endi
 
-sql_error create database d2 vgroups 2;
+  sql_error create database d2 vgroups 2;
 
-print =============== show transactions
-sql show transactions
-if $rows != 1 then
-  return -1
-endi
+  print =============== show transactions
+  sql show transactions
+  if $rows != 1 then
+    return -1
+  endi
 
-if $data[0][0] != 9 then
-  return -1
-endi
+  if $data[0][0] != 8 then
+    return -1
+  endi
 
-if $data[0][2] != undoAction then
-  return -1
-endi
+  if $data[0][2] != redoAction then
+    return -1
+  endi
 
-if $data[0][3] != d2 then
-  return -1
-endi
-return
-sql_error create database d2 vgroups 2;
+  if $data[0][3] != d2 then
+    return -1
+  endi
 
-print =============== kill transaction
-sql kill transaction 9;
-sleep 2000
+  sql show databases ;
+  if $rows != 4 then
+    return -1
+  endi
+  print d2 ==> $data(d2)[19]
+  if $data(d2)[19] != creating then
+    return -1
+  endi
 
-sql show transactions
-if $rows != 0 then
-  return -1
+  sql_error create database d2 vgroups 2;
+
+  print =============== kill transaction
+  sql kill transaction 8;
+  sleep 2000
+
+  sql show transactions
+  if $rows != 0 then
+    return -1
+  endi
 endi
 
 print =============== start dnode2
 system sh/exec.sh -n dnode2 -s start
-sleep 3000
+
+$x = 0
+step3:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+  sql show dnodes
+  print ===> $data00 $data01 $data02 $data03 $data04 $data05
+  print ===> $data10 $data11 $data12 $data13 $data14 $data15
+  if $rows != 2 then
+    return -1
+  endi
+  if $data(1)[4] != ready then
+    goto step3
+  endi
+  if $data(2)[4] != ready then
+    goto step3
+  endi
+
+sql show transactions
+if $rows != 0 then
+  return -1
+endi
+
+sql drop database if exists d2;
 
 sql show transactions
 if $rows != 0 then
@@ -145,6 +188,5 @@ sql_error kill transaction 3;
 sql_error kill transaction 4;
 sql_error kill transaction 5;
 
-return
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT

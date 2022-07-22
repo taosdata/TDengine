@@ -102,6 +102,9 @@ int32_t tEncodeSMonClusterInfo(SEncoder *encoder, const SMonClusterInfo *pInfo) 
   if (tEncodeCStr(encoder, pInfo->version) < 0) return -1;
   if (tEncodeFloat(encoder, pInfo->master_uptime) < 0) return -1;
   if (tEncodeI32(encoder, pInfo->monitor_interval) < 0) return -1;
+  if (tEncodeI32(encoder, pInfo->dbs_total) < 0) return -1;
+  if (tEncodeI32(encoder, pInfo->stbs_total) < 0) return -1;
+  if (tEncodeI64(encoder, pInfo->tbs_total) < 0) return -1;
   if (tEncodeI32(encoder, pInfo->vgroups_total) < 0) return -1;
   if (tEncodeI32(encoder, pInfo->vgroups_alive) < 0) return -1;
   if (tEncodeI32(encoder, pInfo->vnodes_total) < 0) return -1;
@@ -130,6 +133,9 @@ int32_t tDecodeSMonClusterInfo(SDecoder *decoder, SMonClusterInfo *pInfo) {
   if (tDecodeCStrTo(decoder, pInfo->version) < 0) return -1;
   if (tDecodeFloat(decoder, &pInfo->master_uptime) < 0) return -1;
   if (tDecodeI32(decoder, &pInfo->monitor_interval) < 0) return -1;
+  if (tDecodeI32(decoder, &pInfo->dbs_total) < 0) return -1;
+  if (tDecodeI32(decoder, &pInfo->stbs_total) < 0) return -1;
+  if (tDecodeI64(decoder, &pInfo->tbs_total) < 0) return -1;
   if (tDecodeI32(decoder, &pInfo->vgroups_total) < 0) return -1;
   if (tDecodeI32(decoder, &pInfo->vgroups_alive) < 0) return -1;
   if (tDecodeI32(decoder, &pInfo->vnodes_total) < 0) return -1;
@@ -203,6 +209,32 @@ int32_t tDecodeSMonVgroupInfo(SDecoder *decoder, SMonVgroupInfo *pInfo) {
   return 0;
 }
 
+int32_t tEncodeSMonStbInfo(SEncoder *encoder, const SMonStbInfo *pInfo) {
+  if (tEncodeI32(encoder, taosArrayGetSize(pInfo->stbs)) < 0) return -1;
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->stbs); ++i) {
+    SMonStbDesc *pDesc = taosArrayGet(pInfo->stbs, i);
+    if (tEncodeCStr(encoder, pDesc->stb_name) < 0) return -1;
+    if (tEncodeCStr(encoder, pDesc->database_name) < 0) return -1;
+  }
+  return 0;
+}
+
+int32_t tDecodeSMonStbInfo(SDecoder *decoder, SMonStbInfo *pInfo) {
+  int32_t arraySize = 0;
+  if (tDecodeI32(decoder, &arraySize) < 0) return -1;
+
+  pInfo->stbs = taosArrayInit(arraySize, sizeof(SMonStbDesc));
+  if (pInfo->stbs == NULL) return -1;
+
+  for (int32_t i = 0; i < arraySize; ++i) {
+    SMonStbDesc desc = {0};
+    if (tDecodeCStrTo(decoder, desc.stb_name) < 0) return -1;
+    if (tDecodeCStrTo(decoder, desc.database_name) < 0) return -1;
+    taosArrayPush(pInfo->stbs, &desc);
+  }
+  return 0;
+}
+
 int32_t tEncodeSMonGrantInfo(SEncoder *encoder, const SMonGrantInfo *pInfo) {
   if (tEncodeI32(encoder, pInfo->expire_time) < 0) return -1;
   if (tEncodeI64(encoder, pInfo->timeseries_used) < 0) return -1;
@@ -224,6 +256,7 @@ int32_t tSerializeSMonMmInfo(void *buf, int32_t bufLen, SMonMmInfo *pInfo) {
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeSMonClusterInfo(&encoder, &pInfo->cluster) < 0) return -1;
   if (tEncodeSMonVgroupInfo(&encoder, &pInfo->vgroup) < 0) return -1;
+  if (tEncodeSMonStbInfo(&encoder, &pInfo->stb) < 0) return -1;
   if (tEncodeSMonGrantInfo(&encoder, &pInfo->grant) < 0) return -1;
   if (tEncodeSMonSysInfo(&encoder, &pInfo->sys) < 0) return -1;
   if (tEncodeSMonLogs(&encoder, &pInfo->log) < 0) return -1;
@@ -241,6 +274,7 @@ int32_t tDeserializeSMonMmInfo(void *buf, int32_t bufLen, SMonMmInfo *pInfo) {
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeSMonClusterInfo(&decoder, &pInfo->cluster) < 0) return -1;
   if (tDecodeSMonVgroupInfo(&decoder, &pInfo->vgroup) < 0) return -1;
+  if (tDecodeSMonStbInfo(&decoder, &pInfo->stb) < 0) return -1;
   if (tDecodeSMonGrantInfo(&decoder, &pInfo->grant) < 0) return -1;
   if (tDecodeSMonSysInfo(&decoder, &pInfo->sys) < 0) return -1;
   if (tDecodeSMonLogs(&decoder, &pInfo->log) < 0) return -1;
@@ -255,9 +289,11 @@ void tFreeSMonMmInfo(SMonMmInfo *pInfo) {
   taosArrayDestroy(pInfo->cluster.mnodes);
   taosArrayDestroy(pInfo->cluster.dnodes);
   taosArrayDestroy(pInfo->vgroup.vgroups);
+  taosArrayDestroy(pInfo->stb.stbs);
   pInfo->cluster.mnodes = NULL;
   pInfo->cluster.dnodes = NULL;
   pInfo->vgroup.vgroups = NULL;
+  pInfo->stb.stbs = NULL;
   pInfo->log.logs = NULL;
 }
 
@@ -569,6 +605,7 @@ int32_t tSerializeSQnodeLoad(void *buf, int32_t bufLen, SQnodeLoad *pInfo) {
   if (tEncodeI64(&encoder, pInfo->numOfProcessedFetch) < 0) return -1;
   if (tEncodeI64(&encoder, pInfo->numOfProcessedDrop) < 0) return -1;
   if (tEncodeI64(&encoder, pInfo->numOfProcessedHb) < 0) return -1;
+  if (tEncodeI64(&encoder, pInfo->numOfProcessedDelete) < 0) return -1;
   if (tEncodeI64(&encoder, pInfo->cacheDataSize) < 0) return -1;
   if (tEncodeI64(&encoder, pInfo->numOfQueryInQueue) < 0) return -1;
   if (tEncodeI64(&encoder, pInfo->numOfFetchInQueue) < 0) return -1;
@@ -591,6 +628,7 @@ int32_t tDeserializeSQnodeLoad(void *buf, int32_t bufLen, SQnodeLoad *pInfo) {
   if (tDecodeI64(&decoder, &pInfo->numOfProcessedFetch) < 0) return -1;
   if (tDecodeI64(&decoder, &pInfo->numOfProcessedDrop) < 0) return -1;
   if (tDecodeI64(&decoder, &pInfo->numOfProcessedHb) < 0) return -1;
+  if (tDecodeI64(&decoder, &pInfo->numOfProcessedDelete) < 0) return -1;
   if (tDecodeI64(&decoder, &pInfo->cacheDataSize) < 0) return -1;
   if (tDecodeI64(&decoder, &pInfo->numOfQueryInQueue) < 0) return -1;
   if (tDecodeI64(&decoder, &pInfo->numOfFetchInQueue) < 0) return -1;

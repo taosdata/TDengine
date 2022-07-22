@@ -30,6 +30,7 @@ import argparse
 import sys
 import os
 import io
+import datetime
 import signal
 import traceback
 import requests
@@ -466,6 +467,7 @@ class ThreadCoordinator:
         self._te = None  # No more executor, time to end
         Logging.debug("Main thread tapping all threads one last time...")
         self.tapAllThreads()  # Let the threads run one last time
+        #TODO: looks like we are not capturing the failures for the last step yet (i.e. calling registerFailure if neccessary)
 
         Logging.debug("\r\n\n--> Main thread ready to finish up...")
         Logging.debug("Main thread joining all threads")
@@ -739,7 +741,10 @@ class AnyState:
                 sCnt += 1
                 if (sCnt >= 2):
                     raise CrashGenError(
-                        "Unexpected more than 1 success with task: {}".format(cls))
+                        "Unexpected more than 1 success with task: {}, in task set: {}".format(
+                            cls.__name__, # verified just now that isinstance(task, cls)
+                            [c.__class__.__name__ for c in tasks]
+                        ))
 
     def assertIfExistThenSuccess(self, tasks, cls):
         sCnt = 0
@@ -804,6 +809,8 @@ class StateEmpty(AnyState):
         ]
 
     def verifyTasksToState(self, tasks, newState):
+        if Config.getConfig().ignore_errors: # if we are asked to ignore certain errors, let's not verify CreateDB success.
+            return
         if (self.hasSuccess(tasks, TaskCreateDb)
                 ):  # at EMPTY, if there's succes in creating DB
             if (not self.hasTask(tasks, TaskDropDb)):  # and no drop_db tasks
@@ -1106,14 +1113,20 @@ class Database:
     # TODO: fix the error as result of above: "tsdb timestamp is out of range"
     @classmethod
     def setupLastTick(cls):
-        t1 = datetime.datetime(2020, 6, 1)
+        # start time will be auto generated , start at 10 years ago  local time 
+        local_time = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-16]
+        local_epoch_time = [int(i) for i in local_time.split("-")]
+        #local_epoch_time will be such as : [2022, 7, 18]
+
+        t1 = datetime.datetime(local_epoch_time[0]-5, local_epoch_time[1], local_epoch_time[2])
         t2 = datetime.datetime.now()
         # maybe a very large number, takes 69 years to exceed Python int range
         elSec = int(t2.timestamp() - t1.timestamp())
         elSec2 = (elSec % (8 * 12 * 30 * 24 * 60 * 60 / 500)) * \
             500  # a number representing seconds within 10 years
         # print("elSec = {}".format(elSec))
-        t3 = datetime.datetime(2012, 1, 1)  # default "keep" is 10 years
+
+        t3 = datetime.datetime(local_epoch_time[0]-10, local_epoch_time[1], local_epoch_time[2])  # default "keep" is 10 years
         t4 = datetime.datetime.fromtimestamp(
             t3.timestamp() + elSec2)  # see explanation above
         Logging.debug("Setting up TICKS to start from: {}".format(t4))
@@ -1290,6 +1303,7 @@ class Task():
 
     def _isErrAcceptable(self, errno, msg):
         if errno in [
+                # TDengine 2.x Error Codes:
                 0x05,  # TSDB_CODE_RPC_NOT_READY
                 0x0B,  # Unable to establish connection, more details in TD-1648
                 # 0x200, # invalid SQL， TODO: re-examine with TD-934
@@ -1310,6 +1324,18 @@ class Task():
                 0x14,   # db not ready, errno changed
                 0x600,  # Invalid table ID, why?
                 0x218,  # Table does not exist
+
+                # TDengine 3.0 Error Codes:
+                0x0333, # Object is creating # TODO: this really is NOT an acceptable error
+                0x03A0, # STable already exists
+                0x03A1, # STable [does] not exist
+                0x03AA, # Tag already exists
+                0x0603, # Table already exists
+                0x2603, # Table does not exist
+                0x260d, # Tags number not matched
+
+
+
                 1000  # REST catch-all error
             ]: 
             return True # These are the ALWAYS-ACCEPTABLE ones
@@ -1749,6 +1775,8 @@ class TdSuperTable:
             tagType = tags[tagName]
             if tagType == 'BINARY':
                 tagStrs.append("'Beijing-Shanghai-LosAngeles'")
+            elif tagType== 'VARCHAR':
+                tagStrs.append("'London-Paris-Berlin'")
             elif tagType == 'FLOAT':
                 tagStrs.append('9.9')
             elif tagType == 'INT':
@@ -2465,7 +2493,7 @@ class MainExec:
             action='store',
             default=None,
             type=str,
-            help='Ignore error codes, comma separated, 0x supported (default: None)')
+            help='Ignore error codes, comma separated, 0x supported, also suppresses certain transition state checks. (default: None)')
         parser.add_argument(
             '-i',
             '--num-replicas',

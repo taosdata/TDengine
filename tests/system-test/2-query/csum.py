@@ -83,6 +83,8 @@ class TDTestCase:
 
                 tdSql.query(f"select {col} {alias} from {table_expr} {pre_condition}")
                 pre_data = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
+                if (platform.system().lower() == 'windows' and pre_data.dtype == 'int32'):
+                    pre_data = np.array(pre_data, dtype = 'int64')
                 print("data is ", pre_data)
                 pre_csum = np.cumsum(pre_data)
                 tdSql.query(self.csum_query_form(
@@ -124,6 +126,8 @@ class TDTestCase:
             tdSql.query(f"select {col} from {table_expr} {re.sub('limit [0-9]*|offset [0-9]*','',condition)}")
             offset_val = condition.split("offset")[1].split(" ")[1] if "offset" in condition else 0
             pre_result = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
+            if (platform.system().lower() == 'windows' and pre_result.dtype == 'int32'):
+                pre_result = np.array(pre_result, dtype = 'int64')
             pre_csum = np.cumsum(pre_result)[offset_val:]
             tdSql.query(self.csum_query_form(
                 col=col, alias=alias, table_expr=table_expr, condition=condition
@@ -240,7 +244,7 @@ class TDTestCase:
         tdSql.error("select csum(c1)   t1")         # no from
         tdSql.error("select csum( c1 )  from ")     # no table_expr
         # tdSql.error(self.csum_query_form(col="st1"))    # tag col
-        tdSql.error(self.csum_query_form(col=1))        # col is a value
+        # tdSql.error(self.csum_query_form(col=1))        # col is a value
         tdSql.error(self.csum_query_form(col="'c1'"))   # col is a string
         tdSql.error(self.csum_query_form(col=None))     # col is NULL 1
         tdSql.error(self.csum_query_form(col="NULL"))   # col is NULL 2
@@ -407,12 +411,74 @@ class TDTestCase:
         tdDnodes.start(index)
         self.csum_current_query()
         self.csum_error_query()
+        tdSql.query("select csum(1) from t1 ")
+        tdSql.checkRows(7)
+        tdSql.checkData(0,0,1)
+        tdSql.checkData(1,0,2)
+        tdSql.checkData(2,0,3)
+        tdSql.checkData(3,0,4)
+        tdSql.query("select csum(abs(c1))+2 from t1 ")
+        tdSql.checkRows(4)
+
+    def csum_support_stable(self):
+        tdSql.query(" select csum(1) from stb1 ")
+        tdSql.checkRows(70)
+        tdSql.query("select csum(c1) from stb1 partition by tbname ")
+        tdSql.checkRows(40)
+        tdSql.query("select csum(st1) from stb1 partition by tbname")
+        tdSql.checkRows(70)
+        tdSql.query("select csum(st1+c1) from stb1 partition by tbname")
+        tdSql.checkRows(40)
+        tdSql.query("select csum(st1+c1) from stb1 partition by tbname")
+        tdSql.checkRows(40)
+        tdSql.query("select csum(st1+c1) from stb1 partition by tbname")
+        tdSql.checkRows(40)
+
+        # # bug need fix
+        tdSql.query("select csum(st1+c1) from stb1 partition by tbname slimit 1 ")
+        tdSql.checkRows(4)
+        # tdSql.error("select csum(st1+c1) from stb1 partition by tbname limit 1 ")
+
+
+        # bug need fix
+        tdSql.query("select csum(st1+c1) from stb1 partition by tbname")
+        tdSql.checkRows(40)
+
+        # bug need fix
+        tdSql.query("select tbname , csum(c1) from stb1 partition by tbname")
+        tdSql.checkRows(40)
+        tdSql.query("select tbname , csum(st1) from stb1 partition by tbname")
+        tdSql.checkRows(70)
+        tdSql.query("select tbname , csum(st1) from stb1 partition by tbname slimit 1")
+        tdSql.checkRows(7)
+
+        # partition by tags
+        tdSql.query("select st1 , csum(c1) from stb1 partition by st1")
+        tdSql.checkRows(40)
+        tdSql.query("select csum(c1) from stb1 partition by st1")
+        tdSql.checkRows(40)
+        tdSql.query("select st1 , csum(c1) from stb1 partition by st1 slimit 1")
+        tdSql.checkRows(4)
+        tdSql.query("select csum(c1) from stb1 partition by st1 slimit 1")
+        tdSql.checkRows(4)
+
+        # partition by col
+        # tdSql.query("select c1 , csum(c1) from stb1 partition by c1")
+        # tdSql.checkRows(41)
+        # tdSql.query("select csum(c1) from stb1 partition by c1")
+        # tdSql.checkRows(41)
+        # tdSql.query("select c1 , csum(c1) from stb1 partition by st1 slimit 1")
+        # tdSql.checkRows(4)
+        # tdSql.query("select csum(c1) from stb1 partition by st1 slimit 1")
+        # tdSql.checkRows(4)
+
 
     def run(self):
         import traceback
         try:
             # run in  develop branch
             self.csum_test_run()
+            self.csum_support_stable()
             pass
         except Exception as e:
             traceback.print_exc()

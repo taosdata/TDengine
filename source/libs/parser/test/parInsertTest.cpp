@@ -35,6 +35,9 @@ string toString(int32_t code) { return tstrerror(code); }
 //   [...];
 class InsertTest : public Test {
  protected:
+  InsertTest() : res_(nullptr) {}
+  ~InsertTest() { reset(); }
+
   void setDatabase(const string& acctId, const string& db) {
     acctId_ = acctId;
     db_ = db;
@@ -51,7 +54,7 @@ class InsertTest : public Test {
   }
 
   int32_t run() {
-    code_ = parseInsertSql(&cxt_, &res_);
+    code_ = parseInsertSql(&cxt_, &res_, nullptr);
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
     }
@@ -59,29 +62,32 @@ class InsertTest : public Test {
   }
 
   int32_t runAsync() {
-    code_ = parseInsertSyntax(&cxt_, &res_);
+    cxt_.async = true;
+    unique_ptr<SParseMetaCache, void (*)(SParseMetaCache*)> metaCache(new SParseMetaCache(), _destoryParseMetaCache);
+    code_ = parseInsertSyntax(&cxt_, &res_, metaCache.get());
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "parseInsertSyntax code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
       return code_;
     }
 
-    SCatalogReq catalogReq = {0};
-    code_ = buildCatalogReq(res_->pMetaCache, &catalogReq);
+    unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
+                                                               MockCatalogService::destoryCatalogReq);
+    code_ = buildCatalogReq(metaCache.get(), catalogReq.get());
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "buildCatalogReq code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
       return code_;
     }
 
-    SMetaData metaData = {0};
-    g_mockCatalogService->catalogGetAllMeta(&catalogReq, &metaData);
+    unique_ptr<SMetaData, void (*)(SMetaData*)> metaData(new SMetaData(), MockCatalogService::destoryMetaData);
+    g_mockCatalogService->catalogGetAllMeta(catalogReq.get(), metaData.get());
 
-    code_ = putMetaDataToCache(&catalogReq, &metaData, res_->pMetaCache);
+    code_ = putMetaDataToCache(catalogReq.get(), metaData.get(), metaCache.get());
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "putMetaDataToCache code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
       return code_;
     }
 
-    code_ = parseInsertSql(&cxt_, &res_);
+    code_ = parseInsertSql(&cxt_, &res_, metaCache.get());
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "parseInsertSql code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
       return code_;
@@ -138,12 +144,18 @@ class InsertTest : public Test {
   static const int max_err_len = 1024;
   static const int max_sql_len = 1024 * 1024;
 
+  static void _destoryParseMetaCache(SParseMetaCache* pMetaCache) {
+    destoryParseMetaCache(pMetaCache);
+    delete pMetaCache;
+  }
+
   void reset() {
     memset(&cxt_, 0, sizeof(cxt_));
     memset(errMagBuf_, 0, max_err_len);
     cxt_.pMsg = errMagBuf_;
     cxt_.msgLen = max_err_len;
     code_ = TSDB_CODE_SUCCESS;
+    qDestroyQuery(res_);
     res_ = nullptr;
   }
 
@@ -233,8 +245,8 @@ TEST_F(InsertTest, autoCreateTableTest) {
   setDatabase("root", "test");
 
   bind(
-      "insert into st1s1 using st1 tags(1, 'wxy') values (now, 1, \"beijing\")(now+1s, 2, \"shanghai\")(now+2s, 3, "
-      "\"guangzhou\")");
+      "insert into st1s1 using st1 tags(1, 'wxy', now) "
+      "values (now, 1, \"beijing\")(now+1s, 2, \"shanghai\")(now+2s, 3, \"guangzhou\")");
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
   dumpReslut();
   checkReslut(1, 3);
@@ -245,14 +257,19 @@ TEST_F(InsertTest, autoCreateTableTest) {
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
 
   bind(
-      "insert into st1s1 using st1 tags(1, 'wxy') values (now, 1, \"beijing\")(now+1s, 2, \"shanghai\")(now+2s, 3, "
-      "\"guangzhou\")");
+      "insert into st1s1 using st1 tags(1, 'wxy', now) "
+      "values (now, 1, \"beijing\")(now+1s, 2, \"shanghai\")(now+2s, 3, \"guangzhou\")");
   ASSERT_EQ(runAsync(), TSDB_CODE_SUCCESS);
 
   bind(
       "insert into st1s1 using st1 (tag1, tag2) tags(1, 'wxy') values (now, 1, \"beijing\")"
       "(now+1s, 2, \"shanghai\")(now+2s, 3, \"guangzhou\")");
   ASSERT_EQ(runAsync(), TSDB_CODE_SUCCESS);
+
+  bind(
+      "insert into st1s1 using st1 tags(1, 'wxy', now) values (now, 1, \"beijing\")"
+      "st1s1 using st1 tags(1, 'wxy', now) values (now+1s, 2, \"shanghai\")");
+  ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
 }
 
 TEST_F(InsertTest, toleranceTest) {

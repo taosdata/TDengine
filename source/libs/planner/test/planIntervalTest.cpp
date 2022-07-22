@@ -29,7 +29,7 @@ TEST_F(PlanIntervalTest, basic) {
 TEST_F(PlanIntervalTest, pseudoCol) {
   useDb("root", "test");
 
-  run("SELECT _WSTARTTS, _WDURATION, _WENDTS, COUNT(*) FROM t1 INTERVAL(10s)");
+  run("SELECT _WSTART, _WDURATION, _WEND, COUNT(*) FROM t1 INTERVAL(10s)");
 }
 
 TEST_F(PlanIntervalTest, fill) {
@@ -38,9 +38,15 @@ TEST_F(PlanIntervalTest, fill) {
   run("SELECT COUNT(*) FROM t1 WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
       "INTERVAL(10s) FILL(LINEAR)");
 
+  run("SELECT COUNT(*) FROM st1 WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
+      "INTERVAL(10s) FILL(LINEAR)");
+
   run("SELECT COUNT(*), SUM(c1) FROM t1 "
       "WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
       "INTERVAL(10s) FILL(VALUE, 10, 20)");
+
+  run("SELECT COUNT(*) FROM st1 WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
+      "PARTITION BY TBNAME interval(10s) fill(prev)");
 }
 
 TEST_F(PlanIntervalTest, selectFunc) {
@@ -50,10 +56,18 @@ TEST_F(PlanIntervalTest, selectFunc) {
   run("SELECT MAX(c1), MIN(c1) FROM t1 INTERVAL(10s)");
   // select function along with the columns of select row, and with INTERVAL clause
   run("SELECT MAX(c1), c2 FROM t1 INTERVAL(10s)");
+
+  run("SELECT TOP(c1, 1) FROM t1 INTERVAL(10s) ORDER BY c1");
 }
 
 TEST_F(PlanIntervalTest, stable) {
   useDb("root", "test");
 
   run("SELECT COUNT(*) FROM st1 INTERVAL(10s)");
+
+  run("SELECT _WSTART, COUNT(*) FROM st1 INTERVAL(10s)");
+
+  run("SELECT _WSTART, COUNT(*) FROM st1 PARTITION BY TBNAME INTERVAL(10s)");
+
+  run("SELECT TBNAME, COUNT(*) FROM st1 PARTITION BY TBNAME INTERVAL(10s)");
 }

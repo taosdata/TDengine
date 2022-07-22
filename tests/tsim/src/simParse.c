@@ -175,7 +175,7 @@ SScript *simBuildScriptObj(char *fileName) {
 SScript *simParseScript(char *fileName) {
   TdFilePtr pFile;
   int32_t   tokenLen, lineNum = 0;
-  char     *buffer = NULL, name[128], *token, *rest;
+  char      buffer[10*1024], name[128], *token, *rest;
   SCommand *pCmd;
   SScript  *script;
 
@@ -195,7 +195,7 @@ SScript *simParseScript(char *fileName) {
   simResetParser();
 
   while (!taosEOFFile(pFile)) {
-    if (taosGetLineFile(pFile, &buffer) == -1) continue;
+    if (taosGetsFile(pFile, sizeof(buffer) - 1, buffer) == -1) continue;
 
     lineNum++;
     int32_t cmdlen = (int32_t)strlen(buffer);
@@ -206,7 +206,7 @@ SScript *simParseScript(char *fileName) {
 
     for (int32_t i = 0; i < cmdlen; ++i) {
       if (buffer[i] == '\r' || buffer[i] == '\n') {
-        buffer[i] = ' ';
+        buffer[i] = '\0';
       }
     }
 
@@ -240,7 +240,6 @@ SScript *simParseScript(char *fileName) {
       return NULL;
     }
   }
-  if(buffer != NULL) taosMemoryFree(buffer);
   taosCloseFile(&pFile);
 
   script = simBuildScriptObj(fileName);

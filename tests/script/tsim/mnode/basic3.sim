@@ -41,6 +41,7 @@ sql create mnode on dnode 2
 sql create mnode on dnode 3
 sql_error create mnode on dnode 4
 
+$leaderExist = 0
 $x = 0
 step2: 
 	$x = $x + 1
@@ -49,13 +50,20 @@ step2:
 		return -1
 	endi
 sql show mnodes -x step2
-if $data(1)[2] != LEADER then
-  goto step2
+
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+if $data(1)[2] == leader then
+  $leaderExist = 1
 endi
-if $data(2)[2] != FOLLOWER then
-  goto step2
+if $data(2)[2] == leader then
+  $leaderExist = 1
 endi
-if $data(3)[2] != FOLLOWER then
+if $data(3)[2] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
   goto step2
 endi
 
@@ -67,10 +75,10 @@ if $rows != 2 then
 endi
 
 # wait mnode2 mnode3 recv data finish
-sleep 10000
+sleep 1000
 
 print =============== step4: stop dnode1
-system sh/exec.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode1 -s stop -x SIGKILL
 
 $x = 0
 step4: 
@@ -89,13 +97,22 @@ if $rows != 2 then
   return -1
 endi
 
-sleep 1000
-sql show dnodes
+$x = 0
+step41: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+sql show dnodes -x step41
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
 if $data(2)[4] != ready then
-  return -1
+  goto step41
 endi
 if $data(3)[4] != ready then
-  return -1
+  goto step41
 endi
 
 print =============== step5: stop dnode1
@@ -114,13 +131,27 @@ print $data(1)[0] $data(1)[1] $data(1)[2]
 print $data(2)[0] $data(2)[1] $data(2)[2] 
 print $data(3)[0] $data(3)[1] $data(3)[2] 
 
-if $data(2)[2] != OFFLINE then
-  goto step5
-endi
-
 sql show users
 if $rows != 2 then 
   return -1
+endi
+
+$x = 0
+step51: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+sql show dnodes -x step51
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+if $data(1)[4] != ready then
+  goto step51
+endi
+if $data(3)[4] != ready then
+  goto step51
 endi
 
 print =============== step6: stop dnode1
@@ -142,6 +173,24 @@ print $data(3)[0] $data(3)[1] $data(3)[2]
 sql show users
 if $rows != 2 then 
   return -1
+endi
+
+$x = 0
+step61: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+sql show dnodes -x step61
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+if $data(1)[4] != ready then
+  goto step61
+endi
+if $data(2)[4] != ready then
+  goto step61
 endi
 
 system sh/exec.sh -n dnode1 -s stop

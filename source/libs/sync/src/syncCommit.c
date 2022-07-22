@@ -48,43 +48,68 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   syncIndexMgrLog2("==syncNodeMaybeAdvanceCommitIndex== pNextIndex", pSyncNode->pNextIndex);
   syncIndexMgrLog2("==syncNodeMaybeAdvanceCommitIndex== pMatchIndex", pSyncNode->pMatchIndex);
 
+  // advance commit index to sanpshot first
+  SSnapshot snapshot;
+  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
+  if (snapshot.lastApplyIndex > 0 && snapshot.lastApplyIndex > pSyncNode->commitIndex) {
+    SyncIndex commitBegin = pSyncNode->commitIndex;
+    SyncIndex commitEnd = snapshot.lastApplyIndex;
+    pSyncNode->commitIndex = snapshot.lastApplyIndex;
+
+    char eventLog[128];
+    snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%" PRId64 " to index:%" PRId64, commitBegin,
+             commitEnd);
+    syncNodeEventLog(pSyncNode, eventLog);
+  }
+
   // update commit index
   SyncIndex newCommitIndex = pSyncNode->commitIndex;
-  for (SyncIndex index = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore); index > pSyncNode->commitIndex;
-       --index) {
+  for (SyncIndex index = syncNodeGetLastIndex(pSyncNode); index > pSyncNode->commitIndex; --index) {
     bool agree = syncAgree(pSyncNode, index);
-    sTrace("syncMaybeAdvanceCommitIndex syncAgree:%d, index:%ld, pSyncNode->commitIndex:%ld", agree, index,
-           pSyncNode->commitIndex);
+
+    if (gRaftDetailLog) {
+      sTrace("syncMaybeAdvanceCommitIndex syncAgree:%d, index:%" PRId64 ", pSyncNode->commitIndex:%" PRId64, agree,
+             index, pSyncNode->commitIndex);
+    }
+
     if (agree) {
       // term
       SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, index);
-      assert(pEntry != NULL);
+      ASSERT(pEntry != NULL);
 
       // cannot commit, even if quorum agree. need check term!
       if (pEntry->term == pSyncNode->pRaftStore->currentTerm) {
         // update commit index
         newCommitIndex = index;
-        sTrace("syncMaybeAdvanceCommitIndex maybe to update, newCommitIndex:%ld commit, pSyncNode->commitIndex:%ld",
-               newCommitIndex, pSyncNode->commitIndex);
+
+        if (gRaftDetailLog) {
+          sTrace("syncMaybeAdvanceCommitIndex maybe to update, newCommitIndex:%" PRId64
+                 " commit, pSyncNode->commitIndex:%" PRId64,
+                 newCommitIndex, pSyncNode->commitIndex);
+        }
 
         syncEntryDestory(pEntry);
         break;
       } else {
-        sTrace(
-            "syncMaybeAdvanceCommitIndex can not commit due to term not equal, pEntry->term:%lu, "
-            "pSyncNode->pRaftStore->currentTerm:%lu",
-            pEntry->term, pSyncNode->pRaftStore->currentTerm);
+        if (gRaftDetailLog) {
+          sTrace("syncMaybeAdvanceCommitIndex can not commit due to term not equal, pEntry->term:%" PRIu64
+                 ", pSyncNode->pRaftStore->currentTerm:%" PRIu64,
+                 pEntry->term, pSyncNode->pRaftStore->currentTerm);
+        }
       }
 
       syncEntryDestory(pEntry);
     }
   }
 
+  // maybe execute fsm
   if (newCommitIndex > pSyncNode->commitIndex) {
     SyncIndex beginIndex = pSyncNode->commitIndex + 1;
     SyncIndex endIndex = newCommitIndex;
 
-    sTrace("syncMaybeAdvanceCommitIndex sync commit %ld", newCommitIndex);
+    if (gRaftDetailLog) {
+      sTrace("syncMaybeAdvanceCommitIndex sync commit %" PRId64, newCommitIndex);
+    }
 
     // update commit index
     pSyncNode->commitIndex = newCommitIndex;
@@ -94,109 +119,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
 
     // execute fsm
     if (pSyncNode->pFsm != NULL) {
-      for (SyncIndex i = beginIndex; i <= endIndex; ++i) {
-        if (i != SYNC_INDEX_INVALID) {
-          SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, i);
-          assert(pEntry != NULL);
-
-          SRpcMsg rpcMsg;
-          syncEntry2OriginalRpc(pEntry, &rpcMsg);
-
-          if (pSyncNode->pFsm->FpCommitCb != NULL && syncUtilUserCommit(pEntry->originalRpcType)) {
-            SFsmCbMeta cbMeta;
-            cbMeta.index = pEntry->index;
-            cbMeta.isWeak = pEntry->isWeak;
-            cbMeta.code = 0;
-            cbMeta.state = pSyncNode->state;
-            cbMeta.seqNum = pEntry->seqNum;
-            cbMeta.term = pEntry->term;
-            cbMeta.currentTerm = pSyncNode->pRaftStore->currentTerm;
-            cbMeta.flag = 0x1;
-
-            bool needExecute = true;
-            if (pSyncNode->pSnapshot != NULL && cbMeta.index <= pSyncNode->pSnapshot->lastApplyIndex) {
-              needExecute = false;
-            }
-
-            if (needExecute) {
-              pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, cbMeta);
-            }
-          }
-
-          // config change
-          if (pEntry->originalRpcType == TDMT_VND_SYNC_CONFIG_CHANGE) {
-            SSyncCfg oldSyncCfg = pSyncNode->pRaftCfg->cfg;
-
-            SSyncCfg newSyncCfg;
-            int32_t  ret = syncCfgFromStr(rpcMsg.pCont, &newSyncCfg);
-            ASSERT(ret == 0);
-
-            // update new config myIndex
-            bool hit = false;
-            for (int i = 0; i < newSyncCfg.replicaNum; ++i) {
-              if (strcmp(pSyncNode->myNodeInfo.nodeFqdn, (newSyncCfg.nodeInfo)[i].nodeFqdn) == 0 &&
-                  pSyncNode->myNodeInfo.nodePort == (newSyncCfg.nodeInfo)[i].nodePort) {
-                newSyncCfg.myIndex = i;
-                hit = true;
-                break;
-              }
-            }
-
-            if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
-              ASSERT(hit == true);
-            }
-
-            bool isDrop;
-            syncNodeUpdateConfig(pSyncNode, &newSyncCfg, &isDrop);
-
-            // change isStandBy to normal
-            if (!isDrop) {
-              if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
-                syncNodeBecomeLeader(pSyncNode);
-              } else {
-                syncNodeBecomeFollower(pSyncNode);
-              }
-            }
-
-            char* sOld = syncCfg2Str(&oldSyncCfg);
-            char* sNew = syncCfg2Str(&newSyncCfg);
-            sInfo("==config change== 0x1 old:%s new:%s isDrop:%d \n", sOld, sNew, isDrop);
-            taosMemoryFree(sOld);
-            taosMemoryFree(sNew);
-
-            if (pSyncNode->pFsm->FpReConfigCb != NULL) {
-              SReConfigCbMeta cbMeta = {0};
-              cbMeta.code = 0;
-              cbMeta.currentTerm = pSyncNode->pRaftStore->currentTerm;
-              cbMeta.index = pEntry->index;
-              cbMeta.term = pEntry->term;
-              cbMeta.oldCfg = oldSyncCfg;
-              cbMeta.flag = 0x1;
-              cbMeta.isDrop = isDrop;
-              pSyncNode->pFsm->FpReConfigCb(pSyncNode->pFsm, newSyncCfg, cbMeta);
-            }
-          }
-
-          // restore finish
-          if (pEntry->index == pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore)) {
-            if (pSyncNode->restoreFinish == false) {
-              if (pSyncNode->pFsm->FpRestoreFinishCb != NULL) {
-                pSyncNode->pFsm->FpRestoreFinishCb(pSyncNode->pFsm);
-              }
-              pSyncNode->restoreFinish = true;
-              sInfo("==syncMaybeAdvanceCommitIndex== restoreFinish set true %p vgId:%d", pSyncNode, pSyncNode->vgId);
-
-              /*
-              tsem_post(&pSyncNode->restoreSem);
-              sInfo("==syncMaybeAdvanceCommitIndex== RestoreFinish tsem_post %p", pSyncNode);
-              */
-            }
-          }
-
-          rpcFreeCont(rpcMsg.pCont);
-          syncEntryDestory(pEntry);
-        }
-      }
+      int32_t code = syncNodeCommit(pSyncNode, beginIndex, endIndex, pSyncNode->state);
+      ASSERT(code == 0);
     }
   }
 }

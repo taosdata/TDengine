@@ -23,20 +23,52 @@ class PlanOrderByTest : public PlannerTestBase {};
 TEST_F(PlanOrderByTest, basic) {
   useDb("root", "test");
 
-  // order by key is in the projection list
-  run("select c1 from t1 order by c1");
-  // order by key is not in the projection list
-  run("select c1 from t1 order by c2");
+  // ORDER BY key is in the projection list
+  run("SELECT c1 FROM t1 ORDER BY c1");
+  // ORDER BY key is not in the projection list
+  run("SELECT c1 FROM t1 ORDER BY c2");
+
+  run("SELECT c1 AS a FROM t1 ORDER BY a");
+
+  run("SELECT c1 + 10 AS a FROM t1 ORDER BY a");
+
+  run("SELECT 1 FROM t1 ORDER BY c1");
 }
 
 TEST_F(PlanOrderByTest, expr) {
   useDb("root", "test");
 
-  run("select * from t1 order by c1 + 10, c2");
+  run("SELECT * FROM t1 ORDER BY c1 + 10, c2");
 }
 
 TEST_F(PlanOrderByTest, nullsOrder) {
   useDb("root", "test");
 
-  run("select * from t1 order by c1 desc nulls first");
+  run("SELECT * FROM t1 ORDER BY c1 DESC NULLS FIRST");
+}
+
+TEST_F(PlanOrderByTest, withGroupBy) {
+  useDb("root", "test");
+
+  run("SELECT SUM(c1) AS a FROM t1 GROUP BY c2 ORDER BY a");
+}
+
+TEST_F(PlanOrderByTest, withSubquery) {
+  useDb("root", "test");
+
+  run("SELECT ts FROM (SELECT * FROM t1 ORDER BY ts DESC) ORDER BY ts DESC");
+}
+
+TEST_F(PlanOrderByTest, stable) {
+  useDb("root", "test");
+
+  // ORDER BY key is in the projection list
+  run("SELECT c1 FROM st1 ORDER BY c1");
+
+  // ORDER BY key is not in the projection list
+  run("SELECT c2 FROM st1 ORDER BY c1");
+
+  run("SELECT c2 FROM st1 PARTITION BY c2 ORDER BY c1");
+
+  run("SELECT c1 AS a FROM st1 ORDER BY a");
 }

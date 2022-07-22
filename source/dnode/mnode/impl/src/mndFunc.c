@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndFunc.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSync.h"
 #include "mndTrans.h"
@@ -274,7 +274,6 @@ _OVER:
 static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
-  SUserObj      *pUser = NULL;
   SFuncObj      *pFunc = NULL;
   SCreateFuncReq createReq = {0};
 
@@ -284,6 +283,9 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
   }
 
   mDebug("func:%s, start to create", createReq.name);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_FUNC) != 0) {
+    goto _OVER;
+  }
 
   pFunc = mndAcquireFunc(pMnode, createReq.name);
   if (pFunc != NULL) {
@@ -309,23 +311,13 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
- if (createReq.codeLen <= 1) {
-   terrno = TSDB_CODE_MND_INVALID_FUNC_CODE;
-   goto _OVER;
- }
+  if (createReq.codeLen <= 1) {
+    terrno = TSDB_CODE_MND_INVALID_FUNC_CODE;
+    goto _OVER;
+  }
 
   if (createReq.bufSize < 0 || createReq.bufSize > TSDB_FUNC_BUF_SIZE) {
     terrno = TSDB_CODE_MND_INVALID_FUNC_BUFSIZE;
-    goto _OVER;
-  }
-
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto _OVER;
-  }
-
-  if (mndCheckFuncAuth(pUser)) {
     goto _OVER;
   }
 
@@ -338,16 +330,13 @@ _OVER:
   }
 
   mndReleaseFunc(pMnode, pFunc);
-  mndReleaseUser(pMnode, pUser);
   tFreeSCreateFuncReq(&createReq);
-
   return code;
 }
 
 static int32_t mndProcessDropFuncReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
-  SUserObj    *pUser = NULL;
   SFuncObj    *pFunc = NULL;
   SDropFuncReq dropReq = {0};
 
@@ -357,6 +346,9 @@ static int32_t mndProcessDropFuncReq(SRpcMsg *pReq) {
   }
 
   mDebug("func:%s, start to drop", dropReq.name);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_FUNC) != 0) {
+    goto _OVER;
+  }
 
   if (dropReq.name[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_FUNC_NAME;
@@ -375,16 +367,6 @@ static int32_t mndProcessDropFuncReq(SRpcMsg *pReq) {
     }
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto _OVER;
-  }
-
-  if (mndCheckFuncAuth(pUser)) {
-    goto _OVER;
-  }
-
   code = mndDropFunc(pMnode, pReq, pFunc);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -394,8 +376,6 @@ _OVER:
   }
 
   mndReleaseFunc(pMnode, pFunc);
-  mndReleaseUser(pMnode, pUser);
-
   return code;
 }
 
@@ -538,7 +518,7 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&isAgg, false);
 
-    char b3[TSDB_TYPE_STR_MAX_LEN] = {0};
+    char b3[TSDB_TYPE_STR_MAX_LEN + 1] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b3, mnodeGenTypeStr(buf, TSDB_TYPE_STR_MAX_LEN, pFunc->outputType, pFunc->outputLen),
                                pShow->pMeta->pSchemas[cols].bytes);
 

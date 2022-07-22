@@ -118,6 +118,7 @@ if $data[0][5] != 5 then
   return -1
 endi
 if $data[0][6] != 101 then
+  print expect 101, actual: $data06
   return -1
 endi
 

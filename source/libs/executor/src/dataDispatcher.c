@@ -67,29 +67,37 @@ static bool needCompress(const SSDataBlock* pData, int32_t numOfCols) {
   return false;
 }
 
+// clang-format off
 // data format:
-// +----------------+--------------+----------+--------------------------------------+-------------+-----------+-------------+-----------+
-// |SDataCacheEntry | total length | group id | column#1 length, column#2 length ... | col1 bitmap | col1 data | col2 bitmap | col2 data | ....
-// |                |  (4 bytes)   |(8 bytes) | sizeof(int32_t) * numOfCols          | actual size |           | actual size |           |
-// +----------------+--------------+----------+--------------------------------------+-------------+-----------+-------------+-----------+
+// +----------------+--------------+-----------------+--------------------------------------------+------------------------------------+-------------+-----------+-------------+-----------+
+// |SDataCacheEntry | total length |    group id     | col1_schema | col2_schema | col3_schema... | column#1 length, column#2 length...| col1 bitmap | col1 data | col2 bitmap | col2 data | .... |                |  (4 bytes)   |(8 bytes)
+// |                |sizeof(int32) |sizeof(uint64_t) |(sizeof(int16_t)+sizeof(int32_t))*numOfCols | sizeof(int32_t) * numOfCols        | actual size |           |
+// +----------------+--------------+-----------------+--------------------------------------------+------------------------------------+-------------+-----------+-------------+-----------+
 // The length of bitmap is decided by number of rows of this data block, and the length of each column data is
 // recorded in the first segment, next to the struct header
+// clang-format on
 static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pInput, SDataDispatchBuf* pBuf) {
-  int32_t numOfCols = LIST_LENGTH(pHandle->pSchema->pSlots);
-
+  int32_t numOfCols = 0;
+  SNode*  pNode;
+  FOREACH(pNode, pHandle->pSchema->pSlots) {
+    SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
+    if (pSlotDesc->output) {
+      ++numOfCols;
+    }
+  }
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pBuf->pData;
   pEntry->compressed = (int8_t)needCompress(pInput->pData, numOfCols);
   pEntry->numOfRows = pInput->pData->info.rows;
-  pEntry->numOfCols = pInput->pData->info.numOfCols;
+  pEntry->numOfCols = numOfCols;
   pEntry->dataLen = 0;
 
-  pBuf->useSize = sizeof(SRetrieveTableRsp);
-  blockCompressEncode(pInput->pData, pEntry->data, &pEntry->dataLen, numOfCols, pEntry->compressed);
+  pBuf->useSize = sizeof(SDataCacheEntry);
+  blockEncode(pInput->pData, pEntry->data, &pEntry->dataLen, numOfCols, pEntry->compressed);
 
   pBuf->useSize += pEntry->dataLen;
-  
-  atomic_add_fetch_64(&pHandle->cachedSize, pEntry->dataLen); 
-  atomic_add_fetch_64(&gDataSinkStat.cachedSize, pEntry->dataLen); 
+
+  atomic_add_fetch_64(&pHandle->cachedSize, pEntry->dataLen);
+  atomic_add_fetch_64(&gDataSinkStat.cachedSize, pEntry->dataLen);
 }
 
 static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput, SDataDispatchBuf* pBuf) {
@@ -100,7 +108,7 @@ static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput,
     return false;
   }
 
-  pBuf->allocSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pInput->pData);
+  pBuf->allocSize = sizeof(SDataCacheEntry) + blockGetEncodeSize(pInput->pData);
 
   pBuf->pData = taosMemoryMalloc(pBuf->allocSize);
   if (pBuf->pData == NULL) {
@@ -148,7 +156,7 @@ static void endPut(struct SDataSinkHandle* pHandle, uint64_t useconds) {
   taosThreadMutexUnlock(&pDispatcher->mutex);
 }
 
-static void getDataLength(SDataSinkHandle* pHandle, int32_t* pLen, bool* pQueryEnd) {
+static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryEnd) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   if (taosQueueEmpty(pDispatcher->pDataBlocks)) {
     *pQueryEnd = pDispatcher->queryEnd;
@@ -162,7 +170,7 @@ static void getDataLength(SDataSinkHandle* pHandle, int32_t* pLen, bool* pQueryE
   taosFreeQitem(pBuf);
   *pLen = ((SDataCacheEntry*)(pDispatcher->nextOutput.pData))->dataLen;
   *pQueryEnd = pDispatcher->queryEnd;
-  qDebug("got data len %d, row num %d in sink", *pLen, ((SDataCacheEntry*)(pDispatcher->nextOutput.pData))->numOfRows);
+  qDebug("got data len %" PRId64 ", row num %d in sink", *pLen, ((SDataCacheEntry*)(pDispatcher->nextOutput.pData))->numOfRows);
 }
 
 static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
@@ -181,8 +189,8 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   pOutput->numOfCols = pEntry->numOfCols;
   pOutput->compressed = pEntry->compressed;
 
-  atomic_sub_fetch_64(&pDispatcher->cachedSize, pEntry->dataLen);  
-  atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pEntry->dataLen); 
+  atomic_sub_fetch_64(&pDispatcher->cachedSize, pEntry->dataLen);
+  atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pEntry->dataLen);
 
   taosMemoryFreeClear(pDispatcher->nextOutput.pData);  // todo persistent
   pOutput->bufStatus = updateStatus(pDispatcher);
@@ -192,7 +200,6 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   pOutput->precision = pDispatcher->pSchema->precision;
   taosThreadMutexUnlock(&pDispatcher->mutex);
 
-  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -211,7 +218,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
+static int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
 
   *size = atomic_load_64(&pDispatcher->cachedSize);

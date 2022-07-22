@@ -56,11 +56,11 @@ int32_t setChkNotInBytes8(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareChkInString(const void *pLeft, const void *pRight) {
-  return NULL != taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;
+  return NULL != taosHashGet((SHashObj *)pRight, pLeft, varDataTLen(pLeft)) ? 1 : 0;
 }
 
 int32_t compareChkNotInString(const void *pLeft, const void *pRight) {
-  return NULL == taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;
+  return NULL == taosHashGet((SHashObj *)pRight, pLeft, varDataTLen(pLeft)) ? 1 : 0;
 }
 
 int32_t compareInt8Val(const void *pLeft, const void *pRight) {
@@ -222,11 +222,33 @@ int32_t compareLenPrefixedWStrDesc(const void *pLeft, const void *pRight) {
   return compareLenPrefixedWStr(pRight, pLeft);
 }
 
-int32_t compareJsonContainsKey(const void* pLeft, const void* pRight) {
-  if(pLeft) return 0;
-  return 1;
+// string > number > bool > null
+// ref: https://dev.mysql.com/doc/refman/8.0/en/json.html#json-comparison
+int32_t compareJsonVal(const void *pLeft, const void *pRight) {
+  char leftType = *(char*)pLeft;
+  char rightType = *(char*)pRight;
+  if(leftType != rightType){
+    return leftType > rightType ? 1 : -1;
+  }
+
+  char* realDataLeft = POINTER_SHIFT(pLeft, CHAR_BYTES);
+  char* realDataRight = POINTER_SHIFT(pRight, CHAR_BYTES);
+  if(leftType == TSDB_DATA_TYPE_BOOL) {
+    DEFAULT_COMP(GET_INT8_VAL(realDataLeft), GET_INT8_VAL(realDataRight));
+  }else if(leftType == TSDB_DATA_TYPE_DOUBLE){
+    DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(realDataLeft), GET_DOUBLE_VAL(realDataRight));
+  }else if(leftType == TSDB_DATA_TYPE_NCHAR){
+    return compareLenPrefixedWStr(realDataLeft, realDataRight);
+  }else if(leftType == TSDB_DATA_TYPE_NULL) {
+    return 0;
+  }else{
+    assert(0);
+  }
 }
 
+int32_t compareJsonValDesc(const void *pLeft, const void *pRight) {
+    return compareJsonVal(pRight, pLeft);
+}
 /*
  * Compare two strings
  *    TSDB_MATCH:            Match
@@ -601,6 +623,8 @@ __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order) {
       return (order == TSDB_ORDER_ASC) ? compareLenPrefixedStr : compareLenPrefixedStrDesc;
     case TSDB_DATA_TYPE_NCHAR:
       return (order == TSDB_ORDER_ASC) ? compareLenPrefixedWStr : compareLenPrefixedWStrDesc;
+    case TSDB_DATA_TYPE_JSON:
+      return (order == TSDB_ORDER_ASC) ? compareJsonVal : compareJsonValDesc;
     default:
       return (order == TSDB_ORDER_ASC) ? compareInt32Val : compareInt32ValDesc;
   }

@@ -64,6 +64,14 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb) {
 
   mkdir(dbname, 0755);
 
+#ifdef USE_MAINDB
+  // open main db
+  ret = tdbTbOpen(TDB_MAINDB_NAME, -1, sizeof(SPgno), NULL, pDb, &pDb->pMainDb);
+  if (ret < 0) {
+    return -1;
+  }
+#endif
+
   *ppDb = pDb;
   return 0;
 }
@@ -72,6 +80,10 @@ int tdbClose(TDB *pDb) {
   SPager *pPager;
 
   if (pDb) {
+#ifdef USE_MAINDB
+    if (pDb->pMainDb) tdbTbClose(pDb->pMainDb);
+#endif
+
     for (pPager = pDb->pgrList; pPager; pPager = pDb->pgrList) {
       pDb->pgrList = pPager->pNext;
       tdbPagerClose(pPager);
@@ -121,9 +133,10 @@ SPager *tdbEnvGetPager(TDB *pDb, const char *fname) {
 
   hash = tdbCstringHash(fname);
   ppPager = &pDb->pgrHash[hash % pDb->nPgrHash];
+  tdbTrace("tdbttl getPager1: pager:%p, index:%d, name:%s", *ppPager, hash % pDb->nPgrHash, fname);
   for (; *ppPager && (strcmp(fname, (*ppPager)->dbFileName) != 0); ppPager = &((*ppPager)->pHashNext)) {
   }
-
+  tdbTrace("tdbttl getPager2: pager:%p, index:%d, name:%s", *ppPager, hash % pDb->nPgrHash, fname);
   return *ppPager;
 }
 
@@ -143,8 +156,11 @@ void tdbEnvAddPager(TDB *pDb, SPager *pPager) {
   // add to hash
   hash = tdbCstringHash(pPager->dbFileName);
   ppPager = &pDb->pgrHash[hash % pDb->nPgrHash];
+  tdbTrace("tdbttl addPager1: pager:%p, index:%d, name:%s", *ppPager, hash % pDb->nPgrHash, pPager->dbFileName);
   pPager->pHashNext = *ppPager;
   *ppPager = pPager;
+
+  tdbTrace("tdbttl addPager2: pager:%p, index:%d, name:%s", *ppPager, hash % pDb->nPgrHash, pPager->dbFileName);
 
   // increase the counter
   pDb->nPager++;

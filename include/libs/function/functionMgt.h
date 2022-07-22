@@ -105,7 +105,7 @@ typedef enum EFunctionType {
   // system function
   FUNCTION_TYPE_DATABASE = 3000,
   FUNCTION_TYPE_CLIENT_VERSION,
-  FUNCTION_TYPE_SERVER_SERSION,
+  FUNCTION_TYPE_SERVER_VERSION,
   FUNCTION_TYPE_SERVER_STATUS,
   FUNCTION_TYPE_CURRENT_USER,
   FUNCTION_TYPE_USER,
@@ -113,14 +113,45 @@ typedef enum EFunctionType {
   // pseudo column function
   FUNCTION_TYPE_ROWTS = 3500,
   FUNCTION_TYPE_TBNAME,
-  FUNCTION_TYPE_QSTARTTS,
-  FUNCTION_TYPE_QENDTS,
-  FUNCTION_TYPE_WSTARTTS,
-  FUNCTION_TYPE_WENDTS,
+  FUNCTION_TYPE_QSTART,
+  FUNCTION_TYPE_QEND,
+  FUNCTION_TYPE_QDURATION,
+  FUNCTION_TYPE_WSTART,
+  FUNCTION_TYPE_WEND,
   FUNCTION_TYPE_WDURATION,
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE,
+  FUNCTION_TYPE_BLOCK_DIST,       // block distribution aggregate function
+  FUNCTION_TYPE_BLOCK_DIST_INFO,  // block distribution pseudo column function
+  FUNCTION_TYPE_TO_COLUMN,
+  FUNCTION_TYPE_GROUP_KEY,
+  FUNCTION_TYPE_CACHE_LAST_ROW,
+
+  // distributed splitting functions
+  FUNCTION_TYPE_APERCENTILE_PARTIAL = 4000,
+  FUNCTION_TYPE_APERCENTILE_MERGE,
+  FUNCTION_TYPE_SPREAD_PARTIAL,
+  FUNCTION_TYPE_SPREAD_MERGE,
+  FUNCTION_TYPE_HISTOGRAM_PARTIAL,
+  FUNCTION_TYPE_HISTOGRAM_MERGE,
+  FUNCTION_TYPE_HYPERLOGLOG_PARTIAL,
+  FUNCTION_TYPE_HYPERLOGLOG_MERGE,
+  FUNCTION_TYPE_ELAPSED_PARTIAL,
+  FUNCTION_TYPE_ELAPSED_MERGE,
+
+  FUNCTION_TYPE_TOP_PARTIAL,
+  FUNCTION_TYPE_TOP_MERGE,
+  FUNCTION_TYPE_BOTTOM_PARTIAL,
+  FUNCTION_TYPE_BOTTOM_MERGE,
+  FUNCTION_TYPE_FIRST_PARTIAL,
+  FUNCTION_TYPE_FIRST_MERGE,
+  FUNCTION_TYPE_LAST_PARTIAL,
+  FUNCTION_TYPE_LAST_MERGE,
+  FUNCTION_TYPE_AVG_PARTIAL,
+  FUNCTION_TYPE_AVG_MERGE,
+  FUNCTION_TYPE_STDDEV_PARTIAL,
+  FUNCTION_TYPE_STDDEV_MERGE,
 
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
@@ -157,6 +188,16 @@ bool fmIsMultiResFunc(int32_t funcId);
 bool fmIsRepeatScanFunc(int32_t funcId);
 bool fmIsUserDefinedFunc(int32_t funcId);
 bool fmIsDistExecFunc(int32_t funcId);
+bool fmIsForbidFillFunc(int32_t funcId);
+bool fmIsForbidStreamFunc(int32_t funcId);
+bool fmIsIntervalInterpoFunc(int32_t funcId);
+bool fmIsInterpFunc(int32_t funcId);
+bool fmIsLastRowFunc(int32_t funcId);
+bool fmIsSystemInfoFunc(int32_t funcId);
+bool fmIsImplicitTsFunc(int32_t funcId);
+bool fmIsClientPseudoColumnFunc(int32_t funcId);
+bool fmIsMultiRowsFunc(int32_t funcId);
+bool fmIsKeepOrderFunc(int32_t funcId);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 

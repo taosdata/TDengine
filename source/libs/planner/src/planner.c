@@ -20,22 +20,21 @@
 
 static void dumpQueryPlan(SQueryPlan* pPlan) {
   char* pStr = NULL;
-  nodesNodeToString(pPlan, false, &pStr, NULL);
-  planDebugL("Query Plan: %s", pStr);
+  nodesNodeToString((SNode*)pPlan, false, &pStr, NULL);
+  planDebugL("QID:0x%" PRIx64 " Query Plan: %s", pPlan->queryId, pStr);
   taosMemoryFree(pStr);
 }
 
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
-  SLogicNode*      pLogicNode = NULL;
   SLogicSubplan*   pLogicSubplan = NULL;
   SQueryLogicPlan* pLogicPlan = NULL;
 
-  int32_t code = createLogicPlan(pCxt, &pLogicNode);
+  int32_t code = createLogicPlan(pCxt, &pLogicSubplan);
   if (TSDB_CODE_SUCCESS == code) {
-    code = optimizeLogicPlan(pCxt, pLogicNode);
+    code = optimizeLogicPlan(pCxt, pLogicSubplan);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = splitLogicPlan(pCxt, pLogicNode, &pLogicSubplan);
+    code = splitLogicPlan(pCxt, pLogicSubplan);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = scaleOutLogicPlan(pCxt, pLogicSubplan, &pLogicPlan);
@@ -47,9 +46,8 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
     dumpQueryPlan(*pPlan);
   }
 
-  nodesDestroyNode(pLogicNode);
-  nodesDestroyNode(pLogicSubplan);
-  nodesDestroyNode(pLogicPlan);
+  nodesDestroyNode((SNode*)pLogicSubplan);
+  nodesDestroyNode((SNode*)pLogicPlan);
   terrno = code;
   return code;
 }
@@ -58,7 +56,7 @@ static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDown
   if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pNode)) {
     SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pNode;
     if (pExchange->srcGroupId == groupId) {
-      return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, nodesCloneNode(pSource));
+      return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, nodesCloneNode((SNode*)pSource));
     }
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE == nodeType(pNode)) {
     SMergePhysiNode* pMerge = (SMergePhysiNode*)pNode;
@@ -70,7 +68,7 @@ static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDown
       } else {
         --(pMerge->numOfChannels);
       }
-      return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, nodesCloneNode(pSource));
+      return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, nodesCloneNode((SNode*)pSource));
     }
   }
 
@@ -87,8 +85,25 @@ int32_t qSetSubplanExecutionNode(SSubplan* subplan, int32_t groupId, SDownstream
   return setSubplanExecutionNode(subplan->pNode, groupId, pSource);
 }
 
+static void clearSubplanExecutionNode(SPhysiNode* pNode) {
+  if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pNode)) {
+    SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pNode;
+    NODES_DESTORY_LIST(pExchange->pSrcEndPoints);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE == nodeType(pNode)) {
+    SMergePhysiNode* pMerge = (SMergePhysiNode*)pNode;
+    pMerge->numOfChannels = LIST_LENGTH(pMerge->node.pChildren);
+    SNode* pChild = NULL;
+    FOREACH(pChild, pMerge->node.pChildren) { NODES_DESTORY_LIST(((SExchangePhysiNode*)pChild)->pSrcEndPoints); }
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) { clearSubplanExecutionNode((SPhysiNode*)pChild); }
+}
+
+void qClearSubplanExecutionNode(SSubplan* pSubplan) { clearSubplanExecutionNode(pSubplan->pNode); }
+
 int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
-  if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType) {
+  if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType && NULL == pSubplan->pNode) {
     SDataInserterNode* insert = (SDataInserterNode*)pSubplan->pDataSink;
     *pLen = insert->size;
     *pStr = insert->pData;
@@ -103,7 +118,7 @@ int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan) { return nodesSt
 char* qQueryPlanToString(const SQueryPlan* pPlan) {
   char*   pStr = NULL;
   int32_t len = 0;
-  if (TSDB_CODE_SUCCESS != nodesNodeToString(pPlan, false, &pStr, &len)) {
+  if (TSDB_CODE_SUCCESS != nodesNodeToString((SNode*)pPlan, false, &pStr, &len)) {
     return NULL;
   }
   return pStr;
@@ -117,4 +132,4 @@ SQueryPlan* qStringToQueryPlan(const char* pStr) {
   return pPlan;
 }
 
-void qDestroyQueryPlan(SQueryPlan* pPlan) { nodesDestroyNode(pPlan); }
+void qDestroyQueryPlan(SQueryPlan* pPlan) { nodesDestroyNode((SNode*)pPlan); }

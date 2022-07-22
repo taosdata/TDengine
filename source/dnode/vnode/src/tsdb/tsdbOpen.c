@@ -17,7 +17,6 @@
 
 static int tsdbSetKeepCfg(STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg);
 
-
 // implementation
 
 static int tsdbSetKeepCfg(STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg) {
@@ -42,7 +41,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   int    slen = 0;
 
   *ppTsdb = NULL;
-  slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + strlen(dir) + 3;
+  slen = strlen(pVnode->path) + strlen(dir) + 2;
 
   // create handle
   pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(*pTsdb) + slen);
@@ -51,30 +50,31 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
     return -1;
   }
 
-  ASSERT(strlen(dir) < TSDB_DATA_DIR_LEN);
-  memcpy(pTsdb->dir, dir, strlen(dir));
   pTsdb->path = (char *)&pTsdb[1];
-  sprintf(pTsdb->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP, dir);
+  sprintf(pTsdb->path, "%s%s%s", pVnode->path, TD_DIRSEP, dir);
   taosRealPath(pTsdb->path, NULL, slen);
   pTsdb->pVnode = pVnode;
-  pTsdb->repoLocked = false;
-  taosThreadMutexInit(&pTsdb->mutex, NULL);
+  taosThreadRwlockInit(&pTsdb->rwLock, NULL);
   if (!pKeepCfg) {
     tsdbSetKeepCfg(&pTsdb->keepCfg, &pVnode->config.tsdbCfg);
   } else {
     memcpy(&pTsdb->keepCfg, pKeepCfg, sizeof(STsdbKeepCfg));
   }
-  pTsdb->fs = tsdbNewFS(REPO_KEEP_CFG(pTsdb));
+  // pTsdb->fs = tsdbNewFS(REPO_KEEP_CFG(pTsdb));
 
-  // create dir (TODO: use tfsMkdir)
-  taosMkDir(pTsdb->path);
+  // create dir
+  tfsMkdir(pVnode->pTfs, pTsdb->path);
 
   // open tsdb
-  if (tsdbOpenFS(pTsdb) < 0) {
+  if (tsdbFSOpen(pTsdb) < 0) {
     goto _err;
   }
 
-  tsdbDebug("vgId:%d tsdb is opened for %s, days:%d, keep:%d,%d,%d", TD_VID(pVnode), pTsdb->path, pTsdb->keepCfg.days,
+  if (tsdbOpenCache(pTsdb) < 0) {
+    goto _err;
+  }
+
+  tsdbDebug("vgId:%d, tsdb is opened for %s, days:%d, keep:%d,%d,%d", TD_VID(pVnode), pTsdb->path, pTsdb->keepCfg.days,
             pTsdb->keepCfg.keep0, pTsdb->keepCfg.keep1, pTsdb->keepCfg.keep2);
 
   *ppTsdb = pTsdb;
@@ -87,34 +87,10 @@ _err:
 
 int tsdbClose(STsdb **pTsdb) {
   if (*pTsdb) {
-    // TODO: destroy mem/imem
-    taosThreadMutexDestroy(&(*pTsdb)->mutex);
-    tsdbCloseFS(*pTsdb);
-    tsdbFreeFS((*pTsdb)->fs);
+    taosThreadRwlockDestroy(&(*pTsdb)->rwLock);
+    tsdbFSClose(*pTsdb);
+    tsdbCloseCache((*pTsdb)->lruCache);
     taosMemoryFreeClear(*pTsdb);
-  }
-  return 0;
-}
-
-int tsdbLockRepo(STsdb *pTsdb) {
-  int code = taosThreadMutexLock(&pTsdb->mutex);
-  if (code != 0) {
-    tsdbError("vgId:%d failed to lock tsdb since %s", REPO_ID(pTsdb), strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return -1;
-  }
-  pTsdb->repoLocked = true;
-  return 0;
-}
-
-int tsdbUnlockRepo(STsdb *pTsdb) {
-  ASSERT(IS_REPO_LOCKED(pTsdb));
-  pTsdb->repoLocked = false;
-  int code = taosThreadMutexUnlock(&pTsdb->mutex);
-  if (code != 0) {
-    tsdbError("vgId:%d failed to unlock tsdb since %s", REPO_ID(pTsdb), strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return -1;
   }
   return 0;
 }

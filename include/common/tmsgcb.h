@@ -34,11 +34,11 @@ typedef enum {
   WRITE_QUEUE,
   APPLY_QUEUE,
   SYNC_QUEUE,
-  MERGE_QUEUE,
+  STREAM_QUEUE,
   QUEUE_MAX,
 } EQueueType;
 
-typedef int32_t (*PutToQueueFp)(void* pMgmt, SRpcMsg* pMsg);
+typedef int32_t (*PutToQueueFp)(void* pMgmt, EQueueType qtype, SRpcMsg* pMsg);
 typedef int32_t (*GetQueueSizeFp)(void* pMgmt, int32_t vgId, EQueueType qtype);
 typedef int32_t (*SendReqFp)(const SEpSet* pEpSet, SRpcMsg* pMsg);
 typedef void (*SendRspFp)(SRpcMsg* pMsg);
@@ -50,7 +50,7 @@ typedef void (*ReportStartup)(const char* name, const char* desc);
 typedef struct {
   void*                   mgmt;
   void*                   clientRpc;
-  PutToQueueFp            queueFps[QUEUE_MAX];
+  PutToQueueFp            putToQueueFp;
   GetQueueSizeFp          qsizeFp;
   SendReqFp               sendReqFp;
   SendRspFp               sendRspFp;

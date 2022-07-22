@@ -11,93 +11,137 @@
 
 # -*- coding: utf-8 -*-
 
+import string
+from util.common import *
 from util.log import *
 from util.cases import *
 from util.sql import *
-
+from util.sqlset import *
 
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
-
+        self.setsql = TDSetSql()
+        self.ntbname = 'ntb'
         self.rowNum = 10
+        self.tbnum = 20
         self.ts = 1537146000000
-        
-    def run(self):
+        self.binary_str = 'taosdata'
+        self.nchar_str = '涛思数据'
+        self.column_dict = {
+            'ts'  : 'timestamp',
+            'col1': 'tinyint',
+            'col2': 'smallint',
+            'col3': 'int',
+            'col4': 'bigint',
+            'col5': 'tinyint unsigned',
+            'col6': 'smallint unsigned',
+            'col7': 'int unsigned',
+            'col8': 'bigint unsigned',
+            'col9': 'float',
+            'col10': 'double',
+            'col11': 'bool',
+            'col12': 'binary(20)',
+            'col13': 'nchar(20)'
+        }
+
+        self.param_list = [1,100]
+
+    def insert_data(self,column_dict,tbname,row_num):
+        insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
+        for i in range(row_num):
+            insert_list = []
+            self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
+    def top_check_data(self,tbname,tb_type):
+        new_column_dict = {}
+        for param in self.param_list:
+            for k,v in self.column_dict.items():
+                if v.lower() in ['tinyint','smallint','int','bigint','tinyint unsigned','smallint unsigned','int unsigned','bigint unsigned']:
+                    tdSql.query(f'select top({k},{param}) from {tbname}')
+                    if param >= self.rowNum:
+                        if tb_type in ['normal_table','child_table']:
+                            tdSql.checkRows(self.rowNum)
+                            values_list = []
+                            for i in range(self.rowNum):
+                                tp = (self.rowNum-i-1,)
+                                values_list.insert(0,tp)
+                            tdSql.checkEqual(tdSql.queryResult,values_list)
+                        elif tb_type == 'stable':
+                            tdSql.checkRows(param)
+                    elif param < self.rowNum:
+                        if tb_type in ['normal_table','child_table']:
+                            tdSql.checkRows(param)
+                            values_list = []
+                            for i in range(param):
+                                tp = (self.rowNum-i-1,)
+                                values_list.insert(0,tp)
+                            tdSql.checkEqual(tdSql.queryResult,values_list)
+                        elif tb_type == 'stable':
+                            tdSql.checkRows(param)
+                    for i in [self.param_list[0]-1,self.param_list[-1]+1]:
+                        tdSql.error(f'select top({k},{i}) from {tbname}')
+                    new_column_dict.update({k:v})
+                elif v.lower() == 'bool' or 'binary' in v.lower() or 'nchar' in v.lower():
+                    tdSql.error(f'select top({k},{param}) from {tbname}')
+                tdSql.error(f'select * from {tbname} where top({k},{param})=1')
+        for key in new_column_dict.keys():
+            for k in self.column_dict.keys():
+                if key == k :
+                    continue
+                else:
+                    tdSql.query(f'select top({key},2),{k} from {tbname} group by tbname')
+                    if tb_type == 'normal_table' or tb_type == 'child_table':
+                        tdSql.checkRows(2)
+                    else:
+                        tdSql.checkRows(2*self.tbnum)
+    def top_check_stb(self):
+        dbname = tdCom.getLongName(10, "letters")
+        stbname = tdCom.getLongName(5, "letters")
+        tag_dict = {
+            't0':'int'
+        }
+        tag_values = [
+            f'1'
+            ]
+        tdSql.execute(f"create database if not exists {dbname} vgroups 2")
+        tdSql.execute(f'use {dbname}')
+        tdSql.execute(self.setsql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
+
+        for i in range(self.tbnum):
+            tdSql.execute(f"create table {stbname}_{i} using {stbname} tags({tag_values[0]})")
+            self.insert_data(self.column_dict,f'{stbname}_{i}',self.rowNum)
+        tdSql.query('show tables')
+        vgroup_list = []
+        for i in range(len(tdSql.queryResult)):
+            vgroup_list.append(tdSql.queryResult[i][6])
+
+        vgroup_list_set = set(vgroup_list)
+        for i in vgroup_list_set:
+            vgroups_num = vgroup_list.count(i)
+            if vgroups_num >= 2:
+                tdLog.info(f'This scene with {vgroups_num} vgroups is ok!')
+
+            else:
+                tdLog.exit(
+                    'This scene does not meet the requirements with {vgroups_num} vgroup!\n')
+        for i in range(self.tbnum):
+            self.top_check_data(f'{stbname}_{i}','child_table')
+        self.top_check_data(stbname,'stable')
+        tdSql.execute(f'drop database {dbname}')
+
+    def top_check_ntb(self):
         tdSql.prepare()
+        tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+        self.insert_data(self.column_dict,self.ntbname,self.rowNum)
+        self.top_check_data(self.ntbname,'normal_table')
+        tdSql.execute('drop database db')
 
-        
+    def run(self):
+        self.top_check_ntb()
+        self.top_check_stb()
 
-        tdSql.execute('''create table test(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
-                    col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20))''')
-        tdSql.execute("create table test1 using test tags('beijing')")
-        for i in range(self.rowNum):
-            tdSql.execute("insert into test1 values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
-                        % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
-                                
 
-        # top verifacation 
-        tdSql.error("select top(ts, 10) from test")
-        tdSql.error("select top(col1, 0) from test")
-        tdSql.error("select top(col1, 101) from test")
-        tdSql.error("select top(col2, 0) from test")
-        tdSql.error("select top(col2, 101) from test")
-        tdSql.error("select top(col3, 0) from test")
-        tdSql.error("select top(col3, 101) from test")
-        tdSql.error("select top(col4, 0) from test")
-        tdSql.error("select top(col4, 101) from test")
-        tdSql.error("select top(col5, 0) from test")
-        tdSql.error("select top(col5, 101) from test")
-        tdSql.error("select top(col6, 0) from test")
-        tdSql.error("select top(col6, 101) from test")        
-        tdSql.error("select top(col7, 10) from test")        
-        tdSql.error("select top(col8, 10) from test")
-        tdSql.error("select top(col9, 10) from test")
-        tdSql.error("select top(col11, 0) from test")
-        tdSql.error("select top(col11, 101) from test")
-        tdSql.error("select top(col12, 0) from test")
-        tdSql.error("select top(col12, 101) from test")
-        tdSql.error("select top(col13, 0) from test")
-        tdSql.error("select top(col13, 101) from test")
-        tdSql.error("select top(col14, 0) from test")
-        tdSql.error("select top(col14, 101) from test")
-
-        tdSql.query("select top(col1, 2) from test")
-        tdSql.checkRows(2)
-        tdSql.checkEqual(tdSql.queryResult,[(9,),(10,)])
-        tdSql.query("select top(col2, 2) from test")
-        tdSql.checkRows(2)
-        tdSql.checkEqual(tdSql.queryResult,[(9,),(10,)])
-        tdSql.query("select top(col3, 2) from test")
-        tdSql.checkRows(2)
-        tdSql.checkEqual(tdSql.queryResult,[(9,),(10,)])
-        tdSql.query("select top(col4, 2) from test")
-        tdSql.checkRows(2)
-        tdSql.checkEqual(tdSql.queryResult,[(9,),(10,)])
-        tdSql.query("select top(col11, 2) from test")
-        tdSql.checkRows(2)
-        tdSql.checkEqual(tdSql.queryResult,[(9,),(10,)])
-        tdSql.query("select top(col12, 2) from test")
-        tdSql.checkRows(2)
-        tdSql.checkEqual(tdSql.queryResult,[(9,),(10,)])
-        tdSql.query("select top(col13, 2) from test")
-        tdSql.checkRows(2)
-        tdSql.checkEqual(tdSql.queryResult,[(9,),(10,)])
-        tdSql.query("select top(col14, 2) from test")
-        tdSql.checkRows(2)
-        tdSql.checkEqual(tdSql.queryResult,[(9,),(10,)])
-        tdSql.query("select ts,top(col1, 2),ts from test1")
-        tdSql.checkRows(2)
-        tdSql.query("select top(col14, 100) from test")
-        tdSql.checkRows(10)
-        tdSql.query("select ts,top(col1, 2),ts from test group by tbname")
-        tdSql.checkRows(2)
-        tdSql.query('select top(col2,1) from test interval(1y) order by col2')
-        tdSql.checkData(0,0,10)
-        
-        tdSql.error("select * from test where bottom(col2,1)=1")
-        tdSql.error("select top(col14, 0) from test;")
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

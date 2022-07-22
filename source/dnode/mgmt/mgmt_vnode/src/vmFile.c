@@ -16,6 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 
+#define MAX_CONTENT_LEN 1024 * 1024
+
 SVnodeObj **vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes) {
   taosThreadRwlockRdlock(&pMgmt->lock);
 
@@ -29,9 +31,8 @@ SVnodeObj **vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes) {
     SVnodeObj  *pVnode = *ppVnode;
     if (pVnode && num < size) {
       int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
-      dTrace("vgId:%d, acquire vnode, refCount:%d", pVnode->vgId, refCount);
-      pVnodes[num] = (*ppVnode);
-      num++;
+      // dTrace("vgId:%d, acquire vnode list, ref:%d", pVnode->vgId, refCount);
+      pVnodes[num++] = (*ppVnode);
       pIter = taosHashIterate(pMgmt->hash, pIter);
     } else {
       taosHashCancelIterate(pMgmt->hash, pIter);
@@ -47,7 +48,7 @@ SVnodeObj **vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes) {
 int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes) {
   int32_t      code = TSDB_CODE_INVALID_JSON_FORMAT;
   int32_t      len = 0;
-  int32_t      maxLen = 1024 * 1024;
+  int32_t      maxLen = MAX_CONTENT_LEN;
   char        *content = taosMemoryCalloc(1, maxLen + 1);
   cJSON       *root = NULL;
   FILE        *fp = NULL;
@@ -128,7 +129,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
 
   *numOfVnodes = vnodesNum;
   code = 0;
-  dDebug("succcessed to read file %s", file);
+  dDebug("succcessed to read file %s, numOfVnodes:%d", file, vnodesNum);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);
@@ -156,7 +157,7 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   SVnodeObj **pVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
 
   int32_t len = 0;
-  int32_t maxLen = 1024 * 1024;
+  int32_t maxLen = MAX_CONTENT_LEN;
   char   *content = taosMemoryCalloc(1, maxLen + 1);
   if (content == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -195,6 +196,6 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
     taosMemoryFree(pVnodes);
   }
 
-  dDebug("successed to write %s", realfile);
+  dDebug("successed to write %s, numOfVnodes:%d", realfile, numOfVnodes);
   return taosRenameFile(file, realfile);
 }

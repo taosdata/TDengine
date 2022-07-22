@@ -14,14 +14,17 @@
  */
 
 #include "planTestUtil.h"
+
 #include <getopt.h>
 
 #include <algorithm>
 #include <array>
 
 #include "cmdnodes.h"
+#include "mockCatalogService.h"
 #include "parser.h"
 #include "planInt.h"
+#include "tglobal.h"
 
 using namespace std;
 using namespace testing;
@@ -49,7 +52,9 @@ enum DumpModule {
 
 DumpModule g_dumpModule = DUMP_MODULE_NOTHING;
 int32_t    g_skipSql = 0;
+int32_t    g_limitSql = 0;
 int32_t    g_logLevel = 131;
+int32_t    g_queryPolicy = QUERY_POLICY_VNODE;
 
 void setDumpModule(const char* pModule) {
   if (NULL == pModule) {
@@ -74,46 +79,77 @@ void setDumpModule(const char* pModule) {
 }
 
 void setSkipSqlNum(const char* pNum) { g_skipSql = stoi(pNum); }
-
+void setLimitSqlNum(const char* pNum) { g_limitSql = stoi(pNum); }
 void setLogLevel(const char* pLogLevel) { g_logLevel = stoi(pLogLevel); }
+void setQueryPolicy(const char* pQueryPolicy) { g_queryPolicy = stoi(pQueryPolicy); }
 
 int32_t getLogLevel() { return g_logLevel; }
 
 class PlannerTestBaseImpl {
  public:
-  void useDb(const string& acctId, const string& db) {
-    caseEnv_.acctId_ = acctId;
+  PlannerTestBaseImpl() : sqlNo_(0), sqlNum_(0) {}
+
+  void useDb(const string& user, const string& db) {
+    caseEnv_.acctId_ = 0;
+    caseEnv_.user_ = user;
     caseEnv_.db_ = db;
-    caseEnv_.nsql_ = g_skipSql;
+    caseEnv_.numOfSkipSql_ = g_skipSql;
+    caseEnv_.numOfLimitSql_ = g_limitSql;
   }
 
   void run(const string& sql) {
-    if (caseEnv_.nsql_ > 0) {
-      --(caseEnv_.nsql_);
+    ++sqlNo_;
+    if (caseEnv_.numOfSkipSql_ > 0) {
+      --(caseEnv_.numOfSkipSql_);
       return;
     }
+    if (caseEnv_.numOfLimitSql_ > 0 && caseEnv_.numOfLimitSql_ == sqlNum_) {
+      return;
+    }
+    ++sqlNum_;
 
+    switch (g_queryPolicy) {
+      case QUERY_POLICY_VNODE:
+      case QUERY_POLICY_HYBRID:
+      case QUERY_POLICY_QNODE:
+        runImpl(sql, g_queryPolicy);
+        break;
+      default:
+        runImpl(sql, QUERY_POLICY_VNODE);
+        runImpl(sql, QUERY_POLICY_HYBRID);
+        runImpl(sql, QUERY_POLICY_QNODE);
+        break;
+    }
+  }
+
+  void runImpl(const string& sql, int32_t queryPolicy) {
     reset();
+    tsQueryPolicy = queryPolicy;
     try {
-      SQuery* pQuery = nullptr;
-      doParseSql(sql, &pQuery);
+      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
+      doParseSql(sql, query.get());
+      SQuery* pQuery = *(query.get());
 
       SPlanContext cxt = {0};
       setPlanContext(pQuery, &cxt);
 
-      SLogicNode* pLogicNode = nullptr;
-      doCreateLogicPlan(&cxt, &pLogicNode);
-
-      doOptimizeLogicPlan(&cxt, pLogicNode);
-
       SLogicSubplan* pLogicSubplan = nullptr;
-      doSplitLogicPlan(&cxt, pLogicNode, &pLogicSubplan);
+      doCreateLogicPlan(&cxt, &pLogicSubplan);
+      unique_ptr<SLogicSubplan, void (*)(SLogicSubplan*)> logicSubplan(pLogicSubplan,
+                                                                       (void (*)(SLogicSubplan*))nodesDestroyNode);
+
+      doOptimizeLogicPlan(&cxt, pLogicSubplan);
+
+      doSplitLogicPlan(&cxt, pLogicSubplan);
 
       SQueryLogicPlan* pLogicPlan = nullptr;
       doScaleOutLogicPlan(&cxt, pLogicSubplan, &pLogicPlan);
+      unique_ptr<SQueryLogicPlan, void (*)(SQueryLogicPlan*)> logicPlan(pLogicPlan,
+                                                                        (void (*)(SQueryLogicPlan*))nodesDestroyNode);
 
       SQueryPlan* pPlan = nullptr;
       doCreatePhysiPlan(&cxt, pLogicPlan, &pPlan);
+      unique_ptr<SQueryPlan, void (*)(SQueryPlan*)> plan(pPlan, (void (*)(SQueryPlan*))nodesDestroyNode);
 
       dump(g_dumpModule);
     } catch (...) {
@@ -123,7 +159,7 @@ class PlannerTestBaseImpl {
   }
 
   void prepare(const string& sql) {
-    if (caseEnv_.nsql_ > 0) {
+    if (caseEnv_.numOfSkipSql_ > 0) {
       return;
     }
 
@@ -137,7 +173,7 @@ class PlannerTestBaseImpl {
   }
 
   void bindParams(TAOS_MULTI_BIND* pParams, int32_t colIdx) {
-    if (caseEnv_.nsql_ > 0) {
+    if (caseEnv_.numOfSkipSql_ > 0) {
       return;
     }
 
@@ -150,8 +186,8 @@ class PlannerTestBaseImpl {
   }
 
   void exec() {
-    if (caseEnv_.nsql_ > 0) {
-      --(caseEnv_.nsql_);
+    if (caseEnv_.numOfSkipSql_ > 0) {
+      --(caseEnv_.numOfSkipSql_);
       return;
     }
 
@@ -161,19 +197,23 @@ class PlannerTestBaseImpl {
       SPlanContext cxt = {0};
       setPlanContext(stmtEnv_.pQuery_, &cxt);
 
-      SLogicNode* pLogicNode = nullptr;
-      doCreateLogicPlan(&cxt, &pLogicNode);
-
-      doOptimizeLogicPlan(&cxt, pLogicNode);
-
       SLogicSubplan* pLogicSubplan = nullptr;
-      doSplitLogicPlan(&cxt, pLogicNode, &pLogicSubplan);
+      doCreateLogicPlan(&cxt, &pLogicSubplan);
+      unique_ptr<SLogicSubplan, void (*)(SLogicSubplan*)> logicSubplan(pLogicSubplan,
+                                                                       (void (*)(SLogicSubplan*))nodesDestroyNode);
+
+      doOptimizeLogicPlan(&cxt, pLogicSubplan);
+
+      doSplitLogicPlan(&cxt, pLogicSubplan);
 
       SQueryLogicPlan* pLogicPlan = nullptr;
       doScaleOutLogicPlan(&cxt, pLogicSubplan, &pLogicPlan);
+      unique_ptr<SQueryLogicPlan, void (*)(SQueryLogicPlan*)> logicPlan(pLogicPlan,
+                                                                        (void (*)(SQueryLogicPlan*))nodesDestroyNode);
 
       SQueryPlan* pPlan = nullptr;
       doCreatePhysiPlan(&cxt, pLogicPlan, &pPlan);
+      unique_ptr<SQueryPlan, void (*)(SQueryPlan*)> plan(pPlan, (void (*)(SQueryPlan*))nodesDestroyNode);
 
       dump(g_dumpModule);
     } catch (...) {
@@ -184,9 +224,13 @@ class PlannerTestBaseImpl {
 
  private:
   struct caseEnv {
-    string  acctId_;
+    int32_t acctId_;
+    string  user_;
     string  db_;
-    int32_t nsql_;
+    int32_t numOfSkipSql_;
+    int32_t numOfLimitSql_;
+
+    caseEnv() : numOfSkipSql_(0) {}
   };
 
   struct stmtEnv {
@@ -194,6 +238,7 @@ class PlannerTestBaseImpl {
     array<char, 1024> msgBuf_;
     SQuery*           pQuery_;
 
+    stmtEnv() : pQuery_(nullptr) {}
     ~stmtEnv() { qDestroyQuery(pQuery_); }
   };
 
@@ -208,6 +253,14 @@ class PlannerTestBaseImpl {
     string         physiPlan_;
     vector<string> physiSubplans_;
   };
+
+  static void _destroyQuery(SQuery** pQuery) {
+    if (nullptr == pQuery) {
+      return;
+    }
+    qDestroyQuery(*pQuery);
+    taosMemoryFree(pQuery);
+  }
 
   void reset() {
     stmtEnv_.sql_.clear();
@@ -229,7 +282,7 @@ class PlannerTestBaseImpl {
       return;
     }
 
-    cout << "==========================================sql : [" << stmtEnv_.sql_ << "]" << endl;
+    cout << "========================================== " << sqlNo_ << " sql : [" << stmtEnv_.sql_ << "]" << endl;
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_PARSER == module) {
       if (res_.prepareAst_.empty()) {
@@ -283,12 +336,17 @@ class PlannerTestBaseImpl {
     transform(stmtEnv_.sql_.begin(), stmtEnv_.sql_.end(), stmtEnv_.sql_.begin(), ::tolower);
 
     SParseContext cxt = {0};
-    cxt.acctId = atoi(caseEnv_.acctId_.c_str());
+    cxt.acctId = caseEnv_.acctId_;
     cxt.db = caseEnv_.db_.c_str();
     cxt.pSql = stmtEnv_.sql_.c_str();
     cxt.sqlLen = stmtEnv_.sql_.length();
     cxt.pMsg = stmtEnv_.msgBuf_.data();
     cxt.msgLen = stmtEnv_.msgBuf_.max_size();
+    cxt.svrVer = "3.0.0.0";
+    if (prepare) {
+      SStmtCallback stmtCb = {0};
+      cxt.pStmtCb = &stmtCb;
+    }
 
     DO_WITH_THROW(qParseSql, &cxt, pQuery);
     if (prepare) {
@@ -307,30 +365,31 @@ class PlannerTestBaseImpl {
 
   void doParseBoundSql(SQuery* pQuery) {
     SParseContext cxt = {0};
-    cxt.acctId = atoi(caseEnv_.acctId_.c_str());
+    cxt.acctId = caseEnv_.acctId_;
     cxt.db = caseEnv_.db_.c_str();
     cxt.pSql = stmtEnv_.sql_.c_str();
     cxt.sqlLen = stmtEnv_.sql_.length();
     cxt.pMsg = stmtEnv_.msgBuf_.data();
     cxt.msgLen = stmtEnv_.msgBuf_.max_size();
+    cxt.pUser = caseEnv_.user_.c_str();
 
     DO_WITH_THROW(qStmtParseQuerySql, &cxt, pQuery);
     res_.ast_ = toString(pQuery->pRoot);
   }
 
-  void doCreateLogicPlan(SPlanContext* pCxt, SLogicNode** pLogicNode) {
-    DO_WITH_THROW(createLogicPlan, pCxt, pLogicNode);
-    res_.rawLogicPlan_ = toString((SNode*)(*pLogicNode));
+  void doCreateLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
+    DO_WITH_THROW(createLogicPlan, pCxt, pLogicSubplan);
+    res_.rawLogicPlan_ = toString((SNode*)(*pLogicSubplan));
   }
 
-  void doOptimizeLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode) {
-    DO_WITH_THROW(optimizeLogicPlan, pCxt, pLogicNode);
-    res_.optimizedLogicPlan_ = toString((SNode*)pLogicNode);
+  void doOptimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
+    DO_WITH_THROW(optimizeLogicPlan, pCxt, pLogicSubplan);
+    res_.optimizedLogicPlan_ = toString((SNode*)pLogicSubplan);
   }
 
-  void doSplitLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SLogicSubplan** pLogicSubplan) {
-    DO_WITH_THROW(splitLogicPlan, pCxt, pLogicNode, pLogicSubplan);
-    res_.splitLogicPlan_ = toString((SNode*)(*pLogicSubplan));
+  void doSplitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
+    DO_WITH_THROW(splitLogicPlan, pCxt, pLogicSubplan);
+    res_.splitLogicPlan_ = toString((SNode*)(pLogicSubplan));
   }
 
   void doScaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan) {
@@ -339,8 +398,9 @@ class PlannerTestBaseImpl {
   }
 
   void doCreatePhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan) {
-    SArray* pExecNodeList = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SQueryNodeAddr));
-    DO_WITH_THROW(createPhysiPlan, pCxt, pLogicPlan, pPlan, pExecNodeList);
+    unique_ptr<SArray, void (*)(SArray*)> execNodeList((SArray*)taosArrayInit(TARRAY_MIN_SIZE, sizeof(SQueryNodeAddr)),
+                                                       (void (*)(SArray*))taosArrayDestroy);
+    DO_WITH_THROW(createPhysiPlan, pCxt, pLogicPlan, pPlan, execNodeList.get());
     res_.physiPlan_ = toString((SNode*)(*pPlan));
     SNode* pNode;
     FOREACH(pNode, (*pPlan)->pSubplans) {
@@ -351,20 +411,32 @@ class PlannerTestBaseImpl {
 
   void setPlanContext(SQuery* pQuery, SPlanContext* pCxt) {
     pCxt->queryId = 1;
+    pCxt->pUser = caseEnv_.user_.c_str();
     if (QUERY_NODE_CREATE_TOPIC_STMT == nodeType(pQuery->pRoot)) {
-      pCxt->pAstRoot = ((SCreateTopicStmt*)pQuery->pRoot)->pQuery;
+      SCreateTopicStmt* pStmt = (SCreateTopicStmt*)pQuery->pRoot;
+      pCxt->pAstRoot = pStmt->pQuery;
+      pStmt->pQuery = nullptr;
+      nodesDestroyNode(pQuery->pRoot);
+      pQuery->pRoot = pCxt->pAstRoot;
       pCxt->topicQuery = true;
     } else if (QUERY_NODE_CREATE_INDEX_STMT == nodeType(pQuery->pRoot)) {
       SMCreateSmaReq req = {0};
       tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req);
+      g_mockCatalogService->createSmaIndex(&req);
       nodesStringToNode(req.ast, &pCxt->pAstRoot);
+      tFreeSMCreateSmaReq(&req);
+      nodesDestroyNode(pQuery->pRoot);
+      pQuery->pRoot = pCxt->pAstRoot;
       pCxt->streamQuery = true;
     } else if (QUERY_NODE_CREATE_STREAM_STMT == nodeType(pQuery->pRoot)) {
       SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pQuery->pRoot;
       pCxt->pAstRoot = pStmt->pQuery;
+      pStmt->pQuery = nullptr;
       pCxt->streamQuery = true;
       pCxt->triggerType = pStmt->pOptions->triggerType;
       pCxt->watermark = (NULL != pStmt->pOptions->pWatermark ? ((SValueNode*)pStmt->pOptions->pWatermark)->datum.i : 0);
+      nodesDestroyNode(pQuery->pRoot);
+      pQuery->pRoot = pCxt->pAstRoot;
     } else {
       pCxt->pAstRoot = pQuery->pRoot;
     }
@@ -382,13 +454,15 @@ class PlannerTestBaseImpl {
   caseEnv caseEnv_;
   stmtEnv stmtEnv_;
   stmtRes res_;
+  int32_t sqlNo_;
+  int32_t sqlNum_;
 };
 
 PlannerTestBase::PlannerTestBase() : impl_(new PlannerTestBaseImpl()) {}
 
 PlannerTestBase::~PlannerTestBase() {}
 
-void PlannerTestBase::useDb(const std::string& acctId, const std::string& db) { impl_->useDb(acctId, db); }
+void PlannerTestBase::useDb(const std::string& user, const std::string& db) { impl_->useDb(user, db); }
 
 void PlannerTestBase::run(const std::string& sql) { return impl_->run(sql); }
 

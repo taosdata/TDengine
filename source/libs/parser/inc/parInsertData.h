@@ -20,6 +20,7 @@
 #include "os.h"
 #include "tname.h"
 #include "ttypes.h"
+#include "query.h"
 
 #define IS_DATA_COL_ORDERED(spd) ((spd->orderStatus) == (int8_t)ORDER_STATUS_ORDERED)
 
@@ -116,8 +117,7 @@ static FORCE_INLINE void getSTSRowAppendInfo(uint8_t rowType, SParsedDataColInfo
 }
 
 static FORCE_INLINE int32_t setBlockInfo(SSubmitBlk *pBlocks, STableDataBlocks *dataBuf, int32_t numOfRows) {
-  pBlocks->suid =
-      (TSDB_NORMAL_TABLE == dataBuf->pTableMeta->tableType ? dataBuf->pTableMeta->uid : dataBuf->pTableMeta->suid);
+  pBlocks->suid = (TSDB_NORMAL_TABLE == dataBuf->pTableMeta->tableType ? 0 : dataBuf->pTableMeta->suid);
   pBlocks->uid = dataBuf->pTableMeta->uid;
   pBlocks->sversion = dataBuf->pTableMeta->sversion;
   pBlocks->schemaLen = dataBuf->createTbReqLen;

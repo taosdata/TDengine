@@ -1,6 +1,9 @@
+import random
+import string
 from util.log import *
 from util.cases import *
 from util.sql import *
+from util.common import *
 import numpy as np
 
 
@@ -10,416 +13,258 @@ class TDTestCase:
         tdSql.init(conn.cursor())
 
         self.rowNum = 10
+        self.tbnum = 20
         self.ts = 1537146000000
-        
-    def run(self):
+        self.binary_str = 'taosdata'
+        self.nchar_str = '涛思数据'
+
+    def set_create_normaltable_sql(self, ntbname, column_dict):
+        column_sql = ''
+        for k, v in column_dict.items():
+            column_sql += f"{k} {v},"
+        create_ntb_sql = f'create table {ntbname} (ts timestamp,{column_sql[:-1]})'
+        return create_ntb_sql
+
+    def set_create_stable_sql(self,stbname,column_dict,tag_dict):
+        column_sql = ''
+        tag_sql = ''
+        for k,v in column_dict.items():
+            column_sql += f"{k} {v},"
+        for k,v in tag_dict.items():
+            tag_sql += f"{k} {v},"
+        create_stb_sql = f'create table {stbname} (ts timestamp,{column_sql[:-1]}) tags({tag_sql[:-1]})'
+        return create_stb_sql
+
+    def last_check_stb_tb_base(self):
         tdSql.prepare()
+        stbname = tdCom.getLongName(5, "letters")
+        column_dict = {
+            'col1': 'tinyint',
+            'col2': 'smallint',
+            'col3': 'int',
+            'col4': 'bigint',
+            'col5': 'tinyint unsigned',
+            'col6': 'smallint unsigned',
+            'col7': 'int unsigned',
+            'col8': 'bigint unsigned',
+            'col9': 'float',
+            'col10': 'double',
+            'col11': 'bool',
+            'col12': 'binary(20)',
+            'col13': 'nchar(20)'
+        }
+        tag_dict = {
+            'loc':'nchar(20)'
+        }
+        tdSql.execute(self.set_create_stable_sql(stbname,column_dict,tag_dict))
 
-        tdSql.execute('''create table stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
-                    col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20))''')
-        tdSql.execute("create table stb_1 using stb tags('beijing')")
-        tdSql.execute("insert into stb_1(ts) values(%d)" % (self.ts - 1))
+        tdSql.execute(f"create table {stbname}_1 using {stbname} tags('beijing')")
+        tdSql.execute(f"insert into {stbname}_1(ts) values(%d)" % (self.ts - 1))
 
-        # last verifacation         
-        tdSql.query("select last(*) from stb_1")
+        for i in [f'{stbname}_1', f'db.{stbname}_1']:
+            tdSql.query(f"select last(*) from {i}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, None)
+        #!bug TD-16561
+        # for i in ['stb','db.stb','stb','db.stb']:
+        #     tdSql.query(f"select last(*) from {i}")
+        #     tdSql.checkRows(1)
+        #     tdSql.checkData(0, 1, None)
+        for i in column_dict.keys():
+            for j in [f'{stbname}_1', f'db.{stbname}_1', f'{stbname}', f'db.{stbname}']:
+                tdSql.query(f"select last({i}) from {j}")
+                tdSql.checkRows(0)
+        tdSql.query(f"select last({list(column_dict.keys())[0]}) from {stbname}_1 group by {list(column_dict.keys())[-1]}")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, None)
-        tdSql.query("select last(*) from db.stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, None)
-        tdSql.query("select last(col1) from stb_1")
-        tdSql.checkRows(0) 
-        tdSql.query("select last(col1) from db.stb_1")
-        tdSql.checkRows(0)       
-        tdSql.query("select last(col2) from stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col2) from db.stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col3) from stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col3) from db.stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col4) from stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col4) from db.stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col11) from stb_1")
-        tdSql.checkRows(0)    
-        tdSql.query("select last(col11) from db.stb_1")
-        tdSql.checkRows(0)      
-        tdSql.query("select last(col12) from stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col12) from db.stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col13) from stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col13) from db.stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col14) from stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col14) from db.stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col5) from stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col5) from db.stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col6) from stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col6) from db.stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col7) from stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col7) from db.stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col8) from stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col8) from db.stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col9) from stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col9) from db.stb_1")
-        tdSql.checkRows(0)
-        tdSql.query("select count(col1) from stb_1 group by col7")
-        tdSql.checkRows(1)
-
         for i in range(self.rowNum):
-            tdSql.execute("insert into stb_1 values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
-                        % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))            
+            tdSql.execute(f"insert into {stbname}_1 values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
+                          % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
+        for i in [f'{stbname}_1', f'db.{stbname}_1', f'{stbname}', f'db.{stbname}']:
+            tdSql.query(f"select last(*) from {i}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 10)
+        for k, v in column_dict.items():
+            for j in [f'{stbname}_1', f'db.{stbname}_1', f'{stbname}', f'db.{stbname}']:
+                tdSql.query(f"select last({k}) from {j}")
+                tdSql.checkRows(1)
+                # tinyint,smallint,int,bigint,tinyint unsigned,smallint unsigned,int unsigned,bigint unsigned
+                if v.lower() == 'tinyint' or v.lower() == 'smallint' or v.lower() == 'int' or v.lower() == 'bigint' or v.lower() == 'tinyint unsigned' or v.lower() == 'smallint unsigned'\
+                        or v.lower() == 'int unsigned' or v.lower() == 'bigint unsigned':
+                    tdSql.checkData(0, 0, 10)
+                # float,double
+                elif v.lower() == 'float' or v.lower() == 'double':
+                    tdSql.checkData(0, 0, 9.1)
+                # bool
+                elif v.lower() == 'bool':
+                    tdSql.checkData(0, 0, True)
+                # binary
+                elif 'binary' in v.lower():
+                    tdSql.checkData(0, 0, f'{self.binary_str}{self.rowNum}')
+                # nchar
+                elif 'nchar' in v.lower():
+                    tdSql.checkData(0, 0, f'{self.nchar_str}{self.rowNum}')
+        for i in [f'{stbname}_1', f'db.{stbname}_1', f'{stbname}', f'db.{stbname}']:
+            tdSql.query(f"select last({list(column_dict.keys())[0]},{list(column_dict.keys())[1]},{list(column_dict.keys())[2]}) from {stbname}_1")
+            tdSql.checkData(0, 2, 10)
 
-        tdSql.query("select last(*) from stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 10)
-        tdSql.query("select last(*) from db.stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 10)
-        tdSql.query("select last(col1) from stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col1) from db.stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col2) from stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col2) from db.stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col3) from stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col3) from db.stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col4) from stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col4) from db.stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col11) from stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col11) from db.stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col12) from stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col12) from db.stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col13) from stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col13) from db.stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col14) from stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col14) from db.stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col5) from stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 9.1)
-        tdSql.query("select last(col5) from db.stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 9.1)
-        tdSql.query("select last(col6) from stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 9.1)
-        tdSql.query("select last(col6) from db.stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 9.1)
-        tdSql.query("select last(col7) from stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, True)
-        tdSql.query("select last(col7) from db.stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, True)
-        tdSql.query("select last(col8) from stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 'taosdata10')
-        tdSql.query("select last(col8) from db.stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 'taosdata10')
-        tdSql.query("select last(col9) from stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '涛思数据10')
-        tdSql.query("select last(col9) from db.stb_1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '涛思数据10')
-        tdSql.query("select last(col1,col2,col3) from stb_1")
-        tdSql.checkData(0,2,10)
+        tdSql.error(f"select {list(column_dict.keys())[0]} from {stbname} where last({list(column_dict.keys())[12]})='涛思数据10'")
+        tdSql.error(f"select {list(column_dict.keys())[0]} from {stbname}_1 where last({list(column_dict.keys())[12]})='涛思数据10'")
+        tdSql.execute('drop database db')
 
-        tdSql.query("select last(*) from stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 10)
-        tdSql.query("select last(*) from db.stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 10)
-        tdSql.query("select last(col1) from stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col1) from db.stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col2) from stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col2) from db.stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col3) from stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col3) from db.stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col4) from stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col4) from db.stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col11) from stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col11) from db.stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col12) from stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col12) from db.stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col13) from stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col13) from db.stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col14) from stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col14) from db.stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col5) from stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 9.1)
-        tdSql.query("select last(col5) from db.stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 9.1)
-        tdSql.query("select last(col6) from stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 9.1)
-        tdSql.query("select last(col6) from db.stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 9.1)
-        tdSql.query("select last(col7) from stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, True)
-        tdSql.query("select last(col7) from db.stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, True)
-        tdSql.query("select last(col8) from stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 'taosdata10')
-        tdSql.query("select last(col8) from db.stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 'taosdata10')
-        tdSql.query("select last(col9) from stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '涛思数据10')
-        tdSql.query("select last(col9) from db.stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '涛思数据10')
-        tdSql.query("select last(col1,col2,col3) from stb")
-        tdSql.checkData(0,2,10)
-        
-
-        tdSql.execute('''create table ntb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
-                    col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned)''')
-        tdSql.execute("insert into ntb(ts) values(%d)" % (self.ts - 1))
-        tdSql.query("select last(*) from ntb")
+    def last_check_ntb_base(self):
+        tdSql.prepare()
+        ntbname = tdCom.getLongName(5, "letters")
+        column_dict = {
+            'col1': 'tinyint',
+            'col2': 'smallint',
+            'col3': 'int',
+            'col4': 'bigint',
+            'col5': 'tinyint unsigned',
+            'col6': 'smallint unsigned',
+            'col7': 'int unsigned',
+            'col8': 'bigint unsigned',
+            'col9': 'float',
+            'col10': 'double',
+            'col11': 'bool',
+            'col12': 'binary(20)',
+            'col13': 'nchar(20)'
+        }
+        create_ntb_sql = self.set_create_normaltable_sql(ntbname, column_dict)
+        tdSql.execute(create_ntb_sql)
+        tdSql.execute(f"insert into {ntbname}(ts) values(%d)" % (self.ts - 1))
+        tdSql.query(f"select last(*) from {ntbname}")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, None)
-        tdSql.query("select last(*) from db.ntb")
+        tdSql.query(f"select last(*) from db.{ntbname}")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, None)
-        tdSql.query("select last(col1) from ntb")
-        tdSql.checkRows(0) 
-        tdSql.query("select last(col1) from db.ntb")
-        tdSql.checkRows(0)       
-        tdSql.query("select last(col2) from ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col2) from db.ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col3) from ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col3) from db.ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col4) from ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col4) from db.ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col11) from ntb")
-        tdSql.checkRows(0)    
-        tdSql.query("select last(col11) from db.ntb")
-        tdSql.checkRows(0)      
-        tdSql.query("select last(col12) from ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col12) from db.ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col13) from ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col13) from db.ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col14) from ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col14) from db.ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col5) from ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col5) from db.ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col6) from ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col6) from db.ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col7) from ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col7) from db.ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col8) from ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col8) from db.ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col9) from ntb")
-        tdSql.checkRows(0)
-        tdSql.query("select last(col9) from db.ntb")
-        tdSql.checkRows(0)
-
+        for i in column_dict.keys():
+            for j in [f'{ntbname}', f'db.{ntbname}']:
+                tdSql.query(f"select last({i}) from {j}")
+                tdSql.checkRows(0)
         for i in range(self.rowNum):
-            tdSql.execute("insert into ntb values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
-                        % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))            
-
-        tdSql.query("select last(*) from ntb")
+            tdSql.execute(f"insert into {ntbname} values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
+                          % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
+        tdSql.query(f"select last(*) from {ntbname}")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 10)
-        tdSql.query("select last(*) from db.ntb")
+        tdSql.query(f"select last(*) from db.{ntbname}")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 10)
-        tdSql.query("select last(col1) from ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col1) from db.ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col2) from ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col2) from db.ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col3) from ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col3) from db.ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col4) from ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col4) from db.ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col11) from ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col11) from db.ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col12) from ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col12) from db.ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col13) from ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col13) from db.ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col14) from ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col14) from db.ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select last(col5) from ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 9.1)
-        tdSql.query("select last(col5) from db.ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 9.1)
-        tdSql.query("select last(col6) from ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 9.1)
-        tdSql.query("select last(col6) from db.ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 9.1)
-        tdSql.query("select last(col7) from ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, True)
-        tdSql.query("select last(col7) from db.ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, True)
-        tdSql.query("select last(col8) from ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 'taosdata10')
-        tdSql.query("select last(col8) from db.ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 'taosdata10')
-        tdSql.query("select last(col9) from ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '涛思数据10')
-        tdSql.query("select last(col9) from db.ntb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '涛思数据10')
-        tdSql.query("select last(col1,col2,col3) from ntb")
-        tdSql.checkData(0,2,10)
+        for k, v in column_dict.items():
+            for j in [f'{ntbname}', f'db.{ntbname}']:
+                tdSql.query(f"select last({k}) from {j}")
+                tdSql.checkRows(1)
+                # tinyint,smallint,int,bigint,tinyint unsigned,smallint unsigned,int unsigned,bigint unsigned
+                if v.lower() == 'tinyint' or v.lower() == 'smallint' or v.lower() == 'int' or v.lower() == 'bigint' or v.lower() == 'tinyint unsigned' or v.lower() == 'smallint unsigned'\
+                        or v.lower() == 'int unsigned' or v.lower() == 'bigint unsigned':
+                    tdSql.checkData(0, 0, 10)
+                # float,double
+                elif v.lower() == 'float' or v.lower() == 'double':
+                    tdSql.checkData(0, 0, 9.1)
+                # bool
+                elif v.lower() == 'bool':
+                    tdSql.checkData(0, 0, True)
+                # binary
+                elif 'binary' in v.lower():
+                    tdSql.checkData(0, 0, f'{self.binary_str}{self.rowNum}')
+                # nchar
+                elif 'nchar' in v.lower():
+                    tdSql.checkData(0, 0, f'{self.nchar_str}{self.rowNum}')
 
-        tdSql.error("select col1 from stb where last(col9)='涛思数据10'")
-        tdSql.error("select col1 from ntb where last(col9)='涛思数据10'")
-        tdSql.error("select col1 from stb_1 where last(col9)='涛思数据10'")
+        tdSql.error(
+            f"select {list(column_dict.keys())[0]} from {ntbname} where last({list(column_dict.keys())[9]})='涛思数据10'")
+
+    def last_check_stb_distribute(self):
+        # prepare data for vgroup 4
+        dbname = tdCom.getLongName(10, "letters")
+        stbname = tdCom.getLongName(5, "letters")
+        vgroup_num = 4
+        column_dict = {
+            'col1': 'tinyint',
+            'col2': 'smallint',
+            'col3': 'int',
+            'col4': 'bigint',
+            'col5': 'tinyint unsigned',
+            'col6': 'smallint unsigned',
+            'col7': 'int unsigned',
+            'col8': 'bigint unsigned',
+            'col9': 'float',
+            'col10': 'double',
+            'col11': 'bool',
+            'col12': 'binary(20)',
+            'col13': 'nchar(20)'
+        }
+
+        tdSql.execute(
+            f"create database if not exists {dbname} vgroups {vgroup_num}")
+        tdSql.execute(f'use {dbname}')
+
+        # build 20 child tables,every table insert 10 rows
+        tdSql.execute(f'''create table {stbname}(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned,
+                    col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20)) tags(loc nchar(20))''')
+        for i in range(self.tbnum):
+            tdSql.execute(
+                f"create table {stbname}_{i} using {stbname} tags('beijing')")
+            tdSql.execute(
+                f"insert into {stbname}_{i}(ts) values(%d)" % (self.ts - 1-i))
+        # for i in [f'{stbname}', f'{dbname}.{stbname}']:
+        #     tdSql.query(f"select last(*) from {i}")
+        #     tdSql.checkRows(1)
+        #     tdSql.checkData(0, 1, None)
+        tdSql.query('show tables')
+        vgroup_list = []
+        for i in range(len(tdSql.queryResult)):
+            vgroup_list.append(tdSql.queryResult[i][6])
+        vgroup_list_set = set(vgroup_list)
+        for i in vgroup_list_set:
+            vgroups_num = vgroup_list.count(i)
+            if vgroups_num >= 2:
+                tdLog.info(f'This scene with {vgroups_num} vgroups is ok!')
+                continue
+            # else:
+            #     tdLog.exit(
+            #         f'This scene does not meet the requirements with {vgroups_num} vgroup!\n')
+
+        for i in range(self.tbnum):
+            for j in range(self.rowNum):
+                tdSql.execute(f"insert into {stbname}_{i} values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
+                              % (self.ts + j + i, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 0.1, j + 0.1, j % 2, j + 1, j + 1))
+        for i in [f'{stbname}', f'{dbname}.{stbname}']:
+            tdSql.query(f"select last(*) from {i}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 10)
+        for k, v in column_dict.items():
+            for j in [f'{stbname}', f'{dbname}.{stbname}']:
+                tdSql.query(f"select last({k}) from {j}")
+                tdSql.checkRows(1)
+                # tinyint,smallint,int,bigint,tinyint unsigned,smallint unsigned,int unsigned,bigint unsigned
+                if v.lower() == 'tinyint' or v.lower() == 'smallint' or v.lower() == 'int' or v.lower() == 'bigint' or v.lower() == 'tinyint unsigned' or v.lower() == 'smallint unsigned'\
+                        or v.lower() == 'int unsigned' or v.lower() == 'bigint unsigned':
+                    tdSql.checkData(0, 0, 10)
+                # float,double
+                elif v.lower() == 'float' or v.lower() == 'double':
+                    tdSql.checkData(0, 0, 9.1)
+                # bool
+                elif v.lower() == 'bool':
+                    tdSql.checkData(0, 0, True)
+                # binary
+                elif 'binary' in v.lower():
+                    tdSql.checkData(0, 0, f'{self.binary_str}{self.rowNum}')
+                # nchar
+                elif 'nchar' in v.lower():
+                    tdSql.checkData(0, 0, f'{self.nchar_str}{self.rowNum}')
+        tdSql.execute(f'drop database {dbname}')
+
+    def run(self):
+        self.last_check_stb_tb_base()
+        self.last_check_ntb_base()
+        self.last_check_stb_distribute()
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
+
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())

@@ -75,7 +75,7 @@ void walCleanUp() {
 }
 
 SWal *walOpen(const char *path, SWalCfg *pCfg) {
-  SWal *pWal = taosMemoryMalloc(sizeof(SWal));
+  SWal *pWal = taosMemoryCalloc(1, sizeof(SWal));
   if (pWal == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return NULL;
@@ -92,6 +92,13 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     return NULL;
   }
 
+  // init ref
+  pWal->pRefHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_ENTRY_LOCK);
+  if (pWal->pRefHash == NULL) {
+    taosMemoryFree(pWal);
+    return NULL;
+  }
+
   // open meta
   walResetVer(&pWal->vers);
   pWal->pWriteLogTFile = NULL;
@@ -100,6 +107,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->fileInfoSet = taosArrayInit(8, sizeof(SWalFileInfo));
   if (pWal->fileInfoSet == NULL) {
     wError("vgId:%d, path:%s, failed to init taosArray %s", pWal->cfg.vgId, pWal->path, strerror(errno));
+    taosHashCleanup(pWal->pRefHash);
     taosMemoryFree(pWal);
     return NULL;
   }
@@ -109,18 +117,20 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->lastRollSeq = -1;
 
   // init write buffer
-  memset(&pWal->writeHead, 0, sizeof(SWalHead));
-  pWal->writeHead.head.headVer = WAL_HEAD_VER;
+  memset(&pWal->writeHead, 0, sizeof(SWalCkHead));
+  pWal->writeHead.head.protoVer = WAL_PROTO_VER;
   pWal->writeHead.magic = WAL_MAGIC;
 
   if (taosThreadMutexInit(&pWal->mutex, NULL) < 0) {
     taosArrayDestroy(pWal->fileInfoSet);
+    taosHashCleanup(pWal->pRefHash);
     taosMemoryFree(pWal);
     return NULL;
   }
 
   pWal->refId = taosAddRef(tsWal.refSetId, pWal);
   if (pWal->refId < 0) {
+    taosHashCleanup(pWal->pRefHash);
     taosThreadMutexDestroy(&pWal->mutex);
     taosArrayDestroy(pWal->fileInfoSet);
     taosMemoryFree(pWal);
@@ -130,6 +140,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   walLoadMeta(pWal);
 
   if (walCheckAndRepairMeta(pWal) < 0) {
+    taosHashCleanup(pWal->pRefHash);
     taosRemoveRef(tsWal.refSetId, pWal->refId);
     taosThreadMutexDestroy(&pWal->mutex);
     taosArrayDestroy(pWal->fileInfoSet);
@@ -175,6 +186,7 @@ void walClose(SWal *pWal) {
   walSaveMeta(pWal);
   taosArrayDestroy(pWal->fileInfoSet);
   pWal->fileInfoSet = NULL;
+  taosHashCleanup(pWal->pRefHash);
   taosThreadMutexUnlock(&pWal->mutex);
 
   taosRemoveRef(tsWal.refSetId, pWal->refId);

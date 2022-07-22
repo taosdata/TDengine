@@ -79,6 +79,23 @@ int64_t mndGetClusterId(SMnode *pMnode) {
   return clusterId;
 }
 
+int64_t mndGetClusterCreateTime(SMnode *pMnode) {
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  int64_t createTime = INT64_MAX;
+
+  while (1) {
+    SClusterObj *pCluster = NULL;
+    pIter = sdbFetch(pSdb, SDB_CLUSTER, pIter, (void **)&pCluster);
+    if (pIter == NULL) break;
+
+    createTime = pCluster->createdTime;
+    sdbRelease(pSdb, pCluster);
+  }
+
+  return createTime;
+}
+
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 

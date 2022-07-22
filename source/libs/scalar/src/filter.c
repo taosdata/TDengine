@@ -29,8 +29,9 @@ OptrStr gOptrStr[] = {
   {OP_TYPE_SUB,                            "-"},
   {OP_TYPE_MULTI,                          "*"},
   {OP_TYPE_DIV,                            "/"},
-  {OP_TYPE_MOD,                            "%"},
-
+  {OP_TYPE_REM,                            "%"},
+  {OP_TYPE_MINUS,                          "minus"},
+  {OP_TYPE_ASSIGN,                         "assign"},
   // bit operator
   {OP_TYPE_BIT_AND,                        "&"},
   {OP_TYPE_BIT_OR,                         "|"},
@@ -167,7 +168,7 @@ __compar_fn_t gDataCompare[] = {compareInt32Val, compareInt8Val, compareInt16Val
   compareLenPrefixedWStr, compareUint8Val, compareUint16Val, compareUint32Val, compareUint64Val,
   setChkInBytes1, setChkInBytes2, setChkInBytes4, setChkInBytes8, compareStrRegexCompMatch, 
   compareStrRegexCompNMatch, setChkNotInBytes1, setChkNotInBytes2, setChkNotInBytes4, setChkNotInBytes8,
-  compareChkNotInString, compareStrPatternNotMatch, compareWStrPatternNotMatch, compareJsonContainsKey
+  compareChkNotInString, compareStrPatternNotMatch, compareWStrPatternNotMatch
 };
 
 int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
@@ -191,8 +192,11 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
       case TSDB_DATA_TYPE_DOUBLE:        
       case TSDB_DATA_TYPE_TIMESTAMP:        
         return 18;
+      case TSDB_DATA_TYPE_JSON:
+        terrno = TSDB_CODE_QRY_JSON_IN_ERROR;
+        return 0;
       default:
-        assert(0);
+        return 0;
     }
   }
 
@@ -214,8 +218,11 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
       case TSDB_DATA_TYPE_DOUBLE:        
       case TSDB_DATA_TYPE_TIMESTAMP:        
         return 24;
+      case TSDB_DATA_TYPE_JSON:
+        terrno = TSDB_CODE_QRY_JSON_IN_ERROR;
+        return 0;
       default:
-        assert(0);
+        return 0;
     }
   }
 
@@ -1035,11 +1042,17 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode* tree, SArray *group) {
     
     for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
       SValueNode *valueNode = (SValueNode *)cell->pNode;
-      if (valueNode->node.resType.type != type) {
-        code = doConvertDataType(valueNode, &out);
+      if (valueNode->node.resType.type != type) {        
+        int32_t overflow = 0;
+        code = doConvertDataType(valueNode, &out, &overflow);
         if (code) {
   //        fltError("convert from %d to %d failed", in.type, out.type);
           FLT_ERR_RET(code);
+        }
+
+        if (overflow) {
+          cell = cell->pNext;
+          continue;
         }
         
         len = tDataTypes[type].bytes;
@@ -1475,6 +1488,11 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
       for (uint32_t i = 0; i < info->fields[FLD_TYPE_VALUE].num; ++i) {
         SFilterField *field = &info->fields[FLD_TYPE_VALUE].fields[i];
         if (field->desc) {
+          if (QUERY_NODE_VALUE != nodeType(field->desc)) {
+            qDebug("VAL%d => [type:not value node][val:NIL]", i); //TODO
+            continue;
+          }
+
           SValueNode *var = (SValueNode *)field->desc;
           SDataType *dType = &var->node.resType;
           if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {
@@ -1823,7 +1841,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       }
 
       // todo refactor the convert
-      int32_t code = doConvertDataType(var, &out);
+      int32_t code = doConvertDataType(var, &out, NULL);
       if (code != TSDB_CODE_SUCCESS) {
         qError("convert value to type[%d] failed", type);
         return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -2053,7 +2071,7 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t
     }
 
     if (colIdxi > 1) {
-      qsort(colIdx, colIdxi, sizeof(uint32_t), getComparFunc(TSDB_DATA_TYPE_USMALLINT, 0));
+      taosSort(colIdx, colIdxi, sizeof(uint32_t), getComparFunc(TSDB_DATA_TYPE_USMALLINT, 0));
     }
 
     for (uint32_t l = 0; l < colIdxi; ++l) {
@@ -2288,7 +2306,7 @@ int32_t filterMergeGroups(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t *gR
     return TSDB_CODE_SUCCESS;
   }
 
-  qsort(gRes, *gResNum, POINTER_BYTES, filterCompareGroupCtx);
+  taosSort(gRes, *gResNum, POINTER_BYTES, filterCompareGroupCtx);
 
   int32_t pEnd = 0, cStart = 0, cEnd = 0;
   uint32_t pColNum = 0, cColNum = 0; 
@@ -3605,7 +3623,8 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
       return DEAL_RES_CONTINUE;
     }
 
-    if (FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP) && node->opType >= OP_TYPE_NOT_EQUAL) {
+    if (FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP) && 
+        (node->opType >= OP_TYPE_NOT_EQUAL) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL)) {
       stat->scalarMode = true;
       return DEAL_RES_CONTINUE;
     }
@@ -3663,7 +3682,19 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
       if (OP_TYPE_IN != node->opType) {
         SColumnNode *refNode = (SColumnNode *)node->pLeft;
         SValueNode *valueNode = (SValueNode *)node->pRight;
+        if (FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP) 
+            && TSDB_DATA_TYPE_UBIGINT == valueNode->node.resType.type && valueNode->datum.u <= INT64_MAX) {
+          valueNode->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+        }
         int32_t type = vectorGetConvertType(refNode->node.resType.type, valueNode->node.resType.type);
+        if (0 != type && type != refNode->node.resType.type) {
+          stat->scalarMode = true;
+          return DEAL_RES_CONTINUE;
+        }
+      } else {
+        SColumnNode *refNode = (SColumnNode *)node->pLeft;
+        SNodeListNode *listNode = (SNodeListNode *)node->pRight;
+        int32_t type = vectorGetConvertType(refNode->node.resType.type, listNode->dataType.type);
         if (0 != type && type != refNode->node.resType.type) {
           stat->scalarMode = true;
           return DEAL_RES_CONTINUE;
@@ -3807,13 +3838,20 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnData
     SScalarParam output = {0};
 
     SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
-    output.columnData = createColumnInfoData(&type, pSrc->info.rows);
+    int32_t code = sclCreateColumnInfoData(&type, pSrc->info.rows, &output);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
 
     SArray *pList = taosArrayInit(1, POINTER_BYTES);
     taosArrayPush(pList, &pSrc);
 
     FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pList, &output));
-    *p = (int8_t *)output.columnData->pData;
+    *p = taosMemoryMalloc(output.numOfRows * sizeof(bool));
+
+    memcpy(*p, output.columnData->pData, output.numOfRows);
+    colDataDestroy(output.columnData);
+    taosMemoryFree(output.columnData);
 
     taosArrayDestroy(pList);
     return false;

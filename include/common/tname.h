@@ -37,6 +37,8 @@ typedef struct SName {
   char    tname[TSDB_TABLE_NAME_LEN];
 } SName;
 
+SName* toName(int32_t acctId, const char* pDbName, const char* pTableName, SName* pName);
+
 int32_t tNameExtractFullName(const SName* name, char* dst);
 
 int32_t tNameLen(const SName* name);
@@ -48,6 +50,7 @@ bool tNameIsValid(const SName* name);
 const char* tNameGetTableName(const SName* name);
 
 int32_t tNameGetDbName(const SName* name, char* dst);
+const char* tNameGetDbNameP(const SName* name);
 
 int32_t tNameGetFullDbName(const SName* name, char* dst);
 
@@ -57,11 +60,15 @@ void tNameAssign(SName* dst, const SName* src);
 
 int32_t tNameSetDbName(SName* dst, int32_t acctId, const char* dbName, size_t nameLen);
 
+int32_t tNameAddTbName(SName* dst, const char* tbName, size_t nameLen);
+
 int32_t tNameFromString(SName* dst, const char* str, uint32_t type);
 
 int32_t tNameSetAcctId(SName* dst, int32_t acctId);
 
 bool tNameDBNameEqual(SName* left, SName* right);
+
+bool tNameTbNameEqual(SName* left, SName* right);
 
 typedef struct {
   // input

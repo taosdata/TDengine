@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define ALLOW_FORBID_FUNC
 #define _BSD_SOURCE
 #define _GNU_SOURCE
 #define _XOPEN_SOURCE
@@ -40,7 +41,7 @@ static void    shellPrintError(TAOS_RES *tres, int64_t st);
 static bool    shellIsCommentLine(char *line);
 static void    shellSourceFile(const char *file);
 static void    shellGetGrantInfo();
-static void    shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context);
+
 static void    shellCleanup(void *arg);
 static void   *shellCancelHandler(void *arg);
 static void   *shellThreadLoop(void *arg);
@@ -156,6 +157,7 @@ void shellRunSingleCommandImp(char *command) {
     }
 
     fname = sptr + 2;
+    while (*fname == ' ') fname++;
     *sptr = '\0';
   }
 
@@ -178,7 +180,7 @@ void shellRunSingleCommandImp(char *command) {
   }
 
   if (shellRegexMatch(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
-    fprintf(stdout, "Database changed.\n\n");
+    fprintf(stdout, "Database changed.\r\n\r\n");
     fflush(stdout);
 
     taos_free_result(pSql);
@@ -195,19 +197,19 @@ void shellRunSingleCommandImp(char *command) {
 
     et = taosGetTimestampUs();
     if (error_no == 0) {
-      printf("Query OK, %d rows affected (%.6fs)\n", numOfRows, (et - st) / 1E6);
+      printf("Query OK, %d rows in database (%.6fs)\r\n", numOfRows, (et - st) / 1E6);
     } else {
-      printf("Query interrupted (%s), %d rows affected (%.6fs)\n", taos_errstr(pSql), numOfRows, (et - st) / 1E6);
+      printf("Query interrupted (%s), %d rows affected (%.6fs)\r\n", taos_errstr(pSql), numOfRows, (et - st) / 1E6);
     }
     taos_free_result(pSql);
   } else {
     int32_t num_rows_affacted = taos_affected_rows(pSql);
     taos_free_result(pSql);
     et = taosGetTimestampUs();
-    printf("Query OK, %d of %d rows affected (%.6fs)\n", num_rows_affacted, num_rows_affacted, (et - st) / 1E6);
+    printf("Query OK, %d of %d rows affected (%.6fs)\r\n", num_rows_affacted, num_rows_affacted, (et - st) / 1E6);
   }
 
-  printf("\n");
+  printf("\r\n");
 }
 
 char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
@@ -229,18 +231,6 @@ char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
     ms = val % 1000;
   }
 
-  /*
-    comment out as it make testcases like select_with_tags.sim fail.
-    but in windows, this may cause the call to localtime crash if tt < 0,
-    need to find a better solution.
-    if (tt < 0) {
-      tt = 0;
-    }
-  */
-
-#ifdef WINDOWS
-  if (tt < 0) tt = 0;
-#endif
   if (tt <= 0 && ms < 0) {
     tt--;
     if (precision == TSDB_TIME_PRECISION_NANO) {
@@ -252,8 +242,9 @@ char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
     }
   }
 
-  struct tm *ptm = taosLocalTime(&tt, NULL);
-  size_t     pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", ptm);
+  struct tm ptm = {0};
+  taosLocalTime(&tt, &ptm);
+  size_t     pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
 
   if (precision == TSDB_TIME_PRECISION_NANO) {
     sprintf(buf + pos, ".%09d", ms);
@@ -342,7 +333,7 @@ int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
 
   TdFilePtr pFile = taosOpenFile(fullname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
   if (pFile == NULL) {
-    fprintf(stderr, "failed to open file: %s\n", fullname);
+    fprintf(stderr, "failed to open file: %s\r\n", fullname);
     return -1;
   }
 
@@ -356,18 +347,18 @@ int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
     }
     taosFprintfFile(pFile, "%s", fields[col].name);
   }
-  taosFprintfFile(pFile, "\n");
+  taosFprintfFile(pFile, "\r\n");
 
   int32_t numOfRows = 0;
   do {
     int32_t *length = taos_fetch_lengths(tres);
     for (int32_t i = 0; i < num_fields; i++) {
       if (i > 0) {
-        taosFprintfFile(pFile, "\n");
+        taosFprintfFile(pFile, ",");
       }
       shellDumpFieldToFile(pFile, (const char *)row[i], fields + i, length[i], precision);
     }
-    taosFprintfFile(pFile, "\n");
+    taosFprintfFile(pFile, "\r\n");
 
     numOfRows++;
     row = taos_fetch_row(tres);
@@ -393,15 +384,11 @@ void shellPrintNChar(const char *str, int32_t length, int32_t width) {
       break;
     }
     int w = 0;
-#ifdef WINDOWS
-    w = bytes;
-#else
-    if(*(str + pos) == '\t' || *(str + pos) == '\n' || *(str + pos) == '\r'){
+    if (*(str + pos) == '\t' || *(str + pos) == '\n' || *(str + pos) == '\r') {
       w = bytes;
-    }else{
+    } else {
       w = taosWcharWidth(wc);
     }
-#endif
     pos += bytes;
 
     if (w <= 0) {
@@ -516,8 +503,17 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
 }
 
 bool shellIsLimitQuery(const char *sql) {
-  //todo refactor
+  // todo refactor
   if (taosStrCaseStr(sql, " limit ") != NULL) {
+    return true;
+  }
+
+  return false;
+}
+
+bool shellIsShowQuery(const char *sql) {
+  // todo refactor
+  if (taosStrCaseStr(sql, "show ") != NULL) {
     return true;
   }
 
@@ -552,7 +548,7 @@ int32_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
   int32_t showMore = 1;
   do {
     if (numOfRows < resShowMaxNum) {
-      printf("*************************** %d.row ***************************\n", numOfRows + 1);
+      printf("*************************** %d.row ***************************\r\n", numOfRows + 1);
 
       int32_t *length = taos_fetch_lengths(tres);
 
@@ -563,16 +559,17 @@ int32_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
         printf("%*.s%s: ", padding, " ", field->name);
 
         shellPrintField((const char *)row[i], field, 0, length[i], precision);
+        putchar('\r');
         putchar('\n');
       }
     } else if (showMore) {
-      printf("\n");
-      printf(" Notice: The result shows only the first %d rows.\n", SHELL_DEFAULT_RES_SHOW_NUM);
-      printf("         You can use the `LIMIT` clause to get fewer result to show.\n");
-      printf("           Or use '>>' to redirect the whole set of the result to a specified file.\n");
-      printf("\n");
-      printf("         You can use Ctrl+C to stop the underway fetching.\n");
-      printf("\n");
+      printf("\r\n");
+      printf(" Notice: The result shows only the first %d rows.\r\n", SHELL_DEFAULT_RES_SHOW_NUM);
+      printf("         You can use the `LIMIT` clause to get fewer result to show.\r\n");
+      printf("           Or use '>>' to redirect the whole set of the result to a specified file.\r\n");
+      printf("\r\n");
+      printf("         You can use Ctrl+C to stop the underway fetching.\r\n");
+      printf("\r\n");
       showMore = 0;
     }
 
@@ -660,10 +657,12 @@ void shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields) {
     rowWidth += width[col] + 3;
   }
 
+  putchar('\r');
   putchar('\n');
   for (int32_t i = 0; i < rowWidth; i++) {
     putchar('=');
   }
+  putchar('\r');
   putchar('\n');
 }
 
@@ -702,15 +701,20 @@ int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
         putchar(' ');
         putchar('|');
       }
+      putchar('\r');
       putchar('\n');
     } else if (showMore) {
-      printf("\n");
-      printf(" Notice: The result shows only the first %d rows.\n", SHELL_DEFAULT_RES_SHOW_NUM);
-      printf("         You can use the `LIMIT` clause to get fewer result to show.\n");
-      printf("           Or use '>>' to redirect the whole set of the result to a specified file.\n");
-      printf("\n");
-      printf("         You can use Ctrl+C to stop the underway fetching.\n");
-      printf("\n");
+      printf("\r\n");
+      printf(" Notice: The result shows only the first %d rows.\r\n", SHELL_DEFAULT_RES_SHOW_NUM);
+      if (shellIsShowQuery(sql)) {
+        printf("         You can use '>>' to redirect the whole set of the result to a specified file.\r\n");
+      } else {
+        printf("         You can use the `LIMIT` clause to get fewer result to show.\r\n");
+        printf("           Or use '>>' to redirect the whole set of the result to a specified file.\r\n");
+      }
+      printf("\r\n");
+      printf("         You can use Ctrl+C to stop the underway fetching.\r\n");
+      printf("\r\n");
       showMore = 0;
     }
 
@@ -756,10 +760,28 @@ void shellReadHistory() {
 
   if (line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
+  int64_t file_size;
+  if (taosStatFile(pHistory->file, &file_size, NULL) == 0 && file_size > SHELL_MAX_COMMAND_SIZE) {
+    TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_STREAM | TD_FILE_TRUNC);
+    if (pFile == NULL) return;
+    int32_t endIndex = pHistory->hstart;
+    if (endIndex != 0) {
+      endIndex = pHistory->hend;
+    }
+    for (int32_t i = (pHistory->hend + SHELL_MAX_HISTORY_SIZE - 1) % SHELL_MAX_HISTORY_SIZE; i != endIndex;) {
+      taosFprintfFile(pFile, "%s\n", pHistory->hist[i]);
+      i = (i + SHELL_MAX_HISTORY_SIZE - 1) % SHELL_MAX_HISTORY_SIZE;
+    }
+    taosFprintfFile(pFile, "%s\n", pHistory->hist[endIndex]);
+    taosFsyncFile(pFile);
+    taosCloseFile(&pFile);
+  }
+  pHistory->hend = pHistory->hstart;
 }
 
 void shellWriteHistory() {
   SShellHistory *pHistory = &shell.history;
+  if (pHistory->hend == pHistory->hstart) return;
   TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_STREAM | TD_FILE_APPEND);
   if (pFile == NULL) return;
 
@@ -787,7 +809,7 @@ void shellCleanupHistory() {
 
 void shellPrintError(TAOS_RES *tres, int64_t st) {
   int64_t et = taosGetTimestampUs();
-  fprintf(stderr, "\nDB error: %s (%.6fs)\n", taos_errstr(tres), (et - st) / 1E6);
+  fprintf(stderr, "\r\nDB error: %s (%.6fs)\r\n", taos_errstr(tres), (et - st) / 1E6);
   taos_free_result(tres);
 }
 
@@ -809,7 +831,7 @@ void shellSourceFile(const char *file) {
 
   TdFilePtr pFile = taosOpenFile(fullname, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
-    fprintf(stderr, "failed to open file %s\n", fullname);
+    fprintf(stderr, "failed to open file %s\r\n", fullname);
     taosMemoryFree(cmd);
     return;
   }
@@ -830,7 +852,7 @@ void shellSourceFile(const char *file) {
     }
 
     memcpy(cmd + cmd_len, line, read_len);
-    printf("%s%s\n", shell.info.promptHeader, cmd);
+    printf("%s%s\r\n", shell.info.promptHeader, cmd);
     shellRunCommand(cmd);
     memset(cmd, 0, TSDB_MAX_ALLOWED_SQL_LEN);
     cmd_len = 0;
@@ -844,7 +866,7 @@ void shellSourceFile(const char *file) {
 void shellGetGrantInfo() {
   char sinfo[1024] = {0};
   tstrncpy(sinfo, taos_get_server_info(shell.conn), sizeof(sinfo));
-  strtok(sinfo, "\n");
+  strtok(sinfo, "\r\n");
 
   char sql[] = "show grants";
 
@@ -852,29 +874,26 @@ void shellGetGrantInfo() {
 
   int32_t code = taos_errno(tres);
   if (code != TSDB_CODE_SUCCESS) {
-    if (code == TSDB_CODE_OPS_NOT_SUPPORT) {
-      fprintf(stdout, "Server is Community Edition, %s\n\n", sinfo);
-    } else {
-      fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\n\n", taos_errno(shell.conn),
-              taos_errstr(shell.conn));
+    if (code != TSDB_CODE_OPS_NOT_SUPPORT && code != TSDB_CODE_MND_NO_RIGHTS) {
+      fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\r\n\r\n", code, taos_errstr(tres));
     }
     return;
   }
 
   int32_t num_fields = taos_field_count(tres);
   if (num_fields == 0) {
-    fprintf(stderr, "\nInvalid grant information.\n");
+    fprintf(stderr, "\r\nInvalid grant information.\r\n");
     exit(0);
   } else {
     if (tres == NULL) {
-      fprintf(stderr, "\nGrant information is null.\n");
+      fprintf(stderr, "\r\nGrant information is null.\r\n");
       exit(0);
     }
 
     TAOS_FIELD *fields = taos_fetch_fields(tres);
     TAOS_ROW    row = taos_fetch_row(tres);
     if (row == NULL) {
-      fprintf(stderr, "\nFailed to get grant information from server. Abort.\n");
+      fprintf(stderr, "\r\nFailed to get grant information from server. Abort.\r\n");
       exit(0);
     }
 
@@ -886,23 +905,28 @@ void shellGetGrantInfo() {
     memcpy(expiretime, row[1], fields[1].bytes);
     memcpy(expired, row[2], fields[2].bytes);
 
-    if (strcmp(expiretime, "unlimited") == 0) {
-      fprintf(stdout, "Server is Enterprise %s Edition, %s and will never expire.\n", serverVersion, sinfo);
+    if (strcmp(serverVersion, "community") == 0) {
+      fprintf(stdout, "Server is Community Edition.\r\n");
+    } else if (strcmp(expiretime, "unlimited") == 0) {
+      fprintf(stdout, "Server is Enterprise %s Edition, %s and will never expire.\r\n", serverVersion, sinfo);
     } else {
-      fprintf(stdout, "Server is Enterprise %s Edition, %s and will expire at %s.\n", serverVersion, sinfo, expiretime);
+      fprintf(stdout, "Server is Enterprise %s Edition, %s and will expire at %s.\r\n", serverVersion, sinfo, expiretime);
     }
 
     taos_free_result(tres);
   }
 
-  fprintf(stdout, "\n");
+  fprintf(stdout, "\r\n");
 }
 
+#ifdef WINDOWS
+BOOL shellQueryInterruptHandler(DWORD fdwCtrlType) {
+  tsem_post(&shell.cancelSem);
+  return TRUE;
+}
+#else
 void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) { tsem_post(&shell.cancelSem); }
-
-void shellSigintHandler(int32_t signum, void *sigInfo, void *context) {
-  // do nothing
-}
+#endif
 
 void shellCleanup(void *arg) { taosResetTerminalMode(); }
 
@@ -913,11 +937,10 @@ void *shellCancelHandler(void *arg) {
       taosMsleep(10);
       continue;
     }
-
-    taosResetTerminalMode();
-    printf("\nReceive SIGTERM or other signal, quit shell.\n");
-    shellWriteHistory();
-    shellExit();
+    taos_kill_query(shell.conn);
+  #ifdef WINDOWS
+    printf("\n%s", shell.info.promptHeader);
+  #endif
   }
 
   return NULL;
@@ -930,7 +953,7 @@ void *shellThreadLoop(void *arg) {
 
   char *command = taosMemoryMalloc(SHELL_MAX_COMMAND_SIZE);
   if (command == NULL) {
-    printf("failed to malloc command\n");
+    printf("failed to malloc command\r\n");
     return NULL;
   }
 
@@ -973,7 +996,7 @@ int32_t shellExecute() {
 
   if (pArgs->commands != NULL || pArgs->file[0] != 0) {
     if (pArgs->commands != NULL) {
-      printf("%s%s\n", shell.info.promptHeader, pArgs->commands);
+      printf("%s%s\r\n", shell.info.promptHeader, pArgs->commands);
       char *cmd = strdup(pArgs->commands);
       shellRunCommand(cmd);
       taosMemoryFree(cmd);
@@ -990,7 +1013,7 @@ int32_t shellExecute() {
   }
 
   if (tsem_init(&shell.cancelSem, 0, 0) != 0) {
-    printf("failed to create cancel semphore\n");
+    printf("failed to create cancel semphore\r\n");
     return -1;
   }
 
@@ -1001,9 +1024,9 @@ int32_t shellExecute() {
   taosSetSignal(SIGHUP, shellQueryInterruptHandler);
   taosSetSignal(SIGABRT, shellQueryInterruptHandler);
 
-  taosSetSignal(SIGINT, shellSigintHandler);
+  taosSetSignal(SIGINT, shellQueryInterruptHandler);
 
-  shellGetGrantInfo(shell.conn);
+  shellGetGrantInfo();
 
   while (1) {
     taosThreadCreate(&shell.pid, NULL, shellThreadLoop, shell.conn);

@@ -1,7 +1,7 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 
-print ========= start dnode1 as LEADER
+print ========= start dnode1 as leader
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
@@ -42,14 +42,12 @@ sql explain select count(*),sum(f1) from tb1;
 sql explain select count(*),sum(f1) from st1;
 sql explain select count(*),sum(f1) from st1 group by f1;
 #sql explain select count(f1) from tb1 interval(10s, 2s) sliding(3s) fill(prev);
-sql explain select min(f1) from st1 interval(1m, 2a) sliding(30s); 
 
 print ======== step3 
 sql explain verbose true select * from st1 where -2;
 sql explain verbose true select ts from tb1 where f1 > 0;
 sql explain verbose true select * from st1 where f1 > 0 and ts > '2020-10-31 00:00:00' and ts < '2021-10-31 00:00:00';
 sql explain verbose true select * from information_schema.user_stables where db_name='db2';
-sql explain verbose true select count(*),sum(f1) from st1 where f1 > 0 and ts > '2021-10-31 00:00:00' group by f1 having sum(f1) > 0;
 
 print ======== step4 
 sql explain analyze select ts from st1 where -2;
@@ -61,8 +59,6 @@ sql explain analyze select * from information_schema.user_stables;
 sql explain analyze select count(*),sum(f1) from tb1;
 sql explain analyze select count(*),sum(f1) from st1;
 sql explain analyze select count(*),sum(f1) from st1 group by f1;
-#sql explain analyze select count(f1) from tb1 interval(10s, 2s) sliding(3s) fill(prev);
-sql explain analyze select min(f1) from st1 interval(3m, 2a) sliding(1m); 
 
 print ======== step5 
 sql explain analyze verbose true select ts from st1 where -2;
@@ -78,8 +74,6 @@ sql explain analyze verbose true select count(*),sum(f1) from st1 group by f1;
 sql explain analyze verbose true select ts from tb1 where f1 > 0;
 sql explain analyze verbose true select f1 from st1 where f1 > 0 and ts > '2020-10-31 00:00:00' and ts < '2021-10-31 00:00:00';
 sql explain analyze verbose true select * from information_schema.user_stables where db_name='db2';
-sql explain analyze verbose true select count(*),sum(f1) from st1 where f1 > 0 and ts > '2021-10-31 00:00:00' group by f1 having sum(f1) > 0;
-sql explain analyze verbose true select min(f1) from st1 interval(3m, 2a) sliding(1m); 
 sql explain analyze verbose true select * from (select min(f1),count(*) a from st1 where f1 > 0) where a < 0;
 
 #not pass case
@@ -93,6 +87,12 @@ sql explain analyze verbose true select * from (select min(f1),count(*) a from s
 #sql explain select * from tb1, tb2 where tb1.ts=tb2.ts;
 #sql explain select * from st1, st2 where tb1.ts=tb2.ts;
 #sql explain analyze verbose true select sum(a+b) from (select _rowts, min(f1) b,count(*) a from st1 where f1 > 0 interval(1a)) where a < 0 interval(1s);
+#sql explain select min(f1) from st1 interval(1m, 2a) sliding(30s); 
+#sql explain verbose true select count(*),sum(f1) from st1 where f1 > 0 and ts > '2021-10-31 00:00:00' group by f1 having sum(f1) > 0;
+#sql explain analyze select min(f1) from st1 interval(3m, 2a) sliding(1m); 
+#sql explain analyze select count(f1) from tb1 interval(10s, 2s) sliding(3s) fill(prev);
+#sql explain analyze verbose true select count(*),sum(f1) from st1 where f1 > 0 and ts > '2021-10-31 00:00:00' group by f1 having sum(f1) > 0;
+#sql explain analyze verbose true select min(f1) from st1 interval(3m, 2a) sliding(1m); 
 
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -210,7 +210,7 @@ static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
 }
 
 
-bool taosCheckSystemIsSmallEnd() {
+bool taosCheckSystemIsLittleEnd() {
   union check {
     int16_t i;
     char    ch[2];
@@ -276,7 +276,8 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
 
 int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
 #ifdef WINDOWS
-  assert(0);
+  snprintf(releaseName, maxLen, "Windows");
+  return 0;
 #elif defined(_TD_DARWIN_64)
   char   *line = NULL;
   size_t  size = 0;
@@ -332,7 +333,15 @@ int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
 
 int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
 #ifdef WINDOWS
-  assert(0);
+  char value[100];
+  DWORD bufferSize = sizeof(value);
+  RegGetValue(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", "ProcessorNameString", RRF_RT_ANY, NULL, (PVOID)&value, &bufferSize);
+  tstrncpy(cpuModel, value, maxLen);
+  SYSTEM_INFO si;
+  memset(&si,0,sizeof(SYSTEM_INFO));
+  GetSystemInfo(&si);
+  *numOfCores = si.dwNumberOfProcessors;
+  return 0;
 #elif defined(_TD_DARWIN_64)
   char   *line = NULL;
   size_t  size = 0;
@@ -750,9 +759,11 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
   return 0;
 #elif defined(_TD_DARWIN_64)
   uuid_t uuid = {0};
+  char buf[37] = {0};
   uuid_generate(uuid);
   // it's caller's responsibility to make enough space for `uid`, that's 36-char + 1-null
-  uuid_unparse_lower(uuid, uid);
+  uuid_unparse_lower(uuid, buf);
+  memcpy(uid, buf, uidlen);
   return 0;
 #else
   int len = 0;
@@ -934,5 +945,21 @@ SysNameInfo taosGetSysNameInfo() {
   }
 
   return info;
+#endif
+}
+
+
+bool taosCheckCurrentInDll() {
+#ifdef WINDOWS
+  MEMORY_BASIC_INFORMATION mbi;
+  char path[PATH_MAX] = {0};
+  GetModuleFileName(((VirtualQuery(taosCheckCurrentInDll,&mbi,sizeof(mbi)) != 0) ? (HMODULE)mbi.AllocationBase : NULL), path, PATH_MAX);
+  int strLastIndex = strlen(path);
+  if ((path[strLastIndex-3] == 'd' || path[strLastIndex-3] == 'D') && (path[strLastIndex-2] == 'l' || path[strLastIndex-2] == 'L') && (path[strLastIndex-1] == 'l' || path[strLastIndex-1] == 'L')) {
+    return true;
+  }
+  return false;
+#else
+  return false;
 #endif
 }

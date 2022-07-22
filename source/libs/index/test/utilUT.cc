@@ -8,7 +8,7 @@
 #include "indexCache.h"
 #include "indexComm.h"
 #include "indexFst.h"
-#include "indexFstCountingWriter.h"
+#include "indexFstCommon.h"
 #include "indexFstUtil.h"
 #include "indexInt.h"
 #include "indexTfile.h"
@@ -327,13 +327,13 @@ TEST_F(UtilEnv, testFill) {
   for (int i = 0; i < 1000000; i++) {
     int64_t val = i;
     char    buf[65] = {0};
-    indexInt2str(val, buf, 1);
+    idxInt2str(val, buf, 1);
     EXPECT_EQ(val, taosStr2int64(buf));
   }
   for (int i = 0; i < 1000000; i++) {
     int64_t val = 0 - i;
     char    buf[65] = {0};
-    indexInt2str(val, buf, -1);
+    idxInt2str(val, buf, -1);
     EXPECT_EQ(val, taosStr2int64(buf));
   }
 }
@@ -356,4 +356,12 @@ TEST_F(UtilEnv, TempResultExcept) {
   taosArrayPush(relt->add, &val);
   idxTRsltMergeTo(relt, f);
   EXPECT_EQ(taosArrayGetSize(f), 1);
+}
+
+TEST_F(UtilEnv, testDictComm) {
+  int32_t count = COMMON_INPUTS_LEN;
+  for (int i = 0; i < 256; i++) {
+    uint8_t v = COMMON_INPUTS_INV[i];
+    EXPECT_EQ(COMMON_INPUTS[v], i);
+  }
 }

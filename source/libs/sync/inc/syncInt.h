@@ -58,6 +58,8 @@ typedef struct SSyncRespMgr           SSyncRespMgr;
 typedef struct SSyncSnapshotSender    SSyncSnapshotSender;
 typedef struct SSyncSnapshotReceiver  SSyncSnapshotReceiver;
 
+extern bool gRaftDetailLog;
+
 typedef struct SSyncNode {
   // init by SSyncInfo
   SyncGroupId vgId;
@@ -137,24 +139,28 @@ typedef struct SSyncNode {
   uint64_t          heartbeatTimerCounter;
 
   // callback
-  int32_t (*FpOnPing)(SSyncNode* ths, SyncPing* pMsg);
-  int32_t (*FpOnPingReply)(SSyncNode* ths, SyncPingReply* pMsg);
-  int32_t (*FpOnClientRequest)(SSyncNode* ths, SyncClientRequest* pMsg);
-  int32_t (*FpOnRequestVote)(SSyncNode* ths, SyncRequestVote* pMsg);
-  int32_t (*FpOnRequestVoteReply)(SSyncNode* ths, SyncRequestVoteReply* pMsg);
-  int32_t (*FpOnAppendEntries)(SSyncNode* ths, SyncAppendEntries* pMsg);
-  int32_t (*FpOnAppendEntriesReply)(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
-  int32_t (*FpOnTimeout)(SSyncNode* pSyncNode, SyncTimeout* pMsg);
+  FpOnPingCb               FpOnPing;
+  FpOnPingReplyCb          FpOnPingReply;
+  FpOnClientRequestCb      FpOnClientRequest;
+  FpOnTimeoutCb            FpOnTimeout;
+  FpOnRequestVoteCb        FpOnRequestVote;
+  FpOnRequestVoteReplyCb   FpOnRequestVoteReply;
+  FpOnAppendEntriesCb      FpOnAppendEntries;
+  FpOnAppendEntriesReplyCb FpOnAppendEntriesReply;
+  FpOnSnapshotSendCb       FpOnSnapshotSend;
+  FpOnSnapshotRspCb        FpOnSnapshotRsp;
 
   // tools
   SSyncRespMgr* pSyncRespMgr;
 
   // restore state
-  // sem_t      restoreSem;
-  bool                   restoreFinish;
-  SSnapshot*             pSnapshot;
-  SSyncSnapshotSender*   pSender;
-  SSyncSnapshotReceiver* pReceiver;
+  bool restoreFinish;
+  // SSnapshot*             pSnapshot;
+  SSyncSnapshotSender*   senders[TSDB_MAX_REPLICA];
+  SSyncSnapshotReceiver* pNewNodeReceiver;
+
+  // is config changing
+  bool changing;
 
 } SSyncNode;
 
@@ -163,6 +169,13 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo);
 void       syncNodeStart(SSyncNode* pSyncNode);
 void       syncNodeStartStandBy(SSyncNode* pSyncNode);
 void       syncNodeClose(SSyncNode* pSyncNode);
+int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak);
+int32_t    syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg* pMsgArr, bool* pIsWeakArr, int32_t arrSize);
+
+// option
+bool          syncNodeSnapshotEnable(SSyncNode* pSyncNode);
+ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
+SyncIndex     syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapshotLastApplyIndex);
 
 // ping --------------
 int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg);
@@ -179,22 +192,26 @@ int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeResetElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
+int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode);
 
 // utils --------------
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
 int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
 cJSON*  syncNode2Json(const SSyncNode* pSyncNode);
 char*   syncNode2Str(const SSyncNode* pSyncNode);
+void    syncNodeEventLog(const SSyncNode* pSyncNode, char* str);
+void    syncNodeErrorLog(const SSyncNode* pSyncNode, char* str);
 char*   syncNode2SimpleStr(const SSyncNode* pSyncNode);
-void    syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, bool* isDrop);
+bool    syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config);
+void    syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex lastConfigChangeIndex);
 
 SSyncNode* syncNodeAcquire(int64_t rid);
 void       syncNodeRelease(SSyncNode* pNode);
 
 // raft state change --------------
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
-void syncNodeBecomeFollower(SSyncNode* pSyncNode);
-void syncNodeBecomeLeader(SSyncNode* pSyncNode);
+void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr);
+void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr);
 
 void syncNodeCandidate2Leader(SSyncNode* pSyncNode);
 void syncNodeFollower2Candidate(SSyncNode* pSyncNode);
@@ -205,11 +222,63 @@ void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
 void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId);
 void syncNodeVoteForSelf(SSyncNode* pSyncNode);
 
+// snapshot --------------
+bool syncNodeHasSnapshot(SSyncNode* pSyncNode);
+void syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode);
+
+SyncIndex syncNodeGetLastIndex(SSyncNode* pSyncNode);
+SyncTerm  syncNodeGetLastTerm(SSyncNode* pSyncNode);
+int32_t   syncNodeGetLastIndexTerm(SSyncNode* pSyncNode, SyncIndex* pLastIndex, SyncTerm* pLastTerm);
+
+SyncIndex syncNodeSyncStartIndex(SSyncNode* pSyncNode);
+
+SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index);
+SyncTerm  syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index);
+int32_t   syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex* pPreIndex, SyncTerm* pPreTerm);
+
+bool    syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg);
+int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag);
+
+int32_t syncNodeUpdateNewConfigIndex(SSyncNode* ths, SSyncCfg* pNewCfg);
+
+bool                 syncNodeInRaftGroup(SSyncNode* ths, SRaftId* pRaftId);
+SSyncSnapshotSender* syncNodeGetSnapshotSender(SSyncNode* ths, SRaftId* pDestId);
+
+int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
+int32_t syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct SSnapshotMeta* sMeta);
+
+void syncStartNormal(int64_t rid);
+void syncStartStandBy(int64_t rid);
+
+bool syncNodeCanChange(SSyncNode* pSyncNode);
+bool syncNodeCheckNewConfig(SSyncNode* pSyncNode, const SSyncCfg* pNewCfg);
+
+int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode);
+int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader);
+int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry);
+
+// trace log
+void syncLogSendRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s);
+void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s);
+
+void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s);
+void syncLogRecvRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s);
+
+void syncLogSendAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s);
+void syncLogRecvAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s);
+
+void syncLogSendAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntriesBatch* pMsg, const char* s);
+void syncLogRecvAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntriesBatch* pMsg, const char* s);
+
+void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s);
+void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s);
+
 // for debug --------------
 void syncNodePrint(SSyncNode* pObj);
 void syncNodePrint2(char* s, SSyncNode* pObj);
 void syncNodeLog(SSyncNode* pObj);
 void syncNodeLog2(char* s, SSyncNode* pObj);
+void syncNodeLog3(char* s, SSyncNode* pObj);
 
 #ifdef __cplusplus
 }

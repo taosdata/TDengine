@@ -1,0 +1,63 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = scd_db
+$tbPrefix = scd_tb
+$stbPrefix = scd_stb
+$tbNum = 20
+$rowNum = 10
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== select_from_cache_disk.sim
+$i = 0
+$db = $dbPrefix
+$stb = $stbPrefix
+$tb = $tbPrefix
+
+sql drop database if exists $db
+sql create database $db
+sql use $db
+print ====== create tables
+sql create table $stb (ts timestamp, c1 int) tags(t1 int)
+sql create table $tb using $stb tags( 1 )
+# generate some data on disk
+sql insert into $tb values ('2018-09-17 09:00:00.000', 0)
+sql insert into $tb values ('2018-09-17 09:00:00.010', 1)
+sql insert into $tb values ('2018-09-17 09:00:00.020', 2)
+sql insert into $tb values ('2018-09-17 09:00:00.030', 3)
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+
+# generate some data in cache
+sql insert into $tb values ('2018-09-17 09:00:04.000', 4)
+sql insert into $tb values ('2018-09-17 09:00:04.010', 5)
+sql select _wstart, count(*), t1 from $stb partition by t1 interval(1s) order by _wstart
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 4 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data10 != @18-09-17 09:00:04.000@ then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+if $data12 != 1 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

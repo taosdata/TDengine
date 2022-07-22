@@ -82,7 +82,8 @@ int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg)
   return 0;
 }
 
-void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *)) {
+void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int,
+							    TXN *, SBTree *pBt)) {
   pPage->pPageHdr = pPage->pData + szAmHdr;
   TDB_PAGE_NCELLS_SET(pPage, 0);
   TDB_PAGE_CCELLS_SET(pPage, pPage->pageSize - sizeof(SPageFtr));
@@ -98,7 +99,8 @@ void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell
   ASSERT((u8 *)pPage->pPageFtr == pPage->pFreeEnd);
 }
 
-void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *)) {
+void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int,
+							    TXN *, SBTree *pBt)) {
   pPage->pPageHdr = pPage->pData + szAmHdr;
   pPage->pCellIdx = pPage->pPageHdr + TDB_PAGE_HDR_SIZE(pPage);
   pPage->pFreeStart = pPage->pCellIdx + TDB_PAGE_OFFSET_SIZE(pPage) * TDB_PAGE_NCELLS(pPage);
@@ -171,12 +173,12 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
   return 0;
 }
 
-int tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
-  tdbPageDropCell(pPage, idx);
+int tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell, TXN *pTxn, SBTree *pBt) {
+  tdbPageDropCell(pPage, idx, pTxn, pBt);
   return tdbPageInsertCell(pPage, idx, pCell, szCell, 0);
 }
 
-int tdbPageDropCell(SPage *pPage, int idx) {
+int tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt) {
   int    lidx;
   SCell *pCell;
   int    szCell;
@@ -205,7 +207,7 @@ int tdbPageDropCell(SPage *pPage, int idx) {
 
   lidx = idx - iOvfl;
   pCell = TDB_PAGE_CELL_AT(pPage, lidx);
-  szCell = (*pPage->xCellSize)(pPage, pCell);
+  szCell = (*pPage->xCellSize)(pPage, pCell, 1, pTxn, pBt);
   tdbPageFree(pPage, lidx, pCell, szCell);
   TDB_PAGE_NCELLS_SET(pPage, nCells - 1);
 
@@ -246,14 +248,17 @@ void tdbPageCopy(SPage *pFromPage, SPage *pToPage) {
 
 int tdbPageCapacity(int pageSize, int amHdrSize) {
   int szPageHdr;
+  int minCellIndexSize; // at least one cell in cell index
 
   if (pageSize < 65536) {
     szPageHdr = pageMethods.szPageHdr;
+    minCellIndexSize = pageMethods.szOffset;
   } else {
     szPageHdr = pageLargeMethods.szPageHdr;
+    minCellIndexSize = pageLargeMethods.szOffset;
   }
 
-  return pageSize - szPageHdr - amHdrSize;
+  return pageSize - szPageHdr - amHdrSize - sizeof(SPageFtr) - minCellIndexSize;
 }
 
 static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
@@ -417,7 +422,7 @@ static int tdbPageDefragment(SPage *pPage) {
 
     ASSERT(pCell != NULL);
 
-    szCell = (*pPage->xCellSize)(pPage, pCell);
+    szCell = (*pPage->xCellSize)(pPage, pCell, 0, NULL, NULL);
 
     ASSERT(pCell + szCell <= pNextCell);
     if (pCell + szCell < pNextCell) {

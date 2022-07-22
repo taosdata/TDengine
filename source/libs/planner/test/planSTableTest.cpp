@@ -38,5 +38,5 @@ TEST_F(PlanSuperTableTest, pseudoColOnChildTable) {
 TEST_F(PlanSuperTableTest, orderBy) {
   useDb("root", "test");
 
-  run("SELECT -1*c1, c1 FROM st1 ORDER BY -1*c1");
+  run("SELECT -1 * c1, c1 FROM st1 ORDER BY -1 * c1");
 }

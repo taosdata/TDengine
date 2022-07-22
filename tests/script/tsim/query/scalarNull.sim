@@ -4,7 +4,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c wallevel -v 2
 system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
 
-print ========= start dnode1 as LEADER
+print ========= start dnode1 as leader
 system sh/exec.sh -n dnode1 -s start
 sleep 2000
 sql connect
@@ -66,6 +66,7 @@ if $rows != 0 then
   return -1
 endi
 sql select * from tb1 where null;
+print $rows
 if $rows != 0 then
   return -1
 endi
@@ -87,6 +88,11 @@ endi
 
 #TODO: MOVE IT TO NORMAL CASE
 sql_error select * from tb1 where not (null);
+
+sql select sum(1/0) from tb1;
+if $rows != 1 then
+  return -1
+endi
 
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

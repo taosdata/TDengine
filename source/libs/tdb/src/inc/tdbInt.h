@@ -116,13 +116,25 @@ typedef struct SBtInfo {
   int   nData;
 } SBtInfo;
 
+#define TDB_CELLD_F_NIL 0x0
+#define TDB_CELLD_F_KEY 0x1
+#define TDB_CELLD_F_VAL 0x2
+
+#define TDB_CELLDECODER_SET_FREE_NIL(pCellDecoder) ((pCellDecoder)->freeKV = TDB_CELLD_F_NIL)
+#define TDB_CELLDECODER_SET_FREE_KEY(pCellDecoder) ((pCellDecoder)->freeKV |= TDB_CELLD_F_KEY)
+#define TDB_CELLDECODER_SET_FREE_VAL(pCellDecoder) ((pCellDecoder)->freeKV |= TDB_CELLD_F_VAL)
+
+#define TDB_CELLDECODER_FREE_KEY(pCellDecoder) ((pCellDecoder)->freeKV & TDB_CELLD_F_KEY)
+#define TDB_CELLDECODER_FREE_VAL(pCellDecoder) ((pCellDecoder)->freeKV & TDB_CELLD_F_VAL)
+
 typedef struct {
-  int       kLen;
-  const u8 *pKey;
-  int       vLen;
-  const u8 *pVal;
-  SPgno     pgno;
-  u8       *pBuf;
+  int   kLen;
+  u8   *pKey;
+  int   vLen;
+  u8   *pVal;
+  SPgno pgno;
+  u8   *pBuf;
+  u8    freeKV;
 } SCellDecoder;
 
 struct SBTC {
@@ -138,13 +150,21 @@ struct SBTC {
 };
 
 // SBTree
-int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, tdb_cmpr_fn_t kcmpr, SBTree **ppBt);
+int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, char const *tbname, SPgno pgno, tdb_cmpr_fn_t kcmpr,
+                 SBTree **ppBt);
 int tdbBtreeClose(SBTree *pBt);
 int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn);
 int tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn);
 int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, int nData, TXN *pTxn);
 int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen);
 int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
+
+typedef struct {
+  u8      flags;
+  SBTree *pBt;
+} SBtreeInitPageArg;
+
+int tdbBtreeInitPage(SPage *pPage, void *arg, int init);
 
 // SBTC
 int tdbBtcOpen(SBTC *pBtc, SBTree *pBt, TXN *pTxn);
@@ -156,6 +176,7 @@ int tdbBtcMoveToLast(SBTC *pBtc);
 int tdbBtcMoveToNext(SBTC *pBtc);
 int tdbBtcMoveToPrev(SBTC *pBtc);
 int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen);
+int tdbBtreePrev(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen);
 int tdbBtcGet(SBTC *pBtc, const void **ppKey, int *kLen, const void **ppVal, int *vLen);
 int tdbBtcDelete(SBTC *pBtc);
 int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int nData, int insert);
@@ -164,7 +185,7 @@ int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int 
 
 int  tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager);
 int  tdbPagerClose(SPager *pPager);
-int  tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate);
+int  tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate, SBTree *pBt);
 int  tdbPagerWrite(SPager *pPager, SPage *pPage);
 int  tdbPagerBegin(SPager *pPager, TXN *pTxn);
 int  tdbPagerCommit(SPager *pPager, TXN *pTxn);
@@ -172,6 +193,7 @@ int  tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initP
                        TXN *pTxn);
 void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn);
 int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
+int  tdbPagerRestore(SPager *pPager, SBTree *pBt);
 
 // tdbPCache.c ====================================
 #define TDB_PCACHE_PAGE    \
@@ -250,7 +272,7 @@ struct SPage {
   int       vLen;  // value length of the page, -1 for unknown
   int       maxLocal;
   int       minLocal;
-  int (*xCellSize)(const SPage *, SCell *);
+  int (*xCellSize)(const SPage *, SCell *, int, TXN *pTxn, SBTree *pBt);
   // Fields used by SPCache
   TDB_PCACHE_PAGE
 };
@@ -293,20 +315,21 @@ static inline int tdbTryLockPage(tdb_spinlock_t *pLock) {
 #define TDB_TRY_LOCK_PAGE(pPage)     tdbTryLockPage(&((pPage)->lock))
 
 // APIs
-#define TDB_PAGE_TOTAL_CELLS(pPage)        ((pPage)->nOverflow + (pPage)->pPageMethods->getCellNum(pPage))
-#define TDB_PAGE_USABLE_SIZE(pPage)        ((u8 *)(pPage)->pPageFtr - (pPage)->pCellIdx)
-#define TDB_PAGE_FREE_SIZE(pPage)          (*(pPage)->pPageMethods->getFreeBytes)(pPage)
-#define TDB_PAGE_PGNO(pPage)               ((pPage)->pgid.pgno)
-#define TDB_BYTES_CELL_TAKEN(pPage, pCell) ((*(pPage)->xCellSize)(pPage, pCell) + (pPage)->pPageMethods->szOffset)
-#define TDB_PAGE_OFFSET_SIZE(pPage)        ((pPage)->pPageMethods->szOffset)
+#define TDB_PAGE_TOTAL_CELLS(pPage) ((pPage)->nOverflow + (pPage)->pPageMethods->getCellNum(pPage))
+#define TDB_PAGE_USABLE_SIZE(pPage) ((u8 *)(pPage)->pPageFtr - (pPage)->pCellIdx)
+#define TDB_PAGE_FREE_SIZE(pPage)   (*(pPage)->pPageMethods->getFreeBytes)(pPage)
+#define TDB_PAGE_PGNO(pPage)        ((pPage)->pgid.pgno)
+#define TDB_BYTES_CELL_TAKEN(pPage, pCell) \
+  ((*(pPage)->xCellSize)(pPage, pCell, 0, NULL, NULL) + (pPage)->pPageMethods->szOffset)
+#define TDB_PAGE_OFFSET_SIZE(pPage) ((pPage)->pPageMethods->szOffset)
 
 int  tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg);
 int  tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg);
-void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *));
-void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *));
+void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt));
+void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt));
 int  tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl);
-int  tdbPageDropCell(SPage *pPage, int idx);
-int  tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell);
+int  tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt);
+int  tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell, TXN *pTxn, SBTree *pBt);
 void tdbPageCopy(SPage *pFromPage, SPage *pToPage);
 int  tdbPageCapacity(int pageSize, int amHdrSize);
 
@@ -334,6 +357,12 @@ static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
   return pCell;
 }
 
+#define USE_MAINDB
+
+#ifdef USE_MAINDB
+#define TDB_MAINDB_NAME "main.tdb"
+#endif
+
 struct STDB {
   char    *dbName;
   char    *jnName;
@@ -343,6 +372,9 @@ struct STDB {
   int      nPager;
   int      nPgrHash;
   SPager **pgrHash;
+#ifdef USE_MAINDB
+  TTB *pMainDb;
+#endif
 };
 
 struct SPager {
@@ -359,6 +391,9 @@ struct SPager {
   u8       inTran;
   SPager  *pNext;      // used by TDB
   SPager  *pHashNext;  // used by TDB
+#ifdef USE_MAINDB
+  TDB *pEnv;
+#endif
 };
 
 #ifdef __cplusplus

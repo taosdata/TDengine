@@ -53,6 +53,7 @@ void taosWLockLatch(SRWLatch *pLatch) {
   }
 }
 
+// no reentrant
 int32_t taosWTryLockLatch(SRWLatch *pLatch) {
   SRWLatch oLatch, nLatch;
   oLatch = atomic_load_32(pLatch);

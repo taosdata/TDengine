@@ -40,26 +40,27 @@ bool    tsPrintAuth = false;
 
 // multi process
 int32_t tsMultiProcess = 0;
-int32_t tsMnodeShmSize = TSDB_MAX_WAL_SIZE * 2 + 1024;
-int32_t tsVnodeShmSize = TSDB_MAX_WAL_SIZE * 10 + 1024;
-int32_t tsQnodeShmSize = TSDB_MAX_WAL_SIZE * 4 + 1024;
-int32_t tsSnodeShmSize = TSDB_MAX_WAL_SIZE * 4 + 1024;
-int32_t tsBnodeShmSize = TSDB_MAX_WAL_SIZE * 4 + 1024;
+int32_t tsMnodeShmSize = TSDB_MAX_MSG_SIZE * 2 + 1024;
+int32_t tsVnodeShmSize = TSDB_MAX_MSG_SIZE * 10 + 1024;
+int32_t tsQnodeShmSize = TSDB_MAX_MSG_SIZE * 4 + 1024;
+int32_t tsSnodeShmSize = TSDB_MAX_MSG_SIZE * 4 + 1024;
+int32_t tsBnodeShmSize = TSDB_MAX_MSG_SIZE * 4 + 1024;
 int32_t tsNumOfShmThreads = 1;
 
 // queue & threads
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfCommitThreads = 2;
 int32_t tsNumOfTaskQueueThreads = 1;
-int32_t tsNumOfMnodeQueryThreads = 1;
+int32_t tsNumOfMnodeQueryThreads = 4;
+int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
-int32_t tsNumOfVnodeQueryThreads = 2;
-int32_t tsNumOfVnodeFetchThreads = 2;
+int32_t tsNumOfVnodeQueryThreads = 4;
+int32_t tsNumOfVnodeStreamThreads = 2;
+int32_t tsNumOfVnodeFetchThreads = 4;
 int32_t tsNumOfVnodeWriteThreads = 2;
 int32_t tsNumOfVnodeSyncThreads = 2;
-int32_t tsNumOfVnodeMergeThreads = 2;
-int32_t tsNumOfQnodeQueryThreads = 2;
-int32_t tsNumOfQnodeFetchThreads = 2;
+int32_t tsNumOfQnodeQueryThreads = 4;
+int32_t tsNumOfQnodeFetchThreads = 4;
 int32_t tsNumOfSnodeSharedThreads = 2;
 int32_t tsNumOfSnodeUniqueThreads = 2;
 
@@ -86,6 +87,7 @@ bool tsSmlDataFormat =
 
 // query
 int32_t tsQueryPolicy = 1;
+int32_t tsQuerySmaOptimize = 1;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -104,21 +106,16 @@ int32_t tsCompressMsgSize = -1;
  */
 int32_t tsCompressColData = -1;
 
-/*
- * denote if 3.0 query pattern compatible for 2.0
- */
-int32_t tsCompatibleModel = 1;
-
 // count/hyperloglog function always return values in case of all NULL data or Empty data set.
 int32_t tsCountAlwaysReturnValue = 1;
 
 // 10 ms for sliding time, the value will changed in case of time precision changed
-int32_t   tsMinSlidingTime = 10;
+int32_t tsMinSlidingTime = 10;
 
 // the maxinum number of distict query result
 int32_t tsMaxNumOfDistinctResults = 1000 * 10000;
 
-// 1 us for interval time range, changed accordingly
+// 1 database precision unit for interval time range, changed accordingly
 int32_t tsMinIntervalTime = 1;
 
 // 20sec, the maximum value of stream computing delay, changed accordingly
@@ -159,7 +156,7 @@ int32_t  tsDiskCfgNum = 0;
 SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
 
 // stream scheduler
-bool tsStreamSchedV = true;
+bool tsSchedStreamToSnode = true;
 
 /*
  * minimum scale for whole system, millisecond by default
@@ -183,8 +180,11 @@ char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPR
 bool tsStartUdfd = true;
 
 // internal
-int32_t tsTransPullupInterval = 6;
+int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
+int32_t tsTtlUnit = 86400;
+int32_t tsTtlPushInterval = 86400;
+int32_t tsGrantHBInterval = 60;
 
 void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary) {
   tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
@@ -287,15 +287,14 @@ int32_t taosAddClientLogCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "numOfLogLines", tsNumOfLogLines, 1000, 2000000000, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "asyncLog", tsAsyncLog, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "logKeepDays", 0, -365000, 365000, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "cDebugFlag", cDebugFlag, 0, 255, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "debugFlag", 0, 0, 255, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "simDebugFlag", 143, 0, 255, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "tmrDebugFlag", tmrDebugFlag, 0, 255, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "uDebugFlag", uDebugFlag, 0, 255, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "rpcDebugFlag", rpcDebugFlag, 0, 255, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "qDebugFlag", qDebugFlag, 0, 255, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "tmrDebugFlag", tmrDebugFlag, 0, 255, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "jniDebugFlag", jniDebugFlag, 0, 255, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "simDebugFlag", 143, 0, 255, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "debugFlag", 0, 0, 255, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "idxDebugFlag", idxDebugFlag, 0, 255, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "qDebugFlag", qDebugFlag, 0, 255, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "cDebugFlag", cDebugFlag, 0, 255, 1) != 0) return -1;
   return 0;
 }
 
@@ -303,13 +302,12 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "dDebugFlag", dDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "vDebugFlag", vDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "mDebugFlag", mDebugFlag, 0, 255, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "qDebugFlag", qDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "wDebugFlag", wDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "sDebugFlag", sDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "tsdbDebugFlag", tsdbDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "tqDebugFlag", tqDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "fsDebugFlag", fsDebugFlag, 0, 255, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "fnDebugFlag", fnDebugFlag, 0, 255, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "udfDebugFlag", udfDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "smaDebugFlag", smaDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "idxDebugFlag", idxDebugFlag, 0, 255, 0) != 0) return -1;
   return 0;
@@ -331,8 +329,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "compressColData", tsCompressColData, -1, 100000000, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "keepColumnName", tsKeepOriginalColumnName, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryPolicy", tsQueryPolicy, 1, 3, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "querySmaOptimize", tsQuerySmaOptimize, 0, 1, 1) != 0) return -1;
   if (cfgAddString(pCfg, "smlChildTableName", "", 1) != 0) return -1;
-  if (cfgAddString(pCfg, "smlTagNullName", tsSmlTagName, 1) != 0) return -1;
+  if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 4;
@@ -388,11 +387,11 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "deadLockKillQuery", tsDeadLockKillQuery, 0) != 0) return -1;
 
   if (cfgAddInt32(pCfg, "multiProcess", tsMultiProcess, 0, 2, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "mnodeShmSize", tsMnodeShmSize, TSDB_MAX_WAL_SIZE * 2 + 1024, INT32_MAX, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "vnodeShmSize", tsVnodeShmSize, TSDB_MAX_WAL_SIZE * 2 + 1024, INT32_MAX, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "qnodeShmSize", tsQnodeShmSize, TSDB_MAX_WAL_SIZE * 2 + 1024, INT32_MAX, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "snodeShmSize", tsSnodeShmSize, TSDB_MAX_WAL_SIZE * 2 + 1024, INT32_MAX, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "bnodeShmSize", tsBnodeShmSize, TSDB_MAX_WAL_SIZE * 2 + 1024, INT32_MAX, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "mnodeShmSize", tsMnodeShmSize, TSDB_MAX_MSG_SIZE * 2 + 1024, INT32_MAX, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "vnodeShmSize", tsVnodeShmSize, TSDB_MAX_MSG_SIZE * 2 + 1024, INT32_MAX, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "qnodeShmSize", tsQnodeShmSize, TSDB_MAX_MSG_SIZE * 2 + 1024, INT32_MAX, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "snodeShmSize", tsSnodeShmSize, TSDB_MAX_MSG_SIZE * 2 + 1024, INT32_MAX, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "bnodeShmSize", tsBnodeShmSize, TSDB_MAX_MSG_SIZE * 2 + 1024, INT32_MAX, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "mumOfShmThreads", tsNumOfShmThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
@@ -403,40 +402,40 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfCommitThreads = TRANGE(tsNumOfCommitThreads, 2, 4);
   if (cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 1024, 0) != 0) return -1;
 
-  tsNumOfMnodeQueryThreads = tsNumOfCores / 8;
-  tsNumOfMnodeQueryThreads = TRANGE(tsNumOfMnodeQueryThreads, 1, 4);
+  tsNumOfMnodeQueryThreads = tsNumOfCores * 2;
+  tsNumOfMnodeQueryThreads = TRANGE(tsNumOfMnodeQueryThreads, 4, 8);
   if (cfgAddInt32(pCfg, "numOfMnodeQueryThreads", tsNumOfMnodeQueryThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfMnodeReadThreads = tsNumOfCores / 8;
   tsNumOfMnodeReadThreads = TRANGE(tsNumOfMnodeReadThreads, 1, 4);
   if (cfgAddInt32(pCfg, "numOfMnodeReadThreads", tsNumOfMnodeReadThreads, 1, 1024, 0) != 0) return -1;
 
-  tsNumOfVnodeQueryThreads = tsNumOfCores / 2;
-  tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 1);
+  tsNumOfVnodeQueryThreads = tsNumOfCores * 2;
+  tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 4);
   if (cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 1, 1024, 0) != 0) return -1;
 
-  tsNumOfVnodeFetchThreads = tsNumOfCores / 2;
-  tsNumOfVnodeFetchThreads = TRANGE(tsNumOfVnodeFetchThreads, 2, 4);
+  tsNumOfVnodeStreamThreads = tsNumOfCores / 4;
+  tsNumOfVnodeStreamThreads = TMAX(tsNumOfVnodeStreamThreads, 4);
+  if (cfgAddInt32(pCfg, "numOfVnodeStreamThreads", tsNumOfVnodeStreamThreads, 1, 1024, 0) != 0) return -1;
+
+  tsNumOfVnodeFetchThreads = tsNumOfCores / 4;
+  tsNumOfVnodeFetchThreads = TMAX(tsNumOfVnodeFetchThreads, 4);
   if (cfgAddInt32(pCfg, "numOfVnodeFetchThreads", tsNumOfVnodeFetchThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfVnodeWriteThreads = tsNumOfCores;
   tsNumOfVnodeWriteThreads = TMAX(tsNumOfVnodeWriteThreads, 1);
   if (cfgAddInt32(pCfg, "numOfVnodeWriteThreads", tsNumOfVnodeWriteThreads, 1, 1024, 0) != 0) return -1;
 
-  tsNumOfVnodeSyncThreads = tsNumOfCores / 2;
+  tsNumOfVnodeSyncThreads = tsNumOfCores;
   tsNumOfVnodeSyncThreads = TMAX(tsNumOfVnodeSyncThreads, 1);
   if (cfgAddInt32(pCfg, "numOfVnodeSyncThreads", tsNumOfVnodeSyncThreads, 1, 1024, 0) != 0) return -1;
 
-  tsNumOfVnodeMergeThreads = tsNumOfCores / 8;
-  tsNumOfVnodeMergeThreads = TRANGE(tsNumOfVnodeMergeThreads, 1, 1);
-  if (cfgAddInt32(pCfg, "numOfVnodeMergeThreads", tsNumOfVnodeMergeThreads, 1, 1024, 0) != 0) return -1;
-
-  tsNumOfQnodeQueryThreads = tsNumOfCores / 2;
-  tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 1);
+  tsNumOfQnodeQueryThreads = tsNumOfCores * 2;
+  tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 4);
   if (cfgAddInt32(pCfg, "numOfQnodeQueryThreads", tsNumOfQnodeQueryThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfQnodeFetchThreads = tsNumOfCores / 2;
-  tsNumOfQnodeFetchThreads = TRANGE(tsNumOfQnodeFetchThreads, 2, 4);
+  tsNumOfQnodeFetchThreads = TMAX(tsNumOfQnodeFetchThreads, 4);
   if (cfgAddInt32(pCfg, "numOfQnodeFetchThreads", tsNumOfQnodeFetchThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfSnodeSharedThreads = tsNumOfCores / 4;
@@ -448,8 +447,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "numOfSnodeUniqueThreads", tsNumOfSnodeUniqueThreads, 1, 1024, 0) != 0) return -1;
 
   tsRpcQueueMemoryAllowed = tsTotalMemoryKB * 1024 * 0.1;
-  tsRpcQueueMemoryAllowed = TRANGE(tsRpcQueueMemoryAllowed, TSDB_MAX_WAL_SIZE * 10L, TSDB_MAX_WAL_SIZE * 10000L);
-  if (cfgAddInt64(pCfg, "rpcQueueMemoryAllowed", tsRpcQueueMemoryAllowed, TSDB_MAX_WAL_SIZE * 10L, INT64_MAX, 0) != 0)
+  tsRpcQueueMemoryAllowed = TRANGE(tsRpcQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, TSDB_MAX_MSG_SIZE * 10000L);
+  if (cfgAddInt64(pCfg, "rpcQueueMemoryAllowed", tsRpcQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, INT64_MAX, 0) != 0)
     return -1;
 
   if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, 0) != 0) return -1;
@@ -466,6 +465,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "ttlUnit", tsTtlUnit, 1, 86400 * 365, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "ttlPushInterval", tsTtlPushInterval, 1, 100000, 1) != 0) return -1;
 
   if (cfgAddBool(pCfg, "udf", tsStartUdfd, 0) != 0) return -1;
   return 0;
@@ -479,26 +480,24 @@ static void taosSetClientLogCfg(SConfig *pCfg) {
   tsNumOfLogLines = cfgGetItem(pCfg, "numOfLogLines")->i32;
   tsAsyncLog = cfgGetItem(pCfg, "asyncLog")->bval;
   tsLogKeepDays = cfgGetItem(pCfg, "logKeepDays")->i32;
-  cDebugFlag = cfgGetItem(pCfg, "cDebugFlag")->i32;
-  uDebugFlag = cfgGetItem(pCfg, "uDebugFlag")->i32;
-  qDebugFlag = cfgGetItem(pCfg, "qDebugFlag")->i32;
-  rpcDebugFlag = cfgGetItem(pCfg, "rpcDebugFlag")->i32;
   tmrDebugFlag = cfgGetItem(pCfg, "tmrDebugFlag")->i32;
+  uDebugFlag = cfgGetItem(pCfg, "uDebugFlag")->i32;
   jniDebugFlag = cfgGetItem(pCfg, "jniDebugFlag")->i32;
-  idxDebugFlag = cfgGetItem(pCfg, "idxDebugFlag")->i32;
+  rpcDebugFlag = cfgGetItem(pCfg, "rpcDebugFlag")->i32;
+  qDebugFlag = cfgGetItem(pCfg, "qDebugFlag")->i32;
+  cDebugFlag = cfgGetItem(pCfg, "cDebugFlag")->i32;
 }
 
 static void taosSetServerLogCfg(SConfig *pCfg) {
   dDebugFlag = cfgGetItem(pCfg, "dDebugFlag")->i32;
   vDebugFlag = cfgGetItem(pCfg, "vDebugFlag")->i32;
   mDebugFlag = cfgGetItem(pCfg, "mDebugFlag")->i32;
-  qDebugFlag = cfgGetItem(pCfg, "qDebugFlag")->i32;
   wDebugFlag = cfgGetItem(pCfg, "wDebugFlag")->i32;
   sDebugFlag = cfgGetItem(pCfg, "sDebugFlag")->i32;
   tsdbDebugFlag = cfgGetItem(pCfg, "tsdbDebugFlag")->i32;
   tqDebugFlag = cfgGetItem(pCfg, "tqDebugFlag")->i32;
   fsDebugFlag = cfgGetItem(pCfg, "fsDebugFlag")->i32;
-  fnDebugFlag = cfgGetItem(pCfg, "fnDebugFlag")->i32;
+  udfDebugFlag = cfgGetItem(pCfg, "udfDebugFlag")->i32;
   smaDebugFlag = cfgGetItem(pCfg, "smaDebugFlag")->i32;
   idxDebugFlag = cfgGetItem(pCfg, "idxDebugFlag")->i32;
 }
@@ -532,7 +531,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   }
 
   tstrncpy(tsSmlChildTableName, cfgGetItem(pCfg, "smlChildTableName")->str, TSDB_TABLE_NAME_LEN);
-  tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagNullName")->str, TSDB_COL_NAME_LEN);
+  tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
   tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
 
   tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
@@ -541,6 +540,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsKeepOriginalColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
   tsNumOfTaskQueueThreads = cfgGetItem(pCfg, "numOfTaskQueueThreads")->i32;
   tsQueryPolicy = cfgGetItem(pCfg, "queryPolicy")->i32;
+  tsQuerySmaOptimize = cfgGetItem(pCfg, "querySmaOptimize")->i32;
   return 0;
 }
 
@@ -556,7 +556,7 @@ static void taosSetSystemCfg(SConfig *pCfg) {
   osSetSystemLocale(locale, charset);
 
   bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
-  taosSetConsoleEcho(enableCore);
+  taosSetCoreDump(enableCore);
 
   // todo
   tsVersion = 30000000;
@@ -593,10 +593,10 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsNumOfMnodeQueryThreads = cfgGetItem(pCfg, "numOfMnodeQueryThreads")->i32;
   tsNumOfMnodeReadThreads = cfgGetItem(pCfg, "numOfMnodeReadThreads")->i32;
   tsNumOfVnodeQueryThreads = cfgGetItem(pCfg, "numOfVnodeQueryThreads")->i32;
+  tsNumOfVnodeStreamThreads = cfgGetItem(pCfg, "numOfVnodeStreamThreads")->i32;
   tsNumOfVnodeFetchThreads = cfgGetItem(pCfg, "numOfVnodeFetchThreads")->i32;
   tsNumOfVnodeWriteThreads = cfgGetItem(pCfg, "numOfVnodeWriteThreads")->i32;
   tsNumOfVnodeSyncThreads = cfgGetItem(pCfg, "numOfVnodeSyncThreads")->i32;
-  tsNumOfVnodeMergeThreads = cfgGetItem(pCfg, "numOfVnodeMergeThreads")->i32;
   tsNumOfQnodeQueryThreads = cfgGetItem(pCfg, "numOfQnodeQueryThreads")->i32;
   tsNumOfQnodeFetchThreads = cfgGetItem(pCfg, "numOfQnodeFetchThreads")->i32;
   tsNumOfSnodeSharedThreads = cfgGetItem(pCfg, "numOfSnodeSharedThreads")->i32;
@@ -617,6 +617,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
   tsMqRebalanceInterval = cfgGetItem(pCfg, "mqRebalanceInterval")->i32;
+  tsTtlUnit = cfgGetItem(pCfg, "ttlUnit")->i32;
+  tsTtlPushInterval = cfgGetItem(pCfg, "ttlPushInterval")->i32;
 
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
 
@@ -627,9 +629,377 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   return 0;
 }
 
+int32_t taosSetCfg(SConfig *pCfg, char *name) {
+  int32_t len = strlen(name);
+  char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
+  strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
+
+  switch (lowcaseName[0]) {
+    case 'a': {
+      if (strcasecmp("asyncLog", name) == 0) {
+        tsAsyncLog = cfgGetItem(pCfg, "asyncLog")->bval;
+      }
+      break;
+    }
+    case 'b': {
+      if (strcasecmp("bnodeShmSize", name) == 0) {
+        tsBnodeShmSize = cfgGetItem(pCfg, "bnodeShmSize")->i32;
+      }
+      break;
+    }
+    case 'c': {
+      if (strcasecmp("charset", name) == 0) {
+        const char *locale = cfgGetItem(pCfg, "locale")->str;
+        const char *charset = cfgGetItem(pCfg, "charset")->str;
+        taosSetSystemLocale(locale, charset);
+        osSetSystemLocale(locale, charset);
+      } else if (strcasecmp("compressMsgSize", name) == 0) {
+        tsCompressMsgSize = cfgGetItem(pCfg, "compressMsgSize")->i32;
+      } else if (strcasecmp("compressColData", name) == 0) {
+        tsCompressColData = cfgGetItem(pCfg, "compressColData")->i32;
+      } else if (strcasecmp("countAlwaysReturnValue", name) == 0) {
+        tsCountAlwaysReturnValue = cfgGetItem(pCfg, "countAlwaysReturnValue")->i32;
+      } else if (strcasecmp("cDebugFlag", name) == 0) {
+        cDebugFlag = cfgGetItem(pCfg, "cDebugFlag")->i32;
+      }
+      break;
+    }
+    case 'd': {
+      if (strcasecmp("deadLockKillQuery", name) == 0) {
+        tsDeadLockKillQuery = cfgGetItem(pCfg, "deadLockKillQuery")->i32;
+      } else if (strcasecmp("dDebugFlag", name) == 0) {
+        dDebugFlag = cfgGetItem(pCfg, "dDebugFlag")->i32;
+      }
+      break;
+    }
+    case 'e': {
+      if (strcasecmp("enableCoreFile", name) == 0) {
+        bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
+        taosSetCoreDump(enableCore);
+      }
+      break;
+    }
+    case 'f': {
+      if (strcasecmp("fqdn", name) == 0) {
+        tstrncpy(tsLocalFqdn, cfgGetItem(pCfg, "fqdn")->str, TSDB_FQDN_LEN);
+        tsServerPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
+        snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
+
+        char defaultFirstEp[TSDB_EP_LEN] = {0};
+        snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
+
+        SConfigItem *pFirstEpItem = cfgGetItem(pCfg, "firstEp");
+        SEp          firstEp = {0};
+        taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp);
+        snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
+        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
+      } else if (strcasecmp("firstEp", name) == 0) {
+        tstrncpy(tsLocalFqdn, cfgGetItem(pCfg, "fqdn")->str, TSDB_FQDN_LEN);
+        tsServerPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
+        snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
+
+        char defaultFirstEp[TSDB_EP_LEN] = {0};
+        snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
+
+        SConfigItem *pFirstEpItem = cfgGetItem(pCfg, "firstEp");
+        SEp          firstEp = {0};
+        taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp);
+        snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
+        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
+      } else if (strcasecmp("fsDebugFlag", name) == 0) {
+        fsDebugFlag = cfgGetItem(pCfg, "fsDebugFlag")->i32;
+      }
+      break;
+    }
+    case 'i': {
+      if (strcasecmp("idxDebugFlag", name) == 0) {
+        idxDebugFlag = cfgGetItem(pCfg, "idxDebugFlag")->i32;
+      }
+      break;
+    }
+    case 'j': {
+      if (strcasecmp("jniDebugFlag", name) == 0) {
+        jniDebugFlag = cfgGetItem(pCfg, "jniDebugFlag")->i32;
+      }
+      break;
+    }
+    case 'k': {
+      if (strcasecmp("keepColumnName", name) == 0) {
+        tsKeepOriginalColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
+      }
+      break;
+    }
+    case 'l': {
+      if (strcasecmp("locale", name) == 0) {
+        const char *locale = cfgGetItem(pCfg, "locale")->str;
+        const char *charset = cfgGetItem(pCfg, "charset")->str;
+        taosSetSystemLocale(locale, charset);
+        osSetSystemLocale(locale, charset);
+      } else if (strcasecmp("logDir", name) == 0) {
+        tstrncpy(tsLogDir, cfgGetItem(pCfg, "logDir")->str, PATH_MAX);
+        taosExpandDir(tsLogDir, tsLogDir, PATH_MAX);
+      } else if (strcasecmp("logKeepDays", name) == 0) {
+        tsLogKeepDays = cfgGetItem(pCfg, "logKeepDays")->i32;
+      }
+      break;
+    }
+    case 'm': {
+      switch (lowcaseName[1]) {
+        case 'a': {
+          if (strcasecmp("maxShellConns", name) == 0) {
+            tsMaxShellConns = cfgGetItem(pCfg, "maxShellConns")->i32;
+          } else if (strcasecmp("maxNumOfDistinctRes", name) == 0) {
+            tsMaxNumOfDistinctResults = cfgGetItem(pCfg, "maxNumOfDistinctRes")->i32;
+          } else if (strcasecmp("maxStreamCompDelay", name) == 0) {
+            tsMaxStreamComputDelay = cfgGetItem(pCfg, "maxStreamCompDelay")->i32;
+          } else if (strcasecmp("maxFirstStreamCompDelay", name) == 0) {
+            tsStreamCompStartDelay = cfgGetItem(pCfg, "maxFirstStreamCompDelay")->i32;
+          }
+          break;
+        }
+        case 'd': {
+          if (strcasecmp("mDebugFlag", name) == 0) {
+            mDebugFlag = cfgGetItem(pCfg, "mDebugFlag")->i32;
+          }
+          break;
+        }
+        case 'i': {
+          if (strcasecmp("minimalTempDirGB", name) == 0) {
+            tsTempSpace.reserved = cfgGetItem(pCfg, "minimalTempDirGB")->fval;
+          } else if (strcasecmp("minimalDataDirGB", name) == 0) {
+            tsDataSpace.reserved = cfgGetItem(pCfg, "minimalDataDirGB")->fval;
+          } else if (strcasecmp("minSlidingTime", name) == 0) {
+            tsMinSlidingTime = cfgGetItem(pCfg, "minSlidingTime")->i32;
+          } else if (strcasecmp("minIntervalTime", name) == 0) {
+            tsMinIntervalTime = cfgGetItem(pCfg, "minIntervalTime")->i32;
+          } else if (strcasecmp("minimalLogDirGB", name) == 0) {
+            tsLogSpace.reserved = cfgGetItem(pCfg, "minimalLogDirGB")->fval;
+          }
+          break;
+        }
+        case 'n': {
+          if (strcasecmp("mnodeShmSize", name) == 0) {
+            tsMnodeShmSize = cfgGetItem(pCfg, "mnodeShmSize")->i32;
+          }
+          break;
+        }
+        case 'o': {
+          if (strcasecmp("monitor", name) == 0) {
+            tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;
+          } else if (strcasecmp("monitorInterval", name) == 0) {
+            tsMonitorInterval = cfgGetItem(pCfg, "monitorInterval")->i32;
+          } else if (strcasecmp("monitorFqdn", name) == 0) {
+            tstrncpy(tsMonitorFqdn, cfgGetItem(pCfg, "monitorFqdn")->str, TSDB_FQDN_LEN);
+          } else if (strcasecmp("monitorPort", name) == 0) {
+            tsMonitorPort = (uint16_t)cfgGetItem(pCfg, "monitorPort")->i32;
+          } else if (strcasecmp("monitorMaxLogs", name) == 0) {
+            tsMonitorMaxLogs = cfgGetItem(pCfg, "monitorMaxLogs")->i32;
+          } else if (strcasecmp("monitorComp", name) == 0) {
+            tsMonitorComp = cfgGetItem(pCfg, "monitorComp")->bval;
+          }
+          break;
+        }
+        case 'q': {
+          if (strcasecmp("mqRebalanceInterval", name) == 0) {
+            tsMqRebalanceInterval = cfgGetItem(pCfg, "mqRebalanceInterval")->i32;
+          }
+          break;
+        }
+        case 'u': {
+          if (strcasecmp("multiProcess", name) == 0) {
+            tsMultiProcess = cfgGetItem(pCfg, "multiProcess")->bval;
+          } else if (strcasecmp("udfDebugFlag", name) == 0) {
+            udfDebugFlag = cfgGetItem(pCfg, "udfDebugFlag")->i32;
+          }
+          break;
+        }
+        default:
+          terrno = TSDB_CODE_CFG_NOT_FOUND;
+          return -1;
+      }
+      break;
+    }
+    case 'n': {
+      if (strcasecmp("numOfTaskQueueThreads", name) == 0) {
+        tsNumOfTaskQueueThreads = cfgGetItem(pCfg, "numOfTaskQueueThreads")->i32;
+      } else if (strcasecmp("numOfRpcThreads", name) == 0) {
+        tsNumOfRpcThreads = cfgGetItem(pCfg, "numOfRpcThreads")->i32;
+      } else if (strcasecmp("numOfCommitThreads", name) == 0) {
+        tsNumOfCommitThreads = cfgGetItem(pCfg, "numOfCommitThreads")->i32;
+      } else if (strcasecmp("numOfMnodeQueryThreads", name) == 0) {
+        tsNumOfMnodeQueryThreads = cfgGetItem(pCfg, "numOfMnodeQueryThreads")->i32;
+      } else if (strcasecmp("numOfMnodeReadThreads", name) == 0) {
+        tsNumOfMnodeReadThreads = cfgGetItem(pCfg, "numOfMnodeReadThreads")->i32;
+      } else if (strcasecmp("numOfVnodeQueryThreads", name) == 0) {
+        tsNumOfVnodeQueryThreads = cfgGetItem(pCfg, "numOfVnodeQueryThreads")->i32;
+      } else if (strcasecmp("numOfVnodeFetchThreads", name) == 0) {
+        tsNumOfVnodeFetchThreads = cfgGetItem(pCfg, "numOfVnodeFetchThreads")->i32;
+      } else if (strcasecmp("numOfVnodeWriteThreads", name) == 0) {
+        tsNumOfVnodeWriteThreads = cfgGetItem(pCfg, "numOfVnodeWriteThreads")->i32;
+      } else if (strcasecmp("numOfVnodeSyncThreads", name) == 0) {
+        tsNumOfVnodeSyncThreads = cfgGetItem(pCfg, "numOfVnodeSyncThreads")->i32;
+      } else if (strcasecmp("numOfQnodeQueryThreads", name) == 0) {
+        tsNumOfQnodeQueryThreads = cfgGetItem(pCfg, "numOfQnodeQueryThreads")->i32;
+      } else if (strcasecmp("numOfQnodeFetchThreads", name) == 0) {
+        tsNumOfQnodeFetchThreads = cfgGetItem(pCfg, "numOfQnodeFetchThreads")->i32;
+      } else if (strcasecmp("numOfSnodeSharedThreads", name) == 0) {
+        tsNumOfSnodeSharedThreads = cfgGetItem(pCfg, "numOfSnodeSharedThreads")->i32;
+      } else if (strcasecmp("numOfSnodeUniqueThreads", name) == 0) {
+        tsNumOfSnodeUniqueThreads = cfgGetItem(pCfg, "numOfSnodeUniqueThreads")->i32;
+      } else if (strcasecmp("numOfLogLines", name) == 0) {
+        tsNumOfLogLines = cfgGetItem(pCfg, "numOfLogLines")->i32;
+      }
+      break;
+    }
+    case 'p': {
+      if (strcasecmp("printAuth", name) == 0) {
+        tsPrintAuth = cfgGetItem(pCfg, "printAuth")->bval;
+      }
+      break;
+    }
+    case 'q': {
+      if (strcasecmp("queryPolicy", name) == 0) {
+        tsQueryPolicy = cfgGetItem(pCfg, "queryPolicy")->i32;
+      } else if (strcasecmp("querySmaOptimize", name) == 0) {
+        tsQuerySmaOptimize = cfgGetItem(pCfg, "querySmaOptimize")->i32;
+      } else if (strcasecmp("queryBufferSize", name) == 0) {
+        tsQueryBufferSize = cfgGetItem(pCfg, "queryBufferSize")->i32;
+        if (tsQueryBufferSize >= 0) {
+          tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
+        }
+      } else if (strcasecmp("qnodeShmSize", name) == 0) {
+        tsQnodeShmSize = cfgGetItem(pCfg, "qnodeShmSize")->i32;
+      } else if (strcasecmp("qDebugFlag", name) == 0) {
+        qDebugFlag = cfgGetItem(pCfg, "qDebugFlag")->i32;
+      }
+      break;
+    }
+    case 'r': {
+      if (strcasecmp("retryStreamCompDelay", name) == 0) {
+        tsRetryStreamCompDelay = cfgGetItem(pCfg, "retryStreamCompDelay")->i32;
+      } else if (strcasecmp("retrieveBlockingModel", name) == 0) {
+        tsRetrieveBlockingModel = cfgGetItem(pCfg, "retrieveBlockingModel")->bval;
+      } else if (strcasecmp("rpcQueueMemoryAllowed", name) == 0) {
+        tsRpcQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64;
+      } else if (strcasecmp("rpcDebugFlag", name) == 0) {
+        rpcDebugFlag = cfgGetItem(pCfg, "rpcDebugFlag")->i32;
+      }
+      break;
+    }
+    case 's': {
+      if (strcasecmp("secondEp", name) == 0) {
+        SConfigItem *pSecondpItem = cfgGetItem(pCfg, "secondEp");
+        SEp          secondEp = {0};
+        taosGetFqdnPortFromEp(strlen(pSecondpItem->str) == 0 ? tsFirst : pSecondpItem->str, &secondEp);
+        snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port);
+        cfgSetItem(pCfg, "secondEp", tsSecond, pSecondpItem->stype);
+      } else if (strcasecmp("smlChildTableName", name) == 0) {
+        tstrncpy(tsSmlChildTableName, cfgGetItem(pCfg, "smlChildTableName")->str, TSDB_TABLE_NAME_LEN);
+      } else if (strcasecmp("smlTagName", name) == 0) {
+        tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
+      } else if (strcasecmp("smlDataFormat", name) == 0) {
+        tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
+      } else if (strcasecmp("shellActivityTimer", name) == 0) {
+        tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
+      } else if (strcasecmp("supportVnodes", name) == 0) {
+        tsNumOfSupportVnodes = cfgGetItem(pCfg, "supportVnodes")->i32;
+      } else if (strcasecmp("statusInterval", name) == 0) {
+        tsStatusInterval = cfgGetItem(pCfg, "statusInterval")->i32;
+      } else if (strcasecmp("streamCompDelayRatio", name) == 0) {
+        tsStreamComputDelayRatio = cfgGetItem(pCfg, "streamCompDelayRatio")->fval;
+      } else if (strcasecmp("slaveQuery", name) == 0) {
+        tsEnableSlaveQuery = cfgGetItem(pCfg, "slaveQuery")->bval;
+      } else if (strcasecmp("snodeShmSize", name) == 0) {
+        tsSnodeShmSize = cfgGetItem(pCfg, "snodeShmSize")->i32;
+      } else if (strcasecmp("serverPort", name) == 0) {
+        tstrncpy(tsLocalFqdn, cfgGetItem(pCfg, "fqdn")->str, TSDB_FQDN_LEN);
+        tsServerPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
+        snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
+
+        char defaultFirstEp[TSDB_EP_LEN] = {0};
+        snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
+
+        SConfigItem *pFirstEpItem = cfgGetItem(pCfg, "firstEp");
+        SEp          firstEp = {0};
+        taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp);
+        snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
+        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
+      } else if (strcasecmp("sDebugFlag", name) == 0) {
+        sDebugFlag = cfgGetItem(pCfg, "sDebugFlag")->i32;
+      } else if (strcasecmp("smaDebugFlag", name) == 0) {
+        smaDebugFlag = cfgGetItem(pCfg, "smaDebugFlag")->i32;
+      }
+      break;
+    }
+    case 't': {
+      if (strcasecmp("timezone", name) == 0) {
+        SConfigItem *pItem = cfgGetItem(pCfg, "timezone");
+        osSetTimezone(pItem->str);
+        uDebug("timezone format changed from %s to %s", pItem->str, tsTimezoneStr);
+        cfgSetItem(pCfg, "timezone", tsTimezoneStr, pItem->stype);
+      } else if (strcasecmp("tempDir", name) == 0) {
+        tstrncpy(tsTempDir, cfgGetItem(pCfg, "tempDir")->str, PATH_MAX);
+        taosExpandDir(tsTempDir, tsTempDir, PATH_MAX);
+        if (taosMulMkDir(tsTempDir) != 0) {
+          uError("failed to create tempDir:%s since %s", tsTempDir, terrstr());
+          return -1;
+        }
+      } else if (strcasecmp("telemetryReporting", name) == 0) {
+        tsEnableTelem = cfgGetItem(pCfg, "telemetryReporting")->bval;
+      } else if (strcasecmp("telemetryInterval", name) == 0) {
+        tsTelemInterval = cfgGetItem(pCfg, "telemetryInterval")->i32;
+      } else if (strcasecmp("telemetryServer", name) == 0) {
+        tstrncpy(tsTelemServer, cfgGetItem(pCfg, "telemetryServer")->str, TSDB_FQDN_LEN);
+      } else if (strcasecmp("telemetryPort", name) == 0) {
+        tsTelemPort = (uint16_t)cfgGetItem(pCfg, "telemetryPort")->i32;
+      } else if (strcasecmp("transPullupInterval", name) == 0) {
+        tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
+      } else if (strcasecmp("ttlUnit", name) == 0) {
+        tsTtlUnit = cfgGetItem(pCfg, "ttlUnit")->i32;
+      } else if (strcasecmp("ttlPushInterval", name) == 0) {
+        tsTtlPushInterval = cfgGetItem(pCfg, "ttlPushInterval")->i32;
+      } else if (strcasecmp("tmrDebugFlag", name) == 0) {
+        tmrDebugFlag = cfgGetItem(pCfg, "tmrDebugFlag")->i32;
+      } else if (strcasecmp("tsdbDebugFlag", name) == 0) {
+        tsdbDebugFlag = cfgGetItem(pCfg, "tsdbDebugFlag")->i32;
+      } else if (strcasecmp("tqDebugFlag", name) == 0) {
+        tqDebugFlag = cfgGetItem(pCfg, "tqDebugFlag")->i32;
+      }
+      break;
+    }
+    case 'u': {
+      if (strcasecmp("udf", name) == 0) {
+        tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
+      } else if (strcasecmp("uDebugFlag", name) == 0) {
+        uDebugFlag = cfgGetItem(pCfg, "uDebugFlag")->i32;
+      }
+      break;
+    }
+    case 'v': {
+      if (strcasecmp("vnodeShmSize", name) == 0) {
+        tsVnodeShmSize = cfgGetItem(pCfg, "vnodeShmSize")->i32;
+      } else if (strcasecmp("vDebugFlag", name) == 0) {
+        vDebugFlag = cfgGetItem(pCfg, "vDebugFlag")->i32;
+      }
+      break;
+    }
+    case 'w': {
+      if (strcasecmp("wDebugFlag", name) == 0) {
+        wDebugFlag = cfgGetItem(pCfg, "wDebugFlag")->i32;
+      }
+      break;
+    }
+    default:
+      terrno = TSDB_CODE_CFG_NOT_FOUND;
+      return -1;
+  }
+
+  return 0;
+}
+
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {
-  osDefaultInit();
+  if (tsCfg == NULL) osDefaultInit();
 
   SConfig *pCfg = cfgInit();
   if (pCfg == NULL) return -1;
@@ -751,13 +1121,47 @@ void taosCleanupCfg() {
 }
 
 void taosCfgDynamicOptions(const char *option, const char *value) {
-  if (strcasecmp(option, "debugFlag") == 0) {
-    int32_t debugFlag = atoi(value);
-    taosSetAllDebugFlag(debugFlag);
+  if (strncasecmp(option, "debugFlag", 9) == 0) {
+    int32_t flag = atoi(value);
+    taosSetAllDebugFlag(flag);
+    return;
   }
 
   if (strcasecmp(option, "resetlog") == 0) {
     taosResetLog();
     cfgDumpCfg(tsCfg, 0, false);
+    return;
   }
+
+  if (strcasecmp(option, "monitor") == 0) {
+    int32_t monitor = atoi(value);
+    uInfo("monitor set from %d to %d", tsEnableMonitor, monitor);
+    tsEnableMonitor = monitor;
+    return;
+  }
+
+  const char *options[] = {
+      "dDebugFlag",  "vDebugFlag",   "mDebugFlag",   "wDebugFlag",   "sDebugFlag",   "tsdbDebugFlag",
+      "tqDebugFlag", "fsDebugFlag",  "udfDebugFlag", "smaDebugFlag", "idxDebugFlag", "tmrDebugFlag",
+      "uDebugFlag",  "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",
+  };
+  int32_t *optionVars[] = {
+      &dDebugFlag,  &vDebugFlag,   &mDebugFlag,   &wDebugFlag,   &sDebugFlag,   &tsdbDebugFlag,
+      &tqDebugFlag, &fsDebugFlag,  &udfDebugFlag, &smaDebugFlag, &idxDebugFlag, &tmrDebugFlag,
+      &uDebugFlag,  &smaDebugFlag, &rpcDebugFlag, &qDebugFlag,
+  };
+
+  int32_t optionSize = tListLen(options);
+  for (int32_t d = 0; d < optionSize; ++d) {
+    const char *optName = options[d];
+    int32_t     optLen = strlen(optName);
+    if (strncasecmp(option, optName, optLen) != 0) continue;
+
+    int32_t flag = atoi(value);
+    uInfo("%s set from %d to %d", optName, *optionVars[d], flag);
+    *optionVars[d] = flag;
+    return;
+  }
+
+  uError("failed to cfg dynamic option:%s value:%s", option, value);
 }

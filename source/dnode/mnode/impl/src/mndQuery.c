@@ -18,6 +18,18 @@
 #include "mndMnode.h"
 #include "qworker.h"
 
+int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg) {
+  if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) return 0;
+  SMnode *pMnode = pMsg->info.node;
+  return qWorkerPreprocessQueryMsg(pMnode->pQuery, pMsg);
+}
+
+void mndPostProcessQueryMsg(SRpcMsg *pMsg) {
+  if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) return;
+  SMnode *pMnode = pMsg->info.node;
+  qWorkerAbortPreprocessQueryMsg(pMnode->pQuery, pMsg);
+}
+
 int32_t mndProcessQueryMsg(SRpcMsg *pMsg) {
   int32_t     code = -1;
   SMnode     *pMnode = pMsg->info.node;
@@ -25,19 +37,21 @@ int32_t mndProcessQueryMsg(SRpcMsg *pMsg) {
 
   mTrace("msg:%p, in query queue is processing", pMsg);
   switch (pMsg->msgType) {
-    case TDMT_VND_QUERY:
+    case TDMT_SCH_QUERY:
+    case TDMT_SCH_MERGE_QUERY:
       code = qWorkerProcessQueryMsg(&handle, pMnode->pQuery, pMsg, 0);
       break;
-    case TDMT_VND_QUERY_CONTINUE:
+    case TDMT_SCH_QUERY_CONTINUE:
       code = qWorkerProcessCQueryMsg(&handle, pMnode->pQuery, pMsg, 0);
       break;
-    case TDMT_VND_FETCH:
+    case TDMT_SCH_FETCH:
+    case TDMT_SCH_MERGE_FETCH:
       code = qWorkerProcessFetchMsg(pMnode, pMnode->pQuery, pMsg, 0);
       break;
-    case TDMT_VND_DROP_TASK:
+    case TDMT_SCH_DROP_TASK:
       code = qWorkerProcessDropMsg(pMnode, pMnode->pQuery, pMsg, 0);
       break;
-    case TDMT_VND_QUERY_HEARTBEAT:
+    case TDMT_SCH_QUERY_HEARTBEAT:
       code = qWorkerProcessHbMsg(pMnode, pMnode->pQuery, pMsg, 0);
       break;
     default:
@@ -55,11 +69,13 @@ int32_t mndInitQuery(SMnode *pMnode) {
     return -1;
   }
 
-  mndSetMsgHandle(pMnode, TDMT_VND_QUERY, mndProcessQueryMsg);
-  mndSetMsgHandle(pMnode, TDMT_VND_QUERY_CONTINUE, mndProcessQueryMsg);
-  mndSetMsgHandle(pMnode, TDMT_VND_FETCH, mndProcessQueryMsg);
-  mndSetMsgHandle(pMnode, TDMT_VND_DROP_TASK, mndProcessQueryMsg);
-  mndSetMsgHandle(pMnode, TDMT_VND_QUERY_HEARTBEAT, mndProcessQueryMsg);
+  mndSetMsgHandle(pMnode, TDMT_SCH_QUERY, mndProcessQueryMsg);
+  mndSetMsgHandle(pMnode, TDMT_SCH_MERGE_QUERY, mndProcessQueryMsg);
+  mndSetMsgHandle(pMnode, TDMT_SCH_QUERY_CONTINUE, mndProcessQueryMsg);
+  mndSetMsgHandle(pMnode, TDMT_SCH_FETCH, mndProcessQueryMsg);
+  mndSetMsgHandle(pMnode, TDMT_SCH_MERGE_FETCH, mndProcessQueryMsg);
+  mndSetMsgHandle(pMnode, TDMT_SCH_DROP_TASK, mndProcessQueryMsg);
+  mndSetMsgHandle(pMnode, TDMT_SCH_QUERY_HEARTBEAT, mndProcessQueryMsg);
 
   return 0;
 }

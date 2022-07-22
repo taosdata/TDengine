@@ -18,34 +18,36 @@
 #include "mndConsumer.h"
 
 int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
-  int32_t sz = 0;
-  /*int32_t outputNameSz = 0;*/
   if (tEncodeCStr(pEncoder, pObj->name) < 0) return -1;
+
+  if (tEncodeI64(pEncoder, pObj->createTime) < 0) return -1;
+  if (tEncodeI64(pEncoder, pObj->updateTime) < 0) return -1;
+  if (tEncodeI32(pEncoder, pObj->version) < 0) return -1;
+  if (tEncodeI64(pEncoder, pObj->smaId) < 0) return -1;
+
+  if (tEncodeI64(pEncoder, pObj->uid) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->status) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->isDistributed) < 0) return -1;
+
+  if (tEncodeI8(pEncoder, pObj->igExpired) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->trigger) < 0) return -1;
+  if (tEncodeI64(pEncoder, pObj->triggerParam) < 0) return -1;
+  if (tEncodeI64(pEncoder, pObj->watermark) < 0) return -1;
+
+  if (tEncodeI64(pEncoder, pObj->sourceDbUid) < 0) return -1;
+  if (tEncodeI64(pEncoder, pObj->targetDbUid) < 0) return -1;
   if (tEncodeCStr(pEncoder, pObj->sourceDb) < 0) return -1;
   if (tEncodeCStr(pEncoder, pObj->targetDb) < 0) return -1;
   if (tEncodeCStr(pEncoder, pObj->targetSTbName) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->targetStbUid) < 0) return -1;
-  if (tEncodeI64(pEncoder, pObj->createTime) < 0) return -1;
-  if (tEncodeI64(pEncoder, pObj->updateTime) < 0) return -1;
-  if (tEncodeI64(pEncoder, pObj->uid) < 0) return -1;
-  if (tEncodeI64(pEncoder, pObj->dbUid) < 0) return -1;
-  if (tEncodeI32(pEncoder, pObj->version) < 0) return -1;
-  if (tEncodeI8(pEncoder, pObj->status) < 0) return -1;
-  if (tEncodeI8(pEncoder, pObj->createdBy) < 0) return -1;
-  if (tEncodeI8(pEncoder, pObj->trigger) < 0) return -1;
-  if (tEncodeI32(pEncoder, pObj->triggerParam) < 0) return -1;
-  if (tEncodeI64(pEncoder, pObj->waterMark) < 0) return -1;
   if (tEncodeI32(pEncoder, pObj->fixedSinkVgId) < 0) return -1;
-  if (tEncodeI64(pEncoder, pObj->smaId) < 0) return -1;
-  if (tEncodeCStr(pEncoder, pObj->sql) < 0) return -1;
-  /*if (tEncodeCStr(pEncoder, pObj->logicalPlan) < 0) return -1;*/
-  if (tEncodeCStr(pEncoder, pObj->physicalPlan) < 0) return -1;
-  // TODO encode tasks
-  if (pObj->tasks) {
-    sz = taosArrayGetSize(pObj->tasks);
-  }
-  if (tEncodeI32(pEncoder, sz) < 0) return -1;
 
+  if (tEncodeCStr(pEncoder, pObj->sql) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pObj->ast) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pObj->physicalPlan) < 0) return -1;
+
+  int32_t sz = taosArrayGetSize(pObj->tasks);
+  if (tEncodeI32(pEncoder, sz) < 0) return -1;
   for (int32_t i = 0; i < sz; i++) {
     SArray *pArray = taosArrayGetP(pObj->tasks, i);
     int32_t innerSz = taosArrayGetSize(pArray);
@@ -58,40 +60,38 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
 
   if (tEncodeSSchemaWrapper(pEncoder, &pObj->outputSchema) < 0) return -1;
 
-#if 0
-  if (pObj->ColAlias != NULL) {
-    outputNameSz = taosArrayGetSize(pObj->ColAlias);
-  }
-  if (tEncodeI32(pEncoder, outputNameSz) < 0) return -1;
-  for (int32_t i = 0; i < outputNameSz; i++) {
-    char *name = taosArrayGetP(pObj->ColAlias, i);
-    if (tEncodeCStr(pEncoder, name) < 0) return -1;
-  }
-#endif
   return pEncoder->pos;
 }
 
 int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
   if (tDecodeCStrTo(pDecoder, pObj->name) < 0) return -1;
+
+  if (tDecodeI64(pDecoder, &pObj->createTime) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pObj->updateTime) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pObj->version) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pObj->smaId) < 0) return -1;
+
+  if (tDecodeI64(pDecoder, &pObj->uid) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pObj->status) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pObj->isDistributed) < 0) return -1;
+
+  if (tDecodeI8(pDecoder, &pObj->igExpired) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pObj->trigger) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pObj->triggerParam) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pObj->watermark) < 0) return -1;
+
+  if (tDecodeI64(pDecoder, &pObj->sourceDbUid) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pObj->targetDbUid) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pObj->sourceDb) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pObj->targetDb) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pObj->targetSTbName) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->targetStbUid) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pObj->createTime) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pObj->updateTime) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pObj->uid) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pObj->dbUid) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pObj->version) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pObj->status) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pObj->createdBy) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pObj->trigger) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pObj->triggerParam) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pObj->waterMark) < 0) return -1;
   if (tDecodeI32(pDecoder, &pObj->fixedSinkVgId) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pObj->smaId) < 0) return -1;
+
   if (tDecodeCStrAlloc(pDecoder, &pObj->sql) < 0) return -1;
-  /*if (tDecodeCStrAlloc(pDecoder, &pObj->logicalPlan) < 0) return -1;*/
+  if (tDecodeCStrAlloc(pDecoder, &pObj->ast) < 0) return -1;
   if (tDecodeCStrAlloc(pDecoder, &pObj->physicalPlan) < 0) return -1;
+
   pObj->tasks = NULL;
   int32_t sz;
   if (tDecodeI32(pDecoder, &sz) < 0) return -1;
@@ -112,21 +112,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
   }
 
   if (tDecodeSSchemaWrapper(pDecoder, &pObj->outputSchema) < 0) return -1;
-#if 0
-  int32_t outputNameSz;
-  if (tDecodeI32(pDecoder, &outputNameSz) < 0) return -1;
-  if (outputNameSz != 0) {
-    pObj->ColAlias = taosArrayInit(outputNameSz, sizeof(void *));
-    if (pObj->ColAlias == NULL) {
-      return -1;
-    }
-  }
-  for (int32_t i = 0; i < outputNameSz; i++) {
-    char *name;
-    if (tDecodeCStrAlloc(pDecoder, &name) < 0) return -1;
-    taosArrayPush(pObj->ColAlias, &name);
-  }
-#endif
+
   return 0;
 }
 
@@ -213,6 +199,7 @@ int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
   int32_t tlen = 0;
   int32_t sz;
   tlen += taosEncodeFixedI64(buf, pConsumer->consumerId);
+  tlen += taosEncodeString(buf, pConsumer->clientId);
   tlen += taosEncodeString(buf, pConsumer->cgroup);
   tlen += taosEncodeFixedI8(buf, pConsumer->updateType);
   tlen += taosEncodeFixedI32(buf, pConsumer->epoch);
@@ -278,6 +265,7 @@ int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
 void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer) {
   int32_t sz;
   buf = taosDecodeFixedI64(buf, &pConsumer->consumerId);
+  buf = taosDecodeStringTo(buf, pConsumer->clientId);
   buf = taosDecodeStringTo(buf, pConsumer->cgroup);
   buf = taosDecodeFixedI8(buf, &pConsumer->updateType);
   buf = taosDecodeFixedI32(buf, &pConsumer->epoch);
@@ -397,6 +385,7 @@ SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
   pSubNew->dbUid = pSub->dbUid;
   pSubNew->stbUid = pSub->stbUid;
   pSubNew->subType = pSub->subType;
+  pSubNew->withMeta = pSub->withMeta;
 
   pSubNew->vgNum = pSub->vgNum;
   pSubNew->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
@@ -415,6 +404,7 @@ SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
     taosHashPut(pSubNew->consumerHash, &newEp.consumerId, sizeof(int64_t), &newEp, sizeof(SMqConsumerEp));
   }
   pSubNew->unassignedVgs = taosArrayDeepCopy(pSub->unassignedVgs, (FCopy)tCloneSMqVgEp);
+  memcpy(pSubNew->dbName, pSub->dbName, TSDB_DB_FNAME_LEN);
   return pSubNew;
 }
 
@@ -429,6 +419,7 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
   tlen += taosEncodeFixedI64(buf, pSub->dbUid);
   tlen += taosEncodeFixedI32(buf, pSub->vgNum);
   tlen += taosEncodeFixedI8(buf, pSub->subType);
+  tlen += taosEncodeFixedI8(buf, pSub->withMeta);
   tlen += taosEncodeFixedI64(buf, pSub->stbUid);
 
   void   *pIter = NULL;
@@ -445,6 +436,7 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
   }
   ASSERT(cnt == sz);
   tlen += taosEncodeArray(buf, pSub->unassignedVgs, (FEncode)tEncodeSMqVgEp);
+  tlen += taosEncodeString(buf, pSub->dbName);
   return tlen;
 }
 
@@ -454,6 +446,7 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub) {
   buf = taosDecodeFixedI64(buf, &pSub->dbUid);
   buf = taosDecodeFixedI32(buf, &pSub->vgNum);
   buf = taosDecodeFixedI8(buf, &pSub->subType);
+  buf = taosDecodeFixedI8(buf, &pSub->withMeta);
   buf = taosDecodeFixedI64(buf, &pSub->stbUid);
 
   int32_t sz;
@@ -467,6 +460,7 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub) {
   }
 
   buf = taosDecodeArray(buf, &pSub->unassignedVgs, (FDecode)tDecodeSMqVgEp, sizeof(SMqVgEp));
+  buf = taosDecodeStringTo(buf, pSub->dbName);
   return (void *)buf;
 }
 

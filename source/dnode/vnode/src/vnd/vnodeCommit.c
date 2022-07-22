@@ -27,52 +27,56 @@ static void vnodeWaitCommit(SVnode *pVnode);
 
 int vnodeBegin(SVnode *pVnode) {
   // alloc buffer pool
-  /* pthread_mutex_lock(); */
+  taosThreadMutexLock(&pVnode->mutex);
 
   while (pVnode->pPool == NULL) {
-    /* pthread_cond_wait(); */
+    taosThreadCondWait(&pVnode->poolNotEmpty, &pVnode->mutex);
   }
 
   pVnode->inUse = pVnode->pPool;
+  pVnode->inUse->nRef = 1;
   pVnode->pPool = pVnode->inUse->next;
   pVnode->inUse->next = NULL;
-  /* ref pVnode->inUse buffer pool */
 
-  /* pthread_mutex_unlock(); */
+  taosThreadMutexUnlock(&pVnode->mutex);
 
+  pVnode->state.commitID++;
   // begin meta
   if (metaBegin(pVnode->pMeta) < 0) {
-    vError("vgId:%d failed to begin meta since %s", TD_VID(pVnode), tstrerror(terrno));
+    vError("vgId:%d, failed to begin meta since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
 
   // begin tsdb
+  if (tsdbBegin(pVnode->pTsdb) < 0) {
+    vError("vgId:%d, failed to begin tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
+    return -1;
+  }
+
   if (pVnode->pSma) {
-    if (tsdbBegin(VND_RSMA0(pVnode)) < 0) {
-      vError("vgId:%d failed to begin rsma0 since %s", TD_VID(pVnode), tstrerror(terrno));
+    if (VND_RSMA1(pVnode) && tsdbBegin(VND_RSMA1(pVnode)) < 0) {
+      vError("vgId:%d, failed to begin rsma1 since %s", TD_VID(pVnode), tstrerror(terrno));
       return -1;
     }
 
-    if (tsdbBegin(VND_RSMA1(pVnode)) < 0) {
-      vError("vgId:%d failed to begin rsma1 since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
-
-    if (tsdbBegin(VND_RSMA2(pVnode)) < 0) {
-      vError("vgId:%d failed to begin rsma2 since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
-  } else {
-    if (tsdbBegin(pVnode->pTsdb) < 0) {
-      vError("vgId:%d failed to begin tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
+    if (VND_RSMA2(pVnode) && tsdbBegin(VND_RSMA2(pVnode)) < 0) {
+      vError("vgId:%d, failed to begin rsma2 since %s", TD_VID(pVnode), tstrerror(terrno));
       return -1;
     }
   }
 
+  // begin sma
+  smaBegin(pVnode->pSma);  // TODO: refactor to include the rsma1/rsma2 tsdbBegin() after tsdb_refact branch merged
+
   return 0;
 }
 
-int vnodeShouldCommit(SVnode *pVnode) { return pVnode->inUse->size > pVnode->config.szBuf / 3; }
+int vnodeShouldCommit(SVnode *pVnode) {
+  if (pVnode->inUse) {
+    return pVnode->inUse->size > pVnode->config.szBuf / 3;
+  }
+  return false;
+}
 
 int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   char      fname[TSDB_FILENAME_LEN];
@@ -110,7 +114,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // free info binary
   taosMemoryFree(data);
 
-  vInfo("vgId:%d vnode info is saved, fname: %s", pInfo->config.vgId, fname);
+  vInfo("vgId:%d, vnode info is saved, fname: %s", pInfo->config.vgId, fname);
 
   return 0;
 
@@ -132,7 +136,7 @@ int vnodeCommitInfo(const char *dir, const SVnodeInfo *pInfo) {
     return -1;
   }
 
-  vInfo("vgId:%d vnode info is committed", pInfo->config.vgId);
+  vInfo("vgId:%d, vnode info is committed", pInfo->config.vgId);
 
   return 0;
 }
@@ -210,19 +214,27 @@ int vnodeCommit(SVnode *pVnode) {
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN];
 
-  vInfo("vgId:%d start to commit, version: %" PRId64, TD_VID(pVnode), pVnode->state.applied);
+  vInfo("vgId:%d, start to commit, commit ID:%" PRId64 " version:%" PRId64, TD_VID(pVnode), pVnode->state.commitID,
+        pVnode->state.applied);
 
-  pVnode->onCommit = pVnode->inUse;
+  vnodeBufPoolUnRef(pVnode->inUse);
   pVnode->inUse = NULL;
 
   // save info
   info.config = pVnode->config;
   info.state.committed = pVnode->state.applied;
+  info.state.commitTerm = pVnode->state.applyTerm;
+  info.state.commitID = pVnode->state.commitID;
   snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
   if (vnodeSaveInfo(dir, &info) < 0) {
     ASSERT(0);
     return -1;
   }
+  walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
+
+  // preCommit
+  // smaSyncPreCommit(pVnode->pSma);
+  smaAsyncPreCommit(pVnode->pSma);
 
   // commit each sub-system
   if (metaCommit(pVnode->pMeta) < 0) {
@@ -231,6 +243,8 @@ int vnodeCommit(SVnode *pVnode) {
   }
 
   if (VND_IS_RSMA(pVnode)) {
+    smaAsyncCommit(pVnode->pSma);
+
     if (tsdbCommit(VND_RSMA0(pVnode)) < 0) {
       ASSERT(0);
       return -1;
@@ -262,13 +276,16 @@ int vnodeCommit(SVnode *pVnode) {
     return -1;
   }
 
-  // apply the commit (TODO)
-  vnodeBufPoolReset(pVnode->onCommit);
-  pVnode->onCommit->next = pVnode->pPool;
-  pVnode->pPool = pVnode->onCommit;
-  pVnode->onCommit = NULL;
+  pVnode->state.committed = info.state.committed;
 
-  vInfo("vgId:%d commit over", TD_VID(pVnode));
+  // postCommit
+  // smaSyncPostCommit(pVnode->pSma);
+  smaAsyncPostCommit(pVnode->pSma);
+
+  // apply the commit (TODO)
+  walEndSnapshot(pVnode->pWal);
+
+  vInfo("vgId:%d, commit over", TD_VID(pVnode));
 
   return 0;
 }
@@ -278,7 +295,7 @@ static int vnodeCommitImpl(void *arg) {
 
   // metaCommit(pVnode->pMeta);
   tqCommit(pVnode->pTq);
-  tsdbCommit(pVnode->pTsdb);
+  // tsdbCommit(pVnode->pTsdb, );
 
   // vnodeBufPoolRecycle(pVnode);
   tsem_post(&(pVnode->canCommit));
@@ -301,7 +318,8 @@ static int vnodeEncodeState(const void *pObj, SJson *pJson) {
   const SVState *pState = (SVState *)pObj;
 
   if (tjsonAddIntegerToObject(pJson, "commit version", pState->committed) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "applied version", pState->applied) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "commit ID", pState->commitID) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "commit term", pState->commitTerm) < 0) return -1;
 
   return 0;
 }
@@ -311,9 +329,11 @@ static int vnodeDecodeState(const SJson *pJson, void *pObj) {
 
   int32_t code;
   tjsonGetNumberValue(pJson, "commit version", pState->committed, code);
-  if(code < 0) return -1;
-  tjsonGetNumberValue(pJson, "applied version", pState->applied, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "commit ID", pState->commitID, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "commit term", pState->commitTerm, code);
+  if (code < 0) return -1;
 
   return 0;
 }

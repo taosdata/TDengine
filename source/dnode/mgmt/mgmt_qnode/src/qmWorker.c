@@ -57,6 +57,8 @@ static int32_t qmPutNodeMsgToWorker(SSingleWorker *pWorker, SRpcMsg *pMsg) {
 }
 
 int32_t qmPutNodeMsgToQueryQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  qndPreprocessQueryMsg(pMgmt->pQnode, pMsg);
+
   return qmPutNodeMsgToWorker(&pMgmt->queryWorker, pMsg);
 }
 
@@ -68,22 +70,25 @@ int32_t qmPutNodeMsgToMonitorQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return qmPutNodeMsgToWorker(&pMgmt->monitorWorker, pMsg);
 }
 
-static int32_t qmPutRpcMsgToWorker(SQnodeMgmt *pMgmt, SSingleWorker *pWorker, SRpcMsg *pRpc) {
+int32_t qmPutRpcMsgToQueue(SQnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
   if (pMsg == NULL) return -1;
-
-  dTrace("msg:%p, create and put into worker:%s, type:%s", pMsg, pWorker->name, TMSG_INFO(pRpc->msgType));
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
-  taosWriteQitem(pWorker->queue, pMsg);
-  return 0;
-}
 
-int32_t qmPutRpcMsgToQueryQueue(SQnodeMgmt *pMgmt, SRpcMsg *pRpc) {
-  return qmPutRpcMsgToWorker(pMgmt, &pMgmt->queryWorker, pRpc);
-}
-
-int32_t qmPutRpcMsgToFetchQueue(SQnodeMgmt *pMgmt, SRpcMsg *pRpc) {
-  return qmPutRpcMsgToWorker(pMgmt, &pMgmt->fetchWorker, pRpc);
+  switch (qtype) {
+    case QUERY_QUEUE:
+      dTrace("msg:%p, is created and will put into qnode-query queue", pMsg);
+      taosWriteQitem(pMgmt->queryWorker.queue, pMsg);
+      return 0;
+    case READ_QUEUE:
+    case FETCH_QUEUE:
+      dTrace("msg:%p, is created and will put into qnode-fetch queue", pMsg);
+      taosWriteQitem(pMgmt->fetchWorker.queue, pMsg);
+      return 0;
+    default:
+      terrno = TSDB_CODE_INVALID_PARA;
+      return -1;
+  }
 }
 
 int32_t qmGetQueueSize(SQnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {

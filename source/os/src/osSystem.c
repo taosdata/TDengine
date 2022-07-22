@@ -124,7 +124,6 @@ int taosSetConsoleEcho(bool on) {
 
 void taosSetTerminalMode() {
 #if defined(WINDOWS)
-  // assert(0);
 
 #else
   struct termios newtio;
@@ -158,7 +157,6 @@ void taosSetTerminalMode() {
 
 int32_t taosGetOldTerminalMode() {
 #if defined(WINDOWS)
-  // assert(0);
 #else
   /* Make sure stdin is a terminal. */
   if (!isatty(STDIN_FILENO)) {
@@ -176,7 +174,6 @@ int32_t taosGetOldTerminalMode() {
 
 void taosResetTerminalMode() {
 #if defined(WINDOWS)
-  // assert(0);
 #else
   if (tcsetattr(0, TCSANOW, &oldtio) != 0) {
     fprintf(stderr, "Fail to reset the terminal properties!\n");

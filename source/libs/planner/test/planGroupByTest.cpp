@@ -67,3 +67,17 @@ TEST_F(PlanGroupByTest, selectFunc) {
   run("SELECT MAX(c1), c2 FROM t1 GROUP BY c3");
   run("SELECT MAX(c1), t1.* FROM t1 GROUP BY c3");
 }
+
+TEST_F(PlanGroupByTest, stable) {
+  useDb("root", "test");
+
+  run("SELECT COUNT(*) FROM st1");
+
+  run("SELECT c1 FROM st1 GROUP BY c1");
+
+  run("SELECT COUNT(*) FROM st1 GROUP BY c1");
+
+  run("SELECT COUNT(*) FROM st1 PARTITION BY c2 GROUP BY c1");
+
+  run("SELECT SUM(c1) FROM st1 GROUP BY c2 HAVING SUM(c1) IS NOT NULL");
+}

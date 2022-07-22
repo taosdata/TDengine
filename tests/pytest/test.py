@@ -131,7 +131,7 @@ if __name__ == "__main__":
             is_test_framework = 0
             key_word = 'tdCases.addWindows'
             try:
-                if key_word in open(fileName).read():
+                if key_word in open(fileName, encoding='UTF-8').read():
                     is_test_framework = 1
             except:
                 pass

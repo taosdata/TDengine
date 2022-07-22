@@ -158,8 +158,8 @@ static void taosCleanupArgs() {
 }
 
 int main(int argc, char const *argv[]) {
-  if (!taosCheckSystemIsSmallEnd()) {
-    printf("failed to start since on non-small-end machines\n");
+  if (!taosCheckSystemIsLittleEnd()) {
+    printf("failed to start since on non-little-end machines\n");
     return -1;
   }
 
@@ -216,7 +216,7 @@ int main(int argc, char const *argv[]) {
     return -1;
   }
 
-  dInfo("start to run dnode");
+  dInfo("start to init service");
   dmSetSignalHandle();
   int32_t code = dmRun();
   dInfo("shutting down the service");

@@ -37,7 +37,7 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
@@ -63,7 +63,7 @@ class TDTestCase:
     def prepare_data(self):
     
         tdSql.execute("drop database if exists db")
-        tdSql.execute("create database if not exists db replica 1 days 300")
+        tdSql.execute("create database if not exists db replica 1 duration 300")
         tdSql.execute("use db")
         tdSql.execute(
         '''create table stb1
