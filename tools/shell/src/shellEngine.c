@@ -41,7 +41,7 @@ static void    shellPrintError(TAOS_RES *tres, int64_t st);
 static bool    shellIsCommentLine(char *line);
 static void    shellSourceFile(const char *file);
 static void    shellGetGrantInfo();
-static void    shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context);
+
 static void    shellCleanup(void *arg);
 static void   *shellCancelHandler(void *arg);
 static void   *shellThreadLoop(void *arg);
@@ -919,11 +919,14 @@ void shellGetGrantInfo() {
   fprintf(stdout, "\r\n");
 }
 
-void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) { tsem_post(&shell.cancelSem); }
-
-void shellSigintHandler(int32_t signum, void *sigInfo, void *context) {
-  // do nothing
+#ifdef WINDOWS
+BOOL shellQueryInterruptHandler(DWORD fdwCtrlType) {
+  tsem_post(&shell.cancelSem);
+  return TRUE;
 }
+#else
+void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) { tsem_post(&shell.cancelSem); }
+#endif
 
 void shellCleanup(void *arg) { taosResetTerminalMode(); }
 
@@ -934,11 +937,10 @@ void *shellCancelHandler(void *arg) {
       taosMsleep(10);
       continue;
     }
-
-    taosResetTerminalMode();
-    printf("\r\nReceive SIGTERM or other signal, quit shell.\r\n");
-    shellWriteHistory();
-    shellExit();
+    taos_kill_query(shell.conn);
+  #ifdef WINDOWS
+    printf("\n%s", shell.info.promptHeader);
+  #endif
   }
 
   return NULL;
@@ -1022,7 +1024,7 @@ int32_t shellExecute() {
   taosSetSignal(SIGHUP, shellQueryInterruptHandler);
   taosSetSignal(SIGABRT, shellQueryInterruptHandler);
 
-  taosSetSignal(SIGINT, shellSigintHandler);
+  taosSetSignal(SIGINT, shellQueryInterruptHandler);
 
   shellGetGrantInfo();
 
