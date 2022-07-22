@@ -583,6 +583,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   mndTransSetDbName(pTrans, pTopic->db, NULL);
   if (pTrans == NULL) {
     mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
+    mndReleaseTopic(pMnode, pTopic);
     return -1;
   }
 
@@ -590,11 +591,17 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   if (mndDropOffsetByTopic(pMnode, pTrans, dropReq.name) < 0) {
     ASSERT(0);
+    mndTransDrop(pTrans);
+    mndReleaseTopic(pMnode, pTopic);
     return -1;
   }
 
+  // TODO check if rebalancing
   if (mndDropSubByTopic(pMnode, pTrans, dropReq.name) < 0) {
-    ASSERT(0);
+    /*ASSERT(0);*/
+    mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
+    mndTransDrop(pTrans);
+    mndReleaseTopic(pMnode, pTopic);
     return -1;
   }
 

@@ -36,7 +36,7 @@ static void    shellPrintError(TAOS_RES *tres, int64_t st);
 static bool    shellIsCommentLine(char *line);
 static void    shellSourceFile(const char *file);
 static void    shellGetGrantInfo();
-static void    shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context);
+
 static void    shellCleanup(void *arg);
 static void   *shellCancelHandler(void *arg);
 static void   *shellThreadLoop(void *arg);
@@ -687,7 +687,7 @@ int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
 
   uint64_t resShowMaxNum = UINT64_MAX;
 
-  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsLimitQuery(sql) && !shellIsShowQuery(sql)) {
+  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsLimitQuery(sql)) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
@@ -708,8 +708,12 @@ int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
     } else if (showMore) {
       printf("\r\n");
       printf(" Notice: The result shows only the first %d rows.\r\n", SHELL_DEFAULT_RES_SHOW_NUM);
-      printf("         You can use the `LIMIT` clause to get fewer result to show.\r\n");
-      printf("           Or use '>>' to redirect the whole set of the result to a specified file.\r\n");
+      if (shellIsShowQuery(sql)) {
+        printf("         You can use '>>' to redirect the whole set of the result to a specified file.\r\n");
+      } else {
+        printf("         You can use the `LIMIT` clause to get fewer result to show.\r\n");
+        printf("           Or use '>>' to redirect the whole set of the result to a specified file.\r\n");
+      }
       printf("\r\n");
       printf("         You can use Ctrl+C to stop the underway fetching.\r\n");
       printf("\r\n");
@@ -917,11 +921,14 @@ void shellGetGrantInfo() {
   fprintf(stdout, "\r\n");
 }
 
-void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) { tsem_post(&shell.cancelSem); }
-
-void shellSigintHandler(int32_t signum, void *sigInfo, void *context) {
-  // do nothing
+#ifdef WINDOWS
+BOOL shellQueryInterruptHandler(DWORD fdwCtrlType) {
+  tsem_post(&shell.cancelSem);
+  return TRUE;
 }
+#else
+void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) { tsem_post(&shell.cancelSem); }
+#endif
 
 void shellCleanup(void *arg) { taosResetTerminalMode(); }
 
@@ -932,11 +939,10 @@ void *shellCancelHandler(void *arg) {
       taosMsleep(10);
       continue;
     }
-
-    taosResetTerminalMode();
-    printf("\r\nReceive SIGTERM or other signal, quit shell.\r\n");
-    shellWriteHistory();
-    shellExit();
+    taos_kill_query(shell.conn);
+  #ifdef WINDOWS
+    printf("\n%s", shell.info.promptHeader);
+  #endif
   }
 
   return NULL;
@@ -1038,7 +1044,7 @@ int32_t shellExecute() {
   taosSetSignal(SIGHUP, shellQueryInterruptHandler);
   taosSetSignal(SIGABRT, shellQueryInterruptHandler);
 
-  taosSetSignal(SIGINT, shellSigintHandler);
+  taosSetSignal(SIGINT, shellQueryInterruptHandler);
 
 #ifdef WEBSOCKET
   if (!shell.args.restful && !shell.args.cloud) {

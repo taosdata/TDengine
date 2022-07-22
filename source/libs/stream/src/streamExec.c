@@ -159,6 +159,7 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
       if (data == NULL) {
         data = qItem;
         streamQueueProcessSuccess(pTask->inputQueue);
+        if (pTask->execType == TASK_EXEC__NONE) break;
         /*if (qItem->type == STREAM_INPUT__DATA_BLOCK) {*/
         /*streamUpdateVer(pTask, (SStreamDataBlock*)qItem);*/
         /*}*/

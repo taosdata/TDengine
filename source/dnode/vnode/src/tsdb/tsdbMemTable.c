@@ -93,7 +93,11 @@ static int32_t tbDataPCmprFn(const void *p1, const void *p2) {
 }
 void tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, STbData **ppTbData) {
   STbData *pTbData = &(STbData){.suid = suid, .uid = uid};
-  void    *p = taosArraySearch(pMemTable->aTbData, &pTbData, tbDataPCmprFn, TD_EQ);
+
+  taosRLockLatch(&pMemTable->latch);
+  void *p = taosArraySearch(pMemTable->aTbData, &pTbData, tbDataPCmprFn, TD_EQ);
+  taosRUnLockLatch(&pMemTable->latch);
+
   *ppTbData = p ? *(STbData **)p : NULL;
 }
 
@@ -363,10 +367,13 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
 
   void *p;
   if (idx < 0) {
-    p = taosArrayPush(pMemTable->aTbData, &pTbData);
-  } else {
-    p = taosArrayInsert(pMemTable->aTbData, idx, &pTbData);
+    idx = taosArrayGetSize(pMemTable->aTbData);
   }
+
+  taosWLockLatch(&pMemTable->latch);
+  p = taosArrayInsert(pMemTable->aTbData, idx, &pTbData);
+  taosWUnLockLatch(&pMemTable->latch);
+
   if (p == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -603,48 +610,5 @@ void tsdbUnrefMemTable(SMemTable *pMemTable) {
   int32_t nRef = atomic_sub_fetch_32(&pMemTable->nRef, 1);
   if (nRef == 0) {
     tsdbMemTableDestroy(pMemTable);
-  }
-}
-
-int32_t tsdbTakeMemSnapshot(STsdb *pTsdb, SMemTable **ppMem, SMemTable **ppIMem) {
-  int32_t code = 0;
-
-  // lock
-  code = taosThreadRwlockRdlock(&pTsdb->rwLock);
-  if (code) {
-    code = TAOS_SYSTEM_ERROR(code);
-    goto _exit;
-  }
-
-  // take snapshot
-  *ppMem = pTsdb->mem;
-  *ppIMem = pTsdb->imem;
-
-  if (*ppMem) {
-    tsdbRefMemTable(*ppMem);
-  }
-
-  if (*ppIMem) {
-    tsdbRefMemTable(*ppIMem);
-  }
-
-  // unlock
-  code = taosThreadRwlockUnlock(&pTsdb->rwLock);
-  if (code) {
-    code = TAOS_SYSTEM_ERROR(code);
-    goto _exit;
-  }
-
-_exit:
-  return code;
-}
-
-void tsdbUntakeMemSnapshot(STsdb *pTsdb, SMemTable *pMem, SMemTable *pIMem) {
-  if (pMem) {
-    tsdbUnrefMemTable(pMem);
-  }
-
-  if (pIMem) {
-    tsdbUnrefMemTable(pIMem);
   }
 }
