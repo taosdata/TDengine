@@ -5136,8 +5136,7 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey, SqlF
   }
   pSup->valueSize = size;
 
-  pSup->pScanWindow = taosArrayInit(4, sizeof(STimeWindow));
-
+  pSup->pScanBlock = createSpecialDataBlock(STREAM_CLEAR);
   int32_t pageSize = 4096;
   while (pageSize < pSup->resultRowSize * 4) {
     pageSize <<= 1u;

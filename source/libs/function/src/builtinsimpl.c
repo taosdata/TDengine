@@ -476,16 +476,16 @@ int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
 int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
-  char*                pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  SFirstLastRes*       pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
   int32_t              type = pDestCtx->input.pData[0]->info.type;
   int32_t              bytes = pDestCtx->input.pData[0]->info.bytes;
 
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
-  char*                pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+  SFirstLastRes*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  if (pSResInfo->numOfRes != 0 && (pDResInfo->numOfRes == 0 || *(TSKEY*)(pDBuf + bytes) > *(TSKEY*)(pSBuf + bytes))) {
-    memcpy(pDBuf, pSBuf, bytes);
-    *(TSKEY*)(pDBuf + bytes) = *(TSKEY*)(pSBuf + bytes);
+  if (pSResInfo->numOfRes != 0 && (pDResInfo->numOfRes == 0 || pDBuf->ts > pSBuf->ts)) {
+    memcpy(pDBuf->buf, pSBuf->buf, bytes);
+    pDBuf->ts = pSBuf->ts;
     pDResInfo->numOfRes = 1;
   }
   return TSDB_CODE_SUCCESS;
@@ -2994,16 +2994,16 @@ int32_t firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 // todo rewrite:
 int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
-  char*                pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  SFirstLastRes*       pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
   int32_t              type = pDestCtx->input.pData[0]->info.type;
   int32_t              bytes = pDestCtx->input.pData[0]->info.bytes;
 
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
-  char*                pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+  SFirstLastRes*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  if (pSResInfo->numOfRes != 0 && (pDResInfo->numOfRes == 0 || *(TSKEY*)(pDBuf + bytes) < *(TSKEY*)(pSBuf + bytes))) {
-    memcpy(pDBuf, pSBuf, bytes);
-    *(TSKEY*)(pDBuf + bytes) = *(TSKEY*)(pSBuf + bytes);
+  if (pSResInfo->numOfRes != 0 && (pDResInfo->numOfRes == 0 || pDBuf->ts < pSBuf->ts)) {
+    memcpy(pDBuf->buf, pSBuf->buf, bytes);
+    pDBuf->ts = pSBuf->ts;
     pDResInfo->numOfRes = 1;
   }
   return TSDB_CODE_SUCCESS;
