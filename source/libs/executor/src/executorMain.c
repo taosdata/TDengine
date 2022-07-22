@@ -348,11 +348,9 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
           int32_t         tableSz = taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList);
 
 #ifndef NDEBUG
-          int64_t previousUid =
-              ((STableKeyInfo*)taosArrayGet(pTaskInfo->tableqinfoList.pTableList, pTableScanInfo->currentTable))->uid;
 
-          qDebug("switch to next table %ld (cursor %d), previous table %ld, %ld rows returned", uid,
-                 pTableScanInfo->currentTable, previousUid, pInfo->pTableScanOp->resultInfo.totalRows);
+          qDebug("switch to next table %ld (cursor %d), %ld rows returned", uid,
+                 pTableScanInfo->currentTable, pInfo->pTableScanOp->resultInfo.totalRows);
           pInfo->pTableScanOp->resultInfo.totalRows = 0;
 #endif
 
