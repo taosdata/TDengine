@@ -2,7 +2,7 @@
 taosBenchMark 功能性测试。 因为是测试 taosBenchMark 工具本身，所以尽量不给云服务实例性能压力
 1. 测试与云服务的连通性
 2. 建表和插入数据
-启动命令： tt --case=cloud/benchmark.py --use=clout_test.yaml
+启动命令： tt --case=cloud/benchmark.py --use=cloud_test.yaml
 """
 
 from subprocess import run
@@ -20,7 +20,7 @@ class TaosBenchMark(TDCase, CloudCase):
 
     def run(self):
         # 创建 1 张表，写 100 条数据
-        run(['taosBenchmark', '--database', 'benchmark', '-T', '1', '-t', '1', '--records', '100', '-y'], check=True, timeout=20)
+        run(['taosBenchmark', '--database', 'benchmark', '-T', '1', '-t', '1', '--records', '10', '-y'], check=True, timeout=20)
         count = self.cql.count("benchmark", "meters")
         assert count == 100
 
