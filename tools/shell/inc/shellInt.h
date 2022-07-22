@@ -57,7 +57,6 @@ typedef struct {
   const char* cfgdir;
   const char* commands;
   const char* netrole;
-  char* dsn;
   char        file[PATH_MAX];
   char        password[TSDB_USET_PASSWORD_LEN];
   bool        is_gen_auth;
@@ -67,16 +66,15 @@ typedef struct {
   bool        is_check;
   bool        is_startup;
   bool        is_help;
-#ifdef WEBSOCKET
-  bool        restful;
-  bool        cloud;
-#endif
   int32_t     port;
   int32_t     pktLen;
   int32_t     pktNum;
   int32_t     displayWidth;
   int32_t     abort;
 #ifdef WEBSOCKET
+  bool        restful;
+  bool        cloud;
+  char*       dsn;
   int32_t     timeout;
 #endif
 } SShellArgs;
@@ -95,12 +93,12 @@ typedef struct {
   SShellHistory   history;
   SShellOsDetails info;
   TAOS*           conn;
+  TdThread        pid;
+  tsem_t          cancelSem;
 #ifdef WEBSOCKET
   WS_TAOS*        ws_conn;
   bool		      stop_query;
 #endif
-  TdThread        pid;
-  tsem_t          cancelSem;
 } SShellObj;
 
 // shellArguments.c
