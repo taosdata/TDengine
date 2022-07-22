@@ -402,8 +402,6 @@ typedef struct SStreamScanInfo {
   uint64_t     numOfExec;        // execution times
   STqReader*   tqReader;
 
-  int32_t      tsArrayIndex;
-  SArray*      tsArray;
   uint64_t     groupId;
   SUpdateInfo* pUpdateInfo;
 

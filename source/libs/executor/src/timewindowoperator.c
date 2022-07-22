@@ -1648,6 +1648,7 @@ void destroyStreamFinalIntervalOperatorInfo(void* param, int32_t numOfOutput) {
     }
   }
   nodesDestroyNode((SNode*)pInfo->pPhyNode);
+  colDataDestroy(&pInfo->twAggSup.timeWindowData);
 
   taosMemoryFreeClear(param);
 }
@@ -2934,9 +2935,10 @@ SSDataBlock* createSpecialDataBlock(EStreamType type) {
   pBlock->info.groupId = 0;
   pBlock->info.rows = 0;
   pBlock->info.type = type;
-  pBlock->info.rowSize = sizeof(TSKEY) + sizeof(TSKEY) + sizeof(uint64_t);
+  pBlock->info.rowSize = sizeof(TSKEY) + sizeof(TSKEY) + sizeof(uint64_t) +
+      sizeof(uint64_t) + sizeof(TSKEY) + sizeof(TSKEY);
 
-  pBlock->pDataBlock = taosArrayInit(3, sizeof(SColumnInfoData));
+  pBlock->pDataBlock = taosArrayInit(6, sizeof(SColumnInfoData));
   SColumnInfoData infoData = {0};
   infoData.info.type = TSDB_DATA_TYPE_TIMESTAMP;
   infoData.info.bytes = sizeof(TSKEY);
