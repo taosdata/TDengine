@@ -159,8 +159,8 @@ class TDTestCase:
         for tr in threads:
             tr.join()
         clusterComCheck.checkDnodes(dnodeNumbers)
-        tdSql.query("show databases")
-        tdLog.debug("we find %d databases but exepect to create %d  databases "%(tdSql.queryRows-2,allDbNumbers))
+        # tdSql.query("show databases")
+        # tdLog.debug("we find %d databases but exepect to create %d  databases "%(tdSql.queryRows-2,allDbNumbers))
 
         # tdLog.info("check DB Rows:")
         clusterComCheck.checkDbRows(allDbNumbers)

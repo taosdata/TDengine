@@ -63,6 +63,7 @@ class ClusterComCheck:
         count=0
         while count < 5:
             tdSql.query("show databases;")
+            count+=1
             if tdSql.checkRows(dbNumbers+2):
                 tdLog.success("we find %d databases and expect %d in clusters! " %(tdSql.queryRows,dbNumbers+2))
                 return True
