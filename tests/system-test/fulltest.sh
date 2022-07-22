@@ -80,6 +80,12 @@ python3 ./test.py -f 2-query/distribute_agg_apercentile.py
 python3 ./test.py -f 2-query/distribute_agg_apercentile.py -R
 python3 ./test.py -f 2-query/distribute_agg_avg.py
 python3 ./test.py -f 2-query/distribute_agg_avg.py -R
+python3 ./test.py -f 2-query/distribute_agg_count.py
+python3 ./test.py -f 2-query/distribute_agg_count.py -R
+python3 ./test.py -f 2-query/distribute_agg_max.py
+python3 ./test.py -f 2-query/distribute_agg_max.py -R
+python3 ./test.py -f 2-query/distribute_agg_min.py
+python3 ./test.py -f 2-query/distribute_agg_min.py -R
 
 
 
@@ -146,9 +152,6 @@ python3 ./test.py -f 2-query/function_stateduration.py
 python3 ./test.py -f 2-query/statecount.py
 python3 ./test.py -f 2-query/tail.py
 python3 ./test.py -f 2-query/ttl_comment.py
-python3 ./test.py -f 2-query/distribute_agg_count.py
-python3 ./test.py -f 2-query/distribute_agg_max.py
-python3 ./test.py -f 2-query/distribute_agg_min.py
 python3 ./test.py -f 2-query/distribute_agg_sum.py
 python3 ./test.py -f 2-query/distribute_agg_spread.py
 python3 ./test.py -f 2-query/distribute_agg_stddev.py
