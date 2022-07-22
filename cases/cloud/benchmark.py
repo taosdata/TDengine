@@ -22,7 +22,7 @@ class TaosBenchMark(TDCase, CloudCase):
         # 创建 1 张表，写 100 条数据
         run(['taosBenchmark', '--database', 'benchmark', '-T', '1', '-t', '1', '--records', '10', '-y'], check=True, timeout=20)
         count = self.cql.count("benchmark", "meters")
-        assert count == 100
+        assert count == 10
 
     def cleanup(self):
         pass
