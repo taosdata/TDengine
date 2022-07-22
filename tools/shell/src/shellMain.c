@@ -44,9 +44,9 @@ int main(int argc, char *argv[]) {
     shellPrintHelp();
     return 0;
   }
- 
+#ifdef WEBSOCKET 
   shellCheckConnectMode();
-
+#endif
   taos_init();
 
   if (shell.args.is_dump_config) {

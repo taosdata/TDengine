@@ -123,13 +123,13 @@ void    shellGenerateAuth();
 void    shellDumpConfig();
 void    shellCheckServerStatus();
 bool    shellRegexMatch(const char* s, const char* reg, int32_t cflags);
-void	shellCheckConnectMode();
 void    shellExit();
 
 // shellNettest.c
 void shellTestNetWork();
 
 #ifdef WEBSOCKET
+void	shellCheckConnectMode();
 // shellWebsocket.c
 int shell_conn_ws_server(bool first);
 int32_t shell_run_websocket();

@@ -121,7 +121,7 @@ void shellCheckServerStatus() {
     }
   } while (1);
 }
-
+#ifdef WEBSOCKET
 void shellCheckConnectMode() {
 	if (shell.args.dsn) {
 		shell.args.cloud = true;
@@ -150,6 +150,7 @@ void shellCheckConnectMode() {
 		return;
 	}
 }
+#endif
 
 void shellExit() {
   if (shell.conn != NULL) {
