@@ -40,7 +40,7 @@ if $data(2)[4] != ready then
 endi
 
 print ========== step3
-system sh/exec.sh -n dnode2 -s stop  
+system sh/exec.sh -n dnode2 -s stop 
 
 $x = 0
 step3: 
@@ -64,9 +64,10 @@ if $rows != 1 then
 endi
 
 print ========== step5
-system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname port 7200
+system sh/exec.sh -n dnode2 -s start
 
+return
 $x = 0
 step5: 
 	$x = $x + 1
