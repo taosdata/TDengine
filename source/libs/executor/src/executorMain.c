@@ -352,8 +352,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
 
 #ifndef NDEBUG
 
-          qDebug("switch to next table %ld (cursor %d), %ld rows returned", uid,
-                 pTableScanInfo->currentTable, pInfo->pTableScanOp->resultInfo.totalRows);
+          qDebug("switch to next table %ld (cursor %d), %ld rows returned", uid, pTableScanInfo->currentTable,
+                 pInfo->pTableScanOp->resultInfo.totalRows);
           pInfo->pTableScanOp->resultInfo.totalRows = 0;
 #endif
 
@@ -370,7 +370,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
           // TODO after dropping table, table may be not found
           ASSERT(found);
 
-          if (pTableScanInfo == NULL) {
+          if (pTableScanInfo->dataReader == NULL) {
             if (tsdbReaderOpen(pTableScanInfo->readHandle.vnode, &pTableScanInfo->cond,
                                pTaskInfo->tableqinfoList.pTableList, &pTableScanInfo->dataReader, NULL) < 0 ||
                 pTableScanInfo->dataReader == NULL) {
