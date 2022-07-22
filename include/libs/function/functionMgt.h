@@ -197,6 +197,7 @@ bool fmIsSystemInfoFunc(int32_t funcId);
 bool fmIsImplicitTsFunc(int32_t funcId);
 bool fmIsClientPseudoColumnFunc(int32_t funcId);
 bool fmIsMultiRowsFunc(int32_t funcId);
+bool fmIsKeepOrderFunc(int32_t funcId);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 
