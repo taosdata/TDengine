@@ -215,10 +215,10 @@ int32_t tqCheckColModifiable(STQ* pTq, int32_t colId) {
     if (pIter == NULL) break;
     STqHandle* pExec = (STqHandle*)pIter;
     if (pExec->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-      int32_t sz = taosArrayGetSize(pExec->colIdList);
+      int32_t sz = pExec->execHandle.pSchemaWrapper->nCols;
       for (int32_t i = 0; i < sz; i++) {
-        int32_t forbidColId = *(int32_t*)taosArrayGet(pExec->colIdList, i);
-        if (forbidColId == colId) {
+        SSchema* pSchema = &pExec->execHandle.pSchemaWrapper->pSchema[i];
+        if (pSchema->colId == colId) {
           taosHashCancelIterate(pTq->handles, pIter);
           return -1;
         }
@@ -523,7 +523,8 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
           .version = ver,
       };
       pHandle->execHandle.execCol.task =
-          qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, &pHandle->execHandle.numOfCols, &pHandle->execHandle.pSchemaWrapper);
+          qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, &pHandle->execHandle.numOfCols,
+                                   &pHandle->execHandle.pSchemaWrapper);
       ASSERT(pHandle->execHandle.execCol.task);
       void* scanner = NULL;
       qExtractStreamScanner(pHandle->execHandle.execCol.task, &scanner);
