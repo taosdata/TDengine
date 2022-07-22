@@ -2833,7 +2833,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
 
   SDataBlockIter* pBlockIter = &pReader->status.blockIter;
 
-  code = tsdbTakeReadSnap(pVnode->pTsdb, &pReader->pReadSnap);
+  code = tsdbTakeReadSnap(pReader->pTsdb, &pReader->pReadSnap);
   if (code) goto _err;
 
   initFilesetIterator(&pReader->status.fileIter, (*ppReader)->pReadSnap->fs.aDFileSet, pReader->order, pReader->idStr);
