@@ -884,9 +884,17 @@ static int32_t createDistinctLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
 
   int32_t code = TSDB_CODE_SUCCESS;
   // set grouyp keys, agg funcs and having conditions
-  pAgg->pGroupKeys = nodesCloneList(pSelect->pProjectionList);
-  if (NULL == pAgg->pGroupKeys) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+  SNodeList* pGroupKeys = NULL;
+  SNode* pProjection = NULL;
+  FOREACH(pProjection, pSelect->pProjectionList) {
+    code = nodesListMakeStrictAppend(&pGroupKeys, createGroupingSetNode(pProjection));
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyList(pGroupKeys);
+      break;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pAgg->pGroupKeys = pGroupKeys;
   }
 
   // rewrite the expression in subsequent clauses
