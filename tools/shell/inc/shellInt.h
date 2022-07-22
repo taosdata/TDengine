@@ -67,14 +67,18 @@ typedef struct {
   bool        is_check;
   bool        is_startup;
   bool        is_help;
+#ifdef WEBSOCKET
   bool        restful;
   bool        cloud;
+#endif
   int32_t     port;
   int32_t     pktLen;
   int32_t     pktNum;
   int32_t     displayWidth;
   int32_t     abort;
+#ifdef WEBSOCKET
   int32_t     timeout;
+#endif
 } SShellArgs;
 
 typedef struct {
