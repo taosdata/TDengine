@@ -215,6 +215,14 @@ static bool stbSplHasMultiTbScan(bool streamQuery, SLogicNode* pNode) {
   return (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) && stbSplIsMultiTbScan(streamQuery, (SScanLogicNode*)pChild));
 }
 
+static bool stbSplIsMultiTbScanChild(bool streamQuery, SLogicNode* pNode) {
+  if (1 != LIST_LENGTH(pNode->pChildren)) {
+    return false;
+  }
+  SNode* pChild = nodesListGetNode(pNode->pChildren, 0);
+  return (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) && stbSplIsMultiTbScan(streamQuery, (SScanLogicNode*)pChild));
+}
+
 static bool stbSplNeedSplitWindow(bool streamQuery, SLogicNode* pNode) {
   SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode;
   if (WINDOW_TYPE_INTERVAL == pWindow->winType) {
@@ -247,7 +255,7 @@ static bool stbSplNeedSplit(bool streamQuery, SLogicNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN_JOIN:
       return !(((SJoinLogicNode*)pNode)->isSingleTableJoin);
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
-      return stbSplHasMultiTbScan(streamQuery, pNode);
+      return stbSplIsMultiTbScanChild(streamQuery, pNode);
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return !stbSplHasGatherExecFunc(((SAggLogicNode*)pNode)->pAggFuncs) && stbSplHasMultiTbScan(streamQuery, pNode);
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
@@ -970,7 +978,15 @@ static int32_t stbSplSplitJoinNode(SSplitContext* pCxt, SStableSplitInfo* pInfo)
 }
 
 static int32_t stbSplSplitPartitionNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
-  int32_t code = stbSplCreateMergeNode(pCxt, pInfo->pSubplan, pInfo->pSplitNode, NULL, pInfo->pSplitNode, true);
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SNodeList* pMergeKeys = NULL;
+  if (pInfo->pSplitNode->requireDataOrder >= DATA_ORDER_LEVEL_IN_GROUP) {
+    code = stbSplCreateMergeKeysByPrimaryKey(
+        stbSplFindPrimaryKeyFromScan((SScanLogicNode*)nodesListGetNode(pInfo->pSplitNode->pChildren, 0)), &pMergeKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = stbSplCreateMergeNode(pCxt, pInfo->pSubplan, pInfo->pSplitNode, pMergeKeys, pInfo->pSplitNode, true);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,
                                      (SNode*)splCreateScanSubplan(pCxt, pInfo->pSplitNode, SPLIT_FLAG_STABLE_SPLIT));
