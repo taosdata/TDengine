@@ -133,46 +133,6 @@ class TDTestCase:
         if clusterComCheck.checkMnodeStatus(2) :
             print("both mnodes are ready")
 
-        # # fisrt drop follower of mnode
-        # BUG 
-        # tdSql.execute("drop mnode on dnode 2")
-        # tdSql.query("show mnodes;")     
-        # tdSql.checkRows(1)  
-        # tdSql.checkData(0,1,'%s:6030'%self.host)
-        # tdSql.checkData(0,2,'leader')
-        # tdSql.checkData(0,3,'ready')
-        
-        # tdSql.execute("create mnode on dnode 2")
-        # count=0
-        # while count < 10:
-        #     time.sleep(1)
-        #     tdSql.query("show mnodes;")
-        #     tdSql.checkRows(2) 
-        #     if  tdSql.queryResult[0][2]=='leader' :
-        #         if  tdSql.queryResult[1][2]=='follower':
-        #             print("two mnodes is ready")
-        #             break
-        #     count+=1
-        # else:
-        #     print("two mnodes is not ready in 10s ")
-        
-        # tdSql.query("show mnodes;")     
-        # tdSql.checkRows(2)         
-        # tdSql.checkData(0,1,'%s:6030'%self.host)
-        # tdSql.checkData(0,2,'leader')
-        # tdSql.checkData(0,3,'ready')
-        # tdSql.checkData(1,1,'%s:6130'%self.host)
-        # tdSql.checkData(1,2,'follower')
-        # tdSql.checkData(2,3,'ready')
-
-
-    def getConnection(self, dnode):
-        host = dnode.cfgDict["fqdn"]
-        port = dnode.cfgDict["serverPort"]
-        config_dir = dnode.cfgDir
-        return taos.connect(host=host, port=int(port), config=config_dir)
-
-
     def run(self): 
         self.five_dnode_two_mnode()
 
