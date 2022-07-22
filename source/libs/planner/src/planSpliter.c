@@ -657,6 +657,9 @@ static int32_t stbSplSplitWindowForPartTable(SSplitContext* pCxt, SStableSplitIn
     return TSDB_CODE_SUCCESS;
   }
 
+  if (NULL != pInfo->pSplitNode->pParent && QUERY_NODE_LOGIC_PLAN_FILL == nodeType(pInfo->pSplitNode->pParent)) {
+    pInfo->pSplitNode = pInfo->pSplitNode->pParent;
+  }
   SExchangeLogicNode* pExchange = NULL;
   int32_t             code = splCreateExchangeNode(pCxt, pInfo->pSplitNode, &pExchange);
   if (TSDB_CODE_SUCCESS == code) {

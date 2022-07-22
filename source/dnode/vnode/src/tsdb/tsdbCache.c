@@ -464,7 +464,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
 
   switch (state->state) {
     case SFSNEXTROW_FS:
-      state->aDFileSet = state->pTsdb->pFS->cState->aDFileSet;
+      // state->aDFileSet = state->pTsdb->pFS->cState->aDFileSet;
       state->nFileSet = taosArrayGetSize(state->aDFileSet);
       state->iFileSet = state->nFileSet;
 
@@ -793,9 +793,10 @@ typedef struct {
   TSDBROW         memRow, imemRow, fsRow;
 
   TsdbNextRowState input[3];
-  SMemTable       *pMemTable;
-  SMemTable       *pIMemTable;
-  STsdb           *pTsdb;
+  // SMemTable       *pMemTable;
+  // SMemTable       *pIMemTable;
+  STsdbReadSnap *pReadSnap;
+  STsdb         *pTsdb;
 } CacheNextRowIter;
 
 static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTsdb) {
@@ -803,16 +804,16 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
 
   tb_uid_t suid = getTableSuidByUid(uid, pTsdb);
 
-  tsdbTakeMemSnapshot(pTsdb, &pIter->pMemTable, &pIter->pIMemTable);
+  tsdbTakeReadSnap(pTsdb, &pIter->pReadSnap);
 
   STbData *pMem = NULL;
-  if (pIter->pMemTable) {
-    tsdbGetTbDataFromMemTable(pIter->pMemTable, suid, uid, &pMem);
+  if (pIter->pReadSnap->pMem) {
+    tsdbGetTbDataFromMemTable(pIter->pReadSnap->pMem, suid, uid, &pMem);
   }
 
   STbData *pIMem = NULL;
-  if (pIter->pIMemTable) {
-    tsdbGetTbDataFromMemTable(pIter->pIMemTable, suid, uid, &pIMem);
+  if (pIter->pReadSnap->pIMem) {
+    tsdbGetTbDataFromMemTable(pIter->pReadSnap->pIMem, suid, uid, &pIMem);
   }
 
   pIter->pTsdb = pTsdb;
@@ -821,7 +822,7 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
 
   SDelIdx delIdx;
 
-  SDelFile *pDelFile = tsdbFSStateGetDelFile(pTsdb->pFS->cState);
+  SDelFile *pDelFile = pIter->pReadSnap->fs.pDelFile;
   if (pDelFile) {
     SDelFReader *pDelFReader;
 
@@ -846,6 +847,7 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
 
   pIter->fsState.state = SFSNEXTROW_FS;
   pIter->fsState.pTsdb = pTsdb;
+  pIter->fsState.aDFileSet = pIter->pReadSnap->fs.aDFileSet;
   pIter->fsState.pBlockIdxExp = &pIter->idx;
 
   pIter->input[0] = (TsdbNextRowState){&pIter->memRow, true, false, &pIter->memState, getNextRowFromMem, NULL};
@@ -885,7 +887,7 @@ static int32_t nextRowIterClose(CacheNextRowIter *pIter) {
     taosArrayDestroy(pIter->pSkyline);
   }
 
-  tsdbUntakeMemSnapshot(pIter->pTsdb, pIter->pMemTable, pIter->pIMemTable);
+  tsdbUntakeReadSnap(pIter->pTsdb, pIter->pReadSnap);
 
   return code;
 _err:
@@ -1172,480 +1174,480 @@ _err:
   return code;
 }
 
-static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, STSRow **ppRow) {
-  int32_t code = 0;
-  SArray *pSkyline = NULL;
+// static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, STSRow **ppRow) {
+//   int32_t code = 0;
+//   SArray *pSkyline = NULL;
 
-  STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1);
-  int16_t   nCol = pTSchema->numOfCols;
-  SArray   *pColArray = taosArrayInit(nCol, sizeof(SColVal));
+//   STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1);
+//   int16_t   nCol = pTSchema->numOfCols;
+//   SArray   *pColArray = taosArrayInit(nCol, sizeof(SColVal));
 
-  tb_uid_t suid = getTableSuidByUid(uid, pTsdb);
+//   tb_uid_t suid = getTableSuidByUid(uid, pTsdb);
 
-  STbData *pMem = NULL;
-  if (pTsdb->mem) {
-    tsdbGetTbDataFromMemTable(pTsdb->mem, suid, uid, &pMem);
-  }
+//   STbData *pMem = NULL;
+//   if (pTsdb->mem) {
+//     tsdbGetTbDataFromMemTable(pTsdb->mem, suid, uid, &pMem);
+//   }
 
-  STbData *pIMem = NULL;
-  if (pTsdb->imem) {
-    tsdbGetTbDataFromMemTable(pTsdb->imem, suid, uid, &pIMem);
-  }
+//   STbData *pIMem = NULL;
+//   if (pTsdb->imem) {
+//     tsdbGetTbDataFromMemTable(pTsdb->imem, suid, uid, &pIMem);
+//   }
 
-  *ppRow = NULL;
+//   *ppRow = NULL;
 
-  pSkyline = taosArrayInit(32, sizeof(TSDBKEY));
+//   pSkyline = taosArrayInit(32, sizeof(TSDBKEY));
 
-  SDelIdx delIdx;
+//   SDelIdx delIdx;
 
-  SDelFile *pDelFile = tsdbFSStateGetDelFile(pTsdb->pFS->cState);
-  if (pDelFile) {
-    SDelFReader *pDelFReader;
+//   SDelFile *pDelFile = tsdbFSStateGetDelFile(pTsdb->pFS->cState);
+//   if (pDelFile) {
+//     SDelFReader *pDelFReader;
 
-    code = tsdbDelFReaderOpen(&pDelFReader, pDelFile, pTsdb, NULL);
-    if (code) goto _err;
+//     code = tsdbDelFReaderOpen(&pDelFReader, pDelFile, pTsdb, NULL);
+//     if (code) goto _err;
 
-    code = getTableDelIdx(pDelFReader, suid, uid, &delIdx);
-    if (code) goto _err;
+//     code = getTableDelIdx(pDelFReader, suid, uid, &delIdx);
+//     if (code) goto _err;
 
-    code = getTableDelSkyline(pMem, pIMem, pDelFReader, &delIdx, pSkyline);
-    if (code) goto _err;
+//     code = getTableDelSkyline(pMem, pIMem, pDelFReader, &delIdx, pSkyline);
+//     if (code) goto _err;
 
-    tsdbDelFReaderClose(&pDelFReader);
-  } else {
-    code = getTableDelSkyline(pMem, pIMem, NULL, NULL, pSkyline);
-    if (code) goto _err;
-  }
+//     tsdbDelFReaderClose(&pDelFReader);
+//   } else {
+//     code = getTableDelSkyline(pMem, pIMem, NULL, NULL, pSkyline);
+//     if (code) goto _err;
+//   }
 
-  int64_t iSkyline = taosArrayGetSize(pSkyline) - 1;
+//   int64_t iSkyline = taosArrayGetSize(pSkyline) - 1;
 
-  SBlockIdx idx = {.suid = suid, .uid = uid};
+//   SBlockIdx idx = {.suid = suid, .uid = uid};
 
-  SFSNextRowIter fsState = {0};
-  fsState.state = SFSNEXTROW_FS;
-  fsState.pTsdb = pTsdb;
-  fsState.pBlockIdxExp = &idx;
+//   SFSNextRowIter fsState = {0};
+//   fsState.state = SFSNEXTROW_FS;
+//   fsState.pTsdb = pTsdb;
+//   fsState.pBlockIdxExp = &idx;
 
-  SMemNextRowIter memState = {0};
-  SMemNextRowIter imemState = {0};
-  TSDBROW         memRow, imemRow, fsRow;
+//   SMemNextRowIter memState = {0};
+//   SMemNextRowIter imemState = {0};
+//   TSDBROW         memRow, imemRow, fsRow;
 
-  TsdbNextRowState input[3] = {{&memRow, true, false, &memState, getNextRowFromMem, NULL},
-                               {&imemRow, true, false, &imemState, getNextRowFromMem, NULL},
-                               {&fsRow, false, true, &fsState, getNextRowFromFS, clearNextRowFromFS}};
+//   TsdbNextRowState input[3] = {{&memRow, true, false, &memState, getNextRowFromMem, NULL},
+//                                {&imemRow, true, false, &imemState, getNextRowFromMem, NULL},
+//                                {&fsRow, false, true, &fsState, getNextRowFromFS, clearNextRowFromFS}};
 
-  if (pMem) {
-    memState.pMem = pMem;
-    memState.state = SMEMNEXTROW_ENTER;
-    input[0].stop = false;
-    input[0].next = true;
-  }
-  if (pIMem) {
-    imemState.pMem = pIMem;
-    imemState.state = SMEMNEXTROW_ENTER;
-    input[1].stop = false;
-    input[1].next = true;
-  }
+//   if (pMem) {
+//     memState.pMem = pMem;
+//     memState.state = SMEMNEXTROW_ENTER;
+//     input[0].stop = false;
+//     input[0].next = true;
+//   }
+//   if (pIMem) {
+//     imemState.pMem = pIMem;
+//     imemState.state = SMEMNEXTROW_ENTER;
+//     input[1].stop = false;
+//     input[1].next = true;
+//   }
 
-  int16_t nilColCount = nCol - 1;  // count of null & none cols
-  int     iCol = 0;                // index of first nil col index from left to right
-  bool    setICol = false;
+//   int16_t nilColCount = nCol - 1;  // count of null & none cols
+//   int     iCol = 0;                // index of first nil col index from left to right
+//   bool    setICol = false;
 
-  do {
-    for (int i = 0; i < 3; ++i) {
-      if (input[i].next && !input[i].stop) {
-        if (input[i].pRow == NULL) {
-          code = input[i].nextRowFn(input[i].iter, &input[i].pRow);
-          if (code) goto _err;
+//   do {
+//     for (int i = 0; i < 3; ++i) {
+//       if (input[i].next && !input[i].stop) {
+//         if (input[i].pRow == NULL) {
+//           code = input[i].nextRowFn(input[i].iter, &input[i].pRow);
+//           if (code) goto _err;
 
-          if (input[i].pRow == NULL) {
-            input[i].stop = true;
-            input[i].next = false;
-          }
-        }
-      }
-    }
+//           if (input[i].pRow == NULL) {
+//             input[i].stop = true;
+//             input[i].next = false;
+//           }
+//         }
+//       }
+//     }
 
-    if (input[0].stop && input[1].stop && input[2].stop) {
-      break;
-    }
+//     if (input[0].stop && input[1].stop && input[2].stop) {
+//       break;
+//     }
 
-    // select maxpoint(s) from mem, imem, fs
-    TSDBROW *max[3] = {0};
-    int      iMax[3] = {-1, -1, -1};
-    int      nMax = 0;
-    TSKEY    maxKey = TSKEY_MIN;
+//     // select maxpoint(s) from mem, imem, fs
+//     TSDBROW *max[3] = {0};
+//     int      iMax[3] = {-1, -1, -1};
+//     int      nMax = 0;
+//     TSKEY    maxKey = TSKEY_MIN;
 
-    for (int i = 0; i < 3; ++i) {
-      if (!input[i].stop && input[i].pRow != NULL) {
-        TSDBKEY key = TSDBROW_KEY(input[i].pRow);
+//     for (int i = 0; i < 3; ++i) {
+//       if (!input[i].stop && input[i].pRow != NULL) {
+//         TSDBKEY key = TSDBROW_KEY(input[i].pRow);
 
-        // merging & deduplicating on client side
-        if (maxKey <= key.ts) {
-          if (maxKey < key.ts) {
-            nMax = 0;
-            maxKey = key.ts;
-          }
+//         // merging & deduplicating on client side
+//         if (maxKey <= key.ts) {
+//           if (maxKey < key.ts) {
+//             nMax = 0;
+//             maxKey = key.ts;
+//           }
 
-          iMax[nMax] = i;
-          max[nMax++] = input[i].pRow;
-        }
-      }
-    }
+//           iMax[nMax] = i;
+//           max[nMax++] = input[i].pRow;
+//         }
+//       }
+//     }
 
-    // delete detection
-    TSDBROW *merge[3] = {0};
-    int      iMerge[3] = {-1, -1, -1};
-    int      nMerge = 0;
-    for (int i = 0; i < nMax; ++i) {
-      TSDBKEY maxKey = TSDBROW_KEY(max[i]);
+//     // delete detection
+//     TSDBROW *merge[3] = {0};
+//     int      iMerge[3] = {-1, -1, -1};
+//     int      nMerge = 0;
+//     for (int i = 0; i < nMax; ++i) {
+//       TSDBKEY maxKey = TSDBROW_KEY(max[i]);
 
-      bool deleted = tsdbKeyDeleted(&maxKey, pSkyline, &iSkyline);
-      if (!deleted) {
-        iMerge[nMerge] = i;
-        merge[nMerge++] = max[i];
-      }
+//       bool deleted = tsdbKeyDeleted(&maxKey, pSkyline, &iSkyline);
+//       if (!deleted) {
+//         iMerge[nMerge] = i;
+//         merge[nMerge++] = max[i];
+//       }
 
-      input[iMax[i]].next = deleted;
-    }
+//       input[iMax[i]].next = deleted;
+//     }
 
-    // merge if nMerge > 1
-    if (nMerge > 0) {
-      *dup = false;
+//     // merge if nMerge > 1
+//     if (nMerge > 0) {
+//       *dup = false;
 
-      if (nMerge == 1) {
-        code = tsRowFromTsdbRow(pTSchema, merge[nMerge - 1], ppRow);
-        if (code) goto _err;
-      } else {
-        // merge 2 or 3 rows
-        SRowMerger merger = {0};
+//       if (nMerge == 1) {
+//         code = tsRowFromTsdbRow(pTSchema, merge[nMerge - 1], ppRow);
+//         if (code) goto _err;
+//       } else {
+//         // merge 2 or 3 rows
+//         SRowMerger merger = {0};
 
-        tRowMergerInit(&merger, merge[0], pTSchema);
-        for (int i = 1; i < nMerge; ++i) {
-          tRowMerge(&merger, merge[i]);
-        }
-        tRowMergerGetRow(&merger, ppRow);
-        tRowMergerClear(&merger);
-      }
-    }
+//         tRowMergerInit(&merger, merge[0], pTSchema);
+//         for (int i = 1; i < nMerge; ++i) {
+//           tRowMerge(&merger, merge[i]);
+//         }
+//         tRowMergerGetRow(&merger, ppRow);
+//         tRowMergerClear(&merger);
+//       }
+//     }
 
-  } while (1);
+//   } while (1);
 
-  for (int i = 0; i < 3; ++i) {
-    if (input[i].nextRowClearFn) {
-      input[i].nextRowClearFn(input[i].iter);
-    }
-  }
-  if (pSkyline) {
-    taosArrayDestroy(pSkyline);
-  }
-  taosMemoryFreeClear(pTSchema);
+//   for (int i = 0; i < 3; ++i) {
+//     if (input[i].nextRowClearFn) {
+//       input[i].nextRowClearFn(input[i].iter);
+//     }
+//   }
+//   if (pSkyline) {
+//     taosArrayDestroy(pSkyline);
+//   }
+//   taosMemoryFreeClear(pTSchema);
 
-  return code;
-_err:
-  for (int i = 0; i < 3; ++i) {
-    if (input[i].nextRowClearFn) {
-      input[i].nextRowClearFn(input[i].iter);
-    }
-  }
-  if (pSkyline) {
-    taosArrayDestroy(pSkyline);
-  }
-  taosMemoryFreeClear(pTSchema);
-  tsdbError("vgId:%d merge last_row failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  return code;
-}
+//   return code;
+// _err:
+//   for (int i = 0; i < 3; ++i) {
+//     if (input[i].nextRowClearFn) {
+//       input[i].nextRowClearFn(input[i].iter);
+//     }
+//   }
+//   if (pSkyline) {
+//     taosArrayDestroy(pSkyline);
+//   }
+//   taosMemoryFreeClear(pTSchema);
+//   tsdbError("vgId:%d merge last_row failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+//   return code;
+// }
 
 // static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow) {
-static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
-  int32_t  code = 0;
-  SArray  *pSkyline = NULL;
-  STSRow  *pRow = NULL;
-  STSRow **ppRow = &pRow;
+// static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
+//   int32_t  code = 0;
+//   SArray  *pSkyline = NULL;
+//   STSRow  *pRow = NULL;
+//   STSRow **ppRow = &pRow;
 
-  STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1);
-  int16_t   nCol = pTSchema->numOfCols;
-  //  SArray   *pColArray = taosArrayInit(nCol, sizeof(SColVal));
-  SArray *pColArray = taosArrayInit(nCol, sizeof(SLastCol));
+//   STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1);
+//   int16_t   nCol = pTSchema->numOfCols;
+//   //  SArray   *pColArray = taosArrayInit(nCol, sizeof(SColVal));
+//   SArray *pColArray = taosArrayInit(nCol, sizeof(SLastCol));
 
-  tb_uid_t suid = getTableSuidByUid(uid, pTsdb);
+//   tb_uid_t suid = getTableSuidByUid(uid, pTsdb);
 
-  STbData *pMem = NULL;
-  if (pTsdb->mem) {
-    tsdbGetTbDataFromMemTable(pTsdb->mem, suid, uid, &pMem);
-  }
+//   STbData *pMem = NULL;
+//   if (pTsdb->mem) {
+//     tsdbGetTbDataFromMemTable(pTsdb->mem, suid, uid, &pMem);
+//   }
 
-  STbData *pIMem = NULL;
-  if (pTsdb->imem) {
-    tsdbGetTbDataFromMemTable(pTsdb->imem, suid, uid, &pIMem);
-  }
+//   STbData *pIMem = NULL;
+//   if (pTsdb->imem) {
+//     tsdbGetTbDataFromMemTable(pTsdb->imem, suid, uid, &pIMem);
+//   }
 
-  *ppLastArray = NULL;
+//   *ppLastArray = NULL;
 
-  pSkyline = taosArrayInit(32, sizeof(TSDBKEY));
+//   pSkyline = taosArrayInit(32, sizeof(TSDBKEY));
 
-  SDelIdx delIdx;
+//   SDelIdx delIdx;
 
-  SDelFile *pDelFile = tsdbFSStateGetDelFile(pTsdb->pFS->cState);
-  if (pDelFile) {
-    SDelFReader *pDelFReader;
+//   SDelFile *pDelFile = tsdbFSStateGetDelFile(pTsdb->pFS->cState);
+//   if (pDelFile) {
+//     SDelFReader *pDelFReader;
 
-    code = tsdbDelFReaderOpen(&pDelFReader, pDelFile, pTsdb, NULL);
-    if (code) goto _err;
+//     code = tsdbDelFReaderOpen(&pDelFReader, pDelFile, pTsdb, NULL);
+//     if (code) goto _err;
 
-    code = getTableDelIdx(pDelFReader, suid, uid, &delIdx);
-    if (code) goto _err;
+//     code = getTableDelIdx(pDelFReader, suid, uid, &delIdx);
+//     if (code) goto _err;
 
-    code = getTableDelSkyline(pMem, pIMem, pDelFReader, &delIdx, pSkyline);
-    if (code) goto _err;
+//     code = getTableDelSkyline(pMem, pIMem, pDelFReader, &delIdx, pSkyline);
+//     if (code) goto _err;
 
-    tsdbDelFReaderClose(&pDelFReader);
-  } else {
-    code = getTableDelSkyline(pMem, pIMem, NULL, NULL, pSkyline);
-    if (code) goto _err;
-  }
+//     tsdbDelFReaderClose(&pDelFReader);
+//   } else {
+//     code = getTableDelSkyline(pMem, pIMem, NULL, NULL, pSkyline);
+//     if (code) goto _err;
+//   }
 
-  int64_t iSkyline = taosArrayGetSize(pSkyline) - 1;
+//   int64_t iSkyline = taosArrayGetSize(pSkyline) - 1;
 
-  SBlockIdx idx = {.suid = suid, .uid = uid};
+//   SBlockIdx idx = {.suid = suid, .uid = uid};
 
-  SFSNextRowIter fsState = {0};
-  fsState.state = SFSNEXTROW_FS;
-  fsState.pTsdb = pTsdb;
-  fsState.pBlockIdxExp = &idx;
+//   SFSNextRowIter fsState = {0};
+//   fsState.state = SFSNEXTROW_FS;
+//   fsState.pTsdb = pTsdb;
+//   fsState.pBlockIdxExp = &idx;
 
-  SMemNextRowIter memState = {0};
-  SMemNextRowIter imemState = {0};
-  TSDBROW         memRow, imemRow, fsRow;
+//   SMemNextRowIter memState = {0};
+//   SMemNextRowIter imemState = {0};
+//   TSDBROW         memRow, imemRow, fsRow;
 
-  TsdbNextRowState input[3] = {{&memRow, true, false, &memState, getNextRowFromMem, NULL},
-                               {&imemRow, true, false, &imemState, getNextRowFromMem, NULL},
-                               {&fsRow, false, true, &fsState, getNextRowFromFS, clearNextRowFromFS}};
+//   TsdbNextRowState input[3] = {{&memRow, true, false, &memState, getNextRowFromMem, NULL},
+//                                {&imemRow, true, false, &imemState, getNextRowFromMem, NULL},
+//                                {&fsRow, false, true, &fsState, getNextRowFromFS, clearNextRowFromFS}};
 
-  if (pMem) {
-    memState.pMem = pMem;
-    memState.state = SMEMNEXTROW_ENTER;
-    input[0].stop = false;
-    input[0].next = true;
-  }
-  if (pIMem) {
-    imemState.pMem = pIMem;
-    imemState.state = SMEMNEXTROW_ENTER;
-    input[1].stop = false;
-    input[1].next = true;
-  }
+//   if (pMem) {
+//     memState.pMem = pMem;
+//     memState.state = SMEMNEXTROW_ENTER;
+//     input[0].stop = false;
+//     input[0].next = true;
+//   }
+//   if (pIMem) {
+//     imemState.pMem = pIMem;
+//     imemState.state = SMEMNEXTROW_ENTER;
+//     input[1].stop = false;
+//     input[1].next = true;
+//   }
 
-  int16_t nilColCount = nCol - 1;  // count of null & none cols
-  int     iCol = 0;                // index of first nil col index from left to right
-  bool    setICol = false;
+//   int16_t nilColCount = nCol - 1;  // count of null & none cols
+//   int     iCol = 0;                // index of first nil col index from left to right
+//   bool    setICol = false;
 
-  do {
-    for (int i = 0; i < 3; ++i) {
-      if (input[i].next && !input[i].stop) {
-        code = input[i].nextRowFn(input[i].iter, &input[i].pRow);
-        if (code) goto _err;
+//   do {
+//     for (int i = 0; i < 3; ++i) {
+//       if (input[i].next && !input[i].stop) {
+//         code = input[i].nextRowFn(input[i].iter, &input[i].pRow);
+//         if (code) goto _err;
 
-        if (input[i].pRow == NULL) {
-          input[i].stop = true;
-          input[i].next = false;
-        }
-      }
-    }
+//         if (input[i].pRow == NULL) {
+//           input[i].stop = true;
+//           input[i].next = false;
+//         }
+//       }
+//     }
 
-    if (input[0].stop && input[1].stop && input[2].stop) {
-      break;
-    }
+//     if (input[0].stop && input[1].stop && input[2].stop) {
+//       break;
+//     }
 
-    // select maxpoint(s) from mem, imem, fs
-    TSDBROW *max[3] = {0};
-    int      iMax[3] = {-1, -1, -1};
-    int      nMax = 0;
-    TSKEY    maxKey = TSKEY_MIN;
+//     // select maxpoint(s) from mem, imem, fs
+//     TSDBROW *max[3] = {0};
+//     int      iMax[3] = {-1, -1, -1};
+//     int      nMax = 0;
+//     TSKEY    maxKey = TSKEY_MIN;
 
-    for (int i = 0; i < 3; ++i) {
-      if (!input[i].stop && input[i].pRow != NULL) {
-        TSDBKEY key = TSDBROW_KEY(input[i].pRow);
+//     for (int i = 0; i < 3; ++i) {
+//       if (!input[i].stop && input[i].pRow != NULL) {
+//         TSDBKEY key = TSDBROW_KEY(input[i].pRow);
 
-        // merging & deduplicating on client side
-        if (maxKey <= key.ts) {
-          if (maxKey < key.ts) {
-            nMax = 0;
-            maxKey = key.ts;
-          }
+//         // merging & deduplicating on client side
+//         if (maxKey <= key.ts) {
+//           if (maxKey < key.ts) {
+//             nMax = 0;
+//             maxKey = key.ts;
+//           }
 
-          iMax[nMax] = i;
-          max[nMax++] = input[i].pRow;
-        }
-      }
-    }
+//           iMax[nMax] = i;
+//           max[nMax++] = input[i].pRow;
+//         }
+//       }
+//     }
 
-    // delete detection
-    TSDBROW *merge[3] = {0};
-    int      iMerge[3] = {-1, -1, -1};
-    int      nMerge = 0;
-    for (int i = 0; i < nMax; ++i) {
-      TSDBKEY maxKey = TSDBROW_KEY(max[i]);
+//     // delete detection
+//     TSDBROW *merge[3] = {0};
+//     int      iMerge[3] = {-1, -1, -1};
+//     int      nMerge = 0;
+//     for (int i = 0; i < nMax; ++i) {
+//       TSDBKEY maxKey = TSDBROW_KEY(max[i]);
 
-      bool deleted = tsdbKeyDeleted(&maxKey, pSkyline, &iSkyline);
-      if (!deleted) {
-        iMerge[nMerge] = iMax[i];
-        merge[nMerge++] = max[i];
-      }
+//       bool deleted = tsdbKeyDeleted(&maxKey, pSkyline, &iSkyline);
+//       if (!deleted) {
+//         iMerge[nMerge] = iMax[i];
+//         merge[nMerge++] = max[i];
+//       }
 
-      input[iMax[i]].next = deleted;
-    }
+//       input[iMax[i]].next = deleted;
+//     }
 
-    // merge if nMerge > 1
-    if (nMerge > 0) {
-      if (nMerge == 1) {
-        code = tsRowFromTsdbRow(pTSchema, merge[nMerge - 1], ppRow);
-        if (code) goto _err;
-      } else {
-        // merge 2 or 3 rows
-        SRowMerger merger = {0};
+//     // merge if nMerge > 1
+//     if (nMerge > 0) {
+//       if (nMerge == 1) {
+//         code = tsRowFromTsdbRow(pTSchema, merge[nMerge - 1], ppRow);
+//         if (code) goto _err;
+//       } else {
+//         // merge 2 or 3 rows
+//         SRowMerger merger = {0};
 
-        tRowMergerInit(&merger, merge[0], pTSchema);
-        for (int i = 1; i < nMerge; ++i) {
-          tRowMerge(&merger, merge[i]);
-        }
-        tRowMergerGetRow(&merger, ppRow);
-        tRowMergerClear(&merger);
-      }
-    } else {
-      /* *ppRow = NULL; */
-      /* return code; */
-      continue;
-    }
+//         tRowMergerInit(&merger, merge[0], pTSchema);
+//         for (int i = 1; i < nMerge; ++i) {
+//           tRowMerge(&merger, merge[i]);
+//         }
+//         tRowMergerGetRow(&merger, ppRow);
+//         tRowMergerClear(&merger);
+//       }
+//     } else {
+//       /* *ppRow = NULL; */
+//       /* return code; */
+//       continue;
+//     }
 
-    if (iCol == 0) {
-      STColumn *pTColumn = &pTSchema->columns[0];
-      SColVal  *pColVal = &(SColVal){0};
+//     if (iCol == 0) {
+//       STColumn *pTColumn = &pTSchema->columns[0];
+//       SColVal  *pColVal = &(SColVal){0};
 
-      *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.ts = maxKey});
+//       *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.ts = maxKey});
 
-      // if (taosArrayPush(pColArray, pColVal) == NULL) {
-      if (taosArrayPush(pColArray, &(SLastCol){.ts = maxKey, .colVal = *pColVal}) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _err;
-      }
+//       // if (taosArrayPush(pColArray, pColVal) == NULL) {
+//       if (taosArrayPush(pColArray, &(SLastCol){.ts = maxKey, .colVal = *pColVal}) == NULL) {
+//         code = TSDB_CODE_OUT_OF_MEMORY;
+//         goto _err;
+//       }
 
-      ++iCol;
+//       ++iCol;
 
-      setICol = false;
-      for (int16_t i = iCol; i < nCol; ++i) {
-        // tsdbRowGetColVal(*ppRow, pTSchema, i, pColVal);
-        tTSRowGetVal(*ppRow, pTSchema, i, pColVal);
-        // if (taosArrayPush(pColArray, pColVal) == NULL) {
-        if (taosArrayPush(pColArray, &(SLastCol){.ts = maxKey, .colVal = *pColVal}) == NULL) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          goto _err;
-        }
+//       setICol = false;
+//       for (int16_t i = iCol; i < nCol; ++i) {
+//         // tsdbRowGetColVal(*ppRow, pTSchema, i, pColVal);
+//         tTSRowGetVal(*ppRow, pTSchema, i, pColVal);
+//         // if (taosArrayPush(pColArray, pColVal) == NULL) {
+//         if (taosArrayPush(pColArray, &(SLastCol){.ts = maxKey, .colVal = *pColVal}) == NULL) {
+//           code = TSDB_CODE_OUT_OF_MEMORY;
+//           goto _err;
+//         }
 
-        if (pColVal->isNull || pColVal->isNone) {
-          for (int j = 0; j < nMerge; ++j) {
-            SColVal jColVal = {0};
-            tsdbRowGetColVal(merge[j], pTSchema, i, &jColVal);
-            if (jColVal.isNull || jColVal.isNone) {
-              input[iMerge[j]].next = true;
-            }
-          }
-          if (!setICol) {
-            iCol = i;
-            setICol = true;
-          }
-        } else {
-          --nilColCount;
-        }
-      }
+//         if (pColVal->isNull || pColVal->isNone) {
+//           for (int j = 0; j < nMerge; ++j) {
+//             SColVal jColVal = {0};
+//             tsdbRowGetColVal(merge[j], pTSchema, i, &jColVal);
+//             if (jColVal.isNull || jColVal.isNone) {
+//               input[iMerge[j]].next = true;
+//             }
+//           }
+//           if (!setICol) {
+//             iCol = i;
+//             setICol = true;
+//           }
+//         } else {
+//           --nilColCount;
+//         }
+//       }
 
-      if (*ppRow) {
-        taosMemoryFreeClear(*ppRow);
-      }
+//       if (*ppRow) {
+//         taosMemoryFreeClear(*ppRow);
+//       }
 
-      continue;
-    }
+//       continue;
+//     }
 
-    setICol = false;
-    for (int16_t i = iCol; i < nCol; ++i) {
-      SColVal colVal = {0};
-      tTSRowGetVal(*ppRow, pTSchema, i, &colVal);
-      TSKEY rowTs = (*ppRow)->ts;
+//     setICol = false;
+//     for (int16_t i = iCol; i < nCol; ++i) {
+//       SColVal colVal = {0};
+//       tTSRowGetVal(*ppRow, pTSchema, i, &colVal);
+//       TSKEY rowTs = (*ppRow)->ts;
 
-      // SColVal *tColVal = (SColVal *)taosArrayGet(pColArray, i);
-      SLastCol *tTsVal = (SLastCol *)taosArrayGet(pColArray, i);
-      SColVal  *tColVal = &tTsVal->colVal;
+//       // SColVal *tColVal = (SColVal *)taosArrayGet(pColArray, i);
+//       SLastCol *tTsVal = (SLastCol *)taosArrayGet(pColArray, i);
+//       SColVal  *tColVal = &tTsVal->colVal;
 
-      if (!colVal.isNone && !colVal.isNull) {
-        if (tColVal->isNull || tColVal->isNone) {
-          // taosArraySet(pColArray, i, &colVal);
-          taosArraySet(pColArray, i, &(SLastCol){.ts = rowTs, .colVal = colVal});
-          --nilColCount;
-        }
-      } else {
-        if ((tColVal->isNull || tColVal->isNone) && !setICol) {
-          iCol = i;
-          setICol = true;
+//       if (!colVal.isNone && !colVal.isNull) {
+//         if (tColVal->isNull || tColVal->isNone) {
+//           // taosArraySet(pColArray, i, &colVal);
+//           taosArraySet(pColArray, i, &(SLastCol){.ts = rowTs, .colVal = colVal});
+//           --nilColCount;
+//         }
+//       } else {
+//         if ((tColVal->isNull || tColVal->isNone) && !setICol) {
+//           iCol = i;
+//           setICol = true;
 
-          for (int j = 0; j < nMerge; ++j) {
-            SColVal jColVal = {0};
-            tsdbRowGetColVal(merge[j], pTSchema, i, &jColVal);
-            if (jColVal.isNull || jColVal.isNone) {
-              input[iMerge[j]].next = true;
-            }
-          }
-        }
-      }
-    }
+//           for (int j = 0; j < nMerge; ++j) {
+//             SColVal jColVal = {0};
+//             tsdbRowGetColVal(merge[j], pTSchema, i, &jColVal);
+//             if (jColVal.isNull || jColVal.isNone) {
+//               input[iMerge[j]].next = true;
+//             }
+//           }
+//         }
+//       }
+//     }
 
-    if (*ppRow) {
-      taosMemoryFreeClear(*ppRow);
-    }
-  } while (nilColCount > 0);
+//     if (*ppRow) {
+//       taosMemoryFreeClear(*ppRow);
+//     }
+//   } while (nilColCount > 0);
 
-  // if () new ts row from pColArray if non empty
-  /* if (taosArrayGetSize(pColArray) == nCol) { */
-  /*   code = tdSTSRowNew(pColArray, pTSchema, ppRow); */
-  /*   if (code) goto _err; */
-  /* } */
-  /* taosArrayDestroy(pColArray); */
-  if (taosArrayGetSize(pColArray) <= 0) {
-    *ppLastArray = NULL;
-    taosArrayDestroy(pColArray);
-  } else {
-    *ppLastArray = pColArray;
-  }
-  if (*ppRow) {
-    taosMemoryFreeClear(*ppRow);
-  }
+//   // if () new ts row from pColArray if non empty
+//   /* if (taosArrayGetSize(pColArray) == nCol) { */
+//   /*   code = tdSTSRowNew(pColArray, pTSchema, ppRow); */
+//   /*   if (code) goto _err; */
+//   /* } */
+//   /* taosArrayDestroy(pColArray); */
+//   if (taosArrayGetSize(pColArray) <= 0) {
+//     *ppLastArray = NULL;
+//     taosArrayDestroy(pColArray);
+//   } else {
+//     *ppLastArray = pColArray;
+//   }
+//   if (*ppRow) {
+//     taosMemoryFreeClear(*ppRow);
+//   }
 
-  for (int i = 0; i < 3; ++i) {
-    if (input[i].nextRowClearFn) {
-      input[i].nextRowClearFn(input[i].iter);
-    }
-  }
-  if (pSkyline) {
-    taosArrayDestroy(pSkyline);
-  }
-  taosMemoryFreeClear(pTSchema);
+//   for (int i = 0; i < 3; ++i) {
+//     if (input[i].nextRowClearFn) {
+//       input[i].nextRowClearFn(input[i].iter);
+//     }
+//   }
+//   if (pSkyline) {
+//     taosArrayDestroy(pSkyline);
+//   }
+//   taosMemoryFreeClear(pTSchema);
 
-  return code;
-_err:
-  taosArrayDestroy(pColArray);
-  if (*ppRow) {
-    taosMemoryFreeClear(*ppRow);
-  }
-  for (int i = 0; i < 3; ++i) {
-    if (input[i].nextRowClearFn) {
-      input[i].nextRowClearFn(input[i].iter);
-    }
-  }
-  if (pSkyline) {
-    taosArrayDestroy(pSkyline);
-  }
-  taosMemoryFreeClear(pTSchema);
-  tsdbError("vgId:%d merge last_row failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  return code;
-}
+//   return code;
+// _err:
+//   taosArrayDestroy(pColArray);
+//   if (*ppRow) {
+//     taosMemoryFreeClear(*ppRow);
+//   }
+//   for (int i = 0; i < 3; ++i) {
+//     if (input[i].nextRowClearFn) {
+//       input[i].nextRowClearFn(input[i].iter);
+//     }
+//   }
+//   if (pSkyline) {
+//     taosArrayDestroy(pSkyline);
+//   }
+//   taosMemoryFreeClear(pTSchema);
+//   tsdbError("vgId:%d merge last_row failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+//   return code;
+// }
 
 int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHandle **handle) {
   int32_t code = 0;

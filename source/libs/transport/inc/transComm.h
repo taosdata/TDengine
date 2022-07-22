@@ -229,8 +229,8 @@ typedef struct {
   int8_t      stop;
 } SAsyncPool;
 
-SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb);
-void        transDestroyAsyncPool(SAsyncPool* pool);
+SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb);
+void        transAsyncPoolDestroy(SAsyncPool* pool);
 int         transAsyncSend(SAsyncPool* pool, queue* mq);
 bool        transAsyncPoolIsEmpty(SAsyncPool* pool);
 
@@ -322,7 +322,7 @@ typedef struct STransReq {
 } STransReq;
 
 void  transReqQueueInit(queue* q);
-void* transReqQueuePushReq(queue* q);
+void* transReqQueuePush(queue* q);
 void* transReqQueueRemove(void* arg);
 void  transReqQueueClear(queue* q);
 
@@ -393,9 +393,9 @@ typedef struct SDelayQueue {
   uv_loop_t*  loop;
 } SDelayQueue;
 
-int  transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
-void transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg));
-int  transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
+int         transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
+void        transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg));
+SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
 /*
