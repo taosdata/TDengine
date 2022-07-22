@@ -68,7 +68,7 @@ static int horizontalPrintWebsocket(WS_RES* wres) {
     }
     numOfRows += rows;
     ws_fetch_block(wres, &data, &rows);
-  } while (rows);
+  } while (rows && !shell.stop_query);
   return numOfRows;
 }
 
@@ -108,7 +108,7 @@ static int verticalPrintWebsocket(WS_RES* wres) {
       numOfRows++;
     }
     ws_fetch_block(wres, &data, &rows);
-  } while (rows);
+  } while (rows && !shell.stop_query);
   return numOfRows;
 }
 
@@ -157,7 +157,7 @@ static int dumpWebsocketToFile(const char* fname, WS_RES* wres) {
       taosFprintfFile(pFile, "\r\n");
     }
     ws_fetch_block(wres, &data, &rows);
-  } while (rows);
+  } while (rows && !shell.stop_query);
   taosCloseFile(&pFile);
   return numOfRows;
 }
@@ -207,6 +207,7 @@ void shellRunSingleCommandWebsocketImp(char *command) {
 	return;
   }
 
+  shell.stop_query = false;
   st = taosGetTimestampUs();
 
   WS_RES* res = ws_query_timeout(shell.ws_conn, command, shell.args.timeout);
@@ -245,7 +246,7 @@ void shellRunSingleCommandWebsocketImp(char *command) {
 		return;
 	}
 	et = taosGetTimestampUs();
-	if (error_no == 0) {
+	if (error_no == 0 && !shell.stop_query) {
 		printf("Query OK, %d row(s) in set (%.6fs)\n", numOfRows,
 				(et - st)/1E6);
 	} else {

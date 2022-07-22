@@ -939,7 +939,16 @@ void *shellCancelHandler(void *arg) {
       taosMsleep(10);
       continue;
     }
-    taos_kill_query(shell.conn);
+
+#ifdef WEBSOCKET
+	if (shell.args.restful || shell.args.cloud) {
+		shell.stop_query = true;
+	} else {
+#endif
+		taos_kill_query(shell.conn);
+#ifdef WEBSOCKET
+	}
+#endif 
   #ifdef WINDOWS
     printf("\n%s", shell.info.promptHeader);
   #endif
