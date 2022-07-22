@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "functionMgt.h"
 #include "planInt.h"
 
 static char* getUsageErrFormat(int32_t errCode) {
@@ -140,13 +141,27 @@ static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel 
 }
 
 static int32_t adjustJoinDataRequirement(SJoinLogicNode* pJoin, EDataOrderLevel requirement) {
+  // The lowest sort level of join input and output data is DATA_ORDER_LEVEL_GLOBAL
   return TSDB_CODE_SUCCESS;
 }
 
+static bool isKeepOrderAggFunc(SNodeList* pFuncs) {
+  SNode* pFunc = NULL;
+  FOREACH(pFunc, pFuncs) {
+    if (!fmIsKeepOrderFunc(((SFunctionNode*)pFunc)->funcId)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static int32_t adjustAggDataRequirement(SAggLogicNode* pAgg, EDataOrderLevel requirement) {
-  if (requirement > DATA_ORDER_LEVEL_NONE) {
+  // The sort level of agg with group by output data can only be DATA_ORDER_LEVEL_NONE
+  if (requirement > DATA_ORDER_LEVEL_NONE && (NULL != pAgg->pGroupKeys || !isKeepOrderAggFunc(pAgg->pAggFuncs))) {
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
+  pAgg->node.resultDataOrder = requirement;
+  pAgg->node.requireDataOrder = requirement;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -157,11 +172,12 @@ static int32_t adjustProjectDataRequirement(SProjectLogicNode* pProject, EDataOr
 }
 
 static int32_t adjustIntervalDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
-  if (requirement <= pWindow->node.resultDataOrder) {
-    return TSDB_CODE_SUCCESS;
+  // The lowest sort level of interval output data is DATA_ORDER_LEVEL_IN_GROUP
+  if (requirement < DATA_ORDER_LEVEL_IN_GROUP) {
+    requirement = DATA_ORDER_LEVEL_IN_GROUP;
   }
+  // The sort level of interval input data is always DATA_ORDER_LEVEL_IN_BLOCK
   pWindow->node.resultDataOrder = requirement;
-  pWindow->node.requireDataOrder = requirement;
   return TSDB_CODE_SUCCESS;
 }
 

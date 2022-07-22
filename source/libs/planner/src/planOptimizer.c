@@ -2010,15 +2010,16 @@ static int32_t rewriteUniqueOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeAppend(&pProject->pChildren, (SNode*)pAgg);
-    pAgg->pParent = pProject;
-    pAgg = NULL;
   }
   if (TSDB_CODE_SUCCESS == code) {
+    pAgg->pParent = pProject;
+    pAgg = NULL;
     code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pIndef, pProject);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = adjustLogicNodeDataRequirement(
         pProject, NULL == pProject->pParent ? DATA_ORDER_LEVEL_NONE : pProject->pParent->requireDataOrder);
+    pProject = NULL;
   }
   if (TSDB_CODE_SUCCESS == code) {
     nodesDestroyNode((SNode*)pIndef);

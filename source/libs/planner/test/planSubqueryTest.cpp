@@ -70,4 +70,6 @@ TEST_F(PlanSubqeuryTest, outerInterval) {
   run("SELECT COUNT(*) FROM (SELECT * FROM st1) INTERVAL(5s)");
 
   run("SELECT COUNT(*) + SUM(c1) FROM (SELECT * FROM st1) INTERVAL(5s)");
+
+  run("SELECT COUNT(*) FROM (SELECT ts, TOP(c1, 10) FROM st1s1) INTERVAL(5s)");
 }
