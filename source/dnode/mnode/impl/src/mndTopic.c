@@ -75,7 +75,6 @@ const char *mndTopicGetShowName(const char topic[TSDB_TOPIC_FNAME_LEN]) {
 int32_t mndCheckColAndTagModifiable(SMnode *pMnode, int64_t suid, col_id_t colId) {
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
-  bool  found = false;
   while (1) {
     SMqTopicObj *pTopic = NULL;
     pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic);
@@ -96,10 +95,12 @@ int32_t mndCheckColAndTagModifiable(SMnode *pMnode, int64_t suid, col_id_t colId
     SNode *pNode = NULL;
     FOREACH(pNode, pNodeList) {
       SColumnNode *pCol = (SColumnNode *)pNode;
-      if (pCol->tableId != suid) goto NEXT;
+      if (pCol->tableId != suid && pTopic->ctbStbUid != suid) goto NEXT;
       if (pCol->colId > 0 && pCol->colId == colId) {
-        found = true;
-        goto NEXT;
+        sdbRelease(pSdb, pTopic);
+        nodesDestroyNode(pAst);
+        terrno = TSDB_CODE_MND_FIELD_CONFLICT_WITH_TOPIC;
+        return -1;
       }
       mTrace("topic:%s, colId:%d is used", pTopic->name, pCol->colId);
     }
@@ -107,10 +108,6 @@ int32_t mndCheckColAndTagModifiable(SMnode *pMnode, int64_t suid, col_id_t colId
   NEXT:
     sdbRelease(pSdb, pTopic);
     nodesDestroyNode(pAst);
-    if (found) {
-      terrno = TSDB_CODE_MND_FIELD_CONFLICT_WITH_TOPIC;
-      return -1;
-    }
   }
 
   return 0;
@@ -176,6 +173,7 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
       SDB_SET_INT16(pRaw, dataPos, colId, TOPIC_ENCODE_OVER);
     }
   }
+  SDB_SET_INT64(pRaw, dataPos, pTopic->ctbStbUid, TOPIC_ENCODE_OVER);
 
   SDB_SET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_ENCODE_OVER);
   SDB_SET_DATALEN(pRaw, dataPos, TOPIC_ENCODE_OVER);
@@ -284,6 +282,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT16(pRaw, dataPos, &colId, TOPIC_DECODE_OVER);
     taosArrayPush(pTopic->ntbColIds, &colId);
   }
+  SDB_GET_INT64(pRaw, dataPos, &pTopic->ctbStbUid, TOPIC_DECODE_OVER);
 
   SDB_GET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_DECODE_OVER);
 
@@ -371,15 +370,22 @@ static int32_t mndCheckCreateTopicReq(SCMCreateTopicReq *pCreate) {
   return 0;
 }
 
-static int32_t extractTopicTbInfo(SNode *pAst, int64_t *ntbUid, SArray *colIds) {
+static int32_t extractTopicTbInfo(SNode *pAst, SMqTopicObj *pTopic) {
   SNodeList *pNodeList = NULL;
   nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList);
-  SNode *pNode = NULL;
-  FOREACH(pNode, pNodeList) {
-    SColumnNode *pCol = (SColumnNode *)pNode;
-    if (pCol->tableType != TSDB_NORMAL_TABLE) return -1;
-    *ntbUid = pCol->tableId;
-    taosArrayPush(colIds, &pCol->colId);
+  int64_t suid = ((SRealTableNode *)((SSelectStmt *)pAst)->pFromTable)->pMeta->suid;
+  int8_t  tableType = ((SRealTableNode *)((SSelectStmt *)pAst)->pFromTable)->pMeta->tableType;
+  if (tableType == TSDB_CHILD_TABLE) {
+    pTopic->ctbStbUid = suid;
+  } else if (tableType == TSDB_NORMAL_TABLE) {
+    SNode *pNode = NULL;
+    FOREACH(pNode, pNodeList) {
+      SColumnNode *pCol = (SColumnNode *)pNode;
+      if (pCol->tableType == TSDB_NORMAL_TABLE) {
+        pTopic->ntbUid = pCol->tableId;
+        taosArrayPush(pTopic->ntbColIds, &pCol->colId);
+      }
+    }
   }
   return 0;
 }
@@ -425,16 +431,16 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     }
 
     int64_t ntbUid;
-    SArray *colIds = taosArrayInit(0, sizeof(int16_t));
-    if (colIds == NULL) {
+    topicObj.ntbColIds = taosArrayInit(0, sizeof(int16_t));
+    if (topicObj.ntbColIds == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    if (extractTopicTbInfo(pAst, &ntbUid, colIds) < 0) {
-      taosArrayDestroy(colIds);
-    } else {
-      topicObj.ntbUid = ntbUid;
-      topicObj.ntbColIds = colIds;
+    extractTopicTbInfo(pAst, &topicObj);
+
+    if (topicObj.ntbUid == 0) {
+      taosArrayDestroy(topicObj.ntbColIds);
+      topicObj.ntbColIds = NULL;
     }
 
     if (qExtractResultSchema(pAst, &topicObj.schema.nCols, &topicObj.schema.pSchema) != 0) {
@@ -509,6 +515,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       if (code < 0) {
         sdbRelease(pSdb, pVgroup);
         mndTransDrop(pTrans);
+        ASSERT(0);
         return -1;
       }
       void    *buf = taosMemoryCalloc(1, sizeof(SMsgHead) + len);
@@ -521,7 +528,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
         return -1;
       }
       tEncoderClear(&encoder);
-      ((SMsgHead *)buf)->vgId = pVgroup->vgId;
+      ((SMsgHead *)buf)->vgId = htonl(pVgroup->vgId);
       // add redo action
       STransAction action = {0};
       action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
@@ -546,7 +553,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
 
   taosMemoryFreeClear(topicObj.physicalPlan);
   mndTransDrop(pTrans);
-  return 0;
+  return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
 static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {

@@ -480,6 +480,7 @@ typedef struct {
   // forbid condition
   int64_t ntbUid;
   SArray* ntbColIds;
+  int64_t ctbStbUid;
 } SMqTopicObj;
 
 typedef struct {

@@ -830,9 +830,9 @@ class TDTestCase:
         cfgPath = buildPath + "/../sim/psim/cfg"
         tdLog.info("cfgPath: %s" % cfgPath)
 
-        self.tmqCase1(cfgPath, buildPath)
-        self.tmqCase2(cfgPath, buildPath) 
-        self.tmqCase3(cfgPath, buildPath)
+        # self.tmqCase1(cfgPath, buildPath)
+        # self.tmqCase2(cfgPath, buildPath) 
+        # self.tmqCase3(cfgPath, buildPath)
         self.tmqCase4(cfgPath, buildPath)
         self.tmqCase5(cfgPath, buildPath)
 
