@@ -1084,6 +1084,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   pInfo->pRes->info.rows = pBlock->info.rows;
   pInfo->pRes->info.uid = pBlock->info.uid;
   pInfo->pRes->info.type = STREAM_NORMAL;
+  pInfo->pRes->info.version = pBlock->info.version;
 
   uint64_t* groupIdPre = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
   if (groupIdPre) {

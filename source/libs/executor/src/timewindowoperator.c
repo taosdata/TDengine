@@ -1560,6 +1560,11 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       continue;
     }
 
+    if (pBlock->info.type == STREAM_NORMAL) {
+      //set input version
+      pTaskInfo->version = pBlock->info.version;
+    }
+
     if (pInfo->scalarSupp.pExprInfo != NULL) {
       SExprSupp* pExprSup = &pInfo->scalarSupp;
       projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL);
