@@ -103,7 +103,7 @@ class TDTestCase:
             tdLog.exit("tmq consume rows error with snapshot = 0!")
         
         tdLog.info("wait subscriptions exit ....")      
-        tmqCom.waitSubscriptionExit(tdSql)
+        tmqCom.waitSubscriptionExit(tdSql, topicFromDb)
             
         tdSql.query("drop topic %s"%topicFromDb)
         tdLog.info("success dorp topic: %s"%topicFromDb)
@@ -196,7 +196,7 @@ class TDTestCase:
             tdLog.exit("tmq consume rows error with snapshot = 0!")
         
         tdLog.info("wait subscriptions exit ....")      
-        tmqCom.waitSubscriptionExit(tdSql)
+        tmqCom.waitSubscriptionExit(tdSql, topicFromDb)
             
         tdSql.query("drop topic %s"%topicFromDb)
         tdLog.info("success dorp topic: %s"%topicFromDb)
