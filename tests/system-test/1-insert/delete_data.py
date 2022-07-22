@@ -214,6 +214,24 @@ class TDTestCase:
                 tdSql.checkRows((row_num-i)*tb_num)
                 for j in range(tb_num):
                     self.insert_base_data(col_type,f'{tbname}_{j}',row_num,base_data)
+        for i in range(row_num):
+            tdSql.execute(f'delete from {tbname} where ts between {self.ts} and {self.ts+i}')
+            tdSql.execute(f'flush database {dbname}')
+            tdSql.execute('reset query cache')
+            tdSql.query(f'select {col_name} from {tbname}')
+            if tb_type == 'ntb' or tb_type == 'ctb':
+                tdSql.checkRows(row_num - i-1)
+                self.insert_base_data(col_type,tbname,row_num,base_data)
+            elif tb_type == 'stb':
+                tdSql.checkRows(tb_num*(row_num - i-1))
+                for j in range(tb_num):
+                    self.insert_base_data(col_type,f'{tbname}_{j}',row_num,base_data)
+            tdSql.execute(f'delete from {tbname} where ts between {self.ts+i+1} and {self.ts}')
+            tdSql.query(f'select {col_name} from {tbname}')
+            if tb_type == 'ntb' or tb_type == 'ctb':
+                tdSql.checkRows(row_num)
+            elif tb_type == 'stb':
+                tdSql.checkRows(tb_num*row_num)
     def delete_error(self,tbname,column_name,column_type,base_data):
         for error_list in ['',f'ts = {self.ts} and',f'ts = {self.ts} or']:
             if 'binary' in column_type.lower():
@@ -221,7 +239,8 @@ class TDTestCase:
             elif 'nchar' in column_type.lower():
                 tdSql.error(f'''delete from {tbname} where {error_list} {column_name} ="{base_data['nchar']}"''')
             else:
-                tdSql.error(f'delete from {tbname} where {error_list} {column_name} = {base_data[column_type]}')   
+                tdSql.error(f'delete from {tbname} where {error_list} {column_name} = {base_data[column_type]}')
+           
     def delete_data_ntb(self):
         tdSql.execute(f'create database if not exists {self.dbname}')
         tdSql.execute(f'use {self.dbname}')
