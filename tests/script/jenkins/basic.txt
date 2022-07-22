@@ -69,6 +69,7 @@
 ./test.sh -f tsim/insert/basic.sim
 ./test.sh -f tsim/insert/basic0.sim
 ./test.sh -f tsim/insert/basic1.sim
+./test.sh -f tsim/insert/basic2.sim
 ./test.sh -f tsim/insert/commit-merge0.sim
 ./test.sh -f tsim/insert/insert_drop.sim
 ./test.sh -f tsim/insert/insert_select.sim
