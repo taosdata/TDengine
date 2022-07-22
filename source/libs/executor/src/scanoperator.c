@@ -985,6 +985,7 @@ static SSDataBlock* doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32
       STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
       tsdbReaderClose(pTableScanInfo->dataReader);
       pTableScanInfo->dataReader = NULL;
+      return NULL;
     }
 
     if (pResult->info.groupId == pInfo->groupId) {
