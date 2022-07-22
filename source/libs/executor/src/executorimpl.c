@@ -1336,12 +1336,10 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
 static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep);
 
 void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
-  if (pFilterNode == NULL) {
+  if (pFilterNode == NULL || pBlock->info.rows == 0) {
     return;
   }
-  if (pBlock->info.rows == 0) {
-    return;
-  }
+
   SFilterInfo* filter = NULL;
 
   // todo move to the initialization function
@@ -1358,8 +1356,6 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   filterFreeInfo(filter);
 
   extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
-  blockDataUpdateTsWindow(pBlock, 0);
-
   taosMemoryFree(rowRes);
 }
 
