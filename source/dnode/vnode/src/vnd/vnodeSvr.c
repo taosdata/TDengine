@@ -789,6 +789,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
     goto _exit;
   }
 
+  pSubmitReq->version = version;
   submitRsp.pArray = taosArrayInit(msgIter.numOfBlocks, sizeof(SSubmitBlkRsp));
   newTbUids = taosArrayInit(msgIter.numOfBlocks, sizeof(int64_t));
   if (!submitRsp.pArray) {
