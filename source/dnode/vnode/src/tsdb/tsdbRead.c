@@ -3275,7 +3275,7 @@ int32_t tsdbTakeReadSnap(STsdb* pTsdb, STsdbReadSnap** ppSnap) {
     tsdbRefMemTable((*ppSnap)->pIMem);
   }
 
-  // fs (todo)
+  // fs
   code = tsdbFSRef(pTsdb, &(*ppSnap)->fs);
   if (code) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
@@ -3289,6 +3289,7 @@ int32_t tsdbTakeReadSnap(STsdb* pTsdb, STsdbReadSnap** ppSnap) {
     goto _exit;
   }
 
+  tsdbTrace("vgId:%d take read snapshot", TD_VID(pTsdb->pVnode));
 _exit:
   return code;
 }
@@ -3304,5 +3305,8 @@ void tsdbUntakeReadSnap(STsdb* pTsdb, STsdbReadSnap* pSnap) {
     }
 
     tsdbFSUnref(pTsdb, &pSnap->fs);
+    taosMemoryFree(pSnap);
   }
+
+  tsdbTrace("vgId:%d untake read snapshot", TD_VID(pTsdb->pVnode));
 }
