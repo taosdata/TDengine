@@ -32,6 +32,9 @@ python3 ./test.py -f 1-insert/block_wise.py
 python3 ./test.py -f 1-insert/create_retentions.py
 python3 ./test.py -f 1-insert/table_param_ttl.py
 
+python3 ./test.py -f 1-insert/update_data_muti_rows.py
+
+
 python3 ./test.py -f 2-query/abs.py
 python3 ./test.py -f 2-query/abs.py -R
 python3 ./test.py -f 2-query/and_or_for_byte.py
@@ -59,7 +62,8 @@ python3 ./test.py -f 2-query/char_length.py -R
 python3 ./test.py -f 2-query/check_tsdb.py
 python3 ./test.py -f 2-query/check_tsdb.py -R
 
-# jira python3 ./test.py -f 1-insert/update_data.py
+# python3 ./test.py -f 1-insert/update_data.py
+
 python3 ./test.py -f 1-insert/delete_data.py
 python3 ./test.py -f 2-query/db.py
 

@@ -1107,6 +1107,11 @@ int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullF
 
 void blockDataCleanup(SSDataBlock* pDataBlock) {
   pDataBlock->info.rows = 0;
+  pDataBlock->info.groupId = 0;
+
+  pDataBlock->info.window.ekey = 0;
+  pDataBlock->info.window.skey = 0;
+
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);

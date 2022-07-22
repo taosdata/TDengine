@@ -241,7 +241,7 @@ if $data04 != 3 then
   return -1
 endi
 
-sql alter table $mt change tag tgcol1 tgcol4
+sql alter table $mt rename tag tgcol1 tgcol4
 sql alter table $mt drop tag tgcol2 
 sql alter table $mt drop tag tgcol3
 sql alter table $mt add tag tgcol5 binary(10)

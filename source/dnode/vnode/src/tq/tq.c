@@ -215,10 +215,10 @@ int32_t tqCheckColModifiable(STQ* pTq, int32_t colId) {
     if (pIter == NULL) break;
     STqHandle* pExec = (STqHandle*)pIter;
     if (pExec->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-      int32_t sz = taosArrayGetSize(pExec->colIdList);
+      int32_t sz = pExec->execHandle.pSchemaWrapper->nCols;
       for (int32_t i = 0; i < sz; i++) {
-        int32_t forbidColId = *(int32_t*)taosArrayGet(pExec->colIdList, i);
-        if (forbidColId == colId) {
+        SSchema* pSchema = &pExec->execHandle.pSchemaWrapper->pSchema[i];
+        if (pSchema->colId == colId) {
           taosHashCancelIterate(pTq->handles, pIter);
           return -1;
         }
@@ -262,7 +262,7 @@ static int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq, int8_t su
 
 static int32_t tqInitMetaRsp(SMqMetaRsp* pRsp, const SMqPollReq* pReq) { return 0; }
 
-int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
+int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   SMqPollReq*  pReq = pMsg->pCont;
   int64_t      consumerId = pReq->consumerId;
   int64_t      timeout = pReq->timeout;
@@ -270,9 +270,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   int32_t      code = 0;
   STqOffsetVal reqOffset = pReq->reqOffset;
   STqOffsetVal fetchOffsetNew;
-
-  // todo
-  workerId = 0;
 
   // 1.find handle
   STqHandle* pHandle = taosHashGet(pTq->handles, pReq->subKey, strlen(pReq->subKey));
@@ -405,7 +402,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       if (pHead->msgType == TDMT_VND_SUBMIT) {
         SSubmitReq* pCont = (SSubmitReq*)&pHead->body;
 
-        if (tqLogScanExec(pTq, &pHandle->execHandle, pCont, &dataRsp, workerId) < 0) {
+        if (tqLogScanExec(pTq, &pHandle->execHandle, pCont, &dataRsp) < 0) {
           /*ASSERT(0);*/
         }
         // TODO batch optimization:
@@ -518,27 +515,24 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
       pHandle->execHandle.execCol.qmsg = req.qmsg;
       pHandle->snapshotVer = ver;
       req.qmsg = NULL;
-      for (int32_t i = 0; i < 5; i++) {
-        SReadHandle handle = {
-            .meta = pTq->pVnode->pMeta,
-            .vnode = pTq->pVnode,
-            .initTableReader = true,
-            .initTqReader = true,
-            .version = ver,
-        };
-        pHandle->execHandle.execCol.task[i] = qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, &pHandle->execHandle.numOfCols,
-            &pHandle->execHandle.pSchemaWrapper);
-        ASSERT(pHandle->execHandle.execCol.task[i]);
-        void* scanner = NULL;
-        qExtractStreamScanner(pHandle->execHandle.execCol.task[i], &scanner);
-        ASSERT(scanner);
-        pHandle->execHandle.pExecReader[i] = qExtractReaderFromStreamScanner(scanner);
-        ASSERT(pHandle->execHandle.pExecReader[i]);
-      }
+      SReadHandle handle = {
+          .meta = pTq->pVnode->pMeta,
+          .vnode = pTq->pVnode,
+          .initTableReader = true,
+          .initTqReader = true,
+          .version = ver,
+      };
+      pHandle->execHandle.execCol.task =
+          qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, &pHandle->execHandle.numOfCols,
+                                   &pHandle->execHandle.pSchemaWrapper);
+      ASSERT(pHandle->execHandle.execCol.task);
+      void* scanner = NULL;
+      qExtractStreamScanner(pHandle->execHandle.execCol.task, &scanner);
+      ASSERT(scanner);
+      pHandle->execHandle.pExecReader = qExtractReaderFromStreamScanner(scanner);
+      ASSERT(pHandle->execHandle.pExecReader);
     } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
-      for (int32_t i = 0; i < 5; i++) {
-        pHandle->execHandle.pExecReader[i] = tqOpenReader(pTq->pVnode);
-      }
+      pHandle->execHandle.pExecReader = tqOpenReader(pTq->pVnode);
       pHandle->execHandle.execDb.pFilterOutTbUid =
           taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
@@ -550,10 +544,8 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
         int64_t tbUid = *(int64_t*)taosArrayGet(tbUidList, i);
         tqDebug("vgId:%d, idx %d, uid:%" PRId64, TD_VID(pTq->pVnode), i, tbUid);
       }
-      for (int32_t i = 0; i < 5; i++) {
-        pHandle->execHandle.pExecReader[i] = tqOpenReader(pTq->pVnode);
-        tqReaderSetTbUidList(pHandle->execHandle.pExecReader[i], tbUidList);
-      }
+      pHandle->execHandle.pExecReader = tqOpenReader(pTq->pVnode);
+      tqReaderSetTbUidList(pHandle->execHandle.pExecReader, tbUidList);
       taosArrayDestroy(tbUidList);
     }
     taosHashPut(pTq->handles, req.subKey, strlen(req.subKey), pHandle, sizeof(STqHandle));
