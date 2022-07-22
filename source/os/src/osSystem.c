@@ -18,10 +18,6 @@
 #include "os.h"
 
 #if defined(WINDOWS)
-BOOL WINAPI CtrlHandler(DWORD fdwCtrlType) {
-  printf("\n" TAOS_CONSOLE_PROMPT_HEADER);
-  return TRUE;
-}
 #elif defined(_TD_DARWIN_64)
 #else
 #include <dlfcn.h>
@@ -128,7 +124,6 @@ int taosSetConsoleEcho(bool on) {
 
 void taosSetTerminalMode() {
 #if defined(WINDOWS)
-  SetConsoleCtrlHandler(CtrlHandler, TRUE);
 
 #else
   struct termios newtio;
@@ -179,7 +174,6 @@ int32_t taosGetOldTerminalMode() {
 
 void taosResetTerminalMode() {
 #if defined(WINDOWS)
-  SetConsoleCtrlHandler(CtrlHandler, FALSE);
 #else
   if (tcsetattr(0, TCSANOW, &oldtio) != 0) {
     fprintf(stderr, "Fail to reset the terminal properties!\n");
