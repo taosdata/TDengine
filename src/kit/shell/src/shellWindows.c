@@ -62,12 +62,14 @@ void printHelp() {
   printf("%s%s%s\n", indent, indent, "Packet length used for net test, default is 1000 bytes.");
   printf("%s%s\n", indent, "-N");
   printf("%s%s%s\n", indent, indent, "Packet numbers used for net test, default is 100.");
+#ifdef WEBSOCKET
   printf("%s%s\n", indent, "-R");
   printf("%s%s%s\n", indent, indent, "Connect and interact with TDengine use restful.");
   printf("%s%s\n", indent, "-E");
   printf("%s%s%s\n", indent, indent, "The DSN to use when connecting TDengine's cloud services.");
   printf("%s%s\n", indent, "-t");
   printf("%s%s%s\n", indent, indent, "The timeout seconds for websocekt to interact.");
+#endif
   printf("%s%s\n", indent, "-S");
   printf("%s%s%s\n", indent, indent, "Packet type used for net test, default is TCP.");
   printf("%s%s\n", indent, "-V");
@@ -82,7 +84,9 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // for host
     if (strcmp(argv[i], "-h") == 0) {
       if (i < argc - 1) {
+#ifdef WEBSOCKET
           arguments->cloud = false;
+#endif
           arguments->host = argv[++i];
       } else {
         fprintf(stderr, "option -h requires an argument\n");
@@ -114,7 +118,9 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // for management port
     else if (strcmp(argv[i], "-P") == 0) {
       if (i < argc - 1) {
+#ifdef WEBSOCKET
         arguments->cloud = false;
+#endif
         arguments->port = atoi(argv[++i]);
       } else {
         fprintf(stderr, "option -P requires an argument\n");
@@ -138,7 +144,9 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       }
     } else if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {
+#ifdef WEBSOCKET
         arguments->cloud = false;
+#endif
         char *tmp = argv[++i];
         if (strlen(tmp) >= TSDB_FILENAME_LEN) {
           fprintf(stderr, "config file path: %s overflow max len %d\n", tmp, TSDB_FILENAME_LEN - 1);
@@ -220,6 +228,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
+#ifdef WEBSOCKET
 
     else if (strcmp(argv[i], "-R") == 0) {
         arguments->cloud = false;
@@ -243,6 +252,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
+#endif
 
     else if (strcmp(argv[i], "-V") == 0) {
       printVersion();
@@ -258,6 +268,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       exit(EXIT_FAILURE);
     }
   }
+#ifdef WEBSOCKET
   if (args.dsn == NULL) {
       if (args.cloud) {
           args.dsn = getenv("TDENGINE_CLOUD_DSN");
@@ -274,6 +285,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   } else {
       args.cloud = true;
   }
+#endif
 }
 
 void shellPrintContinuePrompt() { printf("%s", CONTINUE_PROMPT); }

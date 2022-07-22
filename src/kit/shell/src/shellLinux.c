@@ -52,9 +52,11 @@ static struct argp_option options[] = {
   {"pktlen",     'l', "PKTLEN",     0,                   "Packet length used for net test, default is 1000 bytes."},
   {"pktnum",     'N', "PKTNUM",     0,                   "Packet numbers used for net test, default is 100."},
   {"pkttype",    'S', "PKTTYPE",    0,                   "Choose packet type used for net test, default is TCP. Only speed test could be either TCP or UDP."},
+#ifdef WEBSOCKET
   {"restful", 'R', 0, 0, "Connect and interact with TDengine use restful."},
   {"cloudDsn", 'E', "DSN", 0, "The DSN to use when connecting TDengine's cloud services."},
   {"timeout", 't', "SECONDS", 0, "The timeout seconds for websocket to interact."},
+#endif
   {0}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
@@ -66,7 +68,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
   switch (key) {
     case 'h':
         if (arg) {
+#ifdef WEBSOCKET
           args.cloud = false;
+#endif
           args.host = arg;
         } else {
           fprintf(stderr, "Invalid host\n");
@@ -77,7 +81,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       break;
     case 'P':
       if (arg) {
+#ifdef WEBSOCKET
         args.cloud = false;
+#endif
         tsDnodeShellPort = atoi(arg);
         args.port = atoi(arg);
       } else {
@@ -105,7 +111,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         wordfree(&full_path);
         return -1;
       }
+#ifdef WEBSOCKET
       args.cloud = false;
+#endif
       tstrncpy(configDir, full_path.we_wordv[0], TSDB_FILENAME_LEN);
       wordfree(&full_path);
       break;
@@ -173,6 +181,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case OPT_ABORT:
       arguments->abort = 1;
       break;
+#ifdef WEBSOCKET
     case 'R':
       arguments->restful = true;
       arguments->cloud = false;
@@ -192,6 +201,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         fprintf(stderr, "Invalid -t option\n");
       }
       break;
+#endif
     default:
       return ARGP_ERR_UNKNOWN;
   }
@@ -245,6 +255,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
 
   argp_parse(&argp, argc, argv, 0, 0, arguments);
 
+#ifdef WEBSOCKET
   if (args.dsn == NULL) {
     if (args.cloud) {
       args.dsn = getenv("TDENGINE_CLOUD_DSN");
@@ -255,6 +266,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   } else {
     args.cloud = true;
   }
+#endif
 
   if (arguments->abort) {
     #ifndef _ALPINE

@@ -60,12 +60,14 @@ void printHelp() {
   printf("%s%s%s\n", indent, indent, "Use multi-thread to import all SQL files in the directory separately.");
   printf("%s%s\n", indent, "-T");
   printf("%s%s%s\n", indent, indent, "Number of threads when using multi-thread to import data.");
+#ifdef WEBSOCKET
   printf("%s%s\n", indent, "-R");
   printf("%s%s%s\n", indent, indent, "Connect and interact with TDengine use restful.");
   printf("%s%s\n", indent, "-E");
   printf("%s%s%s\n", indent, indent, "The DSN to use when connecting TDengine's cloud services.");
   printf("%s%s\n", indent, "-t");
   printf("%s%s%s\n", indent, indent, "The timeout in seconds for websocket interact.");
+#endif
   exit(EXIT_SUCCESS);
 }
 
@@ -79,7 +81,9 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // for host
     if (strcmp(argv[i], "-h") == 0) {
         if (i < argc - 1) {
+#ifdef WEBSOCKET
             arguments->cloud = false;
+#endif
             arguments->host = argv[++i];
         } else {
             fprintf(stderr, "option -h requires an argument\n");
@@ -111,7 +115,9 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // for management port
     else if (strcmp(argv[i], "-P") == 0) {
       if (i < argc - 1) {
+#ifdef WEBSOCKET
         arguments->cloud = false;
+#endif
         arguments->port = atoi(argv[++i]);
       } else {
         fprintf(stderr, "option -P requires an argument\n");
@@ -128,7 +134,9 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       }
     } else if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {
+#ifdef WEBSOCKET
         arguments->cloud = false;
+#endif
         if (strlen(argv[++i]) >= TSDB_FILENAME_LEN) {
           fprintf(stderr, "config file path: %s overflow max len %d\n", argv[i], TSDB_FILENAME_LEN - 1);
           exit(EXIT_FAILURE);
@@ -198,7 +206,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
-
+#ifdef WEBSOCKET
     else if (strcmp(argv[i], "-R") == 0) {
         arguments->cloud = false;
         arguments->restful = true;
@@ -221,6 +229,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
+#endif
 
       // For temperory command TODO
     else if (strcmp(argv[i], "--help") == 0) {
@@ -232,6 +241,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       exit(EXIT_FAILURE);
     }
   }
+#ifdef WEBSOCKET
   if (args.dsn == NULL) {
       if (args.cloud) {
           args.dsn = getenv("TDENGINE_CLOUD_DSN");
@@ -242,6 +252,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   } else {
       args.cloud = true;
   }
+#endif
 }
 
 int32_t shellReadCommand(TAOS *con, char *command) {
