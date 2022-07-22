@@ -95,9 +95,6 @@ while $i < $tbNum
   $j = $j + 1
 endw
 
-print sleep 1sec.
-sleep 100
-
 $i = 1
 $tb = $tbPrefix . $i
 

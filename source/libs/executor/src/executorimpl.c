@@ -521,7 +521,7 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
 
         // NOTE: the last parameter is the primary timestamp column
         // todo: refactor this
-        if (fmIsTimelineFunc(pCtx[i].functionId) && (j == pOneExpr->base.numOfParams - 1)) {
+        if (fmIsImplicitTsFunc(pCtx[i].functionId) && (j == pOneExpr->base.numOfParams - 1)) {
           pInput->pPTS = pInput->pData[j];  // in case of merge function, this is not always the ts column data.
                                             //          ASSERT(pInput->pPTS->info.type == TSDB_DATA_TYPE_TIMESTAMP);
         }
@@ -1601,6 +1601,9 @@ void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SG
   int32_t*        rowCellOffset = pOperator->exprSupp.rowEntryInfoOffset;
   SSDataBlock*    pBlock = pbInfo->pRes;
   SqlFunctionCtx* pCtx = pOperator->exprSupp.pCtx;
+
+  // set output datablock version
+  pBlock->info.version = pTaskInfo->version;
 
   blockDataCleanup(pBlock);
   if (!hasDataInGroupInfo(pGroupResInfo)) {
@@ -4440,10 +4443,10 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       return createExchangeOperatorInfo(pHandle->pMsgCb->clientRpc, (SExchangePhysiNode*)pPhyNode, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
-      STimeWindowAggSupp aggSup = (STimeWindowAggSupp){
-          .waterMark = pTableScanNode->watermark,
-          .calTrigger = pTableScanNode->triggerType,
-          .maxTs = INT64_MIN,
+      STimeWindowAggSupp   aggSup = (STimeWindowAggSupp){
+            .waterMark = pTableScanNode->watermark,
+            .calTrigger = pTableScanNode->triggerType,
+            .maxTs = INT64_MIN,
       };
 
       if (pHandle->vnode) {
@@ -5136,8 +5139,7 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey, SqlF
   }
   pSup->valueSize = size;
 
-  pSup->pScanWindow = taosArrayInit(4, sizeof(STimeWindow));
-
+  pSup->pScanBlock = createSpecialDataBlock(STREAM_CLEAR);
   int32_t pageSize = 4096;
   while (pageSize < pSup->resultRowSize * 4) {
     pageSize <<= 1u;

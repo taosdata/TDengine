@@ -226,8 +226,17 @@ static int32_t taosSetTfsCfg(SConfig *pCfg) {
   }
 
   if (tsDataDir[0] == 0) {
-    uError("datadir not set");
-    return -1;
+    if (pItem->str != NULL) {
+      taosAddDataDir(0, pItem->str, 0, 1);
+      tstrncpy(tsDataDir, pItem->str, PATH_MAX);
+      if (taosMulMkDir(tsDataDir) != 0) {
+        uError("failed to create dataDir:%s since %s", tsDataDir, terrstr());
+        return -1;
+      }
+    } else {
+      uError("datadir not set");
+      return -1;
+    }
   }
 
   return 0;

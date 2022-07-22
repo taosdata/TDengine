@@ -2538,6 +2538,15 @@ static FORCE_INLINE void* tDecodeSMqRebVgReq(const void* buf, SMqRebVgReq* pReq)
 }
 
 typedef struct {
+  char    topic[TSDB_TOPIC_FNAME_LEN];
+  int64_t ntbUid;
+  SArray* colIdList;  // SArray<int16_t>
+} SCheckAlterInfo;
+
+int32_t tEncodeSCheckAlterInfo(SEncoder* pEncoder, const SCheckAlterInfo* pInfo);
+int32_t tDecodeSCheckAlterInfo(SDecoder* pDecoder, SCheckAlterInfo* pInfo);
+
+typedef struct {
   int32_t vgId;
   int64_t offset;
   char    topicName[TSDB_TOPIC_FNAME_LEN];

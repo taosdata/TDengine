@@ -62,8 +62,6 @@ while $i < $half
   $tstart = 100000
 endw
 
-sleep 100
-
 $i1 = 1
 $i2 = 0
 

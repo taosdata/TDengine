@@ -124,7 +124,7 @@ int32_t replaceLogicNode(SLogicSubplan* pSubplan, SLogicNode* pOld, SLogicNode* 
 }
 
 static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel requirement) {
-  if (SCAN_TYPE_TABLE != pScan->scanType || SCAN_TYPE_TABLE_MERGE != pScan->scanType) {
+  if (SCAN_TYPE_TABLE != pScan->scanType && SCAN_TYPE_TABLE_MERGE != pScan->scanType) {
     return TSDB_CODE_SUCCESS;
   }
   // The lowest sort level of scan output data is DATA_ORDER_LEVEL_IN_BLOCK
@@ -161,7 +161,9 @@ static int32_t adjustAggDataRequirement(SAggLogicNode* pAgg, EDataOrderLevel req
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
   pAgg->node.resultDataOrder = requirement;
-  pAgg->node.requireDataOrder = requirement;
+  if (pAgg->hasTimeLineFunc) {
+    pAgg->node.requireDataOrder = requirement < DATA_ORDER_LEVEL_IN_GROUP ? DATA_ORDER_LEVEL_IN_GROUP : requirement;
+  }
   return TSDB_CODE_SUCCESS;
 }
 

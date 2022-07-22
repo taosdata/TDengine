@@ -28,7 +28,7 @@ from util.dnodes import *
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), logSql)
 
     def csum_query_form(self, col="c1",  alias="", table_expr="t1", condition=""):
 
