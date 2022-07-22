@@ -2656,7 +2656,6 @@ int32_t apercentileCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx)
 
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SAPercentileInfo*    pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
-  ASSERT(pDBuf->algo == pSBuf->algo);
 
   qDebug("start to combine apercentile, %p", pDBuf->pHisto);
 
