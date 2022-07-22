@@ -244,6 +244,7 @@ void *createRequest(uint64_t connId, int32_t type) {
 
   STscObj *pTscObj = acquireTscObj(connId);
   if (pTscObj == NULL) {
+    taosMemoryFree(pRequest);
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
   }

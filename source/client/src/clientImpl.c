@@ -834,7 +834,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
            tstrerror(code), pRequest->requestId);
 
   STscObj* pTscObj = pRequest->pTscObj;
-  if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code)) {
+  if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code) && pRequest->sqlstr != NULL) {
     tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
              pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
     pRequest->prevCode = code;
