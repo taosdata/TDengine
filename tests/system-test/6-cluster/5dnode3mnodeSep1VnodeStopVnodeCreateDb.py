@@ -165,13 +165,13 @@ class TDTestCase:
         # tdLog.info("check DB Rows:")
         clusterComCheck.checkDbRows(allDbNumbers)
         # tdLog.info("check DB Status on by on")
-        for i in range(restartNumbers):
-            clusterComCheck.checkDb(paraDict['dbNumbers'],restartNumbers,dbNameIndex = '%s%d'%(paraDict["dbName"],i))
+        # for i in range(restartNumbers):
+        #     clusterComCheck.checkDb(paraDict['dbNumbers'],restartNumbers,dbNameIndex = '%s%d'%(paraDict["dbName"],i))
 
 
     def run(self): 
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=15,stopRole='vnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=10,stopRole='vnode')
 
     def stop(self):
         tdSql.close()

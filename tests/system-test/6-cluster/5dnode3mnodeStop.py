@@ -111,7 +111,7 @@ class TDTestCase:
 
     def run(self): 
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(5,3,1)
+        self.fiveDnodeThreeMnode(dnodenumbers=5,mnodeNums=3,restartNumber=1)
  
     def stop(self):
         tdSql.close()
