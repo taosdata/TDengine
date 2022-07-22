@@ -40,12 +40,9 @@ typedef struct SDelIdx       SDelIdx;
 typedef struct STbData       STbData;
 typedef struct SMemTable     SMemTable;
 typedef struct STbDataIter   STbDataIter;
-typedef struct STable        STable;
 typedef struct SMapData      SMapData;
 typedef struct SBlockIdx     SBlockIdx;
 typedef struct SBlock        SBlock;
-typedef struct SBlockStatis  SBlockStatis;
-typedef struct SAggrBlkCol   SAggrBlkCol;
 typedef struct SColData      SColData;
 typedef struct SBlockDataHdr SBlockDataHdr;
 typedef struct SBlockData    SBlockData;
@@ -62,7 +59,6 @@ typedef struct SDelFReader   SDelFReader;
 typedef struct SRowIter      SRowIter;
 typedef struct STsdbFS       STsdbFS;
 typedef struct SRowMerger    SRowMerger;
-typedef struct STsdbSnapHdr  STsdbSnapHdr;
 typedef struct STsdbReadSnap STsdbReadSnap;
 
 #define TSDB_MAX_SUBBLOCKS 8
@@ -414,16 +410,6 @@ struct SBlock {
   int8_t    hasDup;
   int8_t    nSubBlock;
   SSubBlock aSubBlock[TSDB_MAX_SUBBLOCKS];
-};
-
-struct SAggrBlkCol {
-  int16_t colId;
-  int16_t maxIndex;
-  int16_t minIndex;
-  int16_t numOfNull;
-  int64_t sum;
-  int64_t max;
-  int64_t min;
 };
 
 struct SColData {
