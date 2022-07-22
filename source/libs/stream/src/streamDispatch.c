@@ -108,6 +108,7 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
   pRetrieve->numOfCols = htonl(numOfCols);
   pRetrieve->skey = htobe64(pBlock->info.window.skey);
   pRetrieve->ekey = htobe64(pBlock->info.window.ekey);
+  pRetrieve->version = htobe64(pBlock->info.version);
 
   int32_t actualLen = 0;
   blockEncode(pBlock, pRetrieve->data, &actualLen, numOfCols, false);
@@ -182,6 +183,7 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   pRetrieve->numOfRows = htonl(pBlock->info.rows);
   pRetrieve->skey = htobe64(pBlock->info.window.skey);
   pRetrieve->ekey = htobe64(pBlock->info.window.ekey);
+  pRetrieve->version = htobe64(pBlock->info.version);
 
   int32_t numOfCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
   pRetrieve->numOfCols = htonl(numOfCols);

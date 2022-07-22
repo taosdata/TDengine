@@ -199,6 +199,10 @@ int32_t qAsyncKillTask(qTaskInfo_t qinfo) {
 
 void qDestroyTask(qTaskInfo_t qTaskHandle) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qTaskHandle;
+  if (pTaskInfo == NULL) {
+    return;
+  }
+
   qDebug("%s execTask completed, numOfRows:%" PRId64, GET_TASKID(pTaskInfo), pTaskInfo->pRoot->resultInfo.totalRows);
 
   queryCostStatis(pTaskInfo);  // print the query cost summary

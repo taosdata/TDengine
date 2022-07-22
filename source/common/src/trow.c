@@ -568,6 +568,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
   int32_t   maxVarDataLen = 0;
   int32_t   iColVal = 0;
   void     *varBuf = NULL;
+  bool      isAlloc = false;
 
   ASSERT(nColVal > 1);
 
@@ -610,8 +611,11 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
     ++iColVal;
   }
 
-  *ppRow = (STSRow *)taosMemoryCalloc(
-      1, sizeof(STSRow) + pTSchema->flen + varDataLen + TD_BITMAP_BYTES(pTSchema->numOfCols - 1));
+  if (!(*ppRow)) {
+    *ppRow = (STSRow *)taosMemoryCalloc(
+        1, sizeof(STSRow) + pTSchema->flen + varDataLen + TD_BITMAP_BYTES(pTSchema->numOfCols - 1));
+    isAlloc = true;
+  }
 
   if (!(*ppRow)) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -621,7 +625,9 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
   if (maxVarDataLen > 0) {
     varBuf = taosMemoryMalloc(maxVarDataLen);
     if (!varBuf) {
-      taosMemoryFreeClear(*ppRow);
+      if(isAlloc) {
+        taosMemoryFreeClear(*ppRow);
+      }
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
@@ -1323,12 +1329,11 @@ void tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pColV
   SCellVal  cv;
   SValue    value;
 
-  ASSERT(iCol > 0);
+  ASSERT((pTColumn->colId == PRIMARYKEY_TIMESTAMP_COL_ID) || (iCol > 0));
 
   if (TD_IS_TP_ROW(pRow)) {
     tdSTpRowGetVal(pRow, pTColumn->colId, pTColumn->type, pTSchema->flen, pTColumn->offset, iCol - 1, &cv);
   } else if (TD_IS_KV_ROW(pRow)) {
-    ASSERT(iCol > 0);
     tdSKvRowGetVal(pRow, pTColumn->colId, iCol - 1, &cv);
   } else {
     ASSERT(0);

@@ -20,6 +20,8 @@ import threading
 import requests
 import time
 # import socketfrom
+import json
+import toml
 
 import taos
 from util.log import *
@@ -207,7 +209,7 @@ class TMQCom:
 
     def drop_ctable(self, tsql, dbname=None, count=1, default_ctbname_prefix="ctb",ctbStartIdx=0):
         for _ in range(count):
-            create_ctable_sql = f'drop table {dbname}.{default_ctbname_prefix}{ctbStartIdx};'
+            create_ctable_sql = f'drop table if exists {dbname}.{default_ctbname_prefix}{ctbStartIdx};'
             ctbStartIdx += 1
             tdLog.info("drop ctb sql: %s"%create_ctable_sql)
             tsql.execute(create_ctable_sql)
@@ -502,6 +504,37 @@ class TMQCom:
             else:
                 break
         return 
+
+    def create_ntable(self, tsql, dbname=None, tbname_prefix="ntb", tbname_index_start_num = 1, column_elm_list=None, colPrefix='c', tblNum=1, **kwargs):
+        tb_params = ""
+        if len(kwargs) > 0:
+            for param, value in kwargs.items():
+                tb_params += f'{param} "{value}" '
+        column_type_str = tdCom.gen_column_type_str(colPrefix, column_elm_list)
+
+        for _ in range(tblNum):
+            create_table_sql = f'create table {dbname}.{tbname_prefix}{tbname_index_start_num} ({column_type_str}) {tb_params};'
+            tbname_index_start_num += 1
+            tsql.execute(create_table_sql)
+
+    def insert_rows_into_ntbl(self, tsql, dbname=None, tbname_prefix="ntb", tbname_index_start_num = 1, column_ele_list=None, startTs=None, tblNum=1, rows=1):
+        if startTs is None:
+            startTs = tdCom.genTs()[0]
+
+        for tblIdx in range(tblNum):
+            for rowIdx in range(rows):
+                column_value_list = tdCom.gen_column_value_list(column_ele_list, f'{startTs}+{rowIdx}s')
+                column_value_str = ''
+                idx = 0
+                for column_value in column_value_list:
+                    if isinstance(column_value, str) and idx != 0:
+                        column_value_str += f'"{column_value}", '
+                    else:
+                        column_value_str += f'{column_value}, '
+                        idx += 1
+                column_value_str = column_value_str.rstrip()[:-1]
+                insert_sql = f'insert into {dbname}.{tbname_prefix}{tblIdx+tbname_index_start_num} values ({column_value_str});'
+                tsql.execute(insert_sql)
 
     def close(self):
         self.cursor.close()

@@ -233,8 +233,15 @@ endi
 
 print 1
 #select + where condition + interval query
-sql select count(join_tb1.*) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = true interval(10a) order by join_tb0.ts desc;
+print select count(join_tb1.*) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = true interval(10a) order by _wstart asc;
+sql select count(join_tb1.*) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = true interval(10a) order by _wstart asc;
+$val = 100
+if $rows != $val then
+  return -1
+endi
 
+print select count(join_tb1.*) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = true interval(10a) order by _wstart desc;
+sql select count(join_tb1.*) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = true interval(10a) order by _wstart desc;
 $val = 100
 if $rows != $val then
   return -1

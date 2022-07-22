@@ -826,7 +826,7 @@ TEST(testCase, update_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1");
+  TAOS_RES* pRes = taos_query(pConn, "select cast(0 as timestamp)-1y");
   if (taos_errno(pRes) != TSDB_CODE_SUCCESS) {
     printf("failed to create database, code:%s", taos_errstr(pRes));
     taos_free_result(pRes);

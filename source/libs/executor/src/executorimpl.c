@@ -1647,11 +1647,6 @@ static int32_t compressQueryColData(SColumnInfoData* pColRes, int32_t numOfRows,
                                                       colSize + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
 }
 
-int32_t doFillTimeIntervalGapsInResults(struct SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t capacity) {
-  int32_t numOfRows = (int32_t)taosFillResultDataBlock(pFillInfo, pBlock, capacity - pBlock->info.rows);
-  return pBlock->info.rows;
-}
-
 void queryCostStatis(SExecTaskInfo* pTaskInfo) {
   STaskCostInfo* pSummary = &pTaskInfo->cost;
 
@@ -4147,33 +4142,60 @@ static STsdbReader* doCreateDataReader(STableScanPhysiNode* pTableScanNode, SRea
 
 static SArray* extractColumnInfo(SNodeList* pNodeList);
 
-int32_t extractTableSchemaInfo(SReadHandle* pHandle, uint64_t uid, SExecTaskInfo* pTaskInfo) {
+SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode);
+
+int32_t extractTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, SExecTaskInfo* pTaskInfo) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, pHandle->meta, 0);
-  int32_t code = metaGetTableEntryByUid(&mr, uid);
+  int32_t code = metaGetTableEntryByUid(&mr, pScanNode->uid);
   if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to get the table meta, uid:0x%"PRIx64", suid:0x%"PRIx64 ", %s", pScanNode->uid, pScanNode->suid,
+        GET_TASKID(pTaskInfo));
+
     metaReaderClear(&mr);
     return terrno;
   }
 
-  pTaskInfo->schemaInfo.tablename = strdup(mr.me.name);
+  SSchemaInfo* pSchemaInfo = &pTaskInfo->schemaInfo;
+  pSchemaInfo->tablename = strdup(mr.me.name);
 
   if (mr.me.type == TSDB_SUPER_TABLE) {
-    pTaskInfo->schemaInfo.sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
-    pTaskInfo->schemaInfo.tversion = mr.me.stbEntry.schemaTag.version;
+    pSchemaInfo->sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
+    pSchemaInfo->tversion = mr.me.stbEntry.schemaTag.version;
   } else if (mr.me.type == TSDB_CHILD_TABLE) {
     tDecoderClear(&mr.coder);
 
     tb_uid_t suid = mr.me.ctbEntry.suid;
     metaGetTableEntryByUid(&mr, suid);
-    pTaskInfo->schemaInfo.sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
-    pTaskInfo->schemaInfo.tversion = mr.me.stbEntry.schemaTag.version;
+    pSchemaInfo->sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
+    pSchemaInfo->tversion = mr.me.stbEntry.schemaTag.version;
   } else {
-    pTaskInfo->schemaInfo.sw = tCloneSSchemaWrapper(&mr.me.ntbEntry.schemaRow);
+    pSchemaInfo->sw = tCloneSSchemaWrapper(&mr.me.ntbEntry.schemaRow);
   }
 
   metaReaderClear(&mr);
+
+  pSchemaInfo->qsw = extractQueriedColumnSchema(pScanNode);
   return TSDB_CODE_SUCCESS;
+}
+
+SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
+  int32_t numOfCols = LIST_LENGTH(pScanNode->pScanCols);
+  SSchemaWrapper* pqSw = taosMemoryCalloc(1, sizeof(SSchemaWrapper));
+  pqSw->pSchema = taosMemoryCalloc(numOfCols, sizeof(SSchema));
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    STargetNode* pNode = (STargetNode*)nodesListGetNode(pScanNode->pScanCols, i);
+    SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
+
+    SSchema* pSchema = &pqSw->pSchema[pqSw->nCols++];
+    pSchema->colId = pColNode->colId;
+    pSchema->type = pColNode->node.resType.type;
+    pSchema->type = pColNode->node.resType.bytes;
+    strncpy(pSchema->name, pColNode->colName, tListLen(pSchema->name));
+  }
+
+  return pqSw;
 }
 
 static void cleanupTableSchemaInfo(SSchemaInfo* pSchemaInfo) {
@@ -4183,8 +4205,8 @@ static void cleanupTableSchemaInfo(SSchemaInfo* pSchemaInfo) {
   }
 
   taosMemoryFree(pSchemaInfo->tablename);
-  taosMemoryFree(pSchemaInfo->sw->pSchema);
-  taosMemoryFree(pSchemaInfo->sw);
+  tDeleteSSchemaWrapper(pSchemaInfo->sw);
+  tDeleteSSchemaWrapper(pSchemaInfo->qsw);
 }
 
 static int32_t sortTableGroup(STableListInfo* pTableListInfo, int32_t groupNum) {
@@ -4385,7 +4407,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      code = extractTableSchemaInfo(pHandle, pTableScanNode->scan.uid, pTaskInfo);
+      code = extractTableSchemaInfo(pHandle, &pTableScanNode->scan, pTaskInfo);
       if (code) {
         pTaskInfo->code = terrno;
         return NULL;
@@ -4405,7 +4427,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      code = extractTableSchemaInfo(pHandle, pTableScanNode->scan.uid, pTaskInfo);
+      code = extractTableSchemaInfo(pHandle, &pTableScanNode->scan, pTaskInfo);
       if (code) {
         pTaskInfo->code = terrno;
         return NULL;
@@ -4422,11 +4444,6 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       return createExchangeOperatorInfo(pHandle->pMsgCb->clientRpc, (SExchangePhysiNode*)pPhyNode, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
-      STimeWindowAggSupp   twSup = {
-            .waterMark = pTableScanNode->watermark,
-            .calTrigger = pTableScanNode->triggerType,
-            .maxTs = INT64_MIN,
-      };
       if (pHandle->vnode) {
         int32_t code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags,
                                                pTableScanNode->groupSort, pHandle, pTableListInfo, pTagCond, pTagIndexCond, GET_TASKID(pTaskInfo));
@@ -4436,7 +4453,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         }
       }
 
-      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle, pTableScanNode, pTagCond, pTaskInfo, &twSup);
+      pTaskInfo->schemaInfo.qsw = extractQueriedColumnSchema(&pTableScanNode->scan);
+      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle, pTableScanNode, pTagCond, pTaskInfo);
       return pOperator;
 
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
@@ -4487,7 +4505,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      code = extractTableSchemaInfo(pHandle, pScanNode->scan.uid, pTaskInfo);
+      code = extractTableSchemaInfo(pHandle, &pScanNode->scan, pTaskInfo);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
         return NULL;
