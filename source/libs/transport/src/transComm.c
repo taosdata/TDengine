@@ -124,6 +124,7 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
   SConnBuffer* p = connBuf;
   if (p->cap == 0) {
     p->buf = (char*)taosMemoryCalloc(CAPACITY, sizeof(char));
+    tTrace("internal malloc mem:%p, size:%d", p->buf, CAPACITY);
     p->len = 0;
     p->cap = CAPACITY;
     p->total = -1;
@@ -136,7 +137,7 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
   } else {
     p->cap = p->total;
     p->buf = taosMemoryRealloc(p->buf, p->cap);
-    tTrace("internal malloc mem:%p, size:%d", p->buf, p->cap);
+    tTrace("internal realloc mem:%p, size:%d", p->buf, p->cap);
 
     uvBuf->base = p->buf + p->len;
     uvBuf->len = p->cap - p->len;
@@ -174,9 +175,8 @@ int transSetConnOption(uv_tcp_t* stream) {
   return ret;
 }
 
-SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
+SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
   SAsyncPool* pool = taosMemoryCalloc(1, sizeof(SAsyncPool));
-  pool->index = 0;
   pool->nAsync = sz;
   pool->asyncs = taosMemoryCalloc(1, sizeof(uv_async_t) * pool->nAsync);
 
@@ -194,7 +194,7 @@ SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
   return pool;
 }
 
-void transDestroyAsyncPool(SAsyncPool* pool) {
+void transAsyncPoolDestroy(SAsyncPool* pool) {
   for (int i = 0; i < pool->nAsync; i++) {
     uv_async_t* async = &(pool->asyncs[i]);
     // uv_close((uv_handle_t*)async, NULL);
@@ -205,7 +205,18 @@ void transDestroyAsyncPool(SAsyncPool* pool) {
   taosMemoryFree(pool->asyncs);
   taosMemoryFree(pool);
 }
+bool transAsyncPoolIsEmpty(SAsyncPool* pool) {
+  for (int i = 0; i < pool->nAsync; i++) {
+    uv_async_t* async = &(pool->asyncs[i]);
+    SAsyncItem* item = async->data;
+    if (!QUEUE_IS_EMPTY(&item->qmsg)) return false;
+  }
+  return true;
+}
 int transAsyncSend(SAsyncPool* pool, queue* q) {
+  if (atomic_load_8(&pool->stop) == 1) {
+    return -1;
+  }
   int idx = pool->index;
   idx = idx % pool->nAsync;
   // no need mutex here
@@ -240,7 +251,7 @@ void transCtxCleanup(STransCtx* ctx) {
     ctx->freeFunc(iter->val);
     iter = taosHashIterate(ctx->args, iter);
   }
-
+  ctx->freeFunc(ctx->brokenVal.val);
   taosHashCleanup(ctx->args);
   ctx->args = NULL;
 }
@@ -297,7 +308,7 @@ void transReqQueueInit(queue* q) {
   // init req queue
   QUEUE_INIT(q);
 }
-void* transReqQueuePushReq(queue* q) {
+void* transReqQueuePush(queue* q) {
   uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
   STransReq*  wreq = taosMemoryCalloc(1, sizeof(STransReq));
   wreq->data = req;
@@ -477,8 +488,25 @@ void transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg)) {
   heapDestroy(queue->heap);
   taosMemoryFree(queue);
 }
+void transDQCancel(SDelayQueue* queue, SDelayTask* task) {
+  uv_timer_stop(queue->timer);
 
-int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs) {
+  if (heapSize(queue->heap) <= 0) return;
+  heapRemove(queue->heap, &task->node);
+
+  if (heapSize(queue->heap) != 0) {
+    HeapNode* minNode = heapMin(queue->heap);
+    if (minNode != NULL) return;
+
+    uint64_t    now = taosGetTimestampMs();
+    SDelayTask* task = container_of(minNode, SDelayTask, node);
+    uint64_t    timeout = now > task->execTime ? now - task->execTime : 0;
+
+    uv_timer_start(queue->timer, transDQTimeout, timeout, 0);
+  }
+}
+
+SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs) {
   uint64_t    now = taosGetTimestampMs();
   SDelayTask* task = taosMemoryCalloc(1, sizeof(SDelayTask));
   task->func = func;
@@ -496,7 +524,7 @@ int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_
   tTrace("timer %p put task into delay queue, timeoutMs:%" PRIu64, queue->timer, timeoutMs);
   heapInsert(queue->heap, &task->node);
   uv_timer_start(queue->timer, transDQTimeout, timeoutMs, 0);
-  return 0;
+  return task;
 }
 
 void transPrintEpSet(SEpSet* pEpSet) {

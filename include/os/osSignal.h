@@ -44,7 +44,11 @@ extern "C" {
   #define SIGBREAK 1234
 #endif
 
+#ifdef WINDOWS
+typedef BOOL (*FSignalHandler)(DWORD fdwCtrlType);
+#else
 typedef void (*FSignalHandler)(int32_t signum, void *sigInfo, void *context);
+#endif
 void taosSetSignal(int32_t signum, FSignalHandler sigfp);
 void taosIgnSignal(int32_t signum);
 void taosDflSignal(int32_t signum);

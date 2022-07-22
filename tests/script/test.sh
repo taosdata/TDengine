@@ -84,6 +84,7 @@ echo "SIM_DIR  : $SIM_DIR"
 echo "CODE_DIR : $CODE_DIR"
 echo "CFG_DIR  : $CFG_DIR"
 
+rm -rf $SIM_DIR/*
 rm -rf $LOG_DIR
 rm -rf $CFG_DIR
 

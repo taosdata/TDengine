@@ -476,16 +476,16 @@ int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
 int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
-  char*                pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  SFirstLastRes*       pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
   int32_t              type = pDestCtx->input.pData[0]->info.type;
   int32_t              bytes = pDestCtx->input.pData[0]->info.bytes;
 
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
-  char*                pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+  SFirstLastRes*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  if (pSResInfo->numOfRes != 0 && (pDResInfo->numOfRes == 0 || *(TSKEY*)(pDBuf + bytes) > *(TSKEY*)(pSBuf + bytes))) {
-    memcpy(pDBuf, pSBuf, bytes);
-    *(TSKEY*)(pDBuf + bytes) = *(TSKEY*)(pSBuf + bytes);
+  if (pSResInfo->numOfRes != 0 && (pDResInfo->numOfRes == 0 || pDBuf->ts > pSBuf->ts)) {
+    memcpy(pDBuf->buf, pSBuf->buf, bytes);
+    pDBuf->ts = pSBuf->ts;
     pDResInfo->numOfRes = 1;
   }
   return TSDB_CODE_SUCCESS;
@@ -2465,8 +2465,8 @@ bool apercentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResult
 }
 
 int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
-  int32_t              numOfElems = 0;
-  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  int32_t               numOfElems = 0;
+  SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
   SInputColumnInfoData* pInput = &pCtx->input;
 
   SColumnInfoData* pCol = pInput->pData[0];
@@ -2502,7 +2502,7 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
     }
 
     qDebug("add %d elements into histogram, total:%d, numOfEntry:%d, %p", numOfElems, pInfo->pHisto->numOfElems,
-        pInfo->pHisto->numOfEntries, pInfo->pHisto);
+           pInfo->pHisto->numOfEntries, pInfo->pHisto);
   }
 
   SET_VAL(pResInfo, numOfElems, 1);
@@ -2542,18 +2542,17 @@ static void apercentileTransferInfo(SAPercentileInfo* pInput, SAPercentileInfo* 
       memcpy(pHisto, pInput->pHisto, sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1));
       pHisto->elems = (SHistBin*)((char*)pHisto + sizeof(SHistogramInfo));
 
-      qDebug("merge histo, total:%"PRId64", entry:%d, %p", pHisto->numOfElems, pHisto->numOfEntries, pHisto);
+      qDebug("merge histo, total:%" PRId64 ", entry:%d, %p", pHisto->numOfElems, pHisto->numOfEntries, pHisto);
     } else {
       pHisto->elems = (SHistBin*)((char*)pHisto + sizeof(SHistogramInfo));
-      qDebug("input histogram, elem:%"PRId64", entry:%d, %p", pHisto->numOfElems, pHisto->numOfEntries,
-          pInput->pHisto);
+      qDebug("input histogram, elem:%" PRId64 ", entry:%d, %p", pHisto->numOfElems, pHisto->numOfEntries,
+             pInput->pHisto);
 
       SHistogramInfo* pRes = tHistogramMerge(pHisto, pInput->pHisto, MAX_HISTOGRAM_BIN);
       memcpy(pHisto, pRes, sizeof(SHistogramInfo) + sizeof(SHistBin) * MAX_HISTOGRAM_BIN);
       pHisto->elems = (SHistBin*)((char*)pHisto + sizeof(SHistogramInfo));
 
-      qDebug("merge histo, total:%"PRId64", entry:%d, %p", pHisto->numOfElems, pHisto->numOfEntries,
-          pHisto);
+      qDebug("merge histo, total:%" PRId64 ", entry:%d, %p", pHisto->numOfElems, pHisto->numOfEntries, pHisto);
       tHistogramDestroy(&pRes);
     }
   }
@@ -2580,7 +2579,8 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
   }
 
   if (pInfo->algo != APERCT_ALGO_TDIGEST) {
-    qDebug("after merge, total:%d, numOfEntry:%d, %p", pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries, pInfo->pHisto);
+    qDebug("after merge, total:%d, numOfEntry:%d, %p", pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries,
+           pInfo->pHisto);
   }
 
   SET_VAL(pResInfo, 1, 1);
@@ -2592,6 +2592,7 @@ int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SAPercentileInfo*    pInfo = (SAPercentileInfo*)GET_ROWCELL_INTERBUF(pResInfo);
 
   if (pInfo->algo == APERCT_ALGO_TDIGEST) {
+    buildTDigestInfo(pInfo);
     if (pInfo->pTDigest->size > 0) {
       pInfo->result = tdigestQuantile(pInfo->pTDigest, pInfo->percent / 100);
     } else {  // no need to free
@@ -2599,8 +2600,10 @@ int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       return TSDB_CODE_SUCCESS;
     }
   } else {
+    buildHistogramInfo(pInfo);
     if (pInfo->pHisto->numOfElems > 0) {
-      qDebug("get the final res:%d, elements:%"PRId64", entry:%d", pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries);
+      qDebug("get the final res:%d, elements:%" PRId64 ", entry:%d", pInfo->pHisto->numOfElems,
+             pInfo->pHisto->numOfEntries);
 
       double  ratio[] = {pInfo->percent};
       double* res = tHistogramUniform(pInfo->pHisto, ratio, 1);
@@ -2992,16 +2995,16 @@ int32_t firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 // todo rewrite:
 int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
-  char*                pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  SFirstLastRes*       pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
   int32_t              type = pDestCtx->input.pData[0]->info.type;
   int32_t              bytes = pDestCtx->input.pData[0]->info.bytes;
 
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
-  char*                pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+  SFirstLastRes*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  if (pSResInfo->numOfRes != 0 && (pDResInfo->numOfRes == 0 || *(TSKEY*)(pDBuf + bytes) < *(TSKEY*)(pSBuf + bytes))) {
-    memcpy(pDBuf, pSBuf, bytes);
-    *(TSKEY*)(pDBuf + bytes) = *(TSKEY*)(pSBuf + bytes);
+  if (pSResInfo->numOfRes != 0 && (pDResInfo->numOfRes == 0 || pDBuf->ts < pSBuf->ts)) {
+    memcpy(pDBuf->buf, pSBuf->buf, bytes);
+    pDBuf->ts = pSBuf->ts;
     pDResInfo->numOfRes = 1;
   }
   return TSDB_CODE_SUCCESS;
@@ -4663,10 +4666,8 @@ int32_t csumFunction(SqlFunctionCtx* pCtx) {
   SSumRes*             pSumRes = GET_ROWCELL_INTERBUF(pResInfo);
 
   SInputColumnInfoData* pInput = &pCtx->input;
-  TSKEY*                tsList = (int64_t*)pInput->pPTS->pData;
 
   SColumnInfoData* pInputCol = pInput->pData[0];
-  SColumnInfoData* pTsOutput = pCtx->pTsOutput;
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
 
   int32_t numOfElems = 0;
@@ -4700,11 +4701,6 @@ int32_t csumFunction(SqlFunctionCtx* pCtx) {
       } else {
         colDataAppend(pOutput, pos, (char*)&pSumRes->dsum, false);
       }
-    }
-
-    // TODO: remove this after pTsOutput is handled
-    if (pTsOutput != NULL) {
-      colDataAppendInt64(pTsOutput, pos, &tsList[i]);
     }
 
     numOfElems++;
@@ -5203,8 +5199,8 @@ bool twaFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
 
   STwaInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   pInfo->isNull = false;
-  pInfo->p.key  = INT64_MIN;
-  pInfo->win    = TSWINDOW_INITIALIZER;
+  pInfo->p.key = INT64_MIN;
+  pInfo->win = TSWINDOW_INITIALIZER;
   return true;
 }
 
