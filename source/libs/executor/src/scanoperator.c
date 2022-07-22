@@ -3065,7 +3065,13 @@ int32_t getTableMergeScanExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExpla
 int32_t compareTableKeyInfoByGid(const void* p1, const void* p2) {
   const STableKeyInfo* info1 = p1;
   const STableKeyInfo* info2 = p2;
-  return info1->groupId - info2->groupId;
+  if (info1->groupId - info2->groupId > 0) {
+    return 1;
+  } else if (info1->groupId < info2->groupId) {
+    return -1;
+  } else {
+    return 0;
+  }
 }
 
 SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, STableListInfo* pTableListInfo,
