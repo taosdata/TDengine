@@ -1906,6 +1906,8 @@ static int32_t rewriteUniqueOptCreateAgg(SIndefRowsFuncLogicNode* pIndef, SLogic
   TSWAP(pAgg->node.pChildren, pIndef->node.pChildren);
   optResetParent((SLogicNode*)pAgg);
   pAgg->node.precision = pIndef->node.precision;
+  pAgg->node.requireDataOrder = DATA_ORDER_LEVEL_IN_BLOCK;  // first function requirement
+  pAgg->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
 
   int32_t code = TSDB_CODE_SUCCESS;
   bool    hasSelectPrimaryKey = false;
@@ -1978,6 +1980,8 @@ static int32_t rewriteUniqueOptCreateProject(SIndefRowsFuncLogicNode* pIndef, SL
 
   TSWAP(pProject->node.pTargets, pIndef->node.pTargets);
   pProject->node.precision = pIndef->node.precision;
+  pProject->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  pProject->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
 
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
@@ -2011,6 +2015,10 @@ static int32_t rewriteUniqueOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pIndef, pProject);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = adjustLogicNodeDataRequirement(
+        pProject, NULL == pProject->pParent ? DATA_ORDER_LEVEL_NONE : pProject->pParent->requireDataOrder);
   }
   if (TSDB_CODE_SUCCESS == code) {
     nodesDestroyNode((SNode*)pIndef);
