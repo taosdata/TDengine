@@ -521,7 +521,7 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
 
         // NOTE: the last parameter is the primary timestamp column
         // todo: refactor this
-        if (fmIsTimelineFunc(pCtx[i].functionId) && (j == pOneExpr->base.numOfParams - 1)) {
+        if (fmIsImplicitTsFunc(pCtx[i].functionId) && (j == pOneExpr->base.numOfParams - 1)) {
           pInput->pPTS = pInput->pData[j];  // in case of merge function, this is not always the ts column data.
                                             //          ASSERT(pInput->pPTS->info.type == TSDB_DATA_TYPE_TIMESTAMP);
         }
@@ -4440,10 +4440,10 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       return createExchangeOperatorInfo(pHandle->pMsgCb->clientRpc, (SExchangePhysiNode*)pPhyNode, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
-      STimeWindowAggSupp aggSup = (STimeWindowAggSupp){
-          .waterMark = pTableScanNode->watermark,
-          .calTrigger = pTableScanNode->triggerType,
-          .maxTs = INT64_MIN,
+      STimeWindowAggSupp   aggSup = (STimeWindowAggSupp){
+            .waterMark = pTableScanNode->watermark,
+            .calTrigger = pTableScanNode->triggerType,
+            .maxTs = INT64_MIN,
       };
 
       if (pHandle->vnode) {
