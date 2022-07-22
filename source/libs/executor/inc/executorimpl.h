@@ -175,6 +175,7 @@ typedef struct SExecTaskInfo {
   int64_t          owner;  // if it is in execution
   int32_t          code;
 
+  int64_t          version; // used for stream to record wal version
   SStreamTaskInfo  streamInfo;
   SSchemaInfo      schemaInfo;
   STableListInfo   tableqinfoList;  // this is a table list

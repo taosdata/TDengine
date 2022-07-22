@@ -1602,6 +1602,9 @@ void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SG
   SSDataBlock*    pBlock = pbInfo->pRes;
   SqlFunctionCtx* pCtx = pOperator->exprSupp.pCtx;
 
+  // set output datablock version
+  pBlock->info.version = pTaskInfo->version;
+
   blockDataCleanup(pBlock);
   if (!hasDataInGroupInfo(pGroupResInfo)) {
     return;
