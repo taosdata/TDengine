@@ -2879,7 +2879,7 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
     *order = TSDB_ORDER_ASC;
     *scanFlag = MAIN_SCAN;
     return TSDB_CODE_SUCCESS;
-  } else if (type == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+  } else if (type == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
     STableScanInfo* pTableScanInfo = pOperator->info;
     *order = pTableScanInfo->cond.order;
     *scanFlag = pTableScanInfo->scanFlag;

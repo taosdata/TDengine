@@ -438,6 +438,10 @@ static bool isNullStr(SToken* pToken) {
           (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0));
 }
 
+static bool isNullValue(int8_t dataType, SToken* pToken) {
+  return TK_NULL == pToken->type || (!IS_STR_DATA_TYPE(dataType) && isNullStr(pToken));
+}
+
 static FORCE_INLINE int32_t toDouble(SToken* pToken, double* value, char** endPtr) {
   errno = 0;
   *value = taosStr2Double(pToken->z, endPtr);
@@ -461,7 +465,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
     return code;
   }
 
-  if (TK_NULL == pToken->type || (!IS_VAR_DATA_TYPE(pSchema->type) && isNullStr(pToken))) {
+  if (isNullValue(pSchema->type, pToken)) {
     if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
       return buildSyntaxErrMsg(pMsgBuf, "primary timestamp should not be null", pToken->z);
     }
@@ -754,7 +758,7 @@ static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema, int16
   uint64_t uv;
   char*    endptr = NULL;
 
-  if (isNullStr(pToken)) {
+  if (isNullValue(pSchema->type, pToken)) {
     if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
       return buildSyntaxErrMsg(pMsgBuf, "primary timestamp should not be null", pToken->z);
     }
@@ -972,7 +976,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
       goto end;
     }
 
-    if (!isNullStr(&sToken)) {
+    if (!isNullValue(pTagSchema->type, &sToken)) {
       taosArrayPush(tagName, pTagSchema->name);
     }
     if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
@@ -981,7 +985,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
         taosMemoryFree(tmpTokenBuf);
         goto end;
       }
-      if (isNullStr(&sToken)) {
+      if (isNullValue(pTagSchema->type, &sToken)) {
         code = tTagNew(pTagVals, 1, true, &pTag);
       } else {
         code = parseJsontoTagData(sToken.z, pTagVals, &pTag, &pCxt->msg);
@@ -1561,7 +1565,7 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery, SParseMetaCache
   } else {
     nodesDestroyNode((*pQuery)->pRoot);
   }
-  
+
   (*pQuery)->execMode = QUERY_EXEC_MODE_SCHEDULE;
   (*pQuery)->haveResultSet = false;
   (*pQuery)->msgType = TDMT_VND_SUBMIT;
