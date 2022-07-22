@@ -136,7 +136,6 @@ struct STSRow2 {
 #pragma pack(pop)
 
 struct STSRowBuilder {
-  // STSRow2  tsRow;
   int32_t  szBuf;
   uint8_t *pBuf;
 };
@@ -171,7 +170,7 @@ struct SColVal {
 
 #pragma pack(push, 1)
 struct STagVal {
-//  char colName[TSDB_COL_NAME_LEN]; // only used for tmq_get_meta
+  //  char colName[TSDB_COL_NAME_LEN]; // only used for tmq_get_meta
   union {
     int16_t cid;
     char   *pKey;
