@@ -201,8 +201,8 @@ taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_j
 
 
 #case for restful_insert
-taostest --setup=common_insert.yaml --case=restful_insert/alter_table.py --keep --containers
-taostest --use=common_insert.yaml --case=restful_insert/alter_insert.py --keep --containers
+
+taostest --setup=common_insert.yaml --case=restful_insert/alter_insert.py --keep --containers
 taostest --use=common_insert.yaml --case=restful_insert/auto_create_table.py --keep --containers
 taostest --use=common_insert.yaml --case=restful_insert/batch_insert.py --keep --containers
 taostest --use=common_insert.yaml --case=restful_insert/bool_check.py --keep --containers
