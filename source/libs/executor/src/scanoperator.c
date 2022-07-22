@@ -2893,6 +2893,7 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   int32_t tableEndIdx = pInfo->tableEndIndex;
 
   STableListInfo* tableListInfo = pInfo->tableListInfo;
+  pInfo->dataReaders = taosArrayInit(64, POINTER_BYTES);
   createMultipleDataReaders(&pInfo->cond, &pInfo->readHandle, tableListInfo, tableStartIdx, tableEndIdx,
                             pInfo->dataReaders, GET_TASKID(pTaskInfo));
 
@@ -3065,10 +3066,10 @@ int32_t getTableMergeScanExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExpla
 int32_t compareTableKeyInfoByGid(const void* p1, const void* p2) {
   const STableKeyInfo* info1 = p1;
   const STableKeyInfo* info2 = p2;
-  if (info1->groupId - info2->groupId > 0) {
-    return 1;
-  } else if (info1->groupId < info2->groupId) {
+  if (info1->groupId < info2->groupId) {
     return -1;
+  } else if (info1->groupId > info2->groupId) {
+    return 1;
   } else {
     return 0;
   }
@@ -3113,7 +3114,6 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   pInfo->pColMatchInfo = pColList;
 
   pInfo->pResBlock = createResDataBlock(pDescNode);
-  pInfo->dataReaders = taosArrayInit(64, POINTER_BYTES);
   pInfo->sortSourceParams = taosArrayInit(64, sizeof(STableMergeScanSortSourceParam));
 
   pInfo->pSortInfo = generateSortByTsInfo(pInfo->pColMatchInfo, pInfo->cond.order);
