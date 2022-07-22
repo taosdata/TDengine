@@ -136,11 +136,15 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
   switch (key) {
     case 'h':
       pArgs->host = arg;
+#ifdef WEBSOCKET
       pArgs->cloud = false;
+#endif
       break;
     case 'P':
       pArgs->port = atoi(arg);
+#ifdef WEBSOCKET
       pArgs->cloud = false;
+#endif
       if (pArgs->port == 0) pArgs->port = -1;
       break;
     case 'u':
@@ -155,7 +159,9 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       pArgs->is_gen_auth = true;
       break;
     case 'c':
+#ifdef WEBSOCKET
       pArgs->cloud = false;
+#endif
       pArgs->cfgdir = arg;
       break;
     case 'C':
