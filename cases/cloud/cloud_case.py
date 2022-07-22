@@ -12,3 +12,6 @@ class CloudCase:
                 os.environ["TDENGINE_CLOUD_URL"] = param['url']
                 os.environ["TDENGINE_CLOUD_TOKEN"] = param['token']
                 os.environ["TDENGINE_CLOUD_DSN"] = param['url'] + "?token=" + param['token']
+
+        self.logger.info(f"TDENGINE_CLOUD_URL={os.environ['TDENGINE_CLOUD_URL']}")
+        self.logger.info(f"TDENGINE_CLOUD_DSN={os.environ['TDENGINE_CLOUD_DSN']}")
