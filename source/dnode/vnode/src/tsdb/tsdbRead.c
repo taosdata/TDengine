@@ -785,11 +785,11 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
         doCopyColVal(pColData, rowIndex++, i, &cv, pSupInfo);
       }
       colIndex += 1;
+      ASSERT(rowIndex == remain);
     } else {  // the specified column does not exist in file block, fill with null data
       colDataAppendNNULL(pColData, 0, remain);
     }
 
-    ASSERT(rowIndex == remain);
     i += 1;
   }
 

@@ -120,7 +120,8 @@ int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numO
   return code;
 }
 
-qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols, SSchemaWrapper** pSchemaWrapper) {
+qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols,
+                                     SSchemaWrapper** pSchemaWrapper) {
   if (msg == NULL) {
     // TODO create raw scan
     return NULL;
@@ -146,7 +147,7 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* n
   SDataBlockDescNode* pDescNode = pPlan->pNode->pOutputDataBlockDesc;
   *numOfCols = 0;
 
-  SNode*  pNode;
+  SNode* pNode;
   FOREACH(pNode, pDescNode->pSlots) {
     SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
     if (pSlotDesc->output) {
@@ -249,8 +250,10 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
 
     // add to qTaskInfo
     // todo refactor STableList
-    for(int32_t i = 0; i < taosArrayGetSize(qa); ++i) {
+    for (int32_t i = 0; i < taosArrayGetSize(qa); ++i) {
       uint64_t* uid = taosArrayGet(qa, i);
+
+      qDebug("table %ld added to task info", *uid);
 
       STableKeyInfo keyInfo = {.uid = *uid, .groupId = 0};
       taosArrayPush(pTaskInfo->tableqinfoList.pTableList, &keyInfo);

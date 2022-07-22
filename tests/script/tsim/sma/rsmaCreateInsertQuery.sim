@@ -43,6 +43,7 @@ endi
 
 if $data01 != 1 then
   if $data01 != 10 then
+    print =============> $data01
     print retention level 2 file result $data01 != 1 or 10
   return -1
   endi
