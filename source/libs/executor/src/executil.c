@@ -379,6 +379,82 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   return code;
 }
 
+size_t getTableTagsBufLen(const SNodeList* pGroups) {
+  size_t keyLen = 0;
+
+  SNode* node;
+  FOREACH(node, pGroups) {
+    SExprNode* pExpr = (SExprNode*)node;
+    keyLen += pExpr->resType.bytes;
+  }
+
+  keyLen += sizeof(int8_t) * LIST_LENGTH(pGroups);
+  return keyLen;
+}
+
+int32_t getGroupIdFromTableTags(void* pMeta, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId) {
+  SMetaReader    mr = {0};
+  metaReaderInit(&mr, pMeta, 0);
+  metaGetTableEntryByUid(&mr, uid);
+
+  SNodeList* groupNew = nodesCloneList(pGroupNode);
+
+  nodesRewriteExprsPostOrder(groupNew, doTranslateTagExpr, &mr);
+  char* isNull = (char*)keyBuf;
+  char* pStart = (char*)keyBuf + sizeof(int8_t)*LIST_LENGTH(pGroupNode);
+
+  SNode*  pNode;
+  int32_t index = 0;
+  FOREACH(pNode, groupNew) {
+    SNode*  pNew = NULL;
+    int32_t code = scalarCalculateConstants(pNode, &pNew);
+    if (TSDB_CODE_SUCCESS == code) {
+      REPLACE_NODE(pNew);
+    } else {
+      taosMemoryFree(keyBuf);
+      nodesDestroyList(groupNew);
+      metaReaderClear(&mr);
+      return code;
+    }
+
+    ASSERT(nodeType(pNew) == QUERY_NODE_VALUE);
+    SValueNode* pValue = (SValueNode*)pNew;
+
+    if (pValue->node.resType.type == TSDB_DATA_TYPE_NULL || pValue->isNull) {
+      isNull[index++] = 1;
+      continue;
+    } else {
+      isNull[index++] = 0;
+      char* data = nodesGetValueFromNode(pValue);
+      if (pValue->node.resType.type == TSDB_DATA_TYPE_JSON) {
+        if (tTagIsJson(data)) {
+          terrno = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
+          taosMemoryFree(keyBuf);
+          nodesDestroyList(groupNew);
+          metaReaderClear(&mr);
+          return terrno;
+        }
+        int32_t len = getJsonValueLen(data);
+        memcpy(pStart, data, len);
+        pStart += len;
+      } else if (IS_VAR_DATA_TYPE(pValue->node.resType.type)) {
+        memcpy(pStart, data, varDataTLen(data));
+        pStart += varDataTLen(data);
+      } else {
+        memcpy(pStart, data, pValue->node.resType.bytes);
+        pStart += pValue->node.resType.bytes;
+      }
+    }
+  }
+
+  int32_t  len = (int32_t)(pStart - (char*)keyBuf);
+  *pGroupId = calcGroupId(keyBuf, len);
+
+  nodesDestroyList(groupNew);
+  metaReaderClear(&mr);
+  return TSDB_CODE_SUCCESS;
+}
+
 SArray* extractPartitionColInfo(SNodeList* pNodeList) {
   if (!pNodeList) {
     return NULL;

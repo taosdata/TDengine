@@ -1538,7 +1538,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   SDataBlockDescNode* pDescNode = pScanPhyNode->node.pOutputDataBlockDesc;
 
   pInfo->pTagCond = pTagCond;
-
+  pInfo->pGroupTags = pTableScanNode->pGroupTags;
   pInfo->twAggSup = *pTwSup;
 
   int32_t numOfCols = 0;

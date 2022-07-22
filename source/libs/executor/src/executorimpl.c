@@ -3187,7 +3187,8 @@ int32_t aggDecodeResultRow(SOperatorInfo* pOperator, char* result) {
   return TDB_CODE_SUCCESS;
 }
 
-int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock, bool holdDataInBuf) {
+int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SSDataBlock** pExistedBlock,
+    bool holdDataInBuf) {
   if (pLimitInfo->remainGroupOffset > 0) {
     if (pLimitInfo->currentGroupId == 0) {  // it is the first group
       pLimitInfo->currentGroupId = pBlock->info.groupId;
@@ -3208,6 +3209,7 @@ int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDa
     pLimitInfo->currentGroupId = pBlock->info.groupId;
   }
 
+  // here check for a new group data, we need to handle the data of the previous group.
   if (pLimitInfo->currentGroupId != 0 && pLimitInfo->currentGroupId != pBlock->info.groupId) {
     pLimitInfo->numOfOutputGroups += 1;
     if ((pLimitInfo->slimit.limit > 0) && (pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
@@ -3220,6 +3222,13 @@ int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDa
     // reset the value for a new group data
     pLimitInfo->numOfOutputRows = 0;
     pLimitInfo->remainOffset = pLimitInfo->limit.offset;
+
+    *pExistedBlock = pBlock;
+
+    // existing rows that belongs to previous group.
+    if (pBlock->info.rows > 0) {
+      return PROJECT_RETRIEVE_DONE;
+    }
   }
 
   // here we reach the start position, according to the limit/offset requirements.
@@ -3305,18 +3314,12 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
   while (1) {
     // The downstream exec may change the value of the newgroup, so use a local variable instead.
-    qDebug("projection call next");
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
-      qDebug("projection get null");
-
-      /*if (pTaskInfo->execModel == OPTR_EXEC_MODEL_BATCH) {*/
       doSetOperatorCompleted(pOperator);
-      /*} else if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {*/
-      /*pOperator->status = OP_RES_TO_RETURN;*/
-      /*}*/
       break;
     }
+
     if (pBlock->info.type == STREAM_RETRIEVE) {
       // for stream interval
       return pBlock;
@@ -4133,9 +4136,6 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
   return pTaskInfo;
 }
 
-static STsdbReader* doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
-                                       STableListInfo* pTableListInfo, const char* idstr);
-
 static SArray* extractColumnInfo(SNodeList* pNodeList);
 
 SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode);
@@ -4292,69 +4292,15 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
   int32_t groupNum = 0;
   for (int32_t i = 0; i < taosArrayGetSize(pTableListInfo->pTableList); i++) {
     STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
-    SMetaReader    mr = {0};
-    metaReaderInit(&mr, pHandle->meta, 0);
-    metaGetTableEntryByUid(&mr, info->uid);
-
-    SNodeList* groupNew = nodesCloneList(group);
-
-    nodesRewriteExprsPostOrder(groupNew, doTranslateTagExpr, &mr);
-    char* isNull = (char*)keyBuf;
-    char* pStart = (char*)keyBuf + nullFlagSize;
-
-    SNode*  pNode;
-    int32_t index = 0;
-    FOREACH(pNode, groupNew) {
-      SNode*  pNew = NULL;
-      int32_t code = scalarCalculateConstants(pNode, &pNew);
-      if (TSDB_CODE_SUCCESS == code) {
-        REPLACE_NODE(pNew);
-      } else {
-        taosMemoryFree(keyBuf);
-        nodesDestroyList(groupNew);
-        metaReaderClear(&mr);
-        return code;
-      }
-
-      ASSERT(nodeType(pNew) == QUERY_NODE_VALUE);
-      SValueNode* pValue = (SValueNode*)pNew;
-
-      if (pValue->node.resType.type == TSDB_DATA_TYPE_NULL || pValue->isNull) {
-        isNull[index++] = 1;
-        continue;
-      } else {
-        isNull[index++] = 0;
-        char* data = nodesGetValueFromNode(pValue);
-        if (pValue->node.resType.type == TSDB_DATA_TYPE_JSON) {
-          if (tTagIsJson(data)) {
-            terrno = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
-            taosMemoryFree(keyBuf);
-            nodesDestroyList(groupNew);
-            metaReaderClear(&mr);
-            return terrno;
-          }
-          int32_t len = getJsonValueLen(data);
-          memcpy(pStart, data, len);
-          pStart += len;
-        } else if (IS_VAR_DATA_TYPE(pValue->node.resType.type)) {
-          memcpy(pStart, data, varDataTLen(data));
-          pStart += varDataTLen(data);
-        } else {
-          memcpy(pStart, data, pValue->node.resType.bytes);
-          pStart += pValue->node.resType.bytes;
-        }
-      }
+    int32_t code = getGroupIdFromTableTags(pHandle->meta, info->uid, group, keyBuf, &info->groupId);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
 
-    int32_t  len = (int32_t)(pStart - (char*)keyBuf);
-    uint64_t groupId = calcGroupId(keyBuf, len);
-    taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &groupId, sizeof(uint64_t));
-    info->groupId = groupId;
+    taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &info->groupId, sizeof(uint64_t));
     groupNum++;
-
-    nodesDestroyList(groupNew);
-    metaReaderClear(&mr);
   }
+
   taosMemoryFree(keyBuf);
 
   if (pTableListInfo->needSortTableByGroupId) {

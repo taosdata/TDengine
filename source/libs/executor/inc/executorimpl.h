@@ -423,6 +423,7 @@ typedef struct SStreamScanInfo {
   // status for tmq
   // SSchemaWrapper schema;
   STqOffset              offset;
+  SNodeList*             pGroupTags;
   SNode*                 pTagCond;
   SNode*                 pTagIndexCond;
 } SStreamScanInfo;
