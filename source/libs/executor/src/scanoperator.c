@@ -1247,30 +1247,38 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     return pBlock;
   } else if (pInfo->blockType == STREAM_INPUT__DATA_SUBMIT) {
     qDebug("scan mode %d", pInfo->scanMode);
-    if (pInfo->scanMode == STREAM_SCAN_FROM_RES) {
-      blockDataDestroy(pInfo->pUpdateRes);
-      pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
-      return pInfo->pRes;
-    } else if (pInfo->scanMode == STREAM_SCAN_FROM_UPDATERES) {
-      generateScanRange(pInfo, pInfo->pUpdateDataRes, pInfo->pUpdateRes);
-      pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
-      prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
-      return pInfo->pUpdateRes;
-    } else if (pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RANGE || pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RETRIEVE) {
-      SSDataBlock* pSDB = doRangeScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex);
-      if (pSDB) {
-        pSDB->info.type = pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RANGE ? STREAM_NORMAL : STREAM_PULL_DATA;
-        checkUpdateData(pInfo, true, pSDB, false);
-        return pSDB;
-      }
-      pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+    switch (pInfo->scanMode) {
+      case STREAM_SCAN_FROM_RES: {
+        blockDataDestroy(pInfo->pUpdateRes);
+        pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+        return pInfo->pRes;
+      } break;
+      case STREAM_SCAN_FROM_UPDATERES: {
+        generateScanRange(pInfo, pInfo->pUpdateDataRes, pInfo->pUpdateRes);
+        prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
+        pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
+        return pInfo->pUpdateRes;
+      } break;
+      case STREAM_SCAN_FROM_DATAREADER_RANGE:
+      case STREAM_SCAN_FROM_DATAREADER_RETRIEVE: {
+        SSDataBlock* pSDB = doRangeScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex);
+        if (pSDB) {
+          pSDB->info.type = pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RANGE ? STREAM_NORMAL : STREAM_PULL_DATA;
+          checkUpdateData(pInfo, true, pSDB, false);
+          return pSDB;
+        }
+        pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+      } break;
+      default:
+        break;
     }
     
-    if (isStateWindow(pInfo) && pInfo->sessionSup.pStreamAggSup->pScanBlock->info.rows > 0) {
+    SStreamAggSupporter* pSup = pInfo->sessionSup.pStreamAggSup;
+    if (isStateWindow(pInfo) && pSup->pScanBlock->info.rows > 0) {
       pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
       pInfo->updateResIndex = 0;
-      copyDataBlock(pInfo->pUpdateRes, pInfo->sessionSup.pStreamAggSup->pScanBlock);
-      blockDataCleanup(pInfo->sessionSup.pStreamAggSup->pScanBlock);
+      copyDataBlock(pInfo->pUpdateRes, pSup->pScanBlock);
+      blockDataCleanup(pSup->pScanBlock);
       prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
       return pInfo->pUpdateRes;
     }
@@ -1329,7 +1337,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
       /*pOperator->status = OP_EXEC_DONE;*/
     } else if (pInfo->pUpdateInfo) {
-      pInfo->tsArrayIndex = 0;
       checkUpdateData(pInfo, true, pInfo->pRes, true);
       pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, pBlockInfo->window.ekey);
       if (pInfo->pUpdateDataRes->info.rows > 0) {
@@ -1387,7 +1394,7 @@ static void destroyStreamScanOperatorInfo(void* param, int32_t numOfOutput) {
 #if 1
   if (pStreamScan->pTableScanOp && pStreamScan->pTableScanOp->info) {
     STableScanInfo* pTableScanInfo = pStreamScan->pTableScanOp->info;
-    destroyTableScanOperatorInfo(pTableScanInfo, 1);
+    destroyTableScanOperatorInfo(pTableScanInfo, numOfOutput);
   }
 #endif
   if (pStreamScan->tqReader) {
@@ -1401,8 +1408,8 @@ static void destroyStreamScanOperatorInfo(void* param, int32_t numOfOutput) {
   blockDataDestroy(pStreamScan->pUpdateRes);
   blockDataDestroy(pStreamScan->pPullDataRes);
   blockDataDestroy(pStreamScan->pDeleteDataRes);
+  blockDataDestroy(pStreamScan->pUpdateDataRes);
   taosArrayDestroy(pStreamScan->pBlockLists);
-  taosArrayDestroy(pStreamScan->tsArray);
   taosMemoryFree(pStreamScan);
 }
 
@@ -1441,11 +1448,6 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->pBlockLists = taosArrayInit(4, POINTER_BYTES);
   if (pInfo->pBlockLists == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _error;
-  }
-
-  pInfo->tsArray = taosArrayInit(4, sizeof(int32_t));
-  if (pInfo->tsArray == NULL) {
     goto _error;
   }
 
