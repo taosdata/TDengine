@@ -66,9 +66,15 @@ void walCloseReader(SWalReader *pRead) {
 }
 
 int32_t walNextValidMsg(SWalReader *pRead) {
-  wDebug("vgId:%d wal start to fetch", pRead->pWal->cfg.vgId);
   int64_t fetchVer = pRead->curVersion;
-  int64_t endVer = pRead->cond.scanUncommited ? walGetLastVer(pRead->pWal) : walGetCommittedVer(pRead->pWal);
+  int64_t lastVer = walGetLastVer(pRead->pWal);
+  int64_t committedVer = walGetCommittedVer(pRead->pWal);
+  int64_t appliedVer = walGetAppliedVer(pRead->pWal);
+  int64_t endVer = pRead->cond.scanUncommited ? lastVer : committedVer;
+  endVer = TMIN(appliedVer, endVer);
+
+  wDebug("vgId:%d wal start to fetch, ver %ld, last ver %ld commit ver %ld, applied ver %ld, end ver %ld",
+         pRead->pWal->cfg.vgId, fetchVer, lastVer, committedVer, appliedVer, endVer);
   while (fetchVer <= endVer) {
     if (walFetchHeadNew(pRead, fetchVer) < 0) {
       return -1;

@@ -1,4 +1,5 @@
 ---
+sidebar_label: Docker
 title: 通过 Docker 快速体验 TDengine
 ---
 
