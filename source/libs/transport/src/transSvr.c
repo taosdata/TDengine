@@ -152,17 +152,20 @@ static bool addHandleToAcceptloop(void* arg);
 #define CONN_SHOULD_RELEASE(conn, head)                                                                              \
   do {                                                                                                               \
     if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) {                                                   \
+      STraceId trace = head->traceId;                                                                                \
+      reallocConnRef(conn);                                                                                          \
+                                                                                                                     \
       conn->status = ConnRelease;                                                                                    \
       transClearBuffer(&conn->readBuf);                                                                              \
       transFreeMsg(transContFromHead((char*)head));                                                                  \
       tTrace("conn %p received release request", conn);                                                              \
                                                                                                                      \
       STransMsg tmsg = {.code = 0, .info.handle = (void*)conn, .info.traceId = head->traceId, .info.ahandle = NULL}; \
-      SSvrMsg*  srvMsg = taosMemoryCalloc(1, sizeof(SSvrMsg));                                                       \
+                                                                                                                     \
+      SSvrMsg* srvMsg = taosMemoryCalloc(1, sizeof(SSvrMsg));                                                        \
       srvMsg->msg = tmsg;                                                                                            \
       srvMsg->type = Release;                                                                                        \
       srvMsg->pConn = conn;                                                                                          \
-      reallocConnRef(conn);                                                                                          \
       if (!transQueuePush(&conn->srvMsgs, srvMsg)) {                                                                 \
         return;                                                                                                      \
       }                                                                                                              \
