@@ -4169,6 +4169,9 @@ int32_t extractTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, 
     pSchemaInfo->tversion = mr.me.stbEntry.schemaTag.version;
   } else {
     pSchemaInfo->sw = tCloneSSchemaWrapper(&mr.me.ntbEntry.schemaRow);
+    if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
+      pTaskInfo->streamInfo.ntbUid = mr.me.uid;
+    }
   }
 
   metaReaderClear(&mr);

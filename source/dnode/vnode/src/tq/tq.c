@@ -51,7 +51,7 @@ void tqCleanUp() {
   }
 }
 
-STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
+STQ* tqOpen(const char* path, SVnode* pVnode) {
   STQ* pTq = taosMemoryCalloc(1, sizeof(STQ));
   if (pTq == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
@@ -59,13 +59,14 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
   }
   pTq->path = strdup(path);
   pTq->pVnode = pVnode;
-  pTq->pWal = pWal;
 
   pTq->handles = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
 
   pTq->pStreamTasks = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 
   pTq->pushMgr = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+
+  pTq->pAlterInfo = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
 
   if (tqMetaOpen(pTq) < 0) {
     ASSERT(0);
@@ -91,6 +92,7 @@ void tqClose(STQ* pTq) {
     }
     taosHashCleanup(pTq->pStreamTasks);
     taosHashCleanup(pTq->pushMgr);
+    taosHashCleanup(pTq->pAlterInfo);
     taosMemoryFree(pTq->path);
     tqMetaClose(pTq);
     taosMemoryFree(pTq);
@@ -208,18 +210,18 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen) {
   return 0;
 }
 
-int32_t tqCheckColModifiable(STQ* pTq, int32_t colId) {
+int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId) {
   void* pIter = NULL;
   while (1) {
-    pIter = taosHashIterate(pTq->handles, pIter);
+    pIter = taosHashIterate(pTq->pAlterInfo, pIter);
     if (pIter == NULL) break;
-    STqHandle* pExec = (STqHandle*)pIter;
-    if (pExec->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-      int32_t sz = pExec->execHandle.pSchemaWrapper->nCols;
+    SCheckAlterInfo* pCheck = (SCheckAlterInfo*)pIter;
+    if (pCheck->ntbUid == tbUid) {
+      int32_t sz = taosArrayGetSize(pCheck->colIdList);
       for (int32_t i = 0; i < sz; i++) {
-        SSchema* pSchema = &pExec->execHandle.pSchemaWrapper->pSchema[i];
-        if (pSchema->colId == colId) {
-          taosHashCancelIterate(pTq->handles, pIter);
+        int16_t forbidColId = *(int16_t*)taosArrayGet(pCheck->colIdList, i);
+        if (forbidColId == colId) {
+          taosHashCancelIterate(pTq->pAlterInfo, pIter);
           return -1;
         }
       }
@@ -488,6 +490,22 @@ int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen) {
   return 0;
 }
 
+int32_t tqProcessCheckAlterInfoReq(STQ* pTq, char* msg, int32_t msgLen) {
+  SCheckAlterInfo info = {0};
+  SDecoder        decoder;
+  tDecoderInit(&decoder, msg, msgLen);
+  if (tDecodeSCheckAlterInfo(&decoder, &info) < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  tDecoderClear(&decoder);
+  if (taosHashPut(pTq->pAlterInfo, info.topic, strlen(info.topic), &info, sizeof(SCheckAlterInfo)) < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  return 0;
+}
+
 int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
   SMqRebVgReq req = {0};
   tDecodeSMqRebVgReq(msg, &req);
@@ -524,7 +542,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
       };
       pHandle->execHandle.execCol.task =
           qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, &pHandle->execHandle.numOfCols,
-                                   &pHandle->execHandle.pSchemaWrapper);
+                                   &pHandle->execHandle.pSchemaWrapper, &pHandle->ntbUid);
       ASSERT(pHandle->execHandle.execCol.task);
       void* scanner = NULL;
       qExtractStreamScanner(pHandle->execHandle.execCol.task, &scanner);
