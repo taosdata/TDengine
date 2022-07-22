@@ -73,8 +73,6 @@ while $i < $tbNum
   $tstart = 100000
 endw
 
-sleep 100
-
 print ===============join_manyblocks.sim
 print ==============> td-3313
 sql select join_mt0.ts,join_mt0.ts,join_mt0.t1 from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t1=join_mt1.t1;

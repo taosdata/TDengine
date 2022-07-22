@@ -282,7 +282,7 @@ if $rows != 2 then
   return -1
 endi
 
-sql insert into tick_000001 ('ts', 'last_prc', 'volume', 'amount', 'oi', 'bid_prc1', 'ask_prc1') using tick tags (000001, Stocks) VALUES (1546391700000, 0.000000, 0, 0.000000, 0, 0.000000, 10.320000);
+sql insert into tick_000001 (ts, last_prc, volume, amount, oi, bid_prc1, ask_prc1) using tick tags ('000001', 'Stocks') VALUES (1546391700000, 0.000000, 0, 0.000000, 0, 0.000000, 10.320000);
 sql select tbname from tick
 if $rows != 1 then
    return -1
