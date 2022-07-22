@@ -332,6 +332,9 @@ static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   COPY_SCALAR_FIELD(precision);
   CLONE_NODE_FIELD(pLimit);
   CLONE_NODE_FIELD(pSlimit);
+  COPY_SCALAR_FIELD(requireDataOrder);
+  COPY_SCALAR_FIELD(resultDataOrder);
+  COPY_SCALAR_FIELD(groupAction);
   return TSDB_CODE_SUCCESS;
 }
 

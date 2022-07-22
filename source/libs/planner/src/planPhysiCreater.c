@@ -974,6 +974,17 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
   return code;
 }
 
+static bool projectCanMergeDataBlock(SProjectLogicNode* pProject) {
+  if (DATA_ORDER_LEVEL_NONE == pProject->node.resultDataOrder) {
+    return true;
+  }
+  if (1 != LIST_LENGTH(pProject->node.pChildren)) {
+    return false;
+  }
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
+  return DATA_ORDER_LEVEL_GLOBAL == pChild->resultDataOrder ? true : false;
+}
+
 static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                       SProjectLogicNode* pProjectLogicNode, SPhysiNode** pPhyNode) {
   SProjectPhysiNode* pProject =
@@ -981,6 +992,8 @@ static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChild
   if (NULL == pProject) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
+  pProject->mergeDataBlock = projectCanMergeDataBlock(pProjectLogicNode);
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (0 == LIST_LENGTH(pChildren)) {
