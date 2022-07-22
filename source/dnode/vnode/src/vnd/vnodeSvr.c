@@ -206,6 +206,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
         goto _err;
       }
       break;
+    case TDMT_VND_CHECK_ALTER_INFO:
+      if (tqProcessCheckAlterInfoReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
+                                     pMsg->contLen - sizeof(SMsgHead)) < 0) {
+        goto _err;
+      }
+      break;
     case TDMT_STREAM_TASK_DEPLOY: {
       if (tqProcessTaskDeployReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
                                  pMsg->contLen - sizeof(SMsgHead)) < 0) {
