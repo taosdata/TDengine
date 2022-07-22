@@ -46,9 +46,9 @@ class TDTestQuery(TDCase):
 
     #basic_param
     db = "stable_numeric_stddev"
-    db_1 = "stable_numeric_csum_1"
-    db_2 = "stable_numeric_csum_2"
-    db_3 = "stable_numeric_csum_3"
+    db_1 = "stable_numeric_stddev_1"
+    db_2 = "stable_numeric_stddev_2"
+    db_3 = "stable_numeric_stddev_3"
     service_host = ""
     table_list = ['stable_1','stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
