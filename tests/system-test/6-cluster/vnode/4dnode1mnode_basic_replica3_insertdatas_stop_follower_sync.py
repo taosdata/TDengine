@@ -12,6 +12,8 @@ from util.dnodes import TDDnodes
 from util.dnodes import TDDnode
 from util.cluster import *
 
+import datetime
+import inspect
 import time
 import socket
 import subprocess
@@ -35,7 +37,8 @@ class TDTestCase:
         self.stop_dnode_id = None
         self.loop_restart_times = 5
         self.current_thread = None
-        self.max_restart_time = 20
+        self.max_restart_time = 10
+        self.try_check_times = 10
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -171,12 +174,39 @@ class TDTestCase:
         os.system("taos -s 'select count(*) from {}.{}';".format(dbname,stablename))
 
     def check_insert_rows(self, dbname, stablename , tb_nums , row_nums, append_rows):
-
+    
         tdSql.execute("use {}".format(dbname))
+        
         tdSql.query("select count(*) from {}.{}".format(dbname,stablename))
-        tdSql.checkData(0 , 0 , tb_nums*row_nums+append_rows)
+
+        status_OK = self.mycheckData("select count(*) from {}.{}".format(dbname,stablename) ,0 , 0 , tb_nums*row_nums+append_rows)
+        
+        count = 0 
+        while not status_OK :
+            if count > self.try_check_times:
+                os.system("taos -s ' show {}.vgroups;'".format(dbname))
+                tdLog.exit(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
+                break
+            time.sleep(0.1)
+            tdSql.query("select count(*) from {}.{}".format(dbname,stablename))
+            status_OK = self.mycheckData("select count(*) from {}.{}".format(dbname,stablename) ,0 , 0 , tb_nums*row_nums+append_rows)
+            tdLog.info(" ==== check insert rows first failed , this is {}_th retry check rows of database {}".format(count , dbname))
+            count += 1
+        
+
         tdSql.query("select distinct tbname from {}.{}".format(dbname,stablename))
-        tdSql.checkRows(tb_nums)
+        status_OK = self.mycheckRows("select distinct tbname from {}.{}".format(dbname,stablename) ,tb_nums)
+        count = 0 
+        while not status_OK :
+            if count > self.try_check_times:
+                os.system("taos -s ' show {}.vgroups;'".format(dbname))
+                tdLog.exit(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
+                break
+            time.sleep(0.1)
+            tdSql.query("select distinct tbname from {}.{}".format(dbname,stablename))
+            status_OK = self.mycheckRows("select distinct tbname from {}.{}".format(dbname,stablename) ,tb_nums)
+            tdLog.info(" ==== check insert tbnames first failed , this is {}_th retry check tbnames of database {}".format(count , dbname))
+            count += 1
 
     def _get_stop_dnode_id(self,dbname):
         tdSql.query("show {}.vgroups".format(dbname))
@@ -238,6 +268,92 @@ class TDTestCase:
             # tdLog.info("==== stop dnode has not been stopped , endpoint is {}".format(self.stop_dnode))
         tdLog.info("==== stop_dnode has restart , id is {}".format(self.stop_dnode_id))
 
+    def _parse_datetime(self,timestr):
+        try:
+            return datetime.datetime.strptime(timestr, '%Y-%m-%d %H:%M:%S.%f')
+        except ValueError:
+            pass
+        try:
+            return datetime.datetime.strptime(timestr, '%Y-%m-%d %H:%M:%S')
+        except ValueError:
+            pass
+
+    def mycheckRowCol(self, sql, row, col):
+        caller = inspect.getframeinfo(inspect.stack()[2][0])
+        if row < 0:
+            args = (caller.filename, caller.lineno, sql, row)
+            tdLog.exit("%s(%d) failed: sql:%s, row:%d is smaller than zero" % args)
+        if col < 0:
+            args = (caller.filename, caller.lineno, sql, row)
+            tdLog.exit("%s(%d) failed: sql:%s, col:%d is smaller than zero" % args)
+        if row > tdSql.queryRows:
+            args = (caller.filename, caller.lineno, sql, row, tdSql.queryRows)
+            tdLog.exit("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
+        if col > tdSql.queryCols:
+            args = (caller.filename, caller.lineno, sql, col, tdSql.queryCols)
+            tdLog.exit("%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args)
+
+    def mycheckData(self, sql ,row, col, data):
+        check_status = True
+        self.mycheckRowCol(sql ,row, col)
+        if tdSql.queryResult[row][col] != data:
+            if tdSql.cursor.istype(col, "TIMESTAMP"):
+                # suppose user want to check nanosecond timestamp if a longer data passed
+                if (len(data) >= 28):
+                    if pd.to_datetime(tdSql.queryResult[row][col]) == pd.to_datetime(data):
+                        tdLog.info("sql:%s, row:%d col:%d data:%d == expect:%s" %
+                            (sql, row, col, tdSql.queryResult[row][col], data))
+                else:
+                    if tdSql.queryResult[row][col] == self._parse_datetime(data):
+                        tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
+                            (sql, row, col, tdSql.queryResult[row][col], data))
+                return
+
+            if str(tdSql.queryResult[row][col]) == str(data):
+                tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
+                            (sql, row, col, tdSql.queryResult[row][col], data))
+                return
+            elif isinstance(data, float) and abs(tdSql.queryResult[row][col] - data) <= 0.000001:
+                tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
+                            (sql, row, col, tdSql.queryResult[row][col], data))
+                return
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                args = (caller.filename, caller.lineno, sql, row, col, tdSql.queryResult[row][col], data)
+                tdLog.info("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
+
+                check_status = False
+
+        if data is None:
+            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
+                       (sql, row, col, tdSql.queryResult[row][col], data))
+        elif isinstance(data, str):
+            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
+                       (sql, row, col, tdSql.queryResult[row][col], data))
+        elif isinstance(data, datetime.date):
+            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
+                       (sql, row, col, tdSql.queryResult[row][col], data))
+        elif isinstance(data, float):
+            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
+                       (sql, row, col, tdSql.queryResult[row][col], data))
+        else:
+            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%d" %
+                       (sql, row, col, tdSql.queryResult[row][col], data))
+
+        return check_status
+
+    def mycheckRows(self, sql, expectRows):
+        check_status = True
+        if len(tdSql.queryResult) == expectRows:
+            tdLog.info("sql:%s, queryRows:%d == expect:%d" % (sql, len(tdSql.queryResult), expectRows))
+            return True
+        else:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, sql, len(tdSql.queryResult), expectRows)
+            tdLog.info("%s(%d) failed: sql:%s, queryRows:%d != expect:%d" % args)
+            check_status = False
+        return check_status
+        
     def sync_run_case(self):
         # stop follower and insert datas , update tables and create new stables
         tdDnodes=cluster.dnodes
@@ -251,7 +367,7 @@ class TDTestCase:
             # check rows of datas
             
             self.check_insert_rows(db_name ,stablename ,tb_nums=10 , row_nums= 10 ,append_rows=0)
-
+        
             # begin stop dnode 
             start = time.time()
             tdDnodes[self.stop_dnode_id-1].stoptaosd()
@@ -355,7 +471,7 @@ class TDTestCase:
         self.check_setup_cluster_status()
         self.create_db_check_vgroups()
         self.sync_run_case()
-        self.unsync_run_case()
+        # self.unsync_run_case()
 
         
 
