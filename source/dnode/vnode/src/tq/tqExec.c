@@ -51,6 +51,7 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, SMqDataRsp* pRsp) {
   metaReaderInit(&mr, pTq->pVnode->pMeta, 0);
   // TODO add reference to gurantee success
   if (metaGetTableEntryByUid(&mr, uid) < 0) {
+    metaReaderClear(&mr);
     return -1;
   }
   char* tbName = strdup(mr.me.name);
