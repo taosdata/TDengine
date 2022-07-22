@@ -109,7 +109,7 @@
 ./test.sh -f tsim/parser/fill.sim
 ./test.sh -f tsim/parser/first_last.sim
 ./test.sh -f tsim/parser/fourArithmetic-basic.sim
-# TD-17659 TD-17658 ./test.sh -f tsim/parser/function.sim
+# TD-17659 ./test.sh -f tsim/parser/function.sim
 ./test.sh -f tsim/parser/groupby-basic.sim
 # ./test.sh -f tsim/parser/groupby.sim
 # TD-17622 ./test.sh -f tsim/parser/having_child.sim
@@ -117,7 +117,7 @@
 ./test.sh -f tsim/parser/import_commit1.sim
 ./test.sh -f tsim/parser/import_commit2.sim
 ./test.sh -f tsim/parser/import_commit3.sim
-# TD-17663 ./test.sh -f tsim/parser/import_file.sim
+./test.sh -f tsim/parser/import_file.sim
 ./test.sh -f tsim/parser/import.sim
 ./test.sh -f tsim/parser/insert_multiTbl.sim
 ./test.sh -f tsim/parser/insert_tb.sim
