@@ -71,11 +71,11 @@ class HiveMQTest(TDCase):
         self.run_container()
         time.sleep(15)
         self.send_test_data(3)
-        time.sleep(3)
+        time.sleep(10)
         self.tdSql.query("select count(*) from hivemq.mqtt_payload")
         count = self.tdSql.query_data[0][0]
         self.logger.info(f"pub count 6, query count {count}")
-        assert count > 4
+        assert count > 3
 
     def desc(self) -> str:
         return "Test HiveMQ TDengine Extension"
