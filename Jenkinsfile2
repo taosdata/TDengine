@@ -142,7 +142,7 @@ def pre_test() {
         cd debug
         go env -w GOPROXY=https://goproxy.cn,direct
         go env -w GO111MODULE=on
-        cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true > /dev/null
+        cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DWEBSOCKET=true > /dev/null
         make -j8 >/dev/null
         make install
     '''
