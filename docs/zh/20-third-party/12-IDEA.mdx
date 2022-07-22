@@ -33,9 +33,9 @@ IDEA Ultimate 版自带数据库管理工具，类似于一个小型 Navicat。�
 
 - 在 taos-connector-jdbc 目录下执行：`mvn clean package -Dmaven.test.skip=true`
 
-![image](https://user-images.githubusercontent.com/70138133/180187879-486e24a7-3b20-4447-bff8-c0b651ab39b1.png)
+![image](https://user-images.githubusercontent.com/70138133/180353366-f515a6ae-904d-42d6-9967-1c298112fe88.png)
 
-![image](https://user-images.githubusercontent.com/70138133/180187811-4e73b9fc-8787-4634-bd83-f1197b7699d9.png)
+![image](https://user-images.githubusercontent.com/70138133/180353831-cb0b2c5e-b9a3-4182-ba78-58abfa81e1b4.png)
 
 - 此时 taos-connector-jdbc 目录的 target 文件夹内产生了 taos-jdbcdriver-2.0.40-dist.jar 等驱动包。
 
@@ -77,7 +77,7 @@ IDEA Ultimate 版自带数据库管理工具，类似于一个小型 Navicat。�
 ![image](https://user-images.githubusercontent.com/70138133/180204391-36fd0806-8cd6-43b8-97eb-1e7ff235846a.png)
 
 
-- 再执行`SELECT last_row(*) FROM log.vgroups_info GROUP BY vgroup_id`通过 vgroup_id 分组能查看各 VgroupId 下的最新一条数据。
+- 再执行`SELECT last_row(*) FROM log.vgroups_info GROUP BY vgroup_id`通过 vgroup_id 分组能查看各 VgroupId 下的最新一条数据：
 
 ![image](https://user-images.githubusercontent.com/70138133/180205161-7f0314eb-cdaa-442c-acb5-d33931c32648.png)
 
