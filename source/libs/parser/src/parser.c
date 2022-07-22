@@ -82,11 +82,16 @@ static int32_t parseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, SParseMetaCa
 }
 
 static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
+  if (IS_VAR_DATA_TYPE(pVal->node.resType.type)) {
+    taosMemoryFreeClear(pVal->datum.p);
+  }
+  
   if (pParam->is_null && 1 == *(pParam->is_null)) {
     pVal->node.resType.type = TSDB_DATA_TYPE_NULL;
     pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
     return TSDB_CODE_SUCCESS;
   }
+  
   int32_t inputSize = (NULL != pParam->length ? *(pParam->length) : tDataTypes[pParam->buffer_type].bytes);
   pVal->node.resType.type = pParam->buffer_type;
   pVal->node.resType.bytes = inputSize;
@@ -239,6 +244,7 @@ int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx
   }
 
   if (TSDB_CODE_SUCCESS == code && (colIdx < 0 || colIdx + 1 == pQuery->placeholderNum)) {
+    nodesDestroyNode(pQuery->pRoot);
     pQuery->pRoot = nodesCloneNode(pQuery->pPrepareRoot);
     if (NULL == pQuery->pRoot) {
       code = TSDB_CODE_OUT_OF_MEMORY;
