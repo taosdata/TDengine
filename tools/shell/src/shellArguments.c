@@ -41,6 +41,7 @@
 #define SHELL_EMAIL    "<support@taosdata.com>"
 #define SHELL_DSN      "The dsn to use when connecting to cloud server."
 #define SHELL_REST     "Use restful mode when connecting."
+#define SHELL_TIMEOUT  "Set the timeout for websocket query in seconds, default is 10."
 
 static int32_t shellParseSingleOpt(int32_t key, char *arg);
 
@@ -67,6 +68,7 @@ void shellPrintHelp() {
   printf("%s%s%s%s\r\n", indent, "-E,", indent, SHELL_DSN);
   printf("%s%s%s%s\r\n", indent, "-R,", indent, SHELL_REST);
   printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
+  printf("%s%s%s%s\r\n", indent, "-T,", indent, SHELL_TIMEOUT);
   printf("%s%s%s%s\r\n", indent, "-V,", indent, SHELL_VERSION);
   printf("\r\n\r\nReport bugs to %s.\r\n", SHELL_EMAIL);
 }
@@ -98,6 +100,7 @@ static struct argp_option shellOptions[] = {
     {"pktlen", 'l', "PKTLEN", 0, SHELL_PKG_LEN},
     {"dsn", 'E', "DSN", 0, SHELL_DSN},
     {"restful", 'R', 0, 0, SHELL_REST},
+	{"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
     {0},
 };
@@ -185,6 +188,9 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       pArgs->dsn = arg;
       pArgs->cloud = true;
       break;
+	case 'T':
+	  pArgs->timeout = atoi(arg);
+	  break;
     case 'V':
       pArgs->is_version = true;
       break;
@@ -221,7 +227,8 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
     }
 
     if (key[1] == 'h' || key[1] == 'P' || key[1] == 'u' || key[1] == 'a' || key[1] == 'c' || key[1] == 's' ||
-        key[1] == 'f' || key[1] == 'd' || key[1] == 'w' || key[1] == 'n' || key[1] == 'l' || key[1] == 'N') {
+        key[1] == 'f' || key[1] == 'd' || key[1] == 'w' || key[1] == 'n' || key[1] == 'l' || key[1] == 'N' ||
+		key[1] == 'E' || key[1] == 'T' ) {
       if (i + 1 >= argc) {
         fprintf(stderr, "option %s requires an argument\r\n", key);
         return -1;
@@ -234,7 +241,7 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
       shellParseSingleOpt(key[1], val);
       i++;
     } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'C' || key[1] == 'r' || key[1] == 'k' || 
-               key[1] == 't' || key[1] == 'V' || key[1] == '?' || key[1] == 1) {
+               key[1] == 't' || key[1] == 'V' || key[1] == '?' || key[1] == 1 ||key[1] == 'R') {
       shellParseSingleOpt(key[1], NULL);
     } else {
       fprintf(stderr, "invalid option %s\r\n", key);
