@@ -121,7 +121,7 @@ int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numO
 }
 
 qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols,
-                                     SSchemaWrapper** pSchemaWrapper, int64_t* ntbUid) {
+                                     SSchemaWrapper** pSchemaWrapper) {
   if (msg == NULL) {
     // TODO create raw scan
     return NULL;
@@ -156,7 +156,6 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* n
   }
 
   *pSchemaWrapper = tCloneSSchemaWrapper(((SExecTaskInfo*)pTaskInfo)->schemaInfo.qsw);
-  *ntbUid = ((SExecTaskInfo*)pTaskInfo)->streamInfo.ntbUid;
   return pTaskInfo;
 }
 

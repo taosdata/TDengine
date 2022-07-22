@@ -272,6 +272,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t      code = 0;
   STqOffsetVal reqOffset = pReq->reqOffset;
   STqOffsetVal fetchOffsetNew;
+  SWalCkHead*  pCkHead = NULL;
 
   // 1.find handle
   STqHandle* pHandle = taosHashGet(pTq->handles, pReq->subKey, strlen(pReq->subKey));
@@ -461,6 +462,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
 OVER:
+  if (pCkHead) taosMemoryFree(pCkHead);
   // TODO wrap in destroy func
   taosArrayDestroy(dataRsp.blockDataLen);
   taosArrayDestroyP(dataRsp.blockData, (FDelete)taosMemoryFree);
@@ -542,7 +544,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
       };
       pHandle->execHandle.execCol.task =
           qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, &pHandle->execHandle.numOfCols,
-                                   &pHandle->execHandle.pSchemaWrapper, &pHandle->ntbUid);
+                                   &pHandle->execHandle.pSchemaWrapper);
       ASSERT(pHandle->execHandle.execCol.task);
       void* scanner = NULL;
       qExtractStreamScanner(pHandle->execHandle.execCol.task, &scanner);

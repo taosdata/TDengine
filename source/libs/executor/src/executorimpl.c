@@ -4165,9 +4165,6 @@ int32_t extractTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, 
     pSchemaInfo->tversion = mr.me.stbEntry.schemaTag.version;
   } else {
     pSchemaInfo->sw = tCloneSSchemaWrapper(&mr.me.ntbEntry.schemaRow);
-    if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
-      pTaskInfo->streamInfo.ntbUid = mr.me.uid;
-    }
   }
 
   metaReaderClear(&mr);
@@ -4443,10 +4440,10 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       return createExchangeOperatorInfo(pHandle->pMsgCb->clientRpc, (SExchangePhysiNode*)pPhyNode, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
-      STimeWindowAggSupp aggSup = (STimeWindowAggSupp){
-          .waterMark = pTableScanNode->watermark,
-          .calTrigger = pTableScanNode->triggerType,
-          .maxTs = INT64_MIN,
+      STimeWindowAggSupp   aggSup = (STimeWindowAggSupp){
+            .waterMark = pTableScanNode->watermark,
+            .calTrigger = pTableScanNode->triggerType,
+            .maxTs = INT64_MIN,
       };
 
       if (pHandle->vnode) {

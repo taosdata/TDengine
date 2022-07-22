@@ -157,7 +157,6 @@ typedef struct {
   SQueryTableDataCond tableCond;
   int64_t recoverStartVer;
   int64_t recoverEndVer;
-  int64_t ntbUid;
 } SStreamTaskInfo;
 
 typedef struct {
