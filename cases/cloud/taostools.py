@@ -18,6 +18,7 @@ import shutil
 
 class TaosTools(TDCase, CloudCase):
     def init(self):
+        self.cwd = self.env_setting["work_dir"] + '/tools'
         self.set_env()
         self.cql = CloudSql()
 
@@ -28,7 +29,8 @@ class TaosTools(TDCase, CloudCase):
     def test_taos_benchmark(self):
         # 创建 1 张表，写 records 条数据
         records = 10
-        run(['taosBenchmark', '--database', 'benchmark', '-T', '1', '-t', '1', '--records', str(records), '-y'], check=True, timeout=20)
+        run(['taosBenchmark', '--database', 'benchmark', '-T', '1', '-t', '1', '--records', str(records), '-y'],
+            cwd=self.cwd, check=True, timeout=20)
         count = self.cql.count("benchmark", "meters")
         assert count == records
 
@@ -39,7 +41,7 @@ class TaosTools(TDCase, CloudCase):
             self.cleanup()
             os.mkdir('dumped_data')
 
-        run(['taosdump', '-D', 'benchmark', '-o', 'dumped_data'], check=True, timeout=20)
+        run(['taosdump', '-D', 'benchmark', '-o', 'dumped_data'], check=True, timeout=20, cwd=self.cwd)
 
     def cleanup(self):
         shutil.rmtree("./dumped_data", ignore_errors=True)

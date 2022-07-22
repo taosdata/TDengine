@@ -3,10 +3,10 @@
 如果进程异常退出，或超过 10 秒没退出，都认为失败
 启动命令： tt --case=cloud/cli.py --use=cloud_test.yaml
 """
-
 from subprocess import run
 
 from taostest import TDCase, T
+
 from .cloud_case import CloudCase
 
 
