@@ -977,12 +977,24 @@ static int32_t stbSplSplitJoinNode(SSplitContext* pCxt, SStableSplitInfo* pInfo)
   return code;
 }
 
+static int32_t stbSplCreateMergeKeysForPartitionNode(SLogicNode* pPart, SNodeList** pMergeKeys) {
+  SNode* pPrimaryKey =
+      nodesCloneNode(stbSplFindPrimaryKeyFromScan((SScanLogicNode*)nodesListGetNode(pPart->pChildren, 0)));
+  if (NULL == pPrimaryKey) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  int32_t code = nodesListAppend(pPart->pTargets, pPrimaryKey);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = stbSplCreateMergeKeysByPrimaryKey(pPrimaryKey, pMergeKeys);
+  }
+  return code;
+}
+
 static int32_t stbSplSplitPartitionNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   int32_t    code = TSDB_CODE_SUCCESS;
   SNodeList* pMergeKeys = NULL;
   if (pInfo->pSplitNode->requireDataOrder >= DATA_ORDER_LEVEL_IN_GROUP) {
-    code = stbSplCreateMergeKeysByPrimaryKey(
-        stbSplFindPrimaryKeyFromScan((SScanLogicNode*)nodesListGetNode(pInfo->pSplitNode->pChildren, 0)), &pMergeKeys);
+    code = stbSplCreateMergeKeysForPartitionNode(pInfo->pSplitNode, &pMergeKeys);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = stbSplCreateMergeNode(pCxt, pInfo->pSubplan, pInfo->pSplitNode, pMergeKeys, pInfo->pSplitNode, true);
