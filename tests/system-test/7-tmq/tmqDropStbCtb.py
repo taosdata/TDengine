@@ -24,19 +24,7 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
-        
-    def waitSubscriptionExit(self, max_wait_count=20):
-        wait_cnt = 0
-        while (wait_cnt < max_wait_count):
-            tdSql.query("show subscriptions")
-            if tdSql.getRows() == 0:
-                break
-            else:
-                time.sleep(2)
-                wait_cnt += 1
-                
-        tdLog.info("wait subscriptions exit for %d s"%wait_cnt)
-
+ 
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
         paraDict = {'dbName':     'dbt',
@@ -169,7 +157,7 @@ class TDTestCase:
             tdLog.exit("tmq consume rows error with snapshot = 0!")
 
         tdLog.info("wait subscriptions exit ....")      
-        self.waitSubscriptionExit()
+        tmqCom.waitSubscriptionExit(tdSql)
             
         tdSql.query("drop topic %s"%topicFromDb)
         tdLog.info("success dorp topic: %s"%topicFromDb)
@@ -258,7 +246,7 @@ class TDTestCase:
             tdLog.exit("tmq consume rows error with snapshot = 0!")
 
         tdLog.info("wait subscriptions exit ....")      
-        self.waitSubscriptionExit()
+        tmqCom.waitSubscriptionExit(tdSql)
                     
         tdSql.query("drop topic %s"%topicFromDb)
         tdLog.info("success dorp topic: %s"%topicFromDb)
