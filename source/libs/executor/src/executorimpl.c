@@ -1333,7 +1333,7 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
 
 static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep);
 
-void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
+void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColMatchInfo) {
   if (pFilterNode == NULL || pBlock->info.rows == 0) {
     return;
   }
@@ -1354,6 +1354,20 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   filterFreeInfo(filter);
 
   extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
+
+  if (pColMatchInfo != NULL) {
+    for(int32_t i = 0; i < taosArrayGetSize(pColMatchInfo); ++i) {
+      SColMatchInfo* pInfo = taosArrayGet(pColMatchInfo, i);
+      if (pInfo->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, pInfo->targetSlotId);
+        if (pColData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+          blockDataUpdateTsWindow(pBlock, pInfo->targetSlotId);
+          break;
+        }
+      }
+    }
+  }
+
   taosMemoryFree(rowRes);
 }
 
@@ -3040,7 +3054,7 @@ static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   while (1) {
     doBuildResultDatablock(pOperator, pInfo, &pAggInfo->groupResInfo, pAggInfo->aggSup.pResultBuf);
-    doFilter(pAggInfo->pCondition, pInfo->pRes);
+    doFilter(pAggInfo->pCondition, pInfo->pRes, NULL);
 
     if (!hasDataInGroupInfo(&pAggInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
@@ -3401,7 +3415,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
     // do apply filter
     SSDataBlock* p = pProjectInfo->mergeDataBlocks ? pFinalRes : pRes;
-    doFilter(pProjectInfo->pFilterNode, p);
+    doFilter(pProjectInfo->pFilterNode, p, NULL);
     if (p->info.rows > 0) {
       break;
     }
@@ -3543,7 +3557,7 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
       break;
     }
 
-    doFilter(pInfo->pCondition, fillResult);
+    doFilter(pInfo->pCondition, fillResult, pInfo->pColMatchColInfo);
     if (fillResult->info.rows > 0) {
       break;
     }
@@ -4005,7 +4019,7 @@ static SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
       }
     }
 
-    doFilter(pIndefInfo->pCondition, pInfo->pRes);
+    doFilter(pIndefInfo->pCondition, pInfo->pRes, NULL);
     size_t rows = pInfo->pRes->info.rows;
     if (rows > 0 || pOperator->status == OP_EXEC_DONE) {
       break;

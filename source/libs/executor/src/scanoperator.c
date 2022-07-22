@@ -265,7 +265,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   }
 
   int64_t st = taosGetTimestampMs();
-  doFilter(pTableScanInfo->pFilterNode, pBlock);
+  doFilter(pTableScanInfo->pFilterNode, pBlock, pTableScanInfo->pColMatchInfo);
 
   int64_t et = taosGetTimestampMs();
   pTableScanInfo->readRecorder.filterTime += (et - st);
@@ -274,6 +274,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     pCost->filterOutBlocks += 1;
     qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
+  } else {
+    qDebug("%s data block filter out, elapsed time:%"PRId64, GET_TASKID(pTaskInfo), (et - st));
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1225,7 +1227,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     }
   }
 
-  doFilter(pInfo->pCondition, pInfo->pRes);
+  doFilter(pInfo->pCondition, pInfo->pRes, NULL);
   blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
   blockDataFreeRes((SSDataBlock*)pBlock);
   return 0;
@@ -1761,55 +1763,7 @@ static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
     return pInfo->pRes->info.rows == 0 ? NULL : pInfo->pRes;
   }
 
-  doFilter(pInfo->pCondition, pInfo->pRes);
-#if 0
-  SFilterInfo* filter = NULL;
-
-  int32_t code = filterInitFromNode(pInfo->pCondition, &filter, 0);
-
-  SFilterColumnParam param1 = {.numOfCols = pInfo->pRes->info.numOfCols, .pDataBlock = pInfo->pRes->pDataBlock};
-  code = filterSetDataFromSlotId(filter, &param1);
-
-  int8_t* rowRes = NULL;
-  bool    keep = filterExecute(filter, pInfo->pRes, &rowRes, NULL, param1.numOfCols);
-  filterFreeInfo(filter);
-
-  SSDataBlock* px = createOneDataBlock(pInfo->pRes, false);
-  blockDataEnsureCapacity(px, pInfo->pRes->info.rows);
-
-  // TODO refactor
-  int32_t numOfRow = 0;
-  for (int32_t i = 0; i < pInfo->pRes->info.numOfCols; ++i) {
-    SColumnInfoData* pDest = taosArrayGet(px->pDataBlock, i);
-    SColumnInfoData* pSrc = taosArrayGet(pInfo->pRes->pDataBlock, i);
-
-    if (keep) {
-      colDataAssign(pDest, pSrc, pInfo->pRes->info.rows, &px->info);
-      numOfRow = pInfo->pRes->info.rows;
-    } else if (NULL != rowRes) {
-      numOfRow = 0;
-      for (int32_t j = 0; j < pInfo->pRes->info.rows; ++j) {
-        if (rowRes[j] == 0) {
-          continue;
-        }
-
-        if (colDataIsNull_s(pSrc, j)) {
-          colDataAppendNULL(pDest, numOfRow);
-        } else {
-          colDataAppend(pDest, numOfRow, colDataGetData(pSrc, j), false);
-        }
-
-        numOfRow += 1;
-      }
-    } else {
-      numOfRow = 0;
-    }
-  }
-
-  px->info.rows = numOfRow;
-  pInfo->pRes = px;
-#endif
-
+  doFilter(pInfo->pCondition, pInfo->pRes, NULL);
   return pInfo->pRes->info.rows == 0 ? NULL : pInfo->pRes;
 }
 
@@ -2777,7 +2731,7 @@ static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeSc
   }
 
   int64_t st = taosGetTimestampMs();
-  doFilter(pTableScanInfo->pFilterNode, pBlock);
+  doFilter(pTableScanInfo->pFilterNode, pBlock, pTableScanInfo->pColMatchInfo);
 
   int64_t et = taosGetTimestampMs();
   pTableScanInfo->readRecorder.filterTime += (et - st);

@@ -1178,7 +1178,7 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_RES_TO_RETURN) {
     while (1) {
       doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-      doFilter(pInfo->pCondition, pBInfo->pRes);
+      doFilter(pInfo->pCondition, pBInfo->pRes, NULL);
 
       bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
       if (!hasRemain) {
@@ -1219,7 +1219,7 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator) {
   blockDataEnsureCapacity(pBInfo->pRes, pOperator->resultInfo.capacity);
   while (1) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    doFilter(pInfo->pCondition, pBInfo->pRes);
+    doFilter(pInfo->pCondition, pBInfo->pRes, NULL);
 
     bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
     if (!hasRemain) {
@@ -1256,7 +1256,7 @@ static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator) {
     blockDataEnsureCapacity(pBlock, pOperator->resultInfo.capacity);
     while (1) {
       doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-      doFilter(pInfo->pCondition, pBlock);
+      doFilter(pInfo->pCondition, pBlock, NULL);
 
       bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
       if (!hasRemain) {
@@ -1969,7 +1969,7 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_RES_TO_RETURN) {
     while (1) {
       doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-      doFilter(pInfo->pCondition, pBInfo->pRes);
+      doFilter(pInfo->pCondition, pBInfo->pRes, NULL);
 
       bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
       if (!hasRemain) {
@@ -2013,7 +2013,7 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
   blockDataEnsureCapacity(pBInfo->pRes, pOperator->resultInfo.capacity);
   while (1) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    doFilter(pInfo->pCondition, pBInfo->pRes);
+    doFilter(pInfo->pCondition, pBInfo->pRes, NULL);
 
     bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
     if (!hasRemain) {
@@ -4626,7 +4626,7 @@ static SSDataBlock* doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
       getTableScanInfo(pOperator, &iaInfo->order, &scanFlag);
       setInputDataBlock(pOperator, pSup->pCtx, pBlock, iaInfo->order, scanFlag, true);
       doMergeAlignedIntervalAggImpl(pOperator, &iaInfo->binfo.resultRowInfo, pBlock, scanFlag, pRes);
-      doFilter(miaInfo->pCondition, pRes);
+      doFilter(miaInfo->pCondition, pRes, NULL);
       if (pRes->info.rows >= pOperator->resultInfo.capacity) {
         break;
       }
