@@ -51,7 +51,6 @@ typedef struct SShellArguments {
   char* auth;
   char* database;
   char* timezone;
-  bool  restful;
   TAOS* con;
   bool  is_raw_time;
   bool  is_use_passwd;
@@ -69,10 +68,11 @@ typedef struct SShellArguments {
   char* netTestRole;
   char* dsn;
 #ifdef WEBSOCKET
+  bool  restful;
   WS_TAOS* ws_conn;
-#endif
   bool cloud;
   uint32_t timeout;
+#endif
 } SShellArguments;
 
 /**************** Function declarations ****************/
