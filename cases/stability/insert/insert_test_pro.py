@@ -32,6 +32,9 @@ class TestInsertPro(TDCase):
     insert_tmpl_file_param = "insert-tmpl-file"
     check_result_enabled_param = "check-result"
     check_performance_param = "check-performance"
+    pre_create_db_param = "pre-create-db"
+    stable_field_name = "STABLENAME"
+    childtable_prefix_field_name = "CHILDTABLEPREFIX"
     concurrency_param = "concurrency"
     key_param = "key"
 
@@ -41,6 +44,7 @@ class TestInsertPro(TDCase):
         self.replace_keys = []
         self.check_result_enabled = False
         self.check_performance = False
+        self.pre_create_db = False
         self.concurrency = 1
         self.json_config_files = []
         self.result_files = []
@@ -55,6 +59,7 @@ class TestInsertPro(TDCase):
         print(f"\t--{TestInsertPro.key_param}")
         print(f"\t--{TestInsertPro.check_result_enabled_param}")
         print(f"\t--{TestInsertPro.check_performance_param}")
+        print(f"\t--{TestInsertPro.pre_create_db_param}")
         print(f"\t--{TestInsertPro.concurrency_param}")
 
     # parse case parameters
@@ -66,7 +71,7 @@ class TestInsertPro(TDCase):
             self.logger.debug("case parameters: [{}]".format(self.case_param))
             param_array = self.case_param.split(" ")
             # parse parameters
-            opts, args = getopt.getopt(param_array, "h", ["help", f"{TestInsertPro.insert_cfg_file_param}=", f"{TestInsertPro.insert_tmpl_file_param}=", f"{TestInsertPro.key_param}=", f"{TestInsertPro.check_result_enabled_param}", f"{TestInsertPro.check_performance_param}", f"{TestInsertPro.concurrency_param}="])
+            opts, args = getopt.getopt(param_array, "h", ["help", f"{TestInsertPro.insert_cfg_file_param}=", f"{TestInsertPro.insert_tmpl_file_param}=", f"{TestInsertPro.key_param}=", f"{TestInsertPro.check_result_enabled_param}", f"{TestInsertPro.check_performance_param}", f"{TestInsertPro.pre_create_db_param}", f"{TestInsertPro.concurrency_param}="])
             self.logger.debug(str(opts))
             for key, val in opts:
                 self.logger.debug("key: {} value: {}".format(key, val))
@@ -80,6 +85,8 @@ class TestInsertPro(TDCase):
                     self.check_result_enabled = True
                 elif key in (f"--{TestInsertPro.check_performance_param}"):
                     self.check_performance = True
+                elif key in (f"--{TestInsertPro.pre_create_db_param}"):
+                    self.pre_create_db = True
                 elif key in (f"--{TestInsertPro.concurrency_param}"):
                     self.concurrency = int(val)
                 else:
@@ -184,9 +191,12 @@ class TestInsertPro(TDCase):
         self.replace_keys.insert(0, f"CHILDTABLEPREFIX=stb_")
         self.replace_keys.insert(0, f"STABLENAME=stb")
         self.replace_keys.insert(0, f"DROPENABLE=yes")
+        self.replace_keys.insert(0, f"REPLICA=1")
+        host = ""
+        port = ""
         for node in taosd_nodes:
-            if not node["fqdn"] is None:
-                taosd_fqdn = node["fqdn"]
+            if (not node["spec"] is None) and (not node["spec"]["dnodes"] is None):
+                taosd_fqdn = node["spec"]["dnodes"]
             if (not node["spec"] is None) and (not node["spec"]["config"] is None) and (not node["spec"]["config"]["firstEP"] is None):
                 host = node["spec"]["config"]["firstEP"].split(":")[0]
                 port = node["spec"]["config"]["firstEP"].split(":")[1]
@@ -213,6 +223,8 @@ class TestInsertPro(TDCase):
             os.system("cp -f {} {}".format(self.insert_tmpl_file, insert_json_file))
 
             insert_config_dict[TestInsertPro.dbname_field_name] = f"db{i}"
+            insert_config_dict[TestInsertPro.stable_field_name] = f"stb{i}"
+            insert_config_dict[TestInsertPro.childtable_prefix_field_name] = f"stb{i}_"
             insert_config_dict[TestInsertPro.resultfile_field_name] = f"\/tmp\/result_{i}.txt"
             self.envMgr._remote.cmd(insert_config_dict[TestInsertPro.host_field_name], f"rm -rf /tmp/result_{i}.txt")
             # os.system(f"rm -rf /tmp/result_{i}.txt")
@@ -226,6 +238,33 @@ class TestInsertPro(TDCase):
             self.result_files.append(insert_config_dict[TestInsertPro.resultfile_field_name])
             self.json_config_files.append(insert_json_file)
 
+        if self.pre_create_db:
+            db_names = []
+            for insert_json_file in self.json_config_files:
+                # load taosBenchmark json
+                benchmark_config = dict()
+                with open(insert_json_file, 'r') as file: 
+                    benchmark_config = json.load(file)
+                for db in benchmark_config["databases"]:
+                    vgroups = 0
+                    vgroups = db["dbinfo"]["vgroups"]
+                    db_name = db["dbinfo"]["name"]
+                    replica = 1
+                    if not db["dbinfo"]["name"] is None:
+                        replica = db["dbinfo"]["replica"]
+                    if not db_name in db_names:
+                        db_names.append(db_name)
+                        ret = os.system(f"taos -h {host} -P {port} -s \"drop database if exists {db_name};\"")
+                        if ret != 0:
+                            self.logger.error(f"drop database {db_name} failed")
+                            self.set_error_msg(f"drop database {db_name} failed")
+                            return False
+                        ret = os.system(f"taos -h {host} -P {port} -s \"create database if not exists {db_name} replica {replica} vgroups {vgroups};\"")
+                        if ret != 0:
+                            self.logger.error(f"create database {db_name} failed")
+                            self.set_error_msg(f"create database {db_name} failed")
+                            return False
+
         # run benchmark insert data
         thread_interval = 0.25
         stime = float(self.concurrency) * thread_interval
@@ -235,6 +274,7 @@ class TestInsertPro(TDCase):
             cmd = ["ulimit -n 1048576", f"sleep {stime}", f"taosBenchmark -f {config_file}"]
             t = threading.Thread(target=self.run_benchmark, args=(insert_config_dict[TestInsertPro.host_field_name], cmd))
             self.threads.append(t)
+            stime = stime - thread_interval
         for t in self.threads:
             t.start()
         for t in self.threads:
@@ -268,7 +308,13 @@ class TestInsertPro(TDCase):
 
                         # Query data check
                         self.tdSql.query("show {}.tables;".format(db_name))
-                        stb_child_name = self.tdSql.getData(0,0)             
+                        stb_child_name = ""
+                        i = 0
+                        while 1:
+                            if self.tdSql.getData(i, 4) == stb_name:
+                                stb_child_name = self.tdSql.getData(i, 0)
+                                break
+                            i = i + 1
                         if insert_rows > 0:
                             #sum check
                             sum_sql1 = "select sum(c1) from {}.{};".format(db_name, stb_child_name);
