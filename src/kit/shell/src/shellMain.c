@@ -37,9 +37,11 @@ void *cancelHandler(void *arg) {
       taosMsleep(10);
       continue;
     }
+#ifdef WEBSOCKET
     if (args.restful || args.cloud) {
       stop_fetch = true;
     }
+#endif
 #ifdef LINUX
     int64_t rid = atomic_val_compare_exchange_64(&result, result, 0);
     SSqlObj* pSql = taosAcquireRef(tscObjRef, rid);
@@ -81,7 +83,6 @@ SShellArguments args = {.host = NULL,
   .user = NULL,
   .database = NULL,
   .timezone = NULL,
-  .restful = false,
   .is_raw_time = false,
   .is_use_passwd = false,
   .dump_config = false,
@@ -93,9 +94,12 @@ SShellArguments args = {.host = NULL,
   .pktNum = 100,
   .pktType = "TCP",
   .netTestRole = NULL,
+#ifdef WEBSOCKET
+  .restful = false,
   .cloud = true,
   .dsn = NULL,
   .timeout = 10,
+#endif
   };
 
 /*
@@ -135,6 +139,7 @@ int main(int argc, char* argv[]) {
     exit(0);
   }
 
+#ifdef WEBSOCKET
   if (args.restful) {
     args.dsn = calloc(1, 1024);
 
@@ -148,6 +153,7 @@ int main(int argc, char* argv[]) {
 
     snprintf(args.dsn, 1024, "ws://%s:%d/rest/ws",args.host, args.port);
   }
+#endif
 
   /* Initialize the shell */
   shellInit(&args);
