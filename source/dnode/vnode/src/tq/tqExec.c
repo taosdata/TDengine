@@ -108,6 +108,7 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVa
     }
 
     if (pRsp->blockNum == 0 && pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+      tqDebug("vgId: %d, tsdb consume over, switch to wal, ver %ld", TD_VID(pTq->pVnode), pHandle->snapshotVer + 1);
       tqOffsetResetToLog(pOffset, pHandle->snapshotVer);
       qStreamPrepareScan(task, pOffset);
       continue;
