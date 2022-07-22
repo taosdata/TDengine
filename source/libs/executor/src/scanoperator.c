@@ -982,7 +982,9 @@ static SSDataBlock* doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32
     if (!pResult) {
       blockDataCleanup(pSDB);
       *pRowIndex = 0;
-      return NULL;
+      STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
+      tsdbReaderClose(pTableScanInfo->dataReader);
+      pTableScanInfo->dataReader = NULL;
     }
 
     if (pResult->info.groupId == pInfo->groupId) {
@@ -1003,6 +1005,9 @@ static SSDataBlock* doDataScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32_
     }
     if (!pResult) {
       pInfo->updateWin = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
+      STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
+      tsdbReaderClose(pTableScanInfo->dataReader);
+      pTableScanInfo->dataReader = NULL;
       return NULL;
     }
 

@@ -315,6 +315,9 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
       if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
         SStreamScanInfo* pInfo = pOperator->info;
         if (pOffset->type == TMQ_OFFSET__LOG) {
+          STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
+          tsdbReaderClose(pTSInfo->dataReader);
+          pTSInfo->dataReader = NULL;
 #if 0
           if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.lastStatus) &&
               pInfo->tqReader->pWalReader->curVersion != pOffset->version) {
@@ -357,6 +360,14 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
 
           // TODO after dropping table, table may be not found
           ASSERT(found);
+
+          if (pTableScanInfo == NULL) {
+            if (tsdbReaderOpen(pTableScanInfo->readHandle.vnode, &pTableScanInfo->cond,
+                               pTaskInfo->tableqinfoList.pTableList, &pTableScanInfo->dataReader, NULL) < 0 ||
+                pTableScanInfo->dataReader == NULL) {
+              ASSERT(0);
+            }
+          }
 
           tsdbSetTableId(pTableScanInfo->dataReader, uid);
           int64_t oldSkey = pTableScanInfo->cond.twindows.skey;
