@@ -913,13 +913,25 @@ static int32_t stbSplSplitScanNodeWithPartTags(SSplitContext* pCxt, SStableSplit
 }
 
 static SNode* stbSplFindPrimaryKeyFromScan(SScanLogicNode* pScan) {
+  bool   find = false;
   SNode* pCol = NULL;
   FOREACH(pCol, pScan->pScanCols) {
     if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pCol)->colId) {
+      find = true;
+      break;
+    }
+  }
+  if (!find) {
+    return NULL;
+  }
+  SNode* pTarget = NULL;
+  FOREACH(pTarget, pScan->node.pTargets) {
+    if (nodesEqualNode(pTarget, pCol)) {
       return pCol;
     }
   }
-  return NULL;
+  nodesListStrictAppend(pScan->node.pTargets, nodesCloneNode(pCol));
+  return pCol;
 }
 
 static int32_t stbSplSplitMergeScanNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SScanLogicNode* pScan,

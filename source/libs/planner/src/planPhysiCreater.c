@@ -415,7 +415,6 @@ static int32_t createScanPhysiNodeFinalize(SPhysiPlanContext* pCxt, SSubplan* pS
                                            SScanPhysiNode* pScanPhysiNode, SPhysiNode** pPhyNode) {
   int32_t code = createScanCols(pCxt, pScanPhysiNode, pScanLogicNode->pScanCols);
   if (TSDB_CODE_SUCCESS == code) {
-    // Data block describe also needs to be set without scanning column, such as SELECT COUNT(*) FROM t
     code = addDataBlockSlots(pCxt, pScanPhysiNode->pScanCols, pScanPhysiNode->node.pOutputDataBlockDesc);
   }
 
