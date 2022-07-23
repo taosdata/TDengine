@@ -25,7 +25,7 @@
                 {
                     "name": "STABLENAME",
                     "no_check_for_affected_rows": "yes",
-                    "child_table_exists": "no",
+                    "child_table_exists": "CHILDTABLEEXISTS",
                     "childtable_count": CHILDTABLECOUNT,
                     "childtable_prefix": "CHILDTABLEPREFIX",
                     "auto_create_table": "no",

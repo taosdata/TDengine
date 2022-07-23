@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 
 from taostest import TDCase, T
+from taostest.util.common import TDCom
 import sys,getopt
 import socket
 import os
@@ -21,6 +22,7 @@ import re
 import time
 import json
 import threading
+import copy
 from Query.queryutil.createdata import *
 
 class TestInsertPro(TDCase):
@@ -28,15 +30,16 @@ class TestInsertPro(TDCase):
     port_field_name = "PORT"
     dbname_field_name = "DBNAME"
     resultfile_field_name = "RESULTFILE"
+    childtable_prefix_field_name = "CHILDTABLEPREFIX"
     insert_cfg_file_param = "insert-cfg-file"
     insert_tmpl_file_param = "insert-tmpl-file"
     check_result_enabled_param = "check-result"
     check_performance_param = "check-performance"
     pre_create_db_param = "pre-create-db"
     stable_field_name = "STABLENAME"
-    childtable_prefix_field_name = "CHILDTABLEPREFIX"
     concurrency_param = "concurrency"
     key_param = "key"
+    enable_second_round_param = "enable-second-round"
 
     def init(self):
         self.insert_cfg_file = None
@@ -46,11 +49,13 @@ class TestInsertPro(TDCase):
         self.check_performance = False
         self.pre_create_db = False
         self.concurrency = 1
+        self.enable_second_round = False
         self.json_config_files = []
         self.result_files = []
         self.threads = []
         self.ret = True
         self.tdCreateData = TDCreateData(self.tdSql, self.logger)
+        self.tdCommon = TDCom(self.tdSql)
 
     def help(self):
         print("case parameters:")
@@ -61,6 +66,7 @@ class TestInsertPro(TDCase):
         print(f"\t--{TestInsertPro.check_performance_param}")
         print(f"\t--{TestInsertPro.pre_create_db_param}")
         print(f"\t--{TestInsertPro.concurrency_param}")
+        print(f"\t--{TestInsertPro.enable_second_round_param}")
 
     # parse case parameters
     def parse_case_param(self):
@@ -71,7 +77,7 @@ class TestInsertPro(TDCase):
             self.logger.debug("case parameters: [{}]".format(self.case_param))
             param_array = self.case_param.split(" ")
             # parse parameters
-            opts, args = getopt.getopt(param_array, "h", ["help", f"{TestInsertPro.insert_cfg_file_param}=", f"{TestInsertPro.insert_tmpl_file_param}=", f"{TestInsertPro.key_param}=", f"{TestInsertPro.check_result_enabled_param}", f"{TestInsertPro.check_performance_param}", f"{TestInsertPro.pre_create_db_param}", f"{TestInsertPro.concurrency_param}="])
+            opts, args = getopt.getopt(param_array, "h", ["help", f"{TestInsertPro.insert_cfg_file_param}=", f"{TestInsertPro.insert_tmpl_file_param}=", f"{TestInsertPro.key_param}=", f"{TestInsertPro.check_result_enabled_param}", f"{TestInsertPro.check_performance_param}", f"{TestInsertPro.pre_create_db_param}", f"{TestInsertPro.enable_second_round_param}", f"{TestInsertPro.concurrency_param}="])
             self.logger.debug(str(opts))
             for key, val in opts:
                 self.logger.debug("key: {} value: {}".format(key, val))
@@ -87,6 +93,8 @@ class TestInsertPro(TDCase):
                     self.check_performance = True
                 elif key in (f"--{TestInsertPro.pre_create_db_param}"):
                     self.pre_create_db = True
+                elif key in (f"--{TestInsertPro.enable_second_round_param}"):
+                    self.enable_second_round = True
                 elif key in (f"--{TestInsertPro.concurrency_param}"):
                     self.concurrency = int(val)
                 else:
@@ -183,15 +191,35 @@ class TestInsertPro(TDCase):
             self.help()
             return False
         self.logger.info("CONFIG FILE: %s", self.config_file)
+        ret = self.run_with_param(False)
+        if ret == False:
+            self.logger.error("first round test failed")
+            return False
+        else:
+            self.logger.info("first round test OK")
+        if self.enable_second_round:
+            ret = self.run_with_param(True)
+            if ret == False:
+                self.logger.error("second round test failed")
+                return False
+            else:
+                self.logger.info("second round test OK")
+        return True
 
+    def run_with_param(self, second_round) -> bool:
         # get taosd host and port
         taosd_nodes = self.get_component_by_name("taosd")
         self.logger.debug(str(taosd_nodes))
         taosd_fqdn = []
-        self.replace_keys.insert(0, f"CHILDTABLEPREFIX=stb_")
-        self.replace_keys.insert(0, f"STABLENAME=stb")
-        self.replace_keys.insert(0, f"DROPENABLE=yes")
-        self.replace_keys.insert(0, f"REPLICA=1")
+        rkeys = copy.deepcopy(self.replace_keys)
+        rkeys.insert(0, f"CHILDTABLEPREFIX=stb_")
+        rkeys.insert(0, f"STABLENAME=stb")
+        rkeys.insert(0, f"DROPENABLE=yes")
+        rkeys.insert(0, f"REPLICA=1")
+        child_table_flag = "no"
+        if second_round:
+            child_table_flag = "yes"
+        rkeys.insert(0, f"CHILDTABLEEXISTS={child_table_flag}")
         host = ""
         port = ""
         for node in taosd_nodes:
@@ -201,12 +229,18 @@ class TestInsertPro(TDCase):
                 host = node["spec"]["config"]["firstEP"].split(":")[0]
                 port = node["spec"]["config"]["firstEP"].split(":")[1]
                 self.logger.debug("{} : {}".format(host, port))
-                self.replace_keys.insert(0, f"{TestInsertPro.host_field_name}={host}")
-                self.replace_keys.insert(1, f"{TestInsertPro.port_field_name}={port}")
+                rkeys.insert(0, f"{TestInsertPro.host_field_name}={host}")
+                rkeys.insert(1, f"{TestInsertPro.port_field_name}={port}")
                 break
 
+        self.json_config_files = []
+        self.result_files = []
         # read config file and generate config dict
-        insert_config_dict = self.parse_config_file(self.insert_cfg_file, self.replace_keys)
+        insert_config_dict = self.parse_config_file(self.insert_cfg_file, rkeys)
+
+        # for second round, set DROPENABLE to "no"
+        if second_round:
+            insert_config_dict["DROPENABLE"] = "no"
 
         if (not TestInsertPro.host_field_name in insert_config_dict) or (not TestInsertPro.port_field_name in insert_config_dict):
             self.logger.error("firstEP not specified in env file")
@@ -215,7 +249,7 @@ class TestInsertPro(TDCase):
         tmp_dir = self.make_tmp_dir()
 
         for i in range (self.concurrency):
-            insert_json_template_filename = os.path.basename(self.insert_tmpl_file) + f".{i}"
+            insert_json_template_filename = os.path.basename(self.insert_tmpl_file) + f".{i}.{second_round}"
             self.logger.debug("insert json template basename: {}".format(insert_json_template_filename))
             insert_json_file = os.path.join(tmp_dir, insert_json_template_filename)
             self.logger.debug("insert json file: {}".format(insert_json_file))
@@ -225,8 +259,8 @@ class TestInsertPro(TDCase):
             insert_config_dict[TestInsertPro.dbname_field_name] = f"db{i}"
             insert_config_dict[TestInsertPro.stable_field_name] = f"stb{i}"
             insert_config_dict[TestInsertPro.childtable_prefix_field_name] = f"stb{i}_"
-            insert_config_dict[TestInsertPro.resultfile_field_name] = f"\/tmp\/result_{i}.txt"
-            self.envMgr._remote.cmd(insert_config_dict[TestInsertPro.host_field_name], f"rm -rf /tmp/result_{i}.txt")
+            insert_config_dict[TestInsertPro.resultfile_field_name] = f"\/tmp\/result_{i}.{second_round}.txt"
+            self.envMgr._remote.cmd(insert_config_dict[TestInsertPro.host_field_name], f"rm -rf /tmp/result_{i}.{second_round}.txt")
             # os.system(f"rm -rf /tmp/result_{i}.txt")
             # replace config settings in json template
             self.replace_config(insert_json_file, insert_config_dict)
@@ -238,7 +272,7 @@ class TestInsertPro(TDCase):
             self.result_files.append(insert_config_dict[TestInsertPro.resultfile_field_name])
             self.json_config_files.append(insert_json_file)
 
-        if self.pre_create_db:
+        if (not second_round) and self.pre_create_db:
             db_names = []
             for insert_json_file in self.json_config_files:
                 # load taosBenchmark json
@@ -248,24 +282,30 @@ class TestInsertPro(TDCase):
                 for db in benchmark_config["databases"]:
                     vgroups = 0
                     vgroups = db["dbinfo"]["vgroups"]
-                    db_name = db["dbinfo"]["name"]
+                    db_name = ""
                     replica = 1
-                    if not db["dbinfo"]["name"] is None:
+                    if "name" in db["dbinfo"]:
+                        db_name = db["dbinfo"]["name"]
+                    if "replica" in db["dbinfo"]:
                         replica = db["dbinfo"]["replica"]
+                    if "DATABASE_REPLICAS" in os.environ:
+                        replica = int(os.environ["DATABASE_REPLICAS"])
                     if not db_name in db_names:
                         db_names.append(db_name)
-                        ret = os.system(f"taos -h {host} -P {port} -s \"drop database if exists {db_name};\"")
-                        if ret != 0:
-                            self.logger.error(f"drop database {db_name} failed")
-                            self.set_error_msg(f"drop database {db_name} failed")
-                            return False
-                        ret = os.system(f"taos -h {host} -P {port} -s \"create database if not exists {db_name} replica {replica} vgroups {vgroups};\"")
-                        if ret != 0:
-                            self.logger.error(f"create database {db_name} failed")
-                            self.set_error_msg(f"create database {db_name} failed")
-                            return False
+                        self.tdCommon.createDb(db_name, True, replica=replica)
+                        #ret = os.system(f"taos -h {host} -P {port} -s \"drop database if exists {db_name};\"")
+                        #if ret != 0:
+                        #    self.logger.error(f"drop database {db_name} failed")
+                        #    self.set_error_msg(f"drop database {db_name} failed")
+                        #    return False
+                        #ret = os.system(f"taos -h {host} -P {port} -s \"create database if not exists {db_name} replica {replica} vgroups {vgroups};\"")
+                        #if ret != 0:
+                        #    self.logger.error(f"create database {db_name} failed")
+                        #    self.set_error_msg(f"create database {db_name} failed")
+                        #    return False
 
         # run benchmark insert data
+        self.threads = []
         thread_interval = 0.25
         stime = float(self.concurrency) * thread_interval
         for i in range (self.concurrency):
@@ -276,6 +316,7 @@ class TestInsertPro(TDCase):
             self.threads.append(t)
             stime = stime - thread_interval
         for t in self.threads:
+            time.sleep(thread_interval)
             t.start()
         for t in self.threads:
             t.join()
@@ -401,102 +442,105 @@ class TestInsertPro(TDCase):
                             cast_sql2 = "select cast(c1 as bigint) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %cast_sql1 ,1,1,'%s' %cast_sql2 ,1,1)
 
-                        # BUG: delete from never quit
-                        # self.tdSql.execute("delete from {}.{};".format(db_name, stb_name))
-                        # self.tdSql.execute("flush database {};".format(db_name))
-                        # self.tdSql.execute("reset query cache;")
-                        # self.tdSql.query("select * from {}.{};".format(db_name, stb_name))
-                        # self.tdSql.checkRow(0)
+                        if (not self.enable_second_round) or second_round:
+                            self.logger.debug("check delete")
+                            # BUG: delete with replica 3 never quit
+                            self.tdSql.execute("delete from {}.{};".format(db_name, stb_name))
+                            self.tdSql.execute("flush database {};".format(db_name))
+                            self.tdSql.execute("reset query cache;")
+                            self.tdSql.query("select * from {}.{};".format(db_name, stb_name))
+                            self.tdSql.checkRow(0)
 
         # get performance result
-        os.system("echo @#@#@#@#@#@#@#@#@#@#")
-        for i in range (self.concurrency):
-            result_file = f"/tmp/result_{i}.txt"
-            local_result_file = f"{self.run_log_dir}/tmp/result_{i}.txt"
-            self.envMgr._remote.get(insert_config_dict[TestInsertPro.host_field_name], result_file, f"{self.run_log_dir}/tmp")
-            # check file
-            if os.path.exists(local_result_file):
-                os.system(f"cat {local_result_file}")
-            else:
-                self.logger.error(f"result file {local_result_file} not exist")
-                self.set_error_msg(f"result file {local_result_file} not exist")
-                self.ret = False
-        if self.ret != True:
-            return self.ret
-
-        # analyze result
-        if self.check_performance:
-            time_elapsed = 0.0
-            insert_rows = 0
-            total_threads = 0
-            insert_speed = 0.0
+        if not second_round:
+            os.system("echo @#@#@#@#@#@#@#@#@#@#")
             for i in range (self.concurrency):
-                result_file = f"{self.run_log_dir}/tmp/result_{i}.txt"
-                with open(result_file, 'r') as file:
-                    insert_rows_found = False
-                    while 1:
-                        line = file.readline()
-                        if not line:
-                            break
-                        # self.logger.debug(line)
-                        if line.find("insert rows:") >= 0:
-                            insert_rows_found = True
-                            a = self.get_number_after(line, "insert rows:")
-                            self.logger.debug(f"insert rows: {a}")
-                            if a == "":
-                                self.logger.error(f"insert rows: {a}")
-                                self.set_error_msg(f"error insert rows: {a}")
-                                self.ret = False
+                result_file = f"/tmp/result_{i}.{second_round}.txt"
+                local_result_file = f"{self.run_log_dir}/tmp/result_{i}.{second_round}.txt"
+                self.envMgr._remote.get(insert_config_dict[TestInsertPro.host_field_name], result_file, f"{self.run_log_dir}/tmp")
+                # check file
+                if os.path.exists(local_result_file):
+                    os.system(f"cat {local_result_file}")
+                else:
+                    self.logger.error(f"result file {local_result_file} not exist")
+                    self.set_error_msg(f"result file {local_result_file} not exist")
+                    self.ret = False
+            if self.ret != True:
+                return self.ret
+
+            # analyze result
+            if self.check_performance:
+                time_elapsed = 0.0
+                insert_rows = 0
+                total_threads = 0
+                insert_speed = 0.0
+                for i in range (self.concurrency):
+                    result_file = f"{self.run_log_dir}/tmp/result_{i}.{second_round}.txt"
+                    with open(result_file, 'r') as file:
+                        insert_rows_found = False
+                        while 1:
+                            line = file.readline()
+                            if not line:
                                 break
-                            a_int = int(a)
-                            insert_rows += a_int
-                            b = self.get_number_before(line, "thread(s)")
-                            if b == "":
-                                self.logger.error(f"threads: {b}")
-                                self.set_error_msg(f"error threeds: {b}")
-                                self.ret = False
-                                break
-                            b_int = int(b)
-                            total_threads += b_int
-                            self.logger.debug(f"threads: {b}")
-                            c = self.get_number_before(line, "records\/second")
-                            self.logger.debug(f"speed: {c}")
-                            if c == "":
-                                self.logger.error(f"speed: {c}")
-                                self.set_error_msg(f"error speed: {c}")
-                                self.ret = False
-                                break
-                            c_float = float(c)
-                            insert_speed += c_float
-                            d = self.get_number_after(line, "Spent")
-                            self.logger.debug(f"Spent: {d}")
-                            if d == "":
-                                self.logger.error(f"Spent: {d}")
-                                self.set_error_msg(f"error Spent: {d}")
-                                self.ret = False
-                                break
-                            d_float = float(d)
-                            time_elapsed = max(time_elapsed, d_float)
-                    if insert_rows_found == False:
-                        self.logger.error(f"key word insert row not found in {local_result_file}")
-                        self.set_error_msg(f"key word insert row not found in {local_result_file}")
-                        self.ret = False
-            if self.ret:
-                taosd_count = len(taosd_fqdn)
-                vgroups = 0
-                insert_mode = ""
-                insert_json_file = self.json_config_files[0]
-                # get VGROUPS, INSERT MODE
-                # load taosBenchmark json
-                benchmark_config = dict()
-                with open(insert_json_file, 'r') as file: 
-                    benchmark_config = json.load(file)
-                db = benchmark_config["databases"][0]
-                vgroups = db["dbinfo"]["vgroups"]
-                stb = db["super_tables"][0]
-                insert_mode = stb["insert_mode"]
-                self.logger.debug("vgroups: {}, insert mode:".format(vgroups, insert_mode))
-                os.system("echo @@##@@##  time spent: {:.1f}, insert rows: {}, total threads: {}, insert speed: {:.0f}, taosd count: {}, vgroups: {}, insert mode: {}".format(time_elapsed, insert_rows, total_threads, insert_speed, taosd_count, vgroups, insert_mode))
+                            # self.logger.debug(line)
+                            if line.find("insert rows:") >= 0:
+                                insert_rows_found = True
+                                a = self.get_number_after(line, "insert rows:")
+                                self.logger.debug(f"insert rows: {a}")
+                                if a == "":
+                                    self.logger.error(f"insert rows: {a}")
+                                    self.set_error_msg(f"error insert rows: {a}")
+                                    self.ret = False
+                                    break
+                                a_int = int(a)
+                                insert_rows += a_int
+                                b = self.get_number_before(line, "thread(s)")
+                                if b == "":
+                                    self.logger.error(f"threads: {b}")
+                                    self.set_error_msg(f"error threeds: {b}")
+                                    self.ret = False
+                                    break
+                                b_int = int(b)
+                                total_threads += b_int
+                                self.logger.debug(f"threads: {b}")
+                                c = self.get_number_before(line, "records\/second")
+                                self.logger.debug(f"speed: {c}")
+                                if c == "":
+                                    self.logger.error(f"speed: {c}")
+                                    self.set_error_msg(f"error speed: {c}")
+                                    self.ret = False
+                                    break
+                                c_float = float(c)
+                                insert_speed += c_float
+                                d = self.get_number_after(line, "Spent")
+                                self.logger.debug(f"Spent: {d}")
+                                if d == "":
+                                    self.logger.error(f"Spent: {d}")
+                                    self.set_error_msg(f"error Spent: {d}")
+                                    self.ret = False
+                                    break
+                                d_float = float(d)
+                                time_elapsed = max(time_elapsed, d_float)
+                        if insert_rows_found == False:
+                            self.logger.error(f"key word insert row not found in {local_result_file}")
+                            self.set_error_msg(f"key word insert row not found in {local_result_file}")
+                            self.ret = False
+                if self.ret:
+                    taosd_count = len(taosd_fqdn)
+                    vgroups = 0
+                    insert_mode = ""
+                    insert_json_file = self.json_config_files[0]
+                    # get VGROUPS, INSERT MODE
+                    # load taosBenchmark json
+                    benchmark_config = dict()
+                    with open(insert_json_file, 'r') as file: 
+                        benchmark_config = json.load(file)
+                    db = benchmark_config["databases"][0]
+                    vgroups = db["dbinfo"]["vgroups"]
+                    stb = db["super_tables"][0]
+                    insert_mode = stb["insert_mode"]
+                    self.logger.debug("vgroups: {}, insert mode:".format(vgroups, insert_mode))
+                    os.system("echo @@##@@##  time spent: {:.1f}, insert rows: {}, total threads: {}, insert speed: {:.0f}, taosd count: {}, vgroups: {}, insert mode: {}".format(time_elapsed, insert_rows, total_threads, insert_speed, taosd_count, vgroups, insert_mode))
         return self.ret
 
     def get_number_after(self, line, keyword):
