@@ -12,7 +12,7 @@ from util.dnodes import TDDnodes
 from util.dnodes import TDDnode
 from util.cluster import *
 from test import tdDnodes
-sys.path.append("./6-cluster")
+sys.path.append(os.path.dirname(__file__))
 
 from clusterCommonCreate import *
 from clusterCommonCheck import * 
@@ -93,23 +93,22 @@ class TDTestCase:
         # restart all taosd
         tdDnodes=cluster.dnodes
 
-        tdDnodes[1].stoptaosd()
-        tdDnodes[2].stoptaosd()
-
-        tdLog.info("check  whether 2 mnode status is  offline")
-        clusterComCheck.check3mnode2off()
-        # tdSql.error("create user user1 pass '123';")
-        
-        tdLog.info("start two follower")
-        tdDnodes[1].starttaosd()
-        tdDnodes[2].starttaosd()
-
+        tdLog.info("Take turns stopping all dnodes ") 
+        # seperate vnode and mnode in different dnodes.
+        # create database and stable
+        stopcount =0 
+        while stopcount <= 2:
+            tdLog.info(" restart loop: %d"%stopcount )
+            for i in range(dnodenumbers):
+                tdDnodes[i].stoptaosd()
+                tdDnodes[i].starttaosd()
+            stopcount+=1
+        clusterComCheck.checkDnodes(dnodenumbers)
         clusterComCheck.checkMnodeStatus(3)
-
 
     def run(self): 
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodenumbers=5,mnodeNums=3,restartNumber=1)
+        self.fiveDnodeThreeMnode(5,3,1)
  
     def stop(self):
         tdSql.close()

@@ -12,7 +12,7 @@ from util.dnodes import TDDnodes
 from util.dnodes import TDDnode
 from util.cluster import *
 from test import tdDnodes
-sys.path.append("./6-cluster")
+sys.path.append(os.path.dirname(__file__))
 
 from clusterCommonCreate import *
 from clusterCommonCheck import * 
@@ -94,18 +94,16 @@ class TDTestCase:
         tdDnodes=cluster.dnodes
 
         tdDnodes[1].stoptaosd()
-        clusterComCheck.check3mnodeoff(2,3)
-        tdDnodes[1].starttaosd()
-        clusterComCheck.checkMnodeStatus(3)
-
         tdDnodes[2].stoptaosd()
-        clusterComCheck.check3mnodeoff(3,3)
-        tdDnodes[2].starttaosd()
-        clusterComCheck.checkMnodeStatus(3)
 
-        tdDnodes[0].stoptaosd()
-        clusterComCheck.check3mnodeoff(1,3)
-        tdDnodes[0].starttaosd()
+        tdLog.info("check  whether 2 mnode status is  offline")
+        clusterComCheck.check3mnode2off()
+        # tdSql.error("create user user1 pass '123';")
+        
+        tdLog.info("start two follower")
+        tdDnodes[1].starttaosd()
+        tdDnodes[2].starttaosd()
+
         clusterComCheck.checkMnodeStatus(3)
 
 

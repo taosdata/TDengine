@@ -13,7 +13,7 @@ from util.dnodes import TDDnode
 from util.common import *
 from util.cluster import *
 from test import tdDnodes
-sys.path.append("./6-cluster")
+sys.path.append(os.path.dirname(__file__))
 
 from clusterCommonCreate import *
 from clusterCommonCheck import * 

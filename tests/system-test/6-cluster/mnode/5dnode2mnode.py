@@ -14,7 +14,7 @@ from util.cluster import *
 import time
 import socket
 import subprocess
-sys.path.append("./6-cluster")
+sys.path.append(os.path.dirname(__file__))
 
 from clusterCommonCreate import *
 from clusterCommonCheck import * 
