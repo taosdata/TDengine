@@ -16,14 +16,16 @@
     "databases": [
         {
             "dbinfo": {
-                "name": "DBNAME",
+                "name": "db",
                 "drop": "DROPENABLE",
-                "vgroups": VGROUPS 
+                "vgroups": VGROUPS,
+                "replica": REPLICA
             },
             "super_tables": [
                 {
                     "name": "STABLENAME",
-                    "child_table_exists": "no",
+                    "no_check_for_affected_rows": "yes",
+                    "child_table_exists": "CHILDTABLEEXISTS",
                     "childtable_count": CHILDTABLECOUNT,
                     "childtable_prefix": "CHILDTABLEPREFIX",
                     "auto_create_table": "no",

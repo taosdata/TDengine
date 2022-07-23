@@ -1,2 +1,3 @@
 #####
-taostest --use=common_insert.yaml --case=Performance/Insert/perf_test.py --keep  --case-param="\"--insert-tmpl-file=cases/Performance/Insert/meters.json --insert-cfg-file=cases/Performance/Insert/mode_sml_json.cfg --key=CHILDTABLECOUNT=250 --concurrency=4\"" --containers
+# taostest --use=common_insert.yaml --case=Performance/Insert/perf_test.py --keep  --case-param="\"--insert-tmpl-file=cases/Performance/Insert/meters.json --insert-cfg-file=cases/Performance/Insert/mode_sml_json.cfg --key=CHILDTABLECOUNT=250 --concurrency=4\"" --containers
+taostest --containers --use=common_insert.yaml --case=stability/insert/insert_test_pro.py --keep --case-param="\"--insert-tmpl-file=cases/Performance/Insert/meters.json --insert-cfg-file=cases/Performance/Insert/mode_sml_json.cfg --key CHILDTABLECOUNT=250 --key DROPENABLE=no --key INSERTROWS=1000 --check-performance --concurrency 4 --pre-create-db --check-result --enable-second-round\""
