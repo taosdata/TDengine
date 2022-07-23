@@ -754,12 +754,14 @@ typedef struct {
   int32_t  vLen;
 } SIdxCursor;
 
-int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
-  SIdxCursor *pCursor = NULL;
-  char       *buf = NULL;
-  int32_t     maxSize = 0;
+int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
+  int32_t ret = 0;
+  char   *buf = NULL;
 
-  int32_t ret = 0, valid = 0;
+  STagIdxKey *pKey = NULL;
+  int32_t     nKey = 0;
+
+  SIdxCursor *pCursor = NULL;
   pCursor = (SIdxCursor *)taosMemoryCalloc(1, sizeof(SIdxCursor));
   pCursor->pMeta = pMeta;
   pCursor->suid = param->suid;
@@ -771,9 +773,8 @@ int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   if (ret < 0) {
     goto END;
   }
-  STagIdxKey *pKey = NULL;
-  int32_t     nKey = 0;
 
+  int32_t maxSize = 0;
   int32_t nTagData = 0;
   void   *tagData = NULL;
 
@@ -811,10 +812,12 @@ int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
     goto END;
   }
 
-  void   *entryKey = NULL, *entryVal = NULL;
-  int32_t nEntryKey, nEntryVal;
   bool    first = true;
+  int32_t valid = 0;
   while (1) {
+    void   *entryKey = NULL, *entryVal = NULL;
+    int32_t nEntryKey, nEntryVal;
+
     valid = tdbTbcGet(pCursor->pCur, (const void **)&entryKey, &nEntryKey, (const void **)&entryVal, &nEntryVal);
     if (valid < 0) {
       break;
@@ -853,10 +856,12 @@ int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
       break;
     }
   }
+
 END:
   if (pCursor->pMeta) metaULock(pCursor->pMeta);
   if (pCursor->pCur) tdbTbcClose(pCursor->pCur);
   taosMemoryFree(buf);
+  taosMemoryFree(pKey);
 
   taosMemoryFree(pCursor);
 
