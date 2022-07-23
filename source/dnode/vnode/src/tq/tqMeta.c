@@ -89,8 +89,8 @@ int32_t tqMetaOpen(STQ* pTq) {
           .version = handle.snapshotVer,
       };
 
-      handle.execHandle.execCol.task =
-          qCreateQueueExecTaskInfo(handle.execHandle.execCol.qmsg, &reader, &handle.execHandle.numOfCols, &handle.execHandle.pSchemaWrapper);
+      handle.execHandle.execCol.task = qCreateQueueExecTaskInfo(
+          handle.execHandle.execCol.qmsg, &reader, &handle.execHandle.numOfCols, &handle.execHandle.pSchemaWrapper);
       ASSERT(handle.execHandle.execCol.task);
       void* scanner = NULL;
       qExtractStreamScanner(handle.execHandle.execCol.task, &scanner);
@@ -101,6 +101,7 @@ int32_t tqMetaOpen(STQ* pTq) {
       handle.execHandle.execDb.pFilterOutTbUid =
           taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     }
+    tqDebug("tq restore %s consumer %ld", handle.subKey, handle.consumerId);
     taosHashPut(pTq->handles, pKey, kLen, &handle, sizeof(STqHandle));
   }
 

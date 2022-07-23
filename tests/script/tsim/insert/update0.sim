@@ -227,3 +227,5 @@ if $data41 != NULL then
   print data41 $data41 != NULL
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -121,6 +121,36 @@ void shellCheckServerStatus() {
     }
   } while (1);
 }
+#ifdef WEBSOCKET
+void shellCheckConnectMode() {
+	if (shell.args.dsn) {
+		shell.args.cloud = true;
+		shell.args.restful = false;
+		return;
+	}
+	if (shell.args.cloud) {
+		shell.args.dsn = getenv("TDENGINE_CLOUD_DSN");
+		if (shell.args.dsn) {
+			shell.args.cloud = true;
+			shell.args.restful = false;
+			return;
+		}
+		if (shell.args.restful) {
+			if (!shell.args.host) {
+				shell.args.host = "localhost";
+			}
+			if (!shell.args.port) {
+				shell.args.port = 6041;
+			}
+			shell.args.dsn = taosMemoryCalloc(1, 1024);
+			snprintf(shell.args.dsn, 1024, "ws://%s:%d/rest/ws",
+					shell.args.host, shell.args.port);
+		}
+		shell.args.cloud = false;
+		return;
+	}
+}
+#endif
 
 void shellExit() {
   if (shell.conn != NULL) {

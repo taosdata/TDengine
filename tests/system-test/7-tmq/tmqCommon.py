@@ -129,9 +129,12 @@ class TMQCom:
     def stopTmqSimProcess(self, processorName):
         psCmd = "ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+        onlyKillOnceWindows = 0
         while(processID):
-            killCmd = "kill -INT %s > /dev/null 2>&1" % processID
-            os.system(killCmd)
+            if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
+                killCmd = "kill -INT %s > /dev/null 2>&1" % processID
+                os.system(killCmd)
+                onlyKillOnceWindows = 1
             time.sleep(0.2)
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         tdLog.debug("%s is stopped by kill -INT" % (processorName))
@@ -535,6 +538,32 @@ class TMQCom:
                 column_value_str = column_value_str.rstrip()[:-1]
                 insert_sql = f'insert into {dbname}.{tbname_prefix}{tblIdx+tbname_index_start_num} values ({column_value_str});'
                 tsql.execute(insert_sql)
+        
+    def waitSubscriptionExit(self, tsql, topicName):
+        wait_cnt = 0
+        while True:
+            exit_flag = 1
+            tsql.query("show subscriptions")
+            rows = tsql.getRows()
+            for idx in range (rows):
+                if tsql.getData(idx, 0) != topicName:
+                    continue
+                
+                if tsql.getData(idx, 3) == None:
+                    continue
+                else:
+                    time.sleep(0.5)
+                    wait_cnt += 1
+                    exit_flag = 0
+                    break
+            
+            if exit_flag == 1:
+                break
+            
+        tsql.query("show subscriptions")
+        tdLog.info("show subscriptions:")
+        tdLog.info(tsql.queryResult)
+        tdLog.info("wait subscriptions exit for %d s"%wait_cnt)
 
     def close(self):
         self.cursor.close()
