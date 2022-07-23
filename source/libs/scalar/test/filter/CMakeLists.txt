@@ -9,7 +9,7 @@ IF(NOT TD_DARWIN)
         ADD_EXECUTABLE(filterTest ${SOURCE_LIST})
         TARGET_LINK_LIBRARIES(
                 filterTest
-                PUBLIC os util common gtest qcom function nodes scalar
+                PUBLIC os util common gtest qcom function nodes scalar parser catalog transport
         )
 
         TARGET_INCLUDE_DIRECTORIES(
