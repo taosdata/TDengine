@@ -65,7 +65,8 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/t
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_timediff.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_abs.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_interval.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_histogram.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/split/stable_math_histogram_1.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/split/stable_math_histogram_2.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_leastsquares.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_pow_log.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_histogram.py --keep --containers
@@ -95,12 +96,13 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltyp
 # 150 seconds (at most)
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_avg.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_sum.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_max_min.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_spread.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_floor_ceil_round.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_interval.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_csum_1.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_csum_2.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_max_min_1.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_max_min_2.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_diff.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_top_bottom.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_state.py --keep --containers
