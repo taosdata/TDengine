@@ -18,7 +18,7 @@ class TDTestCase:
     def __init__(self):
         self.snapshot   = 0
         self.vgroups    = 2
-        self.ctbNum     = 1000
+        self.ctbNum     = 100
         self.rowsPerTbl = 1000
         
     def init(self, conn, logSql):
@@ -38,9 +38,9 @@ class TDTestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
                     'ctbPrefix':  'ctb',
                     'ctbStartIdx': 0,
-                    'ctbNum':     1000,
+                    'ctbNum':     100,
                     'rowsPerTbl': 1000,
-                    'batchNum':   100,
+                    'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  3,
                     'showMsg':    1,
@@ -135,9 +135,9 @@ class TDTestCase:
         tdLog.info("================= restart dnode ===========================")
         tdDnodes.stop(1)
         tdDnodes.start(1)
-        time.sleep(3)
+        # time.sleep(3)
 
-        tdLog.info("insert process end, and start to check consume result")
+        tdLog.info(" restart taosd end and wait to check consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
         totalConsumeRows = 0
@@ -186,7 +186,7 @@ class TDTestCase:
         
         # tdLog.info("****************************************************************************")
 
-        tmqCom.waitSubscriptionExit(tdSql)
+        tmqCom.waitSubscriptionExit(tdSql, topicFromStb1)
         tdSql.query("drop topic %s"%topicFromStb1)
 
         tdLog.printNoPrefix("======== test case 1 end ...... ")
@@ -204,11 +204,11 @@ class TDTestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
                     'ctbPrefix':  'ctb',
                     'ctbStartIdx': 0,
-                    'ctbNum':     1000,
+                    'ctbNum':     100,
                     'rowsPerTbl': 1000,
-                    'batchNum':   3000,
+                    'batchNum':   100,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  5,
+                    'pollDelay':  20,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -254,11 +254,11 @@ class TDTestCase:
         tdLog.info("================= restart dnode ===========================")
         tdDnodes.stop(1)
         tdDnodes.start(1)
-        time.sleep(3)
+        # time.sleep(3)
 
-        # tdLog.info("create some new child table and insert data ")
-        # paraDict["batchNum"] = 1000
-        # paraDict["ctbPrefix"] = 'newCtb'
+        tdLog.info("create some new child table and insert data ")
+        paraDict["batchNum"] = 100
+        paraDict["ctbPrefix"] = 'newCtb'
         # tmqCom.insert_data_with_autoCreateTbl(tdSql,paraDict["dbName"],paraDict["stbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"])
         
         tdLog.info("insert process end, and start to check consume result")
@@ -275,6 +275,7 @@ class TDTestCase:
         if totalConsumeRows != totalRowsFromQuery:
             tdLog.exit("tmq consume rows error!")
 
+        tmqCom.waitSubscriptionExit(tdSql, topicFromStb1)
         tdSql.query("drop topic %s"%topicFromStb1)
 
         tdLog.printNoPrefix("======== test case 2 end ...... ")
