@@ -182,6 +182,7 @@ static int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   param->colId = l->colId;
   param->colValType = l->node.resType.type;
   memcpy(param->dbName, l->dbName, sizeof(l->dbName));
+  if (r->literal == NULL) return TSDB_CODE_QRY_INVALID_INPUT;
   memcpy(param->colName, r->literal, strlen(r->literal));
   param->colValType = r->typeData;
   param->status = SFLT_COARSE_INDEX;
