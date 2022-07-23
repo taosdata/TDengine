@@ -32,8 +32,8 @@ class TestNull(TDCase):
         """
         stbname/tag/col = "null"
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         stbname = "null"
         
         self.tdSql.error(f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
@@ -52,7 +52,7 @@ class TestNull(TDCase):
         tbname/tag/col = "null"
         """
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
         tbname = "null"
         self.tdSql.error(f'create table if not exists {dbname}.{tbname} using {dbname}.stb tags (now, 1)')
@@ -70,7 +70,7 @@ class TestNull(TDCase):
         tbname/tag/col = "null"
         """
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table if not exists {dbname}.tb (ts timestamp, c1 int)')
         self.tdSql.execute(f'insert into {dbname}.tb values (now, null)')
         self.tdSql.error(f'insert into {dbname}.tb values (null, 1)')

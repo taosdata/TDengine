@@ -25,7 +25,7 @@ class TestTagColLimit(TDCase):
         tag_str_exceed = self.tdCom.gen_tag_col_str("tag", "int", self.tdCom.Boundary.MAX_TAG_COUNT+1)
         tag_str = self.tdCom.gen_tag_col_str("tag", "int", self.tdCom.Boundary.MAX_TAG_COUNT)
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
+        self.tdCom.createDb(dbname)
         self.tdSql.error(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags ({tag_str_exceed})')
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags ({tag_str})')
         tag_value_str = '1, ' * (self.tdCom.Boundary.MAX_TAG_COUNT - 1) + '1'
@@ -42,7 +42,7 @@ class TestTagColLimit(TDCase):
         col_str_exceed = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.Boundary.MAX_TAG_COL_COUNT-1)
         col_str = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.Boundary.MAX_TAG_COL_COUNT-2)
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
+        self.tdCom.createDb(dbname)
         self.tdSql.error(f'create stable if not exists {dbname}.stb (col_ts timestamp, {col_str_exceed}) tags (t1 int)')
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, {col_str}) tags (t1 int)')
         col_value_str = '1, ' * (self.tdCom.Boundary.MAX_TAG_COL_COUNT - 3) + '1'
@@ -59,7 +59,7 @@ class TestTagColLimit(TDCase):
         col_str_exceed = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.Boundary.MAX_TAG_COL_COUNT)
         col_str = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.Boundary.MAX_TAG_COL_COUNT-1)
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
+        self.tdCom.createDb(dbname)
         self.tdSql.error(f'create table if not exists {dbname}.tb (col_ts timestamp, {col_str_exceed})')
         self.tdSql.execute(f'create table if not exists {dbname}.tb (col_ts timestamp, {col_str})')
         col_value_str = '1, ' * (self.tdCom.Boundary.MAX_TAG_COL_COUNT - 2) + '1'

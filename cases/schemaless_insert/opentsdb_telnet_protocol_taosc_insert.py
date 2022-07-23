@@ -15,7 +15,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdCom.sml_type = "opentsdb_telnet"
         self.tdCom.drop_all_db()
         self.dbname = self.tdCom.get_long_name()
-        self.tdCom.createDb(dbname=self.dbname, precision="us", schemaless=1)
+        self.tdCom.createDb(dbname=self.dbname, precision="us")
         self.taospy_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taospy")
         if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
             if self.taospy_setting["spec"]["config"]["smlChildTableName"].upper() == "ID":
@@ -81,8 +81,8 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdCom.check_res(input_sql, stb_name, ts_type=TDSmlTimestampType.SECOND.value)
 
         self.tdSql.execute(f"drop database if exists test_ts")
-        self.tdSql.execute(f"create database if not exists test_ts precision 'ms' schemaless 1")
-        self.tdSql.execute("use test_ts")
+        kv_dict = {"precision": "ms"}
+        self.tdCom.createDb("test_ts", **kv_dict)
         input_sql = ['test_ms 1626006833640 t t0=t', 'test_ms 1626006833641 f t0=t']
         self.tdSql._conn.schemaless_insert(input_sql, TDSmlProtocolType.TELNET.value, None)
         self.tdSql.query('select * from test_ms')
@@ -155,14 +155,13 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         for input_sql in [self.tdCom.gen_long_sql(self.tdCom.boundary_config["MAX_TAG_COUNT"], 1)[0]]:
             self.tdCom.cleanTb()
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
-        # ! TD-16721
-        # for input_sql in [self.tdCom.gen_long_sql(self.tdCom.boundary_config["MAX_TAG_COUNT"]+1, 1)[0]]:
-        #     self.tdCom.cleanTb()
-        #     try:
-        #         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
-        #         raise Exception("should not reach here")
-        #     except SchemalessError as err:
-        #         self.tdSql.checkNotEqual(err.errno, 0)
+        for input_sql in [self.tdCom.gen_long_sql(self.tdCom.boundary_config["MAX_TAG_COUNT"]+1, 1)[0]]:
+            self.tdCom.cleanTb()
+            try:
+                self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
+                raise Exception("should not reach here")
+            except SchemalessError as err:
+                self.tdSql.checkNotEqual(err.errno, 0)
 
     def stb_tb_name_check(self):
         """
@@ -378,34 +377,34 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         #     except SchemalessError as err:
         #         self.tdSql.checkNotEqual(err.errno, 0)
 
-        # # binary
-        # self.tdCom.cleanTb()
-        # stb_name = self.tdCom.get_long_name()
-        # input_sql = f'{stb_name} 1626006833640 "{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}" t0=t'
-        # self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
+        # binary
+        self.tdCom.cleanTb()
+        stb_name = self.tdCom.get_long_name()
+        input_sql = f'{stb_name} 1626006833640 "{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}" t0=t'
+        self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
 
-        # self.tdCom.cleanTb()
-        # input_sql = f'{stb_name} 1626006833640 "{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1)}" t0=t'
-        # try:
-        #     self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
-        #     raise Exception("should not reach here")
-        # except SchemalessError as err:
-        #     self.tdSql.checkNotEqual(err.errno, 0)
+        self.tdCom.cleanTb()
+        input_sql = f'{stb_name} 1626006833640 "{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1)}" t0=t'
+        try:
+            self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
+            raise Exception("should not reach here")
+        except SchemalessError as err:
+            self.tdSql.checkNotEqual(err.errno, 0)
 
-        # # nchar
-        # # * legal nchar could not be larger than 16374/4
-        # self.tdCom.cleanTb()
-        # stb_name = self.tdCom.get_long_name()
-        # input_sql = f'{stb_name} 1626006833640 L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}" t0=t'
-        # self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
+        # nchar
+        # * legal nchar could not be larger than 16374/4
+        self.tdCom.cleanTb()
+        stb_name = self.tdCom.get_long_name()
+        input_sql = f'{stb_name} 1626006833640 L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}" t0=t'
+        self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
 
-        # self.tdCom.cleanTb()
-        # input_sql = f'{stb_name} 1626006833640 L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1)}" t0=t'
-        # try:
-        #     self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
-        #     raise Exception("should not reach here")
-        # except SchemalessError as err:
-        #     self.tdSql.checkNotEqual(err.errno, 0)
+        self.tdCom.cleanTb()
+        input_sql = f'{stb_name} 1626006833640 L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1)}" t0=t'
+        try:
+            self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
+            raise Exception("should not reach here")
+        except SchemalessError as err:
+            self.tdSql.checkNotEqual(err.errno, 0)
 
     def tag_col_illegal_value_check(self):
         """
@@ -608,8 +607,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         stb_name = self.tdCom.get_long_name()
-        # TODO commit out
-        # self.tdSql.execute(f'create stable {self.dbname}.{stb_name}(ts timestamp, f int) tags(t1 bigint)')
+        self.tdSql.execute(f'create stable {self.dbname}.{stb_name}(ts timestamp, f int) tags(t1 bigint)')
         lines = ["st123456 1626006833640 1i64 t1=3i64 t2=4f64 t3=\"t3\"",
                 "st123456 1626006833641 2i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64",
                 f'{stb_name} 1626006833642 3i64 t2=5f64 t3=L\"ste\"',
@@ -636,8 +634,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdCom.cleanTb()
         sql_list = []
         stb_name = self.tdCom.get_long_name()
-        # TODO commit out
-        # self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 nchar(10))')
+        self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 nchar(10))')
         for i in range(count):
             input_sql = self.tdCom.gen_full_type_sql(stb_name=stb_name, t7=f'"{self.tdCom.get_long_name()}"', value=f'"{self.tdCom.get_long_name()}"', id_noexist_tag=True)[0]
             sql_list.append(input_sql)

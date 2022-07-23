@@ -22,7 +22,7 @@ class TestSpecifiedColumnInsert(TDCase):
         """
         stb_specified_column_insert
         """
-        dbname = self.tdCom.get_long_name(5)
+        dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned) tags \
             (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, t4 bigint, t5 tinyint unsigned)')
@@ -41,7 +41,7 @@ class TestSpecifiedColumnInsert(TDCase):
         """
         tb_specified_column_insert
         """
-        dbname = self.tdCom.get_long_name(5)
+        dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned)')
         self.tdSql.execute(f'insert into {dbname}.tb values (now, 1, 2, 3, 4, 5)')

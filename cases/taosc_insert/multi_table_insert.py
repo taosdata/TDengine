@@ -22,7 +22,7 @@ class TestMultiTableInsert(TDCase):
         """
         multi stables insert
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table {dbname}.stb1 (ts timestamp, c11 int, c12 int ) TAGS(t11 int, t12 int)')
         self.tdSql.execute(f'create table {dbname}.stb2 (ts timestamp, c21 int, c22 int ) TAGS(t21 int, t22 int)')
@@ -49,7 +49,7 @@ class TestMultiTableInsert(TDCase):
         """
         multi stables insert
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table {dbname}.stb1 (ts timestamp, c11 int, c12 int ) TAGS(t11 int, t12 int)')
         self.tdSql.execute(f'create table {dbname}.stb2 (ts timestamp, c21 int, c22 int ) TAGS(t21 int, t22 int)')
@@ -76,7 +76,7 @@ class TestMultiTableInsert(TDCase):
         """
         multi tables insert
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table {dbname}.tb1 (ts timestamp, c11 int, c12 int )')
         self.tdSql.execute(f'create table {dbname}.tb2 (ts timestamp, c21 int, c22 int )')
@@ -93,7 +93,7 @@ class TestMultiTableInsert(TDCase):
 
     def run(self) -> bool:
         self.multi_stb_insert()
-        # self.multi_stb_insert_with_specified_column()
+        self.multi_stb_insert_with_specified_column()
         self.multi_tb_insert()
 
     def cleanup(self):

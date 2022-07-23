@@ -27,9 +27,6 @@ class TestNumericBoundary(TDCase):
             "tinyint unsigned": self.tdCom.Boundary.UTINYINT_BOUNDARY,
             "bigint unsigned": self.tdCom.Boundary.UBIGINT_BOUNDARY,
         }
-        self.boundary_dict = {
-            "bigint": self.tdCom.Boundary.BIGINT_BOUNDARY
-        }
 
     def numeric_boundary_check(self):
         """
