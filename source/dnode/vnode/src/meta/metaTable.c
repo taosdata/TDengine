@@ -442,7 +442,7 @@ int metaTtlDropTable(SMeta *pMeta, int64_t ttl, SArray *tbUids) {
   if (ret != 0) {
     return ret;
   }
-  if (taosArrayGetSize(tbUids) == 0){
+  if (taosArrayGetSize(tbUids) == 0) {
     return 0;
   }
 
@@ -811,6 +811,9 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
     for (int32_t i = 0; i < pTagSchema->nCols; i++) {
       SSchema *pCol = &pTagSchema->pSchema[i];
       if (iCol == i) {
+        if (pAlterTbReq->isNull) {
+          continue;
+        }
         STagVal val = {0};
         val.type = pCol->type;
         val.cid = pCol->colId;
