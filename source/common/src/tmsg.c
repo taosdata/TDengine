@@ -4981,6 +4981,7 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
 
   if (pReq->type == TSDB_CHILD_TABLE) {
     if (tEncodeCStr(pCoder, pReq->ctb.name) < 0) return -1;
+    if (tEncodeU8(pCoder, pReq->ctb.tagNum) < 0) return -1;
     if (tEncodeI64(pCoder, pReq->ctb.suid) < 0) return -1;
     if (tEncodeTag(pCoder, (const STag *)pReq->ctb.pTag) < 0) return -1;
     int32_t len = taosArrayGetSize(pReq->ctb.tagName);
@@ -5017,6 +5018,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
 
   if (pReq->type == TSDB_CHILD_TABLE) {
     if (tDecodeCStr(pCoder, &pReq->ctb.name) < 0) return -1;
+    if (tDecodeU8(pCoder, &pReq->ctb.tagNum) < 0) return -1;
     if (tDecodeI64(pCoder, &pReq->ctb.suid) < 0) return -1;
     if (tDecodeTag(pCoder, (STag **)&pReq->ctb.pTag) < 0) return -1;
     int32_t len = 0;

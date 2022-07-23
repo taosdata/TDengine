@@ -2128,7 +2128,7 @@ _err:
   return string;
 }
 
-static char* buildCreateCTableJson(STag* pTag, char* sname, char* name, SArray* tagName, int64_t id) {
+static char* buildCreateCTableJson(STag* pTag, char* sname, char* name, SArray* tagName, int64_t id, uint8_t tagNum) {
   char*   string = NULL;
   SArray* pTagVals = NULL;
   cJSON*  json = cJSON_CreateObject();
@@ -2148,6 +2148,8 @@ static char* buildCreateCTableJson(STag* pTag, char* sname, char* name, SArray* 
   cJSON_AddItemToObject(json, "tableType", tableType);
   cJSON* using = cJSON_CreateString(sname);
   cJSON_AddItemToObject(json, "using", using);
+  cJSON* tagNumJson = cJSON_CreateNumber(tagNum);
+  cJSON_AddItemToObject(json, "tagNum", tagNumJson);
   //  cJSON* version = cJSON_CreateNumber(1);
   //  cJSON_AddItemToObject(json, "version", version);
 
@@ -2236,7 +2238,7 @@ static char* processCreateTable(SMqMetaRsp* metaRsp) {
     pCreateReq = req.pReqs + iReq;
     if (pCreateReq->type == TSDB_CHILD_TABLE) {
       string = buildCreateCTableJson((STag*)pCreateReq->ctb.pTag, pCreateReq->ctb.name, pCreateReq->name,
-                                     pCreateReq->ctb.tagName, pCreateReq->uid);
+                                     pCreateReq->ctb.tagName, pCreateReq->uid, pCreateReq->ctb.tagNum);
     } else if (pCreateReq->type == TSDB_NORMAL_TABLE) {
       string =
           buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->name, pCreateReq->uid, TSDB_NORMAL_TABLE);
@@ -3000,6 +3002,7 @@ int32_t taos_write_raw_data(TAOS *taos, TAOS_RES *msg){
   conn.requestObjRefId = pRequest->self;
   conn.mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
   SMqRspObj *rspObj = ((SMqRspObj*)msg);
+  printf("raw data block num:%d\n", rspObj->rsp.blockNum);
   while (++rspObj->resIter < rspObj->rsp.blockNum) {
     SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(rspObj->rsp.blockData, rspObj->resIter);
     if (!rspObj->rsp.withSchema) {
@@ -3040,6 +3043,7 @@ int32_t taos_write_raw_data(TAOS *taos, TAOS_RES *msg){
       goto end;
     }
 
+    printf("raw data tbname:%s\n", tbName);
     SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
     strcpy(pName.dbname, pRequest->pDb);
     strcpy(pName.tname, tbName);
@@ -3083,15 +3087,15 @@ int32_t taos_write_raw_data(TAOS *taos, TAOS_RES *msg){
       blk = POINTER_SHIFT(vgData.data, sizeof(SSubmitReq));
     }
 
-    STableMeta** pTableMeta = NULL;
-    code = catalogGetTableMeta(pCatalog, &conn, &pName, pTableMeta);
+    STableMeta* pTableMeta = NULL;
+    code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
     if (code != TSDB_CODE_SUCCESS) {
       uError("WriteRaw:catalogGetTableMeta failed. table name: %s", tbName);
       goto end;
     }
-    uint64_t suid = (TSDB_NORMAL_TABLE == (*pTableMeta)->tableType ? 0 : (*pTableMeta)->suid);
-    uint64_t uid = (*pTableMeta)->uid;
-    taosMemoryFreeClear(*pTableMeta);
+    uint64_t suid = (TSDB_NORMAL_TABLE == pTableMeta->tableType ? 0 : pTableMeta->suid);
+    uint64_t uid = pTableMeta->uid;
+    taosMemoryFreeClear(pTableMeta);
 
     void* blkSchema = POINTER_SHIFT(blk, sizeof(SSubmitBlk));
     STSRow* rowData = POINTER_SHIFT(blkSchema, schemaLen);
@@ -3158,26 +3162,26 @@ int32_t taos_write_raw_data(TAOS *taos, TAOS_RES *msg){
   int32_t numOfVg = taosHashGetSize(pVgHash);
   nodeStmt->pDataBlocks = taosArrayInit(numOfVg, POINTER_BYTES);
 
-  VgData **vData = (VgData **)taosHashIterate(pVgHash, NULL);
+  VgData *vData = (VgData *)taosHashIterate(pVgHash, NULL);
   while (vData) {
     SVgDataBlocks *dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
     if (NULL == dst) {
       code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       goto end;
     }
-    dst->vg = (*vData)->vg;
-    SSubmitReq* subReq = (SSubmitReq*)((*vData)->data);
+    dst->vg = vData->vg;
+    SSubmitReq* subReq = (SSubmitReq*)(vData->data);
     dst->numOfTables = subReq->numOfBlocks;
     dst->size = subReq->length;
     dst->pData = (char*)subReq;
-    (*vData)->data = NULL;    // no need free
+    vData->data = NULL;    // no need free
     subReq->header.vgId = htonl(dst->vg.vgId);
     subReq->version = htonl(1);
     subReq->header.contLen = htonl(subReq->length);
     subReq->length = htonl(subReq->length);
     subReq->numOfBlocks = htonl(subReq->numOfBlocks);
     taosArrayPush(nodeStmt->pDataBlocks, &dst);
-    vData = (VgData **)taosHashIterate(pVgHash, vData);
+    vData = (VgData *)taosHashIterate(pVgHash, vData);
   }
 
   launchQueryImpl(pRequest, pQuery, true, NULL);
