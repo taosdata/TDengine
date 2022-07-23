@@ -358,6 +358,14 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
     goto _err;
   }
 
+  if (pReq->type == TSDB_CHILD_TABLE) {
+    tb_uid_t suid = metaGetTableEntryUidByName(pMeta, pReq->ctb.name);
+    if (suid != pReq->ctb.suid) {
+      terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      return -1;
+    }
+  }
+
   // validate req
   metaReaderInit(&mr, pMeta, 0);
   if (metaGetTableEntryByName(&mr, pReq->name) == 0) {
@@ -371,13 +379,6 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
   }
   metaReaderClear(&mr);
 
-  if (pReq->type == TSDB_CHILD_TABLE) {
-    tb_uid_t suid = metaGetTableEntryUidByName(pMeta, pReq->ctb.name);
-    if (suid == 0) {
-      terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-      return -1;
-    }
-  }
   // build SMetaEntry
   me.version = version;
   me.type = pReq->type;
