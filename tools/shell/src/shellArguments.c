@@ -43,6 +43,12 @@
 #define SHELL_VERSION  "Print program version."
 #define SHELL_EMAIL    "<support@taosdata.com>"
 
+#ifdef WEBSOCKET
+#define SHELL_DSN      "The dsn to use when connecting to cloud server."
+#define SHELL_REST     "Use restful mode when connecting."
+#define SHELL_TIMEOUT  "Set the timeout for websocket query in seconds, default is 10."
+#endif
+
 static int32_t shellParseSingleOpt(int32_t key, char *arg);
 
 void shellPrintHelp() {
@@ -65,6 +71,11 @@ void shellPrintHelp() {
   printf("%s%s%s%s\r\n", indent, "-s,", indent, SHELL_CMD);
   printf("%s%s%s%s\r\n", indent, "-t,", indent, SHELL_STARTUP);
   printf("%s%s%s%s\r\n", indent, "-u,", indent, SHELL_USER);
+#ifdef WEBSOCKET
+  printf("%s%s%s%s\r\n", indent, "-E,", indent, SHELL_DSN);
+  printf("%s%s%s%s\r\n", indent, "-R,", indent, SHELL_REST);
+  printf("%s%s%s%s\r\n", indent, "-T,", indent, SHELL_TIMEOUT);
+#endif
   printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
   printf("%s%s%s%s\r\n", indent, "-V,", indent, SHELL_VERSION);
   printf("\r\n\r\nReport bugs to %s.\r\n", SHELL_EMAIL);
@@ -95,6 +106,11 @@ static struct argp_option shellOptions[] = {
     {"display-width", 'w', "WIDTH", 0, SHELL_WIDTH},
     {"netrole", 'n', "NETROLE", 0, SHELL_NET_ROLE},
     {"pktlen", 'l', "PKTLEN", 0, SHELL_PKG_LEN},
+#ifdef WEBSOCKET
+    {"dsn", 'E', "DSN", 0, SHELL_DSN},
+    {"restful", 'R', 0, 0, SHELL_REST},
+	{"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
+#endif
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
     {0},
 };
@@ -120,9 +136,15 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
   switch (key) {
     case 'h':
       pArgs->host = arg;
+#ifdef WEBSOCKET
+      pArgs->cloud = false;
+#endif
       break;
     case 'P':
       pArgs->port = atoi(arg);
+#ifdef WEBSOCKET
+      pArgs->cloud = false;
+#endif
       if (pArgs->port == 0) pArgs->port = -1;
       break;
     case 'u':
@@ -137,6 +159,9 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       pArgs->is_gen_auth = true;
       break;
     case 'c':
+#ifdef WEBSOCKET
+      pArgs->cloud = false;
+#endif
       pArgs->cfgdir = arg;
       break;
     case 'C':
@@ -172,6 +197,18 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
     case 'N':
       pArgs->pktNum = atoi(arg);
       break;
+#ifdef WEBSOCKET
+    case 'R':
+      pArgs->restful = true;
+      break;
+    case 'E':
+      pArgs->dsn = arg;
+      pArgs->cloud = true;
+      break;
+	case 'T':
+	  pArgs->timeout = atoi(arg);
+	  break;
+#endif
     case 'V':
       pArgs->is_version = true;
       break;
@@ -208,7 +245,11 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
     }
 
     if (key[1] == 'h' || key[1] == 'P' || key[1] == 'u' || key[1] == 'a' || key[1] == 'c' || key[1] == 's' ||
-        key[1] == 'f' || key[1] == 'd' || key[1] == 'w' || key[1] == 'n' || key[1] == 'l' || key[1] == 'N') {
+        key[1] == 'f' || key[1] == 'd' || key[1] == 'w' || key[1] == 'n' || key[1] == 'l' || key[1] == 'N' 
+#ifdef WEBSOCKET
+	   || key[1] == 'E' || key[1] == 'T'
+#endif
+		) {
       if (i + 1 >= argc) {
         fprintf(stderr, "option %s requires an argument\r\n", key);
         return -1;
@@ -221,7 +262,11 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
       shellParseSingleOpt(key[1], val);
       i++;
     } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'C' || key[1] == 'r' || key[1] == 'k' || 
-               key[1] == 't' || key[1] == 'V' || key[1] == '?' || key[1] == 1) {
+               key[1] == 't' || key[1] == 'V' || key[1] == '?' || key[1] == 1
+#ifdef WEBSOCKET
+			   ||key[1] == 'R'
+#endif
+			   ) {
       shellParseSingleOpt(key[1], NULL);
     } else {
       fprintf(stderr, "invalid option %s\r\n", key);

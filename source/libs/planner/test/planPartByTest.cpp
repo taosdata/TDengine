@@ -67,6 +67,8 @@ TEST_F(PlanPartitionByTest, withTimeLineFunc) {
   useDb("root", "test");
 
   run("SELECT TWA(c1) FROM st1 PARTITION BY c1");
+
+  run("SELECT MAVG(c1, 2) FROM st1 PARTITION BY c1");
 }
 
 TEST_F(PlanPartitionByTest, withSlimit) {

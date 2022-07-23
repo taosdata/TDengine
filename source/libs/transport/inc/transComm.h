@@ -396,6 +396,7 @@ typedef struct SDelayQueue {
 int         transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
 void        transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg));
 SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
+void        transDQCancel(SDelayQueue* queue, SDelayTask* task);
 
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
 /*
