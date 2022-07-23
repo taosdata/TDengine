@@ -397,11 +397,11 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
 
   if (pConn->status == ConnNormal) {
     pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
+    if (smsg->type == Release) pHead->msgType = 0;
   } else {
     if (smsg->type == Release) {
       pHead->msgType = 0;
       pConn->status = ConnNormal;
-
       destroyConnRegArg(pConn);
       transUnrefSrvHandle(pConn);
     } else {

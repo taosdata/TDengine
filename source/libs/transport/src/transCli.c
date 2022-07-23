@@ -196,7 +196,10 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
       CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle);                                                                  \
       transClearBuffer(&conn->readBuf);                                                                           \
       transFreeMsg(transContFromHead((char*)head));                                                               \
-      if (transQueueSize(&conn->cliMsgs) > 0 && ahandle == 0) return;                                             \
+      if (transQueueSize(&conn->cliMsgs) > 0 && ahandle == 0) {                                                   \
+        SCliMsg* cliMsg = transQueueGet(&conn->cliMsgs, 0);                                                       \
+        if (cliMsg->type == Release) return;                                                                      \
+      }                                                                                                           \
       tDebug("%s conn %p receive release request, ref:%d", CONN_GET_INST_LABEL(conn), conn, T_REF_VAL_GET(conn)); \
       if (T_REF_VAL_GET(conn) > 1) {                                                                              \
         transUnrefCliHandle(conn);                                                                                \
