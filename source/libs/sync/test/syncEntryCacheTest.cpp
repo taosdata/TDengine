@@ -6,6 +6,7 @@
 #include "syncRaftStore.h"
 #include "syncUtil.h"
 #include "tskiplist.h"
+#include "tref.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -121,6 +122,37 @@ void test3() {
   raftEntryCacheLog2((char*)"==test3 write 10 entries==", pCache);
 }
 
+
+
+static void freeObj(void* param) {
+  SSyncRaftEntry* pEntry = (SSyncRaftEntry*)param;
+  syncEntryLog2((char*)"freeObj: ", pEntry);
+  syncEntryDestory(pEntry);
+}
+
+void test4() {
+  int32_t testRefId = taosOpenRef(200, freeObj);
+
+  SSyncRaftEntry* pEntry = createEntry(10);
+  ASSERT(pEntry != NULL);
+
+  int64_t rid = taosAddRef(testRefId, pEntry);
+  sTrace("rid: %ld", rid);
+  
+  do {
+    SSyncRaftEntry* pAcquireEntry = (SSyncRaftEntry*)taosAcquireRef(testRefId, rid);
+    syncEntryLog2((char*)"acquire: ", pAcquireEntry);
+
+    taosAcquireRef(testRefId, rid);
+    taosAcquireRef(testRefId, rid);
+
+    taosReleaseRef(testRefId, rid);
+    //taosReleaseRef(testRefId, rid);
+  } while (0);
+
+  taosRemoveRef(testRefId, rid);
+}
+
 int main(int argc, char** argv) {
   gRaftDetailLog = true;
   tsAsyncLog = 0;
@@ -129,6 +161,8 @@ int main(int argc, char** argv) {
   test1();
   test2();
   test3();
+
+  //test4();
 
   return 0;
 }
