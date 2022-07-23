@@ -79,11 +79,8 @@ void insertChar(Command *cmd, char *c, int size) {
   /* update the values */
   cmd->commandSize += size;
   cmd->cursorOffset += size;
-  for (int i = 0; i < size; i++) {
-    mbtowc(&wc, c + i, size);
-    cmd->screenOffset += wcwidth(wc);
-    cmd->endOffset += wcwidth(wc);
-  }
+  cmd->screenOffset += wcwidth(wc);
+  cmd->endOffset += wcwidth(wc);  
   showOnScreen(cmd);
 }
 
