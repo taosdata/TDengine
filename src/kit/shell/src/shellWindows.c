@@ -250,14 +250,15 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   if (args.cloudDsn == NULL) {
       if (args.cloud) {
           args.cloudDsn = getenv("TDENGINE_CLOUD_DSN");
-          if (args.cloudDsn[strlen(args.cloudDsn) - 1] == '\"') {
-              args.cloudDsn[strlen(args.cloudDsn) - 1] = '\0';
-          }
-          if (args.cloudDsn[0] == '\"') {
-              args.cloudDsn += 1;
-          }
           if (args.cloudDsn == NULL) {
               args.cloud = false;
+          } else {
+              if (args.cloudDsn[strlen(args.cloudDsn) - 1] == '\"') {
+                  args.cloudDsn[strlen(args.cloudDsn) - 1] = '\0';
+              }
+              if (args.cloudDsn[0] == '\"') {
+                  args.cloudDsn += 1;
+              }
           }
       }
   } else {

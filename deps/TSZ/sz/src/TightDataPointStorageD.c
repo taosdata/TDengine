@@ -25,9 +25,9 @@ void new_TightDataPointStorageD_Empty(TightDataPointStorageD **this)
 int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsigned char* flatBytes, size_t flatBytesLength, sz_exedata* pde_exe, sz_params* pde_params)
 {
 	new_TightDataPointStorageD_Empty(this);
-	size_t i, index = 0;
-	unsigned char version = flatBytes[index++]; //3
-	unsigned char sameRByte = flatBytes[index++]; //1
+	size_t i, idx = 0;
+	unsigned char version = flatBytes[idx++]; //3
+	unsigned char sameRByte = flatBytes[idx++]; //1
 
     // parse data format
 	switch (version)
@@ -46,15 +46,15 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 	pde_params->accelerate_pw_rel_compression = (sameRByte & 0x08) >> 3;
 	int errorBoundMode = SZ_ABS;
 	
-	convertBytesToSZParams(&(flatBytes[index]), pde_params, pde_exe);
+	convertBytesToSZParams(&(flatBytes[idx]), pde_params, pde_exe);
 
-	index += MetaDataByteLength_double;
+	idx += MetaDataByteLength_double;
 
 	int isRegression = (sameRByte >> 7) & 0x01;
 
 	unsigned char dsLengthBytes[8];
 	for (i = 0; i < pde_exe->SZ_SIZE_TYPE; i++)
-		dsLengthBytes[i] = flatBytes[index++];
+		dsLengthBytes[i] = flatBytes[idx++];
 	(*this)->dataSeriesLength = bytesToSize(dsLengthBytes, pde_exe->SZ_SIZE_TYPE);
 
 	if((*this)->isLossless==1)
@@ -65,7 +65,7 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 	else if(same==1)
 	{
 		(*this)->allSameData = 1;
-		(*this)->exactMidBytes = &(flatBytes[index]);
+		(*this)->exactMidBytes = &(flatBytes[idx]);
 		return errorBoundMode;
 	}
 	else
@@ -74,42 +74,42 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 	if(isRegression == 1)
 	{
 		(*this)->raBytes_size = flatBytesLength - 3 - 1 - MetaDataByteLength_double - pde_exe->SZ_SIZE_TYPE;
-		(*this)->raBytes = &(flatBytes[index]);
+		(*this)->raBytes = &(flatBytes[idx]);
 		return errorBoundMode;
 	}						
 
 	unsigned char byteBuf[8];
 
 	for (i = 0; i < 4; i++)
-		byteBuf[i] = flatBytes[index++];
+		byteBuf[i] = flatBytes[idx++];
 	int max_quant_intervals = bytesToInt_bigEndian(byteBuf);// 4	
 
 	pde_params->maxRangeRadius = max_quant_intervals/2;
 
 	for (i = 0; i < 4; i++)
-		byteBuf[i] = flatBytes[index++];
+		byteBuf[i] = flatBytes[idx++];
 	(*this)->intervals = bytesToInt_bigEndian(byteBuf);// 4	
 
 	for (i = 0; i < 8; i++)
-		byteBuf[i] = flatBytes[index++];
+		byteBuf[i] = flatBytes[idx++];
 	(*this)->medianValue = bytesToDouble(byteBuf);//8
 
-	(*this)->reqLength = flatBytes[index++]; //1
+	(*this)->reqLength = flatBytes[idx++]; //1
 	
 	for (i = 0; i < 8; i++)
-		byteBuf[i] = flatBytes[index++];
+		byteBuf[i] = flatBytes[idx++];
 	(*this)->realPrecision = bytesToDouble(byteBuf);//8
 
 	for (i = 0; i < pde_exe->SZ_SIZE_TYPE; i++)
-	    byteBuf[i] = flatBytes[index++];
+	    byteBuf[i] = flatBytes[idx++];
 	(*this)->typeArray_size = bytesToSize(byteBuf, pde_exe->SZ_SIZE_TYPE);
 
 	for (i = 0; i < pde_exe->SZ_SIZE_TYPE; i++)
-		byteBuf[i] = flatBytes[index++];
+		byteBuf[i] = flatBytes[idx++];
 	(*this)->exactDataNum = bytesToSize(byteBuf, pde_exe->SZ_SIZE_TYPE);// ST
 
 	for (i = 0; i < pde_exe->SZ_SIZE_TYPE; i++)
-		byteBuf[i] = flatBytes[index++];
+		byteBuf[i] = flatBytes[idx++];
 	(*this)->exactMidBytes_size = bytesToSize(byteBuf, pde_exe->SZ_SIZE_TYPE);// ST
 
 	size_t logicLeadNumBitsNum = (*this)->exactDataNum * 2;
@@ -122,12 +122,12 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 		(*this)->leadNumArray_size = (logicLeadNumBitsNum >> 3) + 1;
 	}
 	
-	(*this)->typeArray = &flatBytes[index];
+	(*this)->typeArray = &flatBytes[idx];
 	//retrieve the number of states (i.e., stateNum)
 	(*this)->allNodes = bytesToInt_bigEndian((*this)->typeArray); //the first 4 bytes store the stateNum
 	(*this)->stateNum = ((*this)->allNodes+1)/2;	
 
-	index+=(*this)->typeArray_size;
+	idx+=(*this)->typeArray_size;
 
 
     // todo need check length
@@ -135,15 +135,15 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 			- pde_exe->SZ_SIZE_TYPE - pde_exe->SZ_SIZE_TYPE - pde_exe->SZ_SIZE_TYPE
 			- (*this)->leadNumArray_size - (*this)->exactMidBytes_size - (*this)->typeArray_size;
 
-	(*this)->leadNumArray = &flatBytes[index];
+	(*this)->leadNumArray = &flatBytes[idx];
 	
-	index+=(*this)->leadNumArray_size;
+	idx+=(*this)->leadNumArray_size;
 	
-	(*this)->exactMidBytes = &flatBytes[index];
+	(*this)->exactMidBytes = &flatBytes[idx];
 	
-	index+=(*this)->exactMidBytes_size;
+	idx+=(*this)->exactMidBytes_size;
 	
-	(*this)->residualMidBits = &flatBytes[index];
+	(*this)->residualMidBits = &flatBytes[idx];
 	
 	
 	return errorBoundMode;

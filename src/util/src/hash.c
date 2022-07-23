@@ -47,7 +47,7 @@ typedef struct SHashEntry {
   SHashNode *next;
 } SHashEntry;
 
-typedef struct SHashObj {
+struct SHashObj {
   SHashEntry    **hashList;
   size_t          capacity;     // number of slots
   size_t          size;         // number of elements in hash table
@@ -58,7 +58,7 @@ typedef struct SHashObj {
   SHashLockTypeE  type;         // lock type
   bool            enableUpdate; // enable update
   SArray         *pMemBlock;    // memory block allocated for SHashEntry
-} SHashObj;
+};
 
 /*
  * Function definition
@@ -303,7 +303,7 @@ int32_t taosHashGetSize(const SHashObj *pHashObj) {
   if (pHashObj == NULL) {
     return 0;
   }
-  return (int32_t)atomic_load_64(&pHashObj->size);
+  return (int32_t)atomic_load_64((int32_t *) &pHashObj->size);
 }
 
 static FORCE_INLINE bool taosHashTableEmpty(const SHashObj *pHashObj) {

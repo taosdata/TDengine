@@ -79,8 +79,11 @@ void insertChar(Command *cmd, char *c, int size) {
   /* update the values */
   cmd->commandSize += size;
   cmd->cursorOffset += size;
-  cmd->screenOffset += wcwidth(wc);
-  cmd->endOffset += wcwidth(wc);
+  for (int i = 0; i < size; i++) {
+    mbtowc(&wc, c + i, size);
+    cmd->screenOffset += wcwidth(wc);
+    cmd->endOffset += wcwidth(wc);
+  } 
   showOnScreen(cmd);
 }
 
@@ -178,6 +181,16 @@ void positionCursorHome(Command *cmd) {
     showOnScreen(cmd);
   }
 }
+
+void positionCursorMiddle(Command *cmd) {
+  if (cmd->endOffset > 0) {
+    clearScreen(cmd->endOffset + prompt_size, cmd->screenOffset + prompt_size);
+    cmd->cursorOffset = cmd->commandSize/2;
+    cmd->screenOffset = cmd->endOffset/2;
+    showOnScreen(cmd);
+  }
+}
+
 
 void positionCursorEnd(Command *cmd) {
   assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);

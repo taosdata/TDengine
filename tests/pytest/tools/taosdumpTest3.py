@@ -57,6 +57,9 @@ class TDTestCase:
     def run(self):
         if not os.path.exists("./taosdumptest"):
             os.makedirs("./taosdumptest")
+        else:
+            print("directory exists")
+
         for i in range(1, 9):
             if not os.path.exists("./taosdumptest/tmp%d" % i):
                 os.makedirs("./taosdumptest/tmp%d" % i)

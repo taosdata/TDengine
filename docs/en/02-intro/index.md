@@ -111,3 +111,5 @@ As a high-performance, scalable and SQL supported time-series database, TDengine
 - [TDengine vs OpenTSDB](https://tdengine.com/2019/09/12/710.html)
 - [TDengine vs Cassandra](https://tdengine.com/2019/09/12/708.html)
 - [TDengine vs InfluxDB](https://tdengine.com/2019/09/12/706.html)
+
+If you want to learn some basics about time-series databases, please check [here](https://tdengine.com/tsdb).

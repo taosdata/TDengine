@@ -461,7 +461,7 @@ void vnodeStopWaitingThread(SVnodeObj* pVnode) {
     if(loop == 0) {
       vInfo("vgId:%d :SDEL force kill thread to quit. pthread=%p pWrite=%p", pVnode->vgId, pWaitThread->pthread, pWaitThread->param);
       // thread not stop , so need kill
-      taosDestoryThread(pWaitThread->pthread);
+      taosDestroyThread(pWaitThread->pthread);
       // write msg need remove from queue
       SVWriteMsg* pWrite = (SVWriteMsg* )pWaitThread->param;
       if (pWrite)
@@ -586,9 +586,9 @@ void vnodeCleanUp(SVnodeObj *pVnode) {
 
   // stop replication module
   if (pVnode->sync > 0) {
-    int64_t sync = pVnode->sync;
+    int64_t syncRid = pVnode->sync;
     pVnode->sync = -1;
-    syncStop(sync);
+    syncStop(syncRid);
   }
 
   vDebug("vgId:%d, vnode is cleaned, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);

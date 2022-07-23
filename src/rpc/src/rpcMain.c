@@ -361,8 +361,8 @@ void *rpcMallocCont(int contLen) {
 void rpcFreeCont(void *cont) {
   if (cont) {
     char *temp = ((char *)cont) - sizeof(SRpcHead) - sizeof(SRpcReqContext);
-    free(temp);
     tTrace("free mem: %p", temp);
+    free(temp);
   }
 }
 
@@ -573,8 +573,8 @@ void rpcCancelRequest(int64_t rid) {
 static void rpcFreeMsg(void *msg) {
   if ( msg ) {
     char *temp = (char *)msg - sizeof(SRpcReqContext);
-    free(temp);
     tTrace("free mem: %p", temp);
+    free(temp);
   }
 }
 
