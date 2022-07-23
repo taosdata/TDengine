@@ -149,7 +149,7 @@ class TestChildTb(TDCase):
         mixed space
         """
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         stbname = self.tdCom.get_long_name(3, "letters")
         self.tdSql.execute(f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
                 c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(16), c12 nchar(16), c13 bool) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \

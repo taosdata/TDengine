@@ -18,14 +18,14 @@ class TestTableComment(TDCase):
         self.tdCom = TDCom(self.tdSql)
 
     def __create_tb(self,dbname,stbname,tbname,comment):
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'use {dbname}')
         self.tdSql.execute(
             f'create table {stbname} (ts timestamp,c0 int) tags(t0 int) ')
         self.tdSql.execute(
             f'create table {tbname} using {stbname} tags(1) comment "{comment}"')
     def __create_normaltb(self,dbname,tbname,comment):
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'use {dbname}')
         self.tdSql.execute(
             f'create table {tbname} (ts timestamp,c0 int) comment "{comment}"')
@@ -53,7 +53,7 @@ class TestTableComment(TDCase):
 
         # error overlength
         comment = self.tdCom.get_long_name(length=1025, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'use {dbname}')
         self.tdSql.error(f"create table ntb (ts timestamp,c0 int) comment '{comment}'")
         self.tdSql.execute(f'drop database {dbname}')

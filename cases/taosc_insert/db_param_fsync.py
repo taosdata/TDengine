@@ -32,7 +32,7 @@ class Testfsync(TDCase):
         """
         test_param = self.cfg["create_name"]
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname} wal 2')
+        self.tdCom.createDb(dbname, wal=2)
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         # default
@@ -45,7 +45,8 @@ class Testfsync(TDCase):
         self.tdSql.execute(f'drop database {dbname}')
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
-            self.tdSql.execute(f'create database if not exists {dbname} wal 2 {test_param} {param_value}')
+            kv_dict = {test_param: param_value}
+            self.tdCom.createDb(dbname, **kv_dict)
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
@@ -76,4 +77,3 @@ class Testfsync(TDCase):
 
     def tags(self):
         return T.Write.TaoscSql.Database.Create, T.Write.TaoscSql.Database.Alter
-

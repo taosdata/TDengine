@@ -23,7 +23,7 @@ class TestDoubleBoundary(TDCase):
         max: +- 3.4e+38
         """
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 double) tags (t1 double)')
         self.tdSql.execute(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({self.tdCom.Boundary.DOUBLE_BOUNDARY[1]})')
         self.tdSql.execute(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags ({self.tdCom.Boundary.DOUBLE_BOUNDARY[0]})')

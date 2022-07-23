@@ -98,7 +98,7 @@ class TestTb(TDCase):
         mixed invalid symbol
         """
         dbname = self.tdCom.get_long_name(5)
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         stbname = self.tdCom.get_long_name(3)
         tbname = self.tdCom.get_long_name(2)
         self.tdSql.execute(f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \

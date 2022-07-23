@@ -23,7 +23,7 @@ class TestAlterInsert(TDCase):
         insert after alter stb schema
         """
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int, c2 int) tags (t1 int, t2 int)')
         self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (1, 1)')
         self.tdSql.execute(f'insert into {dbname}.tb values (now, 1, 1)')
@@ -113,7 +113,7 @@ class TestAlterInsert(TDCase):
         insert after alter tb schema
         """
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 int, c2 int)')
         self.tdSql.execute(f'insert into {dbname}.tb values (now, 1, 1)')
 

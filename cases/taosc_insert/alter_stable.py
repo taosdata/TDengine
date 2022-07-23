@@ -21,7 +21,7 @@ class TestAlterStable(TDCase):
         self._remote: Remote = Remote(self.logger)
     
     def alter_stable_column_check(self,dbname,stbname,tbname):
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'use {dbname}')
         self.tdSql.execute(
             f'create stable {stbname} (ts timestamp, c1 tinyint, c2 smallint, c3 int, \
@@ -58,7 +58,7 @@ class TestAlterStable(TDCase):
         self.tdSql.execute(f'drop database {dbname}')
 
     def alter_stable_tag_check(self,dbname,stbname,tbname):
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'use {dbname}')
         self.tdSql.execute(
             f'create stable {stbname} (ts timestamp, c1 int) tags(ts_tag timestamp, t1 tinyint, t2 smallint, t3 int, \

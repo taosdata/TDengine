@@ -37,7 +37,7 @@ class TestNumericBoundary(TDCase):
         """
         for data_type, data_value in self.boundary_dict.items():
             dbname = self.tdCom.get_long_name()
-            self.tdSql.execute(f'create database if not exists {dbname}')
+            self.tdCom.createDb(dbname)
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 {data_type}) tags (t1 {data_type})')
             self.tdSql.execute(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({data_value[1]})')
             self.tdSql.execute(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags ({data_value[0]})')

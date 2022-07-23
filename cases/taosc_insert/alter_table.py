@@ -39,7 +39,7 @@ class TestAlterTag(TDCase):
         tag_binary = self.tdCom.get_long_name(length=10, mode="letters")
         tag_nchar = self.tdCom.get_long_name(length=10, mode="letters")
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         stbname = self.tdCom.get_long_name(length=3, mode="letters")
         tbname = self.tdCom.get_long_name(length=3, mode="letters")
         self.tdSql.execute(f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
@@ -96,7 +96,7 @@ class TestAlterTag(TDCase):
         alter ntb column check
         '''
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         tbname = self.tdCom.get_long_name(length=3, mode="letters")
         self.tdSql.execute(f'create table if not exists {dbname}.{tbname} (ts timestamp, c1 tinyint, c2 smallint, c3 int, \
                 c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 bool,c12 binary(20),c13 nchar(20))')

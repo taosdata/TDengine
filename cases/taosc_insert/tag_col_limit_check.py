@@ -74,7 +74,7 @@ class TestTagColLimit(TDCase):
         """
         for test_type in ['binary', 'nchar']:
             dbname = self.tdCom.get_long_name()
-            self.tdSql.execute(f'create database if not exists {dbname}')
+            self.tdCom.createDb(dbname)
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (Col_ts timestamp, CC1 {test_type}(16), Cc2 {test_type}(16), `3Cc%3` {test_type}(16)) tags (`1Tag_ts^` timestamp, TT1 {test_type}(16), Tt2 {test_type}(16), `3Tt%3` {test_type}(16))')
             self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now, "TT1", "Tt2", "3Tt%3")')
             self.tdSql.execute(f'insert into {dbname}.tb values (now, "TT1", "Tt2", "3Tt%3")')
@@ -94,7 +94,7 @@ class TestTagColLimit(TDCase):
         """
         for test_type in ['binary', 'nchar']:
             dbname = self.tdCom.get_long_name()
-            self.tdSql.execute(f'create database if not exists {dbname}')
+            self.tdCom.createDb(dbname)
             self.tdSql.execute(f'create table if not exists {dbname}.tb (Col_ts timestamp, CC1 {test_type}(16), Cc2 {test_type}(16), `3Cc%3` {test_type}(16))')
             self.tdSql.execute(f'insert into {dbname}.tb values (now, "TT1", "Tt2", "3Tt%3")')
             self.tdSql.query(f"describe {dbname}.tb")
@@ -113,7 +113,7 @@ class TestTagColLimit(TDCase):
         dbname = self.tdCom.get_long_name()
         tag_key_name = self.tdCom.get_long_name(length=self.tdCom.Boundary.TAG_KEY_MAX_LENGTH)
         col_key_name = self.tdCom.get_long_name(length=self.tdCom.Boundary.TAG_KEY_MAX_LENGTH)
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.error(f'create stable if not exists {dbname}.stb_error (col_ts timestamp, {col_key_name}a int) tags ({tag_key_name} int)')
         self.tdSql.error(f'create stable if not exists {dbname}.stb_error (col_ts timestamp, {col_key_name} int) tags ({tag_key_name}a int)')
         self.tdSql.error(f'create table if not exists {dbname}.stb_error (col_ts timestamp, {col_key_name}a int)')

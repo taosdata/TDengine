@@ -24,7 +24,7 @@ class TestDB(TDCase):
         max length: 64
         """
         dbname = self.tdCom.get_long_name(self.tdCom.Boundary.DBNAME_MAX_LENGTH)
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.query('show databases')
         res = self.tdSql.getOneRow(0, dbname)
         self.tdSql.checkEqual(res[0][0], dbname)
@@ -37,8 +37,10 @@ class TestDB(TDCase):
         """
         backquote check
         """
-        dbname = '1' + self.tdCom.get_long_name(10)
-        self.tdSql.execute(f'create database if not exists `{dbname}`')
+        dbname = f'1{self.tdCom.get_long_name()}'
+        dbname_backquote = f'`{dbname}`'
+        self.tdCom.createDb(dbname_backquote)
+        # self.tdSql.execute(f'create database if not exists `{dbname}`')
         self.tdSql.query('show databases')
         res = self.tdSql.getOneRow(0, dbname)
         self.tdSql.checkEqual(res[0][0], dbname)
@@ -52,7 +54,9 @@ class TestDB(TDCase):
                 d_list_new = copy.deepcopy(d_list)
                 d_list_new.insert(i, insert_str)
                 dbname_new = ''.join(d_list_new)
-                self.tdSql.execute(f'create database if not exists `{dbname_new}`')
+                dbname_new_backquote = f'`{dbname_new}`'
+                self.tdCom.createDb(dbname_new_backquote)
+                # self.tdSql.execute(f'create database if not exists `{dbname_new}`')
                 self.tdSql.query('show databases')
                 res = self.tdSql.getOneRow(0, dbname_new)
                 self.tdSql.checkEqual(res[0][0], dbname_new)
@@ -63,7 +67,7 @@ class TestDB(TDCase):
         case insensitive
         """
         for dbname in [self.tdCom.get_long_name(10, "letters_mixed"), self.tdCom.get_long_name(5, "letters_mixed").upper()]:
-            self.tdSql.execute(f'create database if not exists {dbname}')
+            self.tdCom.createDb(dbname)
             self.tdSql.query('show databases')
             res = self.tdSql.getOneRow(0, dbname.lower())
             self.tdSql.checkEqual(res[0][0], dbname.lower())
@@ -75,7 +79,7 @@ class TestDB(TDCase):
         mixed space
         """
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.error(f'create database {dbname}')
         self.tdSql.error(f'create data base if not exists {dbname}')
         self.tdSql.error(f'create database i f not exists {dbname}')

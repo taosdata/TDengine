@@ -23,7 +23,7 @@ class TestAutoCreateTable(TDCase):
         check tag value
         """
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         self.tdSql.execute(f'insert into {dbname}.t1 using {dbname}.stb(t11, t12) tags(11, 12) (ts, c11, c12) values (now, 11, 21)')
         self.tdSql.execute(f'insert into {dbname}.t2 using {dbname}.stb(t11) tags(21) (ts, c11, c12) values (now-1m, 12, 22)')
@@ -45,7 +45,7 @@ class TestAutoCreateTable(TDCase):
         check col value
         """
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         self.tdSql.execute(f'insert into {dbname}.t1 using {dbname}.stb(t11, t12) tags(11, 12) values (now, 11, 21)')
         self.tdSql.execute(f'insert into {dbname}.t2 using {dbname}.stb(t11, t12) tags(21, 22) (ts, c11, c12) values (now-1m, Null, 21)')
@@ -71,7 +71,7 @@ class TestAutoCreateTable(TDCase):
         check multi cols
         """
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         self.tdSql.execute(f'insert into {dbname}.t1 using {dbname}.stb(t11, t12) tags(11, 12) (ts, c11, c12) values (now-1m, 11, 21)(now-2m, 11, 21)')
         self.tdSql.execute(f'insert into {dbname}.t2 using {dbname}.stb(t11, t12) tags(11, 12) values (now-3m, 11, 21)(now-4m, 11, 21)')

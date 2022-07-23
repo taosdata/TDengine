@@ -32,7 +32,7 @@ class TestPagesize(TDCase):
         """
         test_param = self.cfg["create_name"]
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         # default
@@ -45,7 +45,9 @@ class TestPagesize(TDCase):
         # boundary
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
-            self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
+            kv_dict = {test_param: param_value}
+            self.tdCom.createDb(dbname, **kv_dict)
+            # self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
@@ -61,7 +63,7 @@ class TestPagesize(TDCase):
 
         #! alter database pagesize  bug:TD-16324
         # dbname = self.tdCom.get_long_name()
-        # self.tdSql.execute(f'create database if not exists {dbname}')
+        # self.tdCom.createDb(dbname)
         # self.cfg["boundary"] = [1, 16384]
         # for param_value in self.cfg["boundary"]:
         #     dbname = self.tdCom.get_long_name()
@@ -95,4 +97,3 @@ class TestPagesize(TDCase):
 
     def tags(self):
         return T.Write.TaoscSql.Database.Create, T.Write.TaoscSql.Database.Alter
-
