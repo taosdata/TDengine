@@ -960,6 +960,7 @@ endi
 
 sql select _wstart, max(k)-min(k),last(k)-first(k),0-spread(k) from tm0 where ts>='2020-1-1 1:1:1' and ts<='2020-1-1 4:2:15'  interval(500a) fill(value, 99,91,90,89,88,87,86,85) ;
 if $rows != 21749 then
+ print expect 21749, actual: $rows
  return -1
 endi
 
