@@ -67,10 +67,10 @@ int32_t tqMetaOpen(STQ* pTq) {
     ASSERT(0);
   }
 
-  void* pKey;
-  int   kLen;
-  void* pVal;
-  int   vLen;
+  void* pKey = NULL;
+  int   kLen = 0;
+  void* pVal = NULL;
+  int   vLen = 0;
 
   tdbTbcMoveToFirst(pCur);
   SDecoder decoder;

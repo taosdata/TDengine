@@ -1489,7 +1489,7 @@ static SSmlHandle* smlBuildSmlInfo(STscObj* pTscObj, SRequestObj* request, SMLPr
   }
   info->id = smlGenId();
 
-  info->pQuery = (SQuery *)taosMemoryCalloc(1, sizeof(SQuery));
+  info->pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
   if (NULL == info->pQuery) {
     uError("SML:0x%" PRIx64 " create info->pQuery error", info->id);
     goto cleanup;

@@ -5559,7 +5559,7 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
 
 static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, SCreateSubTableClause* pStmt,
                                      const STag* pTag, uint64_t suid, const char* sTableNmae, SVgroupInfo* pVgInfo,
-                                     SArray* tagName) {
+                                     SArray* tagName, uint8_t tagNum) {
   //  char  dbFName[TSDB_DB_FNAME_LEN] = {0};
   //  SName name = {.type = TSDB_DB_NAME_T, .acctId = acctId};
   //  strcpy(name.dbname, pStmt->dbName);
@@ -5576,6 +5576,7 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, S
     req.commentLen = -1;
   }
   req.ctb.suid = suid;
+  req.ctb.tagNum = tagNum;
   req.ctb.name = strdup(sTableNmae);
   req.ctb.pTag = (uint8_t*)pTag;
   req.ctb.tagName = taosArrayDup(tagName);
@@ -5827,7 +5828,7 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
   }
   if (TSDB_CODE_SUCCESS == code) {
     addCreateTbReqIntoVgroup(pCxt->pParseCxt->acctId, pVgroupHashmap, pStmt, pTag, pSuperTableMeta->uid,
-                             pStmt->useTableName, &info, tagName);
+                             pStmt->useTableName, &info, tagName, pSuperTableMeta->tableInfo.numOfTags);
   }
 
   taosArrayDestroy(tagName);
