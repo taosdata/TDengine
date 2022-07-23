@@ -255,7 +255,7 @@ static void uvHandleReq(SSvrConn* pConn) {
             TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, transMsg.contLen);
   } else {
     tGTrace("%s conn %p %s received from %s, local info:%s, msg size:%d, resp:%d, code:%d", transLabel(pTransInst),
-            pConn, pConn->dst, pConn->src, transMsg.contLen, pHead->noResp, transMsg.code);
+            pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, transMsg.contLen, pHead->noResp, transMsg.code);
   }
 
   // pHead->noResp = 1,
