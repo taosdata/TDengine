@@ -21,7 +21,7 @@ static int32_t walFetchBodyNew(SWalReader *pRead);
 static int32_t walSkipFetchBodyNew(SWalReader *pRead);
 
 SWalReader *walOpenReader(SWal *pWal, SWalFilterCond *cond) {
-  SWalReader *pRead = taosMemoryMalloc(sizeof(SWalReader));
+  SWalReader *pRead = taosMemoryCalloc(1, sizeof(SWalReader));
   if (pRead == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -75,6 +75,7 @@ int32_t walNextValidMsg(SWalReader *pRead) {
 
   wDebug("vgId:%d wal start to fetch, ver %ld, last ver %ld commit ver %ld, applied ver %ld, end ver %ld",
          pRead->pWal->cfg.vgId, fetchVer, lastVer, committedVer, appliedVer, endVer);
+  pRead->curStopped = 0;
   while (fetchVer <= endVer) {
     if (walFetchHeadNew(pRead, fetchVer) < 0) {
       return -1;
@@ -93,6 +94,7 @@ int32_t walNextValidMsg(SWalReader *pRead) {
       ASSERT(fetchVer == pRead->curVersion);
     }
   }
+  pRead->curStopped = 1;
   return -1;
 }
 
@@ -221,6 +223,8 @@ static int32_t walFetchHeadNew(SWalReader *pRead, int64_t fetchVer) {
   int64_t contLen;
   bool    seeked = false;
 
+  wDebug("vgId:%d, wal starts to fetch head %d", pRead->pWal->cfg.vgId, fetchVer);
+
   if (pRead->curInvalid || pRead->curVersion != fetchVer) {
     if (walReadSeekVer(pRead, fetchVer) < 0) {
       ASSERT(0);
@@ -256,6 +260,8 @@ static int32_t walFetchHeadNew(SWalReader *pRead, int64_t fetchVer) {
 static int32_t walFetchBodyNew(SWalReader *pRead) {
   SWalCont *pReadHead = &pRead->pHead->head;
   int64_t   ver = pReadHead->version;
+
+  wDebug("vgId:%d, wal starts to fetch body %ld", pRead->pWal->cfg.vgId, ver);
 
   if (pRead->capacity < pReadHead->bodyLen) {
     void *ptr = taosMemoryRealloc(pRead->pHead, sizeof(SWalCkHead) + pReadHead->bodyLen);
@@ -300,8 +306,8 @@ static int32_t walFetchBodyNew(SWalReader *pRead) {
     return -1;
   }
 
+  wDebug("version %ld is fetched, cursor advance", ver);
   pRead->curVersion = ver + 1;
-  wDebug("version advance to %ld, fetch body", pRead->curVersion);
   return 0;
 }
 
