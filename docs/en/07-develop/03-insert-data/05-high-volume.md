@@ -66,7 +66,7 @@ Below are the scenario for the sample programs of high performance wrting.
 - Application program maps the received data to different writing threads based on table name to make sure all the data for each table is always processed by a specific writing thread.
 - Each writing thread writes the received data into TDengine once the message queue becomes empty or the read data meets a threshold.
 
-![Thread Model of High Performance Writing into TDengine](../../../zh/07-develop/03-insert-data/highvolume.webp)
+![Thread Model of High Performance Writing into TDengine](highvolume.webp)
 
 ### Sample Programs
 
