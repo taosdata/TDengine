@@ -67,10 +67,10 @@ int32_t tqMetaOpen(STQ* pTq) {
     ASSERT(0);
   }
 
-  void* pKey;
-  int   kLen;
-  void* pVal;
-  int   vLen;
+  void* pKey = NULL;
+  int   kLen = 0;
+  void* pVal = NULL;
+  int   vLen = 0;
 
   tdbTbcMoveToFirst(pCur);
   SDecoder decoder;
@@ -101,6 +101,7 @@ int32_t tqMetaOpen(STQ* pTq) {
       handle.execHandle.execDb.pFilterOutTbUid =
           taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     }
+    tqDebug("tq restore %s consumer %ld", handle.subKey, handle.consumerId);
     taosHashPut(pTq->handles, pKey, kLen, &handle, sizeof(STqHandle));
   }
 

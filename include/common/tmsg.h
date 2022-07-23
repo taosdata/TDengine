@@ -1977,6 +1977,7 @@ typedef struct SVCreateTbReq {
   union {
     struct {
       char*    name;  // super table name
+      uint8_t tagNum;
       tb_uid_t suid;
       SArray*  tagName;
       uint8_t* pTag;

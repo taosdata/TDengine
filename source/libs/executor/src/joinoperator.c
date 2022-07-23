@@ -211,7 +211,7 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
       break;
     }
     if (pJoinInfo->pCondAfterMerge != NULL) {
-      doFilter(pJoinInfo->pCondAfterMerge, pRes);
+      doFilter(pJoinInfo->pCondAfterMerge, pRes, NULL);
     }
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
       break;
