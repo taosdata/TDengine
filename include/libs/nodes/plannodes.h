@@ -111,6 +111,7 @@ typedef struct SAggLogicNode {
   SNodeList* pGroupKeys;
   SNodeList* pAggFuncs;
   bool       hasLastRow;
+  bool       hasTimeLineFunc;
 } SAggLogicNode;
 
 typedef struct SProjectLogicNode {

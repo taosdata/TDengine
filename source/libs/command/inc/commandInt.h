@@ -28,6 +28,7 @@ extern "C" {
 //newline area
 #define EXPLAIN_TAG_SCAN_FORMAT "Tag Scan on %s"
 #define EXPLAIN_TBL_SCAN_FORMAT "Table Scan on %s"
+#define EXPLAIN_TBL_MERGE_SCAN_FORMAT "Table Merge Scan on %s"
 #define EXPLAIN_SYSTBL_SCAN_FORMAT "System Table Scan on %s"
 #define EXPLAIN_DISTBLK_SCAN_FORMAT "Block Dist Scan on %s"
 #define EXPLAIN_LASTROW_SCAN_FORMAT "Last Row Scan on %s"

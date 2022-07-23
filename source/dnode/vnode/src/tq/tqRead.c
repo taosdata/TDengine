@@ -340,29 +340,30 @@ FAIL:
 
 void tqReaderSetColIdList(STqReader* pReadHandle, SArray* pColIdList) { pReadHandle->pColIdList = pColIdList; }
 
-int tqReaderSetTbUidList(STqReader* pHandle, const SArray* tbUidList) {
-  if (pHandle->tbIdHash) {
-    taosHashClear(pHandle->tbIdHash);
+int tqReaderSetTbUidList(STqReader* pReader, const SArray* tbUidList) {
+  if (pReader->tbIdHash) {
+    taosHashClear(pReader->tbIdHash);
+  } else {
+    pReader->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   }
 
-  pHandle->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
-  if (pHandle->tbIdHash == NULL) {
+  if (pReader->tbIdHash == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
   for (int i = 0; i < taosArrayGetSize(tbUidList); i++) {
     int64_t* pKey = (int64_t*)taosArrayGet(tbUidList, i);
-    taosHashPut(pHandle->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
+    taosHashPut(pReader->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
   }
 
   return 0;
 }
 
-int tqReaderAddTbUidList(STqReader* pHandle, const SArray* tbUidList) {
-  if (pHandle->tbIdHash == NULL) {
-    pHandle->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
-    if (pHandle->tbIdHash == NULL) {
+int tqReaderAddTbUidList(STqReader* pReader, const SArray* tbUidList) {
+  if (pReader->tbIdHash == NULL) {
+    pReader->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    if (pReader->tbIdHash == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
@@ -370,18 +371,18 @@ int tqReaderAddTbUidList(STqReader* pHandle, const SArray* tbUidList) {
 
   for (int i = 0; i < taosArrayGetSize(tbUidList); i++) {
     int64_t* pKey = (int64_t*)taosArrayGet(tbUidList, i);
-    taosHashPut(pHandle->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
+    taosHashPut(pReader->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
   }
 
   return 0;
 }
 
-int tqReaderRemoveTbUidList(STqReader* pHandle, const SArray* tbUidList) {
-  ASSERT(pHandle->tbIdHash != NULL);
+int tqReaderRemoveTbUidList(STqReader* pReader, const SArray* tbUidList) {
+  ASSERT(pReader->tbIdHash != NULL);
 
   for (int32_t i = 0; i < taosArrayGetSize(tbUidList); i++) {
     int64_t* pKey = (int64_t*)taosArrayGet(tbUidList, i);
-    taosHashRemove(pHandle->tbIdHash, pKey, sizeof(int64_t));
+    taosHashRemove(pReader->tbIdHash, pKey, sizeof(int64_t));
   }
 
   return 0;

@@ -478,8 +478,9 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   }
 
   pAgg->hasLastRow = pSelect->hasLastRowFunc;
+  pAgg->hasTimeLineFunc = pSelect->hasTimeLineFunc;
   pAgg->node.groupAction = GROUP_ACTION_SET;
-  pAgg->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  pAgg->node.requireDataOrder = pAgg->hasTimeLineFunc ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_NONE;
   pAgg->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -712,7 +713,7 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
       (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
   pWindow->windowAlgo = pCxt->pPlanCxt->streamQuery ? INTERVAL_ALGO_STREAM_SINGLE : INTERVAL_ALGO_HASH;
   pWindow->node.groupAction = GROUP_ACTION_KEEP;
-  pWindow->node.requireDataOrder = DATA_ORDER_LEVEL_IN_BLOCK;
+  pWindow->node.requireDataOrder = pSelect->hasTimeLineFunc ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_IN_BLOCK;
   pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
 
   pWindow->pTspk = nodesCloneNode(pInterval->pCol);
@@ -786,6 +787,14 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   return code;
 }
 
+static bool isPrimaryKeySort(SNodeList* pOrderByList) {
+  SNode* pExpr = ((SOrderByExprNode*)nodesListGetNode(pOrderByList, 0))->pExpr;
+  if (QUERY_NODE_COLUMN != nodeType(pExpr)) {
+    return false;
+  }
+  return PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pExpr)->colId;
+}
+
 static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (NULL == pSelect->pOrderByList) {
     return TSDB_CODE_SUCCESS;
@@ -799,7 +808,9 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pSort->groupSort = pSelect->groupSort;
   pSort->node.groupAction = pSort->groupSort ? GROUP_ACTION_KEEP : GROUP_ACTION_CLEAR;
   pSort->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
-  pSort->node.resultDataOrder = pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL;
+  pSort->node.resultDataOrder = isPrimaryKeySort(pSelect->pOrderByList)
+                                    ? (pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
+                                    : DATA_ORDER_LEVEL_NONE;
 
   int32_t code = nodesCollectColumns(pSelect, SQL_CLAUSE_ORDER_BY, NULL, COLLECT_COL_TYPE_ALL, &pSort->node.pTargets);
   if (TSDB_CODE_SUCCESS == code && NULL == pSort->node.pTargets) {
@@ -928,7 +939,7 @@ static int32_t createDistinctLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
   int32_t code = TSDB_CODE_SUCCESS;
   // set grouyp keys, agg funcs and having conditions
   SNodeList* pGroupKeys = NULL;
-  SNode* pProjection = NULL;
+  SNode*     pProjection = NULL;
   FOREACH(pProjection, pSelect->pProjectionList) {
     code = nodesListMakeStrictAppend(&pGroupKeys, createGroupingSetNode(pProjection));
     if (TSDB_CODE_SUCCESS != code) {

@@ -139,6 +139,10 @@ TEST_F(PlanBasicTest, timeLineFunc) {
   run("SELECT CSUM(c1) FROM t1");
 
   run("SELECT CSUM(c1) FROM st1");
+
+  run("SELECT TWA(c1) FROM t1");
+
+  run("SELECT TWA(c1) FROM st1");
 }
 
 TEST_F(PlanBasicTest, multiResFunc) {

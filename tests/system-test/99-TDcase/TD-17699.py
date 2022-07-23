@@ -31,7 +31,8 @@ class TDTestCase:
                 'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                 'pollDelay':  20,
                 'showMsg':    1,
-                'showRow':    1}
+                'showRow':    1,
+                'snapshot':   1}
 
     cdbName = 'cdb'
     # some parameter to consumer processor
@@ -88,13 +89,15 @@ class TDTestCase:
         tmqCom.insertConsumerInfo(self.consumerId, self.expectrowcnt,topicList,keyList,self.ifcheckdata,self.ifManualCommit)
         
         tdLog.info("start consume processor")  
-        tmqCom.startTmqSimProcess(self.pollDelay,self.paraDict["dbName"],self.showMsg, self.showRow,self.cdbName)
-        
+        # tmqCom.startTmqSimProcess(self.pollDelay,self.paraDict["dbName"],self.showMsg, self.showRow,self.cdbName)
+        tmqCom.startTmqSimProcess(pollDelay=self.pollDelay,dbName=self.paraDict["dbName"],showMsg=self.showMsg, showRow=self.showRow,snapshot=self.paraDict['snapshot'])
+
         tmqCom.getStartConsumeNotifyFromTmqsim()  
         tdLog.info("drop one stable")
         self.paraDict["stbName"] = 'stb1'    
-        tdSql.execute("drop table %s.%s" %(self.paraDict['dbName'], self.paraDict['stbName']))        
-        tmqCom.drop_ctable(tdSql, dbname=self.paraDict['dbName'], count=self.paraDict["ctbNum"], default_ctbname_prefix=self.paraDict["ctbPrefix"])
+        tdSql.execute("drop table %s.%s" %(self.paraDict['dbName'], self.paraDict['stbName']))   
+        dropTblNum = int(self.paraDict["ctbNum"] / 4)
+        tmqCom.drop_ctable(tdSql, dbname=self.paraDict['dbName'], count=dropTblNum, default_ctbname_prefix=self.paraDict["ctbPrefix"])
 
         # pThread2.join()
     
@@ -106,7 +109,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
         
-        if not (totalConsumeRows >= self.expectrowcnt/2 and totalConsumeRows <= self.expectrowcnt):
+        if not (totalConsumeRows >= self.expectrowcnt*3/8 and totalConsumeRows <= self.expectrowcnt):
             tdLog.info("act consume rows: %d, expect consume rows: between %d and %d"%(totalConsumeRows, self.expectrowcnt/2, self.expectrowcnt))
             tdLog.exit("tmq consume rows error!")
 
