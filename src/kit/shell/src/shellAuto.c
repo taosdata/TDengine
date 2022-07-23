@@ -329,14 +329,14 @@ int      cntDel    = 0;   // delete byte count after next press tab
 
 // show auto tab introduction
 void printfIntroduction() {
-  printf("   ****************************  SUPPORT TAB KEY ************************************\n"); 
-  printf("   *   Taos shell support press TAB key to complete word. You can try it.           *\n"); 
+  printf("   *********************  How to Use TAB in TAOS Shell ******************************\n"); 
+  printf("   *   Taos shell supports pressing TAB key to complete word. You can try it.       *\n"); 
   printf("   *   Press TAB key anywhere, You'll get surprise.                                 *\n");
-  printf("   *   SUPPORT KEYBOARD SHORTCUT:                                                   *\n");
-  printf("   *    [ TAB ]        ......  if prefix nothing show help else complete word       *\n");
-  printf("   *    [ Ctrl + A ]   ......  move cursor to line [A]head                          *\n");
-  printf("   *    [ Ctrl + E ]   ......  move cursor to line [E]nd                            *\n");
-  printf("   *    [ Ctrl + W ]   ......  move cursor to line middle                           *\n");  
+  printf("   *   KEYBOARD SHORTCUT:                                                           *\n");
+  printf("   *    [ TAB ]        ......  Complete the word or show help if no input           *\n");
+  printf("   *    [ Ctrl + A ]   ......  move cursor to [A]head of line                       *\n");
+  printf("   *    [ Ctrl + E ]   ......  move cursor to [E]nd of line                         *\n");
+  printf("   *    [ Ctrl + W ]   ......  move cursor to line of middle                        *\n");  
   printf("   *    [ Ctrl + L ]   ......  clean screen                                         *\n");
   printf("   *    [ Ctrl + K ]   ......  clean after cursor                                   *\n");
   printf("   *    [ Ctrl + U ]   ......  clean before cursor                                  *\n");
@@ -351,11 +351,13 @@ void showHelp() {
     alter database <db_name> <db_options> \n\
     alter dnode <dnode_id> balance \n\
     alter dnode <dnode_id> resetlog;\n\
-    alter dnode <dnode_id> debugFlag 141;\n\
+    alter dnode <dnode_id> DebugFlag 143;\n\
     alter dnode <dnode_id> monitor 1;\n\
     alter table <tb_name> ADD COLUMN <field_name> <data_type>; \n\
     alter table <tb_name> DROP COLUMN <field_name>; \n\
     alter table <tb_name> MODIFY COLUMN <field_name> <data_type(length)>;\n\
+    alter local resetlog; \n\
+    alter local DebugFlag 143; \n\
     alter topic <topic_name>\n\
     alter user <user_name> pass\n\
     alter user <user_name> privilege read ;\n\
