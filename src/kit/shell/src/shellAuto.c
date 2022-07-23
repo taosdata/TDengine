@@ -66,6 +66,12 @@ SWords shellCommands[] = {
   {"alter dnode <dnode_id> monitor 1;", 0, 0, NULL},
   {"alter table <tb_name> <tb_actions>", 0, 0, NULL},
   {"alter table modify column", 0, 0, NULL},
+  {"alter local resetlog;", 0, 0, NULL},
+  {"alter local DebugFlag 143;", 0, 0, NULL},
+  {"alter local cDebugFlag 143;", 0, 0, NULL},
+  {"alter local uDebugFlag 143;", 0, 0, NULL},
+  {"alter local rpcDebugFlag 143;", 0, 0, NULL},
+  {"alter local tmrDebugFlag 143;", 0, 0, NULL},
   {"alter topic", 0, 0, NULL},
   {"alter user <user_name> pass", 0, 0, NULL},
   {"alter user <user_name> privilege read", 0, 0, NULL},
@@ -328,8 +334,8 @@ void printfIntroduction() {
   printf("   *   SUPPORT KEYBOARD SHORTCUT:                                                   *\n");
   printf("   *    [ TAB ]        ......  if prefix nothing show help else complete word       *\n");
   printf("   *    [ Ctrl + A ]   ......  move cursor to line [A]head                          *\n");
-  printf("   *    [ Ctrl + M ]   ......  move cursor to line [M]iddle                         *\n");
   printf("   *    [ Ctrl + E ]   ......  move cursor to line [E]nd                            *\n");
+  printf("   *    [ Ctrl + W ]   ......  move cursor to line middle                           *\n");  
   printf("   *    [ Ctrl + L ]   ......  clean screen                                         *\n");
   printf("   *    [ Ctrl + K ]   ......  clean after cursor                                   *\n");
   printf("   *    [ Ctrl + U ]   ......  clean before cursor                                  *\n");

@@ -307,6 +307,9 @@ int32_t shellReadCommand(TAOS *con, char *command) {
         case 21:  // Ctrl + U
           clearLineBefore(&cmd);
           break;
+        case 23:  // Ctrl + W;
+          positionCursorMiddle(&cmd);
+          break;
       }
     } else if (c == '\033') {
       c = getchar();
