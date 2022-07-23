@@ -126,7 +126,7 @@ class TestMultiProcessRun(TDCase):
         self.taosd.update_cfg('/tmp', self.taosd_setting, {"multiProcess": 1}, self.endpoint, True)
         self.tdCom.drop_all_db()
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table if not exists {dbname}.tb (ts timestamp, c1 binary({data_length}))')
         self.tdSql.execute(f'insert into {dbname}.tb values {self.gen_tb_batch_sql(batch, 1, col_type, data_type, data_length, True)};')
         self.tdSql.query(f'select * from {dbname}.tb')
@@ -141,7 +141,7 @@ class TestMultiProcessRun(TDCase):
         self.tdSql.drop_all_db()
         sql_list = list()
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table if not exists {dbname}.tb (ts timestamp, c1 binary({data_length}))')
         for thread_num in range(threads_count):
             sql = f'insert into {dbname}.tb values {self.gen_tb_batch_sql(batch, thread_num, col_type, data_type, data_length, True)};'

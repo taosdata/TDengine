@@ -32,7 +32,7 @@ class TestPages(TDCase):
         """
         test_param = self.cfg["create_name"]
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         # default
@@ -45,7 +45,8 @@ class TestPages(TDCase):
         # boundary
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
-            self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
+            kv_dict = {test_param: param_value}
+            self.tdCom.createDb(dbname, **kv_dict)
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
@@ -57,11 +58,10 @@ class TestPages(TDCase):
         dbname = self.tdCom.get_long_name()
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
         self.tdSql.execute(f'create database {dbname}')
-        #! bug TD-16166
         for i in [self.cfg["boundary"][0]-1,100.1,'abc',self.cfg["boundary"][0]]:
             self.tdSql.error(f'alter database {dbname} pages {i}')
         
-        # self.tdSql.execute(f'drop database {dbname}')
+        self.tdSql.execute(f'drop database {dbname}')
     def run(self):
         self.pages_check()
 
@@ -79,4 +79,3 @@ class TestPages(TDCase):
 
     def tags(self):
         return T.Write.TaoscSql.Database.Create, T.Write.TaoscSql.Database.Alter
-

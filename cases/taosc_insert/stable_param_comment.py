@@ -21,7 +21,7 @@ class TestComp(TDCase):
         self.stbname = 'stb'
         self.comment_length = [0,1024]
     def create_comment_check(self,comment):
-        self.tdSql.execute(f'create database if not exists {self.dbname}')
+        self.tdCom.createDb(self.dbname)
         self.tdSql.execute(f'use {self.dbname}')
         self.tdSql.execute(
             f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment}"')
@@ -32,7 +32,7 @@ class TestComp(TDCase):
         
     def create_comment_error(self):
         comment = self.tdCom.get_long_name(length=max(self.comment_length)+1)
-        self.tdSql.execute(f'create database if not exists {self.dbname}')
+        self.tdCom.createDb(self.dbname)
         self.tdSql.execute(f'use {self.dbname}')
         self.tdSql.error(
             f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment}"')
@@ -41,7 +41,7 @@ class TestComp(TDCase):
     def alter_comment_check(self,comment):
         comment_init = self.tdCom.get_long_name(length=min(self.comment_length))
         self.tdSql.execute(f'drop database  if exists {self.dbname}')
-        self.tdSql.execute(f'create database if not exists {self.dbname}')
+        self.tdCom.createDb(self.dbname)
         self.tdSql.execute(f'use {self.dbname}')
         self.tdSql.execute(
             f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment_init}"')
@@ -53,7 +53,7 @@ class TestComp(TDCase):
     def alter_comment_error(self):
         comment_init = self.tdCom.get_long_name(length=min(self.comment_length))
         self.tdSql.execute(f'drop database  if exists {self.dbname}')
-        self.tdSql.execute(f'create database if not exists {self.dbname}')
+        self.tdCom.createDb(self.dbname)
         self.tdSql.execute(f'use {self.dbname}')
         self.tdSql.execute(
             f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment_init}"')
@@ -61,7 +61,7 @@ class TestComp(TDCase):
         self.tdSql.error(f'alter table {self.stbname} comment "{comment}"')
     def create_comment_null(self):
         self.tdSql.execute(f'drop database  if exists {self.dbname}')
-        self.tdSql.execute(f'create database if not exists {self.dbname}')
+        self.tdCom.createDb(self.dbname)
         self.tdSql.execute(f'use {self.dbname}')
         self.tdSql.execute(
             f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int)')

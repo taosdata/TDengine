@@ -26,7 +26,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdCom.sml_type = "influxdb"
         self.tdCom.drop_all_db()
         self.dbname = self.tdCom.get_long_name()
-        self.tdCom.createDb(dbname=self.dbname, precision="us", schemaless=1)
+        self.tdCom.createDb(dbname=self.dbname, precision="us")
         self._remote: Remote = Remote(self.logger)
         self.taospy_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taospy")
         if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
@@ -84,8 +84,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         input_sql, stb_name = self.tdCom.gen_full_type_sql(ts=0)
         self.tdCom.check_res(input_sql, stb_name, ts=0)
         self.tdSql.execute(f"drop database if exists test_ts")
-        self.tdSql.execute(f"create database if not exists test_ts precision 'ms' schemaless 1")
-        self.tdSql.execute("use test_ts")
+        kv_dict = {"precision": "ms"}
+        self.tdCom.createDb("test_ts", **kv_dict)
         input_sql = ['test_ms,t0=t c0=t 1626006833640', 'test_ms,t0=t c0=f 1626006833641']
         self.tdSql._conn.schemaless_insert(input_sql, TDSmlProtocolType.LINE.value, TDSmlTimestampType.MILLI_SECOND.value)
         self.tdSql.query('select * from test_ms')
@@ -93,8 +93,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "2021-07-11 20:33:53.641000")
 
         self.tdSql.execute(f"drop database if exists test_ts")
-        self.tdSql.execute(f"create database if not exists test_ts precision 'us' schemaless 1")
-        self.tdSql.execute("use test_ts")
+        kv_dict = {"precision": "us"}
+        self.tdCom.createDb("test_ts", **kv_dict)
         input_sql = ['test_us,t0=t c0=t 1626006833639000', 'test_us,t0=t c0=f 1626006833639001']
         self.tdSql._conn.schemaless_insert(input_sql, TDSmlProtocolType.LINE.value, TDSmlTimestampType.MICRO_SECOND.value)
         self.tdSql.query('select * from test_us')
@@ -102,15 +102,15 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "2021-07-11 20:33:53.639001")
 
         self.tdSql.execute(f"drop database if exists test_ts")
-        self.tdSql.execute(f"create database if not exists test_ts precision 'ns' schemaless 1")
-        self.tdSql.execute("use test_ts")
+        kv_dict = {"precision": "ns"}
+        self.tdCom.createDb("test_ts", **kv_dict)
         input_sql = ['test_ns,t0=t c0=t 1626006833639000000', 'test_ns,t0=t c0=f 1626006833639000001']
         self.tdSql._conn.schemaless_insert(input_sql, TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         self.tdSql.query('select * from test_ns')
         self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "1626006833639000000")
         self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "1626006833639000001")
 
-        self.tdCom.createDb(precision="us", schemaless=1)
+        self.tdCom.createDb(precision="us")
 
     def id_seq_check(self):
         """
