@@ -74,7 +74,7 @@
   } while (0)
 
 #define GRANT_VERSION (grantStatus.officialVersion ? "official" : "trial")
-#define GRANT_CONN_MAJOR_VER 2  // history 1:2:x
+#define GRANT_CONN_MAJOR_VER 1  // history 1:x:x
 #define GRANT_CONN_MINOR_VER 1  // history 1:x:x
 #define GRANT_FLAG_TDENGINE ((int8_t)0x01)
 #define GRANT_FLAG_CONNECTORS ((int8_t)0x02)
