@@ -13,36 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_COMMON_GRANT_H_
-#define _TD_COMMON_GRANT_H_
+#define _DEFAULT_SOURCE
+#include "tgrant.h"
 
-#ifdef __cplusplus
-extern "C" {
+#ifndef _GRANT
+
+int32_t grantCheck(EGrantType grant) { return TSDB_CODE_SUCCESS; }
+
 #endif
-
-#include "os.h"
-#include "taoserror.h"
-
-typedef enum {
-  TSDB_GRANT_ALL,
-  TSDB_GRANT_TIME,
-  TSDB_GRANT_USER,
-  TSDB_GRANT_DB,
-  TSDB_GRANT_TIMESERIES,
-  TSDB_GRANT_DNODE,
-  TSDB_GRANT_ACCT,
-  TSDB_GRANT_STORAGE,
-  TSDB_GRANT_SPEED,
-  TSDB_GRANT_QUERY_TIME,
-  TSDB_GRANT_CONNS,
-  TSDB_GRANT_STREAMS,
-  TSDB_GRANT_CPU_CORES,
-} EGrantType;
-
-int32_t grantCheck(EGrantType grant);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_COMMON_GRANT_H_*/
