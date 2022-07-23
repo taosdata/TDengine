@@ -701,7 +701,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
   }
 
   if (pTrans && mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
-  tsGrantHBInterval = TMIN(TMAX(3, iter / 2), 30);
+  tsGrantHBInterval = TMIN(TMAX(5, iter / 2), 30);
   terrno = 0;
 
 _OVER:
@@ -865,7 +865,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
 
   code = mndCreateDnode(pMnode, pReq, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-
+  tsGrantHBInterval = 5;
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("dnode:%s:%d, failed to create since %s", createReq.fqdn, createReq.port, terrstr());
