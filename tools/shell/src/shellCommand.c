@@ -524,10 +524,8 @@ int32_t shellReadCommand(char *command) {
           c = taosGetConsoleChar();
           switch (c) {
             case 'A':  // Up arrow
-              if (hist_counter != pHistory->hstart) {
-                hist_counter = (hist_counter + SHELL_MAX_HISTORY_SIZE - 1) % SHELL_MAX_HISTORY_SIZE;
-                shellResetCommand(&cmd, (pHistory->hist[hist_counter] == NULL) ? "" : pHistory->hist[hist_counter]);
-              }
+              hist_counter = (hist_counter + SHELL_MAX_HISTORY_SIZE - 1) % SHELL_MAX_HISTORY_SIZE;
+              shellResetCommand(&cmd, (pHistory->hist[hist_counter] == NULL) ? "" : pHistory->hist[hist_counter]);
               break;
             case 'B':  // Down arrow
               if (hist_counter != pHistory->hend) {
