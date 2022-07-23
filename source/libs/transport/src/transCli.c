@@ -38,8 +38,8 @@ typedef struct SCliConn {
 
   SDelayTask* task;
   // debug and log info
-  struct sockaddr_in addr;
-  struct sockaddr_in localAddr;
+  struct sockaddr addr;
+  struct sockaddr localAddr;
 } SCliConn;
 
 typedef struct SCliMsg {
@@ -359,9 +359,12 @@ void cliHandleResp(SCliConn* conn) {
   }
 
   STraceId* trace = &transMsg.info.traceId;
+
   tGTrace("%s conn %p %s received from %s:%d, local info:%s:%d, msg size:%d, code:0x%x", CONN_GET_INST_LABEL(conn),
-          conn, TMSG_INFO(pHead->msgType), taosInetNtoa(conn->addr.sin_addr), ntohs(conn->addr.sin_port),
-          taosInetNtoa(conn->localAddr.sin_addr), ntohs(conn->localAddr.sin_port), transMsg.contLen, transMsg.code);
+          conn, TMSG_INFO(pHead->msgType), taosInetNtoa(((struct sockaddr_in*)&conn->addr)->sin_addr),
+          ntohs(((struct sockaddr_in*)&conn->addr)->sin_port),
+          taosInetNtoa(((struct sockaddr_in*)&conn->localAddr)->sin_addr),
+          ntohs(((struct sockaddr_in*)&conn->localAddr)->sin_port), transMsg.contLen, transMsg.code);
 
   if (pCtx == NULL && CONN_NO_PERSIST_BY_APP(conn)) {
     tDebug("%s except, conn %p read while cli ignore it", CONN_GET_INST_LABEL(conn), conn);
@@ -738,8 +741,10 @@ void cliSend(SCliConn* pConn) {
 
   STraceId* trace = &pMsg->info.traceId;
   tGTrace("%s conn %p %s is sent to %s:%d, local info %s:%d", CONN_GET_INST_LABEL(pConn), pConn,
-          TMSG_INFO(pHead->msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
-          taosInetNtoa(pConn->localAddr.sin_addr), ntohs(pConn->localAddr.sin_port));
+          TMSG_INFO(pHead->msgType), taosInetNtoa(((struct sockaddr_in*)&pConn->addr)->sin_addr),
+          ntohs(((struct sockaddr_in*)&pConn->addr)->sin_port),
+          taosInetNtoa(((struct sockaddr_in*)&pConn->localAddr)->sin_addr),
+          ntohs(((struct sockaddr_in*)&pConn->localAddr)->sin_port));
 
   if (pHead->persist == 1) {
     CONN_SET_PERSIST_BY_APP(pConn);
@@ -761,10 +766,10 @@ void cliConnCb(uv_connect_t* req, int status) {
     return;
   }
   int addrlen = sizeof(pConn->addr);
-  uv_tcp_getpeername((uv_tcp_t*)pConn->stream, (struct sockaddr*)&pConn->addr, &addrlen);
+  uv_tcp_getpeername((uv_tcp_t*)pConn->stream, &pConn->addr, &addrlen);
 
   addrlen = sizeof(pConn->localAddr);
-  uv_tcp_getsockname((uv_tcp_t*)pConn->stream, (struct sockaddr*)&pConn->localAddr, &addrlen);
+  uv_tcp_getsockname((uv_tcp_t*)pConn->stream, &pConn->localAddr, &addrlen);
 
   tTrace("%s conn %p connect to server successfully", CONN_GET_INST_LABEL(pConn), pConn);
   assert(pConn->stream == req->handle);
