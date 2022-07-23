@@ -91,4 +91,5 @@ goto :eof
 :CheckSkipCase
 set skipCase=false
 if "%*" == "python3 ./test.py -f 1-insert/insertWithMoreVgroup.py" ( set skipCase=true )
+echo %* | grep "\-R" && set skipCase=true
 :goto eof

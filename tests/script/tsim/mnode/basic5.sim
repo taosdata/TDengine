@@ -68,13 +68,17 @@ step31:
 		return -1
 	endi
 sql show mnodes
-if $data(1)[2] != leader then
-  goto step31
+$leaderNum = 0
+if $data(1)[2] == leader then
+  $leaderNum = 1
 endi
-if $data(2)[2] != follower then
-  goto step31
+if $data(2)[2] == leader then
+  $leaderNum = 1
 endi
-if $data(3)[2] != follower then
+if $data(3)[2] == leader then
+  $leaderNum = 1
+endi
+if  $leaderNum == 0 then
   goto step31
 endi
 
@@ -302,10 +306,10 @@ print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
 $leaderNum = 0
-if $data(2)[2] == leader then
+if $data(1)[2] == leader then
   $leaderNum = 1
 endi
-if $data(3)[2] == leader then
+if $data(2)[2] == leader then
   $leaderNum = 1
 endi
 if $data(3)[2] == leader then
