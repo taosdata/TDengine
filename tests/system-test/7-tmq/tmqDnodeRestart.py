@@ -131,10 +131,10 @@ class TDTestCase:
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
         
         # time.sleep(3)
-        tmqCom.getStartCommitNotifyFromTmqsim()
+        tmqCom.getStartConsumeNotifyFromTmqsim()
         tdLog.info("================= restart dnode ===========================")
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdDnodes.stoptaosd(1)
+        tdDnodes.starttaosd(1)
         # time.sleep(3)
 
         tdLog.info(" restart taosd end and wait to check consume result")
@@ -250,10 +250,10 @@ class TDTestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
-        tmqCom.getStartCommitNotifyFromTmqsim()
+        tmqCom.getStartConsumeNotifyFromTmqsim()
         tdLog.info("================= restart dnode ===========================")
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdDnodes.stoptaosd(1)
+        tdDnodes.starttaosd(1)
         # time.sleep(3)
 
         tdLog.info("create some new child table and insert data ")
