@@ -137,6 +137,8 @@ cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry) {
     cJSON_AddStringToObject(pRoot, "term", u64buf);
     snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pEntry->index);
     cJSON_AddStringToObject(pRoot, "index", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pEntry->rid);
+    cJSON_AddStringToObject(pRoot, "rid", u64buf);
     cJSON_AddNumberToObject(pRoot, "dataLen", pEntry->dataLen);
 
     char* s;
