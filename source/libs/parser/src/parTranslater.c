@@ -1220,6 +1220,14 @@ static int32_t translateMultiResFunc(STranslateContext* pCxt, SFunctionNode* pFu
   }
   return TSDB_CODE_SUCCESS;
 }
+
+static int32_t getMultiResFuncNum(SNodeList* pParameterList) {
+  if (1 == LIST_LENGTH(pParameterList)) {
+    return isStar(nodesListGetNode(pParameterList, 0)) ? 2 : 1;
+  }
+  return LIST_LENGTH(pParameterList);
+}
+
 static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
   if (NULL != pCurrStmt && QUERY_NODE_SELECT_STMT == nodeType(pCurrStmt)) {
     SSelectStmt* pSelect = (SSelectStmt*)pCurrStmt;
@@ -1229,7 +1237,7 @@ static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
     pSelect->hasMultiRowsFunc = pSelect->hasMultiRowsFunc ? true : fmIsMultiRowsFunc(pFunc->funcId);
     if (fmIsSelectFunc(pFunc->funcId)) {
       pSelect->hasSelectFunc = true;
-      ++(pSelect->selectFuncNum);
+      pSelect->selectFuncNum += fmIsMultiResFunc(pFunc->funcId) ? getMultiResFuncNum(pFunc->pParameterList) : 1;
     } else if (fmIsVectorFunc(pFunc->funcId)) {
       pSelect->hasOtherVectorFunc = true;
     }
@@ -6053,7 +6061,7 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
     pReq->pTagVal = (uint8_t*)pTag;
     pStmt->pVal->datum.p = (char*)pTag;  // for free
   } else {
-    pReq->isNull = (TSDB_DATA_TYPE_NULL == pStmt->pVal->node.resType.type);
+    pReq->isNull = pStmt->pVal->isNull;
     pReq->nTagVal = pStmt->pVal->node.resType.bytes;
     pReq->pTagVal = nodesGetValueFromNode(pStmt->pVal);
 
