@@ -108,6 +108,9 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode);
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext);
 int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond, STableListInfo* pListInfo);
+int32_t getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId);
+size_t  getTableTagsBufLen(const SNodeList* pGroups);
+
 SArray*  createSortInfo(SNodeList* pNodeList);
 SArray*  extractPartitionColInfo(SNodeList* pNodeList);
 SArray*  extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
@@ -129,6 +132,6 @@ int32_t convertFillType(int32_t mode);
 
 int32_t resultrowComparAsc(const void* p1, const void* p2);
 
-int32_t isTableOk(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified);
+int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified);
 
 #endif  // TDENGINE_QUERYUTIL_H

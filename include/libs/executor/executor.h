@@ -65,7 +65,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers);
  * @return
  */
 qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols,
-                                     SSchemaWrapper** pSchemaWrapper);
+                                     SSchemaWrapper** pSchema);
 
 /**
  * Set the input data block for the stream scan.
@@ -195,6 +195,8 @@ int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
 int32_t qStreamInput(qTaskInfo_t tinfo, void* pItem);
 
 int32_t qStreamPrepareRecover(qTaskInfo_t tinfo, int64_t startVer, int64_t endVer);
+
+STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key);
 
 #ifdef __cplusplus
 }

@@ -101,6 +101,7 @@ int32_t tqMetaOpen(STQ* pTq) {
       handle.execHandle.execDb.pFilterOutTbUid =
           taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     }
+    tqDebug("tq restore %s consumer %ld", handle.subKey, handle.consumerId);
     taosHashPut(pTq->handles, pKey, kLen, &handle, sizeof(STqHandle));
   }
 
