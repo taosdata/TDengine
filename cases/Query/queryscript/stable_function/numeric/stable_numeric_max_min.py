@@ -260,7 +260,7 @@ class TDTestQuery(TDCase):
                         interval_fill = ' where ts between 1630000001000 and 1630100001000 '
                         interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
                         
-                        for i in (1,2,3,4,):   #21,                     
+                        for i in (1,2,3,4,21,):                     
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)
@@ -283,28 +283,28 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                                       
-                        # for i in (1,2,3,4,6,7,8,9,21,):                        
-                        #     time_window_new = tdWhere.time_window_new(i)
-                        #     self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
-                        #     sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)
+                        for i in (1,2,3,4,6,7,8,9,21,):                        
+                            time_window_new = tdWhere.time_window_new(i)
+                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
+                            sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)
 
-                        #     sql2 = "select %s from %s where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        #     cur1.execute(sql2)
-                        #     self.tdCreateData.explain_sql(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select %s from %s where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
 
-                        #     sql2 = "select * from (select %s from %s where %s %s %s %s %s);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        #     cur1.execute(sql2)
-                        #     self.tdCreateData.explain_sql(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select * from (select %s from %s where %s %s %s %s %s);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
 
-                        #     sql2 = "select %s from (select * from %s order by ts ) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     #self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        #     cur1.execute(sql2)
-                        #     self.tdCreateData.explain_sql(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select %s from (select * from %s order by ts ) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
                                                 
                         for i in range(11,21):                        
                             time_window_new = tdWhere.time_window_new(i)
@@ -800,7 +800,7 @@ class TDTestQuery(TDCase):
                         interval_fill = ' where ts between 1630000001000 and 1630100001000 '
                         interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
                         
-                        for i in (1,2,3,4,):  #21,                         
+                        for i in (1,2,3,4,21,):                          
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s order by ts;'  % (func,self.table,time_window_new)                           
@@ -835,7 +835,7 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                         
-                        for i in (1,2,3,4,6,7,8,9,):  #21,                         
+                        for i in (1,2,3,4,6,7,8,9,21,):                           
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s %s order by ts;'  % (func,self.table,interval_fill,time_window_new)                           
@@ -978,7 +978,7 @@ class TDTestQuery(TDCase):
                         interval_fill = ' where ts between 1630000001000 and 1630100001000 '
                         interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
                         
-                        for i in (1,2,3,4,):  #21,                      
+                        for i in (1,2,3,4,21,):                       
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s order by ts desc;'  % (func,self.table,time_window_new)                                                
@@ -1009,7 +1009,7 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                         
-                        for i in (1,2,3,4,6,7,8,9,):  #21,                       
+                        for i in (1,2,3,4,6,7,8,9,21,):                         
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s %s order by ts desc;'  % (func,self.table,interval_fill,time_window_new)                                                
@@ -1336,7 +1336,7 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where  %s %s %s order by ts limit 10" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        #self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -1480,7 +1480,7 @@ class TDTestQuery(TDCase):
                         interval_fill = ' where ts between 1630000001000 and 1630100001000 '
                         interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
                         
-                        for i in (1,2,3,4,):  #21,                         
+                        for i in (1,2,3,4,21,):                           
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n=====right case========case3====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s order by ts ;'  % (func,self.table,time_window_new)
@@ -1503,7 +1503,7 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                         
-                        for i in (1,2,3,4,6,7,8,9,):  #21,                         
+                        for i in (1,2,3,4,6,7,8,9,21,):                         
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n=====right case========case3====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s %s order by ts ;'  % (func,self.table,interval_fill,time_window_new)
@@ -1605,7 +1605,8 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
-                cur1.execute('use %s;' %self.db)            
+                cur1.execute('use %s;' %self.db_3) 
+                self.tdSql.execute('use %s;' %self.db_3)             
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
                 
@@ -1621,7 +1622,7 @@ class TDTestQuery(TDCase):
                         interval_fill = ' where ts between 1630000001000 and 1630100001000 '
                         interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
                         
-                        for i in (1,2,3,4,):  #21                      
+                        for i in (1,2,3,4,21,):                        
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n=====right case========case3====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select ts,%s from %s %s order by ts ;'  % (func,self.table,time_window_new)
@@ -1644,7 +1645,7 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                         
-                        for i in (1,2,3,4,6,7,8,9,):  #21                         
+                        for i in (1,2,3,4,6,7,8,9,21,):                           
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n=====right case========case3====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select ts,%s from %s %s %s order by ts ;'  % (func,self.table,interval_fill,time_window_new)
