@@ -214,8 +214,8 @@ static void doBitmapMerge(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, c
   }
 }
 
-int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, uint32_t* capacity,
-                        const SColumnInfoData* pSource, uint32_t numOfRow2) {
+int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int32_t* capacity,
+                        const SColumnInfoData* pSource, int32_t numOfRow2) {
   ASSERT(pColumnInfoData != NULL && pSource != NULL && pColumnInfoData->info.type == pSource->info.type);
   if (numOfRow2 == 0) {
     return numOfRow1;
@@ -368,6 +368,10 @@ int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pCol2 = taosArrayGet(pDest->pDataBlock, i);
     SColumnInfoData* pCol1 = taosArrayGet(pSrc->pDataBlock, i);
+
+    if (pCol1->info.type == 0) {  // ignore null type
+      continue;
+    }
 
     capacity = pDest->info.capacity;
     colDataMergeCol(pCol2, pDest->info.rows, &capacity, pCol1, pSrc->info.rows);
