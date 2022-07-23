@@ -89,6 +89,7 @@ void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t type, STagVal *tagVal);
+int         metaGetTableNameByUid(void* meta, uint64_t uid, char* tbName);
 
 typedef struct SMetaFltParam {
   tb_uid_t suid;

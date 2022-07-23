@@ -27,6 +27,7 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
 #include "taos.h"
+#include "executor.h"
 
 namespace {
 void showDB(TAOS* pConn) {
@@ -823,10 +824,21 @@ TEST(testCase, async_api_test) {
 
 
 TEST(testCase, update_test) {
+
+  SInterval interval = {0};
+  interval.offset = 8000;
+  interval.interval = 10000;
+  interval.sliding = 4000;
+  interval.intervalUnit = 's';
+  interval.offsetUnit = 's';
+  interval.slidingUnit = 's';
+// STimeWindow w = getAlignQueryTimeWindow(&interval, 0, 1630000000000);
+ STimeWindow w = getAlignQueryTimeWindow(&interval, 0, 1629999999999);
+
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1");
+  TAOS_RES* pRes = taos_query(pConn, "select cast(0 as timestamp)-1y");
   if (taos_errno(pRes) != TSDB_CODE_SUCCESS) {
     printf("failed to create database, code:%s", taos_errstr(pRes));
     taos_free_result(pRes);

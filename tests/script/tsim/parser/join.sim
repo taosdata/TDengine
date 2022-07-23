@@ -54,8 +54,6 @@ while $i < $tbNum
   $tstart = 100000
 endw
 
-sleep 100
-
 $tstart = 100000
 $mt = $mtPrefix . 1 . $i
 sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12), t3 int)
@@ -98,8 +96,6 @@ while $i < $tbNum
   $i = $i + 1
   $tstart = 100000
 endw
-
-sleep 100
 
 $i1 = 1
 $i2 = 0
@@ -233,14 +229,23 @@ endi
 
 print 1
 #select + where condition + interval query
-sql select count(join_tb1.*) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = true interval(10a) order by join_tb0.ts desc;
-
+print select count(join_tb1.*) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = true interval(10a) order by _wstart asc;
+sql select count(join_tb1.*) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = true interval(10a) order by _wstart asc;
 $val = 100
 if $rows != $val then
   return -1
 endi
 
-print 2
+print select count(join_tb1.*) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = true interval(10a) order by _wstart desc;
+sql select count(join_tb1.*) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = true interval(10a) order by _wstart desc;
+$val = 100
+if $rows != $val then
+  return -1
+endi
+
+#TODO
+return
+
 #===========================aggregation===================================
 #select + where condition
 sql select count(join_tb1.*), count(join_tb0.*) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = false;
