@@ -18,8 +18,8 @@ from tmqCommon import *
 class TDTestCase:
     def __init__(self):
         self.vgroups    = 4
-        self.ctbNum     = 1
-        self.rowsPerTbl = 10000
+        self.ctbNum     = 100
+        self.rowsPerTbl = 1000
         
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
@@ -38,8 +38,8 @@ class TDTestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
                     'ctbPrefix':  'ctb',
                     'ctbStartIdx': 0,
-                    'ctbNum':     1,
-                    'rowsPerTbl': 10000,
+                    'ctbNum':     100,
+                    'rowsPerTbl': 1000,
                     'batchNum':   100,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  10,
@@ -81,9 +81,9 @@ class TDTestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
                     'ctbPrefix':  'ctb',
                     'ctbStartIdx': 0,
-                    'ctbNum':     10,
-                    'rowsPerTbl': 10000,
-                    'batchNum':   100,
+                    'ctbNum':     100,
+                    'rowsPerTbl': 1000,
+                    'batchNum':   500,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  5,
                     'showMsg':    1,
@@ -138,12 +138,12 @@ class TDTestCase:
         if expectRowsList[0] != resultList[0]:
             tdLog.exit("%d tmq consume rows error!"%consumerId)
 
-        tmqCom.checkFileContent(consumerId, queryString) 
+        # tmqCom.checkFileContent(consumerId, queryString) 
 
         tdSql.query("flush database %s"%(paraDict['dbName']))
-
+        
         for i in range(len(topicNameList)):
-            tmqCom.waitSubscriptionExit(tdSql,topicNameList[i])   
+            tmqCom.waitSubscriptionExit(tdSql,topicNameList[i])    
             tdSql.query("drop topic %s"%topicNameList[i])
 
         tdLog.printNoPrefix("======== test case 1 end ...... ")
@@ -161,9 +161,9 @@ class TDTestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
                     'ctbPrefix':  'ctb',
                     'ctbStartIdx': 0,
-                    'ctbNum':     10,
-                    'rowsPerTbl': 10000,
-                    'batchNum':   10,
+                    'ctbNum':     100,
+                    'rowsPerTbl': 1000,
+                    'batchNum':   500,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  3,
                     'showMsg':    1,
@@ -227,9 +227,9 @@ class TDTestCase:
         tdLog.info("act consume rows: %d, expect rows: %d, act insert rows: %d"%(actConsumeRows, expectrowcnt, totalRowsInserted))    
         if not ((actConsumeRows >= expectrowcnt) and (totalRowsInserted > actConsumeRows)):
             tdLog.exit("%d tmq consume rows error!"%consumerId)
-
+            
         for i in range(len(topicNameList)):
-            tmqCom.waitSubscriptionExit(tdSql,topicNameList[i]) 
+            tmqCom.waitSubscriptionExit(tdSql,topicNameList[i])    
             tdSql.query("drop topic %s"%topicNameList[i])
 
         tdLog.printNoPrefix("======== test case 2 end ...... ")
