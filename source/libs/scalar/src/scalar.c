@@ -824,14 +824,10 @@ EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
+  res->node.resType = node->node.resType;
   if (colDataIsNull_s(output.columnData, 0)) {
-    if(node->node.resType.type != TSDB_DATA_TYPE_JSON){
-      res->node.resType.type = TSDB_DATA_TYPE_NULL;
-      res->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
-    } else {
-      res->isNull = true;
-      res->node.resType = node->node.resType;
-    }
+    res->isNull = true;
+    res->node.resType = node->node.resType;
   } else {
     int32_t type = output.columnData->info.type;
     if (IS_VAR_DATA_TYPE(type)) {  // todo refactor
