@@ -131,8 +131,7 @@ int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numO
   return code;
 }
 
-qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols,
-                                     SSchemaWrapper** pSchemaWrapper) {
+qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols, SSchemaWrapper** pSchema) {
   if (msg == NULL) {
     // TODO create raw scan
     return NULL;
@@ -166,7 +165,7 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* n
     }
   }
 
-  *pSchemaWrapper = tCloneSSchemaWrapper(((SExecTaskInfo*)pTaskInfo)->schemaInfo.qsw);
+  *pSchema = tCloneSSchemaWrapper(((SExecTaskInfo*)pTaskInfo)->schemaInfo.qsw);
   return pTaskInfo;
 }
 
@@ -219,7 +218,7 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
     if (pScanInfo->pTagCond != NULL) {
       bool          qualified = false;
       STableKeyInfo info = {.groupId = 0, .uid = mr.me.uid};
-      code = isTableOk(&info, pScanInfo->pTagCond, pScanInfo->readHandle.meta, &qualified);
+      code = isQualifiedTable(&info, pScanInfo->pTagCond, pScanInfo->readHandle.meta, &qualified);
       if (code != TSDB_CODE_SUCCESS) {
         qError("failed to filter new table, uid:0x%" PRIx64 ", %s", info.uid, idstr);
         continue;
@@ -273,7 +272,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
       STableKeyInfo keyInfo = {.uid = *uid, .groupId = 0};
 
       if (bufLen > 0) {
-        code = getGroupIdFromTableTags(pScanInfo->readHandle.meta, keyInfo.uid, pScanInfo->pGroupTags, keyBuf,
+        code = getGroupIdFromTagsVal(pScanInfo->readHandle.meta, keyInfo.uid, pScanInfo->pGroupTags, keyBuf,
                                        &keyInfo.groupId);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
@@ -458,13 +457,11 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
 
 int32_t qKillTask(qTaskInfo_t qinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qinfo;
-
   if (pTaskInfo == NULL) {
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
-  qDebug("%s execTask killed", GET_TASKID(pTaskInfo));
-  setTaskKilled(pTaskInfo);
+  qAsyncKillTask(qinfo);
 
   // Wait for the query executing thread being stopped/
   // Once the query is stopped, the owner of qHandle will be cleared immediately.
@@ -484,7 +481,6 @@ int32_t qAsyncKillTask(qTaskInfo_t qinfo) {
 
   qDebug("%s execTask async killed", GET_TASKID(pTaskInfo));
   setTaskKilled(pTaskInfo);
-
   return TSDB_CODE_SUCCESS;
 }
 

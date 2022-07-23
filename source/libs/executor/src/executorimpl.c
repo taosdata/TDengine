@@ -4362,7 +4362,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
   int32_t groupNum = 0;
   for (int32_t i = 0; i < taosArrayGetSize(pTableListInfo->pTableList); i++) {
     STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
-    int32_t code = getGroupIdFromTableTags(pHandle->meta, info->uid, group, keyBuf, &info->groupId);
+    int32_t code = getGroupIdFromTagsVal(pHandle->meta, info->uid, group, keyBuf, &info->groupId);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }

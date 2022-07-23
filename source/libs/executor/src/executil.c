@@ -265,7 +265,7 @@ EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-int32_t isTableOk(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified) {
+int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified) {
   int32_t     code = TSDB_CODE_SUCCESS;
   SMetaReader mr = {0};
 
@@ -356,7 +356,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       STableKeyInfo* info = taosArrayGet(pListInfo->pTableList, i);
 
       bool qualified = true;
-      code = isTableOk(info, pTagCond, metaHandle, &qualified);
+      code = isQualifiedTable(info, pTagCond, metaHandle, &qualified);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -392,7 +392,7 @@ size_t getTableTagsBufLen(const SNodeList* pGroups) {
   return keyLen;
 }
 
-int32_t getGroupIdFromTableTags(void* pMeta, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId) {
+int32_t getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId) {
   SMetaReader    mr = {0};
   metaReaderInit(&mr, pMeta, 0);
   metaGetTableEntryByUid(&mr, uid);
