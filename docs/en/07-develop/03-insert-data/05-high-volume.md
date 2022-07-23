@@ -8,7 +8,7 @@ import TabItem from "@theme/TabItem";
 
 This chapter introduces how to write data into TDengine with high throughput.
 
-## How to Achieve high performance data writing
+## How to achieve high performance data writing
 
 To achieve high performance writing, there are a few aspects to consider. In the following sections we will describe these important factors in achieving high performance writing.
 
@@ -25,7 +25,7 @@ From the perspective of application program, you need to consider:
 4. Data Writing Protocol.
    - Prameter binding mode is more efficient than SQL because it doesn't have the cost of parsing SQL.
    - Writing to known existing tables is more efficient than wirting to uncertain tables in automatic creating mode because the later needs to check whether the table exists or not before actually writing data into it
-   - Writing in SQL is more efficient than wirting in schemaless mode because schemaless writing creats table automatically and may alter table schema
+   - Writing in SQL is more efficient than writing in schemaless mode because schemaless writing creats table automatically and may alter table schema
 
 Application programs need to take care of the above factors and try to take advantage of them. The application progam should write to single table in each write batch. The batch size needs to be tuned to a proper value on a specific system. The number of concurrent connections needs to be tuned to a proper value too to achieve the best writing throughput.
 
@@ -40,8 +40,8 @@ Application programs need to read data from data source then write into TDengine
 If the data source is Kafka, then the appication program is a consumer of Kafka, you can benefit from some kafka features to achieve high performance writing:
 
 1. Put the data for a table in single partition of single topic so that it's easier to put the data for each table together and write in batch
-2. Subscribe multiple topics to accumulate data toger.
-3. Add more consumers to increase the speed of data generation, thenincrease the number of wirting thredads to get higher writing speed.
+2. Subscribe multiple topics to accumulate data together.
+3. Add more consumers to gain more concurrency and throughput.
 4. Incrase the size of single fetch to increase the size of write batch.
 
 ### Tune TDengine
@@ -49,7 +49,7 @@ If the data source is Kafka, then the appication program is a consumer of Kafka,
 TDengine is a distributed and high performance time series database, there are also some ways to tune TDengine to get better writing performance.
 
 1. Set proper number of `vgroups` according to available CPU cores. Normally, we recommend 2 \* number_of_cores as a starting point. If the verification result shows this is not enough to utilize CPU resources, you can use a higher value.
-2. Set proper `minTablesPerVnode`, `tableIncStepPerVnode`, and `maxVgroupsPerDb` according to the number of tables so that tables are distributed even across vgroups. Thhe purpose is to balance the work load among all vnodes so that system resources can be utilized better to get higher performance.
+2. Set proper `minTablesPerVnode`, `tableIncStepPerVnode`, and `maxVgroupsPerDb` according to the number of tables so that tables are distributed even across vgroups. The purpose is to balance the workload among all vnodes so that system resources can be utilized better to get higher performance.
 
 For more performance tuning tips, please refer to [Performance Optimization](../../operation/optimize) and [Configuration Parameters](../../reference/config).
 
