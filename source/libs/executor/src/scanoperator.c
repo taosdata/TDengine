@@ -1395,6 +1395,7 @@ static void destroyStreamScanOperatorInfo(void* param, int32_t numOfOutput) {
   if (pStreamScan->pTableScanOp && pStreamScan->pTableScanOp->info) {
     STableScanInfo* pTableScanInfo = pStreamScan->pTableScanOp->info;
     destroyTableScanOperatorInfo(pTableScanInfo, numOfOutput);
+    taosMemoryFreeClear(pStreamScan->pTableScanOp);
   }
 #endif
   if (pStreamScan->tqReader) {
