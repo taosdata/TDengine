@@ -134,6 +134,20 @@ def sync_source() {
         git submodule update --init --recursive
     '''
 }
+def pre_test_arm64() {
+    sync_source()
+    sh '''
+        cd ${WK}
+        mkdir -p debug
+        cd debug
+        go env -w GOPROXY=https://goproxy.cn,direct
+        go env -w GO111MODULE=on
+        cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true > /dev/null
+        make -j8 >/dev/null
+        make install
+    '''
+    return 1
+}
 def pre_test() {
     sync_source()
     sh '''
@@ -330,7 +344,7 @@ pipeline {
                     agent {label " worker07_arm64 || worker09_arm64 "}
                     steps {
                         timeout(time: 20, unit: 'MINUTES') {
-                            pre_test()
+                            pre_test_arm64()
                             script {
                                 sh '''
                                     echo "arm64 build done"
