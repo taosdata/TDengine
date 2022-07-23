@@ -113,8 +113,8 @@
 # TD-17659 ./test.sh -f tsim/parser/function.sim
 ./test.sh -f tsim/parser/groupby-basic.sim
 ./test.sh -f tsim/parser/groupby.sim
-# TD-17622 ./test.sh -f tsim/parser/having_child.sim
-# TD-17622 ./test.sh -f tsim/parser/having.sim
+./test.sh -f tsim/parser/having_child.sim
+./test.sh -f tsim/parser/having.sim
 ./test.sh -f tsim/parser/import_commit1.sim
 ./test.sh -f tsim/parser/import_commit2.sim
 ./test.sh -f tsim/parser/import_commit3.sim
