@@ -569,8 +569,10 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
       taosArrayDestroy(tbUidList);
     }
     taosHashPut(pTq->handles, req.subKey, strlen(req.subKey), pHandle, sizeof(STqHandle));
+    tqDebug("try to persist handle %s consumer %ld", req.subKey, pHandle->consumerId);
     if (tqMetaSaveHandle(pTq, req.subKey, pHandle) < 0) {
       // TODO
+      ASSERT(0);
     }
   } else {
     /*ASSERT(pExec->consumerId == req.oldConsumerId);*/
