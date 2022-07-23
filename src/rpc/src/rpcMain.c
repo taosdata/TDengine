@@ -362,7 +362,7 @@ void rpcFreeCont(void *cont) {
   if (cont) {
     char *temp = ((char *)cont) - sizeof(SRpcHead) - sizeof(SRpcReqContext);
     tTrace("free mem: %p", temp);
-    free(temp);
+//    free(temp);
   }
 }
 
@@ -574,7 +574,7 @@ static void rpcFreeMsg(void *msg) {
   if ( msg ) {
     char *temp = (char *)msg - sizeof(SRpcReqContext);
     tTrace("free mem: %p", temp);
-    free(temp);
+//    free(temp);
   }
 }
 
@@ -1217,6 +1217,9 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqConte
       rpcNotifyClient(pContext, &rpcMsg);
     }
   }
+  //https://github.com/taosdata/TDengine/issues/14124
+  free(pRpc);
+  free(pHead);
 }
 
 static void rpcSendQuickRsp(SRpcConn *pConn, int32_t code) {

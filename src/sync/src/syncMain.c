@@ -1186,14 +1186,15 @@ static void syncCheckPeerConnection(void *param, void *tmrId) {
   SSyncPeer *pPeer = syncAcquirePeer(rid);
   if (pPeer == NULL) return;
 
-  SSyncNode *pNode = pPeer->pSyncNode;
+//  SSyncNode *pNode = pPeer->pSyncNode;
 
-  pthread_mutex_lock(&pNode->mutex);
+//  pthread_mutex_lock(&pNode->mutex);
 
   sDebug("%s, check peer connection", pPeer->id);
-  syncSetupPeerConnection(pPeer);
+//  syncSetupPeerConnection(pPeer);
+  syncSetupPeerConnection((SSyncPeer *)atomic_load_ptr((int64_t *)pPeer));
 
-  pthread_mutex_unlock(&pNode->mutex);
+//  pthread_mutex_unlock(&pNode->mutex);
 
   syncReleasePeer(pPeer);
 }
@@ -1252,7 +1253,7 @@ static void syncProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp) {
   }
 
   int32_t code = syncCheckHead((SSyncHead *)(&msg));
-  if (code != 0) {
+  if (code < 0) { //Argument cannot be negative, https://github.com/taosdata/TDengine/issues/14125
     sError("failed to check peer sync msg from ip:%s since %s", ipstr, strerror(code));
     taosCloseSocket(connFd);
     return;
