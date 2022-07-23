@@ -86,7 +86,9 @@ static void sifFreeParam(SIFParam *param) {
 
   taosArrayDestroy(param->result);
   taosMemoryFree(param->condValue);
+  param->condValue = NULL;
   taosHashCleanup(param->pFilter);
+  param->pFilter = NULL;
 }
 
 static int32_t sifGetOperParamNum(EOperatorType ty) {
@@ -180,6 +182,7 @@ static int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   param->colId = l->colId;
   param->colValType = l->node.resType.type;
   memcpy(param->dbName, l->dbName, sizeof(l->dbName));
+  if (r->literal == NULL) return TSDB_CODE_QRY_INVALID_INPUT;
   memcpy(param->colName, r->literal, strlen(r->literal));
   param->colValType = r->typeData;
   param->status = SFLT_COARSE_INDEX;
@@ -281,6 +284,7 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
     return TSDB_CODE_SUCCESS;
   }
 _return:
+  for (int i = 0; i < nParam; i++) sifFreeParam(&paramList[i]);
   taosMemoryFree(paramList);
   SIF_RET(code);
 }
@@ -381,7 +385,7 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
                            .reverse = reverse,
                            .filterFunc = filterFunc};
 
-    ret = metaFilteTableIds(arg->metaEx, &param, output->result);
+    ret = metaFilterTableIds(arg->metaEx, &param, output->result);
   }
   return ret;
 }
@@ -536,6 +540,7 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   SIF_ERR_RET(sifInitOperParams(&params, node, ctx));
 
   if (params[0].status == SFLT_NOT_INDEX && (nParam > 1 && params[1].status == SFLT_NOT_INDEX)) {
+    for (int i = 0; i < nParam; i++) sifFreeParam(&params[i]);
     output->status = SFLT_NOT_INDEX;
     return code;
   }
@@ -545,17 +550,18 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   sif_func_t operFn = sifNullFunc;
 
   if (!ctx->noExec) {
-    SIF_ERR_RET(sifGetOperFn(node->opType, &operFn, &output->status));
-    SIF_ERR_RET(operFn(&params[0], nParam > 1 ? &params[1] : NULL, output));
+    SIF_ERR_JRET(sifGetOperFn(node->opType, &operFn, &output->status));
+    SIF_ERR_JRET(operFn(&params[0], nParam > 1 ? &params[1] : NULL, output));
   } else {
     // ugly code, refactor later
     if (nParam > 1 && params[1].status == SFLT_NOT_INDEX) {
       output->status = SFLT_NOT_INDEX;
       return code;
     }
-    SIF_ERR_RET(sifGetOperFn(node->opType, &operFn, &output->status));
+    SIF_ERR_JRET(sifGetOperFn(node->opType, &operFn, &output->status));
   }
-
+_return:
+  for (int i = 0; i < nParam; i++) sifFreeParam(&params[i]);
   taosMemoryFree(params);
   return code;
 }
@@ -738,6 +744,7 @@ static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status) {
 
   sifFreeParam(res);
   taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
+  taosHashCleanup(ctx.pRes);
 
   SIF_RET(code);
 }
