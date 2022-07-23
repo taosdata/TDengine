@@ -708,7 +708,7 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
     taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
   }
   sifFreeRes(ctx.pRes);
-  
+
   SIF_RET(code);
 }
 
