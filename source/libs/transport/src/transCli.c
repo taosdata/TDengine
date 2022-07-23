@@ -38,8 +38,11 @@ typedef struct SCliConn {
 
   SDelayTask* task;
   // debug and log info
-  struct sockaddr addr;
-  struct sockaddr localAddr;
+  char src[32];
+  char dst[32];
+
+  // struct sockaddr addr;
+  // struct sockaddr localAddr;
 } SCliConn;
 
 typedef struct SCliMsg {
@@ -95,6 +98,14 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port);
 static void      addConnToPool(void* pool, SCliConn* conn);
 static void      doCloseIdleConn(void* param);
 
+static int sockDebugInfo(struct sockaddr* sockname, char* dst) {
+  struct sockaddr_in addr = *(struct sockaddr_in*)sockname;
+
+  char buf[20] = {0};
+  int  r = uv_ip4_name(&addr, (char*)buf, sizeof(buf));
+  sprintf(dst, "%s:%d", buf, ntohs(addr.sin_port));
+  return r;
+}
 // register timer in each thread to clear expire conn
 // static void cliTimeoutCb(uv_timer_t* handle);
 // alloc buf for recv
@@ -360,11 +371,8 @@ void cliHandleResp(SCliConn* conn) {
 
   STraceId* trace = &transMsg.info.traceId;
 
-  tGTrace("%s conn %p %s received from %s:%d, local info:%s:%d, msg size:%d, code:0x%x", CONN_GET_INST_LABEL(conn),
-          conn, TMSG_INFO(pHead->msgType), taosInetNtoa(((struct sockaddr_in*)&conn->addr)->sin_addr),
-          ntohs(((struct sockaddr_in*)&conn->addr)->sin_port),
-          taosInetNtoa(((struct sockaddr_in*)&conn->localAddr)->sin_addr),
-          ntohs(((struct sockaddr_in*)&conn->localAddr)->sin_port), transMsg.contLen, transMsg.code);
+  tGTrace("%s conn %p %s received from %s, local info:%s, msg size:%d, code:0x%x", CONN_GET_INST_LABEL(conn), conn,
+          TMSG_INFO(pHead->msgType), conn->dst, conn->src, transMsg.contLen, transMsg.code);
 
   if (pCtx == NULL && CONN_NO_PERSIST_BY_APP(conn)) {
     tDebug("%s except, conn %p read while cli ignore it", CONN_GET_INST_LABEL(conn), conn);
@@ -740,11 +748,8 @@ void cliSend(SCliConn* pConn) {
   uv_buf_t wb = uv_buf_init((char*)pHead, msgLen);
 
   STraceId* trace = &pMsg->info.traceId;
-  tGTrace("%s conn %p %s is sent to %s:%d, local info %s:%d", CONN_GET_INST_LABEL(pConn), pConn,
-          TMSG_INFO(pHead->msgType), taosInetNtoa(((struct sockaddr_in*)&pConn->addr)->sin_addr),
-          ntohs(((struct sockaddr_in*)&pConn->addr)->sin_port),
-          taosInetNtoa(((struct sockaddr_in*)&pConn->localAddr)->sin_addr),
-          ntohs(((struct sockaddr_in*)&pConn->localAddr)->sin_port));
+  tGTrace("%s conn %p %s is sent to %s, local info %s", CONN_GET_INST_LABEL(pConn), pConn, TMSG_INFO(pHead->msgType),
+          pConn->dst, pConn->src);
 
   if (pHead->persist == 1) {
     CONN_SET_PERSIST_BY_APP(pConn);
@@ -765,11 +770,16 @@ void cliConnCb(uv_connect_t* req, int status) {
     cliHandleExcept(pConn);
     return;
   }
-  int addrlen = sizeof(pConn->addr);
-  uv_tcp_getpeername((uv_tcp_t*)pConn->stream, &pConn->addr, &addrlen);
+  // int addrlen = sizeof(pConn->addr);
+  struct sockaddr peername, sockname;
+  int             addrlen = sizeof(peername);
 
-  addrlen = sizeof(pConn->localAddr);
-  uv_tcp_getsockname((uv_tcp_t*)pConn->stream, &pConn->localAddr, &addrlen);
+  uv_tcp_getpeername((uv_tcp_t*)pConn->stream, &peername, &addrlen);
+  sockDebugInfo(&peername, pConn->dst);
+
+  addrlen = sizeof(sockname);
+  uv_tcp_getsockname((uv_tcp_t*)pConn->stream, &sockname, &addrlen);
+  sockDebugInfo(&sockname, pConn->src);
 
   tTrace("%s conn %p connect to server successfully", CONN_GET_INST_LABEL(pConn), pConn);
   assert(pConn->stream == req->handle);
