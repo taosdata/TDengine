@@ -1237,7 +1237,9 @@ static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
     pSelect->hasMultiRowsFunc = pSelect->hasMultiRowsFunc ? true : fmIsMultiRowsFunc(pFunc->funcId);
     if (fmIsSelectFunc(pFunc->funcId)) {
       pSelect->hasSelectFunc = true;
-      pSelect->selectFuncNum += fmIsMultiResFunc(pFunc->funcId) ? getMultiResFuncNum(pFunc->pParameterList) : 1;
+      pSelect->selectFuncNum += (fmIsMultiResFunc(pFunc->funcId) && !fmIsLastRowFunc(pFunc->funcId))
+                                    ? getMultiResFuncNum(pFunc->pParameterList)
+                                    : 1;
     } else if (fmIsVectorFunc(pFunc->funcId)) {
       pSelect->hasOtherVectorFunc = true;
     }
@@ -2142,6 +2144,15 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return code;
 }
 
+static int32_t translateFillValues(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (NULL == pSelect->pWindow || QUERY_NODE_INTERVAL_WINDOW != nodeType(pSelect->pWindow) ||
+      NULL == ((SIntervalWindowNode*)pSelect->pWindow)->pFill) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SFillNode* pFill = (SFillNode*)((SIntervalWindowNode*)pSelect->pWindow)->pFill;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_SELECT;
   int32_t code = translateExprList(pCxt, pSelect->pProjectionList);
@@ -2150,6 +2161,9 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pProjectionList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateFillValues(pCxt, pSelect);
   }
   return code;
 }
