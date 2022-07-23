@@ -1,4 +1,3 @@
-sleep 100
 sql connect
 
 $dbPrefix = lm2_db
@@ -24,9 +23,12 @@ sql use $db
 ##### aggregation on stb with 6 tags + where + group by + limit offset
 $val1 = 1
 $val2 = $tbNum - 1
-sql select count(*) from $stb where t1 > $val1 and t1 < $val2 group by t1, t2, t3, t4, t5, t6 order by t1 asc limit 1 offset 0
+print select count(*) from $stb where t1 > $val1 and t1 < $val2 group by t1, t2, t3, t4, t5, t6 order by t1 asc limit 1 offset 0
+sql select count(*), t1, t2, t3, t4, t5, t6 from $stb where t1 > $val1 and t1 < $val2 group by t1, t2, t3, t4, t5, t6 order by t1 asc limit 1 offset 0
 $val = $tbNum - 3
-if $rows != $val then
+
+print $rows
+if $rows != 1 then
   return -1
 endi
 if $data00 != $rowNum then
@@ -49,7 +51,7 @@ if $data05 != 2 then
   return -1
 endi
 
-sql select count(*) from $stb where t2 like '%' and t1 > 2 and t1 < 5 group by t3, t4 order by t3 desc limit 1 offset 0
+sql select count(*), t3, t4 from $stb where t2 like '%' and t1 > 2 and t1 < 5 group by t3, t4 order by t3 desc limit 2 offset 0
 if $rows != 2 then
   return -1
 endi
@@ -68,15 +70,17 @@ endi
 if $data12 != 3 then
   return -1
 endi
+
 sql select count(*) from $stb where t2 like '%' and t1 > 2 and t1 < 5 group by t3, t4 order by t3 desc limit 1 offset 1
-if $rows != 0 then
+if $rows != 1 then
   return -1
 endi
+
 ## TBASE-348
 sql_error select count(*) from $stb where t1 like 1
 
 ##### aggregation on tb + where + fill + limit offset
-sql select max(c1) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, -1, -2) limit 10 offset 1
+sql select _wstart, max(c1) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, -1, -2) limit 10 offset 1
 if $rows != 10 then
   return -1
 endi

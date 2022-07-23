@@ -28,6 +28,7 @@ target_link_libraries(
     sdbDump
     PUBLIC dnode
     PUBLIC mnode
+    PUBLIC stream
     PUBLIC sdb
     PUBLIC os
 )

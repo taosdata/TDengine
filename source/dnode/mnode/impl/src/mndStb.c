@@ -1144,7 +1144,7 @@ static int32_t mndDropSuperTableTag(SMnode *pMnode, const SStbObj *pOld, SStbObj
   }
 
   col_id_t colId = pOld->pTags[tag].colId;
-  if (mndCheckColAndTagModifiable(pMnode, pOld->uid, colId) != 0) {
+  if (mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId) != 0) {
     return -1;
   }
 
@@ -1179,7 +1179,7 @@ static int32_t mndAlterStbTagName(SMnode *pMnode, const SStbObj *pOld, SStbObj *
   }
 
   col_id_t colId = pOld->pTags[tag].colId;
-  if (mndCheckColAndTagModifiable(pMnode, pOld->uid, colId) != 0) {
+  if (mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId) != 0) {
     return -1;
   }
 
@@ -1213,7 +1213,7 @@ static int32_t mndAlterStbTagBytes(SMnode *pMnode, const SStbObj *pOld, SStbObj 
   }
 
   col_id_t colId = pOld->pTags[tag].colId;
-  if (mndCheckColAndTagModifiable(pMnode, pOld->uid, colId) != 0) {
+  if (mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId) != 0) {
     return -1;
   }
 
@@ -1295,7 +1295,7 @@ static int32_t mndDropSuperTableColumn(SMnode *pMnode, const SStbObj *pOld, SStb
   }
 
   col_id_t colId = pOld->pColumns[col].colId;
-  if (mndCheckColAndTagModifiable(pMnode, pOld->uid, colId) != 0) {
+  if (mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId) != 0) {
     return -1;
   }
 
@@ -1329,7 +1329,7 @@ static int32_t mndAlterStbColumnBytes(SMnode *pMnode, const SStbObj *pOld, SStbO
   }
 
   col_id_t colId = pOld->pColumns[col].colId;
-  if (mndCheckColAndTagModifiable(pMnode, pOld->uid, colId) != 0) {
+  if (mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId) != 0) {
     return -1;
   }
 

@@ -4941,14 +4941,14 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
   return 0;
 }
 
-STSchema *tdGetSTSChemaFromSSChema(SSchema **pSchema, int32_t nCols) {
+STSchema *tdGetSTSChemaFromSSChema(SSchema *pSchema, int32_t nCols, int32_t sver) {
   STSchemaBuilder schemaBuilder = {0};
-  if (tdInitTSchemaBuilder(&schemaBuilder, 1) < 0) {
+  if (tdInitTSchemaBuilder(&schemaBuilder, sver) < 0) {
     return NULL;
   }
 
   for (int i = 0; i < nCols; i++) {
-    SSchema *schema = *pSchema + i;
+    SSchema *schema = pSchema + i;
     if (tdAddColToSchema(&schemaBuilder, schema->type, schema->flags, schema->colId, schema->bytes) < 0) {
       tdDestroyTSchemaBuilder(&schemaBuilder);
       return NULL;
@@ -5622,6 +5622,33 @@ int32_t tEncodeSTqOffset(SEncoder *pEncoder, const STqOffset *pOffset) {
 int32_t tDecodeSTqOffset(SDecoder *pDecoder, STqOffset *pOffset) {
   if (tDecodeSTqOffsetVal(pDecoder, &pOffset->val) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pOffset->subKey) < 0) return -1;
+  return 0;
+}
+
+int32_t tEncodeSCheckAlterInfo(SEncoder *pEncoder, const SCheckAlterInfo *pInfo) {
+  if (tEncodeCStr(pEncoder, pInfo->topic) < 0) return -1;
+  if (tEncodeI64(pEncoder, pInfo->ntbUid) < 0) return -1;
+  int32_t sz = taosArrayGetSize(pInfo->colIdList);
+  if (tEncodeI32(pEncoder, sz) < 0) return -1;
+  for (int32_t i = 0; i < sz; i++) {
+    int16_t colId = *(int16_t *)taosArrayGet(pInfo->colIdList, i);
+    if (tEncodeI16(pEncoder, colId) < 0) return -1;
+  }
+  return pEncoder->pos;
+}
+
+int32_t tDecodeSCheckAlterInfo(SDecoder *pDecoder, SCheckAlterInfo *pInfo) {
+  if (tDecodeCStrTo(pDecoder, pInfo->topic) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pInfo->ntbUid) < 0) return -1;
+  int32_t sz;
+  if (tDecodeI32(pDecoder, &sz) < 0) return -1;
+  pInfo->colIdList = taosArrayInit(sz, sizeof(int16_t));
+  if (pInfo->colIdList == NULL) return -1;
+  for (int32_t i = 0; i < sz; i++) {
+    int16_t colId;
+    if (tDecodeI16(pDecoder, &colId) < 0) return -1;
+    taosArrayPush(pInfo->colIdList, &colId);
+  }
   return 0;
 }
 

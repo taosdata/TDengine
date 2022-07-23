@@ -868,7 +868,10 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
     }
 
     // iter all vnode to delete handle
-    ASSERT(taosHashGetSize(pSub->consumerHash) == 0);
+    if (taosHashGetSize(pSub->consumerHash) != 0) {
+      sdbRelease(pSdb, pSub);
+      return -1;
+    }
     int32_t sz = taosArrayGetSize(pSub->unassignedVgs);
     for (int32_t i = 0; i < sz; i++) {
       SMqVgEp       *pVgEp = taosArrayGetP(pSub->unassignedVgs, i);
