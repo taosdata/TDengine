@@ -112,8 +112,8 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       tEncodeSize(tEncodeDeleteRes, &res, size, ret);
       pCont = rpcMallocCont(size + sizeof(SMsgHead));
 
-      ((SMsgHead *)pCont)->contLen = htonl(size + sizeof(SMsgHead));
-      ((SMsgHead *)pCont)->vgId = htonl(TD_VID(pVnode));
+      ((SMsgHead *)pCont)->contLen = size + sizeof(SMsgHead);
+      ((SMsgHead *)pCont)->vgId = TD_VID(pVnode);
 
       tEncoderInit(pCoder, pCont + sizeof(SMsgHead), size);
       tEncodeDeleteRes(pCoder, &res);
