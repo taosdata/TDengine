@@ -146,7 +146,6 @@ static int32_t tdProcessRSmaSyncPreCommitImpl(SSma *pSma) {
 
   // step 3: perform persist task for qTaskInfo
   pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
-  pRSmaStat->commitSubmitVer = pRSmaStat->submitVer;
   tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat));
 
   smaDebug("vgId:%d, rsma pre commit success", SMA_VID(pSma));
@@ -317,7 +316,6 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
 
   // step 4: others
   pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
-  pRSmaStat->commitSubmitVer = pRSmaStat->submitVer;
 
   return TSDB_CODE_SUCCESS;
 }

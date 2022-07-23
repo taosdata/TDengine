@@ -3,6 +3,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
+print =============== test case: merge duplicated rows in taosc and taosd
 print =============== create database
 sql drop database if exists d0
 sql create database d0 keep 365000d,365000d,365000d
@@ -816,3 +817,5 @@ if $data44 != n8 then
   print data44 $data44 != n8
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

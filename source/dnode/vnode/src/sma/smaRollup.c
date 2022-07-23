@@ -560,17 +560,6 @@ static void tdDestroySDataBlockArray(SArray *pArray) {
   taosArrayDestroy(pArray);
 }
 
-int64_t tdRSmaGetMaxSubmitVer(SSma *pSma, int8_t level) {
-  if (level == TSDB_RETENTION_L0) {
-    return pSma->pVnode->state.applied;
-  }
-
-  SSmaEnv   *pRSmaEnv = SMA_RSMA_ENV(pSma);
-  SRSmaStat *pRSmaStat = (SRSmaStat *)(SMA_ENV_STAT(pRSmaEnv));
-
-  return atomic_load_64(&pRSmaStat->submitVer);
-}
-
 static int32_t tdRSmaFetchAndSubmitResult(SRSmaInfoItem *pItem, STSchema *pTSchema, int64_t suid, SRSmaStat *pStat,
                                           int8_t blkType) {
   SArray *pResult = NULL;
@@ -582,7 +571,7 @@ static int32_t tdRSmaFetchAndSubmitResult(SRSmaInfoItem *pItem, STSchema *pTSche
 
     int32_t code = qExecTask(pItem->taskInfo, &output, &ts);
     if (code < 0) {
-      smaError("vgId:%d, qExecTask for rsma table %" PRIi64 "l evel %" PRIi8 " failed since %s", SMA_VID(pSma), suid,
+      smaError("vgId:%d, qExecTask for rsma table %" PRIi64 " level %" PRIi8 " failed since %s", SMA_VID(pSma), suid,
                pItem->level, terrstr(code));
       goto _err;
     }
@@ -615,12 +604,15 @@ static int32_t tdRSmaFetchAndSubmitResult(SRSmaInfoItem *pItem, STSchema *pTSche
         goto _err;
       }
 
-      if (pReq && tdProcessSubmitReq(sinkTsdb, atomic_add_fetch_64(&pStat->submitVer, 1), pReq) < 0) {
+      if (pReq && tdProcessSubmitReq(sinkTsdb, output->info.version, pReq) < 0) {
         taosMemoryFreeClear(pReq);
         smaError("vgId:%d, process submit req for rsma table %" PRIi64 " level %" PRIi8 " failed since %s",
                  SMA_VID(pSma), suid, pItem->level, terrstr());
         goto _err;
       }
+
+      smaDebug("vgId:%d, process submit req for rsma table %" PRIi64 " level %" PRIi8 " version:%"PRIi64, SMA_VID(pSma),
+               suid, pItem->level, output->info.version);
 
       taosMemoryFreeClear(pReq);
       taosArrayClear(pResult);
@@ -908,12 +900,8 @@ static int32_t tdRSmaRestoreQTaskInfoReload(SSma *pSma, int64_t *committed) {
     goto _err;
   }
 
-  ASSERT(tFileInfo.qTaskInfo.submitVer > 0);
-
   SSmaEnv   *pRSmaEnv = pSma->pRSmaEnv;
   SRSmaStat *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pRSmaEnv);
-  atomic_store_64(&pRSmaStat->submitVer, tFileInfo.qTaskInfo.submitVer);
-  smaDebug("%s:%d tFileInfo.qTaskInfo.submitVer = %" PRIi64, __func__, __LINE__, tFileInfo.qTaskInfo.submitVer);
 
   SRSmaQTaskInfoIter fIter = {0};
   if (tdRSmaQTaskInfoIterInit(&fIter, &tFile) < 0) {
@@ -1266,7 +1254,6 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
   }
 
   if (isFileCreated) {
-    tFile.info.qTaskInfo.submitVer = atomic_load_64(&pRSmaStat->commitSubmitVer);
     if (tdUpdateTFileHeader(&tFile) < 0) {
       smaError("vgId:%d, rsma, failed to update tfile %s header since %s", vid, TD_TFILE_FULL_NAME(&tFile),
                tstrerror(terrno));
@@ -1346,6 +1333,8 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
       tdRSmaFetchAndSubmitResult(pItem, pRSmaInfo->pTSchema, pRSmaInfo->suid, pStat, STREAM_INPUT__DATA_BLOCK);
 
       tdUnRefRSmaInfo(pSma, pRSmaInfo);
+      // atomic_store_8(&pItem->triggerStat, TASK_TRIGGER_STAT_ACTIVE);
+      // taosTmrReset(tdRSmaFetchTrigger, 5000, pItem, smaMgmt.tmrHandle, &pItem->tmrId);
     } break;
     case TASK_TRIGGER_STAT_PAUSED: {
       smaDebug("vgId:%d, not fetch rsma level %" PRIi8 " data for table:%" PRIi64 " since stat is paused",

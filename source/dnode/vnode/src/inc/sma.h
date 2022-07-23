@@ -67,8 +67,6 @@ struct STSmaStat {
 struct SRSmaStat {
   SSma     *pSma;
   int64_t   commitAppliedVer;  // vnode applied version for async commit
-  int64_t   commitSubmitVer;   // rsma submit version for async commit
-  int64_t   submitVer;         // latest submit version
   int64_t   refId;             // shared by fetch tasks
   int8_t    triggerStat;       // shared by fetch tasks
   int8_t    commitStat;        // 0 not in committing, 1 in committing
@@ -91,7 +89,6 @@ struct SSmaStat {
 #define RSMA_TRIGGER_STAT(r)  (&(r)->triggerStat)
 #define RSMA_COMMIT_STAT(r)   (&(r)->commitStat)
 #define RSMA_REF_ID(r)        ((r)->refId)
-#define RSMA_SUBMIT_VER(r)    ((r)->submitVer)
 
 struct SRSmaInfoItem {
   void   *taskInfo;  // qTaskInfo_t
@@ -223,13 +220,6 @@ struct STFInfo {
   uint32_t ftype;
   uint32_t fver;
   int64_t  fsize;
-
-  // specific fields
-  union {
-    struct {
-      int64_t submitVer;
-    } qTaskInfo;
-  };
 };
 
 enum {

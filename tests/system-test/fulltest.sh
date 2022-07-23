@@ -62,7 +62,7 @@ python3 ./test.py -f 2-query/char_length.py -R
 python3 ./test.py -f 2-query/check_tsdb.py
 python3 ./test.py -f 2-query/check_tsdb.py -R
 
-# python3 ./test.py -f 1-insert/update_data.py
+python3 ./test.py -f 1-insert/update_data.py
 
 python3 ./test.py -f 1-insert/delete_data.py
 python3 ./test.py -f 2-query/db.py
@@ -152,21 +152,26 @@ python3 ./test.py -f 2-query/max_partition.py
 python3 ./test.py -f 2-query/last_row.py
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py
-#python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5 -M 3
-#python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
-# BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 5 -M 3
-# BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -M 3
-# BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -M 3
+
+# python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py  -N 5 -M 3
-# python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py  -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py  -N 5 -M 3
+
+python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 5 -M 3
+# python3 ./test.py -f 6-cluster/5dnode3mnodeRestartMnodeInsertData.py -N 5 -M 3
+# python3 ./test.py -f 6-cluster/5dnode3mnodeRestartVnodeInsertData.py -N 5 -M 3
+
+python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 6 -M 3 -C 5 
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py
 # python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
 # python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
-# BUG Redict python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 6 -M 3 -C 5
-# python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 5 -M 3
- python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 6 -M 3 -C 5 
 
  
 python3 ./test.py -f 7-tmq/basic5.py
@@ -184,7 +189,7 @@ python3 ./test.py -f 7-tmq/subscribeStb3.py
 python3 ./test.py -f 7-tmq/subscribeStb4.py
 python3 ./test.py -f 7-tmq/db.py
 python3 ./test.py -f 7-tmq/tmqError.py
-python3 ./test.py -f 7-tmq/schema.py
+#python3 ./test.py -f 7-tmq/schema.py
 python3 ./test.py -f 7-tmq/stbFilter.py
 python3 ./test.py -f 7-tmq/tmqCheckData.py
 python3 ./test.py -f 7-tmq/tmqCheckData1.py
@@ -204,17 +209,20 @@ python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
-#python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
+python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
 #python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
 python3 ./test.py -f 7-tmq/tmqUpdate-1ctb.py
+python3 ./test.py -f 7-tmq/tmqUpdateWithConsume.py
 python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot0.py
 python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot1.py
 python3 ./test.py -f 7-tmq/tmqDelete-1ctb.py
 python3 ./test.py -f 7-tmq/tmqDelete-multiCtb.py
 python3 ./test.py -f 7-tmq/tmqDropStb.py
+python3 ./test.py -f 7-tmq/tmqDropStbCtb.py
+python3 ./test.py -f 7-tmq/tmqDropNtb.py
 python3 ./test.py -f 7-tmq/tmqUdf.py
-# python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot0.py
-# python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot1.py
+python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot0.py
+python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot1.py
 python3 ./test.py -f 7-tmq/stbTagFilter-1ctb.py
 
 # python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py

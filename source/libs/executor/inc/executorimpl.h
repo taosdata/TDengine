@@ -52,11 +52,12 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 
 #define NEEDTO_COMPRESS_QUERY(size) ((size) > tsCompressColData ? 1 : 0)
 
-#define START_TS_COLUMN_INDEX       0
-#define END_TS_COLUMN_INDEX         1
-#define UID_COLUMN_INDEX            2
-#define GROUPID_COLUMN_INDEX        UID_COLUMN_INDEX
-#define DELETE_GROUPID_COLUMN_INDEX 2
+#define START_TS_COLUMN_INDEX             0
+#define END_TS_COLUMN_INDEX               1
+#define UID_COLUMN_INDEX                  2
+#define GROUPID_COLUMN_INDEX              3
+#define CALCULATE_START_TS_COLUMN_INDEX   4
+#define CALCULATE_END_TS_COLUMN_INDEX     5
 
 enum {
   // when this task starts to execute, this status will set
@@ -175,6 +176,7 @@ typedef struct SExecTaskInfo {
   int64_t          owner;  // if it is in execution
   int32_t          code;
 
+  int64_t          version; // used for stream to record wal version
   SStreamTaskInfo  streamInfo;
   SSchemaInfo      schemaInfo;
   STableListInfo   tableqinfoList;  // this is a table list
@@ -346,7 +348,6 @@ typedef enum EStreamScanMode {
   STREAM_SCAN_FROM_READERHANDLE = 1,
   STREAM_SCAN_FROM_RES,
   STREAM_SCAN_FROM_UPDATERES,
-  STREAM_SCAN_FROM_DATAREADER, // todo(liuyao) delete it
   STREAM_SCAN_FROM_DATAREADER_RETRIEVE,
   STREAM_SCAN_FROM_DATAREADER_RANGE,
 } EStreamScanMode;
@@ -366,7 +367,7 @@ typedef struct SStreamAggSupporter {
   char*          pKeyBuf;              // window key buffer
   SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
   int32_t        resultRowSize;        // the result buffer size for each result row, with the meta data size for each row
-  SArray*        pScanWindow;
+  SSDataBlock*   pScanBlock;
 } SStreamAggSupporter;
 
 typedef struct SessionWindowSupporter {
@@ -401,8 +402,6 @@ typedef struct SStreamScanInfo {
   uint64_t     numOfExec;        // execution times
   STqReader*   tqReader;
 
-  int32_t      tsArrayIndex;
-  SArray*      tsArray;
   uint64_t     groupId;
   SUpdateInfo* pUpdateInfo;
 
@@ -419,10 +418,11 @@ typedef struct SStreamScanInfo {
   int32_t                deleteDataIndex;
   STimeWindow            updateWin;
   STimeWindowAggSupp     twAggSup;
-
+  SSDataBlock*           pUpdateDataRes;
   // status for tmq
   // SSchemaWrapper schema;
   STqOffset              offset;
+  SNodeList*             pGroupTags;
   SNode*                 pTagCond;
   SNode*                 pTagIndexCond;
 } SStreamScanInfo;
@@ -545,9 +545,10 @@ typedef struct SProjectOperatorInfo {
   SOptrBasicInfo     binfo;
   SAggSupporter      aggSup;
   SNode*             pFilterNode;  // filter info, which is push down by optimizer
-  SSDataBlock*       existDataBlock;
   SArray*            pPseudoColInfo;
   SLimitInfo         limitInfo;
+  bool               mergeDataBlocks;
+  SSDataBlock*       pFinalRes;
 } SProjectOperatorInfo;
 
 typedef struct SIndefOperatorInfo {
@@ -712,7 +713,6 @@ typedef struct SStreamStateAggOperatorInfo {
   SSDataBlock*         pDelRes;
   SHashObj*            pSeDeleted;
   void*                pDelIterator;
-  SArray*              pScanWindow;
   SArray*              pChildren;       // cache for children's result;
   bool                 ignoreExpiredData;
 } SStreamStateAggOperatorInfo;
@@ -805,7 +805,7 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t *order, int32_t* scan
 int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaultBufsz);
 
 void    doSetOperatorCompleted(SOperatorInfo* pOperator);
-void    doFilter(const SNode* pFilterNode, SSDataBlock* pBlock);
+void    doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColMatchInfo);
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
                                SSDataBlock* pBlock, const char* idStr);
 
@@ -869,7 +869,7 @@ SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* re
                                                SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
-                                            STimeWindowAggSupp* pTwAggSup, SExecTaskInfo* pTaskInfo);
+                                            SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode, SExecTaskInfo* pTaskInfo);
 
@@ -879,8 +879,7 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInf
 
 SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNode* pPartNode, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pNode, /*SExprInfo* pExprInfo, int32_t numOfCols,
-                                           SSDataBlock* pResultBlock, const SNodeListNode* pValNode, */SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pNode, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SJoinPhysiNode* pJoinNode,
                                            SExecTaskInfo* pTaskInfo);
@@ -954,6 +953,7 @@ int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pStartTs,
     TSKEY* pEndTs, int32_t rows, int32_t start, int64_t gap, SHashObj* pStDeleted);
 bool functionNeedToExecute(SqlFunctionCtx* pCtx);
 bool isCloseWindow(STimeWindow* pWin, STimeWindowAggSupp* pSup);
+void appendOneRow(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid);
 
 int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
                                        SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs, const int32_t* rowCellOffset,
@@ -970,7 +970,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsColIndex);
 
 int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* groupKey);
-SSDataBlock* createPullDataBlock();
+SSDataBlock* createSpecialDataBlock(EStreamType type);
 
 #ifdef __cplusplus
 }
