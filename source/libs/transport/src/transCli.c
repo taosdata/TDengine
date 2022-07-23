@@ -37,12 +37,11 @@ typedef struct SCliConn {
   uint32_t port;
 
   SDelayTask* task;
+
   // debug and log info
   char src[32];
   char dst[32];
 
-  // struct sockaddr addr;
-  // struct sockaddr localAddr;
 } SCliConn;
 
 typedef struct SCliMsg {
@@ -775,11 +774,11 @@ void cliConnCb(uv_connect_t* req, int status) {
   int             addrlen = sizeof(peername);
 
   uv_tcp_getpeername((uv_tcp_t*)pConn->stream, &peername, &addrlen);
-  sockDebugInfo(&peername, pConn->dst);
+  transGetSockDebugInfo(&peername, pConn->dst);
 
   addrlen = sizeof(sockname);
   uv_tcp_getsockname((uv_tcp_t*)pConn->stream, &sockname, &addrlen);
-  sockDebugInfo(&sockname, pConn->src);
+  transGetSockDebugInfo(&sockname, pConn->src);
 
   tTrace("%s conn %p connect to server successfully", CONN_GET_INST_LABEL(pConn), pConn);
   assert(pConn->stream == req->handle);

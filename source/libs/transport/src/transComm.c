@@ -102,7 +102,14 @@ void transFreeMsg(void* msg) {
   }
   taosMemoryFree((char*)msg - sizeof(STransMsgHead));
 }
+int transGetSockDebugInfo(struct sockaddr* sockname, char* dst) {
+  struct sockaddr_in addr = *(struct sockaddr_in*)sockname;
 
+  char buf[20] = {0};
+  int  r = uv_ip4_name(&addr, (char*)buf, sizeof(buf));
+  sprintf(dst, "%s:%d", buf, ntohs(addr.sin_port));
+  return r;
+}
 int transInitBuffer(SConnBuffer* buf) {
   transClearBuffer(buf);
   return 0;
