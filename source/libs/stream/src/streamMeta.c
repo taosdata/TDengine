@@ -266,7 +266,7 @@ SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId) {
     if (!streamTaskShouldStop(&(*ppTask)->status)) {
       int32_t ref = atomic_add_fetch_32(&(*ppTask)->refCnt, 1);
       taosRUnLockLatch(&pMeta->lock);
-      qDebug("s-task:%s acquire task, ref:%d", (*ppTask)->id.idStr, ref);
+      qTrace("s-task:%s acquire task, ref:%d", (*ppTask)->id.idStr, ref);
       return *ppTask;
     }
   }
@@ -278,7 +278,7 @@ SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId) {
 void streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   int32_t ref = atomic_sub_fetch_32(&pTask->refCnt, 1);
   if (ref > 0) {
-    qDebug("s-task:%s release task, ref:%d", pTask->id.idStr, ref);
+    qTrace("s-task:%s release task, ref:%d", pTask->id.idStr, ref);
   } else if (ref == 0) {
     ASSERT(streamTaskShouldStop(&pTask->status));
     tFreeStreamTask(pTask);

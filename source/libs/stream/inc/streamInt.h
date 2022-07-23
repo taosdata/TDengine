@@ -31,6 +31,12 @@ typedef struct {
   void*  timer;
 } SStreamGlobalEnv;
 
+typedef struct {
+  SEpSet  epset;
+  int32_t taskId;
+  SRpcMsg msg;
+} SStreamContinueExecInfo;
+
 extern SStreamGlobalEnv streamEnv;
 
 void    streamRetryDispatchStreamBlock(SStreamTask* pTask, int64_t waitDuration);
@@ -53,6 +59,9 @@ int32_t streamDoDispatchScanHistoryFinishMsg(SStreamTask* pTask, const SStreamSc
                                              SEpSet* pEpSet);
 
 SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem);
+
+int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo, SStreamScanHistoryFinishReq* pReq);
+int32_t streamNotifyUpstreamContinue(SStreamTask* pTask);
 
 extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;

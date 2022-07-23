@@ -664,9 +664,9 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
     case TDMT_STREAM_TRANSFER_STATE:
       return tqProcessTaskTransferStateReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_SCAN_HISTORY_FINISH:
-      return tqProcessStreamTaskScanHistoryFinishReq(pVnode->pTq, pMsg);
+      return tqProcessTaskScanHistoryFinishReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_SCAN_HISTORY_FINISH_RSP:
-      return tqProcessTaskRecoverFinishRsp(pVnode->pTq, pMsg);
+      return tqProcessTaskScanHistoryFinishRsp(pVnode->pTq, pMsg);
     default:
       vError("unknown msg type:%d in stream queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;

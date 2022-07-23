@@ -25,6 +25,7 @@
 #define SINK_NODE_LEVEL (0)
 extern bool tsDeployOnSnode;
 
+static int32_t setTaskUpstreamEpInfo(const SStreamTask* pTask, SStreamTask* pDownstream);
 static int32_t mndAddSinkTaskToStream(SStreamObj* pStream, SArray* pTaskList, SMnode* pMnode, int32_t vgId,
                                       SVgObj* pVgroup, int32_t fillHistory);
 static void    setFixedDownstreamEpInfo(SStreamTask* pDstTask, const SStreamTask* pTask);
@@ -87,10 +88,10 @@ END:
 
 int32_t mndSetSinkTaskInfo(SStreamObj* pStream, SStreamTask* pTask) {
   if (pStream->smaId != 0) {
-    pTask->outputType = TASK_OUTPUT__SMA;
+    pTask->outputInfo.type = TASK_OUTPUT__SMA;
     pTask->smaSink.smaId = pStream->smaId;
   } else {
-    pTask->outputType = TASK_OUTPUT__TABLE;
+    pTask->outputInfo.type = TASK_OUTPUT__TABLE;
     pTask->tbSink.stbUid = pStream->targetStbUid;
     memcpy(pTask->tbSink.stbFullName, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
     pTask->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
@@ -110,7 +111,7 @@ int32_t mndAddDispatcherForInternalTask(SMnode* pMnode, SStreamObj* pStream, SAr
     SDbObj* pDb = mndAcquireDb(pMnode, pStream->targetDb);
     if (pDb != NULL && pDb->cfg.numOfVgroups > 1) {
       isShuffle = true;
-      pTask->outputType = TASK_OUTPUT__SHUFFLE_DISPATCH;
+      pTask->outputInfo.type = TASK_OUTPUT__SHUFFLE_DISPATCH;
       pTask->msgInfo.msgType = TDMT_STREAM_TASK_DISPATCH;
       if (mndExtractDbInfo(pMnode, pDb, &pTask->shuffleDispatcher.dbInfo, NULL) < 0) {
         return -1;
@@ -267,10 +268,15 @@ static int32_t addSourceStreamTask(SMnode* pMnode, SVgObj* pVgroup, SArray* pTas
     return terrno;
   }
 
+  for(int32_t i = 0; i < taosArrayGetSize(pSinkTaskList); ++i) {
+    SStreamTask* pSinkTask = taosArrayGetP(pSinkTaskList, i);
+    setTaskUpstreamEpInfo(pTask, pSinkTask);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
-static SStreamChildEpInfo* createStreamTaskEpInfo(SStreamTask* pTask) {
+static SStreamChildEpInfo* createStreamTaskEpInfo(const SStreamTask* pTask) {
   SStreamChildEpInfo* pEpInfo = taosMemoryMalloc(sizeof(SStreamChildEpInfo));
   if (pEpInfo == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -291,11 +297,11 @@ void setFixedDownstreamEpInfo(SStreamTask* pDstTask, const SStreamTask* pTask) {
   pDispatcher->nodeId = pTask->info.nodeId;
   pDispatcher->epSet = pTask->info.epSet;
 
-  pDstTask->outputType = TASK_OUTPUT__FIXED_DISPATCH;
+  pDstTask->outputInfo.type = TASK_OUTPUT__FIXED_DISPATCH;
   pDstTask->msgInfo.msgType = TDMT_STREAM_TASK_DISPATCH;
 }
 
-int32_t setEpToDownstreamTask(SStreamTask* pTask, SStreamTask* pDownstream) {
+int32_t setTaskUpstreamEpInfo(const SStreamTask* pTask, SStreamTask* pDownstream) {
   SStreamChildEpInfo* pEpInfo = createStreamTaskEpInfo(pTask);
   if (pEpInfo == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -418,7 +424,7 @@ static int32_t doAddSourceTask(SArray* pTaskList, int8_t fillHistory, int64_t ui
     return -1;
   }
 
-  return setEpToDownstreamTask(pTask, pDownstreamTask);
+  return setTaskUpstreamEpInfo(pTask, pDownstreamTask);
 }
 
 static int32_t doAddAggTask(uint64_t uid, SArray* pTaskList, SArray* pSinkNodeList, SMnode* pMnode, SStreamObj* pStream,
@@ -586,6 +592,14 @@ static int32_t addSinkTasks(SArray* pTasksList, SMnode* pMnode, SStreamObj* pStr
   return TSDB_CODE_SUCCESS;
 }
 
+static void setSinkTaskUpstreamInfo(SArray* pTasksList, const SStreamTask* pUpstreamTask) {
+  SArray* pSinkTaskList = taosArrayGetP(pTasksList, SINK_NODE_LEVEL);
+  for(int32_t i = 0; i < taosArrayGetSize(pSinkTaskList); ++i) {
+    SStreamTask* pSinkTask = taosArrayGetP(pSinkTaskList, i);
+    setTaskUpstreamEpInfo(pUpstreamTask, pSinkTask);
+  }
+}
+
 static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan* pPlan, int64_t nextWindowSkey) {
   SSdb*   pSdb = pMnode->pSdb;
   int32_t numOfPlanLevel = LIST_LENGTH(pPlan->pSubplans);
@@ -636,6 +650,9 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
+
+    setSinkTaskUpstreamInfo(pStream->tasks, pAggTask);
+    setSinkTaskUpstreamInfo(pStream->pHTasksList, pHAggTask);
 
     // source level
     return addSourceTasksForMultiLevelStream(pMnode, pPlan, pStream, pAggTask, pHAggTask, nextWindowSkey);

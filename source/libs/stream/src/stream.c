@@ -216,15 +216,16 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
 // todo add log
 int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) {
   int32_t code = 0;
-  if (pTask->outputType == TASK_OUTPUT__TABLE) {
+  int32_t type = pTask->outputInfo.type;
+  if (type == TASK_OUTPUT__TABLE) {
     pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
     destroyStreamDataBlock(pBlock);
-  } else if (pTask->outputType == TASK_OUTPUT__SMA) {
+  } else if (type == TASK_OUTPUT__SMA) {
     pTask->smaSink.smaSink(pTask->smaSink.vnode, pTask->smaSink.smaId, pBlock->blocks);
     destroyStreamDataBlock(pBlock);
   } else {
-    ASSERT(pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH);
-    code = taosWriteQitem(pTask->outputQueue->queue, pBlock);
+    ASSERT(type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH);
+    code = taosWriteQitem(pTask->outputInfo.queue->queue, pBlock);
     if (code != 0) {  // todo failed to add it into the output queue, free it.
       return code;
     }
@@ -274,7 +275,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   qDebug("s-task:%s receive dispatch rsp, output status:%d code:%d", pTask->id.idStr, pRsp->inputStatus, code);
 
   // there are other dispatch message not response yet
-  if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+  if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     int32_t leftRsp = atomic_sub_fetch_32(&pTask->shuffleDispatcher.waitingRspCnt, 1);
     qDebug("s-task:%s is shuffle, left waiting rsp %d", pTask->id.idStr, leftRsp);
     if (leftRsp > 0) {
@@ -283,9 +284,9 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   }
 
   pTask->msgInfo.retryCount = 0;
-  ASSERT(pTask->outputStatus == TASK_OUTPUT_STATUS__WAIT);
+  ASSERT(pTask->outputInfo.status == TASK_OUTPUT_STATUS__WAIT);
 
-  qDebug("s-task:%s output status is set to:%d", pTask->id.idStr, pTask->outputStatus);
+  qDebug("s-task:%s output status is set to:%d", pTask->id.idStr, pTask->outputInfo.status);
 
   // the input queue of the (down stream) task that receive the output data is full,
   // so the TASK_INPUT_STATUS_BLOCKED is rsp
@@ -309,7 +310,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     }
 
     // now ready for next data output
-    atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
+    atomic_store_8(&pTask->outputInfo.status, TASK_OUTPUT_STATUS__NORMAL);
 
     // otherwise, continue dispatch the first block to down stream task in pipeline
     streamDispatchStreamBlock(pTask);
@@ -419,3 +420,15 @@ void* streamQueueNextItem(SStreamQueue* pQueue) {
 }
 
 void streamTaskInputFail(SStreamTask* pTask) { atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED); }
+
+SStreamChildEpInfo * streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId) {
+  int32_t num = taosArrayGetSize(pTask->pUpstreamEpInfoList);
+  for(int32_t i = 0; i < num; ++i) {
+    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->pUpstreamEpInfoList, i);
+    if (pInfo->taskId == taskId) {
+      return pInfo;
+    }
+  }
+
+  return NULL;
+}
