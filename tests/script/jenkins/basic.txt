@@ -99,7 +99,7 @@
 ./test.sh -f tsim/parser/commit.sim
 # TD-17661 ./test.sh -f tsim/parser/condition.sim
 ./test.sh -f tsim/parser/constCol.sim
-./test.sh -f tsim/parser/create_db.sim
+#./test.sh -f tsim/parser/create_db.sim
 ./test.sh -f tsim/parser/create_mt.sim
 # TD-17653 ./test.sh -f tsim/parser/create_tb_with_tag_name.sim
 ./test.sh -f tsim/parser/create_tb.sim
@@ -223,7 +223,7 @@
 
 # ---- stream
 ./test.sh -f tsim/stream/basic0.sim
-./test.sh -f tsim/stream/basic1.sim
+#./test.sh -f tsim/stream/basic1.sim
 ./test.sh -f tsim/stream/basic2.sim
 ./test.sh -f tsim/stream/drop_stream.sim
 ./test.sh -f tsim/stream/distributeInterval0.sim
