@@ -499,7 +499,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
 
     code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
 
-    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_MND_INVALID_STB) {
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_MND_STB_NOT_EXIST) {
       SSchemaAction schemaAction;
       schemaAction.action = SCHEMA_ACTION_CREATE_STABLE;
       memset(&schemaAction.createSTable, 0, sizeof(SCreateSTableActionInfo));
