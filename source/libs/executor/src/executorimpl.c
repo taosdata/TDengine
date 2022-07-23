@@ -3406,12 +3406,13 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     }
 
     if (pProjectInfo->mergeDataBlocks) {
-      if (pFinalRes->info.rows + pInfo->pRes->info.rows <= pOperator->resultInfo.threshold) {
-        pFinalRes->info.groupId = pInfo->pRes->info.groupId;
-        pFinalRes->info.version = pInfo->pRes->info.version;
+      pFinalRes->info.groupId = pInfo->pRes->info.groupId;
+      pFinalRes->info.version = pInfo->pRes->info.version;
 
-        // continue merge data, ignore the group id
-        blockDataMerge(pFinalRes, pInfo->pRes);
+      // continue merge data, ignore the group id
+      blockDataMerge(pFinalRes, pInfo->pRes);
+
+      if (pFinalRes->info.rows + pInfo->pRes->info.rows <= pOperator->resultInfo.threshold) {
         continue;
       }
     }
@@ -4246,9 +4247,11 @@ int32_t extractTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, 
 }
 
 SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
-  int32_t         numOfCols = LIST_LENGTH(pScanNode->pScanCols);
+  int32_t numOfCols = LIST_LENGTH(pScanNode->pScanCols);
+  int32_t numOfTags = LIST_LENGTH(pScanNode->pScanPseudoCols);
+
   SSchemaWrapper* pqSw = taosMemoryCalloc(1, sizeof(SSchemaWrapper));
-  pqSw->pSchema = taosMemoryCalloc(numOfCols, sizeof(SSchema));
+  pqSw->pSchema = taosMemoryCalloc(numOfCols + numOfTags, sizeof(SSchema));
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     STargetNode* pNode = (STargetNode*)nodesListGetNode(pScanNode->pScanCols, i);
@@ -4259,6 +4262,22 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
     pSchema->type = pColNode->node.resType.type;
     pSchema->type = pColNode->node.resType.bytes;
     strncpy(pSchema->name, pColNode->colName, tListLen(pSchema->name));
+  }
+
+  // this the tags and pseudo function columns, we only keep the tag columns
+  for(int32_t i = 0; i < numOfTags; ++i) {
+    STargetNode* pNode = (STargetNode*)nodesListGetNode(pScanNode->pScanPseudoCols, i);
+
+    int32_t type = nodeType(pNode->pExpr);
+    if (type == QUERY_NODE_COLUMN) {
+      SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
+
+      SSchema* pSchema = &pqSw->pSchema[pqSw->nCols++];
+      pSchema->colId = pColNode->colId;
+      pSchema->type = pColNode->node.resType.type;
+      pSchema->type = pColNode->node.resType.bytes;
+      strncpy(pSchema->name, pColNode->colName, tListLen(pSchema->name));
+    }
   }
 
   return pqSw;
