@@ -13,25 +13,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TTHREAD_H
-#define TDENGINE_TTHREAD_H
+#ifndef __SHELL_AUTO__
+#define __SHELL_AUTO__
 
-#ifdef __cplusplus
-extern "C" {
+#define TAB_KEY 0x09
+
+// press tab key
+void pressTabKey(TAOS * con, Command * cmd);
+
+// press othr key
+void pressOtherKey(char c);
+
+// init shell auto funciton , shell start call once 
+bool shellAutoInit();
+
+// exit shell auto funciton, shell exit call once
+void shellAutoExit();
+
+// callback autotab module
+void callbackAutoTab(char* sqlstr, TAOS* pSql, bool usedb);
+
+
 #endif
-
-#include "os.h"
-#include "taosdef.h"
-
-// create new thread
-pthread_t* taosCreateThread( void *(*__start_routine) (void *), void* param);
-// destory thread 
-bool taosDestroyThread(pthread_t* pthread);
-// thread running return true
-bool taosThreadRunning(pthread_t* pthread);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif  // TDENGINE_TTHREAD_H
