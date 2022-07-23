@@ -899,7 +899,7 @@ static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema, int16
       if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
-      val->pData = pToken->z;
+      val->pData = strdup(pToken->z);
       val->nData = pToken->n;
       break;
     }
@@ -965,10 +965,9 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
     }
 
     SSchema* pTagSchema = &pSchema[pCxt->tags.boundColumns[i]];
-    char*    tmpTokenBuf = taosMemoryCalloc(1, sToken.n);  // todo this can be optimize with parse column
+    char     tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0}; // todo this can be optimize with parse column
     code = checkAndTrimValue(&sToken, tmpTokenBuf, &pCxt->msg);
     if (code != TSDB_CODE_SUCCESS) {
-      taosMemoryFree(tmpTokenBuf);
       goto end;
     }
 
@@ -978,7 +977,6 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
     if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
       if (sToken.n > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
         code = buildSyntaxErrMsg(&pCxt->msg, "json string too long than 4095", sToken.z);
-        taosMemoryFree(tmpTokenBuf);
         goto end;
       }
       if (isNullStr(&sToken)) {
@@ -986,7 +984,6 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
       } else {
         code = parseJsontoTagData(sToken.z, pTagVals, &pTag, &pCxt->msg);
       }
-      taosMemoryFree(tmpTokenBuf);
       if (code != TSDB_CODE_SUCCESS) {
         goto end;
       }
@@ -995,12 +992,9 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
       STagVal val = {0};
       code = parseTagToken(&pCxt->pSql, &sToken, pTagSchema, precision, &val, &pCxt->msg);
       if (TSDB_CODE_SUCCESS != code) {
-        taosMemoryFree(tmpTokenBuf);
         goto end;
       }
-      if (pTagSchema->type != TSDB_DATA_TYPE_BINARY) {
-        taosMemoryFree(tmpTokenBuf);
-      }
+
       taosArrayPush(pTagVals, &val);
     }
   }
@@ -1019,7 +1013,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
 end:
   for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pTagVals, i);
-    if (p->type == TSDB_DATA_TYPE_NCHAR) {
+    if (IS_VAR_DATA_TYPE(p->type)) {
       taosMemoryFree(p->pData);
     }
   }

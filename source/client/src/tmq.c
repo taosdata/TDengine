@@ -3114,7 +3114,7 @@ int32_t taos_write_raw_data(TAOS *taos, TAOS_RES *msg){
       int32_t offset = 0;
       for (int32_t k = 0; k < pSW->nCols; k++) {
         const SSchema*  pColumn = &pSW->pSchema[k];
-        void *data = rspObj->resInfo.row[k];
+        char *data = rspObj->resInfo.row[k];
         if (!data) {
           tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, offset, k);
         } else {
