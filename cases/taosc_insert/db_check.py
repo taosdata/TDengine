@@ -40,7 +40,6 @@ class TestDB(TDCase):
         dbname = f'1{self.tdCom.get_long_name()}'
         dbname_backquote = f'`{dbname}`'
         self.tdCom.createDb(dbname_backquote)
-        # self.tdSql.execute(f'create database if not exists `{dbname}`')
         self.tdSql.query('show databases')
         res = self.tdSql.getOneRow(0, dbname)
         self.tdSql.checkEqual(res[0][0], dbname)
@@ -56,7 +55,6 @@ class TestDB(TDCase):
                 dbname_new = ''.join(d_list_new)
                 dbname_new_backquote = f'`{dbname_new}`'
                 self.tdCom.createDb(dbname_new_backquote)
-                # self.tdSql.execute(f'create database if not exists `{dbname_new}`')
                 self.tdSql.query('show databases')
                 res = self.tdSql.getOneRow(0, dbname_new)
                 self.tdSql.checkEqual(res[0][0], dbname_new)

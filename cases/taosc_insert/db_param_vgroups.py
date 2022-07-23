@@ -46,25 +46,36 @@ class TestVgroups(TDCase):
         self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
         self.tdSql.execute(f'drop database {dbname}')
         # boundary
-        for param_value in self.cfg["boundary"]:
+        print(self.cfg["boundary"])
+        boundary_list = self.cfg["boundary"]
+        boundary_list.reverse()
+        for param_value in boundary_list:
             dbname = self.tdCom.get_long_name()
-            self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value} buffer {self.buffer_min}')
+            kv_dict = {test_param: param_value, "buffer": self.buffer_min}
+            self.tdCom.createDb(dbname, **kv_dict)
+            # self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value} buffer {self.buffer_min}')
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
             if param_value == self.cfg["boundary"][-1]:
+                kv_dict = {test_param: 1, "buffer": self.buffer_min}
+                self.tdCom.createDb(dbname, **kv_dict)
                 self.tdSql.error(f'create database if not exists {dbname}_error {test_param} 1 buffer {self.buffer_min}')
             self.tdSql.execute(f'drop database {dbname}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1} buffer {self.buffer_min}')
         self.tdSql.error(f'create database if not exists {dbname} vgroups {self.cfg["boundary"][-1] + 1} buffer {self.buffer_min}')
         # check logic
         dbname1 = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname1} vgroups  {int(self.cfg["boundary"][-1]/4)} buffer {self.buffer_min}')
+        kv_dict = {test_param: param_value, "buffer": self.buffer_min, "vgroups": int(self.cfg["boundary"][-1]/4)}
+        self.tdCom.createDb(dbname1, **kv_dict)
+        # self.tdSql.execute(f'create database if not exists {dbname1} vgroups  {int(self.cfg["boundary"][-1]/4)} buffer {self.buffer_min}')
         self.tdSql.query(f'show {dbname1}.vgroups')
         self.tdSql.checkEqual(self.tdSql.query_row, int(self.cfg["boundary"][-1]/4))
         self.tdSql.checkEqual(self.get_vnode_count(), int(self.cfg["boundary"][-1]/4))
         dbname2 = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname2} vgroups {int(self.cfg["boundary"][-1]/4) + 1} buffer {self.buffer_min}')
+        kv_dict = {test_param: param_value, "buffer": self.buffer_min, "vgroups": int(self.cfg["boundary"][-1]/4) + 1}
+        self.tdCom.createDb(dbname2, **kv_dict)
+        # self.tdSql.execute(f'create database if not exists {dbname2} vgroups {int(self.cfg["boundary"][-1]/4) + 1} buffer {self.buffer_min}')
         self.tdSql.query(f'show {dbname2}.vgroups')
         self.tdSql.checkEqual(self.tdSql.query_row, int(self.cfg["boundary"][-1]/4) + 1)
         self.tdSql.checkEqual(self.get_vnode_count(), int(self.cfg["boundary"][-1]/4)*2 + 1)

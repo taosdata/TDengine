@@ -22,7 +22,6 @@ class TestAlterStable(TDCase):
     
     def alter_stable_column_check(self,dbname,stbname,tbname):
         self.tdCom.createDb(dbname)
-        self.tdSql.execute(f'use {dbname}')
         self.tdSql.execute(
             f'create stable {stbname} (ts timestamp, c1 tinyint, c2 smallint, c3 int, \
                 c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 bool,c12 binary(20),c13 nchar(20)) tags(t0 int) ')
@@ -59,7 +58,6 @@ class TestAlterStable(TDCase):
 
     def alter_stable_tag_check(self,dbname,stbname,tbname):
         self.tdCom.createDb(dbname)
-        self.tdSql.execute(f'use {dbname}')
         self.tdSql.execute(
             f'create stable {stbname} (ts timestamp, c1 int) tags(ts_tag timestamp, t1 tinyint, t2 smallint, t3 int, \
                 t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t11 bool,t12 binary(20),t13 nchar(20)) ')
@@ -101,9 +99,9 @@ class TestAlterStable(TDCase):
 
     def run(self):
 
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        stbname = self.tdCom.get_long_name(length=5, mode="letters")
-        tbname = self.tdCom.get_long_name(length=5, mode="letters")
+        dbname = self.tdCom.get_long_name()
+        stbname = self.tdCom.get_long_name()
+        tbname = self.tdCom.get_long_name()
         self.alter_stable_column_check(dbname,stbname,tbname)
         self.alter_stable_tag_check(dbname,stbname,tbname)
         

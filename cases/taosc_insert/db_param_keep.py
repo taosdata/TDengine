@@ -52,7 +52,6 @@ class TestKeep(TDCase):
             dbname = self.tdCom.get_long_name()
             kv_dict = {"duration": self.common_days_value, test_param: param_value}
             self.tdCom.createDb(dbname, **kv_dict)
-            # self.tdSql.execute(f'create database if not exists {dbname} duration {self.common_days_value} {test_param} {param_value}')
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             if param_value==1 or param_value ==365000:
@@ -81,7 +80,6 @@ class TestKeep(TDCase):
         
         # keep2 >= keep1 >= keep0 >= days (default = 14400)
         # keep2 >= keep1 >= keep0 >= days
-        # self.tdSql.execute(f'create database if not exists {dbname} {test_param} 36500,36501,36502')
         kv_dict = {test_param: "36500,36501,36502"}
         self.tdCom.createDb(dbname, **kv_dict)
         self.tdSql.query('show databases')
@@ -94,7 +92,6 @@ class TestKeep(TDCase):
         self.tdSql.execute(f'drop database {dbname}')
         # keep2(default) > keep1 >= keep0 >= days
         dbname = self.tdCom.get_long_name()
-        # self.tdSql.execute(f'create database if not exists {dbname} {test_param} 36500,36501')
         kv_dict = {test_param: "36500,36501"}
         self.tdCom.createDb(dbname, **kv_dict)
         self.tdSql.query('show databases')
@@ -109,7 +106,6 @@ class TestKeep(TDCase):
         dbname = self.tdCom.get_long_name()
         kv_dict = {"duration": 10, test_param: "10,10,10"}
         self.tdCom.createDb(dbname, **kv_dict)
-        # self.tdSql.execute(f'create database if not exists {dbname} duration 10 {test_param} 10,10,10')
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         self.tdSql.checkEqual(db_field_kv_dict[test_param], "14400m,14400m,14400m")
@@ -137,8 +133,6 @@ class TestKeep(TDCase):
         self.tdSql.execute("drop database if exists db1 ")
         kv_dict = {"duration": "1d", "keep": "10d,10d,10d"}
         self.tdCom.createDb("db1", **kv_dict)
-        # self.tdSql.execute("create database if not exists db1 duration 1d keep 10d,10d,10d")
-        # self.tdSql.execute("use db1")
         self.tdSql.execute("create table ntb (ts timestamp, c0 int)")
         self.tdSql.execute("insert into ntb values(now, 1)")
         self.tdSql.query("select * from ntb")
@@ -151,8 +145,6 @@ class TestKeep(TDCase):
         self.tdSql.execute("drop database if exists db1")
         kv_dict = {"keep": "36500d"}
         self.tdCom.createDb("db1", **kv_dict)
-        # self.tdSql.execute("create database if not exists db1 keep 36500d")
-        # self.tdSql.execute("use db1")
         self.tdSql.execute("create table ntb (ts timestamp, c0 int)")
         self.tdSql.execute("insert into ntb values(0, 1)")
         self.tdSql.query("select * from ntb")

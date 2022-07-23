@@ -19,6 +19,7 @@ class TestChildTb(TDCase):
     def init(self):
         super().init()
         self.tdCom = TDCom(self.tdSql)
+        self.remove_symbol_list = [" ", "+", ";", "&", "*", "%", "/", "-", "|"]
 
     def child_tbname_length_check(self):
         """
@@ -157,9 +158,8 @@ class TestChildTb(TDCase):
         base_sql = f'create table if not exists tb using {stbname} tags (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, True)'
 
         symbol_list = self.tdCom.gen_symbol_list()
-        symbol_list.remove(' ')
-        symbol_list.remove('+')
-        symbol_list.remove(';')
+        for remove_symbol in self.remove_symbol_list:
+            symbol_list.remove(remove_symbol)
         for insert_str in symbol_list:
             d_list = list(base_sql)
             for i in range(len(d_list)+1):

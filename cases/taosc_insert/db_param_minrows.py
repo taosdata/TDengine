@@ -47,7 +47,6 @@ class TestMinrows(TDCase):
             dbname = self.tdCom.get_long_name()
             kv_dict = {test_param: param_value}
             self.tdCom.createDb(dbname, **kv_dict)
-            # self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
