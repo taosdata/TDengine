@@ -934,18 +934,48 @@ static SNode* stbSplFindPrimaryKeyFromScan(SScanLogicNode* pScan) {
   return pCol;
 }
 
+static int32_t stbSplCreateMergeScanNode(SScanLogicNode* pScan, SLogicNode** pOutputMergeScan,
+                                         SNodeList** pOutputMergeKeys) {
+  SNodeList* pChildren = pScan->node.pChildren;
+  pScan->node.pChildren = NULL;
+
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SScanLogicNode* pMergeScan = (SScanLogicNode*)nodesCloneNode((SNode*)pScan);
+  if (NULL == pMergeScan) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SNodeList* pMergeKeys = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    pMergeScan->scanType = SCAN_TYPE_TABLE_MERGE;
+    pMergeScan->node.pChildren = pChildren;
+    splSetParent((SLogicNode*)pMergeScan);
+    code = stbSplCreateMergeKeysByPrimaryKey(stbSplFindPrimaryKeyFromScan(pMergeScan), &pMergeKeys);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutputMergeScan = (SLogicNode*)pMergeScan;
+    *pOutputMergeKeys = pMergeKeys;
+  } else {
+    nodesDestroyNode((SNode*)pMergeScan);
+    nodesDestroyList(pMergeKeys);
+  }
+
+  return code;
+}
+
 static int32_t stbSplSplitMergeScanNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SScanLogicNode* pScan,
                                         bool groupSort) {
-  SNodeList* pMergeKeys = NULL;
-  int32_t    code = stbSplCreateMergeKeysByPrimaryKey(stbSplFindPrimaryKeyFromScan(pScan), &pMergeKeys);
+  SLogicNode* pMergeScan = NULL;
+  SNodeList*  pMergeKeys = NULL;
+  int32_t     code = stbSplCreateMergeScanNode(pScan, &pMergeScan, &pMergeKeys);
   if (TSDB_CODE_SUCCESS == code) {
-    code = stbSplCreateMergeNode(pCxt, pSubplan, (SLogicNode*)pScan, pMergeKeys, (SLogicNode*)pScan, groupSort);
+    code = stbSplCreateMergeNode(pCxt, pSubplan, (SLogicNode*)pScan, pMergeKeys, pMergeScan, groupSort);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeStrictAppend(&pSubplan->pChildren,
-                                     (SNode*)splCreateScanSubplan(pCxt, (SLogicNode*)pScan, SPLIT_FLAG_STABLE_SPLIT));
+                                     (SNode*)splCreateScanSubplan(pCxt, pMergeScan, SPLIT_FLAG_STABLE_SPLIT));
   }
-  pScan->scanType = SCAN_TYPE_TABLE_MERGE;
   ++(pCxt->groupId);
   return code;
 }
