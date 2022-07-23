@@ -2,11 +2,11 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 import numpy as np
-import random 
+import random
 
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 , 
+    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
     "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
     "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143,
     "maxTablesPerVnode":2 ,"minTablesPerVnode":2,"tableIncStepPerVnode":2 }
@@ -25,7 +25,7 @@ class TDTestCase:
         same_sql = f"select max({col_name})-min({col_name}) from {tbname}"
 
         tdSql.query(spread_sql)
-        spread_result = tdSql.queryResult 
+        spread_result = tdSql.queryResult
 
         tdSql.query(same_sql)
         same_result = tdSql.queryResult
@@ -37,7 +37,7 @@ class TDTestCase:
 
 
     def prepare_datas_of_distribute(self):
-        
+
         # prepate datas for  20 tables distributed at different vgroups
         tdSql.execute("create database if not exists testdb keep 3650 duration 1000 vgroups 5")
         tdSql.execute(" use testdb ")
@@ -108,17 +108,17 @@ class TDTestCase:
         vgroups = tdSql.queryResult
 
         vnode_tables={}
-        
+
         for vgroup_id in vgroups:
             vnode_tables[vgroup_id[0]]=[]
-        
+
 
         # check sub_table of per vnode ,make sure sub_table has been distributed
         tdSql.query("show tables like 'ct%'")
         table_names = tdSql.queryResult
         tablenames = []
         for table_name in table_names:
-            vnode_tables[table_name[6]].append(table_name[0]) 
+            vnode_tables[table_name[6]].append(table_name[0])
         self.vnode_disbutes = vnode_tables
 
         count = 0
@@ -129,14 +129,14 @@ class TDTestCase:
             tdLog.exit(" the datas of all not satisfy sub_table has been distributed ")
 
     def check_spread_distribute_diff_vnode(self,col_name):
-    
+
         vgroup_ids = []
         for k ,v in self.vnode_disbutes.items():
             if len(v)>=2:
                 vgroup_ids.append(k)
-        
+
         distribute_tbnames = []
-        
+
         for vgroup_id in vgroup_ids:
             vnode_tables = self.vnode_disbutes[vgroup_id]
             distribute_tbnames.append(random.sample(vnode_tables,1)[0])
@@ -145,13 +145,13 @@ class TDTestCase:
             tbname_ins += "'%s' ,"%tbname
 
         tbname_filters = tbname_ins[:-1]
-        
+
         spread_sql = f"select spread({col_name}) from stb1 where tbname in ({tbname_filters})"
 
         same_sql = f"select max({col_name}) - min({col_name}) from stb1 where tbname in ({tbname_filters})"
 
         tdSql.query(spread_sql)
-        spread_result = tdSql.queryResult 
+        spread_result = tdSql.queryResult
 
         tdSql.query(same_sql)
         same_result = tdSql.queryResult
@@ -162,8 +162,8 @@ class TDTestCase:
             tdLog.info(" spread function work as expected, sql : %s "% spread_sql)
 
     def check_spread_status(self):
-        # check max function work status 
-        
+        # check max function work status
+
         tdSql.query("show tables like 'ct%'")
         table_names = tdSql.queryResult
         tablenames = []
@@ -172,26 +172,26 @@ class TDTestCase:
 
         tdSql.query("desc stb1")
         col_names = tdSql.queryResult
-        
+
         colnames = []
         for col_name in col_names:
             if col_name[1] in ["INT" ,"BIGINT" ,"SMALLINT" ,"TINYINT" , "FLOAT" ,"DOUBLE"]:
                 colnames.append(col_name[0])
-        
+
         for tablename in tablenames:
             for colname in colnames:
                 self.check_spread_functions(tablename,colname)
 
-        # check max function for different vnode 
+        # check max function for different vnode
 
         for colname in colnames:
             if colname.startswith("c"):
                 self.check_spread_distribute_diff_vnode(colname)
             else:
-                # self.check_spread_distribute_diff_vnode(colname) # bug for tag 
+                # self.check_spread_distribute_diff_vnode(colname) # bug for tag
                 pass
 
-        
+
     def distribute_agg_query(self):
         # basic filter
         tdSql.query("select spread(c1) from stb1 where c1 is null")
@@ -212,12 +212,12 @@ class TDTestCase:
         tdSql.query("select spread(c1) from stb1 where t1> 4  partition by tbname")
         tdSql.checkRows(15)
 
-        # union all 
+        # union all
         tdSql.query("select spread(c1) from stb1 union all select max(c1)-min(c1) from stb1 ")
         tdSql.checkRows(2)
         tdSql.checkData(0,0,28.000000000)
 
-        # join 
+        # join
 
         tdSql.execute(" create database if not exists db ")
         tdSql.execute(" use db ")
@@ -225,7 +225,7 @@ class TDTestCase:
         tdSql.execute(" create table tb1 using st tags(1) ")
         tdSql.execute(" create table tb2 using st tags(2) ")
 
-        
+
         for i in range(10):
             ts = i*10 + self.ts
             tdSql.execute(f" insert into tb1 values({ts},{i},{i}.0)")
@@ -236,7 +236,7 @@ class TDTestCase:
         tdSql.checkData(0,0,9.000000000)
         tdSql.checkData(0,0,9.00000)
 
-        # group by 
+        # group by
         tdSql.execute(" use testdb ")
         tdSql.query(" select max(c1),c1  from stb1 group by t1 ")
         tdSql.checkRows(20)
@@ -272,7 +272,7 @@ class TDTestCase:
         self.check_spread_status()
         self.distribute_agg_query()
 
-    
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

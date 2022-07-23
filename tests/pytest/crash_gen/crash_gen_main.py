@@ -809,6 +809,8 @@ class StateEmpty(AnyState):
         ]
 
     def verifyTasksToState(self, tasks, newState):
+        if Config.getConfig().ignore_errors: # if we are asked to ignore certain errors, let's not verify CreateDB success.
+            return
         if (self.hasSuccess(tasks, TaskCreateDb)
                 ):  # at EMPTY, if there's succes in creating DB
             if (not self.hasTask(tasks, TaskDropDb)):  # and no drop_db tasks
@@ -2491,7 +2493,7 @@ class MainExec:
             action='store',
             default=None,
             type=str,
-            help='Ignore error codes, comma separated, 0x supported (default: None)')
+            help='Ignore error codes, comma separated, 0x supported, also suppresses certain transition state checks. (default: None)')
         parser.add_argument(
             '-i',
             '--num-replicas',

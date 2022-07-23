@@ -3671,6 +3671,22 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
         SNode *t = node->pLeft;
         node->pLeft = node->pRight;
         node->pRight = t;
+        switch (node->opType) {
+          case OP_TYPE_GREATER_THAN:
+            node->opType = OP_TYPE_LOWER_THAN;
+            break;
+          case OP_TYPE_LOWER_THAN:
+            node->opType = OP_TYPE_GREATER_THAN;
+            break;
+          case OP_TYPE_GREATER_EQUAL:
+            node->opType = OP_TYPE_LOWER_EQUAL;
+            break;
+          case OP_TYPE_LOWER_EQUAL:
+            node->opType = OP_TYPE_GREATER_EQUAL;
+            break;
+          default:
+            break;
+        }
       }
 
       if (OP_TYPE_IN == node->opType && QUERY_NODE_NODE_LIST != nodeType(node->pRight)) {

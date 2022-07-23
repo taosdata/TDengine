@@ -438,12 +438,15 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUi
 }
 
 int metaTtlDropTable(SMeta *pMeta, int64_t ttl, SArray *tbUids) {
-  metaWLock(pMeta);
   int ret = metaTtlSmaller(pMeta, ttl, tbUids);
   if (ret != 0) {
-    metaULock(pMeta);
     return ret;
   }
+  if (taosArrayGetSize(tbUids) == 0){
+    return 0;
+  }
+
+  metaWLock(pMeta);
   for (int i = 0; i < taosArrayGetSize(tbUids); ++i) {
     tb_uid_t *uid = (tb_uid_t *)taosArrayGet(tbUids, i);
     metaDropTableByUid(pMeta, *uid, NULL);
@@ -637,6 +640,10 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
         goto _err;
       }
+      if (tqCheckColModifiable(pMeta->pVnode->pTq, uid, pColumn->colId) != 0) {
+        terrno = TSDB_CODE_VND_COL_SUBSCRIBED;
+        goto _err;
+      }
       pSchema->version++;
       tlen = (pSchema->nCols - iCol - 1) * sizeof(SSchema);
       if (tlen) {
@@ -653,12 +660,20 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
         goto _err;
       }
+      if (tqCheckColModifiable(pMeta->pVnode->pTq, uid, pColumn->colId) != 0) {
+        terrno = TSDB_CODE_VND_COL_SUBSCRIBED;
+        goto _err;
+      }
       pSchema->version++;
       pColumn->bytes = pAlterTbReq->colModBytes;
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
       if (pColumn == NULL) {
         terrno = TSDB_CODE_VND_TABLE_COL_NOT_EXISTS;
+        goto _err;
+      }
+      if (tqCheckColModifiable(pMeta->pVnode->pTq, uid, pColumn->colId) != 0) {
+        terrno = TSDB_CODE_VND_COL_SUBSCRIBED;
         goto _err;
       }
       pSchema->version++;

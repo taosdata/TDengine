@@ -22,7 +22,7 @@ done
 
 echo ""
 echo "generate vgId ..."
-cat ${logpath}/log.dnode* | grep "vgId:" | grep -v ERROR | awk '{print $5}' | awk -F, '{print $1}' | sort | uniq > ${logpath}/log.vgIds.tmp
+cat ${logpath}/log.dnode* | grep "vgId:" | grep -v ERROR | awk '{print $5}' | sort | uniq > ${logpath}/log.vgIds.tmp
 echo "all vgIds:" > ${logpath}/log.vgIds
 cat ${logpath}/log.dnode* | grep "vgId:" | grep -v ERROR | awk '{print $5}' | awk -F, '{print $1}' | sort | uniq >> ${logpath}/log.vgIds
 for dnode in `ls ${logpath} | grep dnode | grep -v log`;do

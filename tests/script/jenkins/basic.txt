@@ -27,11 +27,11 @@
 ./test.sh -f tsim/db/delete_writing2.sim
 # unsupport ./test.sh -f tsim/db/dropdnodes.sim
 ./test.sh -f tsim/db/error1.sim
-# jira ./test.sh -f tsim/db/keep.sim
+# TD-17592 ./test.sh -f tsim/db/keep.sim
 ./test.sh -f tsim/db/len.sim
 ./test.sh -f tsim/db/repeat.sim
 ./test.sh -f tsim/db/show_create_db.sim
-# jira ./test.sh -f tsim/db/show_create_table.sim
+./test.sh -f tsim/db/show_create_table.sim
 ./test.sh -f tsim/db/tables.sim
 ./test.sh -f tsim/db/taosdlog.sim
 
@@ -69,6 +69,7 @@
 ./test.sh -f tsim/insert/basic.sim
 ./test.sh -f tsim/insert/basic0.sim
 ./test.sh -f tsim/insert/basic1.sim
+./test.sh -f tsim/insert/basic2.sim
 ./test.sh -f tsim/insert/commit-merge0.sim
 ./test.sh -f tsim/insert/insert_drop.sim
 ./test.sh -f tsim/insert/insert_select.sim
@@ -81,93 +82,86 @@
 ./test.sh -f tsim/insert/query_multi_file.sim
 ./test.sh -f tsim/insert/tcp.sim
 ./test.sh -f tsim/insert/update0.sim
+./test.sh -f tsim/insert/update1_sort_merge.sim
 
 # ---- parser
 ./test.sh -f tsim/parser/alter__for_community_version.sim
 ./test.sh -f tsim/parser/alter_column.sim
 ./test.sh -f tsim/parser/alter_stable.sim
 ./test.sh -f tsim/parser/alter.sim
-# jira ./test.sh -f tsim/parser/alter1.sim
+# TD-17661 ./test.sh -f tsim/parser/alter1.sim
 ./test.sh -f tsim/parser/auto_create_tb_drop_tb.sim
-# jira ./test.sh -f tsim/parser/auto_create_tb.sim
+./test.sh -f tsim/parser/auto_create_tb.sim
 ./test.sh -f tsim/parser/between_and.sim
 ./test.sh -f tsim/parser/binary_escapeCharacter.sim
-# jira ./test.sh -f tsim/parser/col_arithmetic_operation.sim     
-# jira ./test.sh -f tsim/parser/columnValue.sim
+# TD-17738 ./test.sh -f tsim/parser/col_arithmetic_operation.sim     
+# TD-17661 ./test.sh -f tsim/parser/columnValue.sim
 ./test.sh -f tsim/parser/commit.sim
-# jira ./test.sh -f tsim/parser/condition.sim
+# TD-17661 ./test.sh -f tsim/parser/condition.sim
 ./test.sh -f tsim/parser/constCol.sim
 ./test.sh -f tsim/parser/create_db.sim
 ./test.sh -f tsim/parser/create_mt.sim
-# jira ./test.sh -f tsim/parser/create_tb_with_tag_name.sim
+# TD-17653 ./test.sh -f tsim/parser/create_tb_with_tag_name.sim
 ./test.sh -f tsim/parser/create_tb.sim
 ./test.sh -f tsim/parser/dbtbnameValidate.sim
 ./test.sh -f tsim/parser/distinct.sim
-# jira ./test.sh -f tsim/parser/fill_stb.sim
+# TD-17623 ./test.sh -f tsim/parser/fill_stb.sim
 ./test.sh -f tsim/parser/fill_us.sim
 ./test.sh -f tsim/parser/fill.sim
 ./test.sh -f tsim/parser/first_last.sim
 ./test.sh -f tsim/parser/fourArithmetic-basic.sim
-# jira ./test.sh -f tsim/parser/function.sim
+# TD-17659 ./test.sh -f tsim/parser/function.sim
 ./test.sh -f tsim/parser/groupby-basic.sim
-# ./test.sh -f tsim/parser/groupby.sim
-# ./test.sh -f tsim/parser/having_child.sim
-## ./test.sh -f tsim/parser/having.sim
+./test.sh -f tsim/parser/groupby.sim
+# TD-17622 ./test.sh -f tsim/parser/having_child.sim
+# TD-17622 ./test.sh -f tsim/parser/having.sim
 ./test.sh -f tsim/parser/import_commit1.sim
 ./test.sh -f tsim/parser/import_commit2.sim
 ./test.sh -f tsim/parser/import_commit3.sim
-# jira ./test.sh -f tsim/parser/import_file.sim
+./test.sh -f tsim/parser/import_file.sim
 ./test.sh -f tsim/parser/import.sim
 ./test.sh -f tsim/parser/insert_multiTbl.sim
 ./test.sh -f tsim/parser/insert_tb.sim
-# jira ./test.sh -f tsim/parser/interp.sim
-# ./test.sh -f tsim/parser/join.sim
-# ./test.sh -f tsim/parser/join_manyblocks.sim
-## ./test.sh -f tsim/parser/join_multitables.sim
-# ./test.sh -f tsim/parser/join_multivnode.sim
+# TD-17038 ./test.sh -f tsim/parser/interp.sim
+./test.sh -f tsim/parser/join_manyblocks.sim
+# TD-17713 ./test.sh -f tsim/parser/join_multitables.sim
+# TD-17713 ./test.sh -f tsim/parser/join_multivnode.sim
+# TD-17707 ./test.sh -f tsim/parser/join.sim
 ./test.sh -f tsim/parser/last_cache.sim
-## ./test.sh -f tsim/parser/last_groupby.sim
-# jira ./test.sh -f tsim/parser/lastrow.sim
-## ./test.sh -f tsim/parser/like.sim
-# ./test.sh -f tsim/parser/limit.sim
-# ./test.sh -f tsim/parser/limit1.sim
-# ./test.sh -f tsim/parser/limit1_tblocks100.sim
-## ./test.sh -f tsim/parser/limit2.sim
-## ./test.sh -f tsim/parser/limit2_tblocks100.sim
-## ./test.sh -f tsim/parser/limit_stb.sim
-## ./test.sh -f tsim/parser/limit_tb.sim
-## ./test.sh -f tsim/parser/line_insert.sim
-# ./test.sh -f tsim/parser/mixed_blocks.sim
-# ./test.sh -f tsim/parser/nchar.sim
-# ./test.sh -f tsim/parser/nestquery.sim
-# ./test.sh -f tsim/parser/null_char.sim
-## ./test.sh -f tsim/parser/precision_ns.sim
-# ./test.sh -f tsim/parser/projection_limit_offset.sim
-## ./test.sh -f tsim/parser/regex.sim
-# ./test.sh -f tsim/parser/repeatAlter.sim
-# ./test.sh -f tsim/parser/selectResNum.sim
-# ./test.sh -f tsim/parser/select_across_vnodes.sim
-# ./test.sh -f tsim/parser/select_distinct_tag.sim
-# ./test.sh -f tsim/parser/select_from_cache_disk.sim
-# ./test.sh -f tsim/parser/select_with_tags.sim
-# ./test.sh -f tsim/parser/set_tag_vals.sim
-# ./test.sh -f tsim/parser/single_row_in_tb.sim
-# ./test.sh -f tsim/parser/sliding.sim
-# ./test.sh -f tsim/parser/slimit_alter_tags.sim
-# ./test.sh -f tsim/parser/slimit.sim
-# ./test.sh -f tsim/parser/slimit1.sim
+./test.sh -f tsim/parser/last_groupby.sim
+# TD-17722 ./test.sh -f tsim/parser/lastrow.sim
+./test.sh -f tsim/parser/like.sim
+# TD-17464 ./test.sh -f tsim/parser/limit.sim
+# TD-17464 ./test.sh -f tsim/parser/limit1.sim
+# TD-17623 ./test.sh -f tsim/parser/limit2.sim
+./test.sh -f tsim/parser/mixed_blocks.sim
+./test.sh -f tsim/parser/nchar.sim
+# TD-17703 ./test.sh -f tsim/parser/nestquery.sim
+# TD-17685 ./test.sh -f tsim/parser/null_char.sim
+./test.sh -f tsim/parser/precision_ns.sim
+./test.sh -f tsim/parser/projection_limit_offset.sim
+./test.sh -f tsim/parser/regex.sim
+./test.sh -f tsim/parser/select_across_vnodes.sim
+./test.sh -f tsim/parser/select_distinct_tag.sim
+./test.sh -f tsim/parser/select_from_cache_disk.sim
+# TD-17659 ./test.sh -f tsim/parser/select_with_tags.sim
+./test.sh -f tsim/parser/selectResNum.sim
+# TD-17685 ./test.sh -f tsim/parser/set_tag_vals.sim
+./test.sh -f tsim/parser/single_row_in_tb.sim
+# TD-17684 ./test.sh -f tsim/parser/sliding.sim
+# TD-17722 ./test.sh -f tsim/parser/slimit_alter_tags.sim
+# TD-17722 ./test.sh -f tsim/parser/slimit.sim
+# TD-17722 ./test.sh -f tsim/parser/slimit1.sim
 ./test.sh -f tsim/parser/stableOp.sim
-# ./test.sh -f tsim/parser/tags_dynamically_specifiy.sim
-# ./test.sh -f tsim/parser/tags_filter.sim
+# TD-17661 ./test.sh -f tsim/parser/tags_dynamically_specifiy.sim
+# TD-17661 ./test.sh -f tsim/parser/tags_filter.sim
 ./test.sh -f tsim/parser/tbnameIn.sim
 ./test.sh -f tsim/parser/timestamp.sim
 ./test.sh -f tsim/parser/top_groupby.sim
 ./test.sh -f tsim/parser/topbot.sim
-# ./test.sh -f tsim/parser/udf_dll_stable.sim
-# ./test.sh -f tsim/parser/udf_dll.sim
-# ./test.sh -f tsim/parser/udf.sim
-# ./test.sh -f tsim/parser/union.sim
-# ./test.sh -f tsim/parser/where.sim
+./test.sh -f tsim/parser/union.sim
+# TD-17704 ./test.sh -f tsim/parser/union_sysinfo.sim
+# TD-17661 ./test.sh -f tsim/parser/where.sim
 
 # ---- query
 ./test.sh -f tsim/query/interval.sim
@@ -196,7 +190,7 @@
 ./test.sh -f tsim/mnode/basic5.sim
 
 # ---- show
-# jira ./test.sh -f tsim/show/basic.sim
+./test.sh -f tsim/show/basic.sim
 
 # ---- table
 ./test.sh -f tsim/table/autocreate.sim
@@ -328,7 +322,7 @@
 ./test.sh -f tsim/vnode/stable_replica3_vnode3.sim
 
 # --- sync
-# jira ./test.sh -f tsim/sync/3Replica1VgElect.sim
+./test.sh -f tsim/sync/3Replica1VgElect.sim
 ./test.sh -f tsim/sync/3Replica5VgElect.sim
 ./test.sh -f tsim/sync/oneReplica1VgElect.sim
 ./test.sh -f tsim/sync/oneReplica5VgElect.sim
@@ -418,7 +412,7 @@
 ./test.sh -f tsim/tag/3.sim
 ./test.sh -f tsim/tag/4.sim
 ./test.sh -f tsim/tag/5.sim
-# jira ./test.sh -f tsim/tag/6.sim
+# TD-17382 ./test.sh -f tsim/tag/6.sim
 ./test.sh -f tsim/tag/add.sim
 ./test.sh -f tsim/tag/bigint.sim
 ./test.sh -f tsim/tag/binary_binary.sim
@@ -426,18 +420,18 @@
 ./test.sh -f tsim/tag/bool_binary.sim
 ./test.sh -f tsim/tag/bool_int.sim
 ./test.sh -f tsim/tag/bool.sim
-# ./test.sh -f tsim/tag/change.sim
-# ./test.sh -f tsim/tag/column.sim
-# ./test.sh -f tsim/tag/commit.sim
-# ./test.sh -f tsim/tag/create.sim
-# ./test.sh -f tsim/tag/delete.sim
-# jira ./test.sh -f tsim/tag/double.sim
-# ./test.sh -f tsim/tag/filter.sim
-# jira ./test.sh -f tsim/tag/float.sim
+# TD-17661 ./test.sh -f tsim/tag/change.sim
+./test.sh -f tsim/tag/column.sim
+./test.sh -f tsim/tag/commit.sim
+# TD-17661 ./test.sh -f tsim/tag/create.sim
+# TD-17661 ./test.sh -f tsim/tag/delete.sim
+# TD-17661 ./test.sh -f tsim/tag/double.sim
+# TD-17661 ./test.sh -f tsim/tag/filter.sim
+# TD-17407 ./test.sh -f tsim/tag/float.sim
 ./test.sh -f tsim/tag/int_binary.sim
 ./test.sh -f tsim/tag/int_float.sim
 ./test.sh -f tsim/tag/int.sim
-# ./test.sh -f tsim/tag/set.sim
+# TD-17661 ./test.sh -f tsim/tag/set.sim
 ./test.sh -f tsim/tag/smallint.sim
 ./test.sh -f tsim/tag/tinyint.sim
 

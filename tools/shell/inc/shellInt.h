@@ -26,6 +26,10 @@
 #include "ttypes.h"
 #include "tutil.h"
 
+#ifdef WEBSOCKET
+#include "taosws.h"
+#endif
+
 #define SHELL_MAX_HISTORY_SIZE                 1000
 #define SHELL_MAX_COMMAND_SIZE                 1048586
 #define SHELL_HISTORY_FILE                     ".taos_history"
@@ -67,6 +71,12 @@ typedef struct {
   int32_t     pktNum;
   int32_t     displayWidth;
   int32_t     abort;
+#ifdef WEBSOCKET
+  bool        restful;
+  bool        cloud;
+  char*       dsn;
+  int32_t     timeout;
+#endif
 } SShellArgs;
 
 typedef struct {
@@ -85,6 +95,10 @@ typedef struct {
   TAOS*           conn;
   TdThread        pid;
   tsem_t          cancelSem;
+#ifdef WEBSOCKET
+  WS_TAOS*        ws_conn;
+  bool		      stop_query;
+#endif
 } SShellObj;
 
 // shellArguments.c
@@ -95,7 +109,10 @@ int32_t shellReadCommand(char* command);
 
 // shellEngine.c
 int32_t shellExecute();
-
+int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision);
+void    shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields);
+void    shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t length, int32_t precision);
+void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision); 
 // shellUtil.c
 int32_t shellCheckIntSize();
 void    shellPrintVersion();
@@ -108,6 +125,14 @@ void    shellExit();
 
 // shellNettest.c
 void shellTestNetWork();
+
+#ifdef WEBSOCKET
+void	shellCheckConnectMode();
+// shellWebsocket.c
+int shell_conn_ws_server(bool first);
+int32_t shell_run_websocket();
+void shellRunSingleCommandWebsocketImp(char *command); 
+#endif
 
 // shellMain.c
 extern SShellObj shell;
