@@ -1752,7 +1752,6 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
     colLength[i] = htonl(colLength[i]);
     if (colLength[i] >= dataLen) {
       tscError("invalid colLength %d, dataLen %d", colLength[i], dataLen);
-      *(char*)0 = 1;
       ASSERT(0);
     }
 
