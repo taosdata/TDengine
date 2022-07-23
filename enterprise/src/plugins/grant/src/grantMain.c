@@ -665,13 +665,7 @@ static char *grantSecondsToString(uint32_t seconds) {
 }
 
 static uint32_t grantGetClusterCreateTime(SMnode *pMnode) {
-  int64_t createTime = (int64_t)taosGetTimestampMs();
-  int64_t clusterTime = mndGetClusterCreateTime(pMnode);
-
-  if (clusterTime < createTime) {
-    createTime = clusterTime;
-  }
-
+  int64_t createTime = mndGetClusterCreateTime(pMnode);
   return (uint32_t)(createTime / 1000);
 }
 
@@ -870,11 +864,16 @@ static void grantResetMaster(SMnode *pMnode) {
 #ifndef GRANTS_CFG
   uint32_t curTime = taosGetTimestampMs() / 1000;
   uint32_t clusterCreateTime = grantGetClusterCreateTime(pMnode);
+
   if (clusterCreateTime > 0) {
-    recheckClusterTime = false;
-    grantStatus.expireTimeSec = clusterCreateTime + GRANT_DEFAULT;
-    grantStatus.expireTimeSec += GRANT_TOLERENCE;
-    grantStatus.expired = false;
+    if (clusterCreateTime < curTime) {
+      recheckClusterTime = false;
+      grantStatus.expireTimeSec = clusterCreateTime + GRANT_DEFAULT;
+      grantStatus.expireTimeSec += GRANT_TOLERENCE;
+    } else {
+      grantStatus.expireTimeSec = 0;
+    }
+    if (grantStatus.expireTimeSec > curTime) grantStatus.expired = false;
 
     char *ts = grantSecondsToString(grantStatus.expireTimeSec);
     uInfo("grant expire time reset to %s %u, current timeseries %" PRIu64, ts, grantStatus.expireTimeSec,
@@ -1300,9 +1299,9 @@ static void grantStatusCheck(SMnode *pMnode, uint32_t curTime, SDnodeInfo *pDnod
              pGrantStatus->expireTimeSec, curTime);
     }
   } else {
+    pGrantStatus->expired = true;
     uError("grant cluster expired at %s %u, curtime: %u, set to un-grant state", ts, pGrantStatus->expireTimeSec,
            curTime);
-    pGrantStatus->expired = true;
   }
   taosMemoryFree(ts);
 
@@ -1961,6 +1960,7 @@ int32_t tSerializeGrantMsg(void *buf, int32_t bufLen, GrantMsg *pMsg) {
   if (tSerializeGrantConnMsg(&encoder, &pMsg->connectors) < 0) return -1;  // version 2 since 3.0.5.0
 
   // since 3.1.0.0
+  if (tEncodeU32(&encoder, pMsg->connectors.distribute) < 0) return -1;
   int16_t len = strlen(pMsg->active);
   if (tEncodeI16v(&encoder, len) < 0) return -1;
   if (len > 0 && tEncodeBinary(&encoder, pMsg->active, len) < 0) return -1;
@@ -2016,6 +2016,7 @@ int32_t tDeserializeGrantMsg(void *buf, int32_t bufLen, GrantMsg *pMsg) {
 
   // since 3.1.0.0
   if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeU32(&decoder, &pMsg->connectors.distribute) < 0) return -1;
     int16_t len = 0;
     if (tDecodeI16v(&decoder, &len) < 0) return -1;
     if (len > 0) {

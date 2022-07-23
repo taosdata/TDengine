@@ -127,7 +127,7 @@ typedef struct {
   uint8_t        officialVersion;
   int8_t         majorVer;
   int8_t         minorVer;
-  uint32_t       distribute;
+  uint32_t       distribute;                             // since 3.1.0.0
   SGrantConnItem items[GRANT_CONN_NUM];
   char           active[GRANT_CONN_ACTIVE_KEY_LEN + 1];  // since 3.1.0.0
 } SGrantConnMsg;
