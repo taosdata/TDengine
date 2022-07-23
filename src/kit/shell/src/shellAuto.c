@@ -125,7 +125,8 @@ SWords shellCommands[] = {
   {"show vgroups;", 0, 0, NULL},
   {"insert into <tb_name> values(", 0, 0, NULL},
   {"insert into <tb_name> using <stb_name> tags(", 0, 0, NULL},
-  {"use <db_name>", 0, 0, NULL}
+  {"use <db_name>", 0, 0, NULL},
+  {"quit", 0, 0, NULL}
 };
 
 char * keywords[] = {
