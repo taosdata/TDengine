@@ -25,7 +25,7 @@ void (*taosCloseHandle[])(void* arg) = {transCloseServer, transCloseClient};
 void (*taosRefHandle[])(void* handle) = {transRefSrvHandle, transRefCliHandle};
 void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, transUnrefCliHandle};
 
-void (*transReleaseHandle[])(void* handle) = {transReleaseSrvHandle, transReleaseCliHandle};
+int (*transReleaseHandle[])(void* handle) = {transReleaseSrvHandle, transReleaseCliHandle};
 
 static int32_t transValidLocalFqdn(const char* localFqdn, uint32_t* ip) {
   *ip = taosGetIpv4FromFqdn(localFqdn);
@@ -112,7 +112,7 @@ void* rpcMallocCont(int32_t contLen) {
 void rpcFreeCont(void* cont) {
   if (cont == NULL) return;
   taosMemoryFree((char*)cont - TRANS_MSG_OVERHEAD);
-  tTrace("free mem:%p", (char*)cont - TRANS_MSG_OVERHEAD);
+  tTrace("rpc free cont:%p", (char*)cont - TRANS_MSG_OVERHEAD);
 }
 
 void* rpcReallocCont(void* ptr, int32_t contLen) {
@@ -129,25 +129,20 @@ void* rpcReallocCont(void* ptr, int32_t contLen) {
   return st + TRANS_MSG_OVERHEAD;
 }
 
-void rpcSendRedirectRsp(void* thandle, const SEpSet* pEpSet) {
-  // deprecated api
-  assert(0);
-}
-
 int32_t rpcReportProgress(void* pConn, char* pCont, int32_t contLen) { return -1; }
 void    rpcCancelRequest(int64_t rid) { return; }
 
-void rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
-  transSendRequest(shandle, pEpSet, pMsg, NULL);
+int rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
+  return transSendRequest(shandle, pEpSet, pMsg, NULL);
 }
-void rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
-  transSendRequest(shandle, pEpSet, pMsg, pCtx);
+int rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
+  return transSendRequest(shandle, pEpSet, pMsg, pCtx);
 }
-void rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
-  transSendRecv(shandle, pEpSet, pMsg, pRsp);
+int rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
+  return transSendRecv(shandle, pEpSet, pMsg, pRsp);
 }
 
-void rpcSendResponse(const SRpcMsg* pMsg) { transSendResponse(pMsg); }
+int rpcSendResponse(const SRpcMsg* pMsg) { return transSendResponse(pMsg); }
 
 void rpcRefHandle(void* handle, int8_t type) {
   assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
@@ -159,15 +154,15 @@ void rpcUnrefHandle(void* handle, int8_t type) {
   (*taosUnRefHandle[type])(handle);
 }
 
-void rpcRegisterBrokenLinkArg(SRpcMsg* msg) { transRegisterMsg(msg); }
-void rpcReleaseHandle(void* handle, int8_t type) {
+int rpcRegisterBrokenLinkArg(SRpcMsg* msg) { return transRegisterMsg(msg); }
+int rpcReleaseHandle(void* handle, int8_t type) {
   assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
-  (*transReleaseHandle[type])(handle);
+  return (*transReleaseHandle[type])(handle);
 }
 
-void rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
+int rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   // later
-  transSetDefaultAddr(thandle, ip, fqdn);
+  return transSetDefaultAddr(thandle, ip, fqdn);
 }
 
 void* rpcAllocHandle() { return (void*)transAllocHandle(); }

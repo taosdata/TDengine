@@ -51,6 +51,13 @@ IF(${TD_WINDOWS})
         "If build unit tests using googletest" 
         ON
     )
+    
+    option(
+        TDENGINE_3
+        "TDengine 3.x"
+        ON
+        )
+
 ELSEIF (TD_DARWIN_64)
     add_definitions(-DCOMPILER_SUPPORTS_CXX13)
     option(

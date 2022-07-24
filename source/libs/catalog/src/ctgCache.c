@@ -132,7 +132,7 @@ void ctgReleaseDBCache(SCatalog *pCtg, SCtgDBCache *dbCache) {
 
 int32_t ctgAcquireDBCacheImpl(SCatalog* pCtg, const char *dbFName, SCtgDBCache **pCache, bool acquire) {
   char *p = strchr(dbFName, '.');
-  if (p && CTG_IS_SYS_DBNAME(p + 1)) {
+  if (p && IS_SYS_DBNAME(p + 1)) {
     dbFName = p + 1;
   }
 
@@ -694,7 +694,7 @@ int32_t ctgDropDbCacheEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId)
   }
 
   char *p = strchr(dbFName, '.');
-  if (p && CTG_IS_SYS_DBNAME(p + 1)) {
+  if (p && IS_SYS_DBNAME(p + 1)) {
     dbFName = p + 1;
   }
 
@@ -727,7 +727,7 @@ int32_t ctgDropDbVgroupEnqueue(SCatalog* pCtg, const char *dbFName, bool syncOp)
   }
 
   char *p = strchr(dbFName, '.');
-  if (p && CTG_IS_SYS_DBNAME(p + 1)) {
+  if (p && IS_SYS_DBNAME(p + 1)) {
     dbFName = p + 1;
   }
 
@@ -823,7 +823,7 @@ int32_t ctgUpdateVgroupEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId
   }
 
   char *p = strchr(dbFName, '.');
-  if (p && CTG_IS_SYS_DBNAME(p + 1)) {
+  if (p && IS_SYS_DBNAME(p + 1)) {
     dbFName = p + 1;
   }
 
@@ -859,7 +859,7 @@ int32_t ctgUpdateTbMetaEnqueue(SCatalog* pCtg, STableMetaOutput *output, bool sy
   }
 
   char *p = strchr(output->dbFName, '.');
-  if (p && CTG_IS_SYS_DBNAME(p + 1)) {
+  if (p && IS_SYS_DBNAME(p + 1)) {
     memmove(output->dbFName, p + 1, strlen(p + 1));
   }
 
@@ -2123,7 +2123,7 @@ int32_t ctgStartUpdateThread() {
 
 
 int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta) {
-  if (CTG_IS_SYS_DBNAME(ctx->pName->dbname)) {
+  if (IS_SYS_DBNAME(ctx->pName->dbname)) {
     CTG_FLAG_SET_SYS_DB(ctx->flag);
   }
 
@@ -2177,7 +2177,7 @@ _return:
 }
 
 int32_t ctgGetTbHashVgroupFromCache(SCatalog *pCtg, const SName *pTableName, SVgroupInfo **pVgroup) {
-  if (CTG_IS_SYS_DBNAME(pTableName->dbname)) {
+  if (IS_SYS_DBNAME(pTableName->dbname)) {
     ctgError("no valid vgInfo for db, dbname:%s", pTableName->dbname);
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }

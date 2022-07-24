@@ -214,8 +214,8 @@ static void doBitmapMerge(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, c
   }
 }
 
-int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, uint32_t* capacity,
-                        const SColumnInfoData* pSource, uint32_t numOfRow2) {
+int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int32_t* capacity,
+                        const SColumnInfoData* pSource, int32_t numOfRow2) {
   ASSERT(pColumnInfoData != NULL && pSource != NULL && pColumnInfoData->info.type == pSource->info.type);
   if (numOfRow2 == 0) {
     return numOfRow1;
@@ -263,7 +263,8 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, ui
     pColumnInfoData->varmeta.length = len + oldLen;
   } else {
     if (finalNumOfRows > *capacity || (numOfRow1 == 0 && pColumnInfoData->info.bytes != 0)) {
-      ASSERT(finalNumOfRows * pColumnInfoData->info.bytes);
+      // all data may be null, when the pColumnInfoData->info.type == 0, bytes == 0;
+//      ASSERT(finalNumOfRows * pColumnInfoData->info.bytes);
       char* tmp = taosMemoryRealloc(pColumnInfoData->pData, finalNumOfRows * pColumnInfoData->info.bytes);
       if (tmp == NULL) {
         return TSDB_CODE_VND_OUT_OF_MEMORY;
@@ -1107,6 +1108,11 @@ int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullF
 
 void blockDataCleanup(SSDataBlock* pDataBlock) {
   pDataBlock->info.rows = 0;
+  pDataBlock->info.groupId = 0;
+
+  pDataBlock->info.window.ekey = 0;
+  pDataBlock->info.window.skey = 0;
+
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
@@ -1163,9 +1169,15 @@ static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* 
 void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
   if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
     pColumn->varmeta.length = 0;
+    if (pColumn->varmeta.offset > 0) {
+      memset(pColumn->varmeta.offset, 0, sizeof(int32_t) * numOfRows);
+    }
   } else {
     if (pColumn->nullbitmap != NULL) {
       memset(pColumn->nullbitmap, 0, BitmapLen(numOfRows));
+      if (pColumn->pData != NULL) {
+        memset(pColumn->pData, 0, pColumn->info.bytes * numOfRows);
+      }
     }
   }
 }

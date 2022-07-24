@@ -41,7 +41,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   int32_t numOfCols = 0;
   SExprInfo* pExprInfo = createExprInfo(pJoinNode->pTargets, NULL, &numOfCols);
 
-  initResultSizeInfo(pOperator, 4096);
+  initResultSizeInfo(&pOperator->resultInfo, 4096);
 
   pInfo->pRes             = pResBlock;
   pOperator->name         = "MergeJoinOperator";
@@ -211,7 +211,7 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
       break;
     }
     if (pJoinInfo->pCondAfterMerge != NULL) {
-      doFilter(pJoinInfo->pCondAfterMerge, pRes);
+      doFilter(pJoinInfo->pCondAfterMerge, pRes, NULL);
     }
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
       break;

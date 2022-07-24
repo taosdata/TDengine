@@ -4941,14 +4941,14 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
   return 0;
 }
 
-STSchema *tdGetSTSChemaFromSSChema(SSchema **pSchema, int32_t nCols) {
+STSchema *tdGetSTSChemaFromSSChema(SSchema *pSchema, int32_t nCols, int32_t sver) {
   STSchemaBuilder schemaBuilder = {0};
-  if (tdInitTSchemaBuilder(&schemaBuilder, 1) < 0) {
+  if (tdInitTSchemaBuilder(&schemaBuilder, sver) < 0) {
     return NULL;
   }
 
   for (int i = 0; i < nCols; i++) {
-    SSchema *schema = *pSchema + i;
+    SSchema *schema = pSchema + i;
     if (tdAddColToSchema(&schemaBuilder, schema->type, schema->flags, schema->colId, schema->bytes) < 0) {
       tdDestroyTSchemaBuilder(&schemaBuilder);
       return NULL;
@@ -4981,6 +4981,7 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
 
   if (pReq->type == TSDB_CHILD_TABLE) {
     if (tEncodeCStr(pCoder, pReq->ctb.name) < 0) return -1;
+    if (tEncodeU8(pCoder, pReq->ctb.tagNum) < 0) return -1;
     if (tEncodeI64(pCoder, pReq->ctb.suid) < 0) return -1;
     if (tEncodeTag(pCoder, (const STag *)pReq->ctb.pTag) < 0) return -1;
     int32_t len = taosArrayGetSize(pReq->ctb.tagName);
@@ -5017,6 +5018,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
 
   if (pReq->type == TSDB_CHILD_TABLE) {
     if (tDecodeCStr(pCoder, &pReq->ctb.name) < 0) return -1;
+    if (tDecodeU8(pCoder, &pReq->ctb.tagNum) < 0) return -1;
     if (tDecodeI64(pCoder, &pReq->ctb.suid) < 0) return -1;
     if (tDecodeTag(pCoder, (STag **)&pReq->ctb.pTag) < 0) return -1;
     int32_t len = 0;
@@ -5349,6 +5351,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
 
   if (tEncodeCStr(pEncoder, pReq->tbName) < 0) return -1;
   if (tEncodeI8(pEncoder, pReq->action) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->colId) < 0) return -1;
   switch (pReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
       if (tEncodeCStr(pEncoder, pReq->colName) < 0) return -1;
@@ -5399,6 +5402,7 @@ int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
 
   if (tDecodeCStr(pDecoder, &pReq->tbName) < 0) return -1;
   if (tDecodeI8(pDecoder, &pReq->action) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->colId) < 0) return -1;
   switch (pReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
       if (tDecodeCStr(pDecoder, &pReq->colName) < 0) return -1;
@@ -5618,6 +5622,33 @@ int32_t tEncodeSTqOffset(SEncoder *pEncoder, const STqOffset *pOffset) {
 int32_t tDecodeSTqOffset(SDecoder *pDecoder, STqOffset *pOffset) {
   if (tDecodeSTqOffsetVal(pDecoder, &pOffset->val) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pOffset->subKey) < 0) return -1;
+  return 0;
+}
+
+int32_t tEncodeSCheckAlterInfo(SEncoder *pEncoder, const SCheckAlterInfo *pInfo) {
+  if (tEncodeCStr(pEncoder, pInfo->topic) < 0) return -1;
+  if (tEncodeI64(pEncoder, pInfo->ntbUid) < 0) return -1;
+  int32_t sz = taosArrayGetSize(pInfo->colIdList);
+  if (tEncodeI32(pEncoder, sz) < 0) return -1;
+  for (int32_t i = 0; i < sz; i++) {
+    int16_t colId = *(int16_t *)taosArrayGet(pInfo->colIdList, i);
+    if (tEncodeI16(pEncoder, colId) < 0) return -1;
+  }
+  return pEncoder->pos;
+}
+
+int32_t tDecodeSCheckAlterInfo(SDecoder *pDecoder, SCheckAlterInfo *pInfo) {
+  if (tDecodeCStrTo(pDecoder, pInfo->topic) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pInfo->ntbUid) < 0) return -1;
+  int32_t sz;
+  if (tDecodeI32(pDecoder, &sz) < 0) return -1;
+  pInfo->colIdList = taosArrayInit(sz, sizeof(int16_t));
+  if (pInfo->colIdList == NULL) return -1;
+  for (int32_t i = 0; i < sz; i++) {
+    int16_t colId;
+    if (tDecodeI16(pDecoder, &colId) < 0) return -1;
+    taosArrayPush(pInfo->colIdList, &colId);
+  }
   return 0;
 }
 

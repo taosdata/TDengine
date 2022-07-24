@@ -66,12 +66,32 @@ static void setNullRow(SSDataBlock* pBlock, int64_t ts, int32_t rowIndex) {
 
 static void doSetVal(SColumnInfoData* pDstColInfoData, int32_t rowIndex, const SGroupKeys* pKey);
 
+static void doSetUserSpecifiedValue(SColumnInfoData* pDst, SVariant* pVar, int32_t rowIndex, int64_t currentKey)  {
+  if (pDst->info.type == TSDB_DATA_TYPE_FLOAT) {
+    float v = 0;
+    GET_TYPED_DATA(v, float, pVar->nType, &pVar->i);
+    colDataAppend(pDst, rowIndex, (char*)&v, false);
+  } else if (pDst->info.type == TSDB_DATA_TYPE_DOUBLE) {
+    double v = 0;
+    GET_TYPED_DATA(v, double, pVar->nType, &pVar->i);
+    colDataAppend(pDst, rowIndex, (char*)&v, false);
+  } else if (IS_SIGNED_NUMERIC_TYPE(pDst->info.type)) {
+    int64_t v = 0;
+    GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
+    colDataAppend(pDst, rowIndex, (char*)&v, false);
+  } else if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+    colDataAppend(pDst, rowIndex, (const char*)&currentKey, false);
+  } else {  // varchar/nchar data
+    colDataAppendNULL(pDst, rowIndex);
+  }
+}
+
 static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock* pSrcBlock, int64_t ts,
                          bool outOfBound) {
   SPoint  point1, point2, point;
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order);
 
-//   set the primary timestamp column value
+  // set the primary timestamp column value
   int32_t index = pBlock->info.rows;
 
   // set the other values
@@ -160,30 +180,13 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
   } else {  // fill with user specified value for each column
     for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
       SFillColInfo* pCol = &pFillInfo->pFillCol[i];
-      if (TSDB_COL_IS_TAG(pCol->flag) /* || IS_VAR_DATA_TYPE(pCol->schema.type)*/) {
+      if (TSDB_COL_IS_TAG(pCol->flag)) {
         continue;
       }
 
       SVariant* pVar = &pFillInfo->pFillCol[i].fillVal;
-
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
-      if (pDst->info.type == TSDB_DATA_TYPE_FLOAT) {
-        float v = 0;
-        GET_TYPED_DATA(v, float, pVar->nType, &pVar->i);
-        colDataAppend(pDst, index, (char*)&v, false);
-      } else if (pDst->info.type == TSDB_DATA_TYPE_DOUBLE) {
-        double v = 0;
-        GET_TYPED_DATA(v, double, pVar->nType, &pVar->i);
-        colDataAppend(pDst, index, (char*)&v, false);
-      } else if (IS_SIGNED_NUMERIC_TYPE(pDst->info.type)) {
-        int64_t v = 0;
-        GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
-        colDataAppend(pDst, index, (char*)&v, false);
-      } else if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-        colDataAppend(pDst, index, (const char*)&pFillInfo->currentKey, false);
-      } else {  // varchar/nchar data
-        colDataAppendNULL(pDst, index);
-      }
+      doSetUserSpecifiedValue(pDst, pVar, index, pFillInfo->currentKey);
     }
   }
 
@@ -273,7 +276,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
         return outputRows;
       }
     } else {
-      assert(pFillInfo->currentKey == ts);
+      ASSERT(pFillInfo->currentKey == ts);
       int32_t index = pBlock->info.rows;
 
       if (pFillInfo->type == TSDB_FILL_NEXT && (pFillInfo->index + 1) < pFillInfo->numOfRows) {
@@ -295,27 +298,32 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
         SColumnInfoData* pSrc = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, srcSlotId);
 
         char* src = colDataGetData(pSrc, pFillInfo->index);
-        if (i == 0 || (/*pCol->functionId != FUNCTION_COUNT &&*/ !colDataIsNull_s(pSrc, pFillInfo->index)) /*||
-            (pCol->functionId == FUNCTION_COUNT && GET_INT64_VAL(src) != 0)*/) {
+        if (/*i == 0 || (*/!colDataIsNull_s(pSrc, pFillInfo->index)) {
           bool isNull = colDataIsNull_s(pSrc, pFillInfo->index);
           colDataAppend(pDst, index, src, isNull);
           saveColData(pFillInfo->prev, i, src, isNull);
-        } else {  // i > 0 and data is null , do interpolation
-          if (pFillInfo->type == TSDB_FILL_PREV) {
-            SGroupKeys* pKey = taosArrayGet(pFillInfo->prev, i);
-            doSetVal(pDst, index, pKey);
-          } else if (pFillInfo->type == TSDB_FILL_LINEAR) {
-            bool isNull = colDataIsNull_s(pSrc, pFillInfo->index);
-            colDataAppend(pDst, index, src, isNull);
-            saveColData(pFillInfo->prev, i, src, isNull);
-          } else if (pFillInfo->type == TSDB_FILL_NULL) {
-            colDataAppendNULL(pDst, index);
-          } else if (pFillInfo->type == TSDB_FILL_NEXT) {
-            SGroupKeys* pKey = taosArrayGet(pFillInfo->next, i);
-            doSetVal(pDst, index, pKey);
-          } else {
-            SVariant* pVar = &pFillInfo->pFillCol[i].fillVal;
-            colDataAppend(pDst, index, (char*)&pVar->i, false);
+        } else {
+          if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+            colDataAppend(pDst, index, (const char*)&pFillInfo->currentKey, false);
+          } else {  // i > 0 and data is null , do interpolation
+            if (pFillInfo->type == TSDB_FILL_PREV) {
+              SArray*     p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->prev : pFillInfo->next;
+              SGroupKeys* pKey = taosArrayGet(p, i);
+              doSetVal(pDst, index, pKey);
+            } else if (pFillInfo->type == TSDB_FILL_LINEAR) {
+              bool isNull = colDataIsNull_s(pSrc, pFillInfo->index);
+              colDataAppend(pDst, index, src, isNull);
+              saveColData(pFillInfo->prev, i, src, isNull); // todo:
+            } else if (pFillInfo->type == TSDB_FILL_NULL) {
+              colDataAppendNULL(pDst, index);
+            } else if (pFillInfo->type == TSDB_FILL_NEXT) {
+              SArray*     p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->next : pFillInfo->prev;
+              SGroupKeys* pKey = taosArrayGet(p, i);
+              doSetVal(pDst, index, pKey);
+            } else {
+              SVariant* pVar = &pFillInfo->pFillCol[i].fillVal;
+              doSetUserSpecifiedValue(pDst, pVar, index, pFillInfo->currentKey);
+            }
           }
         }
       }

@@ -438,7 +438,7 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapperEx(SDecoder* pDecoder, SSchemaW
   return 0;
 }
 
-STSchema* tdGetSTSChemaFromSSChema(SSchema** pSchema, int32_t nCols);
+STSchema* tdGetSTSChemaFromSSChema(SSchema* pSchema, int32_t nCols, int32_t sver);
 
 typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
@@ -1359,6 +1359,7 @@ typedef struct {
   int32_t numOfCols;
   int64_t skey;
   int64_t ekey;
+  int64_t version;  // for stream
   char    data[];
 } SRetrieveTableRsp;
 
@@ -1976,6 +1977,7 @@ typedef struct SVCreateTbReq {
   union {
     struct {
       char*    name;  // super table name
+      uint8_t tagNum;
       tb_uid_t suid;
       SArray*  tagName;
       uint8_t* pTag;
@@ -2535,6 +2537,15 @@ static FORCE_INLINE void* tDecodeSMqRebVgReq(const void* buf, SMqRebVgReq* pReq)
   }
   return (void*)buf;
 }
+
+typedef struct {
+  char    topic[TSDB_TOPIC_FNAME_LEN];
+  int64_t ntbUid;
+  SArray* colIdList;  // SArray<int16_t>
+} SCheckAlterInfo;
+
+int32_t tEncodeSCheckAlterInfo(SEncoder* pEncoder, const SCheckAlterInfo* pInfo);
+int32_t tDecodeSCheckAlterInfo(SDecoder* pDecoder, SCheckAlterInfo* pInfo);
 
 typedef struct {
   int32_t vgId;

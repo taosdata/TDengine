@@ -270,7 +270,7 @@ int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list) {
       break;
     }
 
-    STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, uid = id};
+    STableKeyInfo info = {uid = id};
     taosArrayPush(list, &info);
   }
 

@@ -671,6 +671,9 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
       fnError("udfd can not allocate enough memory") buf->base = NULL;
       buf->len = 0;
     }
+  } else if (ctx->inputTotal == -1 && ctx->inputLen < msgHeadSize) {
+      buf->base = ctx->inputBuf + ctx->inputLen;
+      buf->len = msgHeadSize - ctx->inputLen;
   } else {
     ctx->inputCap = ctx->inputTotal > ctx->inputCap ? ctx->inputTotal : ctx->inputCap;
     void *inputBuf = taosMemoryRealloc(ctx->inputBuf, ctx->inputCap);
@@ -913,8 +916,8 @@ void udfdConnectMnodeThreadFunc(void *args) {
 }
 
 int main(int argc, char *argv[]) {
-  if (!taosCheckSystemIsSmallEnd()) {
-    printf("failed to start since on non-small-end machines\n");
+  if (!taosCheckSystemIsLittleEnd()) {
+    printf("failed to start since on non-little-end machines\n");
     return -1;
   }
 

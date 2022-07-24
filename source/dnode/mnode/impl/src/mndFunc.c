@@ -190,6 +190,10 @@ static int32_t mndCreateFunc(SMnode *pMnode, SRpcMsg *pReq, SCreateFuncReq *pCre
   int32_t code = -1;
   STrans *pTrans = NULL;
 
+  if ((terrno = grantCheck(TSDB_GRANT_USER)) < 0) {
+    return code;
+  }
+
   SFuncObj func = {0};
   memcpy(func.name, pCreate->name, TSDB_FUNC_NAME_LEN);
   func.createdTime = taosGetTimestampMs();

@@ -149,32 +149,35 @@ static void* transAcceptThread(void* arg);
 static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName);
 static bool addHandleToAcceptloop(void* arg);
 
-#define CONN_SHOULD_RELEASE(conn, head)                                               \
-  do {                                                                                \
-    if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) {                    \
-      conn->status = ConnRelease;                                                     \
-      transClearBuffer(&conn->readBuf);                                               \
-      transFreeMsg(transContFromHead((char*)head));                                   \
-      tTrace("conn %p received release request", conn);                               \
-                                                                                      \
-      STransMsg tmsg = {.code = 0, .info.handle = (void*)conn, .info.ahandle = NULL}; \
-      SSvrMsg*  srvMsg = taosMemoryCalloc(1, sizeof(SSvrMsg));                        \
-      srvMsg->msg = tmsg;                                                             \
-      srvMsg->type = Release;                                                         \
-      srvMsg->pConn = conn;                                                           \
-      reallocConnRef(conn);                                                           \
-      if (!transQueuePush(&conn->srvMsgs, srvMsg)) {                                  \
-        return;                                                                       \
-      }                                                                               \
-      if (conn->regArg.init) {                                                        \
-        tTrace("conn %p release, notify server app", conn);                           \
-        STrans* pTransInst = conn->pTransInst;                                        \
-        (*pTransInst->cfp)(pTransInst->parent, &(conn->regArg.msg), NULL);            \
-        memset(&conn->regArg, 0, sizeof(conn->regArg));                               \
-      }                                                                               \
-      uvStartSendRespInternal(srvMsg);                                                \
-      return;                                                                         \
-    }                                                                                 \
+#define CONN_SHOULD_RELEASE(conn, head)                                                                   \
+  do {                                                                                                    \
+    if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) {                                        \
+      reallocConnRef(conn);                                                                               \
+      tTrace("conn %p received release request", conn);                                                   \
+                                                                                                          \
+      STraceId traceId = head->traceId;                                                                   \
+      conn->status = ConnRelease;                                                                         \
+      transClearBuffer(&conn->readBuf);                                                                   \
+      transFreeMsg(transContFromHead((char*)head));                                                       \
+                                                                                                          \
+      STransMsg tmsg = {                                                                                  \
+          .code = 0, .info.handle = (void*)conn, .info.traceId = traceId, .info.ahandle = (void*)0x9527}; \
+      SSvrMsg* srvMsg = taosMemoryCalloc(1, sizeof(SSvrMsg));                                             \
+      srvMsg->msg = tmsg;                                                                                 \
+      srvMsg->type = Release;                                                                             \
+      srvMsg->pConn = conn;                                                                               \
+      if (!transQueuePush(&conn->srvMsgs, srvMsg)) {                                                      \
+        return;                                                                                           \
+      }                                                                                                   \
+      if (conn->regArg.init) {                                                                            \
+        tTrace("conn %p release, notify server app", conn);                                               \
+        STrans* pTransInst = conn->pTransInst;                                                            \
+        (*pTransInst->cfp)(pTransInst->parent, &(conn->regArg.msg), NULL);                                \
+        memset(&conn->regArg, 0, sizeof(conn->regArg));                                                   \
+      }                                                                                                   \
+      uvStartSendRespInternal(srvMsg);                                                                    \
+      return;                                                                                             \
+    }                                                                                                     \
   } while (0)
 
 #define SRV_RELEASE_UV(loop)       \
@@ -394,11 +397,11 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
 
   if (pConn->status == ConnNormal) {
     pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
+    if (smsg->type == Release) pHead->msgType = 0;
   } else {
     if (smsg->type == Release) {
       pHead->msgType = 0;
       pConn->status = ConnNormal;
-
       destroyConnRegArg(pConn);
       transUnrefSrvHandle(pConn);
     } else {
@@ -434,7 +437,7 @@ static void uvStartSendRespInternal(SSvrMsg* smsg) {
   uvPrepareSendData(smsg, &wb);
 
   transRefSrvHandle(pConn);
-  uv_write_t* req = transReqQueuePushReq(&pConn->wreqQueue);
+  uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
   uv_write(req, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
 }
 static void uvStartSendResp(SSvrMsg* smsg) {
@@ -697,7 +700,7 @@ static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
   // conn set
   QUEUE_INIT(&pThrd->conn);
 
-  pThrd->asyncPool = transCreateAsyncPool(pThrd->loop, 1, pThrd, uvWorkerAsyncCb);
+  pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 1, pThrd, uvWorkerAsyncCb);
   uv_pipe_connect(&pThrd->connect_req, pThrd->pipe, pipeName, uvOnPipeConnectionCb);
   // uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
   return true;
@@ -976,7 +979,7 @@ void destroyWorkThrd(SWorkThrd* pThrd) {
   taosThreadJoin(pThrd->thread, NULL);
   SRV_RELEASE_UV(pThrd->loop);
   TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SSvrMsg, destroySmsg);
-  transDestroyAsyncPool(pThrd->asyncPool);
+  transAsyncPoolDestroy(pThrd->asyncPool);
   taosMemoryFree(pThrd->loop);
   taosMemoryFree(pThrd);
 }
@@ -1034,7 +1037,7 @@ void transUnrefSrvHandle(void* handle) {
   }
 }
 
-void transReleaseSrvHandle(void* handle) {
+int transReleaseSrvHandle(void* handle) {
   SRpcHandleInfo* info = handle;
   SExHandle*      exh = info->handle;
   int64_t         refId = info->refId;
@@ -1053,16 +1056,16 @@ void transReleaseSrvHandle(void* handle) {
   tTrace("%s conn %p start to release", transLabel(pThrd->pTransInst), exh->handle);
   transAsyncSend(pThrd->asyncPool, &m->q);
   transReleaseExHandle(transGetRefMgt(), refId);
-  return;
+  return 0;
 _return1:
   tTrace("handle %p failed to send to release handle", exh);
   transReleaseExHandle(transGetRefMgt(), refId);
-  return;
+  return -1;
 _return2:
   tTrace("handle %p failed to send to release handle", exh);
-  return;
+  return -1;
 }
-void transSendResponse(const STransMsg* msg) {
+int transSendResponse(const STransMsg* msg) {
   SExHandle* exh = msg->info.handle;
   int64_t    refId = msg->info.refId;
   ASYNC_CHECK_HANDLE(exh, refId);
@@ -1082,18 +1085,18 @@ void transSendResponse(const STransMsg* msg) {
   tGTrace("conn %p start to send resp (1/2)", exh->handle);
   transAsyncSend(pThrd->asyncPool, &m->q);
   transReleaseExHandle(transGetRefMgt(), refId);
-  return;
+  return 0;
 _return1:
   tTrace("handle %p failed to send resp", exh);
   rpcFreeCont(msg->pCont);
   transReleaseExHandle(transGetRefMgt(), refId);
-  return;
+  return -1;
 _return2:
   tTrace("handle %p failed to send resp", exh);
   rpcFreeCont(msg->pCont);
-  return;
+  return -1;
 }
-void transRegisterMsg(const STransMsg* msg) {
+int transRegisterMsg(const STransMsg* msg) {
   SExHandle* exh = msg->info.handle;
   int64_t    refId = msg->info.refId;
   ASYNC_CHECK_HANDLE(exh, refId);
@@ -1112,16 +1115,17 @@ void transRegisterMsg(const STransMsg* msg) {
   tTrace("%s conn %p start to register brokenlink callback", transLabel(pTransInst), exh->handle);
   transAsyncSend(pThrd->asyncPool, &m->q);
   transReleaseExHandle(transGetRefMgt(), refId);
-  return;
+  return 0;
 
 _return1:
   tTrace("handle %p failed to register brokenlink", exh);
   rpcFreeCont(msg->pCont);
   transReleaseExHandle(transGetRefMgt(), refId);
-  return;
+  return -1;
 _return2:
   tTrace("handle %p failed to register brokenlink", exh);
   rpcFreeCont(msg->pCont);
+  return -1;
 }
 
 int transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }

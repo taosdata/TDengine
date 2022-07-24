@@ -33,16 +33,16 @@ extern "C" {
 #define wTrace(...) { if (wDebugFlag & DEBUG_TRACE) { taosPrintLog("WAL ",       DEBUG_TRACE, wDebugFlag, __VA_ARGS__); }}
 // clang-format on
 
-#define WAL_PROTO_VER    0
-#define WAL_NOSUFFIX_LEN 20
-#define WAL_SUFFIX_AT    (WAL_NOSUFFIX_LEN + 1)
-#define WAL_LOG_SUFFIX   "log"
-#define WAL_INDEX_SUFFIX "idx"
-#define WAL_REFRESH_MS   1000
-#define WAL_MAX_SIZE     (TSDB_MAX_WAL_SIZE + sizeof(SWalCkHead))
-#define WAL_PATH_LEN     (TSDB_FILENAME_LEN + 12)
-#define WAL_FILE_LEN     (WAL_PATH_LEN + 32)
-#define WAL_MAGIC        0xFAFBFCFDULL
+#define WAL_PROTO_VER     0
+#define WAL_NOSUFFIX_LEN  20
+#define WAL_SUFFIX_AT     (WAL_NOSUFFIX_LEN + 1)
+#define WAL_LOG_SUFFIX    "log"
+#define WAL_INDEX_SUFFIX  "idx"
+#define WAL_REFRESH_MS    1000
+#define WAL_PATH_LEN      (TSDB_FILENAME_LEN + 12)
+#define WAL_FILE_LEN      (WAL_PATH_LEN + 32)
+#define WAL_MAGIC         0xFAFBFCFDULL
+#define WAL_SCAN_BUF_SIZE (1024 * 1024 * 3)
 
 typedef enum {
   TAOS_WAL_WRITE = 1,
@@ -135,6 +135,7 @@ typedef struct {
   int64_t        curVersion;
   int64_t        capacity;
   int8_t         curInvalid;
+  int8_t         curStopped;
   TdThreadMutex  mutex;
   SWalFilterCond cond;
   SWalCkHead    *pHead;

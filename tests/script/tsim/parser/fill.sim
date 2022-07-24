@@ -47,7 +47,7 @@ $tsu = $tsu + $ts0
 
 ## fill syntax test
 # number of fill values exceeds number of selected columns
-sql select max(c1), max(c2), max(c3), max(c4), max(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 6, 6, 6, 6, 6, 6, 6, 6)
+sql select _wstart, max(c1), max(c2), max(c3), max(c4), max(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 6, 6, 6, 6, 6, 6, 6, 6)
 if $data11 != 6 then
   return -1
 endi
@@ -62,7 +62,7 @@ if $data14 != 6.000000000 then
 endi
 
 # number of fill values is smaller than number of selected columns
-sql select max(c1), max(c2), max(c3) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 6, 6)
+sql select _wstart, max(c1), max(c2), max(c3) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 6, 6)
 if $data11 != 6 then
   return -1
 endi
@@ -74,7 +74,7 @@ if $data13 != 6.00000 then
 endi
  
 # unspecified filling method
-sql_error select max(c1), max(c2), max(c3), max(c4), max(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill (6, 6, 6, 6, 6)
+sql_error select _wstart, max(c1), max(c2), max(c3), max(c4), max(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill (6, 6, 6, 6, 6)
 
 ## constant fill test
 # count_with_fill
@@ -114,7 +114,7 @@ endi
 
 # avg_with_fill
 print avg_with_constant_fill
-sql select avg(c1), avg(c2), avg(c3), avg(c4), avg(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 6, 6, 6, 6, 6)
+sql select _wstart, avg(c1), avg(c2), avg(c3), avg(c4), avg(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 6, 6, 6, 6, 6)
 if $rows != 9 then 
   return -1
 endi
@@ -148,7 +148,7 @@ endi
 
 # max_with_fill
 print max_with_fill
-sql select max(c1), max(c2), max(c3), max(c4), max(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 6, 6, 6, 6, 6)
+sql select _wstart, max(c1), max(c2), max(c3), max(c4), max(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 6, 6, 6, 6, 6)
 if $rows != 9 then 
   return -1
 endi
@@ -182,7 +182,7 @@ endi
 
 # min_with_fill
 print min_with_fill
-sql select min(c1), min(c2), min(c3), min(c4), min(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 6, 6, 6, 6, 6, 6, 6, 6)
+sql select _wstart, min(c1), min(c2), min(c3), min(c4), min(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 6, 6, 6, 6, 6, 6, 6, 6)
 if $rows != 9 then 
   return -1
 endi
@@ -216,7 +216,7 @@ endi
 
 # first_with_fill
 print first_with_fill
-sql select first(c1), first(c2), first(c3), first(c4), first(c5), first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 6, 6, 6, 6, 6, 6, 6, 6)
+sql select _wstart, first(c1), first(c2), first(c3), first(c4), first(c5), first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 6, 6, 6, 6, 6, 6, 6, 6)
 if $rows != 9 then 
   return -1
 endi
@@ -305,7 +305,7 @@ endi
 
 # last_with_fill
 print last_with_fill
-sql select last(c1), last(c2), last(c3), last(c4), last(c5), last(c6), last(c7), last(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 6, 6, 6, 6, 6, 6, 6, 6)
+sql select _wstart, last(c1), last(c2), last(c3), last(c4), last(c5), last(c6), last(c7), last(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 6, 6, 6, 6, 6, 6, 6, 6)
 if $rows != 9 then 
   return -1
 endi
@@ -339,7 +339,7 @@ if $data81 != 4 then
 endi
 
 # fill_negative_values
-sql select sum(c1), avg(c2), max(c3), min(c4), count(c5), count(c6), count(c7), count(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, -1, -1, -1, -1, -1, -1, -1, -1)
+sql select _wstart, sum(c1), avg(c2), max(c3), min(c4), count(c5), count(c6), count(c7), count(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, -1, -1, -1, -1, -1, -1, -1, -1)
 if $rows != 9 then 
   return -1
 endi
@@ -351,11 +351,11 @@ if $data11 != -1 then
 endi
 
 # fill_char_values_to_arithmetic_fields
-sql_error select sum(c1), avg(c2), max(c3), min(c4), avg(c4), count(c6), last(c7), last(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c')
+sql select sum(c1), avg(c2), max(c3), min(c4), avg(c4), count(c6), last(c7), last(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c')
 
 # fill_multiple_columns
 sql_error select sum(c1), avg(c2), min(c3), max(c4), count(c6), first(c7), last(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 99, 99, 99, 99, 99, abc, abc)
-sql select sum(c1), avg(c2), min(c3), max(c4) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 99, 99, 99, 99)
+sql select _wstart, sum(c1), avg(c2), min(c3), max(c4) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 99, 99, 99, 99)
 if $rows != 9 then
   return -1
 endi
@@ -375,9 +375,12 @@ if $data08 != NCHAR then
 endi
 
 # fill_into_nonarithmetic_fieds
-sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 20000000, 20000000, 20000000)
-#if $data11 != 20000000 then
-if $data11 != 1 then
+print select _wstart, first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 20000000, 20000000, 20000000)
+sql select _wstart, first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 20000000, 20000000, 20000000)
+if $data01 != 1 then
+  return -1
+endi
+if $data11 != NULL then
   return -1
 endi
 
@@ -387,48 +390,39 @@ sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $
 sql select first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e', '1e1')
 # fill quoted values into bool column will throw error unless the value is 'true' or 'false' Note:2018-10-24
 # fill values into binary or nchar columns will be set to NULL automatically Note:2018-10-24
-sql_error select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e', '1e1','1e1')
+sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e', '1e1','1e1')
 sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, true, true, true)
 sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'true', 'true','true')
 
 
 # fill nonarithmetic values into arithmetic fields
 sql_error select count(*) where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, abc);
-sql_error select count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'true');
+sql select count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'true');
 
-sql select count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e1');
+print select _wstart, count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e1');
+sql select _wstart, count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e1');
 if $rows != 9 then 
   return -1
 endi
 if $data01 != 1 then
   return -1
 endi
-if $data11 != 10 then 
-  return -1
-endi
 
-sql select count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 1e1);
+sql select _wstart, count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 1e1);
 if $rows != 9 then 
   return -1
 endi
 if $data01 != 1 then
   return -1
 endi
-if $data11 != 10 then 
-  return -1
-endi
 
-sql select count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '10');
+sql select _wstart, count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '10');
 if $rows != 9 then 
   return -1
 endi
 if $data01 != 1 then
   return -1
 endi
-if $data11 != 10 then 
-  return -1
-endi
-
 
 ## linear fill
 # feature currently switched off 2018/09/29
@@ -436,7 +430,7 @@ endi
 
 ## previous fill
 print fill(prev)
-sql select count(c1), count(c2), count(c3), count(c4), count(c5), count(c6), count(c7), count(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(prev)
+sql select _wstart, count(c1), count(c2), count(c3), count(c4), count(c5), count(c6), count(c7), count(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(prev)
 if $rows != 9 then 
   return -1
 endi
@@ -469,7 +463,7 @@ if $data81 != 1 then
 endi
 
 # avg_with_fill
-sql select avg(c1), avg(c2), avg(c3), avg(c4), avg(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(prev)
+sql select _wstart, avg(c1), avg(c2), avg(c3), avg(c4), avg(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(prev)
 if $rows != 9 then 
   return -1
 endi
@@ -502,7 +496,7 @@ if $data81 != 4.000000000 then
 endi
 
 # max_with_fill
-sql select max(c1), max(c2), max(c3), max(c4), max(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(prev)
+sql select _wstart, max(c1), max(c2), max(c3), max(c4), max(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(prev)
 if $rows != 9 then 
   return -1
 endi
@@ -535,7 +529,7 @@ if $data81 != 4 then
 endi
 
 # min_with_fill
-sql select min(c1), min(c2), min(c3), min(c4), min(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(prev)
+sql select _wstart, min(c1), min(c2), min(c3), min(c4), min(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(prev)
 if $rows != 9 then 
   return -1
 endi
@@ -568,7 +562,7 @@ if $data81 != 4 then
 endi
 
 # first_with_fill
-sql select first(c1), first(c2), first(c3), first(c4), first(c5), first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(prev)
+sql select _wstart, first(c1), first(c2), first(c3), first(c4), first(c5), first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(prev)
 if $rows != 9 then 
   return -1
 endi
@@ -601,7 +595,7 @@ if $data81 != 4 then
 endi
 
 # last_with_fill
-sql select last(c1), last(c2), last(c3), last(c4), last(c5), last(c6), last(c7), last(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(prev)
+sql select _wstart, last(c1), last(c2), last(c3), last(c4), last(c5), last(c6), last(c7), last(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(prev)
 if $rows != 9 then 
   return -1
 endi
@@ -636,9 +630,9 @@ endi
 ## NULL fill
 print fill(value, NULL)
 # count_with_fill
-sql select count(c1), count(c2), count(c3), count(c4), count(c5), count(c6), count(c7), count(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill( NULL)
-print select count(c1), count(c2), count(c3), count(c4), count(c5), count(c6), count(c7), count(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill( NULL)
-sql select count(c1), count(c2), count(c3), count(c4), count(c5), count(c6), count(c7), count(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, NULL)
+sql select _wstart, count(c1), count(c2), count(c3), count(c4), count(c5), count(c6), count(c7), count(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill( NULL)
+print select _wstart, count(c1), count(c2), count(c3), count(c4), count(c5), count(c6), count(c7), count(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill( NULL)
+sql select _wstart, count(c1), count(c2), count(c3), count(c4), count(c5), count(c6), count(c7), count(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(NULL)
 if $rows != 9 then 
   return -1
 endi
@@ -669,13 +663,13 @@ endi
 if $data81 != 1 then
   return -1
 endi
-sql select count(c1), count(c2), count(c3), count(c4), count(c5), count(c6), count(c7), count(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(none)
+sql select _wstart, count(c1), count(c2), count(c3), count(c4), count(c5), count(c6), count(c7), count(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(none)
 if $rows != 5 then 
   return -1
 endi
 
 # avg_with_fill
-sql select avg(c1), avg(c2), avg(c3), avg(c4), avg(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, NULL)
+sql select _wstart, avg(c1), avg(c2), avg(c3), avg(c4), avg(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill( NULL)
 if $rows != 9 then 
   return -1
 endi
@@ -708,7 +702,7 @@ if $data81 != 4.000000000 then
 endi
 
 # max_with_fill
-sql select max(c1), max(c2), max(c3), max(c4), max(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, NULL)
+sql select _wstart, max(c1), max(c2), max(c3), max(c4), max(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(NULL)
 if $rows != 9 then 
   return -1
 endi
@@ -741,7 +735,7 @@ if $data81 != 4 then
 endi
 
 # min_with_fill
-sql select min(c1), min(c2), min(c3), min(c4), min(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, NULL)
+sql select _wstart, min(c1), min(c2), min(c3), min(c4), min(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill( NULL)
 if $rows != 9 then 
   return -1
 endi
@@ -774,7 +768,7 @@ if $data81 != 4 then
 endi
 
 # first_with_fill
-sql select first(c1), first(c2), first(c3), first(c4), first(c5), first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, NULL)
+sql select _wstart, first(c1), first(c2), first(c3), first(c4), first(c5), first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill( NULL)
 if $rows != 9 then 
   return -1
 endi
@@ -807,7 +801,7 @@ if $data81 != 4 then
 endi
 
 # last_with_fill
-sql select last(c1), last(c2), last(c3), last(c4), last(c5), last(c6), last(c7), last(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, NULL)
+sql select _wstart, last(c1), last(c2), last(c3), last(c4), last(c5), last(c6), last(c7), last(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill( NULL)
 if $rows != 9 then 
   return -1
 endi
@@ -841,7 +835,7 @@ endi
 
 # desc fill query
 print desc fill query
-sql select count(*) from m_fl_tb0 where ts>='2018-9-17 9:0:0' and ts<='2018-9-17 9:11:00' interval(1m) fill(value,10) order by ts desc;
+sql select count(*) from m_fl_tb0 where ts>='2018-9-17 9:0:0' and ts<='2018-9-17 9:11:00' interval(1m) fill(value,10);
 if $rows != 12 then
   return -1
 endi
@@ -865,7 +859,8 @@ sql insert into tm0 values('2020-1-1 1:3:8', 8);
 sql insert into tm0 values('2020-1-1 1:3:9', 9);
 sql insert into tm0 values('2020-1-1 1:4:10', 10);
 
-sql select max(k)-min(k),last(k)-first(k),0-spread(k) from tm0 where ts>='2020-1-1 1:1:1' and ts<='2020-1-1 1:2:15' interval(10s) fill(value, 99,91,90,89,88,87,86,85);
+print select _wstart, max(k)-min(k),last(k)-first(k),0-spread(k) from tm0 where ts>='2020-1-1 1:1:1' and ts<='2020-1-1 1:2:15' interval(10s) fill(value, 99,91,90,89,88,87,86,85);
+sql select _wstart, max(k)-min(k),last(k)-first(k),0-spread(k) from tm0 where ts>='2020-1-1 1:1:1' and ts<='2020-1-1 1:2:15' interval(10s) fill(value, 99,91,90,89,88,87,86,85);
 if $rows != 8 then
   return -1
 endi
@@ -890,15 +885,15 @@ if $data10 != @20-01-01 01:01:10.000@ then
   return -1
 endi
 
-if $data11 != 99.000000000 then
+if $data11 != 1.000000000 then
   return -1
 endi
 
-if $data12 != 91.000000000 then
+if $data12 != 1.000000000 then
   return -1
 endi
 
-if $data13 != 90.000000000 then
+if $data13 != -87.000000000 then
   return -1
 endi
 
@@ -922,19 +917,19 @@ if $data70 != @20-01-01 01:02:10.000@ then
   return -1
 endi
 
-if $data71 != 99.000000000 then
+if $data71 != 1.000000000 then
   return -1
 endi
 
-if $data72 != 91.000000000 then
+if $data72 != 1.000000000 then
   return -1
 endi
 
-if $data73 != 90.000000000 then
+if $data73 != -87.000000000 then
   return -1
 endi
 
-sql select first(k)-avg(k),0-spread(k) from tm0 where ts>='2020-1-1 1:1:1' and ts<='2020-1-1 1:2:15' interval(10s) fill(NULL);
+sql select _wstart, first(k)-avg(k),0-spread(k) from tm0 where ts>='2020-1-1 1:1:1' and ts<='2020-1-1 1:2:15' interval(10s) fill(NULL);
 if $rows != 8 then
   return -1
 endi
@@ -963,12 +958,14 @@ if $data12 != NULL then
   return -1
 endi
 
-sql select max(k)-min(k),last(k)-first(k),0-spread(k) from tm0 where ts>='2020-1-1 1:1:1' and ts<='2020-1-1 4:2:15'  interval(500a) fill(value, 99,91,90,89,88,87,86,85) order by ts asc;
+sql select _wstart, max(k)-min(k),last(k)-first(k),0-spread(k) from tm0 where ts>='2020-1-1 1:1:1' and ts<='2020-1-1 4:2:15'  interval(500a) fill(value, 99,91,90,89,88,87,86,85) ;
 if $rows != 21749 then
+ print expect 21749, actual: $rows
  return -1
 endi
 
-sql select max(k)-min(k),last(k)-first(k),0-spread(k),count(1) from m1 where ts>='2020-1-1 1:1:1' and ts<='2020-1-1 1:2:15'  interval(10s) fill(value, 99,91,90,89,88,87,86,85) order by ts asc;
+print select _wstart, max(k)-min(k),last(k)-first(k),0-spread(k),count(1) from m1 where ts>='2020-1-1 1:1:1' and ts<='2020-1-1 1:2:15'  interval(10s) fill(value, 99,91,90,89,88,87,86,85) ;
+sql select _wstart, max(k)-min(k),last(k)-first(k),0-spread(k),count(1) from m1 where ts>='2020-1-1 1:1:1' and ts<='2020-1-1 1:2:15'  interval(10s) fill(value, 99,91,90,89,88,87,86,85) ;
 if $rows != 8 then
   return -1
 endi
@@ -997,19 +994,19 @@ if $data10 != @20-01-01 01:01:10.000@ then
   return -1
 endi
 
-if $data11 != 99.000000000 then
+if $data11 != 1.000000000 then
   return -1
 endi
 
-if $data12 != 91.000000000 then
+if $data12 != 1.000000000 then
   return -1
 endi
 
-if $data13 != 90.000000000 then
+if $data13 != -87.000000000 then
   return -1
 endi
 
-if $data14 != 89 then
+if $data14 != 86 then
   return -1
 endi
 
@@ -1026,18 +1023,15 @@ endi
 if $data01 != -4.000000000 then
   return -1
 endi
-
-if $data02 != 0 then
+if $data10 != 5 then
   return -1
 endi
-
-if $data12 != 1 then
+if $data11 !=  -4.000000000 then
   return -1
 endi
 
 print =====================>td-1442, td-2190 , no time range for fill option
 sql_error select count(*) from m_fl_tb0 interval(1s) fill(prev);
-
 sql_error select min(c3) from m_fl_mt0 interval(10a) fill(value, 20)
 sql_error select min(c3) from m_fl_mt0 interval(10s) fill(value, 20)
 sql_error select min(c3) from m_fl_mt0 interval(10m) fill(value, 20)
@@ -1051,7 +1045,7 @@ sql create table nexttb1 (ts timestamp, f1 int);
 sql insert into nexttb1 values ('2021-08-08 1:1:1', NULL);
 sql insert into nexttb1 values ('2021-08-08 1:1:5', 3);
 
-sql select last(*) from nexttb1 where ts >= '2021-08-08 1:1:1' and ts < '2021-08-08 1:1:10' interval(1s) fill(next);
+sql select _wstart, last(*) from nexttb1 where ts >= '2021-08-08 1:1:1' and ts < '2021-08-08 1:1:10' interval(1s) fill(next);
 if $rows != 9 then
   return -1
 endi
@@ -1064,9 +1058,6 @@ endi
 if $data02 != 3 then
   return -1
 endi
-
-
-
 
 print =============== clear
 #sql drop database $db

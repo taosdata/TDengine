@@ -25,14 +25,9 @@ static int32_t shellRunSingleCommand(char *command);
 static int32_t shellRunCommand(char *command);
 static void    shellRunSingleCommandImp(char *command);
 static char   *shellFormatTimestamp(char *buf, int64_t val, int32_t precision);
-static void    shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length,
-                                    int32_t precision);
 static int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres);
 static void    shellPrintNChar(const char *str, int32_t length, int32_t width);
-static void    shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t length, int32_t precision);
 static int32_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql);
-static int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision);
-static void    shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields);
 static int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql);
 static int32_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical, const char *sql);
 static void    shellReadHistory();
@@ -41,7 +36,7 @@ static void    shellPrintError(TAOS_RES *tres, int64_t st);
 static bool    shellIsCommentLine(char *line);
 static void    shellSourceFile(const char *file);
 static void    shellGetGrantInfo();
-static void    shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context);
+
 static void    shellCleanup(void *arg);
 static void   *shellCancelHandler(void *arg);
 static void   *shellThreadLoop(void *arg);
@@ -94,8 +89,15 @@ int32_t shellRunSingleCommand(char *command) {
     shellSourceFile(c_ptr);
     return 0;
   }
-
-  shellRunSingleCommandImp(command);
+#ifdef WEBSOCKET
+  if (shell.args.restful || shell.args.cloud) {
+	shellRunSingleCommandWebsocketImp(command);
+  } else {
+#endif
+	shellRunSingleCommandImp(command);
+#ifdef WEBSOCKET
+  }
+#endif
   return 0;
 }
 
@@ -197,7 +199,7 @@ void shellRunSingleCommandImp(char *command) {
 
     et = taosGetTimestampUs();
     if (error_no == 0) {
-      printf("Query OK, %d rows affected (%.6fs)\r\n", numOfRows, (et - st) / 1E6);
+      printf("Query OK, %d rows in database (%.6fs)\r\n", numOfRows, (et - st) / 1E6);
     } else {
       printf("Query interrupted (%s), %d rows affected (%.6fs)\r\n", taos_errstr(pSql), numOfRows, (et - st) / 1E6);
     }
@@ -685,7 +687,7 @@ int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
 
   uint64_t resShowMaxNum = UINT64_MAX;
 
-  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsLimitQuery(sql) && !shellIsShowQuery(sql)) {
+  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsLimitQuery(sql)) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
@@ -706,8 +708,12 @@ int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
     } else if (showMore) {
       printf("\r\n");
       printf(" Notice: The result shows only the first %d rows.\r\n", SHELL_DEFAULT_RES_SHOW_NUM);
-      printf("         You can use the `LIMIT` clause to get fewer result to show.\r\n");
-      printf("           Or use '>>' to redirect the whole set of the result to a specified file.\r\n");
+      if (shellIsShowQuery(sql)) {
+        printf("         You can use '>>' to redirect the whole set of the result to a specified file.\r\n");
+      } else {
+        printf("         You can use the `LIMIT` clause to get fewer result to show.\r\n");
+        printf("           Or use '>>' to redirect the whole set of the result to a specified file.\r\n");
+      }
       printf("\r\n");
       printf("         You can use Ctrl+C to stop the underway fetching.\r\n");
       printf("\r\n");
@@ -915,11 +921,14 @@ void shellGetGrantInfo() {
   fprintf(stdout, "\r\n");
 }
 
-void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) { tsem_post(&shell.cancelSem); }
-
-void shellSigintHandler(int32_t signum, void *sigInfo, void *context) {
-  // do nothing
+#ifdef WINDOWS
+BOOL shellQueryInterruptHandler(DWORD fdwCtrlType) {
+  tsem_post(&shell.cancelSem);
+  return TRUE;
 }
+#else
+void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) { tsem_post(&shell.cancelSem); }
+#endif
 
 void shellCleanup(void *arg) { taosResetTerminalMode(); }
 
@@ -931,10 +940,18 @@ void *shellCancelHandler(void *arg) {
       continue;
     }
 
-    taosResetTerminalMode();
-    printf("\r\nReceive SIGTERM or other signal, quit shell.\r\n");
-    shellWriteHistory();
-    shellExit();
+#ifdef WEBSOCKET
+	if (shell.args.restful || shell.args.cloud) {
+		shell.stop_query = true;
+	} else {
+#endif
+		taos_kill_query(shell.conn);
+#ifdef WEBSOCKET
+	}
+#endif 
+  #ifdef WINDOWS
+    printf("\n%s", shell.info.promptHeader);
+  #endif
   }
 
   return NULL;
@@ -975,16 +992,26 @@ int32_t shellExecute() {
   fflush(stdout);
 
   SShellArgs *pArgs = &shell.args;
-  if (shell.args.auth == NULL) {
-    shell.conn = taos_connect(pArgs->host, pArgs->user, pArgs->password, pArgs->database, pArgs->port);
+#ifdef WEBSOCKET
+  if (shell.args.restful || shell.args.cloud) {
+	if (shell_conn_ws_server(1)) {
+		return -1;
+	}	
   } else {
-    shell.conn = taos_connect_auth(pArgs->host, pArgs->user, pArgs->auth, pArgs->database, pArgs->port);
-  }
+#endif
+	if (shell.args.auth == NULL) {
+		shell.conn = taos_connect(pArgs->host, pArgs->user, pArgs->password, pArgs->database, pArgs->port);
+	} else {
+		shell.conn = taos_connect_auth(pArgs->host, pArgs->user, pArgs->auth, pArgs->database, pArgs->port);
+	}
 
-  if (shell.conn == NULL) {
-    fflush(stdout);
-    return -1;
+	if (shell.conn == NULL) {
+		fflush(stdout);
+		return -1;
+	}
+#ifdef WEBSOCKET
   }
+#endif
 
   shellReadHistory();
 
@@ -999,8 +1026,16 @@ int32_t shellExecute() {
     if (pArgs->file[0] != 0) {
       shellSourceFile(pArgs->file);
     }
+#ifdef WEBSOCKET
+	if (shell.args.restful || shell.args.cloud) {
+		ws_close(shell.ws_conn);
+	} else {
+#endif	
+		taos_close(shell.conn);
+#ifdef WEBSOCKET
+	}
+#endif
 
-    taos_close(shell.conn);
     shellWriteHistory();
     shellCleanupHistory();
     return 0;
@@ -1018,12 +1053,17 @@ int32_t shellExecute() {
   taosSetSignal(SIGHUP, shellQueryInterruptHandler);
   taosSetSignal(SIGABRT, shellQueryInterruptHandler);
 
-  taosSetSignal(SIGINT, shellSigintHandler);
+  taosSetSignal(SIGINT, shellQueryInterruptHandler);
 
-  shellGetGrantInfo();
-
+#ifdef WEBSOCKET
+  if (!shell.args.restful && !shell.args.cloud) {
+#endif
+	shellGetGrantInfo();
+#ifdef WEBSOCKET
+  }
+#endif
   while (1) {
-    taosThreadCreate(&shell.pid, NULL, shellThreadLoop, shell.conn);
+    taosThreadCreate(&shell.pid, NULL, shellThreadLoop, NULL);
     taosThreadJoin(shell.pid, NULL);
     taosThreadClear(&shell.pid);
   }

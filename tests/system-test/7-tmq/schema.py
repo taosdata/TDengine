@@ -358,8 +358,8 @@ class TDTestCase:
         tdSql.error("alter table %s.%s modify column c2 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s modify tag t2 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tdSql.error("alter table %s.%s set tag t1=20"%(parameterDict['dbName'], ctbName))
-        tdSql.error("alter table %s.%s set tag t2='20'"%(parameterDict['dbName'], ctbName))
+        tdSql.query("alter table %s.%s set tag t1=20"%(parameterDict['dbName'], ctbName))
+        tdSql.query("alter table %s.%s set tag t2='20'"%(parameterDict['dbName'], ctbName))
 
         tdSql.error("alter table %s.%s rename column c1 c1new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -374,13 +374,13 @@ class TDTestCase:
         tdSql.query("alter table %s.%s set tag t4='20'"%(parameterDict['dbName'], ctbName))
         tdSql.query("alter table %s.%s set tag t5='20'"%(parameterDict['dbName'], ctbName))
 
-        tdSql.query("alter table %s.%s rename column c3 c3new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s rename column c4 c4new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s rename column c3 c3new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s rename column c4 c4new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t3 t3new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t4 t4new"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tdSql.query("alter table %s.%s drop column c3new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c4new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c3"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c4"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t3new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t4new"%(parameterDict['dbName'], parameterDict['stbName']))
 
@@ -508,10 +508,10 @@ class TDTestCase:
         tdSql.error("alter table %s.%s modify tag t2 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s modify tag t4 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tdSql.error("alter table %s.%s set tag t1=20"%(parameterDict['dbName'], ctbName))
-        tdSql.error("alter table %s.%s set tag t2='20'"%(parameterDict['dbName'], ctbName))
-        tdSql.error("alter table %s.%s set tag t3=20"%(parameterDict['dbName'], ctbName))
-        tdSql.error("alter table %s.%s set tag t4='20'"%(parameterDict['dbName'], ctbName))
+        tdSql.query("alter table %s.%s set tag t1=20"%(parameterDict['dbName'], ctbName))
+        tdSql.query("alter table %s.%s set tag t2='20'"%(parameterDict['dbName'], ctbName))
+        tdSql.query("alter table %s.%s set tag t3=20"%(parameterDict['dbName'], ctbName))
+        tdSql.query("alter table %s.%s set tag t4='20'"%(parameterDict['dbName'], ctbName))
 
         tdSql.error("alter table %s.%s rename column c1 c1new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -528,10 +528,10 @@ class TDTestCase:
 
         tdSql.query("alter table %s.%s set tag t5='50'"%(parameterDict['dbName'], ctbName))
 
-        tdSql.query("alter table %s.%s rename column c5 c5new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s rename column c5 c5new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t5 t5new"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tdSql.query("alter table %s.%s drop column c5new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c5"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t5new"%(parameterDict['dbName'], parameterDict['stbName']))
 
         tdSql.query("alter table %s.%s add column c5 float"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -635,46 +635,47 @@ class TDTestCase:
         
         tdSql.execute("create topic %s as select * from %s.%s " %(columnTopicFromCtb,parameterDict['dbName'],ctbName))
 
+        tdSql.error("alter table %s.%s modify column c2 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s modify column c4 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s modify column c5 nchar(40)"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s modify tag t2 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s modify tag t4 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s modify tag t5 nchar(40)"%(parameterDict['dbName'], parameterDict['stbName']))
+
+        tdSql.query("alter table %s.%s set tag t1=20"%(parameterDict['dbName'], ctbName))
+        tdSql.query("alter table %s.%s set tag t2='20'"%(parameterDict['dbName'], ctbName))
+        tdSql.query("alter table %s.%s set tag t3=20"%(parameterDict['dbName'], ctbName))
+        tdSql.query("alter table %s.%s set tag t4='20'"%(parameterDict['dbName'], ctbName))
+        tdSql.query("alter table %s.%s set tag t5='20'"%(parameterDict['dbName'], ctbName))
+        
+        tdSql.error("alter table %s.%s rename column c1 c1new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s rename column c3 c3new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s rename column c4 c4new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s rename column c5 c5new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename tag t1 t1new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename tag t2 t2new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename tag t3 t3new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename tag t4 t4new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename tag t5 t5new"%(parameterDict['dbName'], parameterDict['stbName']))
+
+        # alter actions allowed: drop column/tag, modify column/tag type, rename column/tag not included in topic
+        tdSql.query("alter table %s.%s add column c6 float"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s add tag t6 float"%(parameterDict['dbName'], parameterDict['stbName']))
+        
         # alter actions prohibited: drop column/tag, modify column/tag type, rename column/tag included in topic
         tdSql.error("alter table %s.%s drop column c1"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop column c2"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop column c3"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop column c4"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop column c5"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s drop tag t1"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s drop tag t2"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s drop tag t3"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s drop tag t4"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s drop tag t5"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop tag t1new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop tag t2new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop tag t3new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop tag t4new"%(parameterDict['dbName'], parameterDict['stbName']))
+        # must have one tag
+        # tdSql.query("alter table %s.%s drop tag t5new"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tdSql.error("alter table %s.%s modify column c2 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s modify column c4 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s modify column c5 nchar(40)"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s modify tag t2 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s modify tag t4 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s modify tag t5 nchar(40)"%(parameterDict['dbName'], parameterDict['stbName']))
-
-        tdSql.error("alter table %s.%s set tag t1=20"%(parameterDict['dbName'], ctbName))
-        tdSql.error("alter table %s.%s set tag t2='20'"%(parameterDict['dbName'], ctbName))
-        tdSql.error("alter table %s.%s set tag t3=20"%(parameterDict['dbName'], ctbName))
-        tdSql.error("alter table %s.%s set tag t4='20'"%(parameterDict['dbName'], ctbName))
-        tdSql.error("alter table %s.%s set tag t5='20'"%(parameterDict['dbName'], ctbName))
-
-        tdSql.error("alter table %s.%s rename column c1 c1new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c3 c3new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c4 c4new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c5 c5new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename tag t1 t1new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename tag t2 t2new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename tag t3 t3new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename tag t4 t4new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename tag t5 t5new"%(parameterDict['dbName'], parameterDict['stbName']))
-
-        # alter actions allowed: drop column/tag, modify column/tag type, rename column/tag not included in topic
-        tdSql.query("alter table %s.%s add column c6 float"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s add tag t6 float"%(parameterDict['dbName'], parameterDict['stbName']))
-        
         tdLog.printNoPrefix("======== test case 3 end ...... ")
 
     def tmqCase4(self, cfgPath, buildPath):
@@ -819,6 +820,77 @@ class TDTestCase:
 
         tdLog.printNoPrefix("======== test case 5 end ...... ")
 
+    def tmqCase6(self, cfgPath, buildPath):
+        tdLog.printNoPrefix("======== test case 6: ")    
+        parameterDict = {'cfg':        '',       \
+                         'actionType': 0,        \
+                         'dbName':     'db6',    \
+                         'dropFlag':   1,        \
+                         'vgroups':    4,        \
+                         'replica':    1,        \
+                         'stbName':    'stb3',   \
+                         'ctbPrefix':  'stb3',   \
+                         'ctbNum':     10,       \
+                         'rowsPerTbl': 10000,    \
+                         'batchNum':   23,       \
+                         'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
+        parameterDict['cfg'] = cfgPath
+        
+        tdLog.info("create database, super table, child table, normal table")
+        self.create_database(tdSql, parameterDict["dbName"])
+        tdLog.info("======== child table test:")
+        parameterDict['stbName'] = 'stb6'
+        ctbName = 'stb6_0'
+        tdSql.query("create table %s.%s (ts timestamp, c1 int, c2 binary(32), c3 double, c4 binary(32), c5 nchar(10)) tags (t1 int, t2 binary(32), t3  double, t4 binary(32), t5 nchar(10))"%(parameterDict["dbName"],parameterDict['stbName']))        
+        tdSql.query("create table %s.%s using %s.%s tags (10, '10', 10, '10', '10')"%(parameterDict["dbName"],ctbName,parameterDict["dbName"],parameterDict['stbName']))
+
+        tdLog.info("create topics from child table")
+        columnTopicFromCtb = 'column_topic_from_ctb6'
+        
+        tdSql.execute("create topic %s as select c1, c2, c3 from %s.%s where t1 > 10 and t2 = 'beijign' and sin(t3) < 0" %(columnTopicFromCtb,parameterDict['dbName'],ctbName))
+
+        tdSql.error("alter table %s.%s modify column c1 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s modify column c4 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s modify column c5 nchar(40)"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s modify tag t2 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s modify tag t4 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s modify tag t5 nchar(40)"%(parameterDict['dbName'], parameterDict['stbName']))
+
+        tdSql.error("alter table %s.%s set tag t1=20"%(parameterDict['dbName'], ctbName))
+        tdSql.error("alter table %s.%s set tag t2='20'"%(parameterDict['dbName'], ctbName))
+        tdSql.error("alter table %s.%s set tag t3=20"%(parameterDict['dbName'], ctbName))
+        tdSql.query("alter table %s.%s set tag t4='20'"%(parameterDict['dbName'], ctbName))
+        tdSql.query("alter table %s.%s set tag t5='20'"%(parameterDict['dbName'], ctbName))
+        
+        tdSql.error("alter table %s.%s rename column c1 c1new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s rename column c3 c3new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename column c4 c4new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename column c5 c5new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s rename tag t1 t1new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s rename tag t2 t2new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s rename tag t3 t3new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename tag t4 t4new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename tag t5 t5new"%(parameterDict['dbName'], parameterDict['stbName']))
+
+        # alter actions allowed: drop column/tag, modify column/tag type, rename column/tag not included in topic
+        tdSql.query("alter table %s.%s add column c6 float"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s add tag t6 float"%(parameterDict['dbName'], parameterDict['stbName']))
+        
+        # alter actions prohibited: drop column/tag, modify column/tag type, rename column/tag included in topic
+        tdSql.error("alter table %s.%s drop column c1"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s drop column c2"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s drop column c3"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c4"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c5"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s drop tag t1"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s drop tag t2"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s drop tag t3"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop tag t4"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop tag t5"%(parameterDict['dbName'], parameterDict['stbName']))
+
+        tdLog.printNoPrefix("======== test case 6 end ...... ")
+
     def run(self):
         tdSql.prepare()
 
@@ -830,9 +902,9 @@ class TDTestCase:
         cfgPath = buildPath + "/../sim/psim/cfg"
         tdLog.info("cfgPath: %s" % cfgPath)
 
-        # self.tmqCase1(cfgPath, buildPath)
-        # self.tmqCase2(cfgPath, buildPath) 
-        # self.tmqCase3(cfgPath, buildPath)
+        self.tmqCase1(cfgPath, buildPath)
+        self.tmqCase2(cfgPath, buildPath) 
+        self.tmqCase3(cfgPath, buildPath)
         self.tmqCase4(cfgPath, buildPath)
         self.tmqCase5(cfgPath, buildPath)
 
