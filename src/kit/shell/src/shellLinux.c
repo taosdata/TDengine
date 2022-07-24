@@ -20,6 +20,7 @@
 #include "shellCommand.h"
 #include "tkey.h"
 #include "tulog.h"
+#include "shellAuto.h"
 
 #define OPT_ABORT 1 /* �Cabort */
 
@@ -283,7 +284,12 @@ int32_t shellReadCommand(TAOS *con, char *command) {
         utf8_array[k] = c;
       }
       insertChar(&cmd, utf8_array, count);
+      pressOtherKey(c);
+    } else if (c == TAB_KEY) {
+      // press TAB key
+      pressTabKey(con, &cmd);
     } else if (c < '\033') {
+      pressOtherKey(c);
       // Ctrl keys.  TODO: Implement ctrl combinations
       switch (c) {
         case 1:  // ctrl A
@@ -329,8 +335,12 @@ int32_t shellReadCommand(TAOS *con, char *command) {
         case 21:  // Ctrl + U;
           clearLineBefore(&cmd);
           break;
+        case 23:  // Ctrl + W;
+          positionCursorMiddle(&cmd);
+          break;
       }
     } else if (c == '\033') {
+      pressOtherKey(c);
       c = (char)getchar();
       switch (c) {
         case '[':
@@ -405,9 +415,11 @@ int32_t shellReadCommand(TAOS *con, char *command) {
           break;
       }
     } else if (c == 0x7f) {
+      pressOtherKey(c);
       // press delete key
       backspaceChar(&cmd);
     } else {
+      pressOtherKey(c);
       insertChar(&cmd, &c, 1);
     }
   }

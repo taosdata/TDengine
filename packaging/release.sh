@@ -198,6 +198,7 @@ fi
 if [[ "$dbName" != "taos" ]]; then
   source ${enterprise_dir}/packaging/oem/sed_$dbName.sh
   replace_community_$dbName
+  replace_output_$dbName
 fi
 
 if [[ "$httpdBuild" == "true" ]]; then
@@ -224,6 +225,7 @@ if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" =
   else
     if [[ "$dbName" != "taos" ]]; then
       replace_enterprise_$dbName
+      replace_output_$dbName
     fi
     cmake ../../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
   fi
