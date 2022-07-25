@@ -219,7 +219,8 @@ python3 ./test.py -f 7-tmq/tmqDelete-1ctb.py
 python3 ./test.py -f 7-tmq/tmqDelete-multiCtb.py
 python3 ./test.py -f 7-tmq/tmqDropStb.py
 python3 ./test.py -f 7-tmq/tmqDropStbCtb.py
-python3 ./test.py -f 7-tmq/tmqDropNtb.py
+python3 ./test.py -f 7-tmq/tmqDropNtb-snapshot0.py
+python3 ./test.py -f 7-tmq/tmqDropNtb-snapshot1.py
 python3 ./test.py -f 7-tmq/tmqUdf.py
 python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot0.py
 python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot1.py
