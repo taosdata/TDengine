@@ -637,8 +637,9 @@ SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd
   return createBetweenAnd(pCxt, createPrimaryKeyCol(pCxt), pStart, pEnd);
 }
 
-SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* pAlias) {
+SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, SToken* pAlias) {
   CHECK_PARSER_STATUS(pCxt);
+  trimEscape(pAlias);
   int32_t len = TMIN(sizeof(((SExprNode*)pNode)->aliasName) - 1, pAlias->n);
   strncpy(((SExprNode*)pNode)->aliasName, pAlias->z, len);
   ((SExprNode*)pNode)->aliasName[len] = '\0';

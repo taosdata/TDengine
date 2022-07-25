@@ -82,8 +82,6 @@ size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
 void   cleanupResultRowInfo(SResultRowInfo* pResultRowInfo);
 
-void closeAllResultRows(SResultRowInfo* pResultRowInfo);
-
 void initResultRow(SResultRow* pResultRow);
 void closeResultRow(SResultRow* pResultRow);
 bool isResultRowClosed(SResultRow* pResultRow);

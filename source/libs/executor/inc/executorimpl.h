@@ -108,7 +108,6 @@ typedef struct STaskCostInfo {
   SFileBlockLoadRecorder* pRecoder;
   uint64_t                elapsedTime;
 
-  uint64_t firstStageMergeTime;
   uint64_t winInfoSize;
   uint64_t tableInfoSize;
   uint64_t hashSize;
@@ -351,9 +350,7 @@ typedef struct STableMergeScanInfo {
   SArray*                pColMatchInfo;
   int32_t                numOfOutput;
 
-  SExprInfo*      pPseudoExpr;
-  int32_t         numOfPseudoExpr;
-  SqlFunctionCtx* pPseudoCtx;
+  SExprSupp       pseudoSup;
 
   SQueryTableDataCond cond;
   int32_t             scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
@@ -592,6 +589,7 @@ typedef struct SProjectOperatorInfo {
   SLimitInfo         limitInfo;
   bool               mergeDataBlocks;
   SSDataBlock*       pFinalRes;
+  SNode*             pCondition;
 } SProjectOperatorInfo;
 
 typedef struct SIndefOperatorInfo {
