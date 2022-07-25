@@ -356,9 +356,6 @@ if $data03 != 0.000000000 then
  return -1
 endi
 
-#TODO
-return
-
 sql select count(c2),last(c4),stddev(c3),spread(c3) from sliding_tb0 where c2 = 0 interval(30s) sliding(20s) order by _wstart desc limit 1 offset 15;
 if $row != 1 then
  return -1

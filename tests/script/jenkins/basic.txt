@@ -113,8 +113,8 @@
 # TD-17659 ./test.sh -f tsim/parser/function.sim
 ./test.sh -f tsim/parser/groupby-basic.sim
 ./test.sh -f tsim/parser/groupby.sim
-# TD-17622 ./test.sh -f tsim/parser/having_child.sim
-# TD-17622 ./test.sh -f tsim/parser/having.sim
+./test.sh -f tsim/parser/having_child.sim
+./test.sh -f tsim/parser/having.sim
 ./test.sh -f tsim/parser/import_commit1.sim
 ./test.sh -f tsim/parser/import_commit2.sim
 ./test.sh -f tsim/parser/import_commit3.sim
@@ -129,7 +129,8 @@
 # TD-17707 ./test.sh -f tsim/parser/join.sim
 ./test.sh -f tsim/parser/last_cache.sim
 ./test.sh -f tsim/parser/last_groupby.sim
-# TD-17722 ./test.sh -f tsim/parser/lastrow.sim
+./test.sh -f tsim/parser/lastrow.sim
+./test.sh -f tsim/parser/lastrow2.sim
 ./test.sh -f tsim/parser/like.sim
 # TD-17464 ./test.sh -f tsim/parser/limit.sim
 # TD-17464 ./test.sh -f tsim/parser/limit1.sim
@@ -137,7 +138,7 @@
 ./test.sh -f tsim/parser/mixed_blocks.sim
 ./test.sh -f tsim/parser/nchar.sim
 # TD-17703 ./test.sh -f tsim/parser/nestquery.sim
-# TD-17685 ./test.sh -f tsim/parser/null_char.sim
+./test.sh -f tsim/parser/null_char.sim
 ./test.sh -f tsim/parser/precision_ns.sim
 ./test.sh -f tsim/parser/projection_limit_offset.sim
 ./test.sh -f tsim/parser/regex.sim
@@ -146,12 +147,12 @@
 ./test.sh -f tsim/parser/select_from_cache_disk.sim
 # TD-17659 ./test.sh -f tsim/parser/select_with_tags.sim
 ./test.sh -f tsim/parser/selectResNum.sim
-# TD-17685 ./test.sh -f tsim/parser/set_tag_vals.sim
+./test.sh -f tsim/parser/set_tag_vals.sim
 ./test.sh -f tsim/parser/single_row_in_tb.sim
-# TD-17684 ./test.sh -f tsim/parser/sliding.sim
-# TD-17722 ./test.sh -f tsim/parser/slimit_alter_tags.sim
-# TD-17722 ./test.sh -f tsim/parser/slimit.sim
-# TD-17722 ./test.sh -f tsim/parser/slimit1.sim
+./test.sh -f tsim/parser/sliding.sim
+./test.sh -f tsim/parser/slimit_alter_tags.sim
+./test.sh -f tsim/parser/slimit.sim
+./test.sh -f tsim/parser/slimit1.sim
 ./test.sh -f tsim/parser/stableOp.sim
 # TD-17661 ./test.sh -f tsim/parser/tags_dynamically_specifiy.sim
 # TD-17661 ./test.sh -f tsim/parser/tags_filter.sim
