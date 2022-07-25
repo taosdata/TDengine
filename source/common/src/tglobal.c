@@ -1176,3 +1176,33 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
 
   uError("failed to cfg dynamic option:%s value:%s", option, value);
 }
+
+void taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal) {
+  SConfigItem *pItem = cfgGetItem(tsCfg, flagName);
+  if (pItem != NULL) {
+    pItem->i32 = flagVal;
+  }
+  *pFlagPtr = flagVal;
+}
+
+void taosSetAllDebugFlag(int32_t flag) {
+  if (flag <= 0) return;
+
+  taosSetDebugFlag(&uDebugFlag, "uDebugFlag", flag);
+  taosSetDebugFlag(&rpcDebugFlag, "rpcDebugFlag", flag);
+  taosSetDebugFlag(&jniDebugFlag, "jniDebugFlag", flag);
+  taosSetDebugFlag(&qDebugFlag, "qDebugFlag", flag);
+  taosSetDebugFlag(&cDebugFlag, "cDebugFlag", flag);
+  taosSetDebugFlag(&dDebugFlag, "dDebugFlag", flag);
+  taosSetDebugFlag(&vDebugFlag, "vDebugFlag", flag);
+  taosSetDebugFlag(&mDebugFlag, "mDebugFlag", flag);
+  taosSetDebugFlag(&wDebugFlag, "wDebugFlag", flag);
+  taosSetDebugFlag(&sDebugFlag, "sDebugFlag", flag);
+  taosSetDebugFlag(&tsdbDebugFlag, "tsdbDebugFlag", flag);
+  taosSetDebugFlag(&tqDebugFlag, "tqDebugFlag", flag);
+  taosSetDebugFlag(&fsDebugFlag, "fsDebugFlag", flag);
+  taosSetDebugFlag(&udfDebugFlag, "udfDebugFlag", flag);
+  taosSetDebugFlag(&smaDebugFlag, "smaDebugFlag", flag);
+  taosSetDebugFlag(&idxDebugFlag, "idxDebugFlag", flag);
+  uInfo("all debug flag are set to %d", flag);
+}
