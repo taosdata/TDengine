@@ -1682,7 +1682,7 @@ void releaseSource(STuplePos* pPos) {
 
 // This function append the selectivity to subsidiaries function context directly, without fetching data
 // from intermediate disk based buf page
-void appendSelectivityValue(SqlFunctionCtx* pCtx, int32_t rowIndex) {
+void appendSelectivityValue(SqlFunctionCtx* pCtx, int32_t rowIndex, int32_t pos) {
   if (pCtx->subsidiaries.num <= 0) {
     return;
   }
@@ -1705,9 +1705,9 @@ void appendSelectivityValue(SqlFunctionCtx* pCtx, int32_t rowIndex) {
     ASSERT(pc->pExpr->base.resSchema.bytes == pDstCol->info.bytes);
 
     if (colDataIsNull_s(pSrcCol, rowIndex) == true) {
-      colDataAppendNULL(pDstCol, rowIndex);
+      colDataAppendNULL(pDstCol, pos);
     } else {
-      colDataAppend(pDstCol, rowIndex, pData, false);
+      colDataAppend(pDstCol, pos, pData, false);
     }
   }
 
@@ -3284,7 +3284,9 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
       if (pDiffInfo->hasPrev) {
         doHandleDiff(pDiffInfo, pInputCol->info.type, pv, pOutput, pos, pCtx->order);
         // handle selectivity
-        appendSelectivityValue(pCtx, pos);
+        if (pCtx->subsidiaries.num > 0) {
+          appendSelectivityValue(pCtx, i, pos);
+        }
 
         numOfElems++;
       } else {
@@ -3312,7 +3314,9 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
       if (pDiffInfo->hasPrev) {
         doHandleDiff(pDiffInfo, pInputCol->info.type, pv, pOutput, pos, pCtx->order);
         // handle selectivity
-        appendSelectivityValue(pCtx, pos);
+        if (pCtx->subsidiaries.num > 0) {
+          appendSelectivityValue(pCtx, i, pos);
+        }
 
         numOfElems++;
       } else {
