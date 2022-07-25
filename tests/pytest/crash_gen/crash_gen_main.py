@@ -1327,6 +1327,8 @@ class Task():
 
                 # TDengine 3.0 Error Codes:
                 0x0333, # Object is creating # TODO: this really is NOT an acceptable error
+                0x0369, # Tag already exists
+                0x0388, # Database not exist
                 0x03A0, # STable already exists
                 0x03A1, # STable [does] not exist
                 0x03AA, # Tag already exists

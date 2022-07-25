@@ -108,7 +108,6 @@ typedef struct STaskCostInfo {
   SFileBlockLoadRecorder* pRecoder;
   uint64_t                elapsedTime;
 
-  uint64_t firstStageMergeTime;
   uint64_t winInfoSize;
   uint64_t tableInfoSize;
   uint64_t hashSize;
@@ -321,6 +320,47 @@ typedef struct STableScanInfo {
   int8_t          noTable;
 } STableScanInfo;
 
+typedef struct STableMergeScanInfo {
+  STableListInfo* tableListInfo;
+  int32_t         tableStartIndex;
+  int32_t         tableEndIndex;
+  bool            hasGroupId;
+  uint64_t        groupId;
+  SArray*         dataReaders;  // array of tsdbReaderT*
+  SReadHandle     readHandle;
+  int32_t         bufPageSize;
+  uint32_t        sortBufSize;  // max buffer size for in-memory sort
+  SArray*         pSortInfo;
+  SSortHandle*    pSortHandle;
+
+  SSDataBlock* pSortInputBlock;
+  int64_t      startTs;  // sort start time
+  SArray*      sortSourceParams;
+
+  SFileBlockLoadRecorder readRecorder;
+  int64_t                numOfRows;
+  SScanInfo              scanInfo;
+  int32_t                scanTimes;
+  SNode*                 pFilterNode;  // filter info, which is push down by optimizer
+  SqlFunctionCtx*        pCtx;         // which belongs to the direct upstream operator operator query context
+  SResultRowInfo*        pResultRowInfo;
+  int32_t*               rowEntryInfoOffset;
+  SExprInfo*             pExpr;
+  SSDataBlock*           pResBlock;
+  SArray*                pColMatchInfo;
+  int32_t                numOfOutput;
+
+  SExprSupp       pseudoSup;
+
+  SQueryTableDataCond cond;
+  int32_t             scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
+  int32_t             dataBlockLoadFlag;
+  // if the upstream is an interval operator, the interval info is also kept here to get the time
+  // window to check if current data block needs to be loaded.
+  SInterval       interval;
+  SSampleExecInfo sample;  // sample execution info
+} STableMergeScanInfo;
+
 typedef struct STagScanInfo {
   SColumnInfo     *pCols;
   SSDataBlock     *pRes;
@@ -351,6 +391,11 @@ typedef enum EStreamScanMode {
   STREAM_SCAN_FROM_DATAREADER_RETRIEVE,
   STREAM_SCAN_FROM_DATAREADER_RANGE,
 } EStreamScanMode;
+
+enum {
+  PROJECT_RETRIEVE_CONTINUE = 0x1,
+  PROJECT_RETRIEVE_DONE = 0x2,
+};
 
 typedef struct SCatchSupporter {
   SHashObj*      pWindowHashTable;  // quick locate the window object for each window
@@ -549,6 +594,7 @@ typedef struct SProjectOperatorInfo {
   SLimitInfo         limitInfo;
   bool               mergeDataBlocks;
   SSDataBlock*       pFinalRes;
+  SNode*             pCondition;
 } SProjectOperatorInfo;
 
 typedef struct SIndefOperatorInfo {
@@ -881,7 +927,7 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
 
 SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pNode, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SJoinPhysiNode* pJoinNode,
+SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SSortMergeJoinPhysiNode* pJoinNode,
                                            SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream,
