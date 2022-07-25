@@ -67,6 +67,11 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   pInfo->pFilterNode = pProjPhyNode->node.pConditions;
   pInfo->mergeDataBlocks = pProjPhyNode->mergeDataBlock;
 
+  // todo remove it soon
+  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+    pInfo->mergeDataBlocks = true;
+  }
+
   int32_t numOfRows = 4096;
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
 
@@ -131,7 +136,7 @@ static int32_t discardGroupDataBlock(SSDataBlock* pBlock, SLimitInfo* pLimitInfo
 static int32_t setInfoForNewGroup(SSDataBlock* pBlock, SLimitInfo* pLimitInfo, SOperatorInfo* pOperator) {
   // remainGroupOffset == 0
   // here check for a new group data, we need to handle the data of the previous group.
-  ASSERT(pLimitInfo->remainGroupOffset == 0);
+  ASSERT(pLimitInfo->remainGroupOffset == 0 || pLimitInfo->remainGroupOffset == -1);
 
   if (pLimitInfo->currentGroupId != 0 && pLimitInfo->currentGroupId != pBlock->info.groupId) {
     pLimitInfo->numOfOutputGroups += 1;
