@@ -19,12 +19,13 @@ class TestFloatBoundary(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest(env_setting=self.env_setting)
+        self.api_type = 'restful'
     def float_boundary_check(self):
         """
         max: +- 3.4e+38
         """
         dbname = self.tdCom.get_long_name()
-        self.tdRest.request(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 float) tags (t1 float)')
         self.tdRest.request(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({self.tdCom.Boundary.FLOAT_BOUNDARY[1]})')
         self.tdRest.request(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags ({self.tdCom.Boundary.FLOAT_BOUNDARY[0]})')

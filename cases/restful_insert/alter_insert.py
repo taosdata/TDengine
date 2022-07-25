@@ -18,12 +18,13 @@ class TestAlterInsert(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest(env_setting=self.env_setting)
+        self.api_type = 'restful'
     def insert_after_alter_stb_schema(self):
         """
         insert after alter stb schema
         """
         dbname = self.tdCom.get_long_name()
-        self.tdRest.request(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int, c2 int) tags (t1 int, t2 int)')
         self.tdRest.request(f'create table if not exists {dbname}.tb using {dbname}.stb tags (1, 1)')
         self.tdRest.request(f'insert into {dbname}.tb values (now, 1, 1)')
@@ -53,8 +54,8 @@ class TestAlterInsert(TDCase):
         self.tdRest.request(f'alter table {dbname}.tb set tag t3 = "11111"')
         self.tdRest.request(f'alter table {dbname}.tb set tag t4 = "11111"')
         # ! TD-16211
-        # self.tdRest.error(f'alter stable {dbname}.tb set tag t3 = "111111"')
-        # self.tdRest.error(f'alter table {dbname}.tb set tag t4 = "111111"')
+        self.tdRest.error(f'alter stable {dbname}.tb set tag t3 = "111111"')
+        self.tdRest.error(f'alter table {dbname}.tb set tag t4 = "111111"')
         self.tdRest.request(f'insert into {dbname}.tb values (now-4m, 4, 4)')
         self.tdRest.request(f'select t1, t2, t3, t4, c1, c2 from {dbname}.tb where c2 = 4')
         self.tdSql.checkEqual(self.tdRest.resp['data'][0], [1, 1, "11111", "11111", 4, 4])
@@ -66,8 +67,8 @@ class TestAlterInsert(TDCase):
         self.tdRest.request(f'alter table {dbname}.tb set tag t3 = "111111"')
         self.tdRest.request(f'alter table {dbname}.tb set tag t4 = "111111"')
         # ! TD-16211
-        # self.tdRest.error(f'alter stable {dbname}.tb set tag t3 = "1111111"')
-        # self.tdRest.error(f'alter table {dbname}.tb set tag t4 = "1111111"')
+        self.tdRest.error(f'alter stable {dbname}.tb set tag t3 = "1111111"')
+        self.tdRest.error(f'alter table {dbname}.tb set tag t4 = "1111111"')
         self.tdRest.request(f'insert into {dbname}.tb values (now-5m, 5, 5)')
         self.tdRest.request(f'select t1, t2, t3, t4, c1, c2 from {dbname}.tb where c2 = 5')
         self.tdSql.checkEqual(self.tdRest.resp['data'][0], [1, 1, "111111", "111111", 5, 5])

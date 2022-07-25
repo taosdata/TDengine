@@ -22,6 +22,7 @@ class TestNull(TDCase):
         self.type = ['timestamp','tinyint','smallint','int','bigint','tinyint unsigned','smallint unsigned','int unsigned','bigint unsigned',\
                             'float','double','bool','binary(20)','nchar(20)']
         self.error_coltype = 'null'
+        self.api_type = 'restful'
     def null_dbname_check(self):
         """
         dbname = "null"
@@ -33,8 +34,8 @@ class TestNull(TDCase):
         """
         stbname/tag/col = "null"
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdRest.request(f'create database if not exists {dbname} precision "ms"')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         stbname = "null"
         
         self.tdRest.error(f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
@@ -52,8 +53,8 @@ class TestNull(TDCase):
         """
         tbname/tag/col = "null"
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdRest.request(f'create database if not exists {dbname} precision "ms"')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
         tbname = "null"
         self.tdRest.error(f'create table if not exists {dbname}.{tbname} using {dbname}.stb tags (now, 1)')
@@ -71,8 +72,8 @@ class TestNull(TDCase):
         """
         tbname/tag/col = "null"
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdRest.request(f'create database if not exists {dbname} precision "ms"')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         self.tdRest.request(f'create table if not exists {dbname}.tb (ts timestamp, c1 int)')
         self.tdRest.request(f'insert into {dbname}.tb values (now, null)')
         self.tdRest.error(f'insert into {dbname}.tb values (null, 1)')
@@ -84,14 +85,14 @@ class TestNull(TDCase):
         """
         null and normal poll insert
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdRest.request(f'create database if not exists {dbname}')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
                 c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(16), c12 nchar(16), c13 bool) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
                 t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t11 binary(16), t12 nchar(16), t13 bool)')
         self.tdRest.request(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, "binary", "nchar", True)')
         # ! TD-16547
-        # self.tdRest.request(f'create table if not exists {dbname}.tb_null using {dbname}.stb tags (now, null, null, null, null, null, null, null, null, null, null, null, null, null)')
+        self.tdRest.request(f'create table if not exists {dbname}.tb_null using {dbname}.stb tags (now, null, null, null, null, null, null, null, null, null, null, null, null, null)')
         self.tdRest.request(f'insert into {dbname}.tb values (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, "binary", "nchar", True)')
         self.tdRest.request(f'insert into {dbname}.tb values (now-1h, null, null, null, null, null, null, null, null, null, null, null, null, null)')
         self.tdRest.request(f'insert into {dbname}.tb values (now-2h, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, "binary", "nchar", True)')

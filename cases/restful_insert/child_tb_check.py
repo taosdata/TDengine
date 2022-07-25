@@ -22,6 +22,7 @@ class TestChildTb(TDCase):
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest(env_setting=self.env_setting)
         self.dbname = self.get_default_database()
+        self.api_type = 'restful'
     def child_tbname_length_check(self):
         """
         max length: 192

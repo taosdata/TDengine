@@ -27,13 +27,14 @@ class TestComp(TDCase):
                 self.taosd_setting = env_setting
                 self.fqdn = self.taosd_setting["fqdn"][0]
                 self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
+        self.api_type = 'restful'
     def comp_check(self):
         """
         comp check
         """
         test_param = self.cfg["create_name"]
         dbname = self.tdCom.get_long_name()
-        self.tdRest.request(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdRest.request('show databases')
          # TODO
         db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
@@ -47,7 +48,8 @@ class TestComp(TDCase):
         
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
-            self.tdRest.request(f'create database if not exists {dbname} {test_param} {param_value}')
+            kv_dict = {test_param: param_value}
+            self.tdCom.createDb(dbname, **kv_dict)
             self.tdRest.request('show databases')
              # TODO
             db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)

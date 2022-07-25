@@ -18,12 +18,13 @@ class TestSpecifiedColumnInsert(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest(env_setting=self.env_setting)
+        self.api_type = 'restful'
     def stb_specified_column_insert(self):
         """
         stb_specified_column_insert
         """
-        dbname = self.tdCom.get_long_name(length=5, mode="letters")
-        self.tdRest.request(f'create database if not exists {dbname}')
+        dbname = self.tdCom.get_long_name(5)
+        self.tdCom.createDb(dbname)
         self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned) tags \
             (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, t4 bigint, t5 tinyint unsigned)')
         self.tdRest.request(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now, 1, 2, 3, 4, 5)')
@@ -41,8 +42,8 @@ class TestSpecifiedColumnInsert(TDCase):
         """
         tb_specified_column_insert
         """
-        dbname = self.tdCom.get_long_name(length=5, mode="letters")
-        self.tdRest.request(f'create database if not exists {dbname}')
+        dbname = self.tdCom.get_long_name(5)
+        self.tdCom.createDb(dbname)
         self.tdRest.request(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned)')
         self.tdRest.request(f'insert into {dbname}.tb values (now, 1, 2, 3, 4, 5)')
         self.tdRest.request(f'insert into {dbname}.tb (col_ts, c1, c2, c3, c4, c5) values (now+1h, 1, 2, 3, 4, 5)')

@@ -19,6 +19,7 @@ class TestCachelast(TDCase):
         self.tdCom = TDCom(self.tdSql)
         self.cfg = self.tdCom.Boundary.DB_PARAM_CACHELAST_CONFIG
         self.tdRest = TDRest(env_setting=self.env_setting)
+        self.api_type = 'restful'
     def cachelast_check(self):
         """
         cachelast check
@@ -26,7 +27,7 @@ class TestCachelast(TDCase):
         test_param = self.cfg["create_name"]
         get_param = self.cfg["query_name"]
         dbname = self.tdCom.get_long_name()
-        self.tdRest.request(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdRest.request('show databases')
         #TODO
         db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,get_param,dbname)
@@ -36,7 +37,8 @@ class TestCachelast(TDCase):
         # param_list
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
-            self.tdRest.request(f'create database if not exists {dbname} {test_param} "{param_value}"')
+            kv_dict = {test_param: f'"{param_value}"'}
+            self.tdCom.createDb(dbname, **kv_dict)
             self.tdRest.request('show databases')
             #TODO
             db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,get_param,dbname)

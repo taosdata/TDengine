@@ -19,6 +19,7 @@ class TestSingle_stable(TDCase):
         self.tdCom = TDCom(self.tdSql)
         self.cfg = self.tdCom.Boundary.DB_PARAM_SINGLE_STABLE_CONFIG
         self.tdRest = TDRest(env_setting=self.env_setting)
+        self.api_type = 'restful'
     def single_stable_check(self):
         """
         single_stable check
@@ -26,10 +27,8 @@ class TestSingle_stable(TDCase):
         test_param = self.cfg["create_name"]
         get_param = self.cfg["query_name"]
         dbname = self.tdCom.get_long_name()
-        self.tdRest.request(f'create database if not exists {dbname}')
-        self.tdRest.request('show databases')
-        #TODO
-        
+        self.tdCom.createDb(dbname)
+        self.tdRest.request('show databases')       
         db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,get_param,dbname)
         # default
         self.tdSql.checkEqual(db_field, self.cfg["default"])
@@ -37,7 +36,8 @@ class TestSingle_stable(TDCase):
         # boundary
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
-            self.tdRest.request(f'create database if not exists {dbname} {test_param} {param_value}')
+            kv_dict = {test_param: param_value}
+            self.tdCom.createDb(dbname, **kv_dict)
             self.tdRest.request('show databases')
             #TODO
             db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,get_param,dbname)

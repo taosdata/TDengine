@@ -46,7 +46,7 @@ class TestVgroups(TDCase):
         self.tdCom.drop_all_db()
         test_param = self.cfg["create_name"]
         dbname = self.tdCom.get_long_name()
-        self.tdRest.request(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdRest.request('show databases')
         db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         # default
@@ -56,9 +56,9 @@ class TestVgroups(TDCase):
         # boundary
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
-            self.tdRest.request(f'create database if not exists {dbname} {test_param} {param_value}  buffer {self.buffer_min}')
+            kv_dict = {test_param: param_value, "buffer": self.buffer_min}
+            self.tdCom.createDb(dbname, **kv_dict)
             self.tdRest.request('show databases')
-            #TODO
             db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
             self.tdSql.checkEqual(db_field, param_value)
             self.tdSql.checkEqual(self.get_vnode_count(),db_field)
@@ -69,12 +69,14 @@ class TestVgroups(TDCase):
         self.tdRest.error(f'create database if not exists {dbname} vgroups {self.cfg["boundary"][-1] + 1} buffer {self.buffer_min}')
         # check logic
         dbname1 = self.tdCom.get_long_name()
-        self.tdRest.request(f'create database if not exists {dbname1} vgroups  {int(self.cfg["boundary"][-1]/4)} buffer {self.buffer_min}')
+        kv_dict = {test_param: param_value, "buffer": self.buffer_min, "vgroups": int(self.cfg["boundary"][-1]/4)}
+        self.tdCom.createDb(dbname1, **kv_dict)
         self.tdRest.request(f'show {dbname1}.vgroups')
         self.tdSql.checkEqual(len(self.tdRest.resp['data']), int(self.cfg["boundary"][-1]/4))
         self.tdSql.checkEqual(self.get_vnode_count(), int(self.cfg["boundary"][-1]/4))
         dbname2 = self.tdCom.get_long_name()
-        self.tdRest.request(f'create database if not exists {dbname2} vgroups {int(self.cfg["boundary"][-1]/4) + 1} buffer {self.buffer_min}')
+        kv_dict = {test_param: param_value, "buffer": self.buffer_min, "vgroups": int(self.cfg["boundary"][-1]/4) + 1}
+        self.tdCom.createDb(dbname2, **kv_dict)
         self.tdRest.request(f'show {dbname2}.vgroups')
         self.tdSql.checkEqual(len(self.tdRest.resp['data']), int(self.cfg["boundary"][-1]/4) + 1)
         self.tdSql.checkEqual(self.get_vnode_count(), int(self.cfg["boundary"][-1]/4)*2 + 1)

@@ -20,63 +20,59 @@ class TestComp(TDCase):
         self.tdRest = TDRest(env_setting=self.env_setting)
         self.dbname = 'db'
         self.stbname = 'stb'
-        self.comment_length = [0,1024]
+        self.comment_length = [1,1024]
+        self.api_type = 'restful'
     def create_comment_check(self,comment):
-        self.tdRest.request(f'create database if not exists {self.dbname}')
-        self.tdRest.request(f'use {self.dbname}')
+        self.tdCom.createDb(self.dbname)
         self.tdRest.request(
-            f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment}"')
-        self.tdRest.request("show stables")
+            f'create table {self.dbname}.{self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment}"')
+        self.tdRest.request(f"show {self.dbname}.stables")
         stb_kv_list = self.tdRest.getOneRow(0, self.stbname)
         self.tdSql.checkEqual(stb_kv_list[0][6], comment)
         self.tdRest.request(f'drop database {self.dbname}')
         
     def create_comment_error(self):
-        comment = self.tdCom.get_long_name(length=max(self.comment_length)+1, mode="letters")
-        self.tdRest.request(f'create database if not exists {self.dbname}')
-        self.tdRest.request(f'use {self.dbname}')
+        comment = self.tdCom.get_long_name(max(self.comment_length)+1)
+        self.tdCom.createDb(self.dbname)
         self.tdRest.error(
-            f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment}"')
+            f'create table {self.dbname}.{self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment}"')
         self.tdRest.request(f'drop database {self.dbname}')
 
     def alter_comment_check(self,comment):
-        comment_init = self.tdCom.get_long_name(length=min(self.comment_length), mode="letters")
+        comment_init = self.tdCom.get_long_name(min(self.comment_length))
         self.tdRest.request(f'drop database  if exists {self.dbname}')
-        self.tdRest.request(f'create database if not exists {self.dbname}')
-        self.tdRest.request(f'use {self.dbname}')
+        self.tdCom.createDb(self.dbname)
         self.tdRest.request(
-            f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment_init}"')
-        self.tdRest.request(f'alter table {self.stbname} comment "{comment}"')
-        self.tdRest.request("show stables")
+            f'create table {self.dbname}.{self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment_init}"')
+        self.tdRest.request(f'alter table {self.dbname}.{self.stbname} comment "{comment}"')
+        self.tdRest.request(f"show {self.dbname}.stables")
         stb_kv_list = self.tdRest.getOneRow(0, self.stbname)
         self.tdSql.checkEqual(stb_kv_list[0][6], comment)
         self.tdRest.request(f'drop database {self.dbname}')
     def alter_comment_error(self):
-        comment_init = self.tdCom.get_long_name(length=min(self.comment_length), mode="letters")
+        comment_init = self.tdCom.get_long_name(min(self.comment_length))
         self.tdRest.request(f'drop database  if exists {self.dbname}')
-        self.tdRest.request(f'create database if not exists {self.dbname}')
-        self.tdRest.request(f'use {self.dbname}')
+        self.tdCom.createDb(self.dbname)
         self.tdRest.request(
-            f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment_init}"')
-        comment = self.tdCom.get_long_name(length=max(self.comment_length)+1, mode="letters")
-        self.tdRest.error(f'alter table {self.stbname} comment "{comment}"')
+            f'create table {self.dbname}.{self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment_init}"')
+        comment = self.tdCom.get_long_name(max(self.comment_length)+1)
+        self.tdRest.error(f'alter table {self.dbname}.{self.stbname} comment "{comment}"')
     def create_comment_null(self):
-        self.tdRest.request(f'drop database  if exists {self.dbname}')
-        self.tdRest.request(f'create database if not exists {self.dbname}')
-        self.tdRest.request(f'use {self.dbname}')
+        self.tdRest.request(f'drop database if exists {self.dbname}')
+        self.tdCom.createDb(self.dbname)
         self.tdRest.request(
-            f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int)')
-        self.tdRest.request("show stables")
+            f'create table {self.dbname}.{self.stbname} (ts timestamp,c0 int) tags(t0 int)')
+        self.tdRest.request(f"show {self.dbname}.stables")
         stb_kv_list = self.tdRest.getOneRow(0, self.stbname)
         self.tdSql.checkEqual(stb_kv_list[0][6], None)
         self.tdRest.request(f'drop database {self.dbname}')
     def check_comment(self):
         self.create_comment_null()
         for i in self.comment_length:
-            comment = self.tdCom.get_long_name(length=i, mode="letters")
+            comment = self.tdCom.get_long_name(i)
             self.create_comment_check(comment)
         for i in self.comment_length:
-            comment = self.tdCom.get_long_name(length=i, mode="letters")
+            comment = self.tdCom.get_long_name(i)
             self.alter_comment_check(comment)
         self.alter_comment_error()
         self.create_comment_error()

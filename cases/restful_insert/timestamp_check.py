@@ -21,6 +21,9 @@ class TestTimestamp(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest(env_setting=self.env_setting)
+        self.api_type = 'restful'
+        self.cfg = self.tdCom.Boundary.DB_PARAM_PRECISION_CONFIG
+        self.test_param = self.cfg["create_name"]
     def timestamp_to_utcrfc(self,timestamp,precision):
         if precision == 'ms':
             ts_utc = datetime.datetime.utcfromtimestamp(timestamp/1000).strftime("%Y-%m-%d %H:%M:%S.%f")
@@ -36,9 +39,9 @@ class TestTimestamp(TDCase):
         """
         for ts in ["ms", "us", "ns"]:
             dbname = self.tdCom.get_long_name()
-            self.tdRest.request(f'create database if not exists {dbname} precision "{ts}"')
+            kv_dict = {self.test_param: ts}
+            self.tdCom.createDb(dbname, **kv_dict)
             self.tdRest.request('show databases')
-            #TODO
             res = self.tdRest.get_rest_db_field(self.tdRest.resp,"precision",dbname)
             self.tdSql.checkEqual(res, ts)
             self.tdRest.request(f'create table if not exists {dbname}.stb (ts timestamp, c1 int) tags (t1 int)')
@@ -65,7 +68,7 @@ class TestTimestamp(TDCase):
         check hh:mm:ss
         """
         dbname = self.tdCom.get_long_name()
-        self.tdRest.request(f'create database if not exists {dbname} precision "ms"')
+        self.tdCom.createDb(dbname)
         self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
         self.tdRest.request(f'create table if not exists {dbname}.ctb using {dbname}.stb tags (now, 1)')
         self.tdRest.request(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 int)')
@@ -95,7 +98,9 @@ class TestTimestamp(TDCase):
             dbname = self.tdCom.get_long_name()
             dbname = dbname + '_' + ts
             timestamp, dt = self.tdCom.genTs(ts, ns_tag=True)
-            self.tdRest.request(f'create database if not exists {dbname} precision "{ts}"')
+            kv_dict = {self.test_param: ts}
+            self.tdCom.createDb(dbname, **kv_dict)
+            # self.tdRest.request(f'create database if not exists {dbname} precision "{ts}"')
             self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
             self.tdRest.request(f'create table if not exists {dbname}.ctb using {dbname}.stb tags ("{dt}", 1)')
             self.tdRest.request(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 int)')
@@ -145,10 +150,13 @@ class TestTimestamp(TDCase):
         """
         now check
         """
+        
         for ts in ["ms", "us", "ns"]:
             dbname = self.tdCom.get_long_name()
             dbname = dbname + '_' + ts
-            self.tdRest.request(f'create database if not exists {dbname} precision "{ts}"')
+            kv_dict = {self.test_param: ts}
+            self.tdCom.createDb(dbname, **kv_dict)
+            # self.tdRest.request(f'create database if not exists {dbname} precision "{ts}"')
             self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
             self.tdRest.request(f'create table if not exists {dbname}.ctb using {dbname}.stb tags (now, 1)')
             self.tdRest.request(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 int)')
@@ -179,11 +187,14 @@ class TestTimestamp(TDCase):
         """
         epoch check
         """
+        
         for ts in ["ms", "us", "ns"]:
             dbname = self.tdCom.get_long_name()
             dbname = dbname + '_' + ts
             timestamp = self.tdCom.genTs(ts)[0]
-            self.tdRest.request(f'create database if not exists {dbname} precision "{ts}"')
+            kv_dict = {self.test_param: ts}
+            self.tdCom.createDb(dbname, **kv_dict)
+            # self.tdRest.request(f'create database if not exists {dbname} precision "{ts}"')
             self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
             self.tdRest.request(f'create table if not exists {dbname}.ctb using {dbname}.stb tags ({timestamp}, 1)')
             self.tdRest.request(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 int)')
@@ -220,7 +231,9 @@ class TestTimestamp(TDCase):
             dbname = self.tdCom.get_long_name()
             dbname = dbname + '_' + ts
             timestamp = self.tdCom.genTs(ts)[0]
-            self.tdRest.request(f'create database if not exists {dbname} precision "{ts}"')
+            kv_dict = {self.test_param: ts}
+            self.tdCom.createDb(dbname, **kv_dict)
+            # self.tdRest.request(f'create database if not exists {dbname} precision "{ts}"')
             self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
             self.tdRest.request(f'create table if not exists {dbname}.ctb using {dbname}.stb tags ({timestamp}, 1)')
             self.tdRest.request(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 int)')
