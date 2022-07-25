@@ -3323,6 +3323,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       if (pLimitInfo->remainGroupOffset > 0) {
         if (pLimitInfo->currentGroupId == 0 || pLimitInfo->currentGroupId == pBlock->info.groupId) {  // it is the first group
           pLimitInfo->currentGroupId = pBlock->info.groupId;
+          ASSERT(pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM);
           continue;
         } else if (pLimitInfo->currentGroupId != pBlock->info.groupId) {
           // now it is the data from a new group
@@ -3331,6 +3332,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
           // ignore data block in current group
           if (pLimitInfo->remainGroupOffset > 0) {
+            ASSERT(pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM);
             continue;
           }
         }
@@ -3375,10 +3377,12 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       if (pLimitInfo->remainOffset >= pInfo->pRes->info.rows) {
         pLimitInfo->remainOffset -= pInfo->pRes->info.rows;
         blockDataCleanup(pInfo->pRes);
+        ASSERT(pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM);
         continue;
       } else if (pLimitInfo->remainOffset < pInfo->pRes->info.rows && pLimitInfo->remainOffset > 0) {
         blockDataTrimFirstNRows(pInfo->pRes, pLimitInfo->remainOffset);
         pLimitInfo->remainOffset = 0;
+        ASSERT(pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM);
       }
 
       // check for the limitation in each group
@@ -3386,6 +3390,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
           pLimitInfo->numOfOutputRows + pInfo->pRes->info.rows >= pLimitInfo->limit.limit) {
         int32_t keepRows = (int32_t)(pLimitInfo->limit.limit - pLimitInfo->numOfOutputRows);
         blockDataKeepFirstNRows(pInfo->pRes, keepRows);
+        ASSERT(pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM);
         if (pLimitInfo->slimit.limit > 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups) {
           pOperator->status = OP_EXEC_DONE;
         }
@@ -3395,7 +3400,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       break;
     }
 
-    if (pProjectInfo->mergeDataBlocks) {
+    if (pProjectInfo->mergeDataBlocks && pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM) {
       if (pRes->info.rows > 0) {
         pFinalRes->info.groupId = pRes->info.groupId;
         pFinalRes->info.version = pRes->info.version;
@@ -3420,8 +3425,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
           continue;
         }
       }
-
-      // no results generated
+      
       break;
     }
   }
