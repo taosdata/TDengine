@@ -1143,6 +1143,10 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     int32_t monitor = atoi(value);
     uInfo("monitor set from %d to %d", tsEnableMonitor, monitor);
     tsEnableMonitor = monitor;
+    SConfigItem *pItem = cfgGetItem(tsCfg, "monitor");
+    if (pItem != NULL) {
+      pItem->bval = tsEnableMonitor;
+    }
     return;
   }
 
@@ -1166,6 +1170,7 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     int32_t flag = atoi(value);
     uInfo("%s set from %d to %d", optName, *optionVars[d], flag);
     *optionVars[d] = flag;
+    taosSetDebugFlag(optionVars[d], optName, flag);
     return;
   }
 

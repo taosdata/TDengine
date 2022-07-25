@@ -17,6 +17,7 @@
 #include "tlog.h"
 #include "os.h"
 #include "tutil.h"
+#include "tconfig.h"
 
 #define LOG_MAX_LINE_SIZE             (1024)
 #define LOG_MAX_LINE_BUFFER_SIZE      (LOG_MAX_LINE_SIZE + 3)
@@ -62,6 +63,7 @@ typedef struct {
   TdThreadMutex logMutex;
 } SLogObj;
 
+extern SConfig *tsCfg;
 static int8_t  tsLogInited = 0;
 static SLogObj tsLogObj = {.fileNum = 1};
 static int64_t tsAsyncLogLostLines = 0;
@@ -742,24 +744,32 @@ cmp_end:
   return ret;
 }
 
+void taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal) {
+  SConfigItem *pItem = cfgGetItem(tsCfg, flagName);
+  if (pItem != NULL) {
+    pItem->i32 = flagVal;
+  }
+  *pFlagPtr = flagVal;
+}
+
 void taosSetAllDebugFlag(int32_t flag) {
   if (flag <= 0) return;
 
-  uDebugFlag = flag;
-  rpcDebugFlag = flag;
-  jniDebugFlag = flag;
-  qDebugFlag = flag;
-  cDebugFlag = flag;
-  dDebugFlag = flag;
-  vDebugFlag = flag;
-  mDebugFlag = flag;
-  wDebugFlag = flag;
-  sDebugFlag = flag;
-  tsdbDebugFlag = flag;
-  tqDebugFlag = flag;
-  fsDebugFlag = flag;
-  udfDebugFlag = flag;
-  smaDebugFlag = flag;
-  idxDebugFlag = flag;
+  taosSetDebugFlag(&uDebugFlag, "uDebugFlag", flag);
+  taosSetDebugFlag(&rpcDebugFlag, "rpcDebugFlag", flag);
+  taosSetDebugFlag(&jniDebugFlag, "jniDebugFlag", flag);
+  taosSetDebugFlag(&qDebugFlag, "qDebugFlag", flag);
+  taosSetDebugFlag(&cDebugFlag, "cDebugFlag", flag);
+  taosSetDebugFlag(&dDebugFlag, "dDebugFlag", flag);
+  taosSetDebugFlag(&vDebugFlag, "vDebugFlag", flag);
+  taosSetDebugFlag(&mDebugFlag, "mDebugFlag", flag);
+  taosSetDebugFlag(&wDebugFlag, "wDebugFlag", flag);
+  taosSetDebugFlag(&sDebugFlag, "sDebugFlag", flag);
+  taosSetDebugFlag(&tsdbDebugFlag, "tsdbDebugFlag", flag);
+  taosSetDebugFlag(&tqDebugFlag, "tqDebugFlag", flag);
+  taosSetDebugFlag(&fsDebugFlag, "fsDebugFlag", flag);
+  taosSetDebugFlag(&udfDebugFlag, "udfDebugFlag", flag);
+  taosSetDebugFlag(&smaDebugFlag, "smaDebugFlag", flag);
+  taosSetDebugFlag(&idxDebugFlag, "idxDebugFlag", flag);
   uInfo("all debug flag are set to %d", flag);
 }

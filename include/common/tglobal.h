@@ -152,7 +152,8 @@ void    taosCfgDynamicOptions(const char *option, const char *value);
 void    taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary);
 
 struct SConfig *taosGetCfg();
-int32_t taosSetCfg(SConfig *pCfg, char* name);
+
+int32_t taosSetCfg(SConfig *pCfg, char *name);
 
 #ifdef __cplusplus
 }
