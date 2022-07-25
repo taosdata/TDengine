@@ -71,14 +71,14 @@ class TDTestCase:
                 is_leader=True
 
         if count==1 and is_leader:
-            tdLog.info("===== depoly cluster success with 1 mnode as leader =====")
+            tdLog.notice("===== depoly cluster success with 1 mnode as leader =====")
         else:
             tdLog.exit("===== depoly cluster fail with 1 mnode as leader =====")
 
         for k ,v in self.dnode_list.items():
             if k == mnode_name:
                 if v[3]==0:
-                    tdLog.info("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
+                    tdLog.notice("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
                 else:
                     tdLog.exit("===== depoly cluster mnode only fail at {} , support_vnodes is {} ".format(mnode_name,v[3]))
             else:
@@ -121,7 +121,7 @@ class TDTestCase:
 
         for k , v in vgroups_infos.items():
             if len(v) ==1 and v[0]=="leader":
-                tdLog.info(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
+                tdLog.notice(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
             else:
                 tdLog.exit(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
 
@@ -152,10 +152,10 @@ class TDTestCase:
             time.sleep(0.1)
             status = self.check_vgroups_init_done(dbname)
             
-            # tdLog.info("=== database {} show vgroups vote the leader is in progress ===".format(dbname))
+            # tdLog.notice("=== database {} show vgroups vote the leader is in progress ===".format(dbname))
         end = time.time()
         cost_time = end - start
-        tdLog.info(" ==== database %s vote the leaders success , cost time is %.3f second ====="%(dbname,cost_time) )
+        tdLog.notice(" ==== database %s vote the leaders success , cost time is %.3f second ====="%(dbname,cost_time) )
         # os.system("taos -s 'show {}.vgroups;'".format(dbname))
         if cost_time >= self.max_vote_time_cost:
             tdLog.exit(" ==== database %s vote the leaders cost too large time , cost time is %.3f second ===="%(dbname,cost_time) )
@@ -165,28 +165,28 @@ class TDTestCase:
         
     def test_init_vgroups_time_costs(self):
 
-        tdLog.info(" ====start check time cost about vgroups vote leaders ==== ")
-        tdLog.info(" ==== current max time cost is set value : {} =======".format(self.max_vote_time_cost))
+        tdLog.notice(" ====start check time cost about vgroups vote leaders ==== ")
+        tdLog.notice(" ==== current max time cost is set value : {} =======".format(self.max_vote_time_cost))
 
         # create database replica 3 vgroups 1 
 
         db1 = 'db_1'
         create_db_replica_3_vgroups_1 = "create database {} replica 3 vgroups 1".format(db1)
-        tdLog.info('=======database {} replica 3 vgroups 1 ======'.format(db1))
+        tdLog.notice('=======database {} replica 3 vgroups 1 ======'.format(db1))
         tdSql.execute(create_db_replica_3_vgroups_1)
         self.vote_leader_time_costs(db1)
 
         # create database replica 3 vgroups 10
         db2 = 'db_2'
         create_db_replica_3_vgroups_10 = "create database {} replica 3 vgroups 10".format(db2)
-        tdLog.info('=======database {} replica 3 vgroups 10 ======'.format(db2))
+        tdLog.notice('=======database {} replica 3 vgroups 10 ======'.format(db2))
         tdSql.execute(create_db_replica_3_vgroups_10)
         self.vote_leader_time_costs(db2)
 
         # create database replica 3 vgroups 100
         db3 = 'db_3'
         create_db_replica_3_vgroups_100 = "create database {} replica 3 vgroups 100".format(db3)
-        tdLog.info('=======database {} replica 3 vgroups 100 ======'.format(db3))
+        tdLog.notice('=======database {} replica 3 vgroups 100 ======'.format(db3))
         tdSql.execute(create_db_replica_3_vgroups_100)
         self.vote_leader_time_costs(db3)
         
