@@ -974,6 +974,9 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
 }
 
 static bool projectCanMergeDataBlock(SProjectLogicNode* pProject) {
+  if (GROUP_ACTION_KEEP == pProject->node.groupAction) {
+    return false;
+  }
   if (DATA_ORDER_LEVEL_NONE == pProject->node.resultDataOrder) {
     return true;
   }
