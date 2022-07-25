@@ -518,7 +518,7 @@ class TDDnode:
 
         if self.running != 0:
             if platform.system().lower() == 'windows':
-                psCmd = "for /f %%a in ('wmic process where \"name='taosd.exe' and CommandLine like '%%dnode%d%%'\" get processId ^| xargs echo ^| awk ^'{print $2}^'') do @(ps | grep %%a | awk '{print $1}' | xargs kill -INT )" % (self.index)
+                psCmd = "for /f %%a in ('wmic process where \"name='taosd.exe' and CommandLine like '%%dnode%d%%'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' )" % (self.index)
             else:
                 psCmd = "ps -ef|grep -w %s| grep dnode%d|grep -v grep | awk '{print $2}'" % (toBeKilled,self.index)
             processID = subprocess.check_output(
