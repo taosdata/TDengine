@@ -82,8 +82,6 @@ size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
 void   cleanupResultRowInfo(SResultRowInfo* pResultRowInfo);
 
-void closeAllResultRows(SResultRowInfo* pResultRowInfo);
-
 void initResultRow(SResultRow* pResultRow);
 void closeResultRow(SResultRow* pResultRow);
 bool isResultRowClosed(SResultRow* pResultRow);
@@ -94,6 +92,11 @@ static FORCE_INLINE SResultRow* getResultRowByPos(SDiskbasedBuf* pBuf, SResultRo
   SFilePage*  bufPage = (SFilePage*)getBufPage(pBuf, pos->pageId);
   SResultRow* pRow = (SResultRow*)((char*)bufPage + pos->offset);
   return pRow;
+}
+
+static FORCE_INLINE void setResultBufPageDirty(SDiskbasedBuf* pBuf, SResultRowPosition* pos) {
+  void* pPage = getBufPage(pBuf, pos->pageId);
+  setBufPageDirty(pPage, true);
 }
 
 void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order);

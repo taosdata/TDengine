@@ -108,7 +108,6 @@ typedef struct STaskCostInfo {
   SFileBlockLoadRecorder* pRecoder;
   uint64_t                elapsedTime;
 
-  uint64_t firstStageMergeTime;
   uint64_t winInfoSize;
   uint64_t tableInfoSize;
   uint64_t hashSize;
@@ -352,6 +351,11 @@ typedef enum EStreamScanMode {
   STREAM_SCAN_FROM_DATAREADER_RANGE,
 } EStreamScanMode;
 
+enum {
+  PROJECT_RETRIEVE_CONTINUE = 0x1,
+  PROJECT_RETRIEVE_DONE = 0x2,
+};
+
 typedef struct SCatchSupporter {
   SHashObj*      pWindowHashTable;  // quick locate the window object for each window
   SDiskbasedBuf* pDataBuf;          // buffer based on blocked-wised disk file
@@ -549,6 +553,7 @@ typedef struct SProjectOperatorInfo {
   SLimitInfo         limitInfo;
   bool               mergeDataBlocks;
   SSDataBlock*       pFinalRes;
+  SNode*             pCondition;
 } SProjectOperatorInfo;
 
 typedef struct SIndefOperatorInfo {
