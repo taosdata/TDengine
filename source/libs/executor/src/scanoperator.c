@@ -274,7 +274,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
   } else {
-    qDebug("%s data block filter out, elapsed time:%"PRId64, GET_TASKID(pTaskInfo), (et - st));
+    qDebug("%s data block filter out, elapsed time:%" PRId64, GET_TASKID(pTaskInfo), (et - st));
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1838,11 +1838,14 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
       int8_t tagType = smr.me.stbEntry.schemaTag.pSchema[i].type;
       pColInfoData = taosArrayGet(p->pDataBlock, 4);
       char tagTypeStr[VARSTR_HEADER_SIZE + 32];
-      int tagTypeLen = sprintf(varDataVal(tagTypeStr), "%s", tDataTypes[tagType].name);
+      int  tagTypeLen = sprintf(varDataVal(tagTypeStr), "%s", tDataTypes[tagType].name);
       if (tagType == TSDB_DATA_TYPE_VARCHAR) {
-        tagTypeLen += sprintf(varDataVal(tagTypeStr) + tagTypeLen, "(%d)", (int32_t)(smr.me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE));
+        tagTypeLen += sprintf(varDataVal(tagTypeStr) + tagTypeLen, "(%d)",
+                              (int32_t)(smr.me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE));
       } else if (tagType == TSDB_DATA_TYPE_NCHAR) {
-        tagTypeLen += sprintf(varDataVal(tagTypeStr) + tagTypeLen, "(%d)", (int32_t)((smr.me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+        tagTypeLen +=
+            sprintf(varDataVal(tagTypeStr) + tagTypeLen, "(%d)",
+                    (int32_t)((smr.me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
       }
       varDataSetLen(tagTypeStr, tagTypeLen);
       colDataAppend(pColInfoData, numOfRows, (char*)tagTypeStr, false);
@@ -2527,49 +2530,6 @@ _error:
   return NULL;
 }
 
-typedef struct STableMergeScanInfo {
-  STableListInfo* tableListInfo;
-  int32_t         tableStartIndex;
-  int32_t         tableEndIndex;
-  bool            hasGroupId;
-  uint64_t        groupId;
-  SArray*         dataReaders;  // array of tsdbReaderT*
-  SReadHandle     readHandle;
-  int32_t         bufPageSize;
-  uint32_t        sortBufSize;  // max buffer size for in-memory sort
-  SArray*         pSortInfo;
-  SSortHandle*    pSortHandle;
-
-  SSDataBlock* pSortInputBlock;
-  int64_t      startTs;  // sort start time
-  SArray*      sortSourceParams;
-
-  SFileBlockLoadRecorder readRecorder;
-  int64_t                numOfRows;
-  SScanInfo              scanInfo;
-  int32_t                scanTimes;
-  SNode*                 pFilterNode;  // filter info, which is push down by optimizer
-  SqlFunctionCtx*        pCtx;         // which belongs to the direct upstream operator operator query context
-  SResultRowInfo*        pResultRowInfo;
-  int32_t*               rowEntryInfoOffset;
-  SExprInfo*             pExpr;
-  SSDataBlock*           pResBlock;
-  SArray*                pColMatchInfo;
-  int32_t                numOfOutput;
-
-  SExprInfo*      pPseudoExpr;
-  int32_t         numOfPseudoExpr;
-  SqlFunctionCtx* pPseudoCtx;
-
-  SQueryTableDataCond cond;
-  int32_t             scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
-  int32_t             dataBlockLoadFlag;
-  // if the upstream is an interval operator, the interval info is also kept here to get the time
-  // window to check if current data block needs to be loaded.
-  SInterval       interval;
-  SSampleExecInfo sample;  // sample execution info
-} STableMergeScanInfo;
-
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
                                 const char* idStr) {
@@ -2975,6 +2935,7 @@ void destroyTableMergeScanOperatorInfo(void* param, int32_t numOfOutput) {
 
   taosArrayDestroy(pTableScanInfo->pSortInfo);
 
+  taosMemoryFreeClear(pTableScanInfo->rowEntryInfoOffset);
   taosMemoryFreeClear(param);
 }
 

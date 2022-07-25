@@ -92,7 +92,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG:
       return "sliding value no larger than the interval value";
     case TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL:
-      return "sliding value can not less than 1% of interval value";
+      return "sliding value can not less than 1%% of interval value";
     case TSDB_CODE_PAR_ONLY_ONE_JSON_TAG:
       return "Only one tag if there is a json tag";
     case TSDB_CODE_PAR_INCORRECT_NUM_OF_COL:

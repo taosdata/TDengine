@@ -321,6 +321,49 @@ typedef struct STableScanInfo {
   int8_t          noTable;
 } STableScanInfo;
 
+typedef struct STableMergeScanInfo {
+  STableListInfo* tableListInfo;
+  int32_t         tableStartIndex;
+  int32_t         tableEndIndex;
+  bool            hasGroupId;
+  uint64_t        groupId;
+  SArray*         dataReaders;  // array of tsdbReaderT*
+  SReadHandle     readHandle;
+  int32_t         bufPageSize;
+  uint32_t        sortBufSize;  // max buffer size for in-memory sort
+  SArray*         pSortInfo;
+  SSortHandle*    pSortHandle;
+
+  SSDataBlock* pSortInputBlock;
+  int64_t      startTs;  // sort start time
+  SArray*      sortSourceParams;
+
+  SFileBlockLoadRecorder readRecorder;
+  int64_t                numOfRows;
+  SScanInfo              scanInfo;
+  int32_t                scanTimes;
+  SNode*                 pFilterNode;  // filter info, which is push down by optimizer
+  SqlFunctionCtx*        pCtx;         // which belongs to the direct upstream operator operator query context
+  SResultRowInfo*        pResultRowInfo;
+  int32_t*               rowEntryInfoOffset;
+  SExprInfo*             pExpr;
+  SSDataBlock*           pResBlock;
+  SArray*                pColMatchInfo;
+  int32_t                numOfOutput;
+
+  SExprInfo*      pPseudoExpr;
+  int32_t         numOfPseudoExpr;
+  SqlFunctionCtx* pPseudoCtx;
+
+  SQueryTableDataCond cond;
+  int32_t             scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
+  int32_t             dataBlockLoadFlag;
+  // if the upstream is an interval operator, the interval info is also kept here to get the time
+  // window to check if current data block needs to be loaded.
+  SInterval       interval;
+  SSampleExecInfo sample;  // sample execution info
+} STableMergeScanInfo;
+
 typedef struct STagScanInfo {
   SColumnInfo     *pCols;
   SSDataBlock     *pRes;
@@ -881,7 +924,7 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
 
 SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pNode, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SJoinPhysiNode* pJoinNode,
+SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SSortMergeJoinPhysiNode* pJoinNode,
                                            SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream,

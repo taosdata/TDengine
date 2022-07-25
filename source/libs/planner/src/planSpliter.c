@@ -469,7 +469,7 @@ static int32_t stbSplCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pParent
   return code;
 }
 
-static int32_t stbSplCreateMergeKeysByPrimaryKey(SNode* pPrimaryKey, SNodeList** pMergeKeys) {
+static int32_t stbSplCreateMergeKeysByPrimaryKey(SNode* pPrimaryKey, EOrder order, SNodeList** pMergeKeys) {
   SOrderByExprNode* pMergeKey = (SOrderByExprNode*)nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
   if (NULL == pMergeKey) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -479,7 +479,7 @@ static int32_t stbSplCreateMergeKeysByPrimaryKey(SNode* pPrimaryKey, SNodeList**
     nodesDestroyNode((SNode*)pMergeKey);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  pMergeKey->order = ORDER_ASC;
+  pMergeKey->order = order;
   pMergeKey->nullOrder = NULL_ORDER_FIRST;
   return nodesListMakeStrictAppend(pMergeKeys, (SNode*)pMergeKey);
 }
@@ -491,7 +491,8 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
     ((SWindowLogicNode*)pPartWindow)->windowAlgo = INTERVAL_ALGO_HASH;
     ((SWindowLogicNode*)pInfo->pSplitNode)->windowAlgo = INTERVAL_ALGO_MERGE;
     SNodeList* pMergeKeys = NULL;
-    code = stbSplCreateMergeKeysByPrimaryKey(((SWindowLogicNode*)pInfo->pSplitNode)->pTspk, &pMergeKeys);
+    code = stbSplCreateMergeKeysByPrimaryKey(((SWindowLogicNode*)pInfo->pSplitNode)->pTspk,
+                                             ((SWindowLogicNode*)pInfo->pSplitNode)->inputTsOrder, &pMergeKeys);
     if (TSDB_CODE_SUCCESS == code) {
       code = stbSplCreateMergeNode(pCxt, NULL, pInfo->pSplitNode, pMergeKeys, pPartWindow, true);
     }
@@ -579,7 +580,8 @@ static int32_t stbSplSplitSessionOrStateForBatch(SSplitContext* pCxt, SStableSpl
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pWindow->pChildren, 0);
 
   SNodeList* pMergeKeys = NULL;
-  int32_t    code = stbSplCreateMergeKeysByPrimaryKey(((SWindowLogicNode*)pWindow)->pTspk, &pMergeKeys);
+  int32_t    code = stbSplCreateMergeKeysByPrimaryKey(((SWindowLogicNode*)pWindow)->pTspk,
+                                                      ((SWindowLogicNode*)pWindow)->inputTsOrder, &pMergeKeys);
 
   if (TSDB_CODE_SUCCESS == code) {
     code = stbSplCreateMergeNode(pCxt, pInfo->pSubplan, pChild, pMergeKeys, (SLogicNode*)pChild, true);
@@ -950,7 +952,8 @@ static int32_t stbSplCreateMergeScanNode(SScanLogicNode* pScan, SLogicNode** pOu
     pMergeScan->scanType = SCAN_TYPE_TABLE_MERGE;
     pMergeScan->node.pChildren = pChildren;
     splSetParent((SLogicNode*)pMergeScan);
-    code = stbSplCreateMergeKeysByPrimaryKey(stbSplFindPrimaryKeyFromScan(pMergeScan), &pMergeKeys);
+    code = stbSplCreateMergeKeysByPrimaryKey(stbSplFindPrimaryKeyFromScan(pMergeScan),
+                                             pMergeScan->scanSeq[0] > 0 ? ORDER_ASC : ORDER_DESC, &pMergeKeys);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -1020,14 +1023,14 @@ static int32_t stbSplSplitJoinNode(SSplitContext* pCxt, SStableSplitInfo* pInfo)
 }
 
 static int32_t stbSplCreateMergeKeysForPartitionNode(SLogicNode* pPart, SNodeList** pMergeKeys) {
-  SNode* pPrimaryKey =
-      nodesCloneNode(stbSplFindPrimaryKeyFromScan((SScanLogicNode*)nodesListGetNode(pPart->pChildren, 0)));
+  SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pPart->pChildren, 0);
+  SNode*          pPrimaryKey = nodesCloneNode(stbSplFindPrimaryKeyFromScan(pScan));
   if (NULL == pPrimaryKey) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   int32_t code = nodesListAppend(pPart->pTargets, pPrimaryKey);
   if (TSDB_CODE_SUCCESS == code) {
-    code = stbSplCreateMergeKeysByPrimaryKey(pPrimaryKey, pMergeKeys);
+    code = stbSplCreateMergeKeysByPrimaryKey(pPrimaryKey, pScan->scanSeq[0] > 0 ? ORDER_ASC : ORDER_DESC, pMergeKeys);
   }
   return code;
 }
