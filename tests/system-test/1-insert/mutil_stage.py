@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 
 from typing import List, Any, Tuple
 from util.log import *
@@ -35,7 +35,7 @@ ALL_COL = [PRIMARY_COL, INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE
 TAG_COL = [INT_TAG]
 # insert data args：
 TIME_STEP = 10000
-NOW = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
+NOW = int(datetime.timestamp(datetime.now()) * 1000)
 
 # init db/table
 DBNAME  = "db"
