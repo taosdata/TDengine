@@ -357,90 +357,89 @@ class TestInsertPro(TDCase):
                                 stb_child_name = self.tdSql.getData(i, 0)
                                 break
                             i = i + 1
+                            
+                        self.tdSql.query("describe {}.{};".format(db_name,stb_child_name))
+                        c1 = self.tdSql.getData(1, 0)
                         if insert_rows > 0:
                             #sum check
-                            sum_sql1 = "select sum(c1) from {}.{};".format(db_name, stb_child_name);
-                            sum_sql2 = "select sum(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            sum_sql1 = "select sum({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            sum_sql2 = "select sum({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %sum_sql1 ,1,1,'%s' %sum_sql2 ,1,1)
                             #max check
-                            max_sql1 = "select max(c1) from {}.{};".format(db_name, stb_child_name);
-                            max_sql2 = "select max(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            max_sql1 = "select max({}) from {}.{};".format(c1 ,db_name, stb_child_name);
+                            max_sql2 = "select max({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %max_sql1 ,1,1,'%s' %max_sql2 ,1,1)
                             #min check
-                            min_sql1 = "select min(c1) from {}.{};".format(db_name, stb_child_name);
-                            min_sql2 = "select min(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            min_sql1 = "select min({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            min_sql2 = "select min({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %min_sql1 ,1,1,'%s' %min_sql2 ,1,1)
                             #avg check
-                            avg_sql1 = "select avg(c1) from {}.{};".format(db_name, stb_child_name);
-                            avg_sql2 = "select avg(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            avg_sql1 = "select avg({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            avg_sql2 = "select avg({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %avg_sql1 ,1,1,'%s' %avg_sql2 ,1,1)
                             #first check
-                            first_sql1 = "select first(c1) from {}.{};".format(db_name, stb_child_name);
-                            first_sql2 = "select first(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            first_sql1 = "select first({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            first_sql2 = "select first({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %first_sql1 ,1,1,'%s' %first_sql2 ,1,1)
                             #last check
-                            last_sql1 = "select last(c1) from {}.{};".format(db_name, stb_child_name);
-                            last_sql2 = "select last(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            last_sql1 = "select last({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            last_sql2 = "select last({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %last_sql1 ,1,1,'%s' %last_sql2 ,1,1)
                             #last_row check
-                            last_row_sql1 = "select last_row(c1) from {}.{};".format(db_name, stb_child_name);
-                            last_row_sql2 = "select last_row(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            last_row_sql1 = "select last_row({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            last_row_sql2 = "select last_row({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %last_row_sql1 ,1,1,'%s' %last_row_sql2 ,1,1)
                             #top_2 check
-                            top_sql1 = "select top(c1,2) from {}.{};".format(db_name, stb_child_name);
-                            top_sql2 = "select top(c1,2) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            top_sql1 = "select top({},2) from {}.{};".format(c1 , db_name, stb_child_name);
+                            top_sql2 = "select top({},2) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %top_sql1 ,1,1,'%s' %top_sql2 ,1,1)
                             #bottom_2 check
-                            bottom_sql1 = "select bottom(c1,2) from {}.{};".format(db_name, stb_child_name);
-                            bottom_sql2 = "select bottom(c1,2) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            bottom_sql1 = "select bottom({},2) from {}.{};".format(c1 , db_name, stb_child_name);
+                            bottom_sql2 = "select bottom({},2) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %bottom_sql1 ,1,1,'%s' %bottom_sql2 ,1,1)
                             #csum check
-                            csum_sql1 = "select csum(c1) from {}.{};".format(db_name, stb_child_name);
-                            csum_sql2 = "select csum(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            csum_sql1 = "select csum({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            csum_sql2 = "select csum({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %csum_sql1 ,1,1,'%s' %csum_sql2 ,1,1)
                             #mavg check
-                            mavg_sql1 = "select mavg(c1,2) from {}.{};".format(db_name, stb_child_name);
-                            mavg_sql2 = "select mavg(c1,2) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            mavg_sql1 = "select mavg({},2) from {}.{};".format(c1 , db_name, stb_child_name);
+                            mavg_sql2 = "select mavg({},2) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %mavg_sql1 ,1,1,'%s' %mavg_sql2 ,1,1)
                             #spread check
-                            spread_sql1 = "select spread(c1) from {}.{};".format(db_name, stb_child_name);
-                            spread_sql2 = "select spread(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            spread_sql1 = "select spread({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            spread_sql2 = "select spread({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %spread_sql1 ,1,1,'%s' %spread_sql2 ,1,1)
                             #stddev check
-                            stddev_sql1 = "select stddev(c1) from {}.{};".format(db_name, stb_child_name);
-                            stddev_sql2 = "select stddev(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            stddev_sql1 = "select stddev({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            stddev_sql2 = "select stddev({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %stddev_sql1 ,1,1,'%s' %stddev_sql2 ,1,1)
-                            #unique check TD-17597
-                            # unique_sql1 = "select unique(c1) from {}.{};".format(db_name, stb_child_name);
-                            # unique_sql2 = "select unique(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
-                            # self.tdCreateData.dataequal('%s' %unique_sql1 ,1,1,'%s' %unique_sql2 ,1,1)
                             #twa check
-                            twa_sql1 = "select twa(c1) from {}.{};".format(db_name, stb_child_name);
-                            twa_sql2 = "select twa(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            twa_sql1 = "select twa({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            twa_sql2 = "select twa({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %twa_sql1 ,1,1,'%s' %twa_sql2 ,1,1)
                             #abs check
-                            abs_sql1 = "select abs(c1) from {}.{};".format(db_name, stb_child_name);
-                            abs_sql2 = "select abs(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            abs_sql1 = "select abs({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            abs_sql2 = "select abs({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %abs_sql1 ,1,1,'%s' %abs_sql2 ,1,1)
                             #sin check
-                            sin_sql1 = "select sin(c1) from {}.{};".format(db_name, stb_child_name);
-                            sin_sql2 = "select sin(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            sin_sql1 = "select sin({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            sin_sql2 = "select sin({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %sin_sql1 ,1,1,'%s' %sin_sql2 ,1,1)
                             #acos check
-                            acos_sql1 = "select acos(c1) from {}.{};".format(db_name, stb_child_name);
-                            acos_sql2 = "select acos(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            acos_sql1 = "select acos({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            acos_sql2 = "select acos({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %acos_sql1 ,1,1,'%s' %acos_sql2 ,1,1)
                             #ceil check
-                            ceil_sql1 = "select ceil(c1) from {}.{};".format(db_name, stb_child_name);
-                            ceil_sql2 = "select ceil(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            ceil_sql1 = "select ceil({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            ceil_sql2 = "select ceil({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %ceil_sql1 ,1,1,'%s' %ceil_sql2 ,1,1)
                             #log check
-                            log_sql1 = "select log(c1) from {}.{};".format(db_name, stb_child_name);
-                            log_sql2 = "select log(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            log_sql1 = "select log({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            log_sql2 = "select log({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %log_sql1 ,1,1,'%s' %log_sql2 ,1,1)
                             #cast check
-                            cast_sql1 = "select cast(c1 as bigint) from {}.{};".format(db_name, stb_child_name);
-                            cast_sql2 = "select cast(c1 as bigint) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            cast_sql1 = "select cast({} as bigint) from {}.{};".format(c1 , db_name, stb_child_name);
+                            cast_sql2 = "select cast({} as bigint) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %cast_sql1 ,1,1,'%s' %cast_sql2 ,1,1)
 
                         if (not self.enable_second_round) or second_round:
