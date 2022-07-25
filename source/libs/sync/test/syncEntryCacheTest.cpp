@@ -5,8 +5,8 @@
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
-#include "tskiplist.h"
 #include "tref.h"
+#include "tskiplist.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -51,7 +51,7 @@ SRaftEntryCache* createCache(int maxCount) {
 }
 
 void test1() {
-  int32_t              code = 0;
+  int32_t          code = 0;
   SRaftEntryCache* pCache = createCache(5);
   for (int i = 0; i < 10; ++i) {
     SSyncRaftEntry* pEntry = createEntry(i);
@@ -68,7 +68,7 @@ void test1() {
 }
 
 void test2() {
-  int32_t              code = 0;
+  int32_t          code = 0;
   SRaftEntryCache* pCache = createCache(5);
   for (int i = 0; i < 10; ++i) {
     SSyncRaftEntry* pEntry = createEntry(i);
@@ -77,7 +77,7 @@ void test2() {
   }
   raftEntryCacheLog2((char*)"==test1 write 5 entries==", pCache);
 
-  SyncIndex index = 2;
+  SyncIndex       index = 2;
   SSyncRaftEntry* pEntry = NULL;
 
   code = raftEntryCacheGetEntryP(pCache, index, &pEntry);
@@ -107,7 +107,7 @@ void test2() {
 }
 
 void test3() {
-  int32_t              code = 0;
+  int32_t          code = 0;
   SRaftEntryCache* pCache = createCache(20);
   for (int i = 0; i <= 4; ++i) {
     SSyncRaftEntry* pEntry = createEntry(i);
@@ -121,8 +121,6 @@ void test3() {
   }
   raftEntryCacheLog2((char*)"==test3 write 10 entries==", pCache);
 }
-
-
 
 static void freeObj(void* param) {
   SSyncRaftEntry* pEntry = (SSyncRaftEntry*)param;
@@ -138,7 +136,7 @@ void test4() {
 
   int64_t rid = taosAddRef(testRefId, pEntry);
   sTrace("rid: %ld", rid);
-  
+
   do {
     SSyncRaftEntry* pAcquireEntry = (SSyncRaftEntry*)taosAcquireRef(testRefId, rid);
     syncEntryLog2((char*)"acquire: ", pAcquireEntry);
@@ -147,8 +145,8 @@ void test4() {
     taosAcquireRef(testRefId, rid);
     taosAcquireRef(testRefId, rid);
 
-    //taosReleaseRef(testRefId, rid);
-    //taosReleaseRef(testRefId, rid);
+    // taosReleaseRef(testRefId, rid);
+    // taosReleaseRef(testRefId, rid);
   } while (0);
 
   taosRemoveRef(testRefId, rid);
@@ -180,13 +178,13 @@ int main(int argc, char** argv) {
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE + DEBUG_DEBUG;
 
-/*
-  test1();
-  test2();
-  test3();
-*/
+  /*
+    test1();
+    test2();
+    test3();
+  */
   test4();
-  //test5();
+  // test5();
 
   return 0;
 }
