@@ -794,7 +794,6 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
 
     mError("trans:%d, can't execute since conflict with trans:%d, db1:%s db2:%s", pNew->id, pTrans->id, pTrans->dbname1,
            pTrans->dbname2);
-    conflict = true;
     sdbRelease(pMnode->pSdb, pTrans);
   }
 
@@ -1290,6 +1289,19 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans) {
   } else {
     pTrans->code = terrno;
     if (pTrans->policy == TRN_POLICY_ROLLBACK) {
+      if (pTrans->lastAction != 0) {
+        STransAction *pAction = taosArrayGet(pTrans->redoActions, pTrans->lastAction);
+        if (pAction->retryCode != 0 && pAction->retryCode != pAction->errCode) {
+          if (pTrans->failedTimes < 6) {
+            mError("trans:%d, stage keep on redoAction since action:%d code:0x%x not 0x%x, failedTimes:%d", pTrans->id,
+                   pTrans->lastAction, pTrans->code, pAction->retryCode, pTrans->failedTimes);
+            taosMsleep(1000);
+            continueExec = true;
+            return true;
+          }
+        }
+      }
+
       pTrans->stage = TRN_STAGE_ROLLBACK;
       mError("trans:%d, stage from redoAction to rollback since %s", pTrans->id, terrstr());
       continueExec = true;
