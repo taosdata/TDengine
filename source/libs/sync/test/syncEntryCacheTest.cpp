@@ -145,12 +145,34 @@ void test4() {
 
     taosAcquireRef(testRefId, rid);
     taosAcquireRef(testRefId, rid);
+    taosAcquireRef(testRefId, rid);
 
-    taosReleaseRef(testRefId, rid);
+    //taosReleaseRef(testRefId, rid);
     //taosReleaseRef(testRefId, rid);
   } while (0);
 
   taosRemoveRef(testRefId, rid);
+
+  for (int i = 0; i < 10; ++i) {
+    sTrace("taosReleaseRef, %d", i);
+    taosReleaseRef(testRefId, rid);
+  }
+}
+
+void test5() {
+  int32_t testRefId = taosOpenRef(5, freeObj);
+  for (int i = 0; i < 100; i++) {
+    SSyncRaftEntry* pEntry = createEntry(i);
+    ASSERT(pEntry != NULL);
+
+    int64_t rid = taosAddRef(testRefId, pEntry);
+    sTrace("rid: %ld", rid);
+  }
+
+  for (int64_t rid = 2; rid < 101; rid++) {
+    SSyncRaftEntry* pAcquireEntry = (SSyncRaftEntry*)taosAcquireRef(testRefId, rid);
+    syncEntryLog2((char*)"taosAcquireRef: ", pAcquireEntry);
+  }
 }
 
 int main(int argc, char** argv) {
@@ -158,11 +180,13 @@ int main(int argc, char** argv) {
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE + DEBUG_DEBUG;
 
+/*
   test1();
   test2();
   test3();
-
-  //test4();
+*/
+  test4();
+  //test5();
 
   return 0;
 }
