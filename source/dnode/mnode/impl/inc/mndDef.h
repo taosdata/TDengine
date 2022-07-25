@@ -164,8 +164,8 @@ typedef struct {
   int32_t     lastErrorNo;
   tmsg_t      lastMsgType;
   SEpSet      lastEpset;
-  char        dbname1[TSDB_DB_FNAME_LEN];
-  char        dbname2[TSDB_DB_FNAME_LEN];
+  char        dbname1[TSDB_TABLE_FNAME_LEN];
+  char        dbname2[TSDB_TABLE_FNAME_LEN];
   int32_t     startFunc;
   int32_t     stopFunc;
   int32_t     paramLen;

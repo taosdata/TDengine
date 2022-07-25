@@ -833,7 +833,7 @@ static void mndCancelGetNextTopic(SMnode *pMnode, void *pIter) {
 }
 
 int32_t mndDropTopicByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
-  int32_t code = -1;
+  int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
 
   void        *pIter = NULL;
@@ -848,11 +848,14 @@ int32_t mndDropTopicByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
     }
 
     if (mndSetDropTopicCommitLogs(pMnode, pTrans, pTopic) < 0) {
-      goto END;
+      sdbRelease(pSdb, pTopic);
+      sdbCancelFetch(pSdb, pIter);
+      code = -1;
+      break;
     }
+
+    sdbRelease(pSdb, pTopic);
   }
 
-  code = 0;
-END:
   return code;
 }
