@@ -117,9 +117,8 @@ int32_t     metaTbCursorNext(SMTbCursor *pTbCur);
 // typedef struct STsdb STsdb;
 typedef struct STsdbReader STsdbReader;
 
-#define BLOCK_LOAD_OFFSET_ORDER 1
-#define BLOCK_LOAD_TABLESEQ_ORDER 2
-#define BLOCK_LOAD_EXTERN_ORDER 3
+#define TIMEWINDOW_RANGE_CONTAINED 1
+#define TIMEWINDOW_RANGE_EXTERNAL  2
 
 #define LASTROW_RETRIEVE_TYPE_ALL 0x1
 #define LASTROW_RETRIEVE_TYPE_SINGLE 0x2
