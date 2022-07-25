@@ -68,9 +68,11 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   pInfo->mergeDataBlocks = pProjPhyNode->mergeDataBlock;
 
   // todo remove it soon
-  // if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
-  //   pInfo->mergeDataBlocks = true;
-  // }
+
+  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+    pInfo->mergeDataBlocks = false;
+  }
+
 
   int32_t numOfRows = 4096;
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;

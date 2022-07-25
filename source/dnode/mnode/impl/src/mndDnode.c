@@ -874,7 +874,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 }
 
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp) {
-  mInfo("config rsp from dnode, app:%p", pRsp->info.ahandle);
+  mInfo("config rsp from dnode");
   return 0;
 }
 
