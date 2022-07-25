@@ -151,41 +151,6 @@ class TDTestCase:
         if not (totalConsumeRows == totalRowsFromQury):
             tdLog.exit("tmq consume rows error!")
 
-
-
-
-        # tdLog.info("****************************************************************************")
-        # tmqCom.initConsumerTable()
-        # consumerId     = 1
-        # expectrowcnt   = paraDict["rowsPerTbl"] * paraDict["ctbNum"] * 2
-        # topicList      = topicFromStb1
-        # ifcheckdata    = 0
-        # ifManualCommit = 0
-        # keyList        = 'group.id:cgrp2,\
-        #                 enable.auto.commit:true,\
-        #                 auto.commit.interval.ms:3000,\
-        #                 auto.offset.reset:earliest'
-        # tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
-
-        # tdLog.info("start consume processor")
-        # tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
-        
-        # expectRows = 1
-        # resultList = tmqCom.selectConsumeResult(expectRows)
-        # totalConsumeRows = 0
-        # for i in range(expectRows):
-        #     totalConsumeRows += resultList[i]
-
-        # tdSql.query(queryString)
-        # totalRowsFromQury = tdSql.getRows()
-        
-        # tdLog.info("act consume rows: %d, act query rows: %d"%(totalConsumeRows, totalRowsFromQury))
-        # if not (totalConsumeRows == totalRowsFromQury):
-        #     tdLog.exit("tmq consume rows error!")
-
-        
-        # tdLog.info("****************************************************************************")
-
         tmqCom.waitSubscriptionExit(tdSql, topicFromStb1)
         tdSql.query("drop topic %s"%topicFromStb1)
 
@@ -259,7 +224,7 @@ class TDTestCase:
         tdLog.info("create some new child table and insert data ")
         paraDict["batchNum"] = 100
         paraDict["ctbPrefix"] = 'newCtb'
-        # tmqCom.insert_data_with_autoCreateTbl(tdSql,paraDict["dbName"],paraDict["stbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"])
+        tmqCom.insert_data_with_autoCreateTbl(tdSql,paraDict["dbName"],paraDict["stbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"])
         
         tdLog.info("insert process end, and start to check consume result")
         expectRows = 1
