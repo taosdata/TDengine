@@ -190,7 +190,7 @@ void printDataBlock1(SSDataBlock* pBlock, const char* flag) {
   }
   char* pBuf = NULL;
   qDebug("%s", dumpBlockData(pBlock, flag, &pBuf));
-  taosMemoryFree(pBuf);
+  taosMemoryFreeClear(pBuf);
 }
 
 SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
@@ -241,7 +241,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
       // for stream interval
       if (pBlock->info.type == STREAM_RETRIEVE) {
-        printDataBlock1(pBlock, "project1");
+        // printDataBlock1(pBlock, "project1");
         return pBlock;
       }
 
@@ -316,7 +316,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
   
-  printDataBlock1(p, "project");
+  // printDataBlock1(p, "project");
   return (p->info.rows > 0) ? p : NULL;
 }
 
