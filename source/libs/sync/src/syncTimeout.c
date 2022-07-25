@@ -19,11 +19,14 @@
 #include "syncRespMgr.h"
 
 int32_t syncNodeTimerRoutine(SSyncNode* ths) {
-  syncNodeEventLog(ths, "timer routines ... ");
+  syncNodeEventLog(ths, "timer routines");
 
+#if 0
   if (ths->vgId != 1) {
     syncRespClean(ths->pSyncRespMgr);
   }
+#endif
+
   return 0;
 }
 

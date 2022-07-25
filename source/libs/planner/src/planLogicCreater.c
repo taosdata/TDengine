@@ -713,7 +713,7 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
       (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
   pWindow->windowAlgo = pCxt->pPlanCxt->streamQuery ? INTERVAL_ALGO_STREAM_SINGLE : INTERVAL_ALGO_HASH;
   pWindow->node.groupAction = GROUP_ACTION_KEEP;
-  pWindow->node.requireDataOrder = DATA_ORDER_LEVEL_IN_BLOCK;
+  pWindow->node.requireDataOrder = pSelect->hasTimeLineFunc ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_IN_BLOCK;
   pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
 
   pWindow->pTspk = nodesCloneNode(pInterval->pCol);

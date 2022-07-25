@@ -523,7 +523,7 @@ SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, const STok
   if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
     COPY_STRING_FORM_ID_TOKEN(tempTable->table.tableAlias, pTableAlias);
   } else {
-    sprintf(tempTable->table.tableAlias, "%p", tempTable);
+    taosRandStr(tempTable->table.tableAlias, 8);
   }
   if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
     strcpy(((SSelectStmt*)pSubquery)->stmtName, tempTable->table.tableAlias);

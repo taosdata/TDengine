@@ -27,8 +27,8 @@
 #include "wal.h"
 
 #include "tcommon.h"
-#include "tgrant.h"
 #include "tfs.h"
+#include "tgrant.h"
 #include "tmsg.h"
 #include "trow.h"
 
@@ -101,7 +101,7 @@ typedef struct SMetaFltParam {
 
 } SMetaFltParam;
 
-int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *results);
+int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *results);
 
 #if 1  // refact APIs below (TODO)
 typedef SVCreateTbReq   STbCfg;
@@ -118,11 +118,10 @@ int32_t     metaTbCursorNext(SMTbCursor *pTbCur);
 // typedef struct STsdb STsdb;
 typedef struct STsdbReader STsdbReader;
 
-#define BLOCK_LOAD_OFFSET_ORDER 1
-#define BLOCK_LOAD_TABLESEQ_ORDER 2
-#define BLOCK_LOAD_EXTERN_ORDER 3
+#define TIMEWINDOW_RANGE_CONTAINED 1
+#define TIMEWINDOW_RANGE_EXTERNAL  2
 
-#define LASTROW_RETRIEVE_TYPE_ALL 0x1
+#define LASTROW_RETRIEVE_TYPE_ALL    0x1
 #define LASTROW_RETRIEVE_TYPE_SINGLE 0x2
 
 int32_t tsdbSetTableId(STsdbReader *pReader, int64_t uid);
@@ -238,8 +237,8 @@ typedef struct {
   uint64_t groupId;
 } STableKeyInfo;
 
-#define TABLE_ROLLUP_ON ((int8_t)0x1)
-#define TABLE_IS_ROLLUP(FLG) (((FLG) & (TABLE_ROLLUP_ON)) != 0)
+#define TABLE_ROLLUP_ON       ((int8_t)0x1)
+#define TABLE_IS_ROLLUP(FLG)  (((FLG) & (TABLE_ROLLUP_ON)) != 0)
 #define TABLE_SET_ROLLUP(FLG) ((FLG) |= TABLE_ROLLUP_ON)
 struct SMetaEntry {
   int64_t  version;

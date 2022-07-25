@@ -1665,9 +1665,6 @@ void queryCostStatis(SExecTaskInfo* pTaskInfo) {
   //  hashSize += taosHashGetMemSize(pRuntimeEnv->tableqinfoGroupInfo.map);
   //  pSummary->hashSize = hashSize;
 
-  // add the merge time
-  pSummary->elapsedTime += pSummary->firstStageMergeTime;
-
   //  SResultRowPool* p = pTaskInfo->pool;
   //  if (p != NULL) {
   //    pSummary->winInfoSize = getResultRowPoolMemSize(p);
@@ -1676,17 +1673,16 @@ void queryCostStatis(SExecTaskInfo* pTaskInfo) {
   //    pSummary->winInfoSize = 0;
   //    pSummary->numOfTimeWindows = 0;
   //  }
-  //
-  //  calculateOperatorProfResults(pQInfo);
 
   SFileBlockLoadRecorder* pRecorder = pSummary->pRecoder;
   if (pSummary->pRecoder != NULL) {
-    qDebug("%s :cost summary: elapsed time:%" PRId64 " us, first merge:%" PRId64
-           " us, total blocks:%d, "
-           "load block statis:%d, load data block:%d, total rows:%" PRId64 ", check rows:%" PRId64,
-           GET_TASKID(pTaskInfo), pSummary->elapsedTime, pSummary->firstStageMergeTime, pRecorder->totalBlocks,
-           pRecorder->loadBlockStatis, pRecorder->loadBlocks, pRecorder->totalRows, pRecorder->totalCheckedRows);
+    qDebug(
+        "%s :cost summary: elapsed time:%.2f ms, total blocks:%d, load block SMA:%d, load data block:%d, total rows:%"
+        PRId64 ", check rows:%" PRId64, GET_TASKID(pTaskInfo), pSummary->elapsedTime / 1000.0,
+        pRecorder->totalBlocks, pRecorder->loadBlockStatis, pRecorder->loadBlocks, pRecorder->totalRows,
+        pRecorder->totalCheckedRows);
   }
+
   // qDebug("QInfo:0x%"PRIx64" :cost summary: winResPool size:%.2f Kb, numOfWin:%"PRId64", tableInfoSize:%.2f Kb,
   // hashTable:%.2f Kb", pQInfo->qId, pSummary->winInfoSize/1024.0,
   //      pSummary->numOfTimeWindows, pSummary->tableInfoSize/1024.0, pSummary->hashSize/1024.0);
@@ -3031,7 +3027,6 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
     }
   }
 
-  closeAllResultRows(&pAggInfo->binfo.resultRowInfo);
   initGroupedResultInfo(&pAggInfo->groupResInfo, pAggInfo->aggSup.pResultRowHashTable, 0);
   OPTR_SET_OPENED(pOperator);
 
@@ -3328,6 +3323,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       if (pLimitInfo->remainGroupOffset > 0) {
         if (pLimitInfo->currentGroupId == 0 || pLimitInfo->currentGroupId == pBlock->info.groupId) {  // it is the first group
           pLimitInfo->currentGroupId = pBlock->info.groupId;
+          ASSERT(pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM);
           continue;
         } else if (pLimitInfo->currentGroupId != pBlock->info.groupId) {
           // now it is the data from a new group
@@ -3336,6 +3332,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
           // ignore data block in current group
           if (pLimitInfo->remainGroupOffset > 0) {
+            ASSERT(pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM);
             continue;
           }
         }
@@ -3380,10 +3377,12 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       if (pLimitInfo->remainOffset >= pInfo->pRes->info.rows) {
         pLimitInfo->remainOffset -= pInfo->pRes->info.rows;
         blockDataCleanup(pInfo->pRes);
+        ASSERT(pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM);
         continue;
       } else if (pLimitInfo->remainOffset < pInfo->pRes->info.rows && pLimitInfo->remainOffset > 0) {
         blockDataTrimFirstNRows(pInfo->pRes, pLimitInfo->remainOffset);
         pLimitInfo->remainOffset = 0;
+        ASSERT(pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM);
       }
 
       // check for the limitation in each group
@@ -3391,6 +3390,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
           pLimitInfo->numOfOutputRows + pInfo->pRes->info.rows >= pLimitInfo->limit.limit) {
         int32_t keepRows = (int32_t)(pLimitInfo->limit.limit - pLimitInfo->numOfOutputRows);
         blockDataKeepFirstNRows(pInfo->pRes, keepRows);
+        ASSERT(pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM);
         if (pLimitInfo->slimit.limit > 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups) {
           pOperator->status = OP_EXEC_DONE;
         }
@@ -3400,27 +3400,32 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       break;
     }
 
-    // no results generated
-    if (pInfo->pRes->info.rows == 0 || (!pProjectInfo->mergeDataBlocks)) {
-      break;
-    }
+    if (pProjectInfo->mergeDataBlocks && pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM) {
+      if (pRes->info.rows > 0) {
+        pFinalRes->info.groupId = pRes->info.groupId;
+        pFinalRes->info.version = pRes->info.version;
 
-    if (pProjectInfo->mergeDataBlocks) {
-      pFinalRes->info.groupId = pInfo->pRes->info.groupId;
-      pFinalRes->info.version = pInfo->pRes->info.version;
-
-      // continue merge data, ignore the group id
-      blockDataMerge(pFinalRes, pInfo->pRes);
-
-      if (pFinalRes->info.rows + pInfo->pRes->info.rows <= pOperator->resultInfo.threshold) {
-        continue;
+        // continue merge data, ignore the group id
+        blockDataMerge(pFinalRes, pRes);
+        if (pFinalRes->info.rows + pRes->info.rows <= pOperator->resultInfo.threshold) {
+          continue;
+        }
       }
-    }
 
-    // do apply filter
-    SSDataBlock* p = pProjectInfo->mergeDataBlocks ? pFinalRes : pRes;
-    doFilter(pProjectInfo->pFilterNode, p, NULL);
-    if (p->info.rows > 0) {
+      // do apply filter
+      doFilter(pProjectInfo->pFilterNode, pFinalRes, NULL);
+      if (pFinalRes->info.rows > 0 || pRes->info.rows == 0) {
+        break;
+      }
+    } else {
+      // do apply filter
+      if (pRes->info.rows > 0) {
+        doFilter(pProjectInfo->pFilterNode, pRes, NULL);
+        if (pRes->info.rows == 0) {
+          continue;
+        }
+      }
+      
       break;
     }
   }
@@ -3884,8 +3889,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   initLimitInfo(pProjPhyNode->node.pLimit, pProjPhyNode->node.pSlimit, &pInfo->limitInfo);
 
   pInfo->binfo.pRes = pResBlock;
-  pInfo->pFinalRes = createOneDataBlock(pResBlock, false);
-
+  pInfo->pFinalRes  = createOneDataBlock(pResBlock, false);
   pInfo->pFilterNode = pProjPhyNode->node.pConditions;
   pInfo->mergeDataBlocks = pProjPhyNode->mergeDataBlock;
 
@@ -4416,7 +4420,7 @@ static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pC
 
   pCond->twindows = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
   pCond->suid = uid;
-  pCond->type = BLOCK_LOAD_OFFSET_ORDER;
+  pCond->type = TIMEWINDOW_RANGE_CONTAINED;
   pCond->startVersion = -1;
   pCond->endVersion = -1;
 
