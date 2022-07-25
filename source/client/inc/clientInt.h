@@ -46,7 +46,7 @@ extern "C" {
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
-#define SYNC_ON_TOP_OF_ASYNC       1
+#define SYNC_ON_TOP_OF_ASYNC       0
 
 enum {
   RES_TYPE__QUERY = 1,
@@ -224,9 +224,9 @@ typedef struct SRequestObj {
   SArray*              tableList;
   SQueryExecMetric     metric;
   SRequestSendRecvBody body;
-  bool                 syncQuery;    // todo refactor: async query object
-  bool                 stableQuery;  // todo refactor
-  bool                 validateOnly; // todo refactor
+  bool                 syncQuery;     // todo refactor: async query object
+  bool                 stableQuery;   // todo refactor
+  bool                 validateOnly;  // todo refactor
   bool                 killed;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
