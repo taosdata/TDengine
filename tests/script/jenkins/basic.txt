@@ -101,7 +101,7 @@
 ./test.sh -f tsim/parser/constCol.sim
 #./test.sh -f tsim/parser/create_db.sim
 ./test.sh -f tsim/parser/create_mt.sim
-# TD-17653 ./test.sh -f tsim/parser/create_tb_with_tag_name.sim
+./test.sh -f tsim/parser/create_tb_with_tag_name.sim
 ./test.sh -f tsim/parser/create_tb.sim
 ./test.sh -f tsim/parser/dbtbnameValidate.sim
 ./test.sh -f tsim/parser/distinct.sim
