@@ -138,7 +138,7 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where  %s %s %s group by tbname;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        rows = self.tdSql.query(sql1).row_count 
+                        rows = self.tdSql.query(sql2).row_count 
                         self.time_check_row(sql1,sql2,rows)
                         self.np_check_row(sql1,sql2,rows)
                         cur1.execute(sql2)
@@ -146,7 +146,7 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where %s %s %s group by tbname);" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        rows = self.tdSql.query(sql1).row_count 
+                        rows = self.tdSql.query(sql2).row_count 
                         self.time_check_row(sql1,sql2,rows)
                         self.np_check_row(sql1,sql2,rows)
                         cur1.execute(sql2)

@@ -10,12 +10,15 @@ class Java(TDCase):
     def init(self):
         pass
 
+    def cleanup(self):
+        pass
+
     def run(self):
         cwd = self.env_setting["work_dir"] + "/docs-cloud/docs/examples/java"
         self.lcmd.run("mvn test", cwd=cwd, env=self.env_setting["env"])
 
     def desc(self) -> str:
-        return """Test Code Examples for Java Connector """
+        return """Java connector for cloud """
 
     def author(self) -> str:
         return "Ding Bo"

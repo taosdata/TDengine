@@ -1,2 +1,2 @@
 #####group4 cluster 100 nodes
-taostest --disable_collection --containers --keep --setup=cluster/cluster_100_dnodes.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/write_100.cfg
+taostest --containers --keep --setup=cluster/cluster_100_dnodes.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/write_100.cfg

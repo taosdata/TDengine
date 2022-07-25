@@ -421,7 +421,7 @@ class TestOpentsdbJsonRestfulInsert(TDCase):
                     {"metric": "stb_name", "timestamp": {"value": 1626056812843316532, "type": "ns"}, "value": {"value": 7, "type": "double"}, "tags": {"t2": {"value": 5, "type": "double"}, "t3": {"value": "ste2", "type": "nchar"}}},
                     {"metric": "st123456", "timestamp": {"value": 1626006933640000000, "type": "ns"}, "value": {"value": 8, "type": "double"}, "tags": {"t1": {"value": 4, "type": "double"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}},
                     {"metric": "st123456", "timestamp": {"value": 1626006933641000000, "type": "ns"}, "value": {"value": 9, "type": "double"}, "tags": {"t1": 4, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}}]
-        self.tdRest.schemalessApiPost(input_json, url_type="json", precision=None, dbname=self.dbname)
+        self.tdRest.schemalessApiPost(json.dumps(input_json), url_type="json", precision=None, dbname=self.dbname)
         self.tdSql.query(f'show {self.dbname}.stables')
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
         self.tdSql.query(f'show {self.dbname}.tables')
@@ -436,11 +436,11 @@ class TestOpentsdbJsonRestfulInsert(TDCase):
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         sql_list = list()
         stb_name = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create stable {self.dbname}.{stb_name}(ts timestamp, f int) tags(t1 bigint)')
+        self.tdSql.execute(f'create stable {self.dbname}.{stb_name}(ts timestamp, f int) tags(t1 tinyint)')
         for i in range(count):
             input_json = self.tdCom.gen_full_type_json(stb_name=stb_name, col_value=self.tdCom.gen_ts_col_value(value=self.tdCom.get_long_name(), t_type="binary"), tag_value=self.tdCom.gen_tag_value(t7_value=self.tdCom.get_long_name()), id_noexist_tag=True)[0]
             sql_list.append(input_json)
-        self.tdRest.schemalessApiPost(input_json, url_type="json", precision=None, dbname=self.dbname)
+        res = self.tdRest.schemalessApiPost(json.dumps(sql_list), url_type="json", precision=None, dbname=self.dbname)
         self.tdSql.query(f'show {self.dbname}.tables')
         self.tdSql.checkEqual(self.tdSql.query_row, count)
 
@@ -451,7 +451,7 @@ class TestOpentsdbJsonRestfulInsert(TDCase):
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_json = [{"metric": "st123456", "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": {"value": "tt", "type": "bool"}, "tags": {"t1": {"value": 3, "type": "bigint"}, "t2": {"value": 4, "type": "double"}, "t3": {"value": "t3", "type": "binary"}}},
                     {"metric": "st123456", "timestamp": {"value": 1626006933641000000, "type": "ns"}, "value": {"value": 9, "type": "bigint"}, "tags": {"t1": {"value": 4, "type": "bigint"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}}]
-        res = self.tdRest.schemalessApiPost(input_json, url_type="json", precision=None, dbname=self.dbname)
+        res = self.tdRest.schemalessApiPost(json.dumps(input_json), url_type="json", precision=None, dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
 
     def multi_cols_insert_check(self):
@@ -540,9 +540,9 @@ class TestOpentsdbJsonRestfulInsert(TDCase):
         self.tag_col_binary_nchar_length_increase_check()
         # self.tag_col_binary_max_length_check()
         # self.tag_col_nchar_max_length_check()
-        # self.batch_insert_check()
-        # self.multi_insert_check(10)
-        # self.batch_error_insert_check()
+        self.batch_insert_check()
+        self.multi_insert_check(10)
+        self.batch_error_insert_check()
         self.multi_cols_insert_check()
         self.blank_col_insert_check()
         self.blank_tag_insert_check()

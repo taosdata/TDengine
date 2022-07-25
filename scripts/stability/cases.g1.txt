@@ -1,11 +1,11 @@
 #####group1
-taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/mode_taosc.cfg 
-taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/mode_stmt.cfg
-taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/mode_rest.cfg
-taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/sml_line.json --cfg-file=cases/stability/insert/mode_sml_line.cfg
-taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/sml_telnet.json --cfg-file=cases/stability/insert/mode_sml_telnet.cfg
-# taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/sml_json.json --cfg-file=cases/stability/insert/mode_sml_json.cfg
-taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/sml_line.json --cfg-file=cases/stability/insert/mode_smlrest_line.cfg
-taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/sml_telnet.json --cfg-file=cases/stability/insert/mode_smlrest_telnet.cfg
-# taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/sml_telnet.json --cfg-file=cases/stability/insert/mode_smlrest_telnet.cfg
-# taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/sml_json.json --cfg-file=cases/stability/insert/mode_smlrest_json.cfg
+taostest  --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/mode_taosc.cfg 
+taostest  --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/mode_stmt.cfg
+taostest  --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/mode_rest.cfg
+taostest  --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/sml_line.json --cfg-file=cases/stability/insert/mode_sml_line.cfg
+taostest  --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/sml_telnet.json --cfg-file=cases/stability/insert/mode_sml_telnet.cfg
+taostest  --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/sml_json.json --cfg-file=cases/stability/insert/mode_sml_json.cfg
+taostest  --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/sml_line.json --cfg-file=cases/stability/insert/mode_smlrest_line.cfg
+taostest  --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/sml_telnet.json --cfg-file=cases/stability/insert/mode_smlrest_telnet_no.cfg
+# taostest  --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/sml_telnet.json --cfg-file=cases/stability/insert/mode_smlrest_telnet_yes.cfg
+taostest  --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/sml_json.json --cfg-file=cases/stability/insert/mode_smlrest_json.cfg

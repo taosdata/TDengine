@@ -1,8 +1,0 @@
-# production environment
-target_host: 192.168.0.31
-work_dir: /root/work
-env:
-  TDENGINE_CLOUD_TOKEN: "e623da51fb62b4b2611fc04ffd6b162c7ae3f5c0"
-  TDENGINE_CLOUD_URL: "http://cloud.tdengine.com:8085"
-
-settings: []

@@ -1,2 +1,2 @@
 #####group4 cluster 10 nodes
-taostest --disable_collection --containers --keep --setup=cluster/cluster_10_dnodes.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/basic.json --cfg-file=cases/stability/insert/write_7.cfg
+taostest  --containers --keep --setup=cluster/cluster_10_dnodes.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/basic.json --cfg-file=cases/stability/insert/write_7.cfg

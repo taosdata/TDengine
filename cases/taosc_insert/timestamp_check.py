@@ -25,7 +25,8 @@ class TestTimestamp(TDCase):
         """
         for ts in ["ms", "us", "ns"]:
             dbname = self.tdCom.get_long_name()
-            self.tdSql.execute(f'create database if not exists {dbname} precision "{ts}"')
+            kv_dict = {"precision": ts}
+            self.tdCom.createDb(dbname, **kv_dict)
             self.tdSql.query('show databases')
             res = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(res["precision"], ts)
@@ -45,7 +46,7 @@ class TestTimestamp(TDCase):
         check hh:mm:ss
         """
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
         self.tdSql.execute(f'create table if not exists {dbname}.ctb using {dbname}.stb tags (now, 1)')
         self.tdSql.execute(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 int)')
@@ -73,7 +74,8 @@ class TestTimestamp(TDCase):
             dbname = self.tdCom.get_long_name()
             dbname = dbname + '_' + ts
             timestamp, dt = self.tdCom.genTs(ts, ns_tag=True)
-            self.tdSql.execute(f'create database if not exists {dbname} precision "{ts}"')
+            kv_dict = {"precision": ts}
+            self.tdCom.createDb(dbname, **kv_dict)
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
             self.tdSql.execute(f'create table if not exists {dbname}.ctb using {dbname}.stb tags ("{dt}", 1)')
             self.tdSql.execute(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 int)')
@@ -118,7 +120,8 @@ class TestTimestamp(TDCase):
         for ts in ["ms", "us", "ns"]:
             dbname = self.tdCom.get_long_name()
             dbname = dbname + '_' + ts
-            self.tdSql.execute(f'create database if not exists {dbname} precision "{ts}"')
+            kv_dict = {"precision": ts}
+            self.tdCom.createDb(dbname, **kv_dict)
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
             self.tdSql.execute(f'create table if not exists {dbname}.ctb using {dbname}.stb tags (now, 1)')
             self.tdSql.execute(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 int)')
@@ -155,7 +158,9 @@ class TestTimestamp(TDCase):
             dbname = self.tdCom.get_long_name()
             dbname = dbname + '_' + ts
             timestamp = self.tdCom.genTs(ts)[0]
-            self.tdSql.execute(f'create database if not exists {dbname} precision "{ts}"')
+            kv_dict = {"precision": ts}
+            self.tdCom.createDb(dbname, **kv_dict)
+            # self.tdSql.execute(f'create database if not exists {dbname} precision "{ts}"')
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
             self.tdSql.execute(f'create table if not exists {dbname}.ctb using {dbname}.stb tags ({timestamp}, 1)')
             self.tdSql.execute(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 int)')
@@ -192,7 +197,8 @@ class TestTimestamp(TDCase):
             dbname = self.tdCom.get_long_name()
             dbname = dbname + '_' + ts
             timestamp = self.tdCom.genTs(ts)[0]
-            self.tdSql.execute(f'create database if not exists {dbname} precision "{ts}"')
+            kv_dict = {"precision": ts}
+            self.tdCom.createDb(dbname, **kv_dict)
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
             self.tdSql.execute(f'create table if not exists {dbname}.ctb using {dbname}.stb tags ({timestamp}, 1)')
             self.tdSql.execute(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 int)')

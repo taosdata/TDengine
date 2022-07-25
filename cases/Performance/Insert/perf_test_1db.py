@@ -184,8 +184,8 @@ class TestPerf(TDCase):
         port = ""
         vgroups = TestPerf.default_vgroups
         for node in taosd_nodes:
-            if not node["fqdn"] is None:
-                taosd_fqdn = node["fqdn"]
+            if (not node["spec"] is None) and (not node["spec"]["dnodes"] is None):
+                taosd_fqdn = node["spec"]["dnodes"]
             if (not node["spec"] is None) and (not node["spec"]["config"] is None) and (not node["spec"]["config"]["firstEP"] is None):
                 host = node["spec"]["config"]["firstEP"].split(":")[0]
                 port = node["spec"]["config"]["firstEP"].split(":")[1]
@@ -245,7 +245,6 @@ class TestPerf(TDCase):
 
         thread_interval = 0.25
         stime = float(self.concurrency) * thread_interval
-        thread_sleep_time = []
         # run benchmark insert data
         for i in range (self.concurrency):
             self.logger.debug(f"command delay {stime}")
@@ -254,12 +253,9 @@ class TestPerf(TDCase):
             t = threading.Thread(target=self.run_benchmark, args=(insert_config_dict[TestPerf.host_field_name], cmd))
             self.threads.append(t)
             stime = stime - thread_interval
-        stime = thread_interval
         for t in self.threads:
-            self.logger.debug(f"thread delay {stime}")
-            time.sleep(stime)
+            time.sleep(thread_interval)
             t.start()
-            stime = stime + thread_interval
         for t in self.threads:
             t.join()
         if self.ret != True:

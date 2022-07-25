@@ -104,7 +104,16 @@ class TDFunction():
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         int_cloumn = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return int_cloumn
-        
+    
+    def int_cloumn_1_tsbs(self):  
+        # support all int type \ double type              
+        hanshu = ['AVG']   
+        column = ['(velocity)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)',
+                  '(q_bigint_null)','(q_smallint_null)','(q_tinyint_null)','(q_int_null)','(q_float_null)','(q_double_null)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        int_cloumn = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return int_cloumn
+                
     def int_cloumn_2(self):  
         # support all int type \ double type              
         hanshu = ['MIN','MAX']   
@@ -154,6 +163,8 @@ class TDFunction():
             func_stable_tbname_all = self.int_cloumn_0()
         elif i == 21:    #['AVG']
             func_stable_tbname_all = self.int_cloumn_1()
+        elif i == 211:    #['AVG']
+            func_stable_tbname_all = self.int_cloumn_1_tsbs()
         elif i == 22:   #['MIN','MAX']
             func_stable_tbname_all = self.int_cloumn_2()
         elif i == 3:    #['SPREAD']
@@ -277,8 +288,8 @@ class TDFunction():
  
     def all_cloumn_mode(self):   
         hanshu = ['MODE']             
-        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_binary)','(q_nchar)','(q_double)','(q_bool)','(q_ts)',
-        '(q_bigint_null)','(q_smallint_null)','(q_tinyint_null)','(q_int_null)','(q_float_null)','(q_binary_null)','(q_nchar_null)','(q_double_null)','(q_bool_null)','(q_ts_null)']        
+        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_binary)','(q_nchar)','(q_double)','(q_bool)','(q_ts)']
+        #'(q_bigint_null)','(q_smallint_null)','(q_tinyint_null)','(q_int_null)','(q_float_null)','(q_binary_null)','(q_nchar_null)','(q_double_null)','(q_bool_null)','(q_ts_null)']        
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         all_cloumn_mode = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
                     

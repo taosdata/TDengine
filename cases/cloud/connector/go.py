@@ -15,7 +15,7 @@ class Rust(TDCase):
         self.lcmd.run("go run main.go", cwd=cwd)
 
     def desc(self) -> str:
-        return "go connector for cloud"
+        return "Go connector for cloud"
 
     def author(self) -> str:
         return "Ding Bo"
@@ -24,4 +24,7 @@ class Rust(TDCase):
         return T.Cloud.Connector.Go
 
     def init(self):
+        pass
+
+    def cleanup(self):
         pass

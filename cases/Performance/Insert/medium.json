@@ -15,14 +15,15 @@
     "databases": [
         {
             "dbinfo": {
-                "name": "DBNAME",
+                "name": "db",
                 "drop": "DROPENABLE",
-                "vgroups": VGROUPS 
+                "vgroups": VGROUPS,
+                "replica": REPLICA
             },
             "super_tables": [
                 {
                     "name": "STABLENAME",
-                    "child_table_exists": "no",
+                    "child_table_exists": "CHILDTABLEEXISTS",
                     "childtable_count": CHILDTABLECOUNT,
                     "childtable_prefix": "CHILDTABLEPREFIX",
                     "auto_create_table": "no",
@@ -74,13 +75,13 @@
                             "count": 1
                         },
                         {
-			    "type": "DOUBLE",
-			    "count": 1
-			},
+                            "type": "DOUBLE",
+                            "count": 1
+                        },
                         {
-			    "type": "FLOAT",
-			    "count": 1
-			},
+                            "type": "FLOAT",
+                            "count": 1
+                        },
                         {
                             "type": "BINARY",
                             "len": 40,

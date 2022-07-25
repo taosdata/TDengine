@@ -19,6 +19,7 @@ class TestChildTb(TDCase):
     def init(self):
         super().init()
         self.tdCom = TDCom(self.tdSql)
+        self.remove_symbol_list = [" ", "+", ";", "&", "*", "%", "/", "-", "|"]
 
     def child_tbname_length_check(self):
         """
@@ -149,7 +150,7 @@ class TestChildTb(TDCase):
         mixed space
         """
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         stbname = self.tdCom.get_long_name(3, "letters")
         self.tdSql.execute(f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
                 c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(16), c12 nchar(16), c13 bool) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
@@ -157,9 +158,8 @@ class TestChildTb(TDCase):
         base_sql = f'create table if not exists tb using {stbname} tags (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, True)'
 
         symbol_list = self.tdCom.gen_symbol_list()
-        symbol_list.remove(' ')
-        symbol_list.remove('+')
-        symbol_list.remove(';')
+        for remove_symbol in self.remove_symbol_list:
+            symbol_list.remove(remove_symbol)
         for insert_str in symbol_list:
             d_list = list(base_sql)
             for i in range(len(d_list)+1):

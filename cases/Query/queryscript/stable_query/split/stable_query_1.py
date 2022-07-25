@@ -68,6 +68,6 @@ class TDTestQuery(TDTestQuery):
         self.rm_sql_1()
                
         endTime = time.time()
-        self.rm_sql()
+        #self.rm_sql()
         self.logger.info("total time %ds" % (endTime - startTime))
 

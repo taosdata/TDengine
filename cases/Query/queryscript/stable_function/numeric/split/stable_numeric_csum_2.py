@@ -33,7 +33,7 @@ class TDTestQuery(TDTestQuery):
     def run(self):        
         startTime = time.time() 
         
-        self.data_create(self.db)
+        #self.data_create(self.db)
           
         # startTime1 = time.time()
         # self.data_create(self.db_1)
@@ -66,7 +66,7 @@ class TDTestQuery(TDTestQuery):
         # self.logger.info("total time3 %ds" % (endTime3 - startTime3))     
 
         endTime = time.time()
-        self.rm_sql()
+        #self.rm_sql()
         self.logger.info("total time %ds" % (endTime - startTime))
 
 

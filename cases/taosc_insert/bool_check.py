@@ -24,7 +24,7 @@ class TestBool(TDCase):
         False: false/FalSe... = 0
         """
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 bool) tags (t1 bool)')
         self.tdSql.execute(f'create table if not exists {dbname}.t1 (col_ts timestamp, c1 bool)')
         self.tdSql.execute(f'create table if not exists {dbname}.t2 (col_ts timestamp, c1 bool)')

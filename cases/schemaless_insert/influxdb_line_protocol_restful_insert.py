@@ -212,8 +212,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql = f'{stb_name},t0=t,t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1)} c0=f 1626006833639000000'
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        # ! TD-17459
-        # self.tdSql.checkIn("Invalid binary/nchar column length", res.text)
+        self.tdSql.checkIn("Invalid binary/nchar column length", res.text)
 
     def col_value_length_check(self):
         """
@@ -316,8 +315,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
             ]:
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
-            # ! TD-17258
-            # self.tdSql.checkIn("Invalid value in client", res.text)
+            self.tdSql.checkIn("Invalid value in client", res.text)
 
         # check binary and nchar blank
         stb_name = self.tdCom.get_long_name()
@@ -389,13 +387,14 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         """
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         stb_name = self.tdCom.get_long_name()
-        # tb_name = f'{stb_name}_1'
-        # input_sql = f'{stb_name},id={tb_name},t0=t c0=f 1626006833639000000'
-        # self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
+        tb_name = f'{stb_name}_1'
+        input_sql = f'{stb_name},id={tb_name},t0=t c0=f 1626006833639000000'
+        self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
 
         # # * check col，col+ts max in describe ---> 16143
         input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c2="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c3="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c4="{self.tdCom.get_long_name(12)}" 1626006833639000000'
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
+        print(res.text)
         self.tdSql.checkEqual(res.status_code, 204)
 
         self.tdRest.request(f"select * from {self.dbname}.{stb_name}")
@@ -461,14 +460,10 @@ st123456,t1=4i64,t2=5f64,t3=\"t4\" c1=3i64,c3=L\"passitagain\",c2=true,c4=5f64 1
 {stb_name},t2=5f64,t3=L\"ste2\" c3=\"iamszhou\",c4=false,c5=32i8,c6=64i16,c7=32i32,c8=88.88f32 1626056812843316532\n\
 st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64,c6=7u64 1626006933640000000\n\
 st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641000000'
-
-        lines = f'st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000\n\
-st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000000\n\
-{stb_name},t2=5f64,t3=L\"ste\" c1=true,c2=4i64,c3=\"iam\" 1626056811823316532'
         res = self.tdRest.schemalessApiPost(sql=lines, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 204)
         self.tdRest.request(f'show {self.dbname}.stables')
-        # self.tdSql.checkEqual(self.tdRest.resp["rows"], 3)
+        self.tdSql.checkEqual(self.tdRest.resp["rows"], 3)
         self.tdRest.request(f'show {self.dbname}.tables')
         self.tdSql.checkEqual(self.tdRest.resp["rows"], 6)
         self.tdRest.request(f'select * from {self.dbname}.st123456')
@@ -554,8 +549,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4
         self.init_check()
         self.bool_check()
         self.symbols_check()
-        # # ! TD-17285
-        # self.iu_check()
+        self.iu_check()
         self.id_seq_check()
         self.id_letter_check()
         self.no_id_check()
@@ -574,9 +568,8 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4
         self.tag_col_binary_nchar_length_increase_check()
         # self.tag_col_binary_max_length_check()
         # self.tag_col_nchar_max_length_check()
-        # ! hung
-        # self.batch_insert_check()
-        # self.multi_insert_check(100)
+        self.batch_insert_check()
+        self.multi_insert_check(100)
         self.batch_error_insert_check()
         self.multi_cols_insert_check()
         self.multi_tags_insert_check()

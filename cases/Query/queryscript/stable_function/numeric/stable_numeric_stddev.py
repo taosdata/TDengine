@@ -46,6 +46,9 @@ class TDTestQuery(TDCase):
 
     #basic_param
     db = "stable_numeric_stddev"
+    db_1 = "stable_numeric_stddev_1"
+    db_2 = "stable_numeric_stddev_2"
+    db_3 = "stable_numeric_stddev_3"
     service_host = ""
     table_list = ['stable_1','stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
@@ -74,7 +77,7 @@ class TDTestQuery(TDCase):
  
     def right_case_1(self):
         self.logger.info("\n==========================right case 1==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_1)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
@@ -84,7 +87,8 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
-                cur1.execute('use %s;' %self.db)               
+                cur1.execute('use %s;' %self.db_1) 
+                self.tdSql.execute('use %s;' %self.db_1)               
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
                 
@@ -126,7 +130,7 @@ class TDTestQuery(TDCase):
 
     def right_case_1_tbname(self):
         self.logger.info("\n==========================right case 1_tbname==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_1)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
@@ -136,7 +140,8 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
-                cur1.execute('use %s;' %self.db)                 
+                cur1.execute('use %s;' %self.db_1) 
+                self.tdSql.execute('use %s;' %self.db_1)                  
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case1======\n\n\n" %i)
                 
@@ -182,7 +187,7 @@ class TDTestQuery(TDCase):
  
     def right_case_1_interval(self):
         self.logger.info("\n==========================right case 1==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_1)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
@@ -192,7 +197,8 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
-                cur1.execute('use %s;' %self.db)              
+                cur1.execute('use %s;' %self.db_1) 
+                self.tdSql.execute('use %s;' %self.db_1)              
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_interval========case1======\n\n\n" %i)
                 
@@ -225,7 +231,7 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                             
-                            sql2 = "select %s from (select * from %s) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            sql2 = "select %s from (select * from %s order by ts) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             #self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,1,'%s' %sql2 ,1,1,1,1) 
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
@@ -248,7 +254,7 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
-                            sql2 = "select %s from (select * from %s) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            sql2 = "select %s from (select * from %s order by ts) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
                             #self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,1,'%s' %sql2 ,1,1,1,1) 
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
@@ -271,8 +277,8 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                             
-                            sql2 = "select %s from (select * from %s) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #TD-17437 self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,1,'%s' %sql2 ,1,1,1,1) 
+                            sql2 = "select %s from (select * from %s order by ts) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,1,'%s' %sql2 ,1,1,1,1) 
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
@@ -291,8 +297,8 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
-                            sql2 = "select %s from (select * from %s) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #TD-17437 self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,1,'%s' %sql2 ,1,1,1,1) 
+                            sql2 = "select %s from (select * from %s order by ts) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,1,'%s' %sql2 ,1,1,1,1) 
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
@@ -324,7 +330,7 @@ class TDTestQuery(TDCase):
 
     def right_case_1_tbname_interval(self):
         self.logger.info("\n==========================right case 1_tbname==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_1)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
@@ -334,7 +340,8 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
-                cur1.execute('use %s;' %self.db)              
+                cur1.execute('use %s;' %self.db_1) 
+                self.tdSql.execute('use %s;' %self.db_1)              
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname_interval========case1======\n\n\n" %i)
                 
@@ -435,7 +442,7 @@ class TDTestQuery(TDCase):
                        
     def right_case_2(self):
         self.logger.info("\n==========================right case 2==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_2)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -446,7 +453,8 @@ class TDTestQuery(TDCase):
             func_desc = func # for desc
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
-                cur1.execute('use %s;' %self.db)                
+                cur1.execute('use %s;' %self.db_2)  
+                self.tdSql.execute('use %s;' %self.db_2)                 
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
 
@@ -533,7 +541,7 @@ class TDTestQuery(TDCase):
         
     def right_case_2_tbname(self):
         self.logger.info("\n==========================right case 2_tbname==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_2)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -544,7 +552,8 @@ class TDTestQuery(TDCase):
             func_desc = func # for desc
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
-                cur1.execute('use %s;' %self.db)                
+                cur1.execute('use %s;' %self.db_2)  
+                self.tdSql.execute('use %s;' %self.db_2)                  
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case2======\n\n\n" %i)
 
@@ -643,7 +652,7 @@ class TDTestQuery(TDCase):
                         
     def right_case_2_interval(self):
         self.logger.info("\n==========================right case 2==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_2)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -654,7 +663,8 @@ class TDTestQuery(TDCase):
             func_desc = func # for desc
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
-                cur1.execute('use %s;' %self.db)                
+                cur1.execute('use %s;' %self.db_2)  
+                self.tdSql.execute('use %s;' %self.db_2)                  
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_interval========case2======\n\n\n" %i)
 
@@ -806,7 +816,7 @@ class TDTestQuery(TDCase):
         
     def right_case_2_tbname_interval(self):
         self.logger.info("\n==========================right case 2_tbname==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_2)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -817,7 +827,8 @@ class TDTestQuery(TDCase):
             func_desc = func # for desc
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
-                cur1.execute('use %s;' %self.db)                
+                cur1.execute('use %s;' %self.db_2)  
+                self.tdSql.execute('use %s;' %self.db_2)                  
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname_interval========case2======\n\n\n" %i)
 
@@ -971,7 +982,7 @@ class TDTestQuery(TDCase):
                                                                
     def right_case_3(self):
         self.logger.info("\n==========================right case 3==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_3)
         conn1 = case_common[0]
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
@@ -981,7 +992,8 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
-                cur1.execute('use %s;' %self.db)                
+                cur1.execute('use %s;' %self.db_3) 
+                self.tdSql.execute('use %s;' %self.db_3)                 
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
                 
@@ -1025,7 +1037,7 @@ class TDTestQuery(TDCase):
  
     def right_case_3_tbname(self):
         self.logger.info("\n==========================right case 3_tbname==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_3)
         conn1 = case_common[0]
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
@@ -1035,7 +1047,8 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
-                cur1.execute('use %s;' %self.db)               
+                cur1.execute('use %s;' %self.db_3) 
+                self.tdSql.execute('use %s;' %self.db_3)                
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case3======\n\n\n" %i)
                 
@@ -1084,7 +1097,7 @@ class TDTestQuery(TDCase):
                         
     def right_case_3_interval(self):
         self.logger.info("\n==========================right case 3==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_3)
         conn1 = case_common[0]
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
@@ -1094,7 +1107,8 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
-                cur1.execute('use %s;' %self.db)                
+                cur1.execute('use %s;' %self.db_3) 
+                self.tdSql.execute('use %s;' %self.db_3)                 
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_interval========case3======\n\n\n" %i)
                 
@@ -1152,7 +1166,7 @@ class TDTestQuery(TDCase):
  
     def right_case_3_tbname_interval(self):
         self.logger.info("\n==========================right case 3_tbname==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_3)
         conn1 = case_common[0]
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
@@ -1162,7 +1176,8 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
-                cur1.execute('use %s;' %self.db)                
+                cur1.execute('use %s;' %self.db_3) 
+                self.tdSql.execute('use %s;' %self.db_3)                 
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname_interval========case3======\n\n\n" %i)
                 
@@ -1221,33 +1236,51 @@ class TDTestQuery(TDCase):
     def rm_sql(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
         self.tdCreateData.drop_db("%s" % self.db) 
-                 
+
+    def rm_sql_1(self):
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        self.tdCreateData.drop_db("%s" % self.db_1) 
+        
+    def rm_sql_2(self):
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        self.tdCreateData.drop_db("%s" % self.db_2) 
+         
+    def rm_sql_3(self):
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        self.tdCreateData.drop_db("%s" % self.db_3) 
+                         
     def run(self):
         startTime = time.time() 
         
         self.data_create(self.db)
           
-        startTime1 = time.time()        
+        startTime1 = time.time()  
+        self.data_create(self.db_1)      
         self.right_case_1()
         self.right_case_1_tbname()        
         self.right_case_1_interval()
         self.right_case_1_tbname_interval()
+        self.rm_sql_1()
         endTime1 = time.time()       
         self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
         startTime2 = time.time()
+        self.data_create(self.db_2)
         self.right_case_2()
         self.right_case_2_tbname()
         self.right_case_2_interval()
         self.right_case_2_tbname_interval()
+        self.rm_sql_2()
         endTime2 = time.time()       
         self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
         startTime3 = time.time()
+        self.data_create(self.db_3)
         self.right_case_3()
         self.right_case_3_tbname()
         self.right_case_3_interval()
         self.right_case_3_tbname_interval()
+        self.rm_sql_3()
         endTime3 = time.time()
         self.logger.info("total time3 %ds" % (endTime3 - startTime3))      
 
