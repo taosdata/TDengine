@@ -1717,7 +1717,7 @@ static const char* jkJoinPhysiPlanOnConditions = "OnConditions";
 static const char* jkJoinPhysiPlanTargets = "Targets";
 
 static int32_t physiJoinNodeToJson(const void* pObj, SJson* pJson) {
-  const SJoinPhysiNode* pNode = (const SJoinPhysiNode*)pObj;
+  const SSortMergeJoinPhysiNode* pNode = (const SSortMergeJoinPhysiNode*)pObj;
 
   int32_t code = physicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
@@ -1737,7 +1737,7 @@ static int32_t physiJoinNodeToJson(const void* pObj, SJson* pJson) {
 }
 
 static int32_t jsonToPhysiJoinNode(const SJson* pJson, void* pObj) {
-  SJoinPhysiNode* pNode = (SJoinPhysiNode*)pObj;
+  SSortMergeJoinPhysiNode* pNode = (SSortMergeJoinPhysiNode*)pObj;
 
   int32_t code = jsonToPhysicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
