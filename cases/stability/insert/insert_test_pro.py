@@ -360,7 +360,8 @@ class TestInsertPro(TDCase):
                             
                         self.tdSql.query("describe {}.{};".format(db_name,stb_child_name))
                         c1 = self.tdSql.getData(1, 0)
-                        if insert_rows > 0:
+                        c11 = self.tdSql.getData(1, 1)
+                        if (insert_rows > 0) and (c11 != "NCHAR") and (c11 != "BINARY") and (c11 != "VARCHAR"):
                             #sum check
                             sum_sql1 = "select sum({}) from {}.{};".format(c1 , db_name, stb_child_name);
                             sum_sql2 = "select sum({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
