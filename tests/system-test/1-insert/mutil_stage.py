@@ -1,11 +1,11 @@
 import datetime
 
-from dataclasses import dataclass, field
 from typing import List, Any, Tuple
 from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
+from util.common import *
 
 PRIMARY_COL = "ts"
 
@@ -53,24 +53,6 @@ NON_PRIMARY_DIR = 0
 DATA_PRE0 = f"data0"
 DATA_PRE1 = f"data1"
 DATA_PRE2 = f"data2"
-
-@dataclass
-class DataSet:
-    ts_data     : List[int]     = field(default_factory=list)
-    int_data    : List[int]     = field(default_factory=list)
-    bint_data   : List[int]     = field(default_factory=list)
-    sint_data   : List[int]     = field(default_factory=list)
-    tint_data   : List[int]     = field(default_factory=list)
-    int_un_data : List[int]     = field(default_factory=list)
-    bint_un_data: List[int]     = field(default_factory=list)
-    sint_un_data: List[int]     = field(default_factory=list)
-    tint_un_data: List[int]     = field(default_factory=list)
-    float_data  : List[float]   = field(default_factory=list)
-    double_data : List[float]   = field(default_factory=list)
-    bool_data   : List[int]     = field(default_factory=list)
-    binary_data : List[str]     = field(default_factory=list)
-    nchar_data  : List[str]     = field(default_factory=list)
-
 
 class TDTestCase:
 
@@ -126,9 +108,9 @@ class TDTestCase:
             f"dataDir {self.taos_data_dir}/{DATA_PRE2}2 {L2} {NON_PRIMARY_DIR}",
             f"dataDir {self.taos_data_dir}/{DATA_PRE2}2 {L1} {NON_PRIMARY_DIR}"
         ]
-        err_case5 = []
-        for i in range(17):
-            err_case5.append(f"dataDir {self.taos_data_dir}/{DATA_PRE0}{i} {L0} {NON_PRIMARY_DIR}")
+        err_case5 = [f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 {L0} {PRIMARY_DIR}"]
+        for i in range(16):
+            err_case5.append(f"dataDir {self.taos_data_dir}/{DATA_PRE0}{i+1} {L0} {NON_PRIMARY_DIR}")
 
         err_case6 = [
             f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 {L0} {PRIMARY_DIR}",
@@ -161,19 +143,15 @@ class TDTestCase:
     def __current_cfg(self):
         cfg_list = []
         current_case1 = [
-            f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 {L0} {PRIMARY_COL}",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE0}1 {L0} 0",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE1}1 {L1} 0",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE2}2 {L2} 0"
+            f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 {L0} {PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}/{DATA_PRE0}1 {L0} {NON_PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}/{DATA_PRE1}1 {L1} {NON_PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}/{DATA_PRE2}2 {L2} {NON_PRIMARY_DIR}"
         ]
 
-        current_case2 = [
-            f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 0 1",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE0}1 0 1",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 0 1",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 0 1",
-
-        ]
+        current_case2 = [f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 {L0} {PRIMARY_DIR}"]
+        for i in range(9):
+            current_case2.append(f"dataDir {self.taos_data_dir}/{DATA_PRE0}{i+1} {L0} {NON_PRIMARY_DIR}")
 
         cfg_list.append(current_case1)
 
@@ -181,13 +159,22 @@ class TDTestCase:
 
     def cfg_check(self):
         for cfg_case in self.__err_cfg:
-            tdLog.info("---------", self.__err_cfg.index(cfg_case))
+            tdLog.info(self.__err_cfg.index(cfg_case))
             self.del_old_datadir(filename=self.taos_cfg_path)
             tdDnodes.stop(1)
             self.cfg_str_list(filename=self.taos_cfg_path, update_list=cfg_case)
             tdDnodes.starttaosd(1)
 
             tdSql.error(f"show databases")
+
+        for cfg_case in self.__current_cfg:
+            self.del_old_datadir(filename=self.taos_cfg_path)
+            tdDnodes.stop(1)
+            self.cfg_str_list(filename=self.taos_cfg_path, update_list=cfg_case)
+            tdDnodes.starttaosd(1)
+
+            tdSql.query(f"show databases")
+
 
 
     def run(self):
