@@ -18,7 +18,7 @@
             "dbinfo": {
                 "name": "db",
                 "drop": "yes",
-	            "blocks": 1,
+                "blocks": 1,
                 "cache": 16,
                 "vgroups": VGROUPS,
                 "replica": REPLICA
