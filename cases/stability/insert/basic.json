@@ -8,7 +8,7 @@
     "password": "taosdata",
     "thread_count": THREADCOUNT,
     "create_table_thread_count": THREADCOUNT_CREATETABLE,
-    "result_file": "./insert_res.txt",
+    "result_file": "RESULTFILE",
     "confirm_parameter_prompt": "no",
     "insert_interval": 0,
     "interlace_rows": 1000,
@@ -18,17 +18,18 @@
             "dbinfo": {
                 "name": "db",
                 "drop": "yes",
-		"blocks": 1,
-		"cache": 16,
-                "vgroups": VGROUPS 
+	            "blocks": 1,
+                "cache": 16,
+                "vgroups": VGROUPS,
+                "replica": REPLICA
             },
             "super_tables": [
                 {
-                    "name": "stb",
-		    "no_check_for_affected_rows": "yes",
-                    "child_table_exists": "no",
+                    "name": "STABLENAME",
+                    "no_check_for_affected_rows": "yes",
+                    "child_table_exists": "CHILDTABLEEXISTS",
                     "childtable_count": CHILDTABLECOUNT,
-                    "childtable_prefix": "stb_",
+                    "childtable_prefix": "CHILDTABLEPREFIX",
                     "auto_create_table": "no",
                     "batch_create_tbl_num": 50000,
                     "data_source": "rand",
