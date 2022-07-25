@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include "taosudf.h"
 
@@ -35,6 +36,18 @@ DLL_EXPORT int32_t udf1(SUdfDataBlock* block, SUdfColumn *resultCol) {
       udfColDataSet(resultCol, i, (char *)&luckyNum, false);
     }
   }
+  //to simulate actual processing delay by udf
+#ifdef WINDOWS
+  HANDLE timer;
+  LARGE_INTEGER interval;
+  interval.QuadPart = (10 * 1000);
 
+  timer = CreateWaitableTimer(NULL, TRUE, NULL);
+  SetWaitableTimer(timer, &interval, 0, NULL, NULL, 0);
+  WaitForSingleObject(timer, INFINITE);
+  CloseHandle(timer);
+#else
+  usleep(1000);
+#endif
   return 0;
 }
