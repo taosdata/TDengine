@@ -350,9 +350,9 @@ class TDTestCase:
         # self.check_setup_cluster_status()
         json = os.path.dirname(__file__) + '/insert_10W_rows.json'
         self.stop_leader_when_Benchmark_inserts('db_1' , 100000 ,json)
-        tdLog.notice( " ===== start insert 100W rows  ==== ")
-        json = os.path.dirname(__file__) + '/insert_100W_rows.json'
-        self.stop_leader_when_Benchmark_inserts('db_2' , 1000000 ,json)
+        # tdLog.notice( " ===== start insert 100W rows  ==== ")
+        # json = os.path.dirname(__file__) + '/insert_100W_rows.json'
+        # self.stop_leader_when_Benchmark_inserts('db_2' , 1000000 ,json)
 
     def stop(self):
         tdSql.close()
