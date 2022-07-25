@@ -82,7 +82,6 @@ class TDTestCase:
 
 
     def cfg(self, filename, **update_dict):
-        self.del_old_datadir(filename)
         cmd = "echo "
         for k, v in update_dict.items():
             cmd += f"{k} {v}\n"
@@ -92,7 +91,6 @@ class TDTestCase:
             tdLog.exit(cmd)
 
     def cfg_str(self, filename, update_str):
-        self.del_old_datadir(filename)
         cmd = f'echo "{update_str}" >> {filename}'
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
@@ -183,6 +181,8 @@ class TDTestCase:
 
     def cfg_check(self):
         for cfg_case in self.__err_cfg:
+            tdLog.info("---------", self.__err_cfg.index(cfg_case))
+            self.del_old_datadir(filename=self.taos_cfg_path)
             tdDnodes.stop(1)
             self.cfg_str_list(filename=self.taos_cfg_path, update_list=cfg_case)
             tdDnodes.start(1)
