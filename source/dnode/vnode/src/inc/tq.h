@@ -104,6 +104,8 @@ typedef struct {
   // TODO remove
   SWalReader* pWalReader;
 
+  SWalRef* pRef;
+
   // push
   STqPushHandle pushHandle;
 
