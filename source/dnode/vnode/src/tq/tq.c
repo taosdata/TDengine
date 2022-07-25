@@ -212,6 +212,15 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen) {
     ASSERT(0);
     return -1;
   }
+
+  if (offset.val.type == TMQ_OFFSET__LOG) {
+    STqHandle* pHandle = taosHashGet(pTq->handles, offset.subKey, strlen(offset.subKey));
+    if (walRefVer(pHandle->pRef, offset.val.version) < 0) {
+      ASSERT(0);
+      return -1;
+    }
+  }
+
   /*}*/
   /*}*/
 
@@ -534,11 +543,14 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
 
     pHandle->execHandle.subType = req.subType;
     pHandle->fetchMeta = req.withMeta;
+    // TODO version should be assigned and refed during preprocess
+    SWalRef* pRef = walRefCommittedVer(pTq->pVnode->pWal);
+    if (pRef == NULL) {
+      ASSERT(0);
+    }
+    int64_t ver = pRef->refVer;
+    pHandle->pRef = pRef;
 
-    pHandle->pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
-
-    // TODO version should be assigned in preprocess
-    int64_t ver = walGetCommittedVer(pTq->pVnode->pWal);
     if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       pHandle->execHandle.execCol.qmsg = req.qmsg;
       pHandle->snapshotVer = ver;
@@ -560,10 +572,14 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
       pHandle->execHandle.pExecReader = qExtractReaderFromStreamScanner(scanner);
       ASSERT(pHandle->execHandle.pExecReader);
     } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
+      pHandle->pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
+
       pHandle->execHandle.pExecReader = tqOpenReader(pTq->pVnode);
       pHandle->execHandle.execDb.pFilterOutTbUid =
           taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
+      pHandle->pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
+
       pHandle->execHandle.execTb.suid = req.suid;
       SArray* tbUidList = taosArrayInit(0, sizeof(int64_t));
       vnodeGetCtbIdList(pTq->pVnode, req.suid, tbUidList);
