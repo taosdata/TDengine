@@ -5767,6 +5767,12 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
           if (pTsOutput != NULL) {
             colDataAppendInt64(pTsOutput, pos, &tsList[i]);
           }
+
+          // handle selectivity
+          if (pCtx->subsidiaries.num > 0) {
+            appendSelectivityValue(pCtx, i, pos);
+          }
+
           numOfElems++;
         }
       }
@@ -5799,6 +5805,12 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
           if (pTsOutput != NULL) {
             colDataAppendInt64(pTsOutput, pos, &pDerivInfo->prevTs);
           }
+
+          // handle selectivity
+          if (pCtx->subsidiaries.num > 0) {
+            appendSelectivityValue(pCtx, i, pos);
+          }
+
           numOfElems++;
         }
       }
