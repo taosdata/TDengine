@@ -54,7 +54,7 @@ SWalReader *walOpenReader(SWal *pWal, SWalFilterCond *cond) {
   }
 
   /*if (pReader->cond.enableRef) {*/
-  /*taosHashPut(pWal->pRefHash, &pReader->readerId, sizeof(int64_t), &pReader, sizeof(void *));*/
+  /* taosHashPut(pWal->pRefHash, &pReader->readerId, sizeof(int64_t), &pReader, sizeof(void *));*/
   /*}*/
 
   return pReader;

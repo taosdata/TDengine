@@ -385,8 +385,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   if (pHandle->execHandle.subType != TOPIC_SUB_TYPE__COLUMN) {
-    int64_t     fetchVer = fetchOffsetNew.version + 1;
-    SWalCkHead* pCkHead = taosMemoryMalloc(sizeof(SWalCkHead) + 2048);
+    int64_t fetchVer = fetchOffsetNew.version + 1;
+    pCkHead = taosMemoryMalloc(sizeof(SWalCkHead) + 2048);
     if (pCkHead == NULL) {
       code = -1;
       goto OVER;
