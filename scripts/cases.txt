@@ -25,7 +25,8 @@ taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/split/stable_time_truncate_2.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/split/stable_time_timediff_1.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/split/stable_time_timediff_2.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_elapsed.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/split/stable_time_elapsed_1.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/split/stable_time_elapsed_2.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/split/stable_str_concat_1.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_lower.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_upper.py --keep --containers
