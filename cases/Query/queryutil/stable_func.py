@@ -117,7 +117,7 @@ class TDFunction():
     def int_cloumn_2(self):  
         # support all int type \ double type              
         hanshu = ['MIN','MAX']   
-        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)'] 
+        column = ['(q_bigint)','(q_smallint)','(q_int)','(q_float)','(q_double)'] #q_tinyint 出现重复的概率较高，忽略
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         int_cloumn = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return int_cloumn
