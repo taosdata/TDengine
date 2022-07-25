@@ -66,10 +66,24 @@ class TDFunction():
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return all_column
-    def all_column_tbname_2(self):  
-        # last和limit使用时，取的是最后n条记录，不是前面n条记录TD-14978   
+    def all_column_tbname_1_1(self):  
+        # support all table, support all data type  
+        # 解决多个子表时，last_row\last\first返回值可能不一样的问题   
+        hanshu = ['FIRST']
+        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return all_column
+    def all_column_tbname_2(self):    
         hanshu = ['LAST']
         column = ['(*)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return all_column
+    def all_column_tbname_2_1(self):  
+        #* 不能和order by 使用   
+        hanshu = ['LAST']
+        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return all_column
@@ -153,8 +167,12 @@ class TDFunction():
             func_stable_tbname_all = self.all_column_tbname_0()
         elif i == 11:    #['FIRST']
             func_stable_tbname_all = self.all_column_tbname_1()
+        elif i == 111:    #['FIRST']
+            func_stable_tbname_all = self.all_column_tbname_1_1()
         elif i == 12:    #['LAST']
-            func_stable_tbname_all = self.all_column_tbname_2()            
+            func_stable_tbname_all = self.all_column_tbname_2()    
+        elif i == 121:    #['LAST']
+            func_stable_tbname_all = self.all_column_tbname_2_1()        
         elif i == 13:    #['LAST_ROW']
             func_stable_tbname_all = self.all_column_tbname_3()
         elif i == 2:     #['AVG','SUM','MIN','MAX'] 
