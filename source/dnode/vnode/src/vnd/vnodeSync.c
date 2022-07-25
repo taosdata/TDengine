@@ -224,9 +224,19 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
     vGTrace("vgId:%d, msg:%p get from vnode-write queue, weak:%d block:%d msg:%d:%d pos:%d, handle:%p", vgId, pMsg,
             isWeak, isBlock, msg, numOfMsgs, arrayPos, pMsg->info.handle);
 
+    if (!pVnode->restored) {
+      vGError("vgId:%d, msg:%p failed to process since not leader", vgId, pMsg);
+      terrno = TSDB_CODE_APP_NOT_READY;
+      vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_APP_NOT_READY);
+      rpcFreeCont(pMsg->pCont);
+      taosFreeQitem(pMsg);
+      continue;
+    }
+
     if (pMsgArr == NULL || pIsWeakArr == NULL) {
       vGError("vgId:%d, msg:%p failed to process since out of memory", vgId, pMsg);
-      vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_OUT_OF_MEMORY);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      vnodeHandleProposeError(pVnode, pMsg, terrno);
       rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
       continue;
@@ -609,6 +619,12 @@ static void vnodeLeaderTransfer(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsm
   SVnode *pVnode = pFsm->data;
 }
 
+static void vnodeRestoreFinish(struct SSyncFSM *pFsm) {
+  SVnode *pVnode = pFsm->data;
+  pVnode->restored = true;
+  vDebug("vgId:%d, sync restore finished", pVnode->config.vgId);
+}
+
 static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pVnode;
@@ -616,7 +632,7 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpPreCommitCb = vnodeSyncPreCommitMsg;
   pFsm->FpRollBackCb = vnodeSyncRollBackMsg;
   pFsm->FpGetSnapshotInfo = vnodeSyncGetSnapshot;
-  pFsm->FpRestoreFinishCb = NULL;
+  pFsm->FpRestoreFinishCb = vnodeRestoreFinish;
   pFsm->FpLeaderTransferCb = vnodeLeaderTransfer;
   pFsm->FpReConfigCb = vnodeSyncReconfig;
   pFsm->FpSnapshotStartRead = vnodeSnapshotStartRead;
@@ -670,11 +686,10 @@ bool vnodeIsLeader(SVnode *pVnode) {
     return false;
   }
 
-  // todo
-  // if (!pVnode->restored) {
-  //   terrno = TSDB_CODE_APP_NOT_READY;
-  //   return false;
-  // }
+  if (!pVnode->restored) {
+    terrno = TSDB_CODE_APP_NOT_READY;
+    return false;
+  }
 
   return true;
 }

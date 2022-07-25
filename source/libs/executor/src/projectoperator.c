@@ -69,7 +69,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
 
   // todo remove it soon
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
-    pInfo->mergeDataBlocks = true;
+    pInfo->mergeDataBlocks = false;
   }
 
   int32_t numOfRows = 4096;
