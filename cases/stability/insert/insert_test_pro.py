@@ -325,6 +325,7 @@ class TestInsertPro(TDCase):
 
         if self.check_result_enabled:
             for insert_json_file in self.json_config_files:
+                self.logger.info("check result: {}".format(insert_json_file))
                 # check result
                 # load taosBenchmark json
                 benchmark_config = dict()
