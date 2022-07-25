@@ -93,7 +93,7 @@ sql_error create table tb11 using st2 (id,t1,) tags (1,1,1);
 
 sql create table tb12 using st2 (t1,id) tags (2,1);
 sql show tags from tb12;
-if $rows != 5 then
+if $rows != 4 then
   return -1
 endi
 if $data05 != 1 then 
@@ -109,9 +109,9 @@ if $data35 != NULL then
   return -1
 endi
 
-sql create table tb13 using st2 ("t1",'id') tags (2,1);
+sql create table tb13 using st2 (t1,id) tags (2,1);
 sql show tags from tb13;
-if $rows != 2 then
+if $rows != 4 then
   return -1
 endi
 if $data05 != 1 then 

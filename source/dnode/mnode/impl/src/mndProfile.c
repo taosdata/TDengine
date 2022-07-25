@@ -312,7 +312,7 @@ static int32_t mndSaveQueryList(SConnObj *pConn, SQueryHbReqBasic *pBasic) {
   pConn->numOfQueries = pBasic->queryDesc ? taosArrayGetSize(pBasic->queryDesc) : 0;
   pBasic->queryDesc = NULL;
 
-  mDebug("queries updated in conn %d, num:%d", pConn->id, pConn->numOfQueries);
+  mDebug("queries updated in conn %u, num:%d", pConn->id, pConn->numOfQueries);
 
   taosWUnLockLatch(&pConn->queryLock);
 
