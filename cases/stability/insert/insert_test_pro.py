@@ -442,6 +442,51 @@ class TestInsertPro(TDCase):
                             cast_sql1 = "select cast({} as bigint) from {}.{};".format(c1 , db_name, stb_child_name);
                             cast_sql2 = "select cast({} as bigint) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %cast_sql1 ,1,1,'%s' %cast_sql2 ,1,1)
+                        elif (insert_rows > 0) and ((c11 != "NCHAR") or (c11 != "BINARY") or (c11 != "VARCHAR")):
+                            #char_length check
+                            char_length_sql1 = "select char_length({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            char_length_sql2 = "select char_length({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %char_length_sql1 ,1,1,'%s' %char_length_sql2 ,1,1)
+                            #length check
+                            length_sql1 = "select length({}) from {}.{};".format(c1 ,db_name, stb_child_name);
+                            length_sql2 = "select length({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %length_sql1 ,1,1,'%s' %length_sql2 ,1,1)
+                            #lower check
+                            lower_sql1 = "select lower({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            lower_sql2 = "select lower({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %lower_sql1 ,1,1,'%s' %lower_sql2 ,1,1)
+                            #lower check
+                            lower_sql1 = "select lower({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            lower_sql2 = "select lower({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %lower_sql1 ,1,1,'%s' %lower_sql2 ,1,1)
+                            #ltrim check
+                            ltrim_sql1 = "select ltrim({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            ltrim_sql2 = "select ltrim({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %ltrim_sql1 ,1,1,'%s' %ltrim_sql2 ,1,1)
+                            #rtrim check
+                            rtrim_sql1 = "select rtrim({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            rtrim_sql2 = "select rtrim({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %rtrim_sql1 ,1,1,'%s' %rtrim_sql2 ,1,1)
+                            #upper check
+                            upper_sql1 = "select upper({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            upper_sql2 = "select upper({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %upper_sql1 ,1,1,'%s' %upper_sql2 ,1,1)
+                            #substr check
+                            substr_sql1 = "select substr({},2) from {}.{};".format(c1 , db_name, stb_child_name);
+                            substr_sql2 = "select substr({},2) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %substr_sql1 ,1,1,'%s' %substr_sql2 ,1,1)
+                            #concat check
+                            concat_sql1 = "select concat({},{}) from {}.{};".format(c1 , c1 ,db_name, stb_child_name);
+                            concat_sql2 = "select concat({},{}) from {}.{} where tbname = '{}';".format(c1 , c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %concat_sql1 ,1,1,'%s' %concat_sql2 ,1,1)
+                            #concat_ws check
+                            concat_ws_sql1 = "select concat_ws('{}',{},{}) from {}.{};".format(c1 , c1 ,c1 ,db_name, stb_child_name);
+                            concat_ws_sql2 = "select concat_ws('{}',{},{}) from {}.{} where tbname = '{}';".format(c1 , c1 , c1 ,db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %concat_ws_sql1 ,1,1,'%s' %concat_ws_sql2 ,1,1)
+                            #cast check
+                            cast_sql1 = "select cast({} as NCHAR(1000)) from {}.{};".format(c1 , db_name, stb_child_name);
+                            cast_sql2 = "select cast({} as NCHAR(1000)) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %cast_sql1 ,1,1,'%s' %cast_sql2 ,1,1)
 
                         if (not self.enable_second_round) or second_round:
                             self.logger.debug("check delete")
