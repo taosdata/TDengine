@@ -1607,6 +1607,28 @@ static bool eliminateProjOptCanUseNewChildTargets(SLogicNode* pChild, SNodeList*
   return cxt.canUse;
 }
 
+static void alignProjectionWithTarget(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_PROJECT != pNode->type) {
+    return;
+  }
+
+  SProjectLogicNode* pProjectNode = (SProjectLogicNode*)pNode;
+  SNode* pProjection = NULL;
+  FOREACH(pProjection, pProjectNode->pProjections) {
+    SNode* pTarget = NULL;
+    bool keep = false;
+    FOREACH(pTarget, pNode->pTargets) {
+      if (0 == strcmp(((SColumnNode*)pProjection)->node.aliasName, ((SColumnNode*)pTarget)->colName)) {
+        keep = true;
+        break;
+      }
+    }
+    if (!keep) {
+      nodesListErase(pProjectNode->pProjections, cell);
+    }
+  }
+}
+
 static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan,
                                          SProjectLogicNode* pProjectNode) {
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProjectNode->node.pChildren, 0);
@@ -1634,6 +1656,7 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   if (TSDB_CODE_SUCCESS == code) {
     NODES_CLEAR_LIST(pProjectNode->node.pChildren);
     nodesDestroyNode((SNode*)pProjectNode);
+    alignProjectionWithTarget(pChild);
   }
   pCxt->optimized = true;
   return code;

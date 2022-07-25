@@ -499,7 +499,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
 
     code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
 
-    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_MND_INVALID_STB) {
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_MND_STB_NOT_EXIST) {
       SSchemaAction schemaAction;
       schemaAction.action = SCHEMA_ACTION_CREATE_STABLE;
       memset(&schemaAction.createSTable, 0, sizeof(SCreateSTableActionInfo));
@@ -1489,7 +1489,7 @@ static SSmlHandle* smlBuildSmlInfo(STscObj* pTscObj, SRequestObj* request, SMLPr
   }
   info->id = smlGenId();
 
-  info->pQuery = (SQuery *)taosMemoryCalloc(1, sizeof(SQuery));
+  info->pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
   if (NULL == info->pQuery) {
     uError("SML:0x%" PRIx64 " create info->pQuery error", info->id);
     goto cleanup;
