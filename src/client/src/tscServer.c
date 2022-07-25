@@ -283,16 +283,34 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
 
 // pSql connection link is broken
 bool dealConnBroken(SSqlObj * pSql) {
-  // TODO
+  // check valid
+  if (pSql == NULL || pSql->signature != pSql) {
+    return false;
+  }
+  if (pSql->cmd.command >= TSDB_SQL_LOCAL) {
+    return false;
+  }
+
+  // cancel
+  if (pSql->rpcRid > 0) {
+    tscDebug("PROBE 0x%" PRIx64 " rpc cancel request rpcRid=0x%" PRIx64 ".", pSql->self, pSql->rpcRid);
+    rpcCancelRequest(pSql->rpcRid);
+    pSql->rpcRid = -1;
+  }
+
+  // error
+  tscDebug("PROBE 0x%"PRIx64" async result error.", pSql->self);
+  tscAsyncResultOnError(pSql);
 
   return true;
 }
 
 // if return true, send probe connection msg to sever ok
 bool sendProbeConnMsg(SSqlObj* pSql) {
-  // check time out
-  int32_t probeTimeout = 1*1000;   // over this value send probe msg
-  int32_t killTimeout  = 3*60*1000; // over this value query can be killed
+  // TEST TODO DELETE
+  tsProbeSeconds = 1;   // over this value send probe msg
+  tsProbeKillSeconds = 3*60; // over this value query can be killed
+
   if(pSql->stime == 0) {
     // not start , no need probe
     return true;
@@ -300,12 +318,12 @@ bool sendProbeConnMsg(SSqlObj* pSql) {
 
   int64_t stime = MAX(pSql->stime, pSql->lastAlive);
   int32_t diff = (int32_t)(taosGetTimestampMs() - stime);
-  if (diff < probeTimeout) {
+  if (diff < tsProbeSeconds * 1000) {
     // exec time short , need not probe alive
     return true;
   }
 
-  if (diff > killTimeout) {
+  if (diff > tsProbeKillSeconds * 1000) {
     // need kill query
     tscDebug("PROBE 0x%"PRIx64" need killed, noAckCnt:%d diff=%d", pSql->self, pSql->noAckCnt, diff);
     //return false;
@@ -529,7 +547,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   if(rpcMsg->msgType == TSDB_MSG_TYPE_PROBE_CONN_RSP) {
     pSql->noAckCnt  = 0;
     pSql->lastAlive = taosGetTimestampMs();
-    tscInfo(" recv sql probe msg. sql=%s", pSql->sqlstr);
+    tscDebug(" PROBE %p recv probe msg. sql=%s", pSql->self, pSql->sqlstr);
     return ;
   }
 

@@ -268,6 +268,11 @@ int32_t  fsDebugFlag = 135;
 
 int8_t tsClientMerge = 0;
 
+// probe alive connection
+int32_t tsProbeSeconds     = 10 * 60; // start probe link alive after tsProbeSeconds from starting query
+int32_t tsProbeKillSeconds = 30 * 60; // start kill query after tsProbeKillSeconds from starting query
+
+
 #ifdef TD_TSZ
 //
 // lossy compress 6
@@ -1729,6 +1734,28 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = (1 << 24);
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  // probeSeconds
+  cfg.option = "probeSeconds";
+  cfg.ptr = &tsProbeSeconds;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  // probeKillSeconds
+  cfg.option = "probeKillSeconds";
+  cfg.ptr = &tsProbeKillSeconds;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
