@@ -213,10 +213,6 @@ static int32_t taosSetTfsCfg(SConfig *pCfg) {
       memcpy(&tsDiskCfg[index], pCfg, sizeof(SDiskCfg));
       if (pCfg->level == 0 && pCfg->primary == 1) {
         tstrncpy(tsDataDir, pCfg->dir, PATH_MAX);
-        if (taosMulMkDir(tsDataDir) != 0) {
-          uError("failed to create dataDir:%s since %s", tsDataDir, terrstr());
-          return -1;
-        }
       }
       if (taosMulMkDir(pCfg->dir) != 0) {
         uError("failed to create tfsDir:%s since %s", tsDataDir, terrstr());
@@ -227,12 +223,13 @@ static int32_t taosSetTfsCfg(SConfig *pCfg) {
 
   if (tsDataDir[0] == 0) {
     if (pItem->str != NULL) {
-      taosAddDataDir(0, pItem->str, 0, 1);
+      taosAddDataDir(tsDiskCfgNum, pItem->str, 0, 1);
       tstrncpy(tsDataDir, pItem->str, PATH_MAX);
       if (taosMulMkDir(tsDataDir) != 0) {
-        uError("failed to create dataDir:%s since %s", tsDataDir, terrstr());
+        uError("failed to create tfsDir:%s since %s", tsDataDir, terrstr());
         return -1;
       }
+      tsDiskCfgNum++;
     } else {
       uError("datadir not set");
       return -1;

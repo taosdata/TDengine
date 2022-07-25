@@ -50,7 +50,6 @@ sql select avg(tbcol) from tb1
 sql select avg(tbcol) from tb1 where ts <= 1601481840000
 sql select avg(tbcol) as b from tb1
 sql select avg(tbcol) as b from tb1 interval(1d)
-goto _OVER
 sql select avg(tbcol) as b from tb1 where ts <= 1601481840000s interval(1m)
 sql select avg(tbcol) as c from stb
 sql select avg(tbcol) as c from stb where ts <= 1601481840000

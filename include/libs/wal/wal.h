@@ -135,6 +135,7 @@ typedef struct {
   int64_t        curVersion;
   int64_t        capacity;
   int8_t         curInvalid;
+  int8_t         curStopped;
   TdThreadMutex  mutex;
   SWalFilterCond cond;
   SWalCkHead    *pHead;

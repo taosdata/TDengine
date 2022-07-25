@@ -189,7 +189,7 @@ python3 ./test.py -f 7-tmq/subscribeStb3.py
 python3 ./test.py -f 7-tmq/subscribeStb4.py
 python3 ./test.py -f 7-tmq/db.py
 python3 ./test.py -f 7-tmq/tmqError.py
-#python3 ./test.py -f 7-tmq/schema.py
+python3 ./test.py -f 7-tmq/schema.py
 python3 ./test.py -f 7-tmq/stbFilter.py
 python3 ./test.py -f 7-tmq/tmqCheckData.py
 python3 ./test.py -f 7-tmq/tmqCheckData1.py
@@ -210,7 +210,7 @@ python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
 python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
-#python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
+python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
 python3 ./test.py -f 7-tmq/tmqUpdate-1ctb.py
 python3 ./test.py -f 7-tmq/tmqUpdateWithConsume.py
 python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot0.py
@@ -219,12 +219,14 @@ python3 ./test.py -f 7-tmq/tmqDelete-1ctb.py
 python3 ./test.py -f 7-tmq/tmqDelete-multiCtb.py
 python3 ./test.py -f 7-tmq/tmqDropStb.py
 python3 ./test.py -f 7-tmq/tmqDropStbCtb.py
-python3 ./test.py -f 7-tmq/tmqDropNtb.py
+python3 ./test.py -f 7-tmq/tmqDropNtb-snapshot0.py
+python3 ./test.py -f 7-tmq/tmqDropNtb-snapshot1.py
 python3 ./test.py -f 7-tmq/tmqUdf.py
 python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot0.py
 python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot1.py
 python3 ./test.py -f 7-tmq/stbTagFilter-1ctb.py
-
+python3 ./test.py -f 7-tmq/dataFromTsdbNWal.py
+python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
 # python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 
 #------------querPolicy  2-----------
