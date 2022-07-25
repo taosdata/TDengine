@@ -420,7 +420,7 @@ class TDTestCase:
             before_leader_infos = self.get_leader_infos(self.db_name)
 
             self.stop_dnode_id = self._get_stop_dnode_id(self.db_name)
-            self.force_stop_dnode(self.stop_dnode_id)
+            tdDnodes[self.stop_dnode_id-1].stoptaosd()
 
             
             start = time.time()
