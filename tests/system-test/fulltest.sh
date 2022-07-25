@@ -62,7 +62,7 @@ python3 ./test.py -f 2-query/char_length.py -R
 python3 ./test.py -f 2-query/check_tsdb.py
 python3 ./test.py -f 2-query/check_tsdb.py -R
 
-# python3 ./test.py -f 1-insert/update_data.py
+python3 ./test.py -f 1-insert/update_data.py
 
 python3 ./test.py -f 1-insert/delete_data.py
 python3 ./test.py -f 2-query/db.py
@@ -189,7 +189,7 @@ python3 ./test.py -f 7-tmq/subscribeStb3.py
 python3 ./test.py -f 7-tmq/subscribeStb4.py
 python3 ./test.py -f 7-tmq/db.py
 python3 ./test.py -f 7-tmq/tmqError.py
-#python3 ./test.py -f 7-tmq/schema.py
+python3 ./test.py -f 7-tmq/schema.py
 python3 ./test.py -f 7-tmq/stbFilter.py
 python3 ./test.py -f 7-tmq/tmqCheckData.py
 python3 ./test.py -f 7-tmq/tmqCheckData1.py
@@ -221,7 +221,7 @@ python3 ./test.py -f 7-tmq/tmqDropStb.py
 python3 ./test.py -f 7-tmq/tmqDropStbCtb.py
 python3 ./test.py -f 7-tmq/tmqDropNtb.py
 python3 ./test.py -f 7-tmq/tmqUdf.py
-# python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot0.py
+python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot0.py
 python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot1.py
 python3 ./test.py -f 7-tmq/stbTagFilter-1ctb.py
 

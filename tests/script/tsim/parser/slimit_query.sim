@@ -30,449 +30,108 @@ $tsu = $tsu + $ts0
 #sql_error select top(c1, 1) from $stb where ts >= $ts0 and ts <= $tsu slimit 5 offset 1
 #sql_error select bottom(c1, 1) from $stb where ts >= $ts0 and ts <= $tsu slimit 5 offset 1
 
-### select from stb + group by + slimit offset
-sql select max(c1), min(c2), avg(c3), sum(c4), spread(c5), sum(c6), count(c7), first(c8), last(c9) from $stb group by t1 slimit 5 soffset 0
-if $rows != 5 then
+### select from stb + partition by + slimit offset
+sql select t1, max(c1), min(c2), avg(c3), sum(c4), spread(c5), sum(c6), count(c7), first(c8), last(c9) from $stb partition by t1
+if $rows != 10 then
   return -1
 endi
-#if $data08 != NULL then
-#if $data08 != 涛思nchar9 then
-#  return -1
-#endi
-$res = $tbPrefix . 0
-if $data09 != $res then
+if $data(slm_tb0)[1] != 9 then
   return -1
 endi
-$res = $tbPrefix . 1
-if $data19 != $res then
+if $data(slm_tb0)[1] != 9 then
   return -1
 endi
-$res = $tbPrefix . 4
-if $data49 != $res then
+if $data(slm_tb0)[2] != 0 then
+  return -1
+endi
+if $data(slm_tb0)[3] != 4.500000000 then
   return -1
 endi
 
 #sql reset query cache
-sql select max(c1), min(c2), avg(c3), sum(c4), spread(c5), sum(c6), count(c7), first(c8), last(c9) from $stb group by t1 order by t1 asc slimit 5
+sql select max(c1), min(c2), avg(c3), sum(c4), spread(c5), sum(c6), count(c7), first(c8), last(c9) from $stb partition by t1  slimit 5
 if $rows != 5 then
-  return -1
-endi
-if $data00 != 9 then
-  return -1
-endi
-$res = $tbPrefix . 0
-print res = $res
-if $data09 != $res then
-  return -1
-endi
-$res = $tbPrefix . 4
-if $data49 != $res then
   return -1
 endi
 
 ## asc
-sql select max(c1), min(c2), avg(c3), sum(c4), spread(c5), sum(c6), count(c7), first(c8), last(c9) from $stb group by t1 order by t1 asc slimit 4 soffset 1
+sql select max(c1), min(c2), avg(c3), sum(c4), spread(c5), sum(c6), count(c7), first(c8), last(c9) from $stb partition by t1  slimit 4 soffset 1
 if $rows != 4 then
   return -1
 endi
-if $data00 != 9 then
-  return -1
-endi
-$res = $tbPrefix . 1
-if $data09 != $res then
-  return -1
-endi
-$res = $tbPrefix . 4
-if $data39 != $res then
-  return -1
-endi
+
 ## desc
-sql select max(c1), min(c2), avg(c3), sum(c4), spread(c5), sum(c6), count(c7), first(c8), last(c9) from $stb group by t1 order by t1 desc slimit 4 soffset 1
+sql select max(c1), min(c2), avg(c3), sum(c4), spread(c5), sum(c6), count(c7), first(c8), last(c9) from $stb partition by t1 slimit 4 soffset 1
 if $rows != 4 then
-  return -1
-endi
-if $data00 != 9 then
-  return -1
-endi
-$res = $tbPrefix . 8
-if $data09 != $res then
-  return -1
-endi
-$res = $tbPrefix . 5
-if $data39 != $res then
   return -1
 endi
 
 ### limit + slimit
-sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb group by t1 order by t1 asc slimit 4 soffset 1 limit 0
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb partition by t1  slimit 4 soffset 1 limit 0
 if $rows != 0 then
   return -1
 endi
 
-sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb group by t1 order by t1 asc slimit 4 soffset 1 limit 2 offset 1
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb partition by t1  slimit 4 soffset 1 limit 2 offset 1
 if $rows != 0 then
   return -1
 endi
 
-sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb group by t1,t2 order by t1 asc slimit 4 soffset 1 limit 1 offset 0
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb partition by t1,t2  slimit 4 soffset 1 limit 1 offset 0
 if $rows != 4 then
   return -1
 endi
-if $data00 != 9 then
-  return -1
-endi
-$res = $tbPrefix . 1
-if $data08 != $res then
-  return -1
-endi
-print data09 = $data09
-if $data09 != 1 then
-  return -1
-endi
-$res = $tbPrefix . 4
-if $data38 != $res then
-  return -1
-endi
-if $data39 != 4 then
-  return -1
-endi
 
-sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb group by t1,t2 order by t1 desc slimit 4 soffset 1 limit 1 offset 0
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb partition by t1,t2 slimit 4 soffset 1 limit 1 offset 0
 if $rows != 4 then
   return -1
 endi
-$res = $tbPrefix . 8
-if $data08 != $res then
-  return -1
-endi
-if $data09 != 8 then
-  return -1
-endi
-$res = $tbPrefix . 5
-if $data38 != $res then
-  return -1
-endi
-if $data39 != 5 then
-  return -1
-endi
 
-sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 5 group by t1,t2,t3 order by t1 asc slimit 3 soffset 1 limit 1 offset 0
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 5 partition by t1,t2,t3  slimit 3 soffset 1 limit 1 offset 0
 if $rows != 3 then
-  return -1
-endi
-if $data00 != 9 then
-  return -1
-endi
-$res = $tbPrefix . 3
-if $data08 != $res then
-  return -1
-endi
-if $data09 != 3 then
-  return -1
-endi
-$res = $tbPrefix . 4
-if $data18 != $res then
-  return -1
-endi
-if $data19 != 4 then
-  return -1
-endi
-$res = $tbPrefix . 5
-if $data28 != $res then
-  return -1
-endi
-if $data29 != 5 then
   return -1
 endi
 
 ### slimit + fill
-sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 5 interval(5m) fill(value, -1, -2) group by t1 slimit 4 soffset 4 limit 0 offset 0
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 5 partition by t1 interval(5m) fill(value, -1, -2) slimit 4 soffset 4 limit 0 offset 0
 if $rows != 0 then
   return -1
 endi
 
-sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9 interval(5m) fill(value, -1, -2) group by t1 slimit 4 soffset 4 limit 2 offset 0
-print select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9 interval(5m) fill(value, -1, -2) group by t1 slimit 4 soffset 4 limit 2 offset 0
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9  partition by t1 interval(5m) fill(value, -1, -2) slimit 4 soffset 4 limit 2 offset 0
+print select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9 partition by t1 interval(5m) fill(value, -1, -2)  slimit 4 soffset 4 limit 2 offset 0
 print $rows $data00 $data01 $data02 $data03
 if $rows != 8 then
   return -1
 endi
-if $data00 != @18-09-17 09:00:00.000@ then
-  return -1 
-endi
-if $data01 != 0 then
-  return -1
-endi
-if $data09 != slm_tb6 then
-  return -1
-endi
-if $data10 != @18-09-17 09:05:00.000@ then
-  return -1
-endi
-if $data11 != -1 then
-  return -1
-endi
-if $data12 != -2 then
-  return -1
-endi
-if $data13 != -2.000000000 then
-  return -1
-endi
-if $data17 != NULL then
-  return -1
-endi
-if $data18 != NULL then
-  return -1
-endi
-if $data19 != slm_tb6 then
-  return -1
-endi
-if $data20 != @18-09-17 09:00:00.000@ then
-  return -1 
-endi
-if $data21 != 0 then
-  return -1
-endi
-if $data29 != slm_tb7 then
-  return -1
-endi
-if $data30 != @18-09-17 09:05:00.000@ then
-  return -1
-endi
-if $data31 != -1 then
-  return -1
-endi
-if $data36 != -2 then
-  return -1
-endi
-if $data39 != slm_tb7 then
-  return -1
-endi
-if $data40 != @18-09-17 09:00:00.000@ then
-  return -1 
-endi
-if $data49 != slm_tb8 then
-  return -1
-endi
-if $data50 != @18-09-17 09:05:00.000@ then
-  return -1
-endi
-if $data59 != slm_tb8 then
-  return -1
-endi
-if $data69 != slm_tb9 then
-  return -1
-endi
-if $data79 != slm_tb9 then
-  return -1
-endi
+
 # desc
-sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9 interval(5m) fill(value, -1, -2) group by t1 order by t1 desc slimit 4 soffset 4 limit 2 offset 0
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9 partition by t1 interval(5m) fill(value, -1, -2) slimit 4 soffset 4 limit 2 offset 0
 if $rows != 8 then
   return -1
 endi
-if $data00 != @18-09-17 09:00:00.000@ then
-  return -1 
-endi
-if $data01 != 0 then
-  return -1
-endi
-if $data09 != slm_tb5 then
-  return -1
-endi
-if $data10 != @18-09-17 09:05:00.000@ then
-  return -1
-endi
-if $data11 != -1 then
-  return -1
-endi
-if $data12 != -2 then
-  return -1
-endi
-if $data13 != -2.000000000 then
-  return -1
-endi
-if $data17 != NULL then
-  return -1
-endi
-if $data18 != NULL then
-  return -1
-endi
-if $data19 != slm_tb5 then
-  return -1
-endi
-if $data20 != @18-09-17 09:00:00.000@ then
-  return -1 
-endi
-if $data21 != 0 then
-  return -1
-endi
-if $data29 != slm_tb4 then
-  return -1
-endi
-if $data30 != @18-09-17 09:05:00.000@ then
-  return -1
-endi
-if $data31 != -1 then
-  return -1
-endi
-if $data36 != -2 then
-  return -1
-endi
-if $data39 != slm_tb4 then
-  return -1
-endi
-if $data40 != @18-09-17 09:00:00.000@ then
-  return -1 
-endi
-if $data49 != slm_tb3 then
-  return -1
-endi
-if $data50 != @18-09-17 09:05:00.000@ then
-  return -1
-endi
-if $data59 != slm_tb3 then
-  return -1
-endi
-if $data69 != slm_tb2 then
-  return -1
-endi
-if $data79 != slm_tb2 then
-  return -1
-endi
 
-sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9 interval(5m) fill(value, -1, -2) group by t1 order by t1 asc slimit 4 soffset 4 limit 2 offset 598
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9 partition by t1  interval(5m) fill(value, -1, -2) slimit 4 soffset 4 limit 2 offset 598
 if $rows != 4 then
   return -1
 endi
-if $data00 != @18-09-19 10:50:00.000@ then
-  return -1 
-endi
-if $data01 != 9 then
-  return -1
-endi
-if $data09 != slm_tb6 then
-  return -1
-endi
-if $data10 != @18-09-19 10:50:00.000@ then
-  return -1
-endi
-if $data12 != 9 then
-  return -1
-endi
-if $data13 != 9.000000000 then
-  return -1
-endi
-if $data19 != slm_tb7 then
-  return -1
-endi
-if $data20 != @18-09-19 10:50:00.000@ then
-  return -1 
-endi
-if $data24 != 9.000000000 then
-  return -1
-endi
-if $data29 != slm_tb8 then
-  return -1
-endi
-if $data30 != @18-09-19 10:50:00.000@ then
-  return -1
-endi
-if $data35 != 9 then
-  return -1
-endi
-if $data36 != 1 then
-  return -1
-endi
-if $data37 != binary9 then
-  return -1
-endi
-if $data38 != 涛思nchar9 then
-  return -1
-endi
-if $data39 != slm_tb9 then
-  return -1
-endi
 
-sql select count(ts) from $stb group by t1,t2,t3,t4,t5,t6 order by t1 desc
+sql select count(ts) from $stb partition by t1,t2,t3,t4,t5,t6 order by t1 desc
 if $rows != $tbNum then
   return -1
 endi
-$res = $rowNum + 1
-if $data00 != $res then
-  return -1
-endi
-if $data90 != $res then 
-  return -1
-endi
-if $data01 != slm_tb9 then
-  return -1
-endi
-if $data12 != 8 then
-  return -1
-endi
-if $data23 != 7 then
-  return -1
-endi
-if $data34 != 涛思slm_tb6 then
-  return -1
-endi
-if $data45 != 5.000000000 then
-  return -1
-endi
-if $data56 != 1 then
-  return -1
-endi
-$res = $rowNum + 1
-if $data60 != $res then
-  return -1
-endi
-if $data71 != slm_tb2 then
-  return -1
-endi
 
-sql select count(c1) from $stb group by t1,t2,t3,t4,t5,t6 order by t1 desc
+sql select count(c1) from $stb partition by t1,t2,t3,t4,t5,t6 order by t1 desc
 if $rows != 10 then
-  return -1
-endi
-if $data00 != $rowNum then
-  return -1
-endi
-if $data90 != $rowNum then 
-  return -1
-endi
-if $data01 != slm_tb9 then
-  return -1
-endi
-if $data12 != 8 then
-  return -1
-endi
-if $data23 != 7 then
-  return -1
-endi
-if $data34 != 涛思slm_tb6 then
-  return -1
-endi
-if $data45 != 5.000000000 then
-  return -1
-endi
-if $data56 != 1 then
-  return -1
-endi
-if $data60 != $rowNum then
-  return -1
-endi
-if $data71 != slm_tb2 then
   return -1
 endi
 
 ## [TBASE-604]
-#sql_error select count(tbname) from slm_stb0 group by t1
+#sql_error select count(tbname) from slm_stb0 partition by t1
 #sql show databases
 
 ## [TBASE-605]
-sql_error select * from slm_stb0 where t2 >= 2 and t3 <= 9 group by tbname slimit 40 limit 1;
-
+sql select * from slm_stb0 where t2 >= 2 and t3 <= 9 partition by tbname slimit 40 limit 1;
 
 ##################################################
 # slm_db1 is a database that contains the exactly the same
@@ -482,6 +141,7 @@ $db = $dbPrefix . 1
 sql use $db
 
 ###
+sql reset query cache
 sql select count(*) from $stb
 if $rows != 1 then
   return -1
@@ -491,45 +151,42 @@ if $data00 != $totalNum then
 endi
 
 sql select count(c1) from $stb
-if $rows != 0 then
+print $data00
+if $data00 != 0 then
   return -1
 endi
 
-sql select count(ts) from $stb group by t1,t2,t3,t4,t5,t6 order by t1 asc
+sql select t1,t2,t3,t4,t5,t6,count(ts) from $stb partition by t1,t2,t3,t4,t5,t6 
 if $rows != $tbNum then
   return -1
 endi
-if $data00 != $rowNum then
+
+if $data(slm_tb1)[6] != $rowNum then
   return -1
 endi
-if $data90 != $rowNum then 
+if $data(slm_tb2)[6] != $rowNum then 
   return -1
 endi
-if $data01 != slm_tb0 then
+if $data(slm_tb3)[0] != slm_tb3 then
   return -1
 endi
-if $data12 != 1 then
+if $data(slm_tb4)[1] != 4 then
   return -1
 endi
-if $data23 != 2 then
+if $data(slm_tb5)[2] != 5 then
   return -1
 endi
-if $data34 != 涛思slm_tb3 then
+if $data(slm_tb6)[3] != 涛思slm_tb6 then
   return -1
 endi
-if $data45 != 4.000000000 then
+if $data(slm_tb7)[4] != 7.000000000 then
   return -1
 endi
-if $data56 != 1 then
+if $data(slm_tb8)[5] != 1 then
   return -1
 endi
-if $data60 != $rowNum then
-  return -1
-endi
-if $data71 != slm_tb7 then
-  return -1
-endi
-sql select count(ts) from $stb group by t1,t2,t3,t4,t5,t6 order by t1 desc
+
+sql select count(ts),t1,t2,t3,t4,t5,t6  from $stb partition by t1,t2,t3,t4,t5,t6 order by t1 desc
 if $rows != $tbNum then
   return -1
 endi
@@ -564,8 +221,8 @@ if $data71 != slm_tb2 then
   return -1
 endi
 
-sql select count(c1) from $stb group by t1,t2,t3,t4,t5,t6 order by t1 desc
-if $rows != 0 then
+sql select count(c1) from $stb partition by t1,t2,t3,t4,t5,t6 order by t1 desc
+if $rows != 10 then
   return -1
 endi
 

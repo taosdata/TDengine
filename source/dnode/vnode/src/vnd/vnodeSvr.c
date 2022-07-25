@@ -112,8 +112,8 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       tEncodeSize(tEncodeDeleteRes, &res, size, ret);
       pCont = rpcMallocCont(size + sizeof(SMsgHead));
 
-      ((SMsgHead *)pCont)->contLen = htonl(size + sizeof(SMsgHead));
-      ((SMsgHead *)pCont)->vgId = htonl(TD_VID(pVnode));
+      ((SMsgHead *)pCont)->contLen = size + sizeof(SMsgHead);
+      ((SMsgHead *)pCont)->vgId = TD_VID(pVnode);
 
       tEncoderInit(pCoder, pCont + sizeof(SMsgHead), size);
       tEncodeDeleteRes(pCoder, &res);
@@ -477,6 +477,11 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pR
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
 
+    if ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) < 0) {
+      rcode = -1;
+      goto _exit;
+    }
+    
     // validate hash
     sprintf(tbName, "%s.%s", pVnode->config.dbname, pCreateReq->name);
     if (vnodeValidateTableHash(pVnode, tbName) < 0) {
@@ -816,6 +821,13 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
       tDecoderInit(&decoder, pBlock->data, msgIter.schemaLen);
       if (tDecodeSVCreateTbReq(&decoder, &createTbReq) < 0) {
         pRsp->code = TSDB_CODE_INVALID_MSG;
+        tDecoderClear(&decoder);
+        taosArrayDestroy(createTbReq.ctb.tagName);
+        goto _exit;
+      }
+
+      if ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) < 0) {
+        pRsp->code = terrno;
         tDecoderClear(&decoder);
         taosArrayDestroy(createTbReq.ctb.tagName);
         goto _exit;

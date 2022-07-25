@@ -1857,10 +1857,6 @@ static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* ret
 SVersionRange getQueryVerRange(SVnode* pVnode, SQueryTableDataCond* pCond, int8_t level) {
   int64_t startVer = (pCond->startVersion == -1) ? 0 : pCond->startVersion;
 
-  if (VND_IS_RSMA(pVnode)) {
-    return (SVersionRange){.minVer = startVer, .maxVer = tdRSmaGetMaxSubmitVer(pVnode->pSma, level)};
-  }
-
   int64_t endVer = 0;
   if (pCond->endVersion ==
       -1) {  // user not specified end version, set current maximum version of vnode as the endVersion
