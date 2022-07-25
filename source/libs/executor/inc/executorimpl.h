@@ -392,6 +392,11 @@ typedef enum EStreamScanMode {
   STREAM_SCAN_FROM_DATAREADER_RANGE,
 } EStreamScanMode;
 
+enum {
+  PROJECT_RETRIEVE_CONTINUE = 0x1,
+  PROJECT_RETRIEVE_DONE = 0x2,
+};
+
 typedef struct SCatchSupporter {
   SHashObj*      pWindowHashTable;  // quick locate the window object for each window
   SDiskbasedBuf* pDataBuf;          // buffer based on blocked-wised disk file
