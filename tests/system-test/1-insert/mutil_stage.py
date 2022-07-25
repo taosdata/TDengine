@@ -185,7 +185,7 @@ class TDTestCase:
             self.del_old_datadir(filename=self.taos_cfg_path)
             tdDnodes.stop(1)
             self.cfg_str_list(filename=self.taos_cfg_path, update_list=cfg_case)
-            tdDnodes.start(1)
+            tdDnodes.starttaosd(1)
 
             tdSql.error(f"show databases")
 
