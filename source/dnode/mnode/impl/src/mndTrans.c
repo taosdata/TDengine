@@ -794,6 +794,7 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
 
     mError("trans:%d, can't execute since conflict with trans:%d, db1:%s db2:%s", pNew->id, pTrans->id, pTrans->dbname1,
            pTrans->dbname2);
+    conflict = true;
     sdbRelease(pMnode->pSdb, pTrans);
   }
 
