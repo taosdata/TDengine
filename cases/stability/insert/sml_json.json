@@ -8,7 +8,7 @@
     "password": "taosdata",
     "thread_count": THREADCOUNT,
     "create_table_thread_count": THREADCOUNT_CREATETABLE,
-    "result_file": "./insert_res.txt",
+    "result_file": "RESULTFILE",
     "confirm_parameter_prompt": "no",
     "insert_interval": 0,
     "interlace_rows": 50000,
@@ -17,15 +17,16 @@
     "databases": [{
         "dbinfo": {
             "name": "db",
-            "drop": "yes",
-	    "vgroups": VGROUPS
+            "drop": "DROPENABLE",
+            "vgroups": VGROUPS,
+            "replica": REPLICA
         },
         "super_tables": [{
             "name": "stb0",
-            "child_table_exists":"no",
+            "child_table_exists":"CHILDTABLEEXISTS",
             "childtable_count": CHILDTABLECOUNT,
             "childtable_prefix": "stb00_",
-	    "no_check_for_affected_rows": "yes",
+            "no_check_for_affected_rows": "yes",
             "auto_create_table": "no",
             "batch_create_tbl_num": 100,
             "data_source": "rand",
@@ -49,7 +50,7 @@
         },
         {
             "name": "stb1",
-            "child_table_exists":"no",
+            "child_table_exists":"CHILDTABLEEXISTS",
             "childtable_count": CHILDTABLECOUNT,
             "childtable_prefix": "stb02_",
             "auto_create_table": "no",
@@ -75,7 +76,7 @@
         },
         {
             "name": "stb2",
-            "child_table_exists":"no",
+            "child_table_exists":"CHILDTABLEEXISTS",
             "childtable_count": CHILDTABLECOUNT,
             "childtable_prefix": "stb03_",
             "auto_create_table": "no",
@@ -101,7 +102,7 @@
         },
         {
             "name": "stb3",
-            "child_table_exists":"no",
+            "child_table_exists":"CHILDTABLEEXISTS",
             "childtable_count": CHILDTABLECOUNT,
             "childtable_prefix": "stb04_",
             "auto_create_table": "no",
@@ -127,7 +128,7 @@
         },
         {
             "name": "stb4",
-            "child_table_exists":"no",
+            "child_table_exists":"CHILDTABLEEXISTS",
             "childtable_count": CHILDTABLECOUNT,
             "childtable_prefix": "stb05_",
             "auto_create_table": "no",
@@ -153,7 +154,7 @@
         },
         {
             "name": "stb5",
-            "child_table_exists":"no",
+            "child_table_exists":"CHILDTABLEEXISTS",
             "childtable_count": CHILDTABLECOUNT,
             "childtable_prefix": "stb06_",
             "auto_create_table": "no",
@@ -179,7 +180,7 @@
         },
         {
             "name": "stb7",
-            "child_table_exists":"no",
+            "child_table_exists":"CHILDTABLEEXISTS",
             "childtable_count": CHILDTABLECOUNT,
             "childtable_prefix": "stb07_",
             "auto_create_table": "no",
@@ -205,7 +206,7 @@
         },
         {
             "name": "stb8",
-            "child_table_exists":"no",
+            "child_table_exists":"CHILDTABLEEXISTS",
             "childtable_count": CHILDTABLECOUNT,
             "childtable_prefix": "stb08_",
             "auto_create_table": "no",
@@ -231,7 +232,7 @@
         },
         {
             "name": "stb9",
-            "child_table_exists":"no",
+            "child_table_exists":"CHILDTABLEEXISTS",
             "childtable_count": CHILDTABLECOUNT,
             "childtable_prefix": "stb09_",
             "auto_create_table": "no",
