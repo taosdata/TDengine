@@ -39,12 +39,12 @@ class TestTb(TDCase):
         backquote supported
         """
         self.tdCom.cleanTb()
-        tbname = '1' + self.tdCom.get_long_name(length=5, mode="letters")
+        tbname = '1' + self.tdCom.get_long_name(5)
         self.tdRest.request(f'create table if not exists {self.dbname}.`{tbname}` (ts timestamp, c1 int)')
         self.tdRest.request(f'show {self.dbname}.tables')
         self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], tbname)
         self.tdRest.request(f'drop table if exists {self.dbname}.`{tbname}`')
-        tbname = self.tdCom.get_long_name(length=3, mode="letters")
+        tbname = self.tdCom.get_long_name(3)
         symbol_list = self.tdCom.gen_symbol_list()
         symbol_list.remove('`')
         for insert_str in symbol_list:
@@ -63,9 +63,9 @@ class TestTb(TDCase):
         error occured when illegal tbname without backquote
         """
         self.tdCom.cleanTb()
-        tbname = '1' + self.tdCom.get_long_name(length=5, mode="letters")
+        tbname = '1' + self.tdCom.get_long_name(5)
         self.tdSql.error(f'create table if not exists {tbname} (ts timestamp, c1 int)')
-        tbname = self.tdCom.get_long_name(length=3, mode="letters")
+        tbname = self.tdCom.get_long_name(3)
         symbol_list = self.tdCom.gen_symbol_list()
         symbol_list.remove(' ')
         for insert_str in symbol_list:
@@ -97,10 +97,10 @@ class TestTb(TDCase):
         """
         mixed invalid symbol
         """
-        dbname = self.tdCom.get_long_name(length=5, mode="letters")
-        self.tdRest.request(f'create database if not exists {dbname}')
-        stbname = self.tdCom.get_long_name(length=3, mode="letters")
-        tbname = self.tdCom.get_long_name(length=2, mode="letters")
+        dbname = self.tdCom.get_long_name(5)
+        self.tdCom.createDb(dbname)
+        stbname = self.tdCom.get_long_name(3)
+        tbname = self.tdCom.get_long_name(2)
         self.tdRest.request(f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
                 c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c13 bool) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
                 t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t13 bool)')
@@ -125,26 +125,24 @@ class TestTb(TDCase):
         """
         tb comment check
         """
-        tbname = self.tdCom.get_long_name(length=10, mode="letters")
+        test_param = 'table_comment'
+        tbname = self.tdCom.get_long_name()
         comment = "stb_param_test"
-        self.tdRest.request(f'create table if not exists {tbname} (ts timestamp, c1 int) comment "{comment}"')
-        self.tdRest.request('show tables')
-        #TODO
-        print(self.tdRest.resp)
-        res = self.tdRest.get_rest_db_field(0, tbname,self.dbname)
-        self.tdSql.checkEqual(res["table_comment"], comment)
+        self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} (ts timestamp, c1 int) comment "{comment}"')
+        self.tdRest.request(f'show {self.dbname}.tables')
+        res = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,tbname)
+        self.tdSql.checkEqual(res, comment)
 
     def ttl_check(self):
         """
         check ttl
         """
-        tbname = self.tdCom.get_long_name(length=10, mode="letters")
+        tbname = self.tdCom.get_long_name()
         test_ttl = 2
-        self.tdRest.request(f'create table if not exists {tbname} (ts timestamp, c1 int) ttl {test_ttl}')
-        self.tdRest.request(f'show tables')
-        #TODO
-        res = self.tdSql.get_db_field_kv(0, tbname)
-        self.tdSql.checkEqual(int(res["ttl"]), test_ttl)
+        self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} (ts timestamp, c1 int) ttl {test_ttl}')
+        self.tdRest.request(f'show {self.dbname}.tables')
+        res = self.tdRest.get_rest_db_field(self.tdRest.resp,'ttl',tbname)
+        self.tdSql.checkEqual(res, test_ttl)
 
     def run(self):
         self.tbname_length_check()
@@ -152,8 +150,8 @@ class TestTb(TDCase):
         self.tbname_without_backquote()
         self.upper_lower_tbname_check()
         self.illegal_tbsql_check()
-        # self.comment_check()
-        # self.ttl_check()
+        self.comment_check()
+        self.ttl_check()
 
     def desc(self):
         case_description = """

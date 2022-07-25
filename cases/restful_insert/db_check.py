@@ -20,12 +20,13 @@ class TestDB(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest(env_setting=self.env_setting)
+        self.api_type = 'restful'
     def dbname_length_check(self):
         """
         max length: 64
         """
         dbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["DBNAME_MAX_LENGTH"], mode="letters")
-        self.tdRest.request(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdRest.request('show databases')
         res = self.tdRest.getOneRow(0, dbname)
         self.tdSql.checkEqual(res[0][0], dbname)
@@ -38,12 +39,13 @@ class TestDB(TDCase):
         """
         backquote check
         """
-        dbname = '1' + self.tdCom.get_long_name(length=10)
-        self.tdRest.request(f'create database if not exists `{dbname}`')
+        dbname = '1' + self.tdCom.get_long_name() 
+        
+        self.tdCom.createDb(f'`{dbname}`')
         self.tdRest.request('show databases')
         res = self.tdRest.getOneRow(0, dbname)
         self.tdSql.checkEqual(res[0][0], dbname)
-        dbname = self.tdCom.get_long_name(length=3, mode="letters")
+        dbname = self.tdCom.get_long_name(3)
         symbol_list = self.tdCom.gen_symbol_list()
         symbol_list.remove('`')
         symbol_list.remove('\\')
@@ -53,7 +55,7 @@ class TestDB(TDCase):
                 d_list_new = copy.deepcopy(d_list)
                 d_list_new.insert(i, insert_str)
                 dbname_new = ''.join(d_list_new)
-                self.tdRest.request(f'create database if not exists `{dbname_new}`')
+                self.tdCom.createDb(f'`{dbname_new}`')
                 self.tdRest.request('show databases')
                 res = self.tdRest.getOneRow(0, dbname_new)
                 self.tdSql.checkEqual(res[0][0], dbname_new)
@@ -64,7 +66,7 @@ class TestDB(TDCase):
         case insensitive
         """
         for dbname in [self.tdCom.get_long_name(length=10, mode="letters_mixed"), self.tdCom.get_long_name(length=5, mode="letters_mixed").upper()]:
-            self.tdRest.request(f'create database if not exists {dbname}')
+            self.tdCom.createDb(dbname)
             self.tdRest.request('show databases')
             res = self.tdRest.getOneRow(0, dbname.lower())
             self.tdSql.checkEqual(res[0][0], dbname.lower())
@@ -76,7 +78,7 @@ class TestDB(TDCase):
         mixed space
         """
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdRest.request(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdRest.error(f'create database {dbname}')
         self.tdRest.error(f'create data base if not exists {dbname}')
         self.tdRest.error(f'create database i f not exists {dbname}')

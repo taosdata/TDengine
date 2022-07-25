@@ -18,13 +18,14 @@ class TestBool(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest(env_setting=self.env_setting)
+        self.api_type = 'restful'
     def bool_check(self):
         """
         True: true/TrUe.... != 0
         False: false/FalSe... = 0
         """
         dbname = self.tdCom.get_long_name()
-        self.tdRest.request(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 bool) tags (t1 bool)')
         self.tdRest.request(f'create table if not exists {dbname}.t1 (col_ts timestamp, c1 bool)')
         self.tdRest.request(f'create table if not exists {dbname}.t2 (col_ts timestamp, c1 bool)')

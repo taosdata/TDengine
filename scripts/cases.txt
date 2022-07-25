@@ -118,7 +118,7 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeri
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_spread.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_sin_cos_tan.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_sqrt.py --keep --containers
-taostest --use=common_insert.yaml --case=taosc_insert/multi_process_run.py --keep --containers
+#taostest --use=common_insert.yaml --case=taosc_insert/multi_process_run.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_apercentile.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_pow_log.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_percentile.py --keep --containers

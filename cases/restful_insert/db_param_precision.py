@@ -31,6 +31,7 @@ class TestComp(TDCase):
                 self.fqdn = self.taosd_setting["fqdn"][0]
                 self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
         self.tdRest = TDRest(env_setting=self.env_setting)
+        self.api_type = 'restful'
     def precision_check(self):
         """
         precision check
@@ -38,7 +39,7 @@ class TestComp(TDCase):
         test_param = self.cfg["create_name"]
         precision_data = ''
         dbname = self.tdCom.get_long_name()
-        self.tdRest.request(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdRest.request('show databases')
         db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         # default
@@ -57,8 +58,8 @@ class TestComp(TDCase):
         # boundary
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
-            self.tdRest.request(
-                f'create database if not exists {dbname} {test_param} "{param_value}"')
+            kv_dict = {test_param: param_value}
+            self.tdCom.createDb(dbname, **kv_dict)
             self.tdRest.request('show databases')
             db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
             self.tdSql.checkEqual(db_field, param_value)
@@ -84,7 +85,7 @@ class TestComp(TDCase):
     def check_presicion_data(self):
         dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'drop database if exists {dbname}')
-        self.tdRest.request(f'create database if not exists {dbname} ')
+        self.tdCom.createDb(dbname)
         ms_ts, ms_dt = self.tdCom.genTs("ms",None,'restful')
         self.tdRest.request(f'create table {dbname}.ntb (ts timestamp, c0 int)')
         self.tdRest.request(f'insert into {dbname}.ntb values({ms_ts}, 1)')
@@ -99,8 +100,8 @@ class TestComp(TDCase):
 
         dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'drop database if exists {dbname}')
-        self.tdRest.request(
-            f'create database if not exists {dbname} precision "us"')
+        kv_dict = {"precision": "us"}
+        self.tdCom.createDb(dbname, **kv_dict)
         self.tdRest.request(f'use {dbname}')
         us_ts, us_dt = self.tdCom.genTs("us",None,'restful')
         self.tdRest.request(f'create table {dbname}.ntb (ts timestamp,c0 int)')
@@ -114,8 +115,8 @@ class TestComp(TDCase):
         self.tdRest.error(f'insert into {dbname}.ntb values({self.tdCom.genTs("ns")[0]}, 1)')
         dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'drop database if exists {dbname}')
-        self.tdRest.request(
-            f'create database if not exists {dbname} precision "ns"')
+        kv_dict = {"precision": "ns"}
+        self.tdCom.createDb(dbname, **kv_dict)
         ns_ts, ns_dt = self.tdCom.genTs("ns",None,'restful')
         self.tdRest.request(f'create table {dbname}.ntb (ts timestamp, c0 int)')
         self.tdRest.request(f'insert into {dbname}.ntb values({ns_ts}, 1)')

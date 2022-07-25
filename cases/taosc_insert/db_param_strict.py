@@ -18,7 +18,6 @@ class TestStrict(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.cfg = self.tdCom.Boundary.DB_PARAM_STRICT_CONFIG
-        self.tdRest = TDRest(env_setting=self.env_setting)
     def strict_check(self):
         """
         strict check

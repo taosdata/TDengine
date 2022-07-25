@@ -23,14 +23,14 @@ class TestStrBoundary(TDCase):
             "nchar": self.tdCom.Boundary.NCHAR_MAX_LENGTH,
         }
         self.tdRest = TDRest(env_setting=self.env_setting)
-
+        self.api_type = 'restful'
     def str_type_boundary_check(self):
         """
         binary/varchar/nchar
         """
         for data_type, data_value in self.boundary_dict.items():
             dbname = self.tdCom.get_long_name()
-            self.tdRest.request(f'create database if not exists {dbname}')
+            self.tdCom.createDb(dbname)
             max_length = self.tdCom.get_long_name(length=data_value)
             exceed_length = self.tdCom.get_long_name(length=data_value+1)
             self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 {data_type}({data_value})) tags (t1 {data_type}({data_value}))')

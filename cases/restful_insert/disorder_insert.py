@@ -20,12 +20,13 @@ class TestDisorderInsert(TDCase):
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest(env_setting=self.env_setting)
         self.row_num = 100
+        self.api_type = 'restful'
     def stb_disorder_insert(self):
         """
         stb_disorder_insert
         """
-        dbname = self.tdCom.get_long_name(length=5, mode="letters")
-        self.tdRest.request(f'create database if not exists {dbname} precision "ms"')
+        dbname = self.tdCom.get_long_name(5)
+        self.tdCom.createDb(dbname)
         self.tdRest.request(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         self.tdRest.request(f'create table {dbname}.tb using {dbname}.stb TAGS(1, 1)')
         timestamp = self.tdCom.genTs("ms")[0]
@@ -44,8 +45,8 @@ class TestDisorderInsert(TDCase):
         """
         tb_disorder_insert
         """
-        dbname = self.tdCom.get_long_name(length=5, mode="letters")
-        self.tdRest.request(f'create database if not exists {dbname} precision "ms"')
+        dbname = self.tdCom.get_long_name(5)
+        self.tdCom.createDb(dbname)
         self.tdRest.request(f'create table {dbname}.tb (ts timestamp, c11 int, c12 float )')
         timestamp = self.tdCom.genTs("ms")[0]
         ts_list = list()

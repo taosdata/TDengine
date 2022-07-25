@@ -31,13 +31,14 @@ class TestKeep(TDCase):
                 self.taosd_setting = env_setting
                 self.fqdn = self.taosd_setting["fqdn"][0]
                 self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
+        self.api_type = 'restful'
     def keep_check(self):
         """
         keep check
         """
         test_param = self.cfg["create_name"]
         dbname = self.tdCom.get_long_name()
-        self.tdRest.request(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdRest.request('show databases')
         db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         # default
@@ -50,9 +51,9 @@ class TestKeep(TDCase):
         # boundary
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
-            self.tdRest.request(f'create database if not exists {dbname} duration {self.common_days_value} {test_param} {param_value}')
+            kv_dict = {"duration": self.common_days_value, test_param: param_value}
+            self.tdCom.createDb(dbname, **kv_dict)
             self.tdRest.request('show databases')
-            
             db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
             if param_value==1 or param_value ==365000:
                 self.tdSql.checkEqual(db_field, f'{param_value*24*60}m,{param_value*24*60}m,{param_value*24*60}m')
@@ -66,7 +67,6 @@ class TestKeep(TDCase):
                 param = int(re.sub('\D','', param_value))
                 self.tdSql.checkEqual(db_field, f'{param*60}m,{param*60}m,{param*60}m')
             self.tdRest.request(f'show {dbname}.vgroups')
-
             db_vnode_kv_dict = self.tdRest.getOneRow(1,dbname)
             data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
             self.tdSql.checkEqual(db_field, f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
@@ -81,7 +81,8 @@ class TestKeep(TDCase):
         
         # keep2 >= keep1 >= keep0 >= days (default = 14400)
         # keep2 >= keep1 >= keep0 >= days
-        self.tdRest.request(f'create database if not exists {dbname} {test_param} 36500,36501,36502')
+        kv_dict = {test_param: "36500,36501,36502"}
+        self.tdCom.createDb(dbname, **kv_dict)
         self.tdRest.request('show databases')
         #TODO
         db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
@@ -93,7 +94,8 @@ class TestKeep(TDCase):
         self.tdRest.request(f'drop database {dbname}')
         # keep2(default) > keep1 >= keep0 >= days
         dbname = self.tdCom.get_long_name()
-        self.tdRest.request(f'create database if not exists {dbname} {test_param} 36500,36501')
+        kv_dict = {test_param: "36500,36501"}
+        self.tdCom.createDb(dbname, **kv_dict)
         self.tdRest.request('show databases')
         db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         self.tdSql.checkEqual(db_field, "52560000m,52561440m,52561440m")
@@ -104,7 +106,8 @@ class TestKeep(TDCase):
         self.tdRest.request(f'drop database {dbname}')
         # keep2 = keep1 = keep0 = days
         dbname = self.tdCom.get_long_name()
-        self.tdRest.request(f'create database if not exists {dbname} duration 10 {test_param} 10,10,10')
+        kv_dict = {"duration": 10, test_param: "10,10,10"}
+        self.tdCom.createDb(dbname, **kv_dict)
         self.tdRest.request('show databases')
         #TODO
         db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
@@ -134,7 +137,8 @@ class TestKeep(TDCase):
         dbname = self.tdCom.get_long_name()
         ntbname = self.tdCom.get_long_name()
         self.tdRest.request(f"drop database if exists {dbname} ")
-        self.tdRest.request(f"create database if not exists {dbname} duration 1d keep 10d,15d,20d")
+        kv_dict = {"duration": "1d", "keep": "10d,10d,10d"}
+        self.tdCom.createDb(dbname, **kv_dict)
         self.tdRest.request(f"create table {dbname}.{ntbname} (ts timestamp, c0 int)")
         self.tdRest.request(f"insert into {dbname}.{ntbname} values(now, 1)")
         self.tdRest.request(f"select * from {dbname}.{ntbname}")
@@ -147,7 +151,8 @@ class TestKeep(TDCase):
         dbname = self.tdCom.get_long_name()
         ntbname = self.tdCom.get_long_name()
         self.tdRest.request(f"drop database if exists {dbname}")
-        self.tdRest.request(f"create database if not exists {dbname} keep 36500d")
+        kv_dict = {"keep": "36500d"}
+        self.tdCom.createDb(dbname, **kv_dict)
         self.tdRest.request(f"create table {dbname}.{ntbname} (ts timestamp, c0 int)")
         self.tdRest.request(f"insert into {dbname}.{ntbname} values(0, 1)")
         self.tdRest.request(f"select * from {dbname}.{ntbname}")
