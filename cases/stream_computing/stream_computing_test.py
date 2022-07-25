@@ -324,6 +324,7 @@ class StreamComputingTest(TDCase):
                 if self.delete and i%2 != 0:
                     dt = f'cast({ts_value-num*self.offset} as timestamp)'
                     self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=dt)
+                    self.tdCom.delete_rows(tbname=self.tb_name, start_ts=dt)
 
                 for tbname in [self.stb_stream_des_table, self.ctb_stream_des_table, self.tb_stream_des_table]:
                     if tbname != self.tb_stream_des_table:
@@ -419,16 +420,117 @@ class StreamComputingTest(TDCase):
             for ts_value in [self.date_time, window_close_ts]:
                 self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
                 self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
-                # if self.update and i%2 == 0:
-                #     self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
-                #     self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
-            
+                if self.update and i%2 == 0:
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
+                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
+                if self.delete and i%2 != 0:
+                    dt = f'cast({self.date_time-1} as timestamp)'
+                    self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=dt)
+                    self.tdCom.delete_rows(tbname=self.tb_name, start_ts=dt)
             for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
                 if tbname != self.tb_name:
                     self.tdCom.check_stream(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.stb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s) limit {i+1}', i+1)
                 else:
                     self.tdCom.check_stream(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s) limit {i+1}', i+1)
 
+    def window_close_state_window(self, state_window):
+        self.case_name = sys._getframe().f_code.co_name
+        self.prepare_data(state_window=state_window)
+        state_window_col_name = self.dataDict["state_window"]
+        self.tdCom.write_latency(self.case_name)
+        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.stb_name} state_window({state_window_col_name})', trigger_mode="window_close")
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.ctb_name} state_window({state_window_col_name})', trigger_mode="window_close")
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS start, {self.tb_source_select_str}  from {self.tb_name} state_window({state_window_col_name})', trigger_mode="window_close")
+        state_window_max = self.dataDict['state_window_max']
+        for i in range(self.range_count):
+            state_window_value = random.randint(int((i)*state_window_max/self.range_count), int((i+1)*state_window_max/self.range_count))
+            for j in range(2, self.range_count+3):
+                self.tdSql.execute(f'insert into {self.ctb_name} (ts, {state_window_col_name}) values ({self.date_time}, {state_window_value})')
+                self.tdSql.execute(f'insert into {self.tb_name} (ts, {state_window_col_name}) values ({self.date_time}, {state_window_value})')
+                if self.update and i%2 == 0:
+                    self.tdSql.execute(f'insert into {self.ctb_name} (ts, {state_window_col_name}) values ({self.date_time}, {state_window_value})')
+                    self.tdSql.execute(f'insert into {self.tb_name} (ts, {state_window_col_name}) values ({self.date_time}, {state_window_value})')
+                if self.delete and i%2 != 0:
+                    dt = f'cast({self.date_time-1} as timestamp)'
+                    self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=dt)
+                    self.tdCom.delete_rows(tbname=self.tb_name, start_ts=dt)
+                self.date_time += 1
+            for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+                if tbname != self.tb_name:
+                    self.tdCom.check_stream(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.stb_source_select_str}  from {tbname} state_window({state_window_col_name}) limit {i}', i)
+                else:
+                    self.tdCom.check_stream(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} state_window({state_window_col_name}) limit {i}', i)
+
+    def watermark_max_delay_interval(self, interval, max_delay, watermark=None):
+        self.case_name = sys._getframe().f_code.co_name
+        if watermark is not None:
+            self.case_name = "watermark" + sys._getframe().f_code.co_name
+        self.prepare_data(interval=interval, watermark=watermark)
+        self.tdCom.write_latency(self.case_name)
+
+        if watermark is not None:
+            watermark_value = f'{self.dataDict["watermark"]}s'
+        else:
+            watermark_value = None
+        max_delay_value = f'{self.tdCom.trans_time_to_s(max_delay)}s'
+        # create stb/ctb/tb stream
+        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.stb_name} interval({self.dataDict["interval"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value)
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.ctb_name} interval({self.dataDict["interval"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value)
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS start, {self.tb_source_select_str}  from {self.tb_name} interval({self.dataDict["interval"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value)
+        init_num = 0
+        for i in range(self.range_count):
+            if i == 0:
+                if watermark is not None:
+                    window_close_ts = self.cal_watermark_window_close_interval_endts(self.date_time, self.dataDict['interval'], self.dataDict['watermark'])
+                else:
+                    window_close_ts = self.cal_watermark_window_close_interval_endts(self.date_time, self.dataDict['interval'])
+            else:
+                self.date_time = window_close_ts + self.offset
+                window_close_ts += self.dataDict['interval']*self.offset
+            for num in range(int(window_close_ts/self.offset-self.date_time/self.offset)):
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.date_time+num*self.offset)
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=self.date_time+num*self.offset)
+                if self.update and i%2 == 0:
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.date_time+num*self.offset)
+                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=self.date_time+num*self.offset)
+                for tbname in [self.stb_stream_des_table, self.ctb_stream_des_table, self.tb_stream_des_table]:
+                    if tbname != self.tb_stream_des_table:
+                        self.tdSql.query(f'select start, {self.stb_output_select_str} from {tbname}')
+                    else:
+                        self.tdSql.query(f'select start, {self.tb_output_select_str} from {tbname}')
+                    self.tdSql.checkEqual(self.tdSql.query_row, init_num)
+            
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts-1)
+            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts-1)
+            if self.update and i%2 == 0:
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts-1)
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts-1)
+
+            for tbname in [self.stb_stream_des_table, self.ctb_stream_des_table, self.tb_stream_des_table]:
+                if tbname != self.tb_stream_des_table:
+                    self.tdSql.query(f'select start, {self.stb_output_select_str} from {tbname}')
+                else:
+                    self.tdSql.query(f'select start, {self.tb_output_select_str} from {tbname}')
+                self.tdSql.checkEqual(self.tdSql.query_row, init_num)
+
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts)
+            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts)
+            if self.update and i%2 == 0:
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts)
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts)
+
+            if i == 0:
+                init_num = 2 + i
+                if watermark is not None:
+                    init_num += 1
+            else:
+                init_num += 1
+            
+            for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+                if tbname != self.tb_name:
+                    self.tdCom.check_stream(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.stb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)', init_num, max_delay)
+                else:
+                    self.tdCom.check_stream(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)', init_num, max_delay)
 
 
 
@@ -934,23 +1036,7 @@ class StreamComputingTest(TDCase):
             for colname in self.partition_by_downsampling_function_list:
                 self.tdCom.check_query_data(f'select `{colname}` from {self.stb_name}{self.des_table_suffix} order by `{colname}`;', f'select {colname}  from {self.stb_name} partition by tbname interval({self.dataDict["interval"]}s) order by `{colname}`;')
 
-    def window_close_state_window_order(self, state_window, interation, vgroups=1):
-        self.case_name = sys._getframe().f_code.co_name
-        self.prepare_data(interation=interation, state_window=state_window, vgroups=vgroups)
-        state_window_col_name = self.dataDict["state_window"]
-        self.tdCom.write_latency(self.case_name)
-        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.stb_name} state_window({state_window_col_name})', trigger_mode="window_close")
-        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.ctb_name} state_window({state_window_col_name})', trigger_mode="window_close")
-        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS start, {self.tb_source_select_str}  from {self.tb_name} state_window({state_window_col_name})', trigger_mode="window_close")
-        range_times = self.dataDict['iteration']
-        state_window_max = self.dataDict['state_window_max']
-        for i in range(range_times):
-            state_window_value = random.randint(int((i)*state_window_max/range_times), int((i+1)*state_window_max/range_times))
-            for i in range(2, range_times+3):
-                self.tdSql.execute(f'insert into {self.ctb_name} (ts, {state_window_col_name}) values ({self.date_time}, {state_window_value})')
-                self.tdSql.execute(f'insert into {self.tb_name} (ts, {state_window_col_name}) values ({self.date_time}, {state_window_value})')
-                self.date_time += 1
-                # ! TD-16806
+    
 
     def max_delay_state_window_order(self, state_window, interation, vgroups=1):
         self.case_name = sys._getframe().f_code.co_name
@@ -962,65 +1048,7 @@ class StreamComputingTest(TDCase):
     
 
 
-    def max_delay_interval_order(self, interval, interation, max_delay, watermark=None, precision=None, vgroups=1):
-        self.case_name = sys._getframe().f_code.co_name
-        if watermark is not None:
-            self.case_name = "watermark" + sys._getframe().f_code.co_name
-        self.prepare_data(interval=interval, watermark=watermark, interation=interation, precision=precision, vgroups=vgroups)
-        self.tdCom.write_latency(self.case_name)
-
-        if watermark is not None:
-            watermark_value = f'{self.dataDict["watermark"]}s'
-        else:
-            watermark_value = None
-        max_delay_value = f'{self.tdCom.trans_time_to_s(max_delay)}s'
-        # create stb/ctb/tb stream
-        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.stb_name} interval({self.dataDict["interval"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value)
-        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS start, {self.stb_source_select_str}  from {self.ctb_name} interval({self.dataDict["interval"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value)
-        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS start, {self.tb_source_select_str}  from {self.tb_name} interval({self.dataDict["interval"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value)
-        init_num = 0
-        for i in range(self.dataDict['iteration']):
-            if i == 0:
-                if watermark is not None:
-                    window_close_ts = self.cal_watermark_window_close_interval_endts(self.date_time, self.dataDict['interval'], self.dataDict['watermark'])
-                else:
-                    window_close_ts = self.cal_watermark_window_close_interval_endts(self.date_time, self.dataDict['interval'])
-            else:
-                self.date_time = window_close_ts + self.offset
-                window_close_ts += self.dataDict['interval']*self.offset
-            for num in range(int(window_close_ts/self.offset-self.date_time/self.offset)):
-                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.date_time+num*self.offset)
-                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=self.date_time+num*self.offset)
-                for tbname in [self.stb_stream_des_table, self.ctb_stream_des_table, self.tb_stream_des_table]:
-                    if tbname != self.tb_stream_des_table:
-                        self.tdSql.query(f'select start, {self.stb_output_select_str} from {tbname}')
-                    else:
-                        self.tdSql.query(f'select start, {self.tb_output_select_str} from {tbname}')
-                    self.tdSql.checkEqual(self.tdSql.query_row, init_num)
-            
-            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts-1)
-            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts-1)
-            for tbname in [self.stb_stream_des_table, self.ctb_stream_des_table, self.tb_stream_des_table]:
-                if tbname != self.tb_stream_des_table:
-                    self.tdSql.query(f'select start, {self.stb_output_select_str} from {tbname}')
-                else:
-                    self.tdSql.query(f'select start, {self.tb_output_select_str} from {tbname}')
-                self.tdSql.checkEqual(self.tdSql.query_row, init_num)
-
-            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts)
-            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts)
-            if i == 0:
-                init_num = 2 + i
-                if watermark is not None:
-                    init_num += 1
-            else:
-                init_num += 1
-            
-            for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
-                if tbname != self.tb_name:
-                    self.tdCom.check_stream(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.stb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)', init_num, max_delay)
-                else:
-                    self.tdCom.check_stream(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)', init_num, max_delay)
+    
 
     
 
@@ -1157,6 +1185,8 @@ class StreamComputingTest(TDCase):
 
     def run(self):
         # ! TD-16915
+        self.range_count = 20
+
         # self.data_filter()
         # self.at_once_interval(interval=random.randint(10, 15))
         # # self.alter_source_table(interval=random.randint(10, 15))
@@ -1164,7 +1194,10 @@ class StreamComputingTest(TDCase):
         # self.at_once_session(session=random.randint(10, 15))
         # self.window_close_interval(interval=random.randint(10, 15), watermark=None)
         # self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20))
-        self.window_close_session(session=random.randint(10, 15))
+        # self.window_close_session(session=random.randint(10, 15))
+        # self.window_close_state_window(state_window="c1")
+        # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s")
+        self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), max_delay=f"{random.randint(1, 3)}s")
         # self.watermark_window_close_session_order(session=random.randint(10, 15), watermark=random.randint(20, 30), interation=self.interation)
         # self.downsampling()
         # self.state_window_function()
@@ -1178,11 +1211,8 @@ class StreamComputingTest(TDCase):
         # TODO unfinished
         # self.udf_interval_order(interval=10)
         # self.partitionby_interval_order(interval=10)
-        # self.window_close_state_window_order(state_window="c1", interation=self.interation)
         
 
-        # self.max_delay_interval_order(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s", interation=self.interation, vgroups=10)
-        # self.max_delay_interval_order(interval=10, watermark=17, max_delay=f"2s", interation=10)
         # self.max_delay_session_order(session=random.randint(10, 15), max_delay=f"2s", interation=self.interation)
         # self.watermark_max_delay_session_order(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s", interation=self.interation)
         # self.data_filter()
