@@ -150,6 +150,8 @@ class TDTestCase:
         tdDnodes[1].deploy()
 
         tdDnodes[1].starttaosd()
+        clusterComCheck.checkDnodes(dnodeNumbers)
+
         tdSql.execute("create mnode on dnode 6")
         tdSql.error("drop dnode 1;")
 
