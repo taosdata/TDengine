@@ -3,38 +3,29 @@ sidebar_label: 超级表管理
 title: 超级表 STable 管理
 ---
 
-:::note
-
-在 2.0.15.0 及以后的版本中开始支持 STABLE 保留字。也即，在本节后文的指令说明中，CREATE、DROP、ALTER 三个指令在 2.0.15.0 之前的版本中 STABLE 保留字需写作 TABLE。
-
-:::
-
 ## 创建超级表
 
-```
-CREATE STABLE [IF NOT EXISTS] stb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]) TAGS (tag1_name tag_type1, tag2_name tag_type2 [, tag3_name tag_type3]);
-```
-
-创建 STable，与创建表的 SQL 语法相似，但需要指定 TAGS 字段的名称和类型。
-
-:::info
-
-1. TAGS 列的数据类型不能是 timestamp 类型；（从 2.1.3.0 版本开始，TAGS 列中支持使用 timestamp 类型，但需注意在 TAGS 中的 timestamp 列写入数据时需要提供给定值，而暂不支持四则运算，例如 `NOW + 10s` 这类表达式）
-2. TAGS 列名不能与其他列名相同；
-3. TAGS 列名不能为预留关键字（参见：[参数限制与保留关键字](/taos-sql/keywords/) 章节）；
-4. TAGS 最多允许 128 个，至少 1 个，总长度不超过 16 KB。
-
-:::
-
-## 删除超级表
-
-```
-DROP STABLE [IF EXISTS] stb_name;
+```sql
+CREATE STABLE [IF NOT EXISTS] stb_name (create_definition [, create_definitionn] ...) TAGS (create_definition [, create_definition] ...) [table_options]
+ 
+create_definition:
+    col_name column_definition
+ 
+column_definition:
+    type_name [COMMENT 'string_value']
 ```
 
-删除 STable 会自动删除通过 STable 创建的子表。
+**使用说明**
+- 超级表中列的最大个数为 4096，需要注意，这里的 4096 是包含 TAG 列在内的，最小个数为 3，包含一个时间戳主键、一个 TAG 列和一个数据列。
+- 建表时可以给列或标签附加注释。
+- TAGS语法指定超级表的标签列，标签列需要遵循以下约定：
+    - TAGS 中的 TIMESTAMP 列写入数据时需要提供给定值，而暂不支持四则运算，例如 NOW + 10s 这类表达式。
+    - TAGS 列名不能与其他列名相同。
+    - TAGS 列名不能为预留关键字。
+    - TAGS 最多允许 128 个，至少 1 个，总长度不超过 16 KB。
+- 关于表参数的详细说明，参见 CREATE TABLE 中的介绍。
 
-## 显示当前数据库下的所有超级表信息
+### 显示当前数据库下的所有超级表信息
 
 ```
 SHOW STABLES [LIKE tb_name_wildcard];
@@ -42,7 +33,7 @@ SHOW STABLES [LIKE tb_name_wildcard];
 
 查看数据库内全部 STable，及其相关信息，包括 STable 的名称、创建时间、列数量、标签（TAG）数量、通过该 STable 建表的数量。
 
-## 显示一个超级表的创建语句
+### 显示一个超级表的创建语句
 
 ```
 SHOW CREATE STABLE stb_name;
@@ -50,40 +41,81 @@ SHOW CREATE STABLE stb_name;
 
 常用于数据库迁移。对一个已经存在的超级表，返回其创建语句；在另一个集群中执行该语句，就能得到一个结构完全相同的超级表。
 
-## 获取超级表的结构信息
+### 获取超级表的结构信息
 
 ```
 DESCRIBE stb_name;
 ```
 
-## 修改超级表普通列
-
-### 超级表增加列
+## 删除超级表
 
 ```
-ALTER STABLE stb_name ADD COLUMN field_name data_type;
+DROP STABLE [IF EXISTS] [db_name.]stb_name
 ```
 
-### 超级表删除列
+删除 STable 会自动删除通过 STable 创建的子表以及子表中的所有数据。
+
+## 修改超级表
+
+```sql
+ALTER STABLE [db_name.]tb_name alter_table_clause
+ 
+alter_table_clause: {
+    alter_table_options
+  | ADD COLUMN col_name column_type
+  | DROP COLUMN col_name
+  | MODIFY COLUMN col_name column_type
+  | ADD TAG tag_name tag_type
+  | DROP TAG tag_name
+  | MODIFY TAG tag_name tag_type
+  | RENAME TAG old_tag_name new_tag_name
+}
+ 
+alter_table_options:
+    alter_table_option ...
+ 
+alter_table_option: {
+    COMMENT 'string_value'
+}
 
 ```
-ALTER STABLE stb_name DROP COLUMN field_name;
+
+**使用说明**
+
+修改超级表的结构会对其下的所有子表生效。无法针对某个特定子表修改表结构。标签结构的修改需要对超级表下发，TDengine 会自动作用于此超级表的所有子表。
+
+- ADD COLUMN：添加列。
+- DROP COLUMN：删除列。
+- MODIFY COLUMN：修改列定义，如果数据列的类型是可变长类型，那么可以使用此指令修改其宽度，只能改大，不能改小。
+- ADD TAG：给超级表添加一个标签。
+- DROP TAG：删除超级表的一个标签。从超级表删除某个标签后，该超级表下的所有子表也会自动删除该标签。
+- MODIFY TAG：修改超级表的一个标签的定义。如果标签的类型是可变长类型，那么可以使用此指令修改其宽度，只能改大，不能改小。
+- RENAME TAG：修改超级表的一个标签的名称。从超级表修改某个标签名后，该超级表下的所有子表也会自动更新该标签名。
+
+### 增加列
+
+```
+ALTER STABLE stb_name ADD COLUMN col_name column_type;
 ```
 
-### 超级表修改列宽
+### 删除列
 
 ```
-ALTER STABLE stb_name MODIFY COLUMN field_name data_type(length);
+ALTER STABLE stb_name DROP COLUMN col_name;
 ```
 
-如果数据列的类型是可变长格式（BINARY 或 NCHAR），那么可以使用此指令修改其宽度（只能改大，不能改小）。（2.1.3.0 版本新增）
+### 修改列宽
 
-## 修改超级表标签列
+```
+ALTER STABLE stb_name MODIFY COLUMN col_name data_type(length);
+```
+
+如果数据列的类型是可变长格式（BINARY 或 NCHAR），那么可以使用此指令修改其宽度（只能改大，不能改小）。
 
 ### 添加标签
 
 ```
-ALTER STABLE stb_name ADD TAG new_tag_name tag_type;
+ALTER STABLE stb_name ADD TAG tag_name tag_type;
 ```
 
 为 STable 增加一个新的标签，并指定新标签的类型。标签总数不能超过 128 个，总长度不超过 16KB 。
@@ -99,7 +131,7 @@ ALTER STABLE stb_name DROP TAG tag_name;
 ### 修改标签名
 
 ```
-ALTER STABLE stb_name CHANGE TAG old_tag_name new_tag_name;
+ALTER STABLE stb_name RENAME TAG old_tag_name new_tag_name;
 ```
 
 修改超级表的标签名，从超级表修改某个标签名后，该超级表下的所有子表也会自动更新该标签名。
