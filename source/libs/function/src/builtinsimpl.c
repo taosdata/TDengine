@@ -662,7 +662,7 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
   }
 
   // check for overflow
-  if (numOfElem == 0 || (IS_FLOAT_TYPE(type) && (isinf(pSumRes->dsum) || isnan(pSumRes->dsum)))) {
+  if (IS_FLOAT_TYPE(type) && (isinf(pSumRes->dsum) || isnan(pSumRes->dsum))) {
     GET_RES_INFO(pCtx)->isNullRes = 1;
     numOfElem = 1;
   }
@@ -1575,11 +1575,6 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
       numOfElems += 1;
     }
-  }
-
-  if (numOfElems == 0) {
-    GET_RES_INFO(pCtx)->isNullRes = 1;
-    numOfElems = 1;
   }
 
 _min_max_over:
