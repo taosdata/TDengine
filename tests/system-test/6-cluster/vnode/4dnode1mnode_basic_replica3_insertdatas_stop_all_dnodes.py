@@ -331,7 +331,7 @@ class TDTestCase:
     def stop_All(self):
 
         tdDnodes = cluster.dnodes
-        newTdSql=tdCom.newTdSql()
+        # newTdSql=tdCom.newTdSql()
         # ==== stop all dnode =====
         for k ,v in self.dnode_list.items():
             dnode_id = v[0]
@@ -340,7 +340,7 @@ class TDTestCase:
 
     def start_All(self):
         tdDnodes = cluster.dnodes
-        newTdSql=tdCom.newTdSql()
+        # newTdSql=tdCom.newTdSql()
         for k ,v in self.dnode_list.items():
             dnode_id = v[0]
             start = time.time()
