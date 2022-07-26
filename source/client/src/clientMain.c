@@ -973,7 +973,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   conn.mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
-  code = catalogAsyncGetAllMeta(pCtg, &conn, &catalogReq, syncCatalogFn, NULL, NULL);
+  code = catalogAsyncGetAllMeta(pCtg, &conn, &catalogReq, syncCatalogFn, pRequest->body.param, NULL);
   if (code) {
     goto _return;
   }

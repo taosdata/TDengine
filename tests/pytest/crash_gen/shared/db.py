@@ -27,6 +27,26 @@ class DbConn:
     TYPE_REST =   "rest-api"
     TYPE_INVALID = "invalid"
 
+    # class variables
+    lastSqlFromThreads : dict[int, str] = {} # stored by thread id, obtained from threading.current_thread().ident%10000
+
+    @classmethod
+    def saveSqlForCurrentThread(cls, sql: str):
+        '''
+        Let us save the last SQL statement on a per-thread basis, so that when later we 
+        run into a dead-lock situation, we can pick out the deadlocked thread, and use 
+        that information to find what what SQL statement is stuck.
+        '''
+        th = threading.current_thread()        
+        shortTid = th.native_id % 10000 #type: ignore
+        cls.lastSqlFromThreads[shortTid] = sql # Save this for later
+
+    @classmethod
+    def fetchSqlForThread(cls, shortTid : int) -> str :        
+        if shortTid not in cls.lastSqlFromThreads:
+            raise CrashGenError("No last-attempted-SQL found for thread id: {}".format(shortTid))
+        return cls.lastSqlFromThreads[shortTid]
+
     @classmethod
     def create(cls, connType, dbTarget):
         if connType == cls.TYPE_NATIVE:
@@ -163,6 +183,7 @@ class DbConnRest(DbConn):
 
     def _doSql(self, sql):
         self._lastSql = sql # remember this, last SQL attempted
+        self.saveSqlForCurrentThread(sql) # Save in global structure too. #TODO: combine with above
         try:
             r = requests.post(self._url, 
                 data = sql,
@@ -392,6 +413,7 @@ class DbConnNative(DbConn):
                 "Cannot exec SQL unless db connection is open", CrashGenError.DB_CONNECTION_NOT_OPEN)
         Logging.debug("[SQL] Executing SQL: {}".format(sql))
         self._lastSql = sql
+        self.saveSqlForCurrentThread(sql) # Save in global structure too. #TODO: combine with above
         nRows = self._tdSql.execute(sql)
         cls = self.__class__
         cls.totalRequests += 1
@@ -407,6 +429,7 @@ class DbConnNative(DbConn):
                 "Cannot query database until connection is open, restarting?", CrashGenError.DB_CONNECTION_NOT_OPEN)
         Logging.debug("[SQL] Executing SQL: {}".format(sql))
         self._lastSql = sql
+        self.saveSqlForCurrentThread(sql) # Save in global structure too. #TODO: combine with above
         nRows = self._tdSql.query(sql)
         cls = self.__class__
         cls.totalRequests += 1
