@@ -163,6 +163,9 @@ class TDTestCase:
         cfg_list.append(current_case1)
         cfg_list.append(current_case3)
 
+        # case2 must in last of least, because use this cfg as data uniformity test
+        cfg_list.append(current_case2)
+
         return cfg_list
 
     def cfg_check(self):
