@@ -46,6 +46,8 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
   pSql->fetchFp   = fp;
   pSql->rootObj   = pSql;
 
+  pthread_mutex_init(&pSql->mtxSubs, NULL);
+
   registerSqlObj(pSql);
 
   pSql->sqlstr = calloc(1, sqlLen + 1);
