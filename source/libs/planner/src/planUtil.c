@@ -124,7 +124,8 @@ int32_t replaceLogicNode(SLogicSubplan* pSubplan, SLogicNode* pOld, SLogicNode* 
 }
 
 static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel requirement) {
-  if (SCAN_TYPE_TABLE != pScan->scanType && SCAN_TYPE_TABLE_MERGE != pScan->scanType) {
+  if ((SCAN_TYPE_TABLE != pScan->scanType && SCAN_TYPE_TABLE_MERGE != pScan->scanType) ||
+      DATA_ORDER_LEVEL_GLOBAL == pScan->node.requireDataOrder) {
     return TSDB_CODE_SUCCESS;
   }
   // The lowest sort level of scan output data is DATA_ORDER_LEVEL_IN_BLOCK

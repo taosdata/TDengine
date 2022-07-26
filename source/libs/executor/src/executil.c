@@ -43,10 +43,6 @@ void cleanupResultRowInfo(SResultRowInfo* pResultRowInfo) {
   }
 }
 
-void closeAllResultRows(SResultRowInfo* pResultRowInfo) {
-  // do nothing
-}
-
 bool isResultRowClosed(SResultRow* pRow) { return (pRow->closed == true); }
 
 void closeResultRow(SResultRow* pResultRow) { pResultRow->closed = true; }
@@ -160,11 +156,13 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo) {
 
 SArray* createSortInfo(SNodeList* pNodeList) {
   size_t numOfCols = 0;
+
   if (pNodeList != NULL) {
     numOfCols = LIST_LENGTH(pNodeList);
   } else {
     numOfCols = 0;
   }
+
   SArray* pList = taosArrayInit(numOfCols, sizeof(SBlockOrderInfo));
   if (pList == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -196,10 +194,6 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SSlotDescNode* pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
-    /*if (!pDescNode->output) {  // todo disable it temporarily*/
-    /*continue;*/
-    /*}*/
-
     SColumnInfoData idata =
         createColumnInfoData(pDescNode->dataType.type, pDescNode->dataType.bytes, pDescNode->slotId);
     idata.info.scale = pDescNode->dataType.scale;
@@ -701,9 +695,6 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
     }
   }
 
-#ifdef BUF_PAGE_DEBUG
-  qDebug("page_setSelect num:%d", num);
-#endif
   if (p != NULL) {
     p->subsidiaries.pCtx = pValCtx;
     p->subsidiaries.num = num;
@@ -852,7 +843,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   // TODO: get it from stable scan node
   pCond->twindows = pTableScanNode->scanRange;
   pCond->suid = pTableScanNode->scan.suid;
-  pCond->type = BLOCK_LOAD_OFFSET_ORDER;
+  pCond->type = TIMEWINDOW_RANGE_CONTAINED;
   pCond->startVersion = -1;
   pCond->endVersion = -1;
   //  pCond->type = pTableScanNode->scanFlag;
@@ -947,6 +938,7 @@ STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInter
 }
 
 // get the correct time window according to the handled timestamp
+// todo refactor
 STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int64_t ts, SInterval* pInterval,
                                 int32_t order) {
   STimeWindow w = {0};

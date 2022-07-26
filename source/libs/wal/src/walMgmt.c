@@ -93,7 +93,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   }
 
   // init ref
-  pWal->pRefHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_ENTRY_LOCK);
+  pWal->pRefHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (pWal->pRefHash == NULL) {
     taosMemoryFree(pWal);
     return NULL;
