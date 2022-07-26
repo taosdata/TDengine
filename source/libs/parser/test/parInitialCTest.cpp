@@ -77,6 +77,10 @@ TEST_F(ParserInitialCTest, createBnode) {
  *   | WAL value
  *   | VGROUPS value
  *   | SINGLE_STABLE {0 | 1}
+ *   | WAL_RETENTION_PERIOD value
+ *   | WAL_ROLL_PERIOD value
+ *   | WAL_RETENTION_SIZE value
+ *   | WAL_SEGMENT_SIZE value
  * }
  */
 TEST_F(ParserInitialCTest, createDatabase) {
@@ -149,6 +153,10 @@ TEST_F(ParserInitialCTest, createDatabase) {
     ++expect.numOfRetensions;
   };
   auto setDbSchemalessFunc = [&](int8_t schemaless) { expect.schemaless = schemaless; };
+  auto setDbWalRetentionPeriod = [&](int32_t walRetentionPeriod) { expect.walRetentionPeriod = walRetentionPeriod; };
+  auto setDbWalRetentionSize = [&](int32_t walRetentionSize) { expect.walRetentionSize = walRetentionSize; };
+  auto setDbWalRollPeriod = [&](int32_t walRollPeriod) { expect.walRollPeriod = walRollPeriod; };
+  auto setDbWalSegmentSize = [&](int32_t walSegmentSize) { expect.walSegmentSize = walSegmentSize; };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_DATABASE_STMT);
@@ -175,6 +183,10 @@ TEST_F(ParserInitialCTest, createDatabase) {
     ASSERT_EQ(req.strict, expect.strict);
     ASSERT_EQ(req.cacheLast, expect.cacheLast);
     ASSERT_EQ(req.cacheLastSize, expect.cacheLastSize);
+    ASSERT_EQ(req.walRetentionPeriod, expect.walRetentionPeriod);
+    ASSERT_EQ(req.walRetentionSize, expect.walRetentionSize);
+    ASSERT_EQ(req.walRollPeriod, expect.walRollPeriod);
+    ASSERT_EQ(req.walSegmentSize, expect.walSegmentSize);
     // ASSERT_EQ(req.schemaless, expect.schemaless);
     ASSERT_EQ(req.ignoreExist, expect.ignoreExist);
     ASSERT_EQ(req.numOfRetensions, expect.numOfRetensions);
@@ -219,6 +231,10 @@ TEST_F(ParserInitialCTest, createDatabase) {
   setDbVgroupsFunc(100);
   setDbSingleStableFunc(1);
   setDbSchemalessFunc(1);
+  setDbWalRetentionPeriod(-1);
+  setDbWalRetentionSize(-1);
+  setDbWalRollPeriod(10);
+  setDbWalSegmentSize(20);
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
       "BUFFER 64 "
       "CACHEMODEL 'last_value' "
@@ -238,7 +254,11 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "WAL 2 "
       "VGROUPS 100 "
       "SINGLE_STABLE 1 "
-      "SCHEMALESS 1");
+      "SCHEMALESS 1 "
+      "WAL_RETENTION_PERIOD -1 "
+      "WAL_RETENTION_SIZE -1 "
+      "WAL_ROLL_PERIOD 10 "
+      "WAL_SEGMENT_SIZE 20");
   clearCreateDbReq();
 
   setCreateDbReqFunc("wxy_db", 1);

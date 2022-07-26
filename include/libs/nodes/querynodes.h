@@ -255,6 +255,7 @@ typedef struct SSelectStmt {
   int32_t     selectFuncNum;
   bool        isEmptyResult;
   bool        isTimeLineResult;
+  bool        isSubquery;
   bool        hasAggFuncs;
   bool        hasRepeatScanFuncs;
   bool        hasIndefiniteRowsFunc;
