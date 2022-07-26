@@ -61,13 +61,13 @@ table_option: {
 
 ## 创建子表
 
-### 以超级表为模板创建子表
+### 创建子表
 
 ```sql
 CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name TAGS (tag_value1, ...);
 ```
 
-### 以超级表为模板，并指定 TAGS 的值来创建子表：
+### 创建子表并指定标签的值
 
 ```sql
 CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name (tag_name1, ...) TAGS (tag_value1, ...);
@@ -82,36 +82,6 @@ CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) [IF 
 ```
 
 批量建表方式要求数据表必须以超级表为模板。 在不超出 SQL 语句长度限制的前提下，单条语句中的建表数量建议控制在 1000 ～ 3000 之间，将会获得比较理想的建表速度。
-
-## 删除数据表
-
-可以在一条SQL语句中删除一个或多个普通表或子表。
-
-```sql
-DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...
-```
-
-## 显示所有表
-
-如下SQL语句可以列出当前数据库中的所有表名。
-
-```sql
-SHOW TABLES [LIKE tb_name_wildchar];
-```
-
-## 显示表创建语句
-
-```
-SHOW CREATE TABLE tb_name;
-```
-
-常用于数据库迁移。对一个已经存在的数据表，返回其创建语句；在另一个集群中执行该语句，就能得到一个结构完全相同的数据表。
-
-## 获取表结构信息
-
-```
-DESCRIBE tb_name;
-```
 
 ## 修改普通表
 
@@ -191,4 +161,36 @@ alter_table_option: {
 
 ```
 ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
+```
+
+## 删除表
+
+可以在一条SQL语句中删除一个或多个普通表或子表。
+
+```sql
+DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...
+```
+
+## 查看表的信息
+
+### 显示所有表
+
+如下SQL语句可以列出当前数据库中的所有表名。
+
+```sql
+SHOW TABLES [LIKE tb_name_wildchar];
+```
+
+### 显示表创建语句
+
+```
+SHOW CREATE TABLE tb_name;
+```
+
+常用于数据库迁移。对一个已经存在的数据表，返回其创建语句；在另一个集群中执行该语句，就能得到一个结构完全相同的数据表。
+
+### 获取表结构信息
+
+```
+DESCRIBE tb_name;
 ```
