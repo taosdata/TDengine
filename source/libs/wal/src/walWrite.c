@@ -261,14 +261,13 @@ int32_t walEndSnapshot(SWal *pWal) {
   pWal->vers.snapshotVer = ver;
   int ts = taosGetTimestampSec();
 
-  int64_t minVerToDelete = ver;
-  void   *pIter = NULL;
+  void *pIter = NULL;
   while (1) {
     pIter = taosHashIterate(pWal->pRefHash, pIter);
     if (pIter == NULL) break;
     SWalRef *pRef = *(SWalRef **)pIter;
     if (pRef->refVer == -1) continue;
-    minVerToDelete = TMIN(minVerToDelete, pRef->refVer);
+    ver = TMIN(ver, pRef->refVer);
   }
 
   int          deleteCnt = 0;
