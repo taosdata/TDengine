@@ -1000,6 +1000,7 @@ int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pStartTs,
 bool functionNeedToExecute(SqlFunctionCtx* pCtx);
 bool isCloseWindow(STimeWindow* pWin, STimeWindowAggSupp* pSup);
 void appendOneRow(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid);
+void printDataBlock(SSDataBlock* pBlock, const char* flag);
 
 int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
                                        SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs, const int32_t* rowCellOffset,
