@@ -73,7 +73,7 @@ int     tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type);
 #define TSROW_LEN(PROW, V)  tGetI32v((uint8_t *)(PROW)->data, (V) ? &(V) : NULL)
 #define TSROW_SVER(PROW, V) tGetI32v((PROW)->data + TSROW_LEN(PROW, NULL), (V) ? &(V) : NULL)
 
-int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow);
+int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *aColVal, STSchema *pTSchema, STSRow2 **ppRow);
 int32_t tTSRowClone(const STSRow2 *pRow, STSRow2 **ppRow);
 void    tTSRowFree(STSRow2 *pRow);
 void    tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
@@ -130,13 +130,14 @@ struct STSchema {
 #pragma pack(push, 1)
 struct STSRow2 {
   TSKEY   ts;
+  uint8_t hlen;
   uint8_t flags;
-  uint8_t data[];
+  uint8_t data[];  // sver(u32v) + nData(u32v) + data[nData]
 };
 #pragma pack(pop)
 
 struct STSRowBuilder {
-  int32_t  szBuf;
+  int64_t  szBuf;
   uint8_t *pBuf;
 };
 
