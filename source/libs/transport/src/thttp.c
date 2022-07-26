@@ -17,10 +17,10 @@
 #ifdef USE_UV
 #include <uv.h>
 #endif
-#include "zlib.h"
-#include "thttp.h"
 #include "taoserror.h"
+#include "thttp.h"
 #include "tlog.h"
+#include "zlib.h"
 
 static int32_t taosBuildHttpHeader(const char* server, int32_t contLen, char* pHead, int32_t headLen,
                                    EHttpCompFlag flag) {
@@ -174,7 +174,7 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
 
 #else
 int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32_t contLen, EHttpCompFlag flag) {
-  int32_t code = -1;
+  int32_t     code = -1;
   TdSocketPtr pSocket = NULL;
 
   uint32_t ip = taosGetIpv4FromFqdn(server);
