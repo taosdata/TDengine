@@ -466,7 +466,7 @@ int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
+  pResInfo->isNullRes = (pResInfo->isNullRes == 1) ? 1 : (pResInfo->numOfRes == 0) ? 1 : 0;
 
   char* in = GET_ROWCELL_INTERBUF(pResInfo);
   colDataAppend(pCol, pBlock->info.rows, in, pResInfo->isNullRes);
@@ -662,8 +662,9 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
   }
 
   // check for overflow
-  if (IS_FLOAT_TYPE(type) && (isinf(pSumRes->dsum) || isnan(pSumRes->dsum))) {
-    numOfElem = 0;
+  if (numOfElem == 0 || (IS_FLOAT_TYPE(type) && (isinf(pSumRes->dsum) || isnan(pSumRes->dsum)))) {
+    GET_RES_INFO(pCtx)->isNullRes = 1;
+    numOfElem = 1;
   }
 
 _sum_over:
