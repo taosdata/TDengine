@@ -212,7 +212,7 @@ class TDTestCase:
         for i in range(ctb_num):
             tdSql.execute(f'create table {dbname}.{ctb_pre}{i+1} using {dbname}.{stb} tags ( {i+1} )')
 
-    def __insert_data(self, rows,dbname=DBNAME):
+    def __insert_data(self, rows, dbname=DBNAME, ctb_num=20):
         data = DataSet()
         data.get_order_set(rows)
 
@@ -229,12 +229,14 @@ class TDTestCase:
                 {1 * data.usint_data[i]}, {1 * data.uint_data[i]}, {1 * data.ubint_data[i]}
             '''
 
-            tdSql.execute(
-                f"insert into {dbname}.{CTB_PRE}1 values ( {NOW - i * TIME_STEP}, {row_data} )")
-            tdSql.execute(
-                f"insert into {dbname}.{CTB_PRE}2 values ( {NOW - i * int(TIME_STEP * 0.6)}, {neg_row_data} )")
-            tdSql.execute(
-                f"insert into {dbname}.{CTB_PRE}4 values ( {NOW - i * int(TIME_STEP * 0.8) }, {row_data} )")
+            for i in range(ctb_num):
+                tdSql.execute(
+                    f"insert into {dbname}.{CTB_PRE}{i + 1} values ( {NOW - i * TIME_STEP}, {row_data} )")
+
+            # tdSql.execute(
+            #     f"insert into {dbname}.{CTB_PRE}2 values ( {NOW - i * int(TIME_STEP * 0.6)}, {neg_row_data} )")
+            # tdSql.execute(
+            #     f"insert into {dbname}.{CTB_PRE}4 values ( {NOW - i * int(TIME_STEP * 0.8) }, {row_data} )")
             tdSql.execute(
                 f"insert into {dbname}.{NTB_PRE}1 values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )")
 
