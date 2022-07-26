@@ -58,7 +58,7 @@ taos>
 ```
 
 
-### 启动 REST 服务
+## 启动 REST 服务
 
 taosAdapter 是 TDengine 中提供 REST 服务的组件。下面这条命令会在容器中同时启动 `taosd` 和 `taosadapter` 两个服务组件。
 
@@ -113,7 +113,7 @@ TDengine REST API 详情请参考[官方文档](/reference/rest-api/)。
 
    taosBenchmark 命令本身带有很多选项，配置表的数目、记录条数等等，您可以设置不同参数进行体验，请执行 `taosBenchmark --help` 详细列出。taosBenchmark 详细使用方法请参照 [taosBenchmark 参考手册](../reference/taosbenchmark)。
 
-## 使用 TDengine CLI 体验查询速度
+## 体验查询
 
 使用上述 taosBenchmark 插入数据后，可以在 TDengine CLI 输入查询命令，体验查询速度。可以直接在宿主机上也可以进入容器后运行。
 
