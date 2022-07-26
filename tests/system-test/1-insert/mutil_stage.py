@@ -210,7 +210,8 @@ class TDTestCase:
             tdSql.execute(f'create table {dbname}.{ctb_pre}{i+1} using {dbname}.{stb} tags ( {i+1} )')
 
     def __insert_data(self, rows,dbname=DBNAME):
-        data = DataSet().get_order_set(rows)
+        data = DataSet()
+        data.get_order_set(rows)
 
         tdLog.printNoPrefix("==========step: start inser data into tables now.....")
         for i in range(self.rows):
