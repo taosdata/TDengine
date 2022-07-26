@@ -2506,9 +2506,6 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncI
     // pre commit
     syncNodePreCommit(ths, pEntry, 0);
 
-    SRpcMsg rpcMsg;
-    syncEntry2OriginalRpc(pEntry, &rpcMsg);
-
     // if only myself, maybe commit right now
     if (ths->replicaNum == 1) {
       syncMaybeAdvanceCommitIndex(ths);
