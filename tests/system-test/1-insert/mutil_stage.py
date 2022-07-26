@@ -217,13 +217,13 @@ class TDTestCase:
         for i in range(self.rows):
             row_data = f'''
                 {data.int_data[i]}, {data.bint_data[i]}, {data.sint_data[i]}, {data.tint_data[i]}, {data.float_data[i]}, {data.double_data[i]},
-                {data.bool_data[i]}, '{data.vchar_data[i]}', '{data.nchar_data[i]}', {data.ts_data[i]}, {data.tint_un_data[i]},
-                {data.sint_un_data[i]}, {data.int_un_data[i]}, {data.bint_un_data[i]}
+                {data.bool_data[i]}, '{data.vchar_data[i]}', '{data.nchar_data[i]}', {data.ts_data[i]}, {data.utint_data[i]},
+                {data.usint_data[i]}, {data.uint_data[i]}, {data.ubint_data[i]}
             '''
             neg_row_data = f'''
                 {-1 * data.int_data[i]}, {-1 * data.bint_data[i]}, {-1 * data.sint_data[i]}, {-1 * data.tint_data[i]}, {-1 * data.float_data[i]}, {-1 * data.double_data[i]},
-                {data.bool_data[i]}, '{data.vchar_data[i]}', '{data.nchar_data[i]}', {data.ts_data[i]}, {1 * data.tint_un_data[i]},
-                {1 * data.sint_un_data[i]}, {1 * data.int_un_data[i]}, {1 * data.bint_un_data[i]}
+                {data.bool_data[i]}, '{data.vchar_data[i]}', '{data.nchar_data[i]}', {data.ts_data[i]}, {1 * data.utint_data[i]},
+                {1 * data.usint_data[i]}, {1 * data.uint_data[i]}, {1 * data.ubint_data[i]}
             '''
 
             tdSql.execute(
