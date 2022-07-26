@@ -26,6 +26,7 @@ extern "C" {
 #include "syncInt.h"
 #include "syncMessage.h"
 #include "taosdef.h"
+#include "tref.h"
 #include "tskiplist.h"
 
 typedef struct SSyncRaftEntry {
@@ -89,6 +90,7 @@ typedef struct SRaftEntryCache {
   SSkipList*    pSkipList;
   int32_t       maxCount;
   int32_t       currentCount;
+  int32_t       refMgr;
   TdThreadMutex mutex;
   SSyncNode*    pSyncNode;
 } SRaftEntryCache;
