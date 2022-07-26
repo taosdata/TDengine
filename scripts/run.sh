@@ -177,6 +177,9 @@ function run_thread() {
     if [ ! -z "$DATABASE_REPLICAS" ]; then
         script="$script DATABASE_REPLICAS=${DATABASE_REPLICAS}"
     fi
+    if [ ! -z "$DATABASE_QUERY_POLICY" ]; then
+        script="$script DATABASE_QUERY_POLICY=${DATABASE_QUERY_POLICY}"
+    fi
     script="$script $TIMEOUT_PREFIX"
 
     # script="echo"
