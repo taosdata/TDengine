@@ -993,25 +993,28 @@ static bool sortPriKeyOptMayBeOptimized(SLogicNode* pNode) {
 }
 
 static int32_t sortPriKeyOptGetScanNodesImpl(SLogicNode* pNode, bool* pNotOptimize, SNodeList** pScanNodes) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
   switch (nodeType(pNode)) {
-    case QUERY_NODE_LOGIC_PLAN_SCAN:
-      if (TSDB_SUPER_TABLE != ((SScanLogicNode*)pNode)->tableType) {
-        return nodesListMakeAppend(pScanNodes, (SNode*)pNode);
+    case QUERY_NODE_LOGIC_PLAN_SCAN: {
+      SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+      if (NULL != pScan->pGroupTags) {
+        *pNotOptimize = true;
+        return TSDB_CODE_SUCCESS;
       }
-      break;
-    case QUERY_NODE_LOGIC_PLAN_JOIN:
-      code =
+      return nodesListMakeAppend(pScanNodes, (SNode*)pNode);
+    }
+    case QUERY_NODE_LOGIC_PLAN_JOIN: {
+      int32_t code =
           sortPriKeyOptGetScanNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 0), pNotOptimize, pScanNodes);
       if (TSDB_CODE_SUCCESS == code) {
         code =
             sortPriKeyOptGetScanNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 1), pNotOptimize, pScanNodes);
       }
       return code;
+    }
     case QUERY_NODE_LOGIC_PLAN_AGG:
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
       *pNotOptimize = true;
-      return code;
+      return TSDB_CODE_SUCCESS;
     default:
       break;
   }
@@ -1037,17 +1040,33 @@ static EOrder sortPriKeyOptGetPriKeyOrder(SSortLogicNode* pSort) {
   return ((SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0))->order;
 }
 
+static void sortPriKeyOptSetParentOrder(SLogicNode* pNode, EOrder order) {
+  if (NULL == pNode) {
+    return;
+  }
+  if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode)) {
+    ((SWindowLogicNode*)pNode)->inputTsOrder = order;
+  } else if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pNode)) {
+    ((SJoinLogicNode*)pNode)->inputTsOrder = order;
+  }
+  sortPriKeyOptSetParentOrder(pNode->pParent, order);
+}
+
 static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SSortLogicNode* pSort,
                                   SNodeList* pScanNodes) {
   EOrder order = sortPriKeyOptGetPriKeyOrder(pSort);
-  if (ORDER_DESC == order) {
-    SNode* pScanNode = NULL;
-    FOREACH(pScanNode, pScanNodes) {
-      SScanLogicNode* pScan = (SScanLogicNode*)pScanNode;
-      if (pScan->scanSeq[0] > 0) {
-        TSWAP(pScan->scanSeq[0], pScan->scanSeq[1]);
-      }
+  SNode* pScanNode = NULL;
+  FOREACH(pScanNode, pScanNodes) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pScanNode;
+    if (ORDER_DESC == order && pScan->scanSeq[0] > 0) {
+      TSWAP(pScan->scanSeq[0], pScan->scanSeq[1]);
     }
+    if (TSDB_SUPER_TABLE == pScan->tableType) {
+      pScan->scanType = SCAN_TYPE_TABLE_MERGE;
+      pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+      pScan->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+    }
+    sortPriKeyOptSetParentOrder(pScan->node.pParent, order);
   }
 
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0);
@@ -1613,10 +1632,10 @@ static void alignProjectionWithTarget(SLogicNode* pNode) {
   }
 
   SProjectLogicNode* pProjectNode = (SProjectLogicNode*)pNode;
-  SNode* pProjection = NULL;
+  SNode*             pProjection = NULL;
   FOREACH(pProjection, pProjectNode->pProjections) {
     SNode* pTarget = NULL;
-    bool keep = false;
+    bool   keep = false;
     FOREACH(pTarget, pNode->pTargets) {
       if (0 == strcmp(((SColumnNode*)pProjection)->node.aliasName, ((SColumnNode*)pTarget)->colName)) {
         keep = true;
@@ -2214,7 +2233,7 @@ static bool tagScanMayBeOptimized(SLogicNode* pNode) {
       !planOptNodeListHasTbname(pAgg->pGroupKeys)) {
     return false;
   }
-  
+
   SNode* pGroupKey = NULL;
   FOREACH(pGroupKey, pAgg->pGroupKeys) {
     SNode* pGroup = NULL;

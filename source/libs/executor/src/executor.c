@@ -416,6 +416,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
   }
 
   if (isTaskKilled(pTaskInfo)) {
+    atomic_store_64(&pTaskInfo->owner, 0);
     qDebug("%s already killed, abort", GET_TASKID(pTaskInfo));
     return TSDB_CODE_SUCCESS;
   }

@@ -143,6 +143,7 @@ typedef struct SqlFunctionCtx {
   struct SExprInfo      *pExpr;
   struct SDiskbasedBuf  *pBuf;
   struct SSDataBlock    *pSrcBlock;
+  struct SSDataBlock    *pDstBlock; // used by indifinite rows function to set selectivity
   int32_t                curBufPage;
   bool                   increase;
 
