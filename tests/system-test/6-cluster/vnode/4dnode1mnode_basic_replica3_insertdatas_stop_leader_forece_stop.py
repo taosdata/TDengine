@@ -451,6 +451,7 @@ class TDTestCase:
             # append rows of stablename when dnode stop make sure revote leaders
 
             while not revote_status:
+                
                 after_leader_infos = self.get_leader_infos(db_name)
                 revote_status = self.check_revote_leader_success(db_name ,before_leader_infos , after_leader_infos)
 

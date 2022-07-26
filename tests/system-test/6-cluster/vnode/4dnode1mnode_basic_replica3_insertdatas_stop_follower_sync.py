@@ -220,14 +220,16 @@ class TDTestCase:
             status_OK = self.mycheckRows("select distinct tbname from {}.{}".format(dbname,stablename) ,tb_nums)
             tdLog.debug(" ==== check insert tbnames first failed , this is {}_th retry check tbnames of database {}".format(count , dbname))
             count += 1
-    def _get_stop_dnode_id(self,dbname):
+
+    def _get_stop_dnode_id(self , dbname , role):
+        
         tdSql.query("show {}.vgroups".format(dbname))
         vgroup_infos = tdSql.queryResult
         for vgroup_info in vgroup_infos:
             leader_infos = vgroup_info[3:-4] 
             # print(vgroup_info)
             for ind ,role in enumerate(leader_infos):
-                if role =='follower':
+                if role == role:
                     # print(ind,leader_infos)
                     self.stop_dnode_id = leader_infos[ind-1]
                     break

@@ -197,10 +197,10 @@ class TDTestCase:
 
         return self.stop_dnode_id
 
-    def wait_stop_dnode_OK(self):
+    def wait_stop_dnode_OK(self,newTdSql):
     
         def _get_status():
-            newTdSql=tdCom.newTdSql()
+            # newTdSql=tdCom.newTdSql()
 
             status =  ""
             newTdSql.query("show dnodes")
@@ -242,10 +242,10 @@ class TDTestCase:
                         break
         return check_status
 
-    def wait_start_dnode_OK(self):
+    def wait_start_dnode_OK(self ,newTdSql):
     
         def _get_status():
-            newTdSql=tdCom.newTdSql()
+            # newTdSql=tdCom.newTdSql()
             status =  ""
             newTdSql.query("show dnodes")
             dnode_infos = newTdSql.queryResult
@@ -351,9 +351,9 @@ class TDTestCase:
         return check_status
         
     
-    def get_leader_infos(self ,dbname):
+    def get_leader_infos(self , newTdSql ,dbname):
         
-        newTdSql=tdCom.newTdSql()
+        
         newTdSql.query("show {}.vgroups".format(dbname))
         vgroup_infos = newTdSql.queryResult
 
@@ -412,36 +412,36 @@ class TDTestCase:
         # let query task start 
         self.thread_list = self.multi_thread_query_task(10 ,self.db_name ,'stb1' )
 
+        newTdSql=tdCom.newTdSql()
         # force stop follower
         for loop in range(self.loop_restart_times):
             tdLog.debug(" ==== this is {}_th restart follower of database {} ==== ".format(loop ,self.db_name))
 
             # get leader info before stop 
-            before_leader_infos = self.get_leader_infos(self.db_name)
+            before_leader_infos = self.get_leader_infos(newTdSql , self.db_name)
 
             self.stop_dnode_id = self._get_stop_dnode_id(self.db_name)
             tdDnodes[self.stop_dnode_id-1].stoptaosd()
 
-            
             start = time.time()
             # get leader info after stop 
-            after_leader_infos = self.get_leader_infos(self.db_name)
+            after_leader_infos = self.get_leader_infos(newTdSql , self.db_name)
             
             revote_status = self.check_revote_leader_success(self.db_name ,before_leader_infos , after_leader_infos)
 
             while not revote_status:
-                after_leader_infos = self.get_leader_infos(self.db_name)
+                after_leader_infos = self.get_leader_infos(newTdSql , self.db_name)
                 revote_status = self.check_revote_leader_success(self.db_name ,before_leader_infos , after_leader_infos)
 
             end = time.time()
             time_cost = end - start 
             tdLog.debug(" ==== revote leader of database {} cost time {}  ====".format(self.db_name , time_cost))
 
-            self.wait_stop_dnode_OK()
+            self.wait_stop_dnode_OK(newTdSql)
 
             start = time.time()
             tdDnodes[self.stop_dnode_id-1].starttaosd()
-            self.wait_start_dnode_OK()
+            self.wait_start_dnode_OK(newTdSql)
             end = time.time()
             time_cost = int(end-start)
             
