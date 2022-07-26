@@ -336,7 +336,7 @@ class TDTestCase:
         for k ,v in self.dnode_list.items():
             dnode_id = v[0]
             tdDnodes[dnode_id-1].stoptaosd()
-            self.wait_stop_dnode_OK(newTdSql)
+            # self.wait_stop_dnode_OK(newTdSql)
 
     def start_All(self):
         tdDnodes = cluster.dnodes
@@ -345,7 +345,7 @@ class TDTestCase:
             dnode_id = v[0]
             start = time.time()
             tdDnodes[dnode_id-1].starttaosd()
-            self.wait_start_dnode_OK(newTdSql)
+            # self.wait_start_dnode_OK(newTdSql)
             end = time.time()
             time_cost = int(end -start)
             if time_cost > self.max_restart_time:
