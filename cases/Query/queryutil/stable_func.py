@@ -122,8 +122,8 @@ class TDFunction():
     def int_cloumn_1_tsbs(self):  
         # support all int type \ double type              
         hanshu = ['AVG']   
-        column = ['(velocity)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)',
-                  '(q_bigint_null)','(q_smallint_null)','(q_tinyint_null)','(q_int_null)','(q_float_null)','(q_double_null)'] 
+        column = ['(velocity)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)']
+              #    '(q_bigint_null)','(q_smallint_null)','(q_tinyint_null)','(q_int_null)','(q_float_null)','(q_double_null)' 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         int_cloumn = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return int_cloumn
