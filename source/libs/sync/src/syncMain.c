@@ -2504,22 +2504,7 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncI
     }
 
     // pre commit
-    SRpcMsg rpcMsg;
-    syncEntry2OriginalRpc(pEntry, &rpcMsg);
-
-    if (ths->pFsm != NULL) {
-      if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
-        SFsmCbMeta cbMeta = {0};
-        cbMeta.index = pEntry->index;
-        cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
-        cbMeta.isWeak = pEntry->isWeak;
-        cbMeta.code = 0;
-        cbMeta.state = ths->state;
-        cbMeta.seqNum = pEntry->seqNum;
-        ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, cbMeta);
-      }
-    }
-    rpcFreeCont(rpcMsg.pCont);
+    syncNodePreCommit(ths, pEntry, 0);
 
     // if only myself, maybe commit right now
     if (ths->replicaNum == 1) {
@@ -2528,22 +2513,7 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncI
 
   } else {
     // pre commit
-    SRpcMsg rpcMsg;
-    syncEntry2OriginalRpc(pEntry, &rpcMsg);
-
-    if (ths->pFsm != NULL) {
-      if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
-        SFsmCbMeta cbMeta = {0};
-        cbMeta.index = pEntry->index;
-        cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
-        cbMeta.isWeak = pEntry->isWeak;
-        cbMeta.code = 1;
-        cbMeta.state = ths->state;
-        cbMeta.seqNum = pEntry->seqNum;
-        ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, cbMeta);
-      }
-    }
-    rpcFreeCont(rpcMsg.pCont);
+    syncNodePreCommit(ths, pEntry, 0);
   }
 
   if (pRetIndex != NULL) {

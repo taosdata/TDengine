@@ -1154,6 +1154,10 @@ typedef struct {
   int32_t  numOfRetensions;
   SArray*  pRetensions;  // SRetention
   void*    pTsma;
+  int32_t  walRetentionPeriod;
+  int64_t  walRetentionSize;
+  int32_t  walRollPeriod;
+  int64_t  walSegmentSize;
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);

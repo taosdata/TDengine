@@ -37,6 +37,7 @@ sql show stables
 if $rows != 4 then 
   return -1
 endi
+sql show stables like 'stb'
 
 print =============== step4: ccreate child table
 sql create table c1 using stb tags(true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
