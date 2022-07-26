@@ -103,8 +103,8 @@ typedef struct SWal {
   int32_t fsyncSeq;
   // meta
   SWalVer   vers;
-  TdFilePtr pWriteLogTFile;
-  TdFilePtr pWriteIdxTFile;
+  TdFilePtr pLogFile;
+  TdFilePtr pIdxFile;
   int32_t   writeCur;
   SArray   *fileInfoSet;  // SArray<SWalFileInfo>
   // status
