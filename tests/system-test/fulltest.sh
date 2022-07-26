@@ -180,6 +180,7 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeStopFollowerLeader.py  -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py  -N 5 -M 3 
 
 
+python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3 
 python3 ./test.py -f 7-tmq/basic5.py
 python3 ./test.py -f 7-tmq/subscribeDb.py
 python3 ./test.py -f 7-tmq/subscribeDb0.py

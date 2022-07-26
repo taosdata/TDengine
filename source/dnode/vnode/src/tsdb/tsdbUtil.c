@@ -24,6 +24,8 @@ void tMapDataReset(SMapData *pMapData) {
 void tMapDataClear(SMapData *pMapData) {
   tFree((uint8_t *)pMapData->aOffset);
   tFree(pMapData->pData);
+  pMapData->pData = NULL;
+  pMapData->aOffset = NULL;
 }
 
 int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *)) {
