@@ -106,7 +106,9 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
           .meta = pVnode->pMeta, .config = &pVnode->config, .vnode = pVnode, .pMsgCb = &pVnode->msgCb};
 
       code = qWorkerProcessDeleteMsg(&handle, pVnode->pQuery, pMsg, &res);
-      if (code) goto _err;
+      if (code) {
+        goto _err;
+      }
 
       // malloc and encode
       tEncodeSize(tEncodeDeleteRes, &res, size, ret);
@@ -981,6 +983,11 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t version, void *pReq
   SDecoder   *pCoder = &(SDecoder){0};
   SDeleteRes *pRes = &(SDeleteRes){0};
 
+  pRsp->msgType = TDMT_VND_DELETE_RSP;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+  pRsp->code = TSDB_CODE_SUCCESS;
+
   pRes->uidList = taosArrayInit(0, sizeof(tb_uid_t));
   if (pRes->uidList == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -998,6 +1005,15 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t version, void *pReq
 
   tDecoderClear(pCoder);
   taosArrayDestroy(pRes->uidList);
+
+  SVDeleteRsp rsp = {.affectedRows = pRes->affectedRows};
+  int32_t       ret = 0;
+  tEncodeSize(tEncodeSVDeleteRsp, &rsp, pRsp->contLen, ret);
+  pRsp->pCont = rpcMallocCont(pRsp->contLen);
+  SEncoder      ec = {0};
+  tEncoderInit(&ec, pRsp->pCont, pRsp->contLen);
+  tEncodeSVDeleteRsp(&ec, &rsp);
+  tEncoderClear(&ec);
   return code;
 
 _err:

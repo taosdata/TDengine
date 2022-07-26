@@ -5664,6 +5664,7 @@ int32_t tEncodeDeleteRes(SEncoder *pCoder, const SDeleteRes *pRes) {
   if (tEncodeI64(pCoder, pRes->ekey) < 0) return -1;
   if (tEncodeI64v(pCoder, pRes->affectedRows) < 0) return -1;
 
+  if (tEncodeCStr(pCoder, pRes->tableFName) < 0) return -1;
   return 0;
 }
 
@@ -5675,12 +5676,13 @@ int32_t tDecodeDeleteRes(SDecoder *pCoder, SDeleteRes *pRes) {
   if (tDecodeI32v(pCoder, &nUid) < 0) return -1;
   for (int32_t iUid = 0; iUid < nUid; iUid++) {
     if (tDecodeU64(pCoder, &uid) < 0) return -1;
-    taosArrayPush(pRes->uidList, &uid);
+    if (pRes->uidList) taosArrayPush(pRes->uidList, &uid);
   }
   if (tDecodeI64(pCoder, &pRes->skey) < 0) return -1;
   if (tDecodeI64(pCoder, &pRes->ekey) < 0) return -1;
   if (tDecodeI64v(pCoder, &pRes->affectedRows) < 0) return -1;
 
+  if (tDecodeCStrTo(pCoder, pRes->tableFName) < 0) return -1;
   return 0;
 }
 int32_t tEncodeSMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {

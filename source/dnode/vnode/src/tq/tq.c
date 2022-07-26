@@ -138,8 +138,8 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
     ASSERT(taosArrayGetSize(pRsp->blockSchema) == 0);
   }
 
-  int32_t len;
-  int32_t code;
+  int32_t len = 0;
+  int32_t code = 0;
   tEncodeSize(tEncodeSMqDataRsp, pRsp, len, code);
   if (code < 0) {
     return -1;
@@ -156,9 +156,10 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
 
   void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
 
-  SEncoder encoder;
+  SEncoder encoder = {0};
   tEncoderInit(&encoder, abuf, len);
   tEncodeSMqDataRsp(&encoder, pRsp);
+  tEncoderClear(&encoder);
 
   SRpcMsg rsp = {
       .info = pMsg->info,
@@ -168,8 +169,8 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
   };
   tmsgSendRsp(&rsp);
 
-  char buf1[80];
-  char buf2[80];
+  char buf1[80] = {0};
+  char buf2[80] = {0};
   tFormatOffset(buf1, 80, &pRsp->reqOffset);
   tFormatOffset(buf2, 80, &pRsp->rspOffset);
   tqDebug("vgId:%d from consumer:%" PRId64 ", (epoch %d) send rsp, block num: %d, reqOffset:%s, rspOffset:%s",

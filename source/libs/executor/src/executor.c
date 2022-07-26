@@ -347,6 +347,9 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
     }
 
     code = dsCreateDataSinker(pSubplan->pDataSink, handle, pSinkParam);
+    if(code != TSDB_CODE_SUCCESS){
+      taosMemoryFreeClear(pSinkParam);
+    }
   }
 
   _error:
