@@ -120,6 +120,10 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
     SDB_SET_INT8(pRaw, dataPos, pRetension->keepUnit, _OVER)
   }
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.schemaless, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walRetentionPeriod, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walRetentionSize, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walRollPeriod, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walSegmentSize, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -199,6 +203,10 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
     }
   }
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.schemaless, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walRetentionPeriod, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walRetentionSize, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walRollPeriod, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walSegmentSize, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pDb->lock);
@@ -318,6 +326,10 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
     terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
     return -1;
   }
+  if (pCfg->walRetentionPeriod < TSDB_DB_MIN_WAL_RETENTION_PERIOD) return -1;
+  if (pCfg->walRetentionSize < TSDB_DB_MIN_WAL_RETENTION_SIZE) return -1;
+  if (pCfg->walRollPeriod < TSDB_DB_MIN_WAL_ROLL_PERIOD) return -1;
+  if (pCfg->walSegmentSize < TSDB_DB_MIN_WAL_SEGMENT_SIZE) return -1;
 
   terrno = 0;
   return terrno;
@@ -345,6 +357,10 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->cacheLastSize <= 0) pCfg->cacheLastSize = TSDB_DEFAULT_CACHE_SIZE;
   if (pCfg->numOfRetensions < 0) pCfg->numOfRetensions = 0;
   if (pCfg->schemaless < 0) pCfg->schemaless = TSDB_DB_SCHEMALESS_OFF;
+  if (pCfg->walRetentionPeriod < 0) pCfg->walRetentionPeriod = TSDB_DEFAULT_DB_WAL_RETENTION_PERIOD;
+  if (pCfg->walRetentionSize < 0) pCfg->walRetentionSize = TSDB_DEFAULT_DB_WAL_RETENTION_SIZE;
+  if (pCfg->walRollPeriod < 0) pCfg->walRollPeriod = TSDB_DEFAULT_DB_WAL_ROLL_PERIOD;
+  if (pCfg->walSegmentSize < 0) pCfg->walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
 }
 
 static int32_t mndSetCreateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
@@ -457,6 +473,10 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .cacheLast = pCreate->cacheLast,
       .hashMethod = 1,
       .schemaless = pCreate->schemaless,
+      .walRetentionPeriod = pCreate->walRetentionPeriod,
+      .walRetentionSize = pCreate->walRetentionSize,
+      .walRollPeriod = pCreate->walRollPeriod,
+      .walSegmentSize = pCreate->walSegmentSize,
   };
 
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
