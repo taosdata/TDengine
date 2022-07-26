@@ -59,8 +59,8 @@ python3 ./test.py -f 2-query/ceil.py
 python3 ./test.py -f 2-query/ceil.py -R
 python3 ./test.py -f 2-query/char_length.py
 python3 ./test.py -f 2-query/char_length.py -R
-python3 ./test.py -f 2-query/check_tsdb.py
-python3 ./test.py -f 2-query/check_tsdb.py -R
+#python3 ./test.py -f 2-query/check_tsdb.py
+#python3 ./test.py -f 2-query/check_tsdb.py -R
 
 python3 ./test.py -f 1-insert/update_data.py
 
@@ -250,7 +250,7 @@ python3 ./test.py -f 2-query/concat.py -Q 2
 python3 ./test.py -f 2-query/concat2.py -Q 2
 python3 ./test.py -f 2-query/concat_ws.py -Q 2
 python3 ./test.py -f 2-query/concat_ws2.py -Q 2
-python3 ./test.py -f 2-query/check_tsdb.py -Q 2
+#python3 ./test.py -f 2-query/check_tsdb.py -Q 2
 python3 ./test.py -f 2-query/spread.py -Q 2
 python3 ./test.py -f 2-query/hyperloglog.py -Q 2
 python3 ./test.py -f 2-query/explain.py -Q 2
@@ -340,7 +340,7 @@ python3 ./test.py -f 2-query/concat.py -Q  3
 python3 ./test.py -f 2-query/concat2.py -Q  3
 python3 ./test.py -f 2-query/concat_ws.py -Q  3
 python3 ./test.py -f 2-query/concat_ws2.py -Q  3
-python3 ./test.py -f 2-query/check_tsdb.py -Q  3
+#python3 ./test.py -f 2-query/check_tsdb.py -Q  3
 python3 ./test.py -f 2-query/spread.py -Q  3
 python3 ./test.py -f 2-query/hyperloglog.py -Q  3
 python3 ./test.py -f 2-query/explain.py -Q  3
