@@ -306,9 +306,9 @@ typedef struct {
   int32_t numOfRetensions;
   SArray* pRetensions;
   int32_t walRetentionPeriod;
-  int32_t walRetentionSize;
+  int64_t walRetentionSize;
   int32_t walRollPeriod;
-  int32_t walSegmentSize;
+  int64_t walSegmentSize;
 } SDbCfg;
 
 typedef struct {
