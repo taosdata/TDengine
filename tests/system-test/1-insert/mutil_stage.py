@@ -1,4 +1,5 @@
 from datetime import datetime
+import time
 
 from typing import List, Any, Tuple
 from util.log import *
@@ -31,7 +32,6 @@ TS_TYPE_COL = [TS_COL, ]
 
 INT_TAG = "t_int"
 
-ALL_COL = [PRIMARY_COL, INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, BINARY_COL, NCHAR_COL, BOOL_COL, TS_COL]
 TAG_COL = [INT_TAG]
 # insert data args：
 TIME_STEP = 10000
@@ -39,9 +39,9 @@ NOW = int(datetime.timestamp(datetime.now()) * 1000)
 
 # init db/table
 DBNAME  = "db"
-STBNAME = f"{DBNAME}.stb1"
-CTBNAME = f"{DBNAME}.ct1"
-NTBNAME = f"{DBNAME}.nt1"
+STBNAME = "stb1"
+CTB_PRE = "ct"
+NTB_PRE = "nt"
 
 L0 = 0
 L1 = 1
@@ -153,32 +153,99 @@ class TDTestCase:
         for i in range(9):
             current_case2.append(f"dataDir {self.taos_data_dir}/{DATA_PRE0}{i+1} {L0} {NON_PRIMARY_DIR}")
 
+        # TD-17773bug
+        current_case3 = [
+            f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 ",
+            f"dataDir {self.taos_data_dir}/{DATA_PRE0}1 {L0} {NON_PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}/{DATA_PRE1}0 {L1} {NON_PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}/{DATA_PRE2}0 {L2} {NON_PRIMARY_DIR}",
+        ]
         cfg_list.append(current_case1)
+        cfg_list.append(current_case3)
 
         return cfg_list
 
     def cfg_check(self):
         for cfg_case in self.__err_cfg:
-            tdLog.info(self.__err_cfg.index(cfg_case))
             self.del_old_datadir(filename=self.taos_cfg_path)
             tdDnodes.stop(1)
+            tdDnodes.deploy(1)
             self.cfg_str_list(filename=self.taos_cfg_path, update_list=cfg_case)
             tdDnodes.starttaosd(1)
-
+            time.sleep(2)
             tdSql.error(f"show databases")
 
         for cfg_case in self.__current_cfg:
             self.del_old_datadir(filename=self.taos_cfg_path)
             tdDnodes.stop(1)
+            tdDnodes.deploy(1)
             self.cfg_str_list(filename=self.taos_cfg_path, update_list=cfg_case)
             tdDnodes.start(1)
-
             tdSql.query(f"show databases")
+
+    def __create_tb(self, stb=STBNAME, ctb_pre = CTB_PRE, ctb_num=20, ntb_pre=NTB_PRE, ntbnum=1, dbname=DBNAME):
+        tdLog.printNoPrefix("==========step: create table")
+        create_stb_sql = f'''create table {dbname}.{stb}(
+                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+                {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
+                {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
+                {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
+            ) tags ({INT_TAG} int)
+            '''
+        for i in range(ntbnum):
+
+            create_ntb_sql = f'''create table {dbname}.{ntb_pre}{i+1}(
+                    ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+                    {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                    {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
+                    {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
+                    {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
+                )
+                '''
+        tdSql.execute(create_stb_sql)
+        tdSql.execute(create_ntb_sql)
+
+        for i in range(ctb_num):
+            tdSql.execute(f'create table {dbname}.{ctb_pre}{i+1} using {dbname}.{stb} tags ( {i+1} )')
+
+    def __insert_data(self, rows,dbname=DBNAME):
+        data = DataSet().get_order_set(rows)
+
+        tdLog.printNoPrefix("==========step: start inser data into tables now.....")
+
+        # now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
+
+        for i in range(self.rows):
+            row_data = f'''
+                {data.int_data[i]}, {data.bint_data[i]}, {data.sint_data[i]}, {data.tint_data[i]}, {data.float_data[i]}, {data.double_data[i]},
+                {data.bool_data[i]}, '{data.binary_data[i]}', '{data.nchar_data[i]}', {data.ts_data[i]}, {data.tint_un_data[i]},
+                {data.sint_un_data[i]}, {data.int_un_data[i]}, {data.bint_un_data[i]}
+            '''
+            neg_row_data = f'''
+                {-1 * data.int_data[i]}, {-1 * data.bint_data[i]}, {-1 * data.sint_data[i]}, {-1 * data.tint_data[i]}, {-1 * data.float_data[i]}, {-1 * data.double_data[i]},
+                {data.bool_data[i]}, '{data.binary_data[i]}', '{data.nchar_data[i]}', {data.ts_data[i]}, {1 * data.tint_un_data[i]},
+                {1 * data.sint_un_data[i]}, {1 * data.int_un_data[i]}, {1 * data.bint_un_data[i]}
+            '''
+
+            tdSql.execute(
+                f"insert into {dbname}.{CTB_PRE}1 values ( {NOW - i * TIME_STEP}, {row_data} )")
+            tdSql.execute(
+                f"insert into {dbname}.{CTB_PRE}2 values ( {NOW - i * int(TIME_STEP * 0.6)}, {neg_row_data} )")
+            tdSql.execute(
+                f"insert into {dbname}.{CTB_PRE}4 values ( {NOW - i * int(TIME_STEP * 0.8) }, {row_data} )")
+            tdSql.execute(
+                f"insert into {dbname}.{NTB_PRE}1 values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )")
 
 
 
     def run(self):
+        self.rows = 10
         self.cfg_check()
+        tdSql.prepare(dbname=DBNAME, **{"keep": "5m, 10m, 15m", "duration":"5m"})
+        self.__create_tb(dbname=DBNAME)
+        self.__insert_data(rows=self.rows, dbname=DBNAME)
+        tdSql.query(f"select count(*) from {DBNAME}.{NTB_PRE}1")
 
     def stop(self):
         tdSql.close()
