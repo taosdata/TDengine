@@ -529,7 +529,7 @@ _end:
 // }
 
 static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader, SArray* pIndexList) {
-  SArray* aBlockIdx = taosArrayInit(0, sizeof(SBlockIdx));
+  SArray* aBlockIdx = taosArrayInit(8, sizeof(SBlockIdx));
 
   int64_t st = taosGetTimestampUs();
   int32_t code = tsdbReadBlockIdx(pFileReader, aBlockIdx, NULL);
@@ -1060,6 +1060,7 @@ static int32_t setFileBlockActiveInBlockIter(SDataBlockIter* pBlockIter, int32_t
     ASSERT(pBlockInfo->uid == fblock.uid && pBlockInfo->tbBlockIdx == fblock.tbBlockIdx);
   }
 
+  doSetCurrentBlock(pBlockIter);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1410,7 +1411,6 @@ static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanI
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
   SBlockData*         pBlockData = &pReader->status.fileBlockData;
 
-  SRowMerger merge = {0};
   STSRow*    pTSRow = NULL;
 
   int64_t  key = pBlockData->aTSKEY[pDumpInfo->rowIndex];
@@ -1432,6 +1432,8 @@ static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanI
 
     // imem & mem are all empty, only file exist
     TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
+
+    SRowMerger merge = {0};
     tRowMergerInit(&merge, &fRow, pReader->pSchema);
     doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
     tRowMergerGetRow(&merge, &pTSRow);
