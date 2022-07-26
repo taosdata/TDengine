@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
-from Query.queryscript.stable_function.math.stable_math_histogram import *
+from Query.queryscript.stable_function.numeric.stable_numeric_stddev import *
 
 class TDTestQuery(TDTestQuery):
         
@@ -25,7 +25,7 @@ class TDTestQuery(TDTestQuery):
 
     def desc(self) -> str:
         case_description = '''
-        case1:# support HISTOGRAM function [hanshu = 'HISTOGRAM']
+        case1:# support CSUM function [hanshu = 'STDDEV']
         case2:
         '''
         return case_description
@@ -35,22 +35,20 @@ class TDTestQuery(TDTestQuery):
         
         #self.data_create(self.db)
           
-        startTime1 = time.time()
-        self.data_create(self.db_1)
-        self.right_case_1_groupby()
-        self.right_case_1_tbname()
-        self.right_case_1()       
+        startTime1 = time.time()  
+        self.data_create(self.db_1_1)      
+        # self.right_case_1()
+        # self.right_case_1_tbname()        
         self.right_case_1_interval()
-        #self.right_case_1_tbname_interval() #耗时调整
-        self.rm_sql_1()
+        self.right_case_1_tbname_interval()
+        self.rm_sql_1_1()
         endTime1 = time.time()       
         self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
         # startTime2 = time.time()
         # self.data_create(self.db_2)
-        # self.right_case_2_groupby()
-        # self.right_case_2_tbname()
         # self.right_case_2()
+        # self.right_case_2_tbname()
         # self.right_case_2_interval()
         # self.right_case_2_tbname_interval()
         # self.rm_sql_2()
@@ -58,15 +56,14 @@ class TDTestQuery(TDTestQuery):
         # self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
         # startTime3 = time.time()
-        # self.data_create(self.db_3) 
-        # self.right_case_3_groupby()
-        # self.right_case_3_tbname()
+        # self.data_create(self.db_3)
         # self.right_case_3()
+        # self.right_case_3_tbname()
         # self.right_case_3_interval()
         # self.right_case_3_tbname_interval()
         # self.rm_sql_3()
         # endTime3 = time.time()
-        # self.logger.info("total time3 %ds" % (endTime3 - startTime3))     
+        # self.logger.info("total time3 %ds" % (endTime3 - startTime3))      
 
         endTime = time.time()
         #self.rm_sql()
