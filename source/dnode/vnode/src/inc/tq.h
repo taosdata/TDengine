@@ -89,7 +89,7 @@ typedef struct {
     STqExecDb  execDb;
   };
   int32_t         numOfCols;       // number of out pout column, temporarily used
-  SSchemaWrapper *pSchemaWrapper;  // columns that are involved in query
+  SSchemaWrapper* pSchemaWrapper;  // columns that are involved in query
 } STqExecHandle;
 
 typedef struct {
@@ -104,15 +104,14 @@ typedef struct {
   // TODO remove
   SWalReader* pWalReader;
 
+  SWalRef* pRef;
+
   // push
   STqPushHandle pushHandle;
 
   // exec
   STqExecHandle execHandle;
 
-  // prevent drop
-  int64_t ntbUid;
-  SArray* colIdList;  // SArray<int32_t>
 } STqHandle;
 
 struct STQ {
@@ -120,9 +119,9 @@ struct STQ {
   SHashObj*       pushMgr;       // consumerId -> STqHandle*
   SHashObj*       handles;       // subKey -> STqHandle
   SHashObj*       pStreamTasks;  // taksId -> SStreamTask
+  SHashObj*       pAlterInfo;    // topic -> SAlterCheckInfo
   STqOffsetStore* pOffsetStore;
   SVnode*         pVnode;
-  SWal*           pWal;
   TDB*            pMetaStore;
   TTB*            pExecStore;
 };

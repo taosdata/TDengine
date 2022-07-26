@@ -37,7 +37,7 @@ const char *mndTopicGetShowName(const char topic[TSDB_TOPIC_FNAME_LEN]);
 
 int32_t mndSetTopicCommitLogs(SMnode *pMnode, STrans *pTrans, SMqTopicObj *pTopic);
 
-int32_t mndCheckColAndTagModifiable(SMnode *pMnode, int64_t suid, col_id_t colId);
+int32_t mndCheckColAndTagModifiable(SMnode *pMnode,  const char* stbname, int64_t suid, col_id_t colId);
 
 #ifdef __cplusplus
 }

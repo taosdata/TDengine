@@ -137,12 +137,13 @@ STsdbReader tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableL
 // tq
 int     tqInit();
 void    tqCleanUp();
-STQ*    tqOpen(const char* path, SVnode* pVnode, SWal* pWal);
+STQ*    tqOpen(const char* path, SVnode* pVnode);
 void    tqClose(STQ*);
 int     tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
 int     tqCommit(STQ*);
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
-int32_t tqCheckColModifiable(STQ* pTq, int32_t colId);
+int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId);
+int32_t tqProcessCheckAlterInfoReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen);
@@ -177,7 +178,6 @@ int32_t smaAsyncPostCommit(SSma* pSma);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
-int64_t tdRSmaGetMaxSubmitVer(SSma* pSma, int8_t level);
 
 int32_t tdProcessRSmaCreate(SSma* pSma, SVCreateStbReq* pReq);
 int32_t tdProcessRSmaSubmit(SSma* pSma, void* pMsg, int32_t inputType);
@@ -268,6 +268,7 @@ struct SVnode {
   tsem_t        canCommit;
   int64_t       sync;
   int32_t       blockCount;
+  bool          restored;
   tsem_t        syncSem;
   SQHandle*     pQuery;
 };

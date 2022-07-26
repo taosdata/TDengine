@@ -817,3 +817,5 @@ if $data44 != n8 then
   print data44 $data44 != n8
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

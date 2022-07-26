@@ -54,8 +54,6 @@ while $i < $tbNum
   $tstart = 100000
 endw
 
-sleep 100
-
 $tstart = 100000
 $mt = $mtPrefix . 1 . $i
 sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12), t3 int)
@@ -98,8 +96,6 @@ while $i < $tbNum
   $i = $i + 1
   $tstart = 100000
 endw
-
-sleep 100
 
 $i1 = 1
 $i2 = 0

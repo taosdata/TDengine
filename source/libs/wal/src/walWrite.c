@@ -26,7 +26,7 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
     pIter = taosHashIterate(pWal->pRefHash, pIter);
     if (pIter == NULL) break;
     SWalRef *pRef = (SWalRef *)pIter;
-    if (pRef->ver != -1) {
+    if (pRef->refVer != -1) {
       taosHashCancelIterate(pWal->pRefHash, pIter);
       return -1;
     }
@@ -215,22 +215,23 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
 
 static FORCE_INLINE int32_t walCheckAndRoll(SWal *pWal) {
   if (taosArrayGetSize(pWal->fileInfoSet) == 0) {
-    /*pWal->vers.firstVer = index;*/
     if (walRollImpl(pWal) < 0) {
       return -1;
     }
-  } else {
-    int64_t passed = walGetSeq() - pWal->lastRollSeq;
-    if (pWal->cfg.rollPeriod != -1 && pWal->cfg.rollPeriod != 0 && passed > pWal->cfg.rollPeriod) {
-      if (walRollImpl(pWal) < 0) {
-        return -1;
-      }
-    } else if (pWal->cfg.segSize != -1 && pWal->cfg.segSize != 0 && walGetLastFileSize(pWal) > pWal->cfg.segSize) {
-      if (walRollImpl(pWal) < 0) {
-        return -1;
-      }
+    return 0;
+  }
+
+  int64_t passed = walGetSeq() - pWal->lastRollSeq;
+  if (pWal->cfg.rollPeriod != -1 && pWal->cfg.rollPeriod != 0 && passed > pWal->cfg.rollPeriod) {
+    if (walRollImpl(pWal) < 0) {
+      return -1;
+    }
+  } else if (pWal->cfg.segSize != -1 && pWal->cfg.segSize != 0 && walGetLastFileSize(pWal) > pWal->cfg.segSize) {
+    if (walRollImpl(pWal) < 0) {
+      return -1;
     }
   }
+
   return 0;
 }
 
@@ -259,6 +260,16 @@ int32_t walEndSnapshot(SWal *pWal) {
 
   pWal->vers.snapshotVer = ver;
   int ts = taosGetTimestampSec();
+
+  int64_t minVerToDelete = ver;
+  void   *pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pWal->pRefHash, pIter);
+    if (pIter == NULL) break;
+    SWalRef *pRef = *(SWalRef **)pIter;
+    if (pRef->refVer == -1) continue;
+    minVerToDelete = TMIN(minVerToDelete, pRef->refVer);
+  }
 
   int          deleteCnt = 0;
   int64_t      newTotSize = pWal->totSize;

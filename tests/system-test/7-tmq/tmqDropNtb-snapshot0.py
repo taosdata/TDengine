@@ -18,25 +18,13 @@ class TDTestCase:
     def __init__(self):
         self.snapshot   = 0
         self.vgroups    = 4
-        self.ctbNum     = 100
+        self.ctbNum     = 1000
         self.rowsPerTbl = 10
         
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
         
-    def waitSubscriptionExit(self, max_wait_count=20):
-        wait_cnt = 0
-        while (wait_cnt < max_wait_count):
-            tdSql.query("show subscriptions")
-            if tdSql.getRows() == 0:
-                break
-            else:
-                time.sleep(1)
-                wait_cnt += 1
-                
-        tdLog.info("wait subscriptions exit for %d s"%wait_cnt)
-    
     # drop some ntbs
     def tmqCase1(self):
         tdLog.printNoPrefix("======== test case 1: ")
@@ -51,9 +39,9 @@ class TDTestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
                     'ctbPrefix':  'ntb',
                     'ctbStartIdx': 0,
-                    'ctbNum':     100,
-                    'rowsPerTbl': 1000,
-                    'batchNum':   1000,
+                    'ctbNum':     1000,
+                    'rowsPerTbl': 100,
+                    'batchNum':   100,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'endTs': 0,
                     'pollDelay':  5,
@@ -115,7 +103,7 @@ class TDTestCase:
             tdLog.exit("tmq consume rows error with snapshot = 0!")
         
         tdLog.info("wait subscriptions exit ....")      
-        self.waitSubscriptionExit()
+        tmqCom.waitSubscriptionExit(tdSql, topicFromDb)
             
         tdSql.query("drop topic %s"%topicFromDb)
         tdLog.info("success dorp topic: %s"%topicFromDb)
@@ -137,9 +125,9 @@ class TDTestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
                     'ctbPrefix':  'ntb',
                     'ctbStartIdx': 0,
-                    'ctbNum':     100,
-                    'rowsPerTbl': 1000,
-                    'batchNum':   1000,
+                    'ctbNum':     1000,
+                    'rowsPerTbl': 100,
+                    'batchNum':   100,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'endTs': 0,
                     'pollDelay':  10,
@@ -208,7 +196,7 @@ class TDTestCase:
             tdLog.exit("tmq consume rows error with snapshot = 0!")
         
         tdLog.info("wait subscriptions exit ....")      
-        self.waitSubscriptionExit()
+        tmqCom.waitSubscriptionExit(tdSql, topicFromDb)
             
         tdSql.query("drop topic %s"%topicFromDb)
         tdLog.info("success dorp topic: %s"%topicFromDb)
@@ -218,14 +206,14 @@ class TDTestCase:
         tdLog.printNoPrefix("=============================================")
         tdLog.printNoPrefix("======== snapshot is 0: only consume from wal")
         self.snapshot = 0
-        # self.tmqCase1()
+        self.tmqCase1()
         self.tmqCase2()               
         
-        tdLog.printNoPrefix("====================================================================")
-        tdLog.printNoPrefix("======== snapshot is 1: firstly consume from tsbs, and then from wal")
-        self.snapshot = 1
+        # tdLog.printNoPrefix("====================================================================")
+        # tdLog.printNoPrefix("======== snapshot is 1: firstly consume from tsbs, and then from wal")
+        # self.snapshot = 1
         # self.tmqCase1()
-        self.tmqCase2()
+        # self.tmqCase2()
 
     def stop(self):
         tdSql.close()

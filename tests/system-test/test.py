@@ -328,7 +328,7 @@ if __name__ == "__main__":
                 conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
             else:
                 conn = taosrest.connect(url=f"http://{host}:6041")
-            tdLog.info(tdDnodes.getSimCfgPath(),host)
+            # tdLog.info(tdDnodes.getSimCfgPath(),host)
             if createDnodeNums == 1:
                 createDnodeNums=dnodeNums
             else:

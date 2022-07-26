@@ -278,7 +278,6 @@ sql create stable td6086st(ts timestamp, d double) tags(t nchar(50));
 sql create table td6086ct1 using td6086st tags("ct1");
 sql create table td6086ct2 using td6086st tags("ct2");
 
-return
 sql SELECT LAST(d),t FROM td6086st WHERE tbname in ('td6086ct1', 'td6086ct2') and ts>="2019-07-30 00:00:00" and ts<="2021-08-31 00:00:00" partition BY tbname interval(1800s) fill(prev);
 
 print ==================> td-2624

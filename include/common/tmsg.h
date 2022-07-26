@@ -748,6 +748,10 @@ typedef struct {
   int8_t  ignoreExist;
   int32_t numOfRetensions;
   SArray* pRetensions;  // SRetention
+  int32_t walRetentionPeriod;
+  int32_t walRetentionSize;
+  int32_t walRollPeriod;
+  int32_t walSegmentSize;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -1977,6 +1981,7 @@ typedef struct SVCreateTbReq {
   union {
     struct {
       char*    name;  // super table name
+      uint8_t  tagNum;
       tb_uid_t suid;
       SArray*  tagName;
       uint8_t* pTag;
@@ -2536,6 +2541,15 @@ static FORCE_INLINE void* tDecodeSMqRebVgReq(const void* buf, SMqRebVgReq* pReq)
   }
   return (void*)buf;
 }
+
+typedef struct {
+  char    topic[TSDB_TOPIC_FNAME_LEN];
+  int64_t ntbUid;
+  SArray* colIdList;  // SArray<int16_t>
+} SCheckAlterInfo;
+
+int32_t tEncodeSCheckAlterInfo(SEncoder* pEncoder, const SCheckAlterInfo* pInfo);
+int32_t tDecodeSCheckAlterInfo(SDecoder* pDecoder, SCheckAlterInfo* pInfo);
 
 typedef struct {
   int32_t vgId;

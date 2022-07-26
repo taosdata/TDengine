@@ -68,7 +68,7 @@ class TDTestCase:
     def fiveDnodeThreeMnode(self,dnodeNumbers,mnodeNums,restartNumbers,stopRole):
         tdLog.printNoPrefix("======== test case 1: ")
         paraDict = {'dbName':     'db',
-                    'dbNumbers':   10,
+                    'dbNumbers':   8,
                     'dropFlag':   1,
                     'event':      '',
                     'vgroups':    2,

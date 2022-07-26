@@ -24,19 +24,7 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
-        
-    def waitSubscriptionExit(self, max_wait_count=20):
-        wait_cnt = 0
-        while (wait_cnt < max_wait_count):
-            tdSql.query("show subscriptions")
-            if tdSql.getRows() == 0:
-                break
-            else:
-                time.sleep(2)
-                wait_cnt += 1
-                
-        tdLog.info("wait subscriptions exit for %d s"%wait_cnt)
-
+ 
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
         paraDict = {'dbName':     'dbt',
@@ -63,7 +51,7 @@ class TDTestCase:
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
         
-        tmqCom.initConsumerTable()
+        # tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
         tdLog.info("create stb")
         tmqCom.create_stable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"])
@@ -109,6 +97,8 @@ class TDTestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl        
+        
+        tmqCom.initConsumerTable()
         
         # again create one new stb1
         paraDict["stbName"] = 'stb1'
@@ -169,7 +159,7 @@ class TDTestCase:
             tdLog.exit("tmq consume rows error with snapshot = 0!")
 
         tdLog.info("wait subscriptions exit ....")      
-        self.waitSubscriptionExit()
+        tmqCom.waitSubscriptionExit(tdSql, topicFromDb)
             
         tdSql.query("drop topic %s"%topicFromDb)
         tdLog.info("success dorp topic: %s"%topicFromDb)
@@ -203,6 +193,8 @@ class TDTestCase:
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl        
         
+        tmqCom.initConsumerTable()
+        
         # again create one new stb1
         paraDict["stbName"] = 'stb2'
         paraDict['ctbPrefix'] = 'ctb2n_'
@@ -221,9 +213,9 @@ class TDTestCase:
         tdSql.execute("create topic %s as database %s" %(topicFromDb, paraDict['dbName']))
         
         if self.snapshot == 0:
-            consumerId     = 0
+            consumerId     = 2
         elif self.snapshot == 1:
-            consumerId     = 1
+            consumerId     = 3
                 
         expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * 2)
         topicList      = topicFromDb
@@ -258,7 +250,7 @@ class TDTestCase:
             tdLog.exit("tmq consume rows error with snapshot = 0!")
 
         tdLog.info("wait subscriptions exit ....")      
-        self.waitSubscriptionExit()
+        tmqCom.waitSubscriptionExit(tdSql, topicFromDb)
                     
         tdSql.query("drop topic %s"%topicFromDb)
         tdLog.info("success dorp topic: %s"%topicFromDb)

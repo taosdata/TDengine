@@ -24,9 +24,10 @@ TEST_F(PlanBasicTest, selectClause) {
   useDb("root", "test");
 
   run("SELECT * FROM t1");
-  run("SELECT 1 FROM t1");
-  run("SELECT * FROM st1");
-  run("SELECT 1 FROM st1");
+
+  run("SELECT MAX(c1) c2, c2 FROM t1");
+
+  run("SELECT MAX(c1) c2, c2 FROM st1");
 }
 
 TEST_F(PlanBasicTest, whereClause) {
@@ -139,6 +140,10 @@ TEST_F(PlanBasicTest, timeLineFunc) {
   run("SELECT CSUM(c1) FROM t1");
 
   run("SELECT CSUM(c1) FROM st1");
+
+  run("SELECT TWA(c1) FROM t1");
+
+  run("SELECT TWA(c1) FROM st1");
 }
 
 TEST_F(PlanBasicTest, multiResFunc) {

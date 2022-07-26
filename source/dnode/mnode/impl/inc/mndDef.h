@@ -144,33 +144,33 @@ typedef enum {
 } ECsmUpdateType;
 
 typedef struct {
-  int32_t        id;
-  ETrnStage      stage;
-  ETrnPolicy     policy;
-  ETrnConflct    conflict;
-  ETrnExec       exec;
-  EOperType      oper;
-  int32_t        code;
-  int32_t        failedTimes;
-  void*          rpcRsp;
-  int32_t        rpcRspLen;
-  int32_t        redoActionPos;
-  SArray*        redoActions;
-  SArray*        undoActions;
-  SArray*        commitActions;
-  int64_t        createdTime;
-  int64_t        lastExecTime;
-  int32_t        lastAction;
-  int32_t        lastErrorNo;
-  tmsg_t         lastMsgType;
-  SEpSet         lastEpset;
-  char           dbname1[TSDB_DB_FNAME_LEN];
-  char           dbname2[TSDB_DB_FNAME_LEN];
-  int32_t        startFunc;
-  int32_t        stopFunc;
-  int32_t        paramLen;
-  void*          param;
-  SArray*        pRpcArray;
+  int32_t     id;
+  ETrnStage   stage;
+  ETrnPolicy  policy;
+  ETrnConflct conflict;
+  ETrnExec    exec;
+  EOperType   oper;
+  int32_t     code;
+  int32_t     failedTimes;
+  void*       rpcRsp;
+  int32_t     rpcRspLen;
+  int32_t     redoActionPos;
+  SArray*     redoActions;
+  SArray*     undoActions;
+  SArray*     commitActions;
+  int64_t     createdTime;
+  int64_t     lastExecTime;
+  int32_t     lastAction;
+  int32_t     lastErrorNo;
+  tmsg_t      lastMsgType;
+  SEpSet      lastEpset;
+  char        dbname1[TSDB_TABLE_FNAME_LEN];
+  char        dbname2[TSDB_TABLE_FNAME_LEN];
+  int32_t     startFunc;
+  int32_t     stopFunc;
+  int32_t     paramLen;
+  void*       param;
+  SArray*     pRpcArray;
 } STrans;
 
 typedef struct {
@@ -477,6 +477,10 @@ typedef struct {
   char*          physicalPlan;
   SSchemaWrapper schema;
   int64_t        stbUid;
+  // forbid condition
+  int64_t ntbUid;
+  SArray* ntbColIds;
+  int64_t ctbStbUid;
 } SMqTopicObj;
 
 typedef struct {
