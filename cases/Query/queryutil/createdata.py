@@ -68,12 +68,18 @@ class TDCreateData():
         #drop:
         self.tdSql.execute('''drop database if exists %s ;''' %database)
 
+    def show_local_variables(self):
+        self.tdSql.query('''show local variables;''')
+        for i in range(self.tdSql.query_row):
+            self.logger.info("%s - %s"% (self.tdSql.query_data[i][0], self.tdSql.query_data[i][1]))
+
     def dropandcreateDB_random(self,database,n):
         self.ts = 1630000000000
         self.num_random = 100
         fake = Faker('zh_CN')
         # self.tdSql.execute('''drop database if exists %s ;''' %database)
         # self.tdSql.execute('''create database %s keep 36500;'''%database)
+        self.show_local_variables()
         self.tdCommon.createDb(database, True, keep=36500)
         self.tdSql.execute('''use %s;'''%database)
 
@@ -212,6 +218,7 @@ class TDCreateData():
         fake = Faker('zh_CN')
         # self.tdSql.execute('''drop database if exists %s ;''' %database)
         # self.tdSql.execute('''create database %s keep 36500;'''%database)
+        self.show_local_variables()
         self.tdCommon.createDb(database, True, keep=36500)
         self.tdSql.execute('''use %s;'''%database)
         # 1 = readings 2 = diagnostics
@@ -359,6 +366,7 @@ class TDCreateData():
         fake = Faker('zh_CN')
         # self.tdSql.execute('''drop database if exists %s ;''' %database)
         # self.tdSql.execute('''create database %s keep 36500;'''%database)
+        self.show_local_variables()
         self.tdCommon.createDb(database, True, keep=36500)
         self.tdSql.execute('''use %s;'''%database)
 
@@ -467,6 +475,7 @@ class TDCreateData():
         fake = Faker('zh_CN')
         # self.tdSql.execute('''drop database if exists %s ;''' %database)
         # self.tdSql.execute('''create database %s keep 36500;'''%database)
+        self.show_local_variables()
         self.tdCommon.createDb(database, True, keep=36500)
         self.tdSql.execute('''use %s;'''%database)
 
@@ -626,6 +635,7 @@ class TDCreateData():
         self.ts = 1630000000000
         # self.tdSql.execute('''drop database if exists db ;''')
         # self.tdSql.execute('''create database db keep 36500;''')
+        self.show_local_variables()
         self.tdCommon.createDb(database, True, keep=36500)
         self.tdSql.execute('''use db;''')
 
