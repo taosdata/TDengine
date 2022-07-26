@@ -3,6 +3,7 @@ taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/st
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/str/split/stable_str_concat_2.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/split/stable_query_union_1.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/split/stable_query_union_2.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/split/stable_query_union_2_2.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/split/stable_query_union_3.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/split/stable_query_union_4.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/split/stable_query_1.py --keep --containers
@@ -25,7 +26,8 @@ taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/t
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/time/split/stable_time_truncate_2.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/time/split/stable_time_timediff_1.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/time/split/stable_time_timediff_2.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/time/stable_time_elapsed.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/time/split/stable_time_elapsed_1.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/time/split/stable_time_elapsed_2.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/str/split/stable_str_concat_1.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/str/stable_str_lower.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/str/stable_str_upper.py --keep --containers
@@ -34,6 +36,7 @@ taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/s
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/str/stable_str_rtrim.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/str/stable_str_substr.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_stddev_1.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_stddev_1_1.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_stddev_2.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_stddev_3.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_top_bottom.py --keep --containers
