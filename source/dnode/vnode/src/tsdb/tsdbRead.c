@@ -31,7 +31,6 @@ typedef struct {
 typedef struct STableBlockScanInfo {
   uint64_t  uid;
   TSKEY     lastKey;
-  SBlockIdx blockIdx;
   SMapData  mapData;     // block info (compressed)
   SArray*   pBlockList;  // block data index list
   SIterInfo iter;        // mem buffer skip list iterator
@@ -188,7 +187,7 @@ static int32_t setColumnIdSlotList(STsdbReader* pReader, SSDataBlock* pBlock) {
 
 static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, const STableKeyInfo* idList, int32_t numOfTables) {
   // allocate buffer in order to load data blocks from file
-  // todo use simple hash instead
+  // todo use simple hash instead, optimize the memory consumption
   SHashObj* pTableMap =
       taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (pTableMap == NULL) {
@@ -249,6 +248,7 @@ static void destroyBlockScanInfo(SHashObj* pTableMap) {
 
     p->delSkyline = taosArrayDestroy(p->delSkyline);
     p->pBlockList = taosArrayDestroy(p->pBlockList);
+    tMapDataClear(&p->mapData);
   }
 
   taosHashCleanup(pTableMap);
@@ -565,7 +565,6 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
       pScanInfo->pBlockList = taosArrayInit(4, sizeof(int32_t));
     }
 
-    pScanInfo->blockIdx = *pBlockIdx;
     taosArrayPush(pIndexList, pBlockIdx);
   }
 
@@ -775,7 +774,8 @@ static int32_t doLoadFileBlockData(STsdbReader* pReader, SDataBlockIter* pBlockI
   SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
 
-  int32_t code = tsdbReadColData(pReader->pFileReader, &pBlockScanInfo->blockIdx, pBlock, pSupInfo->colIds, numOfCols,
+  SBlockIdx blockIdx = {.suid = pReader->suid, .uid =  pBlockScanInfo->uid};
+  int32_t code = tsdbReadColData(pReader->pFileReader, &blockIdx, pBlock, pSupInfo->colIds, numOfCols,
                                  pBlockData, NULL, NULL);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -904,10 +904,10 @@ static int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIte
     }
 
     sup.pDataBlockInfo[sup.numOfTables] = (SBlockOrderWrapper*)buf;
+    SBlock block = {0};
     for (int32_t k = 0; k < num; ++k) {
       SBlockOrderWrapper wrapper = {0};
 
-      SBlock block = {0};
       int32_t* mapDataIndex = taosArrayGet(pTableScanInfo->pBlockList, k);
       tMapDataGetItemByIdx(&pTableScanInfo->mapData, *mapDataIndex, &block, tGetBlock);
 
@@ -2563,6 +2563,8 @@ void tsdbReaderClose(STsdbReader* pReader) {
   taosMemoryFree(pSupInfo->buildBuf);
 
   cleanupDataBlockIterator(&pReader->status.blockIter);
+
+  size_t numOfTables = taosHashGetSize(pReader->status.pTableMap);
   destroyBlockScanInfo(pReader->status.pTableMap);
   blockDataDestroy(pReader->pResBlock);
 
@@ -2573,9 +2575,11 @@ void tsdbReaderClose(STsdbReader* pReader) {
   SIOCostSummary* pCost = &pReader->cost;
 
   tsdbDebug("%p :io-cost summary: head-file:%" PRIu64 ", head-file time:%.2f ms, SMA:%"PRId64" SMA-time:%.2f ms, "
-            "fileBlocks:%"PRId64", fileBlocks-time:%.2f ms, build in-memory-block-time:%.2f ms, %s",
+            "fileBlocks:%"PRId64", fileBlocks-time:%.2f ms, build in-memory-block-time:%.2f ms, STableBlockScanInfo "
+                                "size:%.2f Kb %s",
             pReader, pCost->headFileLoad, pCost->headFileLoadTime, pCost->smaData, pCost->smaLoadTime,
-            pCost->numOfBlocks, pCost->blockLoadTime, pCost->buildmemBlock, pReader->idStr);
+            pCost->numOfBlocks, pCost->blockLoadTime, pCost->buildmemBlock,
+            numOfTables * sizeof(STableBlockScanInfo) /1000.0, pReader->idStr);
 
   taosMemoryFree(pReader->idStr);
   taosMemoryFree(pReader->pSchema);
