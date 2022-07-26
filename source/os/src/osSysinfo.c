@@ -374,9 +374,10 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   size_t  size = 0;
   int32_t done = 0;
   int32_t code = -1;
+  float   coreCount = 0;
 
   TdFilePtr pFile = taosOpenFile("/proc/cpuinfo", TD_FILE_READ | TD_FILE_STREAM);
-  if (pFile == NULL) return false;
+  if (pFile == NULL) return code;
 
   while (done != 3 && (size = taosGetLineFile(pFile, &line)) != -1) {
     line[size - 1] = '\0';
@@ -390,11 +391,26 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
       *numOfCores = atof(v);
       done |= 2;
     }
+    if (strncmp(line, "processor", 9) == 0) coreCount += 1;
   }
 
   if (line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
 
+  if (code != 0) {
+    TdFilePtr pFile1 = taosOpenFile("/proc/device-tree/model", TD_FILE_READ | TD_FILE_STREAM);
+    if (pFile1 == NULL) return code;
+    taosGetsFile(pFile1, maxLen, cpuModel);
+    taosCloseFile(&pFile1);
+    code = 0;
+    done |= 1;
+  }
+
+  if ((done & 2) == 0) {
+  	*numOfCores = coreCount;
+  	done |= 2;
+  }
+  
   return code;
 #endif
 }
