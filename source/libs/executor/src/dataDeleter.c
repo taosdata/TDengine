@@ -182,7 +182,8 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
     return TSDB_CODE_SUCCESS;
   }
   SDataCacheEntry* pEntry = (SDataCacheEntry*)(pDeleter->nextOutput.pData);
-  memcpy(pOutput->pData, pEntry->data, pEntry->dataLen);
+  memcpy(pOutput->pData, pEntry->data, pEntry->dataLen);  
+  pDeleter->pParam->pUidList = NULL;
   pOutput->numOfRows = pEntry->numOfRows;
   pOutput->numOfCols = pEntry->numOfCols;
   pOutput->compressed = pEntry->compressed;
@@ -205,6 +206,8 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   SDataDeleterHandle* pDeleter = (SDataDeleterHandle*)pHandle;
   atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pDeleter->cachedSize);
   taosMemoryFreeClear(pDeleter->nextOutput.pData);
+  taosArrayDestroy(pDeleter->pParam->pUidList);
+  taosMemoryFree(pDeleter->pParam);  
   while (!taosQueueEmpty(pDeleter->pDataBlocks)) {
     SDataDeleterBuf* pBuf = NULL;
     taosReadQitem(pDeleter->pDataBlocks, (void**)&pBuf);
