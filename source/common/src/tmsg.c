@@ -2018,6 +2018,10 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   if (tEncodeI8(&encoder, pReq->strict) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->cacheLast) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->schemaless) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->walRetentionPeriod) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->walRetentionSize) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->walRollPeriod) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->walSegmentSize) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->ignoreExist) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->numOfRetensions) < 0) return -1;
   for (int32_t i = 0; i < pReq->numOfRetensions; ++i) {
@@ -2060,6 +2064,10 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   if (tDecodeI8(&decoder, &pReq->strict) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->cacheLast) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->schemaless) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->walRetentionPeriod) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->walRetentionSize) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->walRollPeriod) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->walSegmentSize) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->ignoreExist) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->numOfRetensions) < 0) return -1;
   pReq->pRetensions = taosArrayInit(pReq->numOfRetensions, sizeof(SRetention));
@@ -3742,6 +3750,10 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
     uint32_t tsmaLen = (uint32_t)(htonl(((SMsgHead *)pReq->pTsma)->contLen));
     if (tEncodeBinary(&encoder, (const uint8_t *)pReq->pTsma, tsmaLen) < 0) return -1;
   }
+  if (tEncodeI32(&encoder, pReq->walRetentionPeriod) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->walRetentionSize) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->walRollPeriod) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->walSegmentSize) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -3809,6 +3821,11 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   if (pReq->isTsma) {
     if (tDecodeBinary(&decoder, (uint8_t **)&pReq->pTsma, NULL) < 0) return -1;
   }
+
+  if (tDecodeI32(&decoder, &pReq->walRetentionPeriod) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->walRetentionSize) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->walRollPeriod) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->walSegmentSize) < 0) return -1;
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);

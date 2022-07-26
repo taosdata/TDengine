@@ -52,7 +52,7 @@ int32_t tqMetaOpen(STQ* pTq) {
     ASSERT(0);
   }
 
-  TXN txn;
+  TXN txn = {0};
 
   if (tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, 0) < 0) {
     ASSERT(0);
@@ -75,7 +75,13 @@ int32_t tqMetaOpen(STQ* pTq) {
     STqHandle handle;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     tDecodeSTqHandle(&decoder, &handle);
-    handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
+
+    handle.pRef = walOpenRef(pTq->pVnode->pWal);
+    if (handle.pRef == NULL) {
+      ASSERT(0);
+    }
+    walRefVer(handle.pRef, handle.snapshotVer);
+
     if (handle.execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       SReadHandle reader = {
           .meta = pTq->pVnode->pMeta,
@@ -94,6 +100,7 @@ int32_t tqMetaOpen(STQ* pTq) {
       handle.execHandle.pExecReader = qExtractReaderFromStreamScanner(scanner);
       ASSERT(handle.execHandle.pExecReader);
     } else {
+      handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
       handle.execHandle.execDb.pFilterOutTbUid =
           taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     }

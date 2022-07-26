@@ -71,14 +71,14 @@ class TDTestCase:
                 is_leader=True
 
         if count==1 and is_leader:
-            tdLog.info("===== depoly cluster success with 1 mnode as leader =====")
+            tdLog.notice("===== depoly cluster success with 1 mnode as leader =====")
         else:
             tdLog.exit("===== depoly cluster fail with 1 mnode as leader =====")
 
         for k ,v in self.dnode_list.items():
             if k == mnode_name:
                 if v[3]==0:
-                    tdLog.info("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
+                    tdLog.notice("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
                 else:
                     tdLog.exit("===== depoly cluster mnode only fail at {} , support_vnodes is {} ".format(mnode_name,v[3]))
             else:
@@ -121,7 +121,7 @@ class TDTestCase:
 
         for k , v in vgroups_infos.items():
             if len(v) ==1 and v[0]=="leader":
-                tdLog.info(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
+                tdLog.notice(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
             else:
                 tdLog.exit(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
 
@@ -129,7 +129,7 @@ class TDTestCase:
         drop_db_sql = "drop database if exists {}".format(dbname)
         create_db_sql = "create database {} replica {} vgroups {}".format(dbname,replica_num,vgroup_nums)
 
-        tdLog.info(" ==== create database {} and insert rows begin =====".format(dbname))
+        tdLog.notice(" ==== create database {} and insert rows begin =====".format(dbname))
         tdSql.execute(drop_db_sql)
         tdSql.execute(create_db_sql)
         tdSql.execute("use {}".format(dbname))
@@ -155,7 +155,7 @@ class TDTestCase:
                 ts = self.ts + 1000*row_num
                 tdSql.execute(f"insert into {sub_tbname} values ({ts}, {row_num} ,{row_num}, 10 ,1 ,{row_num} ,{row_num},true,'bin_{row_num}','nchar_{row_num}',now) ")
 
-        tdLog.info(" ==== create database {} and insert rows execute end =====".format(dbname))
+        tdLog.notice(" ==== create database {} and insert rows execute end =====".format(dbname))
 
     def check_insert_status(self, dbname, tb_nums , row_nums):
         tdSql.execute("use {}".format(dbname))

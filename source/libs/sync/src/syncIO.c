@@ -242,9 +242,9 @@ static int32_t syncIOStopInternal(SSyncIO *io) {
 }
 
 static void *syncIOConsumerFunc(void *param) {
-  SSyncIO   *io = param;
+  SSyncIO *  io = param;
   STaosQall *qall = taosAllocateQall();
-  SRpcMsg   *pRpcMsg, rpcMsg;
+  SRpcMsg *  pRpcMsg, rpcMsg;
   SQueueInfo qinfo = {0};
 
   while (1) {

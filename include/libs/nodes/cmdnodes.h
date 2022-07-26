@@ -74,6 +74,10 @@ typedef struct SDatabaseOptions {
   int8_t      singleStable;
   SNodeList*  pRetentions;
   int8_t      schemaless;
+  int32_t     walRetentionPeriod;
+  int32_t     walRetentionSize;
+  int32_t     walRollPeriod;
+  int32_t     walSegmentSize;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {

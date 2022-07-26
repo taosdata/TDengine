@@ -230,6 +230,10 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.standby = standby;
   createReq.isTsma = pVgroup->isTsma;
   createReq.pTsma = pVgroup->pTsma;
+  createReq.walRetentionPeriod = pDb->cfg.walRetentionPeriod;
+  createReq.walRetentionSize = pDb->cfg.walRetentionSize;
+  createReq.walRollPeriod = pDb->cfg.walRollPeriod;
+  createReq.walSegmentSize = pDb->cfg.walSegmentSize;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SReplica  *pReplica = &createReq.replicas[v];

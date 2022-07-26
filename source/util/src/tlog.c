@@ -17,6 +17,7 @@
 #include "tlog.h"
 #include "os.h"
 #include "tutil.h"
+#include "tconfig.h"
 
 #define LOG_MAX_LINE_SIZE             (1024)
 #define LOG_MAX_LINE_BUFFER_SIZE      (LOG_MAX_LINE_SIZE + 3)
@@ -62,6 +63,7 @@ typedef struct {
   TdThreadMutex logMutex;
 } SLogObj;
 
+extern SConfig *tsCfg;
 static int8_t  tsLogInited = 0;
 static SLogObj tsLogObj = {.fileNum = 1};
 static int64_t tsAsyncLogLostLines = 0;
@@ -740,26 +742,4 @@ cmp_end:
   taosMemoryFree(data);
 
   return ret;
-}
-
-void taosSetAllDebugFlag(int32_t flag) {
-  if (flag <= 0) return;
-
-  uDebugFlag = flag;
-  rpcDebugFlag = flag;
-  jniDebugFlag = flag;
-  qDebugFlag = flag;
-  cDebugFlag = flag;
-  dDebugFlag = flag;
-  vDebugFlag = flag;
-  mDebugFlag = flag;
-  wDebugFlag = flag;
-  sDebugFlag = flag;
-  tsdbDebugFlag = flag;
-  tqDebugFlag = flag;
-  fsDebugFlag = flag;
-  udfDebugFlag = flag;
-  smaDebugFlag = flag;
-  idxDebugFlag = flag;
-  uInfo("all debug flag are set to %d", flag);
 }

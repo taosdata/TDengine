@@ -748,6 +748,10 @@ typedef struct {
   int8_t  ignoreExist;
   int32_t numOfRetensions;
   SArray* pRetensions;  // SRetention
+  int32_t walRetentionPeriod;
+  int32_t walRetentionSize;
+  int32_t walRollPeriod;
+  int32_t walSegmentSize;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -1150,6 +1154,10 @@ typedef struct {
   int32_t  numOfRetensions;
   SArray*  pRetensions;  // SRetention
   void*    pTsma;
+  int32_t  walRetentionPeriod;
+  int64_t  walRetentionSize;
+  int32_t  walRollPeriod;
+  int64_t  walSegmentSize;
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -1977,7 +1985,7 @@ typedef struct SVCreateTbReq {
   union {
     struct {
       char*    name;  // super table name
-      uint8_t tagNum;
+      uint8_t  tagNum;
       tb_uid_t suid;
       SArray*  tagName;
       uint8_t* pTag;
