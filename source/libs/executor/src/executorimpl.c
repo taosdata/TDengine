@@ -666,6 +666,11 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
           pfCtx->pTsOutput = (SColumnInfoData*)pCtx[*outputColIndex].pOutput;
         }
 
+        // link pDstBlock to set selectivity value
+        if (pfCtx->subsidiaries.num > 0) {
+          pfCtx->pDstBlock = pResult;
+        }
+
         numOfRows = pfCtx->fpSet.process(pfCtx);
       } else if (fmIsAggFunc(pfCtx->functionId)) {
         // _group_key function for "partition by tbname" + csum(col_name) query
