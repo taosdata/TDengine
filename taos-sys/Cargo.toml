@@ -32,6 +32,7 @@ libloading = "0.7.3"
 [dev-dependencies]
 anyhow = "1"
 tokio = { version = "1", features = ["full"] }
+pretty_env_logger= "0.4.0"
 
 [features]
 default = ["backport"]

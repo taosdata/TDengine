@@ -2,9 +2,7 @@ use std::{fmt::Debug, pin::Pin, time::Duration};
 
 use itertools::Itertools;
 
-use crate::{
-    common::{JsonMeta, RawMeta},
-};
+use crate::common::{JsonMeta, RawMeta};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Timeout {
@@ -182,6 +180,10 @@ pub trait AsConsumer: Sized {
     }
 
     fn commit(&self, offset: Self::Offset) -> Result<(), Self::Error>;
+
+    fn unsubscribe(self) {
+        drop(self)
+    }
 }
 
 pub struct MessageSetsIter<'a, C> {
@@ -253,6 +255,10 @@ pub trait AsAsyncConsumer: Sized + Send + Sync {
     }
 
     async fn commit(&self, offset: Self::Offset) -> Result<(), Self::Error>;
+
+    async fn unsubscribe(self) {
+        drop(self)
+    }
 }
 
 /// Marker trait to impl sync on async impl.

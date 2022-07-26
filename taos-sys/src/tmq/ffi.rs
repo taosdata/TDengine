@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Display, os::raw::*};
+use std::{borrow::Cow, os::raw::*};
 
 use taos_macros::c_cfg;
 
@@ -79,17 +79,9 @@ pub enum tmq_res_t {
 #[derive(Debug)]
 pub struct tmq_raw_meta {
     pub raw_meta: *mut c_void,
-    pub raw_meta_len: i32,
-    pub raw_meta_type: i16,
+    pub raw_meta_len: u32,
+    pub raw_meta_type: u16,
 }
-
-impl Drop for tmq_raw_meta {
-    fn drop(&mut self) {
-        let len = self.raw_meta_len as usize;
-        let _ = unsafe { Vec::from_raw_parts(self.raw_meta as *mut u8, len, len) };
-    }
-}
-
 // TMQ streaming/consuming API.
 #[c_cfg(taos_tmq)]
 extern "C" {

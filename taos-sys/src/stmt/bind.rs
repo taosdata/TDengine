@@ -112,11 +112,11 @@ impl<T: IsValue> ToBind for T {}
 
 #[cfg(test)]
 mod tests_v2 {
-    use std::ffi::CStr;
+    
 
     use taos_query::common::itypes::IVarChar;
 
-    use super::*;
+    
     use crate::TaosBindV2 as TaosBind;
 
     #[test]
@@ -155,7 +155,7 @@ mod tests_v2 {
 }
 #[cfg(test)]
 mod tests_v3 {
-    use std::ffi::CStr;
+    
 
     use crate::TaosBindV3 as TaosBind;
     use taos_query::common::itypes::IVarChar;

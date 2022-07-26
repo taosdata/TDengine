@@ -1,15 +1,15 @@
 use std::cell::UnsafeCell;
-use std::ffi::{CStr, CString};
+use std::ffi::{CStr};
 use std::os::raw::*;
 use std::task::{Context, Poll, Waker};
 
 use taos_error::{Code, Error};
 use taos_query::{
-    common::{Field, Precision, RawMeta},
+    common::{Field, Precision},
     RawData,
 };
 
-use crate::{ffi::*, from_raw_fields, tmq_res_t, VGroupId};
+use crate::{ffi::*, from_raw_fields, tmq_res_t};
 
 use super::blocks::SharedState;
 use super::{blocks::Blocks, message::MessageStream};
@@ -357,7 +357,6 @@ impl RawRes {
     pub(crate) fn drop(&mut self) {
         unsafe {
             taos_free_result(self.0);
-            self.0 = std::ptr::null_mut()
         }
     }
 }

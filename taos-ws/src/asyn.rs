@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use futures::stream::SplitSink;
+
 use futures::{FutureExt, SinkExt, StreamExt};
 use scc::HashMap;
 // use std::sync::Mutex;
@@ -7,17 +7,17 @@ use taos_query::common::{Field, Precision, RawData, RawMeta};
 use taos_query::util::InlinableWrite;
 use taos_query::{AsyncFetchable, AsyncQueryable, DeError, DsnError, IntoDsn};
 use thiserror::Error;
-use tokio::net::TcpStream;
-use tokio::sync::Mutex;
+
+
 use tokio::sync::{oneshot, watch};
 
 use tokio::time;
 use tokio_tungstenite::tungstenite::Error as WsError;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 
-use crate::{infra::*, WsInfo};
+use crate::{infra::*, TaosBuilder};
 
-use std::cell::UnsafeCell;
+
 use std::fmt::Debug;
 use std::io::Write;
 use std::result::Result as StdResult;
@@ -168,10 +168,10 @@ impl WsAsyncClient {
     ///
     pub async fn from_dsn(dsn: impl IntoDsn) -> Result<Self> {
         let dsn = dsn.into_dsn()?;
-        let info = WsInfo::from_dsn(dsn)?;
+        let info = TaosBuilder::from_dsn(dsn)?;
         Self::from_wsinfo(&info).await
     }
-    pub(crate) async fn from_wsinfo(info: &WsInfo) -> Result<Self> {
+    pub(crate) async fn from_wsinfo(info: &TaosBuilder) -> Result<Self> {
         let (ws, _) = connect_async(dbg!(info.to_query_url())).await?;
         let req_id = 0;
         let (mut sender, mut reader) = ws.split();
@@ -207,7 +207,7 @@ impl WsAsyncClient {
             match message {
                 Message::Text(text) => {
                     let v: WsRecv = serde_json::from_str(&text).unwrap();
-                    let (req_id, data, ok) = v.ok();
+                    let (_req_id, data, ok) = v.ok();
                     match data {
                         WsRecvData::Conn => ok?,
                         _ => unreachable!(),
@@ -405,7 +405,7 @@ impl WsAsyncClient {
         }
         let sleep = tokio::time::sleep(self.timeout);
         tokio::pin!(sleep);
-        let resp = tokio::select! {
+        let _resp = tokio::select! {
             _ = &mut sleep, if !sleep.is_elapsed() => {
                log::debug!("get server version timed out");
                Err(Error::QueryTimeout("write meta".to_string()))?
@@ -539,7 +539,7 @@ impl ResultSet {
 
         log::info!("receiving block...");
         match self.receiver.as_mut().unwrap().recv()?? {
-            WsFetchData::Block(mut raw) => {
+            WsFetchData::Block(raw) => {
                 let mut raw = RawData::parse_from_raw_block(
                     raw,
                     fetch_resp.rows,
@@ -612,7 +612,7 @@ impl ResultSetRef {
 
         log::info!("receiving block...");
         match self.receiver.as_mut().unwrap().recv()?? {
-            WsFetchData::Block(mut raw) => {
+            WsFetchData::Block(raw) => {
                 let mut raw = RawData::parse_from_raw_block(
                     raw,
                     fetch_resp.rows,
@@ -725,7 +725,7 @@ async fn test_client() -> anyhow::Result<()> {
 
     let client = WsAsyncClient::from_dsn(dsn).await?;
 
-    let version = client.version();
+    let _version = client.version();
     assert_eq!(client.exec("drop database if exists abc_a").await?, 0);
     assert_eq!(client.exec("create database abc_a").await?, 0);
     assert_eq!(
@@ -787,7 +787,7 @@ async fn test_client_cloud() -> anyhow::Result<()> {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
 async fn ws_show_databases() -> anyhow::Result<()> {
-    use taos_query::{Fetchable, Queryable};
+    use taos_query::{Queryable};
     let dsn = std::env::var("TDENGINE_ClOUD_DSN").unwrap_or("http://localhost:6041".to_string());
     let client = WsAsyncClient::from_dsn(dsn).await?;
     let mut rs = client.query("show databases").await?;

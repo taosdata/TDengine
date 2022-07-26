@@ -1,8 +1,4 @@
-use std::slice;
 
-use futures::TryStreamExt;
-// todo: some const functions are not available for stable Rust.
-use taos_query::common::{RawData, Value};
 
 #[test]
 fn raw_block() -> Result<(), taos_error::Error> {
@@ -102,7 +98,7 @@ fn raw_block_full_test() -> Result<(), taos_error::Error> {
     let mut rs = taos.query("select ts from tb1 limit 1")?;
     let inner = rs.fetch_raw_block()?.unwrap();
     let fields = rs.fields();
-    let precision = rs.precision();
+    let _precision = rs.precision();
     let field_count = rs.ncols();
     let gid = inner.group_id();
     println!("group id: {gid}");

@@ -1,17 +1,17 @@
-use bytes::{Bytes, BytesMut};
-use futures::{FutureExt, SinkExt, StreamExt, TryStreamExt};
+use bytes::{Bytes};
+use futures::{FutureExt, SinkExt, StreamExt};
 use itertools::Itertools;
 use scc::HashMap;
-use serde::{Deserialize, Serialize};
-use serde_json::json;
+
+
 use taos_query::block_in_place_or_global;
-use taos_query::common::{Column, Field, JsonMeta, Precision, RawMeta};
+use taos_query::common::{JsonMeta, RawMeta};
 use taos_query::tmq::{
-    AsAsyncConsumer, AsConsumer, IsAsyncMeta, IsMeta, IsOffset, MessageSet, SyncOnAsync, Timeout,
+    AsAsyncConsumer, AsConsumer, IsAsyncMeta, IsOffset, MessageSet, SyncOnAsync, Timeout,
 };
-use taos_query::util::{Inlinable, InlinableRead};
+use taos_query::util::{InlinableRead};
 use taos_query::{
-    AsyncFetchable, AsyncQueryable, DeError, Dsn, DsnError, IntoDsn, RawData, TBuilder,
+    AsyncFetchable, DeError, DsnError, IntoDsn, RawData, TBuilder,
 };
 use thiserror::Error;
 use tokio::sync::{oneshot, watch};
@@ -21,7 +21,7 @@ use tokio_tungstenite::tungstenite::Error as WsError;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 
 use crate::infra::ToMessage;
-use crate::{infra::WsConnReq, WsInfo};
+use crate::{infra::WsConnReq, TaosBuilder};
 use messages::*;
 
 use std::fmt::Debug;
@@ -80,13 +80,13 @@ impl WsTmqSender {
     }
 }
 
-pub struct WsBuilder {
-    info: WsInfo,
+pub struct TmqBuilder {
+    info: TaosBuilder,
     conf: TmqInit,
 }
 
-impl TBuilder for WsBuilder {
-    type Target = WsConsumerBuilder;
+impl TBuilder for TmqBuilder {
+    type Target = Consumer;
 
     type Error = Error;
 
@@ -200,7 +200,7 @@ impl WsMessageBase {
     }
 }
 
-pub struct WsMetaMessage(WsMessageBase);
+pub struct Meta(WsMessageBase);
 
 // impl WsMetaMessage {
 //     pub async fn as_raw_meta(&self) -> Result<RawMeta> {
@@ -212,7 +212,7 @@ pub struct WsMetaMessage(WsMessageBase);
 // }
 
 #[async_trait::async_trait]
-impl IsAsyncMeta for WsMetaMessage {
+impl IsAsyncMeta for Meta {
     type Error = Error;
 
     async fn as_raw_meta(&self) -> StdResult<RawMeta, Self::Error> {
@@ -224,17 +224,17 @@ impl IsAsyncMeta for WsMetaMessage {
     }
 }
 
-impl SyncOnAsync for WsMetaMessage {}
+impl SyncOnAsync for Meta {}
 
-pub struct WsDataMessage(WsMessageBase);
+pub struct Data(WsMessageBase);
 
-impl WsDataMessage {
+impl Data {
     pub async fn fetch_block(&self) -> Result<Option<RawData>> {
         self.0.fetch_raw_data().await
     }
 }
 
-impl Iterator for WsDataMessage {
+impl Iterator for Data {
     type Item = Result<RawData>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -243,8 +243,8 @@ impl Iterator for WsDataMessage {
 }
 
 pub enum WsMessageSet {
-    Meta(WsMetaMessage),
-    Data(WsDataMessage),
+    Meta(Meta),
+    Data(Data),
 }
 
 impl WsMessageSet {
@@ -256,7 +256,7 @@ impl WsMessageSet {
     }
 }
 
-impl WsConsumerBuilder {
+impl Consumer {
     // pub async fn subscribe<Item: Into<String>, Iter: IntoIterator<Item = Item>>(
     //     &mut self,
     //     topics: Iter,
@@ -272,7 +272,7 @@ impl WsConsumerBuilder {
     //     Ok(())
     // }
 
-    pub async fn poll_timeout(
+    pub(crate) async fn poll_timeout(
         &mut self,
         timeout: Duration,
     ) -> Result<Option<(Offset, WsMessageSet)>> {
@@ -313,12 +313,8 @@ impl WsConsumerBuilder {
                         message_id,
                     };
                     match message_type {
-                        MessageType::Meta => {
-                            Ok(Some((offset, WsMessageSet::Meta(WsMetaMessage(message)))))
-                        }
-                        MessageType::Data => {
-                            Ok(Some((offset, WsMessageSet::Data(WsDataMessage(message)))))
-                        }
+                        MessageType::Meta => Ok(Some((offset, WsMessageSet::Meta(Meta(message))))),
+                        MessageType::Data => Ok(Some((offset, WsMessageSet::Data(Data(message))))),
                         _ => unreachable!(),
                     }
                 } else {
@@ -348,14 +344,14 @@ impl WsConsumerBuilder {
 }
 
 #[async_trait::async_trait]
-impl AsAsyncConsumer for WsConsumerBuilder {
+impl AsAsyncConsumer for Consumer {
     type Error = Error;
 
     type Offset = Offset;
 
-    type Meta = WsMetaMessage;
+    type Meta = Meta;
 
-    type Data = WsDataMessage;
+    type Data = Data;
 
     async fn subscribe<T: Into<String>, I: IntoIterator<Item = T> + Send>(
         &mut self,
@@ -422,12 +418,8 @@ impl AsAsyncConsumer for WsConsumerBuilder {
                         message_id,
                     };
                     match message_type {
-                        MessageType::Meta => {
-                            Ok(Some((offset, MessageSet::Meta(WsMetaMessage(message)))))
-                        }
-                        MessageType::Data => {
-                            Ok(Some((offset, MessageSet::Data(WsDataMessage(message)))))
-                        }
+                        MessageType::Meta => Ok(Some((offset, MessageSet::Meta(Meta(message))))),
+                        MessageType::Data => Ok(Some((offset, MessageSet::Data(Data(message))))),
                         _ => unreachable!(),
                     }
                 } else {
@@ -450,44 +442,38 @@ impl AsAsyncConsumer for WsConsumerBuilder {
     }
 }
 
-impl AsConsumer for WsConsumerBuilder {
+impl AsConsumer for Consumer {
     type Error = Error;
 
     type Offset = Offset;
 
-    type Meta = WsMetaMessage;
+    type Meta = Meta;
 
-    type Data = WsDataMessage;
+    type Data = Data;
 
     fn subscribe<T: Into<String>, I: IntoIterator<Item = T> + Send>(
         &mut self,
         topics: I,
     ) -> StdResult<(), Self::Error> {
-        block_in_place_or_global(<WsConsumerBuilder as AsAsyncConsumer>::subscribe(
-            self, topics,
-        ))
+        block_in_place_or_global(<Consumer as AsAsyncConsumer>::subscribe(self, topics))
     }
 
     fn recv_timeout(
         &self,
         timeout: Timeout,
     ) -> StdResult<Option<(Self::Offset, MessageSet<Self::Meta, Self::Data>)>, Self::Error> {
-        block_in_place_or_global(<WsConsumerBuilder as AsAsyncConsumer>::recv_timeout(
-            &self, timeout,
-        ))
+        block_in_place_or_global(<Consumer as AsAsyncConsumer>::recv_timeout(&self, timeout))
     }
 
     fn commit(&self, offset: Self::Offset) -> StdResult<(), Self::Error> {
-        block_in_place_or_global(<WsConsumerBuilder as AsAsyncConsumer>::commit(
-            &self, offset,
-        ))
+        block_in_place_or_global(<Consumer as AsAsyncConsumer>::commit(&self, offset))
     }
 }
 
-impl WsBuilder {
+impl TmqBuilder {
     pub fn new<D: IntoDsn>(dsn: D) -> Result<Self> {
         let dsn = dsn.into_dsn()?;
-        let info = WsInfo::from_dsn(&dsn)?;
+        let info = TaosBuilder::from_dsn(&dsn)?;
         let group_id = dsn
             .params
             .get("group.id")
@@ -505,7 +491,7 @@ impl WsBuilder {
         Ok(Self { info, conf })
     }
 
-    async fn build_consumer(&self) -> Result<WsConsumerBuilder> {
+    async fn build_consumer(&self) -> Result<Consumer> {
         let url = self.info.to_tmq_url();
         // let (ws, _) = futures::executor::block_on(connect_async(url))?;
         let (ws, _) = connect_async(url).await?;
@@ -593,7 +579,7 @@ impl WsBuilder {
                                                 log::warn!("poll message received but no receiver alive");
                                             }
                                         }
-                                        TmqRecvData::FetchRawMeta { meta }=> {
+                                        TmqRecvData::FetchRawMeta { meta: _ }=> {
                                             if let Some((_, sender)) = queries_sender.remove(&req_id)
                                             {
                                                 sender.send(ok.map(|_|recv)).unwrap();
@@ -678,7 +664,7 @@ impl WsBuilder {
                 }
             }
         });
-        Ok(WsConsumerBuilder {
+        Ok(Consumer {
             conn: self.info.to_conn_request(),
             tmq_conf: self.conf.clone(),
             sender: WsTmqSender {
@@ -694,7 +680,7 @@ impl WsBuilder {
     }
 }
 
-pub struct WsConsumerBuilder {
+pub struct Consumer {
     conn: WsConnReq,
     tmq_conf: TmqInit,
     sender: WsTmqSender,
@@ -767,7 +753,7 @@ impl Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-impl Drop for WsConsumerBuilder {
+impl Drop for Consumer {
     fn drop(&mut self) {
         // send close signal to reader/writer spawned tasks.
         let _ = self.close_signal.send(true);
@@ -778,7 +764,7 @@ impl Drop for WsConsumerBuilder {
 mod tests {
     use std::time::Duration;
 
-    use super::{WsBuilder, WsInfo};
+    use super::{TaosBuilder, TmqBuilder};
 
     #[tokio::test]
     async fn test_ws_tmq_meta() -> anyhow::Result<()> {
@@ -787,7 +773,7 @@ mod tests {
             .filter_level(log::LevelFilter::Debug)
             .init();
 
-        let taos = WsInfo::from_dsn("taos://localhost:6041")?.build()?;
+        let taos = TaosBuilder::from_dsn("taos://localhost:6041")?.build()?;
         taos.exec_many([
             "drop database if exists ws_abc1",
             "create database ws_abc1",
@@ -862,7 +848,7 @@ mod tests {
         ])
         .await?;
 
-        let builder = WsBuilder::new("taos://localhost:6041?group.id=10&timeout=1000ms")?;
+        let builder = TmqBuilder::new("taos://localhost:6041?group.id=10&timeout=1000ms")?;
         let mut consumer = builder.build_consumer().await?;
         consumer.subscribe(["ws_abc1"]).await?;
 
@@ -881,7 +867,7 @@ mod tests {
             // 2. data
             match message {
                 MessageSet::Meta(meta) => {
-                    let raw = meta.as_raw_meta().await?;
+                    let _raw = meta.as_raw_meta().await?;
                     // taos.write_meta(raw).await?;
 
                     // meta data can be write to an database seamlessly by raw or json (to sql).
@@ -929,7 +915,7 @@ mod tests {
             .filter_level(log::LevelFilter::Debug)
             .init();
 
-        let taos = WsInfo::from_dsn("taos://localhost:6041")?.build()?;
+        let taos = TaosBuilder::from_dsn("taos://localhost:6041")?.build()?;
         taos.exec_many([
             "drop database if exists ws_abc1",
             "create database ws_abc1",
@@ -1002,7 +988,7 @@ mod tests {
             "use db2",
         ])?;
 
-        let builder = WsBuilder::new("taos://localhost:6041?group.id=10&timeout=1000ms")?;
+        let builder = TmqBuilder::new("taos://localhost:6041?group.id=10&timeout=1000ms")?;
         let mut consumer = builder.build()?;
         consumer.subscribe(["ws_abc1"])?;
 
@@ -1022,7 +1008,7 @@ mod tests {
             // 2. data
             match message {
                 MessageSet::Meta(meta) => {
-                    let raw = meta.as_raw_meta()?;
+                    let _raw = meta.as_raw_meta()?;
                     // taos.write_meta(raw)?;
 
                     // meta data can be write to an database seamlessly by raw or json (to sql).

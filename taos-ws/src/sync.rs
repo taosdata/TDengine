@@ -1,20 +1,20 @@
-use once_cell::sync::{Lazy, OnceCell};
+use once_cell::sync::{OnceCell};
 use taos_error::Code;
-use taos_query::common::{Field, Precision, RawData};
-use taos_query::{DeError, Dsn, DsnError, Fetchable, IntoDsn, Queryable};
+use taos_query::common::{Field, Precision, RawData, RawMeta};
+use taos_query::{DeError, DsnError, Fetchable, IntoDsn, Queryable};
 use thiserror::Error;
 use tokio::sync::watch;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
 use crate::stmt::sync::{WsSyncStmt, WsSyncStmtClient};
-use crate::{infra::*, stmt, WsInfo};
+use crate::{infra::*, stmt, TaosBuilder};
 
-use std::any;
+
 use std::cell::UnsafeCell;
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicBool, AtomicU64};
-use std::sync::{mpsc::Sender, Arc, Mutex};
+use std::sync::{Arc};
 use std::time::Duration;
 
 use scc::HashMap;
@@ -42,7 +42,7 @@ pub struct WsAuth {
 }
 
 pub struct WsClient {
-    info: WsInfo,
+    info: TaosBuilder,
     timeout: Duration,
     version: String,
     req_id: Arc<AtomicU64>,
@@ -146,11 +146,11 @@ impl WsClient {
     ///
     pub fn from_dsn(dsn: impl IntoDsn) -> Result<Self> {
         let dsn = dsn.into_dsn()?;
-        let info = WsInfo::from_dsn(dsn)?;
+        let info = TaosBuilder::from_dsn(dsn)?;
         Self::from_wsinfo(&info)
     }
 
-    pub(crate) fn from_wsinfo(info: &WsInfo) -> Result<Self> {
+    pub(crate) fn from_wsinfo(info: &TaosBuilder) -> Result<Self> {
         use futures::SinkExt;
         use futures::StreamExt;
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -163,7 +163,7 @@ impl WsClient {
 
         rt.block_on(async_sender.send(WsSend::Version.to_msg()))?;
 
-        let duration = Duration::from_secs(2);
+        let _duration = Duration::from_secs(2);
 
         let get_version = async {
             let sleep = tokio::time::sleep(Duration::from_secs(1));
@@ -494,6 +494,11 @@ impl WsClient {
     pub fn s_exec(&self, sql: &str) -> Result<usize> {
         self.s_exec_timeout(sql, self.timeout)
     }
+
+    pub fn s_write_meta(&self, _: RawMeta) -> Result<()> {
+        // todo: unimplemented
+        todo!()
+    }
     pub fn s_exec_timeout(&self, sql: &str, timeout: Duration) -> Result<usize> {
         if !self.alive.load(std::sync::atomic::Ordering::SeqCst) {
             Err(taos_error::Error::new(
@@ -670,6 +675,10 @@ impl Queryable for WsClient {
 
     fn exec<T: AsRef<str>>(&self, sql: T) -> std::result::Result<usize, Self::Error> {
         self.s_exec(sql.as_ref())
+    }
+
+    fn write_meta(&self, raw: taos_query::common::RawMeta) -> std::result::Result<(), Self::Error> {
+        self.s_write_meta(raw)
     }
 }
 

@@ -1,20 +1,15 @@
 use crate::{
     common::{BorrowedValue, Field, Precision, Ty, Value},
-    util::{Inlinable, InlinableWrite},
+    util::{Inlinable, InlinableRead, InlinableWrite},
 };
 
-use bytes::{Bytes};
+use bytes::Bytes;
 use itertools::Itertools;
 
+use nom::AsBytes;
 use serde::Deserialize;
 
-use std::{
-    cell::{RefCell},
-    ffi::c_void,
-    ops::Deref,
-    ptr::NonNull,
-    sync::Arc,
-};
+use std::{cell::RefCell, ffi::c_void, ops::Deref, ptr::NonNull, sync::Arc};
 use std::{fmt::Debug, mem::transmute};
 
 pub mod layout;
@@ -64,8 +59,8 @@ pub struct RawData {
     table: Option<String>,
     /// Field names of current data block.
     fields: Vec<String>,
-    // todo: is raw fields necessary?
-    raw_fields: Vec<Field>,
+    // // todo: is raw fields necessary?
+    // raw_fields: Vec<Field>,
     /// Group id in current data block, it always be 0 in v2 block, and be meaningful in v3.
     group_id: u64,
     /// Column schemas of current data block, contains only data type and the length defined in `create table`.
@@ -91,7 +86,7 @@ impl Debug for RawData {
             .field("precision", &self.precision)
             .field("table", &self.table)
             .field("fields", &self.fields)
-            .field("raw_fields", &self.raw_fields)
+            // .field("raw_fields", &self.raw_fields)
             .field("group_id", &self.group_id)
             .field("schemas", &self.schemas)
             .field("lengths", &self.lengths)
@@ -132,18 +127,6 @@ impl RawData {
     ) -> Self {
         use bytes::BufMut;
         debug_assert_eq!(fields.len(), lengths.len());
-
-        const BOOL_NULL: u64 = 0x02;
-        const TINY_INT_NULL: u64 = 0x80;
-        const SMALL_INT_NULL: u64 = 0x8000;
-        const INT_NULL: u64 = 0x80000000;
-        const BIG_INT_NULL: u64 = 0x8000000000000000;
-        const FLOAT_NULL: u64 = 0x7FF00000;
-        const DOUBLE_NULL: u64 = 0x7FFFFF0000000000;
-        const U_TINY_INT_NULL: u64 = 0xFF;
-        const U_SMALL_INT_NULL: u64 = 0xFFFF;
-        const U_INT_NULL: u64 = 0xFFFFFFFF;
-        const U_BIG_INT_NULL: u64 = 0xFFFFFFFFFFFFFFFF;
 
         const fn bool_is_null(v: *const bool) -> bool {
             unsafe { *(v as *const u8) == 0x02 }
@@ -246,24 +229,25 @@ impl RawData {
                 Ty::Null => unreachable!(),
 
                 // Booleans column view.
-                Ty::Bool => {
-                    debug_assert_eq!(field.bytes(), *length);
-                    debug_assert_eq!(field.bytes() as usize, std::mem::size_of::<bool>());
+                // Ty::Bool => {
+                //     debug_assert_eq!(field.bytes(), *length);
+                //     debug_assert_eq!(field.bytes() as usize, std::mem::size_of::<bool>());
 
-                    let start = offset;
-                    // Bool column data end
-                    offset += rows; // bool size is 1
-                    let data = bytes.slice(start..offset);
-                    let nulls = NullsMut::from_bools(data.iter().map(|b| *b as u64 == BOOL_NULL))
-                        .into_nulls();
+                //     let start = offset;
+                //     // Bool column data end
+                //     offset += rows; // bool size is 1
+                //     let data = bytes.slice(start..offset);
+                //     let nulls = NullsMut::from_bools(data.iter().map(|b| bool_is_null(b as _)))
+                //         .into_nulls();
 
-                    data_lengths[i] = data.len() as u32;
-                    // build column view
-                    let column = ColumnView::Bool(BoolView { nulls, data });
-                    columns.push(column);
-                }
+                //     data_lengths[i] = data.len() as u32;
+                //     // build column view
+                //     let column = ColumnView::Bool(BoolView { nulls, data });
+                //     columns.push(column);
+                // }
 
                 // Signed integers columns.
+                Ty::Bool => _primitive_view!(Bool, bool),
                 Ty::TinyInt => _primitive_view!(TinyInt, i8),
                 Ty::SmallInt => _primitive_view!(SmallInt, i16),
                 Ty::Int => _primitive_view!(Int, i32),
@@ -316,7 +300,7 @@ impl RawData {
 
                     // generate nulls bitmap.
                     let nulls =
-                        NullsMut::from_bools(value_slice.iter().map(|b| *b as u64 == BIG_INT_NULL))
+                        NullsMut::from_bools(value_slice.iter().map(|b| big_int_is_null(b as _)))
                             .into_nulls();
                     // build column view
                     let column = ColumnView::Timestamp(TimestampView {
@@ -395,7 +379,7 @@ impl RawData {
             fields: fields.iter().map(|s| s.name().to_string()).collect(),
             columns,
             group_id: 0,
-            raw_fields: Vec::new(),
+            // raw_fields: Vec::new(),
         }
     }
 
@@ -526,7 +510,7 @@ impl RawData {
             database: None,
             table: None,
             fields: Vec::new(),
-            raw_fields: Vec::new(),
+            // raw_fields: Vec::new(),
             columns,
         }
     }
@@ -554,17 +538,18 @@ impl RawData {
     // }
 
     /// Set field names of the block
-    pub fn with_field_names<S: Into<String>, I: Iterator<Item = S>>(
+    pub fn with_field_names<S: Into<String>, I: IntoIterator<Item = S>>(
         &mut self,
         names: I,
     ) -> &mut Self {
-        self.fields = names.map(|name| name.into()).collect();
-        self.raw_fields = self
-            .fields
-            .iter()
-            .zip(self.schemas())
-            .map(|(name, schema)| Field::new(name, schema.ty, schema.len))
-            .collect();
+        self.fields = names.into_iter().map(|name| name.into()).collect();
+        self.layout.borrow_mut().with_field_names();
+        // self.raw_fields = self
+        //     .fields
+        //     .iter()
+        //     .zip(self.schemas())
+        //     .map(|(name, schema)| Field::new(name, schema.ty, schema.len))
+        //     .collect();
         self
     }
 
@@ -704,36 +689,54 @@ impl RawData {
 }
 
 impl Inlinable for RawData {
-    fn read_inlined<R: std::io::Read>(_reader: R) -> std::io::Result<Self> {
-        // let layout = reader.read_u32()?;
-        // let layout = Layout::from_bits(layout).expect("should be layout");
+    fn read_inlined<R: std::io::Read>(mut reader: R) -> std::io::Result<Self> {
+        let layout = reader.read_u32()?;
+        let layout = Layout::from_bits(layout).expect("should be layout");
+
+        let precision = layout.precision();
+
+        let rows = reader.read_u32()? as usize;
+        let cols = reader.read_u32()? as usize;
+
         // let mut table_name = None;
-        // if layout.expect_table_name() {
-        //     table_name.replace(reader.read_inlined_str()?);
-        // }
+        let table_name = if layout.expect_table_name() {
+            Some(reader.read_inlined_str::<2>()?)
+        } else {
+            None
+        };
 
-        // if layout.expect_field_names() {
+        let names: Vec<_> = (0..cols as usize)
+            .map(|_| reader.read_inlined_str::<1>())
+            .try_collect()?;
 
-        // }
-        // Ok()
-        todo!()
+        let bytes = reader.read_inlined_bytes::<4>()?;
+
+        let mut raw = Self::parse_from_raw_block(bytes, rows, cols, precision);
+
+        if let Some(name) = table_name {
+            raw.with_table_name(name);
+        }
+
+        raw.with_field_names(names);
+
+        Ok(raw)
     }
 
     fn write_inlined<W: std::io::Write>(&self, mut wtr: W) -> std::io::Result<usize> {
         let mut l = wtr.write_u32(self.layout.borrow().as_inner())?;
 
+        l += wtr.write_len_with_width::<4>(self.nrows())?;
+        l += wtr.write_len_with_width::<4>(self.ncols())?;
+
         if let Some(name) = self.table.as_ref() {
             l += wtr.write_inlined_bytes::<2>(name.as_bytes())?;
         }
         if self.fields.len() > 0 {
-            l += wtr.write_len_with_width::<2>(self.fields.len())?;
-            for field in &self.raw_fields {
-                l += wtr.write_inlinable(field)?;
+            for field in self.field_names() {
+                l += wtr.write_inlined_str::<1>(field)?;
             }
         }
         let raw = self.as_raw_bytes();
-        l += wtr.write_len_with_width::<4>(self.nrows())?;
-        l += wtr.write_len_with_width::<4>(self.ncols())?;
         l += wtr.write_inlined_bytes::<4>(raw)?;
         Ok(l)
     }
@@ -746,7 +749,14 @@ fn test_block_parser() {
     let precision = Precision::Millisecond;
     static BYTES: &[u8; 460] = b"\xcc\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\t\x00\x08\x00\x00\x00\x01\x00\x01\x00\x00\x00\x02\x00\x01\x00\x00\x00\x03\x00\x02\x00\x00\x00\x04\x00\x04\x00\x00\x00\x05\x00\x08\x00\x00\x00\x0b\x00\x01\x00\x00\x00\x0c\x00\x02\x00\x00\x00\r\x00\x04\x00\x00\x00\x0e\x00\x08\x00\x00\x00\x06\x00\x04\x00\x00\x00\x07\x00\x08\x00\x00\x00\x08\x00f\x00\x00\x00\n\x00\x92\x01\x00\x00\x0f\x00\x00@\x00\x00\x18\x00\x00\x00\x03\x00\x00\x00\x03\x00\x00\x00\x06\x00\x00\x00\x0c\x00\x00\x00\x18\x00\x00\x00\x03\x00\x00\x00\x06\x00\x00\x00\x0c\x00\x00\x00\x18\x00\x00\x00\x0c\x00\x00\x00\x18\x00\x00\x00\x05\x00\x00\x00\x16\x00\x00\x004\x00\x00\x00\x00?\x8c\xfa\x84\x81\x01\x00\x00>\x8c\xfa\x84\x81\x01\x00\x00?\x8c\xfa\x84\x81\x01\x00\x00\xc0\x00\x00\x01\xc0\x00\x00\xff\xc0\x00\x00\x00\x00\xff\xff\xc0\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\xc0\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\xff\xff\xff\xff\xc0\x00\x00\x01\xc0\x00\x00\x00\x00\x01\x00\xc0\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\xc0\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\xc0\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xc0\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x03\x00abc\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x14\x00\x9bm\x00\x00\x1d`\x00\x00\x1e\xd1\x01\x00pe\x00\x00nc\x00\x00\xff\xff\xff\xff\x00\x00\x00\x00\x1a\x00\x00\x00\x18\x00{\"a\":\"\xe6\xb6\x9b\xe6\x80\x9d\xf0\x9d\x84\x9e\xe6\x95\xb0\xe6\x8d\xae\"}\x18\x00{\"a\":\"\xe6\xb6\x9b\xe6\x80\x9d\xf0\x9d\x84\x9e\xe6\x95\xb0\xe6\x8d\xae\"}\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
 
-    RawData::parse_from_raw_block(Bytes::from_static(BYTES), rows, cols, precision);
+    let mut raw = RawData::parse_from_raw_block(Bytes::from_static(BYTES), rows, cols, precision);
+    raw.with_field_names((0..cols).map(|col| format!("c{col}")).collect_vec());
+
+    let bytes = raw.inlined();
+
+    let raw = RawData::read_inlined(bytes.deref()).unwrap();
+
+    dbg!(raw);
 }
 
 #[test]
@@ -846,6 +856,30 @@ fn test_v2_full() {
 #[test]
 fn test_v2_null() {
     let raw = RawData::parse_from_raw_block_v2(
+        [0x2, 0].as_slice(),
+        &[Field::new("b", Ty::Bool, 1)],
+        &[1],
+        2,
+        Precision::Millisecond,
+    );
+    dbg!(&raw);
+    let (_ty, _len, null) = unsafe { raw.get_raw_value_unchecked(0, 0) };
+    assert!(null.is_null());
+    let (_ty, _len, null) = unsafe { raw.get_raw_value_unchecked(1, 0) };
+    assert!(!null.is_null());
+
+    let raw = RawData::parse_from_raw_block_v2(
+        [0x80].as_slice(),
+        &[Field::new("b", Ty::TinyInt, 1)],
+        &[1],
+        1,
+        Precision::Millisecond,
+    );
+    dbg!(&raw);
+    let (_ty, _len, null) = unsafe { raw.get_raw_value_unchecked(0, 0) };
+    assert!(null.is_null());
+
+    let raw = RawData::parse_from_raw_block_v2(
         [0, 0, 0, 0x80].as_slice(),
         &[Field::new("a", Ty::Int, 4)],
         &[4],
@@ -924,16 +958,4 @@ fn test_from_v2() {
         Precision::Millisecond,
     );
     dbg!(&raw);
-}
-
-#[test]
-fn test_null() {
-    let float = unsafe { transmute::<u32, f32>(0x7FF00000) };
-    assert!(float.is_nan());
-}
-
-#[test]
-fn test_bytes() {
-    let s = b"abcd";
-    let _bytes = Bytes::from_static(s);
 }

@@ -1,8 +1,5 @@
 use std::{
-    any::{Any, TypeId},
-    borrow::Cow,
     fmt::Debug,
-    intrinsics::transmute,
     mem::ManuallyDrop,
     os::raw::*,
     ptr,
@@ -13,7 +10,7 @@ use derive_more::Deref;
 pub use field::*;
 pub use taos_query::common::{Precision, Ty};
 
-use taos_query::common::{itypes::*, BorrowedColumn, Column, ColumnView, Timestamp};
+use taos_query::common::{itypes::*, BorrowedColumn, Column, ColumnView};
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]

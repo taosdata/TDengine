@@ -1,24 +1,14 @@
 use std::{
-    cell::UnsafeCell,
     ffi::CStr,
-    future::Future,
-    marker::PhantomData,
-    ops::Deref,
     os::raw::*,
-    process::Output,
-    sync::{Arc, Mutex},
-    task::{Context, Poll},
 };
 
-use once_cell::sync::OnceCell;
+
 use taos_error::{Code, Error};
-use taos_query::{
-    common::{Field, RawData, Ty},
-    AsyncFetchable, TBuilder, Fetchable, Queryable,
-};
 
-use crate::{err_or, into_c_str::IntoCStr, query::QueryFuture};
-use crate::{ffi::*, taos_write_raw_meta, Meta, RawRes, ResultSet};
+
+use crate::{err_or, into_c_str::IntoCStr, query::QueryFuture, tmq_raw_meta};
+use crate::{ffi::*, taos_write_raw_meta, RawRes, ResultSet};
 
 #[derive(Debug, Clone)]
 #[repr(transparent)]
@@ -143,8 +133,8 @@ impl RawTaos {
     }
 
     #[inline]
-    pub fn write_raw_meta(&self, meta: Meta) -> Result<(), Error> {
-        err_or!(taos_write_raw_meta(self.as_ptr(), meta.to_raw()))
+    pub fn write_raw_meta(&self, meta: tmq_raw_meta) -> Result<(), Error> {
+        err_or!(taos_write_raw_meta(self.as_ptr(), meta))
     }
 
     #[inline]

@@ -9,17 +9,15 @@ use std::{
     cell::UnsafeCell,
     ffi::CString,
     fmt::Display,
-    ops::Deref,
-    sync::Arc,
     task::{Context, Poll},
 };
 
 use once_cell::sync::OnceCell;
-use query::blocks::{Blocks, SharedState};
-use taos_error::{Code, Error as RawError};
+use query::blocks::{SharedState};
+use taos_error::{Error as RawError};
 use taos_query::{
-    common::{Field, RawData, Ty},
-    AsyncFetchable, AsyncQueryable, TBuilder, DsnError, Fetchable, Queryable,
+    common::{Field, RawData},
+    AsyncFetchable, AsyncQueryable, DsnError, Fetchable, Queryable, TBuilder,
 };
 
 pub enum MessageType {
@@ -37,7 +35,7 @@ mod ffi;
 // use ffi::*;
 
 mod set_config;
-use set_config::*;
+
 
 pub use ffi::taos_options;
 
@@ -101,6 +99,15 @@ impl Queryable for Taos {
     fn query<T: AsRef<str>>(&self, sql: T) -> Result<Self::ResultSet, Self::Error> {
         self.raw.query(sql.as_ref())
     }
+
+    fn write_meta(&self, meta: taos_query::common::RawMeta) -> Result<(), Self::Error> {
+        let raw = tmq_raw_meta {
+            raw_meta: meta.meta_data_ptr() as _,
+            raw_meta_len: meta.meta_len(),
+            raw_meta_type: meta.meta_type(),
+        };
+        self.raw.write_raw_meta(raw)
+    }
 }
 
 #[async_trait::async_trait]
@@ -117,6 +124,15 @@ impl AsyncQueryable for Taos {
             .query_async(sql.as_ref())
             .await
             .map(|raw| ResultSet::new(raw))
+    }
+
+    async fn write_meta(&self, meta: taos_query::common::RawMeta) -> Result<(), Self::Error> {
+        let raw = tmq_raw_meta {
+            raw_meta: meta.meta_data_ptr() as _,
+            raw_meta_len: meta.meta_len(),
+            raw_meta_type: meta.meta_type(),
+        };
+        self.raw.write_raw_meta(raw)
     }
 }
 
@@ -160,7 +176,7 @@ impl AsyncQueryable for Taos {
 /// #
 /// ```
 #[derive(Debug, Default)]
-pub struct Builder {
+pub struct TaosBuilder {
     host: Option<CString>,
     user: Option<CString>,
     pass: Option<CString>,
@@ -189,7 +205,7 @@ impl Display for Error {
     }
 }
 
-impl TBuilder for Builder {
+impl TBuilder for TaosBuilder {
     type Target = Taos;
 
     type Error = Error;
@@ -201,7 +217,7 @@ impl TBuilder for Builder {
 
     fn from_dsn<D: taos_query::IntoDsn>(dsn: D) -> Result<Self, Self::Error> {
         let dsn = dsn.into_dsn()?;
-        let mut builder = Builder::default();
+        let mut builder = TaosBuilder::default();
         if let Some(addr) = dsn.addresses.into_iter().next() {
             if let Some(host) = addr.host {
                 builder.host.replace(CString::new(host).unwrap());

@@ -40,6 +40,9 @@ impl Code {
     pub const INVALID_COLUMN_NAME: Code = Code(0x2602);
     pub const TABLE_NOT_EXIST: Code = Code(0x2603);
     pub const STABLE_NOT_EXIST: Code = Code(0x0362);
+    pub const INVALID_ROW_BYTES: Code = Code(0x036F);
+    pub const DUPLICATED_COLUMN_NAMES: Code = Code(0x263C);
+    pub const NO_COLUMN_CAN_BE_DROPPED: Code = Code(0x2651);
 }
 
 impl Display for Code {
@@ -64,7 +67,7 @@ macro_rules! _impl_from {
             impl From<$from> for Code {
                 #[inline]
                 fn from(c: $from) -> Self {
-                    Self(c as i32)
+                    Self(c as i32 & 0xFFFF)
                 }
             }
             impl From<Code> for $from {
@@ -124,6 +127,11 @@ impl Error {
             #[cfg(nightly)]
             backtrace: Backtrace::capture(),
         }
+    }
+
+    #[inline]
+    pub fn errno(&self) -> Code {
+        self.code
     }
 
     #[inline]

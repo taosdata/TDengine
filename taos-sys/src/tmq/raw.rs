@@ -3,7 +3,7 @@ pub(super) use list::Topics;
 pub(super) use tmq::RawTmq;
 
 pub(super) mod tmq {
-    use std::{os::raw::c_void, time::Duration};
+    use std::{os::raw::c_void};
 
     use itertools::Itertools;
 
@@ -143,7 +143,7 @@ pub(super) mod conf {
             self.0
         }
         pub(crate) fn new() -> Self {
-            Self(unsafe { tmq_conf_new() })
+            Self(unsafe { tmq_conf_new() }).disable_auto_commit()
         }
 
         pub(crate) fn from_dsn(dsn: &Dsn) -> Result<Self> {
@@ -188,6 +188,23 @@ pub(super) mod conf {
         }
         pub fn disable_auto_commit(mut self) -> Self {
             self.set("enable.auto.commit", "false")
+                .expect("set group.id should always be ok");
+            self
+        }
+
+        pub(crate) fn enable_heartbeat_background(mut self) -> Self {
+            self.set("enable.heartbeat.background", "true")
+                .expect("set heartbeat at background");
+            self
+        }
+
+        pub fn with_table_name(mut self) -> Self {
+            self.set("msg.with.table.name", "true")
+                .expect("set group.id should always be ok");
+            self
+        }
+        pub fn without_table_name(mut self) -> Self {
+            self.set("msg.with.table.name", "false")
                 .expect("set group.id should always be ok");
             self
         }

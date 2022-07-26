@@ -184,9 +184,7 @@ pub mod sync {
             self.query(sql).map(|res| res.affected_rows() as _)
         }
 
-        fn write_meta(&self, _: RawMeta) -> Result<(), Self::Error> {
-            todo!()
-        }
+        fn write_meta(&self, _: RawMeta) -> Result<(), Self::Error>;
 
         fn exec_many<T: AsRef<str>, I: IntoIterator<Item = T>>(
             &self,
@@ -257,7 +255,7 @@ pub mod sync {
 
         fn describe(&self, table: &str) -> Result<Describe, Self::Error> {
             Ok(Describe(
-                self.query(format!("describe {table}"))?
+                self.query(format!("describe `{table}`"))?
                     .deserialize()
                     .try_collect()?,
             ))
@@ -281,7 +279,7 @@ mod r#async {
 
     use crate::common::*;
     use crate::helpers::*;
-    
+
     // use crate::iter::*;
     #[cfg(feature = "async")]
     use async_trait::async_trait;
@@ -466,9 +464,7 @@ mod r#async {
             self.query(sql).await.map(|res| res.affected_rows() as _)
         }
 
-        async fn write_meta(&self, _: RawMeta) -> Result<(), Self::Error> {
-            todo!()
-        }
+        async fn write_meta(&self, _: RawMeta) -> Result<(), Self::Error>;
 
         async fn write_raw_data(&self, _: RawData) -> Result<(), Self::Error> {
             todo!()

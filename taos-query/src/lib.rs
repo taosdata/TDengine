@@ -351,6 +351,10 @@ mod tests {
         fn exec<T: AsRef<str>>(&self, _sql: T) -> Result<usize, Self::Error> {
             Ok(1)
         }
+
+        fn write_meta(&self, _: RawMeta) -> Result<(), Self::Error> {
+            Ok(())
+        }
     }
     #[test]
     fn query_deserialize() {
@@ -405,8 +409,6 @@ mod tests {
         assert_eq!(aff, 1);
 
         let mut set = conn.query("abc").unwrap();
-
-
 
         for row in set.deserialize::<u8>() {
             let row = row.unwrap();

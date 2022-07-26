@@ -1,9 +1,9 @@
 use crate::{err_or, ffi::*, into_c_str::IntoCStr, RawRes, RawTaos, ResultSet};
 
-use std::{ffi::CStr, os::raw::*};
+use std::ffi::CStr;
 
 use taos_error::{Code, Error};
-use taos_query::common::{itypes::ITimestamp, Ty};
+use taos_query::common::Ty;
 
 use crate::types::*;
 
@@ -169,6 +169,8 @@ impl RawStmt {
 #[test]
 fn test_tbname_tags() -> Result<(), Error> {
     use std::ptr::null;
+    use taos_query::common::itypes::ITimestamp;
+
     let host = null();
     let user = null();
     let pass = null();
@@ -229,6 +231,7 @@ fn test_tbname_tags() -> Result<(), Error> {
 #[test]
 fn test_tbname_tags_json() -> Result<(), Error> {
     use std::ptr::null;
+    use taos_query::common::itypes::ITimestamp;
     let host = null();
     let user = null();
     let pass = null();

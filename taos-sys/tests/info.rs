@@ -1,12 +1,12 @@
 #[test]
 fn test_server_info() {
     use taos_query::prelude::sync::*;
-    use taos_sys::Builder;
+    use taos_sys::TaosBuilder;
 
-    let version = Builder::client_version();
+    let version = TaosBuilder::client_version();
     dbg!(version);
 
-    let builder = Builder::from_dsn("taos://").unwrap();
+    let builder = TaosBuilder::from_dsn("taos://").unwrap();
 
     let client = builder.build().unwrap();
     let version: String = client

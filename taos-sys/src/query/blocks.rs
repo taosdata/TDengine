@@ -1,16 +1,15 @@
 use std::{
     cell::UnsafeCell,
-    ffi::{CStr, CString},
     os::raw::{c_int, c_void},
     pin::Pin,
     task::{Context, Poll, Waker},
 };
 
 use futures::Stream;
-use taos_error::{Code, Error};
+use taos_error::{Error};
 use taos_query::common::{Field, Precision, RawData};
 
-use crate::ffi::{taos_fetch_raw_block_a, taos_get_raw_block, TAOS_RES};
+use crate::ffi::{taos_get_raw_block, TAOS_RES};
 
 use super::raw_res::RawRes;
 

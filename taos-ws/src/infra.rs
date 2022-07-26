@@ -1,4 +1,4 @@
-use std::str::FromStr;
+
 
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -180,19 +180,16 @@ impl ToMessage for WsSend {}
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        collections::HashMap,
-        sync::{Arc, Mutex},
-    };
+    
     // use websocket::ClientBuilder;
 
     use crate::*;
 
-    use super::*;
+    
 
     #[test]
     fn dsn_error() {
-        WsInfo::from_dsn("").unwrap_err();
+        TaosBuilder::from_dsn("").unwrap_err();
     }
 
     // #[test]

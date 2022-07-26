@@ -1,6 +1,6 @@
-use std::any::Any;
-use std::ops::Deref;
-use std::str::FromStr;
+
+
+
 
 use bytes::Bytes;
 use itertools::Itertools;
@@ -10,7 +10,7 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 use serde_with::serde_as;
 use serde_with::NoneAsEmptyString;
 
-use taos_error::Error;
+
 use taos_query::common::Field;
 use taos_query::common::Precision;
 use taos_query::common::Ty;
@@ -95,13 +95,13 @@ impl TmqSend {
         match self {
             TmqSend::Subscribe {
                 req_id,
-                conn,
-                req,
-                topics,
+                conn: _,
+                req: _,
+                topics: _,
             } => *req_id,
             TmqSend::Poll {
                 req_id,
-                blocking_time,
+                blocking_time: _,
             } => *req_id,
             TmqSend::FetchJsonMeta(args) => args.req_id,
             TmqSend::FetchRawMeta(args) => args.req_id,

@@ -21,7 +21,7 @@ pub struct RawMeta {
 }
 
 impl RawMeta {
-    pub const META_OFFSET: usize = std::mem::size_of::<u32>() + std::mem::size_of::<u32>();
+    pub const META_OFFSET: usize = std::mem::size_of::<u32>() + std::mem::size_of::<u16>();
 
     pub fn new(raw: Bytes) -> Self {
         RawMeta { raw }
@@ -71,12 +71,6 @@ impl Inlinable for RawMeta {
     }
 }
 
-// pub struct Field {
-//     name: String,
-//     ty: Ty,
-//     length: u32,
-// }
-
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TagWithValue {
     #[serde(flatten)]
@@ -117,7 +111,7 @@ impl Display for MetaCreate {
                 columns,
                 tags,
             } => {
-                debug_assert!(columns.len() > 0);
+                debug_assert!(columns.len() > 0, "{:?}", self);
                 debug_assert!(tags.len() > 0);
 
                 f.write_fmt(format_args!("`{}`", table_name))?;

@@ -54,7 +54,7 @@ bitflags! {
         /// |2    |4   |4   | dyn | dyn  | 4 | 8 |cols*6|cols*4 |sum(lengths)|
         /// +-----+----+----+-----+------+---+---+------+-------+------------+
         /// ```
-        const INLINE_DEFAULT = Self::WITH_TABLE_NAME.bits | Self::WITH_GROUP_ID.bits | Self::WITH_FIELD_SCHEMA.bits;
+        const INLINE_DEFAULT = Self::WITH_FIELD_NAMES.bits | Self::WITH_GROUP_ID.bits | Self::WITH_FIELD_SCHEMA.bits;
 
         /// Inline as raw block only, without table names and field names.
         ///
