@@ -144,7 +144,7 @@ class TDTestCase:
 
         # recreate mnode
         tdSql.execute("drop dnode 2;")
-        tdSql.execute('create dnode "chenhaoran02:6130";')
+        tdSql.execute('create dnode "%s:6130";'%self.host)
         tdDnodes=cluster.dnodes
         tdDnodes[1].stoptaosd()
         tdDnodes[1].deploy()
