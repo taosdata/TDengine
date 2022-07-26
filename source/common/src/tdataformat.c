@@ -139,29 +139,33 @@ int tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type) {
 }
 
 // STSRow2 ========================================================================
-static void setBitMap(uint8_t *pb, uint8_t v, int32_t idx, uint8_t flags) {
-  if (pb) {
-    switch (flags & 0xf) {
-      case TSROW_HAS_NULL | TSROW_HAS_NONE:
-      case TSROW_HAS_VAL | TSROW_HAS_NONE:
-        if (v) {
-          SET_BIT1(pb, idx, (uint8_t)1);
-        } else {
-          SET_BIT1(pb, idx, (uint8_t)0);
-        }
-        break;
-      case TSROW_HAS_VAL | TSROW_HAS_NULL:
-        v = v - 1;
-        SET_BIT1(pb, idx, v);
-        break;
-      case TSROW_HAS_VAL | TSROW_HAS_NULL | TSROW_HAS_NONE:
-        SET_BIT2(pb, idx, v);
-        break;
+static FORCE_INLINE void setRowBit(uint8_t *pb, int32_t idx, uint8_t bvalue, uint8_t flags) {
+  if (pb == NULL) return;
 
-      default:
-        ASSERT(0);
-    }
+  switch (flags) {
+    case TSROW_HAS_NULL | TSROW_HAS_NONE:
+    case TSROW_HAS_VAL | TSROW_HAS_NONE:
+      if (bvalue) bvalue = 1;
+      SET_BIT1(pb, idx, bvalue);
+      break;
+    case TSROW_HAS_VAL | TSROW_HAS_NULL:
+      bvalue = bvalue - 1;
+      SET_BIT1(pb, idx, bvalue);
+      break;
+    case TSROW_HAS_VAL | TSROW_HAS_NULL | TSROW_HAS_NONE:
+      SET_BIT2(pb, idx, bvalue);
+      break;
+
+    default:
+      ASSERT(0);
   }
+}
+
+static FORCE_INLINE uint8_t getRowBit(uint8_t *pb, int32_t idx, uint8_t flags) {
+  uint8_t bvalue = 0;
+  // TODO:
+  ASSERT(0);
+  return bvalue;
 }
 
 int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *aColVal, STSchema *pTSchema, STSRow2 **ppRow) {
@@ -267,6 +271,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *aColVal, STSchema *pTSchema, 
     // decide
     if (nDataT <= nDataK) {
       nData = nDataT;
+      tflags = 0;
     } else {
       nData = nDataK;
       flags |= tflags;
@@ -317,6 +322,88 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *aColVal, STSchema *pTSchema, 
   iColVal = 1;
   if (tflags == 0) {
     // Tuple
+    uint8_t *p = (uint8_t *)pRow + pRow->hlen;
+    uint8_t *pb = NULL;
+    uint8_t *pf = NULL;
+    uint8_t *pv = NULL;
+    int32_t  nv = 0;
+
+    switch (flags) {
+      case TSROW_HAS_VAL:
+        pf = p;
+        pv = pf + pTSchema->flen;
+        break;
+      case TSROW_HAS_NONE | TSROW_HAS_NULL:
+        pb = p;
+        break;
+      case TSROW_HAS_NONE | TSROW_HAS_VAL:
+      case TSROW_HAS_NULL | TSROW_HAS_VAL:
+        pb = p;
+        pf = pb + BIT1_SIZE(pTSchema->numOfCols - 1);
+        pv = pf + pTSchema->flen;
+        break;
+      case TSROW_HAS_NONE | TSROW_HAS_NULL | TSROW_HAS_VAL:
+        pb = p;
+        pf = pb + BIT2_SIZE(pTSchema->numOfCols - 1);
+        pv = pf + pTSchema->flen;
+        break;
+      default:
+        ASSERT(0);
+        break;
+    }
+
+    for (int32_t iColumn = 1; iColumn < pTSchema->numOfCols; iColumn++) {
+      STColumn *pTColumn = &pTSchema->columns[iColumn];
+      pColVal = (iColVal < nColVal) ? (SColVal *)taosArrayGet(aColVal, iColVal) : NULL;
+
+      if (pColVal) {
+        if (pColVal->cid == pTColumn->colId) {
+          iColVal++;
+
+          if (pColVal->isNone) {
+            goto _set_none;
+          } else if (pColVal->isNull) {
+            goto _set_null;
+          } else {
+            goto _set_value;
+          }
+        } else if (pColVal->cid > pTColumn->colId) {
+          goto _set_none;
+        } else {
+          ASSERT(0);
+        }
+      } else {
+        goto _set_none;
+      }
+
+    _set_none:
+      setRowBit(pb, iColumn - 1, 0, flags);
+      if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+        *(int32_t *)(pf + pTColumn->offset) = 0;
+      } else {
+        tPutValue(pf + pTColumn->offset, &(SValue){0}, pTColumn->type);
+      }
+      continue;
+
+    _set_null:
+      setRowBit(pb, iColumn - 1, 1, flags);
+      if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+        *(int32_t *)(pf + pTColumn->offset) = 0;
+      } else {
+        tPutValue(pf + pTColumn->offset, &(SValue){0}, pTColumn->type);
+      }
+      continue;
+
+    _set_value:
+      setRowBit(pb, iColumn - 1, 2, flags);
+      if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+        *(int32_t *)(pf + pTColumn->offset) = nv;
+        nv += tPutValue(pv + nv, &pColVal->value, pTColumn->type);
+      } else {
+        tPutValue(pf + pTColumn->offset, &pColVal->value, pTColumn->type);
+      }
+      continue;
+    }
   } else {
     // KV
     STSKVRow *pKVRow = (STSKVRow *)((uint8_t *)pRow + pRow->hlen);
@@ -379,182 +466,6 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *aColVal, STSchema *pTSchema, 
 
     pKVRow->nCols = iIdx;
   }
-
-#if 0
-
-  if ((flags & 0xf0) == 0) {
-    // Tuple
-  } else {
-    // KV
-
-    STSKVRow *pTSKVRow = (STSKVRow *)((*ppRow)->data + n);
-    uint8_t  *pkv;
-
-    if ((flags & 0xf0) == TSROW_KV_SMALL) {
-      pkv = pTSKVRow->idx + sizeof(uint8_t) * nIdx;
-    } else if ((flags & 0xf0) == TSROW_KV_MID) {
-      pkv = pTSKVRow->idx + sizeof(uint16_t) * nIdx;
-    } else if ((flags & 0xf0) == TSROW_KV_BIG) {
-      pkv = pTSKVRow->idx + sizeof(uint32_t) * nIdx;
-    } else {
-      ASSERT(0);
-    }
-
-    iColVal = 1;
-    for (int32_t iColumn = 1; iColumn < pTSchema->numOfCols; iColumn++) {
-      pTColumn = &pTSchema->columns[iColumn];
-      if (iColVal < nColVal) {
-        pColVal = (SColVal *)taosArrayGet(aColVal, iColVal);
-      } else {
-        break;
-      }
-
-      if (pColVal->cid == pTColumn->colId) {
-        if (pColVal->isNone) {
-          // NONE, do nothing
-        } else if (pColVal->isNull) {
-          pkv += tPutI16v(pkv, -pColVal->cid);
-        } else {
-          // set offset (todo)
-          pkv += tPutI16v(pkv, pColVal->cid);
-          pkv += tPutValue(pkv, &pColVal->value, pColVal->type);
-        }
-      } else if (pColVal->cid > pTColumn->colId) {
-        // NONE, do nothing
-      } else {
-        ASSERT(0);
-      }
-
-      iColVal++;
-    }
-  }
-
-  if ((*ppRow)->pData) {
-    STSKVRow *pTSKVRow = NULL;
-    uint8_t  *pidx = NULL;
-    uint8_t  *pkv = NULL;
-    uint8_t  *pb = NULL;
-    uint8_t  *pf = NULL;
-    uint8_t  *ptv = NULL;
-    nkv = 0;
-    ntv = 0;
-    iColVal = 1;
-
-    if ((flags & 0xf0) == 0) {
-      switch (flags & 0xf) {
-        case TSROW_HAS_VAL:
-          pf = (*ppRow)->pData;
-          ptv = pf + pTSchema->flen;
-          break;
-        case TSROW_HAS_NULL | TSROW_HAS_NONE:
-          pb = (*ppRow)->pData;
-          break;
-        case TSROW_HAS_VAL | TSROW_HAS_NONE:
-        case TSROW_HAS_VAL | TSROW_HAS_NULL:
-          pb = (*ppRow)->pData;
-          pf = pb + BIT1_SIZE(pTSchema->numOfCols - 1);
-          ptv = pf + pTSchema->flen;
-          break;
-        case TSROW_HAS_VAL | TSROW_HAS_NULL | TSROW_HAS_NONE:
-          pb = (*ppRow)->pData;
-          pf = pb + BIT2_SIZE(pTSchema->numOfCols - 1);
-          ptv = pf + pTSchema->flen;
-          break;
-        default:
-          ASSERT(0);
-          break;
-      }
-    } else {
-      pTSKVRow = (STSKVRow *)(*ppRow)->pData;
-      pTSKVRow->nCols = 0;
-      pidx = pTSKVRow->idx;
-      if (flags & TSROW_KV_SMALL) {
-        pkv = pidx + sizeof(uint8_t) * nIdx;
-      } else if (flags & TSROW_KV_MID) {
-        pkv = pidx + sizeof(uint16_t) * nIdx;
-      } else {
-        pkv = pidx + sizeof(uint32_t) * nIdx;
-      }
-    }
-
-    for (int32_t iColumn = 1; iColumn < pTSchema->numOfCols; iColumn++) {
-      pTColumn = &pTSchema->columns[iColumn];
-      if (iColVal < nColVal) {
-        pColVal = (SColVal *)taosArrayGet(aColVal, iColVal);
-      } else {
-        pColVal = NULL;
-      }
-
-      if (pColVal) {
-        if (pColVal->cid == pTColumn->colId) {
-          iColVal++;
-
-          if (pColVal->isNone) {
-            goto _set_none;
-          } else if (pColVal->isNull) {
-            goto _set_null;
-          } else {
-            goto _set_value;
-          }
-        } else if (pColVal->cid > pTColumn->colId) {
-          goto _set_none;
-        } else {
-          ASSERT(0);
-        }
-      } else {
-        goto _set_none;
-      }
-
-    _set_none:
-      if ((flags & 0xf0) == 0) {
-        setBitMap(pb, 0, iColumn - 1, flags);
-        if (flags & TSROW_HAS_VAL) {  // set 0
-          if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-            *(VarDataOffsetT *)(pf + pTColumn->offset) = 0;
-          } else {
-            tPutValue(pf + pTColumn->offset, &((SValue){0}), pTColumn->type);
-          }
-        }
-      }
-      continue;
-
-    _set_null:
-      if ((flags & 0xf0) == 0) {
-        setBitMap(pb, 1, iColumn - 1, flags);
-        if (flags & TSROW_HAS_VAL) {  // set 0
-          if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-            *(VarDataOffsetT *)(pf + pTColumn->offset) = 0;
-          } else {
-            tPutValue(pf + pTColumn->offset, &((SValue){0}), pTColumn->type);
-          }
-        }
-      } else {
-        SET_IDX(pidx, pTSKVRow->nCols, nkv, flags);
-        pTSKVRow->nCols++;
-        nkv += tPutI16v(pkv + nkv, -pTColumn->colId);
-      }
-      continue;
-
-    _set_value:
-      if ((flags & 0xf0) == 0) {
-        setBitMap(pb, 2, iColumn - 1, flags);
-
-        if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-          *(VarDataOffsetT *)(pf + pTColumn->offset) = ntv;
-          ntv += tPutValue(ptv + ntv, &pColVal->value, pTColumn->type);
-        } else {
-          tPutValue(pf + pTColumn->offset, &pColVal->value, pTColumn->type);
-        }
-      } else {
-        SET_IDX(pidx, pTSKVRow->nCols, nkv, flags);
-        pTSKVRow->nCols++;
-        nkv += tPutI16v(pkv + nkv, pColVal->cid);
-        nkv += tPutValue(pkv + nkv, &pColVal->value, pTColumn->type);
-      }
-      continue;
-    }
-  }
-#endif
 
 _exit:
   return code;
