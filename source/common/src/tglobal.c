@@ -213,10 +213,6 @@ static int32_t taosSetTfsCfg(SConfig *pCfg) {
       memcpy(&tsDiskCfg[index], pCfg, sizeof(SDiskCfg));
       if (pCfg->level == 0 && pCfg->primary == 1) {
         tstrncpy(tsDataDir, pCfg->dir, PATH_MAX);
-        if (taosMulMkDir(tsDataDir) != 0) {
-          uError("failed to create dataDir:%s since %s", tsDataDir, terrstr());
-          return -1;
-        }
       }
       if (taosMulMkDir(pCfg->dir) != 0) {
         uError("failed to create tfsDir:%s since %s", tsDataDir, terrstr());
@@ -227,12 +223,13 @@ static int32_t taosSetTfsCfg(SConfig *pCfg) {
 
   if (tsDataDir[0] == 0) {
     if (pItem->str != NULL) {
-      taosAddDataDir(0, pItem->str, 0, 1);
+      taosAddDataDir(tsDiskCfgNum, pItem->str, 0, 1);
       tstrncpy(tsDataDir, pItem->str, PATH_MAX);
       if (taosMulMkDir(tsDataDir) != 0) {
-        uError("failed to create dataDir:%s since %s", tsDataDir, terrstr());
+        uError("failed to create tfsDir:%s since %s", tsDataDir, terrstr());
         return -1;
       }
+      tsDiskCfgNum++;
     } else {
       uError("datadir not set");
       return -1;
@@ -1146,6 +1143,10 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     int32_t monitor = atoi(value);
     uInfo("monitor set from %d to %d", tsEnableMonitor, monitor);
     tsEnableMonitor = monitor;
+    SConfigItem *pItem = cfgGetItem(tsCfg, "monitor");
+    if (pItem != NULL) {
+      pItem->bval = tsEnableMonitor;
+    }
     return;
   }
 
@@ -1169,8 +1170,39 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     int32_t flag = atoi(value);
     uInfo("%s set from %d to %d", optName, *optionVars[d], flag);
     *optionVars[d] = flag;
+    taosSetDebugFlag(optionVars[d], optName, flag);
     return;
   }
 
   uError("failed to cfg dynamic option:%s value:%s", option, value);
+}
+
+void taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal) {
+  SConfigItem *pItem = cfgGetItem(tsCfg, flagName);
+  if (pItem != NULL) {
+    pItem->i32 = flagVal;
+  }
+  *pFlagPtr = flagVal;
+}
+
+void taosSetAllDebugFlag(int32_t flag) {
+  if (flag <= 0) return;
+
+  taosSetDebugFlag(&uDebugFlag, "uDebugFlag", flag);
+  taosSetDebugFlag(&rpcDebugFlag, "rpcDebugFlag", flag);
+  taosSetDebugFlag(&jniDebugFlag, "jniDebugFlag", flag);
+  taosSetDebugFlag(&qDebugFlag, "qDebugFlag", flag);
+  taosSetDebugFlag(&cDebugFlag, "cDebugFlag", flag);
+  taosSetDebugFlag(&dDebugFlag, "dDebugFlag", flag);
+  taosSetDebugFlag(&vDebugFlag, "vDebugFlag", flag);
+  taosSetDebugFlag(&mDebugFlag, "mDebugFlag", flag);
+  taosSetDebugFlag(&wDebugFlag, "wDebugFlag", flag);
+  taosSetDebugFlag(&sDebugFlag, "sDebugFlag", flag);
+  taosSetDebugFlag(&tsdbDebugFlag, "tsdbDebugFlag", flag);
+  taosSetDebugFlag(&tqDebugFlag, "tqDebugFlag", flag);
+  taosSetDebugFlag(&fsDebugFlag, "fsDebugFlag", flag);
+  taosSetDebugFlag(&udfDebugFlag, "udfDebugFlag", flag);
+  taosSetDebugFlag(&smaDebugFlag, "smaDebugFlag", flag);
+  taosSetDebugFlag(&idxDebugFlag, "idxDebugFlag", flag);
+  uInfo("all debug flag are set to %d", flag);
 }

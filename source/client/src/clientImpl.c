@@ -1750,7 +1750,10 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   char* pStart = p;
   for (int32_t i = 0; i < numOfCols; ++i) {
     colLength[i] = htonl(colLength[i]);
-    ASSERT(colLength[i] < dataLen);
+    if (colLength[i] >= dataLen) {
+      tscError("invalid colLength %d, dataLen %d", colLength[i], dataLen);
+      ASSERT(0);
+    }
 
     if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
       pResultInfo->pCol[i].offset = (int32_t*)pStart;
@@ -2016,7 +2019,7 @@ int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, 
     }
 
     if (('a' <= *(tbList + i) && 'z' >= *(tbList + i)) || ('A' <= *(tbList + i) && 'Z' >= *(tbList + i)) ||
-        ('0' <= *(tbList + i) && '9' >= *(tbList + i))) {
+        ('0' <= *(tbList + i) && '9' >= *(tbList + i)) || ('_' == *(tbList + i))) {
       if (vLen[vIdx] > 0) {
         goto _return;
       }

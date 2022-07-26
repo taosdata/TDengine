@@ -104,6 +104,7 @@ typedef struct SJoinLogicNode {
   SNode*     pMergeCondition;
   SNode*     pOnConditions;
   bool       isSingleTableJoin;
+  EOrder     inputTsOrder;
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {
@@ -201,6 +202,7 @@ typedef struct SWindowLogicNode {
   int64_t          watermark;
   int8_t           igExpired;
   EWindowAlgorithm windowAlgo;
+  EOrder           inputTsOrder;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -356,15 +358,14 @@ typedef struct SInterpFuncPhysiNode {
   SNode*      pTimeSeries;  // SColumnNode
 } SInterpFuncPhysiNode;
 
-typedef struct SJoinPhysiNode {
+typedef struct SSortMergeJoinPhysiNode {
   SPhysiNode node;
   EJoinType  joinType;
   SNode*     pMergeCondition;
   SNode*     pOnConditions;
   SNodeList* pTargets;
-} SJoinPhysiNode;
-
-typedef SJoinPhysiNode SSortMergeJoinPhysiNode;
+  EOrder     inputTsOrder;
+} SSortMergeJoinPhysiNode;
 
 typedef struct SAggPhysiNode {
   SPhysiNode node;

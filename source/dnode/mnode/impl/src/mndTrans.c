@@ -127,8 +127,8 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
   SDB_SET_INT8(pRaw, dataPos, 0, _OVER)
   SDB_SET_INT8(pRaw, dataPos, 0, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pTrans->createdTime, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname1, TSDB_DB_FNAME_LEN, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname2, TSDB_DB_FNAME_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname1, TSDB_TABLE_FNAME_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname2, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pTrans->redoActionPos, _OVER)
 
   int32_t redoActionNum = taosArrayGetSize(pTrans->redoActions);
@@ -290,8 +290,8 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   pTrans->exec = exec;
   pTrans->oper = oper;
   SDB_GET_INT64(pRaw, dataPos, &pTrans->createdTime, _OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pTrans->dbname1, TSDB_DB_FNAME_LEN, _OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pTrans->dbname2, TSDB_DB_FNAME_LEN, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pTrans->dbname1, TSDB_TABLE_FNAME_LEN, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pTrans->dbname2, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pTrans->redoActionPos, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &redoActionNum, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &undoActionNum, _OVER)
@@ -727,10 +727,10 @@ int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, c
 
 void mndTransSetDbName(STrans *pTrans, const char *dbname1, const char *dbname2) {
   if (dbname1 != NULL) {
-    memcpy(pTrans->dbname1, dbname1, TSDB_DB_FNAME_LEN);
+    tstrncpy(pTrans->dbname1, dbname1, TSDB_TABLE_FNAME_LEN);
   }
   if (dbname2 != NULL) {
-    memcpy(pTrans->dbname2, dbname2, TSDB_DB_FNAME_LEN);
+    tstrncpy(pTrans->dbname2, dbname2, TSDB_TABLE_FNAME_LEN);
   }
 }
 
@@ -1289,6 +1289,19 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans) {
   } else {
     pTrans->code = terrno;
     if (pTrans->policy == TRN_POLICY_ROLLBACK) {
+      if (pTrans->lastAction != 0) {
+        STransAction *pAction = taosArrayGet(pTrans->redoActions, pTrans->lastAction);
+        if (pAction->retryCode != 0 && pAction->retryCode != pAction->errCode) {
+          if (pTrans->failedTimes < 6) {
+            mError("trans:%d, stage keep on redoAction since action:%d code:0x%x not 0x%x, failedTimes:%d", pTrans->id,
+                   pTrans->lastAction, pTrans->code, pAction->retryCode, pTrans->failedTimes);
+            taosMsleep(1000);
+            continueExec = true;
+            return true;
+          }
+        }
+      }
+
       pTrans->stage = TRN_STAGE_ROLLBACK;
       mError("trans:%d, stage from redoAction to rollback since %s", pTrans->id, terrstr());
       continueExec = true;

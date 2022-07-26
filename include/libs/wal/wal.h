@@ -103,8 +103,8 @@ typedef struct SWal {
   int32_t fsyncSeq;
   // meta
   SWalVer   vers;
-  TdFilePtr pWriteLogTFile;
-  TdFilePtr pWriteIdxTFile;
+  TdFilePtr pLogFile;
+  TdFilePtr pIdxFile;
   int32_t   writeCur;
   SArray   *fileInfoSet;  // SArray<SWalFileInfo>
   // status
@@ -114,30 +114,41 @@ typedef struct SWal {
   int64_t       refId;
   TdThreadMutex mutex;
   // ref
-  SHashObj *pRefHash;  // ref -> SWalRef
+  SHashObj *pRefHash;  // refId -> SWalRef
   // path
   char path[WAL_PATH_LEN];
   // reusable write head
   SWalCkHead writeHead;
-} SWal;  // WAL HANDLE
+} SWal;
+
+typedef struct {
+  int64_t refId;
+  int64_t refVer;
+  int64_t refFile;
+  SWal   *pWal;
+} SWalRef;
 
 typedef struct {
   int8_t scanUncommited;
+  int8_t scanNotApplied;
   int8_t scanMeta;
   int8_t enableRef;
 } SWalFilterCond;
 
 typedef struct {
   SWal          *pWal;
+  int64_t        readerId;
   TdFilePtr      pLogFile;
   TdFilePtr      pIdxFile;
   int64_t        curFileFirstVer;
   int64_t        curVersion;
   int64_t        capacity;
   int8_t         curInvalid;
+  int8_t         curStopped;
   TdThreadMutex  mutex;
   SWalFilterCond cond;
-  SWalCkHead    *pHead;
+  // TODO remove it
+  SWalCkHead *pHead;
 } SWalReader;
 
 // module initialization
@@ -156,11 +167,7 @@ int32_t walWrite(SWal *, int64_t index, tmsg_t msgType, const void *body, int32_
 int32_t walWriteWithSyncInfo(SWal *, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body,
                              int32_t bodyLen);
 
-// This interface assign version automatically and return to caller.
-// When using this interface with concurrent writes,
-// wal will write all logs atomically,
-// but not sure which one will be actually write first,
-// and then the unique index of successful writen is returned.
+// Assign version automatically and return to caller,
 // -1 will be returned for failed writes
 int64_t walAppendLog(SWal *, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen);
 
@@ -190,17 +197,15 @@ void    walSetReaderCapacity(SWalReader *pRead, int32_t capacity);
 int32_t walFetchHead(SWalReader *pRead, int64_t ver, SWalCkHead *pHead);
 int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead);
 int32_t walSkipFetchBody(SWalReader *pRead, const SWalCkHead *pHead);
-typedef struct {
-  int64_t refId;
-  int64_t ver;
-} SWalRef;
+
+SWalRef *walRefCommittedVer(SWal *);
 
 SWalRef *walOpenRef(SWal *);
-void     walCloseRef(SWalRef *);
+void     walCloseRef(SWal *pWal, int64_t refId);
 int32_t  walRefVer(SWalRef *, int64_t ver);
-int32_t  walUnrefVer(SWal *);
+void     walUnrefVer(SWalRef *);
 
-// help function for raft
+// helper function for raft
 bool walLogExist(SWal *, int64_t ver);
 bool walIsEmpty(SWal *);
 

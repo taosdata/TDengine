@@ -371,8 +371,8 @@ struct SBlockIdx {
 
 struct SMapData {
   int32_t  nItem;
-  int32_t *aOffset;
   int32_t  nData;
+  int32_t *aOffset;
   uint8_t *pData;
 };
 

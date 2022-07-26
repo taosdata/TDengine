@@ -1624,6 +1624,10 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 }
 
 void setNullSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t rowIndex) {
+  if (pCtx->subsidiaries.num <= 0) {
+    return;
+  }
+
   for (int32_t j = 0; j < pCtx->subsidiaries.num; ++j) {
     SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
     int32_t         dstSlotId = pc->pExpr->base.resSchema.slotId;
@@ -1655,8 +1659,6 @@ void setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STuple
       SFunctParam* pFuncParam = &pc->pExpr->base.pParam[0];
       int32_t      dstSlotId = pc->pExpr->base.resSchema.slotId;
 
-      int32_t ps = 0;
-
       SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
       ASSERT(pc->pExpr->base.resSchema.bytes == pDstCol->info.bytes);
       if (nullList[j]) {
@@ -1676,6 +1678,39 @@ void releaseSource(STuplePos* pPos) {
     return;
   }
   // Todo(liuyao) relase row
+}
+
+// This function append the selectivity to subsidiaries function context directly, without fetching data
+// from intermediate disk based buf page
+void appendSelectivityValue(SqlFunctionCtx* pCtx, int32_t rowIndex, int32_t pos) {
+  if (pCtx->subsidiaries.num <= 0) {
+    return;
+  }
+
+  for (int32_t j = 0; j < pCtx->subsidiaries.num; ++j) {
+    SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
+
+    // get data from source col
+    SFunctParam* pFuncParam = &pc->pExpr->base.pParam[0];
+    int32_t      srcSlotId = pFuncParam->pCol->slotId;
+
+    SColumnInfoData* pSrcCol = taosArrayGet(pCtx->pSrcBlock->pDataBlock, srcSlotId);
+
+    char* pData = colDataGetData(pSrcCol, rowIndex);
+
+    // append to dest col
+    int32_t  dstSlotId = pc->pExpr->base.resSchema.slotId;
+
+    SColumnInfoData* pDstCol = taosArrayGet(pCtx->pDstBlock->pDataBlock, dstSlotId);
+    ASSERT(pc->pExpr->base.resSchema.bytes == pDstCol->info.bytes);
+
+    if (colDataIsNull_s(pSrcCol, rowIndex) == true) {
+      colDataAppendNULL(pDstCol, pos);
+    } else {
+      colDataAppend(pDstCol, pos, pData, false);
+    }
+  }
+
 }
 
 void replaceTupleData(STuplePos* pDestPos, STuplePos* pSourcePos) {
@@ -2218,6 +2253,7 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t currentRow = pBlock->info.rows;
 
   if (0 == pInfo->num) {
+    colDataAppendNULL(pCol, currentRow);
     return 0;
   }
 
@@ -3154,6 +3190,7 @@ static void doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SCo
         colDataAppendInt64(pOutput, pos, &delta);
       }
       pDiffInfo->prev.i64 = v;
+
       break;
     }
     case TSDB_DATA_TYPE_BOOL:
@@ -3247,6 +3284,10 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
 
       if (pDiffInfo->hasPrev) {
         doHandleDiff(pDiffInfo, pInputCol->info.type, pv, pOutput, pos, pCtx->order);
+        // handle selectivity
+        if (pCtx->subsidiaries.num > 0) {
+          appendSelectivityValue(pCtx, i, pos);
+        }
 
         numOfElems++;
       } else {
@@ -3273,6 +3314,10 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
       // there is a row of previous data block to be handled in the first place.
       if (pDiffInfo->hasPrev) {
         doHandleDiff(pDiffInfo, pInputCol->info.type, pv, pOutput, pos, pCtx->order);
+        // handle selectivity
+        if (pCtx->subsidiaries.num > 0) {
+          appendSelectivityValue(pCtx, i, pos);
+        }
 
         numOfElems++;
       } else {
@@ -5723,6 +5768,12 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
           if (pTsOutput != NULL) {
             colDataAppendInt64(pTsOutput, pos, &tsList[i]);
           }
+
+          // handle selectivity
+          if (pCtx->subsidiaries.num > 0) {
+            appendSelectivityValue(pCtx, i, pos);
+          }
+
           numOfElems++;
         }
       }
@@ -5755,6 +5806,12 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
           if (pTsOutput != NULL) {
             colDataAppendInt64(pTsOutput, pos, &pDerivInfo->prevTs);
           }
+
+          // handle selectivity
+          if (pCtx->subsidiaries.num > 0) {
+            appendSelectivityValue(pCtx, i, pos);
+          }
+
           numOfElems++;
         }
       }

@@ -93,7 +93,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   }
 
   // init ref
-  pWal->pRefHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_ENTRY_LOCK);
+  pWal->pRefHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (pWal->pRefHash == NULL) {
     taosMemoryFree(pWal);
     return NULL;
@@ -101,8 +101,8 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
 
   // open meta
   walResetVer(&pWal->vers);
-  pWal->pWriteLogTFile = NULL;
-  pWal->pWriteIdxTFile = NULL;
+  pWal->pLogFile = NULL;
+  pWal->pIdxFile = NULL;
   pWal->writeCur = -1;
   pWal->fileInfoSet = taosArrayInit(8, sizeof(SWalFileInfo));
   if (pWal->fileInfoSet == NULL) {
@@ -179,10 +179,10 @@ int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
 
 void walClose(SWal *pWal) {
   taosThreadMutexLock(&pWal->mutex);
-  taosCloseFile(&pWal->pWriteLogTFile);
-  pWal->pWriteLogTFile = NULL;
-  taosCloseFile(&pWal->pWriteIdxTFile);
-  pWal->pWriteIdxTFile = NULL;
+  taosCloseFile(&pWal->pLogFile);
+  pWal->pLogFile = NULL;
+  taosCloseFile(&pWal->pIdxFile);
+  pWal->pIdxFile = NULL;
   walSaveMeta(pWal);
   taosArrayDestroy(pWal->fileInfoSet);
   pWal->fileInfoSet = NULL;
@@ -223,7 +223,7 @@ static void walFsyncAll() {
     if (walNeedFsync(pWal)) {
       wTrace("vgId:%d, do fsync, level:%d seq:%d rseq:%d", pWal->cfg.vgId, pWal->cfg.level, pWal->fsyncSeq,
              atomic_load_32(&tsWal.seq));
-      int32_t code = taosFsyncFile(pWal->pWriteLogTFile);
+      int32_t code = taosFsyncFile(pWal->pLogFile);
       if (code != 0) {
         wError("vgId:%d, file:%" PRId64 ".log, failed to fsync since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
                strerror(code));

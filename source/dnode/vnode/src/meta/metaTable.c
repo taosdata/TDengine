@@ -178,7 +178,7 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   if (metaGetTableEntryByName(&mr, pReq->name) == 0) {
 // TODO: just for pass case
 #if 0
-    terrno = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+    terrno = TSDB_CODE_TDB_STB_ALREADY_EXIST;
     metaReaderClear(&mr);
     return -1;
 #else
@@ -223,7 +223,7 @@ int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq, SArray *tb
   // check if super table exists
   rc = tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &pData, &nData);
   if (rc < 0 || *(tb_uid_t *)pData != pReq->suid) {
-    terrno = TSDB_CODE_VND_TABLE_NOT_EXIST;
+    terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
     return -1;
   }
 
@@ -358,6 +358,14 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
     goto _err;
   }
 
+  if (pReq->type == TSDB_CHILD_TABLE) {
+    tb_uid_t suid = metaGetTableEntryUidByName(pMeta, pReq->ctb.name);
+    if (suid != pReq->ctb.suid) {
+      terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      return -1;
+    }
+  }
+
   // validate req
   metaReaderInit(&mr, pMeta, 0);
   if (metaGetTableEntryByName(&mr, pReq->name) == 0) {
@@ -371,13 +379,6 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
   }
   metaReaderClear(&mr);
 
-  if (pReq->type == TSDB_CHILD_TABLE) {
-    tb_uid_t suid = metaGetTableEntryUidByName(pMeta, pReq->ctb.name);
-    if (suid == 0) {
-      terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-      return -1;
-    }
-  }
   // build SMetaEntry
   me.version = version;
   me.type = pReq->type;
@@ -442,7 +443,7 @@ int metaTtlDropTable(SMeta *pMeta, int64_t ttl, SArray *tbUids) {
   if (ret != 0) {
     return ret;
   }
-  if (taosArrayGetSize(tbUids) == 0){
+  if (taosArrayGetSize(tbUids) == 0) {
     return 0;
   }
 
@@ -811,6 +812,9 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
     for (int32_t i = 0; i < pTagSchema->nCols; i++) {
       SSchema *pCol = &pTagSchema->pSchema[i];
       if (iCol == i) {
+        if (pAlterTbReq->isNull) {
+          continue;
+        }
         STagVal val = {0};
         val.type = pCol->type;
         val.cid = pCol->colId;

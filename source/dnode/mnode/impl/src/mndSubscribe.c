@@ -824,7 +824,7 @@ int32_t mndSetDropSubCommitLogs(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj 
 }
 
 int32_t mndDropSubByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
-  int32_t code = -1;
+  int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
 
   void            *pIter = NULL;
@@ -840,12 +840,14 @@ int32_t mndDropSubByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
 
     if (mndSetDropSubCommitLogs(pMnode, pTrans, pSub) < 0) {
       sdbRelease(pSdb, pSub);
-      goto END;
+      sdbCancelFetch(pSdb, pIter);
+      code = -1;
+      break;
     }
+
+    sdbRelease(pSdb, pSub);
   }
 
-  code = 0;
-END:
   return code;
 }
 

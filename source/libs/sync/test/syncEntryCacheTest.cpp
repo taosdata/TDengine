@@ -5,6 +5,7 @@
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
+#include "tref.h"
 #include "tskiplist.h"
 
 void logTest() {
@@ -50,7 +51,7 @@ SRaftEntryCache* createCache(int maxCount) {
 }
 
 void test1() {
-  int32_t              code = 0;
+  int32_t          code = 0;
   SRaftEntryCache* pCache = createCache(5);
   for (int i = 0; i < 10; ++i) {
     SSyncRaftEntry* pEntry = createEntry(i);
@@ -67,7 +68,7 @@ void test1() {
 }
 
 void test2() {
-  int32_t              code = 0;
+  int32_t          code = 0;
   SRaftEntryCache* pCache = createCache(5);
   for (int i = 0; i < 10; ++i) {
     SSyncRaftEntry* pEntry = createEntry(i);
@@ -76,7 +77,7 @@ void test2() {
   }
   raftEntryCacheLog2((char*)"==test1 write 5 entries==", pCache);
 
-  SyncIndex index = 2;
+  SyncIndex       index = 2;
   SSyncRaftEntry* pEntry = NULL;
 
   code = raftEntryCacheGetEntryP(pCache, index, &pEntry);
@@ -106,7 +107,7 @@ void test2() {
 }
 
 void test3() {
-  int32_t              code = 0;
+  int32_t          code = 0;
   SRaftEntryCache* pCache = createCache(20);
   for (int i = 0; i <= 4; ++i) {
     SSyncRaftEntry* pEntry = createEntry(i);
@@ -121,14 +122,69 @@ void test3() {
   raftEntryCacheLog2((char*)"==test3 write 10 entries==", pCache);
 }
 
+static void freeObj(void* param) {
+  SSyncRaftEntry* pEntry = (SSyncRaftEntry*)param;
+  syncEntryLog2((char*)"freeObj: ", pEntry);
+  syncEntryDestory(pEntry);
+}
+
+void test4() {
+  int32_t testRefId = taosOpenRef(200, freeObj);
+
+  SSyncRaftEntry* pEntry = createEntry(10);
+  ASSERT(pEntry != NULL);
+
+  int64_t rid = taosAddRef(testRefId, pEntry);
+  sTrace("rid: %ld", rid);
+
+  do {
+    SSyncRaftEntry* pAcquireEntry = (SSyncRaftEntry*)taosAcquireRef(testRefId, rid);
+    syncEntryLog2((char*)"acquire: ", pAcquireEntry);
+
+    taosAcquireRef(testRefId, rid);
+    taosAcquireRef(testRefId, rid);
+    taosAcquireRef(testRefId, rid);
+
+    // taosReleaseRef(testRefId, rid);
+    // taosReleaseRef(testRefId, rid);
+  } while (0);
+
+  taosRemoveRef(testRefId, rid);
+
+  for (int i = 0; i < 10; ++i) {
+    sTrace("taosReleaseRef, %d", i);
+    taosReleaseRef(testRefId, rid);
+  }
+}
+
+void test5() {
+  int32_t testRefId = taosOpenRef(5, freeObj);
+  for (int i = 0; i < 100; i++) {
+    SSyncRaftEntry* pEntry = createEntry(i);
+    ASSERT(pEntry != NULL);
+
+    int64_t rid = taosAddRef(testRefId, pEntry);
+    sTrace("rid: %ld", rid);
+  }
+
+  for (int64_t rid = 2; rid < 101; rid++) {
+    SSyncRaftEntry* pAcquireEntry = (SSyncRaftEntry*)taosAcquireRef(testRefId, rid);
+    syncEntryLog2((char*)"taosAcquireRef: ", pAcquireEntry);
+  }
+}
+
 int main(int argc, char** argv) {
   gRaftDetailLog = true;
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE + DEBUG_DEBUG;
 
-  test1();
-  test2();
-  test3();
+  /*
+    test1();
+    test2();
+    test3();
+  */
+  test4();
+  // test5();
 
   return 0;
 }
