@@ -92,7 +92,7 @@ static void setBlockStatisInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlo
 
 static void releaseQueryBuf(size_t numOfTables);
 
-static void destroySFillOperatorInfo(void* param, int32_t numOfOutput);
+static void destroyFillOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyAggOperatorInfo(void* param, int32_t numOfOutput);
@@ -3553,12 +3553,12 @@ void destroyAggOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFreeClear(param);
 }
 
-void destroySFillOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyFillOperatorInfo(void* param, int32_t numOfOutput) {
   SFillOperatorInfo* pInfo = (SFillOperatorInfo*)param;
   pInfo->pFillInfo = taosDestroyFillInfo(pInfo->pFillInfo);
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
   taosMemoryFreeClear(pInfo->p);
-
+  taosArrayDestroy(pInfo->pColMatchColInfo);
   taosMemoryFreeClear(param);
 }
 
@@ -3649,7 +3649,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doFill, NULL, NULL, destroySFillOperatorInfo, NULL, NULL, NULL);
+      createOperatorFpSet(operatorDummyOpenFn, doFill, NULL, NULL, destroyFillOperatorInfo, NULL, NULL, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
