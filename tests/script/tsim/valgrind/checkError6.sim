@@ -42,23 +42,50 @@ while $i < $tbNum
     sql insert into $tb values ($ms , $x , $x , $x ) 
     $x = $x + 1
   endw 
+
+  $cc = $x * 60000
+  $ms = 1601481600000 + $cc
+  sql insert into $tb values ($ms , NULL , NULL , NULL ) 
   $i = $i + 1
 endw 
 
-print =============== step3: avg
+print =============== step3: tb
 sql select avg(tbcol) from tb1
 sql select avg(tbcol) from tb1 where ts <= 1601481840000
 sql select avg(tbcol) as b from tb1
 sql select avg(tbcol) as b from tb1 interval(1d)
-sql select avg(tbcol) as b from tb1 where ts <= 1601481840000s interval(1m)
+sql select avg(tbcol) as b from tb1 where ts <= 1601481840000 interval(1m)
+sql select bottom(tbcol, 2) from tb1 where ts <= 1601481840000 
+sql select top(tbcol, 2) from tb1 where ts <= 1601481840000 
+sql select percentile(tbcol, 2) from tb1 where ts <= 1601481840000 
+sql select leastsquares(tbcol, 1, 1) as b from tb1 where ts <= 1601481840000
+sql show table distributed tb1
+sql select count(tbcol) as b from tb1 where ts <= 1601481840000 interval(1m)
+sql select diff(tbcol) from tb1 where ts <= 1601481840000 
+sql select diff(tbcol) from tb1 where tbcol > 5 and tbcol < 20
+sql select first(tbcol), last(tbcol) as b from tb1 where ts <= 1601481840000 interval(1m)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), sum(tbcol), stddev(tbcol) from tb1 where ts <= 1601481840000 partition by tgcol interval(1m)
+#sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from tb1 where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
+sql select last_row(*) from tb1 where tbcol > 5 and tbcol < 20
+
+print =============== step4: stb
 sql select avg(tbcol) as c from stb
 sql select avg(tbcol) as c from stb where ts <= 1601481840000
 sql select avg(tbcol) as c from stb where tgcol < 5 and ts <= 1601481840000
 sql select avg(tbcol) as c from stb interval(1m)
 sql select avg(tbcol) as c from stb interval(1d)
-sql select avg(tbcol) as b from stb where ts <= 1601481840000s interval(1m)
+sql select avg(tbcol) as b from stb where ts <= 1601481840000 interval(1m)
 sql select avg(tbcol) as c from stb group by tgcol
-sql select avg(tbcol) as b from stb where ts <= 1601481840000s partition by tgcol interval(1m)
+sql select avg(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+sql show table distributed stb
+sql select count(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+sql select diff(tbcol) from stb where ts <= 1601481840000 
+sql select first(tbcol), last(tbcol) as c from stb group by tgcol
+sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 and tbcol2 is null partition by tgcol interval(1m)
+sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), sum(tbcol), stddev(tbcol) from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+#sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from stb where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
+sql select last_row(tbcol), stddev(tbcol) from stb where tbcol > 5 and tbcol < 20 group by tgcol
 
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
