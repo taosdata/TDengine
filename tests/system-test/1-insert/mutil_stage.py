@@ -193,8 +193,9 @@ class TDTestCase:
                 {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
             ) tags ({INT_TAG} int)
             '''
-        for i in range(ntbnum):
+        tdSql.execute(create_stb_sql)
 
+        for i in range(ntbnum):
             create_ntb_sql = f'''create table {dbname}.{ntb_pre}{i+1}(
                     ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
                     {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
@@ -203,8 +204,7 @@ class TDTestCase:
                     {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
                 )
                 '''
-        tdSql.execute(create_stb_sql)
-        tdSql.execute(create_ntb_sql)
+            tdSql.execute(create_ntb_sql)
 
         for i in range(ctb_num):
             tdSql.execute(f'create table {dbname}.{ctb_pre}{i+1} using {dbname}.{stb} tags ( {i+1} )')
@@ -213,9 +213,6 @@ class TDTestCase:
         data = DataSet().get_order_set(rows)
 
         tdLog.printNoPrefix("==========step: start inser data into tables now.....")
-
-        # now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
-
         for i in range(self.rows):
             row_data = f'''
                 {data.int_data[i]}, {data.bint_data[i]}, {data.sint_data[i]}, {data.tint_data[i]}, {data.float_data[i]}, {data.double_data[i]},
@@ -237,12 +234,10 @@ class TDTestCase:
             tdSql.execute(
                 f"insert into {dbname}.{NTB_PRE}1 values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )")
 
-
-
     def run(self):
         self.rows = 10
         self.cfg_check()
-        tdSql.prepare(dbname=DBNAME, **{"keep": "5m, 10m, 15m", "duration":"5m"})
+        tdSql.prepare(dbname=DBNAME, **{"keep": "1d, 1500m, 26h", "duration":"1h"})
         self.__create_tb(dbname=DBNAME)
         self.__insert_data(rows=self.rows, dbname=DBNAME)
         tdSql.query(f"select count(*) from {DBNAME}.{NTB_PRE}1")
