@@ -359,6 +359,8 @@ typedef struct STableMergeScanInfo {
   // window to check if current data block needs to be loaded.
   SInterval       interval;
   SSampleExecInfo sample;  // sample execution info
+
+  SSortExecInfo sortExecInfo;
 } STableMergeScanInfo;
 
 typedef struct STagScanInfo {
