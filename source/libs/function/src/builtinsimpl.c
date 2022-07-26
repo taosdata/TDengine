@@ -1577,6 +1577,11 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
     }
   }
 
+  if (numOfElems == 0) {
+    GET_RES_INFO(pCtx)->isNullRes = 1;
+    numOfElems = 1;
+  }
+
 _min_max_over:
   return numOfElems;
 }
