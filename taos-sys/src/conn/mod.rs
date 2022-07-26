@@ -14,7 +14,7 @@ use once_cell::sync::OnceCell;
 use taos_error::{Code, Error};
 use taos_query::{
     common::{Field, RawData, Ty},
-    AsyncFetchable, Connectable, Fetchable, Queryable,
+    AsyncFetchable, TBuilder, Fetchable, Queryable,
 };
 
 use crate::{err_or, into_c_str::IntoCStr, query::QueryFuture};

@@ -1,8 +1,10 @@
+use bytes::Bytes;
 use futures::stream::SplitSink;
 use futures::{FutureExt, SinkExt, StreamExt};
 use scc::HashMap;
 // use std::sync::Mutex;
-use taos_query::common::{Field, Precision, RawData};
+use taos_query::common::{Field, Precision, RawData, RawMeta};
+use taos_query::util::InlinableWrite;
 use taos_query::{AsyncFetchable, AsyncQueryable, DeError, DsnError, IntoDsn};
 use thiserror::Error;
 use tokio::net::TcpStream;
@@ -17,6 +19,7 @@ use crate::{infra::*, WsInfo};
 
 use std::cell::UnsafeCell;
 use std::fmt::Debug;
+use std::io::Write;
 use std::result::Result as StdResult;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
@@ -127,6 +130,9 @@ pub enum Error {
     DeError(#[from] DeError),
     #[error("{0}")]
     WsError(#[from] WsError),
+
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
 }
 
 impl Error {
@@ -240,10 +246,14 @@ impl WsAsyncClient {
                         // println!("10ms passed");
                     }
                     Some(msg) = msg_recv.recv() => {
-                        dbg!(&msg);
-                        sender.send(msg).await.unwrap();
+                        // dbg!(&msg);
+                        if let Err(err) = sender.send(msg).await {
+                                log::error!("send websocket message packet error: {}", err);
+                                break;
+                            }
                     }
                     _ = rx.changed() => {
+                        let _ = sender.close().await;
                         log::info!("close sender task");
                         break;
                     }
@@ -286,6 +296,12 @@ impl WsAsyncClient {
                                             if let Some(v) = fetches_sender.read(&id, |_, v| v.clone()) {
                                                 log::info!("send data to fetches with id {}", id);
                                                 v.send(data).unwrap();
+                                            }
+                                        }
+                                        WsRecvData::WriteMeta => {
+                                            if let Some((_, sender)) = queries_sender.remove(&req_id)
+                                            {
+                                                sender.send(ok.map(|_| WsQueryResp::default())).unwrap();
                                             }
                                         }
                                         // Block type is for binary.
@@ -361,6 +377,44 @@ impl WsAsyncClient {
     fn req_id(&self) -> u64 {
         self.req_id
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+    }
+
+    pub async fn write_meta(&self, raw: RawMeta) -> Result<()> {
+        let req_id = self.req_id();
+        let message_id = req_id;
+        let raw_meta_message = 3; // magic number from taosAdapter.
+
+        let mut meta = Vec::new();
+        meta.write_u64(req_id)?;
+        meta.write_u64(message_id)?;
+        meta.write_u64(raw_meta_message as u64)?;
+        meta.write(raw.as_ref())?;
+        log::debug!(
+            "write meta with req_id: {}, message_id: {}, raw data: {:?}",
+            req_id,
+            message_id,
+            Bytes::copy_from_slice(&meta)
+        );
+
+        let (tx, rx) = oneshot::channel();
+        {
+            self.queries.insert(req_id, tx).unwrap();
+            self.ws
+                .send_timeout(Message::Binary(meta), self.timeout)
+                .await?;
+        }
+        let sleep = tokio::time::sleep(self.timeout);
+        tokio::pin!(sleep);
+        let resp = tokio::select! {
+            _ = &mut sleep, if !sleep.is_elapsed() => {
+               log::debug!("get server version timed out");
+               Err(Error::QueryTimeout("write meta".to_string()))?
+            }
+            message = rx => {
+                message??
+            }
+        };
+        Ok(())
     }
 
     pub async fn s_query(&self, sql: &str) -> Result<ResultSet> {
@@ -500,7 +554,7 @@ impl ResultSet {
                         println!("({}, {}): {:?}", row, col, v);
                     }
                 }
-                raw.with_fields(self.fields.as_ref().unwrap().to_vec());
+                raw.with_field_names(self.fields.as_ref().unwrap().iter().map(Field::name));
                 Ok(Some(raw))
             }
             WsFetchData::BlockV2(raw) => {
@@ -519,7 +573,7 @@ impl ResultSet {
                         println!("({}, {}): {:?}", row, col, v);
                     }
                 }
-                raw.with_fields(self.fields.as_ref().unwrap().to_vec());
+                raw.with_field_names(self.fields.as_ref().unwrap().iter().map(Field::name));
                 Ok(Some(raw))
             }
             _ => Ok(None),
@@ -573,7 +627,7 @@ impl ResultSetRef {
                         println!("({}, {}): {:?}", row, col, v);
                     }
                 }
-                raw.with_fields(self.fields.as_ref().unwrap().to_vec());
+                raw.with_field_names(self.fields.as_ref().unwrap().iter().map(Field::name));
                 Ok(Some(raw))
             }
             WsFetchData::BlockV2(raw) => {
@@ -592,7 +646,7 @@ impl ResultSetRef {
                         println!("({}, {}): {:?}", row, col, v);
                     }
                 }
-                raw.with_fields(self.fields.as_ref().unwrap().to_vec());
+                raw.with_field_names(self.fields.as_ref().unwrap().iter().map(Field::name));
                 Ok(Some(raw))
             }
             _ => Ok(None),
@@ -654,6 +708,9 @@ impl AsyncQueryable for WsAsyncClient {
         sql: T,
     ) -> StdResult<Self::AsyncResultSet, Self::Error> {
         self.s_query(sql.as_ref()).await
+    }
+    async fn write_meta(&self, raw: RawMeta) -> StdResult<(), Self::Error> {
+        self.write_meta(raw).await
     }
 }
 

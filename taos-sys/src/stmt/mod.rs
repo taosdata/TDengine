@@ -208,24 +208,21 @@ fn test_tbname_tags() -> Result<(), Error> {
     stmt.execute()?;
 
     assert!(stmt.affected_rows() == 1);
+    println!("done");
 
-    // stmt.prepare("insert into tb1 values(?,?)")?;
-    // let params = vec![TaosBind::from(&ITimestamp(1)), TaosBind::from(&0i32)];
-    // stmt.bind_param(&params)?;
-    // println!("add batch");
-
-    // stmt.add_batch()?;
+    // let mut stmt = RawStmt::from_raw_taos(&taos);
+    // stmt.prepare("select * from ?")?;
+    // stmt.set_tbname("st1")?;
     // stmt.execute()?;
 
-    // let res = taos.query("select * from st1")?;
+    // let mut res = stmt.use_result()?;
+    // use taos_query::prelude::*;
+    // let blocks = res.blocks().try_for_each(|block| {
+    //     dbg!(block);
+    //     futures::future::ready(Ok(()))
+    // });
 
-    // if let Some((_, rows, _)) = res.fetch_block()? {
-    //     assert_eq!(rows, 2);
-    // } else {
-    //     panic!("no data retrieved");
-    // }
-
-    // taos.query("drop database stt1")?;
+    taos.query("drop database stt1")?;
     Ok(())
 }
 
@@ -272,22 +269,22 @@ fn test_tbname_tags_json() -> Result<(), Error> {
 
     assert!(stmt.affected_rows() == 1);
 
-    // stmt.prepare("insert into tb1 values(?,?)")?;
-    // let params = vec![TaosBind::from(&ITimestamp(1)), TaosBind::from(&0i32)];
-    // stmt.bind_param(&params)?;
-    // println!("add batch");
+    stmt.prepare("insert into tb1 values(?,?)")?;
+    let params = vec![TaosBind::from(&ITimestamp(1)), TaosBind::from(&0i32)];
+    stmt.bind_param(&params)?;
+    println!("add batch");
 
-    // stmt.add_batch()?;
-    // stmt.execute()?;
+    stmt.add_batch()?;
+    stmt.execute()?;
 
-    // let res = taos.query("select * from st1")?;
+    let res = taos.query("select * from st1")?;
 
-    // if let Some((_, rows, _)) = res.fetch_block()? {
-    //     assert_eq!(rows, 2);
-    // } else {
-    //     panic!("no data retrieved");
-    // }
+    if let Some(raw) = res.fetch_raw_block()? {
+        assert_eq!(raw.nrows(), 2);
+    } else {
+        panic!("no data retrieved");
+    }
 
-    // taos.query("drop database stt2")?;
+    taos.query("drop database stt2")?;
     Ok(())
 }

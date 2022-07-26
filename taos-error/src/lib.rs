@@ -31,6 +31,17 @@ _impl_fmt!(UpperHex);
 #[repr(transparent)]
 pub struct Code(i32);
 
+impl Code {
+    pub const COLUMN_EXISTS: Code = Code(0x036B);
+    pub const COLUMN_NOT_EXIST: Code = Code(0x036C);
+    pub const TAG_ALREADY_EXIST: Code = Code(0x0369);
+    pub const TAG_NOT_EXIST: Code = Code(0x036A);
+    pub const MODIFIED_ALREADY: Code = Code(0x264B);
+    pub const INVALID_COLUMN_NAME: Code = Code(0x2602);
+    pub const TABLE_NOT_EXIST: Code = Code(0x2603);
+    pub const STABLE_NOT_EXIST: Code = Code(0x0362);
+}
+
 impl Display for Code {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_fmt(format_args!("{:#06X}", *self))

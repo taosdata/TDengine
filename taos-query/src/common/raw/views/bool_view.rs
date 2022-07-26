@@ -85,7 +85,7 @@ impl BoolView {
 
     pub unsafe fn get_raw_value_unchecked(&self, row: usize) -> (Ty, u32, *const c_void) {
         if self.nulls.is_null_unchecked(row) {
-            (Ty::Null, std::mem::size_of::<bool>() as _, std::ptr::null())
+            (Ty::Bool, std::mem::size_of::<bool>() as _, std::ptr::null())
         } else {
             (
                 Ty::Bool,

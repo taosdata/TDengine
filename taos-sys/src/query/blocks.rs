@@ -81,7 +81,8 @@ impl Stream for Blocks {
                         self.precision,
                     )
                 };
-                raw.with_fields(self.fields.clone());
+                raw.with_field_names(self.fields.iter().map(|f| f.name()));
+
                 if state.num > 100 {
                     state.num = 0;
                     state.done = false;

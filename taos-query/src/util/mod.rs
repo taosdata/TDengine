@@ -4,8 +4,8 @@ mod inline_nchar;
 mod inline_str;
 
 use std::{
+    collections::BTreeMap,
     io::{Read, Write},
-    mem::size_of,
 };
 
 pub use inline_bytes::InlineBytes;
@@ -207,6 +207,10 @@ pub trait InlinableRead: Read {
 
 impl<T> InlinableRead for T where T: Read {}
 
+pub struct InlineOpts {
+    pub opts: BTreeMap<String, String>,
+}
+
 /// If one struct could be serialized/flattened to bytes array, we call it **inlinable**.
 pub trait Inlinable: Sized {
     /// Read inlined bytes into object.
@@ -214,6 +218,11 @@ pub trait Inlinable: Sized {
 
     /// Write inlined bytes to a writer.
     fn write_inlined<W: Write>(&self, wtr: W) -> std::io::Result<usize>;
+
+    /// Write inlined bytes with specific options
+    fn write_inlined_with<W: Write>(&self, wtr: W, _opts: InlineOpts) -> std::io::Result<usize> {
+        self.write_inlined(wtr)
+    }
 
     #[inline]
     /// Get inlined bytes as vector.

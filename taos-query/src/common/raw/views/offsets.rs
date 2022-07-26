@@ -28,9 +28,22 @@ impl Offsets {
         unsafe {
             std::slice::from_raw_parts(
                 self.0.as_ptr() as *const i32,
-                self.0.len() / std::mem::size_of::<i32>(),
+                self.len(),
             )
         }
+    }
+    pub fn len(&self) -> usize {
+        self.0.len() / std::mem::size_of::<i32>()
+    }
+}
+
+impl<'a> IntoIterator for &'a Offsets {
+    type Item = &'a i32;
+
+    type IntoIter = std::slice::Iter<'a, i32>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.deref().into_iter()
     }
 }
 

@@ -354,7 +354,7 @@ async fn test(taos: &Taos, databases: &[&str]) -> anyhow::Result<()> {
         println!("{:?}", item);
         let block = item.as_block().1;
         rows += block.num_of_rows();
-        let table = block.tmq_table_name().unwrap();
+        let table = block.table_name().unwrap();
         tables.insert(table.to_string());
     }
     anyhow::ensure!(rows == 8);

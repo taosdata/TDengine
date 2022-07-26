@@ -40,6 +40,7 @@ bitvec_simd = { version = "0.20.5", features = ["use_serde"] }
 
 r2d2 = { version = "0.8.9", optional = true }
 
+tokio = { version = "1", features = ["rt-multi-thread"] }
 [dev-dependencies]
 flate2 = "1"
 pretty_env_logger = "*"

@@ -590,7 +590,7 @@ impl ResultSet {
                         log::debug!("({}, {}): {:?}", row, col, v);
                     }
                 }
-                raw.with_fields(self.fields.as_ref().unwrap().to_vec());
+                raw.with_field_names(self.fields.as_ref().unwrap().iter().map(Field::name));
                 Ok(Some(raw))
             }
             WsFetchData::BlockV2(raw) => {
@@ -608,7 +608,7 @@ impl ResultSet {
                         log::debug!("({}, {}): {:?}", row, col, v);
                     }
                 }
-                raw.with_fields(self.fields.as_ref().unwrap().to_vec());
+                raw.with_field_names(self.fields.as_ref().unwrap().iter().map(Field::name));
                 Ok(Some(raw))
             }
             _ => Ok(None),

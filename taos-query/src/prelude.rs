@@ -1,15 +1,18 @@
 mod _priv {
     pub use crate::common::{BorrowedValue, Precision, Ty, Value};
-    pub use crate::Connectable;
     #[cfg(feature = "r2d2")]
     pub use crate::Pool;
     #[cfg(feature = "r2d2")]
     pub use crate::PoolBuilder;
+    pub use crate::TBuilder;
     pub use itertools::Itertools;
     pub use mdsn::{Dsn, DsnError, IntoDsn};
     pub use taos_error::{Code, Error as RawError};
+
+    pub use crate::tmq::{IsOffset, MessageSet, Timeout};
 }
 
+pub use crate::tmq::{AsAsyncConsumer, IsAsyncMeta};
 pub use _priv::*;
 pub use r#async::*;
 
@@ -17,6 +20,7 @@ pub mod sync {
     pub use super::_priv::*;
 
     pub use crate::stmt::Bindable;
+    pub use crate::tmq::{AsConsumer, IsMeta};
 
     use itertools::Itertools;
     use serde::de::DeserializeOwned;
@@ -180,6 +184,10 @@ pub mod sync {
             self.query(sql).map(|res| res.affected_rows() as _)
         }
 
+        fn write_meta(&self, _: RawMeta) -> Result<(), Self::Error> {
+            todo!()
+        }
+
         fn exec_many<T: AsRef<str>, I: IntoIterator<Item = T>>(
             &self,
             input: I,
@@ -262,18 +270,18 @@ mod r#async {
     pub use crate::stmt::AsyncBindable;
 
     pub use futures::stream::{Stream, StreamExt, TryStreamExt};
-    use itertools::{FlattenOk, Itertools, MapOk};
+    use itertools::{Itertools};
     use serde::{de::DeserializeOwned, Deserialize};
     use std::pin::Pin;
     use std::task::{Context, Poll};
-    use std::{cell::UnsafeCell, fmt::Debug, marker::PhantomData, rc::Rc};
+    use std::{fmt::Debug, marker::PhantomData};
 
     pub use mdsn::{Address, Dsn, DsnError, IntoDsn};
     pub use serde::de::value::Error as DeError;
 
     use crate::common::*;
     use crate::helpers::*;
-    use crate::Connectable;
+    
     // use crate::iter::*;
     #[cfg(feature = "async")]
     use async_trait::async_trait;
@@ -398,10 +406,6 @@ mod r#async {
 
         fn summary(&self) -> (usize, usize);
 
-        fn blocks_iter(&mut self) -> &mut Self {
-            self
-        }
-
         #[doc(hidden)]
         fn update_summary(&mut self, nrows: usize);
 
@@ -462,6 +466,14 @@ mod r#async {
             self.query(sql).await.map(|res| res.affected_rows() as _)
         }
 
+        async fn write_meta(&self, _: RawMeta) -> Result<(), Self::Error> {
+            todo!()
+        }
+
+        async fn write_raw_data(&self, _: RawData) -> Result<(), Self::Error> {
+            todo!()
+        }
+
         async fn exec_many<T, I>(&self, input: I) -> Result<usize, Self::Error>
         where
             T: AsRef<str> + Send + Sync,
@@ -470,6 +482,7 @@ mod r#async {
         {
             let mut aff = 0;
             for sql in input {
+                log::debug!("exec sql: {}", sql.as_ref());
                 aff += self.exec(sql).await?;
             }
             Ok(aff)

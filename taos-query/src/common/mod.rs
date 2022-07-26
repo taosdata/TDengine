@@ -1,7 +1,7 @@
 mod column;
 mod describe;
 mod field;
-mod opts;
+// mod opts;
 mod precision;
 pub mod raw;
 mod timestamp;
@@ -11,7 +11,7 @@ mod value;
 pub use column::*;
 pub use describe::*;
 pub use field::*;
-pub use opts::*;
+// pub use opts::*;
 pub use precision::*;
 pub use raw::*;
 pub use timestamp::*;

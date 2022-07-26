@@ -104,6 +104,12 @@ pub enum Ty {
     MediumBlob, // 19
 }
 
+impl Default for Ty {
+    fn default() -> Self {
+        Ty::Null
+    }
+}
+
 impl<'de> serde::Deserialize<'de> for Ty {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -206,10 +212,20 @@ impl Ty {
         matches!(self, Ty::Null)
     }
 
-    /// Var type which is one of [Ty::VarChar], [Ty::VarBinary], [Ty::NChar] or [Ty::Json].
+    /// Var type which is one of [Ty::VarChar], [Ty::VarBinary], [Ty::NChar].
     pub const fn is_var_type(&self) -> bool {
         use Ty::*;
-        matches!(self, VarChar | VarBinary | NChar | Json)
+        matches!(self, VarChar | VarBinary | NChar)
+    }
+
+    /// Check if the data type need quotes, means one of [Ty::VarChar], [Ty::NChar], [Ty::Json].
+    pub const fn is_quote(&self) -> bool {
+        use Ty::*;
+        matches!(self, Json)
+    }
+
+    pub const fn is_json(&self) -> bool {
+        matches!(self, Ty::Json)
     }
 
     /// Is one of boolean/integers/float/double/decimal

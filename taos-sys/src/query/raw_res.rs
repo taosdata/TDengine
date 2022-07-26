@@ -9,8 +9,7 @@ use taos_query::{
     RawData,
 };
 
-use crate::{ffi::*, from_raw_fields, tmq_res_t, BlockStream, VGroupId};
-use crate::{tmq::ffi::*, Message, MessageSet};
+use crate::{ffi::*, from_raw_fields, tmq_res_t, VGroupId};
 
 use super::blocks::SharedState;
 use super::{blocks::Blocks, message::MessageStream};
@@ -18,6 +17,9 @@ use super::{blocks::Blocks, message::MessageStream};
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
 pub struct RawRes(pub *mut TAOS_RES);
+
+unsafe impl Send for RawRes {}
+unsafe impl Sync for RawRes {}
 
 impl RawRes {
     #[inline]
@@ -143,7 +145,7 @@ impl RawRes {
                         precision,
                     )
                 };
-                raw.with_fields(fields.to_vec());
+                raw.with_field_names(fields.iter().map(|f| f.name()));
                 if current.num < 100 {
                     // finish fetch loop fast.
                     current.done = true;
@@ -194,7 +196,7 @@ impl RawRes {
             RawData::parse_from_ptr(block as _, num as usize, fields.len(), self.precision())
         };
 
-        raw.with_fields(fields);
+        raw.with_field_names(fields.iter().map(Field::name));
 
         // todo: add db or not?
         // if let Some(name) = self.tmq_db_name() {
@@ -224,7 +226,7 @@ impl RawRes {
                             self.field_count(),
                             self.precision(),
                         );
-                        raw.with_fields(self.fetch_fields());
+                        raw.with_field_names(self.fetch_fields().iter().map(Field::name));
                         Some(raw)
                     }
                     tmq_res_t::TMQ_RES_DATA => {
@@ -237,7 +239,7 @@ impl RawRes {
                             self.precision(),
                         );
 
-                        raw.with_fields(fields);
+                        raw.with_field_names(fields.iter().map(Field::name));
 
                         if let Some(name) = self.tmq_db_name() {
                             raw.with_database_name(name);

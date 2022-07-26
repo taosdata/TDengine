@@ -1,4 +1,4 @@
-use std::{fmt::Display, ops::Deref};
+
 
 use derive_more::{Deref, DerefMut, Display, From};
 
@@ -6,7 +6,7 @@ use rust_decimal::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
 
-use super::{Column, Ty, Value};
+use super::{Ty, Value};
 
 pub type INull = ();
 pub type IBool = bool;

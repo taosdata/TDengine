@@ -25,7 +25,7 @@ pub enum InlineFormat {
 bitflags! {
     /// Inline memory layout for raw block.
     #[repr(transparent)]
-    pub struct Layout: u16 {
+    pub struct Layout: u32 {
         // Lowest 4 bits for layout components.
 
         /// With table name in the block.
@@ -184,6 +184,10 @@ impl Layout {
             Self::IS_HEADER => InlineFormat::Header,
             _ => unreachable!(),
         }
+    }
+
+    pub fn as_inner(&self) -> u32 {
+        self.bits
     }
 }
 

@@ -10,6 +10,7 @@ use std::{
 pub use ffi::*;
 use taos_query::{
     common::{Precision, RawMeta},
+    tmq::{AsAsyncConsumer, AsConsumer, AsyncOnSync, IsMeta, IsOffset},
     Dsn, IntoDsn, RawData,
 };
 
@@ -140,6 +141,9 @@ impl Builder {
 /// When offset is dropped, the message is destroyed.
 pub struct Offset(RawRes);
 
+unsafe impl Send for Offset {}
+unsafe impl Sync for Offset {}
+
 impl Debug for Offset {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Offset")
@@ -151,24 +155,21 @@ impl Debug for Offset {
     }
 }
 
-impl Offset {
-    pub fn topic(&self) -> &str {
-        self.0
-            .tmq_topic_name()
-            .expect("a message should belong to a topic")
-    }
-    pub fn vgroup_id(&self) -> VGroupId {
-        self.0
-            .tmq_vgroup_id()
-            .expect("a message should belong to a vgroup")
-    }
-    pub fn database(&self) -> &str {
+impl IsOffset for Offset {
+    fn database(&self) -> &str {
         self.0
             .tmq_db_name()
             .expect("a message should belong to a database")
     }
-    pub fn table_name(&self) -> Option<&str> {
-        self.0.tmq_table_name()
+    fn topic(&self) -> &str {
+        self.0
+            .tmq_topic_name()
+            .expect("a message should belong to a topic")
+    }
+    fn vgroup_id(&self) -> VGroupId {
+        self.0
+            .tmq_vgroup_id()
+            .expect("a message should belong to a vgroup")
     }
 }
 
@@ -184,39 +185,42 @@ pub struct Consumer {
     timeout: Option<Duration>,
 }
 
+unsafe impl Send for Consumer {}
+unsafe impl Sync for Consumer {}
+
 impl Drop for Consumer {
     fn drop(&mut self) {
         self.tmq.close();
     }
 }
 
-impl Consumer {
-    pub fn commit(&mut self, offset: Offset) -> Result<(), Offset> {
-        self.tmq.commit_sync(offset.0).map_err(|err| offset)
-    }
+// impl Consumer {
+//     pub fn subscribe<T: AsRef<str>>(&mut self, topics: &[T]) -> Result<(), Error> {
+//         let topics = Topics::from_topics(topics.into_iter().map(|s| s.as_ref()))?;
+//         self.tmq.subscribe(&topics)
+//     }
 
-    pub fn subscribe<T: AsRef<str>>(&mut self, topics: &[T]) -> Result<(), Error> {
-        let topics = Topics::from_topics(topics.into_iter().map(|s| s.as_ref()))?;
-        self.tmq.subscribe(&topics)
-    }
+//     fn commit(&self, offset: Offset) -> Result<(), Offset> {
+//         self.tmq.commit_sync(offset.0).map_err(|err| offset)
+//     }
 
-    pub fn message_sets(&mut self) -> Messages {
-        Messages {
-            tmq: self.tmq,
-            timeout: self.timeout.clone(),
-        }
-    }
-}
+//     pub fn message_sets(&mut self) -> Messages {
+//         Messages {
+//             tmq: self.tmq,
+//             timeout: self.timeout.clone(),
+//         }
+//     }
+// }
 
-impl IntoIterator for &mut Consumer {
-    type Item = (Offset, MessageSet);
+// impl IntoIterator for &mut Consumer {
+//     type Item = (Offset, MessageSet);
 
-    type IntoIter = Messages;
+//     type IntoIter = Messages;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.message_sets()
-    }
-}
+//     fn into_iter(self) -> Self::IntoIter {
+//         self.message_sets()
+//     }
+// }
 
 pub struct Messages {
     tmq: RawTmq,
@@ -235,6 +239,33 @@ impl Iterator for Messages {
 
 pub struct Meta {
     raw: RawRes,
+}
+
+impl AsyncOnSync for Meta {}
+
+impl IsMeta for Meta {
+    type Error = Error;
+
+    fn as_raw_meta(&self) -> Result<RawMeta, Self::Error> {
+        let raw = self.raw.tmq_get_raw_meta();
+
+        let mut data = Vec::new();
+
+        data.extend(raw.raw_meta_len.to_le_bytes());
+
+        data.extend(raw.raw_meta_type.to_le_bytes());
+
+        data.extend(unsafe {
+            std::slice::from_raw_parts(raw.raw_meta as *const u8, raw.raw_meta_len as usize)
+        });
+        Ok(RawMeta::new(data.into()))
+    }
+
+    fn as_json_meta(&self) -> Result<taos_query::common::JsonMeta, Self::Error> {
+        let meta = serde_json::from_slice(self.raw.tmq_get_json_meta().as_bytes())
+            .map_err(|err| Error::from_string(err.to_string()))?;
+        Ok(meta)
+    }
 }
 impl Meta {
     fn new(raw: RawRes) -> Self {
@@ -307,19 +338,112 @@ impl Iterator for MessageSet {
     }
 }
 
-pub enum Message {
-    Meta(RawMeta),
-    Data(RawData),
+impl AsConsumer for Consumer {
+    type Error = Error;
+
+    type Offset = Offset;
+
+    type Meta = Meta;
+
+    type Data = Data;
+
+    fn subscribe<T: Into<String>, I: IntoIterator<Item = T> + Send>(
+        &mut self,
+        topics: I,
+    ) -> Result<(), Self::Error> {
+        let topics = Topics::from_topics(topics.into_iter().map(|s| s.into()))?;
+        self.tmq.subscribe(&topics)
+    }
+
+    fn recv_timeout(
+        &self,
+        timeout: taos_query::tmq::Timeout,
+    ) -> Result<
+        Option<(
+            Self::Offset,
+            taos_query::tmq::MessageSet<Self::Meta, Self::Data>,
+        )>,
+        Self::Error,
+    > {
+        Ok(self.tmq.poll_timeout(timeout.as_raw_timeout()).map(|raw| {
+            (
+                Offset(raw),
+                match raw.tmq_message_type() {
+                    tmq_res_t::TMQ_RES_INVALID => unreachable!(),
+                    tmq_res_t::TMQ_RES_DATA => taos_query::tmq::MessageSet::Data(Data::new(raw)),
+                    tmq_res_t::TMQ_RES_TABLE_META => {
+                        taos_query::tmq::MessageSet::Meta(Meta::new(raw))
+                    }
+                },
+            )
+        }))
+    }
+
+    fn commit(&self, offset: Self::Offset) -> Result<(), Self::Error> {
+        self.tmq.commit_sync(offset.0).map(|_| ())
+    }
 }
 
+impl AsyncOnSync for Consumer {}
+
+// #[async_trait::async_trait]
+// impl AsAsyncConsumer for Consumer {
+//     type Error = Error;
+
+//     type Offset = Offset;
+
+//     type Meta = Meta;
+
+//     type Data = Data;
+
+//     async fn subscribe<T: Into<String>, I: IntoIterator<Item = T> + Send>(
+//         &mut self,
+//         topics: I,
+//     ) -> Result<(), Self::Error> {
+//         let topics = Topics::from_topics(topics.into_iter().map(|s| s.into()))?;
+//         self.tmq.subscribe(&topics)
+//     }
+
+//     async fn recv_timeout(
+//         &self,
+//         timeout: taos_query::tmq::Timeout,
+//     ) -> Result<
+//         Option<(
+//             Self::Offset,
+//             taos_query::tmq::MessageSet<Self::Meta, Self::Data>,
+//         )>,
+//         Self::Error,
+//     > {
+//         Ok(self.tmq.poll_timeout(timeout.as_raw_timeout()).map(|raw| {
+//             (
+//                 Offset(raw),
+//                 match raw.tmq_message_type() {
+//                     tmq_res_t::TMQ_RES_INVALID => unreachable!(),
+//                     tmq_res_t::TMQ_RES_DATA => taos_query::tmq::MessageSet::Data(Data::new(raw)),
+//                     tmq_res_t::TMQ_RES_TABLE_META => {
+//                         taos_query::tmq::MessageSet::Meta(Meta::new(raw))
+//                     }
+//                 },
+//             )
+//         }))
+//     }
+
+//     async fn commit(&self, offset: Self::Offset) -> Result<(), Self::Error> {
+//         self.tmq.commit(offset.0).await.map(|_| ())
+//     }
+// }
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use crate::RawTaos;
 
-    use super::*;
+    use super::Builder;
 
     #[test]
     fn meta() -> anyhow::Result<()> {
+        use taos_query::prelude::sync::*;
+
         use std::ptr::null;
         let host = null();
         let user = null();
@@ -365,12 +489,13 @@ mod tests {
             .with_timeout(Duration::from_millis(100));
         let mut consumer = builder.build()?;
 
-        consumer.subscribe(&[db])?;
+        consumer.subscribe([db])?;
 
-        for (offset, set) in consumer.message_sets() {
+        for message in consumer.iter_with_timeout(Timeout::from_secs(1)) {
+            let (offset, msg) = message?;
             println!("offset: {:?}", offset);
 
-            match set {
+            match msg {
                 MessageSet::Meta(meta) => {
                     let json = meta.to_json();
                     dbg!(json);

@@ -90,6 +90,9 @@ macro_rules! _impl_inline_str {
                 #[inline]
                 #[allow(mutable_transmutes)]
                 pub unsafe fn into_inline_str(&self) -> &super::InlineStr<$ty> {
+                    if self.len() == 0 {
+                        return std::mem::transmute(self);
+                    }
                     let v: &mut super::InlineStr<$ty> = std::mem::transmute(self);
                     let ptr = self.data.as_ptr() as *mut u8;
                     let chars = self.chars();

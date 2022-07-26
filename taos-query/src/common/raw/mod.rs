@@ -1,30 +1,26 @@
 use crate::{
-    common::{BorrowedValue, Column, Field, Precision, Timestamp, Ty, Value},
-    util::{Inlinable, InlinableRead, InlinableWrite, InlineStr},
+    common::{BorrowedValue, Field, Precision, Ty, Value},
+    util::{Inlinable, InlinableWrite},
 };
-use bitvec::macros::internal::funty::Numeric;
-use bytes::{Buf, Bytes, BytesMut};
+
+use bytes::{Bytes};
 use itertools::Itertools;
-use once_cell::unsync::OnceCell;
+
 use serde::Deserialize;
 
 use std::{
-    borrow::Cow, collections::HashMap, ffi::c_void, hash::Hash, ops::Deref, ptr::NonNull, slice,
+    cell::{RefCell},
+    ffi::c_void,
+    ops::Deref,
+    ptr::NonNull,
+    sync::Arc,
 };
-use std::{fmt::Debug, mem::size_of, mem::transmute};
+use std::{fmt::Debug, mem::transmute};
 
 pub mod layout;
 pub mod meta;
 
 use layout::Layout;
-// #[derive(Debug, Clone, Copy)]
-// #[repr(C)]
-// pub enum Layout {
-//     V2Ptr,
-//     V2Raw,
-//     Ref,
-//     Owned,
-// }
 
 pub mod views;
 
@@ -51,7 +47,9 @@ pub use rows::*;
 // #[derive(Debug)]
 pub struct RawData {
     /// Layout is auto detected.
-    layout: Layout,
+    layout: Arc<RefCell<Layout>>,
+    /// Raw bytes version, may be v2 or v3.
+    version: Version,
     /// Data is required, which could be v2 websocket block or a v3 raw block.
     data: Bytes,
     /// Number of rows in current data block.
@@ -78,11 +76,15 @@ pub struct RawData {
     columns: Vec<ColumnView>,
 }
 
+unsafe impl Send for RawData {}
+unsafe impl Sync for RawData {}
+
 impl Debug for RawData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // todo: more helpful debug impl.
         f.debug_struct("Raw")
             .field("layout", &self.layout)
+            .field("version", &self.version)
             .field("data", &"...")
             .field("rows", &self.rows)
             .field("cols", &self.cols)
@@ -112,11 +114,11 @@ impl RawData {
     }
 
     pub fn parse_from_ptr_v2(
-        ptr: *const *const c_void,
-        fields: &[Field],
-        lengths: &[u32],
-        rows: usize,
-        precision: Precision,
+        _ptr: *const *const c_void,
+        _fields: &[Field],
+        _lengths: &[u32],
+        _rows: usize,
+        _precision: Precision,
     ) -> Self {
         todo!()
     }
@@ -131,17 +133,65 @@ impl RawData {
         use bytes::BufMut;
         debug_assert_eq!(fields.len(), lengths.len());
 
-        const BOOL_NULL: u8 = 0x2;
-        const TINY_INT_NULL: i8 = i8::MIN;
-        const SMALL_INT_NULL: i16 = i16::MIN;
-        const INT_NULL: i32 = i32::MIN;
-        const BIG_INT_NULL: i64 = i64::MIN;
-        const FLOAT_NULL: f32 = f32::NAN;
-        const DOUBLE_NULL: f64 = f64::NAN;
-        const U_TINY_INT_NULL: u8 = u8::MAX;
-        const U_SMALL_INT_NULL: u16 = u16::MAX;
-        const U_INT_NULL: u32 = u32::MAX;
-        const U_BIG_INT_NULL: u64 = u64::MAX;
+        const BOOL_NULL: u64 = 0x02;
+        const TINY_INT_NULL: u64 = 0x80;
+        const SMALL_INT_NULL: u64 = 0x8000;
+        const INT_NULL: u64 = 0x80000000;
+        const BIG_INT_NULL: u64 = 0x8000000000000000;
+        const FLOAT_NULL: u64 = 0x7FF00000;
+        const DOUBLE_NULL: u64 = 0x7FFFFF0000000000;
+        const U_TINY_INT_NULL: u64 = 0xFF;
+        const U_SMALL_INT_NULL: u64 = 0xFFFF;
+        const U_INT_NULL: u64 = 0xFFFFFFFF;
+        const U_BIG_INT_NULL: u64 = 0xFFFFFFFFFFFFFFFF;
+
+        const fn bool_is_null(v: *const bool) -> bool {
+            unsafe { *(v as *const u8) == 0x02 }
+        }
+        const fn tiny_int_is_null(v: *const i8) -> bool {
+            unsafe { *(v as *const u8) == 0x80 }
+        }
+        const fn small_int_is_null(v: *const i16) -> bool {
+            unsafe { *(v as *const u16) == 0x8000 }
+        }
+        const fn int_is_null(v: *const i32) -> bool {
+            unsafe { *(v as *const u32) == 0x80000000 }
+        }
+        const fn big_int_is_null(v: *const i64) -> bool {
+            unsafe { *(v as *const u64) == 0x8000000000000000 }
+        }
+        const fn u_tiny_int_is_null(v: *const u8) -> bool {
+            unsafe { *(v as *const u8) == 0xFF }
+        }
+        const fn u_small_int_is_null(v: *const u16) -> bool {
+            unsafe { *(v as *const u16) == 0xFFFF }
+        }
+        const fn u_int_is_null(v: *const u32) -> bool {
+            unsafe { *(v as *const u32) == 0xFFFFFFFF }
+        }
+        const fn u_big_int_is_null(v: *const u64) -> bool {
+            unsafe { *(v as *const u64) == 0xFFFFFFFFFFFFFFFF }
+        }
+        const fn float_is_null(v: *const f32) -> bool {
+            unsafe { *(v as *const u32) == 0x7FF00000 }
+        }
+        const fn double_is_null(v: *const f64) -> bool {
+            unsafe { *(v as *const u64) == 0x7FFFFF0000000000 }
+        }
+
+        // const BOOL_NULL: u8 = 0x2;
+        // const TINY_INT_NULL: i8 = i8::MIN;
+        // const SMALL_INT_NULL: i16 = i16::MIN;
+        // const INT_NULL: i32 = i32::MIN;
+        // const BIG_INT_NULL: i64 = i64::MIN;
+        // const FLOAT_NULL: f32 = 0x7FF00000i32 as f32;
+        // const DOUBLE_NULL: f64 = 0x7FFFFF0000000000i64 as f64;
+        // const U_TINY_INT_NULL: u8 = u8::MAX;
+        // const U_SMALL_INT_NULL: u16 = u16::MAX;
+        // const U_INT_NULL: u32 = u32::MAX;
+        // const U_BIG_INT_NULL: u64 = u64::MAX;
+
+        let layout = Arc::new(RefCell::new(Layout::INLINE_DEFAULT.into()));
 
         let bytes = bytes.into();
         let cols = fields.len();
@@ -182,7 +232,8 @@ impl RawData {
                     let nulls = NullsMut::from_bools(
                         value_slice
                             .iter()
-                            .map(|b| *b == paste::paste! { [<$ty:snake:upper _NULL>] }),
+                            .map(|v| paste::paste!{ [<$ty:snake _is_null>](v as _) })
+                            // .map(|b| *b as u64 == paste::paste! { [<$ty:snake:upper _NULL>] }),
                     )
                     .into_nulls();
                     // build column view
@@ -203,8 +254,8 @@ impl RawData {
                     // Bool column data end
                     offset += rows; // bool size is 1
                     let data = bytes.slice(start..offset);
-                    let nulls =
-                        NullsMut::from_bools(data.iter().map(|b| *b == BOOL_NULL)).into_nulls();
+                    let nulls = NullsMut::from_bools(data.iter().map(|b| *b as u64 == BOOL_NULL))
+                        .into_nulls();
 
                     data_lengths[i] = data.len() as u32;
                     // build column view
@@ -265,7 +316,7 @@ impl RawData {
 
                     // generate nulls bitmap.
                     let nulls =
-                        NullsMut::from_bools(value_slice.iter().map(|b| *b == BIG_INT_NULL))
+                        NullsMut::from_bools(value_slice.iter().map(|b| *b as u64 == BIG_INT_NULL))
                             .into_nulls();
                     // build column view
                     let column = ColumnView::Timestamp(TimestampView {
@@ -295,7 +346,9 @@ impl RawData {
                     columns.push(ColumnView::NChar(NCharView {
                         offsets,
                         data,
-                        is_chars: false,
+                        // is_chars: UnsafeCell::new(false),
+                        version: Version::V2,
+                        layout: layout.clone(),
                     }));
 
                     data_lengths[i] = *length as u32 * rows as u32;
@@ -329,7 +382,8 @@ impl RawData {
         }
 
         Self {
-            layout: Layout::INLINE_DEFAULT,
+            layout,
+            version: Version::V2,
             data: bytes,
             rows,
             cols,
@@ -353,6 +407,8 @@ impl RawData {
     ) -> Self {
         const GROUP_ID_OFFSET: isize = std::mem::size_of::<u32>() as isize;
         const SCHEMA_OFFSET: usize = GROUP_ID_OFFSET as usize + std::mem::size_of::<u64>() as usize;
+
+        let layout = Arc::new(RefCell::new(Layout::INLINE_DEFAULT.into()));
 
         let bytes = bytes.into();
         let ptr = bytes.as_ptr();
@@ -425,12 +481,15 @@ impl RawData {
 
                     let offsets = Offsets::from(bytes.slice(o1..o2));
                     let data = bytes.slice(o2..data_offset);
+                    // dbg!()
 
-                    ColumnView::NChar(NCharView {
+                    ColumnView::NChar(dbg!(NCharView {
                         offsets,
                         data,
-                        is_chars: true,
-                    })
+                        // is_chars: UnsafeCell::new(true),
+                        version: Version::V3,
+                        layout: layout.clone(),
+                    }))
                 }
                 Ty::UTinyInt => _primitive_value!(UTinyInt, u8),
                 Ty::USmallInt => _primitive_value!(USmallInt, u16),
@@ -455,7 +514,8 @@ impl RawData {
         }
         // dbg!(&columns);
         RawData {
-            layout: Layout::INLINE_DEFAULT,
+            layout,
+            version: Version::V3,
             data: bytes,
             rows,
             cols,
@@ -482,16 +542,16 @@ impl RawData {
         self
     }
 
-    /// Set fields directly
-    pub fn with_fields(&mut self, fields: Vec<Field>) -> &mut Self {
-        self.raw_fields = fields;
-        self.fields = self
-            .raw_fields
-            .iter()
-            .map(|f| f.name().to_string())
-            .collect();
-        self
-    }
+    // /// Set fields directly
+    // pub fn with_fields(&mut self, fields: Vec<Field>) -> &mut Self {
+    //     self.raw_fields = fields;
+    //     self.fields = self
+    //         .raw_fields
+    //         .iter()
+    //         .map(|f| f.name().to_string())
+    //         .collect();
+    //     self
+    // }
 
     /// Set field names of the block
     pub fn with_field_names<S: Into<String>, I: Iterator<Item = S>>(
@@ -509,7 +569,7 @@ impl RawData {
     }
 
     fn with_layout(mut self, layout: Layout) -> Self {
-        self.layout = layout;
+        self.layout = Arc::new(RefCell::new(layout));
         self
     }
 
@@ -537,7 +597,7 @@ impl RawData {
     }
 
     #[inline]
-    pub fn tmq_table_name(&self) -> Option<&str> {
+    pub fn table_name(&self) -> Option<&str> {
         self.table.as_ref().map(|s| s.as_str())
     }
 
@@ -638,47 +698,44 @@ impl RawData {
         self.rows().map(|row| row.into_values()).collect_vec()
     }
 
-    pub fn write<W: std::io::Write>(&self, wtr: W) -> std::io::Result<usize> {
+    pub fn write<W: std::io::Write>(&self, _wtr: W) -> std::io::Result<usize> {
         todo!()
     }
 }
 
-// impl BlockExt for RawData {
-//     fn num_of_rows(&self) -> usize {
-//         self.nrows()
-//     }
-
-//     fn fields(&self) -> &[Field] {
-//         &self.raw_fields
-//     }
-
-//     fn precision(&self) -> Precision {
-//         self.precision()
-//     }
-
-//     fn is_null(&self, row: usize, col: usize) -> bool {
-//         self.is_null(row, col)
-//     }
-
-//     unsafe fn cell_unchecked(&self, row: usize, col: usize) -> (&Field, BorrowedValue) {
-//         (
-//             self.get_field_unchecked(col),
-//             self.get_ref_unchecked(row, col),
-//         )
-//     }
-
-//     unsafe fn get_col_unchecked(&self, col: usize) -> &ColumnView {
-//         self.get_col_unchecked(col)
-//     }
-// }
-
 impl Inlinable for RawData {
-    fn read_inlined<R: std::io::Read>(reader: R) -> std::io::Result<Self> {
+    fn read_inlined<R: std::io::Read>(_reader: R) -> std::io::Result<Self> {
+        // let layout = reader.read_u32()?;
+        // let layout = Layout::from_bits(layout).expect("should be layout");
+        // let mut table_name = None;
+        // if layout.expect_table_name() {
+        //     table_name.replace(reader.read_inlined_str()?);
+        // }
+
+        // if layout.expect_field_names() {
+
+        // }
+        // Ok()
         todo!()
     }
 
-    fn write_inlined<W: std::io::Write>(&self, wtr: W) -> std::io::Result<usize> {
-        todo!()
+    fn write_inlined<W: std::io::Write>(&self, mut wtr: W) -> std::io::Result<usize> {
+        let mut l = wtr.write_u32(self.layout.borrow().as_inner())?;
+
+        if let Some(name) = self.table.as_ref() {
+            l += wtr.write_inlined_bytes::<2>(name.as_bytes())?;
+        }
+        if self.fields.len() > 0 {
+            l += wtr.write_len_with_width::<2>(self.fields.len())?;
+            for field in &self.raw_fields {
+                l += wtr.write_inlinable(field)?;
+            }
+        }
+        let raw = self.as_raw_bytes();
+        l += wtr.write_len_with_width::<4>(self.nrows())?;
+        l += wtr.write_len_with_width::<4>(self.ncols())?;
+        l += wtr.write_inlined_bytes::<4>(raw)?;
+        Ok(l)
     }
 }
 
@@ -787,6 +844,30 @@ fn test_v2_full() {
 }
 
 #[test]
+fn test_v2_null() {
+    let raw = RawData::parse_from_raw_block_v2(
+        [0, 0, 0, 0x80].as_slice(),
+        &[Field::new("a", Ty::Int, 4)],
+        &[4],
+        1,
+        Precision::Millisecond,
+    );
+    dbg!(&raw);
+    let (_ty, _len, null) = unsafe { raw.get_raw_value_unchecked(0, 0) };
+    assert!(null.is_null());
+
+    let raw = RawData::parse_from_raw_block_v2(
+        [0, 0, 0xf0, 0x7f].as_slice(),
+        &[Field::new("a", Ty::Float, 4)],
+        &[4],
+        1,
+        Precision::Millisecond,
+    );
+    let (_ty, _len, null) = unsafe { raw.get_raw_value_unchecked(0, 0) };
+    dbg!(raw);
+    assert!(null.is_null());
+}
+#[test]
 fn test_from_v2() {
     let raw = RawData::parse_from_raw_block_v2(
         [1].as_slice(),
@@ -843,26 +924,6 @@ fn test_from_v2() {
         Precision::Millisecond,
     );
     dbg!(&raw);
-    // dbg!(raw.len(), raw.as_bytes());
-    // let v = unsafe { raw.get_ref_unchecked(0, 0) };
-    // dbg!(v);
-    // let v = unsafe { raw.get_ref_unchecked(0, 1) };
-    // dbg!(v);
-    // let raw = RawBlock::from_v2(
-    //     &[1, 2, 0, b'a', b'b'],
-    //     &[
-    //         Field::new("a", Ty::TinyInt, 1),
-    //         Field::new("b", Ty::VarChar, 2),
-    //     ],
-    //     &[1, 4],
-    //     1,
-    //     Precision::Millisecond,
-    // );
-    // dbg!(raw.as_bytes());
-    // let v = unsafe { raw.get_ref_unchecked(0, 0) };
-    // dbg!(v);
-    // let v = unsafe { raw.get_ref_unchecked(0, 1) };
-    // dbg!(v);
 }
 
 #[test]
@@ -874,5 +935,5 @@ fn test_null() {
 #[test]
 fn test_bytes() {
     let s = b"abcd";
-    let bytes = Bytes::from_static(s);
+    let _bytes = Bytes::from_static(s);
 }

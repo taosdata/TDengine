@@ -389,7 +389,7 @@ impl TaosxSink for TaosSink {
         let idx = self.id;
         let db = block.tmq_db_name().unwrap();
         taos.exec(format!("use {db}"))?;
-        let table = block.tmq_table_name().unwrap();
+        let table = block.table_name().unwrap();
         log::debug!("[{idx}] db: {db}, table: {table}");
         debug_assert!(!table.is_empty());
 

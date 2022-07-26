@@ -16,7 +16,7 @@ log = "0.4"
 serde_json = "1"
 taos-error = { path = "../taos-error" }
 taos-query = { path = "../taos-query" }
-taos-ws = { path = "../taos-ws", default-features = false }
+taos-ws = { path = "../taos-ws" }
 
 [build-dependencies]
 cbindgen = "0.24.3"

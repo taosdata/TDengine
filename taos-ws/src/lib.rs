@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 use std::{
     fmt::{Debug, Display},
     sync::Once,
@@ -12,7 +13,7 @@ use once_cell::sync::{Lazy, OnceCell};
 use asyn::WsAsyncClient;
 use sync::WsClient;
 
-use taos_query::{Connectable, Dsn, DsnError, IntoDsn, Queryable};
+use taos_query::{common::RawMeta, Dsn, DsnError, IntoDsn, Queryable, TBuilder};
 
 pub mod infra;
 
@@ -20,6 +21,9 @@ pub mod infra;
 pub mod asyn;
 pub mod stmt;
 pub mod sync; // todo: if use name `async`, rust-analyzer does not recognize the tests.
+
+// pub mod tmq;
+pub mod consumer;
 
 #[derive(Debug, Clone)]
 pub enum WsAuth {
@@ -52,7 +56,7 @@ impl From<DsnError> for Error {
     }
 }
 
-impl Connectable for WsInfo {
+impl TBuilder for WsInfo {
     type Target = Ws;
 
     type Error = Error;
@@ -66,13 +70,8 @@ impl Connectable for WsInfo {
     }
 
     fn client_version() -> &'static str {
-        ""
+        "0"
     }
-
-    fn server_version(&self) -> &str {
-        ""
-    }
-
     fn ping(&self, _: &mut Self::Target) -> Result<(), Self::Error> {
         Ok(())
     }
@@ -81,7 +80,7 @@ impl Connectable for WsInfo {
         true
     }
 
-    fn connect(&self) -> Result<Self::Target, Self::Error> {
+    fn build(&self) -> Result<Self::Target, Self::Error> {
         Ok(Ws {
             dsn: self.clone(),
             #[cfg(feature = "async")]
@@ -233,12 +232,24 @@ impl taos_query::AsyncQueryable for Ws {
                 .await
         }
     }
+
+    async fn write_meta(&self, raw: RawMeta) -> Result<(), Self::Error> {
+        if let Some(ws) = self.async_client.get() {
+            ws.write_meta(raw).await
+        } else {
+            let async_client = WsAsyncClient::from_wsinfo(&self.dsn).await?;
+            self.async_client
+                .get_or_init(|| async_client)
+                .write_meta(raw)
+                .await
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use taos_query::Connectable;
+    use taos_query::TBuilder;
 
     use crate::WsInfo;
 
@@ -248,7 +259,7 @@ mod tests {
         std::env::set_var("RUST_LOG", "trace");
         pretty_env_logger::init();
         use taos_query::{Fetchable, Queryable};
-        let client = WsInfo::from_dsn("ws://localhost:6041/")?.connect()?;
+        let client = WsInfo::from_dsn("ws://localhost:6041/")?.build()?;
         let db = "ws_sync_json";
         assert_eq!(client.exec(format!("drop database if exists {db}"))?, 0);
         assert_eq!(client.exec(format!("create database {db} keep 36500"))?, 0);
@@ -358,7 +369,7 @@ mod tests {
     #[test]
     fn ws_sync() -> anyhow::Result<()> {
         use taos_query::{Fetchable, Queryable};
-        let client = WsInfo::from_dsn("ws://localhost:6041/")?.connect()?;
+        let client = WsInfo::from_dsn("ws://localhost:6041/")?.build()?;
         assert_eq!(client.exec("drop database if exists wsabc")?, 0);
         assert_eq!(client.exec("create database wsabc keep 36500")?, 0);
         assert_eq!(
@@ -452,10 +463,10 @@ mod tests {
 
     #[test]
     fn ws_show_databases() -> anyhow::Result<()> {
-        use taos_query::{Connectable, Fetchable, Queryable};
+        use taos_query::{Fetchable, Queryable, TBuilder};
         let dsn = std::env::var("TEST_DSN").unwrap_or("taos:///".to_string());
 
-        let client = WsInfo::from_dsn(dsn)?.connect()?;
+        let client = WsInfo::from_dsn(dsn)?.build()?;
         let mut rs = client.query("select groupid from test.d0")?;
         let values = rs.to_rows_vec()?;
 
@@ -471,7 +482,7 @@ mod tests {
         use futures::TryStreamExt;
         use taos_query::{AsyncFetchable, AsyncQueryable};
 
-        let client = WsInfo::from_dsn("ws://localhost:6041/")?.connect()?;
+        let client = WsInfo::from_dsn("ws://localhost:6041/")?.build()?;
         assert_eq!(
             client
                 .exec("create database if not exists ws_abc_a")

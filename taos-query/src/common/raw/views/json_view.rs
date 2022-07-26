@@ -55,7 +55,7 @@ impl JsonView {
     pub unsafe fn get_raw_value_unchecked(&self, row: usize) -> (Ty, u32, *const c_void) {
         match self.get_unchecked(row) {
             Some(json) => (Ty::Json, json.len() as _, json.as_ptr() as _),
-            None => (Ty::Null, 0, std::ptr::null()),
+            None => (Ty::Json, 0, std::ptr::null()),
         }
     }
 

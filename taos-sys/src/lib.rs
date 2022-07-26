@@ -19,7 +19,7 @@ use query::blocks::{Blocks, SharedState};
 use taos_error::{Code, Error as RawError};
 use taos_query::{
     common::{Field, RawData, Ty},
-    AsyncFetchable, AsyncQueryable, Connectable, DsnError, Fetchable, Queryable,
+    AsyncFetchable, AsyncQueryable, TBuilder, DsnError, Fetchable, Queryable,
 };
 
 pub enum MessageType {
@@ -189,7 +189,7 @@ impl Display for Error {
     }
 }
 
-impl Connectable for Builder {
+impl TBuilder for Builder {
     type Target = Taos;
 
     type Error = Error;
@@ -234,10 +234,6 @@ impl Connectable for Builder {
         RawTaos::version()
     }
 
-    fn server_version(&self) -> &str {
-        "a"
-    }
-
     fn ping(&self, conn: &mut Self::Target) -> Result<(), Self::Error> {
         conn.raw.query("select 1")?;
         Ok(())
@@ -247,7 +243,7 @@ impl Connectable for Builder {
         true
     }
 
-    fn connect(&self) -> Result<Self::Target, Self::Error> {
+    fn build(&self) -> Result<Self::Target, Self::Error> {
         let raw = RawTaos::connect(
             self.host
                 .as_ref()
@@ -312,9 +308,9 @@ impl ResultSet {
         summary.1 += nrows;
     }
 
-    pub(crate) fn blocks(&self) -> Blocks {
-        self.raw.to_blocks()
-    }
+    // pub(crate) fn blocks(&self) -> Blocks {
+    //     self.raw.to_blocks()
+    // }
 
     pub(crate) fn summary(&self) -> &(usize, usize) {
         unsafe { &*self.summary.get() }
@@ -422,39 +418,11 @@ impl Drop for ResultSet {
 unsafe impl Send for ResultSet {}
 unsafe impl Sync for ResultSet {}
 
-// #[derive(Debug)]
-// pub struct DroppableRawRes {
-//     raw: Arc<ResultSet>,
-// }
-
-// impl Deref for DroppableRawRes {
-//     type Target = ResultSet;
-
-//     fn deref(&self) -> &Self::Target {
-//         &self.raw
-//     }
-// }
-
-// impl DroppableRawRes {
-//     pub fn new(raw: ResultSet) -> Self {
-//         Self { raw: Arc::new(raw) }
-//     }
-
-//     pub fn from_ptr_with_code(ptr: *mut TAOS_RES, code: Code) -> Result<Self, Error> {
-//         todo!()
-//         // ResultSet::from_ptr_with_code(ptr, code).map(Self::new)
-//     }
-
-//     pub fn raw(&self) -> Arc<ResultSet> {
-//         self.raw.clone()
-//     }
-// }
-
 pub type VGroupId = i32;
 
 mod query;
 
-pub use query::BlockStream;
+// pub use query::BlockStream;
 pub use query::RawRes;
 
 #[cfg(test)]
@@ -485,5 +453,50 @@ mod tests {
         println!("summary: {:?}", set.summary());
 
         Ok(())
+    }
+
+    #[test]
+    #[cfg(taos_parse_time)]
+    fn test_parse_time() {
+        use std::ffi::CString;
+        let s = CString::new("1970-01-01 00:00:00").unwrap();
+        let mut time = 0i64;
+        unsafe {
+            taos_options(
+                TSDB_OPTION_TIMEZONE,
+                b"Europe/Landon\0" as *const u8 as *const _,
+            )
+        };
+        let res = unsafe {
+            taos_parse_time(
+                s.as_ptr(),
+                &mut time as _,
+                s.to_bytes().len() as _,
+                Precision::Microsecond,
+                0,
+            )
+        };
+        assert_eq!(res, 0, "success");
+        assert_eq!(time, 0, "parse time");
+
+        let s = CString::new("1970-01-01 08:00:00").unwrap(); // CST +8
+                                                              // timezone could be set multiple times
+        unsafe {
+            taos_options(
+                TSDB_OPTION_TIMEZONE,
+                b"Asia/Shanghai\0" as *const u8 as *const _,
+            )
+        };
+        let res = unsafe {
+            taos_parse_time(
+                s.as_ptr(),
+                &mut time as _,
+                s.to_bytes().len() as _,
+                Precision::Microsecond,
+                0,
+            )
+        };
+        assert_eq!(res, 0, "success");
+        assert_eq!(time, 0, "parse time");
     }
 }

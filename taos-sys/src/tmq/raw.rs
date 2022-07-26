@@ -7,13 +7,15 @@ pub(super) mod tmq {
 
     use itertools::Itertools;
 
-    use crate::RawError;
+    use crate::{RawError, RawRes};
 
     use super::{super::ffi::*, Topics};
-    use crate::{query::RawRes, tmq_t, Message, Offset};
 
     #[derive(Debug, Clone, Copy)]
     pub(crate) struct RawTmq(pub(crate) *mut tmq_t);
+
+    unsafe impl Send for RawTmq {}
+    unsafe impl Sync for RawTmq {}
 
     impl RawTmq {
         pub(crate) fn subscribe(&mut self, topics: &Topics) -> Result<(), RawError> {
@@ -32,11 +34,11 @@ pub(super) mod tmq {
             tl
         }
 
-        pub fn commit_sync(&mut self, msg: RawRes) -> Result<(), RawError> {
+        pub fn commit_sync(&self, msg: RawRes) -> Result<(), RawError> {
             unsafe { tmq_commit_sync(self.0, msg.0 as _) }.ok_or("commit failed")
         }
 
-        pub fn commit_async(&mut self, msg: RawRes, cb: tmq_commit_cb, param: *mut c_void) {
+        pub fn commit_async(&self, msg: RawRes, cb: tmq_commit_cb, param: *mut c_void) {
             unsafe { tmq_commit_async(self.0, msg.0, cb, param) }
         }
 
@@ -66,7 +68,7 @@ pub(super) mod tmq {
             }
         }
 
-        pub async fn commit(&mut self, msg: RawRes) -> Result<(), RawError> {
+        pub async fn commit(&self, msg: RawRes) -> Result<(), RawError> {
             // use tokio::sync::oneshot::{channel, Sender};
             use std::sync::mpsc::{channel, Sender};
             let (sender, rx) = channel::<Result<(), RawError>>();
@@ -93,12 +95,12 @@ pub(super) mod tmq {
         }
 
         /// Wait a message forever
-        pub fn next_or_forever(&mut self) -> RawRes {
+        pub fn next_or_forever(&self) -> RawRes {
             self.poll_timeout(-1)
                 .expect("wait forever if there's no message")
         }
 
-        pub fn poll_timeout(&mut self, timeout: i64) -> Option<RawRes> {
+        pub fn poll_timeout(&self, timeout: i64) -> Option<RawRes> {
             let res = unsafe { tmq_consumer_poll(self.0, timeout) };
             if res.is_null() {
                 None

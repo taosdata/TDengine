@@ -51,12 +51,12 @@ macro_rules! _impl_inline_str {
 
             impl InlineStr<$ty> {
                 #[inline]
-                pub fn from_ptr<'a>(ptr: *const u8) -> &'a Self {
-                    unsafe { std::mem::transmute::<*const u8, &InlineStr<$ty>>(ptr) }
+                pub const fn from_ptr<'a>(ptr: *const u8) -> &'a Self {
+                    unsafe { &*std::mem::transmute::<*const u8, *const InlineStr<$ty>>(ptr) }
                 }
 
                 #[inline]
-                pub fn as_ptr(&self) -> *const u8 {
+                pub const fn as_ptr(&self) -> *const u8 {
                     self.data.as_ptr()
                 }
 

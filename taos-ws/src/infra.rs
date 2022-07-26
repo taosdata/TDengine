@@ -125,6 +125,7 @@ pub enum WsRecvData {
     Query(WsQueryResp),
     Fetch(WsFetchResp),
     Block(Vec<u32>),
+    WriteMeta,
 }
 
 #[serde_as]

@@ -1,10 +1,10 @@
 use chrono::NaiveDateTime;
-use paste::paste;
+
 use serde::{Deserialize, Serialize};
 
-use std::{fmt::Display, str::FromStr};
 
-use crate::common::{Precision, Timestamp};
+
+use crate::common::{Timestamp};
 
 /// Information for `show topics` record.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
