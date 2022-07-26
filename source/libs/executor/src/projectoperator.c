@@ -279,7 +279,9 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
       // do apply filter
       doFilter(pProjectInfo->pFilterNode, pFinalRes, NULL);
-      if (pFinalRes->info.rows > 0 || pRes->info.rows == 0) {
+
+      // when apply the limit/offset for each group, pRes->info.rows may be 0, due to limit constraint.
+      if (pFinalRes->info.rows > 0 || (pOperator->status == OP_EXEC_DONE)) {
         break;
       }
     } else {
