@@ -146,7 +146,7 @@ TEST_F(ParserSelectTest, IndefiniteRowsFuncSemanticCheck) {
 
   run("SELECT DIFF(c1), c2 FROM t1");
 
-  run("SELECT DIFF(c1), tbname FROM t1", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  run("SELECT DIFF(c1), tbname FROM t1");
 
   run("SELECT DIFF(c1), count(*) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
