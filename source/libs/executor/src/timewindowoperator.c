@@ -3147,6 +3147,8 @@ void destroyStreamSessionAggOperatorInfo(void* param, int32_t numOfOutput) {
   blockDataDestroy(pInfo->pDelRes);
   blockDataDestroy(pInfo->pWinBlock);
   blockDataDestroy(pInfo->pUpdateRes);
+  destroySqlFunctionCtx(pInfo->pDummyCtx, 0);
+  taosHashCleanup(pInfo->pStDeleted);
 
   taosMemoryFreeClear(param);
 }
