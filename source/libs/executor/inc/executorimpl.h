@@ -804,6 +804,7 @@ typedef struct STagFilterOperatorInfo {
 typedef struct SJoinOperatorInfo {
   SSDataBlock       *pRes;
   int32_t            joinType;
+  int32_t            inputTsOrder;
 
   SSDataBlock       *pLeft;
   int32_t            leftPos;
