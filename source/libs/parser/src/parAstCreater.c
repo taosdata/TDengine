@@ -527,6 +527,7 @@ SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, const STok
   }
   if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
     strcpy(((SSelectStmt*)pSubquery)->stmtName, tempTable->table.tableAlias);
+    ((SSelectStmt*)pSubquery)->isSubquery = true;
   } else if (QUERY_NODE_SET_OPERATOR == nodeType(pSubquery)) {
     strcpy(((SSetOperator*)pSubquery)->stmtName, tempTable->table.tableAlias);
   }
@@ -637,8 +638,9 @@ SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd
   return createBetweenAnd(pCxt, createPrimaryKeyCol(pCxt), pStart, pEnd);
 }
 
-SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* pAlias) {
+SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, SToken* pAlias) {
   CHECK_PARSER_STATUS(pCxt);
+  trimEscape(pAlias);
   int32_t len = TMIN(sizeof(((SExprNode*)pNode)->aliasName) - 1, pAlias->n);
   strncpy(((SExprNode*)pNode)->aliasName, pAlias->z, len);
   ((SExprNode*)pNode)->aliasName[len] = '\0';
@@ -891,6 +893,18 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
       break;
     case DB_OPTION_RETENTIONS:
       ((SDatabaseOptions*)pOptions)->pRetentions = pVal;
+      break;
+    case DB_OPTION_WAL_RETENTION_PERIOD:
+      ((SDatabaseOptions*)pOptions)->walRetentionPeriod = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_WAL_RETENTION_SIZE:
+      ((SDatabaseOptions*)pOptions)->walRetentionSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_WAL_ROLL_PERIOD:
+      ((SDatabaseOptions*)pOptions)->walRollPeriod = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_WAL_SEGMENT_SIZE:
+      ((SDatabaseOptions*)pOptions)->walSegmentSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     default:
       break;

@@ -1395,10 +1395,26 @@ void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
           break;
         case TSDB_DATA_TYPE_BOOL:
           break;
-        case TSDB_DATA_TYPE_TINYINT:
+        case TSDB_DATA_TYPE_TINYINT:{
+          pColAgg->sum += colVal.value.i8;
+          if (pColAgg->min > colVal.value.i8) {
+            pColAgg->min = colVal.value.i8;
+          }
+          if (pColAgg->max < colVal.value.i8) {
+            pColAgg->max = colVal.value.i8;
+          }
           break;
-        case TSDB_DATA_TYPE_SMALLINT:
+        }
+        case TSDB_DATA_TYPE_SMALLINT:{
+          pColAgg->sum += colVal.value.i16;
+          if (pColAgg->min > colVal.value.i16) {
+            pColAgg->min = colVal.value.i16;
+          }
+          if (pColAgg->max < colVal.value.i16) {
+            pColAgg->max = colVal.value.i16;
+          }
           break;
+        }
         case TSDB_DATA_TYPE_INT: {
           pColAgg->sum += colVal.value.i32;
           if (pColAgg->min > colVal.value.i32) {
@@ -1419,24 +1435,79 @@ void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
           }
           break;
         }
-        case TSDB_DATA_TYPE_FLOAT:
+        case TSDB_DATA_TYPE_FLOAT:{
+          pColAgg->sum += colVal.value.f;
+          if (pColAgg->min > colVal.value.f) {
+            pColAgg->min = colVal.value.f;
+          }
+          if (pColAgg->max < colVal.value.f) {
+            pColAgg->max = colVal.value.f;
+          }
           break;
-        case TSDB_DATA_TYPE_DOUBLE:
+        }
+        case TSDB_DATA_TYPE_DOUBLE:{
+          pColAgg->sum += colVal.value.d;
+          if (pColAgg->min > colVal.value.d) {
+            pColAgg->min = colVal.value.d;
+          }
+          if (pColAgg->max < colVal.value.d) {
+            pColAgg->max = colVal.value.d;
+          }
           break;
+        }
         case TSDB_DATA_TYPE_VARCHAR:
           break;
-        case TSDB_DATA_TYPE_TIMESTAMP:
+        case TSDB_DATA_TYPE_TIMESTAMP:{
+          if (pColAgg->min > colVal.value.i64) {
+            pColAgg->min = colVal.value.i64;
+          }
+          if (pColAgg->max < colVal.value.i64) {
+            pColAgg->max = colVal.value.i64;
+          }
           break;
+        }
         case TSDB_DATA_TYPE_NCHAR:
           break;
-        case TSDB_DATA_TYPE_UTINYINT:
+        case TSDB_DATA_TYPE_UTINYINT:{
+          pColAgg->sum += colVal.value.u8;
+          if (pColAgg->min > colVal.value.u8) {
+            pColAgg->min = colVal.value.u8;
+          }
+          if (pColAgg->max < colVal.value.u8) {
+            pColAgg->max = colVal.value.u8;
+          }
           break;
-        case TSDB_DATA_TYPE_USMALLINT:
+        }
+        case TSDB_DATA_TYPE_USMALLINT:{
+          pColAgg->sum += colVal.value.u16;
+          if (pColAgg->min > colVal.value.u16) {
+            pColAgg->min = colVal.value.u16;
+          }
+          if (pColAgg->max < colVal.value.u16) {
+            pColAgg->max = colVal.value.u16;
+          }
           break;
-        case TSDB_DATA_TYPE_UINT:
+        }
+        case TSDB_DATA_TYPE_UINT:{
+          pColAgg->sum += colVal.value.u32;
+          if (pColAgg->min > colVal.value.u32) {
+            pColAgg->min = colVal.value.u32;
+          }
+          if (pColAgg->max < colVal.value.u32) {
+            pColAgg->max = colVal.value.u32;
+          }
           break;
-        case TSDB_DATA_TYPE_UBIGINT:
+        }
+        case TSDB_DATA_TYPE_UBIGINT:{
+          pColAgg->sum += colVal.value.u64;
+          if (pColAgg->min > colVal.value.u64) {
+            pColAgg->min = colVal.value.u64;
+          }
+          if (pColAgg->max < colVal.value.u64) {
+            pColAgg->max = colVal.value.u64;
+          }
           break;
+        }
         case TSDB_DATA_TYPE_JSON:
           break;
         case TSDB_DATA_TYPE_VARBINARY:
