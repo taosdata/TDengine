@@ -2975,7 +2975,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->daysToKeep2 = pStmt->pOptions->keep[2];
   pReq->minRows = pStmt->pOptions->minRowsPerBlock;
   pReq->maxRows = pStmt->pOptions->maxRowsPerBlock;
-  pReq->fsyncPeriod = pStmt->pOptions->fsyncPeriod;
+  pReq->walFsyncPeriod = pStmt->pOptions->fsyncPeriod;
   pReq->walLevel = pStmt->pOptions->walLevel;
   pReq->precision = pStmt->pOptions->precision;
   pReq->compression = pStmt->pOptions->compressionLevel;
@@ -3334,7 +3334,7 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   pReq->daysToKeep0 = pStmt->pOptions->keep[0];
   pReq->daysToKeep1 = pStmt->pOptions->keep[1];
   pReq->daysToKeep2 = pStmt->pOptions->keep[2];
-  pReq->fsyncPeriod = pStmt->pOptions->fsyncPeriod;
+  pReq->walFsyncPeriod = pStmt->pOptions->fsyncPeriod;
   pReq->walLevel = pStmt->pOptions->walLevel;
   pReq->strict = pStmt->pOptions->strict;
   pReq->cacheLast = pStmt->pOptions->cacheModel;
