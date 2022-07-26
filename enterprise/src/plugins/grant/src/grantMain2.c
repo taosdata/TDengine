@@ -366,8 +366,9 @@ void grantParseParameter() {
 static char *grantSecondsToString(uint32_t seconds) {
   char      *ts = taosMemoryCalloc(64, 1);
   time_t     sec = seconds;
-  struct tm *ptm = taosLocalTime(&sec, NULL);
-  strftime(ts, 64, "%Y-%m-%d %H:%M:%S", ptm);
+  struct tm  ptm;
+  taosLocalTime(&sec, &ptm);
+  strftime(ts, 64, "%Y-%m-%d %H:%M:%S", &ptm);
   return ts;
 }
 
@@ -789,7 +790,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   if (pShow->numOfRows < 1) {
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    const char      *src = grantStatus.officialVersion ? " official" : "  trial";
+    const char      *src = grantStatus.officialVersion ? "official" : "trial";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
@@ -797,9 +798,10 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     char       expire[22] = {0};
     time_t     tt = grantStatus.expireTimeSec;
-    struct tm *ptm = taosLocalTime(&tt, NULL);
-    strftime(expire, 21, "%Y-%m-%d %H:%M:%S", ptm);
-    src = grantStatus.expireTimeSec != GRANT_EXPIRE_TIME ? expire : "      unlimited";
+    struct tm  ptm;
+    taosLocalTime(&tt, &ptm);
+    strftime(expire, 21, "%Y-%m-%d %H:%M:%S", &ptm);
+    src = grantStatus.expireTimeSec != GRANT_EXPIRE_TIME ? expire : "unlimited";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
@@ -816,7 +818,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
               (uint32_t)(grantStatus.limitStorage / (int64_t)1073741824));
       src = tmp1;
     } else {
-      src = "      unlimited";
+      src = "unlimited";
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, tmp, false);
@@ -827,7 +829,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       sprintf(tmp1, "%" PRIu64 "/%" PRIu64, grantStatus.curTimeSeries, grantStatus.limitTimeSeries);
       src = tmp1;
     } else {
-      src = "     unlimited";
+      src = "unlimited";
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, tmp, false);
