@@ -194,13 +194,7 @@ class TDTestCase:
         tdSql.checkRows(90)
         # bug need fix
         # tdSql.checkData(0,1,None)
-
-
-
-
-
-
-
+        
         # bug need fix
         # tdSql.query(" select tbname , max(c1) from stb partition by tbname order by tbname slimit 5 soffset 0 ")
         # tdSql.checkRows(5)
