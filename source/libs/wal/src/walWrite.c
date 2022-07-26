@@ -277,35 +277,37 @@ int32_t walEndSnapshot(SWal *pWal) {
   tmp.firstVer = ver;
   // find files safe to delete
   SWalFileInfo *pInfo = taosArraySearch(pWal->fileInfoSet, &tmp, compareWalFileInfo, TD_LE);
-  if (ver >= pInfo->lastVer) {
-    pInfo++;
-  }
-  // iterate files, until the searched result
-  for (SWalFileInfo *iter = pWal->fileInfoSet->pData; iter < pInfo; iter++) {
-    if ((pWal->cfg.retentionSize != -1 && newTotSize > pWal->cfg.retentionSize) ||
-        (pWal->cfg.retentionPeriod != -1 && iter->closeTs + pWal->cfg.retentionPeriod > ts)) {
-      // delete according to file size or close time
-      deleteCnt++;
-      newTotSize -= iter->fileSize;
+  if (pInfo) {
+    if (ver >= pInfo->lastVer) {
+      pInfo++;
     }
-  }
-  char fnameStr[WAL_FILE_LEN];
-  // remove file
-  for (int i = 0; i < deleteCnt; i++) {
-    pInfo = taosArrayGet(pWal->fileInfoSet, i);
-    walBuildLogName(pWal, pInfo->firstVer, fnameStr);
-    taosRemoveFile(fnameStr);
-    walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
-    taosRemoveFile(fnameStr);
-  }
+    // iterate files, until the searched result
+    for (SWalFileInfo *iter = pWal->fileInfoSet->pData; iter < pInfo; iter++) {
+      if ((pWal->cfg.retentionSize != -1 && newTotSize > pWal->cfg.retentionSize) ||
+          (pWal->cfg.retentionPeriod != -1 && iter->closeTs + pWal->cfg.retentionPeriod > ts)) {
+        // delete according to file size or close time
+        deleteCnt++;
+        newTotSize -= iter->fileSize;
+      }
+    }
+    char fnameStr[WAL_FILE_LEN];
+    // remove file
+    for (int i = 0; i < deleteCnt; i++) {
+      pInfo = taosArrayGet(pWal->fileInfoSet, i);
+      walBuildLogName(pWal, pInfo->firstVer, fnameStr);
+      taosRemoveFile(fnameStr);
+      walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
+      taosRemoveFile(fnameStr);
+    }
 
-  // make new array, remove files
-  taosArrayPopFrontBatch(pWal->fileInfoSet, deleteCnt);
-  if (taosArrayGetSize(pWal->fileInfoSet) == 0) {
-    pWal->writeCur = -1;
-    pWal->vers.firstVer = -1;
-  } else {
-    pWal->vers.firstVer = ((SWalFileInfo *)taosArrayGet(pWal->fileInfoSet, 0))->firstVer;
+    // make new array, remove files
+    taosArrayPopFrontBatch(pWal->fileInfoSet, deleteCnt);
+    if (taosArrayGetSize(pWal->fileInfoSet) == 0) {
+      pWal->writeCur = -1;
+      pWal->vers.firstVer = -1;
+    } else {
+      pWal->vers.firstVer = ((SWalFileInfo *)taosArrayGet(pWal->fileInfoSet, 0))->firstVer;
+    }
   }
   pWal->writeCur = taosArrayGetSize(pWal->fileInfoSet) - 1;
   pWal->totSize = newTotSize;
