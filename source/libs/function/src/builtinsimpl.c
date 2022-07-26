@@ -2218,6 +2218,7 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t currentRow = pBlock->info.rows;
 
   if (0 == pInfo->num) {
+    colDataAppendNULL(pCol, currentRow);
     return 0;
   }
 
