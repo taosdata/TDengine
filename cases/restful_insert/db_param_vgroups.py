@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
+import copy
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
@@ -42,7 +43,11 @@ class TestVgroups(TDCase):
         """
         vgroups check
         """
-        self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1]}, self.endpoint, True)
+
+        for i in range(len(self.taosd_setting['spec']['dnodes'])):
+            endpoint = self.taosd_setting['spec']['dnodes'][i]['endpoint']
+            taosd_setting = copy.deepcopy(self.taosd_setting)
+            self.taosd.update_cfg('/tmp',taosd_setting , {"supportVnodes": self.cfg["boundary"][-1]}, endpoint, True)
         self.tdCom.drop_all_db()
         test_param = self.cfg["create_name"]
         dbname = self.tdCom.get_long_name()
