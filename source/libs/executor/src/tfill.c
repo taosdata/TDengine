@@ -514,7 +514,7 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
   if (pFillInfo == NULL) {
     return NULL;
   }
-
+  taosMemoryFree(pFillInfo->prev->pData);
   taosArrayDestroy(pFillInfo->prev);
   taosArrayDestroy(pFillInfo->next);
 
