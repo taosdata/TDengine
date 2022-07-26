@@ -31,6 +31,7 @@ class TestVgroups(TDCase):
         self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
         self.endpoint = self.taosd_setting["spec"]["config"]["firstEP"]
         self.api_type = 'restful'
+        self.clustor_num = len(self.taosd_setting['spec']['dnodes'])
     def get_vnode_count(self):
         vnode_sum = 0
         for i in self.taosd_setting['spec']['dnodes']:
@@ -42,7 +43,7 @@ class TestVgroups(TDCase):
                 return vnode_sum
             elif os.environ.get('DATABASE_REPLICAS') == '3':
                 return vnode_sum / 3
-
+    
     def vgroups_check(self):
         """
         vgroups check
@@ -71,8 +72,8 @@ class TestVgroups(TDCase):
             db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
             self.tdSql.checkEqual(db_field, param_value)
             self.tdSql.checkEqual(self.get_vnode_count(),db_field)
-            if param_value == self.cfg["boundary"][-1]:
-                self.tdRest.error(f'create database if not exists {dbname}_error {test_param} 1 buffer {self.buffer_min}')
+            # if param_value == self.cfg["boundary"][-1]:
+            #     self.tdRest.error(f'create database if not exists {dbname}_error {test_param} 1 buffer {self.buffer_min}')
             self.tdRest.request(f'drop database {dbname}')
         self.tdRest.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1} buffer {self.buffer_min}')
         self.tdRest.error(f'create database if not exists {dbname} vgroups {self.cfg["boundary"][-1] + 1} buffer {self.buffer_min}')
