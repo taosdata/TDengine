@@ -241,10 +241,11 @@ class TDTestCase:
     def run(self):
         self.rows = 10
         self.cfg_check()
-        tdSql.prepare(dbname=DBNAME, **{"keep": "1d, 1500m, 26h", "duration":"1h"})
+        tdSql.prepare(dbname=DBNAME, **{"keep": "1d, 1500m, 26h", "duration":"1h", "vgroups": 10})
         self.__create_tb(dbname=DBNAME)
         self.__insert_data(rows=self.rows, dbname=DBNAME)
         tdSql.query(f"select count(*) from {DBNAME}.{NTB_PRE}1")
+        tdSql.execute(f"flush database {DBNAME}")
 
     def stop(self):
         tdSql.close()
