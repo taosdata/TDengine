@@ -25,6 +25,7 @@ import subprocess
 import os
 import taos
 import random
+from taostest.util.common import TDCom
 from taostest.util.remote import Remote
 
 class TDCreateData():
@@ -33,6 +34,7 @@ class TDCreateData():
         self.logger = logger
         
         self._remote: Remote = Remote(self.logger)
+        self.tdCommon = TDCom(self.tdSql)
         self._remote._logger.info("********")
 
     def desc(self) -> str:
@@ -70,8 +72,9 @@ class TDCreateData():
         self.ts = 1630000000000
         self.num_random = 100
         fake = Faker('zh_CN')
-        self.tdSql.execute('''drop database if exists %s ;''' %database)
-        self.tdSql.execute('''create database %s keep 36500;'''%database)
+        # self.tdSql.execute('''drop database if exists %s ;''' %database)
+        # self.tdSql.execute('''create database %s keep 36500;'''%database)
+        self.tdCommon.createDb(database, True, keep=36500)
         self.tdSql.execute('''use %s;'''%database)
 
         self.tdSql.execute('''create stable stable_1 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint , q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
@@ -207,8 +210,9 @@ class TDCreateData():
         self.num_random = 10
         self.stable_child_num = 10
         fake = Faker('zh_CN')
-        self.tdSql.execute('''drop database if exists %s ;''' %database)
-        self.tdSql.execute('''create database %s keep 36500;'''%database)
+        # self.tdSql.execute('''drop database if exists %s ;''' %database)
+        # self.tdSql.execute('''create database %s keep 36500;'''%database)
+        self.tdCommon.createDb(database, True, keep=36500)
         self.tdSql.execute('''use %s;'''%database)
         # 1 = readings 2 = diagnostics
         self.tdSql.execute('''create stable stable_1 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint , q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
@@ -347,8 +351,9 @@ class TDCreateData():
         self.ts = 1630000000000
         self.num_random = 100
         fake = Faker('zh_CN')
-        self.tdSql.execute('''drop database if exists %s ;''' %database)
-        self.tdSql.execute('''create database %s keep 36500;'''%database)
+        # self.tdSql.execute('''drop database if exists %s ;''' %database)
+        # self.tdSql.execute('''create database %s keep 36500;'''%database)
+        self.tdCommon.createDb(database, True, keep=36500)
         self.tdSql.execute('''use %s;'''%database)
 
         self.tdSql.execute('''create stable stable_1 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint , q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
@@ -454,8 +459,9 @@ class TDCreateData():
         self.ts = 1630000000000
         self.num_random = 100
         fake = Faker('zh_CN')
-        self.tdSql.execute('''drop database if exists %s ;''' %database)
-        self.tdSql.execute('''create database %s keep 36500;'''%database)
+        # self.tdSql.execute('''drop database if exists %s ;''' %database)
+        # self.tdSql.execute('''create database %s keep 36500;'''%database)
+        self.tdCommon.createDb(database, True, keep=36500)
         self.tdSql.execute('''use %s;'''%database)
 
         self.tdSql.execute('''create stable stable_1 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint , q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
@@ -612,8 +618,9 @@ class TDCreateData():
     def dropandcreateDB_null(self):
         self.num_null = 100
         self.ts = 1630000000000
-        self.tdSql.execute('''drop database if exists db ;''')
-        self.tdSql.execute('''create database db keep 36500;''')
+        # self.tdSql.execute('''drop database if exists db ;''')
+        # self.tdSql.execute('''create database db keep 36500;''')
+        self.tdCommon.createDb(database, True, keep=36500)
         self.tdSql.execute('''use db;''')
 
         self.tdSql.execute('''create stable stable_1 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint , q_float float , q_double double , q_bool bool , q_binary binary(20) , q_nchar nchar(20) , q_ts timestamp ,  \
