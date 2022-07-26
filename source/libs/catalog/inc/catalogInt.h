@@ -31,12 +31,15 @@ extern "C" {
 #define CTG_DEFAULT_RENT_SECOND 10
 #define CTG_DEFAULT_RENT_SLOT_SIZE 10
 #define CTG_DEFAULT_MAX_RETRY_TIMES 3
+#define CTG_DEFAULT_BATCH_NUM 64
 
 #define CTG_RENT_SLOT_SECOND 1.5
 
 #define CTG_DEFAULT_INVALID_VERSION (-1)
 
 #define CTG_ERR_CODE_TABLE_NOT_EXIST TSDB_CODE_PAR_TABLE_NOT_EXIST
+
+#define CTG_BATCH_FETCH 1
 
 enum {
   CTG_READ = 1,
@@ -200,8 +203,20 @@ typedef struct SCatalog {
   SCtgRentMgmt     stbRent;
 } SCatalog;
 
+typedef struct SCtgBatch {
+  int32_t batchId;
+  int32_t msgType;
+  int32_t msgSize;
+  SArray* pMsgs;
+  SRequestConnInfo *pConn;
+  char    dbFName[TSDB_DB_FNAME_LEN];
+  SArray* pTaskIds;
+} SCtgBatch;
+
 typedef struct SCtgJob {
   int64_t           refId;
+  int32_t           batchId;
+  SHashObj*         pBatchs;
   SArray*           pTasks;
   int32_t           taskDone;
   SMetaData         jobRes;
@@ -258,6 +273,7 @@ typedef struct SCtgTask {
   SRWLatch        lock;
   SArray*         pParents;
   SCtgSubRes      subRes;
+  SHashObj*       pBatchs;
 } SCtgTask;
 
 typedef int32_t (*ctgInitTaskFp)(SCtgJob*, int32_t, void*);
@@ -626,6 +642,8 @@ int32_t ctgLaunchSubTask(SCtgTask *pTask, CTG_TASK_TYPE type, ctgSubTaskCbFp fp,
 int32_t ctgGetTbCfgCb(SCtgTask *pTask);
 void    ctgFreeHandle(SCatalog* pCatalog);
 
+void    ctgFreeBatch(SCtgBatch *pBatch);
+void    ctgFreeBatchs(SHashObj *pBatchs);
 int32_t ctgCloneVgInfo(SDBVgInfo *src, SDBVgInfo **dst);
 int32_t ctgCloneMetaOutput(STableMetaOutput *output, STableMetaOutput **pOutput);
 int32_t ctgGenerateVgList(SCatalog *pCtg, SHashObj *vgHash, SArray** pList);

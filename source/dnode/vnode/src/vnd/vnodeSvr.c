@@ -296,7 +296,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("message in fetch queue is processing");
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META ||
-       pMsg->msgType == TDMT_VND_TABLE_CFG) &&
+       pMsg->msgType == TDMT_VND_TABLE_CFG || pMsg->msgType = TDMT_VND_BATCH_META) &&
       !vnodeIsLeader(pVnode)) {
     vnodeRedirectRpcMsg(pVnode, pMsg);
     return 0;
@@ -318,9 +318,11 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     case TDMT_SCH_QUERY_HEARTBEAT:
       return qWorkerProcessHbMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_VND_TABLE_META:
-      return vnodeGetTableMeta(pVnode, pMsg);
+      return vnodeGetTableMeta(pVnode, pMsg, true);
     case TDMT_VND_TABLE_CFG:
-      return vnodeGetTableCfg(pVnode, pMsg);
+      return vnodeGetTableCfg(pVnode, pMsg, true);
+    case TDMT_VND_BATCH_META:
+      return vnodeGetBatchMeta(pVnode, pMsg);
     case TDMT_VND_CONSUME:
       return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_RUN:

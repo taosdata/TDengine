@@ -636,6 +636,7 @@ void initQueryModuleMsgHandle() {
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_TABLE_INDEX)] = queryProcessGetTbIndexRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_CFG)]       = queryProcessGetTbCfgRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_TABLE_CFG)]       = queryProcessGetTbCfgRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_BATCH_META)]       = queryProcessGetBatchMetaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_SERVER_VERSION)]  = queryProcessGetSerVerRsp;
 }
 

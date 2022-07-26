@@ -3045,6 +3045,28 @@ typedef struct SDeleteRes {
 int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
 int32_t tDecodeDeleteRes(SDecoder* pCoder, SDeleteRes* pRes);
 
+typedef struct {
+  int32_t msgType;
+  int32_t msgLen;
+  void*   msg;
+} SBatchMsg;
+
+typedef struct {
+  int32_t reqType;
+  int32_t msgLen;
+  int32_t rspCode;
+  void*   msg;
+} SBatchRsp;
+
+static FORCE_INLINE void tFreeSBatchRsp(void *p) {
+  if (NULL == p) {
+    return;
+  }
+
+  SBatchRsp* pRsp = (SBatchRsp*);
+  taosMemoryFree(pRsp->msg);
+}
+
 #pragma pack(pop)
 
 #ifdef __cplusplus

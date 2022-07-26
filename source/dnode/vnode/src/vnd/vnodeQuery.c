@@ -21,7 +21,7 @@ int vnodeQueryOpen(SVnode *pVnode) {
 
 void vnodeQueryClose(SVnode *pVnode) { qWorkerDestroy((void **)&pVnode->pQuery); }
 
-int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
+int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   STableInfoReq  infoReq = {0};
   STableMetaRsp  metaRsp = {0};
   SMetaReader    mer1 = {0};
@@ -99,7 +99,12 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _exit;
   }
 
-  pRsp = rpcMallocCont(rspLen);
+  if (direct) {
+    pRsp = rpcMallocCont(rspLen);
+  } else {
+    pRsp = taosMemoryCalloc(1, rspLen);
+  }
+  
   if (pRsp == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
@@ -117,15 +122,17 @@ _exit:
     qError("get table %s meta failed cause of %s", infoReq.tbName, tstrerror(code));
   }
 
-  tmsgSendRsp(&rpcMsg);
-
+  if (direct) {
+    tmsgSendRsp(&rpcMsg);
+  }
+  
   taosMemoryFree(metaRsp.pSchemas);
   metaReaderClear(&mer2);
   metaReaderClear(&mer1);
   return TSDB_CODE_SUCCESS;
 }
 
-int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg) {
+int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   STableCfgReq   cfgReq = {0};
   STableCfgRsp   cfgRsp = {0};
   SMetaReader    mer1 = {0};
@@ -209,7 +216,12 @@ int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _exit;
   }
 
-  pRsp = rpcMallocCont(rspLen);
+  if (direct) {
+    pRsp = rpcMallocCont(rspLen);
+  } else {
+    pRsp = taosMemoryCalloc(1, rspLen);
+  }
+
   if (pRsp == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
@@ -227,11 +239,118 @@ _exit:
     qError("get table %s cfg failed cause of %s", cfgReq.tbName, tstrerror(code));
   }
 
-  tmsgSendRsp(&rpcMsg);
-
+  if (direct) {
+    tmsgSendRsp(&rpcMsg);
+  }
+  
   tFreeSTableCfgRsp(&cfgRsp);
   metaReaderClear(&mer2);
   metaReaderClear(&mer1);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t code = 0;
+  int32_t offset = 0;
+  int32_t rspSize = 0;
+  int32_t msgNum = ntohl(pMsg->pCont);
+  offset += sizeof(msgNum);
+  SBatchMsg req = {0};
+  SBatchRsp rsp = {0};
+  SRpcMsg reqMsg = *pMsg;
+  SRpcMsg rspMsg = {0};
+  void* pRsp = NULL;
+
+  SArray* batchRsp = taosArrayInit(msgNum, sizeof(SBatchRsp));
+  if (NULL == batchRsp) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  
+  for (int32_t i = 0; i < msgNum; ++i) {
+    req.msgType = ntohl((char*)pMsg->pCont + offset);
+    offset += req.msgType;
+
+    req.msgLen = ntohl((char*)pMsg->pCont + offset);
+    offset += req.msgLen;
+
+    req.msg = (char*)pMsg->pCont + offset;
+    offset += req.msgLen;
+
+    reqMsg.msgType = req.msgType;
+    reqMsg.pCont = req.msg;
+    reqMsg.contLen = req.msgLen;
+    
+    switch (req.msgType) {
+      case TDMT_VND_TABLE_META:
+        vnodeGetTableMeta(pVnode, &reqMsg, false);
+        break;
+      case TDMT_VND_TABLE_CFG:
+        vnodeGetTableCfg(pVnode, &reqMsg, false);
+        break;
+      default:
+        qError("invalid req msgType %d", req.msgType);
+        reqMsg.code = TSDB_CODE_INVALID_MSG;
+        reqMsg.pCont = NULL;
+        reqMsg.contLen = 0;
+        break;
+    }
+
+    rsp.reqType = reqMsg.msgType;
+    rsp.msgLen = reqMsg.contLen;
+    rsp.rspCode = reqMsg.code;
+    rsp.msg = reqMsg.pCont;
+    
+    taosArrayPush(batchRsp, &rsp);
+
+    rspSize += sizeof(rsp) + rsp.msgLen - POINTER_BYTES;
+  }
+
+  rspSize += sizeof(int32_t);
+  offset = 0;
+  
+  pRsp = rpcMallocCont(rspSize);
+  if (pRsp == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  *(int32_t*)((char*)pRsp + offset) = htonl(msgNum);
+  offset += sizeof(msgNum);
+  for (int32_t i = 0; i < msgNum; ++i) {
+    SBatchRsp *p = taosArrayGet(batchRsp, i);
+    
+    *(int32_t*)((char*)pRsp + offset) = htonl(p->reqType);
+    offset += sizeof(p->reqType);
+    *(int32_t*)((char*)pRsp + offset) = htonl(p->msgLen);
+    offset += sizeof(p->msgLen);
+    *(int32_t*)((char*)pRsp + offset) = htonl(p->rspCode);
+    offset += sizeof(p->rspCode);
+    memcpy((char*)pRsp + offset, p->msg, p->msgLen);
+    offset += p->msgLen;
+
+    taosMemoryFreeClear(p->msg);
+  }
+
+  taosArrayDestroy(batchRsp);
+  batchRsp = NULL;
+
+_exit:
+
+  rspMsg.info = pMsg->info;
+  rspMsg.pCont = pRsp;
+  rspMsg.contLen = rspSize;
+  rspMsg.code = code;
+  rspMsg.msgType = pMsg->msgType;
+
+  if (code) {
+    qError("get batch meta failed cause of %s", tstrerror(code));
+  }
+
+  taosArrayDestroyEx(batchRsp, tFreeSBatchRsp);
+
+  tmsgSendRsp(&rspMsg);
+
   return TSDB_CODE_SUCCESS;
 }
 
