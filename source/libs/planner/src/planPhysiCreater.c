@@ -1586,7 +1586,7 @@ static int32_t createQueryInserter(SPhysiPlanContext* pCxt, SVnodeModifyLogicNod
   pInserter->tableId = pModify->tableId;
   pInserter->stableId = pModify->stableId;
   pInserter->tableType = pModify->tableType;
-  strcpy(pInserter->tableFName, pModify->tableFName);
+  strcpy(pInserter->tableName, pModify->tableName);
   pInserter->vgId = pModify->pVgroupList->vgroups[0].vgId;
   pInserter->epSet = pModify->pVgroupList->vgroups[0].epSet;
   vgroupInfoToNodeAddr(pModify->pVgroupList->vgroups, &pSubplan->execNode);
@@ -1636,7 +1636,7 @@ static int32_t createDataDeleter(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode*
 
   pDeleter->tableId = pModify->tableId;
   pDeleter->tableType = pModify->tableType;
-  strcpy(pDeleter->tableFName, pModify->tableFName);
+  strcpy(pDeleter->tableFName, pModify->tableName);
   strcpy(pDeleter->tsColName, pModify->tsColName);
   pDeleter->deleteTimeRange = pModify->deleteTimeRange;
 

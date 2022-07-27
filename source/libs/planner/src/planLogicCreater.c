@@ -1292,8 +1292,7 @@ static int32_t createVnodeModifLogicNodeByDelete(SLogicPlanContext* pCxt, SDelet
   pModify->modifyType = MODIFY_TABLE_TYPE_DELETE;
   pModify->tableId = pRealTable->pMeta->uid;
   pModify->tableType = pRealTable->pMeta->tableType;
-  snprintf(pModify->tableFName, sizeof(pModify->tableFName), "%d.%s.%s", pCxt->pPlanCxt->acctId,
-           pRealTable->table.dbName, pRealTable->table.tableName);
+  snprintf(pModify->tableName, sizeof(pModify->tableName), "%s", pRealTable->table.tableName);
   strcpy(pModify->tsColName, pRealTable->pMeta->schema->name);
   pModify->deleteTimeRange = pDelete->timeRange;
   pModify->pAffectedRows = nodesCloneNode(pDelete->pCountFunc);
@@ -1343,8 +1342,7 @@ static int32_t createVnodeModifLogicNodeByInsert(SLogicPlanContext* pCxt, SInser
   pModify->tableId = pRealTable->pMeta->uid;
   pModify->stableId = pRealTable->pMeta->suid;
   pModify->tableType = pRealTable->pMeta->tableType;
-  snprintf(pModify->tableFName, sizeof(pModify->tableFName), "%d.%s.%s", pCxt->pPlanCxt->acctId,
-           pRealTable->table.dbName, pRealTable->table.tableName);
+  snprintf(pModify->tableName, sizeof(pModify->tableName), "%s", pRealTable->table.tableName);
   TSWAP(pModify->pVgroupList, pRealTable->pVgroupList);
   pModify->pInsertCols = nodesCloneList(pInsert->pCols);
   if (NULL == pModify->pInsertCols) {
