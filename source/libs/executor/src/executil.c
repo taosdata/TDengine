@@ -193,7 +193,7 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
   pBlock->info.calWin = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    SSlotDescNode* pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
+    SSlotDescNode*  pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
     SColumnInfoData idata =
         createColumnInfoData(pDescNode->dataType.type, pDescNode->dataType.bytes, pDescNode->slotId);
     idata.info.scale = pDescNode->dataType.scale;
@@ -267,8 +267,9 @@ int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle,
   code = metaGetTableEntryByUid(&mr, info->uid);
   if (TSDB_CODE_SUCCESS != code) {
     metaReaderClear(&mr);
+    *pQualified = false;
 
-    return terrno;
+    return TSDB_CODE_SUCCESS;
   }
 
   SNode* pTagCondTmp = nodesCloneNode(pTagCond);
@@ -387,7 +388,7 @@ size_t getTableTagsBufLen(const SNodeList* pGroups) {
 }
 
 int32_t getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId) {
-  SMetaReader    mr = {0};
+  SMetaReader mr = {0};
   metaReaderInit(&mr, pMeta, 0);
   metaGetTableEntryByUid(&mr, uid);
 
@@ -395,7 +396,7 @@ int32_t getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, 
 
   nodesRewriteExprsPostOrder(groupNew, doTranslateTagExpr, &mr);
   char* isNull = (char*)keyBuf;
-  char* pStart = (char*)keyBuf + sizeof(int8_t)*LIST_LENGTH(pGroupNode);
+  char* pStart = (char*)keyBuf + sizeof(int8_t) * LIST_LENGTH(pGroupNode);
 
   SNode*  pNode;
   int32_t index = 0;
@@ -441,7 +442,7 @@ int32_t getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, 
     }
   }
 
-  int32_t  len = (int32_t)(pStart - (char*)keyBuf);
+  int32_t len = (int32_t)(pStart - (char*)keyBuf);
   *pGroupId = calcGroupId(keyBuf, len);
 
   nodesDestroyList(groupNew);

@@ -160,7 +160,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   }
 
   pCfg->walCfg.vgId = pCreate->vgId;
-  pCfg->walCfg.fsyncPeriod = pCreate->fsyncPeriod;
+  pCfg->walCfg.fsyncPeriod = pCreate->walFsyncPeriod;
   pCfg->walCfg.retentionPeriod = pCreate->walRetentionPeriod;
   pCfg->walCfg.rollPeriod = pCreate->walRollPeriod;
   pCfg->walCfg.retentionSize = pCreate->walRetentionSize;

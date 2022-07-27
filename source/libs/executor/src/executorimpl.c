@@ -92,7 +92,7 @@ static void setBlockStatisInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlo
 
 static void releaseQueryBuf(size_t numOfTables);
 
-static void destroySFillOperatorInfo(void* param, int32_t numOfOutput);
+static void destroyFillOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyAggOperatorInfo(void* param, int32_t numOfOutput);
@@ -3209,9 +3209,8 @@ static void doHandleRemainBlockFromNewGroup(SFillOperatorInfo* pInfo, SResultInf
   if (taosFillHasMoreResults(pInfo->pFillInfo)) {
     int32_t numOfResultRows = pResultInfo->capacity - pInfo->pRes->info.rows;
     taosFillResultDataBlock(pInfo->pFillInfo, pInfo->pRes, numOfResultRows);
-    if (pInfo->pRes->info.rows > pResultInfo->threshold) {
-      return;
-    }
+    pInfo->pRes->info.groupId = pInfo->curGroupId;
+    return;
   }
 
   // handle the cached new group data block
@@ -3230,7 +3229,7 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   blockDataCleanup(pResBlock);
 
   doHandleRemainBlockFromNewGroup(pInfo, pResultInfo, pTaskInfo);
-  if (pResBlock->info.rows > pResultInfo->threshold || pResBlock->info.rows > 0) {
+  if (pResBlock->info.rows > 0) {
     pResBlock->info.groupId = pInfo->curGroupId;
     return pResBlock;
   }
@@ -3436,7 +3435,7 @@ void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock) {
   initResultRowInfo(&pInfo->resultRowInfo);
 }
 
-static void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
+void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   if (pCtx == NULL) {
     return NULL;
   }
@@ -3553,16 +3552,17 @@ void destroyAggOperatorInfo(void* param, int32_t numOfOutput) {
   cleanupBasicInfo(&pInfo->binfo);
 
   cleanupAggSup(&pInfo->aggSup);
+  cleanupExprSupp(&pInfo->scalarExprSup);
   cleanupGroupResInfo(&pInfo->groupResInfo);
   taosMemoryFreeClear(param);
 }
 
-void destroySFillOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyFillOperatorInfo(void* param, int32_t numOfOutput) {
   SFillOperatorInfo* pInfo = (SFillOperatorInfo*)param;
   pInfo->pFillInfo = taosDestroyFillInfo(pInfo->pFillInfo);
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
   taosMemoryFreeClear(pInfo->p);
-
+  taosArrayDestroy(pInfo->pColMatchColInfo);
   taosMemoryFreeClear(param);
 }
 
@@ -3653,7 +3653,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doFill, NULL, NULL, destroySFillOperatorInfo, NULL, NULL, NULL);
+      createOperatorFpSet(operatorDummyOpenFn, doFill, NULL, NULL, destroyFillOperatorInfo, NULL, NULL, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;

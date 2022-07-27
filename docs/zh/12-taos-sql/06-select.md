@@ -175,28 +175,13 @@ SELECT COUNT(*) FROM (SELECT DISTINCT TBNAME FROM meters);
 
 这三个伪列只能用于时间窗口的窗口切分查询之中，且要在窗口切分子句之后出现。
 
-### \_c0/\_ROWTS
+**\_c0/\_ROWTS**
 
 TDengine 中，所有表的第一列都必须是时间戳类型，且为其主键，\_rowts 伪列和\_c0 伪列均代表了此列的值。相比实际的主键时间戳列，使用伪列更加灵活，语义也更加标准。例如，可以和 max\min 等函数一起使用。
 
 ```sql
 select _rowts, max(current) from meters;
 ```
-
-## GROUP BY
-
-如果在语句中同时指定了 GROUP BY 子句，那么 SELECT 列表只能包含如下表达式：
-
-1. 常量
-2. 聚集函数
-3. 与 GROUP BY 后表达式相同的表达式。
-4. 包含前面表达式的表达式
-
-GROUP BY 子句对每行数据按 GROUP BY 后的表达式的值进行分组，并为每个组返回一行汇总信息。
-
-GROUP BY 子句中的表达式可以包含表或视图中的任何列，这些列不需要出现在 SELECT 列表中。
-
-该子句对行进行分组，但不保证结果集的顺序。若要对分组进行排序，请使用 ORDER BY 子句
 
 ## 查询对象
 
@@ -213,11 +198,27 @@ TDengine 支持基于时间戳主键的 INNER JOIN，规则如下：
 6. 参与 JOIN 的表个数上限为 10 个。
 7. 不支持与 FILL 子句混合使用。
 
+## GROUP BY
+
+如果在语句中同时指定了 GROUP BY 子句，那么 SELECT 列表只能包含如下表达式：
+
+1. 常量
+2. 聚集函数
+3. 与 GROUP BY 后表达式相同的表达式。
+4. 包含前面表达式的表达式
+
+GROUP BY 子句对每行数据按 GROUP BY 后的表达式的值进行分组，并为每个组返回一行汇总信息。
+
+GROUP BY 子句中的表达式可以包含表或视图中的任何列，这些列不需要出现在 SELECT 列表中。
+
+该子句对行进行分组，但不保证结果集的顺序。若要对分组进行排序，请使用 ORDER BY 子句
+
+
 ## PARTITON BY
 
 PARTITION BY 子句是 TDengine 特色语法，按 part_list 对数据进行切分，在每个切分的分片中进行计算。
 
-详见 [TDengine 特色查询](taos-sql/distinguished)
+详见 [TDengine 特色查询](./distinguished)
 
 ## ORDER BY
 
@@ -284,23 +285,6 @@ SELECT TODAY();
 
 ```sql
 SELECT TIMEZONE();
-```
-
-## TAOS SQL 中特殊关键词
-
-- `TBNAME`： 在超级表查询中可视为一个特殊的标签，代表查询涉及的子表名
-- `_c0`: 表示表（超级表）的第一列
-
-获取一个超级表所有的子表名及相关的标签信息：
-
-```sql
-SELECT TBNAME, location FROM meters;
-```
-
-统计超级表下辖子表数量：
-
-```sql
-SELECT COUNT(*) FROM (SELECT DISTINCT TBNAMEFROM meters);
 ```
 
 ## 正则表达式过滤
@@ -394,7 +378,7 @@ UNION ALL SELECT ...
 
 TDengine 支持 UNION ALL 操作符。也就是说，如果多个 SELECT 子句返回结果集的结构完全相同（列名、列类型、列数、顺序），那么可以通过 UNION ALL 把这些结果集合并到一起。目前只支持 UNION ALL 模式，也即在结果集的合并过程中是不去重的。在同一个 sql 语句中，UNION ALL 最多支持 100 个。
 
-### SQL 示例
+## SQL 示例
 
 对于下面的例子，表 tb1 用以下语句创建：
 

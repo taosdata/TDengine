@@ -401,6 +401,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   pWal->writeHead.head.version = index;
   pWal->writeHead.head.bodyLen = bodyLen;
   pWal->writeHead.head.msgType = msgType;
+  pWal->writeHead.head.ingestTs = taosGetTimestampMs();
 
   // sync info for sync module
   pWal->writeHead.head.syncMeta = syncMeta;
@@ -457,14 +458,14 @@ int64_t walAppendLog(SWal *pWal, tmsg_t msgType, SWalSyncInfo syncMeta, const vo
     return -1;
   }
 
-  if (pWal->pIdxFile == NULL || pWal->pIdxFile == NULL || pWal->writeCur < 0) {
+  if (pWal->pLogFile == NULL || pWal->pIdxFile == NULL || pWal->writeCur < 0) {
     if (walInitWriteFile(pWal) < 0) {
       taosThreadMutexUnlock(&pWal->mutex);
       return -1;
     }
   }
 
-  ASSERT(pWal->pIdxFile != NULL && pWal->pLogFile != NULL && pWal->writeCur >= 0);
+  ASSERT(pWal->pLogFile != NULL && pWal->pIdxFile != NULL && pWal->writeCur >= 0);
 
   if (walWriteImpl(pWal, index, msgType, syncMeta, body, bodyLen) < 0) {
     taosThreadMutexUnlock(&pWal->mutex);

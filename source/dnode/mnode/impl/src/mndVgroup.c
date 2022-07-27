@@ -214,7 +214,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.daysToKeep2 = pDb->cfg.daysToKeep2;
   createReq.minRows = pDb->cfg.minRows;
   createReq.maxRows = pDb->cfg.maxRows;
-  createReq.fsyncPeriod = pDb->cfg.fsyncPeriod;
+  createReq.walFsyncPeriod = pDb->cfg.walFsyncPeriod;
   createReq.walLevel = pDb->cfg.walLevel;
   createReq.precision = pDb->cfg.precision;
   createReq.compression = pDb->cfg.compression;
@@ -286,7 +286,7 @@ void *mndBuildAlterVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_
   alterReq.daysToKeep0 = pDb->cfg.daysToKeep0;
   alterReq.daysToKeep1 = pDb->cfg.daysToKeep1;
   alterReq.daysToKeep2 = pDb->cfg.daysToKeep2;
-  alterReq.fsyncPeriod = pDb->cfg.fsyncPeriod;
+  alterReq.walFsyncPeriod = pDb->cfg.walFsyncPeriod;
   alterReq.walLevel = pDb->cfg.walLevel;
   alterReq.strict = pDb->cfg.strict;
   alterReq.cacheLast = pDb->cfg.cacheLast;

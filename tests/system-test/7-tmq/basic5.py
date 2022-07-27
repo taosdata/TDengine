@@ -265,7 +265,7 @@ class TDTestCase:
                 else:
                     continue
                 
-                if tdSql.getData(index,19) == 'ready':
+                if tdSql.getData(index,15) == 'ready':
                     print("******************** index: %d"%index)
                     break
 
@@ -395,7 +395,7 @@ class TDTestCase:
         while 1:
             tdSql.query("show databases")
             if tdSql.getRows() == 5: 
-                print ('==================================================')
+                print ('==================================================dbname: %s'%parameterDict['dbName'])
                 print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0),tdSql.getData(3,0),tdSql.getData(4,0))   
                 index = 0
                 if tdSql.getData(0,0) == parameterDict['dbName']:
@@ -409,9 +409,9 @@ class TDTestCase:
                 elif tdSql.getData(4,0) == parameterDict['dbName']:
                     index = 4
                 else:
-                    continue
+                    continue                
                 
-                if tdSql.getData(index,19) == 'ready':
+                if tdSql.getData(index,15) == 'ready':
                     print("******************** index: %d"%index)
                     break
 

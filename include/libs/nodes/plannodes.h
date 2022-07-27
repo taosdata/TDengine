@@ -328,6 +328,7 @@ typedef struct STableScanPhysiNode {
   int8_t         triggerType;
   int64_t        watermark;
   int8_t         igExpired;
+  bool           assignBlockUid;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -503,6 +504,7 @@ typedef struct SDataDeleterNode {
   uint64_t      tableId;
   int8_t        tableType;  // table type
   char          tableFName[TSDB_TABLE_FNAME_LEN];
+  char          tsColName[TSDB_COL_NAME_LEN];
   STimeWindow   deleteTimeRange;
   SNode*        pAffectedRows;
 } SDataDeleterNode;

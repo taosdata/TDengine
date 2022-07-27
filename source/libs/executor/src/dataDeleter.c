@@ -90,6 +90,7 @@ static void toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* pInp
   pRes->uidList = pHandle->pParam->pUidList;
   pRes->skey = pHandle->pDeleter->deleteTimeRange.skey;
   pRes->ekey = pHandle->pDeleter->deleteTimeRange.ekey;
+  strcpy(pRes->tableFName, pHandle->pDeleter->tableFName);
   pRes->affectedRows = *(int64_t*)pColRes->pData;
 
   pBuf->useSize += pEntry->dataLen;
