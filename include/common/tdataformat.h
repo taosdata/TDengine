@@ -70,16 +70,14 @@ int     tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type);
 #define COL_VAL_VALUE(CID, TYPE, V) ((SColVal){.cid = (CID), .type = (TYPE), .value = (V)})
 
 // STSRow2
-#define TSROW_LEN(PROW, V)  tGetI32v((uint8_t *)(PROW)->data, (V) ? &(V) : NULL)
-#define TSROW_SVER(PROW, V) tGetI32v((PROW)->data + TSROW_LEN(PROW, NULL), (V) ? &(V) : NULL)
+static uint32_t tTSRowLen(STSRow2 *pRow);
+static uint32_t tTSRowVer(STSRow2 *pRow);
 
 int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *aColVal, STSchema *pTSchema, STSRow2 **ppRow);
-int32_t tTSRowClone(const STSRow2 *pRow, STSRow2 **ppRow);
+int32_t tTSRowClone(STSRow2 *pRow, STSRow2 **ppRow);
 void    tTSRowFree(STSRow2 *pRow);
 void    tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 int32_t tTSRowToArray(STSRow2 *pRow, STSchema *pTSchema, SArray **ppArray);
-int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow);
-int32_t tGetTSRow(uint8_t *p, STSRow2 **ppRow);
 
 // STSRowBuilder
 #define tsRowBuilderInit() ((STSRowBuilder){0})
@@ -196,6 +194,18 @@ struct STag {
   int8_t  idx[];
 };
 #pragma pack(pop)
+
+static FORCE_INLINE uint32_t tTSRowLen(STSRow2 *pRow) {
+  uint32_t len;
+  tGetU32v(pRow->data + tGetU32v(pRow->data, NULL), &len);
+  return len + pRow->hlen;
+}
+
+static FORCE_INLINE uint32_t tTSRowVer(STSRow2 *pRow) {
+  uint32_t sver;
+  tGetU32v(pRow->data, &sver);
+  return sver;
+}
 
 #if 1  //================================================================================================================================================
 // Imported since 3.0 and use bitmap to demonstrate None/Null/Norm, while use Null/Norm below 3.0 without of bitmap.

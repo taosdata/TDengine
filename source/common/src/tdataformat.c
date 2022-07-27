@@ -162,9 +162,27 @@ static FORCE_INLINE void setRowBit(uint8_t *pb, int32_t idx, uint8_t bvalue, uin
 }
 
 static FORCE_INLINE uint8_t getRowBit(uint8_t *pb, int32_t idx, uint8_t flags) {
-  uint8_t bvalue = 0;
-  // TODO:
-  ASSERT(0);
+  uint8_t bvalue;
+
+  switch (flags) {
+    case TSROW_HAS_NULL | TSROW_HAS_NONE:
+      bvalue = GET_BIT1(pb, idx);
+      break;
+    case TSROW_HAS_VAL | TSROW_HAS_NONE:
+      bvalue = GET_BIT1(pb, idx);
+      if (bvalue) bvalue = 2;
+      break;
+    case TSROW_HAS_VAL | TSROW_HAS_NULL:
+      bvalue = GET_BIT1(pb, idx) + 1;
+      break;
+    case TSROW_HAS_VAL | TSROW_HAS_NULL | TSROW_HAS_NONE:
+      bvalue = GET_BIT2(pb, idx);
+      break;
+    default:
+      ASSERT(0);
+      break;
+  }
+
   return bvalue;
 }
 
@@ -228,11 +246,9 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *aColVal, STSchema *pTSchema, 
   ASSERT(flags);
 
   // decide
-  uint32_t nData;
+  uint32_t nData = 0;
   uint8_t  tflags = 0;
-  if (flags == TSROW_HAS_NONE || flags == TSROW_HAS_NULL) {
-    nData = 0;
-  } else {
+  if (flags != TSROW_HAS_NONE && flags != TSROW_HAS_NULL) {
     uint32_t nDataT = 0;
     uint32_t nDataK = 0;
 
@@ -471,17 +487,16 @@ _exit:
   return code;
 }
 
-int32_t tTSRowClone(const STSRow2 *pRow, STSRow2 **ppRow) {
+int32_t tTSRowClone(STSRow2 *pRow, STSRow2 **ppRow) {
   int32_t code = 0;
-  int32_t rLen;
 
-  TSROW_LEN(pRow, rLen);
-  (*ppRow) = (STSRow2 *)taosMemoryMalloc(rLen);
+  uint32_t rlen = tTSRowLen(pRow);
+  (*ppRow) = (STSRow2 *)taosMemoryMalloc(rlen);
   if (*ppRow == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  memcpy(*ppRow, pRow, rLen);
+  memcpy(*ppRow, pRow, rlen);
 
 _exit:
   return code;
@@ -513,9 +528,56 @@ void tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal
   uint8_t tflags = pRow->flags & ((uint8_t)0xf0);
   if (tflags == 0) {
     // Tuple
+    uint8_t *p = (uint8_t *)pRow + pRow->hlen;
+    uint8_t *pb = NULL;
+    uint8_t *pf = NULL;
+    uint8_t *pv = NULL;
+
+    switch (pRow->flags) {
+      case TSROW_HAS_VAL:
+        pf = p;
+        pv = pf + pTSchema->flen;
+        break;
+      case TSROW_HAS_NONE | TSROW_HAS_NULL:
+        pb = p;
+        break;
+      case TSROW_HAS_NONE | TSROW_HAS_VAL:
+      case TSROW_HAS_NULL | TSROW_HAS_VAL:
+        pb = p;
+        pf = pb + BIT1_SIZE(pTSchema->numOfCols - 1);
+        pv = pf + pTSchema->flen;
+        break;
+      case TSROW_HAS_NONE | TSROW_HAS_NULL | TSROW_HAS_VAL:
+        pb = p;
+        pf = pb + BIT2_SIZE(pTSchema->numOfCols - 1);
+        pv = pf + pTSchema->flen;
+        break;
+      default:
+        ASSERT(0);
+        break;
+    }
+
+    // check bitmap
+    if (pb) {
+      uint8_t bvalue = getRowBit(pb, iCol - 1, pRow->flags);
+      if (bvalue == 0) {
+        goto _return_none;
+      } else if (bvalue == 1) {
+        goto _return_null;
+      }
+    }
+
+    // get value
+    if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+      int32_t offset = *(int32_t *)(pf + pTColumn->offset);
+      tGetValue(pv + offset, &value, pTColumn->type);
+    } else {
+      tGetValue(pf + pTColumn->offset, &value, pTColumn->type);
+    }
+
+    goto _return_value;
   } else {
     // KV
-
     STSKVRow *pKVRow = (STSKVRow *)((uint8_t *)pRow + pRow->hlen);
     uint8_t  *pkv;
 
@@ -573,76 +635,6 @@ void tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal
     goto _return_none;
   }
 
-#if 0
-  uint8_t   isTuple = ((pRow->flags & 0xf0) == 0) ? 1 : 0;
-  uint8_t   flags = pRow->flags & (uint8_t)0xf;
-
-  ASSERT(iCol < pTSchema->numOfCols);
-  ASSERT(flags);
-  ASSERT(pRow->sver == pTSchema->version);
-
-  if (isTuple) {
-    uint8_t *pb = pRow->pData;
-    uint8_t *pf = NULL;
-    uint8_t *pv = NULL;
-    uint8_t *p;
-    uint8_t  b;
-
-    // bit
-    switch (flags) {
-      case TSROW_HAS_VAL:
-        pf = pb;
-        break;
-      case TSROW_HAS_NULL | TSROW_HAS_NONE:
-        b = GET_BIT1(pb, iCol - 1);
-        if (b == 0) {
-          goto _return_none;
-        } else {
-          goto _return_null;
-        }
-      case TSROW_HAS_VAL | TSROW_HAS_NONE:
-        b = GET_BIT1(pb, iCol - 1);
-        if (b == 0) {
-          goto _return_none;
-        } else {
-          pf = pb + BIT1_SIZE(pTSchema->numOfCols - 1);
-          break;
-        }
-      case TSROW_HAS_VAL | TSROW_HAS_NULL:
-        b = GET_BIT1(pb, iCol - 1);
-        if (b == 0) {
-          goto _return_null;
-        } else {
-          pf = pb + BIT1_SIZE(pTSchema->numOfCols - 1);
-          break;
-        }
-      case TSROW_HAS_VAL | TSROW_HAS_NULL | TSROW_HAS_NONE:
-        b = GET_BIT2(pb, iCol - 1);
-        if (b == 0) {
-          goto _return_none;
-        } else if (b == 1) {
-          goto _return_null;
-        } else {
-          pf = pb + BIT2_SIZE(pTSchema->numOfCols - 1);
-          break;
-        }
-      default:
-        ASSERT(0);
-    }
-
-    ASSERT(pf);
-
-    p = pf + pTColumn->offset;
-    if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-      pv = pf + pTSchema->flen;
-      p = pv + *(VarDataOffsetT *)p;
-    }
-    tGetValue(p, &value, pTColumn->type);
-    goto _return_value;
-  } else {
-  }
-#endif
-
 _return_none:
   *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
   return;
@@ -658,43 +650,23 @@ _return_value:
 
 int32_t tTSRowToArray(STSRow2 *pRow, STSchema *pTSchema, SArray **ppArray) {
   int32_t code = 0;
-#if 0
-  SColVal cv;
 
+  // alloc
   (*ppArray) = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
   if (*ppArray == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
 
+  // push
   for (int32_t iColumn = 0; iColumn < pTSchema->numOfCols; iColumn++) {
+    SColVal cv;
     tTSRowGet(pRow, pTSchema, iColumn, &cv);
     taosArrayPush(*ppArray, &cv);
   }
 
-#endif
 _exit:
   return code;
-}
-
-int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow) {
-  int32_t n;
-
-  TSROW_LEN(pRow, n);
-  if (p) {
-    memcpy(p, pRow, n);
-  }
-
-  return n;
-}
-
-int32_t tGetTSRow(uint8_t *p, STSRow2 **ppRow) {
-  int32_t n;
-
-  *ppRow = (STSRow2 *)p;
-  TSROW_LEN(*ppRow, n);
-
-  return n;
 }
 
 // STSchema
