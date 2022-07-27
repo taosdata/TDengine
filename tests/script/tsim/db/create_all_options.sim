@@ -62,7 +62,7 @@ print ============= create database with all options
 #$data7_db  : keep
 #$data10_db : minrows
 #$data11_db : maxrows
-#$data12_db : wal
+#$data12_db : wal_level
 #$data13_db : fsync
 #$data14_db : comp
 #$data15_db : cachelast
@@ -122,10 +122,10 @@ endi
 if $data18_db != none then  # cachelast
   return -1
 endi
-if $data20_db != 1 then  # wal
+if $data20_db != 1 then  # wal_level
   return -1
 endi
-if $data21_db != 3000 then  # fsync
+if $data21_db != 3000 then  # wal_fsync_period
   return -1
 endi
 

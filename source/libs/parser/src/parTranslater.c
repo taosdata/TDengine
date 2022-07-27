@@ -3188,7 +3188,8 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
     daysToKeep0 = (-1 == daysToKeep0 ? dbCfg.daysToKeep0 : daysToKeep0);
   }
   if (daysPerFile > daysToKeep0) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DAYS_VALUE);
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid duration value, should be keep2 >= keep1 >= keep0 >= duration");
   }
   return TSDB_CODE_SUCCESS;
 }
