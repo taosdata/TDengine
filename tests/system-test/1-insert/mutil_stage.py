@@ -229,9 +229,9 @@ class TDTestCase:
                 {1 * data.usint_data[i]}, {1 * data.uint_data[i]}, {1 * data.ubint_data[i]}
             '''
 
-            for i in range(ctb_num):
+            for j in range(ctb_num):
                 tdSql.execute(
-                    f"insert into {dbname}.{CTB_PRE}{i + 1} values ( {NOW - i * TIME_STEP}, {row_data} )")
+                    f"insert into {dbname}.{CTB_PRE}{j + 1} values ( {NOW - i * TIME_STEP}, {row_data} )")
 
             # tdSql.execute(
             #     f"insert into {dbname}.{CTB_PRE}2 values ( {NOW - i * int(TIME_STEP * 0.6)}, {neg_row_data} )")
