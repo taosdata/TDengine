@@ -359,6 +359,8 @@ typedef struct STableMergeScanInfo {
   // window to check if current data block needs to be loaded.
   SInterval       interval;
   SSampleExecInfo sample;  // sample execution info
+
+  SSortExecInfo sortExecInfo;
 } STableMergeScanInfo;
 
 typedef struct STagScanInfo {
@@ -802,6 +804,7 @@ typedef struct STagFilterOperatorInfo {
 typedef struct SJoinOperatorInfo {
   SSDataBlock       *pRes;
   int32_t            joinType;
+  int32_t            inputTsOrder;
 
   SSDataBlock       *pLeft;
   int32_t            leftPos;

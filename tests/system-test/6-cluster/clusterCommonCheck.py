@@ -82,7 +82,7 @@ class ClusterComCheck:
                 for i in range(alldbNumbers):
                     tdSql.query("show databases;")
                     if "%s_%d"%(dbNameIndex,j) == tdSql.queryResult[i][0] :   
-                        if tdSql.queryResult[i][19] == "ready":
+                        if tdSql.queryResult[i][15] == "ready":
                             query_status+=1
                             tdLog.debug("check %s_%d that status is ready "%(dbNameIndex,j))      
                         else:
