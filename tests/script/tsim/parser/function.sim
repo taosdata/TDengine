@@ -959,7 +959,7 @@ if $data01 != NULL then
   return -1
 endi
 
-sql_error select derivative(test_column_alias_name, 1s, 0) from (select avg(k) test_column_alias_name from t1 interval(1s));
+sql select derivative(test_column_alias_name, 1s, 0) from (select _wstart, avg(k) test_column_alias_name from t1 interval(1s));
 
 sql create table smeters (ts timestamp, current float, voltage int) tags (t1 int);
 sql create table smeter1 using smeters tags (1);
@@ -991,5 +991,3 @@ endi
 if $data00 != 0.000000000 then
   return -1
 endi
-
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
