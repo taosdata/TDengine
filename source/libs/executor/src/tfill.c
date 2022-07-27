@@ -514,8 +514,15 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
   if (pFillInfo == NULL) {
     return NULL;
   }
-
+  for (int32_t i = 0; i < taosArrayGetSize(pFillInfo->prev); ++i) {
+    SGroupKeys* pKey = taosArrayGet(pFillInfo->prev, i);
+    taosMemoryFree(pKey->pData);
+  }
   taosArrayDestroy(pFillInfo->prev);
+  for (int32_t i = 0; i < taosArrayGetSize(pFillInfo->next); ++i) {
+    SGroupKeys* pKey = taosArrayGet(pFillInfo->next, i);
+    taosMemoryFree(pKey->pData);
+  }
   taosArrayDestroy(pFillInfo->next);
 
   for (int32_t i = 0; i < pFillInfo->numOfTags; ++i) {

@@ -359,6 +359,8 @@ typedef struct STableMergeScanInfo {
   // window to check if current data block needs to be loaded.
   SInterval       interval;
   SSampleExecInfo sample;  // sample execution info
+
+  SSortExecInfo sortExecInfo;
 } STableMergeScanInfo;
 
 typedef struct STagScanInfo {
@@ -802,6 +804,7 @@ typedef struct STagFilterOperatorInfo {
 typedef struct SJoinOperatorInfo {
   SSDataBlock       *pRes;
   int32_t            joinType;
+  int32_t            inputTsOrder;
 
   SSDataBlock       *pLeft;
   int32_t            leftPos;
@@ -1018,6 +1021,7 @@ void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsCol
 
 int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* groupKey);
 SSDataBlock* createSpecialDataBlock(EStreamType type);
+void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
 #ifdef __cplusplus
 }

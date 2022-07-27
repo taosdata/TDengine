@@ -84,17 +84,19 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "pages", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "minrows", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "maxrows", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "wal", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
-    {.name = "fsync", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "comp", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
-    {.name = "cacheModel", .bytes = TSDB_CACHE_MODEL_STR_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "precision", .bytes = 2 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "single_stable", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL},
     {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    //    {.name = "schemaless", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL},
     {.name = "retention", .bytes = 60 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-
-    // {.name = "update", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},  // disable update
+    {.name = "single_stable", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL},
+    {.name = "cache_model", .bytes = TSDB_CACHE_MODEL_STR_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "cache_size", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "wal_level", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
+    {.name = "wal_fsync_period", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "wal_retention_period", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "wal_retention_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
+    {.name = "wal_roll_period", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "wal_seg_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
 };
 
 static const SSysDbTableSchema userFuncSchema[] = {

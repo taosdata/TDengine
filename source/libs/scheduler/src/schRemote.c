@@ -230,6 +230,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
         SVDeleteRsp rsp = {0};
         tDecoderInit(&coder, msg, msgSize);
         tDecodeSVDeleteRsp(&coder, &rsp);
+        tDecoderClear(&coder);
 
         atomic_add_fetch_32(&pJob->resNumOfRows, rsp.affectedRows);
         SCH_TASK_DLOG("delete succeed, affectedRows:%" PRId64, rsp.affectedRows);

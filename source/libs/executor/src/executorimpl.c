@@ -92,7 +92,7 @@ static void setBlockStatisInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlo
 
 static void releaseQueryBuf(size_t numOfTables);
 
-static void destroySFillOperatorInfo(void* param, int32_t numOfOutput);
+static void destroyFillOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyAggOperatorInfo(void* param, int32_t numOfOutput);
@@ -664,6 +664,11 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         if (taosArrayGetSize(pPseudoList) > 0) {
           int32_t* outputColIndex = taosArrayGet(pPseudoList, 0);
           pfCtx->pTsOutput = (SColumnInfoData*)pCtx[*outputColIndex].pOutput;
+        }
+
+        // link pDstBlock to set selectivity value
+        if (pfCtx->subsidiaries.num > 0) {
+          pfCtx->pDstBlock = pResult;
         }
 
         numOfRows = pfCtx->fpSet.process(pfCtx);
@@ -3431,7 +3436,7 @@ void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock) {
   initResultRowInfo(&pInfo->resultRowInfo);
 }
 
-static void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
+void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   if (pCtx == NULL) {
     return NULL;
   }
@@ -3548,16 +3553,17 @@ void destroyAggOperatorInfo(void* param, int32_t numOfOutput) {
   cleanupBasicInfo(&pInfo->binfo);
 
   cleanupAggSup(&pInfo->aggSup);
+  cleanupExprSupp(&pInfo->scalarExprSup);
   cleanupGroupResInfo(&pInfo->groupResInfo);
   taosMemoryFreeClear(param);
 }
 
-void destroySFillOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyFillOperatorInfo(void* param, int32_t numOfOutput) {
   SFillOperatorInfo* pInfo = (SFillOperatorInfo*)param;
   pInfo->pFillInfo = taosDestroyFillInfo(pInfo->pFillInfo);
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
   taosMemoryFreeClear(pInfo->p);
-
+  taosArrayDestroy(pInfo->pColMatchColInfo);
   taosMemoryFreeClear(param);
 }
 
@@ -3648,7 +3654,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doFill, NULL, NULL, destroySFillOperatorInfo, NULL, NULL, NULL);
+      createOperatorFpSet(operatorDummyOpenFn, doFill, NULL, NULL, destroyFillOperatorInfo, NULL, NULL, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;

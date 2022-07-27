@@ -1616,6 +1616,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, pBlock->info.window.ekey);
     hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, MAIN_SCAN, pUpdated);
   }
+
   pOperator->status = OP_RES_TO_RETURN;
   closeIntervalWindow(pInfo->aggSup.pResultRowHashTable, &pInfo->twAggSup, &pInfo->interval, NULL, pUpdated,
                       pInfo->pRecycledPages, pInfo->aggSup.pResultBuf);
@@ -1628,6 +1629,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   if (pInfo->pDelRes->info.rows > 0) {
     return pInfo->pDelRes;
   }
+
   doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
   printDataBlock(pInfo->binfo.pRes, "single interval");
   return pInfo->binfo.pRes->info.rows == 0 ? NULL : pInfo->binfo.pRes;
@@ -3145,6 +3147,8 @@ void destroyStreamSessionAggOperatorInfo(void* param, int32_t numOfOutput) {
   blockDataDestroy(pInfo->pDelRes);
   blockDataDestroy(pInfo->pWinBlock);
   blockDataDestroy(pInfo->pUpdateRes);
+  destroySqlFunctionCtx(pInfo->pDummyCtx, 0);
+  taosHashCleanup(pInfo->pStDeleted);
 
   taosMemoryFreeClear(param);
 }
