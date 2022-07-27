@@ -77,7 +77,7 @@ class TDTestCase:
             "walLevel": 1,
             "cachelast": 0,
             "quorum": 1,
-            "fsync": 3000,
+            "wal_fsync_period": 3000,
             "update": 0
         }
 
