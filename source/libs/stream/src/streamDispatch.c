@@ -328,6 +328,9 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
           if (streamAddBlockToDispatchMsg(pDataBlock, &pReqs[j]) < 0) {
             goto FAIL_SHUFFLE_DISPATCH;
           }
+          if (pReqs[j].blockNum == 0) {
+            atomic_add_fetch_32(&pTask->shuffleDispatcher.waitingRspCnt, 1);
+          }
           pReqs[j].blockNum++;
           found = true;
           break;
@@ -343,7 +346,6 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
         if (streamDispatchOneReq(pTask, &pReqs[i], pVgInfo->vgId, &pVgInfo->epSet) < 0) {
           goto FAIL_SHUFFLE_DISPATCH;
         }
-        atomic_add_fetch_32(&pTask->shuffleDispatcher.waitingRspCnt, 1);
       }
     }
     code = 0;
