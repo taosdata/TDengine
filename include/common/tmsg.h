@@ -3044,6 +3044,7 @@ typedef struct SDeleteRes {
   int64_t  skey;
   int64_t  ekey;
   int64_t  affectedRows;
+  char     tableFName[TSDB_TABLE_FNAME_LEN];
 } SDeleteRes;
 
 int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);

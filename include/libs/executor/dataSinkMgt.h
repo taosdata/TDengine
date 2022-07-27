@@ -38,6 +38,7 @@ typedef struct SDeleterRes {
   int64_t  skey;
   int64_t  ekey;
   int64_t  affectedRows;
+  char     tableFName[TSDB_TABLE_FNAME_LEN];
 } SDeleterRes;
 
 typedef struct SDeleterParam {
