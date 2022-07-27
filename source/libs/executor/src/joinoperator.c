@@ -151,11 +151,11 @@ typedef struct SRowLocation {
   int32_t      pos;
 } SRowLocation;
 
-static int32_t mergeJoinGetBlockRowsEqualTs(SSDataBlock* pBlock, int16_t slotId, int32_t startPos, int64_t timestamp,
-                                               SArray* pPosArray) {
+static int32_t mergeJoinGetBlockRowsEqualTs(SSDataBlock* pBlock, int16_t tsSlotId, int32_t startPos, int64_t timestamp,
+                                               int32_t* pEndPos, SArray* pRowLocations, SArray* createdBlocks) {
   int32_t numRows = pBlock->info.rows;
   ASSERT(startPos < numRows);
-  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, tsSlotId);
 
   int32_t i = startPos;
   for (; i < numRows; ++i) {
@@ -165,16 +165,18 @@ static int32_t mergeJoinGetBlockRowsEqualTs(SSDataBlock* pBlock, int16_t slotId,
     }
   }
   int32_t endPos = i;
+  *pEndPos = endPos;
 
   SSDataBlock* block = pBlock;
-  if (endPos - startPos > 1) {
+  if (endPos == numRows) {
     block = blockDataExtractBlock(pBlock, startPos, endPos - startPos);
+    taosArrayPush(createdBlocks, &block);
   }
   SRowLocation location = {0};
   for (int32_t j = startPos; j < endPos; ++j) {
     location.pDataBlock = block;
     location.pos = j;
-    taosArrayPush(pPosArray, &location);
+    taosArrayPush(pRowLocations, &location);
   }
   return 0;
 }
