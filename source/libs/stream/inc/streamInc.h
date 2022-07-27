@@ -38,14 +38,14 @@ int32_t streamPipelineExec(SStreamTask* pTask, int32_t batchNum);
 int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb);
 int32_t streamDispatchReqToData(const SStreamDispatchReq* pReq, SStreamDataBlock* pData);
 int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock* pData);
-int32_t streamBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* data, SRpcMsg* pMsg, SEpSet** ppEpSet);
+int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* data);
 
 int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock);
 
 int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* pReq);
 
 SStreamQueueItem* streamAppendQueueItem(SStreamQueueItem* dst, SStreamQueueItem* elem);
-void    streamFreeQitem(SStreamQueueItem* data);
+void              streamFreeQitem(SStreamQueueItem* data);
 
 #ifdef __cplusplus
 }

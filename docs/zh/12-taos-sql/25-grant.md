@@ -23,6 +23,23 @@ password最长为128字节，合法字符包括"a-zA-Z0-9!?$%^&*()_–+={[}]:;@~
 DROP USER user_name;
 ```
 
+## 修改用户信息
+
+```sql
+ALTER USER user_name alter_user_clause
+ 
+alter_user_clause: {
+    PASS 'literal'
+  | ENABLE value
+  | SYSINFO value
+}
+```
+
+- PASS：修改用户密码。
+- ENABLE：修改用户是否启用。1表示启用此用户，0表示禁用此用户。
+- SYSINFO：修改用户是否可查看系统信息。1表示可以查看系统信息，0表示不可以查看系统信息。
+
+
 ## 授权
 
 ```sql

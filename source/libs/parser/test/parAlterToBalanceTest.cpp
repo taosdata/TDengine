@@ -82,12 +82,12 @@ TEST_F(ParserInitialATest, alterDnode) {
  *     BUFFER int_value                                          -- todo: range [3, 16384], default 96, unit MB
  *   | CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}  -- default 'none'
  *   | CACHESIZE int_value                                       -- range [1, 65536], default 1, unit MB
- *   | FSYNC int_value                                           -- rang [0, 180000], default 3000, unit ms
+ *   | WAL_FSYNC_PERIOD int_value                                -- rang [0, 180000], default 3000, unit ms
  *   | KEEP {int_value | duration_value}                         -- rang [1, 365000], default 3650, unit day
  *   | PAGES int_value                                           -- todo: rang [64, +oo), default 256, unit page
  *   | REPLICA int_value                                         -- todo: enum 1, 3, default 1, unit replica
  *   | STRICT {'off' | 'on'}                                     -- todo: default 'off'
- *   | WAL int_value                                             -- enum 1, 2, default 1
+ *   | WAL_LEVEL int_value                                       -- enum 1, 2, default 1
  * }
  */
 TEST_F(ParserInitialATest, alterDatabase) {
@@ -157,7 +157,7 @@ TEST_F(ParserInitialATest, alterDatabase) {
   setAlterDbFsync(200);
   setAlterDbWal(1);
   setAlterDbCacheModel(TSDB_CACHE_MODEL_LAST_ROW);
-  run("ALTER DATABASE test CACHEMODEL 'last_row' CACHESIZE 32 FSYNC 200 KEEP 10 WAL 1");
+  run("ALTER DATABASE test CACHEMODEL 'last_row' CACHESIZE 32 WAL_FSYNC_PERIOD 200 KEEP 10 WAL_LEVEL 1");
   clearAlterDbReq();
 
   initAlterDb("test");
@@ -182,11 +182,11 @@ TEST_F(ParserInitialATest, alterDatabase) {
 
   initAlterDb("test");
   setAlterDbFsync(0);
-  run("ALTER DATABASE test FSYNC 0");
+  run("ALTER DATABASE test WAL_FSYNC_PERIOD 0");
   setAlterDbFsync(1000);
-  run("ALTER DATABASE test FSYNC 1000");
+  run("ALTER DATABASE test WAL_FSYNC_PERIOD 1000");
   setAlterDbFsync(180000);
-  run("ALTER DATABASE test FSYNC 180000");
+  run("ALTER DATABASE test WAL_FSYNC_PERIOD 180000");
   clearAlterDbReq();
 
   initAlterDb("test");
@@ -210,9 +210,9 @@ TEST_F(ParserInitialATest, alterDatabase) {
 
   initAlterDb("test");
   setAlterDbWal(1);
-  run("ALTER DATABASE test WAL 1");
+  run("ALTER DATABASE test WAL_LEVEL 1");
   setAlterDbWal(2);
-  run("ALTER DATABASE test WAL 2");
+  run("ALTER DATABASE test WAL_LEVEL 2");
   clearAlterDbReq();
 }
 
@@ -223,16 +223,16 @@ TEST_F(ParserInitialATest, alterDatabaseSemanticCheck) {
   run("ALTER DATABASE test CACHESIZE 0", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test CACHESIZE 65537", TSDB_CODE_PAR_INVALID_DB_OPTION);
   // The syntax limits it to only positive numbers
-  run("ALTER DATABASE test FSYNC -1", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
-  run("ALTER DATABASE test FSYNC 180001", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("ALTER DATABASE test WAL_FSYNC_PERIOD -1", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  run("ALTER DATABASE test WAL_FSYNC_PERIOD 180001", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test KEEP 0", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test KEEP 365001", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test KEEP 1000000000s", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test KEEP 1w", TSDB_CODE_PAR_INVALID_DB_OPTION);
-  run("ALTER DATABASE test WAL 0", TSDB_CODE_PAR_INVALID_DB_OPTION);
-  run("ALTER DATABASE test WAL 3", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("ALTER DATABASE test WAL_LEVEL 0", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("ALTER DATABASE test WAL_LEVEL 3", TSDB_CODE_PAR_INVALID_DB_OPTION);
   // Regardless of the specific sentence
-  run("ALTER DATABASE db WAL 0     # td-14436", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  run("ALTER DATABASE db WAL_LEVEL 0     # td-14436", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
 }
 
 /*
