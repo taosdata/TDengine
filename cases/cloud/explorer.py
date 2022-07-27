@@ -1,5 +1,6 @@
 """
 压力测试：模拟 Explorer执行 SQL 的高并发压力测试
+启动命令： tt --case=cloud/prometheus.py --use=cloud_test.yaml
 """
 import random
 import threading
