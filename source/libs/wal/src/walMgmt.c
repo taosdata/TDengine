@@ -83,7 +83,16 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
 
   // set config
   memcpy(&pWal->cfg, pCfg, sizeof(SWalCfg));
+
   pWal->fsyncSeq = pCfg->fsyncPeriod / 1000;
+  if (pWal->cfg.retentionSize > 0) {
+    pWal->cfg.retentionSize *= 1024;
+  }
+
+  if (pWal->cfg.segSize > 0) {
+    pWal->cfg.segSize *= 1024;
+  }
+
   if (pWal->fsyncSeq <= 0) pWal->fsyncSeq = 1;
 
   tstrncpy(pWal->path, path, sizeof(pWal->path));
