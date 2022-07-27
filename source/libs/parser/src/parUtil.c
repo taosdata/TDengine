@@ -99,8 +99,6 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Query block has incorrect number of result columns";
     case TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL:
       return "Incorrect TIMESTAMP value: %s";
-    case TSDB_CODE_PAR_INVALID_DAYS_VALUE:
-      return "Invalid days value, should be keep2 >= keep1 >= keep0 >= days";
     case TSDB_CODE_PAR_OFFSET_LESS_ZERO:
       return "soffset/offset can not be less than 0";
     case TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_BY:
