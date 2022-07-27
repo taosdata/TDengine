@@ -396,19 +396,25 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s as mean_velocity,name,driver,fleet from %s %s partition BY name,driver,fleet %s;'  % (func,self.table,interval_fill,time_window_new)
 
                             sql2 = "select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            rows = self.tdSql.query(sql1).row_count 
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            rows = self.tdSql.query(sql1).row_count 
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s as mean_velocity,name,driver,fleet from (select * from %s order by ts) where %s %s %s %s partition BY name,driver,fleet %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            rows = self.tdSql.query(sql1).row_count 
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
@@ -416,25 +422,33 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s as mean_velocity,name,driver,fleet from %s %s partition BY name,driver,fleet %s;'  % (func,self.table,interval_fill,time_window_new)
 
                             sql2 = "select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            rows = self.tdSql.query(sql1).row_count 
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            rows = self.tdSql.query(sql1).row_count 
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s as mean_velocity,name,driver,fleet from (select * from %s order by ts) where %s %s %s %s partition BY name,driver,fleet %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            rows = self.tdSql.query(sql1).row_count 
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s as mean_velocity,name,driver,fleet from (select * from %s order by ts desc) where %s %s %s %s partition BY name,driver,fleet %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            rows = self.tdSql.query(sql1).row_count 
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
@@ -478,140 +492,154 @@ class TDTestQuery(TDCase):
                         interval_fill = ' where ts between 1630000001000 and 1630100001000 '
                         interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
                         
-                        for i in (1,2,3,4,21,):                        
-                            time_window_new = tdWhere.time_window_new(i)
-                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
-                            sql1 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from %s partition BY name,driver,fleet %s limit 1)  WHERE fleet = 'South0' or mean_velocity < 100000 partition BY name;"  % (func,self.table,time_window_new)
-
-                            sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s partition BY name,driver,fleet %s limit 1)  WHERE fleet = 'South0' or mean_velocity < 100000 partition BY name;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            rows = self.tdSql.query(sql1).row_count 
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
-                            cur1.execute(sql2)
-                            self.tdCreateData.explain_sql(sql2)
-                            sql= sql + sql2
-
-                            sql2 = "select * from (select name,driver from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s partition BY name,driver,fleet %s limit 1) WHERE fleet = 'South0' or mean_velocity < 100000 partition BY name) ;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            rows = self.tdSql.query(sql1).row_count 
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
-                            cur1.execute(sql2)
-                            self.tdCreateData.explain_sql(sql2)
-                            sql= sql + sql2
-                            
-                            sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from (select * from %s order by ts) where %s %s %s partition BY name,driver,fleet %slimit 1)  WHERE fleet = 'South0' or mean_velocity < 100000 partition BY name;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            rows = self.tdSql.query(sql1).row_count 
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
-                            cur1.execute(sql2)
-                            self.tdCreateData.explain_sql(sql2)
-                            sql= sql + sql2
-                                      
-                        for i in (1,2,3,4,6,7,8,9,21,):                       
-                            time_window_new = tdWhere.time_window_new(i)
-                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
-                            sql1 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from %s %s partition BY name,driver,fleet %s limit 1)  WHERE fleet like 'South_' or mean_velocity < 100000 partition BY name;"  % (func,self.table,interval_fill,time_window_new)
-
-                            sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s limit 1) WHERE fleet like 'South_' or mean_velocity < 100000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            rows = self.tdSql.query(sql1).row_count 
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
-                            cur1.execute(sql2)
-                            self.tdCreateData.explain_sql(sql2)
-                            sql= sql + sql2
-
-                            sql2 = "select * from (select name,driver from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s limit 1) WHERE fleet like 'South_' or mean_velocity < 100000 partition BY name);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            rows = self.tdSql.query(sql1).row_count 
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
-                            cur1.execute(sql2)
-                            self.tdCreateData.explain_sql(sql2)
-                            sql= sql + sql2
-
-                            sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from (select * from %s order by ts) where %s %s %s %s partition BY name,driver,fleet %s limit 1) WHERE fleet like 'South_' or  mean_velocity < 100000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # rows = self.tdSql.query(sql1).row_count 
-                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
-                            cur1.execute(sql2)
-                            self.tdCreateData.explain_sql(sql2)
-                            sql= sql + sql2
-                                                
-                        for i in range(11,21):                        
-                            time_window_new = tdWhere.time_window_new(i)
-                            self.logger.info("\n\n\n=====right case========case1====time num = %d======interval======\n\n\n" %i)
-                            
-                            sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s limit 1) WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
-                            sql= sql + sql2
-
-                            sql2 = "select name,driver from (select * from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s limit 1)) WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
-                            sql= sql + sql2
-
-                            sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from (select * from %s) where %s %s %s %s partition BY name,driver,fleet %s limit 1) WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
-                            sql= sql + sql2
-                            
-                            sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s limit 1) WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
-                            sql= sql + sql2
-
-                            sql2 = "select name,driver from (select * from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s limit 1)) WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
-                            sql= sql + sql2
-
-                            sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from (select * from %s) where %s %s %s %s partition BY name,driver,fleet %s limit 1) WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
-                            sql= sql + sql2
-                                                                                                                                                       
-                        # for i in (22,):                        
+                        # for i in (1,2,3,4,21,):                        
                         #     time_window_new = tdWhere.time_window_new(i)
-                        #     self.logger.info("\n\n\n=====right case========case1====time num = %d======interval======\n\n\n" %i)
-                        #     sql1 = "select %s as mean_velocity,name,driver,fleet from %s %s partition BY name,driver,fleet %s WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;"  % (func,self.table,interval_fill,time_window_new)
+                        #     self.logger.info("\n\n\n====# 2 stationary-trucks =====time num = %d======interval======\n\n\n" %i)
+                        #     sql1 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from %s partition BY name,driver,fleet %s limit 1)  WHERE fleet = 'South0' or mean_velocity < 100000 partition BY name;"  % (func,self.table,time_window_new)
 
-                        #     sql2 = "select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                        #     sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s partition BY name,driver,fleet %s limit 1)  WHERE fleet = 'South0' or mean_velocity < 100000 partition BY name;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                        #     rows = self.tdSql.query(sql1).row_count 
                         #     self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        #     self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
                         #     cur1.execute(sql2)
                         #     self.tdCreateData.explain_sql(sql2)
                         #     sql= sql + sql2
 
-                        #     sql2 = "select * from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s) WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                        #     sql2 = "select * from (select name,driver from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s partition BY name,driver,fleet %s limit 1) WHERE fleet = 'South0' or mean_velocity < 100000 partition BY name) ;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                        #     rows = self.tdSql.query(sql1).row_count 
                         #     self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        #     cur1.execute(sql2)
-                        #     self.tdCreateData.explain_sql(sql2)
-                        #     sql= sql + sql2
-
-                        #     sql2 = "select %s as mean_velocity,name,driver,fleet from (select * from %s order by ts) where %s %s %s %s partition BY name,driver,fleet %s WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        #     self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
                         #     cur1.execute(sql2)
                         #     self.tdCreateData.explain_sql(sql2)
                         #     sql= sql + sql2
                             
-                        #     sql1 = "select %s as mean_velocity,name,driver,fleet from %s %s partition BY name,driver,fleet %s WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;"  % (func,self.table,interval_fill,time_window_new)
-
-                        #     sql2 = "select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                        #     sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from (select * from %s order by ts) where %s %s %s partition BY name,driver,fleet %slimit 1)  WHERE fleet = 'South0' or mean_velocity < 100000 partition BY name;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                        #     rows = self.tdSql.query(sql1).row_count 
                         #     self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        #     self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
+                        #     cur1.execute(sql2)
+                        #     self.tdCreateData.explain_sql(sql2)
+                        #     sql= sql + sql2
+                                      
+                        # for i in (1,2,3,4,6,7,8,9,21,):                       
+                        #     time_window_new = tdWhere.time_window_new(i)
+                        #     self.logger.info("\n\n\n====# 2 stationary-trucks =====time num = %d======interval======\n\n\n" %i)
+                        #     sql1 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from %s %s partition BY name,driver,fleet %s limit 1)  WHERE fleet like 'South_' or mean_velocity < 100000 partition BY name;"  % (func,self.table,interval_fill,time_window_new)
+
+                        #     sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s limit 1) WHERE fleet like 'South_' or mean_velocity < 100000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                        #     rows = self.tdSql.query(sql1).row_count 
+                        #     self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        #     self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
                         #     cur1.execute(sql2)
                         #     self.tdCreateData.explain_sql(sql2)
                         #     sql= sql + sql2
 
-                        #     sql2 = "select * from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                        #     sql2 = "select * from (select name,driver from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s limit 1) WHERE fleet like 'South_' or mean_velocity < 100000 partition BY name);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                        #     rows = self.tdSql.query(sql1).row_count 
                         #     self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        #     self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
                         #     cur1.execute(sql2)
                         #     self.tdCreateData.explain_sql(sql2)
                         #     sql= sql + sql2
 
-                        #     sql2 = "select %s as mean_velocity,name,driver,fleet from (select * from %s order by ts) where %s %s %s %s partition BY name,driver,fleet %s WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        #     sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from (select * from %s order by ts) where %s %s %s %s partition BY name,driver,fleet %s limit 1) WHERE fleet like 'South_' or  mean_velocity < 100000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                        #     # rows = self.tdSql.query(sql1).row_count 
+                        #     # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        #     # self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
                         #     cur1.execute(sql2)
                         #     self.tdCreateData.explain_sql(sql2)
+                        #     sql= sql + sql2
+                                                
+                        # for i in range(11,21):                        
+                        #     time_window_new = tdWhere.time_window_new(i)
+                        #     self.logger.info("\n\n\n=====# 2 stationary-trucks ====time num = %d======interval======\n\n\n" %i)
+                            
+                        #     sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s limit 1) WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                        #     self.tdSql.error(sql2)
                         #     sql= sql + sql2
 
-                        #     sql2 = "select %s as mean_velocity,name,driver,fleet from (select * from %s order by ts desc) where %s %s %s %s partition BY name,driver,fleet %s WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        #     cur1.execute(sql2)
-                        #     self.tdCreateData.explain_sql(sql2)
+                        #     sql2 = "select name,driver from (select * from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s limit 1)) WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                        #     self.tdSql.error(sql2)
                         #     sql= sql + sql2
+
+                        #     sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from (select * from %s) where %s %s %s %s partition BY name,driver,fleet %s limit 1) WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                        #     self.tdSql.error(sql2)
+                        #     sql= sql + sql2
+                            
+                        #     sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s limit 1) WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                        #     self.tdSql.error(sql2)
+                        #     sql= sql + sql2
+
+                        #     sql2 = "select name,driver from (select * from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s limit 1)) WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                        #     self.tdSql.error(sql2)
+                        #     sql= sql + sql2
+
+                        #     sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from (select * from %s) where %s %s %s %s partition BY name,driver,fleet %s limit 1) WHERE fleet = 'West' AND mean_velocity < 1000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                        #     self.tdSql.error(sql2)
+                        #     sql= sql + sql2
+                                                                                                                                                       
+                        for i in (22,):                        
+                            time_window_new = tdWhere.time_window_new(i)
+                            self.logger.info("\n\n\n=====# 2 stationary-trucks ====time num = %d======interval======\n\n\n" %i)
+                            sql1 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from %s %s partition BY name,driver,fleet %s) WHERE fleet like 'South_' or mean_velocity < 100000  partition BY name;"  % (func,self.table,interval_fill,time_window_new)
+
+                            sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s ) WHERE fleet like 'South_' or mean_velocity < 100000  partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            rows = self.tdSql.query(sql1).row_count 
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select * from (select name,driver from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s) WHERE fleet like 'South_' or mean_velocity < 100000 partition BY name);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            rows = self.tdSql.query(sql1).row_count 
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from (select * from %s order by ts) where %s %s %s %s partition BY name,driver,fleet %s ) WHERE fleet like 'South_' or mean_velocity < 100000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            rows = self.tdSql.query(sql1).row_count 
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
+                            
+                            sql1 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from %s %s partition BY name,driver,fleet %s) WHERE fleet = 'South0' or mean_velocity < 100000 partition BY name;"  % (func,self.table,interval_fill,time_window_new)
+
+                            sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s)WHERE fleet = 'South0' or mean_velocity < 100000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            rows = self.tdSql.query(sql1).row_count 
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select * from (select name,driver from (select %s as mean_velocity,name,driver,fleet from %s where %s %s %s %s partition BY name,driver,fleet %s) WHERE fleet = 'South0' or mean_velocity < 100000 partition BY name);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            rows = self.tdSql.query(sql1).row_count 
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from (select * from %s order by ts) where %s %s %s %s partition BY name,driver,fleet %s ) WHERE fleet = 'South0' or mean_velocity < 100000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            rows = self.tdSql.query(sql1).row_count 
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select name,driver from (select %s as mean_velocity,name,driver,fleet from (select * from %s order by ts desc) where %s %s %s %s partition BY name,driver,fleet %s) WHERE fleet = 'South0' or mean_velocity < 100000 partition BY name;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            rows = self.tdSql.query(sql1).row_count 
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2, '%s' %sql2 , 1, rows, 1, 2)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
                                                                                 
             except Exception as e:
                 raise e   
