@@ -59,8 +59,8 @@ python3 ./test.py -f 2-query/ceil.py
 python3 ./test.py -f 2-query/ceil.py -R
 python3 ./test.py -f 2-query/char_length.py
 python3 ./test.py -f 2-query/char_length.py -R
-python3 ./test.py -f 2-query/check_tsdb.py
-python3 ./test.py -f 2-query/check_tsdb.py -R
+# python3 ./test.py -f 2-query/check_tsdb.py
+# python3 ./test.py -f 2-query/check_tsdb.py -R
 python3 ./test.py -f 2-query/concat.py
 python3 ./test.py -f 2-query/concat.py -R
 python3 ./test.py -f 2-query/concat_ws.py
@@ -89,7 +89,6 @@ python3 ./test.py -f 2-query/distribute_agg_max.py
 python3 ./test.py -f 2-query/distribute_agg_max.py -R
 python3 ./test.py -f 2-query/distribute_agg_min.py
 python3 ./test.py -f 2-query/distribute_agg_min.py -R
-
 
 
 
@@ -224,8 +223,8 @@ python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
-python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
-python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
+#python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
+#python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
 python3 ./test.py -f 7-tmq/tmqUpdate-1ctb.py
 python3 ./test.py -f 7-tmq/tmqUpdateWithConsume.py
 python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot0.py
@@ -265,7 +264,7 @@ python3 ./test.py -f 2-query/concat.py -Q 2
 python3 ./test.py -f 2-query/concat2.py -Q 2
 python3 ./test.py -f 2-query/concat_ws.py -Q 2
 python3 ./test.py -f 2-query/concat_ws2.py -Q 2
-python3 ./test.py -f 2-query/check_tsdb.py -Q 2
+#python3 ./test.py -f 2-query/check_tsdb.py -Q 2
 python3 ./test.py -f 2-query/spread.py -Q 2
 python3 ./test.py -f 2-query/hyperloglog.py -Q 2
 python3 ./test.py -f 2-query/explain.py -Q 2
@@ -354,7 +353,7 @@ python3 ./test.py -f 2-query/concat.py -Q  3
 python3 ./test.py -f 2-query/concat2.py -Q  3
 python3 ./test.py -f 2-query/concat_ws.py -Q  3
 python3 ./test.py -f 2-query/concat_ws2.py -Q  3
-python3 ./test.py -f 2-query/check_tsdb.py -Q  3
+#python3 ./test.py -f 2-query/check_tsdb.py -Q  3
 python3 ./test.py -f 2-query/spread.py -Q  3
 python3 ./test.py -f 2-query/hyperloglog.py -Q  3
 python3 ./test.py -f 2-query/explain.py -Q  3
