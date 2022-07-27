@@ -96,7 +96,7 @@ class TDTestCase:
         tdSql.error(f"select diff(col12) from  {dbname}.stb_1")
         tdSql.error(f"select diff(col13) from  {dbname}.stb_1")
         tdSql.error(f"select diff(col14) from  {dbname}.stb_1")
-        tdSql.error(f"select ts,diff(col1),ts from  {dbname}.stb_1")
+        tdSql.query(f"select ts,diff(col1),ts from  {dbname}.stb_1")
 
         tdSql.query(f"select diff(col1) from  {dbname}.stb_1")
         tdSql.checkRows(10)
