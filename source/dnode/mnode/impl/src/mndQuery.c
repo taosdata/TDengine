@@ -105,12 +105,14 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       return -1;
     }
-    
-    code = (*fp)(&reqMsg);
 
+    if ((*fp)(&reqMsg)) {
+      rsp.rspCode = terrno;
+    } else {
+      rsp.rspCode = 0;
+    }
     rsp.reqType = reqMsg.msgType;
     rsp.msgLen = reqMsg.info.rspLen;
-    rsp.rspCode = code;
     rsp.msg = reqMsg.info.rsp;
     
     taosArrayPush(batchRsp, &rsp);

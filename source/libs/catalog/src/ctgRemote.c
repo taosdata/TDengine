@@ -27,7 +27,7 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
   int32_t taskNum = taosArrayGetSize(pTaskId);
   SDataBuf taskMsg = *pMsg;
   int32_t offset = 0;
-  int32_t msgNum = (pMsg->pData && (pMsg->len > 0)) ? ntohl(*(int32_t*)pMsg->pData) : 0;
+  int32_t msgNum = (TSDB_CODE_SUCCESS == rspCode && pMsg->pData && (pMsg->len > 0)) ? ntohl(*(int32_t*)pMsg->pData) : 0;
   ASSERT(taskNum == msgNum || 0 == msgNum);
 
   ctgDebug("QID:0x%" PRIx64 " ctg got batch %d rsp %s", pJob->queryId, cbParam->batchId, TMSG_INFO(cbParam->reqType + 1));
