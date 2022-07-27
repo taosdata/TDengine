@@ -41,12 +41,12 @@ print ============= create database
 #  | BUFFER value       [3~16384, default: 96]
 #  | PAGES value        [64~16384, default: 256]
 #  | CACHEMODEL value   ['node', 'last_row', 'last_value', 'both']
-#  | FSYNC value        [0 ~ 180000 ms]
+#  | WAL_FSYNC_PERIOD value        [0 ~ 180000 ms]
 #  | KEEP value         [duration, 365000]
 #  | REPLICA value      [1 | 3]
-#  | WAL value          [1 | 2]
+#  | WAL_LEVEL value          [1 | 2]
 
-sql create database db CACHEMODEL 'both' COMP 0 DURATION 240 FSYNC 1000 MAXROWS 8000 MINROWS 10 KEEP 1000 PRECISION 'ns' REPLICA 3 WAL 2 VGROUPS 6 SINGLE_STABLE 1
+sql create database db CACHEMODEL 'both' COMP 0 DURATION 240 WAL_FSYNC_PERIOD 1000 MAXROWS 8000 MINROWS 10 KEEP 1000 PRECISION 'ns' REPLICA 3 WAL_LEVEL 2 VGROUPS 6 SINGLE_STABLE 1
 sql show databases
 print rows: $rows
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09

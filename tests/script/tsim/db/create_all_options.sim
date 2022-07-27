@@ -43,13 +43,13 @@ print ============= create database with all options
 #  | CACHEMODEL value   ['node', 'last_row', 'last_value', 'both', default: 'node']
 #  | COMP               [0 | 1 | 2, default: 2]
 #  | DURATION value         [60m ~ min(3650d,keep), default: 10d, unit may be minut/hour/day]
-#  | FSYNC value        [0 ~ 180000 ms, default: 3000]
+#  | WAL_FSYNC_PERIOD value        [0 ~ 180000 ms, default: 3000]
 #  | MAXROWS value      [200~10000, default: 4096]
 #  | MINROWS value      [10~1000, default: 100]
 #  | KEEP value         [max(1d ~ 365000d), default: 1d, unit may be minut/hour/day]
 #  | PRECISION          ['ms' | 'us' | 'ns', default: ms]
 #  | REPLICA value      [1 | 3, default: 1]
-#  | WAL value          [1 | 2, default: 1]
+#  | WAL_LEVEL value          [1 | 2, default: 1]
 #  | VGROUPS value      [default: 2]
 #  | SINGLE_STABLE      [0 | 1, default: ]
 #
@@ -254,8 +254,8 @@ sql_error create database db COMP -1
 #sql_error create database db KEEP 525600001m
 #sql_error create database db KEEP 365001d
 
-print ====> FSYNC value [0 ~ 180000 ms, default: 3000]
-sql create database db FSYNC 0
+print ====> WAL_FSYNC_PERIOD value [0 ~ 180000 ms, default: 3000]
+sql create database db WAL_FSYNC_PERIOD 0
 sql show databases
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
 if $data21_db != 0 then
@@ -263,15 +263,15 @@ if $data21_db != 0 then
 endi
 sql drop database db
 
-sql create database db FSYNC 180000
+sql create database db WAL_FSYNC_PERIOD 180000
 sql show databases
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
 if $data21_db != 180000 then
   return -1
 endi
 sql drop database db
-sql_error create database db FSYNC 180001
-sql_error create database db FSYNC -1
+sql_error create database db WAL_FSYNC_PERIOD 180001
+sql_error create database db WAL_FSYNC_PERIOD -1
 
 print ====> MAXROWS value [200~10000, default: 4096], MINROWS value [10~1000, default: 100]
 sql create database db MAXROWS 10000 MINROWS 1000
@@ -386,8 +386,8 @@ sql_error create database db REPLICA 4
 #sql_error create database db TTL 0
 #sql_error create database db TTL -1
 
-print ====> WAL value [1 | 2, default: 1]
-sql create database db WAL 2
+print ====> WAL_LEVEL value [1 | 2, default: 1]
+sql create database db WAL_LEVEL 2
 sql show databases
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
 if $data20_db != 2 then
@@ -395,16 +395,16 @@ if $data20_db != 2 then
 endi
 sql drop database db
 
-sql create database db WAL 1
+sql create database db WAL_LEVEL 1
 sql show databases
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
 if $data20_db != 1 then
   return -1
 endi
 sql drop database db
-sql_error create database db WAL 3
-sql_error create database db WAL -1
-sql_error create database db WAL 0
+sql_error create database db WAL_LEVEL 3
+sql_error create database db WAL_LEVEL -1
+sql_error create database db WAL_LEVEL 0
 
 print ====> VGROUPS value [1~4096, default: 2]
 sql create database db VGROUPS 1
