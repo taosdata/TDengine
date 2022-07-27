@@ -83,8 +83,6 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   } else if (pJoinNode->inputTsOrder == ORDER_DESC) {
     pInfo->inputTsOrder = TSDB_ORDER_DESC;
   }
-  //TODO: remove this when JoinNode inputTsOrder is ready
-  pInfo->inputTsOrder = TSDB_ORDER_ASC;
 
   pOperator->fpSet =
       createOperatorFpSet(operatorDummyOpenFn, doMergeJoin, NULL, NULL, destroyMergeJoinOperator, NULL, NULL, NULL);
@@ -201,7 +199,7 @@ static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) 
     if (!hasNextTs) {
       break;
     }
-    
+
     if (leftTs == rightTs) {
       mergeJoinJoinLeftRight(pOperator, pRes, nrows,
                       pJoinInfo->pLeft, pJoinInfo->leftPos, pJoinInfo->pRight, pJoinInfo->rightPos);
@@ -209,15 +207,13 @@ static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) 
       pJoinInfo->rightPos += 1;
 
       nrows += 1;
-    } else if (asc && leftTs < rightTs ||
-               !asc && leftTs > rightTs) {
+    } else if (asc && leftTs < rightTs || !asc && leftTs > rightTs) {
       pJoinInfo->leftPos += 1;
 
       if (pJoinInfo->leftPos >= pJoinInfo->pLeft->info.rows) {
         continue;
       }
-    } else if (asc && leftTs > rightTs ||
-               !asc && leftTs < rightTs) {
+    } else if (asc && leftTs > rightTs || !asc && leftTs < rightTs) {
       pJoinInfo->rightPos += 1;
       if (pJoinInfo->rightPos >= pJoinInfo->pRight->info.rows) {
         continue;
