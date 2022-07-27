@@ -330,14 +330,13 @@ class TDTestCase:
 
     def force_stop_dnode(self, dnode_id ):
         
-        tdSql.query("show dnodes")
         port = None
-        for dnode_info in tdSql.queryResult:
-            if dnode_id == dnode_info[0]:
-                port = dnode_info[1].split(":")[-1] 
-                break
+        for k ,v  in self.dnode_list.items():
+            if v[0] == dnode_id:
+                port = k.split(":")[-1]
             else:
                 continue
+
         if port:
             tdLog.notice(" ==== dnode {} will be force stop by kill -9 ====".format(dnode_id))
             psCmd = '''netstat -anp|grep -w LISTEN|grep -w %s |grep -o "LISTEN.*"|awk '{print $2}'|cut -d/ -f1|head -n1''' %(port)
@@ -346,6 +345,8 @@ class TDTestCase:
             ps_kill_taosd = ''' kill -9 {} '''.format(processID)
             # print(ps_kill_taosd)
             os.system(ps_kill_taosd)
+        else :
+            tdLog.exit(" ==== port of dnode {} not found ====".format(dnode_id))
 
     def stop_All(self):
 
