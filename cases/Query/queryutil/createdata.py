@@ -630,7 +630,7 @@ class TDCreateData():
         self.tdSql.checkData(0,0,self.num_random*n)
         
                                
-    def dropandcreateDB_null(self):
+    def dropandcreateDB_null(self,database,n):
         self.num_null = 100
         self.ts = 1630000000000
         # self.tdSql.execute('''drop database if exists db ;''')
@@ -770,6 +770,9 @@ class TDCreateData():
             #result is NAN -NAN
             self.logger.info(("===list_nan===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         elif (list1 == None) and (list2 == None):
+            #result is None -None
+            self.logger.info(("===list_none===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
+        elif (list1 == 'NULL') and (list2 == 'NULL'):
             #result is None -None
             self.logger.info(("===list_none===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         else:
