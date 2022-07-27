@@ -359,6 +359,8 @@ typedef struct STableMergeScanInfo {
   // window to check if current data block needs to be loaded.
   SInterval       interval;
   SSampleExecInfo sample;  // sample execution info
+
+  SSortExecInfo sortExecInfo;
 } STableMergeScanInfo;
 
 typedef struct STagScanInfo {
@@ -802,6 +804,7 @@ typedef struct STagFilterOperatorInfo {
 typedef struct SJoinOperatorInfo {
   SSDataBlock       *pRes;
   int32_t            joinType;
+  int32_t            inputTsOrder;
 
   SSDataBlock       *pLeft;
   int32_t            leftPos;
@@ -1000,6 +1003,7 @@ int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pStartTs,
 bool functionNeedToExecute(SqlFunctionCtx* pCtx);
 bool isCloseWindow(STimeWindow* pWin, STimeWindowAggSupp* pSup);
 void appendOneRow(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid);
+void printDataBlock(SSDataBlock* pBlock, const char* flag);
 
 int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
                                        SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs, const int32_t* rowCellOffset,

@@ -43,9 +43,9 @@ class TDTestCase:
         fsync_index = 0
         tdSql.query("show databases")
         for i in range(tdSql.queryCols):
-            if tdSql.cursor.description[i][0] == "wal":
+            if tdSql.cursor.description[i][0] == "wal_level":
                 wal_index = i
-            if tdSql.cursor.description[i][0] == "fsync":
+            if tdSql.cursor.description[i][0] == "wal_fsync_period":
                 fsync_index = i
 
         tdSql.execute("drop database if exists db1")
