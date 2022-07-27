@@ -46,7 +46,7 @@ SHOW CREATE STABLE stb_name;
 ### 获取超级表的结构信息
 
 ```
-DESCRIBE stb_name;
+DESCRIBE [db_name.]stb_name;
 ```
 
 ## 删除超级表

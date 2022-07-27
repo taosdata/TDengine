@@ -106,7 +106,7 @@ TEST_F(ParserInitialATest, alterDatabase) {
     expect.daysToKeep0 = -1;
     expect.daysToKeep1 = -1;
     expect.daysToKeep2 = -1;
-    expect.fsyncPeriod = -1;
+    expect.walFsyncPeriod = -1;
     expect.walLevel = -1;
     expect.strict = -1;
     expect.cacheLast = -1;
@@ -123,7 +123,7 @@ TEST_F(ParserInitialATest, alterDatabase) {
     expect.daysToKeep1 = (-1 == daysToKeep1 ? expect.daysToKeep0 : daysToKeep1);
     expect.daysToKeep2 = (-1 == daysToKeep1 ? expect.daysToKeep1 : daysToKeep2);
   };
-  auto setAlterDbFsync = [&](int32_t fsync) { expect.fsyncPeriod = fsync; };
+  auto setAlterDbFsync = [&](int32_t fsync) { expect.walFsyncPeriod = fsync; };
   auto setAlterDbWal = [&](int8_t wal) { expect.walLevel = wal; };
   auto setAlterDbStrict = [&](int8_t strict) { expect.strict = strict; };
   auto setAlterDbCacheModel = [&](int8_t cacheModel) { expect.cacheLast = cacheModel; };
@@ -141,7 +141,7 @@ TEST_F(ParserInitialATest, alterDatabase) {
     ASSERT_EQ(req.daysToKeep0, expect.daysToKeep0);
     ASSERT_EQ(req.daysToKeep1, expect.daysToKeep1);
     ASSERT_EQ(req.daysToKeep2, expect.daysToKeep2);
-    ASSERT_EQ(req.fsyncPeriod, expect.fsyncPeriod);
+    ASSERT_EQ(req.walFsyncPeriod, expect.walFsyncPeriod);
     ASSERT_EQ(req.walLevel, expect.walLevel);
     ASSERT_EQ(req.strict, expect.strict);
     ASSERT_EQ(req.cacheLast, expect.cacheLast);

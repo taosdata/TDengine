@@ -294,7 +294,7 @@ typedef struct {
   int32_t daysToKeep2;
   int32_t minRows;
   int32_t maxRows;
-  int32_t fsyncPeriod;
+  int32_t walFsyncPeriod;
   int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;

@@ -93,19 +93,34 @@ endi
 if $data12_db != 8000 then  # maxrows
   return -1
 endi
-if $data13_db != 2 then  # wal
+if $data13_db != 0 then  # comp
   return -1
 endi
-if $data14_db != 1000 then  # fsync
+if $data14_db != ns then  # precision
   return -1
 endi
-if $data15_db != 0 then  # comp
+if $data18_db != both then  # cache_model
   return -1
 endi
-if $data16_db != both then  # cachelast
+if $data19_db != 1 then  # cash_size
   return -1
 endi
-if $data17_db != ns then  # precision
+if $data20_db != 2 then  # wal level
+  return -1
+endi
+if $data21_db != 1000 then  # wal fsyncperiod
+  return -1
+endi
+if $data22_db != 0 then  # 
+  return -1
+endi
+if $data23_db != 0 then  # 
+  return -1
+endi
+if $data24_db != 0 then  # 
+  return -1
+endi
+if $data25_db != 0 then  # 
   return -1
 endi
 
@@ -284,14 +299,14 @@ sql_error alter database db maxrows 10  # little than minrows
 print ============== step wal
 sql alter database db wal 1
 sql show databases
-print wal $data13_db
-if $data13_db != 1 then 
+print wal $data20_db
+if $data20_db != 1 then 
   return -1
 endi
 sql alter database db wal 2
 sql show databases
-print wal $data13_db
-if $data13_db != 2 then 
+print wal $data20_db
+if $data20_db != 2 then 
   return -1
 endi
 
@@ -303,20 +318,20 @@ sql_error alter database db wal -1
 print ============== modify fsync
 sql alter database db fsync 2000
 sql show databases
-print fsync $data14_db
-if $data14_db != 2000 then 
+print fsync $data21_db
+if $data21_db != 2000 then 
   return -1
 endi
 sql alter database db fsync 500
 sql show databases
-print fsync $data14_db
-if $data14_db != 500 then 
+print fsync $data21_db
+if $data21_db != 500 then 
   return -1
 endi
 sql alter database db fsync 0
 sql show databases
-print fsync $data14_db
-if $data14_db != 0 then 
+print fsync $data21_db
+if $data21_db != 0 then 
   return -1
 endi
 sql_error alter database db fsync 180001
@@ -335,32 +350,32 @@ sql_error alter database db comp -1
 print ============== modify cachelast [0, 1, 2, 3]
 sql alter database db cachemodel 'last_value'
 sql show databases
-print cachelast $data16_db
-if $data16_db != last_value then 
+print cachelast $data18_db
+if $data18_db != last_value then 
   return -1
 endi
 sql alter database db cachemodel 'last_row'
 sql show databases
-print cachelast $data16_db
-if $data16_db != last_row then 
+print cachelast $data18_db
+if $data18_db != last_row then 
   return -1
 endi
 sql alter database db cachemodel 'none'
 sql show databases
-print cachelast $data16_db
-if $data16_db != none then 
+print cachelast $data18_db
+if $data18_db != none then 
   return -1
 endi
 sql alter database db cachemodel 'last_value'
 sql show databases
-print cachelast $data16_db
-if $data16_db != last_value then 
+print cachelast $data18_db
+if $data18_db != last_value then 
   return -1
 endi
 sql alter database db cachemodel 'both'
 sql show databases
-print cachelast $data16_db
-if $data16_db != both then 
+print cachelast $data18_db
+if $data18_db != both then 
   return -1
 endi
 
