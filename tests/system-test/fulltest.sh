@@ -27,7 +27,7 @@ python3 ./test.py -f 1-insert/alter_stable.py
 python3 ./test.py -f 1-insert/alter_table.py
 python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
 python3 ./test.py -f 1-insert/table_comment.py
-#python3 ./test.py -f 1-insert/time_range_wise.py
+python3 ./test.py -f 1-insert/time_range_wise.py
 python3 ./test.py -f 1-insert/block_wise.py
 python3 ./test.py -f 1-insert/create_retentions.py
 python3 ./test.py -f 1-insert/table_param_ttl.py
