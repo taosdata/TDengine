@@ -17,10 +17,11 @@
 #ifdef USE_UV
 #include <uv.h>
 #endif
-#include "taoserror.h"
-#include "thttp.h"
-#include "tlog.h"
+// clang-format off
 #include "zlib.h"
+#include "thttp.h"
+#include "taoserror.h"
+#include "tlog.h"
 
 static int32_t taosBuildHttpHeader(const char* server, int32_t contLen, char* pHead, int32_t headLen,
                                    EHttpCompFlag flag) {
@@ -231,4 +232,5 @@ SEND_OVER:
   return code;
 }
 
+// clang-format on
 #endif
