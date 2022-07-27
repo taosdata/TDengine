@@ -152,6 +152,7 @@ typedef struct SVnodeModifyLogicNode {
   uint64_t         stableId;
   int8_t           tableType;  // table type
   char             tableFName[TSDB_TABLE_FNAME_LEN];
+  char             tsColName[TSDB_COL_NAME_LEN];
   STimeWindow      deleteTimeRange;
   SVgroupsInfo*    pVgroupList;
   SNodeList*       pInsertCols;

@@ -1294,6 +1294,7 @@ static int32_t createVnodeModifLogicNodeByDelete(SLogicPlanContext* pCxt, SDelet
   pModify->tableType = pRealTable->pMeta->tableType;
   snprintf(pModify->tableFName, sizeof(pModify->tableFName), "%d.%s.%s", pCxt->pPlanCxt->acctId,
            pRealTable->table.dbName, pRealTable->table.tableName);
+  strcpy(pModify->tsColName, pRealTable->pMeta->schema->name);
   pModify->deleteTimeRange = pDelete->timeRange;
   pModify->pAffectedRows = nodesCloneNode(pDelete->pCountFunc);
   if (NULL == pModify->pAffectedRows) {

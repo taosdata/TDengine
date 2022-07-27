@@ -1637,6 +1637,7 @@ static int32_t createDataDeleter(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode*
   pDeleter->tableId = pModify->tableId;
   pDeleter->tableType = pModify->tableType;
   strcpy(pDeleter->tableFName, pModify->tableFName);
+  strcpy(pDeleter->tsColName, pModify->tsColName);
   pDeleter->deleteTimeRange = pModify->deleteTimeRange;
 
   int32_t code = setNodeSlotId(pCxt, pRoot->pOutputDataBlockDesc->dataBlockId, -1, pModify->pAffectedRows,
