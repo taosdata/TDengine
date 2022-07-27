@@ -32,6 +32,7 @@ class CloudApi:
         if status != 200:
             print(res.status_code)
             raise Exception("login error")
+
         body = res.json()
         if body['msg'] is not None:
             self.token = body["data"]["token"]
