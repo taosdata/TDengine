@@ -250,11 +250,13 @@ int32_t walBeginSnapshot(SWal *pWal, int64_t ver) {
 }
 
 int32_t walEndSnapshot(SWal *pWal) {
+  uInfo("%s:%d rsma: WAL walEndSnapshot entry for %s", __func__, __LINE__, pWal->path);
   int32_t code = 0;
   taosThreadMutexLock(&pWal->mutex);
   int64_t ver = pWal->vers.verInSnapshotting;
   if (ver == -1) {
     code = -1;
+    uInfo("%s:%d rsma: WAL walEndSnapshot code = -1 for %s", __func__, __LINE__, pWal->path);
     goto END;
   };
 
@@ -291,12 +293,15 @@ int32_t walEndSnapshot(SWal *pWal) {
     }
     char fnameStr[WAL_FILE_LEN];
     // remove file
+    uInfo("%s:%d rsma: WAL walEndSnapshot deleteCnt=%d %s", __func__, __LINE__, (int32_t)deleteCnt, pWal->path);
     for (int i = 0; i < deleteCnt; i++) {
       pInfo = taosArrayGet(pWal->fileInfoSet, i);
       walBuildLogName(pWal, pInfo->firstVer, fnameStr);
       taosRemoveFile(fnameStr);
+      uInfo("rsma: removed WAL log file %s", fnameStr);
       walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
       taosRemoveFile(fnameStr);
+      uInfo("rsma: removed WAL idx file %s", fnameStr);
     }
 
     // make new array, remove files
@@ -307,6 +312,8 @@ int32_t walEndSnapshot(SWal *pWal) {
     } else {
       pWal->vers.firstVer = ((SWalFileInfo *)taosArrayGet(pWal->fileInfoSet, 0))->firstVer;
     }
+  } else {
+    uInfo("%s:%d rsma: WAL walEndSnapshot %s", __func__, __LINE__, pWal->path);
   }
   pWal->writeCur = taosArrayGetSize(pWal->fileInfoSet) - 1;
   pWal->totSize = newTotSize;
