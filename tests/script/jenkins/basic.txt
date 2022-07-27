@@ -132,8 +132,8 @@
 ./test.sh -f tsim/parser/lastrow.sim
 ./test.sh -f tsim/parser/lastrow2.sim
 ./test.sh -f tsim/parser/like.sim
-# TD-17464 ./test.sh -f tsim/parser/limit.sim
-# TD-17464 ./test.sh -f tsim/parser/limit1.sim
+./test.sh -f tsim/parser/limit.sim
+./test.sh -f tsim/parser/limit1.sim
 # TD-17623 ./test.sh -f tsim/parser/limit2.sim
 ./test.sh -f tsim/parser/mixed_blocks.sim
 ./test.sh -f tsim/parser/nchar.sim
