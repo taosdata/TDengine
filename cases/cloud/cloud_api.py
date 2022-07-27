@@ -29,14 +29,16 @@ class CloudApi:
 
         res = requests.post(url, headers=headers, json=data, cookies=self.cj)
         status = res.status_code
-        body = res.json()
-        if status != 200 or body['msg'] is not None:
+        if status != 200:
             print(res.status_code)
-            print(body)
             raise Exception("login error")
-        self.token = body["data"]["token"]
-        self.headers["Authorization"] = "Bearer " + self.token
-        return self.token
+        body = res.json()
+        if body['msg'] is not None:
+            self.token = body["data"]["token"]
+            self.headers["Authorization"] = "Bearer " + self.token
+            return self.token
+        else:
+            raise Exception("login error: %s", body)
 
     def app_list(self):
         url = self.cloud_domain + 'api/app/list'
