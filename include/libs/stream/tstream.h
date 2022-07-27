@@ -171,8 +171,8 @@ typedef struct {
 } STaskDispatcherFixedEp;
 
 typedef struct {
-  // int8_t  hashMethod;
   char      stbFullName[TSDB_TABLE_FNAME_LEN];
+  int32_t   waitingRspCnt;
   SUseDbRsp dbInfo;
 } STaskDispatcherShuffle;
 
