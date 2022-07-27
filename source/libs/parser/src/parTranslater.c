@@ -39,6 +39,7 @@ typedef struct STranslateContext {
   SCmdMsgInfo*     pCmdMsg;
   SHashObj*        pDbs;
   SHashObj*        pTables;
+  SHashObj*        pTargetTables;
   SExplainOptions* pExplainOpt;
   SParseMetaCache* pMetaCache;
   bool             createStream;
@@ -89,10 +90,10 @@ static int32_t collectUseDatabase(const SName* pName, SHashObj* pDbs) {
   return collectUseDatabaseImpl(dbFName, pDbs);
 }
 
-static int32_t collectUseTable(const SName* pName, SHashObj* pDbs) {
+static int32_t collectUseTable(const SName* pName, SHashObj* pTable) {
   char fullName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(pName, fullName);
-  return taosHashPut(pDbs, fullName, strlen(fullName), pName, sizeof(SName));
+  return taosHashPut(pTable, fullName, strlen(fullName), pName, sizeof(SName));
 }
 
 static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STableMeta** pMeta) {
@@ -357,7 +358,8 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* p
   pCxt->pMetaCache = pMetaCache;
   pCxt->pDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   pCxt->pTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  if (NULL == pCxt->pNsLevel || NULL == pCxt->pDbs || NULL == pCxt->pTables) {
+  pCxt->pTargetTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (NULL == pCxt->pNsLevel || NULL == pCxt->pDbs || NULL == pCxt->pTables || NULL == pCxt->pTargetTables) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   return TSDB_CODE_SUCCESS;
@@ -3934,6 +3936,9 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tableName), pReq->name);
   int32_t code = collectUseTable(&tableName, pCxt->pTables);
   if (TSDB_CODE_SUCCESS == code) {
+    code = collectUseTable(&tableName, pCxt->pTargetTables);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = buildRollupAst(pCxt, pStmt, pReq);
   }
   return code;
@@ -3953,11 +3958,14 @@ static int32_t translateCreateSuperTable(STranslateContext* pCxt, SCreateTableSt
 }
 
 static int32_t doTranslateDropSuperTable(STranslateContext* pCxt, const SName* pTableName, bool ignoreNotExists) {
-  SMDropStbReq dropReq = {0};
-  tNameExtractFullName(pTableName, dropReq.name);
-  dropReq.igNotExists = ignoreNotExists;
-
-  return buildCmdMsg(pCxt, TDMT_MND_DROP_STB, (FSerializeFunc)tSerializeSMDropStbReq, &dropReq);
+  int32_t code = collectUseTable(pTableName, pCxt->pTargetTables);
+  if (TSDB_CODE_SUCCESS == code) {
+    SMDropStbReq dropReq = {0};
+    tNameExtractFullName(pTableName, dropReq.name);
+    dropReq.igNotExists = ignoreNotExists;
+    code = buildCmdMsg(pCxt, TDMT_MND_DROP_STB, (FSerializeFunc)tSerializeSMDropStbReq, &dropReq);
+  }
+  return code;
 }
 
 static int32_t translateDropTable(STranslateContext* pCxt, SDropTableStmt* pStmt) {
@@ -5559,8 +5567,13 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
 
   int32_t     code = checkCreateTable(pCxt, pStmt, false);
   SVgroupInfo info = {0};
+  SName name;
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
   if (TSDB_CODE_SUCCESS == code) {
-    code = getTableHashVgroup(pCxt, pStmt->dbName, pStmt->tableName, &info);
+    code = getTableHashVgroupImpl(pCxt, &name, &info);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectUseTable(&name, pCxt->pTargetTables);
   }
   SArray* pBufArray = NULL;
   if (TSDB_CODE_SUCCESS == code) {
@@ -5829,6 +5842,11 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
   if (TSDB_CODE_SUCCESS == code) {
     code = getTableMeta(pCxt, pStmt->useDbName, pStmt->useTableName, &pSuperTableMeta);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    SName name;
+    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
+    code = collectUseTable(&name, pCxt->pTargetTables);
+  }
 
   STag*   pTag = NULL;
   SArray* tagName = taosArrayInit(8, TSDB_COL_NAME_LEN);
@@ -5927,8 +5945,13 @@ static void addDropTbReqIntoVgroup(SHashObj* pVgroupHashmap, SDropTableClause* p
 
 static int32_t buildDropTableVgroupHashmap(STranslateContext* pCxt, SDropTableClause* pClause, bool* pIsSuperTable,
                                            SHashObj* pVgroupHashmap) {
+  SName name;
+  toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &name);
   STableMeta* pTableMeta = NULL;
-  int32_t     code = getTableMeta(pCxt, pClause->dbName, pClause->tableName, &pTableMeta);
+  int32_t     code = getTableMetaImpl(pCxt, &name, &pTableMeta);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectUseTable(&name, pCxt->pTargetTables);
+  }
 
   if (TSDB_CODE_SUCCESS == code && TSDB_SUPER_TABLE == pTableMeta->tableType) {
     *pIsSuperTable = true;
@@ -6509,6 +6532,20 @@ static int32_t setRefreshMate(STranslateContext* pCxt, SQuery* pQuery) {
       pTable = taosHashIterate(pCxt->pTables, pTable);
     }
   }
+
+  if (NULL != pCxt->pTargetTables) {
+    taosArrayDestroy(pQuery->pTargetTableList);
+    pQuery->pTargetTableList = taosArrayInit(taosHashGetSize(pCxt->pTargetTables), sizeof(SName));
+    if (NULL == pQuery->pTargetTableList) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    SName* pTable = taosHashIterate(pCxt->pTargetTables, NULL);
+    while (NULL != pTable) {
+      taosArrayPush(pQuery->pTargetTableList, pTable);
+      pTable = taosHashIterate(pCxt->pTargetTables, pTable);
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
