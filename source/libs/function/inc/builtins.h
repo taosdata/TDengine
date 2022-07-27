@@ -25,6 +25,7 @@ extern "C" {
 typedef int32_t (*FTranslateFunc)(SFunctionNode* pFunc, char* pErrBuf, int32_t len);
 typedef EFuncDataRequired (*FFuncDataRequired)(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 typedef int32_t (*FCreateMergeFuncParameters)(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters);
+typedef EFuncDataRequired (*FFuncDynDataRequired)(void* pRes, STimeWindow* pTimeWindow);
 
 typedef struct SBuiltinFuncDefinition {
   const char*                name;
@@ -32,6 +33,7 @@ typedef struct SBuiltinFuncDefinition {
   uint64_t                   classification;
   FTranslateFunc             translateFunc;
   FFuncDataRequired          dataRequiredFunc;
+  FFuncDynDataRequired       dynDataRequiredFunc;
   FExecGetEnv                getEnvFunc;
   FExecInit                  initFunc;
   FExecProcess               processFunc;

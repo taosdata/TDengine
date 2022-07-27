@@ -316,6 +316,7 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "udfDebugFlag", udfDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "smaDebugFlag", smaDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "idxDebugFlag", idxDebugFlag, 0, 255, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "tdbDebugFlag", tdbDebugFlag, 0, 255, 0) != 0) return -1;
   return 0;
 }
 
@@ -506,6 +507,7 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
   udfDebugFlag = cfgGetItem(pCfg, "udfDebugFlag")->i32;
   smaDebugFlag = cfgGetItem(pCfg, "smaDebugFlag")->i32;
   idxDebugFlag = cfgGetItem(pCfg, "idxDebugFlag")->i32;
+  tdbDebugFlag = cfgGetItem(pCfg, "tdbDebugFlag")->i32;
 }
 
 static int32_t taosSetClientCfg(SConfig *pCfg) {
@@ -950,6 +952,8 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
           uError("failed to create tempDir:%s since %s", tsTempDir, terrstr());
           return -1;
         }
+      } else if (strcasecmp("tdbDebugFlag", name) == 0) {
+        tdbDebugFlag = cfgGetItem(pCfg, "tdbDebugFlag")->i32;
       } else if (strcasecmp("telemetryReporting", name) == 0) {
         tsEnableTelem = cfgGetItem(pCfg, "telemetryReporting")->bval;
       } else if (strcasecmp("telemetryInterval", name) == 0) {
@@ -1143,18 +1147,22 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     int32_t monitor = atoi(value);
     uInfo("monitor set from %d to %d", tsEnableMonitor, monitor);
     tsEnableMonitor = monitor;
+    SConfigItem *pItem = cfgGetItem(tsCfg, "monitor");
+    if (pItem != NULL) {
+      pItem->bval = tsEnableMonitor;
+    }
     return;
   }
 
   const char *options[] = {
-      "dDebugFlag",  "vDebugFlag",   "mDebugFlag",   "wDebugFlag",   "sDebugFlag",   "tsdbDebugFlag",
-      "tqDebugFlag", "fsDebugFlag",  "udfDebugFlag", "smaDebugFlag", "idxDebugFlag", "tmrDebugFlag",
-      "uDebugFlag",  "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",
+      "dDebugFlag",   "vDebugFlag",  "mDebugFlag",   "wDebugFlag",   "sDebugFlag",   "tsdbDebugFlag",
+      "tqDebugFlag",  "fsDebugFlag", "udfDebugFlag", "smaDebugFlag", "idxDebugFlag", "tdbDebugFlag",
+      "tmrDebugFlag", "uDebugFlag",  "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",
   };
   int32_t *optionVars[] = {
-      &dDebugFlag,  &vDebugFlag,   &mDebugFlag,   &wDebugFlag,   &sDebugFlag,   &tsdbDebugFlag,
-      &tqDebugFlag, &fsDebugFlag,  &udfDebugFlag, &smaDebugFlag, &idxDebugFlag, &tmrDebugFlag,
-      &uDebugFlag,  &smaDebugFlag, &rpcDebugFlag, &qDebugFlag,
+      &dDebugFlag,   &vDebugFlag,  &mDebugFlag,   &wDebugFlag,   &sDebugFlag,   &tsdbDebugFlag,
+      &tqDebugFlag,  &fsDebugFlag, &udfDebugFlag, &smaDebugFlag, &idxDebugFlag, &tdbDebugFlag,
+      &tmrDebugFlag, &uDebugFlag,  &smaDebugFlag, &rpcDebugFlag, &qDebugFlag,
   };
 
   int32_t optionSize = tListLen(options);
@@ -1166,8 +1174,40 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     int32_t flag = atoi(value);
     uInfo("%s set from %d to %d", optName, *optionVars[d], flag);
     *optionVars[d] = flag;
+    taosSetDebugFlag(optionVars[d], optName, flag);
     return;
   }
 
   uError("failed to cfg dynamic option:%s value:%s", option, value);
+}
+
+void taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal) {
+  SConfigItem *pItem = cfgGetItem(tsCfg, flagName);
+  if (pItem != NULL) {
+    pItem->i32 = flagVal;
+  }
+  *pFlagPtr = flagVal;
+}
+
+void taosSetAllDebugFlag(int32_t flag) {
+  if (flag <= 0) return;
+
+  taosSetDebugFlag(&uDebugFlag, "uDebugFlag", flag);
+  taosSetDebugFlag(&rpcDebugFlag, "rpcDebugFlag", flag);
+  taosSetDebugFlag(&jniDebugFlag, "jniDebugFlag", flag);
+  taosSetDebugFlag(&qDebugFlag, "qDebugFlag", flag);
+  taosSetDebugFlag(&cDebugFlag, "cDebugFlag", flag);
+  taosSetDebugFlag(&dDebugFlag, "dDebugFlag", flag);
+  taosSetDebugFlag(&vDebugFlag, "vDebugFlag", flag);
+  taosSetDebugFlag(&mDebugFlag, "mDebugFlag", flag);
+  taosSetDebugFlag(&wDebugFlag, "wDebugFlag", flag);
+  taosSetDebugFlag(&sDebugFlag, "sDebugFlag", flag);
+  taosSetDebugFlag(&tsdbDebugFlag, "tsdbDebugFlag", flag);
+  taosSetDebugFlag(&tqDebugFlag, "tqDebugFlag", flag);
+  taosSetDebugFlag(&fsDebugFlag, "fsDebugFlag", flag);
+  taosSetDebugFlag(&udfDebugFlag, "udfDebugFlag", flag);
+  taosSetDebugFlag(&smaDebugFlag, "smaDebugFlag", flag);
+  taosSetDebugFlag(&idxDebugFlag, "idxDebugFlag", flag);
+  taosSetDebugFlag(&tdbDebugFlag, "tdbDebugFlag", flag);
+  uInfo("all debug flag are set to %d", flag);
 }

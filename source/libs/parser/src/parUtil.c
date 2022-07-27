@@ -92,15 +92,13 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG:
       return "sliding value no larger than the interval value";
     case TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL:
-      return "sliding value can not less than 1% of interval value";
+      return "sliding value can not less than 1%% of interval value";
     case TSDB_CODE_PAR_ONLY_ONE_JSON_TAG:
       return "Only one tag if there is a json tag";
     case TSDB_CODE_PAR_INCORRECT_NUM_OF_COL:
       return "Query block has incorrect number of result columns";
     case TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL:
       return "Incorrect TIMESTAMP value: %s";
-    case TSDB_CODE_PAR_INVALID_DAYS_VALUE:
-      return "Invalid days value, should be keep2 >= keep1 >= keep0 >= days";
     case TSDB_CODE_PAR_OFFSET_LESS_ZERO:
       return "soffset/offset can not be less than 0";
     case TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_BY:

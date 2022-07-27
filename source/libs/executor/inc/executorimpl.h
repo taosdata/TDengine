@@ -320,6 +320,49 @@ typedef struct STableScanInfo {
   int8_t          noTable;
 } STableScanInfo;
 
+typedef struct STableMergeScanInfo {
+  STableListInfo* tableListInfo;
+  int32_t         tableStartIndex;
+  int32_t         tableEndIndex;
+  bool            hasGroupId;
+  uint64_t        groupId;
+  SArray*         dataReaders;  // array of tsdbReaderT*
+  SReadHandle     readHandle;
+  int32_t         bufPageSize;
+  uint32_t        sortBufSize;  // max buffer size for in-memory sort
+  SArray*         pSortInfo;
+  SSortHandle*    pSortHandle;
+
+  SSDataBlock* pSortInputBlock;
+  int64_t      startTs;  // sort start time
+  SArray*      sortSourceParams;
+
+  SFileBlockLoadRecorder readRecorder;
+  int64_t                numOfRows;
+  SScanInfo              scanInfo;
+  int32_t                scanTimes;
+  SNode*                 pFilterNode;  // filter info, which is push down by optimizer
+  SqlFunctionCtx*        pCtx;         // which belongs to the direct upstream operator operator query context
+  SResultRowInfo*        pResultRowInfo;
+  int32_t*               rowEntryInfoOffset;
+  SExprInfo*             pExpr;
+  SSDataBlock*           pResBlock;
+  SArray*                pColMatchInfo;
+  int32_t                numOfOutput;
+
+  SExprSupp       pseudoSup;
+
+  SQueryTableDataCond cond;
+  int32_t             scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
+  int32_t             dataBlockLoadFlag;
+  // if the upstream is an interval operator, the interval info is also kept here to get the time
+  // window to check if current data block needs to be loaded.
+  SInterval       interval;
+  SSampleExecInfo sample;  // sample execution info
+
+  SSortExecInfo sortExecInfo;
+} STableMergeScanInfo;
+
 typedef struct STagScanInfo {
   SColumnInfo     *pCols;
   SSDataBlock     *pRes;
@@ -425,7 +468,6 @@ typedef struct SStreamScanInfo {
   SSDataBlock*           pUpdateDataRes;
   // status for tmq
   // SSchemaWrapper schema;
-  STqOffset              offset;
   SNodeList*             pGroupTags;
   SNode*                 pTagCond;
   SNode*                 pTagIndexCond;
@@ -761,6 +803,7 @@ typedef struct STagFilterOperatorInfo {
 typedef struct SJoinOperatorInfo {
   SSDataBlock       *pRes;
   int32_t            joinType;
+  int32_t            inputTsOrder;
 
   SSDataBlock       *pLeft;
   int32_t            leftPos;
@@ -886,7 +929,7 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
 
 SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pNode, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SJoinPhysiNode* pJoinNode,
+SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SSortMergeJoinPhysiNode* pJoinNode,
                                            SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream,
@@ -959,6 +1002,7 @@ int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pStartTs,
 bool functionNeedToExecute(SqlFunctionCtx* pCtx);
 bool isCloseWindow(STimeWindow* pWin, STimeWindowAggSupp* pSup);
 void appendOneRow(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid);
+void printDataBlock(SSDataBlock* pBlock, const char* flag);
 
 int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
                                        SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs, const int32_t* rowCellOffset,
@@ -976,6 +1020,7 @@ void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsCol
 
 int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* groupKey);
 SSDataBlock* createSpecialDataBlock(EStreamType type);
+void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
 #ifdef __cplusplus
 }

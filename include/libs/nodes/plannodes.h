@@ -104,6 +104,7 @@ typedef struct SJoinLogicNode {
   SNode*     pMergeCondition;
   SNode*     pOnConditions;
   bool       isSingleTableJoin;
+  EOrder     inputTsOrder;
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {
@@ -201,6 +202,7 @@ typedef struct SWindowLogicNode {
   int64_t          watermark;
   int8_t           igExpired;
   EWindowAlgorithm windowAlgo;
+  EOrder           inputTsOrder;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -326,6 +328,7 @@ typedef struct STableScanPhysiNode {
   int8_t         triggerType;
   int64_t        watermark;
   int8_t         igExpired;
+  bool           assignBlockUid;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -356,15 +359,14 @@ typedef struct SInterpFuncPhysiNode {
   SNode*      pTimeSeries;  // SColumnNode
 } SInterpFuncPhysiNode;
 
-typedef struct SJoinPhysiNode {
+typedef struct SSortMergeJoinPhysiNode {
   SPhysiNode node;
   EJoinType  joinType;
   SNode*     pMergeCondition;
   SNode*     pOnConditions;
   SNodeList* pTargets;
-} SJoinPhysiNode;
-
-typedef SJoinPhysiNode SSortMergeJoinPhysiNode;
+  EOrder     inputTsOrder;
+} SSortMergeJoinPhysiNode;
 
 typedef struct SAggPhysiNode {
   SPhysiNode node;
@@ -502,6 +504,7 @@ typedef struct SDataDeleterNode {
   uint64_t      tableId;
   int8_t        tableType;  // table type
   char          tableFName[TSDB_TABLE_FNAME_LEN];
+  char          tsColName[TSDB_COL_NAME_LEN];
   STimeWindow   deleteTimeRange;
   SNode*        pAffectedRows;
 } SDataDeleterNode;

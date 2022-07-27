@@ -415,7 +415,6 @@ static int32_t createScanPhysiNodeFinalize(SPhysiPlanContext* pCxt, SSubplan* pS
                                            SScanPhysiNode* pScanPhysiNode, SPhysiNode** pPhyNode) {
   int32_t code = createScanCols(pCxt, pScanPhysiNode, pScanLogicNode->pScanCols);
   if (TSDB_CODE_SUCCESS == code) {
-    // Data block describe also needs to be set without scanning column, such as SELECT COUNT(*) FROM t
     code = addDataBlockSlots(pCxt, pScanPhysiNode->pScanCols, pScanPhysiNode->node.pOutputDataBlockDesc);
   }
 
@@ -554,6 +553,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->triggerType = pScanLogicNode->triggerType;
   pTableScan->watermark = pScanLogicNode->watermark;
   pTableScan->igExpired = pScanLogicNode->igExpired;
+  pTableScan->assignBlockUid = pCxt->pPlanCxt->rSmaQuery ? true : false;
 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);
 }
@@ -622,8 +622,8 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
 
 static int32_t createJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SJoinLogicNode* pJoinLogicNode,
                                    SPhysiNode** pPhyNode) {
-  SJoinPhysiNode* pJoin =
-      (SJoinPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pJoinLogicNode, QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN);
+  SSortMergeJoinPhysiNode* pJoin =
+      (SSortMergeJoinPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pJoinLogicNode, QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN);
   if (NULL == pJoin) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -633,6 +633,7 @@ static int32_t createJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   int32_t             code = TSDB_CODE_SUCCESS;
 
   pJoin->joinType = pJoinLogicNode->joinType;
+  pJoin->inputTsOrder = pJoinLogicNode->inputTsOrder;
   setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pMergeCondition,
                 &pJoin->pMergeCondition);
   if (TSDB_CODE_SUCCESS == code) {
@@ -975,6 +976,9 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
 }
 
 static bool projectCanMergeDataBlock(SProjectLogicNode* pProject) {
+  if (GROUP_ACTION_KEEP == pProject->node.groupAction) {
+    return false;
+  }
   if (DATA_ORDER_LEVEL_NONE == pProject->node.resultDataOrder) {
     return true;
   }

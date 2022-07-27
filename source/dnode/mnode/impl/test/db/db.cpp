@@ -44,7 +44,7 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
     createReq.daysToKeep2 = 3650;
     createReq.minRows = 100;
     createReq.maxRows = 4096;
-    createReq.fsyncPeriod = 3000;
+    createReq.walFsyncPeriod = 3000;
     createReq.walLevel = 1;
     createReq.precision = 0;
     createReq.compression = 2;
@@ -81,7 +81,7 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
     alterdbReq.daysToKeep0 = -1;
     alterdbReq.daysToKeep1 = -1;
     alterdbReq.daysToKeep2 = -1;
-    alterdbReq.fsyncPeriod = 4000;
+    alterdbReq.walFsyncPeriod = 4000;
     alterdbReq.walLevel = 2;
     alterdbReq.strict = 1;
     alterdbReq.cacheLast = 1;
@@ -140,7 +140,7 @@ TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
     createReq.daysToKeep2 = 3650;
     createReq.minRows = 100;
     createReq.maxRows = 4096;
-    createReq.fsyncPeriod = 3000;
+    createReq.walFsyncPeriod = 3000;
     createReq.walLevel = 1;
     createReq.precision = 0;
     createReq.compression = 2;

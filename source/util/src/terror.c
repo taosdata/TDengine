@@ -195,8 +195,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_PASS_FORMAT,      "Invalid password form
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_USER_FROM_CONN,        "Can not get user from conn")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USERS,           "Too many users")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ALTER_OPER,       "Invalid alter operation")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_AUTH_FAILURE,             "Authentication failure")
 
-// mnode-stable-part1
+//mnode-stable-part1
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STB_ALREADY_EXIST,        "STable already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STB_NOT_EXIST,            "STable not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TAGS,            "Too many tags")
@@ -512,11 +513,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTER_OFFSET_UNIT,         "Cannot use 'year' as
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG,      "Interval offset should be shorter than interval")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTER_SLIDING_UNIT,        "Does not support sliding when interval is natural month/year")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG,     "sliding value no larger than the interval value")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL,   "sliding value can not less than 1% of interval value")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL,   "sliding value can not less than 1%% of interval value")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ONLY_ONE_JSON_TAG,         "Only one tag if there is a json tag")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INCORRECT_NUM_OF_COL,      "Query block has incorrect number of result columns")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL,   "Incorrect TIMESTAMP value")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_DAYS_VALUE,        "Invalid days value, should be keep2 >= keep1 >= keep0 >= days")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OFFSET_LESS_ZERO,          "soffset/offset can not be less than 0")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_BY,  "slimit/soffset only available for PARTITION BY query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TOPIC_QUERY,        "Invalid topic query")

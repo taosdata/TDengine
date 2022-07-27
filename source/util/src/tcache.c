@@ -266,6 +266,7 @@ static void pushfrontNodeInEntryList(SCacheEntry *pEntry, SCacheNode *pNode) {
   pNode->pNext = pEntry->next;
   pEntry->next = pNode;
   pEntry->num += 1;
+  ASSERT((pEntry->next && pEntry->num > 0) || (NULL == pEntry->next && pEntry->num == 0));
 }
 
 static void removeNodeInEntryList(SCacheEntry *pe, SCacheNode *prev, SCacheNode *pNode) {
@@ -278,6 +279,7 @@ static void removeNodeInEntryList(SCacheEntry *pe, SCacheNode *prev, SCacheNode 
 
   pNode->pNext = NULL;
   pe->num -= 1;
+  ASSERT((pe->next && pe->num > 0) || (NULL == pe->next && pe->num == 0));  
 }
 
 static FORCE_INLINE SCacheEntry *doFindEntry(SCacheObj *pCacheObj, const void *key, size_t keyLen) {
@@ -657,15 +659,18 @@ void doTraverseElems(SCacheObj *pCacheObj, bool (*fp)(void *param, SCacheNode *p
 
     taosWLockLatch(&pEntry->latch);
 
+    SCacheNode **pPre = &pEntry->next;
     SCacheNode *pNode = pEntry->next;
     while (pNode != NULL) {
       SCacheNode *next = pNode->pNext;
 
       if (fp(pSup, pNode)) {
+        pPre = &pNode->pNext;
         pNode = pNode->pNext;
       } else {
-        pEntry->next = next;
+        *pPre = next;
         pEntry->num -= 1;
+        ASSERT((pEntry->next && pEntry->num > 0) || (NULL == pEntry->next && pEntry->num == 0));
 
         atomic_sub_fetch_ptr(&pCacheObj->numOfElems, 1);
         pNode = next;

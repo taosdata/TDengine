@@ -110,7 +110,7 @@
 ./test.sh -f tsim/parser/fill.sim
 ./test.sh -f tsim/parser/first_last.sim
 ./test.sh -f tsim/parser/fourArithmetic-basic.sim
-# TD-17659 ./test.sh -f tsim/parser/function.sim
+./test.sh -f tsim/parser/function.sim
 ./test.sh -f tsim/parser/groupby-basic.sim
 ./test.sh -f tsim/parser/groupby.sim
 ./test.sh -f tsim/parser/having_child.sim
@@ -132,8 +132,8 @@
 ./test.sh -f tsim/parser/lastrow.sim
 ./test.sh -f tsim/parser/lastrow2.sim
 ./test.sh -f tsim/parser/like.sim
-# TD-17464 ./test.sh -f tsim/parser/limit.sim
-# TD-17464 ./test.sh -f tsim/parser/limit1.sim
+./test.sh -f tsim/parser/limit.sim
+./test.sh -f tsim/parser/limit1.sim
 # TD-17623 ./test.sh -f tsim/parser/limit2.sim
 ./test.sh -f tsim/parser/mixed_blocks.sim
 ./test.sh -f tsim/parser/nchar.sim
@@ -145,7 +145,7 @@
 ./test.sh -f tsim/parser/select_across_vnodes.sim
 ./test.sh -f tsim/parser/select_distinct_tag.sim
 ./test.sh -f tsim/parser/select_from_cache_disk.sim
-# TD-17659 ./test.sh -f tsim/parser/select_with_tags.sim
+# TD-17832 ./test.sh -f tsim/parser/select_with_tags.sim
 ./test.sh -f tsim/parser/selectResNum.sim
 ./test.sh -f tsim/parser/set_tag_vals.sim
 ./test.sh -f tsim/parser/single_row_in_tb.sim
@@ -165,13 +165,13 @@
 # TD-17661 ./test.sh -f tsim/parser/where.sim
 
 # ---- query
-./test.sh -f tsim/query/interval.sim
-./test.sh -f tsim/query/interval-offset.sim
-./test.sh -f tsim/query/scalarFunction.sim
 ./test.sh -f tsim/query/charScalarFunction.sim
-./test.sh -f tsim/query/explain.sim
-./test.sh -f tsim/query/session.sim
+# ./test.sh -f tsim/query/explain.sim
+./test.sh -f tsim/query/interval-offset.sim
+./test.sh -f tsim/query/interval.sim
+./test.sh -f tsim/query/scalarFunction.sim
 ./test.sh -f tsim/query/scalarNull.sim
+./test.sh -f tsim/query/session.sim
 ./test.sh -f tsim/query/udf.sim
 
 # ---- qnode
@@ -224,7 +224,7 @@
 
 # ---- stream
 ./test.sh -f tsim/stream/basic0.sim
-#./test.sh -f tsim/stream/basic1.sim
+./test.sh -f tsim/stream/basic1.sim
 ./test.sh -f tsim/stream/basic2.sim
 ./test.sh -f tsim/stream/drop_stream.sim
 ./test.sh -f tsim/stream/distributeInterval0.sim

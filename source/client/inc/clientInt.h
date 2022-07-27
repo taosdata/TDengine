@@ -222,6 +222,7 @@ typedef struct SRequestObj {
   int32_t              code;
   SArray*              dbList;
   SArray*              tableList;
+  SArray*              targetTableList;
   SQueryExecMetric     metric;
   SRequestSendRecvBody body;
   bool                 syncQuery;    // todo refactor: async query object
