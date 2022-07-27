@@ -687,6 +687,7 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
 
     TSWAP(pRequest->dbList, (pQuery)->pDbList);
     TSWAP(pRequest->tableList, (pQuery)->pTableList);
+    TSWAP(pRequest->targetTableList, (pQuery)->pTargetTableList);
 
     destorySqlParseWrapper(pWrapper);
 
