@@ -151,7 +151,8 @@ typedef struct SVnodeModifyLogicNode {
   uint64_t         tableId;
   uint64_t         stableId;
   int8_t           tableType;  // table type
-  char             tableFName[TSDB_TABLE_FNAME_LEN];
+  char             tableName[TSDB_TABLE_NAME_LEN];
+  char             tsColName[TSDB_COL_NAME_LEN];
   STimeWindow      deleteTimeRange;
   SVgroupsInfo*    pVgroupList;
   SNodeList*       pInsertCols;
@@ -494,7 +495,7 @@ typedef struct SQueryInserterNode {
   uint64_t      tableId;
   uint64_t      stableId;
   int8_t        tableType;  // table type
-  char          tableFName[TSDB_TABLE_FNAME_LEN];
+  char          tableName[TSDB_TABLE_NAME_LEN];
   int32_t       vgId;
   SEpSet        epSet;
 } SQueryInserterNode;
@@ -503,7 +504,7 @@ typedef struct SDataDeleterNode {
   SDataSinkNode sink;
   uint64_t      tableId;
   int8_t        tableType;  // table type
-  char          tableFName[TSDB_TABLE_FNAME_LEN];
+  char          tableFName[TSDB_TABLE_NAME_LEN];
   char          tsColName[TSDB_COL_NAME_LEN];
   STimeWindow   deleteTimeRange;
   SNode*        pAffectedRows;
