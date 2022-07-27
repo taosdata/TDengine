@@ -1,6 +1,6 @@
 """
 压力测试：模拟 Explorer执行 SQL 的高并发压力测试
-启动命令： tt --case=cloud/prometheus.py --use=cloud_test.yaml
+启动命令： tt --case=cloud/prometheus.py --use=cloud_test.yaml --case-param="thread:10;limit=10"
 """
 import random
 import threading
@@ -13,10 +13,15 @@ from threading import Thread
 
 class Explorer(TDCase):
     def init(self):
-        params = caseutil.parse_param(self.case_param)
-        self.cloud_api = CloudApi()
-        self.thread_count = int(params["thread"])
-        self.limit = int(params["limit"])
+        if self.case_param is not None:
+            params = caseutil.parse_param(self.case_param)
+            self.cloud_api = CloudApi()
+            self.thread_count = int(params["thread"])
+            self.limit = int(params["limit"])
+        else:
+            self.thread_count = 10
+            self.limit = 10
+        self.logger.info("thread_count=%d, limit=%d", self.thread_count, self.limit)
         self.threads = []
 
     def cleanup(self):
