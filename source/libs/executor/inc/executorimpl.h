@@ -1021,6 +1021,7 @@ void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsCol
 
 int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* groupKey);
 SSDataBlock* createSpecialDataBlock(EStreamType type);
+void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
 #ifdef __cplusplus
 }

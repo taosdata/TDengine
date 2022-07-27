@@ -323,7 +323,8 @@ void cliHandleResp(SCliConn* conn) {
   SCliThrd* pThrd = conn->hostThrd;
   STrans*   pTransInst = pThrd->pTransInst;
 
-  STransMsgHead* pHead = (STransMsgHead*)(conn->readBuf.buf);
+  STransMsgHead* pHead = NULL;
+  transDumpFromBuffer(&conn->readBuf, (char**)&pHead);
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
 
@@ -366,7 +367,6 @@ void cliHandleResp(SCliConn* conn) {
     }
   }
   // buf's mem alread translated to transMsg.pCont
-  transClearBuffer(&conn->readBuf);
   if (!CONN_NO_PERSIST_BY_APP(conn)) {
     transMsg.info.handle = (void*)conn->refId;
     tDebug("%s conn %p ref by app", CONN_GET_INST_LABEL(conn), conn);
@@ -636,6 +636,8 @@ static SCliConn* cliCreateConn(SCliThrd* pThrd) {
   transReqQueueInit(&conn->wreqQueue);
 
   transQueueInit(&conn->cliMsgs, NULL);
+
+  transInitBuffer(&conn->readBuf);
   QUEUE_INIT(&conn->q);
   conn->hostThrd = pThrd;
   conn->status = ConnNormal;
@@ -651,8 +653,9 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   QUEUE_REMOVE(&conn->q);
   QUEUE_INIT(&conn->q);
   transRemoveExHandle(transGetRefMgt(), conn->refId);
-  conn->refId = -1;
+  transDestroyBuffer(&conn->readBuf);
 
+  conn->refId = -1;
   if (conn->task != NULL) transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
 
   if (clear) {
@@ -678,7 +681,6 @@ static void cliDestroy(uv_handle_t* handle) {
   tTrace("%s conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
   transReqQueueClear(&conn->wreqQueue);
 
-  transDestroyBuffer(&conn->readBuf);
   taosMemoryFree(conn);
 }
 static bool cliHandleNoResp(SCliConn* conn) {
