@@ -192,5 +192,5 @@ SHOW CREATE TABLE tb_name;
 ### 获取表结构信息
 
 ```
-DESCRIBE tb_name;
+DESCRIBE [db_name.]tb_name;
 ```
