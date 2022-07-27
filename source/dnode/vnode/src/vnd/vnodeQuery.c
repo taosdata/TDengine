@@ -349,14 +349,14 @@ _exit:
   rspMsg.msgType = pMsg->msgType;
 
   if (code) {
-    qError("get batch meta failed cause of %s", tstrerror(code));
+    qError("vnd get batch meta failed cause of %s", tstrerror(code));
   }
 
   taosArrayDestroyEx(batchRsp, tFreeSBatchRsp);
 
   tmsgSendRsp(&rspMsg);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {

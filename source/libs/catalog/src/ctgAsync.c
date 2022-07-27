@@ -783,7 +783,8 @@ int32_t ctgCallSubCb(SCtgTask *pTask) {
         pParent->subRes.code = code;
       }
     }
-    
+
+    pParent->pBatchs = pTask->pBatchs;    
     CTG_ERR_JRET(pParent->subRes.fp(pParent));
   }
   
@@ -1660,6 +1661,7 @@ int32_t ctgSetSubTaskCb(SCtgTask *pSub, SCtgTask *pTask) {
   if (CTG_TASK_DONE == pSub->status) {
     pTask->subRes.code = pSub->code;
     CTG_ERR_JRET((*gCtgAsyncFps[pTask->type].cloneFp)(pSub, &pTask->subRes.res));
+    pTask->pBatchs = pSub->pBatchs;
     CTG_ERR_JRET(pTask->subRes.fp(pTask));
   } else {
     if (NULL == pSub->pParents) {
@@ -1697,6 +1699,7 @@ int32_t ctgLaunchSubTask(SCtgTask *pTask, CTG_TASK_TYPE type, ctgSubTaskCbFp fp,
   CTG_ERR_RET(ctgSetSubTaskCb(pSub, pTask));
 
   if (newTask) {
+    pSub->pBatchs = pTask->pBatchs;
     CTG_ERR_RET((*gCtgAsyncFps[pSub->type].launchFp)(pSub));
     pSub->status = CTG_TASK_LAUNCHED;
   }

@@ -19,6 +19,16 @@
 #include "catalogInt.h"
 #include "systable.h"
 
+void ctgFreeMsgSendParam(void* param) {
+  if (NULL == param) {
+    return;
+  }
+
+  SCtgTaskCallbackParam* pParam = (SCtgTaskCallbackParam*)param;
+  taosArrayDestroy(pParam->taskId);
+
+  taosMemoryFree(param);
+}
 
 void ctgFreeBatch(SCtgBatch *pBatch) {
   if (NULL == pBatch) {

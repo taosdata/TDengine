@@ -251,6 +251,16 @@ typedef struct SCtgMsgCtx {
   char* target;
 } SCtgMsgCtx;
 
+
+typedef struct SCtgTaskCallbackParam {
+  uint64_t                queryId;
+  int64_t                 refId;
+  SArray*                 taskId;
+  int32_t                 reqType;
+  int32_t                 batchId;
+} SCtgTaskCallbackParam;
+
+
 typedef struct SCtgTask SCtgTask;
 typedef int32_t (*ctgSubTaskCbFp)(SCtgTask*);
 
@@ -643,6 +653,7 @@ int32_t ctgLaunchSubTask(SCtgTask *pTask, CTG_TASK_TYPE type, ctgSubTaskCbFp fp,
 int32_t ctgGetTbCfgCb(SCtgTask *pTask);
 void    ctgFreeHandle(SCatalog* pCatalog);
 
+void    ctgFreeMsgSendParam(void* param);
 void    ctgFreeBatch(SCtgBatch *pBatch);
 void    ctgFreeBatchs(SHashObj *pBatchs);
 int32_t ctgCloneVgInfo(SDBVgInfo *src, SDBVgInfo **dst);
