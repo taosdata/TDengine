@@ -1,42 +1,57 @@
 import requests
 from http.cookiejar import CookieJar
 
-cj = CookieJar()
 
-headers = {
-    "Accept": "application/json, text/plain, */*",
-    "Content-Type": "application/json"
-}
+class CloudApi:
+    cj = CookieJar()
 
-
-def get_auth_token():
-    url = 'http://uc.spiderio.cn/uc/api/auth/login'
     headers = {
         "Accept": "application/json, text/plain, */*",
         "Content-Type": "application/json"
     }
-    data = {"email": "bding@taosdata.com", "password": "Dbo@123456"}
 
-    resp = requests.post(url, json=data, headers=headers, cookies=cj)
-    status = resp.status_code
-    body = resp.json()
-    if status != 200 or body['msg'] is not None:
-        print(resp.status_code)
-        print(body)
-        raise Exception("login error")
-    return body["data"]["token"]
+    def __init__(self):
+        self.token = None
+        # self.login_domain = "http://uc.spiderio.cn/"
+        # self.cloud_domain = "http://console.spiderio.cn"
+        # self.app_id = "1552075667132174336"
+        self.login_domain = "https://uc.cloud.tdengine.com/"
+        self.cloud_domain = "https://gcp.cloud.tdengine.com/"
+        self.app_id = "1549749987899842560"
 
+    def get_auth_token(self):
+        url = self.login_domain + '/uc/api/auth/login'
+        headers = {
+            "Accept": "application/json, text/plain, */*",
+            "Content-Type": "application/json"
+        }
+        data = {"email": "bding@taosdata.com", "password": "Dbo@123456"}
 
-def app_list(token):
-    url = 'http://console.spiderio.cn/api/app/list'
-    hds = headers.copy()
-    hds["Authorization"] = "Bearer " + token
-    resp = requests.get(url, headers=hds, cookies=cj)
-    import datetime
-    datetime.datetime.fromtimestamp()
-    return resp
+        res = requests.post(url, headers=headers, json=data, cookies=self.cj)
+        status = res.status_code
+        body = res.json()
+        if status != 200 or body['msg'] is not None:
+            print(res.status_code)
+            print(body)
+            raise Exception("login error")
+        self.token = body["data"]["token"]
+        self.headers["Authorization"] = "Bearer " + self.token
+        return self.token
+
+    def app_list(self):
+        url = self.cloud_domain + 'api/app/list'
+        return requests.get(url, headers=self.headers, cookies=self.cj)
+
+    def sql(self, sql, app_id=None):
+        if app_id is None:
+            app_id = self.app_id
+        url = self.cloud_domain + "api/data/sql/" + app_id
+        data = {"sql": sql}
+        return requests.post(url, headers=self.headers, json=data, cookies=self.cj)
 
 
 if __name__ == '__main__':
-    token = get_auth_token()
-    app_list(token)
+    api = CloudApi()
+    api.get_auth_token()
+    resp = api.sql("show databases")
+    print(resp.json())
