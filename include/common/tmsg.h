@@ -3052,6 +3052,12 @@ typedef struct {
 } SBatchMsg;
 
 typedef struct {
+  SMsgHead  header;
+  int32_t   msgNum;
+  SBatchMsg msg[];
+} SBatchReq;
+
+typedef struct {
   int32_t reqType;
   int32_t msgLen;
   int32_t rspCode;
@@ -3063,7 +3069,7 @@ static FORCE_INLINE void tFreeSBatchRsp(void *p) {
     return;
   }
 
-  SBatchRsp* pRsp = (SBatchRsp*);
+  SBatchRsp* pRsp = (SBatchRsp*)p;
   taosMemoryFree(pRsp->msg);
 }
 

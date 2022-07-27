@@ -124,6 +124,8 @@ _exit:
 
   if (direct) {
     tmsgSendRsp(&rpcMsg);
+  } else {
+    *pMsg = rpcMsg;
   }
   
   taosMemoryFree(metaRsp.pSchemas);
@@ -241,6 +243,8 @@ _exit:
 
   if (direct) {
     tmsgSendRsp(&rpcMsg);
+  } else {
+    *pMsg = rpcMsg;
   }
   
   tFreeSTableCfgRsp(&cfgRsp);
@@ -253,8 +257,9 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
   int32_t offset = 0;
   int32_t rspSize = 0;
-  int32_t msgNum = ntohl(pMsg->pCont);
-  offset += sizeof(msgNum);
+  SBatchReq *batchReq = (SBatchReq*)pMsg->pCont;
+  int32_t msgNum = ntohl(batchReq->msgNum);
+  offset += sizeof(SBatchReq);
   SBatchMsg req = {0};
   SBatchRsp rsp = {0};
   SRpcMsg reqMsg = *pMsg;
@@ -268,11 +273,11 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   }
   
   for (int32_t i = 0; i < msgNum; ++i) {
-    req.msgType = ntohl((char*)pMsg->pCont + offset);
-    offset += req.msgType;
+    req.msgType = ntohl(*(int32_t*)((char*)pMsg->pCont + offset));
+    offset += sizeof(req.msgType);
 
-    req.msgLen = ntohl((char*)pMsg->pCont + offset);
-    offset += req.msgLen;
+    req.msgLen = ntohl(*(int32_t*)((char*)pMsg->pCont + offset));
+    offset += sizeof(req.msgLen);
 
     req.msg = (char*)pMsg->pCont + offset;
     offset += req.msgLen;

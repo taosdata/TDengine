@@ -1709,12 +1709,12 @@ int32_t ctgLaunchJob(SCtgJob *pJob) {
   
   for (int32_t i = 0; i < taskNum; ++i) {
     SCtgTask *pTask = taosArrayGet(pJob->pTasks, i);
+    pTask->pBatchs = pJob->pBatchs;
 
     qDebug("QID:0x%" PRIx64 " ctg launch [%dth] task", pJob->queryId, pTask->taskId);
     CTG_ERR_RET((*gCtgAsyncFps[pTask->type].launchFp)(pTask));
     
     pTask->status = CTG_TASK_LAUNCHED;
-    pTask->pBatchs = pJob->pBatchs;
   }
 
   if (taskNum <= 0) {

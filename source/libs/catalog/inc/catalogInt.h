@@ -208,7 +208,7 @@ typedef struct SCtgBatch {
   int32_t msgType;
   int32_t msgSize;
   SArray* pMsgs;
-  SRequestConnInfo *pConn;
+  SRequestConnInfo conn;
   char    dbFName[TSDB_DB_FNAME_LEN];
   SArray* pTaskIds;
 } SCtgBatch;
@@ -634,6 +634,7 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo *pConn, const SNa
 int32_t ctgGetTableCfgFromVnode(SCatalog* pCtg, SRequestConnInfo *pConn, const SName* pTableName, SVgroupInfo *vgroupInfo, STableCfg **out, SCtgTask* pTask);
 int32_t ctgGetTableCfgFromMnode(SCatalog* pCtg, SRequestConnInfo *pConn, const SName* pTableName, STableCfg **out, SCtgTask* pTask);
 int32_t ctgGetSvrVerFromMnode(SCatalog* pCtg, SRequestConnInfo *pConn, char **out, SCtgTask* pTask);
+int32_t ctgLaunchBatchs(SCatalog* pCtg, SCtgJob *pJob, SHashObj* pBatchs);
 
 int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgJob** job, const SCatalogReq* pReq, catalogCallback fp, void* param);
 int32_t ctgLaunchJob(SCtgJob *pJob);
@@ -660,7 +661,7 @@ int32_t ctgDbVgVersionSearchCompare(const void* key1, const void* key2);
 void    ctgFreeSTableMetaOutput(STableMetaOutput* pOutput);
 int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* target);
 char *  ctgTaskTypeStr(CTG_TASK_TYPE type);
-int32_t ctgUpdateSendTargetInfo(SMsgSendInfo *pMsgSendInfo, int32_t msgType, SCtgTask* pTask);
+int32_t ctgUpdateSendTargetInfo(SMsgSendInfo *pMsgSendInfo, int32_t msgType, char* dbFName, int32_t vgId);
 int32_t ctgCloneTableIndex(SArray* pIndex, SArray** pRes);
 void    ctgFreeSTableIndex(void *info);
 void    ctgClearSubTaskRes(SCtgSubRes *pRes);

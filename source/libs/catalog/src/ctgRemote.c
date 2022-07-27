@@ -24,13 +24,14 @@
 int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBuf *pMsg, int32_t rspCode) {
   int32_t code = 0;
   SArray* pTaskId = cbParam->taskId;
+  SCatalog* pCtg = pJob->pCtg;
   int32_t taskNum = taosArrayGetSize(pTaskId);
   SDataBuf taskMsg = *pMsg;
   int32_t offset = 0;
-  int32_t msgNum = (pMsg->pData && (pMsg->len > 0)) ? htonl(pMsg->pData) : 0;
+  int32_t msgNum = (pMsg->pData && (pMsg->len > 0)) ? ntohl(*(int32_t*)pMsg->pData) : 0;
   ASSERT(taskNum == msgNum || 0 == msgNum);
 
-  qDebug("QID:0x%" PRIx64 " ctg got batch %d rsp %s", pJob->queryId, cbParam->batchId, TMSG_INFO(cbParam->reqType + 1));
+  ctgDebug("QID:0x%" PRIx64 " ctg got batch %d rsp %s", pJob->queryId, cbParam->batchId, TMSG_INFO(cbParam->reqType + 1));
 
   offset += sizeof(msgNum);
   SBatchRsp rsp = {0};
@@ -41,14 +42,14 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
   }
   
   for (int32_t i = 0; i < taskNum; ++i) {
-    int32_t taskId = taosArrayGet(pTaskId, i);
-    SCtgTask *pTask = taosArrayGet(pJob->pTasks, taskId);
+    int32_t* taskId = taosArrayGet(pTaskId, i);
+    SCtgTask *pTask = taosArrayGet(pJob->pTasks, *taskId);
     if (msgNum > 0) {
-      rsp.reqType = htonl(((char*)pMsg->pData) + offset);
+      rsp.reqType = ntohl(*(int32_t*)((char*)pMsg->pData + offset));
       offset += sizeof(rsp.reqType);
-      rsp.msgLen = htonl(((char*)pMsg->pData) + offset);
+      rsp.msgLen = ntohl(*(int32_t*)((char*)pMsg->pData + offset));
       offset += sizeof(rsp.msgLen);
-      rsp.rspCode = htonl(((char*)pMsg->pData) + offset);
+      rsp.rspCode = ntohl(*(int32_t*)((char*)pMsg->pData + offset));
       offset += sizeof(rsp.rspCode);
       rsp.msg = ((char*)pMsg->pData) + offset;
       offset += rsp.msgLen;
@@ -65,7 +66,7 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
 
     pTask->pBatchs = pBatchs;
     
-    qDebug("QID:0x%" PRIx64 " ctg task %d start to handle rsp %s", pJob->queryId, pTask->taskId, TMSG_INFO(taskMsg.msgType + 1));
+    ctgDebug("QID:0x%" PRIx64 " ctg task %d start to handle rsp %s", pJob->queryId, pTask->taskId, TMSG_INFO(taskMsg.msgType + 1));
     
     (*gCtgAsyncFps[pTask->type].handleRspFp)(pTask, rsp.reqType, &taskMsg, (rsp.rspCode ? rsp.rspCode : rspCode));
   }
@@ -317,15 +318,30 @@ int32_t ctgHandleMsgCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
     goto _return;
   }
 
+  SCatalog* pCtg = pJob->pCtg;
+
   if (TDMT_VND_BATCH_META == cbParam->reqType || TDMT_MND_BATCH_META == cbParam->reqType) {
     CTG_ERR_JRET(ctgHandleBatchRsp(pJob, cbParam, pMsg, rspCode));
   } else {
-    int32_t taskId = taosArrayGet(cbParam->taskId, 0);
-    SCtgTask *pTask = taosArrayGet(pJob->pTasks, taskId);
+    int32_t *taskId = taosArrayGet(cbParam->taskId, 0);
+    SCtgTask *pTask = taosArrayGet(pJob->pTasks, *taskId);
 
     qDebug("QID:0x%" PRIx64 " ctg task %d start to handle rsp %s", pJob->queryId, pTask->taskId, TMSG_INFO(cbParam->reqType + 1));
-    
+
+#if CTG_BATCH_FETCH
+    SHashObj* pBatchs = taosHashInit(CTG_DEFAULT_BATCH_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+    if (NULL == pBatchs) {
+      ctgError("taosHashInit %d batch failed", CTG_DEFAULT_BATCH_NUM);
+      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    pTask->pBatchs = pBatchs;
+#endif
+
     CTG_ERR_JRET((*gCtgAsyncFps[pTask->type].handleRspFp)(pTask, cbParam->reqType, pMsg, rspCode));
+
+#if CTG_BATCH_FETCH
+    CTG_ERR_JRET(ctgLaunchBatchs(pJob->pCtg, pJob, pBatchs));    
+#endif    
   }
   
 _return:
@@ -393,6 +409,7 @@ int32_t ctgAsyncSendMsg(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgJob* pJob, 
 
   int64_t transporterId = 0;
   code = asyncSendMsgToServer(pConn->pTrans, &pConn->mgmtEps, &transporterId, pMsgSendInfo);
+  pMsgSendInfo = NULL;
   if (code) {
     ctgError("asyncSendMsgToSever failed, error: %s", tstrerror(code));
     CTG_ERR_JRET(code);
@@ -426,7 +443,7 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo *pConn, SCtgT
       CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }
     
-    newBatch.pConn = pConn;
+    newBatch.conn = *pConn;
 
     req.msgType = msgType;
     req.msgLen = msgSize;
@@ -437,7 +454,7 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo *pConn, SCtgT
     if (NULL == taosArrayPush(newBatch.pTaskIds, &pTask->taskId)) {
       CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }
-    newBatch.msgSize = sizeof(req) + msgSize - POINTER_BYTES;
+    newBatch.msgSize = sizeof(SBatchReq) + sizeof(req) + msgSize - POINTER_BYTES;
 
     if (vgId > 0) {
       if (TDMT_VND_TABLE_CFG == msgType) {
@@ -459,7 +476,7 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo *pConn, SCtgT
       CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
-    ctgDebug("task %d %s req added to batch %d, target vgId %d", pTask->taskId, TMSG_INFO(msgType), newBatch->batchId, vgId);
+    ctgDebug("task %d %s req added to batch %d, target vgId %d", pTask->taskId, TMSG_INFO(msgType), newBatch.batchId, vgId);
 
     return TSDB_CODE_SUCCESS;
   }
@@ -500,7 +517,7 @@ _return:
   return code;
 }
 
-int32_t ctgBuildBatchReqMsg(SCtgBatch* pBatch, void** msg) {
+int32_t ctgBuildBatchReqMsg(SCtgBatch* pBatch, int32_t vgId, void** msg) {
   *msg = taosMemoryMalloc(pBatch->msgSize);
   if (NULL == (*msg)) {
     CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
@@ -508,8 +525,11 @@ int32_t ctgBuildBatchReqMsg(SCtgBatch* pBatch, void** msg) {
 
   int32_t offset = 0;
   int32_t num = taosArrayGetSize(pBatch->pMsgs);
-  *(int32_t*)((char*)(*msg) + offset) = htonl(num);
-  offset += sizeof(num);
+  SBatchReq *pBatchReq = (SBatchReq*)(*msg);
+
+  pBatchReq->header.vgId = htonl(vgId);
+  pBatchReq->msgNum = htonl(num);
+  offset += sizeof(SBatchReq);
   
   for (int32_t i = 0; i < num; ++i) {
     SBatchMsg* pReq = taosArrayGet(pBatch->pMsgs, i);
@@ -534,9 +554,11 @@ int32_t ctgLaunchBatchs(SCatalog* pCtg, SCtgJob *pJob, SHashObj* pBatchs) {
     size_t len = 0;
     int32_t* vgId = taosHashGetKey(p, &len);
     SCtgBatch* pBatch = (SCtgBatch*)p;
+
+    ctgDebug("QID:0x%" PRIx64 " ctg start to launch batch %d", pJob->queryId, pBatch->batchId);
     
-    CTG_ERR_JRET(ctgBuildBatchReqMsg(pBatch, &msg));
-    CTG_ERR_JRET(ctgAsyncSendMsg(pCtg, pBatch->pConn, pJob, pBatch->pTaskIds, pBatch->batchId, 
+    CTG_ERR_JRET(ctgBuildBatchReqMsg(pBatch, *vgId, &msg));
+    CTG_ERR_JRET(ctgAsyncSendMsg(pCtg, &pBatch->conn, pJob, pBatch->pTaskIds, pBatch->batchId, 
                  pBatch->dbFName, *vgId, pBatch->msgType, msg, pBatch->msgSize));
 
     p = taosHashIterate(pBatchs, p);
@@ -1016,7 +1038,7 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo *pConn, const SNa
                              .mgmtEps = vgroupInfo->epSet};
 
 #if CTG_BATCH_FETCH
-    CTG_RET(ctgAddVnodeBatch(pCtg, vgroupInfo->vgId, &vConn, pTask, reqType, msg, msgLen));
+    CTG_RET(ctgAddBatch(pCtg, vgroupInfo->vgId, &vConn, pTask, reqType, msg, msgLen));
 #else      
     SCtgTbMetaCtx* ctx = (SCtgTbMetaCtx*)pTask->taskCtx;
     char dbFName[TSDB_DB_FNAME_LEN];
