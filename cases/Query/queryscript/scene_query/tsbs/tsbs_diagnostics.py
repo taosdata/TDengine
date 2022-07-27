@@ -178,6 +178,39 @@ class TDTestQuery(TDCase):
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        
+                self.logger.info("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
+                
+                stable_where = tdWhere.regular_where()
+                #"SELECT fleet, model,avg(ml) AS mean_load_percentage FROM (SELECT fleet, model,current_load/load_capacity AS ml FROM diagnostics partition BY name, fleet, model) partition BY fleet, model order by  fleet ;"
+                sql1 = "SELECT fleet, model,avg(ml) AS mean_load_percentage FROM (SELECT fleet, model,current_load/load_capacity AS ml FROM %s \
+                        WHERE fleet like 'South_'   partition by name,fleet, model) partition by fleet, model order by  fleet;" % (self.table)
+                for i in range(2,len(stable_where[2])+1):
+                    qt_where = list(combinations(stable_where[2],i))
+                    for qt_where in qt_where:
+                        qt_where = str(qt_where).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
+                        qt_like_match = stable_where[3]
+                        qt_in_where = stable_where[4]
+
+                        #sql2 = "select %s from %s where  %s %s %s" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "SELECT fleet, model,avg(ml) AS mean_load_percentage FROM (SELECT fleet, model,current_load/load_capacity AS ml FROM %s \
+                                WHERE fleet like 'South_' and %s %s %s  partition by name,fleet, model) partition by fleet, model order by  fleet;" % (self.table,qt_where,qt_like_match,qt_in_where)
+                        rows = self.tdSql.query(sql1).row_count 
+                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 3, '%s' %sql2 , 1, rows, 1, 3)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+
+                        #sql2 = "select * from (select %s from %s where %s %s %s)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select * from (SELECT fleet, model,avg(ml) AS mean_load_percentage FROM (SELECT fleet, model,current_load/load_capacity AS ml FROM %s \
+                                WHERE fleet like 'South_' and %s %s %s  partition by name,fleet, model) partition by fleet, model order by  fleet) ;" % (self.table,qt_where,qt_like_match,qt_in_where)
+                        rows = self.tdSql.query(sql1).row_count 
+                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 3, '%s' %sql2 , 1, rows, 1, 3)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
 
             except Exception as e:
                 raise e   
