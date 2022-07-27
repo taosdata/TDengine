@@ -1,0 +1,68 @@
+---
+sidebar_label: DBeaver
+title: 通过开源数据库管理工具 DBeaver 连接 TDengine
+---
+
+DBeaver 是一款流行、开源的数据库管理工具以及 SQL 客户端，其功能强大，并且支持任何拥有 JDBC-Driver 的数据库（这意味着几乎所有数据库都支持）。
+其官网的介绍是这样的：
+>Free multi-platform database tool for developers, database administrators, analysts and all people who need to work with databases. Supports all popular databases: MySQL, PostgreSQL, SQLite, Oracle, DB2, SQL Server, Sybase, MS Access, Teradata, Firebird, Apache Hive, Phoenix, Presto, etc.
+
+只需要简单的配置即可使用 DBeaver 来连接、管理 TDengine。
+
+## 前置条件
+1. DBeaver 依赖 Java (JDK) 11 ，不过其安装包中已包含。可选安装 Maven、Git。
+2. 已安装并启动了 TDengine。
+3. 若使用 TSDBDriver 驱动类连接请在本地安装 TDengine 客户端。
+4. 若使用 RestfulDriver 驱动类连接 TDengine，请确保 taosAdapter 已经正常运行。
+
+## 配置步骤
+- 可以克隆 DBeaver 在 [GitHub](https://github.com/dbeaver/dbeaver) 上的源码，执行 `mvn package`，也可以直接下载打包好的安装包。此处选择直接下载安装包。
+- 在 GitHub DBeaver 仓库的 [Releases](https://github.com/dbeaver/dbeaver/releases) 处下载对应版本的 DBeaver，比如系统为 macOS，处理器芯片是 M1 ，此处下载  dbeaver-ce-22.1.2-macos-aarch64.dmg 进行安装。
+- 点击数据库标签，选择驱动管理器：
+
+![image](https://user-images.githubusercontent.com/70138133/181191577-7bb91c96-b4fc-455f-9f6c-545993f0a445.png)
+
+- 新建驱动，选择 TDengine 的 JDBC Connector 驱动包（其中的 dist.jar 包），此驱动包可以下载或者自行编译、打包，参考 [IDEA-源码编译 JDBC-Connector](https://docs.taosdata.com/2.4/third-party/IDEA#%E6%BA%90%E7%A0%81%E7%BC%96%E8%AF%91-jdbc-connector)：
+
+![image](https://user-images.githubusercontent.com/70138133/181191709-fcc3faa3-cfe9-4b0b-8c1b-5074c9411c8b.png)
+
+- 添加后点击找到类，此处使用 RESTful 驱动类演示（注意：若使用 com.taosdata.jdbc.TSDBDriver 驱动类，则需要安装 TDengine 客户端）：
+
+![image](https://user-images.githubusercontent.com/70138133/181191776-fc1ab7ff-b323-4913-92d7-aa5a10a5a6d8.png)
+
+- 填写一下驱动名称，简单填下配置（需要在 hosts 文件上添加连接串内域名的解析）：
+
+![image](https://user-images.githubusercontent.com/70138133/181191846-2c16b98a-c171-4936-a894-3fdaf96cfba1.png)
+
+- 点击新建连接，搜索配置好的驱动名称，点击后进入下一步：
+
+![image](https://user-images.githubusercontent.com/70138133/181191887-cc13a397-64a0-4dfc-b42f-d65608e71eae.png)
+
+- 输入密码后，点击“测试连接”：
+
+![image](https://user-images.githubusercontent.com/70138133/181191921-e5a05f93-0ef5-45fb-8707-5697bcdef64b.png) 
+
+## 验证方法
+- 点击“测试连接”若弹出“已连接”的提示代表连接成功。界面左侧能看到刷新出来的数据库（database），点击特定的表可以查看表的结构及数据：
+
+![image](https://user-images.githubusercontent.com/70138133/181192410-e7509c1a-0f9c-4282-a69a-82685e659fd7.png)
+
+- 点击界面左上方的新建 SQL 编辑器，默认，输入 SQL 进行验证。需要注意的是，RESTful 请求是无状态的，查询、写入需要在表名前带上数据库名。
+- 2.X 版本中默认带 log 库，我们可以使用`SHOW log.stables;`查看包含哪些超级表后对特定表进行查询、调试:
+
+![image](https://user-images.githubusercontent.com/70138133/181192488-727c3c1d-906a-4fbe-bd2e-41678d5e1627.png)
+
+- 可以看到有个超级表叫做 dnodes_info，执行`describe log.dnodes_info;`查看表结构:
+
+![image](https://user-images.githubusercontent.com/70138133/181192651-0adaafeb-c7ff-4d02-93b4-e1e3aebb39ea.png)
+
+- 再执行`select last_row(*) from log.dnodes_info group by dnode_id;`通过 dnode_id 能分组查询各 dnode_id 下的最新一条数据:
+
+![image](https://user-images.githubusercontent.com/70138133/181192918-e71d6482-3901-4b14-956c-2894658e2b67.png)
+
+- 还有其他操作也可以自行测试，比如写入一条数据后进行查询：
+
+![image](https://user-images.githubusercontent.com/70138133/181192959-27b8ded5-9719-424a-ae08-3b5635dd7fbf.png)
+
+好了，到这里我们就大功告成了。DBeaver 功能强大，其他常用功能还包括导入导出 SQL 脚本、配置表过滤器、建立数据库任务等，大家可以慢慢体验。
+
