@@ -165,13 +165,13 @@
 # TD-17661 ./test.sh -f tsim/parser/where.sim
 
 # ---- query
-./test.sh -f tsim/query/interval.sim
-./test.sh -f tsim/query/interval-offset.sim
-./test.sh -f tsim/query/scalarFunction.sim
 ./test.sh -f tsim/query/charScalarFunction.sim
 ./test.sh -f tsim/query/explain.sim
-./test.sh -f tsim/query/session.sim
+./test.sh -f tsim/query/interval-offset.sim
+./test.sh -f tsim/query/interval.sim
+./test.sh -f tsim/query/scalarFunction.sim
 ./test.sh -f tsim/query/scalarNull.sim
+./test.sh -f tsim/query/session.sim
 ./test.sh -f tsim/query/udf.sim
 
 # ---- qnode
