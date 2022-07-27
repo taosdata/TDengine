@@ -49,7 +49,7 @@ class TDTestQuery(TDCase):
     #basic_param
     db = "tsbs_diagnostics"
     service_host = ""
-    table_list = ['stable_1','stable_2',]
+    table_list = ['stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
     table_null_list = ['stable_null_data','stable_null_childtable']
     table_null = str(random.sample(table_null_list,1)).replace("[","").replace("]","").replace("'","")
@@ -76,6 +76,13 @@ class TDTestQuery(TDCase):
           
     def right_case_1(self):
         self.logger.info("\n==========================right case 1==========================\n")
+        
+        #SELECT ts,name,driver,current_load,load_capacity FROM (SELECT last(ts) as ts,name,driver, current_load,load_capacity FROM diagnostics  
+        #WHERE fleet = 'South'   partition by name,driver) WHERE current_load>= (0.9 * load_capacity) partition by name ORDER BY name desc, ts DESC;
+
+        #SELECT ts,name,driver,current_load,load_capacity FROM (SELECT last(ts) as ts,name,driver, current_load,load_capacity FROM diagnostics  
+        #WHERE fleet = 'South'   partition by name,driver) WHERE current_load>= (0.9 * load_capacity) partition by name ORDER BY name ;
+
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
@@ -91,7 +98,8 @@ class TDTestQuery(TDCase):
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
                 
                 stable_where = tdWhere.regular_where()
-                sql1 = 'select %s from %s;'  % (func,self.table)
+                sql1 = "SELECT ts,name,driver,current_load,load_capacity FROM (SELECT last(ts) as ts,name,driver, current_load,load_capacity FROM %s \
+                        WHERE fleet like 'South_'   partition by name,driver) WHERE current_load>= (0.9 * load_capacity) partition by name ORDER BY name ;" % (self.table)
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
                     for qt_where in qt_where:
@@ -99,20 +107,74 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where  %s %s %s" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        #sql2 = "select %s from %s where  %s %s %s" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "SELECT ts,name,driver,current_load,load_capacity FROM (SELECT last(ts) as ts,name,driver, current_load,load_capacity FROM %s \
+                                WHERE fleet like 'South_' and %s %s %s  partition by name,driver) WHERE current_load>= (0.9 * load_capacity) partition by name ORDER BY name ;" % (self.table,qt_where,qt_like_match,qt_in_where)
+                        rows = self.tdSql.query(sql1).row_count 
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5, '%s' %sql2 , 1, rows, 1, 5)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from (select %s from %s where %s %s %s)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        #sql2 = "select * from (select %s from %s where %s %s %s)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select * from (SELECT ts,name,driver,current_load,load_capacity FROM (SELECT last(ts) as ts,name,driver, current_load,load_capacity FROM %s \
+                                WHERE fleet like 'South_' and %s %s %s  partition by name,driver) WHERE current_load>= (0.9 * load_capacity) partition by name ORDER BY name) ;" % (self.table,qt_where,qt_like_match,qt_in_where)
+                        rows = self.tdSql.query(sql1).row_count 
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5, '%s' %sql2 , 1, rows, 1, 5)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s) where %s %s %s" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        # sql2 = "select %s from (select * from %s) where %s %s %s" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "SELECT ts,name,driver,current_load,load_capacity FROM (SELECT last(ts) as ts,name,driver, current_load,load_capacity FROM (select * from %s )\
+                                WHERE fleet like 'South_' and %s %s %s  partition by name,driver) WHERE current_load>= (0.9 * load_capacity) partition by name ORDER BY name ;" % (self.table,qt_where,qt_like_match,qt_in_where)
+                        rows = self.tdSql.query(sql1).row_count 
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5, '%s' %sql2 , 1, rows, 1, 5)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+                        
+                self.logger.info("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
+                
+                stable_where = tdWhere.regular_where()
+                sql1 = "SELECT ts,name,driver,current_load,load_capacity FROM (SELECT last(ts) as ts,name,driver, current_load,load_capacity FROM %s \
+                        WHERE fleet like 'South_'   partition by name,driver) WHERE current_load>= (0.9 * load_capacity) partition by name ORDER BY name  desc, ts DESC;" % (self.table)
+                for i in range(2,len(stable_where[2])+1):
+                    qt_where = list(combinations(stable_where[2],i))
+                    for qt_where in qt_where:
+                        qt_where = str(qt_where).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
+                        qt_like_match = stable_where[3]
+                        qt_in_where = stable_where[4]
+
+                        #sql2 = "select %s from %s where  %s %s %s" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "SELECT ts,name,driver,current_load,load_capacity FROM (SELECT last(ts) as ts,name,driver, current_load,load_capacity FROM %s \
+                                WHERE fleet like 'South_' and %s %s %s  partition by name,driver) WHERE current_load>= (0.9 * load_capacity) partition by name ORDER BY name  desc, ts DESC;" % (self.table,qt_where,qt_like_match,qt_in_where)
+                        rows = self.tdSql.query(sql1).row_count 
+                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5, '%s' %sql2 , 1, rows, 1, 5)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+
+                        #sql2 = "select * from (select %s from %s where %s %s %s)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select * from (SELECT ts,name,driver,current_load,load_capacity FROM (SELECT last(ts) as ts,name,driver, current_load,load_capacity FROM %s \
+                                WHERE fleet like 'South_' and %s %s %s  partition by name,driver) WHERE current_load>= (0.9 * load_capacity) partition by name ORDER BY name desc, ts DESC) ;" % (self.table,qt_where,qt_like_match,qt_in_where)
+                        rows = self.tdSql.query(sql1).row_count 
+                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5, '%s' %sql2 , 1, rows, 1, 5)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+
+                        # sql2 = "select %s from (select * from %s) where %s %s %s" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "SELECT ts,name,driver,current_load,load_capacity FROM (SELECT last(ts) as ts,name,driver, current_load,load_capacity FROM (select * from %s )\
+                                WHERE fleet like 'South_' and %s %s %s  partition by name,driver) WHERE current_load>= (0.9 * load_capacity) partition by name ORDER BY name  desc, ts DESC;" % (self.table,qt_where,qt_like_match,qt_in_where)
+                        rows = self.tdSql.query(sql1).row_count 
+                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5, '%s' %sql2 , 1, rows, 1, 5)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -1556,40 +1618,40 @@ class TDTestQuery(TDCase):
          
         startTime1 = time.time()
         self.right_case_1()
-        self.data_create(self.db)
-        self.right_case_1_tbname()
-        self.data_create(self.db)
-        self.right_case_1_tbname_groupby()
-        self.right_case_1_interval()
-        self.right_case_1_interval_tbname()
-        endTime1 = time.time()       
-        self.logger.info("total time1 %d s" % (endTime1 - startTime1))
+        # self.data_create(self.db)
+        # self.right_case_1_tbname()
+        # self.data_create(self.db)
+        # self.right_case_1_tbname_groupby()
+        # self.right_case_1_interval()
+        # self.right_case_1_interval_tbname()
+        # endTime1 = time.time()       
+        # self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
-        startTime2 = time.time()
-        self.data_create(self.db)
-        self.right_case_2()
-        self.data_create(self.db)
-        self.right_case_2_tbname()
-        self.data_create(self.db)
-        self.right_case_2_tbname_groupby()
-        self.right_case_2_interval()
-        self.right_case_2_interval_tbname()
-        endTime2 = time.time()       
-        self.logger.info("total time2 %d s" % (endTime2 - startTime2))
+        # startTime2 = time.time()
+        # self.data_create(self.db)
+        # self.right_case_2()
+        # self.data_create(self.db)
+        # self.right_case_2_tbname()
+        # self.data_create(self.db)
+        # self.right_case_2_tbname_groupby()
+        # self.right_case_2_interval()
+        # self.right_case_2_interval_tbname()
+        # endTime2 = time.time()       
+        # self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
-        startTime3 = time.time()
-        self.data_create(self.db)
-        self.right_case_3()
-        self.data_create(self.db)
-        self.right_case_3_tbname()
-        self.data_create(self.db)
-        self.right_case_3_tbname_groupby()
-        self.right_case_3_interval()
-        self.right_case_3_interval_tbname()
-        endTime3 = time.time()
-        self.logger.info("total time3 %ds" % (endTime3 - startTime3))     
+        # startTime3 = time.time()
+        # self.data_create(self.db)
+        # self.right_case_3()
+        # self.data_create(self.db)
+        # self.right_case_3_tbname()
+        # self.data_create(self.db)
+        # self.right_case_3_tbname_groupby()
+        # self.right_case_3_interval()
+        # self.right_case_3_interval_tbname()
+        # endTime3 = time.time()
+        # self.logger.info("total time3 %ds" % (endTime3 - startTime3))     
 
-        endTime = time.time()
-        self.rm_sql()
-        self.logger.info("total time %ds" % (endTime - startTime))
+        # endTime = time.time()
+        # self.rm_sql()
+        # self.logger.info("total time %ds" % (endTime - startTime))
 

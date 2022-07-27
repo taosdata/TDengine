@@ -321,7 +321,7 @@ class TDCreateData():
                             % ( j, self.ts + i*1000-1, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i,
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i -1,
                             fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),
                             fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=1000, max=10000, step=1),fake.random_int(min=100, max=1000, step=1)))
                 
@@ -331,12 +331,19 @@ class TDCreateData():
                             % ( j, self.ts + i*1000+1, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i,
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i +1,
                             fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),
                             fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=1000, max=10000, step=1),fake.random_int(min=100, max=1000, step=1)))
                 
-                self.tdSql.execute('''insert into stable_1_%d  (ts , q_binary , q_nchar, q_ts  ) values(%d, 'binary.%s', 'nchar.%s' , %d) ;''' 
-                            % ( j, self.ts + i*1000+5 , fake.pystr() , fake.address() , self.ts + i))
+                self.tdSql.execute('''insert into stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                                  values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                            % ( j, self.ts + i*1000+10, fake.random_int(min=-2147483647, max=2147483647, step=1), 
+                            fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
+                            fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i + 10))
+                
+                # self.tdSql.execute('''insert into stable_1_%d  (ts , q_binary , q_nchar, q_ts  ) values(%d, 'binary.%s', 'nchar.%s' , %d) ;''' 
+                #             % ( j, self.ts + i*1000+5 , fake.pystr() , fake.address() , self.ts + i))
 
                 status= random.randint(0,1)
                 self.tdSql.execute('''insert into stable_2_%d (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts ,fuel_state , current_load ,status , load_capacity , fuel_capacity , nominal_fuel_consumption) values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d, %f, %f, %d, %f, %f, %f) ;''' 
@@ -350,13 +357,26 @@ class TDCreateData():
                             % ( j ,self.ts + i*1000 + 1, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i ,status))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i +1,status))
+            
+                self.tdSql.execute('''insert into stable_2_%d (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts  ) values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                            % ( j ,self.ts + i*1000 + 9, fake.random_int(min=-2147483647, max=2147483647, step=1), 
+                            fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
+                            fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i +9))
                 
-                self.tdSql.execute('''insert into stable_2_%d  (ts , q_binary , q_nchar, q_ts  ) values(%d, 'binary.%s', 'nchar.%s' , %d) ;''' 
-                            % ( j, self.ts + i*1000+5 , fake.pystr() , fake.address() , self.ts + i))
+                self.tdSql.execute('''insert into stable_2_%d (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts ,fuel_state , current_load ,status , load_capacity , fuel_capacity , nominal_fuel_consumption) values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d, %f, %f, %d, %f, %f, %f) ;''' 
+                            % ( j ,self.ts + i*1000 + 20, fake.random_int(min=-2147483647, max=2147483647, step=1), 
+                            fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
+                            fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i +20,
+                            fake.random_int(min=100, max=32767, step=1),fake.random_int(min=100, max=32767, step=1),status,fake.random_int(min=100, max=32767, step=1),fake.random_int(min=100, max=32767, step=1),fake.random_int(min=100, max=32767, step=1)))
+                                    
+                # self.tdSql.execute('''insert into stable_2_%d  (ts , q_binary , q_nchar, q_ts  ) values(%d, 'binary.%s', 'nchar.%s' , %d) ;''' 
+                #             % ( j, self.ts + i*1000+5 , fake.pystr() , fake.address() , self.ts + i))
 
         self.tdSql.query("select count(*) from stable_2;")
-        self.tdSql.checkData(0,0,self.stable_child_num*self.num_random*n*3)
+        self.tdSql.checkData(0,0,self.stable_child_num*self.num_random*n*4)
         self.tdSql.query("select count(*) from regular_table_1;")
         self.tdSql.checkData(0,0,self.num_random*n)
         
