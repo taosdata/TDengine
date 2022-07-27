@@ -118,12 +118,12 @@ int32_t mndAddDispatcherToInnerTask(SMnode* pMnode, SStreamObj* pStream, SStream
   bool isShuffle = false;
 
   if (pStream->fixedSinkVgId == 0) {
-    pTask->dispatchType = TASK_DISPATCH__SHUFFLE;
-    pTask->dispatchMsgType = TDMT_STREAM_TASK_DISPATCH;
     SDbObj* pDb = mndAcquireDb(pMnode, pStream->targetDb);
     ASSERT(pDb);
     if (pDb->cfg.numOfVgroups > 1) {
       isShuffle = true;
+      pTask->dispatchType = TASK_DISPATCH__SHUFFLE;
+      pTask->dispatchMsgType = TDMT_STREAM_TASK_DISPATCH;
       if (mndExtractDbInfo(pMnode, pDb, &pTask->shuffleDispatcher.dbInfo, NULL) < 0) {
         ASSERT(0);
         return -1;

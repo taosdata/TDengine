@@ -280,7 +280,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
     taosArrayDestroy(req.dataLen);
     return code;
 
-  } else if (pTask->dispatchMsgType == TASK_DISPATCH__SHUFFLE) {
+  } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
     SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
     ASSERT(pTask->shuffleDispatcher.waitingRspCnt == 0);
     int32_t             vgSz = taosArrayGetSize(vgInfo);
@@ -318,6 +318,8 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
           if (streamAddBlockToDispatchMsg(pDataBlock, &pReqs[j]) < 0) {
             goto FAIL_SHUFFLE_DISPATCH;
           }
+          pReqs[j].taskId = pVgInfo->taskId;
+          pReqs[j].blockNum++;
           break;
         }
       }
@@ -342,6 +344,8 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
       taosMemoryFree(pReqs);
     }
     return code;
+  } else {
+    ASSERT(0);
   }
   return 0;
 }
