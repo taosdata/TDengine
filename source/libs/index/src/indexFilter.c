@@ -582,8 +582,11 @@ static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *ou
       // add impl later
       if (node->condType == LOGIC_COND_TYPE_AND) {
         taosArrayAddAll(output->result, params[m].result);
+        taosArrayDestroy(params[m].result);
+        params[m].result = NULL;
       } else if (node->condType == LOGIC_COND_TYPE_OR) {
         taosArrayAddAll(output->result, params[m].result);
+        params[m].result = NULL;
       } else if (node->condType == LOGIC_COND_TYPE_NOT) {
         // taosArrayAddAll(output->result, params[m].result);
       }
@@ -593,6 +596,8 @@ static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *ou
   } else {
     for (int32_t m = 0; m < node->pParameterList->length; m++) {
       output->status = sifMergeCond(node->condType, output->status, params[m].status);
+      taosArrayDestroy(params[m].result);
+      params[m].result = NULL;
     }
   }
 _return:
@@ -607,6 +612,7 @@ static EDealRes sifWalkFunction(SNode *pNode, void *context) {
   SIFCtx *ctx = context;
   ctx->code = sifExecFunction(node, ctx, &output);
   if (ctx->code != TSDB_CODE_SUCCESS) {
+    sifFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
@@ -624,6 +630,7 @@ static EDealRes sifWalkLogic(SNode *pNode, void *context) {
   SIFCtx *ctx = context;
   ctx->code = sifExecLogic(node, ctx, &output);
   if (ctx->code) {
+    sifFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
@@ -640,6 +647,7 @@ static EDealRes sifWalkOper(SNode *pNode, void *context) {
   SIFCtx *ctx = context;
   ctx->code = sifExecOper(node, ctx, &output);
   if (ctx->code) {
+    sifFreeParam(&output);
     return DEAL_RES_ERROR;
   }
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
@@ -698,7 +706,11 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
   }
 
   nodesWalkExprPostOrder(pNode, sifCalcWalker, &ctx);
-  SIF_ERR_RET(ctx.code);
+
+  if (ctx.code != 0) {
+    sifFreeRes(ctx.pRes);
+    return ctx.code;
+  }
 
   if (pDst) {
     SIFParam *res = (SIFParam *)taosHashGet(ctx.pRes, (void *)&pNode, POINTER_BYTES);
@@ -714,8 +726,7 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
     taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
   }
   sifFreeRes(ctx.pRes);
-
-  SIF_RET(code);
+  return code;
 }
 
 static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status) {
@@ -732,8 +743,10 @@ static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status) {
   }
 
   nodesWalkExprPostOrder(pNode, sifCalcWalker, &ctx);
-
-  SIF_ERR_RET(ctx.code);
+  if (ctx.code != 0) {
+    sifFreeRes(ctx.pRes);
+    return ctx.code;
+  }
 
   SIFParam *res = (SIFParam *)taosHashGet(ctx.pRes, (void *)&pNode, POINTER_BYTES);
   if (res == NULL) {
@@ -745,8 +758,7 @@ static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status) {
   sifFreeParam(res);
   taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
   taosHashCleanup(ctx.pRes);
-
-  SIF_RET(code);
+  return code;
 }
 
 int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, SIdxFltStatus *status) {
@@ -760,7 +772,11 @@ int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, 
 
   SArray  *output = taosArrayInit(8, sizeof(uint64_t));
   SIFParam param = {.arg = *metaArg, .result = output};
-  SIF_ERR_RET(sifCalculate((SNode *)pFilterNode, &param));
+  int32_t  code = sifCalculate((SNode *)pFilterNode, &param);
+  if (code != 0) {
+    sifFreeParam(&param);
+    return code;
+  }
 
   taosArrayAddAll(result, param.result);
   sifFreeParam(&param);

@@ -1,5 +1,4 @@
 /** Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
-
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -56,13 +55,14 @@ typedef struct SCliMsg {
 } SCliMsg;
 
 typedef struct SCliThrd {
-  TdThread    thread;  // tid
-  int64_t     pid;     // pid
-  uv_loop_t*  loop;
-  SAsyncPool* asyncPool;
-  uv_idle_t*  idle;
-  uv_timer_t  timer;
-  void*       pool;  // conn pool
+  TdThread      thread;  // tid
+  int64_t       pid;     // pid
+  uv_loop_t*    loop;
+  SAsyncPool*   asyncPool;
+  uv_idle_t*    idle;
+  uv_prepare_t* prepare;
+  uv_timer_t    timer;
+  void*         pool;  // conn pool
 
   // msg queue
   queue         msg;
@@ -118,6 +118,7 @@ static void cliSendCb(uv_write_t* req, int status);
 static void cliConnCb(uv_connect_t* req, int status);
 static void cliAsyncCb(uv_async_t* handle);
 static void cliIdleCb(uv_idle_t* handle);
+static void cliPrepareCb(uv_prepare_t* handle);
 
 static int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg);
 
@@ -198,7 +199,7 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
       pThrd = (SCliThrd*)(exh)->pThrd;                \
     }                                                 \
   } while (0)
-#define CONN_PERSIST_TIME(para)    ((para) == 0 ? 3 * 1000 : (para))
+#define CONN_PERSIST_TIME(para)    ((para) <= 90000 ? 90000 : (para))
 #define CONN_GET_HOST_THREAD(conn) (conn ? ((SCliConn*)conn)->hostThrd : NULL)
 #define CONN_GET_INST_LABEL(conn)  (((STrans*)(((SCliThrd*)(conn)->hostThrd)->pTransInst))->label)
 #define CONN_SHOULD_RELEASE(conn, head)                                                                           \
@@ -967,6 +968,62 @@ static void cliAsyncCb(uv_async_t* handle) {
 static void cliIdleCb(uv_idle_t* handle) {
   SCliThrd* thrd = handle->data;
   tTrace("do idle work");
+
+  SAsyncPool* pool = thrd->asyncPool;
+  for (int i = 0; i < pool->nAsync; i++) {
+    uv_async_t* async = &(pool->asyncs[i]);
+    SAsyncItem* item = async->data;
+
+    queue wq;
+    taosThreadMutexLock(&item->mtx);
+    QUEUE_MOVE(&item->qmsg, &wq);
+    taosThreadMutexUnlock(&item->mtx);
+
+    int count = 0;
+    while (!QUEUE_IS_EMPTY(&wq)) {
+      queue* h = QUEUE_HEAD(&wq);
+      QUEUE_REMOVE(h);
+
+      SCliMsg* pMsg = QUEUE_DATA(h, SCliMsg, q);
+      if (pMsg == NULL) {
+        continue;
+      }
+      (*cliAsyncHandle[pMsg->type])(pMsg, thrd);
+      count++;
+    }
+  }
+  tTrace("prepare work end");
+  if (thrd->stopMsg != NULL) cliHandleQuit(thrd->stopMsg, thrd);
+}
+static void cliPrepareCb(uv_prepare_t* handle) {
+  SCliThrd* thrd = handle->data;
+  tTrace("prepare work start");
+
+  SAsyncPool* pool = thrd->asyncPool;
+  for (int i = 0; i < pool->nAsync; i++) {
+    uv_async_t* async = &(pool->asyncs[i]);
+    SAsyncItem* item = async->data;
+
+    queue wq;
+    taosThreadMutexLock(&item->mtx);
+    QUEUE_MOVE(&item->qmsg, &wq);
+    taosThreadMutexUnlock(&item->mtx);
+
+    int count = 0;
+    while (!QUEUE_IS_EMPTY(&wq)) {
+      queue* h = QUEUE_HEAD(&wq);
+      QUEUE_REMOVE(h);
+
+      SCliMsg* pMsg = QUEUE_DATA(h, SCliMsg, q);
+      if (pMsg == NULL) {
+        continue;
+      }
+      (*cliAsyncHandle[pMsg->type])(pMsg, thrd);
+      count++;
+    }
+  }
+  tTrace("prepare work end");
+  if (thrd->stopMsg != NULL) cliHandleQuit(thrd->stopMsg, thrd);
 }
 
 static void* cliWorkThread(void* arg) {
@@ -1033,7 +1090,12 @@ static SCliThrd* createThrdObj() {
   // pThrd->idle = taosMemoryCalloc(1, sizeof(uv_idle_t));
   // uv_idle_init(pThrd->loop, pThrd->idle);
   // pThrd->idle->data = pThrd;
-  //  uv_idle_start(pThrd->idle, cliIdleCb);
+  // uv_idle_start(pThrd->idle, cliIdleCb);
+
+  pThrd->prepare = taosMemoryCalloc(1, sizeof(uv_prepare_t));
+  uv_prepare_init(pThrd->loop, pThrd->prepare);
+  pThrd->prepare->data = pThrd;
+  uv_prepare_start(pThrd->prepare, cliPrepareCb);
 
   pThrd->pool = createConnPool(4);
   transDQCreate(pThrd->loop, &pThrd->delayQueue);
@@ -1058,6 +1120,7 @@ static void destroyThrdObj(SCliThrd* pThrd) {
   transDQDestroy(pThrd->timeoutQueue, NULL);
 
   taosMemoryFree(pThrd->idle);
+  taosMemoryFree(pThrd->prepare);
   taosMemoryFree(pThrd->loop);
   taosMemoryFree(pThrd);
 }
