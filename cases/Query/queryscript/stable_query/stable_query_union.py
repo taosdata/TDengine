@@ -317,7 +317,7 @@ class TDTestQuery(TDCase):
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db_2_2)  
-                self.tdSql.execute('use %s;' %self.db_2)   
+                self.tdSql.execute('use %s;' %self.db_2_2)   
 
                 self.logger.info("case2.1:select * from stable_1 where condition order by ts asc | desc union all select * from stable_1[null data] where condition && select * from ( union all )")
                 self.logger.info("\n\n\n=========================================case2.1=========================================\n\n\n")
