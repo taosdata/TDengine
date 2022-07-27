@@ -67,15 +67,6 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers);
 qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols, SSchemaWrapper** pSchema);
 
 /**
- * Set the input data block for the stream scan.
- * @param tinfo
- * @param input
- * @param type
- * @return
- */
-int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type);
-
-/**
  * Set multiple input data blocks for the stream scan.
  * @param tinfo
  * @param pBlocks

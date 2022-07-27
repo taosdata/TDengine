@@ -94,10 +94,6 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
   }
 }
 
-int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type) {
-  return qSetMultiStreamInput(tinfo, input, 1, type);
-}
-
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
   if (tinfo == NULL) {
     return TSDB_CODE_QRY_APP_ERROR;

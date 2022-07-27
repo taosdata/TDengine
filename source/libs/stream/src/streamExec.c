@@ -27,7 +27,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
     ASSERT(pTask->isDataScan);
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)data;
     qDebug("task %d %p set submit input %p %p %d 1", pTask->taskId, pTask, pSubmit, pSubmit->data, *pSubmit->dataRef);
-    qSetStreamInput(exec, pSubmit->data, STREAM_INPUT__DATA_SUBMIT);
+    qSetMultiStreamInput(exec, pSubmit->data, 1, STREAM_INPUT__DATA_SUBMIT);
   } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)data;
     SArray*           blocks = pBlock->blocks;
