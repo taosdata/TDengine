@@ -33,7 +33,7 @@ class Testfsync(TDCase):
         test_param = self.cfg["create_name"]
         query_param = self.cfg['query_name']
         dbname = self.tdCom.get_long_name()
-        self.tdCom.createDb(dbname, wal=2)
+        self.tdCom.createDb(dbname, wal_level=2)
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         # default
