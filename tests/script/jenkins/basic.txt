@@ -274,7 +274,6 @@
 ./test.sh -f tsim/stable/dnode3.sim
 ./test.sh -f tsim/stable/metrics.sim
 ./test.sh -f tsim/stable/refcount.sim
-./test.sh -f tsim/stable/show.sim
 ./test.sh -f tsim/stable/tag_add.sim
 ./test.sh -f tsim/stable/tag_drop.sim
 ./test.sh -f tsim/stable/tag_filter.sim
@@ -308,6 +307,7 @@
 ./test.sh -f tsim/valgrind/checkError4.sim
 ./test.sh -f tsim/valgrind/checkError5.sim
 ./test.sh -f tsim/valgrind/checkError6.sim
+./test.sh -f tsim/valgrind/checkError7.sim
 
 # --- vnode
 # unsupport ./test.sh -f tsim/vnode/replica3_basic.sim
