@@ -81,7 +81,7 @@ class TDWhere():
             q_tinyint_list.append(i)
         q_tinyint_list = "q_tinyint in (" + str(q_tinyint_list).replace("[","").replace("]","") + ")"
 
-        q_in_where = [q_tinyint_list,'q_bool in (0 , 1) ' ,  'q_bool in ( true , false) ' ,' (q_bool = true or  q_bool = false)' , '(q_bool = 0 or q_bool = 1)',]
+        q_in_where = [q_tinyint_list,'q_bool in (0 , 1) ' ,  'q_bool in ( true , false) ' ,' (q_bool = true or  q_bool = false or q_bool is null)' , '(q_bool = 0 or q_bool = 1  or q_bool is null)',]
         #q_in_where = ['q_bool in (0 , 1) ' ,  'q_bool in ( true , false) ' ,' (q_bool = true or  q_bool = false)' , '(q_bool = 0 or q_bool = 1)',]#TD-16400
         q_in = random.sample(q_in_where,1)
         
