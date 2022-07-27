@@ -131,7 +131,7 @@ if $rows != 172798 then
 endi
 
 sql select t1,t1,count(*),tbname,t1,t1,tbname from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' partition by tbname, t1 interval(1s) fill(NULL) slimit 1 soffset 0 limit 250000 offset 1
-if $rows != 85648 then
+if $rows != 86399 then
   return -1
 endi
 
@@ -146,7 +146,7 @@ if $rows != 4 then
 endi
 
 sql select t1,t1,count(*),tbname,t1,t1,tbname from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' partition by tbname, t1 interval(1s) fill(NULL) slimit 1 soffset 1 limit 250000 offset 1
-if $rows != 87150 then
+if $rows != 86399 then
   return -1
 endi
 

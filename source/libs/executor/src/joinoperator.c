@@ -83,8 +83,6 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   } else if (pJoinNode->inputTsOrder == ORDER_DESC) {
     pInfo->inputTsOrder = TSDB_ORDER_DESC;
   }
-  //TODO: remove this when JoinNode inputTsOrder is ready
-  pInfo->inputTsOrder = TSDB_ORDER_ASC;
 
   pOperator->fpSet =
       createOperatorFpSet(operatorDummyOpenFn, doMergeJoin, NULL, NULL, destroyMergeJoinOperator, NULL, NULL, NULL);
@@ -116,7 +114,9 @@ void destroyMergeJoinOperator(void* param, int32_t numOfOutput) {
 
   taosMemoryFreeClear(param);
 }
-static void doJoinOneRow(struct SOperatorInfo* pOperator, SSDataBlock* pRes, int32_t currRow) {
+
+static void mergeJoinJoinLeftRight(struct SOperatorInfo* pOperator, SSDataBlock* pRes, int32_t currRow,
+                            SSDataBlock* pLeftBlock, int32_t leftPos, SSDataBlock* pRightBlock, int32_t rightPos) {
   SJoinOperatorInfo* pJoinInfo = pOperator->info;
 
   for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
@@ -130,11 +130,11 @@ static void doJoinOneRow(struct SOperatorInfo* pOperator, SSDataBlock* pRes, int
 
     SColumnInfoData* pSrc = NULL;
     if (pJoinInfo->pLeft->info.blockId == blockId) {
-      pSrc = taosArrayGet(pJoinInfo->pLeft->pDataBlock, slotId);
-      rowIndex = pJoinInfo->leftPos;
+      pSrc = taosArrayGet(pLeftBlock->pDataBlock, slotId);
+      rowIndex = leftPos;
     } else {
-      pSrc = taosArrayGet(pJoinInfo->pRight->pDataBlock, slotId);
-      rowIndex = pJoinInfo->rightPos;
+      pSrc = taosArrayGet(pRightBlock->pDataBlock, slotId);
+      rowIndex = rightPos;
     }
 
     if (colDataIsNull_s(pSrc, rowIndex)) {
@@ -146,6 +146,45 @@ static void doJoinOneRow(struct SOperatorInfo* pOperator, SSDataBlock* pRes, int
   }
 
 }
+
+static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs, int64_t* pRightTs) {
+  SJoinOperatorInfo* pJoinInfo = pOperator->info;
+
+  if (pJoinInfo->pLeft == NULL || pJoinInfo->leftPos >= pJoinInfo->pLeft->info.rows) {
+    SOperatorInfo* ds1 = pOperator->pDownstream[0];
+    pJoinInfo->pLeft = ds1->fpSet.getNextFn(ds1);
+
+    pJoinInfo->leftPos = 0;
+    if (pJoinInfo->pLeft == NULL) {
+      setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
+      return false;
+    }
+  }
+
+  if (pJoinInfo->pRight == NULL || pJoinInfo->rightPos >= pJoinInfo->pRight->info.rows) {
+    SOperatorInfo* ds2 = pOperator->pDownstream[1];
+    pJoinInfo->pRight = ds2->fpSet.getNextFn(ds2);
+
+    pJoinInfo->rightPos = 0;
+    if (pJoinInfo->pRight == NULL) {
+      setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
+      return false;
+    }
+  }
+  // only the timestamp match support for ordinary table
+  SColumnInfoData* pLeftCol = taosArrayGet(pJoinInfo->pLeft->pDataBlock, pJoinInfo->leftCol.slotId);
+  char*            pLeftVal = colDataGetData(pLeftCol, pJoinInfo->leftPos);
+  *pLeftTs = *(int64_t*)pLeftVal;
+
+  SColumnInfoData* pRightCol = taosArrayGet(pJoinInfo->pRight->pDataBlock, pJoinInfo->rightCol.slotId);
+  char*            pRightVal = colDataGetData(pRightCol, pJoinInfo->rightPos);
+  *pRightTs = *(int64_t*)pRightVal;
+
+  ASSERT(pLeftCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
+  ASSERT(pRightCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
+  return true;
+}
+
 static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) {
   SJoinOperatorInfo* pJoinInfo = pOperator->info;
 
@@ -154,52 +193,27 @@ static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) 
   bool asc = (pJoinInfo->inputTsOrder == TSDB_ORDER_ASC) ? true : false;
 
   while (1) {
-    // todo extract method
-    if (pJoinInfo->pLeft == NULL || pJoinInfo->leftPos >= pJoinInfo->pLeft->info.rows) {
-      SOperatorInfo* ds1 = pOperator->pDownstream[0];
-      pJoinInfo->pLeft = ds1->fpSet.getNextFn(ds1);
-
-      pJoinInfo->leftPos = 0;
-      if (pJoinInfo->pLeft == NULL) {
-        setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
-        break;
-      }
+    int64_t leftTs = 0;
+    int64_t rightTs = 0;
+    bool hasNextTs = mergeJoinGetNextTimestamp(pOperator, &leftTs, &rightTs);
+    if (!hasNextTs) {
+      break;
     }
 
-    if (pJoinInfo->pRight == NULL || pJoinInfo->rightPos >= pJoinInfo->pRight->info.rows) {
-      SOperatorInfo* ds2 = pOperator->pDownstream[1];
-      pJoinInfo->pRight = ds2->fpSet.getNextFn(ds2);
-
-      pJoinInfo->rightPos = 0;
-      if (pJoinInfo->pRight == NULL) {
-        setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
-        break;
-      }
-    }
-
-    SColumnInfoData* pLeftCol = taosArrayGet(pJoinInfo->pLeft->pDataBlock, pJoinInfo->leftCol.slotId);
-    char*            pLeftVal = colDataGetData(pLeftCol, pJoinInfo->leftPos);
-
-    SColumnInfoData* pRightCol = taosArrayGet(pJoinInfo->pRight->pDataBlock, pJoinInfo->rightCol.slotId);
-    char*            pRightVal = colDataGetData(pRightCol, pJoinInfo->rightPos);
-
-    // only the timestamp match support for ordinary table
-    ASSERT(pLeftCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
-    if (*(int64_t*)pLeftVal == *(int64_t*)pRightVal) {
-      doJoinOneRow(pOperator, pRes, nrows);
+    if (leftTs == rightTs) {
+      mergeJoinJoinLeftRight(pOperator, pRes, nrows,
+                      pJoinInfo->pLeft, pJoinInfo->leftPos, pJoinInfo->pRight, pJoinInfo->rightPos);
       pJoinInfo->leftPos += 1;
       pJoinInfo->rightPos += 1;
 
       nrows += 1;
-    } else if (asc && *(int64_t*)pLeftVal < *(int64_t*)pRightVal ||
-               !asc && *(int64_t*)pLeftVal > *(int64_t*)pRightVal) {
+    } else if (asc && leftTs < rightTs || !asc && leftTs > rightTs) {
       pJoinInfo->leftPos += 1;
 
       if (pJoinInfo->leftPos >= pJoinInfo->pLeft->info.rows) {
         continue;
       }
-    } else if (asc && *(int64_t*)pLeftVal > *(int64_t*)pRightVal ||
-               !asc && *(int64_t*)pLeftVal < *(int64_t*)pRightVal) {
+    } else if (asc && leftTs > rightTs || !asc && leftTs < rightTs) {
       pJoinInfo->rightPos += 1;
       if (pJoinInfo->rightPos >= pJoinInfo->pRight->info.rows) {
         continue;
