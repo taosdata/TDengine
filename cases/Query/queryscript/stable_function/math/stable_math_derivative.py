@@ -839,9 +839,9 @@ class TDTestQuery(TDCase):
                 sql1 = 'select %s from %s ;'  % (func,self.table)
                 n = random.randrange(0,2) 
                 func_0 = func_0.replace(",ignore_negative",",1") #ignore_negative 参数的值可以是 0 或 1，为 1 时表示忽略负值。
-                sql0 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func_0,self.table,self.table)
+                sql0 = "select %s from %s order by ts;"  % (func_0,self.table,self.table)
                 func = func.replace("ignore_negative","%d" %n)
-                sql1 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func,self.table,self.table)
+                sql1 = "select %s from %s order by ts;"  % (func,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
