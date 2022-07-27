@@ -1,7 +1,12 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-
+#ifdef LINUX
+#include <unistd.h>
+#endif
+#ifdef WINDOWS
+#include <windows.h>
+#endif
 #include "taosudf.h"
 
 
@@ -35,6 +40,12 @@ DLL_EXPORT int32_t udf1(SUdfDataBlock* block, SUdfColumn *resultCol) {
       udfColDataSet(resultCol, i, (char *)&luckyNum, false);
     }
   }
-
+  //to simulate actual processing delay by udf
+#ifdef LINUX
+  usleep(1 * 1000);   // usleep takes sleep time in us (1 millionth of a second)
+#endif
+#ifdef WINDOWS
+  Sleep(1);
+#endif
   return 0;
 }

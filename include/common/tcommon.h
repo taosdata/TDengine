@@ -103,6 +103,7 @@ typedef struct SDataBlockInfo {
   int16_t     hasVarCol;
   uint32_t    capacity;
   // TODO: optimize and remove following
+  int64_t     version;  // used for stream, and need serialization
   int32_t     childId;  // used for stream, do not serialize
   EStreamType type;     // used for stream, do not serialize
   STimeWindow calWin;   // used for stream, do not serialize
@@ -152,11 +153,10 @@ typedef struct SQueryTableDataCond {
   int32_t      order;  // desc|asc order to iterate the data block
   int32_t      numOfCols;
   SColumnInfo* colList;
-  int32_t      type;  // data block load type:
-                      //  int32_t      numOfTWindows;
-  STimeWindow twindows;
-  int64_t     startVersion;
-  int64_t     endVersion;
+  int32_t      type;   // data block load type:
+  STimeWindow  twindows;
+  int64_t      startVersion;
+  int64_t      endVersion;
 } SQueryTableDataCond;
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);

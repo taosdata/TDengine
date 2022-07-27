@@ -132,10 +132,12 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
   while (1) {
     if (!fromProcessedMsg) {
       if (walNextValidMsg(pReader->pWalReader) < 0) {
-        pReader->ver = pReader->pWalReader->curVersion - pReader->pWalReader->curInvalid;
+        pReader->ver =
+            pReader->pWalReader->curVersion - (pReader->pWalReader->curInvalid | pReader->pWalReader->curStopped);
         ret->offset.type = TMQ_OFFSET__LOG;
         ret->offset.version = pReader->ver;
         ret->fetchType = FETCH_TYPE__NONE;
+        tqDebug("return offset %ld, no more valid", ret->offset.version);
         ASSERT(ret->offset.version >= 0);
         return -1;
       }
@@ -167,6 +169,7 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
       ret->offset.version = pReader->ver;
       ASSERT(pReader->ver >= 0);
       ret->fetchType = FETCH_TYPE__NONE;
+      tqDebug("return offset %ld, processed finish", ret->offset.version);
       return 0;
     }
   }
@@ -314,6 +317,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader) {
 
   pBlock->info.uid = pReader->msgIter.uid;
   pBlock->info.rows = pReader->msgIter.numOfRows;
+  pBlock->info.version = pReader->pMsg->version;
 
   while ((row = tGetSubmitBlkNext(&pReader->blkIter)) != NULL) {
     tdSTSRowIterReset(&iter, row);
@@ -339,29 +343,30 @@ FAIL:
 
 void tqReaderSetColIdList(STqReader* pReadHandle, SArray* pColIdList) { pReadHandle->pColIdList = pColIdList; }
 
-int tqReaderSetTbUidList(STqReader* pHandle, const SArray* tbUidList) {
-  if (pHandle->tbIdHash) {
-    taosHashClear(pHandle->tbIdHash);
+int tqReaderSetTbUidList(STqReader* pReader, const SArray* tbUidList) {
+  if (pReader->tbIdHash) {
+    taosHashClear(pReader->tbIdHash);
+  } else {
+    pReader->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   }
 
-  pHandle->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
-  if (pHandle->tbIdHash == NULL) {
+  if (pReader->tbIdHash == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
   for (int i = 0; i < taosArrayGetSize(tbUidList); i++) {
     int64_t* pKey = (int64_t*)taosArrayGet(tbUidList, i);
-    taosHashPut(pHandle->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
+    taosHashPut(pReader->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
   }
 
   return 0;
 }
 
-int tqReaderAddTbUidList(STqReader* pHandle, const SArray* tbUidList) {
-  if (pHandle->tbIdHash == NULL) {
-    pHandle->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
-    if (pHandle->tbIdHash == NULL) {
+int tqReaderAddTbUidList(STqReader* pReader, const SArray* tbUidList) {
+  if (pReader->tbIdHash == NULL) {
+    pReader->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    if (pReader->tbIdHash == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
@@ -369,18 +374,18 @@ int tqReaderAddTbUidList(STqReader* pHandle, const SArray* tbUidList) {
 
   for (int i = 0; i < taosArrayGetSize(tbUidList); i++) {
     int64_t* pKey = (int64_t*)taosArrayGet(tbUidList, i);
-    taosHashPut(pHandle->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
+    taosHashPut(pReader->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
   }
 
   return 0;
 }
 
-int tqReaderRemoveTbUidList(STqReader* pHandle, const SArray* tbUidList) {
-  ASSERT(pHandle->tbIdHash != NULL);
+int tqReaderRemoveTbUidList(STqReader* pReader, const SArray* tbUidList) {
+  ASSERT(pReader->tbIdHash != NULL);
 
   for (int32_t i = 0; i < taosArrayGetSize(tbUidList); i++) {
     int64_t* pKey = (int64_t*)taosArrayGet(tbUidList, i);
-    taosHashRemove(pHandle->tbIdHash, pKey, sizeof(int64_t));
+    taosHashRemove(pReader->tbIdHash, pKey, sizeof(int64_t));
   }
 
   return 0;
@@ -393,10 +398,8 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
     if (pIter == NULL) break;
     STqHandle* pExec = (STqHandle*)pIter;
     if (pExec->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-      for (int32_t i = 0; i < 5; i++) {
-        int32_t code = qUpdateQualifiedTableId(pExec->execHandle.execCol.task[i], tbUidList, isAdd);
-        ASSERT(code == 0);
-      }
+      int32_t code = qUpdateQualifiedTableId(pExec->execHandle.execCol.task, tbUidList, isAdd);
+      ASSERT(code == 0);
     } else if (pExec->execHandle.subType == TOPIC_SUB_TYPE__DB) {
       if (!isAdd) {
         int32_t sz = taosArrayGetSize(tbUidList);

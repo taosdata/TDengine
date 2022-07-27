@@ -62,9 +62,6 @@ while $i < $tbNum
 
 endw
 
-sleep 100
-
-
 #======================= only check first table tag, TD-4827
 sql select count(*) from $mt where t1 in (0)  
 if $rows != 1 then 
@@ -178,15 +175,15 @@ if $data03 != @abc15@ then
 endi
 
 sql select top(c6, 3) from select_tags_mt0 interval(10a)
-sql select top(c3,10) from select_tags_mt0 interval(10a) group by tbname,t1,t2
-sql select top(c6, 3) from select_tags_mt0 interval(10a) group by tbname;
+sql select top(c3,10) from select_tags_mt0 partition by tbname,t1,t2 interval(10a)
+sql select top(c6, 3) from select_tags_mt0 partition by tbname interval(10a)
 
 sql select top(c6, 10) from select_tags_mt0 interval(10a);
 if $rows != 12800 then
   return -1
 endi
 
-sql select top(c1, 80), tbname, t1, t2 from select_tags_mt0;
+sql select ts, top(c1, 80), tbname, t1, t2 from select_tags_mt0 order by ts;
 if $rows != 80 then
    return -1
 endi
@@ -215,7 +212,7 @@ if $data04 != @abc12@ then
    return -1
 endi
 
-sql select top(c1, 80), tbname, t1, t2 from select_tags_mt0;
+sql select ts, top(c1, 80), tbname, t1, t2 from select_tags_mt0 order by ts;
 if $rows != 80 then
    return -1
 endi
@@ -244,7 +241,7 @@ if $data04 != @abc12@ then
    return -1
 endi
 
-sql select bottom(c1, 72), tbname, t1, t2 from select_tags_mt0;
+sql select ts, bottom(c1, 72), tbname, t1, t2 from select_tags_mt0 order by ts;
 if $rows != 72 then
    return -1
 endi
@@ -296,7 +293,7 @@ if $data03 != 15 then
 endi
 
 print ====== selectivity+tags+group by tags=======================
-sql select first(c1), tbname, t1, t2 from select_tags_mt0 group by tbname;
+sql select first(c1), tbname, t1, t2, tbname from select_tags_mt0 group by tbname order by t1;
 if $rows != 16 then
    return -1
 endi
@@ -330,7 +327,7 @@ if $data04 != @select_tags_tb0@ then
    return -1
 endi
 
-sql select last_row(ts,c1), tbname, t1, t2 from select_tags_mt0 group by tbname;
+sql select last_row(ts,c1), tbname, t1, t2, tbname from select_tags_mt0 group by tbname order by t1;
 if $rows != 16 then
    return -1
 endi
@@ -364,7 +361,7 @@ if $data04 != @abc0@ then
    return -1
 endi
 
-sql select tbname,t1,t2 from select_tags_mt0;
+sql select distinct tbname,t1,t2 from select_tags_mt0;
 if $row != 16 then
    return -1
 endi
@@ -414,7 +411,7 @@ if $data11 != @70-01-01 08:01:40.001@ then
   return -1
 endi
 
-sql select top(c1, 100), tbname, t1, t2 from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') group by tbname;
+sql select ts, top(c1, 100), tbname, t1, t2 from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') group by tbname order by ts;
 if $row != 200 then
   return -1
 endi
@@ -451,7 +448,7 @@ if $data04 != @abc0@ then
   return -1
 endi
 
-sql select top(c1, 2), t2 from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') group by tbname,t2;
+sql select ts, top(c1, 2), t2, tbname, t2 from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') group by tbname,t2 order by ts;
 if $row != 4 then
   return -1
 endi
@@ -538,33 +535,13 @@ endi
 
 
 # slimit /limit
-sql select top(c1, 2), t2 from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') group by tbname,t2 limit 2 offset 1;
+sql select ts, top(c1, 2), t2 from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') group by tbname,t2 limit 2 offset 1;
 if $row != 2 then
   return -1
 endi
 
-if $data00 != @70-01-01 08:01:40.199@ then
-  return -1
-endi
-
-if $data01 != 99 then
-   return -1
-endi
-
-if $data02 != @abc0@ then
-   return -1
-endi
-
-if $data03 != @select_tags_tb0@ then
-   return -1
-endi
-
-if $data04 != @abc0@ then
-   return -1
-endi
-
 print ======= selectivity + tags + group by + tags + filter ===========================
-sql select first(c1), t1 from select_tags_mt0 where c1<=2 group by tbname;
+sql select first(c1), t1, tbname from select_tags_mt0 where c1<=2 group by tbname order by t1;
 if $row != 3 then
   return -1
 endi
@@ -605,7 +582,7 @@ if $data22 != @select_tags_tb2@ then
    return -1
 endi
 
-sql select first(c1), tbname from select_tags_mt0 where c1<=2 interval(1s);
+sql select _wstart, first(c1), tbname from select_tags_mt0 where c1<=2 interval(1s);
 if $row != 3 then
    return -1
 endi
@@ -674,7 +651,7 @@ if $data01 != @70-01-01 08:01:50.001@ then
 endi
 
 print ======= selectivity + tags + group by + tags + filter + interval ================
-sql select first(c1), t2, t1, tbname from select_tags_mt0 where c1<=2 interval(1d) group by tbname;
+sql select _wstart,first(c1), t2, t1, tbname, tbname from select_tags_mt0 where c1<=2 partition by tbname interval(1d) order by t1;
 if $row != 3 then
    return -1
 endi
@@ -711,7 +688,7 @@ if $data25 != @select_tags_tb2@ then
   return -1
 endi
 
-sql select top(c1, 5), t2 from select_tags_mt0 where c1<=2 interval(1d) group by tbname;
+sql select ts, top(c1, 5), t2, tbname from select_tags_mt0 where c1<=2 partition by tbname interval(1d) order by ts, t2;
 if $row != 15 then
    return -1
 endi
@@ -749,7 +726,7 @@ if $data93 != @select_tags_tb1@ then
 endi
 
 #if data
-sql select top(c1, 50), t2, t1, tbname from select_tags_mt0 where c1<=2 interval(1d) group by tbname;
+sql select ts, top(c1, 50), t2, t1, tbname, tbname from select_tags_mt0 where c1<=2  partition by tbname interval(1d) order by ts, t2;
 if $row != 48 then
   return -1
 endi
@@ -834,7 +811,7 @@ endi
 print TODO ======= selectivity + tags+ group by + tags + filter + interval + join===========
 
 print ==========================mix tag columns and group by columns======================
-sql select top(c1, 100), tbname from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') group by t3
+sql select ts, top(c1, 100), tbname, t3 from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') group by t3 order by ts, tbname;
 if $rows != 100 then
   return -1
 endi
@@ -890,9 +867,9 @@ sql_error select twa(c2), tbname from select_tags_mt0;
 sql_error select interp(c2), tbname from select_tags_mt0 where ts=100001;
 
 sql_error select t1,t2,tbname from select_tags_mt0 group by tbname;
-sql_error select count(tbname) from select_tags_mt0 interval(1d);
-sql_error select count(tbname) from select_tags_mt0 group by t1;
-sql_error select count(tbname),SUM(T1) from select_tags_mt0 interval(1d);
+sql select count(tbname) from select_tags_mt0 interval(1d);
+sql select count(tbname) from select_tags_mt0 group by t1;
+sql select count(tbname),SUM(T1) from select_tags_mt0 interval(1d);
 sql_error select first(c1), count(*), t2, t1, tbname from select_tags_mt0 where c1<=2 interval(1d) group by tbname;
 sql_error select ts from select_tags_mt0 interval(1y);
 sql_error select count(*), tbname from select_tags_mt0 interval(1y);
@@ -905,8 +882,8 @@ sql_error select tbname, t1 from select_tags_mt0 interval(1y);
 #valid sql: select first(c1), tbname, t1 from select_tags_mt0 group by t2;
 
 print ==================================>TD-4231
-sql_error select t1,tbname from select_tags_mt0 where c1<0
-sql_error select t1,tbname from select_tags_mt0 where c1<0 and tbname in ('select_tags_tb12')
+sql select t1,tbname from select_tags_mt0 where c1<0
+sql select t1,tbname from select_tags_mt0 where c1<0 and tbname in ('select_tags_tb12')
 
 sql select tbname from select_tags_mt0 where tbname in ('select_tags_tb12');
 

@@ -112,8 +112,8 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       tEncodeSize(tEncodeDeleteRes, &res, size, ret);
       pCont = rpcMallocCont(size + sizeof(SMsgHead));
 
-      ((SMsgHead *)pCont)->contLen = htonl(size + sizeof(SMsgHead));
-      ((SMsgHead *)pCont)->vgId = htonl(TD_VID(pVnode));
+      ((SMsgHead *)pCont)->contLen = size + sizeof(SMsgHead);
+      ((SMsgHead *)pCont)->vgId = TD_VID(pVnode);
 
       tEncoderInit(pCoder, pCont + sizeof(SMsgHead), size);
       tEncodeDeleteRes(pCoder, &res);
@@ -203,6 +203,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
     case TDMT_VND_MQ_COMMIT_OFFSET:
       if (tqProcessOffsetCommitReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
                                    pMsg->contLen - sizeof(SMsgHead)) < 0) {
+        goto _err;
+      }
+      break;
+    case TDMT_VND_CHECK_ALTER_INFO:
+      if (tqProcessCheckAlterInfoReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
+                                     pMsg->contLen - sizeof(SMsgHead)) < 0) {
         goto _err;
       }
       break;
@@ -316,7 +322,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     case TDMT_VND_TABLE_CFG:
       return vnodeGetTableCfg(pVnode, pMsg);
     case TDMT_VND_CONSUME:
-      return tqProcessPollReq(pVnode->pTq, pMsg, pInfo->workerId);
+      return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_RUN:
       return tqProcessTaskRunReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_DISPATCH:
@@ -471,6 +477,11 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pR
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
 
+    if ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) < 0) {
+      rcode = -1;
+      goto _exit;
+    }
+    
     // validate hash
     sprintf(tbName, "%s.%s", pVnode->config.dbname, pCreateReq->name);
     if (vnodeValidateTableHash(pVnode, tbName) < 0) {
@@ -773,6 +784,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   terrno = TSDB_CODE_SUCCESS;
 
   pRsp->code = 0;
+  pSubmitReq->version = version;
 
 #ifdef TD_DEBUG_PRINT_ROW
   vnodeDebugPrintSubmitMsg(pVnode, pReq, __func__);
@@ -791,7 +803,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
 
   submitRsp.pArray = taosArrayInit(msgIter.numOfBlocks, sizeof(SSubmitBlkRsp));
   newTbUids = taosArrayInit(msgIter.numOfBlocks, sizeof(int64_t));
-  if (!submitRsp.pArray) {
+  if (!submitRsp.pArray || !newTbUids) {
     pRsp->code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
@@ -809,6 +821,13 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
       tDecoderInit(&decoder, pBlock->data, msgIter.schemaLen);
       if (tDecodeSVCreateTbReq(&decoder, &createTbReq) < 0) {
         pRsp->code = TSDB_CODE_INVALID_MSG;
+        tDecoderClear(&decoder);
+        taosArrayDestroy(createTbReq.ctb.tagName);
+        goto _exit;
+      }
+
+      if ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) < 0) {
+        pRsp->code = terrno;
         tDecoderClear(&decoder);
         taosArrayDestroy(createTbReq.ctb.tagName);
         goto _exit;

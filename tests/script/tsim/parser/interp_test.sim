@@ -1,4 +1,3 @@
-sleep 100
 sql connect
 
 $dbPrefix = intp_db
@@ -21,7 +20,7 @@ print ====== use db
 sql use $db
 
 ##### select interp from table
-print ====== select intp from table
+print ====== select interp from table
 $tb = $tbPrefix . 0
 ## interp(*) from tb
 sql select interp(*) from $tb where ts = $ts0

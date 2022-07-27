@@ -51,8 +51,6 @@ while $i < $half
   $i = $i + 1
 endw
 
-sleep 100
-
 $i = 1
 $tb = $tbPrefix . $i
 
@@ -300,8 +298,6 @@ while $i < 1
 endw
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 500
-
 system sh/exec.sh -n dnode1 -s start
 
 sql_error select * from wh_mt0 where c3 = 'abc' and tbname in ('test_null_filter');
@@ -349,7 +345,6 @@ if $data01 != 2 then
   return -1
 endi
 sql insert into where_ts values(now, 5);
-sleep 10
 sql select * from (select * from where_ts) where ts<now;
 if $rows != 5 then
   return -1

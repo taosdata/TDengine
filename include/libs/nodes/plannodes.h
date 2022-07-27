@@ -29,8 +29,16 @@ extern "C" {
 typedef enum EDataOrderLevel {
   DATA_ORDER_LEVEL_NONE = 1,
   DATA_ORDER_LEVEL_IN_BLOCK,
-  DATA_ORDER_LEVEL_IN_GROUP
+  DATA_ORDER_LEVEL_IN_GROUP,
+  DATA_ORDER_LEVEL_GLOBAL
 } EDataOrderLevel;
+
+typedef enum EGroupAction {
+  GROUP_ACTION_NONE = 1,
+  GROUP_ACTION_SET,
+  GROUP_ACTION_KEEP,
+  GROUP_ACTION_CLEAR
+} EGroupAction;
 
 typedef struct SLogicNode {
   ENodeType          type;
@@ -44,6 +52,7 @@ typedef struct SLogicNode {
   SNode*             pSlimit;
   EDataOrderLevel    requireDataOrder;  // requirements for input data
   EDataOrderLevel    resultDataOrder;   // properties of the output data
+  EGroupAction       groupAction;
 } SLogicNode;
 
 typedef enum EScanType {
@@ -95,6 +104,7 @@ typedef struct SJoinLogicNode {
   SNode*     pMergeCondition;
   SNode*     pOnConditions;
   bool       isSingleTableJoin;
+  EOrder     inputTsOrder;
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {
@@ -102,6 +112,7 @@ typedef struct SAggLogicNode {
   SNodeList* pGroupKeys;
   SNodeList* pAggFuncs;
   bool       hasLastRow;
+  bool       hasTimeLineFunc;
 } SAggLogicNode;
 
 typedef struct SProjectLogicNode {
@@ -191,6 +202,7 @@ typedef struct SWindowLogicNode {
   int64_t          watermark;
   int8_t           igExpired;
   EWindowAlgorithm windowAlgo;
+  EOrder           inputTsOrder;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -346,15 +358,14 @@ typedef struct SInterpFuncPhysiNode {
   SNode*      pTimeSeries;  // SColumnNode
 } SInterpFuncPhysiNode;
 
-typedef struct SJoinPhysiNode {
+typedef struct SSortMergeJoinPhysiNode {
   SPhysiNode node;
   EJoinType  joinType;
   SNode*     pMergeCondition;
   SNode*     pOnConditions;
   SNodeList* pTargets;
-} SJoinPhysiNode;
-
-typedef SJoinPhysiNode SSortMergeJoinPhysiNode;
+  EOrder     inputTsOrder;
+} SSortMergeJoinPhysiNode;
 
 typedef struct SAggPhysiNode {
   SPhysiNode node;

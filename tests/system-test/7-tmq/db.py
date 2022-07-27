@@ -118,7 +118,7 @@ class TDTestCase:
         if dropFlag == 1:
             tsql.execute("drop database if exists %s"%(dbName))
 
-        tsql.execute("create database if not exists %s vgroups %d replica %d"%(dbName, vgroups, replica))
+        tsql.execute("create database if not exists %s vgroups %d replica %d wal_retention_period -1 wal_retention_size -1"%(dbName, vgroups, replica))
         tdLog.debug("complete to create database %s"%(dbName))
         return
 

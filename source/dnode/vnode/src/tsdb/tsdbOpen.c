@@ -66,7 +66,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   tfsMkdir(pVnode->pTfs, pTsdb->path);
 
   // open tsdb
-  if (tsdbFSOpen(pTsdb, &pTsdb->pFS) < 0) {
+  if (tsdbFSOpen(pTsdb) < 0) {
     goto _err;
   }
 
@@ -88,7 +88,7 @@ _err:
 int tsdbClose(STsdb **pTsdb) {
   if (*pTsdb) {
     taosThreadRwlockDestroy(&(*pTsdb)->rwLock);
-    tsdbFSClose((*pTsdb)->pFS);
+    tsdbFSClose(*pTsdb);
     tsdbCloseCache((*pTsdb)->lruCache);
     taosMemoryFreeClear(*pTsdb);
   }

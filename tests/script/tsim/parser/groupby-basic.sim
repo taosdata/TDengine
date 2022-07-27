@@ -3,25 +3,6 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-$loop_cnt = 0
-check_dnode_ready:
-	$loop_cnt = $loop_cnt + 1
-	sleep 200
-	if $loop_cnt == 10 then
-	  print ====> dnode not ready!
-		return -1
-	endi
-sql show dnodes
-print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
-if $data00 != 1 then
-  return -1
-endi
-if $data04 != ready then
-  goto check_dnode_ready
-endi
-
-sql connect
-
 $dbPrefix = group_db
 $tbPrefix = group_tb
 $mtPrefix = group_mt
@@ -79,8 +60,6 @@ while $i < $tbNum
   $i = $i + 1
   $tstart = 1640966400000
 endw
-
-sleep 100
 
 $i1 = 1
 $i2 = 0
@@ -752,12 +731,7 @@ sql insert into tm1 values('2020-2-1 1:1:1', 2, 10);
 sql insert into tm1 values('2020-2-1 1:1:2', 2, 20);
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 100
 system sh/exec.sh -n dnode1 -s start
-sleep 100
-
-sql connect
-sleep 100
 sql use group_db0;
 
 print =========================>TD-4894

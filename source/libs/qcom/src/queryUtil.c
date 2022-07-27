@@ -148,11 +148,12 @@ void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   taosMemoryFreeClear(pMsgBody);
 }
 
-int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo,
+int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo,
                                 bool persistHandle, void* rpcCtx) {
   char* pMsg = rpcMallocCont(pInfo->msgInfo.len);
   if (NULL == pMsg) {
     qError("0x%" PRIx64 " msg:%s malloc failed", pInfo->requestId, TMSG_INFO(pInfo->msgType));
+    destroySendMsgInfo(pInfo);
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return terrno;
   }
@@ -167,13 +168,15 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
     .info.persistHandle = persistHandle, 
     .code = 0
   };
-  assert(pInfo->fp != NULL);
   TRACE_SET_ROOTID(&rpcMsg.info.traceId, pInfo->requestId);
-  rpcSendRequestWithCtx(pTransporter, epSet, &rpcMsg, pTransporterId, rpcCtx);
-  return TSDB_CODE_SUCCESS;
+  int code = rpcSendRequestWithCtx(pTransporter, epSet, &rpcMsg, pTransporterId, rpcCtx);
+  if (code) {
+    destroySendMsgInfo(pInfo);
+  }
+  return code;
 }
 
-int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo) {
+int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo) {
   return asyncSendMsgToServerExt(pTransporter, epSet, pTransporterId, pInfo, false, NULL);
 }
 

@@ -28,30 +28,30 @@ static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator);
 static void         destroyMergeJoinOperator(void* param, int32_t numOfOutput);
 static void         extractTimeCondition(SJoinOperatorInfo* Info, SLogicConditionNode* pLogicConditionNode);
 
-SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SJoinPhysiNode* pJoinNode,
-    SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
+                                           SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo) {
   SJoinOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SJoinOperatorInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL || pInfo == NULL) {
     goto _error;
   }
 
-  SSDataBlock*    pResBlock = createResDataBlock(pJoinNode->node.pOutputDataBlockDesc);
+  SSDataBlock* pResBlock = createResDataBlock(pJoinNode->node.pOutputDataBlockDesc);
 
-  int32_t numOfCols = 0;
+  int32_t    numOfCols = 0;
   SExprInfo* pExprInfo = createExprInfo(pJoinNode->pTargets, NULL, &numOfCols);
 
-  initResultSizeInfo(pOperator, 4096);
+  initResultSizeInfo(&pOperator->resultInfo, 4096);
 
-  pInfo->pRes             = pResBlock;
-  pOperator->name         = "MergeJoinOperator";
+  pInfo->pRes = pResBlock;
+  pOperator->name = "MergeJoinOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN;
-  pOperator->blocking     = false;
-  pOperator->status       = OP_NOT_OPENED;
-  pOperator->exprSupp.pExprInfo   = pExprInfo;
-  pOperator->exprSupp.numOfExprs  = numOfCols;
-  pOperator->info         = pInfo;
-  pOperator->pTaskInfo    = pTaskInfo;
+  pOperator->blocking = false;
+  pOperator->status = OP_NOT_OPENED;
+  pOperator->exprSupp.pExprInfo = pExprInfo;
+  pOperator->exprSupp.numOfExprs = numOfCols;
+  pOperator->info = pInfo;
+  pOperator->pTaskInfo = pTaskInfo;
 
   SNode* pMergeCondition = pJoinNode->pMergeCondition;
   if (nodeType(pMergeCondition) == QUERY_NODE_OPERATOR) {
@@ -76,6 +76,15 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   } else {
     pInfo->pCondAfterMerge = NULL;
   }
+
+  pInfo->inputTsOrder = TSDB_ORDER_ASC;
+  if (pJoinNode->inputTsOrder == ORDER_ASC) {
+    pInfo->inputTsOrder = TSDB_ORDER_ASC;
+  } else if (pJoinNode->inputTsOrder == ORDER_DESC) {
+    pInfo->inputTsOrder = TSDB_ORDER_DESC;
+  }
+  //TODO: remove this when JoinNode inputTsOrder is ready
+  pInfo->inputTsOrder = TSDB_ORDER_ASC;
 
   pOperator->fpSet =
       createOperatorFpSet(operatorDummyOpenFn, doMergeJoin, NULL, NULL, destroyMergeJoinOperator, NULL, NULL, NULL);
@@ -104,14 +113,45 @@ void setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode) {
 void destroyMergeJoinOperator(void* param, int32_t numOfOutput) {
   SJoinOperatorInfo* pJoinOperator = (SJoinOperatorInfo*)param;
   nodesDestroyNode(pJoinOperator->pCondAfterMerge);
-  
+
   taosMemoryFreeClear(param);
 }
+static void doJoinOneRow(struct SOperatorInfo* pOperator, SSDataBlock* pRes, int32_t currRow) {
+  SJoinOperatorInfo* pJoinInfo = pOperator->info;
 
+  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+    SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, i);
+
+    SExprInfo* pExprInfo = &pOperator->exprSupp.pExprInfo[i];
+
+    int32_t blockId = pExprInfo->base.pParam[0].pCol->dataBlockId;
+    int32_t slotId = pExprInfo->base.pParam[0].pCol->slotId;
+    int32_t rowIndex = -1;
+
+    SColumnInfoData* pSrc = NULL;
+    if (pJoinInfo->pLeft->info.blockId == blockId) {
+      pSrc = taosArrayGet(pJoinInfo->pLeft->pDataBlock, slotId);
+      rowIndex = pJoinInfo->leftPos;
+    } else {
+      pSrc = taosArrayGet(pJoinInfo->pRight->pDataBlock, slotId);
+      rowIndex = pJoinInfo->rightPos;
+    }
+
+    if (colDataIsNull_s(pSrc, rowIndex)) {
+      colDataAppendNULL(pDst, currRow);
+    } else {
+      char* p = colDataGetData(pSrc, rowIndex);
+      colDataAppend(pDst, currRow, p, false);
+    }
+  }
+
+}
 static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) {
   SJoinOperatorInfo* pJoinInfo = pOperator->info;
 
-  int32_t nrows = 0;
+  int32_t nrows = pRes->info.rows;
+
+  bool asc = (pJoinInfo->inputTsOrder == TSDB_ORDER_ASC) ? true : false;
 
   while (1) {
     // todo extract method
@@ -146,43 +186,20 @@ static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) 
     // only the timestamp match support for ordinary table
     ASSERT(pLeftCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
     if (*(int64_t*)pLeftVal == *(int64_t*)pRightVal) {
-      for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
-        SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, i);
-
-        SExprInfo* pExprInfo = &pOperator->exprSupp.pExprInfo[i];
-
-        int32_t blockId = pExprInfo->base.pParam[0].pCol->dataBlockId;
-        int32_t slotId = pExprInfo->base.pParam[0].pCol->slotId;
-        int32_t rowIndex = -1;
-
-        SColumnInfoData* pSrc = NULL;
-        if (pJoinInfo->pLeft->info.blockId == blockId) {
-          pSrc = taosArrayGet(pJoinInfo->pLeft->pDataBlock, slotId);
-          rowIndex = pJoinInfo->leftPos;
-        } else {
-          pSrc = taosArrayGet(pJoinInfo->pRight->pDataBlock, slotId);
-          rowIndex = pJoinInfo->rightPos;
-        }
-
-        if (colDataIsNull_s(pSrc, rowIndex)) {
-          colDataAppendNULL(pDst, nrows);
-        } else {
-          char* p = colDataGetData(pSrc, rowIndex);
-          colDataAppend(pDst, nrows, p, false);
-        }
-      }
-
+      doJoinOneRow(pOperator, pRes, nrows);
       pJoinInfo->leftPos += 1;
       pJoinInfo->rightPos += 1;
 
       nrows += 1;
-    } else if (*(int64_t*)pLeftVal < *(int64_t*)pRightVal) {
+    } else if (asc && *(int64_t*)pLeftVal < *(int64_t*)pRightVal ||
+               !asc && *(int64_t*)pLeftVal > *(int64_t*)pRightVal) {
       pJoinInfo->leftPos += 1;
 
       if (pJoinInfo->leftPos >= pJoinInfo->pLeft->info.rows) {
         continue;
       }
-    } else if (*(int64_t*)pLeftVal > *(int64_t*)pRightVal) {
+    } else if (asc && *(int64_t*)pLeftVal > *(int64_t*)pRightVal ||
+               !asc && *(int64_t*)pLeftVal < *(int64_t*)pRightVal) {
       pJoinInfo->rightPos += 1;
       if (pJoinInfo->rightPos >= pJoinInfo->pRight->info.rows) {
         continue;
@@ -211,7 +228,7 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
       break;
     }
     if (pJoinInfo->pCondAfterMerge != NULL) {
-      doFilter(pJoinInfo->pCondAfterMerge, pRes);
+      doFilter(pJoinInfo->pCondAfterMerge, pRes, NULL);
     }
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
       break;

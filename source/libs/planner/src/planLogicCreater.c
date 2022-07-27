@@ -250,6 +250,9 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   SScanLogicNode* pScan = NULL;
   int32_t         code = makeScanLogicNode(pCxt, pRealTable, pSelect->hasRepeatScanFuncs, (SLogicNode**)&pScan);
 
+  pScan->node.groupAction = GROUP_ACTION_NONE;
+  pScan->node.resultDataOrder = DATA_ORDER_LEVEL_IN_BLOCK;
+
   // set columns to scan
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_COL,
@@ -336,6 +339,10 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   pJoin->joinType = pJoinTable->joinType;
   pJoin->isSingleTableJoin = pJoinTable->table.singleTable;
+  pJoin->inputTsOrder = ORDER_ASC;
+  pJoin->node.groupAction = GROUP_ACTION_CLEAR;
+  pJoin->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+  pJoin->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -472,6 +479,10 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   }
 
   pAgg->hasLastRow = pSelect->hasLastRowFunc;
+  pAgg->hasTimeLineFunc = pSelect->hasTimeLineFunc;
+  pAgg->node.groupAction = GROUP_ACTION_SET;
+  pAgg->node.requireDataOrder = pAgg->hasTimeLineFunc ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_NONE;
+  pAgg->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -540,6 +551,10 @@ static int32_t createIndefRowsFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt
   pIdfRowsFunc->isTailFunc = pSelect->hasTailFunc;
   pIdfRowsFunc->isUniqueFunc = pSelect->hasUniqueFunc;
   pIdfRowsFunc->isTimeLineFunc = pSelect->hasTimeLineFunc;
+  pIdfRowsFunc->node.groupAction = GROUP_ACTION_KEEP;
+  pIdfRowsFunc->node.requireDataOrder =
+      pIdfRowsFunc->isTimeLineFunc ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_NONE;
+  pIdfRowsFunc->node.resultDataOrder = pIdfRowsFunc->node.requireDataOrder;
 
   // indefinite rows functions and _select_values functions
   int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, fmIsVectorFunc, &pIdfRowsFunc->pFuncs);
@@ -570,6 +585,10 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   if (NULL == pInterpFunc) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
+  pInterpFunc->node.groupAction = GROUP_ACTION_KEEP;
+  pInterpFunc->node.requireDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
+  pInterpFunc->node.resultDataOrder = pInterpFunc->node.requireDataOrder;
 
   int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, fmIsInterpFunc, &pInterpFunc->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
@@ -607,14 +626,14 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
 
 static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow,
                                              SLogicNode** pLogicNode) {
-  int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, fmIsWindowClauseFunc, &pWindow->pFuncs);
-
   if (pCxt->pPlanCxt->streamQuery) {
     pWindow->triggerType = pCxt->pPlanCxt->triggerType;
     pWindow->watermark = pCxt->pPlanCxt->watermark;
     pWindow->igExpired = pCxt->pPlanCxt->igExpired;
   }
+  pWindow->inputTsOrder = ORDER_ASC;
 
+  int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, fmIsWindowClauseFunc, &pWindow->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW);
   }
@@ -642,10 +661,12 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
   }
 
   pWindow->winType = WINDOW_TYPE_STATE;
+  pWindow->node.groupAction = GROUP_ACTION_KEEP;
+  pWindow->node.requireDataOrder = pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_IN_BLOCK : DATA_ORDER_LEVEL_IN_GROUP;
+  pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
   pWindow->pStateExpr = nodesCloneNode(pState->pExpr);
-
   pWindow->pTspk = nodesCloneNode(pState->pCol);
-  if (NULL == pWindow->pTspk) {
+  if (NULL == pWindow->pStateExpr || NULL == pWindow->pTspk) {
     nodesDestroyNode((SNode*)pWindow);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -663,6 +684,9 @@ static int32_t createWindowLogicNodeBySession(SLogicPlanContext* pCxt, SSessionW
   pWindow->winType = WINDOW_TYPE_SESSION;
   pWindow->sessionGap = ((SValueNode*)pSession->pGap)->datum.i;
   pWindow->windowAlgo = pCxt->pPlanCxt->streamQuery ? SESSION_ALGO_STREAM_SINGLE : SESSION_ALGO_MERGE;
+  pWindow->node.groupAction = GROUP_ACTION_KEEP;
+  pWindow->node.requireDataOrder = pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_IN_BLOCK : DATA_ORDER_LEVEL_IN_GROUP;
+  pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
 
   pWindow->pTspk = nodesCloneNode((SNode*)pSession->pCol);
   if (NULL == pWindow->pTspk) {
@@ -689,6 +713,9 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
   pWindow->slidingUnit =
       (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
   pWindow->windowAlgo = pCxt->pPlanCxt->streamQuery ? INTERVAL_ALGO_STREAM_SINGLE : INTERVAL_ALGO_HASH;
+  pWindow->node.groupAction = GROUP_ACTION_KEEP;
+  pWindow->node.requireDataOrder = pSelect->hasTimeLineFunc ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_IN_BLOCK;
+  pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
 
   pWindow->pTspk = nodesCloneNode(pInterval->pCol);
   if (NULL == pWindow->pTspk) {
@@ -734,6 +761,10 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pFill->node.groupAction = GROUP_ACTION_KEEP;
+  pFill->node.requireDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
+  pFill->node.resultDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
+
   int32_t code = nodesCollectColumns(pSelect, SQL_CLAUSE_WINDOW, NULL, COLLECT_COL_TYPE_ALL, &pFill->node.pTargets);
   if (TSDB_CODE_SUCCESS == code && NULL == pFill->node.pTargets) {
     code = nodesListMakeStrictAppend(&pFill->node.pTargets,
@@ -757,6 +788,14 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   return code;
 }
 
+static bool isPrimaryKeySort(SNodeList* pOrderByList) {
+  SNode* pExpr = ((SOrderByExprNode*)nodesListGetNode(pOrderByList, 0))->pExpr;
+  if (QUERY_NODE_COLUMN != nodeType(pExpr)) {
+    return false;
+  }
+  return PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pExpr)->colId;
+}
+
 static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (NULL == pSelect->pOrderByList) {
     return TSDB_CODE_SUCCESS;
@@ -768,6 +807,11 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   pSort->groupSort = pSelect->groupSort;
+  pSort->node.groupAction = pSort->groupSort ? GROUP_ACTION_KEEP : GROUP_ACTION_CLEAR;
+  pSort->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  pSort->node.resultDataOrder = isPrimaryKeySort(pSelect->pOrderByList)
+                                    ? (pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
+                                    : DATA_ORDER_LEVEL_NONE;
 
   int32_t code = nodesCollectColumns(pSelect, SQL_CLAUSE_ORDER_BY, NULL, COLLECT_COL_TYPE_ALL, &pSort->node.pTargets);
   if (TSDB_CODE_SUCCESS == code && NULL == pSort->node.pTargets) {
@@ -818,6 +862,10 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
 
   TSWAP(pProject->node.pLimit, pSelect->pLimit);
   TSWAP(pProject->node.pSlimit, pSelect->pSlimit);
+  pProject->node.groupAction =
+      (!pSelect->isSubquery && pCxt->pPlanCxt->streamQuery) ? GROUP_ACTION_KEEP : GROUP_ACTION_CLEAR;
+  pProject->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  pProject->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -849,6 +897,10 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
   if (NULL == pPartition) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
+  pPartition->node.groupAction = GROUP_ACTION_SET;
+  pPartition->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  pPartition->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
 
   int32_t code =
       nodesCollectColumns(pSelect, SQL_CLAUSE_PARTITION_BY, NULL, COLLECT_COL_TYPE_ALL, &pPartition->node.pTargets);
@@ -882,11 +934,23 @@ static int32_t createDistinctLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pAgg->node.groupAction = GROUP_ACTION_SET;
+  pAgg->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  pAgg->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+
   int32_t code = TSDB_CODE_SUCCESS;
   // set grouyp keys, agg funcs and having conditions
-  pAgg->pGroupKeys = nodesCloneList(pSelect->pProjectionList);
-  if (NULL == pAgg->pGroupKeys) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+  SNodeList* pGroupKeys = NULL;
+  SNode*     pProjection = NULL;
+  FOREACH(pProjection, pSelect->pProjectionList) {
+    code = nodesListMakeStrictAppend(&pGroupKeys, createGroupingSetNode(pProjection));
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyList(pGroupKeys);
+      break;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pAgg->pGroupKeys = pGroupKeys;
   }
 
   // rewrite the expression in subsequent clauses
@@ -1361,6 +1425,7 @@ int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
   if (TSDB_CODE_SUCCESS == code) {
     setLogicNodeParent(pSubplan->pNode);
     setLogicSubplanType(cxt.hasScan, pSubplan);
+    code = adjustLogicNodeDataRequirement(pSubplan->pNode, DATA_ORDER_LEVEL_NONE);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

@@ -1,5 +1,6 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c debugflag -v 131
 system sh/exec.sh -n dnode1 -s start -v
 sql connect
 
@@ -44,20 +45,11 @@ while $i < $tbNum
   $i = $i + 1
 endw 
 
-print =============== step3: avg
-sql select avg(tbcol) from tb1
-sql select avg(tbcol) from tb1 where ts <= 1601481840000
-sql select avg(tbcol) as b from tb1
-sql select avg(tbcol) as b from tb1 interval(1d)
-sql select avg(tbcol) as b from tb1 where ts <= 1601481840000s interval(1m)
-sql select avg(tbcol) as c from stb
-sql select avg(tbcol) as c from stb where ts <= 1601481840000
-sql select avg(tbcol) as c from stb where tgcol < 5 and ts <= 1601481840000
-sql select avg(tbcol) as c from stb interval(1m)
-sql select avg(tbcol) as c from stb interval(1d)
-sql select avg(tbcol) as b from stb where ts <= 1601481840000s interval(1m)
-sql select avg(tbcol) as c from stb group by tgcol
-sql select avg(tbcol) as b from stb where ts <= 1601481840000s partition by tgcol interval(1m)
+print =============== step3: tb
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from tb1 where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
+
+print =============== step4: stb
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from stb where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
 
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

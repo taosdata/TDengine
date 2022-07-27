@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "os.h"
+#include "taoserror.h"
 
 typedef enum {
   TSDB_GRANT_ALL,

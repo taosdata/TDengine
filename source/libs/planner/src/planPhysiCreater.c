@@ -415,7 +415,6 @@ static int32_t createScanPhysiNodeFinalize(SPhysiPlanContext* pCxt, SSubplan* pS
                                            SScanPhysiNode* pScanPhysiNode, SPhysiNode** pPhyNode) {
   int32_t code = createScanCols(pCxt, pScanPhysiNode, pScanLogicNode->pScanCols);
   if (TSDB_CODE_SUCCESS == code) {
-    // Data block describe also needs to be set without scanning column, such as SELECT COUNT(*) FROM t
     code = addDataBlockSlots(pCxt, pScanPhysiNode->pScanCols, pScanPhysiNode->node.pOutputDataBlockDesc);
   }
 
@@ -622,8 +621,8 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
 
 static int32_t createJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SJoinLogicNode* pJoinLogicNode,
                                    SPhysiNode** pPhyNode) {
-  SJoinPhysiNode* pJoin =
-      (SJoinPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pJoinLogicNode, QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN);
+  SSortMergeJoinPhysiNode* pJoin =
+      (SSortMergeJoinPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pJoinLogicNode, QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN);
   if (NULL == pJoin) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -974,6 +973,20 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
   return code;
 }
 
+static bool projectCanMergeDataBlock(SProjectLogicNode* pProject) {
+  if (GROUP_ACTION_KEEP == pProject->node.groupAction) {
+    return false;
+  }
+  if (DATA_ORDER_LEVEL_NONE == pProject->node.resultDataOrder) {
+    return true;
+  }
+  if (1 != LIST_LENGTH(pProject->node.pChildren)) {
+    return false;
+  }
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
+  return DATA_ORDER_LEVEL_GLOBAL == pChild->resultDataOrder ? true : false;
+}
+
 static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                       SProjectLogicNode* pProjectLogicNode, SPhysiNode** pPhyNode) {
   SProjectPhysiNode* pProject =
@@ -981,6 +994,8 @@ static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChild
   if (NULL == pProject) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
+  pProject->mergeDataBlock = projectCanMergeDataBlock(pProjectLogicNode);
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (0 == LIST_LENGTH(pChildren)) {
@@ -1068,7 +1083,11 @@ static int32_t createExchangePhysiNode(SPhysiPlanContext* pCxt, SExchangeLogicNo
 }
 
 static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList* pChildren, SWinodwPhysiNode* pWindow,
-                                             SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
+                                             SWindowLogicNode* pWindowLogicNode) {
+  pWindow->triggerType = pWindowLogicNode->triggerType;
+  pWindow->watermark = pWindowLogicNode->watermark;
+  pWindow->igExpired = pWindowLogicNode->igExpired;
+
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pFuncs = NULL;
   int32_t    code = rewritePrecalcExprs(pCxt, pWindowLogicNode->pFuncs, &pPrecalcExprs, &pFuncs);
@@ -1098,16 +1117,6 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
 
   if (TSDB_CODE_SUCCESS == code) {
     code = setConditionsSlotId(pCxt, (const SLogicNode*)pWindowLogicNode, (SPhysiNode*)pWindow);
-  }
-
-  pWindow->triggerType = pWindowLogicNode->triggerType;
-  pWindow->watermark = pWindowLogicNode->watermark;
-  pWindow->igExpired = pWindowLogicNode->igExpired;
-
-  if (TSDB_CODE_SUCCESS == code) {
-    *pPhyNode = (SPhysiNode*)pWindow;
-  } else {
-    nodesDestroyNode((SNode*)pWindow);
   }
 
   nodesDestroyList(pPrecalcExprs);
@@ -1156,7 +1165,14 @@ static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
   pInterval->intervalUnit = pWindowLogicNode->intervalUnit;
   pInterval->slidingUnit = pWindowLogicNode->slidingUnit;
 
-  return createWindowPhysiNodeFinalize(pCxt, pChildren, &pInterval->window, pWindowLogicNode, pPhyNode);
+  int32_t code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pInterval->window, pWindowLogicNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pPhyNode = (SPhysiNode*)pInterval;
+  } else {
+    nodesDestroyNode((SNode*)pInterval);
+  }
+
+  return code;
 }
 
 static int32_t createSessionWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
@@ -1169,7 +1185,14 @@ static int32_t createSessionWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
 
   pSession->gap = pWindowLogicNode->sessionGap;
 
-  return createWindowPhysiNodeFinalize(pCxt, pChildren, &pSession->window, pWindowLogicNode, pPhyNode);
+  int32_t code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pSession->window, pWindowLogicNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pPhyNode = (SPhysiNode*)pSession;
+  } else {
+    nodesDestroyNode((SNode*)pSession);
+  }
+
+  return code;
 }
 
 static int32_t createStateWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
@@ -1201,12 +1224,20 @@ static int32_t createStateWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
     }
   }
 
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode((SNode*)pState);
-    return code;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pState->window, pWindowLogicNode);
   }
 
-  return createWindowPhysiNodeFinalize(pCxt, pChildren, &pState->window, pWindowLogicNode, pPhyNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pPhyNode = (SPhysiNode*)pState;
+  } else {
+    nodesDestroyNode((SNode*)pState);
+  }
+
+  nodesDestroyList(pPrecalcExprs);
+  nodesDestroyNode(pStateKey);
+
+  return code;
 }
 
 static int32_t createWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SWindowLogicNode* pWindowLogicNode,

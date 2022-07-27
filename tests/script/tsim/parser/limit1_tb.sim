@@ -1,4 +1,3 @@
-sleep 100
 sql connect
 
 $dbPrefix = lm1_db
@@ -371,7 +370,8 @@ sql select top(c1, 1) from $tb where ts >= $ts0 and ts <= $tsu limit 5 offset 1
 if $rows != 0 then
   return -1
 endi
-sql select top(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu limit 3 offset 1
+
+sql select ts, top(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu order by ts limit 3 offset 1
 if $rows != 3 then
   return -1
 endi
@@ -393,6 +393,7 @@ endi
 if $data21 != 9 then
   return -1
 endi
+
 sql select top(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu limit 3 offset 5
 if $rows != 0 then
   return -1
@@ -402,7 +403,8 @@ sql select bottom(c1, 1) from $tb where ts >= $ts0 and ts <= $tsu limit 5 offset
 if $rows != 0 then
   return -1
 endi
-sql select bottom(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu limit 3 offset 1
+
+sql select ts, bottom(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu order by ts limit 3 offset 1
 if $rows != 3 then
   return -1
 endi

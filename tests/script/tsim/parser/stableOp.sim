@@ -62,7 +62,7 @@ sql_error insert into $tb values (now, 1, 2.0);
 
 sql alter stable $stb add tag tag2 int;
 
-sql alter stable $stb change tag tag2 tag3;
+sql alter stable $stb rename tag tag2 tag3;
 
 sql_error drop stable $tb
 
@@ -85,7 +85,7 @@ print create/alter/drop stable test passed
 
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 
