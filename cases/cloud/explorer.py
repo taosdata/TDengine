@@ -6,7 +6,7 @@ import threading
 
 from taostest import TDCase, T
 from taostest.util import caseutil
-from cloud_api import CloudApi
+from .cloud_api import CloudApi
 from threading import Thread
 
 
