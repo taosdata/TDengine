@@ -381,7 +381,7 @@ class TDTestCase:
         tdSql.query("select ct1.c_int from db.nt1 as ct1 join db1.nt1 as cy1 on ct1.ts=cy1.ts")
         tdSql.checkRows(self.rows + 3)
         tdSql.query("select ct1.c_int from db.stb1 as ct1 join db1.stb1 as cy1 on ct1.ts=cy1.ts")
-        tdSql.checkRows(self.rows * 3 + 6)
+        tdSql.checkRows(50)
 
         tdSql.query("select count(*) from db.ct1")
         tdSql.checkData(0, 0, self.rows)
