@@ -105,6 +105,40 @@ sql select * from stb where tbcol + 3 <> null;
 print =============== step5: explain
 
 
+print =============== check
+$null=
+
+system_content sh/checkValgrind.sh -n dnode1 
+print cmd return result ----> [ $system_content ]
+if $system_content > 0 then
+  return -1
+endi 
+
+if $system_content == $null then
+  return -1
+endi 
+
+print =============== restart
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start -v
+
+sql select avg(tbcol) as c from stb
+sql select avg(tbcol) as c from stb where ts <= 1601481840000
+sql select avg(tbcol) as c from stb where tgcol < 5 and ts <= 1601481840000
+sql select avg(tbcol) as c from stb interval(1m)
+sql select avg(tbcol) as c from stb interval(1d)
+sql select avg(tbcol) as b from stb where ts <= 1601481840000 interval(1m)
+sql select avg(tbcol) as c from stb group by tgcol
+sql select avg(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+sql show table distributed stb
+sql select count(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+sql select diff(tbcol) from stb where ts <= 1601481840000 
+sql select first(tbcol), last(tbcol) as c from stb group by tgcol
+sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 and tbcol2 is null partition by tgcol interval(1m)
+sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), sum(tbcol), stddev(tbcol) from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+sql select last_row(tbcol), stddev(tbcol) from stb where tbcol > 5 and tbcol < 20 group by tgcol
+
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 print =============== check

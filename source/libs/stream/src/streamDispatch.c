@@ -227,6 +227,8 @@ int32_t streamDispatchOneReq(SStreamTask* pTask, const SStreamDispatchReq* pReq,
   msg.pCont = buf;
   msg.msgType = pTask->dispatchMsgType;
 
+  qDebug("dispatch from task %d to task %d node %d", pTask->taskId, pReq->taskId, vgId);
+
   tmsgSendReq(pEpSet, &msg);
 
   code = 0;
@@ -281,8 +283,10 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
     return code;
 
   } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
-    SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
-    ASSERT(pTask->shuffleDispatcher.waitingRspCnt == 0);
+    int32_t rspCnt = atomic_load_32(&pTask->shuffleDispatcher.waitingRspCnt);
+    ASSERT(rspCnt == 0);
+
+    SArray*             vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
     int32_t             vgSz = taosArrayGetSize(vgInfo);
     SStreamDispatchReq* pReqs = taosMemoryCalloc(vgSz, sizeof(SStreamDispatchReq));
     if (pReqs == NULL) {
@@ -301,7 +305,10 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
       if (pReqs[i].data == NULL || pReqs[i].dataLen == NULL) {
         goto FAIL_SHUFFLE_DISPATCH;
       }
+      SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
+      pReqs[i].taskId = pVgInfo->taskId;
     }
+
     for (int32_t i = 0; i < blockNum; i++) {
       SSDataBlock* pDataBlock = taosArrayGet(pData->blocks, i);
       char*        ctbName = buildCtbNameByGroupId(pTask->shuffleDispatcher.stbFullName, pDataBlock->info.groupId);
@@ -309,6 +316,9 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
       // TODO: get hash function by hashMethod
       uint32_t hashValue = MurmurHash3_32(ctbName, strlen(ctbName));
 
+      taosMemoryFree(ctbName);
+
+      bool found = false;
       // TODO: optimize search
       int32_t j;
       for (j = 0; j < vgSz; j++) {
@@ -318,12 +328,17 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
           if (streamAddBlockToDispatchMsg(pDataBlock, &pReqs[j]) < 0) {
             goto FAIL_SHUFFLE_DISPATCH;
           }
-          pReqs[j].taskId = pVgInfo->taskId;
+          if (pReqs[j].blockNum == 0) {
+            atomic_add_fetch_32(&pTask->shuffleDispatcher.waitingRspCnt, 1);
+          }
           pReqs[j].blockNum++;
+          found = true;
           break;
         }
       }
+      ASSERT(found);
     }
+
     for (int32_t i = 0; i < vgSz; i++) {
       if (pReqs[i].blockNum > 0) {
         // send
@@ -331,7 +346,6 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
         if (streamDispatchOneReq(pTask, &pReqs[i], pVgInfo->vgId, &pVgInfo->epSet) < 0) {
           goto FAIL_SHUFFLE_DISPATCH;
         }
-        pTask->shuffleDispatcher.waitingRspCnt++;
       }
     }
     code = 0;

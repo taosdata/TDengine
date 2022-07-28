@@ -80,8 +80,8 @@ TODO
 | 9   |   buffer    | INT          | 每个 vnode 写缓存的内存块大小，单位 MB           |
 | 10  |   minrows   | INT          | 文件块中记录的最大条数                           |
 | 11  |   maxrows   | INT          | 文件块中记录的最小条数                           |
-| 12  |  wallevel   | INT          | WAL 级别                                         |
-| 13  |    fsync    | INT          | 数据落盘周期                                     |
+| 12  |  wal_level   | INT          | WAL 级别                                         |
+| 13  | walfsync_period    | INT          | 数据落盘周期                                     |
 | 14  |    comp     | INT          | 数据压缩方式                                     |
 | 15  |  precision  | BINARY(2)    | 时间分辨率                                       |
 | 16  |   status    | BINARY(10)   | 数据库状态                                       |
