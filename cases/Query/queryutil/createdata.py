@@ -19,7 +19,6 @@ import operator
 import numpy as np
 import pandas as pd
 import time, datetime
-from regex import I
 from taostest import TDCase
 import subprocess
 import os
