@@ -750,7 +750,7 @@ SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_nam
 **Explanations**：
 
 1. bin_type: parameter to indicate the bucket type, valid inputs are: "user_input", "linear_bin", "log_bin"。
-2. bin_description: parameter to describe how to generate buckets，can be in the following JSON formats for each bin_type respectively:
+2. bin_description: parameter to describe the rule to generate buckets，can be in the following JSON formats for each bin_type respectively:
 
    - "user_input": "[1, 3, 5, 7]": User specified bin values.
 
@@ -1056,7 +1056,7 @@ SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHER
 **More explanations**:
 
 - The number of result rows is the number of rows subtracted by one, no output for the first row.
-- It can be used on STable with `PARTITION by tbname`
+- It can be used on STable with `PARTITION by tbname`.
 
 ### IRATE
 
@@ -1104,7 +1104,7 @@ SELECT IRATE(field_name) FROM tb_name WHERE clause;
     SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**Description**: _k_ sampling values of a specific column. The applicable range of _k_ is [1,1000]
+**Description**: _k_ sampling values of a specific column. The applicable range of _k_ is [1,1000].
 
 **Return value type**: Same as the column being operated.
 
@@ -1156,8 +1156,8 @@ SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [W
 **Applicable parameter values**:
 
 - oper : Can be one of "LT" (lower than), "GT" (greater than), "LE" (lower than or euqal to), "GE" (greater than or equal to), "NE" (not equal to), "EQ" (equal to).
-- val ： Numeric types.
-- unit: The unit of time interval, can be [1s, 1m, 1h], default is 1s.
+- val : Numeric types.
+- unit : The unit of time interval, can be: 1b(nanosecond), 1u(microsecond),1a(millisecond),1s(second),1m(minute),1h(hour),1d(day),1w(week). If not specified, default is same as the current database time precision in use.
 
 **Return value type**: INTEGER.
 
@@ -1169,8 +1169,8 @@ SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [W
 
 **More explanations**:
 
-- Must be used together with `PARTITION BY tbname` when it's used on a STable to force the result into each single timeline]
-- Cannot be used with window operation, like interval/state_window/session_window
+- Must be used together with `PARTITION BY tbname` when it's used on a STable to force the result into each single timeline.
+- Cannot be used with window operation, like interval/state_window/session_window.
 
 ### TWA
 
