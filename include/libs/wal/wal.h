@@ -77,11 +77,11 @@ typedef struct {
 } SWalSyncInfo;
 
 typedef struct {
-  int8_t  protoVer;
   int64_t version;
-  int16_t msgType;
+  int64_t ingestTs;
   int32_t bodyLen;
-  int64_t ingestTs;  // not implemented
+  int16_t msgType;
+  int8_t  protoVer;
 
   // sync meta
   SWalSyncInfo syncMeta;

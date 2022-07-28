@@ -139,7 +139,7 @@ int walCheckAndRepairMeta(SWal* pWal) {
   const char* idxPattern = "^[0-9]+.idx$";
   regex_t     logRegPattern;
   regex_t     idxRegPattern;
-  SArray*     pLogInfoArray = taosArrayInit(8, sizeof(SWalFileInfo));
+  SArray*     actualLog = taosArrayInit(8, sizeof(SWalFileInfo));
 
   regcomp(&logRegPattern, logPattern, REG_EXTENDED);
   regcomp(&idxRegPattern, idxPattern, REG_EXTENDED);
@@ -159,7 +159,7 @@ int walCheckAndRepairMeta(SWal* pWal) {
       SWalFileInfo fileInfo;
       memset(&fileInfo, -1, sizeof(SWalFileInfo));
       sscanf(name, "%" PRId64 ".log", &fileInfo.firstVer);
-      taosArrayPush(pLogInfoArray, &fileInfo);
+      taosArrayPush(actualLog, &fileInfo);
     }
   }
 
@@ -167,10 +167,10 @@ int walCheckAndRepairMeta(SWal* pWal) {
   regfree(&logRegPattern);
   regfree(&idxRegPattern);
 
-  taosArraySort(pLogInfoArray, compareWalFileInfo);
+  taosArraySort(actualLog, compareWalFileInfo);
 
   int metaFileNum = taosArrayGetSize(pWal->fileInfoSet);
-  int actualFileNum = taosArrayGetSize(pLogInfoArray);
+  int actualFileNum = taosArrayGetSize(actualLog);
 
 #if 0
   for (int32_t fileNo = actualFileNum - 1; fileNo >= 0; fileNo--) {
@@ -196,11 +196,11 @@ int walCheckAndRepairMeta(SWal* pWal) {
     taosArrayPopFrontBatch(pWal->fileInfoSet, metaFileNum - actualFileNum);
   } else if (metaFileNum < actualFileNum) {
     for (int i = metaFileNum; i < actualFileNum; i++) {
-      SWalFileInfo* pFileInfo = taosArrayGet(pLogInfoArray, i);
+      SWalFileInfo* pFileInfo = taosArrayGet(actualLog, i);
       taosArrayPush(pWal->fileInfoSet, pFileInfo);
     }
   }
-  taosArrayDestroy(pLogInfoArray);
+  taosArrayDestroy(actualLog);
 
   pWal->writeCur = actualFileNum - 1;
   if (actualFileNum > 0) {
@@ -221,7 +221,7 @@ int walCheckAndRepairMeta(SWal* pWal) {
 
       int code = walSaveMeta(pWal);
       if (code < 0) {
-        taosArrayDestroy(pLogInfoArray);
+        taosArrayDestroy(actualLog);
         return -1;
       }
     }
