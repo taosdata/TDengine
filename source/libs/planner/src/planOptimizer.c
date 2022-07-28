@@ -298,7 +298,7 @@ static void scanPathOptSetScanWin(SScanLogicNode* pScan) {
 }
 
 static void scanPathOptSetScanOrder(EScanOrder scanOrder, SScanLogicNode* pScan) {
-  if (pScan->scanSeq[0] > 1 || pScan->scanSeq[1] > 1) {
+  if (pScan->sortPrimaryKey || pScan->scanSeq[0] > 1 || pScan->scanSeq[1] > 1) {
     return;
   }
   switch (scanOrder) {
@@ -329,6 +329,8 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   if (TSDB_CODE_SUCCESS == code && (NULL != info.pDsoFuncs || NULL != info.pSdrFuncs)) {
     info.pScan->dataRequired = scanPathOptGetDataRequired(info.pSdrFuncs);
     info.pScan->pDynamicScanFuncs = info.pDsoFuncs;
+  }
+  if (TSDB_CODE_SUCCESS == code && info.pScan) {
     OPTIMIZE_FLAG_SET_MASK(info.pScan->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
     pCxt->optimized = true;
   }
@@ -1129,6 +1131,7 @@ static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
       pScan->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
     }
     sortPriKeyOptSetParentOrder(pScan->node.pParent, order);
+    pScan->sortPrimaryKey = true;
   }
 
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0);
