@@ -43,9 +43,13 @@ class TDTestCase:
                     tdLog.exit("compare error: %s != %s"%src, dst)
             else:
                 break
-
+                
         tdSql.execute('use db_taosx')
+<<<<<<< HEAD
         tdSql.query("select * from ct3 order by c1  desc")
+=======
+        tdSql.query("select * from ct3 order by c1 desc")
+>>>>>>> 425801f210e696ba6e8bd82f1b3a462d394a6fed
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 51)
         tdSql.checkData(0, 4, 940)
@@ -58,17 +62,25 @@ class TDTestCase:
         tdSql.query("select * from ct2")
         tdSql.checkRows(0)
 
+<<<<<<< HEAD
         tdSql.query("select * from ct0 order by c1 ")
+=======
+        tdSql.query("select * from ct0 order by c1")
+>>>>>>> 425801f210e696ba6e8bd82f1b3a462d394a6fed
         tdSql.checkRows(2)
         tdSql.checkData(0, 3, "a")
         tdSql.checkData(1, 4, None)
 
-        tdSql.query("select * from n1")
+        tdSql.query("select * from n1 order by cc3 desc")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, "eeee")
         tdSql.checkData(1, 2, 940)
 
+<<<<<<< HEAD
         tdSql.query("select * from jt order by i desc;")
+=======
+        tdSql.query("select * from jt order by i desc")
+>>>>>>> 425801f210e696ba6e8bd82f1b3a462d394a6fed
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 11)
         tdSql.checkData(0, 2, None)
