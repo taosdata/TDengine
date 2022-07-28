@@ -132,14 +132,14 @@ class TestTimestamp(TDCase):
                     step = 1
                 self.tdSql.execute(f'create table if not exists {dbname}.{ts_unit}{step}_add using {dbname}.stb tags (now+{step}{ts_unit}, 1)')
                 self.tdSql.execute(f'create table if not exists {dbname}.{ts_unit}{step}_sub using {dbname}.stb tags (now-{step}{ts_unit}, 1)')
-                self.tdSql.execute(f'insert into {dbname}.ctb values (now+{step}{ts_unit}, 1)')
                 self.tdSql.execute(f'insert into {dbname}.ctb values (now-{step}{ts_unit}, 1)')
-                self.tdSql.execute(f'insert into {dbname}.tb values (now+{step}{ts_unit}, 1)')
+                self.tdSql.execute(f'insert into {dbname}.ctb values (now+{step}{ts_unit}, 1)')
                 self.tdSql.execute(f'insert into {dbname}.tb values (now-{step}{ts_unit}, 1)')
-                self.tdSql.execute(f'insert into {dbname}.{ts_unit}{step}_add values (now+{step}{ts_unit}, 1)')
+                self.tdSql.execute(f'insert into {dbname}.tb values (now+{step}{ts_unit}, 1)')
                 self.tdSql.execute(f'insert into {dbname}.{ts_unit}{step}_add values (now-{step}{ts_unit}, 1)')
-                self.tdSql.execute(f'insert into {dbname}.{ts_unit}{step}_sub values (now+{step}{ts_unit}, 1)')
+                self.tdSql.execute(f'insert into {dbname}.{ts_unit}{step}_add values (now+{step}{ts_unit}, 1)')
                 self.tdSql.execute(f'insert into {dbname}.{ts_unit}{step}_sub values (now-{step}{ts_unit}, 1)')
+                self.tdSql.execute(f'insert into {dbname}.{ts_unit}{step}_sub values (now+{step}{ts_unit}, 1)')
             for tbname in [f"{dbname}.ctb", f"{dbname}.stb", f"{dbname}.tb"]:
                 self.tdSql.query(f'select count(*) from {tbname}')
                 if tbname == f"{dbname}.stb":
