@@ -728,7 +728,7 @@ sql select last(c1), last(c2), last(c3), last(c4), last(c5), last(c6) from $tb w
 if $rows != 0 then
   return -1
 endi
-sql select _wstart, last(c1), last(c2), last(c3), last(c4), last(c5), last(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 3 offset 1
+sql select _wstart, last(c1), last(c2), last(c3), last(c4), last(c5), last(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) order by _wstart limit 3 offset 1
 if $rows != 3 then
   return -1
 endi
@@ -742,7 +742,7 @@ if $data23 != 9.00000 then
   return -1
 endi
 
-sql select _wstart, first(ts), first(c1), last(c2), first(c3), last(c4), first(c5), last(c6), first(c8), last(c9) from $tb where ts >= $ts0 and ts <= $tsu and c1 > 0 interval(30m) limit 3 offset 0
+sql select _wstart, first(ts), first(c1), last(c2), first(c3), last(c4), first(c5), last(c6), first(c8), last(c9) from $tb where ts >= $ts0 and ts <= $tsu and c1 > 0 interval(30m) order by _wstart limit 3 offset 0
 if $rows != 3 then
   return -1
 endi
@@ -777,7 +777,7 @@ if $data29 != nchar8 then
   return -1
 endi
 
-sql select _wstart, first(ts), first(c1), last(c2), first(c3), last(c4), first(c5), last(c6), first(c8), last(c9) from $tb where ts >= $ts0 and ts <= $tsu and c1 > 0 interval(30m) limit 3 offset 1
+sql select _wstart, first(ts), first(c1), last(c2), first(c3), last(c4), first(c5), last(c6), first(c8), last(c9) from $tb where ts >= $ts0 and ts <= $tsu and c1 > 0 interval(30m) order by _wstart limit 3 offset 1
 if $rows != 3 then
   return -1
 endi

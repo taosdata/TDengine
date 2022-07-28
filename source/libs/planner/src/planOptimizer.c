@@ -1122,7 +1122,7 @@ static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
   SNode* pScanNode = NULL;
   FOREACH(pScanNode, pScanNodes) {
     SScanLogicNode* pScan = (SScanLogicNode*)pScanNode;
-    if (ORDER_DESC == order && pScan->scanSeq[0] > 0) {
+    if ((ORDER_DESC == order && pScan->scanSeq[0] > 0) || (ORDER_ASC == order && pScan->scanSeq[1] > 0)) {
       TSWAP(pScan->scanSeq[0], pScan->scanSeq[1]);
     }
     if (TSDB_SUPER_TABLE == pScan->tableType) {
