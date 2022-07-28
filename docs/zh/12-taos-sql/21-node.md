@@ -40,7 +40,6 @@ ALTER ALL DNODES dnode_option
 
 dnode_option: {
     'resetLog'
-  | 'resetQueryCache'
   | 'balance' value
   | 'monitor' value
   | 'debugFlag' value
