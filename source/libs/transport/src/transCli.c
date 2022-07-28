@@ -60,6 +60,7 @@ typedef struct SCliThrd {
   int64_t     pid;     // pid
   uv_loop_t*  loop;
   SAsyncPool* asyncPool;
+  uv_idle_t*  idle;
   uv_timer_t  timer;
   void*       pool;  // conn pool
 
@@ -116,6 +117,7 @@ static void cliSendCb(uv_write_t* req, int status);
 // callback after conn  to server
 static void cliConnCb(uv_connect_t* req, int status);
 static void cliAsyncCb(uv_async_t* handle);
+static void cliIdleCb(uv_idle_t* handle);
 
 static int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg);
 
@@ -962,6 +964,10 @@ static void cliAsyncCb(uv_async_t* handle) {
   }
   if (pThrd->stopMsg != NULL) cliHandleQuit(pThrd->stopMsg, pThrd);
 }
+static void cliIdleCb(uv_idle_t* handle) {
+  SCliThrd* thrd = handle->data;
+  tTrace("do idle work");
+}
 
 static void* cliWorkThread(void* arg) {
   SCliThrd* pThrd = (SCliThrd*)arg;
@@ -1024,6 +1030,11 @@ static SCliThrd* createThrdObj() {
   uv_timer_init(pThrd->loop, &pThrd->timer);
   pThrd->timer.data = pThrd;
 
+  // pThrd->idle = taosMemoryCalloc(1, sizeof(uv_idle_t));
+  // uv_idle_init(pThrd->loop, pThrd->idle);
+  // pThrd->idle->data = pThrd;
+  //  uv_idle_start(pThrd->idle, cliIdleCb);
+
   pThrd->pool = createConnPool(4);
   transDQCreate(pThrd->loop, &pThrd->delayQueue);
 
@@ -1045,6 +1056,8 @@ static void destroyThrdObj(SCliThrd* pThrd) {
 
   transDQDestroy(pThrd->delayQueue, destroyCmsg);
   transDQDestroy(pThrd->timeoutQueue, NULL);
+
+  taosMemoryFree(pThrd->idle);
   taosMemoryFree(pThrd->loop);
   taosMemoryFree(pThrd);
 }

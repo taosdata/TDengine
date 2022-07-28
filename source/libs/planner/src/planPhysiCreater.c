@@ -553,6 +553,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->triggerType = pScanLogicNode->triggerType;
   pTableScan->watermark = pScanLogicNode->watermark;
   pTableScan->igExpired = pScanLogicNode->igExpired;
+  pTableScan->assignBlockUid = pCxt->pPlanCxt->rSmaQuery ? true : false;
 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);
 }
@@ -1587,7 +1588,7 @@ static int32_t createQueryInserter(SPhysiPlanContext* pCxt, SVnodeModifyLogicNod
   pInserter->tableId = pModify->tableId;
   pInserter->stableId = pModify->stableId;
   pInserter->tableType = pModify->tableType;
-  strcpy(pInserter->tableFName, pModify->tableFName);
+  strcpy(pInserter->tableName, pModify->tableName);
   pInserter->vgId = pModify->pVgroupList->vgroups[0].vgId;
   pInserter->epSet = pModify->pVgroupList->vgroups[0].epSet;
   vgroupInfoToNodeAddr(pModify->pVgroupList->vgroups, &pSubplan->execNode);
@@ -1637,7 +1638,8 @@ static int32_t createDataDeleter(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode*
 
   pDeleter->tableId = pModify->tableId;
   pDeleter->tableType = pModify->tableType;
-  strcpy(pDeleter->tableFName, pModify->tableFName);
+  strcpy(pDeleter->tableFName, pModify->tableName);
+  strcpy(pDeleter->tsColName, pModify->tsColName);
   pDeleter->deleteTimeRange = pModify->deleteTimeRange;
 
   int32_t code = setNodeSlotId(pCxt, pRoot->pOutputDataBlockDesc->dataBlockId, -1, pModify->pAffectedRows,
