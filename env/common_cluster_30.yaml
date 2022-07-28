@@ -33,8 +33,9 @@ settings:
       client_version: 3.0.0.0
       config:
         firstEP: ceph01:6030
+        dataDir: /var/lib/taos
         logDir: /var/log/taos
-        debugFlag: 135
+        debugFlag: 143
         asynclog: 0
   - name: taosAdapter
     fqdn: [ceph01]
