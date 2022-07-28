@@ -10,7 +10,7 @@ import TabItem from "@theme/TabItem";
 
 ## 安装
 
-关于安装，请参考 [使用安装包立即开始](../get-started/package)
+关于安装，请参考 [使用安装包立即开始](../../get-started/package)
 
 
 
