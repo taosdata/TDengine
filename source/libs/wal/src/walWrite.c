@@ -289,18 +289,25 @@ int32_t walEndSnapshot(SWal *pWal) {
         newTotSize -= iter->fileSize;
       }
     }
-    char fnameStr[WAL_FILE_LEN];
+    int32_t actualDelete = 0;
+    char    fnameStr[WAL_FILE_LEN];
     // remove file
     for (int i = 0; i < deleteCnt; i++) {
       pInfo = taosArrayGet(pWal->fileInfoSet, i);
       walBuildLogName(pWal, pInfo->firstVer, fnameStr);
-      taosRemoveFile(fnameStr);
+      if (taosRemoveFile(fnameStr) < 0) {
+        goto UPDATE_META;
+      }
       walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
-      taosRemoveFile(fnameStr);
+      if (taosRemoveFile(fnameStr) < 0) {
+        ASSERT(0);
+      }
+      actualDelete++;
     }
 
+  UPDATE_META:
     // make new array, remove files
-    taosArrayPopFrontBatch(pWal->fileInfoSet, deleteCnt);
+    taosArrayPopFrontBatch(pWal->fileInfoSet, actualDelete);
     if (taosArrayGetSize(pWal->fileInfoSet) == 0) {
       pWal->writeCur = -1;
       pWal->vers.firstVer = -1;
