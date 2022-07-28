@@ -66,7 +66,7 @@ print $data(db)[13] $data(db)[14] $data(db)[15] $data(db)[16] $data(db)[17] $dat
 if $rows != 3 then
   return -1
 endi
-if $data(db)[19] != ready then
+if $data(db)[15] != ready then
   goto check_db_ready
 endi
 

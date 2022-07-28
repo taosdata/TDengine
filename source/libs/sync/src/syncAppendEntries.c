@@ -244,22 +244,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
         ths->pLogStore->appendEntry(ths->pLogStore, pAppendEntry);
 
         // pre commit
-        SRpcMsg rpcMsg;
-        syncEntry2OriginalRpc(pAppendEntry, &rpcMsg);
-        if (ths->pFsm != NULL) {
-          // if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->originalRpcType != TDMT_SYNC_NOOP) {
-          if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pAppendEntry->originalRpcType)) {
-            SFsmCbMeta cbMeta = {0};
-            cbMeta.index = pAppendEntry->index;
-            cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
-            cbMeta.isWeak = pAppendEntry->isWeak;
-            cbMeta.code = 2;
-            cbMeta.state = ths->state;
-            cbMeta.seqNum = pAppendEntry->seqNum;
-            ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, cbMeta);
-          }
-        }
-        rpcFreeCont(rpcMsg.pCont);
+        syncNodePreCommit(ths, pAppendEntry, 0);
       }
 
       // free memory
@@ -280,22 +265,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
       ths->pLogStore->appendEntry(ths->pLogStore, pAppendEntry);
 
       // pre commit
-      SRpcMsg rpcMsg;
-      syncEntry2OriginalRpc(pAppendEntry, &rpcMsg);
-      if (ths->pFsm != NULL) {
-        // if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->originalRpcType != TDMT_SYNC_NOOP) {
-        if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pAppendEntry->originalRpcType)) {
-          SFsmCbMeta cbMeta = {0};
-          cbMeta.index = pAppendEntry->index;
-          cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
-          cbMeta.isWeak = pAppendEntry->isWeak;
-          cbMeta.code = 3;
-          cbMeta.state = ths->state;
-          cbMeta.seqNum = pAppendEntry->seqNum;
-          ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, cbMeta);
-        }
-      }
-      rpcFreeCont(rpcMsg.pCont);
+      syncNodePreCommit(ths, pAppendEntry, 0);
 
       // free memory
       syncEntryDestory(pAppendEntry);
@@ -440,7 +410,7 @@ static int32_t syncNodeDoMakeLogSame(SSyncNode* ths, SyncIndex FromIndex) {
   return code;
 }
 
-static int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry) {
+int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry, int32_t code) {
   SRpcMsg rpcMsg;
   syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
@@ -456,7 +426,7 @@ static int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry) {
       cbMeta.index = pEntry->index;
       cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
       cbMeta.isWeak = pEntry->isWeak;
-      cbMeta.code = 2;
+      cbMeta.code = code;
       cbMeta.state = ths->state;
       cbMeta.seqNum = pEntry->seqNum;
       ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, cbMeta);
@@ -594,7 +564,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
             return -1;
           }
 
-          code = syncNodePreCommit(ths, pAppendEntry);
+          code = syncNodePreCommit(ths, pAppendEntry, 0);
           ASSERT(code == 0);
 
           // syncEntryDestory(pAppendEntry);
@@ -715,7 +685,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
             return -1;
           }
 
-          code = syncNodePreCommit(ths, pAppendEntry);
+          code = syncNodePreCommit(ths, pAppendEntry, 0);
           ASSERT(code == 0);
 
           // syncEntryDestory(pAppendEntry);
@@ -919,7 +889,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
         }
 
         // pre commit
-        code = syncNodePreCommit(ths, pAppendEntry);
+        code = syncNodePreCommit(ths, pAppendEntry, 0);
         ASSERT(code == 0);
 
         // update match index
@@ -1032,7 +1002,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
         }
 
         // pre commit
-        code = syncNodePreCommit(ths, pAppendEntry);
+        code = syncNodePreCommit(ths, pAppendEntry, 0);
         ASSERT(code == 0);
 
         syncEntryDestory(pAppendEntry);

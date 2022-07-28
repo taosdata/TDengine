@@ -178,7 +178,7 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   if (metaGetTableEntryByName(&mr, pReq->name) == 0) {
 // TODO: just for pass case
 #if 0
-    terrno = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+    terrno = TSDB_CODE_TDB_STB_ALREADY_EXIST;
     metaReaderClear(&mr);
     return -1;
 #else
@@ -223,7 +223,7 @@ int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq, SArray *tb
   // check if super table exists
   rc = tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &pData, &nData);
   if (rc < 0 || *(tb_uid_t *)pData != pReq->suid) {
-    terrno = TSDB_CODE_VND_TABLE_NOT_EXIST;
+    terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
     return -1;
   }
 
@@ -293,7 +293,10 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, &pMeta->txn);
   ret = tdbTbcMoveTo(pUidIdxc, &pReq->suid, sizeof(tb_uid_t), &c);
   if (ret < 0 || c) {
-    ASSERT(0);
+    tdbTbcClose(pUidIdxc);
+
+    terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
+    // ASSERT(0);
     return -1;
   }
 
@@ -980,6 +983,9 @@ static int metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME) {
   tbDbKey.version = pME->version;
   tbDbKey.uid = pME->uid;
 
+  metaDebug("vgId:%d, start to save table version:%" PRId64 "uid: %" PRId64, TD_VID(pMeta->pVnode), pME->version,
+            pME->uid);
+
   pKey = &tbDbKey;
   kLen = sizeof(tbDbKey);
 
@@ -1012,6 +1018,9 @@ static int metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME) {
   return 0;
 
 _err:
+  metaError("vgId:%d, failed to save table version:%" PRId64 "uid: %" PRId64 " %s", TD_VID(pMeta->pVnode), pME->version,
+            pME->uid, tstrerror(terrno));
+
   taosMemoryFree(pVal);
   return -1;
 }

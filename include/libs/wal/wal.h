@@ -77,11 +77,11 @@ typedef struct {
 } SWalSyncInfo;
 
 typedef struct {
-  int8_t  protoVer;
   int64_t version;
-  int16_t msgType;
+  int64_t ingestTs;
   int32_t bodyLen;
-  int64_t ingestTs;  // not implemented
+  int16_t msgType;
+  int8_t  protoVer;
 
   // sync meta
   SWalSyncInfo syncMeta;
@@ -103,8 +103,8 @@ typedef struct SWal {
   int32_t fsyncSeq;
   // meta
   SWalVer   vers;
-  TdFilePtr pWriteLogTFile;
-  TdFilePtr pWriteIdxTFile;
+  TdFilePtr pLogFile;
+  TdFilePtr pIdxFile;
   int32_t   writeCur;
   SArray   *fileInfoSet;  // SArray<SWalFileInfo>
   // status

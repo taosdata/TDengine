@@ -68,9 +68,11 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   pInfo->mergeDataBlocks = pProjPhyNode->mergeDataBlock;
 
   // todo remove it soon
+
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
-    pInfo->mergeDataBlocks = true;
+    pInfo->mergeDataBlocks = false;
   }
+
 
   int32_t numOfRows = 4096;
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
@@ -181,6 +183,16 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
   return PROJECT_RETRIEVE_DONE;
 }
 
+void printDataBlock1(SSDataBlock* pBlock, const char* flag) {
+  if (!pBlock || pBlock->info.rows == 0) {
+    qDebug("===stream===printDataBlock: Block is Null or Empty");
+    return;
+  }
+  char* pBuf = NULL;
+  qDebug("%s", dumpBlockData(pBlock, flag, &pBuf));
+  taosMemoryFreeClear(pBuf);
+}
+
 SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   SProjectOperatorInfo* pProjectInfo = pOperator->info;
   SOptrBasicInfo*       pInfo = &pProjectInfo->binfo;
@@ -229,6 +241,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
       // for stream interval
       if (pBlock->info.type == STREAM_RETRIEVE) {
+        // printDataBlock1(pBlock, "project1");
         return pBlock;
       }
 
@@ -279,7 +292,9 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
       // do apply filter
       doFilter(pProjectInfo->pFilterNode, pFinalRes, NULL);
-      if (pFinalRes->info.rows > 0 || pRes->info.rows == 0) {
+
+      // when apply the limit/offset for each group, pRes->info.rows may be 0, due to limit constraint.
+      if (pFinalRes->info.rows > 0 || (pOperator->status == OP_EXEC_DONE)) {
         break;
       }
     } else {
@@ -302,7 +317,8 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   if (pOperator->cost.openCost == 0) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
-
+  
+  // printDataBlock1(p, "project");
   return (p->info.rows > 0) ? p : NULL;
 }
 

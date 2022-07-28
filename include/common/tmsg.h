@@ -737,7 +737,7 @@ typedef struct {
   int32_t daysToKeep2;
   int32_t minRows;
   int32_t maxRows;
-  int32_t fsyncPeriod;
+  int32_t walFsyncPeriod;
   int8_t  walLevel;
   int8_t  precision;  // time resolution
   int8_t  compression;
@@ -748,6 +748,10 @@ typedef struct {
   int8_t  ignoreExist;
   int32_t numOfRetensions;
   SArray* pRetensions;  // SRetention
+  int32_t walRetentionPeriod;
+  int64_t walRetentionSize;
+  int32_t walRollPeriod;
+  int64_t walSegmentSize;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -764,7 +768,7 @@ typedef struct {
   int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
-  int32_t fsyncPeriod;
+  int32_t walFsyncPeriod;
   int8_t  walLevel;
   int8_t  strict;
   int8_t  cacheLast;
@@ -855,7 +859,7 @@ typedef struct {
   int32_t daysToKeep2;
   int32_t minRows;
   int32_t maxRows;
-  int32_t fsyncPeriod;
+  int32_t walFsyncPeriod;
   int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;
@@ -1133,7 +1137,7 @@ typedef struct {
   int32_t  daysToKeep2;
   int32_t  minRows;
   int32_t  maxRows;
-  int32_t  fsyncPeriod;
+  int32_t  walFsyncPeriod;
   uint32_t hashBegin;
   uint32_t hashEnd;
   int8_t   hashMethod;
@@ -1150,6 +1154,10 @@ typedef struct {
   int32_t  numOfRetensions;
   SArray*  pRetensions;  // SRetention
   void*    pTsma;
+  int32_t  walRetentionPeriod;
+  int64_t  walRetentionSize;
+  int32_t  walRollPeriod;
+  int64_t  walSegmentSize;
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -1184,7 +1192,7 @@ typedef struct {
   int32_t  daysToKeep0;
   int32_t  daysToKeep1;
   int32_t  daysToKeep2;
-  int32_t  fsyncPeriod;
+  int32_t  walFsyncPeriod;
   int8_t   walLevel;
   int8_t   strict;
   int8_t   cacheLast;
@@ -1977,7 +1985,7 @@ typedef struct SVCreateTbReq {
   union {
     struct {
       char*    name;  // super table name
-      uint8_t tagNum;
+      uint8_t  tagNum;
       tb_uid_t suid;
       SArray*  tagName;
       uint8_t* pTag;
@@ -3036,10 +3044,40 @@ typedef struct SDeleteRes {
   int64_t  skey;
   int64_t  ekey;
   int64_t  affectedRows;
+  char     tableFName[TSDB_TABLE_NAME_LEN];
+  char     tsColName[TSDB_COL_NAME_LEN];
 } SDeleteRes;
 
 int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
 int32_t tDecodeDeleteRes(SDecoder* pCoder, SDeleteRes* pRes);
+
+typedef struct {
+  int32_t msgType;
+  int32_t msgLen;
+  void*   msg;
+} SBatchMsg;
+
+typedef struct {
+  SMsgHead  header;
+  int32_t   msgNum;
+  SBatchMsg msg[];
+} SBatchReq;
+
+typedef struct {
+  int32_t reqType;
+  int32_t msgLen;
+  int32_t rspCode;
+  void*   msg;
+} SBatchRsp;
+
+static FORCE_INLINE void tFreeSBatchRsp(void *p) {
+  if (NULL == p) {
+    return;
+  }
+
+  SBatchRsp* pRsp = (SBatchRsp*)p;
+  taosMemoryFree(pRsp->msg);
+}
 
 #pragma pack(pop)
 

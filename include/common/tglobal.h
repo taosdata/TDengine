@@ -41,10 +41,8 @@ extern int32_t tsCompressMsgSize;
 extern int32_t tsCompressColData;
 extern int32_t tsMaxNumOfDistinctResults;
 extern int32_t tsCompatibleModel;
-extern bool    tsEnableSlaveQuery;
 extern bool    tsPrintAuth;
 extern int64_t tsTickPerMin[3];
-
 extern int32_t tsCountAlwaysReturnValue;
 
 // multi-process
@@ -92,8 +90,6 @@ extern uint16_t tsTelemPort;
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
 extern int64_t tsQueryBufferSizeBytes;   // maximum allowed usage buffer size in byte for each data node
 extern bool    tsRetrieveBlockingModel;  // retrieve threads will be blocked
-extern bool    tsKeepOriginalColumnName;
-extern bool    tsDeadLockKillQuery;
 
 // query client
 extern int32_t tsQueryPolicy;
@@ -102,11 +98,6 @@ extern int32_t tsQuerySmaOptimize;
 // client
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
-extern int32_t tsMaxStreamComputDelay;
-extern int32_t tsStreamCompStartDelay;
-extern int32_t tsRetryStreamCompDelay;
-extern float   tsStreamComputDelayRatio;  // the delayed computing ration of the whole time window
-extern int64_t tsMaxRetentWindow;
 
 // build info
 extern char version[];
@@ -152,7 +143,10 @@ void    taosCfgDynamicOptions(const char *option, const char *value);
 void    taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary);
 
 struct SConfig *taosGetCfg();
-int32_t taosSetCfg(SConfig *pCfg, char* name);
+
+void    taosSetAllDebugFlag(int32_t flag);
+void    taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal);
+int32_t taosSetCfg(SConfig *pCfg, char *name);
 
 #ifdef __cplusplus
 }

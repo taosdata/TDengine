@@ -73,6 +73,7 @@ typedef struct SWorkThrd {
   uv_os_fd_t    fd;
   uv_loop_t*    loop;
   SAsyncPool*   asyncPool;
+  uv_prepare_t* prepare;
   queue         msg;
   TdThreadMutex msgMtx;
 
@@ -112,6 +113,7 @@ static void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf)
 static void uvWorkerAsyncCb(uv_async_t* handle);
 static void uvAcceptAsyncCb(uv_async_t* handle);
 static void uvShutDownCb(uv_shutdown_t* req, int status);
+static void uvPrepareCb(uv_prepare_t* handle);
 
 /*
  * time-consuming task throwed into BG work thread
@@ -212,9 +214,10 @@ static void uvHandleActivityTimeout(uv_timer_t* handle) {
 }
 
 static void uvHandleReq(SSvrConn* pConn) {
-  SConnBuffer* pBuf = &pConn->readBuf;
-  char*        msg = pBuf->buf;
-  uint32_t     msgLen = pBuf->len;
+  STransMsgHead* msg = NULL;
+  int            msgLen = 0;
+
+  msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&msg);
 
   STransMsgHead* pHead = (STransMsgHead*)msg;
   pHead->code = htonl(pHead->code);
@@ -236,8 +239,6 @@ static void uvHandleReq(SSvrConn* pConn) {
   transMsg.pCont = pHead->content;
   transMsg.msgType = pHead->msgType;
   transMsg.code = pHead->code;
-
-  transClearBuffer(&pConn->readBuf);
 
   pConn->inType = pHead->msgType;
   if (pConn->status == ConnNormal) {
@@ -545,6 +546,52 @@ static void uvShutDownCb(uv_shutdown_t* req, int status) {
   uv_close((uv_handle_t*)req->handle, uvDestroyConn);
   taosMemoryFree(req);
 }
+static void uvPrepareCb(uv_prepare_t* handle) {
+  // prepare callback
+  SWorkThrd*  pThrd = handle->data;
+  SAsyncPool* pool = pThrd->asyncPool;
+
+  for (int i = 0; i < pool->nAsync; i++) {
+    uv_async_t* async = &(pool->asyncs[i]);
+    SAsyncItem* item = async->data;
+
+    queue wq;
+    taosThreadMutexLock(&item->mtx);
+    QUEUE_MOVE(&item->qmsg, &wq);
+    taosThreadMutexUnlock(&item->mtx);
+
+    while (!QUEUE_IS_EMPTY(&wq)) {
+      queue* head = QUEUE_HEAD(&wq);
+      QUEUE_REMOVE(head);
+
+      SSvrMsg* msg = QUEUE_DATA(head, SSvrMsg, q);
+      if (msg == NULL) {
+        tError("unexcept occurred, continue");
+        continue;
+      }
+      // release handle to rpc init
+      if (msg->type == Quit) {
+        (*transAsyncHandle[msg->type])(msg, pThrd);
+        continue;
+      } else {
+        STransMsg transMsg = msg->msg;
+
+        SExHandle* exh1 = transMsg.info.handle;
+        int64_t    refId = transMsg.info.refId;
+        SExHandle* exh2 = transAcquireExHandle(transGetRefMgt(), refId);
+        if (exh2 == NULL || exh1 != exh2) {
+          tTrace("handle except msg %p, ignore it", exh1);
+          transReleaseExHandle(transGetRefMgt(), refId);
+          destroySmsg(msg);
+          continue;
+        }
+        msg->pConn = exh1->handle;
+        transReleaseExHandle(transGetRefMgt(), refId);
+        (*transAsyncHandle[msg->type])(msg, pThrd);
+      }
+    }
+  }
+}
 
 static void uvWorkDoTask(uv_work_t* req) {
   // doing time-consumeing task
@@ -694,12 +741,16 @@ static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
   }
 
   uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
-  // int r = uv_pipe_open(pThrd->pipe, pThrd->fd);
 
   pThrd->pipe->data = pThrd;
 
   QUEUE_INIT(&pThrd->msg);
   taosThreadMutexInit(&pThrd->msgMtx, NULL);
+
+  pThrd->prepare = taosMemoryCalloc(1, sizeof(uv_prepare_t));
+  uv_prepare_init(pThrd->loop, pThrd->prepare);
+  uv_prepare_start(pThrd->prepare, uvPrepareCb);
+  pThrd->prepare->data = pThrd;
 
   // conn set
   QUEUE_INIT(&pThrd->conn);
@@ -761,6 +812,7 @@ static SSvrConn* createConn(void* hThrd) {
   memset(&pConn->regArg, 0, sizeof(pConn->regArg));
   pConn->broken = false;
   pConn->status = ConnNormal;
+  transInitBuffer(&pConn->readBuf);
 
   SExHandle* exh = taosMemoryMalloc(sizeof(SExHandle));
   exh->handle = pConn;
@@ -984,6 +1036,7 @@ void destroyWorkThrd(SWorkThrd* pThrd) {
   SRV_RELEASE_UV(pThrd->loop);
   TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SSvrMsg, destroySmsg);
   transAsyncPoolDestroy(pThrd->asyncPool);
+  taosMemoryFree(pThrd->prepare);
   taosMemoryFree(pThrd->loop);
   taosMemoryFree(pThrd);
 }
