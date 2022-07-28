@@ -736,6 +736,13 @@ int32_t syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg** pMsgPArr, bool* pIs
 
   SRaftMeta raftArr[SYNC_MAX_BATCH_SIZE];
   for (int i = 0; i < arrSize; ++i) {
+    do {
+      char eventLog[128];
+      snprintf(eventLog, sizeof(eventLog), "propose type:%s,%d, batch:%d", TMSG_INFO(pMsgPArr[i]->msgType),
+               pMsgPArr[i]->msgType, arrSize);
+      syncNodeEventLog(pSyncNode, eventLog);
+    } while (0);
+
     SRespStub stub;
     stub.createTime = taosGetTimestampMs();
     stub.rpcMsg = *(pMsgPArr[i]);
@@ -790,9 +797,11 @@ int32_t syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg** pMsgPArr, bool* pIs
 int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
   int32_t ret = 0;
 
-  char eventLog[128];
-  snprintf(eventLog, sizeof(eventLog), "propose type:%s,%d", TMSG_INFO(pMsg->msgType), pMsg->msgType);
-  syncNodeEventLog(pSyncNode, eventLog);
+  do {
+    char eventLog[128];
+    snprintf(eventLog, sizeof(eventLog), "propose type:%s,%d", TMSG_INFO(pMsg->msgType), pMsg->msgType);
+    syncNodeEventLog(pSyncNode, eventLog);
+  } while (0);
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     if (pSyncNode->changing && pMsg->msgType != TDMT_SYNC_CONFIG_CHANGE_FINISH) {
