@@ -1138,6 +1138,13 @@ static int32_t syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack, int8_t t
 }
 
 static void syncSetupPeerConnection(SSyncPeer *pPeer) {
+  int err = pthread_rwlock_init(&pPeer->rw_lock, NULL);
+  if(err != 0)
+  {
+    sError("Init the rwlock failed!");
+    return ;
+  }
+  pthread_rwlock_tryrdlock(&pPeer->rw_lock);
   SSyncNode *pNode = pPeer->pSyncNode;
 
   taosTmrStopA(&pPeer->timer);
@@ -1163,6 +1170,9 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
   SSyncMsg msg;
   syncBuildSyncSetupMsg(&msg, pPeer->nodeId ? pNode->vgId : 0);
 
+  pthread_rwlock_unlock(&pPeer->rw_lock);
+
+  pthread_rwlock_trywrlock(&pPeer->rw_lock);
   if (taosWriteMsg(connFd, &msg, sizeof(SSyncMsg)) == sizeof(SSyncMsg)) {
     sDebug("%s, connection to peer server is setup, pfd:%d sfd:%d tranId:%u", pPeer->id, connFd, pPeer->syncFd, msg.tranId);
     pPeer->peerFd = connFd;
@@ -1179,6 +1189,7 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
     taosCloseSocket(connFd);
     taosTmrReset(syncCheckPeerConnection, tsSyncCheckInterval, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
   }
+  pthread_rwlock_unlock(&pPeer->rw_lock);
 }
 
 static void syncCheckPeerConnection(void *param, void *tmrId) {
@@ -1186,14 +1197,14 @@ static void syncCheckPeerConnection(void *param, void *tmrId) {
   SSyncPeer *pPeer = syncAcquirePeer(rid);
   if (pPeer == NULL) return;
 
-  SSyncNode *pNode = pPeer->pSyncNode;
+//  SSyncNode *pNode = pPeer->pSyncNode;
 
-  pthread_mutex_lock(&pNode->mutex);
+//  pthread_mutex_lock(&pNode->mutex);
 
   sDebug("%s, check peer connection", pPeer->id);
   syncSetupPeerConnection(pPeer);
 
-  pthread_mutex_unlock(&pNode->mutex);
+//  pthread_mutex_unlock(&pNode->mutex);
 
   syncReleasePeer(pPeer);
 }

@@ -92,6 +92,7 @@ typedef struct SsyncPeer {
   void *   timer;
   void *   pConn;
   struct   SSyncNode *pSyncNode;
+  pthread_rwlock_t rw_lock;
 } SSyncPeer;
 
 typedef struct SSyncNode {
