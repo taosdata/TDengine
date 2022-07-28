@@ -63,13 +63,15 @@ sql show table distributed tb1
 sql select count(1) from tb1
 sql select count(tbcol) as b from tb1 where ts <= 1601481840000 interval(1m)
 sql select diff(tbcol) from tb1 where ts <= 1601481840000 
-sql select diff(tbcol) from tb1 where tbcol > 5 and tbcol < 20
+sql select diff(tbcol) from tb1 where tbcol > 5 and tbcol < 20 order by ts
 sql select first(tbcol), last(tbcol) as b from tb1 where ts <= 1601481840000 interval(1m)
-sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), sum(tbcol), stddev(tbcol) from tb1 where ts <= 1601481840000 partition by tgcol interval(1m)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), sum(tbcol), stddev(tbcol) from tb1 where ts <= 1601481840000 partition by tgcol order by tgcol
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), sum(tbcol), stddev(tbcol) from tb1 where ts <= 1601481840000 partition by tgcol interval(1m) 
 sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from tb1 where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
 sql select last_row(*) from tb1 where tbcol > 5 and tbcol < 20
 sql select _wstart, _wend, _wduration, _qstart, _qend,  count(*) from tb1 interval(10s, 2s) sliding(10s)
 sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from tb1 where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from tb1 where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0) order by tgcol desc
 sql select log(tbcol), abs(tbcol), pow(tbcol, 2), sqrt(tbcol), sin(tbcol), cos(tbcol), tan(tbcol), asin(tbcol), acos(tbcol), atan(tbcol), ceil(tbcol), floor(tbcol), round(tbcol), atan(tbcol) from tb1
 sql select length("abcd1234"), char_length("abcd1234=-+*") from tb1
 sql select tbcol4, length(tbcol4), lower(tbcol4), upper(tbcol4), ltrim(tbcol4), rtrim(tbcol4), concat(tbcol4, tbcol5), concat_ws('_', tbcol4, tbcol5), substr(tbcol4, 1, 4)  from tb1
@@ -94,6 +96,7 @@ sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 and
 sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
 sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), sum(tbcol), stddev(tbcol) from stb where ts <= 1601481840000 partition by tgcol interval(1m)
 sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from stb where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from stb where ts <= 1601481840000 and ts >= 1601481800000 and tgcol = 1 partition by tgcol interval(1m) fill(value, 0) order by tgcol desc
 sql select last_row(tbcol), stddev(tbcol) from stb where tbcol > 5 and tbcol < 20 group by tgcol
 sql select _wstart, _wend, _wduration, _qstart, _qend,  count(*) from stb interval(10s, 2s) sliding(10s)
 sql select log(tbcol), abs(tbcol), pow(tbcol, 2), sqrt(tbcol), sin(tbcol), cos(tbcol), tan(tbcol), asin(tbcol), acos(tbcol), atan(tbcol), ceil(tbcol), floor(tbcol), round(tbcol), atan(tbcol) from stb
