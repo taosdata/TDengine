@@ -60,6 +60,7 @@ typedef struct SCliThrd {
   int64_t     pid;     // pid
   uv_loop_t*  loop;
   SAsyncPool* asyncPool;
+  uv_idle_t*  idle;
   uv_timer_t  timer;
   void*       pool;  // conn pool
 
@@ -116,6 +117,7 @@ static void cliSendCb(uv_write_t* req, int status);
 // callback after conn  to server
 static void cliConnCb(uv_connect_t* req, int status);
 static void cliAsyncCb(uv_async_t* handle);
+static void cliIdleCb(uv_idle_t* handle);
 
 static int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg);
 
@@ -323,7 +325,8 @@ void cliHandleResp(SCliConn* conn) {
   SCliThrd* pThrd = conn->hostThrd;
   STrans*   pTransInst = pThrd->pTransInst;
 
-  STransMsgHead* pHead = (STransMsgHead*)(conn->readBuf.buf);
+  STransMsgHead* pHead = NULL;
+  transDumpFromBuffer(&conn->readBuf, (char**)&pHead);
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
 
@@ -366,7 +369,6 @@ void cliHandleResp(SCliConn* conn) {
     }
   }
   // buf's mem alread translated to transMsg.pCont
-  transClearBuffer(&conn->readBuf);
   if (!CONN_NO_PERSIST_BY_APP(conn)) {
     transMsg.info.handle = (void*)conn->refId;
     tDebug("%s conn %p ref by app", CONN_GET_INST_LABEL(conn), conn);
@@ -636,6 +638,8 @@ static SCliConn* cliCreateConn(SCliThrd* pThrd) {
   transReqQueueInit(&conn->wreqQueue);
 
   transQueueInit(&conn->cliMsgs, NULL);
+
+  transInitBuffer(&conn->readBuf);
   QUEUE_INIT(&conn->q);
   conn->hostThrd = pThrd;
   conn->status = ConnNormal;
@@ -651,8 +655,9 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   QUEUE_REMOVE(&conn->q);
   QUEUE_INIT(&conn->q);
   transRemoveExHandle(transGetRefMgt(), conn->refId);
-  conn->refId = -1;
+  transDestroyBuffer(&conn->readBuf);
 
+  conn->refId = -1;
   if (conn->task != NULL) transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
 
   if (clear) {
@@ -678,7 +683,6 @@ static void cliDestroy(uv_handle_t* handle) {
   tTrace("%s conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
   transReqQueueClear(&conn->wreqQueue);
 
-  transDestroyBuffer(&conn->readBuf);
   taosMemoryFree(conn);
 }
 static bool cliHandleNoResp(SCliConn* conn) {
@@ -960,6 +964,10 @@ static void cliAsyncCb(uv_async_t* handle) {
   }
   if (pThrd->stopMsg != NULL) cliHandleQuit(pThrd->stopMsg, pThrd);
 }
+static void cliIdleCb(uv_idle_t* handle) {
+  SCliThrd* thrd = handle->data;
+  tTrace("do idle work");
+}
 
 static void* cliWorkThread(void* arg) {
   SCliThrd* pThrd = (SCliThrd*)arg;
@@ -1022,6 +1030,11 @@ static SCliThrd* createThrdObj() {
   uv_timer_init(pThrd->loop, &pThrd->timer);
   pThrd->timer.data = pThrd;
 
+  // pThrd->idle = taosMemoryCalloc(1, sizeof(uv_idle_t));
+  // uv_idle_init(pThrd->loop, pThrd->idle);
+  // pThrd->idle->data = pThrd;
+  //  uv_idle_start(pThrd->idle, cliIdleCb);
+
   pThrd->pool = createConnPool(4);
   transDQCreate(pThrd->loop, &pThrd->delayQueue);
 
@@ -1043,6 +1056,8 @@ static void destroyThrdObj(SCliThrd* pThrd) {
 
   transDQDestroy(pThrd->delayQueue, destroyCmsg);
   transDQDestroy(pThrd->timeoutQueue, NULL);
+
+  taosMemoryFree(pThrd->idle);
   taosMemoryFree(pThrd->loop);
   taosMemoryFree(pThrd);
 }

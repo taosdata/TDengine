@@ -359,6 +359,8 @@ typedef struct STableMergeScanInfo {
   // window to check if current data block needs to be loaded.
   SInterval       interval;
   SSampleExecInfo sample;  // sample execution info
+
+  SSortExecInfo sortExecInfo;
 } STableMergeScanInfo;
 
 typedef struct STagScanInfo {
@@ -466,7 +468,6 @@ typedef struct SStreamScanInfo {
   SSDataBlock*           pUpdateDataRes;
   // status for tmq
   // SSchemaWrapper schema;
-  STqOffset              offset;
   SNodeList*             pGroupTags;
   SNode*                 pTagCond;
   SNode*                 pTagIndexCond;
@@ -802,6 +803,7 @@ typedef struct STagFilterOperatorInfo {
 typedef struct SJoinOperatorInfo {
   SSDataBlock       *pRes;
   int32_t            joinType;
+  int32_t            inputTsOrder;
 
   SSDataBlock       *pLeft;
   int32_t            leftPos;
@@ -1000,6 +1002,7 @@ int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pStartTs,
 bool functionNeedToExecute(SqlFunctionCtx* pCtx);
 bool isCloseWindow(STimeWindow* pWin, STimeWindowAggSupp* pSup);
 void appendOneRow(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid);
+void printDataBlock(SSDataBlock* pBlock, const char* flag);
 
 int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
                                        SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs, const int32_t* rowCellOffset,
@@ -1017,6 +1020,7 @@ void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsCol
 
 int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* groupKey);
 SSDataBlock* createSpecialDataBlock(EStreamType type);
+void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
 #ifdef __cplusplus
 }

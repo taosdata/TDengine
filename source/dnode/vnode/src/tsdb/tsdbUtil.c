@@ -24,6 +24,8 @@ void tMapDataReset(SMapData *pMapData) {
 void tMapDataClear(SMapData *pMapData) {
   tFree((uint8_t *)pMapData->aOffset);
   tFree(pMapData->pData);
+  pMapData->pData = NULL;
+  pMapData->aOffset = NULL;
 }
 
 int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *)) {
@@ -1020,6 +1022,10 @@ void tBlockDataClear(SBlockData *pBlockData, int8_t deepClear) {
   tFree((uint8_t *)pBlockData->aTSKEY);
   taosArrayDestroy(pBlockData->aIdx);
   taosArrayDestroyEx(pBlockData->aColData, deepClear ? tColDataClear : NULL);
+  pBlockData->aColData = NULL;
+  pBlockData->aIdx = NULL;
+  pBlockData->aTSKEY = NULL;
+  pBlockData->aVersion = NULL;
 }
 
 int32_t tBlockDataSetSchema(SBlockData *pBlockData, STSchema *pTSchema) {

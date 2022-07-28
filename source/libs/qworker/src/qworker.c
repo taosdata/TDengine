@@ -283,6 +283,9 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes
   pRes->skey = pDelRes->skey;
   pRes->ekey = pDelRes->ekey;
   pRes->affectedRows = pDelRes->affectedRows;
+  strcpy(pRes->tableFName, pDelRes->tableName);
+  strcpy(pRes->tsColName, pDelRes->tsColName);
+  taosMemoryFree(output.pData);
   
   return TSDB_CODE_SUCCESS;
 }

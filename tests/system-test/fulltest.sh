@@ -27,7 +27,7 @@ python3 ./test.py -f 1-insert/alter_stable.py
 python3 ./test.py -f 1-insert/alter_table.py
 python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
 python3 ./test.py -f 1-insert/table_comment.py
-python3 ./test.py -f 1-insert/time_range_wise.py
+#python3 ./test.py -f 1-insert/time_range_wise.py
 python3 ./test.py -f 1-insert/block_wise.py
 python3 ./test.py -f 1-insert/create_retentions.py
 python3 ./test.py -f 1-insert/table_param_ttl.py
@@ -59,8 +59,8 @@ python3 ./test.py -f 2-query/ceil.py
 python3 ./test.py -f 2-query/ceil.py -R
 python3 ./test.py -f 2-query/char_length.py
 python3 ./test.py -f 2-query/char_length.py -R
-python3 ./test.py -f 2-query/check_tsdb.py
-python3 ./test.py -f 2-query/check_tsdb.py -R
+#python3 ./test.py -f 2-query/check_tsdb.py
+#python3 ./test.py -f 2-query/check_tsdb.py -R
 
 python3 ./test.py -f 1-insert/update_data.py
 
@@ -173,7 +173,7 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 6 -M 3 -C 5
 # python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
 # python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
 
- 
+python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3 
 python3 ./test.py -f 7-tmq/basic5.py
 python3 ./test.py -f 7-tmq/subscribeDb.py
 python3 ./test.py -f 7-tmq/subscribeDb0.py
@@ -209,8 +209,8 @@ python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
-python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
-python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
+#python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
+#python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
 python3 ./test.py -f 7-tmq/tmqUpdate-1ctb.py
 python3 ./test.py -f 7-tmq/tmqUpdateWithConsume.py
 python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot0.py
@@ -227,6 +227,7 @@ python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot1.py
 python3 ./test.py -f 7-tmq/stbTagFilter-1ctb.py
 python3 ./test.py -f 7-tmq/dataFromTsdbNWal.py
 python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
+python3 ./test.py -f 7-tmq/tmq_taosx.py
 # python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 
 #------------querPolicy  2-----------
@@ -250,7 +251,7 @@ python3 ./test.py -f 2-query/concat.py -Q 2
 python3 ./test.py -f 2-query/concat2.py -Q 2
 python3 ./test.py -f 2-query/concat_ws.py -Q 2
 python3 ./test.py -f 2-query/concat_ws2.py -Q 2
-python3 ./test.py -f 2-query/check_tsdb.py -Q 2
+#python3 ./test.py -f 2-query/check_tsdb.py -Q 2
 python3 ./test.py -f 2-query/spread.py -Q 2
 python3 ./test.py -f 2-query/hyperloglog.py -Q 2
 python3 ./test.py -f 2-query/explain.py -Q 2
@@ -340,7 +341,7 @@ python3 ./test.py -f 2-query/concat.py -Q  3
 python3 ./test.py -f 2-query/concat2.py -Q  3
 python3 ./test.py -f 2-query/concat_ws.py -Q  3
 python3 ./test.py -f 2-query/concat_ws2.py -Q  3
-python3 ./test.py -f 2-query/check_tsdb.py -Q  3
+#python3 ./test.py -f 2-query/check_tsdb.py -Q  3
 python3 ./test.py -f 2-query/spread.py -Q  3
 python3 ./test.py -f 2-query/hyperloglog.py -Q  3
 python3 ./test.py -f 2-query/explain.py -Q  3

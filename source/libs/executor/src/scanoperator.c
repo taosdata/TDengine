@@ -1396,13 +1396,11 @@ SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNo
 
 static void destroyStreamScanOperatorInfo(void* param, int32_t numOfOutput) {
   SStreamScanInfo* pStreamScan = (SStreamScanInfo*)param;
-#if 1
   if (pStreamScan->pTableScanOp && pStreamScan->pTableScanOp->info) {
     STableScanInfo* pTableScanInfo = pStreamScan->pTableScanOp->info;
     destroyTableScanOperatorInfo(pTableScanInfo, numOfOutput);
     taosMemoryFreeClear(pStreamScan->pTableScanOp);
   }
-#endif
   if (pStreamScan->tqReader) {
     tqCloseReader(pStreamScan->tqReader);
   }
@@ -1528,6 +1526,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->pDeleteDataRes = createSpecialDataBlock(STREAM_DELETE_DATA);
   pInfo->updateWin = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MAX};
   pInfo->pUpdateDataRes = createSpecialDataBlock(STREAM_CLEAR);
+  pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
 
   pOperator->name = "StreamScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;
@@ -2831,6 +2830,13 @@ int32_t stopGroupTableMergeScan(SOperatorInfo* pOperator) {
 
   size_t numReaders = taosArrayGetSize(pInfo->dataReaders);
 
+  SSortExecInfo sortExecInfo = tsortGetSortExecInfo(pInfo->pSortHandle);
+  pInfo->sortExecInfo.sortMethod = sortExecInfo.sortMethod;
+  pInfo->sortExecInfo.sortBuffer = sortExecInfo.sortBuffer;
+  pInfo->sortExecInfo.loops += sortExecInfo.loops;
+  pInfo->sortExecInfo.readBytes += sortExecInfo.readBytes;
+  pInfo->sortExecInfo.writeBytes += sortExecInfo.writeBytes;
+
   for (int32_t i = 0; i < numReaders; ++i) {
     STableMergeScanSortSourceParam* param = taosArrayGet(pInfo->sortSourceParams, i);
     blockDataDestroy(param->inputBlock);
@@ -2848,7 +2854,8 @@ int32_t stopGroupTableMergeScan(SOperatorInfo* pOperator) {
   return TSDB_CODE_SUCCESS;
 }
 
-SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock* pResBlock, int32_t capacity, SOperatorInfo* pOperator) {
+SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock* pResBlock, int32_t capacity,
+                                              SOperatorInfo* pOperator) {
   STableMergeScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
 
@@ -2866,7 +2873,6 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
       break;
     }
   }
-
 
   qDebug("%s get sorted row blocks, rows:%d", GET_TASKID(pTaskInfo), pResBlock->info.rows);
   return (pResBlock->info.rows > 0) ? pResBlock : NULL;
@@ -2898,7 +2904,8 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
   }
   SSDataBlock* pBlock = NULL;
   while (pInfo->tableStartIndex < tableListSize) {
-    pBlock = getSortedTableMergeScanBlockData(pInfo->pSortHandle, pInfo->pResBlock, pOperator->resultInfo.capacity, pOperator);
+    pBlock = getSortedTableMergeScanBlockData(pInfo->pSortHandle, pInfo->pResBlock, pOperator->resultInfo.capacity,
+                                              pOperator);
     if (pBlock != NULL) {
       pBlock->info.groupId = pInfo->groupId;
       pOperator->resultInfo.totalRows += pBlock->info.rows;
@@ -2955,7 +2962,7 @@ int32_t getTableMergeScanExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExpla
   STableMergeScanExecInfo* execInfo = taosMemoryCalloc(1, sizeof(STableMergeScanExecInfo));
   STableMergeScanInfo*     pInfo = pOptr->info;
   execInfo->blockRecorder = pInfo->readRecorder;
-  execInfo->sortExecInfo = tsortGetSortExecInfo(pInfo->pSortHandle);
+  execInfo->sortExecInfo = pInfo->sortExecInfo;
 
   *pOptrExplain = execInfo;
   *len = sizeof(STableMergeScanExecInfo);

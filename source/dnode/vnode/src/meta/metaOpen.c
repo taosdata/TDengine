@@ -180,11 +180,41 @@ int metaClose(SMeta *pMeta) {
   return 0;
 }
 
-int32_t metaRLock(SMeta *pMeta) { return taosThreadRwlockRdlock(&pMeta->lock); }
+int32_t metaRLock(SMeta *pMeta) {
+  int32_t ret = 0;
 
-int32_t metaWLock(SMeta *pMeta) { return taosThreadRwlockWrlock(&pMeta->lock); }
+  metaDebug("meta rlock %p B", &pMeta->lock);
 
-int32_t metaULock(SMeta *pMeta) { return taosThreadRwlockUnlock(&pMeta->lock); }
+  ret = taosThreadRwlockRdlock(&pMeta->lock);
+
+  metaDebug("meta rlock %p E", &pMeta->lock);
+
+  return ret;
+}
+
+int32_t metaWLock(SMeta *pMeta) {
+  int32_t ret = 0;
+
+  metaDebug("meta wlock %p B", &pMeta->lock);
+
+  ret = taosThreadRwlockWrlock(&pMeta->lock);
+
+  metaDebug("meta wlock %p E", &pMeta->lock);
+
+  return ret;
+}
+
+int32_t metaULock(SMeta *pMeta) {
+  int32_t ret = 0;
+
+  metaDebug("meta ulock %p B", &pMeta->lock);
+
+  ret = taosThreadRwlockUnlock(&pMeta->lock);
+
+  metaDebug("meta ulock %p E", &pMeta->lock);
+
+  return ret;
+}
 
 static int tbDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   STbDbKey *pTbDbKey1 = (STbDbKey *)pKey1;
@@ -259,7 +289,7 @@ static int ctbIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
 static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   STagIdxKey *pTagIdxKey1 = (STagIdxKey *)pKey1;
   STagIdxKey *pTagIdxKey2 = (STagIdxKey *)pKey2;
-  tb_uid_t    uid1, uid2;
+  tb_uid_t    uid1 = 0, uid2 = 0;
   int         c;
 
   // compare suid
@@ -287,14 +317,15 @@ static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
     // all not NULL, compr tag vals
     c = doCompare(pTagIdxKey1->data, pTagIdxKey2->data, pTagIdxKey1->type, 0);
     if (c) return c;
+  }
 
-    if (IS_VAR_DATA_TYPE(pTagIdxKey1->type)) {
-      uid1 = *(tb_uid_t *)(pTagIdxKey1->data + varDataTLen(pTagIdxKey1->data));
-      uid2 = *(tb_uid_t *)(pTagIdxKey2->data + varDataTLen(pTagIdxKey2->data));
-    } else {
-      uid1 = *(tb_uid_t *)(pTagIdxKey1->data + tDataTypes[pTagIdxKey1->type].bytes);
-      uid2 = *(tb_uid_t *)(pTagIdxKey2->data + tDataTypes[pTagIdxKey2->type].bytes);
-    }
+  // both null or tag values are equal, then continue to compare uids
+  if (IS_VAR_DATA_TYPE(pTagIdxKey1->type)) {
+    uid1 = *(tb_uid_t *)(pTagIdxKey1->data + varDataTLen(pTagIdxKey1->data));
+    uid2 = *(tb_uid_t *)(pTagIdxKey2->data + varDataTLen(pTagIdxKey2->data));
+  } else {
+    uid1 = *(tb_uid_t *)(pTagIdxKey1->data + tDataTypes[pTagIdxKey1->type].bytes);
+    uid2 = *(tb_uid_t *)(pTagIdxKey2->data + tDataTypes[pTagIdxKey2->type].bytes);
   }
 
   // compare uid

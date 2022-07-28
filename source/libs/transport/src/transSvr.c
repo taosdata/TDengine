@@ -212,9 +212,10 @@ static void uvHandleActivityTimeout(uv_timer_t* handle) {
 }
 
 static void uvHandleReq(SSvrConn* pConn) {
-  SConnBuffer* pBuf = &pConn->readBuf;
-  char*        msg = pBuf->buf;
-  uint32_t     msgLen = pBuf->len;
+  STransMsgHead* msg = NULL;
+  int            msgLen = 0;
+
+  msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&msg);
 
   STransMsgHead* pHead = (STransMsgHead*)msg;
   pHead->code = htonl(pHead->code);
@@ -237,7 +238,7 @@ static void uvHandleReq(SSvrConn* pConn) {
   transMsg.msgType = pHead->msgType;
   transMsg.code = pHead->code;
 
-  transClearBuffer(&pConn->readBuf);
+  // transClearBuffer(&pConn->readBuf);
 
   pConn->inType = pHead->msgType;
   if (pConn->status == ConnNormal) {
@@ -761,6 +762,7 @@ static SSvrConn* createConn(void* hThrd) {
   memset(&pConn->regArg, 0, sizeof(pConn->regArg));
   pConn->broken = false;
   pConn->status = ConnNormal;
+  transInitBuffer(&pConn->readBuf);
 
   SExHandle* exh = taosMemoryMalloc(sizeof(SExHandle));
   exh->handle = pConn;

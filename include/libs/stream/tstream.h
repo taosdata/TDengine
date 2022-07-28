@@ -171,8 +171,8 @@ typedef struct {
 } STaskDispatcherFixedEp;
 
 typedef struct {
-  // int8_t  hashMethod;
   char      stbFullName[TSDB_TABLE_FNAME_LEN];
+  int32_t   waitingRspCnt;
   SUseDbRsp dbInfo;
 } STaskDispatcherShuffle;
 
@@ -270,7 +270,7 @@ typedef struct SStreamTask {
   int64_t startVer;
   int64_t checkpointVer;
   int64_t processedVer;
-  int32_t numOfVgroups;
+  // int32_t numOfVgroups;
 
   // children info
   SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>

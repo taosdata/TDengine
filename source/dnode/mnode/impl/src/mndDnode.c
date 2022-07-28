@@ -788,9 +788,9 @@ _OVER:
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   const char *options[] = {
-      "debugFlag",     "dDebugFlag",  "vDebugFlag",   "mDebugFlag",   "wDebugFlag",   "sDebugFlag",
-      "tsdbDebugFlag", "tqDebugFlag", "fsDebugFlag",  "udfDebugFlag", "smaDebugFlag", "idxDebugFlag",
-      "tmrDebugFlag",  "uDebugFlag",  "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",
+      "debugFlag",     "dDebugFlag",   "vDebugFlag",  "mDebugFlag",   "wDebugFlag",   "sDebugFlag",
+      "tsdbDebugFlag", "tqDebugFlag",  "fsDebugFlag", "udfDebugFlag", "smaDebugFlag", "idxDebugFlag",
+      "tdbDebugFlag",  "tmrDebugFlag", "uDebugFlag",  "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",
   };
   int32_t optionSize = tListLen(options);
 
@@ -812,7 +812,6 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   }
   SEpSet epSet = mndGetDnodeEpset(pDnode);
   mndReleaseDnode(pMnode, pDnode);
-
 
   SDCfgDnodeReq dcfgReq = {0};
   if (strcasecmp(cfgReq.config, "resetlog") == 0) {
@@ -839,7 +838,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       if (strncasecmp(cfgReq.config, optName, optLen) != 0) continue;
 
       const char *value = cfgReq.value;
-      int32_t flag = atoi(value);
+      int32_t     flag = atoi(value);
       if (flag <= 0) {
         flag = atoi(cfgReq.config + optLen + 1);
       }
