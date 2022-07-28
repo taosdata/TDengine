@@ -49,18 +49,23 @@ class TDSql:
     def close(self):
         self.cursor.close()
 
-    def prepare(self):
-        tdLog.info("prepare database:db")
+    def prepare(self, dbname="db", drop=True, **kwargs):
+        tdLog.info(f"prepare database:{dbname}")
         s = 'reset query cache'
         try:
             self.cursor.execute(s)
         except:
             tdLog.notice("'reset query cache' is not supported")
-        s = 'drop database if exists db'
+        if drop:
+            s = f'drop database if exists {dbname}'
+            self.cursor.execute(s)
+        s = f'create database {dbname}'
+        for k, v in kwargs.items():
+            s += f" {k} {v}"
+        if "duration" not in kwargs:
+            s += " duration 300"
         self.cursor.execute(s)
-        s = 'create database db duration 300'
-        self.cursor.execute(s)
-        s = 'use db'
+        s = f'use {dbname}'
         self.cursor.execute(s)
         time.sleep(2)
 
@@ -106,7 +111,7 @@ class TDSql:
                 if row_tag:
                     return self.queryResult
                 return self.queryRows
-            except Exception as e:    
+            except Exception as e:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
                 args = (caller.filename, caller.lineno, sql, repr(e))
                 tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
@@ -304,7 +309,7 @@ class TDSql:
                 tdLog.notice("Try to execute sql again, query times: %d "%i)
                 time.sleep(1)
                 pass
-        else:               
+        else:
             try:
                 tdLog.notice("Try the last execute sql ")
                 self.affectedRows = self.cursor.execute(sql)
