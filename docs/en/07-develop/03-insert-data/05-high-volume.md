@@ -51,7 +51,7 @@ TDengine is a distributed and high performance time series database, there are a
 1. Set proper number of `vgroups` according to available CPU cores. Normally, we recommend 2 \* number_of_cores as a starting point. If the verification result shows this is not enough to utilize CPU resources, you can use a higher value.
 2. Set proper `minTablesPerVnode`, `tableIncStepPerVnode`, and `maxVgroupsPerDb` according to the number of tables so that tables are distributed even across vgroups. The purpose is to balance the workload among all vnodes so that system resources can be utilized better to get higher performance.
 
-For more performance tuning tips, please refer to [Performance Optimization](../../operation/optimize) and [Configuration Parameters](../../reference/config).
+For more performance tuning tips, please refer to [Performance Optimization](../../../operation/optimize) and [Configuration Parameters](../../../reference/config).
 
 ## Sample Programs
 

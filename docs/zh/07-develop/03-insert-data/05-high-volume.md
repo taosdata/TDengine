@@ -44,7 +44,7 @@ import TabItem from "@theme/TabItem";
 
 如果总表数比较大（比如大于500万），适当增加 maxVgroupsPerDb 也能显著提高建表的速度。maxVgroupsPerDb 默认值为 0， 自动配置为 CPU 的核数。 如果表的数量巨大，也建议调节 maxTablesPerVnode 参数，以免超过单个 vnode 建表的上限。
 
-更多调优参数，请参考[性能优化](../../operation/optimize)和[配置参考](../../reference/config)部分。
+更多调优参数，请参考[性能优化](../../../operation/optimize)和[配置参考](../../../reference/config)部分。
 
 ## 高效写入示例 {#sample-code}
 
