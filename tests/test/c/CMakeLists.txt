@@ -1,6 +1,7 @@
 add_executable(tmq_demo tmqDemo.c)
 add_executable(tmq_sim tmqSim.c)
 add_executable(create_table createTable.c)
+add_executable(tmq_taosx_ci tmq_taosx_ci.c)
 target_link_libraries(
     create_table
     PUBLIC taos_static
@@ -17,6 +18,13 @@ target_link_libraries(
 )
 target_link_libraries(
     tmq_sim
+    PUBLIC taos_static
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+)
+target_link_libraries(
+    tmq_taosx_ci
     PUBLIC taos_static
     PUBLIC util
     PUBLIC common

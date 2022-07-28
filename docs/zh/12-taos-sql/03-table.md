@@ -139,6 +139,7 @@ ALTER TABLE tb_name RENAME COLUMN old_col_name new_col_name
 
 ## 修改子表
 
+```sql
 ALTER TABLE [db_name.]tb_name alter_table_clause
  
 alter_table_clause: {
@@ -153,6 +154,7 @@ alter_table_option: {
     TTL value
   | COMMENT 'string_value'
 }
+```
 
 **使用说明**
 1. 对子表的列和标签的修改，除了更改标签值以外，都要通过超级表才能进行。
@@ -192,5 +194,5 @@ SHOW CREATE TABLE tb_name;
 ### 获取表结构信息
 
 ```
-DESCRIBE tb_name;
+DESCRIBE [db_name.]tb_name;
 ```

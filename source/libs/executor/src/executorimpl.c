@@ -3209,9 +3209,8 @@ static void doHandleRemainBlockFromNewGroup(SFillOperatorInfo* pInfo, SResultInf
   if (taosFillHasMoreResults(pInfo->pFillInfo)) {
     int32_t numOfResultRows = pResultInfo->capacity - pInfo->pRes->info.rows;
     taosFillResultDataBlock(pInfo->pFillInfo, pInfo->pRes, numOfResultRows);
-    if (pInfo->pRes->info.rows > pResultInfo->threshold) {
-      return;
-    }
+    pInfo->pRes->info.groupId = pInfo->curGroupId;
+    return;
   }
 
   // handle the cached new group data block
@@ -3230,7 +3229,7 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   blockDataCleanup(pResBlock);
 
   doHandleRemainBlockFromNewGroup(pInfo, pResultInfo, pTaskInfo);
-  if (pResBlock->info.rows > pResultInfo->threshold || pResBlock->info.rows > 0) {
+  if (pResBlock->info.rows > 0) {
     pResBlock->info.groupId = pInfo->curGroupId;
     return pResBlock;
   }
@@ -3436,7 +3435,7 @@ void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock) {
   initResultRowInfo(&pInfo->resultRowInfo);
 }
 
-static void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
+void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   if (pCtx == NULL) {
     return NULL;
   }

@@ -114,18 +114,26 @@ int32_t mndAddSinkToTask(SMnode* pMnode, SStreamObj* pStream, SStreamTask* pTask
 
 int32_t mndAddDispatcherToInnerTask(SMnode* pMnode, SStreamObj* pStream, SStreamTask* pTask) {
   pTask->sinkType = TASK_SINK__NONE;
+
+  bool isShuffle = false;
+
   if (pStream->fixedSinkVgId == 0) {
-    pTask->dispatchType = TASK_DISPATCH__SHUFFLE;
-    pTask->dispatchMsgType = TDMT_STREAM_TASK_DISPATCH;
     SDbObj* pDb = mndAcquireDb(pMnode, pStream->targetDb);
     ASSERT(pDb);
-
-    if (mndExtractDbInfo(pMnode, pDb, &pTask->shuffleDispatcher.dbInfo, NULL) < 0) {
-      ASSERT(0);
-      return -1;
+    if (pDb->cfg.numOfVgroups > 1) {
+      isShuffle = true;
+      pTask->dispatchType = TASK_DISPATCH__SHUFFLE;
+      pTask->dispatchMsgType = TDMT_STREAM_TASK_DISPATCH;
+      if (mndExtractDbInfo(pMnode, pDb, &pTask->shuffleDispatcher.dbInfo, NULL) < 0) {
+        ASSERT(0);
+        return -1;
+      }
     }
-    sdbRelease(pMnode->pSdb, pDb);
 
+    sdbRelease(pMnode->pSdb, pDb);
+  }
+
+  if (isShuffle) {
     memcpy(pTask->shuffleDispatcher.stbFullName, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
     SArray* pVgs = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
     int32_t sz = taosArrayGetSize(pVgs);
@@ -383,10 +391,12 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
       // exec
       pInnerTask->execType = TASK_EXEC__PIPE;
 
+#if 0
       SDbObj* pSourceDb = mndAcquireDb(pMnode, pStream->sourceDb);
       ASSERT(pDbObj != NULL);
       sdbRelease(pSdb, pSourceDb);
       pInnerTask->numOfVgroups = pSourceDb->cfg.numOfVgroups;
+#endif
 
       if (tsSchedStreamToSnode) {
         SSnodeObj* pSnode = mndSchedFetchOneSnode(pMnode);

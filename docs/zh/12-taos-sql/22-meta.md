@@ -3,22 +3,15 @@ sidebar_label: 元数据库
 title: 元数据库
 ---
 
-TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数据库元数据、数据库系统信息和状态的访问，例如数据库或表的名称，当前执行的 SQL 语句等。
+TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数据库元数据、数据库系统信息和状态的访问，例如数据库或表的名称，当前执行的 SQL 语句等。该数据库存储有关 TDengine 维护的所有其他数据库的信息。它包含多个只读表。实际上，这些表都是视图，而不是基表，因此没有与它们关联的文件。所以对这些表只能查询，不能进行 INSERT 等写入操作。`INFORMATION_SCHEMA` 数据库旨在以一种更一致的方式来提供对 TDengine 支持的各种 SHOW 语句（如 SHOW TABLES、SHOW DATABASES）所提供的信息的访问。与 SHOW 语句相比，使用 SELECT ... FROM INFORMATION_SCHEMA.tablename 具有以下优点：
 
-`INFORMATION_SCHEMA` 是 TDengine 启动时自动创建的数据库，该数据库存储有关 TDengine 维护的所有其他数据库的信息。它包含多个只读表。实际上，这些表都是视图，而不是基表，因此没有与它们关联的文件。所以对这些表只能查询，不能进行 INSERT 等写入操作。
+1. 可以使用 USE 语句将 INFORMATION_SCHEMA 设为默认数据库
+2. 可以使用 SELECT 语句熟悉的语法，只需要学习一些表名和列名
+3. 可以对查询结果进行筛选、排序等操作。事实上，可以使用任意 TDengine 支持的 SELECT 语句对 INFORMATION_SCHEMA 中的表进行查询
+4. TDengine 在后续演进中可以灵活的添加已有 INFORMATION_SCHEMA 中表的列，而不用担心对既有业务系统造成影响
+5. 与其他数据库系统更具互操作性。例如，Oracle 数据库用户熟悉查询 Oracle 数据字典中的表
 
-可以使用 USE 语句将 INFORMATION_SCHEMA 设为默认数据库。
-
-INFORMATION_SCHEMA 旨在以一种更一致的方式来提供对 TDengine 支持的各种 SHOW 语句（如 SHOW TABLES、SHOW DATABASES）提供的信息的访问。与 SHOW 语句相比，使用 SELECT ... FROM INFORMATION_SCHEMA.tablename 具有以下优点：
-
-您可以使用 SELECT 语句熟悉的语法，只需要学习一些表名和列名。
-
-您可以对查询结果进行筛选、排序等操作，事实上，您可以使用任意 TDengine 支持的 SELECT 语句对 INFORMATION_SCHEMA 中的表进行查询。
-TDengine 在后续演进中可以灵活的添加已有 INFORMATION_SCHEMA 中表的列，而不用担心对既有业务系统造成影响。
-
-此技术与其他数据库系统更具互操作性。例如，Oracle 数据库用户熟悉查询 Oracle 数据字典中的表。
-
-由于 SHOW 语句已经被开发者熟悉的和广泛使用，所以它们仍然是可用的。
+Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们仍然被保留。
 
 本章将详细介绍 `INFORMATION_SCHEMA` 这个内置元数据库中的表和表结构。
 
@@ -87,8 +80,8 @@ TODO
 | 9   |   buffer    | INT          | 每个 vnode 写缓存的内存块大小，单位 MB           |
 | 10  |   minrows   | INT          | 文件块中记录的最大条数                           |
 | 11  |   maxrows   | INT          | 文件块中记录的最小条数                           |
-| 12  |  wallevel   | INT          | WAL 级别                                         |
-| 13  |    fsync    | INT          | 数据落盘周期                                     |
+| 12  |  wal_level   | INT          | WAL 级别                                         |
+| 13  | walfsync_period    | INT          | 数据落盘周期                                     |
 | 14  |    comp     | INT          | 数据压缩方式                                     |
 | 15  |  precision  | BINARY(2)    | 时间分辨率                                       |
 | 16  |   status    | BINARY(10)   | 数据库状态                                       |

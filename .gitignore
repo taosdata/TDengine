@@ -48,6 +48,8 @@ pysim/
 *.out
 *DS_Store
 tests/script/api/batchprepare
+taosadapter
+taosadapter-debug
 
 # Doxygen Generated files
 html/
