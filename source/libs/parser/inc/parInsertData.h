@@ -18,9 +18,9 @@
 
 #include "catalog.h"
 #include "os.h"
+#include "query.h"
 #include "tname.h"
 #include "ttypes.h"
-#include "query.h"
 
 #define IS_DATA_COL_ORDERED(spd) ((spd->orderStatus) == (int8_t)ORDER_STATUS_ORDERED)
 
@@ -48,8 +48,8 @@ typedef struct {
 } SBoundIdxInfo;
 
 typedef struct SParsedDataColInfo {
-  col_id_t       numOfCols;
-  col_id_t       numOfBound;
+  int16_t        numOfCols;
+  int16_t        numOfBound;
   uint16_t       flen;        // TODO: get from STSchema
   uint16_t       allNullLen;  // TODO: get from STSchema(base on SDataRow)
   uint16_t       extendedVarLen;
@@ -60,10 +60,16 @@ typedef struct SParsedDataColInfo {
   int8_t         orderStatus;  // bound columns
 } SParsedDataColInfo;
 
-typedef struct {
-  uint8_t rowType;  // default is 0, that is SDataRow
-  int32_t rowSize;
-} SMemRowBuilder;
+typedef struct SBoundColInfo {
+  int16_t  numOfCols;
+  int16_t *pBoundCols;  // bound column idx according to schema idx
+} SBoundColInfo;
+
+typedef struct STSRowHelper {
+  SArray   *pColVal;
+  int16_t  *pColIdx;  // bound column idx according to pColsVal idx
+  STSchema *pColSchema;
+} STSRowHelper;
 
 typedef struct STableDataBlocks {
   int8_t      tsSource;     // where does the UNIX timestamp come from, server or client
@@ -82,13 +88,17 @@ typedef struct STableDataBlocks {
   int32_t            createTbReqLen;
   SParsedDataColInfo boundColumnInfo;
   SRowBuilder        rowBuilder;
+
+  SBoundColInfo boundColInfo;
+  STSRowHelper  tsRowHelper;
 } STableDataBlocks;
 
 static FORCE_INLINE int32_t getExtendedRowSize(STableDataBlocks *pBlock) {
   STableComInfo *pTableInfo = &pBlock->pTableMeta->tableInfo;
   ASSERT(pBlock->rowSize == pTableInfo->rowSize);
-  return pBlock->rowSize + TD_ROW_HEAD_LEN - sizeof(TSKEY) + pBlock->boundColumnInfo.extendedVarLen +
-         (int32_t)TD_BITMAP_BYTES(pTableInfo->numOfColumns - 1);
+  // return pBlock->rowSize + TD_ROW_HEAD_LEN - sizeof(TSKEY) + pBlock->boundColumnInfo.extendedVarLen +
+  //        (int32_t)TD_BITMAP_BYTES(pTableInfo->numOfColumns - 1);
+  return pBlock->rowSize + BIT2_SIZE(pTableInfo->numOfColumns - 1) + sizeof(STSRow2) + 10;  // todo
 }
 
 static FORCE_INLINE void getSTSRowAppendInfo(uint8_t rowType, SParsedDataColInfo *spd, col_id_t idx, int32_t *toffset,
@@ -136,11 +146,12 @@ void    setBoundColumnInfo(SParsedDataColInfo *pColList, SSchema *pSchema, col_i
 void    destroyBlockArrayList(SArray *pDataBlockList);
 void    destroyBlockHashmap(SHashObj *pDataBlockHash);
 int     initRowBuilder(SRowBuilder *pBuilder, int16_t schemaVer, SParsedDataColInfo *pColInfo);
+int32_t initTSRowHelper(STSRowHelper *pHelper, SBoundColInfo *pBoundColInfo, SSchema *pSchemas);
 int32_t allocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t *numOfRows);
 int32_t getDataBlockFromList(SHashObj *pHashList, void *id, int32_t idLen, int32_t size, int32_t startOffset,
                              int32_t rowSize, STableMeta *pTableMeta, STableDataBlocks **dataBlocks, SArray *pBlockList,
                              SVCreateTbReq *pCreateTbReq);
-int32_t mergeTableDataBlocks(SHashObj *pHashObj, uint8_t payloadType, SArray **pVgDataBlocks);
+int32_t mergeTableDataBlocks(SHashObj *pHashObj, SArray **pVgDataBlocks);
 int32_t buildCreateTbMsg(STableDataBlocks *pBlocks, SVCreateTbReq *pCreateTbReq);
 
 int32_t allocateMemForSize(STableDataBlocks *pDataBlock, int32_t allSize);

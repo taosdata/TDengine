@@ -99,8 +99,7 @@ class InsertTest : public Test {
   void dumpReslut() {
     SVnodeModifOpStmt* pStmt = getVnodeModifStmt(res_);
     size_t             num = taosArrayGetSize(pStmt->pDataBlocks);
-    cout << "payloadType:" << (int32_t)pStmt->payloadType << ", insertType:" << pStmt->insertType
-         << ", numOfVgs:" << num << endl;
+    cout << "insertType:" << pStmt->insertType << ", numOfVgs:" << num << endl;
     for (size_t i = 0; i < num; ++i) {
       SVgDataBlocks* vg = (SVgDataBlocks*)taosArrayGetP(pStmt->pDataBlocks, i);
       cout << "vgId:" << vg->vg.vgId << ", numOfTables:" << vg->numOfTables << ", dataSize:" << vg->size << endl;
@@ -120,7 +119,6 @@ class InsertTest : public Test {
 
   void checkReslut(int32_t numOfTables, int16_t numOfRows1, int16_t numOfRows2 = -1) {
     SVnodeModifOpStmt* pStmt = getVnodeModifStmt(res_);
-    ASSERT_EQ(pStmt->payloadType, PAYLOAD_TYPE_KV);
     ASSERT_EQ(pStmt->insertType, TSDB_QUERY_TYPE_INSERT);
     size_t num = taosArrayGetSize(pStmt->pDataBlocks);
     ASSERT_GE(num, 0);

@@ -310,10 +310,12 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *aColVal, STSchema *pTSchema, 
 
     *ppRow = (STSRow2 *)pBuilder->pBuf;
   } else {
-    *ppRow = (STSRow2 *)taosMemoryMalloc(szRow);
-    if (*ppRow == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
+    if (NULL == *ppRow) {
+      *ppRow = (STSRow2 *)taosMemoryMalloc(szRow);
+      if (*ppRow == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _exit;
+      }
     }
   }
 

@@ -3157,8 +3157,6 @@ int32_t taos_write_raw_data(TAOS *taos, TAOS_RES *msg){
     goto end;
   }
   SVnodeModifOpStmt *nodeStmt = (SVnodeModifOpStmt *)(pQuery->pRoot);
-  nodeStmt->payloadType = PAYLOAD_TYPE_KV;
-
   int32_t numOfVg = taosHashGetSize(pVgHash);
   nodeStmt->pDataBlocks = taosArrayInit(numOfVg, POINTER_BYTES);
 
