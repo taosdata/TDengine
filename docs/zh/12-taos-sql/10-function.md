@@ -785,8 +785,7 @@ SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_nam
 ### APERCENTILE
 
 ```sql
-SELECT APERCENTILE(field_name, P[, algo_type])
-FROM { tb_name | stb_name } [WHERE clause]
+SELECT APERCENTILE(field_name, P[, algo_type]) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：统计表/超级表中指定列的值的近似百分比分位数，与 PERCENTILE 函数相似，但是返回近似结果。
@@ -1016,7 +1015,7 @@ SELECT CSUM(field_name) FROM { tb_name | stb_name } [WHERE clause]
 
 **功能说明**：累加和（Cumulative sum），输出行与输入行数相同。
 
-**返回结果类型**： 输入列如果是整数类型返回值为长整型 （int64_t），浮点数返回值为双精度浮点数（Double）。无符号整数类型返回值为无符号长整型（uint64_t）。 返回结果中同时带有每行记录对应的时间戳。
+**返回结果类型**： 输入列如果是整数类型返回值为长整型 （int64_t），浮点数返回值为双精度浮点数（Double）。无符号整数类型返回值为无符号长整型（uint64_t）。
 
 **适用数据类型**：数值类型。
 
@@ -1162,7 +1161,7 @@ SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [W
 
 - oper : "LT" (小于)、"GT"（大于）、"LE"（小于等于）、"GE"（大于等于）、"NE"（不等于）、"EQ"（等于），不区分大小写。
 - val : 数值型
-- unit : 时间长度的单位，范围[1s、1m、1h ]，不足一个单位舍去。默认为 1s。
+- unit : 时间长度的单位，可取值时间单位： 1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。如果省略，默认为当前数据库精度。
 
 **返回结果类型**：INTEGER。
 
