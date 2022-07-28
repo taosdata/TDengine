@@ -180,6 +180,7 @@ struct SVSnapWriter {
   SVnode *pVnode;
   int64_t sver;
   int64_t ever;
+  int64_t commitID;
   int64_t index;
   // meta
   SMetaSnapWriter *pMetaSnapWriter;
@@ -200,8 +201,10 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWr
   pWriter->pVnode = pVnode;
   pWriter->sver = sver;
   pWriter->ever = ever;
+  pWriter->commitID = pVnode->state.commitID;
 
-  vInfo("vgId:%d vnode snapshot writer opened", TD_VID(pVnode));
+  vInfo("vgId:%d vnode snapshot writer opened, sver:%" PRId64 " ever:%" PRId64 " commit id:%" PRId64, TD_VID(pVnode),
+        sver, ever, pWriter->commitID);
   *ppWriter = pWriter;
   return code;
 

@@ -833,7 +833,7 @@ static int32_t tsdbSnapWriteDataEnd(STsdbSnapWriter* pWriter) {
   }
 
 _exit:
-  tsdbError("vgId:%d vnode snapshot tsdb writer data end", TD_VID(pTsdb->pVnode));
+  tsdbInfo("vgId:%d vnode snapshot tsdb writer data end", TD_VID(pTsdb->pVnode));
   return code;
 
 _err:
