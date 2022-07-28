@@ -57,7 +57,8 @@ class TDCreateData():
         
     def drop_db(self,database):
         #delete:
-        table_list = ['stable_1','stable_2','regular_table_1','stable_1_1','regular_table_2']
+        #table_list = ['stable_1','stable_2','regular_table_1','stable_1_1','regular_table_2']
+        table_list = ['stable_1','stable_2']
         for i in table_list:
             self.tdSql.execute("delete from {}.{};".format(database, i))
             self.tdSql.execute("flush database {};".format(database))
