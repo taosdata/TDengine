@@ -16,9 +16,6 @@
 #ifndef TDENGINE_RPCHEAD_H
 #define TDENGINE_RPCHEAD_H
 
-#define TSDB_MSG_TYPE_PROBE_CONN     0xFE
-#define TSDB_MSG_TYPE_PROBE_CONN_RSP 0xFF
-
 #ifdef __cplusplus
 extern "C" {
 #endif
