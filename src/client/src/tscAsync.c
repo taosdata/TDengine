@@ -46,6 +46,8 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
   pSql->fetchFp   = fp;
   pSql->rootObj   = pSql;
 
+  pthread_mutex_init(&pSql->mtxSubs, NULL);
+
   registerSqlObj(pSql);
 
   pSql->sqlstr = calloc(1, sqlLen + 1);
@@ -313,7 +315,7 @@ static void tscAsyncResultCallback(SSchedMsg *pMsg) {
   }
 
   assert(pSql->res.code != TSDB_CODE_SUCCESS);
-  if (tsShortcutFlag) {
+  if (tsShortcutFlag && (pSql->res.code == TSDB_CODE_RPC_SHORTCUT)) {
     tscDebug("0x%" PRIx64 " async result callback, code:%s", pSql->self, tstrerror(pSql->res.code));
     pSql->res.code = TSDB_CODE_SUCCESS;
   } else {
