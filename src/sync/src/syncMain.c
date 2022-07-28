@@ -418,8 +418,12 @@ void syncRecover(int64_t rid) {
   nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
   (*pNode->notifyRoleFp)(pNode->vgId, nodeRole);
 
-  pthread_mutex_lock(&pNode->mutex);
-
+//  pthread_mutex_lock(&pNode->mutex);
+  int err = pthread_mutex_trylock(&pNode->mutex);
+  if(EBUSY == err)
+  {
+    sDebug("pthread_mutex_trylock failed!");
+  }
   nodeVersion = 0;
 
   for (int32_t i = 0; i < pNode->replica; ++i) {
@@ -431,7 +435,7 @@ void syncRecover(int64_t rid) {
     }
   }
 
-  pthread_mutex_unlock(&pNode->mutex);
+  if(0 == err) pthread_mutex_unlock(&pNode->mutex);
 
   syncReleaseNode(pNode);
 }
@@ -930,12 +934,17 @@ static void syncNotStarted(void *param, void *tmrId) {
 
   SSyncNode *pNode = pPeer->pSyncNode;
 
-  pthread_mutex_lock(&pNode->mutex);
+//  pthread_mutex_lock(&pNode->mutex);
+  int err = pthread_mutex_trylock(&pNode->mutex);
+  if(EBUSY == err)
+  {
+    sDebug("pthread_mutex_trylock failed!");
+  }
   pPeer->timer = NULL;
   pPeer->sstatus = TAOS_SYNC_STATUS_INIT;
   sInfo("%s, sync conn is still not up, restart and set sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
   syncRestartConnection(pPeer);
-  pthread_mutex_unlock(&pNode->mutex);
+  if(0 == err) pthread_mutex_unlock(&pNode->mutex);
 
   syncReleasePeer(pPeer);
 }
@@ -1079,7 +1088,12 @@ static int32_t syncProcessPeerMsg(int64_t rid, void *buffer) {
   SSyncHead *pHead = buffer;
   SSyncNode *pNode = pPeer->pSyncNode;
   
-  pthread_mutex_lock(&pNode->mutex);
+//  pthread_mutex_lock(&pNode->mutex);
+  int err = pthread_mutex_trylock(&pNode->mutex);
+  if(EBUSY == err)
+  {
+    sDebug("pthread_mutex_trylock failed!");
+  }
 
   int32_t code = syncReadPeerMsg(pPeer, pHead);
 
@@ -1095,7 +1109,7 @@ static int32_t syncProcessPeerMsg(int64_t rid, void *buffer) {
     }
   }
 
-  pthread_mutex_unlock(&pNode->mutex);
+  if(0 == err) pthread_mutex_unlock(&pNode->mutex);
   syncReleasePeer(pPeer);
 
   return code;
@@ -1188,12 +1202,17 @@ static void syncCheckPeerConnection(void *param, void *tmrId) {
 
   SSyncNode *pNode = pPeer->pSyncNode;
 
-  pthread_mutex_lock(&pNode->mutex);
+//  pthread_mutex_lock(&pNode->mutex);
+  int err = pthread_mutex_trylock(&pNode->mutex);
+  if(EBUSY == err)
+  {
+    sDebug("pthread_mutex_trylock failed!");
+  }
 
   sDebug("%s, check peer connection", pPeer->id);
   syncSetupPeerConnection(pPeer);
 
-  pthread_mutex_unlock(&pNode->mutex);
+  if(0 == err) pthread_mutex_unlock(&pNode->mutex);
 
   syncReleasePeer(pPeer);
 }
@@ -1274,7 +1293,12 @@ static void syncProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp) {
   sDebug("vgId:%d, sync connection is incoming, tranId:%u", vgId, msg.tranId);
 
   SSyncNode *pNode = *ppNode;
-  pthread_mutex_lock(&pNode->mutex);
+//  pthread_mutex_lock(&pNode->mutex);
+  int err = pthread_mutex_trylock(&pNode->mutex);
+  if(EBUSY == err)
+  {
+    sDebug("pthread_mutex_trylock failed!");
+  }
 
   SSyncPeer *pPeer;
   for (i = 0; i < pNode->replica; ++i) {
@@ -1305,7 +1329,7 @@ static void syncProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp) {
     }
   }
 
-  pthread_mutex_unlock(&pNode->mutex);
+  if(0 == err) pthread_mutex_unlock(&pNode->mutex);
 }
 
 static void syncProcessBrokenLink(int64_t rid, int32_t closedByApp) {
@@ -1314,7 +1338,12 @@ static void syncProcessBrokenLink(int64_t rid, int32_t closedByApp) {
 
   SSyncNode *pNode = pPeer->pSyncNode;
 
-  pthread_mutex_lock(&pNode->mutex);
+//  pthread_mutex_lock(&pNode->mutex);
+  int err = pthread_mutex_trylock(&pNode->mutex);
+  if(EBUSY == err)
+  {
+    sDebug("pthread_mutex_trylock failed!");
+  }
 
   sDebug("%s, TCP link is broken since %s, pfd:%d sfd:%d closedByApp:%d",
          pPeer->id, strerror(errno), pPeer->peerFd, pPeer->syncFd, closedByApp);
@@ -1324,7 +1353,7 @@ static void syncProcessBrokenLink(int64_t rid, int32_t closedByApp) {
   }
 
   syncRestartConnection(pPeer);
-  pthread_mutex_unlock(&pNode->mutex);
+  if (0 == err) pthread_mutex_unlock(&pNode->mutex);
 
   syncReleasePeer(pPeer);
 }

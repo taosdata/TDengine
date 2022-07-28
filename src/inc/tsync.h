@@ -41,7 +41,7 @@ typedef enum {
 typedef struct {
   uint32_t  nodeId;    // node ID assigned by TDengine
   uint16_t  nodePort;  // node sync Port
-  char      nodeFqdn[TSDB_FQDN_LEN]; // node FQDN  
+  char      nodeFqdn[TSDB_FQDN_LEN * 2]; // node FQDN
 } SNodeInfo;
 
 typedef struct {
