@@ -351,7 +351,7 @@ class TDTestCase:
         self.current_thread.join()
 
         tdDnodes[self.stop_dnode_id-1].starttaosd()
-        self.wait_start_dnode_OK()
+        self.wait_start_dnode_OK(newTdSql)
 
         tdSql.query(" select count(*) from {}.{} ".format(dbname,"stb1"))
         tdLog.debug(" ==== expected insert  {} rows of database {}  , really is {}".format(total_rows, dbname , tdSql.queryResult[0][0]))
