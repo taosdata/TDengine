@@ -61,26 +61,31 @@ static inline int32_t compareWalFileInfo(const void* pLeft, const void* pRight) 
 }
 
 static inline int64_t walGetLastFileSize(SWal* pWal) {
+  if (taosArrayGetSize(pWal->fileInfoSet) == 0) return 0;
   SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet);
   return pInfo->fileSize;
 }
 
 static inline int64_t walGetLastFileFirstVer(SWal* pWal) {
+  if (taosArrayGetSize(pWal->fileInfoSet) == 0) return -1;
   SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet);
   return pInfo->firstVer;
 }
 
 static inline int64_t walGetCurFileFirstVer(SWal* pWal) {
+  if (pWal->writeCur == -1) return -1;
   SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
   return pInfo->firstVer;
 }
 
 static inline int64_t walGetCurFileLastVer(SWal* pWal) {
+  if (pWal->writeCur == -1) return -1;
   SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
   return pInfo->firstVer;
 }
 
 static inline int64_t walGetCurFileOffset(SWal* pWal) {
+  if (pWal->writeCur == -1) return -1;
   SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
   return pInfo->fileSize;
 }
@@ -88,6 +93,7 @@ static inline int64_t walGetCurFileOffset(SWal* pWal) {
 static inline bool walCurFileClosed(SWal* pWal) { return taosArrayGetSize(pWal->fileInfoSet) != pWal->writeCur; }
 
 static inline SWalFileInfo* walGetCurFileInfo(SWal* pWal) {
+  if (pWal->writeCur == -1) return NULL;
   return (SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
 }
 

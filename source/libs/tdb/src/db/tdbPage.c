@@ -76,14 +76,17 @@ int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg)
 
   ASSERT(xFree);
 
+  for (int iOvfl = 0; iOvfl < pPage->nOverflow; iOvfl++) {
+    tdbOsFree(pPage->apOvfl[iOvfl]);
+  }
+
   ptr = pPage->pData;
   xFree(arg, ptr);
 
   return 0;
 }
 
-void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int,
-							    TXN *, SBTree *pBt)) {
+void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt)) {
   pPage->pPageHdr = pPage->pData + szAmHdr;
   TDB_PAGE_NCELLS_SET(pPage, 0);
   TDB_PAGE_CCELLS_SET(pPage, pPage->pageSize - sizeof(SPageFtr));
@@ -99,8 +102,7 @@ void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell
   ASSERT((u8 *)pPage->pPageFtr == pPage->pFreeEnd);
 }
 
-void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int,
-							    TXN *, SBTree *pBt)) {
+void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt)) {
   pPage->pPageHdr = pPage->pData + szAmHdr;
   pPage->pCellIdx = pPage->pPageHdr + TDB_PAGE_HDR_SIZE(pPage);
   pPage->pFreeStart = pPage->pCellIdx + TDB_PAGE_OFFSET_SIZE(pPage) * TDB_PAGE_NCELLS(pPage);
@@ -124,9 +126,8 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
 
   nFree = TDB_PAGE_NFREE(pPage);
   nCells = TDB_PAGE_NCELLS(pPage);
-  iOvfl = 0;
 
-  for (; iOvfl < pPage->nOverflow; iOvfl++) {
+  for (iOvfl = 0; iOvfl < pPage->nOverflow; ++iOvfl) {
     if (pPage->aiOvfl[iOvfl] >= idx) {
       break;
     }
@@ -145,6 +146,8 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
     // TODO: here has memory leak
     pNewCell = (SCell *)tdbOsMalloc(szCell);
     memcpy(pNewCell, pCell, szCell);
+
+    tdbDebug("tdbPage/new ovfl cell: %p", pNewCell);
 
     pPage->apOvfl[iOvfl] = pNewCell;
     pPage->aiOvfl[iOvfl] = idx;
@@ -193,6 +196,8 @@ int tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt) {
   for (; iOvfl < pPage->nOverflow; iOvfl++) {
     if (pPage->aiOvfl[iOvfl] == idx) {
       // remove the over flow cell
+      tdbOsFree(pPage->apOvfl[iOvfl]);
+      tdbDebug("tdbPage/free ovfl cell: %p", pPage->apOvfl[iOvfl]);
       for (; (++iOvfl) < pPage->nOverflow;) {
         pPage->aiOvfl[iOvfl - 1] = pPage->aiOvfl[iOvfl] - 1;
         pPage->apOvfl[iOvfl - 1] = pPage->apOvfl[iOvfl];
@@ -248,7 +253,7 @@ void tdbPageCopy(SPage *pFromPage, SPage *pToPage) {
 
 int tdbPageCapacity(int pageSize, int amHdrSize) {
   int szPageHdr;
-  int minCellIndexSize; // at least one cell in cell index
+  int minCellIndexSize;  // at least one cell in cell index
 
   if (pageSize < 65536) {
     szPageHdr = pageMethods.szPageHdr;
