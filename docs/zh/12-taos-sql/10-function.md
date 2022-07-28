@@ -1067,8 +1067,10 @@ SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHER
 
 **适用于**：表和超级表。
 
-**使用说明**: DERIVATIVE 函数可以在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）。
-
+**使用说明**: 
+  
+  - DERIVATIVE 函数可以在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）。
+  - 可以与选择相关联的列一起使用。 例如: select \_rowts, DERIVATIVE() from。
 
 ### DIFF
 
@@ -1084,7 +1086,10 @@ SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHER
 
 **适用于**：表和超级表。
 
-**使用说明**: 输出结果行数是范围内总行数减一，第一行没有结果输出。
+**使用说明**: 
+
+  - 输出结果行数是范围内总行数减一，第一行没有结果输出。
+  - 可以与选择相关联的列一起使用。 例如: select \_rowts, DIFF() from。
 
 
 ### IRATE
