@@ -2823,35 +2823,35 @@ end:
 
 // delete from db.tabl where ..       -> delete from tabl where ..
 // delete from db    .tabl where ..   -> delete from tabl where ..
-static void getTbName(char *sql){
-  char *ch = sql;
-
-  bool inBackQuote = false;
-  int8_t dotIndex = 0;
-  while(*ch != '\0'){
-    if(!inBackQuote && *ch == '`'){
-      inBackQuote = true;
-      ch++;
-      continue;
-    }
-
-    if(inBackQuote && *ch == '`'){
-      inBackQuote = false;
-      ch++;
-
-      continue;
-    }
-
-    if(!inBackQuote && *ch == '.'){
-      dotIndex ++;
-      if(dotIndex == 2){
-        memmove(sql, ch + 1, strlen(ch + 1) + 1);
-        break;
-      }
-    }
-    ch++;
-  }
-}
+//static void getTbName(char *sql){
+//  char *ch = sql;
+//
+//  bool inBackQuote = false;
+//  int8_t dotIndex = 0;
+//  while(*ch != '\0'){
+//    if(!inBackQuote && *ch == '`'){
+//      inBackQuote = true;
+//      ch++;
+//      continue;
+//    }
+//
+//    if(inBackQuote && *ch == '`'){
+//      inBackQuote = false;
+//      ch++;
+//
+//      continue;
+//    }
+//
+//    if(!inBackQuote && *ch == '.'){
+//      dotIndex ++;
+//      if(dotIndex == 2){
+//        memmove(sql, ch + 1, strlen(ch + 1) + 1);
+//        break;
+//      }
+//    }
+//    ch++;
+//  }
+//}
 
 static int32_t taosDeleteData(TAOS* taos, void* meta, int32_t metaLen) {
   SDeleteRes     req = {0};
@@ -2867,9 +2867,9 @@ static int32_t taosDeleteData(TAOS* taos, void* meta, int32_t metaLen) {
     goto end;
   }
 
-  getTbName(req.tableFName);
+//  getTbName(req.tableFName);
   char sql[256] = {0};
-  sprintf(sql, "delete from `%s` where `%s` >= %" PRId64" and `%s` <= %" PRId64, req.tableFName, "ts", req.skey, "ts", req.ekey);
+  sprintf(sql, "delete from `%s` where `%s` >= %" PRId64" and `%s` <= %" PRId64, req.tableFName, req.tsColName, req.skey, req.tsColName, req.ekey);
   printf("delete sql:%s\n", sql);
 
   TAOS_RES* res = taos_query(taos, sql);
