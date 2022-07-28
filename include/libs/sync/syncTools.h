@@ -238,7 +238,7 @@ typedef struct SyncClientRequestBatch {
   char     data[];  // block2, block3
 } SyncClientRequestBatch;
 
-SyncClientRequestBatch* syncClientRequestBatchBuild(SRpcMsg* rpcMsgArr, SRaftMeta* raftArr, int32_t arrSize,
+SyncClientRequestBatch* syncClientRequestBatchBuild(SRpcMsg** rpcMsgPArr, SRaftMeta* raftArr, int32_t arrSize,
                                                     int32_t vgId);
 void                    syncClientRequestBatch2RpcMsg(const SyncClientRequestBatch* pSyncMsg, SRpcMsg* pRpcMsg);
 void                    syncClientRequestBatchDestroy(SyncClientRequestBatch* pMsg);
