@@ -60,5 +60,6 @@ settings:
 
       taos_config:
         firstEP: ceph01:6030
+        dataDir: /var/lib/taos
         logDir: /var/log/taos
-        debugFlag: 135
+        debugFlag: 143
