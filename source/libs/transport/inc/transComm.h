@@ -7,8 +7,7 @@
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
+ * FITNESS FOR A PARTICULAR PURPOSE.  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
@@ -211,6 +210,7 @@ typedef struct SConnBuffer {
   char* buf;
   int   len;
   int   cap;
+  int   left;
   int   total;
 } SConnBuffer;
 
@@ -226,11 +226,13 @@ typedef struct {
   int         index;
   int         nAsync;
   uv_async_t* asyncs;
+  int8_t      stop;
 } SAsyncPool;
 
-SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb);
-void        transDestroyAsyncPool(SAsyncPool* pool);
+SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb);
+void        transAsyncPoolDestroy(SAsyncPool* pool);
 int         transAsyncSend(SAsyncPool* pool, queue* mq);
+bool        transAsyncPoolIsEmpty(SAsyncPool* pool);
 
 #define TRANS_DESTROY_ASYNC_POOL_MSG(pool, msgType, freeFunc) \
   do {                                                        \
@@ -280,6 +282,8 @@ int  transClearBuffer(SConnBuffer* buf);
 int  transDestroyBuffer(SConnBuffer* buf);
 int  transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 bool transReadComplete(SConnBuffer* connBuf);
+int  transResetBuffer(SConnBuffer* connBuf);
+int  transDumpFromBuffer(SConnBuffer* connBuf, char** buf);
 
 int transSetConnOption(uv_tcp_t* stream);
 
@@ -289,14 +293,16 @@ void transUnrefSrvHandle(void* handle);
 void transRefCliHandle(void* handle);
 void transUnrefCliHandle(void* handle);
 
-void transReleaseCliHandle(void* handle);
-void transReleaseSrvHandle(void* handle);
+int transReleaseCliHandle(void* handle);
+int transReleaseSrvHandle(void* handle);
 
-void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
-void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
-void transSendResponse(const STransMsg* msg);
-void transRegisterMsg(const STransMsg* msg);
-void transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
+int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
+int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
+int transSendResponse(const STransMsg* msg);
+int transRegisterMsg(const STransMsg* msg);
+int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
+
+int transGetSockDebugInfo(struct sockaddr* sockname, char* dst);
 
 int64_t transAllocHandle();
 
@@ -320,7 +326,7 @@ typedef struct STransReq {
 } STransReq;
 
 void  transReqQueueInit(queue* q);
-void* transReqQueuePushReq(queue* q);
+void* transReqQueuePush(queue* q);
 void* transReqQueueRemove(void* arg);
 void  transReqQueueClear(queue* q);
 
@@ -391,9 +397,10 @@ typedef struct SDelayQueue {
   uv_loop_t*  loop;
 } SDelayQueue;
 
-int  transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
-void transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg));
-int  transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
+int         transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
+void        transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg));
+SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
+void        transDQCancel(SDelayQueue* queue, SDelayTask* task);
 
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
 /*

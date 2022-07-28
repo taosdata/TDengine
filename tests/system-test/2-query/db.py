@@ -10,9 +10,6 @@ import random
 
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 143, "cDebugFlag": 143, "uDebugFlag": 143, "rpcDebugFlag": 143, "tmrDebugFlag": 143,
-                     "jniDebugFlag": 143, "simDebugFlag": 143, "dDebugFlag": 143, "dDebugFlag": 143, "vDebugFlag": 143, "mDebugFlag": 143, "qDebugFlag": 143,
-                     "wDebugFlag": 143, "sDebugFlag": 143, "tsdbDebugFlag": 143, "tqDebugFlag": 143, "fsDebugFlag": 143, "udfDebugFlag": 143}
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
@@ -26,22 +23,22 @@ class TDTestCase:
         tdSql.execute("create table dbms.ntb (ts timestamp, c1 int, c2 bigint)")
         tdSql.execute("create table dbus.ntb (ts timestamp, c1 int, c2 bigint)")
         tdSql.execute("create table dbns.ntb (ts timestamp, c1 int, c2 bigint)")
-        
+
         tdSql.execute("insert into dbms.ntb values ('2022-01-01 08:00:00.001', 1, 2)")
         tdSql.execute("insert into dbms.ntb values ('2022-01-01 08:00:00.002', 3, 4)")
-        
+
         tdSql.execute("insert into dbus.ntb values ('2022-01-01 08:00:00.000001', 1, 2)")
         tdSql.execute("insert into dbus.ntb values ('2022-01-01 08:00:00.000002', 3, 4)")
-        
+
         tdSql.execute("insert into dbns.ntb values ('2022-01-01 08:00:00.000000001', 1, 2)")
         tdSql.execute("insert into dbns.ntb values ('2022-01-01 08:00:00.000000002', 3, 4)")
-        
+
         tdSql.query("select count(c1) from dbms.ntb interval(1a)")
         tdSql.checkRows(2)
-        
+
         tdSql.query("select count(c1) from dbus.ntb interval(1u)")
         tdSql.checkRows(2)
-        
+
         tdSql.query("select count(c1) from dbns.ntb interval(1b)")
         tdSql.checkRows(2)
 

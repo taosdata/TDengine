@@ -255,6 +255,7 @@ typedef struct SSelectStmt {
   int32_t     selectFuncNum;
   bool        isEmptyResult;
   bool        isTimeLineResult;
+  bool        isSubquery;
   bool        hasAggFuncs;
   bool        hasRepeatScanFuncs;
   bool        hasIndefiniteRowsFunc;
@@ -374,6 +375,7 @@ typedef struct SQuery {
   int8_t         precision;
   SCmdMsgInfo*   pCmdMsg;
   int32_t        msgType;
+  SArray*        pTargetTableList;
   SArray*        pTableList;
   SArray*        pDbList;
   bool           showRewrite;

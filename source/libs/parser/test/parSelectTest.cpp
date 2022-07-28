@@ -144,9 +144,9 @@ TEST_F(ParserSelectTest, IndefiniteRowsFunc) {
 TEST_F(ParserSelectTest, IndefiniteRowsFuncSemanticCheck) {
   useDb("root", "test");
 
-  run("SELECT DIFF(c1), c2 FROM t1", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  run("SELECT DIFF(c1), c2 FROM t1");
 
-  run("SELECT DIFF(c1), tbname FROM t1", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  run("SELECT DIFF(c1), tbname FROM t1");
 
   run("SELECT DIFF(c1), count(*) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
@@ -442,6 +442,13 @@ TEST_F(ParserSelectTest, withoutFrom) {
   run("SELECT CURRENT_USER()");
 
   run("SELECT USER()");
+}
+
+TEST_F(ParserSelectTest, withoutFromSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT c1", TSDB_CODE_PAR_INVALID_COLUMN);
+  run("SELECT TBNAME", TSDB_CODE_PAR_INVALID_TBNAME);
 }
 
 }  // namespace ParserTest

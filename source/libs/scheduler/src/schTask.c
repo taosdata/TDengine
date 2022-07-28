@@ -102,14 +102,14 @@ int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask) {
 }
 
 int32_t schAppendTaskExecNode(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr, int32_t execId) {
-  SSchNodeInfo nodeInfo = {.addr = *addr, .handle = NULL};
+  SSchNodeInfo nodeInfo = {.addr = *addr, .handle = SCH_GET_TASK_HANDLE(pTask)};
 
   if (taosHashPut(pTask->execNodes, &execId, sizeof(execId), &nodeInfo, sizeof(nodeInfo))) {
     SCH_TASK_ELOG("taosHashPut nodeInfo to execNodes failed, errno:%d", errno);
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  SCH_TASK_DLOG("task execNode added, execId:%d", execId);
+  SCH_TASK_DLOG("task execNode added, execId:%d, handle:%p", execId, nodeInfo.handle);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -752,12 +752,18 @@ void schDropTaskOnExecNode(SSchJob *pJob, SSchTask *pTask) {
     return;
   }
 
+  int32_t i = 0;
   SSchNodeInfo *nodeInfo = taosHashIterate(pTask->execNodes, NULL);
   while (nodeInfo) {
-    SCH_SET_TASK_HANDLE(pTask, nodeInfo->handle);
+    if (nodeInfo->handle) {
+      SCH_SET_TASK_HANDLE(pTask, nodeInfo->handle);
+      schBuildAndSendMsg(pJob, pTask, &nodeInfo->addr, TDMT_SCH_DROP_TASK);
+      SCH_TASK_DLOG("start to drop task's %dth execNode", i);
+    } else {
+      SCH_TASK_DLOG("no need to drop task %dth execNode", i);
+    }
 
-    schBuildAndSendMsg(pJob, pTask, &nodeInfo->addr, TDMT_SCH_DROP_TASK);
-
+    ++i;
     nodeInfo = taosHashIterate(pTask->execNodes, nodeInfo);
   }
 

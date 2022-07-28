@@ -197,6 +197,7 @@ bool fmIsSystemInfoFunc(int32_t funcId);
 bool fmIsImplicitTsFunc(int32_t funcId);
 bool fmIsClientPseudoColumnFunc(int32_t funcId);
 bool fmIsMultiRowsFunc(int32_t funcId);
+bool fmIsKeepOrderFunc(int32_t funcId);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 
@@ -208,6 +209,7 @@ typedef enum EFuncDataRequired {
 } EFuncDataRequired;
 
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
+EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, STimeWindow* pTimeWindow);
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);

@@ -387,6 +387,19 @@ SNode* createLogicConditionNode(SAstCreateContext* pCxt, ELogicConditionType typ
   return (SNode*)cond;
 }
 
+static uint8_t getMinusDataType(uint8_t orgType) {
+  switch (orgType) {
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+      return TSDB_DATA_TYPE_BIGINT;
+    default:
+      break;
+  }
+  return orgType;
+}
+
 SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pLeft, SNode* pRight) {
   CHECK_PARSER_STATUS(pCxt);
   if (OP_TYPE_MINUS == type && QUERY_NODE_VALUE == nodeType(pLeft)) {
@@ -402,7 +415,7 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
     }
     taosMemoryFree(pVal->literal);
     pVal->literal = pNewLiteral;
-    pVal->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+    pVal->node.resType.type = getMinusDataType(pVal->node.resType.type);
     return pLeft;
   }
   SOperatorNode* op = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
@@ -510,10 +523,11 @@ SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, const STok
   if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
     COPY_STRING_FORM_ID_TOKEN(tempTable->table.tableAlias, pTableAlias);
   } else {
-    sprintf(tempTable->table.tableAlias, "%p", tempTable);
+    taosRandStr(tempTable->table.tableAlias, 8);
   }
   if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
     strcpy(((SSelectStmt*)pSubquery)->stmtName, tempTable->table.tableAlias);
+    ((SSelectStmt*)pSubquery)->isSubquery = true;
   } else if (QUERY_NODE_SET_OPERATOR == nodeType(pSubquery)) {
     strcpy(((SSetOperator*)pSubquery)->stmtName, tempTable->table.tableAlias);
   }
@@ -624,8 +638,9 @@ SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd
   return createBetweenAnd(pCxt, createPrimaryKeyCol(pCxt), pStart, pEnd);
 }
 
-SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* pAlias) {
+SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, SToken* pAlias) {
   CHECK_PARSER_STATUS(pCxt);
+  trimEscape(pAlias);
   int32_t len = TMIN(sizeof(((SExprNode*)pNode)->aliasName) - 1, pAlias->n);
   strncpy(((SExprNode*)pNode)->aliasName, pAlias->z, len);
   ((SExprNode*)pNode)->aliasName[len] = '\0';
@@ -878,6 +893,18 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
       break;
     case DB_OPTION_RETENTIONS:
       ((SDatabaseOptions*)pOptions)->pRetentions = pVal;
+      break;
+    case DB_OPTION_WAL_RETENTION_PERIOD:
+      ((SDatabaseOptions*)pOptions)->walRetentionPeriod = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_WAL_RETENTION_SIZE:
+      ((SDatabaseOptions*)pOptions)->walRetentionSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_WAL_ROLL_PERIOD:
+      ((SDatabaseOptions*)pOptions)->walRollPeriod = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_WAL_SEGMENT_SIZE:
+      ((SDatabaseOptions*)pOptions)->walSegmentSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     default:
       break;

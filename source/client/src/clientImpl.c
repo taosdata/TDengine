@@ -235,6 +235,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
   if (TSDB_CODE_SUCCESS == code || NEED_CLIENT_HANDLE_ERROR(code)) {
     TSWAP(pRequest->dbList, (*pQuery)->pDbList);
     TSWAP(pRequest->tableList, (*pQuery)->pTableList);
+    TSWAP(pRequest->targetTableList, (*pQuery)->pTargetTableList);
   }
 
   return code;
@@ -590,6 +591,11 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
   return code;
 }
 
+void freeVgList(void *list) {
+  SArray* pList = *(SArray**)list;
+  taosArrayDestroy(pList);
+}
+
 int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList) {
   SArray* pDbVgList = NULL;
   SArray* pQnodeList = NULL;
@@ -641,7 +647,7 @@ int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray*
 
 _return:
 
-  taosArrayDestroy(pDbVgList);
+  taosArrayDestroyEx(pDbVgList, freeVgList);
   taosArrayDestroy(pQnodeList);
 
   return code;
@@ -829,7 +835,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
            tstrerror(code), pRequest->requestId);
 
   STscObj* pTscObj = pRequest->pTscObj;
-  if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code)) {
+  if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code) && pRequest->sqlstr != NULL) {
     tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
              pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
     pRequest->prevCode = code;
@@ -846,7 +852,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
 
   tscDebug("schedulerExecCb request type %s", TMSG_INFO(pRequest->type));
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
-    removeMeta(pTscObj, pRequest->tableList);
+    removeMeta(pTscObj, pRequest->targetTableList);
   }
 
   // return to client
@@ -1089,7 +1095,7 @@ SRequestObj* execQuery(uint64_t connId, const char* sql, int sqlLen, bool valida
   } while (retryNum++ < REQUEST_TOTAL_EXEC_TIMES);
 
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
-    removeMeta(pRequest->pTscObj, pRequest->tableList);
+    removeMeta(pRequest->pTscObj, pRequest->targetTableList);
   }
 
   return pRequest;
@@ -1745,7 +1751,10 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   char* pStart = p;
   for (int32_t i = 0; i < numOfCols; ++i) {
     colLength[i] = htonl(colLength[i]);
-    ASSERT(colLength[i] < dataLen);
+    if (colLength[i] >= dataLen) {
+      tscError("invalid colLength %d, dataLen %d", colLength[i], dataLen);
+      ASSERT(0);
+    }
 
     if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
       pResultInfo->pCol[i].offset = (int32_t*)pStart;
@@ -2011,7 +2020,7 @@ int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, 
     }
 
     if (('a' <= *(tbList + i) && 'z' >= *(tbList + i)) || ('A' <= *(tbList + i) && 'Z' >= *(tbList + i)) ||
-        ('0' <= *(tbList + i) && '9' >= *(tbList + i))) {
+        ('0' <= *(tbList + i) && '9' >= *(tbList + i)) || ('_' == *(tbList + i))) {
       if (vLen[vIdx] > 0) {
         goto _return;
       }

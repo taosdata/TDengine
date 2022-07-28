@@ -26,8 +26,7 @@ sql insert into tb1 values (now+50s ,3,3.0,3.0,3,3,3,false,"3","3")
 sql insert into tb1 values (now+100s,4,4.0,4.0,4,4,4,true ,"4","4")
 sql insert into tb1 values (now+150s,4,4.0,4.0,4,4,4,false,"4","4")
 
-
-sql select count(*),f1 from tb1 group by f1 having count(f1) > 0;
+sql select count(*),f1 from tb1 group by f1 having count(f1) > 0 order by f1;
 if $rows != 4 then
   return -1
 endi
@@ -56,8 +55,7 @@ if $data31 != 4 then
   return -1
 endi
 
-
-sql select count(*),f1 from tb1 group by f1 having count(*) > 0;
+sql select count(*),f1 from tb1 group by f1 having count(*) > 0 order by f1;
 if $rows != 4 then
   return -1
 endi
@@ -86,8 +84,7 @@ if $data31 != 4 then
   return -1
 endi
 
-
-sql select count(*),f1 from tb1 group by f1 having count(f2) > 0;
+sql select count(*),f1 from tb1 group by f1 having count(f2) > 0 order by f1;
 if $rows != 4 then
   return -1
 endi
@@ -118,7 +115,7 @@ endi
 
 sql_error select top(f1,2) from tb1 group by f1 having count(f2) > 0;
 
-sql select last(f1) from tb1 group by f1 having count(f2) > 0;
+sql select last(f1) from tb1 group by f1 having count(f2) > 0 order by f1;;
 if $rows != 4 then
   return -1
 endi
@@ -141,7 +138,7 @@ sql_error select top(f1,2) from tb1 group by f1 having count(f2) > 0;
 
 sql_error select top(f1,2) from tb1 group by f1 having avg(f1) > 0;
 
-sql select avg(f1),count(f1) from tb1 group by f1 having avg(f1) > 2;
+sql select avg(f1),count(f1) from tb1 group by f1 having avg(f1) > 2 order by f1;
 if $rows != 2 then
   return -1
 endi
@@ -158,8 +155,7 @@ if $data11 != 2 then
   return -1
 endi
 
-
-sql select avg(f1),count(f1) from tb1 group by f1 having avg(f1) > 2 and sum(f1) > 0;
+sql select avg(f1),count(f1) from tb1 group by f1 having avg(f1) > 2 and sum(f1) > 0 order by f1;
 if $rows != 2 then
   return -1
 endi
@@ -176,30 +172,7 @@ if $data11 != 2 then
   return -1
 endi
 
-sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having avg(f1) > 2 and sum(f1) > 0;
-if $rows != 2 then
-  return -1
-endi
-if $data00 != 3.000000000 then 
-  return -1
-endi
-if $data01 != 2 then 
-  return -1
-endi
-if $data02 != 6 then 
-  return -1
-endi
-if $data10 != 4.000000000 then 
-  return -1
-endi
-if $data11 != 2 then 
-  return -1
-endi
-if $data12 != 8 then 
-  return -1
-endi
-
-sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having avg(f1) > 2;
+sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having avg(f1) > 2 and sum(f1) > 0 order by f1;
 if $rows != 2 then
   return -1
 endi
@@ -222,7 +195,30 @@ if $data12 != 8 then
   return -1
 endi
 
-sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having sum(f1) > 0;
+sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having avg(f1) > 2 order by f1;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 3.000000000 then 
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+if $data02 != 6 then 
+  return -1
+endi
+if $data10 != 4.000000000 then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+if $data12 != 8 then 
+  return -1
+endi
+
+sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having sum(f1) > 0 order by f1;
 if $rows != 4 then
   return -1
 endi
@@ -263,7 +259,7 @@ if $data32 != 8 then
   return -1
 endi
 
-sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having sum(f1) > 2 and sum(f1) < 6;
+sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having sum(f1) > 2 and sum(f1) < 6 order by f1;
 if $rows != 1 then
   return -1
 endi
@@ -278,7 +274,7 @@ if $data02 != 4 then
 endi
 
 
-sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having 1 <= sum(f1) and 5 >= sum(f1);
+sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having 1 <= sum(f1) and 5 >= sum(f1) order by f1;
 if $rows != 2 then
   return -1
 endi
@@ -301,15 +297,15 @@ if $data12 != 4 then
   return -1
 endi
 
-sql_error select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by tbname having twa(f1) > 0;
+sql select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by tbname having twa(f1) > 0;
 
-sql_error select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by f1 having twa(f1) > 3;
+sql select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by f1 having twa(f1) > 3;
 
-sql_error select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by tbname having sum(f1) > 0;
+sql select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by tbname having sum(f1) > 0;
 
-sql_error select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by f1 having sum(f1) = 4;
+sql select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by f1 having sum(f1) = 4;
 
-sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having sum(f1) > 0;
+sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having sum(f1) > 0 order by f1;
 if $rows != 4 then
   return -1
 endi
@@ -350,7 +346,7 @@ if $data32 != 8 then
   return -1
 endi
 
-sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having sum(f1) > 3;
+sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having sum(f1) > 3 order by f1;
 if $rows != 3 then
   return -1
 endi
@@ -383,7 +379,7 @@ if $data22 != 8 then
 endi
 
 ###########and issue
-sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having sum(f1) > 3 and sum(f1) > 1;
+sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having sum(f1) > 1 order by f1;
 if $rows != 4 then
   return -1
 endi
@@ -424,8 +420,7 @@ if $data32 != 8 then
   return -1
 endi
 
-
-sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having sum(f1) > 3 or sum(f1) > 1;
+sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having sum(f1) > 3 or sum(f1) > 1 order by f1;
 if $rows != 4 then 
   return -1
 endi
@@ -466,7 +461,7 @@ if $data32 != 8 then
   return -1
 endi
 
-sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having sum(f1) > 3 or sum(f1) > 4;
+sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having sum(f1) > 3 or sum(f1) > 4 order by f1;
 if $rows != 3 then 
   return -1
 endi
@@ -499,12 +494,12 @@ if $data22 != 8 then
 endi
 
 ############or issue
-sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having sum(f1) > 3 or avg(f1) > 4;
+sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having sum(f1) > 3 and avg(f1) > 4 order by f1;
 if $rows != 0 then                                                                                                                                                                             
   return -1
 endi
 
-sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having (sum(f1) > 3);
+sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having (sum(f1) > 3) order by f1;
 if $rows != 3 then
   return -1
 endi
@@ -538,7 +533,7 @@ endi
 
 sql_error select avg(f1),count(f1),sum(f1) from tb1 group by f1 having (sum(*) > 3);
 
-sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having (sum(tb1.f1) > 3);
+sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having (sum(tb1.f1) > 3) order by f1;
 if $rows != 3 then
   return -1
 endi
@@ -570,7 +565,7 @@ if $data22 != 8 then
   return -1
 endi
 
-sql select avg(f1),count(tb1.*),sum(f1) from tb1 group by f1 having (sum(tb1.f1) > 3);
+sql select avg(f1),count(tb1.*),sum(f1) from tb1 group by f1 having (sum(tb1.f1) > 3) order by f1;
 if $rows != 3 then
   return -1
 endi
@@ -602,7 +597,7 @@ if $data22 != 8 then
   return -1
 endi
 
-sql select avg(f1),count(tb1.*),sum(f1),stddev(f1),stddev(f1) from tb1 group by f1;
+sql select avg(f1),count(tb1.*),sum(f1),stddev(f1),stddev(f1) from tb1 group by f1 order by f1;
 if $rows != 4 then
   return -1
 endi
@@ -667,12 +662,12 @@ if $data34 != 0.000000000 then
   return -1
 endi
 
-sql select avg(f1),count(tb1.*),sum(f1),stddev(f1) from tb1 group by f1 having (stddev(tb1.f1) > 3);
+sql select avg(f1),count(tb1.*),sum(f1),stddev(f1) from tb1 group by f1 having (stddev(tb1.f1) > 3) order by f1;
 if $rows != 0 then
   return -1
 endi
 
-sql select avg(f1),count(tb1.*),sum(f1),stddev(f1) from tb1 group by f1 having (stddev(tb1.f1) < 1);
+sql select avg(f1),count(tb1.*),sum(f1),stddev(f1) from tb1 group by f1 having (stddev(tb1.f1) < 1) order by f1;
 if $rows != 4 then
   return -1
 endi
@@ -730,13 +725,13 @@ sql_error select avg(f1),count(tb1.*),sum(f1),stddev(f1) from tb1 group by f1 ha
 
 sql_error select avg(f1),count(tb1.*),sum(f1),stddev(f1) from tb1 group by f1 having LEASTSQUARES(f1) < 1;
 
-sql_error select avg(f1),count(tb1.*),sum(f1),stddev(f1) from tb1 group by f1 having LEASTSQUARES(f1,1,1) < 1;
+sql select avg(f1),count(tb1.*),sum(f1),stddev(f1) from tb1 group by f1 having LEASTSQUARES(f1,1,1) < 1;
 
-sql_error select avg(f1),count(tb1.*),sum(f1),stddev(f1) from tb1 group by f1 having LEASTSQUARES(f1,1,1) > 2;
+sql select avg(f1),count(tb1.*),sum(f1),stddev(f1) from tb1 group by f1 having LEASTSQUARES(f1,1,1) > 2;
 
-sql_error select avg(f1),count(tb1.*),sum(f1),stddev(f1),LEASTSQUARES(f1,1,1) from tb1 group by f1 having LEASTSQUARES(f1,1,1) > 2;
+sql select avg(f1),count(tb1.*),sum(f1),stddev(f1),LEASTSQUARES(f1,1,1) from tb1 group by f1 having LEASTSQUARES(f1,1,1) > 2;
 
-sql select avg(f1),count(tb1.*),sum(f1),stddev(f1),LEASTSQUARES(f1,1,1) from tb1 group by f1 having sum(f1) > 2;
+sql select avg(f1),count(tb1.*),sum(f1),stddev(f1),LEASTSQUARES(f1,1,1) from tb1 group by f1 having sum(f1) > 2 order by f1;
 if $rows != 3 then
   return -1
 endi
@@ -777,7 +772,7 @@ if $data23 != 0.000000000 then
   return -1                                                                                                                                                                                    
 endi
 
-sql select avg(f1),count(tb1.*),sum(f1),stddev(f1) from tb1 group by f1 having min(f1) > 2;
+sql select avg(f1),count(tb1.*),sum(f1),stddev(f1) from tb1 group by f1 having min(f1) > 2 order by f1;
 if $rows != 2 then
   return -1
 endi
@@ -806,7 +801,7 @@ if $data13 != 0.000000000 then
   return -1                                                                                                                                                                                    
 endi  
 
-sql select avg(f1),count(tb1.*),sum(f1),stddev(f1),min(f1) from tb1 group by f1 having min(f1) > 2;
+sql select avg(f1),count(tb1.*),sum(f1),stddev(f1),min(f1) from tb1 group by f1 having min(f1) > 2 order by f1;
 if $rows != 2 then
   return -1
 endi
@@ -841,7 +836,7 @@ if $data14 != 4 then
   return -1
 endi
 
-sql select avg(f1),count(tb1.*),sum(f1),stddev(f1),min(f1) from tb1 group by f1 having max(f1) > 2;
+sql select avg(f1),count(tb1.*),sum(f1),stddev(f1),min(f1) from tb1 group by f1 having max(f1) > 2 order by f1;
 if $rows != 2 then
   return -1
 endi
@@ -876,7 +871,7 @@ if $data14 != 4 then
   return -1
 endi
 
-sql select avg(f1),count(tb1.*),sum(f1),stddev(f1),min(f1),max(f1) from tb1 group by f1 having max(f1) != 2;
+sql select avg(f1),count(tb1.*),sum(f1),stddev(f1),min(f1),max(f1) from tb1 group by f1 having max(f1) != 2 order by f1;
 if $rows != 3 then                                                                                                                                                                             
   return -1                                                                                                                                                                                    
 endi                                                                                                                                                                                           
@@ -935,7 +930,7 @@ if $data25 != 4 then
   return -1
 endi
 
-sql select avg(f1),count(tb1.*),sum(f1),stddev(f1),min(f1),max(f1) from tb1 group by f1 having first(f1) != 2;
+sql select avg(f1),count(tb1.*),sum(f1),stddev(f1),min(f1),max(f1) from tb1 group by f1 having first(f1) != 2 order by f1;
 if $rows != 3 then
   return -1
 endi
@@ -996,7 +991,7 @@ endi
 
 
 
-sql select avg(f1),count(tb1.*),sum(f1),stddev(f1),min(f1),max(f1),first(f1) from tb1 group by f1 having first(f1) != 2;
+sql select avg(f1),count(tb1.*),sum(f1),stddev(f1),min(f1),max(f1),first(f1) from tb1 group by f1 having first(f1) != 2 order by f1;
 if $rows != 3 then
   return -1
 endi
@@ -1078,7 +1073,7 @@ sql_error select avg(f1),count(tb1.*),sum(f1),stddev(f1),min(f1),max(f1),first(f
 
 sql_error select PERCENTILE(f1) from tb1 group by f1 having sum(f1) > 1;
 
-sql select PERCENTILE(f1,20) from tb1 group by f1 having sum(f1) = 4;
+sql select PERCENTILE(f1,20) from tb1 group by f1 having sum(f1) = 4 order by f1;
 if $rows != 1 then
   return -1
 endi
@@ -1086,7 +1081,7 @@ if $data00 != 2.000000000 then
   return -1
 endi
 
-sql select aPERCENTILE(f1,20) from tb1 group by f1 having sum(f1) > 1;
+sql select aPERCENTILE(f1,20) from tb1 group by f1 having sum(f1) > 1 order by f1;
 if $rows != 4 then
   return -1
 endi
@@ -1103,7 +1098,7 @@ if $data30 != 4.000000000 then
   return -1
 endi
 
-sql select aPERCENTILE(f1,20) from tb1 group by f1 having apercentile(f1,1) > 1;
+sql select aPERCENTILE(f1,20) from tb1 group by f1 having apercentile(f1,1) > 1 order by f1;
 if $rows != 3 then                                                                                                                                                                             
   return -1
 endi
@@ -1117,7 +1112,7 @@ if $data20 != 4.000000000 then
   return -1                                                                                                                                                                                    
 endi 
 
-sql select aPERCENTILE(f1,20) from tb1 group by f1 having apercentile(f1,1) > 1 and apercentile(f1,1) < 50;
+sql select aPERCENTILE(f1,20) from tb1 group by f1 having apercentile(f1,1) > 1 and apercentile(f1,1) < 50 order by f1;
 if $rows != 3 then
   return -1
 endi
@@ -1131,7 +1126,7 @@ if $data20 != 4.000000000 then
   return -1
 endi
 
-sql select aPERCENTILE(f1,20) from tb1 group by f1 having apercentile(f1,1) > 1 and apercentile(f1,1) < 3;
+sql select aPERCENTILE(f1,20) from tb1 group by f1 having apercentile(f1,1) > 1 and apercentile(f1,1) < 3 order by f1;
 if $rows != 1 then
   return -1
 endi
@@ -1139,7 +1134,7 @@ if $data00 != 2.000000000 then
   return -1
 endi
 
-sql select aPERCENTILE(f1,20) from tb1 group by f1 having apercentile(f1,1) > 1 and apercentile(f1,3) < 3;
+sql select aPERCENTILE(f1,20) from tb1 group by f1 having apercentile(f1,1) > 1 and apercentile(f1,3) < 3 order by f1;
 if $rows != 1 then
   return -1
 endi
@@ -1151,9 +1146,9 @@ sql_error select aPERCENTILE(f1,20) from tb1 group by f1 having apercentile(1) >
 
 sql_error select aPERCENTILE(f1,20),LAST_ROW(f1) from tb1 group by f1 having apercentile(1) > 1;
 
-sql_error select aPERCENTILE(f1,20),LAST_ROW(f1) from tb1 group by f1 having apercentile(f1,1) > 1;
+sql select aPERCENTILE(f1,20),LAST_ROW(f1) from tb1 group by f1 having apercentile(f1,1) > 1;
 
-sql_error select sum(f1) from tb1 group by f1 having last_row(f1) > 1;
+sql select sum(f1) from tb1 group by f1 having last_row(f1) > 1;
 
 sql_error select avg(f1) from tb1 group by f1 having diff(f1) > 0;
 
@@ -1161,12 +1156,12 @@ sql_error select avg(f1),diff(f1) from tb1 group by f1 having avg(f1) > 0;
 
 sql_error select avg(f1),diff(f1) from tb1 group by f1 having spread(f2) > 0;
 
-sql select avg(f1) from tb1 group by f1 having spread(f2) > 0;
+sql select avg(f1) from tb1 group by f1 having spread(f2) > 0 order by f1;
 if $rows != 0 then
   return -1
 endi
 
-sql select avg(f1) from tb1 group by f1 having spread(f2) = 0;
+sql select avg(f1) from tb1 group by f1 having spread(f2) = 0 order by f1;
 if $rows != 4 then
   return -1
 endi
@@ -1183,7 +1178,7 @@ if $data30 != 4.000000000 then
   return -1
 endi
 
-sql select avg(f1),spread(f2) from tb1 group by f1;
+sql select avg(f1),spread(f2) from tb1 group by f1 order by f1;
 if $rows != 4 then
   return -1
 endi
@@ -1212,7 +1207,7 @@ if $data31 != 0.000000000 then
   return -1
 endi
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) = 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) = 0 order by f1;
 if $rows != 4 then
   return -1
 endi
@@ -1265,48 +1260,47 @@ if $data33 != 0.000000000 then
   return -1
 endi
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) != 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) != 0 order by f1;
 if $rows != 0 then                                                                                                                                                                             
   return -1                                                                                                                                                                                    
 endi 
 
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) + 1 > 0;
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) + 1 > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) + 1;
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) + 1;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) + sum(f1);
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) + sum(f1);
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) + sum(f1) > 0;
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) + sum(f1) > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) - sum(f1) > 0;
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) - sum(f1) > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) * sum(f1) > 0;
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) * sum(f1) > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) / sum(f1) > 0;
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) / sum(f1) > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) > sum(f1);
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) > sum(f1);
+sql_error select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) and sum(f1);
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) and sum(f1);
+sql_error select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) 0 and sum(f1);
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) 0 and sum(f1);
+sql_error select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) + 0 and sum(f1);
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) + 0 and sum(f1);
+sql_error select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) - f1 and sum(f1);
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) - f1 and sum(f1);
+sql_error select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) - id1 and sum(f1);
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) - id1 and sum(f1);
+sql_error select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) > id1 and sum(f1);
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) > id1 and sum(f1);
+sql_error select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) > id1 and sum(f1) > 1;
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) > id1 and sum(f1) > 1;
-
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) > 2 and sum(f1) > 1;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) > 2 and sum(f1) > 1 order by f1;
 if $rows != 0 then
   return -1
 endi
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) = 0 and sum(f1) > 1;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) = 0 and sum(f1) > 1 order by f1;
 if $rows != 4 then
   return -1
 endi
@@ -1359,7 +1353,7 @@ if $data33 != 0.000000000 then
   return -1
 endi
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having spread(f1) = 0 and avg(f1) > 1;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) = 0 and avg(f1) > 1 order by f1;
 if $rows != 3 then
   return -1
 endi
@@ -1400,17 +1394,17 @@ if $data23 != 0.000000000 then
   return -1
 endi
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by c1 having spread(f1) = 0 and avg(f1) > 1;
+sql_error select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by c1 having spread(f1) = 0 and avg(f1) > 1;
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by id1 having avg(id1) > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by id1 having avg(id1) > 0;
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by id1 having avg(f1) > id1;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by id1 having avg(f1) > id1;
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1),avg(id1) from tb1 group by id1 having avg(f1) > id1;
+sql select avg(f1),spread(f1),spread(f2),spread(tb1.f1),avg(id1) from tb1 group by id1 having avg(f1) > id1;
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by id1 having avg(f1) > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by id1 having avg(f1) > 0;
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having avg(f1) > 0 and avg(f1) = 3;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having avg(f1) > 0 and avg(f1) = 3 order by f1;
 if $rows != 1 then
   return -1
 endi
@@ -1427,10 +1421,10 @@ if $data03 != 0.000000000 then
   return -1
 endi
 
-#sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having avg(f1) < 0 and avg(f1) = 3;
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by id1 having avg(f1) < 2;
+#sql_error select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having avg(f1) < 0 and avg(f1) = 3;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by id1 having avg(f1) < 2;
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f1 > 0 group by f1 having avg(f1) > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 where f1 > 0 group by f1 having avg(f1) > 0 order by f1;
 if $rows != 4 then
   return -1
 endi
@@ -1483,7 +1477,7 @@ if $data33 != 0.000000000 then
   return -1
 endi
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f1 > 2 group by f1 having avg(f1) > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 where f1 > 2 group by f1 having avg(f1) > 0 order by f1;
 if $rows != 2 then
   return -1
 endi
@@ -1512,7 +1506,7 @@ if $data13 != 0.000000000 then
   return -1
 endi
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f2 > 2 group by f1 having avg(f1) > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 where f2 > 2 group by f1 having avg(f1) > 0 order by f1;
 if $rows != 2 then                                                                                                                                                                             
   return -1
 endi
@@ -1541,7 +1535,7 @@ if $data13 != 0.000000000 then
   return -1
 endi
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f3 > 2 group by f1 having avg(f1) > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 where f3 > 2 group by f1 having avg(f1) > 0 order by f1;
 if $rows != 2 then                                                                                                                                                                             
   return -1
 endi
@@ -1570,7 +1564,7 @@ if $data13 != 0.000000000 then
   return -1
 endi
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f2 > 3 group by f1 having avg(f1) > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 where f2 > 3 group by f1 having avg(f1) > 0 order by f1;
 if $rows != 1 then
   return -1
 endi
@@ -1587,34 +1581,15 @@ if $data03 != 0.000000000 then
   return -1
 endi
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f2 > 3 group by f1 having avg(ts) > 0;
+sql_error select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 where f2 > 3 group by f1 having avg(ts) > 0;
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f2 > 3 group by f1 having avg(f7) > 0;
+sql_error select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 where f2 > 3 group by f1 having avg(f7) > 0;
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f2 > 3 group by f1 having avg(f8) > 0;
+sql_error select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 where f2 > 3 group by f1 having avg(f8) > 0;
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f2 > 3 group by f1 having avg(f9) > 0;
+sql_error select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 where f2 > 3 group by f1 having avg(f9) > 0;
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f2 > 3 group by f1 having count(f9) > 0;
-if $rows != 1 then
-  return -1
-endi
-if $data00 != 4.000000000 then
-  return -1
-endi
-if $data01 != 0.000000000 then
-  return -1
-endi
-if $data02 != 0.000000000 then
-  return -1
-endi
-if $data03 != 0.000000000 then                                                                                                                                                                 
-  return -1
-endi
-
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f2 > 3 group by f1 having last(f9) > 0;
-
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f2 > 3 group by f1 having last(f2) > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 where f2 > 3 group by f1 having count(f9) > 0 order by f1;
 if $rows != 1 then
   return -1
 endi
@@ -1631,7 +1606,9 @@ if $data03 != 0.000000000 then
   return -1
 endi
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f2 > 3 group by f1 having last(f3) > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 where f2 > 3 group by f1 having last(f9) > 0;
+
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 where f2 > 3 group by f1 having last(f2) > 0 order by f1;
 if $rows != 1 then
   return -1
 endi
@@ -1648,7 +1625,24 @@ if $data03 != 0.000000000 then
   return -1
 endi
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f2 > 1 group by f1 having last(f3) > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 where f2 > 3 group by f1 having last(f3) > 0 order by f1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4.000000000 then
+  return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 0.000000000 then                                                                                                                                                                 
+  return -1
+endi
+
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 where f2 > 1 group by f1 having last(f3) > 0 order by f1;
 if $rows != 3 then
   return -1
 endi
@@ -1689,7 +1683,7 @@ if $data23 != 0.000000000 then
   return -1
 endi
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f2 > 1 group by f1 having last(f4) > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 where f2 > 1 group by f1 having last(f4) > 0 order by f1;
 if $rows != 3 then
   return -1
 endi
@@ -1730,7 +1724,7 @@ if $data23 != 0.000000000 then
   return -1
 endi
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f2 > 1 group by f1 having last(f5) > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 where f2 > 1 group by f1 having last(f5) > 0 order by f1;
 if $rows != 3 then
   return -1
 endi
@@ -1771,7 +1765,7 @@ if $data23 != 0.000000000 then
   return -1
 endi
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f2 > 1 group by f1 having last(f6) > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 where f2 > 1 group by f1 having last(f6) > 0 order by f1;
 if $rows != 3 then
   return -1
 endi
@@ -1813,17 +1807,17 @@ if $data23 != 0.000000000 then
 endi
 
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1),f1,f2 from tb1 where f2 > 1 group by f1 having last(f6) > 0;
+sql_error select avg(f1),spread(f1),spread(f2),spread(tb1.f1),f1,f2 from tb1 where f2 > 1 group by f1 having last(f6) > 0;
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1),f1,f6 from tb1 where f2 > 1 group by f1 having last(f6) > 0;
+sql_error select avg(f1),spread(f1),spread(f2),spread(tb1.f1),f1,f6 from tb1 where f2 > 1 group by f1 having last(f6) > 0;
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1),f1,f6 from tb1 where f2 > 1 group by f1,f2 having last(f6) > 0;
+sql_error select avg(f1),spread(f1),spread(f2),spread(tb1.f1),f1,f6 from tb1 where f2 > 1 group by f1,f2 having last(f6) > 0;
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1),f1,f6 from tb1 where f2 > 1 group by f1,id1 having last(f6) > 0;
+sql_error select avg(f1),spread(f1),spread(f2),spread(tb1.f1),f1,f6 from tb1 where f2 > 1 group by f1,id1 having last(f6) > 0;
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1),f1,f6 from tb1 where f2 > 1 group by id1 having last(f6) > 0;
+sql_error select avg(f1),spread(f1),spread(f2),spread(tb1.f1),f1,f6 from tb1 where f2 > 1 group by id1 having last(f6) > 0;
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f2 > 1 and f2 < 4 group by f1 having last(f6) > 0;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 where f2 > 1 and f2 < 4 group by f1 having last(f6) > 0 order by f1;
 if $rows != 2 then
   return -1
 endi

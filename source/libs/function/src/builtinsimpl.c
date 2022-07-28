@@ -466,7 +466,7 @@ int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
+  pResInfo->isNullRes = (pResInfo->isNullRes == 1) ? 1 : (pResInfo->numOfRes == 0);
 
   char* in = GET_ROWCELL_INTERBUF(pResInfo);
   colDataAppend(pCol, pBlock->info.rows, in, pResInfo->isNullRes);
@@ -476,16 +476,16 @@ int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
 int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
-  char*                pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  SFirstLastRes*       pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
   int32_t              type = pDestCtx->input.pData[0]->info.type;
   int32_t              bytes = pDestCtx->input.pData[0]->info.bytes;
 
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
-  char*                pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+  SFirstLastRes*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  if (pSResInfo->numOfRes != 0 && (pDResInfo->numOfRes == 0 || *(TSKEY*)(pDBuf + bytes) > *(TSKEY*)(pSBuf + bytes))) {
-    memcpy(pDBuf, pSBuf, bytes);
-    *(TSKEY*)(pDBuf + bytes) = *(TSKEY*)(pSBuf + bytes);
+  if (pSResInfo->numOfRes != 0 && (pDResInfo->numOfRes == 0 || pDBuf->ts > pSBuf->ts)) {
+    memcpy(pDBuf->buf, pSBuf->buf, bytes);
+    pDBuf->ts = pSBuf->ts;
     pDResInfo->numOfRes = 1;
   }
   return TSDB_CODE_SUCCESS;
@@ -612,8 +612,7 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
   SSumRes* pSumRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
   if (IS_NULL_TYPE(type)) {
-    GET_RES_INFO(pCtx)->isNullRes = 1;
-    numOfElem = 1;
+    numOfElem = 0;
     goto _sum_over;
   }
 
@@ -663,7 +662,8 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
 
   // check for overflow
   if (IS_FLOAT_TYPE(type) && (isinf(pSumRes->dsum) || isnan(pSumRes->dsum))) {
-    numOfElem = 0;
+    GET_RES_INFO(pCtx)->isNullRes = 1;
+    numOfElem = 1;
   }
 
 _sum_over:
@@ -1171,8 +1171,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
   SMinmaxResInfo*      pBuf = GET_ROWCELL_INTERBUF(pResInfo);
 
   if (IS_NULL_TYPE(type)) {
-    GET_RES_INFO(pCtx)->isNullRes = 1;
-    numOfElems = 1;
+    numOfElems = 0;
     goto _min_max_over;
   }
 
@@ -1605,7 +1604,7 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t currentRow = pBlock->info.rows;
 
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
-  pEntryInfo->isNullRes = (pEntryInfo->numOfRes == 0);
+  pEntryInfo->isNullRes = (pEntryInfo->isNullRes == 1) ? 1 : (pEntryInfo->numOfRes == 0);
 
   if (pCol->info.type == TSDB_DATA_TYPE_FLOAT) {
     float v = *(double*)&pRes->v;
@@ -1624,6 +1623,10 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 }
 
 void setNullSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t rowIndex) {
+  if (pCtx->subsidiaries.num <= 0) {
+    return;
+  }
+
   for (int32_t j = 0; j < pCtx->subsidiaries.num; ++j) {
     SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
     int32_t         dstSlotId = pc->pExpr->base.resSchema.slotId;
@@ -1655,8 +1658,6 @@ void setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STuple
       SFunctParam* pFuncParam = &pc->pExpr->base.pParam[0];
       int32_t      dstSlotId = pc->pExpr->base.resSchema.slotId;
 
-      int32_t ps = 0;
-
       SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
       ASSERT(pc->pExpr->base.resSchema.bytes == pDstCol->info.bytes);
       if (nullList[j]) {
@@ -1676,6 +1677,39 @@ void releaseSource(STuplePos* pPos) {
     return;
   }
   // Todo(liuyao) relase row
+}
+
+// This function append the selectivity to subsidiaries function context directly, without fetching data
+// from intermediate disk based buf page
+void appendSelectivityValue(SqlFunctionCtx* pCtx, int32_t rowIndex, int32_t pos) {
+  if (pCtx->subsidiaries.num <= 0) {
+    return;
+  }
+
+  for (int32_t j = 0; j < pCtx->subsidiaries.num; ++j) {
+    SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
+
+    // get data from source col
+    SFunctParam* pFuncParam = &pc->pExpr->base.pParam[0];
+    int32_t      srcSlotId = pFuncParam->pCol->slotId;
+
+    SColumnInfoData* pSrcCol = taosArrayGet(pCtx->pSrcBlock->pDataBlock, srcSlotId);
+
+    char* pData = colDataGetData(pSrcCol, rowIndex);
+
+    // append to dest col
+    int32_t  dstSlotId = pc->pExpr->base.resSchema.slotId;
+
+    SColumnInfoData* pDstCol = taosArrayGet(pCtx->pDstBlock->pDataBlock, dstSlotId);
+    ASSERT(pc->pExpr->base.resSchema.bytes == pDstCol->info.bytes);
+
+    if (colDataIsNull_s(pSrcCol, rowIndex) == true) {
+      colDataAppendNULL(pDstCol, pos);
+    } else {
+      colDataAppend(pDstCol, pos, pData, false);
+    }
+  }
+
 }
 
 void replaceTupleData(STuplePos* pDestPos, STuplePos* pSourcePos) {
@@ -2218,6 +2252,7 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t currentRow = pBlock->info.rows;
 
   if (0 == pInfo->num) {
+    colDataAppendNULL(pCol, currentRow);
     return 0;
   }
 
@@ -2465,11 +2500,9 @@ bool apercentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResult
 }
 
 int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
-  int32_t              numOfElems = 0;
-  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-
+  int32_t               numOfElems = 0;
+  SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
   SInputColumnInfoData* pInput = &pCtx->input;
-  // SColumnDataAgg*       pAgg = pInput->pColumnDataAgg[0];
 
   SColumnInfoData* pCol = pInput->pData[0];
   int32_t          type = pCol->info.type;
@@ -2502,6 +2535,9 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
       GET_TYPED_DATA(v, double, type, data);
       tHistogramAdd(&pInfo->pHisto, v);
     }
+
+    qDebug("add %d elements into histogram, total:%d, numOfEntry:%d, %p", numOfElems, pInfo->pHisto->numOfElems,
+           pInfo->pHisto->numOfEntries, pInfo->pHisto);
   }
 
   SET_VAL(pResInfo, numOfElems, 1);
@@ -2540,11 +2576,18 @@ static void apercentileTransferInfo(SAPercentileInfo* pInput, SAPercentileInfo* 
     if (pHisto->numOfElems <= 0) {
       memcpy(pHisto, pInput->pHisto, sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1));
       pHisto->elems = (SHistBin*)((char*)pHisto + sizeof(SHistogramInfo));
+
+      qDebug("merge histo, total:%" PRId64 ", entry:%d, %p", pHisto->numOfElems, pHisto->numOfEntries, pHisto);
     } else {
       pHisto->elems = (SHistBin*)((char*)pHisto + sizeof(SHistogramInfo));
+      qDebug("input histogram, elem:%" PRId64 ", entry:%d, %p", pHisto->numOfElems, pHisto->numOfEntries,
+             pInput->pHisto);
+
       SHistogramInfo* pRes = tHistogramMerge(pHisto, pInput->pHisto, MAX_HISTOGRAM_BIN);
       memcpy(pHisto, pRes, sizeof(SHistogramInfo) + sizeof(SHistBin) * MAX_HISTOGRAM_BIN);
       pHisto->elems = (SHistBin*)((char*)pHisto + sizeof(SHistogramInfo));
+
+      qDebug("merge histo, total:%" PRId64 ", entry:%d, %p", pHisto->numOfElems, pHisto->numOfEntries, pHisto);
       tHistogramDestroy(&pRes);
     }
   }
@@ -2560,12 +2603,19 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SAPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
-  int32_t start = pInput->startRowIndex;
+  qDebug("total %d rows will merge, %p", pInput->numOfRows, pInfo->pHisto);
 
+  int32_t start = pInput->startRowIndex;
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
-    char*             data = colDataGetData(pCol, i);
+    char* data = colDataGetData(pCol, i);
+
     SAPercentileInfo* pInputInfo = (SAPercentileInfo*)varDataVal(data);
     apercentileTransferInfo(pInputInfo, pInfo);
+  }
+
+  if (pInfo->algo != APERCT_ALGO_TDIGEST) {
+    qDebug("after merge, total:%d, numOfEntry:%d, %p", pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries,
+           pInfo->pHisto);
   }
 
   SET_VAL(pResInfo, 1, 1);
@@ -2577,6 +2627,7 @@ int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SAPercentileInfo*    pInfo = (SAPercentileInfo*)GET_ROWCELL_INTERBUF(pResInfo);
 
   if (pInfo->algo == APERCT_ALGO_TDIGEST) {
+    buildTDigestInfo(pInfo);
     if (pInfo->pTDigest->size > 0) {
       pInfo->result = tdigestQuantile(pInfo->pTDigest, pInfo->percent / 100);
     } else {  // no need to free
@@ -2584,7 +2635,11 @@ int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       return TSDB_CODE_SUCCESS;
     }
   } else {
+    buildHistogramInfo(pInfo);
     if (pInfo->pHisto->numOfElems > 0) {
+      qDebug("get the final res:%d, elements:%" PRId64 ", entry:%d", pInfo->pHisto->numOfElems,
+             pInfo->pHisto->numOfEntries);
+
       double  ratio[] = {pInfo->percent};
       double* res = tHistogramUniform(pInfo->pHisto, ratio, 1);
       pInfo->result = *res;
@@ -2637,7 +2692,9 @@ int32_t apercentileCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx)
 
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SAPercentileInfo*    pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
-  ASSERT(pDBuf->algo == pSBuf->algo);
+
+  qDebug("start to combine apercentile, %p", pDBuf->pHisto);
+
   apercentileTransferInfo(pSBuf, pDBuf);
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   return TSDB_CODE_SUCCESS;
@@ -2972,16 +3029,16 @@ int32_t firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 // todo rewrite:
 int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
-  char*                pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  SFirstLastRes*       pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
   int32_t              type = pDestCtx->input.pData[0]->info.type;
   int32_t              bytes = pDestCtx->input.pData[0]->info.bytes;
 
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
-  char*                pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+  SFirstLastRes*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  if (pSResInfo->numOfRes != 0 && (pDResInfo->numOfRes == 0 || *(TSKEY*)(pDBuf + bytes) < *(TSKEY*)(pSBuf + bytes))) {
-    memcpy(pDBuf, pSBuf, bytes);
-    *(TSKEY*)(pDBuf + bytes) = *(TSKEY*)(pSBuf + bytes);
+  if (pSResInfo->numOfRes != 0 && (pDResInfo->numOfRes == 0 || pDBuf->ts < pSBuf->ts)) {
+    memcpy(pDBuf->buf, pSBuf->buf, bytes);
+    pDBuf->ts = pSBuf->ts;
     pDResInfo->numOfRes = 1;
   }
   return TSDB_CODE_SUCCESS;
@@ -3132,6 +3189,7 @@ static void doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SCo
         colDataAppendInt64(pOutput, pos, &delta);
       }
       pDiffInfo->prev.i64 = v;
+
       break;
     }
     case TSDB_DATA_TYPE_BOOL:
@@ -3225,6 +3283,10 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
 
       if (pDiffInfo->hasPrev) {
         doHandleDiff(pDiffInfo, pInputCol->info.type, pv, pOutput, pos, pCtx->order);
+        // handle selectivity
+        if (pCtx->subsidiaries.num > 0) {
+          appendSelectivityValue(pCtx, i, pos);
+        }
 
         numOfElems++;
       } else {
@@ -3251,6 +3313,10 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
       // there is a row of previous data block to be handled in the first place.
       if (pDiffInfo->hasPrev) {
         doHandleDiff(pDiffInfo, pInputCol->info.type, pv, pOutput, pos, pCtx->order);
+        // handle selectivity
+        if (pCtx->subsidiaries.num > 0) {
+          appendSelectivityValue(pCtx, i, pos);
+        }
 
         numOfElems++;
       } else {
@@ -3857,11 +3923,11 @@ int32_t elapsedFunction(SqlFunctionCtx* pCtx) {
       if (pCtx->end.key != INT64_MIN) {
         pInfo->min = pCtx->end.key;
       } else {
-        pInfo->min = ptsList[0];
+        pInfo->min = ptsList[start];
       }
     } else {
       if (pCtx->start.key == INT64_MIN) {
-        pInfo->min = (pInfo->min > ptsList[0]) ? ptsList[0] : pInfo->min;
+        pInfo->min = (pInfo->min > ptsList[start]) ? ptsList[start] : pInfo->min;
       } else {
         pInfo->min = pCtx->start.key;
       }
@@ -4643,10 +4709,8 @@ int32_t csumFunction(SqlFunctionCtx* pCtx) {
   SSumRes*             pSumRes = GET_ROWCELL_INTERBUF(pResInfo);
 
   SInputColumnInfoData* pInput = &pCtx->input;
-  TSKEY*                tsList = (int64_t*)pInput->pPTS->pData;
 
   SColumnInfoData* pInputCol = pInput->pData[0];
-  SColumnInfoData* pTsOutput = pCtx->pTsOutput;
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
 
   int32_t numOfElems = 0;
@@ -4680,11 +4744,6 @@ int32_t csumFunction(SqlFunctionCtx* pCtx) {
       } else {
         colDataAppend(pOutput, pos, (char*)&pSumRes->dsum, false);
       }
-    }
-
-    // TODO: remove this after pTsOutput is handled
-    if (pTsOutput != NULL) {
-      colDataAppendInt64(pTsOutput, pos, &tsList[i]);
     }
 
     numOfElems++;
@@ -5183,8 +5242,8 @@ bool twaFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
 
   STwaInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   pInfo->isNull = false;
-  pInfo->p.key  = INT64_MIN;
-  pInfo->win    = TSWINDOW_INITIALIZER;
+  pInfo->p.key = INT64_MIN;
+  pInfo->win = TSWINDOW_INITIALIZER;
   return true;
 }
 
@@ -5708,6 +5767,12 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
           if (pTsOutput != NULL) {
             colDataAppendInt64(pTsOutput, pos, &tsList[i]);
           }
+
+          // handle selectivity
+          if (pCtx->subsidiaries.num > 0) {
+            appendSelectivityValue(pCtx, i, pos);
+          }
+
           numOfElems++;
         }
       }
@@ -5740,6 +5805,12 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
           if (pTsOutput != NULL) {
             colDataAppendInt64(pTsOutput, pos, &pDerivInfo->prevTs);
           }
+
+          // handle selectivity
+          if (pCtx->subsidiaries.num > 0) {
+            appendSelectivityValue(pCtx, i, pos);
+          }
+
           numOfElems++;
         }
       }

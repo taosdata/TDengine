@@ -230,6 +230,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
         SVDeleteRsp rsp = {0};
         tDecoderInit(&coder, msg, msgSize);
         tDecodeSVDeleteRsp(&coder, &rsp);
+        tDecoderClear(&coder);
 
         atomic_add_fetch_32(&pJob->resNumOfRows, rsp.affectedRows);
         SCH_TASK_DLOG("delete succeed, affectedRows:%" PRId64, rsp.affectedRows);
@@ -509,7 +510,7 @@ int32_t schGenerateCallBackInfo(SSchJob *pJob, SSchTask *pTask, void *msg, uint3
   SMsgSendInfo *msgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (NULL == msgSendInfo) {
     SCH_TASK_ELOG("calloc %d failed", (int32_t)sizeof(SMsgSendInfo));
-    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
   msgSendInfo->paramFreeFp = taosMemoryFree;      
@@ -535,8 +536,12 @@ int32_t schGenerateCallBackInfo(SSchJob *pJob, SSchTask *pTask, void *msg, uint3
 
 _return:
 
-  destroySendMsgInfo(msgSendInfo);
+  if (msgSendInfo) {
+    destroySendMsgInfo(msgSendInfo);
+  }
 
+  taosMemoryFree(msg);
+  
   SCH_RET(code);
 }
 
@@ -843,6 +848,7 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQuery
 
   int64_t transporterId = 0;
   code = asyncSendMsgToServerExt(trans->pTrans, epSet, &transporterId, pMsgSendInfo, persistHandle, ctx);
+  pMsgSendInfo = NULL;
   if (code) {
     SCH_ERR_JRET(code);
   }
@@ -919,7 +925,9 @@ int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId, SArray *taskAction) {
   addr.epSet.numOfEps = 1;
   memcpy(&addr.epSet.eps[0], &nodeEpId->ep, sizeof(nodeEpId->ep));
 
-  SCH_ERR_JRET(schAsyncSendMsg(NULL, NULL, &trans, &addr, msgType, msg, msgSize, true, &rpcCtx));
+  code = schAsyncSendMsg(NULL, NULL, &trans, &addr, msgType, msg, msgSize, true, &rpcCtx);
+  msg = NULL;
+  SCH_ERR_JRET(code);
 
   return TSDB_CODE_SUCCESS;
 
@@ -1087,9 +1095,10 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
   }
 
   SSchTrans trans = {.pTrans = pJob->conn.pTrans, .pHandle = SCH_GET_TASK_HANDLE(pTask)};
-  SCH_ERR_JRET(
-      schAsyncSendMsg(pJob, pTask, &trans, addr, msgType, msg, msgSize, persistHandle, (rpcCtx.args ? &rpcCtx : NULL)));
-
+  schAsyncSendMsg(pJob, pTask, &trans, addr, msgType, msg, msgSize, persistHandle, (rpcCtx.args ? &rpcCtx : NULL));
+  msg = NULL;
+  SCH_ERR_JRET(code);
+  
   if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY) {
     SCH_ERR_RET(schAppendTaskExecNode(pJob, pTask, addr, pTask->execId));
   }

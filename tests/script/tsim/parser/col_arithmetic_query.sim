@@ -36,28 +36,22 @@ sql select c1 *( 2 / 3 ), c1/c1 from $tb order by ts asc;
 if $rows != 10000 then
   return -1
 endi
-
 if $data00 != 0.000000000 then
   return -1
 endi
-
 #if $data01 != -nan then
 #  print expect -nan, actual: $data01
 #  return -1
 #endi
-
 if $data10 != 0.666666667 then
   return -1
 endi
-
 if $data11 != 1.000000000 then
   return -1
 endi
-
 if $data90 != 6.000000000 then
   return -1
 endi
-
 if $data91 != 1.000000000 then
   return -1
 endi
@@ -66,65 +60,49 @@ sql select (c1 * 2) % 7.9, c1*1, c1*1*1, c1*c1, c1*c1*c1 from $tb order by ts de
 if $rows != 10000 then
  return -1
 endi
-
 if $data00 != 2.200000000 then
   print expect 2.200000000, actual:$data00
   return -1
 endi
-
 if $data01 != 9.000000000 then
   return -1
 endi
-
 if $data02 != 9.000000000 then
   return -1
 endi
-
 if $data03 != 81.000000000 then
   return -1
 endi
-
 if $data04 != 729.000000000 then
   return -1
 endi
-
-
 if $data10 != 0.200000000 then
   return -1
 endi
-
 if $data11 != 8.000000000 then
   return -1
 endi
-
 if $data12 != 8.000000000 then
   return -1
 endi
-
 if $data13 != 64.000000000 then
   return -1
 endi
-
 if $data14 != 512.000000000 then
   return -1
 endi
-
 if $data90 != 0.000000000 then
  return -1
 endi
-
 if $data91 != 0.000000000 then
   return -1
 endi
-
 if $data92 != 0.000000000 then
   return -1
 endi
-
 if $data93 != 0.000000000 then
   return -1
 endi
-
 if $data94 != 0.000000000 then
   return -1
 endi
@@ -134,20 +112,16 @@ sql select c1 * c2 /4 from $tb where ts < 1537166000000 and ts > 1537156000000
 if $rows != 17 then
   return -1
 endi
-
 if $data00 != 12.250000000 then
   return -1
 endi
-
 if $data10 != 16.000000000 then
   return -1
 endi
-
 if $data20 != 20.250000000 then
   print expect 20.250000000, actual:$data21
   return -1
 endi
-
 if $data30 != 0.000000000 then
   return -1
 endi
@@ -180,47 +154,36 @@ sql select c2-c1*1.1, c3/c2, c4*c3, c5%c4, (c6+c4)%22, c2-c2 from $tb
 if $rows != 10000 then
  return -1
 endi
-
 if $data00 != 0.000000000 then
   return -1
 endi
-
 #if $data01 != -nan then
 #  return -1
 #endi
-
 if $data02 != 0.000000000 then
   return -1
 endi
-
 if $data03 != NULL then
   return -1
 endi
-
 if $data04 != 0.000000000 then
   return -1
 endi
-
 if $data05 != 0.000000000 then
   return -1
 endi
-
 if $data90 != -0.900000000 then
   return -1
 endi
-
 if $data91 != 1.000000000 then
   return -1
 endi
-
 if $data92 != 81.000000000 then
   return -1
 endi
-
 if $data93 != 0.000000000 then
   return -1
 endi
-
 if $data94 != 18.000000000 then
   return -1
 endi
@@ -237,9 +200,7 @@ sql       select c8+c7, c9+c9+c8+c7/c6 from $tb
 
 # arithmetic expression in join [d.7]==================================================
 
-
 # arithmetic expression in union [d.8]=================================================
-
 
 # arithmetic expression in group by [d.9]==============================================
 # in group by tag, not support for normal table
@@ -248,17 +209,14 @@ sql_error select c5*99 from $tb group by t1
 # in group by column
 sql_error select c6-(c6+c3)*12 from $tb group by c3;
 
-
 # limit offset [d.10]==================================================================
 sql select c6 * c1 + 12 from $tb limit 12 offset 99;
 if $rows != 12 then
  return -1
 endi
-
 if $data00 != 93.000000000 then
   return -1
 endi
-
 if $data90 != 76.000000000 then
   return -1
 endi
@@ -267,7 +225,6 @@ sql select c4 / 99.123 from $tb limit 10 offset 9999;
 if $rows != 1 then
   return -1
 endi
-
 if $data00 != 0.090796283 then
   return -1
 endi
@@ -283,27 +240,21 @@ sql select c1, c2+c6, 12.9876545678, 1, 1.1 from $tb
 if $rows != 10000 then
   return -1
 endi
-
 if $data00 != 0 then
   return -1
 endi
-
 if $data01 != 0.000000000 then
   return -1
 endi
-
 if $data02 != 12.987654568 then
   return -1
 endi
-
 if $data03 != 1 then
   return -1
 endi
-
 if $data04 != 1.100000000 then
   return -1
 endi
-
 if $data10 != 1 then
   return -1
 endi
@@ -313,27 +264,21 @@ sql select c1, c2+c6, 12.9876545678, 1, 1.1 from $tb where c1<2
 if $rows != 2000 then
   return -1
 endi
-
 if $data00 != 0 then
   return -1
 endi
-
 if $data01 != 0.000000000 then
   return -1
 endi
-
 if $data02 != 12.987654568 then
   return -1
 endi
-
 if $data03 != 1 then
   return -1
 endi
-
 if $data10 != 1 then
   return -1
 endi
-
 if $data20 != 0 then
   return -1
 endi
@@ -377,7 +322,6 @@ sql select first(c1) * ( 2 / 3 ) from $stb order by ts asc;
 if $rows != 1 then
   return -1
 endi
-
 if $data00 != 0.000000000 then
   return -1
 endi
@@ -386,7 +330,6 @@ sql select first(c1) * (2/99) from $stb order by ts desc;
 if $rows != 1 then
   return -1
 endi
-
 if $data00 != 0.000000000 then
   return -1
 endi
@@ -395,15 +338,12 @@ sql select (count(c1) * 2) % 7.9, (count(c1) * 2), ( count(1)*2) from $stb
 if $rows != 1 then
   return -1
 endi
-
 if $data00 != 1.800000000 then
   return -1
 endi
-
 if $data01 != 100000.000000000 then
   return -1
 endi
-
 if $data02 != 200000.000000000 then
   return -1
 endi
@@ -412,16 +352,13 @@ sql select spread( c1 )/44, spread(c1), 0.204545455 * 44 from $stb
 if $rows != 1 then
   return -1
 endi
-
 if $data00 != 0.204545455 then
   print expect 0.204545455, actual: $data00
   return -1
 endi
-
 if $data01 != 9.000000000 then
   return -1
 endi
-
 if $data02 != 9.000000020 then
   return -1
 endi
@@ -431,27 +368,21 @@ sql select min(c1) * max(c2) /4, sum(c1) * apercentile(c2, 20), apercentile(c4, 
 if $rows != 1 then
   return -1
 endi
-
 if $data00 != 0.000000000 then
   return -1
 endi
-
 if $data01 != 225000.000000000 then
   return -1
 endi
-
 if $data02 != 8.077777778 then
   return -1
 endi
-
 if $data03 != NULL then
   return -1
 endi
-
 if $data04 != 0.444444444 then
   return -1
 endi
-
 if $data05 != 450000.000000000 then
   return -1
 endi
@@ -487,35 +418,29 @@ sql_error select top(c1, 99) - bottom(c1, 99) from $stb
 sql select c2-c1, c3/c2, c4*c3, c5%c4, c6+99%22 from $stb
 
 # error case, ts/bool/binary/nchar not support arithmetic expression
-sql       select first(c7)*12 from $stb
-sql       select last(c8)/55 from $stb
-sql_error select last_row(c9) + last_row(c8) from $stb
+sql select first(c7)*12 from $stb
+sql select last(c8)/55 from $stb
+sql select last_row(c9) + last_row(c8) from $stb
 
 # arithmetic expression in join [d.7]===============================================================
 
-
 # arithmetic expression in union [d.8]===============================================================
-
 
 # arithmetic expression in group by [d.9]===============================================================
 # in group by tag
-sql select avg(c4)*99 from $stb group by t1
+sql select avg(c4)*99, t1 from $stb group by t1 order by t1
 if $rows != 10 then
   return -1
 endi
-
 if $data00 != 445.500000000 then
   return -1
 endi
-
 if $data01 != 0 then
   return -1
 endi
-
 if $data90 != 445.500000000 then
   return -1
 endi
-
 if $data91 != 9 then
   return -1
 endi
@@ -550,22 +475,19 @@ endi
 #  return -1
 #endi
 #
-sql_error select first(c6) - last(c6) *12 / count(*) from $stb group by c3;
+sql select first(c6) - last(c6) *12 / count(*) from $stb group by c3;
 
-sql select first(c6) - last(c6) *12 / count(*) from $stb group by c5;
-if $rows != 10 then
+sql select first(c6) - last(c6) *12 / count(*) from $stb group by c5 order by c5;
+if $rows != 11 then
   return -1
 endi
-
-if $data00 != 0.000000000 then
+if $data10 != 0.000000000 then
   return -1
 endi
-
-if $data10 != 0.997600000 then
+if $data20 != 0.997600000 then
   return -1
 endi
-
-if $data90 != 8.978400000 then
+if $data90 != 7.980800000 then
   return -1
 endi
 
@@ -574,7 +496,6 @@ sql select first(c6) - sum(c6) + 12 from $stb limit 12 offset 0;
 if $rows != 1 then
   return -1
 endi
-
 if $data00 != -449988.000000000 then
   return -1
 endi
@@ -604,9 +525,7 @@ sql_error select first(c1) from $stb fill(value, 20);
 
 # constant column. [d.13]===============================================================
 
-
 # column value filter [d.14]===============================================================
-
 
 # tag filter. [d.15]===============================================================
 sql select sum(c2)+99 from $stb where t1=12;
@@ -633,7 +552,6 @@ sql select avg(c2)*count(c2), sum(c3)-first(c3), last(c4)+9 from $stb interval(1
 if $rows != 10000 then
   return -1
 endi
-
 if $data00 != @18-09-17 09:00:00.000@ then
   return -1
 endi
@@ -645,10 +563,8 @@ sql_error select first(c7)- last(c1) from $tb interval(2y)
 
 # first/last query  [d.19]===============================================================
 
-
 # multiple retrieve [d.20]===============================================================
 sql select c2-c2 from $tb
-
 
 sql select first(c1)-last(c1), spread(c2), max(c3) - min(c3), avg(c4)*count(c4) from $tb
 

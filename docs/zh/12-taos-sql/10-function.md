@@ -13,7 +13,7 @@ toc_max_heading_level: 4
 #### ABS
 
 ```sql
-  SELECT ABS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+SELECT ABS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：获得指定列的绝对值
@@ -31,7 +31,7 @@ toc_max_heading_level: 4
 #### ACOS
 
 ```sql
-  SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：获得指定列的反余弦结果
@@ -49,7 +49,7 @@ toc_max_heading_level: 4
 #### ASIN
 
 ```sql
-  SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：获得指定列的反正弦结果
@@ -68,7 +68,7 @@ toc_max_heading_level: 4
 #### ATAN
 
 ```sql
-  SELECT ATAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+SELECT ATAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：获得指定列的反正切结果
@@ -86,7 +86,7 @@ toc_max_heading_level: 4
 
 #### CEIL
 
-```
+```sql
 SELECT CEIL(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
@@ -108,7 +108,7 @@ SELECT CEIL(field_name) FROM { tb_name | stb_name } [WHERE clause];
 #### COS
 
 ```sql
-  SELECT COS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+SELECT COS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：获得指定列的余弦结果
@@ -125,7 +125,7 @@ SELECT CEIL(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 #### FLOOR
 
-```
+```sql
 SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
@@ -135,7 +135,7 @@ SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
 #### LOG
 
 ```sql
-  SELECT LOG(field_name, base) FROM { tb_name | stb_name } [WHERE clause]
+SELECT LOG(field_name, base) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：获得指定列对于底数 base 的对数
@@ -154,7 +154,7 @@ SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
 #### POW
 
 ```sql
-  SELECT POW(field_name, power) FROM { tb_name | stb_name } [WHERE clause]
+SELECT POW(field_name, power) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：获得指定列的指数为 power 的幂
@@ -172,7 +172,7 @@ SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 #### ROUND
 
-```
+```sql
 SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
@@ -183,7 +183,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 #### SIN
 
 ```sql
-  SELECT SIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+SELECT SIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：获得指定列的正弦结果
@@ -201,7 +201,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 #### SQRT
 
 ```sql
-  SELECT SQRT(field_name) FROM { tb_name | stb_name } [WHERE clause]
+SELECT SQRT(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：获得指定列的平方根
@@ -219,7 +219,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 #### TAN
 
 ```sql
-  SELECT TAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+SELECT TAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：获得指定列的正切结果
@@ -240,8 +240,8 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 #### CHAR_LENGTH
 
-```
-  SELECT CHAR_LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
+```sql
+SELECT CHAR_LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：以字符计数的字符串长度。
@@ -257,7 +257,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 #### CONCAT
 
 ```sql
-  SELECT CONCAT(str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
+SELECT CONCAT(str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：字符串连接函数。
@@ -273,8 +273,8 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 #### CONCAT_WS
 
-```
-  SELECT CONCAT_WS(separator, str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
+```sql
+SELECT CONCAT_WS(separator, str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：带分隔符的字符串连接函数。
@@ -290,8 +290,8 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 #### LENGTH
 
-```
-  SELECT LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
+```sql
+SELECT LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：以字节计数的字符串长度。
@@ -307,8 +307,8 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 #### LOWER
 
-```
-  SELECT LOWER(str|column) FROM { tb_name | stb_name } [WHERE clause]
+```sql
+SELECT LOWER(str|column) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：将字符串参数值转换为全小写字母。
@@ -324,8 +324,8 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 #### LTRIM
 
-```
-  SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
+```sql
+SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：返回清除左边空格后的字符串。
@@ -341,8 +341,8 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 #### RTRIM
 
-```
-  SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
+```sql
+SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：返回清除右边空格后的字符串。
@@ -358,8 +358,8 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 #### SUBSTR
 
-```
-  SELECT SUBSTR(str,pos[,len]) FROM { tb_name | stb_name } [WHERE clause]
+```sql
+SELECT SUBSTR(str,pos[,len]) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：从源字符串 str 中的指定位置 pos 开始取一个长度为 len 的子串并返回。
@@ -375,8 +375,8 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 #### UPPER
 
-```
-  SELECT UPPER(str|column) FROM { tb_name | stb_name } [WHERE clause]
+```sql
+SELECT UPPER(str|column) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：将字符串参数值转换为全大写字母。
@@ -397,7 +397,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 #### CAST
 
 ```sql
-  SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
+SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：数据类型转换函数，输入参数 expression 支持普通列、常量、标量函数及它们之间的四则运算，只适用于 select 子句中。
@@ -587,7 +587,7 @@ TDengine 支持针对数据的聚合查询。提供如下聚合函数。
 
 ### AVG
 
-```
+```sql
 SELECT AVG(field_name) FROM tb_name [WHERE clause];
 ```
 
@@ -602,7 +602,7 @@ SELECT AVG(field_name) FROM tb_name [WHERE clause];
 
 ### COUNT
 
-```
+```sql
 SELECT COUNT([*|field_name]) FROM tb_name [WHERE clause];
 ```
 
@@ -623,7 +623,7 @@ SELECT COUNT([*|field_name]) FROM tb_name [WHERE clause];
 
 ### ELAPSED
 
-```mysql
+```sql
 SELECT ELAPSED(ts_primary_key [, time_unit]) FROM { tb_name | stb_name } [WHERE clause] [INTERVAL(interval [, offset]) [SLIDING sliding]];
 ```
 
@@ -649,7 +649,7 @@ SELECT ELAPSED(ts_primary_key [, time_unit]) FROM { tb_name | stb_name } [WHERE 
 
 ### LEASTSQUARES
 
-```
+```sql
 SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause];
 ```
 
@@ -664,7 +664,7 @@ SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause]
 
 ### MODE
 
-```
+```sql
 SELECT MODE(field_name) FROM tb_name [WHERE clause];
 ```
 
@@ -679,7 +679,7 @@ SELECT MODE(field_name) FROM tb_name [WHERE clause];
 
 ### SPREAD
 
-```
+```sql
 SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
@@ -694,7 +694,7 @@ SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 ### STDDEV
 
-```
+```sql
 SELECT STDDEV(field_name) FROM tb_name [WHERE clause];
 ```
 
@@ -709,7 +709,7 @@ SELECT STDDEV(field_name) FROM tb_name [WHERE clause];
 
 ### SUM
 
-```
+```sql
 SELECT SUM(field_name) FROM tb_name [WHERE clause];
 ```
 
@@ -724,7 +724,7 @@ SELECT SUM(field_name) FROM tb_name [WHERE clause];
 
 ### HYPERLOGLOG
 
-```
+```sql
 SELECT HYPERLOGLOG(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
@@ -741,7 +741,7 @@ SELECT HYPERLOGLOG(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 ### HISTOGRAM
 
-```
+```sql
 SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_name [WHERE clause];
 ```
 
@@ -775,7 +775,7 @@ SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_nam
 
 ### APERCENTILE
 
-```
+```sql
 SELECT APERCENTILE(field_name, P[, algo_type])
 FROM { tb_name | stb_name } [WHERE clause]
 ```
@@ -790,7 +790,7 @@ FROM { tb_name | stb_name } [WHERE clause]
 
 ### BOTTOM
 
-```
+```sql
 SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
@@ -810,7 +810,7 @@ SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 
 ### FIRST
 
-```
+```sql
 SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
@@ -830,7 +830,7 @@ SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 ### INTERP
 
-```
+```sql
 SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] [ RANGE(timestamp1,timestamp2) ] [EVERY(interval)] [FILL ({ VALUE | PREV | NULL | LINEAR | NEXT})];
 ```
 
@@ -854,7 +854,7 @@ SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] [ 
 
 ### LAST
 
-```
+```sql
 SELECT LAST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
@@ -875,7 +875,7 @@ SELECT LAST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 ### LAST_ROW
 
-```
+```sql
 SELECT LAST_ROW(field_name) FROM { tb_name | stb_name };
 ```
 
@@ -894,7 +894,7 @@ SELECT LAST_ROW(field_name) FROM { tb_name | stb_name };
 
 ### MAX
 
-```
+```sql
 SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
@@ -909,7 +909,7 @@ SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 ### MIN
 
-```
+```sql
 SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
 ```
 
@@ -924,7 +924,7 @@ SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
 
 ### PERCENTILE
 
-```
+```sql
 SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
 ```
 
@@ -941,7 +941,7 @@ SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
 
 ### TAIL
 
-```
+```sql
 SELECT TAIL(field_name, k, offset_val) FROM {tb_name | stb_name} [WHERE clause];
 ```
 
@@ -958,7 +958,7 @@ SELECT TAIL(field_name, k, offset_val) FROM {tb_name | stb_name} [WHERE clause];
 
 ### TOP
 
-```
+```sql
 SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
@@ -978,7 +978,7 @@ SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 
 ### UNIQUE
 
-```
+```sql
 SELECT UNIQUE(field_name) FROM {tb_name | stb_name} [WHERE clause];
 ```
 
@@ -998,7 +998,7 @@ SELECT UNIQUE(field_name) FROM {tb_name | stb_name} [WHERE clause];
 ### CSUM
 
 ```sql
-    SELECT CSUM(field_name) FROM { tb_name | stb_name } [WHERE clause]
+SELECT CSUM(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **功能说明**：累加和（Cumulative sum），输出行与输入行数相同。
@@ -1020,7 +1020,7 @@ SELECT UNIQUE(field_name) FROM {tb_name | stb_name} [WHERE clause];
 
 ### DERIVATIVE
 
-```
+```sql
 SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHERE clause];
 ```
 
@@ -1037,9 +1037,9 @@ SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHER
 
 ### DIFF
 
-  ```sql
-  SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHERE clause];
-  ```
+```sql
+SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHERE clause];
+```
 
 **功能说明**：统计表中某列的值与前一行对应值的差。 ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。ignore_negative 为 1 时表示忽略负数。
 
@@ -1054,7 +1054,7 @@ SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHER
 
 ### IRATE
 
-```
+```sql
 SELECT IRATE(field_name) FROM tb_name WHERE clause;
 ```
 
@@ -1069,7 +1069,7 @@ SELECT IRATE(field_name) FROM tb_name WHERE clause;
 ### MAVG
 
 ```sql
-    SELECT MAVG(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+SELECT MAVG(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
   **功能说明**： 计算连续 k 个值的移动平均数（moving average）。如果输入行数小于 k，则无结果输出。参数 k 的合法输入范围是 1≤ k ≤ 1000。
@@ -1091,7 +1091,7 @@ SELECT IRATE(field_name) FROM tb_name WHERE clause;
 ### SAMPLE
 
 ```sql
-    SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
   **功能说明**： 获取数据的 k 个采样值。参数 k 的合法输入范围是 1≤ k ≤ 1000。
@@ -1111,7 +1111,7 @@ SELECT IRATE(field_name) FROM tb_name WHERE clause;
 
 ### STATECOUNT
 
-```
+```sql
 SELECT STATECOUNT(field_name, oper, val) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
@@ -1166,7 +1166,7 @@ SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [W
 
 ### TWA
 
-```
+```sql
 SELECT TWA(field_name) FROM tb_name WHERE clause;
 ```
 
@@ -1185,7 +1185,7 @@ SELECT TWA(field_name) FROM tb_name WHERE clause;
 
 ### DATABASE
 
-```
+```sql
 SELECT DATABASE();
 ```
 
@@ -1194,7 +1194,7 @@ SELECT DATABASE();
 
 ### CLIENT_VERSION
 
-```
+```sql
 SELECT CLIENT_VERSION();
 ```
 
@@ -1202,7 +1202,7 @@ SELECT CLIENT_VERSION();
 
 ### SERVER_VERSION
 
-```
+```sql
 SELECT SERVER_VERSION();
 ```
 
@@ -1210,7 +1210,7 @@ SELECT SERVER_VERSION();
 
 ### SERVER_STATUS
 
-```
+```sql
 SELECT SERVER_VERSION();
 ```
 

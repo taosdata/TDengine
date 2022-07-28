@@ -43,41 +43,41 @@ class TDTestCase:
         fsync_index = 0
         tdSql.query("show databases")
         for i in range(tdSql.queryCols):
-            if tdSql.cursor.description[i][0] == "wal":
+            if tdSql.cursor.description[i][0] == "wal_level":
                 wal_index = i
-            if tdSql.cursor.description[i][0] == "fsync":
+            if tdSql.cursor.description[i][0] == "wal_fsync_period":
                 fsync_index = i
 
         tdSql.execute("drop database if exists db1")
-        tdSql.execute("create database db1 wal 1")
+        tdSql.execute("create database db1 wal_level 1")
         tdSql.query("show databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, wal_index, 1)
 
         tdSql.execute("drop database if exists db1")
-        tdSql.execute("create database db1 wal 2")
+        tdSql.execute("create database db1 wal_level 2")
         tdSql.query("show databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, wal_index, 2)
 
         tdSql.execute("drop database if exists db1")
-        tdSql.execute("create database db1 fsync 0")
+        tdSql.execute("create database db1 wal_fsync_period 0")
         tdSql.query("show databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 0)
 
         tdSql.execute("drop database if exists db1")
-        tdSql.execute("create database db1 fsync 3000")
+        tdSql.execute("create database db1 wal_fsync_period 3000")
         tdSql.query("show databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 3000)
 
         tdSql.execute("drop database if exists db1")
-        tdSql.execute("create database db1 fsync 180000")
+        tdSql.execute("create database db1 wal_fsync_period 180000")
         tdSql.query("show databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
@@ -85,7 +85,7 @@ class TDTestCase:
 
 
         tdSql.execute("drop database if exists db1")
-        tdSql.execute("create database db1 wal 1 fsync 6000")
+        tdSql.execute("create database db1 wal_level 1 wal_fsync_period 6000")
         tdSql.query("show databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
@@ -93,49 +93,49 @@ class TDTestCase:
                 tdSql.checkData(i, wal_index, 1)
 
         tdSql.execute("drop database if exists db1")
-        tdSql.execute("create database db1 wal 2 fsync 3000")
+        tdSql.execute("create database db1 wal_level 2 wal_fsync_period 3000")
         tdSql.query("show databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 3000)
                 tdSql.checkData(i, wal_index, 2)
 
-        tdSql.execute("alter database db1 wal 1")
+        tdSql.execute("alter database db1 wal_level 1")
         tdSql.query("show databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 3000)
                 tdSql.checkData(i, wal_index, 1)
 
-        tdSql.execute("alter database db1 wal 2")
+        tdSql.execute("alter database db1 wal_level 2")
         tdSql.query("show databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 3000)
                 tdSql.checkData(i, wal_index, 2)
 
-        tdSql.execute("alter database db1 fsync 0")
+        tdSql.execute("alter database db1 wal_fsync_period 0")
         tdSql.query("show databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 0)
                 tdSql.checkData(i, wal_index, 2)
 
-        tdSql.execute("alter database db1 fsync 3000")
+        tdSql.execute("alter database db1 wal_fsync_period 3000")
         tdSql.query("show databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 3000)
                 tdSql.checkData(i, wal_index, 2)
 
-        tdSql.execute("alter database db1 fsync 18000")
+        tdSql.execute("alter database db1 wal_fsync_period 18000")
         tdSql.query("show databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 18000)
                 tdSql.checkData(i, wal_index, 2)
 
-        tdSql.execute("alter database db1 wal 1 fsync 3000")
+        tdSql.execute("alter database db1 wal_level 1 wal_fsync_period 3000")
         tdSql.query("show databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
@@ -147,29 +147,29 @@ class TDTestCase:
     @property
     def fsync_create_err(self):
         return [
-            "create database db1 wal 0",
-            "create database db1 wal 3",
-            "create database db1 wal null",
-            "create database db1 wal true",
-            "create database db1 wal 1.1",
-            "create database db1 fsync -1",
-            "create database db1 fsync 180001",
-            "create database db1 fsync 10.111",
-            "create database db1 fsync true",
+            "create database db1 wal_level 0",
+            "create database db1 wal_level 3",
+            "create database db1 wal_level null",
+            "create database db1 wal_level true",
+            "create database db1 wal_level 1.1",
+            "create database db1 wal_fsync_period -1",
+            "create database db1 wal_fsync_period 180001",
+            "create database db1 wal_fsync_period 10.111",
+            "create database db1 wal_fsync_period true",
         ]
 
     @property
     def fsync_alter_err(self):
         return [
-            "alter database db1 wal 0",
-            "alter database db1 wal 3",
-            "alter database db1 wal null",
-            "alter database db1 wal true",
-            "alter database db1 wal 1.1",
-            "alter database db1 fsync -1",
-            "alter database db1 fsync 180001",
-            "alter database db1 fsync 10.111",
-            "alter database db1 fsync true",
+            "alter database db1 wal_level 0",
+            "alter database db1 wal_level 3",
+            "alter database db1 wal_level null",
+            "alter database db1 wal_level true",
+            "alter database db1 wal_level 1.1",
+            "alter database db1 wal_fsync_period -1",
+            "alter database db1 wal_fsync_period 180001",
+            "alter database db1 wal_fsync_period 10.111",
+            "alter database db1 wal_fsync_period true",
         ]
 
     def test_fsync_err(self):
@@ -290,7 +290,7 @@ class TDTestCase:
 
         # tdSql.execute("use db")
 
-        tdLog.printNoPrefix("==========step4:after wal, all check again ")
+        tdLog.printNoPrefix("==========step4:after wal_level, all check again ")
         self.all_test()
 
     def stop(self):

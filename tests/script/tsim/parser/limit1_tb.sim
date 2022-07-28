@@ -1,4 +1,3 @@
-sleep 100
 sql connect
 
 $dbPrefix = lm1_db
@@ -371,7 +370,8 @@ sql select top(c1, 1) from $tb where ts >= $ts0 and ts <= $tsu limit 5 offset 1
 if $rows != 0 then
   return -1
 endi
-sql select top(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu limit 3 offset 1
+
+sql select ts, top(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu order by ts limit 3 offset 1
 if $rows != 3 then
   return -1
 endi
@@ -393,6 +393,7 @@ endi
 if $data21 != 9 then
   return -1
 endi
+
 sql select top(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu limit 3 offset 5
 if $rows != 0 then
   return -1
@@ -402,7 +403,8 @@ sql select bottom(c1, 1) from $tb where ts >= $ts0 and ts <= $tsu limit 5 offset
 if $rows != 0 then
   return -1
 endi
-sql select bottom(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu limit 3 offset 1
+
+sql select ts, bottom(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu order by ts limit 3 offset 1
 if $rows != 3 then
   return -1
 endi
@@ -435,7 +437,7 @@ if $rows != $res then
   return -1
 endi
 
-sql select diff(c1) from $tb where c1 > 5 limit 2 offset 1
+sql select  ts, diff(c1) from $tb where c1 > 5 limit 2 offset 1
 if $rows != 2 then
   return -1
 endi
@@ -460,7 +462,7 @@ endi
 $limit = $rowNum / 2
 $offset = $limit + 1
 $val = $limit - 2
-sql select diff(c1) from $tb where c1 >= 0 limit $limit offset $offset
+sql select  ts, diff(c1) from $tb where c1 >= 0 limit $limit offset $offset
 if $rows != $val then
   return -1
 endi
@@ -491,7 +493,8 @@ endi
 if $data41 != 4 then
   return -1
 endi
-sql select max(c1), max(c2), max(c3), max(c4), max(c5), max(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) limit 5 offset 1
+
+sql select  _wstart, max(c1), max(c2), max(c3), max(c4), max(c5), max(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) limit 5 offset 1
 if $rows != 5 then
   return -1
 endi
@@ -527,7 +530,7 @@ if $data41 != 5 then
 endi
 
 ## TBASE-334
-sql select max(c1), max(c2), max(c3), max(c4), max(c5), max(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 2 offset 1
+sql select  _wstart, max(c1), max(c2), max(c3), max(c4), max(c5), max(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 2 offset 1
 if $rows != 2 then
   return -1
 endi
@@ -547,7 +550,7 @@ if $data21 != null then
   return -1
 endi
 
-sql select min(c1), min(c2), min(c3), min(c4), min(c5), min(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 3 offset 1
+sql select  _wstart, min(c1), min(c2), min(c3), min(c4), min(c5), min(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 3 offset 1
 if $rows != 3 then
   return -1
 endi
@@ -561,7 +564,7 @@ if $data21 != 0 then
   return -1
 endi
 
-sql select sum(c1), sum(c2), sum(c3), sum(c4), sum(c5), sum(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 5
+sql select  _wstart, sum(c1), sum(c2), sum(c3), sum(c4), sum(c5), sum(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 5
 if $rows != 5 then
   return -1
 endi
@@ -580,7 +583,7 @@ endi
 if $data41 != 9 then
   return -1
 endi
-sql select sum(c1), sum(c2), sum(c3), sum(c4), sum(c5), sum(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 5 offset 1
+sql select  _wstart, sum(c1), sum(c2), sum(c3), sum(c4), sum(c5), sum(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 5 offset 1
 if $rows != 5 then
   return -1
 endi
@@ -600,7 +603,7 @@ if $data41 != 18 then
   return -1
 endi
 
-sql select avg(c1), avg(c2), avg(c3), avg(c4), avg(c5), avg(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 3 offset 0
+sql select _wstart,  avg(c1), avg(c2), avg(c3), avg(c4), avg(c5), avg(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 3 offset 0
 if $rows != 3 then
   return -1
 endi
@@ -616,7 +619,7 @@ endi
 if $data31 != null then
   return -1
 endi
-sql select avg(c1), avg(c2), avg(c3), avg(c4), avg(c5), avg(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 3 offset 1
+sql select  _wstart, avg(c1), avg(c2), avg(c3), avg(c4), avg(c5), avg(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 3 offset 1
 if $rows != 3 then
   return -1
 endi
@@ -638,7 +641,7 @@ sql select stddev(c1), stddev(c2), stddev(c3), stddev(c4), stddev(c5), stddev(c6
 if $rows != 0 then
   return -1
 endi
-sql select stddev(c1), stddev(c2), stddev(c3), stddev(c4), stddev(c5), stddev(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 5 offset 1
+sql select  _wstart, stddev(c1), stddev(c2), stddev(c3), stddev(c4), stddev(c5), stddev(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 5 offset 1
 if $rows != 5 then
   return -1
 endi
@@ -658,7 +661,7 @@ if $data21 != 4.027681991 then
   return -1
 endi
 
-sql select count(c1), count(c2), count(c3), count(c4), count(c5), count(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(27m)
+sql select  _wstart, count(c1), count(c2), count(c3), count(c4), count(c5), count(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(27m)
 if $rows != 3704 then
   return -1
 endi
@@ -674,7 +677,7 @@ endi
 if $data31 != 3 then
   return -1
 endi
-sql select count(c1), count(c2), count(c3), count(c4), count(c5), count(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(27m) limit 5 offset 1
+sql select  _wstart, count(c1), count(c2), count(c3), count(c4), count(c5), count(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(27m) limit 5 offset 1
 if $rows != 5 then
   return -1
 endi
@@ -718,7 +721,7 @@ if $rows != 0 then
   return -1
 endi
 
-sql select first(c1), first(c2), first(c3), first(c4), first(c5), first(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 3 offset 1
+sql select  _wstart, first(c1), first(c2), first(c3), first(c4), first(c5), first(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 3 offset 1
 if $rows != 3 then
   return -1
 endi
@@ -737,7 +740,7 @@ sql select last(c1), last(c2), last(c3), last(c4), last(c5), last(c6) from $tb w
 if $rows != 0 then
   return -1
 endi
-sql select last(c1), last(c2), last(c3), last(c4), last(c5), last(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 3 offset 1
+sql select  _wstart, last(c1), last(c2), last(c3), last(c4), last(c5), last(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 3 offset 1
 if $rows != 3 then
   return -1
 endi
@@ -751,7 +754,7 @@ if $data23 != 1.00000 then
   return -1
 endi
 
-sql select first(ts), first(c1), last(c2), first(c3), last(c4), first(c5), last(c6), first(c8), last(c9) from $tb where ts >= $ts0 and ts <= $tsu and c1 > 0 interval(30m) limit 3 offset 0
+sql select  _wstart, first(ts), first(c1), last(c2), first(c3), last(c4), first(c5), last(c6), first(c8), last(c9) from $tb where ts >= $ts0 and ts <= $tsu and c1 > 0 interval(30m) limit 3 offset 0
 if $rows != 3 then
   return -1
 endi
@@ -786,7 +789,7 @@ if $data29 != nchar8 then
   return -1
 endi
 
-sql select first(ts), first(c1), last(c2), first(c3), last(c4), first(c5), last(c6), first(c8), last(c9) from $tb where ts >= $ts0 and ts <= $tsu and c1 > 0 interval(30m) limit 3 offset 1
+sql select  _wstart, first(ts), first(c1), last(c2), first(c3), last(c4), first(c5), last(c6), first(c8), last(c9) from $tb where ts >= $ts0 and ts <= $tsu and c1 > 0 interval(30m) limit 3 offset 1
 if $rows != 3 then
   return -1
 endi

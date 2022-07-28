@@ -49,18 +49,23 @@ class TDSql:
     def close(self):
         self.cursor.close()
 
-    def prepare(self):
-        tdLog.info("prepare database:db")
+    def prepare(self, dbname="db", drop=True, **kwargs):
+        tdLog.info(f"prepare database:{dbname}")
         s = 'reset query cache'
         try:
             self.cursor.execute(s)
         except:
             tdLog.notice("'reset query cache' is not supported")
-        s = 'drop database if exists db'
+        if drop:
+            s = f'drop database if exists {dbname}'
+            self.cursor.execute(s)
+        s = f'create database {dbname}'
+        for k, v in kwargs.items():
+            s += f" {k} {v}"
+        if "duration" not in kwargs:
+            s += " duration 300"
         self.cursor.execute(s)
-        s = 'create database db duration 300'
-        self.cursor.execute(s)
-        s = 'use db'
+        s = f'use {dbname}'
         self.cursor.execute(s)
         time.sleep(2)
 
@@ -106,7 +111,7 @@ class TDSql:
                 if row_tag:
                     return self.queryResult
                 return self.queryRows
-            except Exception as e:    
+            except Exception as e:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
                 args = (caller.filename, caller.lineno, sql, repr(e))
                 tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
@@ -235,9 +240,17 @@ class TDSql:
                 tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                             (self.sql, row, col, self.queryResult[row][col], data))
                 return
-            elif isinstance(data, float) and abs(self.queryResult[row][col] - data) <= 0.000001:
-                tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
+            elif isinstance(data, float):
+                if abs(data) >= 1 and abs((self.queryResult[row][col] - data) / data) <= 0.000001:
+                    tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
+                                (self.sql, row, col, self.queryResult[row][col], data))
+                elif abs(data) < 1 and abs(self.queryResult[row][col] - data) <= 0.000001:
+                    tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
+                                (self.sql, row, col, self.queryResult[row][col], data))
+                else:
+                    caller = inspect.getframeinfo(inspect.stack()[1][0])
+                    args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
+                    tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
                 return
             else:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -296,7 +309,7 @@ class TDSql:
                 tdLog.notice("Try to execute sql again, query times: %d "%i)
                 time.sleep(1)
                 pass
-        else:               
+        else:
             try:
                 tdLog.notice("Try the last execute sql ")
                 self.affectedRows = self.cursor.execute(sql)
@@ -323,13 +336,32 @@ class TDSql:
             args = (caller.filename, caller.lineno, self.sql, col_name_list, expect_col_name_list)
             tdLog.exit("%s(%d) failed: sql:%s, col_name_list:%s != expect_col_name_list:%s" % args)
 
+    def __check_equal(self, elm, expect_elm):
+        if not type(elm) in(list, tuple) and elm == expect_elm:
+            return True
+        if type(elm) in(list, tuple) and type(expect_elm) in(list, tuple):
+            if len(elm) != len(expect_elm):
+                return False
+            if len(elm) == 0:
+                return True
+            for i in range(len(elm)):
+                flag = self.__check_equal(elm[i], expect_elm[i])
+                if not flag:
+                    return False
+            return True
+        return False
+
     def checkEqual(self, elm, expect_elm):
         if elm == expect_elm:
             tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
-        else:
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
-            tdLog.exit("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
+            return
+        if self.__check_equal(elm, expect_elm):
+            tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
+            return
+
+        caller = inspect.getframeinfo(inspect.stack()[1][0])
+        args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
+        tdLog.exit("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
 
     def checkNotEqual(self, elm, expect_elm):
         if elm != expect_elm:

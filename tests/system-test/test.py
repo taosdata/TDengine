@@ -22,13 +22,17 @@ import json
 import platform
 import socket
 import threading
+
+import toml
 sys.path.append("../pytest")
 from util.log import *
 from util.dnodes import *
 from util.cases import *
 from util.cluster import *
+from util.taosadapter import *
 
 import taos
+import taosrest
 
 def checkRunTimeError():
     import win32gui
@@ -50,7 +54,7 @@ def checkRunTimeError():
             os.system("TASKKILL /F /IM taosd.exe")
 
 if __name__ == "__main__":
-    
+
     fileName = "all"
     deployPath = ""
     masterIp = ""
@@ -63,11 +67,13 @@ if __name__ == "__main__":
     dnodeNums = 1
     mnodeNums = 0
     updateCfgDict = {}
+    adapter_cfg_dict = {}
     execCmd = ""
     queryPolicy = 1
     createDnodeNums = 1
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums'])
+    restful = False
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RD:', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','adaptercfgupdate'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -87,11 +93,13 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-M create mnode numbers in clusters')
             tdLog.printNoPrefix('-Q set queryPolicy in one dnode')
             tdLog.printNoPrefix('-C create Dnode Numbers in one cluster')
-            
+            tdLog.printNoPrefix('-R restful realization form')
+            tdLog.printNoPrefix('-D taosadapter update cfg dict ')
+
 
             sys.exit(0)
 
-        if key in ['-r', '--restart']: 
+        if key in ['-r', '--restart']:
             restart = True
 
         if key in ['-f', '--file']:
@@ -135,7 +143,7 @@ if __name__ == "__main__":
             try:
                 execCmd = base64.b64decode(value.encode()).decode()
             except:
-                print('updateCfgDict convert fail.')
+                print('execCmd run fail.')
                 sys.exit(0)
 
         if key in ['-N', '--dnodeNums']:
@@ -150,8 +158,21 @@ if __name__ == "__main__":
         if key in ['-C', '--createDnodeNums']:
             createDnodeNums = value
 
+        if key in ['-R', '--restful']:
+            restful = True
+
+        if key in ['-D', '--adaptercfgupdate']:
+            try:
+                adaptercfgupdate = eval(base64.b64decode(value.encode()).decode())
+            except:
+                print('adapter cfg update convert fail.')
+                sys.exit(0)
+
     if not execCmd == "":
-        tdDnodes.init(deployPath)
+        if restful:
+            tAdapter.init(deployPath)
+        else:
+            tdDnodes.init(deployPath)
         print(execCmd)
         exec(execCmd)
         quit()
@@ -184,8 +205,33 @@ if __name__ == "__main__":
         if valgrind:
             time.sleep(2)
 
+        if restful:
+            toBeKilled = "taosadapter"
+
+            killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1" % toBeKilled
+
+            psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
+            processID = subprocess.check_output(psCmd, shell=True)
+
+            while(processID):
+                os.system(killCmd)
+                time.sleep(1)
+                processID = subprocess.check_output(psCmd, shell=True)
+
+            for port in range(6030, 6041):
+                usePortPID = "lsof -i tcp:%d | grep LISTEn | awk '{print $2}'" % port
+                processID = subprocess.check_output(usePortPID, shell=True)
+
+                if processID:
+                    killCmd = "kill -TERM %s" % processID
+                    os.system(killCmd)
+                fuserCmd = "fuser -k -n tcp %d" % port
+                os.system(fuserCmd)
+
+            tdLog.info('stop taosadapter')
+
         tdLog.info('stop All dnodes')
-    
+
     if masterIp == "":
         host = socket.gethostname()
     else:
@@ -213,6 +259,7 @@ if __name__ == "__main__":
         except Exception as r:
             print(r)
         updateCfgDictStr = ''
+        # adapter_cfg_dict_str = ''
         if is_test_framework:
             moduleName = fileName.replace(".py", "").replace(os.sep, ".")
             uModule = importlib.import_module(moduleName)
@@ -221,30 +268,44 @@ if __name__ == "__main__":
                 if ((json.dumps(updateCfgDict) == '{}') and hasattr(ucase, 'updatecfgDict')):
                     updateCfgDict = ucase.updatecfgDict
                     updateCfgDictStr = "-d %s"%base64.b64encode(json.dumps(updateCfgDict).encode()).decode()
+                if ((json.dumps(adapter_cfg_dict) == '{}') and hasattr(ucase, 'taosadapter_cfg_dict')):
+                    adapter_cfg_dict = ucase.taosadapter_cfg_dict
+                    # adapter_cfg_dict_str = f"-D {base64.b64encode(toml.dumps(adapter_cfg_dict).encode()).decode()}"
             except Exception as r:
                 print(r)
         else:
             pass
+        if restful:
+            tAdapter.init(deployPath, masterIp)
+            tAdapter.stop(force_kill=True)
+
         if dnodeNums == 1 :
             tdDnodes.deploy(1,updateCfgDict)
             tdDnodes.start(1)
             tdCases.logSql(logSql)
+            if restful:
+                tAdapter.deploy(adapter_cfg_dict)
+                tAdapter.start()
+
             if queryPolicy != 1:
                 queryPolicy=int(queryPolicy)
-                conn = taos.connect(
-                host,
-                config=tdDnodes.getSimCfgPath())
-                tdSql.init(conn.cursor())
-                tdSql.execute("create qnode on dnode 1")
-                tdSql.execute('alter local "queryPolicy" "%d"'%queryPolicy)     
-                tdSql.query("show local variables;")
-                for i in range(tdSql.queryRows):
-                    if tdSql.queryResult[i][0] == "queryPolicy" :
-                        if int(tdSql.queryResult[i][1]) == int(queryPolicy):
-                            tdLog.success('alter queryPolicy to %d successfully'%queryPolicy)
-                        else :
-                            tdLog.debug(tdSql.queryResult)
-                            tdLog.exit("alter queryPolicy to  %d failed"%queryPolicy) 
+                if restful:
+                    conn = taosrest.connect(url=f"http://{host}:6041")
+                else:
+                    conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
+
+                cursor = conn.cursor()
+                cursor.execute("create qnode on dnode 1")
+                cursor.execute(f'alter local "queryPolicy" "{queryPolicy}"')
+                cursor.execute("show local variables")
+                res = cursor.fetchall()
+                for i in range(cursor.rowcount):
+                    if res[i][0] == "queryPolicy" :
+                        if int(res[i][1]) == int(queryPolicy):
+                            tdLog.success(f'alter queryPolicy to {queryPolicy} successfully')
+                        else:
+                            tdLog.debug(res)
+                            tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
         else :
             tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
             dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums,mnodeNums=mnodeNums)
@@ -258,10 +319,16 @@ if __name__ == "__main__":
             for dnode in tdDnodes.dnodes:
                 tdDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
-            conn = taos.connect(
-                host,
-                config=tdDnodes.getSimCfgPath())
-            print(tdDnodes.getSimCfgPath(),host)
+
+            if restful:
+                tAdapter.deploy(adapter_cfg_dict)
+                tAdapter.start()
+
+            if not restful:
+                conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
+            else:
+                conn = taosrest.connect(url=f"http://{host}:6041")
+            # tdLog.info(tdDnodes.getSimCfgPath(),host)
             if createDnodeNums == 1:
                 createDnodeNums=dnodeNums
             else:
@@ -275,9 +342,10 @@ if __name__ == "__main__":
         if ucase is not None and hasattr(ucase, 'noConn') and ucase.noConn == True:
             conn = None
         else:
-            conn = taos.connect(
-                host="%s"%(host),
-                config=tdDnodes.sim.getCfgDir())
+            if not restful:
+                conn = taos.connect(host="%s"%(host), config=tdDnodes.sim.getCfgDir())
+            else:
+                conn = taosrest.connect(url=f"http://{host}:6041")
         if is_test_framework:
             tdCases.runOneWindows(conn, fileName)
         else:
@@ -302,28 +370,55 @@ if __name__ == "__main__":
                 ucase = uModule.TDTestCase()
                 if (json.dumps(updateCfgDict) == '{}'):
                     updateCfgDict = ucase.updatecfgDict
+                if (json.dumps(adapter_cfg_dict) == '{}'):
+                    adapter_cfg_dict = ucase.taosadapter_cfg_dict
             except:
                 pass
+
+        if restful:
+            tAdapter.init(deployPath, masterIp)
+            tAdapter.stop(force_kill=True)
+
         if dnodeNums == 1 :
             tdDnodes.deploy(1,updateCfgDict)
             tdDnodes.start(1)
             tdCases.logSql(logSql)
+
+            if restful:
+                tAdapter.deploy(adapter_cfg_dict)
+                tAdapter.start()
+
             if queryPolicy != 1:
                 queryPolicy=int(queryPolicy)
-                conn = taos.connect(
-                host,
-                config=tdDnodes.getSimCfgPath())
-                tdSql.init(conn.cursor())
-                tdSql.execute("create qnode on dnode 1")
-                tdSql.execute('alter local "queryPolicy" "%d"'%queryPolicy)     
-                tdSql.query("show local variables;")
-                for i in range(tdSql.queryRows):
-                    if tdSql.queryResult[i][0] == "queryPolicy" :
-                        if int(tdSql.queryResult[i][1]) == int(queryPolicy):
-                            tdLog.success('alter queryPolicy to %d successfully'%queryPolicy)
-                        else :
-                            tdLog.debug(tdSql.queryResult)
-                            tdLog.exit("alter queryPolicy to  %d failed"%queryPolicy)      
+                if not restful:
+                    conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
+                else:
+                    conn = taosrest.connect(url=f"http://{host}:6041")
+                # tdSql.init(conn.cursor())
+                # tdSql.execute("create qnode on dnode 1")
+                # tdSql.execute('alter local "queryPolicy" "%d"'%queryPolicy)
+                # tdSql.query("show local variables;")
+                # for i in range(tdSql.queryRows):
+                #     if tdSql.queryResult[i][0] == "queryPolicy" :
+                #         if int(tdSql.queryResult[i][1]) == int(queryPolicy):
+                #             tdLog.success('alter queryPolicy to %d successfully'%queryPolicy)
+                #         else :
+                #             tdLog.debug(tdSql.queryResult)
+                #             tdLog.exit("alter queryPolicy to  %d failed"%queryPolicy)
+
+                cursor = conn.cursor()
+                cursor.execute("create qnode on dnode 1")
+                cursor.execute(f'alter local "queryPolicy" "{queryPolicy}"')
+                cursor.execute("show local variables")
+                res = cursor.fetchall()
+                for i in range(cursor.rowcount):
+                    if res[i][0] == "queryPolicy" :
+                        if int(res[i][1]) == int(queryPolicy):
+                            tdLog.success(f'alter queryPolicy to {queryPolicy} successfully')
+                        else:
+                            tdLog.debug(res)
+                            tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
+
         else :
             tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
             dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums,mnodeNums=mnodeNums)
@@ -337,9 +432,15 @@ if __name__ == "__main__":
             for dnode in tdDnodes.dnodes:
                 tdDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
-            conn = taos.connect(
-                host,
-                config=tdDnodes.getSimCfgPath())
+
+            if restful:
+                tAdapter.deploy(adapter_cfg_dict)
+                tAdapter.start()
+
+            if not restful:
+                conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
+            else:
+                conn = taosrest.connect(url=f"http://{host}:6041")
             print(tdDnodes.getSimCfgPath(),host)
             if createDnodeNums == 1:
                 createDnodeNums=dnodeNums
@@ -351,8 +452,8 @@ if __name__ == "__main__":
                     print("check dnode ready")
             except Exception as r:
                 print(r)
-            
-            
+
+
         if testCluster:
             tdLog.info("Procedures for testing cluster")
             if fileName == "all":
@@ -361,30 +462,35 @@ if __name__ == "__main__":
                 tdCases.runOneCluster(fileName)
         else:
             tdLog.info("Procedures for testing self-deployment")
-            conn = taos.connect(
-                host,
-                config=tdDnodes.getSimCfgPath())
-                
+            if not restful:
+                conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
+            else:
+                conn = taosrest.connect(url=f"http://{host}:6041")
+
             if fileName == "all":
                 tdCases.runAllLinux(conn)
             else:
                 tdCases.runOneLinux(conn, fileName)
-            
+
         if restart:
             if fileName == "all":
                 tdLog.info("not need to query ")
-            else:    
+            else:
                 sp = fileName.rsplit(".", 1)
                 if len(sp) == 2 and sp[1] == "py":
                     tdDnodes.stopAll()
                     tdDnodes.start(1)
-                    time.sleep(1)            
-                    conn = taos.connect( host, config=tdDnodes.getSimCfgPath())
+                    time.sleep(1)
+                    if not restful:
+                        conn = taos.connect( host, config=tdDnodes.getSimCfgPath())
+                    else:
+                        conn = taosrest.connect(url=f"http://{host}:6041")
                     tdLog.info("Procedures for tdengine deployed in %s" % (host))
                     tdLog.info("query test after taosd restart")
                     tdCases.runOneLinux(conn, sp[0] + "_" + "restart.py")
                 else:
                     tdLog.info("not need to query")
+
     if conn is not None:
         conn.close()
     sys.exit(0)

@@ -22,22 +22,22 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
   SStreamQueueItem* pItem = (SStreamQueueItem*)data;
   if (pItem->type == STREAM_INPUT__GET_RES) {
     SStreamTrigger* pTrigger = (SStreamTrigger*)data;
-    qSetMultiStreamInput(exec, pTrigger->pBlock, 1, STREAM_INPUT__DATA_BLOCK, false);
+    qSetMultiStreamInput(exec, pTrigger->pBlock, 1, STREAM_INPUT__DATA_BLOCK);
   } else if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     ASSERT(pTask->isDataScan);
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)data;
-    qDebug("task %d %p set submit input %p %p %d", pTask->taskId, pTask, pSubmit, pSubmit->data, *pSubmit->dataRef);
-    qSetStreamInput(exec, pSubmit->data, STREAM_INPUT__DATA_SUBMIT, false);
+    qDebug("task %d %p set submit input %p %p %d 1", pTask->taskId, pTask, pSubmit, pSubmit->data, *pSubmit->dataRef);
+    qSetMultiStreamInput(exec, pSubmit->data, 1, STREAM_INPUT__DATA_SUBMIT);
   } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)data;
     SArray*           blocks = pBlock->blocks;
     qDebug("task %d %p set ssdata input", pTask->taskId, pTask);
-    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_INPUT__DATA_BLOCK, false);
+    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_INPUT__DATA_BLOCK);
   } else if (pItem->type == STREAM_INPUT__MERGED_SUBMIT) {
     SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)data;
     SArray*              blocks = pMerged->reqs;
     qDebug("task %d %p set submit input (merged), batch num: %d", pTask->taskId, pTask, (int32_t)blocks->size);
-    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_INPUT__MERGED_SUBMIT, false);
+    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_INPUT__MERGED_SUBMIT);
   } else {
     ASSERT(0);
   }
@@ -71,6 +71,8 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
       }
       continue;
     }
+
+    qDebug("task %d(child %d) executed and get block");
 
     SSDataBlock block = {0};
     assignOneDataBlock(&block, output);
@@ -159,6 +161,7 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
       if (data == NULL) {
         data = qItem;
         streamQueueProcessSuccess(pTask->inputQueue);
+        if (pTask->execType == TASK_EXEC__NONE) break;
         /*if (qItem->type == STREAM_INPUT__DATA_BLOCK) {*/
         /*streamUpdateVer(pTask, (SStreamDataBlock*)qItem);*/
         /*}*/
@@ -187,7 +190,7 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
     if (pTask->execType == TASK_EXEC__NONE) {
       ASSERT(((SStreamQueueItem*)data)->type == STREAM_INPUT__DATA_BLOCK);
       streamTaskOutput(pTask, data);
-      return pRes;
+      continue;
     }
 
     qDebug("stream task %d exec begin, msg batch: %d", pTask->taskId, cnt);
