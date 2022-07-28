@@ -588,6 +588,29 @@ INSERT INTO tb_name VALUES (TODAY(), ...);
 
 Aggregate functions return single result row for each group in the query result set. Groups are determined by `GROUP BY` clause or time window clause if they are used; or the whole result is considered a group if neither of them is used.
 
+### APERCENTILE
+
+```
+SELECT APERCENTILE(field_name, P[, algo_type])
+FROM { tb_name | stb_name } [WHERE clause]
+```
+
+**Description**: Similar to `PERCENTILE`, but a approximated result is returned.
+
+**Return value type**: DOUBLE.
+
+**Applicable column types**: Numeric types.
+
+**Applicable table types**: table, STable.
+
+**More explanations**
+
+- _P_ is in range [0,100], when _P_ is 0, the result is same as using function MIN; when _P_ is 100, the result is same as function MAX.
+- **algo_type** can only be input as `default` or `t-digest`, if it's not specified `default` will be used, i.e. `apercentile(column_name, 50)` is same as `apercentile(column_name, 50, "default")`.
+- If `default` is used, histogram based algorithm is used for calculation. If `t-digest` is used, `t-digest` sampling algorithm is used to calculate the result.
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
 ### AVG
 
 ```
@@ -659,21 +682,6 @@ SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause]
 **Applicable data types**: Numeric types.
 
 **Applicable table types**: table only.
-
-
-### MODE
-
-```
-SELECT MODE(field_name) FROM tb_name [WHERE clause];
-```
-
-**Description**:The value which has the highest frequency of occurrence. NULL is returned if there are multiple values which have highest frequency of occurrence.
-
-**Return value type**:Same as the data type of the column being operated upon.
-
-**Applicable column types**: All data types.
-
-**More explanations**:Considering the number of returned result set is unpredictable, it's suggested to limit the number of unique values to 100,000, otherwise error will be returned.
 
 ### SPREAD
 
@@ -770,32 +778,25 @@ SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_nam
 
 3. normalized: setting to 1/0 to turn on/off result normalization.
 
-## Selector Functions
-
-Selector functiosn choose one or more rows in the query result according to the semantics. You can specify to output primary timestamp column and other columns including tbname and tags so that you can easily know which rows the selected values belong to.
-
-### APERCENTILE
+### PERCENTILE
 
 ```
-SELECT APERCENTILE(field_name, P[, algo_type])
-FROM { tb_name | stb_name } [WHERE clause]
+SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
 ```
 
-**Description**: Similar to `PERCENTILE`, but a approximated result is returned.
+**Description**: The value whose rank in a specific column matches the specified percentage. If such a value matching the specified percentage doesn't exist in the column, an interpolation value will be returned.
 
 **Return value type**: DOUBLE.
 
 **Applicable column types**: Numeric types.
 
-**Applicable table types**: table, STable.
+**Applicable table types**: table.
 
-**More explanations**
+**More explanations**: _P_ is in range [0,100], when _P_ is 0, the result is same as using function MIN; when _P_ is 100, the result is same as function MAX.
 
-- _P_ is in range [0,100], when _P_ is 0, the result is same as using function MIN; when _P_ is 100, the result is same as function MAX.
-- **algo_type** can only be input as `default` or `t-digest`, if it's not specified `default` will be used, i.e. `apercentile(column_name, 50)` is same as `apercentile(column_name, 50, "default")`.
-- If `default` is used, histogram based algorithm is used for calculation. If `t-digest` is used, `t-digest` sampling algorithm is used to calculate the result.
+## Selector Functions
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+Selector functiosn choose one or more rows in the query result according to the semantics. You can specify to output primary timestamp column and other columns including tbname and tags so that you can easily know which rows the selected values belong to.
 
 ### BOTTOM
 
@@ -928,21 +929,40 @@ SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
 
 **Applicable table types**: table, STable.
 
-### PERCENTILE
+### MODE
 
 ```
-SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
+SELECT MODE(field_name) FROM tb_name [WHERE clause];
 ```
 
-**Description**: The value whose rank in a specific column matches the specified percentage. If such a value matching the specified percentage doesn't exist in the column, an interpolation value will be returned.
+**Description**:The value which has the highest frequency of occurrence. NULL is returned if there are multiple values which have highest frequency of occurrence.
 
-**Return value type**: DOUBLE.
+**Return value type**:Same as the data type of the column being operated upon.
 
-**Applicable column types**: Numeric types.
+**Applicable column types**: All data types.
 
-**Applicable table types**: table.
+**More explanations**:Considering the number of returned result set is unpredictable, it's suggested to limit the number of unique values to 100,000, otherwise error will be returned.
 
-**More explanations**: _P_ is in range [0,100], when _P_ is 0, the result is same as using function MIN; when _P_ is 100, the result is same as function MAX.
+### SAMPLE
+
+```sql
+    SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+```
+
+**Description**: _k_ sampling values of a specific column. The applicable range of _k_ is [1,1000].
+
+**Return value type**: Same as the column being operated.
+
+**Applicable data types**: All data types.
+
+**Applicable table types**: table, STable.
+
+**Applicable nested query**: Inner query and Outer query.
+
+**More explanations**:
+
+- Arithmetic operation cannot be operated on the result of `SAMPLE` function
+- Must be used with `Partition by tbname` when it's used on a STable to force the result on each single timeline.
 
 ### TAIL
 
@@ -1038,6 +1058,7 @@ SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHER
 
 - The number of result rows is the number of total rows in the time range subtracted by one, no output for the first row.
 - It can be used together with `PARTITION BY tbname` against a STable.
+- Can be used together with selection of relative columns. E.g. select \_rowts, DERIVATIVE() from.
 
 ### DIFF
 
@@ -1057,6 +1078,7 @@ SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHER
 
 - The number of result rows is the number of rows subtracted by one, no output for the first row.
 - It can be used on STable with `PARTITION by tbname`.
+- Can be used together with selection of relative columns. E.g. select \_rowts, DIFF() from.
 
 ### IRATE
 
@@ -1097,27 +1119,6 @@ SELECT IRATE(field_name) FROM tb_name WHERE clause;
 - Arithmetic operation cannot be performed on the result of `MAVG`.
 - Cannot be used with aggregate functions.
 - Must be used with `PARTITION BY tbname` when it's used on a STable to force the result on each single timeline.
-
-### SAMPLE
-
-```sql
-    SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
-```
-
-**Description**: _k_ sampling values of a specific column. The applicable range of _k_ is [1,1000].
-
-**Return value type**: Same as the column being operated.
-
-**Applicable data types**: All data types.
-
-**Applicable table types**: table, STable.
-
-**Applicable nested query**: Inner query and Outer query.
-
-**More explanations**:
-
-- Arithmetic operation cannot be operated on the result of `SAMPLE` function
-- Must be used with `Partition by tbname` when it's used on a STable to force the result on each single timeline.
 
 ### STATECOUNT
 
