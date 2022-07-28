@@ -45,11 +45,8 @@ endi
 if $data(2)[4] != ready then
   goto step2
 endi
-if $data(3)[4] != ready then
-  goto step2
-endi
 
-system sh/exec.sh -n dnode3 -s stop -x SIGKILL
+system sh/exec.sh -n dnode3 -s stop
 sql_error create mnode on dnode 3
 
 print =============== step3: show mnodes
