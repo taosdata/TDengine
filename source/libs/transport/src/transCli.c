@@ -1,5 +1,4 @@
 /** Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
-
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -16,6 +15,10 @@
 #ifdef USE_UV
 #include "transComm.h"
 
+typedef struct SConnList {
+  queue conn;
+} SConnList;
+
 typedef struct SCliConn {
   T_REF_DECLARE()
   uv_connect_t connReq;
@@ -26,7 +29,9 @@ typedef struct SCliConn {
 
   SConnBuffer readBuf;
   STransQueue cliMsgs;
-  queue       q;
+
+  queue      q;
+  SConnList* list;
 
   STransCtx  ctx;
   bool       broken;  // link broken or not
@@ -56,13 +61,14 @@ typedef struct SCliMsg {
 } SCliMsg;
 
 typedef struct SCliThrd {
-  TdThread    thread;  // tid
-  int64_t     pid;     // pid
-  uv_loop_t*  loop;
-  SAsyncPool* asyncPool;
-  uv_idle_t*  idle;
-  uv_timer_t  timer;
-  void*       pool;  // conn pool
+  TdThread      thread;  // tid
+  int64_t       pid;     // pid
+  uv_loop_t*    loop;
+  SAsyncPool*   asyncPool;
+  uv_idle_t*    idle;
+  uv_prepare_t* prepare;
+  uv_timer_t    timer;
+  void*         pool;  // conn pool
 
   // msg queue
   queue         msg;
@@ -86,10 +92,6 @@ typedef struct SCliObj {
   SCliThrd** pThreadObj;
 } SCliObj;
 
-typedef struct SConnList {
-  queue conn;
-} SConnList;
-
 // conn pool
 // add expire timeout and capacity limit
 static void*     createConnPool(int size);
@@ -101,7 +103,7 @@ static void      doCloseIdleConn(void* param);
 static int sockDebugInfo(struct sockaddr* sockname, char* dst) {
   struct sockaddr_in addr = *(struct sockaddr_in*)sockname;
 
-  char buf[20] = {0};
+  char buf[16] = {0};
   int  r = uv_ip4_name(&addr, (char*)buf, sizeof(buf));
   sprintf(dst, "%s:%d", buf, ntohs(addr.sin_port));
   return r;
@@ -118,6 +120,9 @@ static void cliSendCb(uv_write_t* req, int status);
 static void cliConnCb(uv_connect_t* req, int status);
 static void cliAsyncCb(uv_async_t* handle);
 static void cliIdleCb(uv_idle_t* handle);
+static void cliPrepareCb(uv_prepare_t* handle);
+
+static int32_t allocConnRef(SCliConn* conn, bool update);
 
 static int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg);
 
@@ -198,7 +203,7 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
       pThrd = (SCliThrd*)(exh)->pThrd;                \
     }                                                 \
   } while (0)
-#define CONN_PERSIST_TIME(para)    ((para) == 0 ? 3 * 1000 : (para))
+#define CONN_PERSIST_TIME(para)    ((para) <= 90000 ? 90000 : (para))
 #define CONN_GET_HOST_THREAD(conn) (conn ? ((SCliConn*)conn)->hostThrd : NULL)
 #define CONN_GET_INST_LABEL(conn)  (((STrans*)(((SCliThrd*)(conn)->hostThrd)->pTransInst))->label)
 #define CONN_SHOULD_RELEASE(conn, head)                                                                           \
@@ -499,9 +504,8 @@ void* destroyConnPool(void* pool) {
 }
 
 static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
-  char key[128] = {0};
+  char key[32] = {0};
   CONN_CONSTRUCT_HASH_KEY(key, ip, port);
-
   SHashObj*  pPool = pool;
   SConnList* plist = taosHashGet(pPool, key, strlen(key));
   if (plist == NULL) {
@@ -519,12 +523,43 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
   conn->status = ConnNormal;
   QUEUE_REMOVE(&conn->q);
   QUEUE_INIT(&conn->q);
-  assert(h == &conn->q);
 
   transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
   conn->task = NULL;
 
   return conn;
+}
+static void addConnToPool(void* pool, SCliConn* conn) {
+  if (conn->status == ConnInPool) {
+    return;
+  }
+  SCliThrd* thrd = conn->hostThrd;
+  CONN_HANDLE_THREAD_QUIT(thrd);
+
+  allocConnRef(conn, true);
+
+  STrans* pTransInst = thrd->pTransInst;
+  cliReleaseUnfinishedMsg(conn);
+  transQueueClear(&conn->cliMsgs);
+  transCtxCleanup(&conn->ctx);
+  conn->status = ConnInPool;
+
+  if (conn->list == NULL) {
+    char key[32] = {0};
+    CONN_CONSTRUCT_HASH_KEY(key, conn->ip, conn->port);
+    tTrace("%s conn %p added to conn pool, read buf cap:%d", CONN_GET_INST_LABEL(conn), conn, conn->readBuf.cap);
+    conn->list = taosHashGet((SHashObj*)pool, key, strlen(key));
+  }
+  assert(conn->list != NULL);
+  QUEUE_INIT(&conn->q);
+  QUEUE_PUSH(&conn->list->conn, &conn->q);
+
+  assert(!QUEUE_IS_EMPTY(&conn->list->conn));
+
+  STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
+  arg->param1 = conn;
+  arg->param2 = thrd;
+  conn->task = transDQSched(thrd->timeoutQueue, doCloseIdleConn, arg, CONN_PERSIST_TIME(pTransInst->idleTime));
 }
 static int32_t allocConnRef(SCliConn* conn, bool update) {
   if (update) {
@@ -556,38 +591,6 @@ static int32_t specifyConnRef(SCliConn* conn, bool update, int64_t handle) {
   return 0;
 }
 
-static void addConnToPool(void* pool, SCliConn* conn) {
-  if (conn->status == ConnInPool) {
-    return;
-  }
-  SCliThrd* thrd = conn->hostThrd;
-  CONN_HANDLE_THREAD_QUIT(thrd);
-
-  allocConnRef(conn, true);
-
-  STrans* pTransInst = thrd->pTransInst;
-  cliReleaseUnfinishedMsg(conn);
-  transQueueClear(&conn->cliMsgs);
-  transCtxCleanup(&conn->ctx);
-  conn->status = ConnInPool;
-
-  char key[128] = {0};
-  CONN_CONSTRUCT_HASH_KEY(key, conn->ip, conn->port);
-  tTrace("%s conn %p added to conn pool, read buf cap:%d", CONN_GET_INST_LABEL(conn), conn, conn->readBuf.cap);
-
-  SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
-  // list already create before
-  assert(plist != NULL);
-  QUEUE_INIT(&conn->q);
-  QUEUE_PUSH(&plist->conn, &conn->q);
-
-  assert(!QUEUE_IS_EMPTY(&plist->conn));
-
-  STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
-  arg->param1 = conn;
-  arg->param2 = thrd;
-  conn->task = transDQSched(thrd->timeoutQueue, doCloseIdleConn, arg, CONN_PERSIST_TIME(pTransInst->idleTime));
-}
 static void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   SCliConn*    conn = handle->data;
   SConnBuffer* pBuf = &conn->readBuf;
@@ -965,6 +968,62 @@ static void cliAsyncCb(uv_async_t* handle) {
 static void cliIdleCb(uv_idle_t* handle) {
   SCliThrd* thrd = handle->data;
   tTrace("do idle work");
+
+  SAsyncPool* pool = thrd->asyncPool;
+  for (int i = 0; i < pool->nAsync; i++) {
+    uv_async_t* async = &(pool->asyncs[i]);
+    SAsyncItem* item = async->data;
+
+    queue wq;
+    taosThreadMutexLock(&item->mtx);
+    QUEUE_MOVE(&item->qmsg, &wq);
+    taosThreadMutexUnlock(&item->mtx);
+
+    int count = 0;
+    while (!QUEUE_IS_EMPTY(&wq)) {
+      queue* h = QUEUE_HEAD(&wq);
+      QUEUE_REMOVE(h);
+
+      SCliMsg* pMsg = QUEUE_DATA(h, SCliMsg, q);
+      if (pMsg == NULL) {
+        continue;
+      }
+      (*cliAsyncHandle[pMsg->type])(pMsg, thrd);
+      count++;
+    }
+  }
+  tTrace("prepare work end");
+  if (thrd->stopMsg != NULL) cliHandleQuit(thrd->stopMsg, thrd);
+}
+static void cliPrepareCb(uv_prepare_t* handle) {
+  SCliThrd* thrd = handle->data;
+  tTrace("prepare work start");
+
+  SAsyncPool* pool = thrd->asyncPool;
+  for (int i = 0; i < pool->nAsync; i++) {
+    uv_async_t* async = &(pool->asyncs[i]);
+    SAsyncItem* item = async->data;
+
+    queue wq;
+    taosThreadMutexLock(&item->mtx);
+    QUEUE_MOVE(&item->qmsg, &wq);
+    taosThreadMutexUnlock(&item->mtx);
+
+    int count = 0;
+    while (!QUEUE_IS_EMPTY(&wq)) {
+      queue* h = QUEUE_HEAD(&wq);
+      QUEUE_REMOVE(h);
+
+      SCliMsg* pMsg = QUEUE_DATA(h, SCliMsg, q);
+      if (pMsg == NULL) {
+        continue;
+      }
+      (*cliAsyncHandle[pMsg->type])(pMsg, thrd);
+      count++;
+    }
+  }
+  tTrace("prepare work end");
+  if (thrd->stopMsg != NULL) cliHandleQuit(thrd->stopMsg, thrd);
 }
 
 static void* cliWorkThread(void* arg) {
@@ -1031,7 +1090,12 @@ static SCliThrd* createThrdObj() {
   // pThrd->idle = taosMemoryCalloc(1, sizeof(uv_idle_t));
   // uv_idle_init(pThrd->loop, pThrd->idle);
   // pThrd->idle->data = pThrd;
-  //  uv_idle_start(pThrd->idle, cliIdleCb);
+  // uv_idle_start(pThrd->idle, cliIdleCb);
+
+  pThrd->prepare = taosMemoryCalloc(1, sizeof(uv_prepare_t));
+  uv_prepare_init(pThrd->loop, pThrd->prepare);
+  pThrd->prepare->data = pThrd;
+  uv_prepare_start(pThrd->prepare, cliPrepareCb);
 
   pThrd->pool = createConnPool(4);
   transDQCreate(pThrd->loop, &pThrd->delayQueue);
@@ -1056,6 +1120,7 @@ static void destroyThrdObj(SCliThrd* pThrd) {
   transDQDestroy(pThrd->timeoutQueue, NULL);
 
   taosMemoryFree(pThrd->idle);
+  taosMemoryFree(pThrd->prepare);
   taosMemoryFree(pThrd->loop);
   taosMemoryFree(pThrd);
 }
