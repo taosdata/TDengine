@@ -118,20 +118,6 @@ int32_t tsMaxNumOfDistinctResults = 1000 * 10000;
 // 1 database precision unit for interval time range, changed accordingly
 int32_t tsMinIntervalTime = 1;
 
-// 20sec, the maximum value of stream computing delay, changed accordingly
-int32_t tsMaxStreamComputDelay = 20000;
-
-// 10sec, the first stream computing delay time after system launched successfully, changed accordingly
-int32_t tsStreamCompStartDelay = 10000;
-
-// the stream computing delay time after executing failed, change accordingly
-int32_t tsRetryStreamCompDelay = 10 * 1000;
-
-// The delayed computing ration. 10% of the whole computing time window by default.
-float tsStreamComputDelayRatio = 0.1f;
-
-int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
-
 // the maximum allowed query buffer size during query processing for each data node.
 // -1 no limit (default)
 // 0  no query allowed, queries are disabled
@@ -330,7 +316,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "fqdn", defaultFqdn, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "serverPort", defaultServerPort, 1, 65056, 1) != 0) return -1;
   if (cfgAddDir(pCfg, "tempDir", tsTempDir, 1) != 0) return -1;
-  if (cfgAddFloat(pCfg, "minimalTempDirGB", 1.0f, 0.001f, 10000000, 1) != 0) return -1;
+  if (cfgAddFloat(pCfg, "minimalTmpDirGB", 1.0f, 0.001f, 10000000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "shellActivityTimer", tsShellActivityTimer, 1, 120, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "compressMsgSize", tsCompressMsgSize, -1, 100000000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "compressColData", tsCompressColData, -1, 100000000, 1) != 0) return -1;
@@ -383,10 +369,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "minIntervalTime", tsMinIntervalTime, 1, 1000000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxNumOfDistinctRes", tsMaxNumOfDistinctResults, 10 * 10000, 10000 * 10000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "countAlwaysReturnValue", tsCountAlwaysReturnValue, 0, 1, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "maxStreamCompDelay", tsMaxStreamComputDelay, 10, 1000000000, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "maxFirstStreamCompDelay", tsStreamCompStartDelay, 1000, 1000000000, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "retryStreamCompDelay", tsRetryStreamCompDelay, 10, 1000000000, 0) != 0) return -1;
-  if (cfgAddFloat(pCfg, "streamCompDelayRatio", tsStreamComputDelayRatio, 0.1, 0.9, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryBufferSize", tsQueryBufferSize, -1, 500000000000, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "retrieveBlockingModel", tsRetrieveBlockingModel, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "printAuth", tsPrintAuth, 0) != 0) return -1;
@@ -532,7 +514,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   tstrncpy(tsTempDir, cfgGetItem(pCfg, "tempDir")->str, PATH_MAX);
   taosExpandDir(tsTempDir, tsTempDir, PATH_MAX);
-  tsTempSpace.reserved = cfgGetItem(pCfg, "minimalTempDirGB")->fval;
+  tsTempSpace.reserved = cfgGetItem(pCfg, "minimalTmpDirGB")->fval;
   if (taosMulMkDir(tsTempDir) != 0) {
     uError("failed to create tempDir:%s since %s", tsTempDir, terrstr());
     return -1;
@@ -579,10 +561,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMinIntervalTime = cfgGetItem(pCfg, "minIntervalTime")->i32;
   tsMaxNumOfDistinctResults = cfgGetItem(pCfg, "maxNumOfDistinctRes")->i32;
   tsCountAlwaysReturnValue = cfgGetItem(pCfg, "countAlwaysReturnValue")->i32;
-  tsMaxStreamComputDelay = cfgGetItem(pCfg, "maxStreamCompDelay")->i32;
-  tsStreamCompStartDelay = cfgGetItem(pCfg, "maxFirstStreamCompDelay")->i32;
-  tsRetryStreamCompDelay = cfgGetItem(pCfg, "retryStreamCompDelay")->i32;
-  tsStreamComputDelayRatio = cfgGetItem(pCfg, "streamCompDelayRatio")->fval;
   tsQueryBufferSize = cfgGetItem(pCfg, "queryBufferSize")->i32;
   tsRetrieveBlockingModel = cfgGetItem(pCfg, "retrieveBlockingModel")->bval;
   tsPrintAuth = cfgGetItem(pCfg, "printAuth")->bval;
@@ -758,10 +736,6 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
             tsMaxShellConns = cfgGetItem(pCfg, "maxShellConns")->i32;
           } else if (strcasecmp("maxNumOfDistinctRes", name) == 0) {
             tsMaxNumOfDistinctResults = cfgGetItem(pCfg, "maxNumOfDistinctRes")->i32;
-          } else if (strcasecmp("maxStreamCompDelay", name) == 0) {
-            tsMaxStreamComputDelay = cfgGetItem(pCfg, "maxStreamCompDelay")->i32;
-          } else if (strcasecmp("maxFirstStreamCompDelay", name) == 0) {
-            tsStreamCompStartDelay = cfgGetItem(pCfg, "maxFirstStreamCompDelay")->i32;
           }
           break;
         }
@@ -772,8 +746,8 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
           break;
         }
         case 'i': {
-          if (strcasecmp("minimalTempDirGB", name) == 0) {
-            tsTempSpace.reserved = cfgGetItem(pCfg, "minimalTempDirGB")->fval;
+          if (strcasecmp("minimalTmpDirGB", name) == 0) {
+            tsTempSpace.reserved = cfgGetItem(pCfg, "minimalTmpDirGB")->fval;
           } else if (strcasecmp("minimalDataDirGB", name) == 0) {
             tsDataSpace.reserved = cfgGetItem(pCfg, "minimalDataDirGB")->fval;
           } else if (strcasecmp("minSlidingTime", name) == 0) {
@@ -883,9 +857,7 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
       break;
     }
     case 'r': {
-      if (strcasecmp("retryStreamCompDelay", name) == 0) {
-        tsRetryStreamCompDelay = cfgGetItem(pCfg, "retryStreamCompDelay")->i32;
-      } else if (strcasecmp("retrieveBlockingModel", name) == 0) {
+      if (strcasecmp("retrieveBlockingModel", name) == 0) {
         tsRetrieveBlockingModel = cfgGetItem(pCfg, "retrieveBlockingModel")->bval;
       } else if (strcasecmp("rpcQueueMemoryAllowed", name) == 0) {
         tsRpcQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64;
@@ -913,8 +885,6 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         tsNumOfSupportVnodes = cfgGetItem(pCfg, "supportVnodes")->i32;
       } else if (strcasecmp("statusInterval", name) == 0) {
         tsStatusInterval = cfgGetItem(pCfg, "statusInterval")->i32;
-      } else if (strcasecmp("streamCompDelayRatio", name) == 0) {
-        tsStreamComputDelayRatio = cfgGetItem(pCfg, "streamCompDelayRatio")->fval;
       } else if (strcasecmp("slaveQuery", name) == 0) {
         tsEnableSlaveQuery = cfgGetItem(pCfg, "slaveQuery")->bval;
       } else if (strcasecmp("snodeShmSize", name) == 0) {

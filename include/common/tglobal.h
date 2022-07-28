@@ -102,11 +102,6 @@ extern int32_t tsQuerySmaOptimize;
 // client
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
-extern int32_t tsMaxStreamComputDelay;
-extern int32_t tsStreamCompStartDelay;
-extern int32_t tsRetryStreamCompDelay;
-extern float   tsStreamComputDelayRatio;  // the delayed computing ration of the whole time window
-extern int64_t tsMaxRetentWindow;
 
 // build info
 extern char version[];
