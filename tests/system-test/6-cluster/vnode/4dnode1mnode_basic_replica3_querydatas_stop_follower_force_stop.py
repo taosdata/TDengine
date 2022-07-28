@@ -212,10 +212,10 @@ class TDTestCase:
 
         return self.stop_dnode_id
 
-    def wait_stop_dnode_OK(self):
+    def wait_stop_dnode_OK(self ,newTdSql):
     
         def _get_status():
-            newTdSql=tdCom.newTdSql()
+            # newTdSql=tdCom.newTdSql()
 
             status =  ""
             newTdSql.query("show dnodes")
@@ -235,10 +235,10 @@ class TDTestCase:
             # tdLog.notice("==== stop dnode has not been stopped , endpoint is {}".format(self.stop_dnode))
         tdLog.notice("==== stop_dnode has stopped , id is {}".format(self.stop_dnode_id))
 
-    def wait_start_dnode_OK(self):
+    def wait_start_dnode_OK(self ,newTdSql):
     
         def _get_status():
-            newTdSql=tdCom.newTdSql()
+            # newTdSql=tdCom.newTdSql()
             status =  ""
             newTdSql.query("show dnodes")
             dnode_infos = newTdSql.queryResult
@@ -394,15 +394,16 @@ class TDTestCase:
         self.thread_list = self.multi_thread_query_task(10 ,self.db_name ,'stb1' )
 
         # force stop follower
+        newTdSql=tdCom.newTdSql()
         for loop in range(self.loop_restart_times):
             tdLog.debug(" ==== this is {}_th restart follower of database {} ==== ".format(loop ,self.db_name))
-            self.stop_dnode_id = self._get_stop_dnode_id(self.db_name)
+            self.stop_dnode_id = self._get_stop_dnode_id(self.db_name,"follower" )
             self.force_stop_dnode(self.stop_dnode_id)
-            self.wait_stop_dnode_OK()
+            self.wait_stop_dnode_OK(newTdSql)
 
             start = time.time()
             tdDnodes[self.stop_dnode_id-1].starttaosd()
-            self.wait_start_dnode_OK()
+            self.wait_start_dnode_OK(newTdSql)
             end = time.time()
             time_cost = int(end-start)
             
