@@ -756,7 +756,7 @@ static int32_t tsdbSnapWriteTableData(STsdbSnapWriter* pWriter, TABLEID id) {
     if (pWriter->iBlockIdx < taosArrayGetSize(pWriter->aBlockIdx)) {
       ASSERT(pWriter->pDataFReader);
 
-      SBlockIdx* pBlockIdx = (SBlockIdx*)taosArrayGet(pWriter->aBlockIdx, pWriter->iBlock);
+      SBlockIdx* pBlockIdx = (SBlockIdx*)taosArrayGet(pWriter->aBlockIdx, pWriter->iBlockIdx);
       int32_t    c = tTABLEIDCmprFn(pBlockIdx, &id);
 
       ASSERT(c >= 0);
