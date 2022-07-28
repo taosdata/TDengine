@@ -391,10 +391,12 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
       // exec
       pInnerTask->execType = TASK_EXEC__PIPE;
 
+#if 0
       SDbObj* pSourceDb = mndAcquireDb(pMnode, pStream->sourceDb);
       ASSERT(pDbObj != NULL);
       sdbRelease(pSdb, pSourceDb);
       pInnerTask->numOfVgroups = pSourceDb->cfg.numOfVgroups;
+#endif
 
       if (tsSchedStreamToSnode) {
         SSnodeObj* pSnode = mndSchedFetchOneSnode(pMnode);

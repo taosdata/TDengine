@@ -19,6 +19,39 @@
 #include "catalogInt.h"
 #include "systable.h"
 
+void ctgFreeMsgSendParam(void* param) {
+  if (NULL == param) {
+    return;
+  }
+
+  SCtgTaskCallbackParam* pParam = (SCtgTaskCallbackParam*)param;
+  taosArrayDestroy(pParam->taskId);
+
+  taosMemoryFree(param);
+}
+
+void ctgFreeBatch(SCtgBatch *pBatch) {
+  if (NULL == pBatch) {
+    return;
+  }
+  
+  taosArrayDestroy(pBatch->pMsgs);
+  taosArrayDestroy(pBatch->pTaskIds);
+}
+
+void ctgFreeBatchs(SHashObj *pBatchs) {
+  void* p = taosHashIterate(pBatchs, NULL);
+  while (NULL != p) {
+    SCtgBatch* pBatch = (SCtgBatch*)p;
+
+    ctgFreeBatch(pBatch);
+
+    p = taosHashIterate(pBatchs, p);
+  }
+
+  taosHashCleanup(pBatchs);
+}
+
 char *ctgTaskTypeStr(CTG_TASK_TYPE type) {
   switch (type) {
     case CTG_TASK_GET_QNODE:
@@ -612,6 +645,7 @@ void ctgFreeJob(void* job) {
   uint64_t qid = pJob->queryId;
 
   ctgFreeTasks(pJob->pTasks);
+  ctgFreeBatchs(pJob->pBatchs);
 
   ctgFreeSMetaData(&pJob->jobRes);
 
@@ -867,14 +901,10 @@ int32_t ctgCloneTableIndex(SArray* pIndex, SArray** pRes) {
 }
 
 
-int32_t ctgUpdateSendTargetInfo(SMsgSendInfo *pMsgSendInfo, int32_t msgType, SCtgTask* pTask) {
-  if (msgType == TDMT_VND_TABLE_META) {
-    SCtgTbMetaCtx* ctx = (SCtgTbMetaCtx*)pTask->taskCtx;
-    char dbFName[TSDB_DB_FNAME_LEN];
-    tNameGetFullDbName(ctx->pName, dbFName);
-    
+int32_t ctgUpdateSendTargetInfo(SMsgSendInfo *pMsgSendInfo, int32_t msgType, char* dbFName, int32_t vgId) {
+  if (msgType == TDMT_VND_TABLE_META || msgType == TDMT_VND_TABLE_CFG || msgType == TDMT_VND_BATCH_META) {
     pMsgSendInfo->target.type = TARGET_TYPE_VNODE;
-    pMsgSendInfo->target.vgId = ctx->vgId;
+    pMsgSendInfo->target.vgId = vgId;
     pMsgSendInfo->target.dbFName = strdup(dbFName);
   } else {
     pMsgSendInfo->target.type = TARGET_TYPE_MNODE;
