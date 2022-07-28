@@ -318,6 +318,7 @@ typedef struct STableScanInfo {
   int32_t         currentTable;
   int8_t          scanMode;
   int8_t          noTable;
+  int8_t          assignBlockUid;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
