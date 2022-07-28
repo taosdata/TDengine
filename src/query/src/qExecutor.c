@@ -2814,7 +2814,6 @@ static bool notContainSessionOrStateWindow(SQueryAttr *pQueryAttr) { return !(pQ
 static int32_t updateBlockLoadStatus(SQueryAttr *pQuery, int32_t status) {
   bool hasFirstLastCountFunc = false;
   bool hasOtherFunc = false;
-  bool hasCount = false;
 
   if (status == BLK_DATA_ALL_NEEDED || status == BLK_DATA_DISCARD) {
     return status;
