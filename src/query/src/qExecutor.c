@@ -2812,8 +2812,9 @@ static bool onlyLastQuery(SQueryAttr *pQueryAttr) { return onlyOneQueryType(pQue
 static bool notContainSessionOrStateWindow(SQueryAttr *pQueryAttr) { return !(pQueryAttr->sw.gap > 0 || pQueryAttr->stateWindow); }
 
 static int32_t updateBlockLoadStatus(SQueryAttr *pQuery, int32_t status) {
-  bool hasFirstLastFunc = false;
+  bool hasFirstLastCountFunc = false;
   bool hasOtherFunc = false;
+  bool hasCount = false;
 
   if (status == BLK_DATA_ALL_NEEDED || status == BLK_DATA_DISCARD) {
     return status;
@@ -2827,14 +2828,14 @@ static int32_t updateBlockLoadStatus(SQueryAttr *pQuery, int32_t status) {
       continue;
     }
 
-    if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_LAST_DST) {
-      hasFirstLastFunc = true;
+    if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_LAST_DST || functionId == TSDB_FUNC_COUNT) {
+      hasFirstLastCountFunc = true;
     } else {
       hasOtherFunc = true;
     }
   }
 
-  if (hasFirstLastFunc && status == BLK_DATA_NO_NEEDED) {
+  if (hasFirstLastCountFunc && status == BLK_DATA_NO_NEEDED) {
     if(!hasOtherFunc) {
       return BLK_DATA_DISCARD;
     } else {
