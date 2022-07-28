@@ -298,8 +298,8 @@
 ./test.sh -f tsim/sma/drop_sma.sim
 ./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
 # temp disable
-#./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
-#./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
+./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
+./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
 
 # --- valgrind
 ./test.sh -f tsim/valgrind/checkError1.sim
