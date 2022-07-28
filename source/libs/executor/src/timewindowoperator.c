@@ -2100,9 +2100,11 @@ static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
     SColumnInfoData* pDst = taosArrayGet(pResBlock->pDataBlock, dstSlot);
 
     switch (pSliceInfo->fillType) {
-      case TSDB_FILL_NULL:
+      case TSDB_FILL_NULL: {
         colDataAppendNULL(pDst, rows);
+        pResBlock->info.rows += 1;
         break;
+      }
 
       case TSDB_FILL_SET_VALUE: {
         SVariant* pVar = &pSliceInfo->pFillColInfo[j].fillVal;
@@ -2120,9 +2122,11 @@ static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
           GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
           colDataAppend(pDst, rows, (char*)&v, false);
         }
-      } break;
+        pResBlock->info.rows += 1;
+        break;
+      }
 
-      case TSDB_FILL_LINEAR:
+      case TSDB_FILL_LINEAR: {
 #if 0
         if (pCtx->start.key == INT64_MIN || pCtx->start.key > pCtx->startTs
                     || pCtx->end.key == INT64_MIN || pCtx->end.key < pCtx->startTs) {
@@ -2153,17 +2157,22 @@ static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
                 }
               }
 #endif
+        // TODO: pResBlock->info.rows += 1;
         break;
-
+      }
       case TSDB_FILL_PREV: {
         SGroupKeys* pkey = taosArrayGet(pSliceInfo->pPrevRow, srcSlot);
         colDataAppend(pDst, rows, pkey->pData, false);
-      } break;
+        pResBlock->info.rows += 1;
+        break;
+      }
 
       case TSDB_FILL_NEXT: {
         char* p = colDataGetData(pSrc, rowIndex);
         colDataAppend(pDst, rows, p, colDataIsNull_s(pSrc, rowIndex));
-      } break;
+        pResBlock->info.rows += 1;
+        break;
+      }
 
       case TSDB_FILL_NONE:
       default:
@@ -2171,7 +2180,6 @@ static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
     }
   }
 
-  pResBlock->info.rows += 1;
 }
 
 static int32_t initPrevRowsKeeper(STimeSliceOperatorInfo* pInfo, SSDataBlock* pBlock) {
@@ -2222,6 +2230,8 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
   int32_t        order = TSDB_ORDER_ASC;
   SInterval*     pInterval = &pSliceInfo->interval;
   SOperatorInfo* downstream = pOperator->pDownstream[0];
+
+  blockDataCleanup(pResBlock);
 
   int32_t numOfRows = 0;
   while (1) {

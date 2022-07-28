@@ -1,4 +1,5 @@
 import datetime
+import time
 
 from dataclasses import dataclass
 from typing import List, Any, Tuple
@@ -328,11 +329,15 @@ class TDTestCase:
         tdSql.query("select database()")
         dbname =  tdSql.getData(0,0)
         tdSql.query("show databases")
+        for index , value in enumerate(tdSql.cursor.description):
+            if value[0] == "retention":
+                r_index = index
+                break
         for row in tdSql.queryResult:
             if row[0] == dbname:
-                if row[-1] is None:
+                if row[r_index] is None:
                     continue
-                if ":" in row[-1]:
+                if ":" in row[r_index]:
                     sma.rollup_db = True
         if sma.rollup_db :
             return False
@@ -393,8 +398,6 @@ class TDTestCase:
         else:
             tdSql.error(self.__create_sma_index(sma))
 
-
-
     def __drop_sma_index(self, sma:SMAschema):
         sql = f"{sma.drop} {sma.drop_flag} {sma.index_name}"
         return sql
@@ -416,8 +419,7 @@ class TDTestCase:
             self.sma_created_index = list(filter(lambda x: x != sma.index_name, self.sma_created_index))
             tdSql.query("show streams")
             tdSql.checkRows(self.sma_count)
-
-
+            time.sleep(1)
         else:
             tdSql.error(self.__drop_sma_index(sma))
 
