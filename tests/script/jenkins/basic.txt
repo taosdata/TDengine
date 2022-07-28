@@ -329,24 +329,24 @@
 ./test.sh -f tsim/sync/oneReplica1VgElect.sim
 ./test.sh -f tsim/sync/oneReplica5VgElect.sim
 
-# --- catalog
+# --- catalog ----
 ./test.sh -f tsim/catalog/alterInCurrent.sim
 
 # --- scalar
 ./test.sh -f tsim/scalar/in.sim
 ./test.sh -f tsim/scalar/scalar.sim
 
-# ---- alter
+# ---- alter ----
 ./test.sh -f tsim/alter/cached_schema_after_alter.sim
 ./test.sh -f tsim/alter/dnode.sim
 ./test.sh -f tsim/alter/table.sim
 
-# ---- cache
+# ---- cache ----
 ./test.sh -f tsim/cache/new_metrics.sim
 ./test.sh -f tsim/cache/restart_table.sim
 ./test.sh -f tsim/cache/restart_metrics.sim
 
-# ---- column
+# ---- column ----
 ./test.sh -f tsim/column/commit.sim
 ./test.sh -f tsim/column/metrics.sim
 ./test.sh -f tsim/column/table.sim
