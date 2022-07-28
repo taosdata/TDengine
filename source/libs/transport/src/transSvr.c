@@ -240,8 +240,6 @@ static void uvHandleReq(SSvrConn* pConn) {
   transMsg.msgType = pHead->msgType;
   transMsg.code = pHead->code;
 
-  // transClearBuffer(&pConn->readBuf);
-
   pConn->inType = pHead->msgType;
   if (pConn->status == ConnNormal) {
     if (pHead->persist == 1) {

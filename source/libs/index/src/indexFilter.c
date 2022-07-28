@@ -579,14 +579,13 @@ static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *ou
 
   if (ctx->noExec == false) {
     for (int32_t m = 0; m < node->pParameterList->length; m++) {
-      // add impl later
       if (node->condType == LOGIC_COND_TYPE_AND) {
         taosArrayAddAll(output->result, params[m].result);
-        taosArrayDestroy(params[m].result);
-        params[m].result = NULL;
+        // taosArrayDestroy(params[m].result);
+        //  params[m].result = NULL;
       } else if (node->condType == LOGIC_COND_TYPE_OR) {
         taosArrayAddAll(output->result, params[m].result);
-        params[m].result = NULL;
+        // params[m].result = NULL;
       } else if (node->condType == LOGIC_COND_TYPE_NOT) {
         // taosArrayAddAll(output->result, params[m].result);
       }
