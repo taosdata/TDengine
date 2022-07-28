@@ -16,15 +16,15 @@ toc_max_heading_level: 4
 SELECT ABS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**功能说明**：获得指定列的绝对值
+**功能说明**：获得指定字段的绝对值。
 
-**返回结果类型**：如果输入值为整数，输出值是 UBIGINT 类型。如果输入值是 FLOAT/DOUBLE 数据类型，输出值是 DOUBLE 数据类型。
+**返回结果类型**：与指定字段的原始数据类型一致。
 
 **适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
@@ -34,15 +34,15 @@ SELECT ABS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**功能说明**：获得指定列的反余弦结果
+**功能说明**：获得指定字段的反余弦结果。
 
-**返回结果类型**：DOUBLE。如果输入值为 NULL，输出值也为 NULL
+**返回结果类型**：DOUBLE。
 
 **适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
@@ -52,15 +52,15 @@ SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**功能说明**：获得指定列的反正弦结果
+**功能说明**：获得指定字段的反正弦结果。
 
-**返回结果类型**：DOUBLE。如果输入值为 NULL，输出值也为 NULL
+**返回结果类型**：DOUBLE。
 
 **适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
@@ -71,15 +71,15 @@ SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 SELECT ATAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**功能说明**：获得指定列的反正切结果
+**功能说明**：获得指定字段的反正切结果。
 
-**返回结果类型**：DOUBLE。如果输入值为 NULL，输出值也为 NULL
+**返回结果类型**：DOUBLE。
 
 **适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
@@ -90,20 +90,17 @@ SELECT ATAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 SELECT CEIL(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**功能说明**：获得指定列的向上取整数的结果。
+**功能说明**：获得指定字段的向上取整数的结果。
 
-**返回结果类型**：与指定列的原始数据类型一致。例如，如果指定列的原始数据类型为 Float，那么返回的数据类型也为 Float；如果指定列的原始数据类型为 Double，那么返回的数据类型也为 Double。
+**返回结果类型**：与指定字段的原始数据类型一致。
 
 **适用数据类型**：数值类型。
 
-**适用于**: 普通表、超级表。
+**适用于**: 表和超级表。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**使用说明**:
-
-- 支持 +、-、\*、/ 运算，如 ceil(col1) + ceil(col2)。
-- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+**使用说明**: 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
 #### COS
 
@@ -111,15 +108,15 @@ SELECT CEIL(field_name) FROM { tb_name | stb_name } [WHERE clause];
 SELECT COS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**功能说明**：获得指定列的余弦结果
+**功能说明**：获得指定字段的余弦结果。
 
-**返回结果类型**：DOUBLE。如果输入值为 NULL，输出值也为 NULL
+**返回结果类型**：DOUBLE。
 
 **适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
@@ -129,24 +126,24 @@ SELECT COS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**功能说明**：获得指定列的向下取整数的结果。  
+**功能说明**：获得指定字段的向下取整数的结果。  
  其他使用说明参见 CEIL 函数描述。
 
 #### LOG
 
 ```sql
-SELECT LOG(field_name, base) FROM { tb_name | stb_name } [WHERE clause]
+SELECT LOG(field_name[, base]) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**功能说明**：获得指定列对于底数 base 的对数
+**功能说明**：获得指定字段对于底数 base 的对数。如果 base 参数省略，则返回指定字段的自然对数值。
 
-**返回结果类型**：DOUBLE。如果输入值为 NULL，输出值也为 NULL
+**返回结果类型**：DOUBLE。
 
 **适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
@@ -157,15 +154,15 @@ SELECT LOG(field_name, base) FROM { tb_name | stb_name } [WHERE clause]
 SELECT POW(field_name, power) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**功能说明**：获得指定列的指数为 power 的幂
+**功能说明**：获得指定字段的指数为 power 的幂。
 
-**返回结果类型**：DOUBLE。如果输入值为 NULL，输出值也为 NULL
+**返回结果类型**：DOUBLE。
 
 **适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
@@ -176,7 +173,7 @@ SELECT POW(field_name, power) FROM { tb_name | stb_name } [WHERE clause]
 SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**功能说明**：获得指定列的四舍五入的结果。  
+**功能说明**：获得指定字段的四舍五入的结果。  
  其他使用说明参见 CEIL 函数描述。
 
 
@@ -186,15 +183,15 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 SELECT SIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**功能说明**：获得指定列的正弦结果
+**功能说明**：获得指定字段的正弦结果。
 
-**返回结果类型**：DOUBLE。如果输入值为 NULL，输出值也为 NULL
+**返回结果类型**：DOUBLE。
 
 **适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
@@ -204,15 +201,15 @@ SELECT SIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 SELECT SQRT(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**功能说明**：获得指定列的平方根
+**功能说明**：获得指定字段的平方根。
 
-**返回结果类型**：DOUBLE。如果输入值为 NULL，输出值也为 NULL
+**返回结果类型**：DOUBLE。
 
 **适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
@@ -222,15 +219,15 @@ SELECT SQRT(field_name) FROM { tb_name | stb_name } [WHERE clause]
 SELECT TAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**功能说明**：获得指定列的正切结果
+**功能说明**：获得指定字段的正切结果。
 
-**返回结果类型**：DOUBLE。如果输入值为 NULL，输出值也为 NULL
+**返回结果类型**：DOUBLE。
 
 **适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
@@ -246,13 +243,13 @@ SELECT CHAR_LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
 
 **功能说明**：以字符计数的字符串长度。
 
-**返回结果类型**：INT。如果输入值为NULL，输出值为NULL。
+**返回结果类型**：BIGINT。
 
-**适用数据类型**：VARCHAR, NCHAR
+**适用数据类型**：VARCHAR, NCHAR。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 #### CONCAT
 
@@ -262,13 +259,13 @@ SELECT CONCAT(str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHER
 
 **功能说明**：字符串连接函数。
 
-**返回结果类型**：如果所有参数均为 VARCHAR 类型，则结果类型为 VARCHAR。如果参数包含NCHAR类型，则结果类型为NCHAR。如果输入值为NULL，输出值为NULL。
+**返回结果类型**：如果所有参数均为 VARCHAR 类型，则结果类型为 VARCHAR。如果参数包含NCHAR类型，则结果类型为NCHAR。如果参数包含NULL值，则输出值为NULL。
 
 **适用数据类型**：VARCHAR, NCHAR。 该函数最小参数个数为2个，最大参数个数为8个。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 
 #### CONCAT_WS
@@ -279,13 +276,13 @@ SELECT CONCAT_WS(separator, str1|column1, str2|column2, ...) FROM { tb_name | st
 
 **功能说明**：带分隔符的字符串连接函数。
 
-**返回结果类型**：如果所有参数均为VARCHAR类型，则结果类型为VARCHAR。如果参数包含NCHAR类型，则结果类型为NCHAR。如果输入值为NULL，输出值为NULL。如果separator值不为NULL，其他输入为NULL，输出为空串。
+**返回结果类型**：如果所有参数均为VARCHAR类型，则结果类型为VARCHAR。如果参数包含NCHAR类型，则结果类型为NCHAR。如果参数包含NULL值，则输出值为NULL。
 
 **适用数据类型**：VARCHAR, NCHAR。 该函数最小参数个数为3个，最大参数个数为9个。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 
 #### LENGTH
@@ -296,13 +293,13 @@ SELECT LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
 
 **功能说明**：以字节计数的字符串长度。
 
-**返回结果类型**：INT。
+**返回结果类型**：BIGINT。
 
 **适用数据类型**：输入参数是 VARCHAR 类型或者 NCHAR 类型的字符串或者列。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 
 #### LOWER
@@ -313,13 +310,13 @@ SELECT LOWER(str|column) FROM { tb_name | stb_name } [WHERE clause]
 
 **功能说明**：将字符串参数值转换为全小写字母。
 
-**返回结果类型**：同输入类型。如果输入值为NULL，输出值为NULL。
+**返回结果类型**：与输入字段的原始类型相同。
 
-**适用数据类型**：输入参数是 VARCHAR 类型或者 NCHAR 类型的字符串或者列。
+**适用数据类型**：VARCHAR, NCHAR。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 
 #### LTRIM
@@ -330,13 +327,13 @@ SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
 
 **功能说明**：返回清除左边空格后的字符串。
 
-**返回结果类型**：同输入类型。如果输入值为NULL，输出值为NULL。
+**返回结果类型**：与输入字段的原始类型相同。
 
-**适用数据类型**：输入参数是 VARCHAR 类型或者 NCHAR 类型的字符串或者列。
+**适用数据类型**：VARCHAR, NCHAR。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 
 #### RTRIM
@@ -347,13 +344,13 @@ SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
 
 **功能说明**：返回清除右边空格后的字符串。
 
-**返回结果类型**：同输入类型。如果输入值为NULL，输出值为NULL。
+**返回结果类型**：与输入字段的原始类型相同。
 
-**适用数据类型**：输入参数是 VARCHAR 类型或者 NCHAR 类型的字符串或者列。
+**适用数据类型**：VARCHAR, NCHAR。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 
 #### SUBSTR
@@ -362,15 +359,15 @@ SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
 SELECT SUBSTR(str,pos[,len]) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**功能说明**：从源字符串 str 中的指定位置 pos 开始取一个长度为 len 的子串并返回。
+**功能说明**：从源字符串 str 中的指定位置 pos 开始取一个长度为 len 的子串并返回。如果输入参数 len 被忽略，返回的子串包含从 pos 开始的整个字串。
 
-**返回结果类型**：同输入类型。如果输入值为NULL，输出值为NULL。
+**返回结果类型**：与输入字段的原始类型相同。
 
-**适用数据类型**：输入参数是 VARCHAR 类型或者 NCHAR 类型的字符串或者列。输入参数pos可以为正数，也可以为负数。如果pos是正数，表示开始位置从字符串开头正数计算。如果pos为负数，表示开始位置从字符串结尾倒数计算。如果输入参数len被忽略，返回的子串包含从pos开始的整个字串。
+**适用数据类型**：VARCHAR, NCHAR。输入参数 pos 可以为正数，也可以为负数。如果 pos 是正数，表示开始位置从字符串开头正数计算。如果 pos 为负数，表示开始位置从字符串结尾倒数计算。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 
 #### UPPER
@@ -381,13 +378,13 @@ SELECT UPPER(str|column) FROM { tb_name | stb_name } [WHERE clause]
 
 **功能说明**：将字符串参数值转换为全大写字母。
 
-**返回结果类型**：同输入类型。如果输入值为NULL，输出值为NULL。
+**返回结果类型**：与输入字段的原始类型相同。
 
-**适用数据类型**：输入参数是 VARCHAR 类型或者 NCHAR 类型的字符串或者列。
+**适用数据类型**：VARCHAR, NCHAR。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
-**适用于**: 表和超级表
+**适用于**: 表和超级表。
 
 
 ### 转换函数
@@ -400,16 +397,19 @@ SELECT UPPER(str|column) FROM { tb_name | stb_name } [WHERE clause]
 SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**功能说明**：数据类型转换函数，输入参数 expression 支持普通列、常量、标量函数及它们之间的四则运算，只适用于 select 子句中。
+**功能说明**：数据类型转换函数，返回 expression 转换为 type_name 指定的类型后的结果。只适用于 select 子句中。
 
-**返回结果类型**：CAST 中指定的类型（type_name），可以是 BIGINT、BIGINT UNSIGNED、BINARY、VARCHAR、NCHAR和TIMESTAMP。
+**返回结果类型**：CAST 中指定的类型（type_name)。
 
-**适用数据类型**：输入参数 expression 的类型可以是BLOB、MEDIUMBLOB和JSON外的所有类型 
+**适用数据类型**：输入参数 expression 的类型可以是BLOB、MEDIUMBLOB和JSON外的所有类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**: 表和超级表。
 
 **使用说明**：
 
 - 对于不能支持的类型转换会直接报错。
-- 如果输入值为NULL则输出值也为NULL。
 - 对于类型支持但某些值无法正确转换的情况对应的转换后的值以转换函数输出为准。目前可能遇到的几种情况：
         1）字符串类型转换数值类型时可能出现的无效字符情况，例如"a"可能转为0，但不会报错。
         2）转换到数值类型时，数值大于type_name可表示的范围时，则会溢出，但不会报错。
@@ -418,20 +418,23 @@ SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
 #### TO_ISO8601
 
 ```sql
-SELECT TO_ISO8601(ts_val | ts_col) FROM { tb_name | stb_name } [WHERE clause];
+SELECT TO_ISO8601(ts[, timezone]) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**功能说明**：将 UNIX 时间戳转换成为 ISO8601 标准的日期时间格式，并附加客户端时区信息。
+**功能说明**：将 UNIX 时间戳转换成为 ISO8601 标准的日期时间格式，并附加时区信息。timezone 参数允许用户为输出结果指定附带任意时区信息。如果 timezone 参数省略，输出结果附带当前客户端的系统时区信息。
 
 **返回结果数据类型**：VARCHAR 类型。
 
-**适用数据类型**：UNIX 时间戳常量或是 TIMESTAMP 类型的列
+**适用数据类型**：INTEGER, TIMESTAMP。
 
-**适用于**：表、超级表。
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**: 表和超级表。
 
 **使用说明**：
 
-- 如果输入是 UNIX 时间戳常量，返回格式精度由时间戳的位数决定; 
+- timezone 参数允许输入的时区格式为: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]。例如，TO_ISO8601(1, "+00:00")。
+- 如果输入是表示 UNIX 时间戳的整形，返回格式精度由时间戳的位数决定; 
 - 如果输入是 TIMSTAMP 类型的列，返回格式的时间戳精度与当前 DATABASE 设置的时间精度一致。
 
 
@@ -443,32 +446,34 @@ SELECT TO_JSON(str_literal) FROM { tb_name | stb_name } [WHERE clause];
 
 **功能说明**: 将字符串常量转换为 JSON 类型。
 
-**返回结果数据类型**: JSON
+**返回结果数据类型**: JSON。
 
 **适用数据类型**: JSON 字符串，形如 '{ "literal" : literal }'。'{}'表示空值。键必须为字符串字面量，值可以为数值字面量、字符串字面量、布尔字面量或空值字面量。str_literal中不支持转义符。
 
-**适用于**: 表和超级表
-
 **嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**: 表和超级表。
 
 
 #### TO_UNIXTIMESTAMP
 
 ```sql
-SELECT TO_UNIXTIMESTAMP(datetime_string | ts_col) FROM { tb_name | stb_name } [WHERE clause];
+SELECT TO_UNIXTIMESTAMP(datetime_string) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
 **功能说明**：将日期时间格式的字符串转换成为 UNIX 时间戳。
 
-**返回结果数据类型**：长整型 INT64。
+**返回结果数据类型**：BIGINT。
 
-**应用字段**：字符串常量或是 VARCHAR/NCHAR 类型的列。
+**应用字段**：VARCHAR, NCHAR。
 
-**适用于**：表、超级表。
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
 
 **使用说明**：
 
-- 输入的日期时间字符串须符合 ISO8601/RFC3339 标准，无法转换的字符串格式将返回 0。
+- 输入的日期时间字符串须符合 ISO8601/RFC3339 标准，无法转换的字符串格式将返回 NULL。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
 
 
@@ -488,11 +493,13 @@ INSERT INTO tb_name VALUES (NOW(), ...);
 
 **功能说明**：返回客户端当前系统时间。
 
-**返回结果数据类型**：TIMESTAMP 时间戳类型。
+**返回结果数据类型**：TIMESTAMP。
 
 **应用字段**：在 WHERE 或 INSERT 语句中使用时只能作用于 TIMESTAMP 类型的字段。
 
-**适用于**：表、超级表。
+**适用于**：表和超级表。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
 
 **使用说明**：
 
@@ -504,40 +511,42 @@ INSERT INTO tb_name VALUES (NOW(), ...);
 #### TIMEDIFF
 
 ```sql
-SELECT TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2 | ts_col2 [, time_unit]) FROM { tb_name | stb_name } [WHERE clause];
+SELECT TIMEDIFF(ts | datetime_string1, ts | datetime_string2 [, time_unit]) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
 **功能说明**：计算两个时间戳之间的差值，并近似到时间单位 time_unit 指定的精度。
 
-**返回结果数据类型**：长整型 INT64。
+**返回结果数据类型**：BIGINT。输入包含不符合时间日期格式字符串则返回 NULL。
 
-**应用字段**：UNIX 时间戳，日期时间格式的字符串，或者 TIMESTAMP 类型的列。
+**应用字段**：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
 
 **适用于**：表、超级表。
 
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
 **使用说明**：
 - 支持的时间单位 time_unit 如下：
-          1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)。
+          1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。
 - 如果时间单位 time_unit 未指定， 返回的时间差值精度与当前 DATABASE 设置的时间精度一致。
 
 
 #### TIMETRUNCATE
 
 ```sql
-SELECT TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) FROM { tb_name | stb_name } [WHERE clause];
+SELECT TIMETRUNCATE(ts | datetime_string , time_unit) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
 **功能说明**：将时间戳按照指定时间单位 time_unit 进行截断。
 
-**返回结果数据类型**：TIMESTAMP 时间戳类型。
+**返回结果数据类型**：TIMESTAMP。
 
-**应用字段**：UNIX 时间戳，日期时间格式的字符串，或者 TIMESTAMP 类型的列。
+**应用字段**：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
 
 **适用于**：表、超级表。
 
 **使用说明**：
 - 支持的时间单位 time_unit 如下：
-          1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)。
+          1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
 
 
@@ -549,7 +558,7 @@ SELECT TIMEZONE() FROM { tb_name | stb_name } [WHERE clause];
 
 **功能说明**：返回客户端当前时区信息。
 
-**返回结果数据类型**：VARCHAR 类型。
+**返回结果数据类型**：VARCHAR。
 
 **应用字段**：无
 
@@ -566,7 +575,7 @@ INSERT INTO tb_name VALUES (TODAY(), ...);
 
 **功能说明**：返回客户端当日零时的系统时间。
 
-**返回结果数据类型**：TIMESTAMP 时间戳类型。
+**返回结果数据类型**：TIMESTAMP。
 
 **应用字段**：在 WHERE 或 INSERT 语句中使用时只能作用于 TIMESTAMP 类型的字段。
 
