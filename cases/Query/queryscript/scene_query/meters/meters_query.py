@@ -29,6 +29,17 @@ class TDTestQuery(TDCase):
     def init(self):
         super(TDTestQuery, self).init()
         self.tdCreateData = TDCreateData(self.tdSql, self.logger)
+        
+        #basic_param
+        self.db = "meters"
+        self.service_host = ""
+        table_list = ['stb0',]
+        self.table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
+        column_list = ['ts','c0','c1','c2','c3','c4','t0','t1',]
+        num = random.randint(1,8)
+        self.column = str(random.sample(column_list,num)).replace("[","").replace("]","").replace("'","")
+        self.testcasePath = os.path.split(__file__)[0]
+        self.testcaseFilename = os.path.split(__file__)[-1]
 
     def tags(self) :
 	
@@ -40,17 +51,9 @@ class TDTestQuery(TDCase):
 
     def desc(self) -> str:
         case_description = '''
-        case1:# 
+        case1:# meters all query
         '''
         return case_description
-
-    #basic_param
-    db = "meters"
-    service_host = ""
-    table_list = ['stb0',]
-    table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
-    testcasePath = os.path.split(__file__)[0]
-    testcaseFilename = os.path.split(__file__)[-1]
 
     def data_create(self,db):
         self.createDB_meters("%s" % db, 1)  
@@ -93,7 +96,7 @@ class TDTestQuery(TDCase):
                        'c0 is not null and ', 'c1 is not null and ' ,'c2 is not null and ' ,'t0 is not null and ' ,]        
         data_filter = random.sample(data_filters,6)
 
-        like_filters = ['c3 like \'varchar%\' and','(c3 like \'varchar%\'  or c3 = \'0\'  or c3 = \'varchar_\' ) and','c4 like \'nchar%\' and','(c4 like \'nchar%\' or c4 = \'0\'  or c4 = \'nchar_\' ) and','t1 like \'nchar%\' and','(t1 like \'nchar%\' or t1 = \'0\'  or t1 = \'nchar_\' ) and',]
+        like_filters = ['c3 like \'varchar%\' and','(c3 like \'varchar%\'  or c3 = \'0\'  or c3 = \'varchar_\' ) and','c4 like \'nchar%\' and','(c4 like \'nchar%\' or c4 = \'0\'  or c4 = \'nchar_\' ) and','t1 like \'varchar%\' and','(t1 like \'varchar%\' or t1 = \'0\'  or t1 = \'varchar_\' ) and',]
         match_filters = ['c3 match \'varchar\' and','c4 nmatch \'varcharnchar\' and','c4 match \'nchar\' and','c3 nmatch \'varcharnchar\' and','t1 match \'varchar\' and','t1 nmatch \'ncharvarchar\' and',]
         like_match_filters = random.sample(random.sample(like_filters,1) + random.sample(match_filters,1),1)
         like_match_filter = str(like_match_filters).replace("[","").replace("]","").replace("\"","")
@@ -113,19 +116,23 @@ class TDTestQuery(TDCase):
         rows = self.tdSql.query(sql).row_count 
         if rows == 0:
             sys.exit("data rows = 0 ")
-        #self.tdSql.execute(sql)
         self.explain_sql(sql)
+        
+        result_file_name = self.testcasePath + '/meters.sql'
+        f = open(result_file_name, 'a') 
+        f.write(
+            str(sql) + "; \n")
+        f.close()
                       
-    def right_case_1(self):
-        self.logger.info("\n==========================right case 1==========================\n")
+    def select_column(self):
+        self.logger.info("\n==========================select_column==========================\n")
         sql = 'Count the number of sqls'         
-                           
-        # 1: support all 
-        for i in (211,):
+                          
+        for i in (1,):
             func = tdFunction.func_stable_tbname_all(i)
             try:                
                 self.tdSql.execute('use %s;' %self.db)            
-                self.logger.info("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)                
+                self.logger.info("\n\n\n=======hanshu num = %d======select_column======\n\n\n" %i)                
                 where_filters = self.where_filter()
                 for i in range(2,len(where_filters[0])+1):
                     data_filter = list(combinations(where_filters[0],i))
@@ -138,16 +145,54 @@ class TDTestQuery(TDCase):
                         self.data_check(sql2)
                         sql= sql + sql2
                         
+                        sql2 = "select %s from %s where  %s %s %s;" %(self.column,self.table,data_filter,like_match_filter,in_filter)
+                        self.data_check(sql2)
+                        sql= sql + sql2
+                        
 
             except Exception as e:
                 raise e   
-
-        # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
-        num1 = sql.count('where')
-        self.logger.info("sqlnum1 %d" % num1) 
+        num = sql.count('where')
+        self.logger.info("select_column %d" % num) 
                     
+    def select_column_union(self):
+        self.logger.info("\n==========================select_column==========================\n")
+        sql = 'Count the number of sqls'         
+                          
+        for i in (1,):
+            func = tdFunction.func_stable_tbname_all(i)
+            try:                
+                self.tdSql.execute('use %s;' %self.db)            
+                self.logger.info("\n\n\n=======hanshu num = %d======select_column======\n\n\n" %i)                
+                where_filters = self.where_filter()
+                for i in range(2,len(where_filters[0])+1):
+                    data_filter = list(combinations(where_filters[0],i))
+                    for data_filter in data_filter:
+                        data_filter = str(data_filter).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
+                        like_match_filter = where_filters[1]
+                        in_filter = where_filters[2]
 
+                        sql2 = "select * from %s where  %s %s %s " %(self.table,data_filter,like_match_filter,in_filter)
+                        sql2 += " union select * from %s where  %s %s %s;" %(self.table,data_filter,like_match_filter,in_filter)
+                        self.data_check(sql2)
+                        sql= sql + sql2
+
+                        sql2 = "select * from %s where  %s %s %s " %(self.table,data_filter,like_match_filter,in_filter)
+                        sql2 += "union all select * from %s where  %s %s %s;" %(self.table,data_filter,like_match_filter,in_filter)
+                        self.data_check(sql2)
+                        sql= sql + sql2
+                                                
+                        sql2 = "select %s from %s where  %s %s %s ;" %(self.column,self.table,data_filter,like_match_filter,in_filter)
+                        self.data_check(sql2)
+                        sql= sql + sql2
+                        
+
+            except Exception as e:
+                raise e   
+        
+        num = sql.count('where')
+        self.logger.info("select_column %d" % num) 
 
     def rm_sql(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
@@ -156,17 +201,13 @@ class TDTestQuery(TDCase):
     def run(self):
         startTime = time.time() 
         
+        os.system("rm -rf %s/meters.sql" % (self.testcasePath))  
+        
         self.data_create(self.db)
          
-        startTime1 = time.time()
-        self.right_case_1()
-        #self.right_case_1_interval()
-        #self.right_case_1_interval_1()
-        #self.right_case_1_1()
-        # self.right_case_1_interval_tbname()
-        # endTime1 = time.time()       
-        # self.logger.info("total time1 %d s" % (endTime1 - startTime1))
-        
+        self.select_column()
+        self.select_column_union()
+
         endTime = time.time()
         #self.rm_sql()
         self.logger.info("total time %ds" % (endTime - startTime))
