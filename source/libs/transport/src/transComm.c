@@ -120,8 +120,9 @@ int transInitBuffer(SConnBuffer* buf) {
   buf->total = 0;
   return 0;
 }
-int transDestroyBuffer(SConnBuffer* buf) {
-  taosMemoryFree(buf->buf);
+int transDestroyBuffer(SConnBuffer* p) {
+  taosMemoryFree(p->buf);
+  p->buf = NULL;
   return 0;
 }
 

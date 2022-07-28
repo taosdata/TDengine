@@ -805,14 +805,6 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  SDnodeObj *pDnode = mndAcquireDnode(pMnode, cfgReq.dnodeId);
-  if (pDnode == NULL) {
-    mError("dnode:%d, failed to config since %s ", cfgReq.dnodeId, terrstr());
-    return -1;
-  }
-  SEpSet epSet = mndGetDnodeEpset(pDnode);
-  mndReleaseDnode(pMnode, pDnode);
-
   SDCfgDnodeReq dcfgReq = {0};
   if (strcasecmp(cfgReq.config, "resetlog") == 0) {
     strcpy(dcfgReq.config, "resetlog");
@@ -860,16 +852,36 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     }
   }
 
-  int32_t bufLen = tSerializeSDCfgDnodeReq(NULL, 0, &dcfgReq);
-  void   *pBuf = rpcMallocCont(bufLen);
+  int32_t code = -1;
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  while (1) {
+    SDnodeObj *pDnode = NULL;
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) break;
 
-  if (pBuf == NULL) return -1;
-  tSerializeSDCfgDnodeReq(pBuf, bufLen, &dcfgReq);
+    if (pDnode->id == cfgReq.dnodeId || cfgReq.dnodeId == -1 || cfgReq.dnodeId == 0) {
+      SEpSet  epSet = mndGetDnodeEpset(pDnode);
+      int32_t bufLen = tSerializeSDCfgDnodeReq(NULL, 0, &dcfgReq);
+      void   *pBuf = rpcMallocCont(bufLen);
 
-  mInfo("dnode:%d, send config req to dnode, app:%p config:%s value:%s", cfgReq.dnodeId, pReq->info.ahandle,
-        dcfgReq.config, dcfgReq.value);
-  SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};
-  return tmsgSendReq(&epSet, &rpcMsg);
+      if (pBuf != NULL) {
+        tSerializeSDCfgDnodeReq(pBuf, bufLen, &dcfgReq);
+        mInfo("dnode:%d, send config req to dnode, app:%p config:%s value:%s", cfgReq.dnodeId, pReq->info.ahandle,
+              dcfgReq.config, dcfgReq.value);
+        SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};
+        tmsgSendReq(&epSet, &rpcMsg);
+        code = 0;
+      }
+    }
+
+    sdbRelease(pSdb, pDnode);
+  }
+  
+  if (code == -1) {
+    terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
+  }
+  return code;
 }
 
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp) {
