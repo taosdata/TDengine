@@ -29,7 +29,8 @@ class TDTestCase:
         self.replica = 1 
         self.vgroups = 1
         self.tb_nums = 10 
-        self.row_nums = 2000
+        self.row_nums = 1000
+        self.query_times = 1000
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -160,8 +161,8 @@ class TDTestCase:
 
     
 
-    def check_insert_status(self, dbname, tb_nums , row_nums):
-        newTdSql=tdCom.newTdSql()
+    def check_insert_status(self, newTdSql ,dbname, tb_nums , row_nums):
+        # newTdSql=tdCom.newTdSql()
         newTdSql.execute("use {}".format(dbname))
         newTdSql.query("select count(*) from {}.{}".format(dbname,'stb1'))
         # tdSql.checkData(0 , 0 , tb_nums*row_nums)
@@ -169,10 +170,10 @@ class TDTestCase:
         # tdSql.checkRows(tb_nums)
 
     def loop_query_constantly(self, times ,  db_name, tb_nums ,row_nums):
-
+        newTdSql=tdCom.newTdSql()
         for loop_time in range(times):
             tdLog.debug(" === query is going ,this is {}_th query === ".format(loop_time))
-            self.check_insert_status( db_name, tb_nums , row_nums)
+            self.check_insert_status( newTdSql , db_name, tb_nums , row_nums)
 
     def run(self): 
         self.check_setup_cluster_status()
@@ -187,7 +188,7 @@ class TDTestCase:
             time.sleep(0.1)
             tdSql.query(" show {}.stables ".format(self.db_name))
 
-        reading = threading.Thread(target = self.loop_query_constantly, args=(1000,self.db_name , self.tb_nums , self.row_nums))
+        reading = threading.Thread(target = self.loop_query_constantly, args=(self.query_times,self.db_name , self.tb_nums , self.row_nums))
         reading.start()
         
         writing.join()

@@ -30,6 +30,7 @@ class TDTestCase:
         self.vgroups = 1
         self.tb_nums = 10 
         self.row_nums = 2000
+        self.query_times = 100
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -160,8 +161,8 @@ class TDTestCase:
 
     
 
-    def check_insert_status(self, dbname, tb_nums , row_nums):
-        newTdSql=tdCom.newTdSql()
+    def check_insert_status(self,newTdSql , dbname, tb_nums , row_nums):
+        # newTdSql=tdCom.newTdSql()
         newTdSql.execute("use {}".format(dbname))
         newTdSql.query("select count(*) from {}.{}".format(dbname,'stb1'))
         # tdSql.checkData(0 , 0 , tb_nums*row_nums)
@@ -175,12 +176,12 @@ class TDTestCase:
             self.check_insert_status( db_name, tb_nums , row_nums)
 
     def loop_create_databases(self, times , tb_nums , row_nums):
-
+        newTdSql=tdCom.newTdSql()
         for loop_time in range(times):
             tdLog.debug(" === create database and insert datas is going ,this is {}_th create === ".format(loop_time))
             db_name = 'loop_db_{}'.format(loop_time)
             self.create_db_replica_3_insertdatas(db_name , self.replica , self.vgroups , tb_nums , row_nums)
-            self.check_insert_status( db_name, tb_nums , row_nums)
+            self.check_insert_status( newTdSql ,db_name, tb_nums , row_nums)
 
     def run(self): 
         self.check_setup_cluster_status()
@@ -199,7 +200,7 @@ class TDTestCase:
             time.sleep(0.1)
             tdSql.query(" show {}.stables ".format(self.db_name))
 
-        reading = threading.Thread(target = self.loop_query_constantly, args=(1000,self.db_name , self.tb_nums , self.row_nums))
+        reading = threading.Thread(target = self.loop_query_constantly, args=(self.query_times,self.db_name , self.tb_nums , self.row_nums))
         reading.start()
 
         create_db = threading.Thread(target = self.loop_create_databases, args=(10, 10 , 10))

@@ -177,26 +177,40 @@ class TDTestCase:
                 continue
 
 
-    def _get_stop_dnode_id(self,dbname):
-        newTdSql=tdCom.newTdSql()
-        newTdSql.query("show {}.vgroups".format(dbname))
-        vgroup_infos = newTdSql.queryResult
+    def _get_stop_dnode_id(self,dbname ,dnode_role):
+        tdSql.query("show {}.vgroups".format(dbname))
+        vgroup_infos = tdSql.queryResult
+        status = False
+        for vgroup_info in vgroup_infos:
+            if "error" not in vgroup_info:
+                status = True
+            else:
+                status = False
+        while status!=True :
+            time.sleep(0.1)
+            tdSql.query("show {}.vgroups".format(dbname))
+            vgroup_infos = tdSql.queryResult
+            for vgroup_info in vgroup_infos:
+                if "error" not in vgroup_info:
+                    status = True
+                else:
+                    status = False
+            # print(status)
         for vgroup_info in vgroup_infos:
             leader_infos = vgroup_info[3:-4] 
             # print(vgroup_info)
             for ind ,role in enumerate(leader_infos):
-                if role =='leader':
+                if role == dnode_role:
                     # print(ind,leader_infos)
                     self.stop_dnode_id = leader_infos[ind-1]
                     break
 
-
         return self.stop_dnode_id
 
-    def wait_stop_dnode_OK(self):
+    def wait_stop_dnode_OK(self , newTdSql):
     
         def _get_status():
-            newTdSql=tdCom.newTdSql()
+            # newTdSql=tdCom.newTdSql()
 
             status =  ""
             newTdSql.query("show dnodes")
@@ -216,10 +230,10 @@ class TDTestCase:
             # tdLog.notice("==== stop dnode has not been stopped , endpoint is {}".format(self.stop_dnode))
         tdLog.notice("==== stop_dnode has stopped , id is {}".format(self.stop_dnode_id))
 
-    def wait_start_dnode_OK(self):
+    def wait_start_dnode_OK(self,newTdSql):
     
         def _get_status():
-            newTdSql=tdCom.newTdSql()
+            # newTdSql=tdCom.newTdSql()
             status =  ""
             newTdSql.query("show dnodes")
             dnode_infos = newTdSql.queryResult
@@ -316,7 +330,7 @@ class TDTestCase:
         
         tdLog.debug(" === database {} has write {} rows at least ====".format(dbname,total_rows/10))
 
-        self.stop_dnode_id = self._get_stop_dnode_id(dbname)
+        self.stop_dnode_id = self._get_stop_dnode_id(dbname ,"leader")
 
         # prepare stop leader of database 
         before_leader_infos = self.get_leader_infos(dbname)

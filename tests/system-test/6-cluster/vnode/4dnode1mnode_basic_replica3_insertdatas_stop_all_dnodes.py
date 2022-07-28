@@ -181,19 +181,33 @@ class TDTestCase:
             tdLog.debug(" ==== check insert tbnames first failed , this is {}_th retry check tbnames of database {}".format(count , dbname))
             count += 1
 
-    def _get_stop_dnode_id(self , dbname , role):
-        
+    def _get_stop_dnode_id(self,dbname ,dnode_role):
         tdSql.query("show {}.vgroups".format(dbname))
         vgroup_infos = tdSql.queryResult
+        status = False
+        for vgroup_info in vgroup_infos:
+            if "error" not in vgroup_info:
+                status = True
+            else:
+                status = False
+        while status!=True :
+            time.sleep(0.1)
+            tdSql.query("show {}.vgroups".format(dbname))
+            vgroup_infos = tdSql.queryResult
+            for vgroup_info in vgroup_infos:
+                if "error" not in vgroup_info:
+                    status = True
+                else:
+                    status = False
+            # print(status)
         for vgroup_info in vgroup_infos:
             leader_infos = vgroup_info[3:-4] 
             # print(vgroup_info)
             for ind ,role in enumerate(leader_infos):
-                if role == role:
+                if role == dnode_role:
                     # print(ind,leader_infos)
                     self.stop_dnode_id = leader_infos[ind-1]
                     break
-
 
         return self.stop_dnode_id
 

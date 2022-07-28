@@ -163,10 +163,25 @@ class TDTestCase:
         tdLog.notice(" ==== create database {} and insert rows execute end =====".format(dbname))
 
     
-    def _get_stop_dnode_id(self , dbname , dnode_role):
-        
+    def _get_stop_dnode_id(self,dbname ,dnode_role):
         tdSql.query("show {}.vgroups".format(dbname))
         vgroup_infos = tdSql.queryResult
+        status = False
+        for vgroup_info in vgroup_infos:
+            if "error" not in vgroup_info:
+                status = True
+            else:
+                status = False
+        while status!=True :
+            time.sleep(0.1)
+            tdSql.query("show {}.vgroups".format(dbname))
+            vgroup_infos = tdSql.queryResult
+            for vgroup_info in vgroup_infos:
+                if "error" not in vgroup_info:
+                    status = True
+                else:
+                    status = False
+            # print(status)
         for vgroup_info in vgroup_infos:
             leader_infos = vgroup_info[3:-4] 
             # print(vgroup_info)

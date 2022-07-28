@@ -29,7 +29,7 @@ class TDTestCase:
         self.replica = 3 
         self.vgroups = 1
         self.tb_nums = 10 
-        self.row_nums = 1000
+        self.row_nums = 500
         self.max_restart_time = 20
         self.restart_server_times = 10
         self.dnode_index = 0 
@@ -312,6 +312,7 @@ class TDTestCase:
             tdLog.notice(" === this is {}_th restart taosd === ".format(loop_time))
 
             # begin start dnode 
+            start = time.time()
             tdDnodes[self.stop_dnode_id-1].starttaosd()
             self.wait_start_dnode_OK(newTdSql)
             time.sleep(5)

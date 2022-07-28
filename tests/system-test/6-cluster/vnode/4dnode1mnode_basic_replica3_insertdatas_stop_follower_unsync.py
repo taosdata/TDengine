@@ -221,18 +221,33 @@ class TDTestCase:
             tdLog.notice(" ==== check insert tbnames first failed , this is {}_th retry check tbnames of database {}".format(count , dbname))
             count += 1
             
-    def _get_stop_dnode_id(self,dbname):
+    def _get_stop_dnode_id(self,dbname ,dnode_role):
         tdSql.query("show {}.vgroups".format(dbname))
         vgroup_infos = tdSql.queryResult
+        status = False
+        for vgroup_info in vgroup_infos:
+            if "error" not in vgroup_info:
+                status = True
+            else:
+                status = False
+        while status!=True :
+            time.sleep(0.1)
+            tdSql.query("show {}.vgroups".format(dbname))
+            vgroup_infos = tdSql.queryResult
+            for vgroup_info in vgroup_infos:
+                if "error" not in vgroup_info:
+                    status = True
+                else:
+                    status = False
+            # print(status)
         for vgroup_info in vgroup_infos:
             leader_infos = vgroup_info[3:-4] 
             # print(vgroup_info)
             for ind ,role in enumerate(leader_infos):
-                if role =='follower':
+                if role == dnode_role:
                     # print(ind,leader_infos)
                     self.stop_dnode_id = leader_infos[ind-1]
                     break
-
 
         return self.stop_dnode_id
 
@@ -376,7 +391,7 @@ class TDTestCase:
             stablename = 'stable_{}'.format(loop)
             self.create_database(dbname = db_name ,replica_num= self.replica  , vgroup_nums= 1)
             self.create_stable_insert_datas(dbname = db_name , stablename = stablename , tb_nums= 10 ,row_nums= 10 )
-            self.stop_dnode_id = self._get_stop_dnode_id(db_name)
+            self.stop_dnode_id = self._get_stop_dnode_id(db_name ,"follower")
             # print("dnode_id:" , self.stop_dnode_id )
             
             # check rows of datas
@@ -423,7 +438,7 @@ class TDTestCase:
             newTdSql=tdCom.newTdSql()
             start = time.time()
             tdDnodes=cluster.dnodes
-            self.stop_dnode_id = self._get_stop_dnode_id(dbname)
+            self.stop_dnode_id = self._get_stop_dnode_id(dbname,"follower")
             # print("dnode_id:" , self.stop_dnode_id )
             # begin restart dnode
             tdDnodes[self.stop_dnode_id-1].stoptaosd()
