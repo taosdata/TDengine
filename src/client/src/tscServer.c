@@ -530,6 +530,16 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
   assert(pSql->self == handle);
 
+  // check msgtype
+  if(rpcMsg->msgType == TSDB_MSG_TYPE_PROBE_CONN_RSP) {
+    pSql->noAckCnt  = 0;
+    pSql->lastAlive = taosGetTimestampMs();
+    tscDebug("PROBE 0x%" PRIx64 " recv probe msg. sql=%s", pSql->self, pSql->sqlstr);
+    rpcFreeCont(rpcMsg->pCont);
+    return ;
+  }
+
+
   STscObj *pObj = pSql->pTscObj;
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
@@ -544,14 +554,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     taosReleaseRef(tscObjRef, handle);
     rpcFreeCont(rpcMsg->pCont);
     return;
-  }
-
-  // check msgtype
-  if(rpcMsg->msgType == TSDB_MSG_TYPE_PROBE_CONN_RSP) {
-    pSql->noAckCnt  = 0;
-    pSql->lastAlive = taosGetTimestampMs();
-    tscDebug("PROBE 0x%" PRIx64 " recv probe msg. sql=%s", pSql->self, pSql->sqlstr);
-    return ;
   }
 
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
