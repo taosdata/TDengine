@@ -201,7 +201,14 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWr
   pWriter->pVnode = pVnode;
   pWriter->sver = sver;
   pWriter->ever = ever;
-  pWriter->commitID = pVnode->state.commitID;
+
+  // commit it
+  code = vnodeCommit(pVnode);
+  if (code) goto _err;
+
+  // inc commit ID
+  pVnode->state.commitID++;
+  pWriter->commitID;
 
   vInfo("vgId:%d vnode snapshot writer opened, sver:%" PRId64 " ever:%" PRId64 " commit id:%" PRId64, TD_VID(pVnode),
         sver, ever, pWriter->commitID);
@@ -247,6 +254,8 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
 
     code = vnodeCommitInfo(dir, &info);
     if (code) goto _err;
+
+    vnodeBegin(pVnode);
   } else {
     ASSERT(0);
   }
