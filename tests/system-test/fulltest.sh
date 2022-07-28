@@ -158,7 +158,7 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 5 -M 3
+# python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -M 3
 
 # python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 5 -M 3
@@ -209,7 +209,7 @@ python3 ./test.py -f 7-tmq/tmqConsFromTsdb1.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb-1ctb.py
-python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb.py
+# python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb-1ctb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb.py
