@@ -360,8 +360,9 @@ endi
 if $data04 != @abc0@ then
    return -1
 endi
-
-sql select distinct tbname,t1,t2 from select_tags_mt0;
+print "really this line"
+sql select distinct tbname,t1,t2 from select_tags_mt0 order by tbname;
+print $data00 $data01 $data02 $data10 $data111 $data12
 if $row != 16 then
    return -1
 endi
@@ -390,7 +391,7 @@ if $data12 != @abc1@ then
    return -1
 endi
 
-sql select tbname,ts from select_tags_mt0;
+sql select tbname,ts from select_tags_mt0 order by ts;
 if $row != 12800 then
    return -1
 endi
