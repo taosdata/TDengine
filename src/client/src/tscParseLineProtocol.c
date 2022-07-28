@@ -2353,7 +2353,12 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
     if (start < cur) {
       if (bufSize <= len + (cur - start)) {
         bufSize *= 2;
-        value = realloc(value, bufSize);
+        char *tmp = realloc(value, bufSize);
+        if (tmp == NULL) {
+            ret = TSDB_CODE_TSC_OUT_OF_MEMORY;
+            goto error;
+        }
+        value = tmp;
       }
       memcpy(value + len, start, cur - start);  // [start, cur)
       len += cur - start;
