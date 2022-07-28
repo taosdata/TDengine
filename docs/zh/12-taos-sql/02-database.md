@@ -8,17 +8,17 @@ description: "创建、删除数据库，查看、修改数据库参数"
 
 ```sql
 CREATE DATABASE [IF NOT EXISTS] db_name [database_options]
-
+ 
 database_options:
     database_option ...
-
+ 
 database_option: {
     BUFFER value
   | CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}
   | CACHESIZE value
   | COMP {0 | 1 | 2}
   | DURATION value
-  | FSYNC value
+  | WAL_FSYNC_PERIOD value
   | MAXROWS value
   | MINROWS value
   | KEEP value
@@ -28,7 +28,7 @@ database_option: {
   | REPLICA value
   | RETENTIONS ingestion_duration:keep_duration ...
   | STRICT {'off' | 'on'}
-  | WAL {1 | 2}
+  | WAL_LEVEL {1 | 2}
   | VGROUPS value
   | SINGLE_STABLE {0 | 1}
   | WAL_RETENTION_PERIOD value
