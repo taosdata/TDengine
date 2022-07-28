@@ -377,6 +377,7 @@ class TDTestCase:
             self.create_database(dbname = db_name ,replica_num= self.replica  , vgroup_nums= 1)
             self.create_stable_insert_datas(dbname = db_name , stablename = stablename , tb_nums= 10 ,row_nums= 10 )
             self.stop_dnode_id = self._get_stop_dnode_id(db_name)
+            print("dnode_id:" , self.stop_dnode_id )
             
             # check rows of datas
             
@@ -423,6 +424,7 @@ class TDTestCase:
             start = time.time()
             tdDnodes=cluster.dnodes
             self.stop_dnode_id = self._get_stop_dnode_id(dbname)
+            print("dnode_id:" , self.stop_dnode_id )
             # begin restart dnode
             tdDnodes[self.stop_dnode_id-1].stoptaosd()
             self.wait_stop_dnode_OK(newTdSql)
