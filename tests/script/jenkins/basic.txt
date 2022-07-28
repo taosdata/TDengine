@@ -1,7 +1,7 @@
 
 #======================b1-start===============
 
-# ---- user
+# ---- user ----
 ./test.sh -f tsim/user/basic.sim
 ./test.sh -f tsim/user/password.sim
 ./test.sh -f tsim/user/privilege_db.sim
@@ -58,13 +58,13 @@
 # unsupport ./test.sh -f tsim/dnode/vnode_clean.sim
 ./test.sh -f tsim/dnode/use_dropped_dnode.sim 
 
-# ---- import
+# ---- import ----
 ./test.sh -f tsim/import/basic.sim
 ./test.sh -f tsim/import/commit.sim
 ./test.sh -f tsim/import/large.sim
 ./test.sh -f tsim/import/replica1.sim
 
-# ---- insert
+# ---- insert ----
 ./test.sh -f tsim/insert/backquote.sim
 ./test.sh -f tsim/insert/basic.sim
 ./test.sh -f tsim/insert/basic0.sim
@@ -164,7 +164,7 @@
 # TD-17704 ./test.sh -f tsim/parser/union_sysinfo.sim
 # TD-17661 ./test.sh -f tsim/parser/where.sim
 
-# ---- query
+# ---- query ----
 ./test.sh -f tsim/query/charScalarFunction.sim
 # ./test.sh -f tsim/query/explain.sim
 ./test.sh -f tsim/query/interval-offset.sim
@@ -187,10 +187,10 @@
 ./test.sh -f tsim/mnode/basic1.sim
 ./test.sh -f tsim/mnode/basic2.sim
 ./test.sh -f tsim/mnode/basic3.sim
-./test.sh -f tsim/mnode/basic4.sim
+# TD-17919 ./test.sh -f tsim/mnode/basic4.sim
 ./test.sh -f tsim/mnode/basic5.sim
 
-# ---- show
+# ---- show ----
 ./test.sh -f tsim/show/basic.sim
 
 # ---- table
@@ -260,7 +260,7 @@
 ./test.sh -f tsim/tmq/snapshot.sim
 ./test.sh -f tsim/tmq/snapshot1.sim
 
-# --- stable
+# --- stable ----
 ./test.sh -f tsim/stable/alter_comment.sim
 ./test.sh -f tsim/stable/alter_count.sim
 ./test.sh -f tsim/stable/alter_import.sim
@@ -274,7 +274,6 @@
 ./test.sh -f tsim/stable/dnode3.sim
 ./test.sh -f tsim/stable/metrics.sim
 ./test.sh -f tsim/stable/refcount.sim
-./test.sh -f tsim/stable/show.sim
 ./test.sh -f tsim/stable/tag_add.sim
 ./test.sh -f tsim/stable/tag_drop.sim
 ./test.sh -f tsim/stable/tag_filter.sim
@@ -298,8 +297,9 @@
 # --- sma
 ./test.sh -f tsim/sma/drop_sma.sim
 ./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
-./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
-./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
+# temp disable
+#./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
+#./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
 
 # --- valgrind
 ./test.sh -f tsim/valgrind/checkError1.sim
@@ -308,6 +308,7 @@
 ./test.sh -f tsim/valgrind/checkError4.sim
 ./test.sh -f tsim/valgrind/checkError5.sim
 ./test.sh -f tsim/valgrind/checkError6.sim
+./test.sh -f tsim/valgrind/checkError7.sim
 
 # --- vnode
 # unsupport ./test.sh -f tsim/vnode/replica3_basic.sim
@@ -328,35 +329,35 @@
 ./test.sh -f tsim/sync/oneReplica1VgElect.sim
 ./test.sh -f tsim/sync/oneReplica5VgElect.sim
 
-# --- catalog
+# --- catalog ----
 ./test.sh -f tsim/catalog/alterInCurrent.sim
 
 # --- scalar
 ./test.sh -f tsim/scalar/in.sim
 ./test.sh -f tsim/scalar/scalar.sim
 
-# ---- alter
+# ---- alter ----
 ./test.sh -f tsim/alter/cached_schema_after_alter.sim
 ./test.sh -f tsim/alter/dnode.sim
 ./test.sh -f tsim/alter/table.sim
 
-# ---- cache
+# ---- cache ----
 ./test.sh -f tsim/cache/new_metrics.sim
 ./test.sh -f tsim/cache/restart_table.sim
 ./test.sh -f tsim/cache/restart_metrics.sim
 
-# ---- column
+# ---- column ----
 ./test.sh -f tsim/column/commit.sim
 ./test.sh -f tsim/column/metrics.sim
 ./test.sh -f tsim/column/table.sim
 
-# ---- compress
+# ---- compress ----
 ./test.sh -f tsim/compress/commitlog.sim
 ./test.sh -f tsim/compress/compress2.sim
 ./test.sh -f tsim/compress/compress.sim
 ./test.sh -f tsim/compress/uncompress.sim
 
-# ---- compute
+# ---- compute ----
 ./test.sh -f tsim/compute/avg.sim
 ./test.sh -f tsim/compute/block_dist.sim
 ./test.sh -f tsim/compute/bottom.sim

@@ -1,5 +1,4 @@
 ---
-sidebar_label: 参考手册
 title: 参考手册
 ---
 

@@ -8,17 +8,17 @@ description: "创建、删除数据库，查看、修改数据库参数"
 
 ```sql
 CREATE DATABASE [IF NOT EXISTS] db_name [database_options]
-
+ 
 database_options:
     database_option ...
-
+ 
 database_option: {
     BUFFER value
   | CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}
   | CACHESIZE value
   | COMP {0 | 1 | 2}
   | DURATION value
-  | FSYNC value
+  | WAL_FSYNC_PERIOD value
   | MAXROWS value
   | MINROWS value
   | KEEP value
@@ -28,7 +28,7 @@ database_option: {
   | REPLICA value
   | RETENTIONS ingestion_duration:keep_duration ...
   | STRICT {'off' | 'on'}
-  | WAL {1 | 2}
+  | WAL_LEVEL {1 | 2}
   | VGROUPS value
   | SINGLE_STABLE {0 | 1}
   | WAL_RETENTION_PERIOD value
@@ -46,7 +46,7 @@ database_option: {
   - last_row：表示缓存子表最近一行数据。这将显著改善 LAST_ROW 函数的性能表现。
   - last_value：表示缓存子表每一列的最近的非 NULL 值。这将显著改善无特殊影响（WHERE、ORDER BY、GROUP BY、INTERVAL）下的 LAST 函数的性能表现。
   - both：表示同时打开缓存最近行和列功能。
-- CACHESIZE：表示缓存子表最近数据的内存大小。默认为 1 ，范围是[1, 65536]，单位是 MB。
+- CACHESIZE：表示每个 vnode 中用于缓存子表最近数据的内存大小。默认为 1 ，范围是[1, 65536]，单位是 MB。
 - COMP：表示数据库文件压缩标志位，缺省值为 2，取值范围为 [0, 2]。
   - 0：表示不压缩。
   - 1：表示一阶段压缩。

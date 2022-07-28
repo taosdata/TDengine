@@ -401,7 +401,8 @@ static int32_t logicVnodeModifCopy(const SVnodeModifyLogicNode* pSrc, SVnodeModi
   COPY_SCALAR_FIELD(tableId);
   COPY_SCALAR_FIELD(stableId);
   COPY_SCALAR_FIELD(tableType);
-  COPY_CHAR_ARRAY_FIELD(tableFName);
+  COPY_CHAR_ARRAY_FIELD(tableName);
+  COPY_CHAR_ARRAY_FIELD(tsColName);
   COPY_OBJECT_FIELD(deleteTimeRange, sizeof(STimeWindow));
   CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
   CLONE_NODE_LIST_FIELD(pInsertCols);
