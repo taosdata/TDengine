@@ -46,11 +46,6 @@ void tsdbCloseCache(SLRUCache *pCache) {
   }
 }
 
-/* static void getTableCacheKeyS(tb_uid_t uid, const char *cacheType, char *key, int *len) { */
-/*   snprintf(key, 30, "%" PRIi64 "%s", uid, cacheType); */
-/*   *len = strlen(key); */
-/* } */
-
 static void getTableCacheKey(tb_uid_t uid, int cacheType, char *key, int *len) {
   if (cacheType == 0) {  // last_row
     *(uint64_t *)key = (uint64_t)uid;
@@ -649,44 +644,44 @@ _err:
   return code;
 }
 
-static int32_t tsRowFromTsdbRow(STSchema *pTSchema, TSDBROW *pRow, STSRow **ppRow) {
-  int32_t code = 0;
+/* static int32_t tsRowFromTsdbRow(STSchema *pTSchema, TSDBROW *pRow, STSRow **ppRow) { */
+/*   int32_t code = 0; */
 
-  SColVal *pColVal = &(SColVal){0};
+/*   SColVal *pColVal = &(SColVal){0}; */
 
-  if (pRow->type == 0) {
-    *ppRow = tdRowDup(pRow->pTSRow);
-  } else {
-    SArray *pArray = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
-    if (pArray == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
-    }
+/*   if (pRow->type == 0) { */
+/*     *ppRow = tdRowDup(pRow->pTSRow); */
+/*   } else { */
+/*     SArray *pArray = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal)); */
+/*     if (pArray == NULL) { */
+/*       code = TSDB_CODE_OUT_OF_MEMORY; */
+/*       goto _exit; */
+/*     } */
 
-    TSDBKEY   key = TSDBROW_KEY(pRow);
-    STColumn *pTColumn = &pTSchema->columns[0];
-    *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.ts = key.ts});
+/*     TSDBKEY   key = TSDBROW_KEY(pRow); */
+/*     STColumn *pTColumn = &pTSchema->columns[0]; */
+/*     *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.ts = key.ts}); */
 
-    if (taosArrayPush(pArray, pColVal) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
-    }
+/*     if (taosArrayPush(pArray, pColVal) == NULL) { */
+/*       code = TSDB_CODE_OUT_OF_MEMORY; */
+/*       goto _exit; */
+/*     } */
 
-    for (int16_t iCol = 1; iCol < pTSchema->numOfCols; iCol++) {
-      tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
-      if (taosArrayPush(pArray, pColVal) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _exit;
-      }
-    }
+/*     for (int16_t iCol = 1; iCol < pTSchema->numOfCols; iCol++) { */
+/*       tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal); */
+/*       if (taosArrayPush(pArray, pColVal) == NULL) { */
+/*         code = TSDB_CODE_OUT_OF_MEMORY; */
+/*         goto _exit; */
+/*       } */
+/*     } */
 
-    code = tdSTSRowNew(pArray, pTSchema, ppRow);
-    if (code) goto _exit;
-  }
+/*     code = tdSTSRowNew(pArray, pTSchema, ppRow); */
+/*     if (code) goto _exit; */
+/*   } */
 
-_exit:
-  return code;
-}
+/* _exit: */
+/*   return code; */
+/* } */
 
 static bool tsdbKeyDeleted(TSDBKEY *key, SArray *pSkyline, int64_t *iSkyline) {
   bool deleted = false;
