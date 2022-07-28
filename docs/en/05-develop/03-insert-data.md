@@ -39,7 +39,7 @@ For more details about `INSERT` please refer to [INSERT](/taos-sql/insert).
 <Tabs>
 <TabItem value="python" label="Python">
 
-In this example, we use `execute` method to execute SQL and get affected rows. The variable `conn` is an instance of class  `taosrest.TaosRestConnection` we just created at [Connect Tutorial](./connect/python#connect).
+In this example, we use `execute` method to execute SQL and get affected rows. The variable `conn` is an instance of class  `taosrest.TaosRestConnection` we just created at [Connect Tutorial](../connect/python#connect).
 
 ```python
 {{#include docs/examples/python/develop_tutorial.py:insert}}
