@@ -19,8 +19,8 @@ int32_t tEncodeStreamTaskRecoverReq(SEncoder* pEncoder, const SStreamTaskRecover
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->sourceTaskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->sourceVg) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->upstreamTaskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->upstreamNodeId) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
@@ -29,8 +29,8 @@ int32_t tDecodeStreamTaskRecoverReq(SDecoder* pDecoder, SStreamTaskRecoverReq* p
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->sourceTaskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->sourceVg) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->upstreamTaskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->upstreamNodeId) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
 }
@@ -38,7 +38,8 @@ int32_t tDecodeStreamTaskRecoverReq(SDecoder* pDecoder, SStreamTaskRecoverReq* p
 int32_t tEncodeStreamTaskRecoverRsp(SEncoder* pEncoder, const SStreamTaskRecoverRsp* pRsp) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pRsp->streamId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pRsp->taskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pRsp->reqTaskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pRsp->rspTaskId) < 0) return -1;
   if (tEncodeI8(pEncoder, pRsp->inputStatus) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -47,7 +48,8 @@ int32_t tEncodeStreamTaskRecoverRsp(SEncoder* pEncoder, const SStreamTaskRecover
 int32_t tDecodeStreamTaskRecoverRsp(SDecoder* pDecoder, SStreamTaskRecoverRsp* pReq) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->reqTaskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->rspTaskId) < 0) return -1;
   if (tDecodeI8(pDecoder, &pReq->inputStatus) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
@@ -125,7 +127,7 @@ int32_t streamProcessFailRecoverReq(SStreamTask* pTask, SMStreamTaskRecoverReq* 
   }
 
   if (pTask->taskStatus == TASK_STATUS__RECOVERING) {
-    if (streamPipelineExec(pTask, 10) < 0) {
+    if (streamPipelineExec(pTask, 100) < 0) {
       // set fail
       return -1;
     }

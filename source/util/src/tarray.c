@@ -294,7 +294,7 @@ void taosArraySet(SArray* pArray, size_t index, void* pData) {
 void taosArrayPopFrontBatch(SArray* pArray, size_t cnt) {
   assert(cnt <= pArray->size);
   pArray->size = pArray->size - cnt;
-  if (pArray->size == 0) {
+  if (pArray->size == 0 || cnt == 0) {
     return;
   }
   memmove(pArray->pData, (char*)pArray->pData + cnt * pArray->elemSize, pArray->size * pArray->elemSize);
