@@ -112,7 +112,7 @@ class ClusterComCheck:
     def checkMnodeStatus(self,mnodeNums):
         self.mnodeNums=int(mnodeNums)
         # self.leaderDnode=int(leaderDnode)
-        
+        tdLog.debug("start to check status of mnodes")
         count=0
 
         while count < 10:
