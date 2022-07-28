@@ -68,7 +68,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, "eeee")
         tdSql.checkData(1, 2, 940)
 
-        tdSql.query("select * from jt")
+        tdSql.query("select * from jt order by i desc")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 11)
         tdSql.checkData(0, 2, None)
