@@ -30,6 +30,8 @@ TEST_F(PlanOptimizeTest, scanPath) {
   run("SELECT COUNT(CAST(c1 AS BIGINT)) FROM t1");
 
   run("SELECT PERCENTILE(c1, 40), COUNT(*) FROM t1");
+
+  run("SELECT LAST(c1) FROM t1");
 }
 
 TEST_F(PlanOptimizeTest, pushDownCondition) {

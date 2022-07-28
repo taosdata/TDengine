@@ -38,10 +38,13 @@ typedef struct SOptimizeRule {
   FOptimize optimizeFunc;
 } SOptimizeRule;
 
+typedef enum EScanOrder { SCAN_ORDER_ASC = 1, SCAN_ORDER_DESC, SCAN_ORDER_BOTH } EScanOrder;
+
 typedef struct SOsdInfo {
   SScanLogicNode* pScan;
   SNodeList*      pSdrFuncs;
   SNodeList*      pDsoFuncs;
+  EScanOrder      scanOrder;
 } SOsdInfo;
 
 typedef struct SCpdIsMultiTableCondCxt {
@@ -179,16 +182,18 @@ static int32_t scanPathOptGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSd
   SNodeList* pAllFuncs = scanPathOptGetAllFuncs(pScan->node.pParent);
   SNodeList* pTmpSdrFuncs = NULL;
   SNodeList* pTmpDsoFuncs = NULL;
-  SNode*     pFunc = NULL;
+  SNode*     pNode = NULL;
   bool       otherFunc = false;
-  FOREACH(pFunc, pAllFuncs) {
-    int32_t code = TSDB_CODE_SUCCESS;
-    if (scanPathOptNeedOptimizeDataRequire((SFunctionNode*)pFunc)) {
-      code = nodesListMakeStrictAppend(&pTmpSdrFuncs, nodesCloneNode(pFunc));
-    } else if (scanPathOptNeedDynOptimize((SFunctionNode*)pFunc)) {
-      code = nodesListMakeStrictAppend(&pTmpDsoFuncs, nodesCloneNode(pFunc));
+  FOREACH(pNode, pAllFuncs) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    int32_t        code = TSDB_CODE_SUCCESS;
+    if (scanPathOptNeedOptimizeDataRequire(pFunc)) {
+      code = nodesListMakeStrictAppend(&pTmpSdrFuncs, nodesCloneNode(pNode));
+    } else if (scanPathOptNeedDynOptimize(pFunc)) {
+      code = nodesListMakeStrictAppend(&pTmpDsoFuncs, nodesCloneNode(pNode));
     } else {
       otherFunc = true;
+      break;
     }
     if (TSDB_CODE_SUCCESS != code) {
       nodesDestroyList(pTmpSdrFuncs);
@@ -206,12 +211,46 @@ static int32_t scanPathOptGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSd
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t scanPathOptGetScanOrder(SScanLogicNode* pScan, EScanOrder* pScanOrder) {
+  SNodeList* pAllFuncs = scanPathOptGetAllFuncs(pScan->node.pParent);
+  SNode*     pNode = NULL;
+  bool       hasFirst = false;
+  bool       hasLast = false;
+  bool       otherFunc = false;
+  FOREACH(pNode, pAllFuncs) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (FUNCTION_TYPE_FIRST == pFunc->funcType) {
+      hasFirst = true;
+    } else if (FUNCTION_TYPE_LAST == pFunc->funcType) {
+      hasLast = true;
+    } else if (FUNCTION_TYPE_SELECT_VALUE != pFunc->funcType) {
+      otherFunc = true;
+    }
+  }
+  if (hasFirst && hasLast && !otherFunc) {
+    *pScanOrder = SCAN_ORDER_BOTH;
+  } else if (hasLast) {
+    *pScanOrder = SCAN_ORDER_DESC;
+  } else {
+    *pScanOrder = SCAN_ORDER_ASC;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t scanPathOptSetOsdInfo(SOsdInfo* pInfo) {
+  int32_t code = scanPathOptGetRelatedFuncs(pInfo->pScan, &pInfo->pSdrFuncs, &pInfo->pDsoFuncs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = scanPathOptGetScanOrder(pInfo->pScan, &pInfo->scanOrder);
+  }
+  return code;
+}
+
 static int32_t scanPathOptMatch(SOptimizeContext* pCxt, SLogicNode* pLogicNode, SOsdInfo* pInfo) {
   pInfo->pScan = (SScanLogicNode*)optFindPossibleNode(pLogicNode, scanPathOptMayBeOptimized);
   if (NULL == pInfo->pScan) {
     return TSDB_CODE_SUCCESS;
   }
-  return scanPathOptGetRelatedFuncs(pInfo->pScan, &pInfo->pSdrFuncs, &pInfo->pDsoFuncs);
+  return scanPathOptSetOsdInfo(pInfo);
 }
 
 static EFuncDataRequired scanPathOptPromoteDataRequired(EFuncDataRequired l, EFuncDataRequired r) {
@@ -258,11 +297,34 @@ static void scanPathOptSetScanWin(SScanLogicNode* pScan) {
   }
 }
 
+static void scanPathOptSetScanOrder(EScanOrder scanOrder, SScanLogicNode* pScan) {
+  if (pScan->scanSeq[0] > 1 || pScan->scanSeq[1] > 1) {
+    return;
+  }
+  switch (scanOrder) {
+    case SCAN_ORDER_ASC:
+      pScan->scanSeq[0] = 1;
+      pScan->scanSeq[1] = 0;
+      break;
+    case SCAN_ORDER_DESC:
+      pScan->scanSeq[0] = 0;
+      pScan->scanSeq[1] = 1;
+      break;
+    case SCAN_ORDER_BOTH:
+      pScan->scanSeq[0] = 1;
+      pScan->scanSeq[1] = 1;
+      break;
+    default:
+      break;
+  }
+}
+
 static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  SOsdInfo info = {0};
+  SOsdInfo info = {.scanOrder = SCAN_ORDER_ASC};
   int32_t  code = scanPathOptMatch(pCxt, pLogicSubplan->pNode, &info);
   if (TSDB_CODE_SUCCESS == code && info.pScan) {
-    scanPathOptSetScanWin((SScanLogicNode*)info.pScan);
+    scanPathOptSetScanWin(info.pScan);
+    scanPathOptSetScanOrder(info.scanOrder, info.pScan);
   }
   if (TSDB_CODE_SUCCESS == code && (NULL != info.pDsoFuncs || NULL != info.pSdrFuncs)) {
     info.pScan->dataRequired = scanPathOptGetDataRequired(info.pSdrFuncs);
