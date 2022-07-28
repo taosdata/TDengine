@@ -291,6 +291,9 @@ bool dealConnBroken(SSqlObj * pSql) {
     return false;
   }
 
+  // set error
+  pSql->res.code = TSDB_CODE_RPC_CONN_BROKEN;
+
   // cancel
   if (pSql->rpcRid > 0) {
     tscDebug("PROBE 0x%" PRIx64 " rpc cancel request rpcRid=0x%" PRIx64 ".", pSql->self, pSql->rpcRid);

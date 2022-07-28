@@ -124,6 +124,7 @@ typedef struct SRpcConn {
   int8_t    connType;   // connection type
   int64_t   lockedBy;   // lock for connection
   SRpcReqContext *pContext; // request context
+  int64_t   lastLiveTime; // last alive time with ms
 } SRpcConn;
 
 int tsRpcMaxUdpSize = 15000;  // bytes
@@ -993,6 +994,7 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
   pConn->peerPort = pRecv->port;
   if (pHead->port) pConn->peerPort = htons(pHead->port); 
 
+  /*
   // probe msg
   if(pHead->msgType == TSDB_MSG_TYPE_PROBE_CONN) {
     pConn->inType   = pHead->msgType;
@@ -1002,6 +1004,7 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
     pRecv->msg = NULL;
     return pConn;
   }
+  */
 
   terrno = rpcCheckAuthentication(pConn, (char *)pHead, pRecv->msgLen);
 
@@ -1086,6 +1089,41 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
   rpcUnlockConn(pConn);
 }
 
+// process probe msg , return true is probe msg, false is not probe msg
+static bool rpcProcessProbeMsg(SRecvInfo *pRecv, SRpcConn *pConn) {
+  SRpcHead  *pHead = (SRpcHead *)pRecv->msg;
+  if (pHead->msgType == TSDB_MSG_TYPE_PROBE_CONN) {
+    // response to
+    SRpcHead rspHead;
+    memset(&rspHead, 0, sizeof(SRpcHead));
+
+    rspHead.msgType = TSDB_MSG_TYPE_PROBE_CONN_RSP;
+    rspHead.version = 1;
+    rspHead.ahandle = pHead->ahandle;
+    rspHead.tranId  = pHead->tranId;
+    rspHead.code    = 0;
+    rspHead.spi     = pHead->spi;
+    rspHead.linkUid = pHead->linkUid;
+    rspHead.sourceId = pConn->ownId;
+    rspHead.destId   = pConn->peerId;
+
+    memcpy(rspHead.user, pHead->user, tListLen(pHead->user));
+
+    bool ret = rpcSendMsgToPeer(pConn, &rspHead, sizeof(SRpcHead));
+    tDebug("PROBE 0x%" PRIx64 " recv probe msg and response. ret=%d", pHead->ahandle, ret);
+    return true;
+  } else if (pHead->msgType == TSDB_MSG_TYPE_PROBE_CONN_RSP) {
+    if(pConn) {
+      pConn->lastLiveTime = taosGetTimestampMs();
+      rpcProcessIncomingMsg(pConn, pHead, pConn->pContext);
+    }
+    tDebug("PROBE 0x%" PRIx64 " recv response probe msg and update lastLiveTime. pConn=%p", pHead->ahandle, pConn);
+    return false;
+  } else {
+    return false;
+  }
+}
+
 static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   SRpcHead  *pHead = (SRpcHead *)pRecv->msg;
   SRpcInfo  *pRpc = (SRpcInfo *)pRecv->shandle;
@@ -1104,6 +1142,14 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   terrno = 0;
   SRpcReqContext *pContext;
   pConn = rpcProcessMsgHead(pRpc, pRecv, &pContext);
+
+  // deal probe msg
+  if (pHead->msgType == TSDB_MSG_TYPE_PROBE_CONN || pHead->msgType == TSDB_MSG_TYPE_PROBE_CONN_RSP) {
+    if (rpcProcessProbeMsg(pRecv, pConn)) {
+      rpcFreeMsg(pRecv->msg);
+      return pConn;
+    }
+  }
 
   if (pHead->msgType >= 1 && pHead->msgType < TSDB_MSG_TYPE_MAX) {
     tDebug("%s %p %p, %s received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
@@ -1712,7 +1758,7 @@ bool doRpcSendProbe(SRpcConn *pConn) {
   pHead->msgType  = TSDB_MSG_TYPE_PROBE_CONN;
   pHead->spi      = pConn->spi;
   pHead->encrypt  = 0;
-  pHead->tranId   = pConn->inTranId;
+  pHead->tranId   = (uint16_t)(taosRand() & 0xFFFF); // rand
   pHead->sourceId = pConn->ownId;
   pHead->destId   = pConn->peerId;
   pHead->linkUid  = pConn->linkUid;
@@ -1720,9 +1766,8 @@ bool doRpcSendProbe(SRpcConn *pConn) {
   memcpy(pHead->user, pConn->user, tListLen(pHead->user));
   pHead->code = htonl(code);
 
-  pConn->outType = pHead->msgType;
   bool ret = rpcSendMsgToPeer(pConn, msg, sizeof(SRpcHead) + sizeof(int32_t));
-  pConn->secured = 1; // connection shall be secured
+  pConn->lastLiveTime = taosGetTimestampMs();
 
   return ret;
 }
@@ -1731,44 +1776,45 @@ bool doRpcSendProbe(SRpcConn *pConn) {
 bool rpcSendProbe(int64_t rpcRid, void* pPrevContext, void* pPrevConn, void* pPrevFdObj, int32_t prevFd) {
   bool ret = false;
   if(rpcRid < 0) {
-    tError("ACK rpcRid=%" PRId64 " less than zero, invalid.", rpcRid);
+    tError("PROBE rpcRid=%" PRId64 " less than zero, invalid.", rpcRid);
     return false;
   }
 
   // get req content
   SRpcReqContext *pContext = taosAcquireRef(tsRpcRefId, rpcRid);
   if (pContext == NULL) {
-    tError("ACK rpcRid=%" PRId64 " get context NULL.", rpcRid);
+    tError("PROBE rpcRid=%" PRId64 " get context NULL.", rpcRid);
     return false;
   }
 
   // context same
   if(pContext != pPrevContext) {
-    tError("ACK rpcRid=%" PRId64 " context diff. pContext=%p pPreContent=%p", rpcRid, pContext, pPrevContext);
+    tError("PROBE rpcRid=%" PRId64 " context diff. pContext=%p pPreContent=%p", rpcRid, pContext, pPrevContext);
     goto _END;
   }
 
   // conn same
   if (pContext->pConn != pPrevConn) {
-    tError("ACK rpcRid=%" PRId64 " connect obj diff. pContext->pConn=%p pPreConn=%p", rpcRid, pContext->pConn, pPrevConn);
+    tError("PROBE rpcRid=%" PRId64 " connect obj diff. pContext->pConn=%p pPreConn=%p", rpcRid, pContext->pConn, pPrevConn);
     goto _END;
   }
 
   // fdObj same
   if (pContext->pConn->chandle != pPrevFdObj) {
-    tError("ACK rpcRid=%" PRId64 " connect fdObj diff. pContext->pConn->chandle=%p pPrevFdObj=%p", rpcRid, pContext->pConn->chandle, pPrevFdObj);
+    tError("PROBE rpcRid=%" PRId64 " connect fdObj diff. pContext->pConn->chandle=%p pPrevFdObj=%p", rpcRid, pContext->pConn->chandle, pPrevFdObj);
     goto _END;
   }
 
   // fd same
   int32_t fd = taosGetFdID(pContext->pConn->chandle);
   if (fd != prevFd) {
-    tError("ACK rpcRid=%" PRId64 " connect fd diff.fd=%d prevFd=%d", rpcRid, fd, prevFd);
+    tError("PROBE rpcRid=%" PRId64 " connect fd diff.fd=%d prevFd=%d", rpcRid, fd, prevFd);
     goto _END;
   }
 
   // send syn
   ret = doRpcSendProbe(pContext->pConn);
+  tInfo("PROBE 0x%" PRIx64 " rpcRid=%" PRId64 " send data ret=%d fd=%d.", (int64_t)pContext->ahandle, rpcRid, ret, fd);
 
 _END:
   // put back req context
@@ -1797,9 +1843,9 @@ bool rpcSaveSendInfo(int64_t rpcRid, void** ppContext, void** ppConn, void** ppF
     *ppContext = pContext;
   if (ppConn)
     *ppConn    = pContext->pConn;
-  if (ppFdObj)
+  if (ppFdObj && pContext->pConn)
     *ppFdObj   = pContext->pConn->chandle;
-  if (pFd)
+  if (pFd && pContext->pConn)
     *pFd       = taosGetFdID(pContext->pConn->chandle);
 
   taosReleaseRef(tsRpcRefId, rpcRid);
