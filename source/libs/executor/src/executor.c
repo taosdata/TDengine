@@ -270,6 +270,12 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
       }
 
       taosArrayPush(pTaskInfo->tableqinfoList.pTableList, &keyInfo);
+      if (pTaskInfo->tableqinfoList.map == NULL) {
+        pTaskInfo->tableqinfoList.map =
+            taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+      }
+
+      taosHashPut(pTaskInfo->tableqinfoList.map, uid, sizeof(uid), &keyInfo.groupId, sizeof(keyInfo.groupId));
     }
 
     if (keyBuf != NULL) {
