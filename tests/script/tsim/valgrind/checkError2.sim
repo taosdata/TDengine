@@ -62,6 +62,8 @@ sql select * from ct1 where ts < now -1d and ts > now +1d
 sql select * from stb where ts < now -1d and ts > now +1d 
 sql select * from ct1 where ts < now -1d and ts > now +1d order by ts desc 
 sql select * from stb where ts < now -1d and ts > now +1d order by ts desc 
+sql select * from ct1 where t1 between 1000 and 2500
+sql select * from stb where t1 between 1000 and 2500
 
 print =============== step7: count
 sql select count(*) from ct1;
