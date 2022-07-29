@@ -433,7 +433,7 @@ static int32_t taosNumOfRemainRows(SFillInfo* pFillInfo) {
   return pFillInfo->numOfRows - pFillInfo->index;
 }
 
-struct SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
+struct SFillInfo* taosCreateFillInfo(TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
                                      SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol,
                                      int32_t primaryTsSlotId, const char* id) {
   if (fillType == TSDB_FILL_NONE) {
@@ -447,9 +447,7 @@ struct SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTag
   }
 
   pFillInfo->tsSlotId = primaryTsSlotId;
-
   taosResetFillInfo(pFillInfo, skey);
-  pFillInfo->order = order;
 
   switch (fillType) {
     case FILL_MODE_NONE:
@@ -533,6 +531,14 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
   taosMemoryFreeClear(pFillInfo->pFillCol);
   taosMemoryFreeClear(pFillInfo);
   return NULL;
+}
+
+void taosFillSetDataOrderInfo(SFillInfo* pFillInfo, int32_t order) {
+  if (pFillInfo == NULL || (order != TSDB_ORDER_ASC && order != TSDB_ORDER_DESC)) {
+    return;
+  }
+
+  pFillInfo->order = order;
 }
 
 void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey) {

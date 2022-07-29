@@ -3234,6 +3234,8 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
     return pResBlock;
   }
 
+  taosFillSetDataOrderInfo(pInfo->pFillInfo, TSDB_ORDER_ASC);
+
   SOperatorInfo* pDownstream = pOperator->pDownstream[0];
   while (1) {
     SSDataBlock* pBlock = pDownstream->fpSet.getNextFn(pDownstream);
@@ -3592,9 +3594,8 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
   STimeWindow w = getAlignQueryTimeWindow(pInterval, pInterval->precision, win.skey);
   w = getFirstQualifiedTimeWindow(win.skey, &w, pInterval, TSDB_ORDER_ASC);
 
-  int32_t order = TSDB_ORDER_ASC;
   pInfo->pFillInfo =
-      taosCreateFillInfo(order, w.skey, 0, capacity, numOfCols, pInterval, fillType, pColInfo, pInfo->primaryTsCol, id);
+      taosCreateFillInfo(w.skey, 0, capacity, numOfCols, pInterval, fillType, pColInfo, pInfo->primaryTsCol, id);
 
   pInfo->win = win;
   pInfo->p = taosMemoryCalloc(numOfCols, POINTER_BYTES);

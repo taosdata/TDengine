@@ -1096,7 +1096,7 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
     hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, scanFlag, NULL);
   }
 
-  initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, pInfo->order);
+  initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, pInfo->resultTsOrder);
   OPTR_SET_OPENED(pOperator);
 
   pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
@@ -1249,7 +1249,6 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator) {
   }
 
   pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-
   pOperator->status = OP_RES_TO_RETURN;
 
   initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, TSDB_ORDER_ASC);
@@ -1791,6 +1790,7 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
 
   pInfo->win = pTaskInfo->window;
   pInfo->order = TSDB_ORDER_ASC;
+  pInfo->resultTsOrder = TSDB_ORDER_ASC;
   pInfo->interval = *pInterval;
   pInfo->execModel = pTaskInfo->execModel;
   pInfo->twAggSup = *pTwAggSupp;
@@ -1807,7 +1807,6 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
   }
 
   pInfo->primaryTsIndex = primaryTsSlotId;
-
   SExprSupp* pSup = &pOperator->exprSupp;
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;

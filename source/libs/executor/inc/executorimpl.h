@@ -524,6 +524,7 @@ typedef struct SIntervalAggOperatorInfo {
   bool               timeWindowInterpo;  // interpolation needed or not
   SArray*            pInterpCols;        // interpolation columns
   int32_t            order;              // current SSDataBlock scan order
+  int32_t            resultTsOrder;      // result timestamp order
   EOPTR_EXEC_MODEL   execModel;          // operator execution model [batch model|stream model]
   STimeWindowAggSupp twAggSup;
   bool               invertible;
