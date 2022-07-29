@@ -26,6 +26,7 @@ typedef int32_t (*FTranslateFunc)(SFunctionNode* pFunc, char* pErrBuf, int32_t l
 typedef EFuncDataRequired (*FFuncDataRequired)(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 typedef int32_t (*FCreateMergeFuncParameters)(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters);
 typedef EFuncDataRequired (*FFuncDynDataRequired)(void* pRes, STimeWindow* pTimeWindow);
+typedef EFuncReturnRows (*FEstimateReturnRows)(SFunctionNode* pFunc);
 
 typedef struct SBuiltinFuncDefinition {
   const char*                name;
@@ -44,6 +45,7 @@ typedef struct SBuiltinFuncDefinition {
   const char*                pPartialFunc;
   const char*                pMergeFunc;
   FCreateMergeFuncParameters createMergeParaFuc;
+  FEstimateReturnRows        estimateReturnRowsFunc;
 } SBuiltinFuncDefinition;
 
 extern const SBuiltinFuncDefinition funcMgtBuiltins[];
