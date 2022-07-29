@@ -10,7 +10,7 @@ use nom::AsBytes;
 use serde::Deserialize;
 
 use std::{
-    cell::RefCell,
+    cell::{RefCell, UnsafeCell},
     ffi::c_void,
     ops::{Deref, DerefMut},
     ptr::NonNull,
@@ -337,7 +337,7 @@ impl RawBlock {
                     columns.push(ColumnView::NChar(NCharView {
                         offsets,
                         data,
-                        // is_chars: UnsafeCell::new(false),
+                        is_chars: UnsafeCell::new(false),
                         version: Version::V2,
                         layout: layout.clone(),
                     }));
@@ -477,7 +477,7 @@ impl RawBlock {
                     ColumnView::NChar(dbg!(NCharView {
                         offsets,
                         data,
-                        // is_chars: UnsafeCell::new(true),
+                        is_chars: UnsafeCell::new(true),
                         version: Version::V3,
                         layout: layout.clone(),
                     }))
