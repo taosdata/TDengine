@@ -1061,6 +1061,9 @@ static int32_t pushDownCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
 }
 
 static bool sortPriKeyOptIsPriKeyOrderBy(SNodeList* pSortKeys) {
+  if (1 != LIST_LENGTH(pSortKeys)) {
+    return false;
+  }
   SNode* pNode = ((SOrderByExprNode*)nodesListGetNode(pSortKeys, 0))->pExpr;
   return (QUERY_NODE_COLUMN == nodeType(pNode) ? (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) : false);
 }
