@@ -310,8 +310,11 @@ static int32_t getBytes(uint8_t type, int32_t length){
   }
 }
 
-static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SSmlSTableMeta *sTableData,
-                              int32_t colVer, int32_t tagVer, int8_t source, uint64_t suid){
+//static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SSmlSTableMeta *sTableData,
+//                              int32_t colVer, int32_t tagVer, int8_t source, uint64_t suid){
+static int32_t  smlSendMetaMsg(SSmlHandle *info, SName *pName, SSmlSTableMeta *sTableData,
+                               STableMeta *pTableMeta, ESchemaAction action){
+
   SRequestObj*   pRequest = NULL;
   SMCreateStbReq pReq = {0};
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -327,43 +330,81 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SSmlSTableMeta *sT
     goto end;
   }
 
-  pReq.colVer = colVer;
-  pReq.tagVer = tagVer;
-  pReq.source = source;
-  pReq.commentLen = -1;
-  pReq.igExists = true;
-  pReq.suid = suid;
-  tNameExtractFullName(pName, pReq.name);
-
-  pReq.numOfColumns = taosArrayGetSize(sTableData->cols);
-  pReq.numOfTags = taosArrayGetSize(sTableData->tags);
-
-  pReq.pColumns = taosArrayInit(pReq.numOfColumns, sizeof(SField));
-  for (int i = 0; i < pReq.numOfColumns; i++) {
-    SSmlKv *kv = (SSmlKv *)taosArrayGetP(sTableData->cols, i);
-    SField field = {0};
-    field.type = kv->type;
-    field.bytes = getBytes(kv->type, kv->length);
-    memcpy(field.name, kv->key, kv->keyLen);
-    taosArrayPush(pReq.pColumns, &field);
+  if (action == SCHEMA_ACTION_NULL){
+    pReq.colVer = 1;
+    pReq.tagVer = 1;
+    pReq.suid = 0;
+    pReq.source = TD_REQ_FROM_APP;
+  } else if (action == SCHEMA_ACTION_TAG){
+    pReq.colVer = pTableMeta->sversion;
+    pReq.tagVer = pTableMeta->tversion + 1;
+    pReq.suid = pTableMeta->uid;
+    pReq.source = TD_REQ_FROM_TAOX;
+  } else if (action == SCHEMA_ACTION_COLUMN){
+    pReq.colVer = pTableMeta->sversion + 1;
+    pReq.tagVer = pTableMeta->tversion;
+    pReq.suid = pTableMeta->uid;
+    pReq.source = TD_REQ_FROM_TAOX;
   }
 
-  if (pReq.numOfTags == 0){
-    pReq.numOfTags = 1;
-    pReq.pTags = taosArrayInit(pReq.numOfTags, sizeof(SField));
-    SField field = {0};
-    field.type = TSDB_DATA_TYPE_NCHAR;
-    field.bytes = 1;
-    strcpy(field.name, tsSmlTagName);
-    taosArrayPush(pReq.pTags, &field);
-  }else{
-    pReq.pTags = taosArrayInit(pReq.numOfTags, sizeof(SField));
-    for (int i = 0; i < pReq.numOfTags; i++) {
-      SSmlKv *kv = (SSmlKv *)taosArrayGetP(sTableData->tags, i);
+  pReq.commentLen = -1;
+  pReq.igExists = true;
+  tNameExtractFullName(pName, pReq.name);
+
+  if(action == SCHEMA_ACTION_NULL || action == SCHEMA_ACTION_COLUMN){
+    pReq.numOfColumns = taosArrayGetSize(sTableData->cols);
+    pReq.pColumns = taosArrayInit(pReq.numOfColumns, sizeof(SField));
+    for (int i = 0; i < pReq.numOfColumns; i++) {
+      SSmlKv *kv = (SSmlKv *)taosArrayGetP(sTableData->cols, i);
       SField field = {0};
       field.type = kv->type;
       field.bytes = getBytes(kv->type, kv->length);
       memcpy(field.name, kv->key, kv->keyLen);
+      taosArrayPush(pReq.pColumns, &field);
+    }
+  }else if (action == SCHEMA_ACTION_TAG){
+    pReq.numOfColumns = pTableMeta->tableInfo.numOfColumns;
+    pReq.pColumns = taosArrayInit(pReq.numOfColumns, sizeof(SField));
+    for (int i = 0; i < pReq.numOfColumns; i++) {
+      SSchema *s = &pTableMeta->schema[i];
+      SField field = {0};
+      field.type = s->type;
+      field.bytes = s->bytes;
+      strcpy(field.name, s->name);
+      taosArrayPush(pReq.pColumns, &field);
+    }
+  }
+
+  if(action == SCHEMA_ACTION_NULL || action == SCHEMA_ACTION_TAG){
+    pReq.numOfTags = taosArrayGetSize(sTableData->tags);
+    if (pReq.numOfTags == 0){
+      pReq.numOfTags = 1;
+      pReq.pTags = taosArrayInit(pReq.numOfTags, sizeof(SField));
+      SField field = {0};
+      field.type = TSDB_DATA_TYPE_NCHAR;
+      field.bytes = 1;
+      strcpy(field.name, tsSmlTagName);
+      taosArrayPush(pReq.pTags, &field);
+    }else{
+      pReq.pTags = taosArrayInit(pReq.numOfTags, sizeof(SField));
+      for (int i = 0; i < pReq.numOfTags; i++) {
+        SSmlKv *kv = (SSmlKv *)taosArrayGetP(sTableData->tags, i);
+        SField field = {0};
+        field.type = kv->type;
+        field.bytes = getBytes(kv->type, kv->length);
+        memcpy(field.name, kv->key, kv->keyLen);
+        taosArrayPush(pReq.pTags, &field);
+      }
+    }
+  }else if (action == SCHEMA_ACTION_COLUMN){
+    pReq.numOfTags = pTableMeta->tableInfo.numOfTags;
+    pReq.pTags = taosArrayInit(pReq.numOfTags, sizeof(SField));
+    for (int i = 0; i < pReq.numOfTags; i++) {
+      SSchema *s = &pTableMeta->schema[i + pTableMeta->tableInfo.numOfColumns];
+      SField field = {0};
+      field.type = s->type;
+      field.bytes = s->bytes;
+      strcpy(field.name, s->name);
       taosArrayPush(pReq.pTags, &field);
     }
   }
@@ -424,7 +465,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
     code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
 
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_MND_STB_NOT_EXIST) {
-      code = smlSendMetaMsg(info, &pName, sTableData, 1, 1, TD_REQ_FROM_APP, 0);
+      code = smlSendMetaMsg(info, &pName, sTableData, NULL, SCHEMA_ACTION_NULL);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " smlSendMetaMsg failed. can not create %s", info->id, superTable);
         goto end;
@@ -445,7 +486,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         goto end;
       }
       if (action == SCHEMA_ACTION_TAG){
-        code = smlSendMetaMsg(info, &pName, sTableData, pTableMeta->sversion, pTableMeta->tversion + 1, TD_REQ_FROM_TAOX, pTableMeta->uid);
+        code = smlSendMetaMsg(info, &pName, sTableData, pTableMeta, action);
         if (code != TSDB_CODE_SUCCESS) {
           uError("SML:0x%" PRIx64 " smlSendMetaMsg failed. can not create %s", info->id, superTable);
           goto end;
@@ -468,7 +509,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         goto end;
       }
       if (action == SCHEMA_ACTION_COLUMN){
-        code = smlSendMetaMsg(info, &pName, sTableData, pTableMeta->sversion + 1, pTableMeta->tversion, TD_REQ_FROM_TAOX, pTableMeta->uid);
+        code = smlSendMetaMsg(info, &pName, sTableData, pTableMeta, action);
         if (code != TSDB_CODE_SUCCESS) {
           uError("SML:0x%" PRIx64 " smlSendMetaMsg failed. can not create %s", info->id, superTable);
           goto end;

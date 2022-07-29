@@ -83,6 +83,8 @@ class TDTestCase:
         tdSql.checkData(1, 3, "web01")
         tdSql.checkData(1, 4, "t1")
 
+        tdSql.query("select * from macylr")
+        tdSql.checkRows(2)
         return
 
     def run(self):

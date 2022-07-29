@@ -1070,6 +1070,36 @@ int sml_16960_Test() {
   return code;
 }
 
+int sml_add_tag_col_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+    "macylr,t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000"
+  };
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  if (code) return code;
+
+  const char *sql1[] = {
+      "macylr,id=macylr_17875_1804,t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\",t11=127i8,t10=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64,c11=L\"ncharColValue\",c10=f 1626006833639000000"
+  };
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_LINE_PROTOCOL, 0);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  code = taos_errno(pRes);
+  taos_free_result(pRes);
+
+  return code;
+}
+
 int main(int argc, char *argv[]) {
   int ret = 0;
   ret = smlProcess_influx_Test();
@@ -1097,5 +1127,7 @@ int main(int argc, char *argv[]) {
   ret = sml_dup_time_Test();
   if(ret) return ret;
   ret = sml_16960_Test();
+  if(ret) return ret;
+  ret = sml_add_tag_col_Test();
   return ret;
 }
