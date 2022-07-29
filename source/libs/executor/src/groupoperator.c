@@ -301,8 +301,7 @@ static SSDataBlock* buildGroupResultDataBlock(SOperatorInfo* pOperator) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
     doFilter(pInfo->pCondition, pRes, NULL);
 
-    bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
-    if (!hasRemain) {
+    if (!hasRemainResults(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
       break;
     }

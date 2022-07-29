@@ -115,7 +115,12 @@ EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, STimeWindow*
   if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return TSDB_CODE_FAILED;
   }
-  return funcMgtBuiltins[funcId].dynDataRequiredFunc(pRes, pTimeWindow);
+
+  if (funcMgtBuiltins[funcId].dynDataRequiredFunc == NULL) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  } else {
+    return funcMgtBuiltins[funcId].dynDataRequiredFunc(pRes, pTimeWindow);
+  }
 }
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
