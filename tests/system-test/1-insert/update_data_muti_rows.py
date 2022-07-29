@@ -87,7 +87,7 @@ class TDTestCase:
                     sql += f'({self.ts+i},{values})'
             sql += ' '
         tdSql.execute(sql)
-    
+
     def insert_data(self,col_type,tbname,rows,data):
         for i in range(rows):
             if col_type.lower() == 'tinyint':
@@ -107,16 +107,16 @@ class TDTestCase:
             elif col_type.lower() == 'bigint unsigned':
                 tdSql.execute(f'insert into {tbname} values({self.ts+i},{data["bigint unsigned"]})')
             elif col_type.lower() == 'bool':
-                tdSql.execute(f'insert into {tbname} values({self.ts+i},{data["bool"]})')    
+                tdSql.execute(f'insert into {tbname} values({self.ts+i},{data["bool"]})')
             elif col_type.lower() == 'float':
-                tdSql.execute(f'insert into {tbname} values({self.ts+i},{data["float"]})')      
+                tdSql.execute(f'insert into {tbname} values({self.ts+i},{data["float"]})')
             elif col_type.lower() == 'double':
                 tdSql.execute(f'insert into {tbname} values({self.ts+i},{data["double"]})')
             elif 'binary' in col_type.lower():
                 tdSql.execute(f'''insert into {tbname} values({self.ts+i},"{data['binary']}")''')
             elif 'nchar' in col_type.lower():
-                tdSql.execute(f'''insert into {tbname} values({self.ts+i},"{data['nchar']}")''') 
-    
+                tdSql.execute(f'''insert into {tbname} values({self.ts+i},"{data['nchar']}")''')
+
     def data_check(self,dbname,tbname,tbnum,rownum,data,col_name,col_type):
         if 'binary' in col_type.lower():
             self.update_data(dbname,f'{tbname}',tbnum,rownum,data['binary'],col_type)
@@ -170,7 +170,7 @@ class TDTestCase:
         self.update_data_ntb()
         self.update_data_ctb()
 
-        
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
