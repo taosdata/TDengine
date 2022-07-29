@@ -28,14 +28,14 @@ pub struct Field {
 }
 
 impl Inlinable for Field {
-    fn write_inlined<W: std::io::Write>(&self, mut wtr: W) -> std::io::Result<usize> {
-        let mut l = wtr.write_u8(self.ty as u8)?;
-        l += wtr.write_u32(self.bytes)?;
+    fn write_inlined<W: std::io::Write>(&self, wtr: &mut W) -> std::io::Result<usize> {
+        let mut l = wtr.write_u8_le(self.ty as u8)?;
+        l += wtr.write_u32_le(self.bytes)?;
         l += wtr.write_inlined_str::<2>(&self.name)?;
         Ok(l)
     }
 
-    fn read_inlined<R: std::io::Read>(mut reader: R) -> std::io::Result<Self> {
+    fn read_inlined<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let ty = Ty::from(reader.read_u8()?);
         let bytes = reader.read_u32()?;
         let name = reader.read_inlined_str::<2>()?;

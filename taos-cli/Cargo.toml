@@ -6,8 +6,17 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1"
+async-compression = { version = "*", features = ["all"] }
+async-trait = "0.1"
+bitflags = "1"
+chrono = "0.4"
 clap = { version = "3.2", features = ["default", "derive"] }
-crossterm = { version = "0.23", features = ["event-stream"] }
+flate2 = "1.0.0"
 futures = "0.3"
-taos-ws = { path = "../taos-ws" }
+log = "*"
+pretty_env_logger = "*"
+taos-sys = { path = "../taos-sys" }
 tokio = { version = "1", features = ["full"] }
+zstd = "0.11.2+zstd.1.5.2"
+clap-verbosity-flag = "1"

@@ -60,7 +60,7 @@ struct BlockState {
 
 impl Stream for BlockStream {
     // type Item = (*mut TAOS_RES, i32);
-    type Item = RawData;
+    type Item = RawBlock;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,

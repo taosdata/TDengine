@@ -1,16 +1,9 @@
-
-
 #[test]
-fn raw_block() -> Result<(), taos_error::Error> {
-    use taos_query::Fetchable;
-    use taos_sys::*;
-    let taos = RawTaos::connect(
-        std::ptr::null(),
-        std::ptr::null(),
-        std::ptr::null(),
-        std::ptr::null(),
-        0,
-    )?;
+fn raw_block() -> anyhow::Result<()> {
+    use taos_query::prelude::sync::*;
+    use taos_sys::TaosBuilder;
+
+    let taos = TaosBuilder::from_dsn("taos:///")?.build()?;
     let mut rs = taos.query("show databases")?;
     let field_count = rs.ncols();
     let inner = rs.fetch_raw_block()?.unwrap();
@@ -33,21 +26,12 @@ fn raw_block() -> Result<(), taos_error::Error> {
 }
 
 #[tokio::test]
-async fn raw_block_async() -> Result<(), taos_error::Error> {
+async fn raw_block_async() -> anyhow::Result<()> {
     use taos_query::prelude::*;
-    use taos_sys::*;
-    let taos = RawTaos::connect(
-        std::ptr::null(),
-        std::ptr::null(),
-        std::ptr::null(),
-        std::ptr::null(),
-        0,
-    )?;
-    let mut rs = taos.query("show databases")?;
-    if let Some(inner) = <ResultSet as AsyncFetchable>::blocks(&mut rs)
-        .try_next()
-        .await?
-    {
+    use taos_sys::TaosBuilder;
+    let taos = TaosBuilder::from_dsn("taos:///")?.build()?;
+    let mut rs = taos.query("show databases").await?;
+    if let Some(inner) = rs.blocks().try_next().await? {
         // let inner = unsafe { Raw::from_ptr(ptr, rows as _, field_count as _, precision) };
         let gid = inner.group_id();
         println!("group id: {gid}");
@@ -67,16 +51,11 @@ async fn raw_block_async() -> Result<(), taos_error::Error> {
 }
 
 #[test]
-fn raw_block_full_test() -> Result<(), taos_error::Error> {
+fn raw_block_full_test() -> anyhow::Result<()> {
     use taos_query::prelude::sync::*;
-    use taos_sys::*;
-    let taos = RawTaos::connect(
-        std::ptr::null(),
-        std::ptr::null(),
-        std::ptr::null(),
-        std::ptr::null(),
-        0,
-    )?;
+    use taos_sys::TaosBuilder;
+
+    let taos = TaosBuilder::from_dsn("taos:///")?.build()?;
 
     let _ = taos.query("drop database if exists _rs_ts_raw_block_full_")?;
     let _ = taos.query("create database if not exists _rs_ts_raw_block_full_")?;

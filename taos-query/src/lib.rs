@@ -27,7 +27,7 @@ pub mod util;
 use common::*;
 pub use iter::*;
 
-pub use common::RawData;
+pub use common::RawBlock;
 
 pub mod stmt;
 pub mod tmq;
@@ -226,14 +226,14 @@ mod tests {
     struct MyResultSet;
 
     impl Iterator for MyResultSet {
-        type Item = Result<RawData, Error>;
+        type Item = Result<RawBlock, Error>;
 
         fn next(&mut self) -> Option<Self::Item> {
             static mut AVAILABLE: bool = true;
             if unsafe { AVAILABLE } {
                 unsafe { AVAILABLE = false };
 
-                Some(Ok(RawData::parse_from_raw_block_v2(
+                Some(Ok(RawBlock::parse_from_raw_block_v2(
                     [1].as_slice(),
                     &[Field::new("a", Ty::TinyInt, 1)],
                     &[1],
@@ -268,7 +268,7 @@ mod tests {
 
         fn update_summary(&mut self, _rows: usize) {}
 
-        fn fetch_raw_block(&mut self) -> Result<Option<RawData>, Self::Error> {
+        fn fetch_raw_block(&mut self) -> Result<Option<RawBlock>, Self::Error> {
             static mut B: AtomicUsize = AtomicUsize::new(4);
             unsafe {
                 if B.load(std::sync::atomic::Ordering::SeqCst) == 0 {
@@ -277,7 +277,7 @@ mod tests {
             }
             unsafe { B.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) };
 
-            Ok(Some(RawData::parse_from_raw_block_v2(
+            Ok(Some(RawBlock::parse_from_raw_block_v2(
                 [1].as_slice(),
                 &[Field::new("a", Ty::TinyInt, 1)],
                 &[1],

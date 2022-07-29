@@ -7,17 +7,17 @@ use serde::{
 
 use crate::{
     common::{BorrowedValue, Value},
-    RawData,
+    RawBlock,
 };
 
 pub struct IntoRowsIter<'a> {
-    pub(crate) raw: RawData,
+    pub(crate) raw: RawBlock,
     pub(crate) row: usize,
     pub(crate) _marker: PhantomData<&'a bool>,
 }
 
 pub struct RowsIter<'a> {
-    pub(super) raw: NonNull<RawData>,
+    pub(super) raw: NonNull<RawBlock>,
     pub(super) row: usize,
     pub(crate) _marker: PhantomData<&'a usize>,
 }
@@ -61,7 +61,7 @@ impl<'a> RowsIter<'a> {
 }
 
 pub struct ValueIter<'a> {
-    raw: &'a RawData,
+    raw: &'a RawBlock,
     row: usize,
     col: usize,
 }
@@ -83,7 +83,7 @@ impl<'a> Iterator for ValueIter<'a> {
 }
 
 pub struct RowView<'a> {
-    raw: &'a RawData,
+    raw: &'a RawBlock,
     row: usize,
     col: usize,
 }

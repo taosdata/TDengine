@@ -3,7 +3,7 @@ pub(super) use list::Topics;
 pub(super) use tmq::RawTmq;
 
 pub(super) mod tmq {
-    use std::{os::raw::c_void};
+    use std::os::raw::c_void;
 
     use itertools::Itertools;
 
@@ -80,10 +80,12 @@ pub(super) mod tmq {
                 let offsets = resp.ok_or("commit failed").map(|_| ());
                 let sender = param as *mut Sender<_>;
                 let sender = Box::from_raw(sender);
+                log::error!("commit async callback");
                 sender.send(offsets).unwrap();
             }
 
             unsafe {
+                log::error!("commit async with {:p}", msg.0);
                 tmq_commit_async(
                     self.0,
                     msg.0,
@@ -101,6 +103,7 @@ pub(super) mod tmq {
         }
 
         pub fn poll_timeout(&self, timeout: i64) -> Option<RawRes> {
+            log::info!("poll next message with timeout {}", timeout);
             let res = unsafe { tmq_consumer_poll(self.0, timeout) };
             if res.is_null() {
                 None
@@ -126,7 +129,7 @@ pub(super) mod tmq {
 }
 
 pub(super) mod conf {
-    use crate::IntoCStr;
+    use crate::{tmq::ffi::*, IntoCStr};
     use taos_error::*;
 
     use crate::*;
@@ -143,7 +146,7 @@ pub(super) mod conf {
             self.0
         }
         pub(crate) fn new() -> Self {
-            Self(unsafe { tmq_conf_new() }).disable_auto_commit()
+            Self(unsafe { tmq_conf_new() }).disable_auto_commit().with_table_name()
         }
 
         pub(crate) fn from_dsn(dsn: &Dsn) -> Result<Self> {

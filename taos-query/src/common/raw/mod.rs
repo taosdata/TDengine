@@ -9,11 +9,19 @@ use itertools::Itertools;
 use nom::AsBytes;
 use serde::Deserialize;
 
-use std::{cell::RefCell, ffi::c_void, ops::Deref, ptr::NonNull, sync::Arc};
+use std::{
+    cell::RefCell,
+    ffi::c_void,
+    ops::{Deref, DerefMut},
+    ptr::NonNull,
+    sync::Arc,
+};
 use std::{fmt::Debug, mem::transmute};
 
 pub mod layout;
 pub mod meta;
+
+mod data;
 
 use layout::Layout;
 
@@ -23,6 +31,7 @@ pub use views::ColumnView;
 use views::*;
 
 pub use meta::*;
+pub use data::*;
 
 mod de;
 mod rows;
@@ -40,7 +49,7 @@ pub use rows::*;
 /// The length of bitmap is decided by number of rows of this data block, and the length of each column data is
 /// recorded in the first segment, next to the struct header
 // #[derive(Debug)]
-pub struct RawData {
+pub struct RawBlock {
     /// Layout is auto detected.
     layout: Arc<RefCell<Layout>>,
     /// Raw bytes version, may be v2 or v3.
@@ -59,8 +68,6 @@ pub struct RawData {
     table: Option<String>,
     /// Field names of current data block.
     fields: Vec<String>,
-    // // todo: is raw fields necessary?
-    // raw_fields: Vec<Field>,
     /// Group id in current data block, it always be 0 in v2 block, and be meaningful in v3.
     group_id: u64,
     /// Column schemas of current data block, contains only data type and the length defined in `create table`.
@@ -71,10 +78,10 @@ pub struct RawData {
     columns: Vec<ColumnView>,
 }
 
-unsafe impl Send for RawData {}
-unsafe impl Sync for RawData {}
+unsafe impl Send for RawBlock {}
+unsafe impl Sync for RawBlock {}
 
-impl Debug for RawData {
+impl Debug for RawBlock {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // todo: more helpful debug impl.
         f.debug_struct("Raw")
@@ -95,7 +102,7 @@ impl Debug for RawData {
     }
 }
 
-impl RawData {
+impl RawBlock {
     pub unsafe fn parse_from_ptr(
         ptr: *mut c_void,
         rows: usize,
@@ -497,7 +504,7 @@ impl RawData {
             debug_assert!(data_offset <= len);
         }
         // dbg!(&columns);
-        RawData {
+        RawBlock {
             layout,
             version: Version::V3,
             data: bytes,
@@ -523,6 +530,8 @@ impl RawData {
     /// Set table name of the block
     pub fn with_table_name(&mut self, name: impl Into<String>) -> &mut Self {
         self.table = Some(name.into());
+        self.layout.borrow_mut().with_table_name();
+
         self
     }
 
@@ -688,8 +697,8 @@ impl RawData {
     }
 }
 
-impl Inlinable for RawData {
-    fn read_inlined<R: std::io::Read>(mut reader: R) -> std::io::Result<Self> {
+impl Inlinable for RawBlock {
+    fn read_inlined<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let layout = reader.read_u32()?;
         let layout = Layout::from_bits(layout).expect("should be layout");
 
@@ -722,8 +731,54 @@ impl Inlinable for RawData {
         Ok(raw)
     }
 
-    fn write_inlined<W: std::io::Write>(&self, mut wtr: W) -> std::io::Result<usize> {
-        let mut l = wtr.write_u32(self.layout.borrow().as_inner())?;
+    fn read_optional_inlined<R: std::io::Read>(reader: &mut R) -> std::io::Result<Option<Self>> {
+        let layout = reader.read_u32()?;
+        println!("0x{:X}", layout);
+        if layout == 0xFFFFFFFF {
+            let eol = reader.read_u32()?;
+            if eol == 0 {
+                return Ok(None);
+            } else {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "invalid raw data format",
+                ));
+            }
+        }
+        let layout = Layout::from_bits(layout).expect("should be layout");
+
+        let precision = layout.precision();
+
+        let rows = reader.read_u32()? as usize;
+        let cols = reader.read_u32()? as usize;
+
+        // let mut table_name = None;
+        let table_name = if dbg!(layout.expect_table_name()) {
+            Some(reader.read_inlined_str::<2>()?)
+        } else {
+            None
+        };
+
+        let names: Vec<_> = (0..cols as usize)
+            .map(|_| reader.read_inlined_str::<1>())
+            .try_collect()?;
+
+        let bytes = reader.read_inlined_bytes::<4>()?;
+
+        let mut raw = Self::parse_from_raw_block(bytes, rows, cols, precision);
+
+        if let Some(name) = table_name {
+            raw.with_table_name(name);
+        }
+
+        raw.with_field_names(names);
+        dbg!(&raw.table_name(), raw.ncols(), raw.nrows());
+
+        Ok(Some(raw))
+    }
+
+    fn write_inlined<W: std::io::Write>(&self, wtr: &mut W) -> std::io::Result<usize> {
+        let mut l = wtr.write_u32_le(self.layout.borrow().as_inner())?;
 
         l += wtr.write_len_with_width::<4>(self.nrows())?;
         l += wtr.write_len_with_width::<4>(self.ncols())?;
@@ -738,6 +793,134 @@ impl Inlinable for RawData {
         }
         let raw = self.as_raw_bytes();
         l += wtr.write_inlined_bytes::<4>(raw)?;
+
+        Ok(l)
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::prelude::AsyncInlinable for RawBlock {
+    async fn read_optional_inlined<R: tokio::io::AsyncRead + Send + Unpin>(
+        reader: &mut R,
+    ) -> std::io::Result<Option<Self>> {
+        use crate::util::AsyncInlinableRead;
+        use tokio::io::*;
+        let layout = reader.read_u32_le().await?;
+        log::debug!("layout: 0x{:X}", layout);
+        if layout == 0xFFFFFFFF {
+            return Ok(None);
+            // todo: keep old code
+            // let eol = reader.read_u32_le().await?;
+            // if eol == 0 {
+            //     return Ok(None);
+            // } else {
+            //     return Err(std::io::Error::new(
+            //         std::io::ErrorKind::InvalidData,
+            //         "invalid raw data format",
+            //     ));
+            // }
+        }
+        let layout = Layout::from_bits(layout).expect("should be layout");
+
+        let precision = layout.precision();
+
+        let rows = reader.read_u32_le().await? as usize;
+        let cols = reader.read_u32_le().await? as usize;
+
+        // let mut table_name = None;
+        let table_name = if layout.expect_table_name() {
+            Some(reader.read_inlined_str::<2>().await?)
+        } else {
+            None
+        };
+
+        let mut names = Vec::with_capacity(cols as usize);
+        for _ in 0..cols {
+            names.push(reader.read_inlined_str::<1>().await?);
+        }
+
+        let bytes = reader.read_inlined_bytes::<4>().await?;
+
+        let mut raw = Self::parse_from_raw_block(bytes, rows, cols, precision);
+
+        if let Some(name) = table_name {
+            raw.with_table_name(name);
+        }
+
+        raw.with_field_names(names);
+        // dbg!(&raw.table_name(), raw.ncols(), raw.nrows());
+
+        Ok(Some(raw))
+    }
+
+    async fn read_inlined<R: tokio::io::AsyncRead + Send + Unpin>(
+        reader: &mut R,
+    ) -> std::io::Result<Self> {
+        use crate::util::AsyncInlinableRead;
+        use tokio::io::*;
+        let layout = reader.read_u32_le().await?;
+        let layout = Layout::from_bits(layout).expect("should be layout");
+
+        let precision = layout.precision();
+
+        let rows = reader.read_u32_le().await? as usize;
+        let cols = reader.read_u32_le().await? as usize;
+
+        // let mut table_name = None;
+        let table_name = if layout.expect_table_name() {
+            Some(reader.read_inlined_str::<2>().await?)
+        } else {
+            None
+        };
+
+        let mut names = Vec::with_capacity(cols as usize);
+        for _ in 0..cols {
+            names.push(reader.read_inlined_str::<1>().await?);
+        }
+
+        // let names: Vec<_> = (0..cols as usize)
+        //     .map(|_| async { reader.read_inlined_str::<1>().await })
+        //     .try_collect()?;
+
+        let bytes = reader.read_inlined_bytes::<4>().await?;
+
+        let mut raw = Self::parse_from_raw_block(bytes, rows, cols, precision);
+
+        if let Some(name) = table_name {
+            raw.with_table_name(name);
+        }
+
+        raw.with_field_names(names);
+
+        Ok(raw)
+    }
+
+    async fn write_inlined<W: tokio::io::AsyncWrite + Send + Unpin>(
+        &self,
+        wtr: &mut W,
+    ) -> std::io::Result<usize> {
+        use crate::util::AsyncInlinableWrite;
+        use tokio::io::*;
+
+        let layout = self.layout.borrow().as_inner();
+        wtr.write_u32_le(layout).await?;
+
+        let mut l = std::mem::size_of::<u32>();
+
+        l += wtr.write_len_with_width::<4>(self.nrows()).await?;
+        l += wtr.write_len_with_width::<4>(self.ncols()).await?;
+
+        if let Some(name) = self.table.as_ref() {
+            l += wtr.write_inlined_bytes::<2>(name.as_bytes()).await?;
+        }
+        if self.fields.len() > 0 {
+            for field in self.field_names() {
+                l += wtr.write_inlined_str::<1>(field).await?;
+            }
+        }
+        let raw = self.as_raw_bytes();
+        l += wtr.write_inlined_bytes::<4>(raw).await?;
+
         Ok(l)
     }
 }
@@ -749,14 +932,16 @@ fn test_block_parser() {
     let precision = Precision::Millisecond;
     static BYTES: &[u8; 460] = b"\xcc\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\t\x00\x08\x00\x00\x00\x01\x00\x01\x00\x00\x00\x02\x00\x01\x00\x00\x00\x03\x00\x02\x00\x00\x00\x04\x00\x04\x00\x00\x00\x05\x00\x08\x00\x00\x00\x0b\x00\x01\x00\x00\x00\x0c\x00\x02\x00\x00\x00\r\x00\x04\x00\x00\x00\x0e\x00\x08\x00\x00\x00\x06\x00\x04\x00\x00\x00\x07\x00\x08\x00\x00\x00\x08\x00f\x00\x00\x00\n\x00\x92\x01\x00\x00\x0f\x00\x00@\x00\x00\x18\x00\x00\x00\x03\x00\x00\x00\x03\x00\x00\x00\x06\x00\x00\x00\x0c\x00\x00\x00\x18\x00\x00\x00\x03\x00\x00\x00\x06\x00\x00\x00\x0c\x00\x00\x00\x18\x00\x00\x00\x0c\x00\x00\x00\x18\x00\x00\x00\x05\x00\x00\x00\x16\x00\x00\x004\x00\x00\x00\x00?\x8c\xfa\x84\x81\x01\x00\x00>\x8c\xfa\x84\x81\x01\x00\x00?\x8c\xfa\x84\x81\x01\x00\x00\xc0\x00\x00\x01\xc0\x00\x00\xff\xc0\x00\x00\x00\x00\xff\xff\xc0\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\xc0\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\xff\xff\xff\xff\xc0\x00\x00\x01\xc0\x00\x00\x00\x00\x01\x00\xc0\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\xc0\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\xc0\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xc0\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x03\x00abc\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x14\x00\x9bm\x00\x00\x1d`\x00\x00\x1e\xd1\x01\x00pe\x00\x00nc\x00\x00\xff\xff\xff\xff\x00\x00\x00\x00\x1a\x00\x00\x00\x18\x00{\"a\":\"\xe6\xb6\x9b\xe6\x80\x9d\xf0\x9d\x84\x9e\xe6\x95\xb0\xe6\x8d\xae\"}\x18\x00{\"a\":\"\xe6\xb6\x9b\xe6\x80\x9d\xf0\x9d\x84\x9e\xe6\x95\xb0\xe6\x8d\xae\"}\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
 
-    let mut raw = RawData::parse_from_raw_block(Bytes::from_static(BYTES), rows, cols, precision);
+    let mut raw = RawBlock::parse_from_raw_block(Bytes::from_static(BYTES), rows, cols, precision);
     raw.with_field_names((0..cols).map(|col| format!("c{col}")).collect_vec());
 
-    let bytes = raw.inlined();
+    let mut bytes = raw.inlined();
 
-    let raw = RawData::read_inlined(bytes.deref()).unwrap();
+    let reader = bytes.as_mut_slice();
 
-    dbg!(raw);
+    // let raw = RawData::read_inlined(&mut reader).unwrap();
+    // assert_eq!(BYTES, raw.as_raw_bytes());
+    // dbg!(raw);
 }
 
 #[test]
@@ -767,7 +952,7 @@ fn test_raw_from_v2() {
     use serde::Deserialize;
     let bytes = b"\x10\x86\x1aA \xcc)AB\xc2\x14AZ],A\xa2\x8d$A\x87\xb9%A\xf5~\x0fA\x96\xf7,AY\xee\x17A1|\x15As\x00\x00\x00q\x00\x00\x00s\x00\x00\x00t\x00\x00\x00u\x00\x00\x00t\x00\x00\x00n\x00\x00\x00n\x00\x00\x00n\x00\x00\x00r\x00\x00\x00";
 
-    let block = RawData::parse_from_raw_block_v2(
+    let block = RawBlock::parse_from_raw_block_v2(
         bytes.as_slice(),
         &[Field::new("a", Ty::Float, 4), Field::new("b", Ty::Int, 4)],
         &[4, 4],
@@ -778,7 +963,7 @@ fn test_raw_from_v2() {
 
     let bytes = include_bytes!("../../../tests/test.txt");
 
-    let block = RawData::parse_from_raw_block_v2(
+    let block = RawBlock::parse_from_raw_block_v2(
         bytes.as_slice(),
         &[
             Field::new("ts", Ty::Timestamp, 8),
@@ -816,7 +1001,7 @@ fn test_v2_full() {
     let mut buf = Vec::new();
     let len = GzDecoder::new(&bytes[..]).read_to_end(&mut buf).unwrap();
     assert_eq!(len, 66716);
-    let block = RawData::parse_from_raw_block_v2(
+    let block = RawBlock::parse_from_raw_block_v2(
         buf,
         &[
             Field::new("ts", Ty::Timestamp, 8),
@@ -855,7 +1040,7 @@ fn test_v2_full() {
 
 #[test]
 fn test_v2_null() {
-    let raw = RawData::parse_from_raw_block_v2(
+    let raw = RawBlock::parse_from_raw_block_v2(
         [0x2, 0].as_slice(),
         &[Field::new("b", Ty::Bool, 1)],
         &[1],
@@ -868,7 +1053,7 @@ fn test_v2_null() {
     let (_ty, _len, null) = unsafe { raw.get_raw_value_unchecked(1, 0) };
     assert!(!null.is_null());
 
-    let raw = RawData::parse_from_raw_block_v2(
+    let raw = RawBlock::parse_from_raw_block_v2(
         [0x80].as_slice(),
         &[Field::new("b", Ty::TinyInt, 1)],
         &[1],
@@ -879,7 +1064,7 @@ fn test_v2_null() {
     let (_ty, _len, null) = unsafe { raw.get_raw_value_unchecked(0, 0) };
     assert!(null.is_null());
 
-    let raw = RawData::parse_from_raw_block_v2(
+    let raw = RawBlock::parse_from_raw_block_v2(
         [0, 0, 0, 0x80].as_slice(),
         &[Field::new("a", Ty::Int, 4)],
         &[4],
@@ -890,7 +1075,7 @@ fn test_v2_null() {
     let (_ty, _len, null) = unsafe { raw.get_raw_value_unchecked(0, 0) };
     assert!(null.is_null());
 
-    let raw = RawData::parse_from_raw_block_v2(
+    let raw = RawBlock::parse_from_raw_block_v2(
         [0, 0, 0xf0, 0x7f].as_slice(),
         &[Field::new("a", Ty::Float, 4)],
         &[4],
@@ -903,7 +1088,7 @@ fn test_v2_null() {
 }
 #[test]
 fn test_from_v2() {
-    let raw = RawData::parse_from_raw_block_v2(
+    let raw = RawBlock::parse_from_raw_block_v2(
         [1].as_slice(),
         &[Field::new("a", Ty::TinyInt, 1)],
         &[1],
@@ -915,7 +1100,7 @@ fn test_from_v2() {
     // let v = unsafe { raw.get_ref_unchecked(0, 0) };
     // dbg!(v);
 
-    let raw = RawData::parse_from_raw_block_v2(
+    let raw = RawBlock::parse_from_raw_block_v2(
         [1, 0, 0, 0].as_slice(),
         &[Field::new("a", Ty::Int, 4)],
         &[4],
@@ -927,7 +1112,7 @@ fn test_from_v2() {
     // let v = unsafe { raw.get_ref_unchecked(0, 0) };
     // dbg!(v);
 
-    let raw = RawData::parse_from_raw_block_v2(
+    let raw = RawBlock::parse_from_raw_block_v2(
         [2, 0, b'a', b'b'].as_slice(),
         &[Field::new("b", Ty::VarChar, 2)],
         &[4],
@@ -939,7 +1124,7 @@ fn test_from_v2() {
     // let v = unsafe { raw.get_ref_unchecked(0, 0) };
     // dbg!(v);
 
-    let raw = RawData::parse_from_raw_block_v2(
+    let raw = RawBlock::parse_from_raw_block_v2(
         [2, 0, b'a', b'b'].as_slice(),
         &[Field::new("b", Ty::VarChar, 2)],
         &[4],
@@ -947,7 +1132,7 @@ fn test_from_v2() {
         Precision::Millisecond,
     );
     dbg!(&raw);
-    let raw = RawData::parse_from_raw_block_v2(
+    let raw = RawBlock::parse_from_raw_block_v2(
         &[1, 1, 1][..],
         &[
             Field::new("a", Ty::TinyInt, 1),

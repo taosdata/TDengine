@@ -1,21 +1,23 @@
 pub(crate) mod ffi;
 
-
 use std::{
     ffi::{CStr, CString},
     fmt::Debug,
+    str::FromStr,
     time::Duration,
 };
 
-pub use ffi::*;
+pub(crate) use ffi::*;
 
 use taos_query::{
-    common::{Precision, RawMeta},
-    tmq::{AsAsyncConsumer, AsConsumer, AsyncOnSync, IsMeta, IsOffset},
-    Dsn, IntoDsn, RawData,
+    common::{raw_data_t, Precision, RawMeta},
+    tmq::{
+        AsAsyncConsumer, AsConsumer, AsyncOnSync, IsAsyncData, IsMeta, IsOffset, Timeout, VGroupId,
+    },
+    Dsn, DsnError, IntoDsn, RawBlock, TBuilder,
 };
 
-use crate::{query::RawRes, VGroupId};
+use crate::{conn::RawTaos, query::RawRes, Taos};
 
 use taos_error::Error;
 
@@ -86,18 +88,14 @@ impl RawRes {
     }
 
     #[inline]
-    pub(crate) fn tmq_get_raw_meta(&self) -> tmq_raw_meta {
-        let mut meta = tmq_raw_meta {
-            raw_meta: std::ptr::null_mut(),
-            raw_meta_len: 0,
-            raw_meta_type: 0,
+    pub(crate) fn tmq_get_raw(&self) -> raw_data_t {
+        let mut meta = raw_data_t {
+            raw: std::ptr::null_mut(),
+            raw_len: 0,
+            raw_type: 0,
         };
         unsafe {
-            let code = tmq_get_raw_meta(self.0, &mut meta as _);
-            debug_assert!(
-                code == 0,
-                "tmq raw meta should always available for meta message"
-            );
+            let code = tmq_get_raw(self.0, &mut meta as _);
         }
         meta
     }
@@ -106,26 +104,71 @@ impl RawRes {
 pub struct TmqBuilder {
     dsn: Dsn,
     conf: Conf,
-    timeout: Option<Duration>,
+    timeout: Timeout,
 }
 
-impl TmqBuilder {
-    pub fn from_dsn(dsn: impl IntoDsn) -> Result<Self, Error> {
+unsafe impl Send for TmqBuilder {}
+unsafe impl Sync for TmqBuilder {}
+
+// impl TmqBuilder {
+//     fn from_dsn(dsn: impl IntoDsn) -> Result<Self, Error> {
+//         let dsn = dsn
+//             .into_dsn()
+//             .map_err(|e| Error::from_string(format!("Parse dsn error: {}", e)))?;
+//         let conf = Conf::from_dsn(&dsn)?;
+//         Ok(Self {
+//             dsn,
+//             conf,
+//             timeout: None,
+//         })
+//     }
+//     fn with_timeout(mut self, timeout: Duration) -> Self {
+//         self.timeout = Some(timeout);
+//         self
+//     }
+//     fn build(&self) -> Result<Consumer, Error> {
+//         self.conf.build().map(|tmq| Consumer {
+//             tmq,
+//             timeout: self.timeout.clone(),
+//         })
+//     }
+// }
+
+impl TBuilder for TmqBuilder {
+    type Target = Consumer;
+
+    type Error = Error;
+
+    fn available_params() -> &'static [&'static str] {
+        &["group.id", "client.id", "timeout", "enable.auto.commit"]
+    }
+
+    fn from_dsn<D: IntoDsn>(dsn: D) -> Result<Self, Self::Error> {
         let dsn = dsn
             .into_dsn()
             .map_err(|e| Error::from_string(format!("Parse dsn error: {}", e)))?;
         let conf = Conf::from_dsn(&dsn)?;
-        Ok(Self {
-            dsn,
-            conf,
-            timeout: None,
-        })
+        let timeout = if let Some(timeout) = dsn.params.get("timeout") {
+            Timeout::from_str(&timeout).map_err(Error::from_any)?
+        } else {
+            Timeout::from_millis(500)
+        };
+        Ok(Self { dsn, conf, timeout })
     }
-    pub fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = Some(timeout);
-        self
+
+    fn client_version() -> &'static str {
+        RawTaos::version()
     }
-    pub fn build(&self) -> Result<Consumer, Error> {
+
+    fn ping(&self, _: &mut Self::Target) -> Result<(), Self::Error> {
+        self.build().map(|_| ())
+    }
+
+    fn ready(&self) -> bool {
+        true
+    }
+
+    fn build(&self) -> Result<Self::Target, Self::Error> {
         self.conf.build().map(|tmq| Consumer {
             tmq,
             timeout: self.timeout.clone(),
@@ -179,7 +222,7 @@ impl Drop for Offset {
 #[derive(Debug)]
 pub struct Consumer {
     tmq: RawTmq,
-    timeout: Option<Duration>,
+    timeout: Timeout,
 }
 
 unsafe impl Send for Consumer {}
@@ -217,16 +260,16 @@ impl IsMeta for Meta {
     type Error = Error;
 
     fn as_raw_meta(&self) -> Result<RawMeta, Self::Error> {
-        let raw = self.raw.tmq_get_raw_meta();
+        let raw = self.raw.tmq_get_raw();
 
         let mut data = Vec::new();
 
-        data.extend(raw.raw_meta_len.to_le_bytes());
+        data.extend(raw.raw_len.to_le_bytes());
 
-        data.extend(raw.raw_meta_type.to_le_bytes());
+        data.extend(raw.raw_type.to_le_bytes());
 
         data.extend(unsafe {
-            std::slice::from_raw_parts(raw.raw_meta as *const u8, raw.raw_meta_len as usize)
+            std::slice::from_raw_parts(raw.raw as *const u8, raw.raw_len as usize)
         });
         Ok(RawMeta::new(data.into()))
     }
@@ -242,8 +285,8 @@ impl Meta {
         Self { raw }
     }
 
-    pub fn to_raw(&self) -> tmq_raw_meta {
-        self.raw.tmq_get_raw_meta()
+    pub fn to_raw(&self) -> raw_data_t {
+        self.raw.tmq_get_raw()
     }
 
     pub fn to_json(&self) -> serde_json::Value {
@@ -259,12 +302,26 @@ pub struct Data {
     raw: RawRes,
     precision: Precision,
 }
+
 impl Data {
     fn new(raw: RawRes) -> Self {
         Self {
             precision: raw.precision(),
             raw,
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl IsAsyncData for Data {
+    type Error = Error;
+
+    async fn as_raw_data(&self) -> Result<taos_query::common::RawData, Self::Error> {
+        Ok(self.raw.tmq_get_raw().into())
+    }
+
+    async fn fetch_raw_block(&self) -> Result<Option<RawBlock>, Self::Error> {
+        Ok(self.raw.fetch_raw_message(self.precision))
     }
 }
 
@@ -290,15 +347,15 @@ pub struct MessageSetIter {
 }
 
 impl Iterator for Data {
-    type Item = RawData;
+    type Item = Result<RawBlock, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.raw.fetch_raw_message(self.precision)
+        self.raw.fetch_raw_message(self.precision).map(Ok)
     }
 }
 
 impl Iterator for MessageSet {
-    type Item = RawData;
+    type Item = RawBlock;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
@@ -401,6 +458,10 @@ impl AsAsyncConsumer for Consumer {
     async fn commit(&self, offset: Self::Offset) -> Result<(), Self::Error> {
         self.tmq.commit(offset.0).await.map(|_| ())
     }
+
+    fn default_timeout(&self) -> Timeout {
+        self.timeout
+    }
 }
 #[cfg(test)]
 mod tests {
@@ -455,8 +516,7 @@ mod tests {
         taos.query(format!("create database {db}2"))?;
         taos.query(format!("use {db}2"))?;
 
-        let builder = TmqBuilder::from_dsn("taos://localhost:6030/db?group.id=5")?
-            .with_timeout(Duration::from_millis(100));
+        let builder = TmqBuilder::from_dsn("taos://localhost:6030/db?group.id=5")?;
         let mut consumer = builder.build()?;
 
         consumer.subscribe([db])?;
@@ -474,6 +534,7 @@ mod tests {
                 }
                 MessageSet::Data(data) => {
                     for raw in data {
+                        let raw = raw?;
                         let (nrows, ncols) = (raw.nrows(), raw.ncols());
                         for col in raw.columns() {
                             for value in col {
@@ -659,6 +720,7 @@ mod tests {
                 MessageSet::Data(data) => {
                     // data message may have more than one data block for various tables.
                     for block in data {
+                        let block = block?;
                         // let block = block?;
                         dbg!(block.table_name());
                         dbg!(block);
@@ -676,7 +738,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_tmq_meta() -> anyhow::Result<()> {
+        use futures::TryStreamExt;
         use taos_query::prelude::*;
+
         pretty_env_logger::formatted_builder()
             .filter_level(log::LevelFilter::Debug)
             .init();
@@ -776,7 +840,7 @@ mod tests {
                 match message {
                     MessageSet::Meta(meta) => {
                         let raw = meta.as_raw_meta().await?;
-                        taos.write_meta(raw).await?;
+                        taos.write_raw_meta(raw).await?;
 
                         // meta data can be write to an database seamlessly by raw or json (to sql).
                         let json = meta.as_json_meta().await?;
@@ -807,7 +871,7 @@ mod tests {
                     }
                     MessageSet::Data(mut data) => {
                         // data message may have more than one data block for various tables.
-                        while let Some(data) = data.next() {
+                        while let Some(data) = data.next().transpose()? {
                             dbg!(data.table_name());
                             dbg!(data);
                         }

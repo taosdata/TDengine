@@ -1,6 +1,6 @@
 use taos_query::common::{itypes::IsValue, Ty};
 
-use crate::{BindFrom, TaosBind, TaosBindV2, TaosBindV3};
+use crate::types::{BindFrom, TaosBind, TaosBindV2, TaosBindV3};
 
 fn box_into_raw<T>(v: T) -> *mut T {
     Box::into_raw(Box::new(v))
@@ -112,12 +112,10 @@ impl<T: IsValue> ToBind for T {}
 
 #[cfg(test)]
 mod tests_v2 {
-    
 
     use taos_query::common::itypes::IVarChar;
 
-    
-    use crate::TaosBindV2 as TaosBind;
+    use crate::types::TaosBindV2 as TaosBind;
 
     #[test]
     fn bind_bool() {
@@ -155,9 +153,8 @@ mod tests_v2 {
 }
 #[cfg(test)]
 mod tests_v3 {
-    
 
-    use crate::TaosBindV3 as TaosBind;
+    use crate::types::TaosBindV3 as TaosBind;
     use taos_query::common::itypes::IVarChar;
 
     #[test]

@@ -1,5 +1,3 @@
-
-
 #[test]
 #[cfg(taos_v2)]
 fn test_query_a() {

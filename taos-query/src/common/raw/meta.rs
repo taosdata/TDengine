@@ -1,10 +1,10 @@
 use std::{
     ffi::c_void,
     fmt::{Display, Write},
+    ops::Deref,
 };
 
-
-use bytes::{Bytes};
+use bytes::Bytes;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -12,64 +12,151 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use crate::{
     common::{Field, Ty},
+    // prelude::AsyncInlinable,
     util::{Inlinable, InlinableRead},
 };
 
-#[derive(Debug, Clone)]
-pub struct RawMeta {
-    raw: Bytes,
+use super::RawData;
+
+#[derive(Debug)]
+pub struct RawMeta(RawData);
+
+impl<T: Into<RawData>> From<T> for RawMeta {
+    fn from(bytes: T) -> Self {
+        RawMeta(bytes.into())
+    }
+}
+
+impl Deref for RawMeta {
+    type Target = RawData;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 impl RawMeta {
-    pub const META_OFFSET: usize = std::mem::size_of::<u32>() + std::mem::size_of::<u16>();
-
     pub fn new(raw: Bytes) -> Self {
-        RawMeta { raw }
-    }
-    pub fn meta_len(&self) -> u32 {
-        unsafe { *(self.raw.as_ptr() as *const u32) }
-    }
-    pub fn meta_type(&self) -> u16 {
-        unsafe {
-            *(self
-                .raw
-                .as_ptr()
-                .offset(std::mem::size_of::<u32>() as isize) as *const u16)
-        }
-    }
-    pub fn meta_data_ptr(&self) -> *const c_void {
-        unsafe { self.raw.as_ptr().offset(Self::META_OFFSET as isize) as _ }
-    }
-}
-
-impl AsRef<[u8]> for RawMeta {
-    fn as_ref(&self) -> &[u8] {
-        self.raw.as_ref()
+        RawMeta(raw.into())
     }
 }
 
 impl Inlinable for RawMeta {
-    fn read_inlined<R: std::io::Read>(mut reader: R) -> std::io::Result<Self> {
-        let mut data = Vec::new();
-
-        let len = reader.read_u32()?;
-        data.extend(len.to_le_bytes());
-
-        let meta_type = reader.read_u16()?;
-        data.extend(meta_type.to_le_bytes());
-
-        data.resize(data.len() + len as usize, 0);
-
-        let buf = &mut data[RawMeta::META_OFFSET..];
-
-        reader.read_exact(buf)?;
-        Ok(Self { raw: data.into() })
+    fn read_inlined<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        RawData::read_inlined(reader).map(RawMeta)
     }
 
-    fn write_inlined<W: std::io::Write>(&self, mut wtr: W) -> std::io::Result<usize> {
-        wtr.write(self.raw.as_ref())
+    fn write_inlined<W: std::io::Write>(&self, wtr: &mut W) -> std::io::Result<usize> {
+        self.deref().write_inlined(wtr)
     }
 }
+
+#[async_trait::async_trait]
+impl crate::util::AsyncInlinable for RawMeta {
+    async fn read_inlined<R: tokio::io::AsyncRead + Send + Unpin>(
+        reader: &mut R,
+    ) -> std::io::Result<Self> {
+        <RawData as crate::util::AsyncInlinable>::read_inlined(reader)
+            .await
+            .map(RawMeta)
+    }
+
+    async fn write_inlined<W: tokio::io::AsyncWrite + Send + Unpin>(
+        &self,
+        wtr: &mut W,
+    ) -> std::io::Result<usize> {
+        crate::util::AsyncInlinable::write_inlined(self.deref(), wtr).await
+    }
+}
+
+// #[derive(Debug, Clone)]
+// pub struct RawMeta {
+//     raw: Bytes,
+// }
+
+// impl RawMeta {
+//     pub const META_OFFSET: usize = std::mem::size_of::<u32>() + std::mem::size_of::<u16>();
+
+//     pub fn new(raw: Bytes) -> Self {
+//         RawMeta { raw }
+//     }
+//     pub fn meta_len(&self) -> u32 {
+//         unsafe { *(self.raw.as_ptr() as *const u32) }
+//     }
+//     pub fn meta_type(&self) -> u16 {
+//         unsafe {
+//             *(self
+//                 .raw
+//                 .as_ptr()
+//                 .offset(std::mem::size_of::<u32>() as isize) as *const u16)
+//         }
+//     }
+//     pub fn meta_data_ptr(&self) -> *const c_void {
+//         unsafe { self.raw.as_ptr().offset(Self::META_OFFSET as isize) as _ }
+//     }
+// }
+
+// impl AsRef<[u8]> for RawMeta {
+//     fn as_ref(&self) -> &[u8] {
+//         self.raw.as_ref()
+//     }
+// }
+
+// impl Inlinable for RawMeta {
+//     fn read_inlined<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+//         let mut data = Vec::new();
+
+//         let len = reader.read_u32()?;
+//         data.extend(len.to_le_bytes());
+
+//         let meta_type = reader.read_u16()?;
+//         data.extend(meta_type.to_le_bytes());
+
+//         data.resize(data.len() + len as usize, 0);
+
+//         let buf = &mut data[RawMeta::META_OFFSET..];
+
+//         reader.read_exact(buf)?;
+//         Ok(Self { raw: data.into() })
+//     }
+
+//     fn write_inlined<W: std::io::Write>(&self, wtr: &mut W) -> std::io::Result<usize> {
+//         wtr.write_all(self.raw.as_ref())?;
+//         Ok(self.raw.len())
+//     }
+// }
+
+// #[async_trait::async_trait]
+// impl crate::util::AsyncInlinable for RawMeta {
+//     async fn read_inlined<R: tokio::io::AsyncRead + Send + Unpin>(
+//         reader: &mut R,
+//     ) -> std::io::Result<Self> {
+//         use tokio::io::*;
+//         let mut data = Vec::new();
+
+//         let len = reader.read_u32_le().await?;
+//         data.extend(len.to_le_bytes());
+
+//         let meta_type = reader.read_u16_le().await?;
+//         data.extend(meta_type.to_le_bytes());
+
+//         data.resize(data.len() + len as usize, 0);
+
+//         let buf = &mut data[RawMeta::META_OFFSET..];
+
+//         reader.read_exact(buf).await?;
+//         Ok(Self { raw: data.into() })
+//     }
+
+//     async fn write_inlined<W: tokio::io::AsyncWrite + Send + Unpin>(
+//         &self,
+//         wtr: &mut W,
+//     ) -> std::io::Result<usize> {
+//         use tokio::io::*;
+//         wtr.write_all(self.raw.as_ref()).await?;
+//         Ok(self.raw.len())
+//     }
+// }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TagWithValue {
@@ -91,7 +178,7 @@ pub enum MetaCreate {
     #[serde(rename_all = "camelCase")]
     Child {
         table_name: String,
-        using: Option<String>,
+        using: String,
         tags: Vec<TagWithValue>,
         tag_num: Option<usize>,
     },
@@ -129,12 +216,11 @@ impl Display for MetaCreate {
                 tags,
                 tag_num,
             } => {
-                debug_assert!(using.is_some());
                 if tags.len() > 0 {
                     f.write_fmt(format_args!(
                         "`{}` USING `{}` ({}) TAGS({})",
                         table_name,
-                        using.as_ref().unwrap(),
+                        using,
                         tags.iter().map(|t| t.field.escaped_name()).join(", "),
                         tags.iter()
                             .map(|t| {
@@ -152,7 +238,7 @@ impl Display for MetaCreate {
                     f.write_fmt(format_args!(
                         "`{}` USING `{}` TAGS({})",
                         table_name,
-                        using.as_ref().unwrap(),
+                        using,
                         std::iter::repeat("NULL").take(tag_num.unwrap()).join(",")
                     ))?;
                 }

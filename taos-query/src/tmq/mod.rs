@@ -1,8 +1,12 @@
-use std::{fmt::Debug, pin::Pin, time::Duration};
+use std::{fmt::Debug, pin::Pin, str::FromStr, time::Duration};
 
+use futures::Stream;
 use itertools::Itertools;
 
-use crate::common::{JsonMeta, RawMeta};
+use crate::{
+    common::{JsonMeta, RawData, RawMeta},
+    RawBlock,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Timeout {
@@ -47,6 +51,30 @@ impl Timeout {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum TimeoutError {
+    #[error("empty timeout value")]
+    Empty,
+    #[error("invalid timeout expression `{0}`: {1}")]
+    Invalid(String, String),
+}
+
+impl FromStr for Timeout {
+    type Err = TimeoutError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.is_empty() {
+            return Err(TimeoutError::Empty);
+        }
+        match s.to_lowercase().as_str() {
+            "never" => Ok(Timeout::Never),
+            "none" => Ok(Timeout::None),
+            _ => parse_duration::parse(s)
+                .map(Timeout::Duration)
+                .map_err(|err| TimeoutError::Invalid(s.to_string(), err.to_string())),
+        }
+    }
+}
 pub enum MessageSet<M, D> {
     Meta(M),
     Data(D),
@@ -113,6 +141,14 @@ pub trait IsMeta {
     fn as_json_meta(&self) -> Result<JsonMeta, Self::Error>;
 }
 
+#[async_trait::async_trait]
+pub trait IsAsyncData {
+    type Error;
+
+    async fn as_raw_data(&self) -> Result<RawData, Self::Error>;
+    async fn fetch_raw_block(&self) -> Result<Option<RawBlock>, Self::Error>;
+}
+
 pub type VGroupId = i32;
 
 /// Extract offset information.
@@ -131,7 +167,7 @@ pub trait AsConsumer: Sized {
     type Error;
     type Offset: IsOffset;
     type Meta: IsMeta;
-    type Data;
+    type Data: IntoIterator<Item = Result<RawBlock, Self::Error>>;
 
     /// Default timeout getter for message stream.
     fn default_timeout(&self) -> Timeout {
@@ -207,7 +243,7 @@ pub trait AsAsyncConsumer: Sized + Send + Sync {
     type Error;
     type Offset: IsOffset;
     type Meta: IsAsyncMeta;
-    type Data;
+    type Data: IsAsyncData;
 
     fn default_timeout(&self) -> Timeout {
         Timeout::Never
@@ -269,6 +305,7 @@ impl<C> AsConsumer for C
 where
     C: AsAsyncConsumer + SyncOnAsync,
     C::Meta: IsMeta,
+    C::Data: IntoIterator<Item = Result<RawBlock, C::Error>>,
 {
     type Error = C::Error;
 

@@ -3,7 +3,7 @@ use bytes::Bytes;
 use futures::{FutureExt, SinkExt, StreamExt};
 use scc::HashMap;
 // use std::sync::Mutex;
-use taos_query::common::{Field, Precision, RawData, RawMeta};
+use taos_query::common::{Field, Precision, RawBlock, RawMeta};
 use taos_query::util::InlinableWrite;
 use taos_query::{AsyncFetchable, AsyncQueryable, DeError, DsnError, IntoDsn};
 use thiserror::Error;
@@ -385,9 +385,9 @@ impl WsAsyncClient {
         let raw_meta_message = 3; // magic number from taosAdapter.
 
         let mut meta = Vec::new();
-        meta.write_u64(req_id)?;
-        meta.write_u64(message_id)?;
-        meta.write_u64(raw_meta_message as u64)?;
+        meta.write_u64_le(req_id)?;
+        meta.write_u64_le(message_id)?;
+        meta.write_u64_le(raw_meta_message as u64)?;
         meta.write(raw.as_ref())?;
         log::debug!(
             "write meta with req_id: {}, message_id: {}, raw data: {:?}",
@@ -508,7 +508,7 @@ impl WsAsyncClient {
 }
 
 impl ResultSet {
-    async fn fetch(&mut self) -> Result<Option<RawData>> {
+    async fn fetch(&mut self) -> Result<Option<RawBlock>> {
         let fetch = WsSend::Fetch(self.args);
         {
             log::info!("send fetch message: {fetch:?}");
@@ -540,7 +540,7 @@ impl ResultSet {
         log::info!("receiving block...");
         match self.receiver.as_mut().unwrap().recv()?? {
             WsFetchData::Block(raw) => {
-                let mut raw = RawData::parse_from_raw_block(
+                let mut raw = RawBlock::parse_from_raw_block(
                     raw,
                     fetch_resp.rows,
                     self.fields_count,
@@ -558,7 +558,7 @@ impl ResultSet {
                 Ok(Some(raw))
             }
             WsFetchData::BlockV2(raw) => {
-                let mut raw = RawData::parse_from_raw_block_v2(
+                let mut raw = RawBlock::parse_from_raw_block_v2(
                     raw,
                     self.fields.as_ref().unwrap(),
                     dbg!(fetch_resp.lengths.as_ref().unwrap()),
@@ -581,7 +581,7 @@ impl ResultSet {
     }
 }
 impl ResultSetRef {
-    async fn fetch(&mut self) -> Result<Option<RawData>> {
+    async fn fetch(&mut self) -> Result<Option<RawBlock>> {
         let fetch = WsSend::Fetch(self.args);
         {
             log::info!("send fetch message: {fetch:?}");
@@ -613,7 +613,7 @@ impl ResultSetRef {
         log::info!("receiving block...");
         match self.receiver.as_mut().unwrap().recv()?? {
             WsFetchData::Block(raw) => {
-                let mut raw = RawData::parse_from_raw_block(
+                let mut raw = RawBlock::parse_from_raw_block(
                     raw,
                     fetch_resp.rows,
                     self.fields_count,
@@ -631,7 +631,7 @@ impl ResultSetRef {
                 Ok(Some(raw))
             }
             WsFetchData::BlockV2(raw) => {
-                let mut raw = RawData::parse_from_raw_block_v2(
+                let mut raw = RawBlock::parse_from_raw_block_v2(
                     raw,
                     self.fields.as_ref().unwrap(),
                     dbg!(fetch_resp.lengths.as_ref().unwrap()),
@@ -655,7 +655,7 @@ impl ResultSetRef {
 }
 
 impl futures::Stream for ResultSetRef {
-    type Item = Result<RawData>;
+    type Item = Result<RawBlock>;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
@@ -692,7 +692,7 @@ impl AsyncFetchable for ResultSet {
     fn fetch_raw_block(
         self: &mut Self,
         cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<StdResult<Option<RawData>, Self::Error>> {
+    ) -> std::task::Poll<StdResult<Option<RawBlock>, Self::Error>> {
         self.fetch().boxed().poll_unpin(cx)
     }
 }
@@ -709,7 +709,7 @@ impl AsyncQueryable for WsAsyncClient {
     ) -> StdResult<Self::AsyncResultSet, Self::Error> {
         self.s_query(sql.as_ref()).await
     }
-    async fn write_meta(&self, raw: RawMeta) -> StdResult<(), Self::Error> {
+    async fn write_raw_meta(&self, raw: RawMeta) -> StdResult<(), Self::Error> {
         self.write_meta(raw).await
     }
 }

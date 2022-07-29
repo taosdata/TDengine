@@ -1,5 +1,6 @@
 mod _priv {
-    pub use crate::common::{BorrowedValue, Precision, Ty, Value};
+    pub use crate::common::{BorrowedValue, Field, Precision, RawBlock, RawMeta, Ty, Value};
+    pub use crate::util::{Inlinable, InlinableRead, InlinableWrite};
     #[cfg(feature = "r2d2")]
     pub use crate::Pool;
     #[cfg(feature = "r2d2")]
@@ -12,8 +13,10 @@ mod _priv {
     pub use crate::tmq::{IsOffset, MessageSet, Timeout};
 }
 
-pub use crate::tmq::{AsAsyncConsumer, IsAsyncMeta};
+pub use crate::tmq::{AsAsyncConsumer, IsAsyncMeta, IsAsyncData};
 pub use _priv::*;
+pub use futures::stream::{Stream, StreamExt, TryStreamExt};
+// pub use r#async::{AsyncBindable, AsyncFetchable, AsyncQueryable, AsyncInlinable};
 pub use r#async::*;
 
 pub mod sync {
@@ -31,7 +34,7 @@ pub mod sync {
     use crate::common::*;
     use crate::helpers::*;
 
-    use crate::common::RawData;
+    use crate::common::RawBlock;
 
     // pub use crate::{Fetchable, Queryable};
 
@@ -40,7 +43,7 @@ pub mod sync {
         T: Fetchable,
     {
         iter: IBlockIter<'a, T>,
-        block: Option<RawData>,
+        block: Option<RawBlock>,
         row: usize,
         rows: Option<RowsIter<'a>>,
     }
@@ -97,7 +100,7 @@ pub mod sync {
     where
         T: Fetchable,
     {
-        type Item = Result<RawData, T::Error>;
+        type Item = Result<RawBlock, T::Error>;
 
         fn next(&mut self) -> Option<Self::Item> {
             self.query
@@ -133,7 +136,7 @@ pub mod sync {
         fn update_summary(&mut self, nrows: usize);
 
         #[doc(hidden)]
-        fn fetch_raw_block(&mut self) -> Result<Option<RawData>, Self::Error>;
+        fn fetch_raw_block(&mut self) -> Result<Option<RawBlock>, Self::Error>;
 
         /// Iterator for raw data blocks.
         fn blocks(&mut self) -> IBlockIter<'_, Self> {
@@ -264,21 +267,24 @@ pub mod sync {
 }
 
 mod r#async {
-    pub use super::_priv::*;
-    pub use crate::stmt::AsyncBindable;
-
-    pub use futures::stream::{Stream, StreamExt, TryStreamExt};
-    use itertools::{Itertools};
+    use itertools::Itertools;
     use serde::{de::DeserializeOwned, Deserialize};
     use std::pin::Pin;
     use std::task::{Context, Poll};
     use std::{fmt::Debug, marker::PhantomData};
 
+    use crate::common::*;
+    use crate::helpers::*;
+
+    pub use super::_priv::*;
+    pub use crate::stmt::AsyncBindable;
+    pub use crate::util::AsyncInlinable;
+    pub use crate::util::AsyncInlinableRead;
+    pub use crate::util::AsyncInlinableWrite;
     pub use mdsn::{Address, Dsn, DsnError, IntoDsn};
     pub use serde::de::value::Error as DeError;
 
-    use crate::common::*;
-    use crate::helpers::*;
+    pub use futures::stream::{Stream, StreamExt, TryStreamExt};
 
     // use crate::iter::*;
     #[cfg(feature = "async")]
@@ -292,7 +298,7 @@ mod r#async {
     where
         T: AsyncFetchable,
     {
-        type Item = Result<RawData, T::Error>;
+        type Item = Result<RawBlock, T::Error>;
 
         fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
             self.query.fetch_raw_block(cx).map(|raw| {
@@ -309,7 +315,7 @@ mod r#async {
 
     pub struct AsyncRows<'a, T> {
         blocks: AsyncBlocks<'a, T>,
-        block: Option<RawData>,
+        block: Option<RawBlock>,
         rows: Option<RowsIter<'a>>,
     }
 
@@ -411,7 +417,7 @@ mod r#async {
         fn fetch_raw_block(
             self: &mut Self,
             cx: &mut Context<'_>,
-        ) -> Poll<Result<Option<RawData>, Self::Error>>;
+        ) -> Poll<Result<Option<RawBlock>, Self::Error>>;
 
         fn blocks(&mut self) -> AsyncBlocks<'_, Self> {
             AsyncBlocks {
@@ -464,11 +470,9 @@ mod r#async {
             self.query(sql).await.map(|res| res.affected_rows() as _)
         }
 
-        async fn write_meta(&self, _: RawMeta) -> Result<(), Self::Error>;
+        async fn write_raw_meta(&self, _: RawMeta) -> Result<(), Self::Error>;
 
-        async fn write_raw_data(&self, _: RawData) -> Result<(), Self::Error> {
-            todo!()
-        }
+        async fn write_raw_block(&self, block: &RawBlock) -> Result<(), Self::Error>;
 
         async fn exec_many<T, I>(&self, input: I) -> Result<usize, Self::Error>
         where

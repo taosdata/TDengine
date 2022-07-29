@@ -1,7 +1,3 @@
-
-
-
-
 fn box_into_raw<T>(v: T) -> *mut T {
     Box::into_raw(Box::new(v))
 }
@@ -55,7 +51,7 @@ fn box_into_raw<T>(v: T) -> *mut T {
 
 #[cfg(test)]
 mod tests {
-    use crate::{TaosBindV2};
+    use crate::types::TaosBindV2;
 
     #[test]
     fn bind_bool() {

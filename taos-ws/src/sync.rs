@@ -1,6 +1,6 @@
 use once_cell::sync::{OnceCell};
 use taos_error::Code;
-use taos_query::common::{Field, Precision, RawData, RawMeta};
+use taos_query::common::{Field, Precision, RawBlock, RawMeta};
 use taos_query::{DeError, DsnError, Fetchable, IntoDsn, Queryable};
 use thiserror::Error;
 use tokio::sync::watch;
@@ -551,7 +551,7 @@ impl ResultSet {
         summary.0 += 1;
         summary.1 += nrows;
     }
-    async fn fetch_block_a(&self) -> Result<Option<RawData>> {
+    async fn fetch_block_a(&self) -> Result<Option<RawBlock>> {
         if self.receiver.is_none() {
             return Ok(None);
         }
@@ -582,7 +582,7 @@ impl ResultSet {
 
         match rx.recv_timeout(self.timeout)?? {
             WsFetchData::Block(raw) => {
-                let mut raw = RawData::parse_from_raw_block(
+                let mut raw = RawBlock::parse_from_raw_block(
                     raw,
                     fetch_resp.rows,
                     self.fields_count,
@@ -599,7 +599,7 @@ impl ResultSet {
                 Ok(Some(raw))
             }
             WsFetchData::BlockV2(raw) => {
-                let mut raw = RawData::parse_from_raw_block_v2(
+                let mut raw = RawBlock::parse_from_raw_block_v2(
                     raw,
                     self.fields.as_ref().unwrap(),
                     fetch_resp.lengths.as_ref().unwrap(),
@@ -619,14 +619,14 @@ impl ResultSet {
             _ => Ok(None),
         }
     }
-    pub fn fetch_block(&mut self) -> Result<Option<RawData>> {
+    pub fn fetch_block(&mut self) -> Result<Option<RawBlock>> {
         let rt = &self.rt;
         let future = self.fetch_block_a();
         rt.block_on(future)
     }
 }
 impl Iterator for ResultSet {
-    type Item = Result<RawData>;
+    type Item = Result<RawBlock>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.fetch_block().transpose()
@@ -659,7 +659,7 @@ impl Fetchable for ResultSet {
         self.update_summary(nrows)
     }
 
-    fn fetch_raw_block(&mut self) -> Result<Option<RawData>> {
+    fn fetch_raw_block(&mut self) -> Result<Option<RawBlock>> {
         self.fetch_block()
     }
 }

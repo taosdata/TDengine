@@ -9,6 +9,7 @@ build = "build.rs"
 
 [dependencies]
 serde = { version = "1", features = ["derive"], optional = true }
+mdsn = { path = "../mdsn"}
 thiserror = "1.0"
 
 [build-dependencies]

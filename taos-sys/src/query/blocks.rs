@@ -6,8 +6,8 @@ use std::{
 };
 
 use futures::Stream;
-use taos_error::{Error};
-use taos_query::common::{Field, Precision, RawData};
+use taos_error::Error;
+use taos_query::common::{Field, Precision, RawBlock};
 
 use crate::ffi::{taos_get_raw_block, TAOS_RES};
 
@@ -22,7 +22,7 @@ pub struct Blocks {
 }
 
 impl Iterator for Blocks {
-    type Item = Result<RawData, Error>;
+    type Item = Result<RawBlock, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.res.fetch_raw_block(&self.fields).transpose()
@@ -30,7 +30,7 @@ impl Iterator for Blocks {
 }
 
 impl IntoIterator for RawRes {
-    type Item = Result<RawData, Error>;
+    type Item = Result<RawBlock, Error>;
 
     type IntoIter = Blocks;
 
@@ -58,7 +58,7 @@ impl Default for SharedState {
 }
 
 impl Stream for Blocks {
-    type Item = Result<RawData, Error>;
+    type Item = Result<RawBlock, Error>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let state = unsafe { &mut *self.shared_state.get() };
@@ -73,7 +73,7 @@ impl Stream for Blocks {
             if state.num > 0 {
                 // has next block.
                 let mut raw = unsafe {
-                    RawData::parse_from_ptr(
+                    RawBlock::parse_from_ptr(
                         state.block as _,
                         state.num as usize,
                         self.fields.len(),

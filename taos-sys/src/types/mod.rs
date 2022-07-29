@@ -1,9 +1,4 @@
-use std::{
-    fmt::Debug,
-    mem::ManuallyDrop,
-    os::raw::*,
-    ptr,
-};
+use std::{fmt::Debug, mem::ManuallyDrop, os::raw::*, ptr};
 
 mod field;
 use derive_more::Deref;

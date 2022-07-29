@@ -237,7 +237,7 @@ impl taos_query::AsyncQueryable for Taos {
         }
     }
 
-    async fn write_meta(&self, raw: RawMeta) -> Result<(), Self::Error> {
+    async fn write_raw_meta(&self, raw: RawMeta) -> Result<(), Self::Error> {
         if let Some(ws) = self.async_client.get() {
             ws.write_meta(raw).await
         } else {
@@ -257,7 +257,7 @@ mod tests {
 
     use crate::TaosBuilder;
 
-    
+
     #[test]
     fn ws_sync_json() -> anyhow::Result<()> {
         std::env::set_var("RUST_LOG", "trace");

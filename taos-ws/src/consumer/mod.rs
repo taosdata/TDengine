@@ -11,7 +11,7 @@ use taos_query::tmq::{
 };
 use taos_query::util::{InlinableRead};
 use taos_query::{
-    AsyncFetchable, DeError, DsnError, IntoDsn, RawData, TBuilder,
+    AsyncFetchable, DeError, DsnError, IntoDsn, RawBlock, TBuilder,
 };
 use thiserror::Error;
 use tokio::sync::{oneshot, watch};
@@ -121,7 +121,7 @@ struct WsMessageBase {
 }
 
 impl WsMessageBase {
-    async fn fetch_raw_data(&self) -> Result<Option<RawData>> {
+    async fn fetch_raw_data(&self) -> Result<Option<RawBlock>> {
         let req_id = self.sender.req_id();
 
         let msg = TmqSend::Fetch(MessageArgs {
@@ -145,7 +145,7 @@ impl WsMessageBase {
         });
         let data = self.sender.send_recv(msg).await?;
         if let TmqRecvData::Bytes(bytes) = data {
-            let mut raw = RawData::parse_from_raw_block(
+            let mut raw = RawBlock::parse_from_raw_block(
                 bytes,
                 fetch.rows,
                 fetch.fields_count as _,
@@ -229,13 +229,13 @@ impl SyncOnAsync for Meta {}
 pub struct Data(WsMessageBase);
 
 impl Data {
-    pub async fn fetch_block(&self) -> Result<Option<RawData>> {
+    pub async fn fetch_block(&self) -> Result<Option<RawBlock>> {
         self.0.fetch_raw_data().await
     }
 }
 
 impl Iterator for Data {
-    type Item = Result<RawData>;
+    type Item = Result<RawBlock>;
 
     fn next(&mut self) -> Option<Self::Item> {
         block_in_place_or_global(self.fetch_block()).transpose()

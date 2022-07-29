@@ -10,6 +10,7 @@ use std::{
 #[cfg(nightly)]
 use std::backtrace::Backtrace;
 
+use mdsn::DsnError;
 use thiserror::Error;
 
 macro_rules! _impl_fmt {
@@ -116,6 +117,12 @@ pub struct Error {
     backtrace: Backtrace,
 }
 
+impl From<DsnError> for Error {
+    fn from(dsn: DsnError) -> Self {
+        Self::new(Code::Failed, dsn.to_string())
+    }
+}
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 impl Error {
@@ -152,6 +159,11 @@ impl Error {
     pub fn from_string(err: impl Into<Cow<'static, str>>) -> Self {
         Self::new(Code::Failed, err)
     }
+
+    #[inline]
+    pub fn from_any(err: impl Display) -> Self {
+        Self::new(Code::Failed, err.to_string())
+    }
 }
 
 impl FromStr for Error {
@@ -172,7 +184,11 @@ impl FromStr for Error {
 impl Display for Error {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{:#06X}] {}", self.code, self.err)
+        if self.code == Code::Failed {
+            write!(f, "{}", self.err)
+        } else {
+            write!(f, "[{:#06X}] {}", self.code, self.err)
+        }
     }
 }
 

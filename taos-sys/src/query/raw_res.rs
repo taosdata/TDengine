@@ -1,15 +1,16 @@
 use std::cell::UnsafeCell;
-use std::ffi::{CStr};
+use std::ffi::CStr;
 use std::os::raw::*;
 use std::task::{Context, Poll, Waker};
 
 use taos_error::{Code, Error};
 use taos_query::{
     common::{Field, Precision},
-    RawData,
+    RawBlock,
 };
 
-use crate::{ffi::*, from_raw_fields, tmq_res_t};
+use crate::types::from_raw_fields;
+use crate::{ffi::*, tmq::ffi::tmq_res_t};
 
 use super::blocks::SharedState;
 use super::{blocks::Blocks, message::MessageStream};
@@ -111,7 +112,7 @@ impl RawRes {
     }
 
     #[inline]
-    pub fn fetch_raw_block(&self, fields: &[Field]) -> Result<Option<RawData>, Error> {
+    pub fn fetch_raw_block(&self, fields: &[Field]) -> Result<Option<RawBlock>, Error> {
         #[cfg(taos_v3)]
         return self.fetch_raw_block_v3(fields);
         #[cfg(not(taos_v3))]
@@ -124,7 +125,7 @@ impl RawRes {
         precision: Precision,
         state: &UnsafeCell<SharedState>,
         cx: &mut Context<'_>,
-    ) -> Poll<Result<Option<RawData>, Error>> {
+    ) -> Poll<Result<Option<RawBlock>, Error>> {
         let current = unsafe { &mut *state.get() };
 
         if current.done {
@@ -138,7 +139,7 @@ impl RawRes {
             if current.num > 0 {
                 // has next block.
                 let mut raw = unsafe {
-                    RawData::parse_from_ptr(
+                    RawBlock::parse_from_ptr(
                         current.block as _,
                         current.num as usize,
                         fields.len(),
@@ -186,22 +187,20 @@ impl RawRes {
     }
 
     /// Only for tmq.
-    pub(crate) fn fetch_raw_message(&self, precision: Precision) -> Option<RawData> {
+    pub(crate) fn fetch_raw_message(&self, precision: Precision) -> Option<RawBlock> {
         let mut block: *mut c_void = std::ptr::null_mut();
         let mut num = 0;
         unsafe { taos_fetch_raw_block(self.as_ptr(), &mut num as _, &mut block as _) };
         let fields = self.fetch_fields();
 
+        if num == 0 || block.is_null() {
+            return None;
+        }
         let mut raw = unsafe {
-            RawData::parse_from_ptr(block as _, num as usize, fields.len(), self.precision())
+            RawBlock::parse_from_ptr(block as _, num as usize, fields.len(), self.precision())
         };
 
         raw.with_field_names(fields.iter().map(Field::name));
-
-        // todo: add db or not?
-        // if let Some(name) = self.tmq_db_name() {
-        //     raw.with_database_name(name);
-        // }
 
         if let Some(name) = self.tmq_table_name() {
             raw.with_table_name(name);
@@ -211,16 +210,16 @@ impl RawRes {
     }
 
     #[inline]
-    pub fn fetch_raw_block_v3(&self, fields: &[Field]) -> Result<Option<RawData>, Error> {
+    pub fn fetch_raw_block_v3(&self, fields: &[Field]) -> Result<Option<RawBlock>, Error> {
         let mut block: *mut c_void = std::ptr::null_mut();
         let mut num = 0;
-        err_or!(
+        crate::err_or!(
             self,
             taos_fetch_raw_block(self.as_ptr(), &mut num as _, &mut block as _),
             if num > 0 {
                 match self.tmq_message_type() {
                     tmq_res_t::TMQ_RES_INVALID => {
-                        let mut raw = RawData::parse_from_ptr(
+                        let mut raw = RawBlock::parse_from_ptr(
                             block as _,
                             num as usize,
                             self.field_count(),
@@ -232,7 +231,7 @@ impl RawRes {
                     tmq_res_t::TMQ_RES_DATA => {
                         let fields = self.fetch_fields();
 
-                        let mut raw = RawData::parse_from_ptr(
+                        let mut raw = RawBlock::parse_from_ptr(
                             block as _,
                             num as usize,
                             fields.len(),
@@ -261,17 +260,17 @@ impl RawRes {
         )
     }
     #[inline]
-    pub fn fetch_raw_block_v2(&self, fields: &[Field]) -> Result<Option<RawData>, Error> {
+    pub fn fetch_raw_block_v2(&self, fields: &[Field]) -> Result<Option<RawBlock>, Error> {
         let mut block: *mut *mut c_void = std::ptr::null_mut();
         let mut num = 0;
         let lengths = self.fetch_lengths();
         let cols = self.field_count();
         let lengths = self.fetch_lengths();
-        err_or!(
+        crate::err_or!(
             self,
             taos_fetch_block_s(self.as_ptr(), &mut num as _, &mut block as _),
             if num > 0 {
-                let raw = RawData::parse_from_ptr_v2(
+                let raw = RawBlock::parse_from_ptr_v2(
                     block as _,
                     &fields,
                     lengths,
@@ -316,7 +315,7 @@ impl RawRes {
 
     #[inline]
     pub fn select_db(&self, db: *const i8) -> Result<(), Error> {
-        err_or!(self, taos_select_db(self.as_ptr(), db))
+        crate::err_or!(self, taos_select_db(self.as_ptr(), db))
     }
 
     #[inline]

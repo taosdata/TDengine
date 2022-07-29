@@ -13,40 +13,38 @@ use std::{
 };
 
 use once_cell::sync::OnceCell;
-use query::blocks::{SharedState};
-use taos_error::{Error as RawError};
-use taos_query::{
-    common::{Field, RawData},
-    AsyncFetchable, AsyncQueryable, DsnError, Fetchable, Queryable, TBuilder,
-};
+use query::blocks::SharedState;
+use taos_error::Error as RawError;
+// use taos_query::{AsyncFetchable, AsyncQueryable, DsnError, Fetchable, Queryable, TBuilder};
 
-pub enum MessageType {
-    Schema,
-    Data,
-}
 mod into_c_str;
 pub mod stmt;
 
 use into_c_str::IntoCStr;
 
 pub(crate) mod types;
-pub use types::*;
+
 mod ffi;
 // use ffi::*;
 
 mod set_config;
 
+use ffi::taos_options;
 
-pub use ffi::taos_options;
-
-mod schemaless;
-pub use schemaless::*;
+pub mod schemaless;
+// pub use schemaless::*;
 
 mod tmq;
-pub use tmq::*;
+pub use tmq::{Consumer, TmqBuilder};
 
 mod conn;
-pub use conn::RawTaos;
+use conn::RawTaos;
+
+mod query;
+use query::RawRes;
+
+pub use taos_query::prelude::*;
+pub use types::TaosMultiBind;
 
 #[macro_export(local_inner_macros)]
 macro_rules! err_or {
@@ -91,7 +89,7 @@ impl Drop for Taos {
     }
 }
 
-impl Queryable for Taos {
+impl taos_query::Queryable for Taos {
     type Error = RawError;
 
     type ResultSet = ResultSet;
@@ -101,11 +99,7 @@ impl Queryable for Taos {
     }
 
     fn write_meta(&self, meta: taos_query::common::RawMeta) -> Result<(), Self::Error> {
-        let raw = tmq_raw_meta {
-            raw_meta: meta.meta_data_ptr() as _,
-            raw_meta_len: meta.meta_len(),
-            raw_meta_type: meta.meta_type(),
-        };
+        let raw = meta.as_raw_data_t();
         self.raw.write_raw_meta(raw)
     }
 }
@@ -126,13 +120,12 @@ impl AsyncQueryable for Taos {
             .map(|raw| ResultSet::new(raw))
     }
 
-    async fn write_meta(&self, meta: taos_query::common::RawMeta) -> Result<(), Self::Error> {
-        let raw = tmq_raw_meta {
-            raw_meta: meta.meta_data_ptr() as _,
-            raw_meta_len: meta.meta_len(),
-            raw_meta_type: meta.meta_type(),
-        };
-        self.raw.write_raw_meta(raw)
+    async fn write_raw_meta(&self, meta: taos_query::common::RawMeta) -> Result<(), Self::Error> {
+        self.raw.write_raw_meta(meta.as_raw_data_t())
+    }
+
+    async fn write_raw_block(&self, block: &RawBlock) -> Result<(), Self::Error> {
+        self.raw.write_raw_block(block)
     }
 }
 
@@ -239,7 +232,7 @@ impl TBuilder for TaosBuilder {
         if let Some(dir) = params.get("configDir") {
             let dir = CString::new(dir.as_bytes()).unwrap();
             unsafe {
-                taos_options(TSDB_OPTION::ConfigDir, dir.as_ptr() as _);
+                taos_options(types::TSDB_OPTION::ConfigDir, dir.as_ptr() as _);
             }
         }
         // let raw = RawTaos::connect(host, user, pass, db, port)
@@ -336,21 +329,21 @@ impl ResultSet {
         self.raw.affected_rows() as _
     }
 
-    pub(crate) fn fetch_raw_block(&self) -> Result<Option<RawData>, RawError> {
+    pub(crate) fn fetch_raw_block(&self) -> Result<Option<RawBlock>, RawError> {
         Ok(self.raw.fetch_raw_block(self.fields())?)
     }
 
     pub(crate) fn fetch_raw_block_async(
         &self,
         cx: &mut Context<'_>,
-    ) -> Poll<Result<Option<RawData>, RawError>> {
+    ) -> Poll<Result<Option<RawBlock>, RawError>> {
         self.raw
             .fetch_raw_block_async(self.fields(), self.precision(), &self.state, cx)
     }
 }
 
 impl Iterator for ResultSet {
-    type Item = Result<RawData, RawError>;
+    type Item = Result<RawBlock, RawError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.raw
@@ -367,7 +360,7 @@ impl Iterator for ResultSet {
     }
 }
 
-impl Fetchable for ResultSet {
+impl taos_query::Fetchable for ResultSet {
     type Error = RawError;
     fn affected_rows(&self) -> i32 {
         self.affected_rows()
@@ -389,7 +382,7 @@ impl Fetchable for ResultSet {
         self.update_summary(nrows)
     }
 
-    fn fetch_raw_block(&mut self) -> Result<Option<RawData>, Self::Error> {
+    fn fetch_raw_block(&mut self) -> Result<Option<RawBlock>, Self::Error> {
         self.raw.fetch_raw_block(self.fields())
     }
 }
@@ -416,7 +409,7 @@ impl AsyncFetchable for ResultSet {
     fn fetch_raw_block(
         self: &mut Self,
         cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<Option<RawData>, Self::Error>> {
+    ) -> std::task::Poll<Result<Option<RawBlock>, Self::Error>> {
         self.fetch_raw_block_async(cx)
     }
 
@@ -433,13 +426,6 @@ impl Drop for ResultSet {
 
 unsafe impl Send for ResultSet {}
 unsafe impl Sync for ResultSet {}
-
-pub type VGroupId = i32;
-
-mod query;
-
-// pub use query::BlockStream;
-pub use query::RawRes;
 
 #[cfg(test)]
 mod tests {

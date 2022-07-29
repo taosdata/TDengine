@@ -1,6 +1,7 @@
 use std::{borrow::Cow, os::raw::*};
 
 use taos_macros::c_cfg;
+use taos_query::common::raw_data_t;
 
 use crate::ffi::{TAOS, TAOS_RES};
 
@@ -75,13 +76,13 @@ pub enum tmq_res_t {
     TMQ_RES_TABLE_META = 2,
 }
 
-#[repr(C)]
-#[derive(Debug)]
-pub struct tmq_raw_meta {
-    pub raw_meta: *mut c_void,
-    pub raw_meta_len: u32,
-    pub raw_meta_type: u16,
-}
+// #[repr(C)]
+// #[derive(Debug)]
+// pub struct raw_data_t {
+//     pub raw: *mut c_void,
+//     pub raw_len: u32,
+//     pub raw_type: u16,
+// }
 // TMQ streaming/consuming API.
 #[c_cfg(taos_tmq)]
 extern "C" {
@@ -117,10 +118,17 @@ extern "C" {
         param: *mut c_void,
     );
 
-    pub fn tmq_get_raw_meta(res: *mut TAOS_RES, meta: *mut tmq_raw_meta) -> i32;
-    pub fn tmq_get_json_meta(res: *mut TAOS_RES) -> *mut c_char;
-    pub fn taos_write_raw_meta(taos: *mut TAOS, meta: tmq_raw_meta) -> i32;
+    pub fn tmq_get_raw(res: *mut TAOS_RES, meta: *mut raw_data_t) -> i32;
+    pub fn tmq_write_raw(taos: *mut TAOS, meta: raw_data_t) -> i32;
 
+    pub fn taos_write_raw_block(
+        taos: *mut TAOS,
+        nrows: i32,
+        ptr: *const c_char,
+        tbname: *const c_char,
+    ) -> i32;
+
+    pub fn tmq_get_json_meta(res: *mut TAOS_RES) -> *mut c_char;
     pub fn tmq_get_topic_name(res: *mut TAOS_RES) -> *const c_char;
     pub fn tmq_get_table_name(res: *mut TAOS_RES) -> *const c_char;
     pub fn tmq_get_db_name(res: *mut TAOS_RES) -> *const c_char;
