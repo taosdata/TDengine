@@ -38,7 +38,7 @@ class TDTestCase:
         case1: limit offset base function test
         case2: offset return valid
         '''
-        return 
+        return
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -64,7 +64,7 @@ class TDTestCase:
         # self.create_tables();
         self.ts = 1500000000000
 
-    # stop 
+    # stop
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
@@ -76,7 +76,7 @@ class TDTestCase:
     def newcon(self,host,cfg):
         user = "root"
         password = "taosdata"
-        port =6030 
+        port =6030
         con=taos.connect(host=host, user=user, password=password, config=cfg ,port=port)
         print(con)
         return con
@@ -126,14 +126,14 @@ class TDTestCase:
             end = datetime.now()
             print("elapsed time: ", end - start)
             assert stmt.affected_rows == 3
-            
+
             #query 1
             querystmt=conn.statement("select ?,bu from stb1")
             queryparam=new_bind_params(1)
             print(type(queryparam))
             queryparam[0].binary("ts")
             querystmt.bind_param(queryparam)
-            querystmt.execute() 
+            querystmt.execute()
             result=querystmt.use_result()
             # rows=result.fetch_all()
             # print( querystmt.use_result())
@@ -152,7 +152,7 @@ class TDTestCase:
             print(type(queryparam1))
             queryparam1[0].int(4)
             querystmt1.bind_param(queryparam1)
-            querystmt1.execute() 
+            querystmt1.execute()
             result1=querystmt1.use_result()
             rows1=result1.fetch_all()
             print(rows1)
@@ -176,7 +176,7 @@ class TDTestCase:
         host="localhost"
         connectstmt=self.newcon(host,config)
         self.test_stmt_insert_multi(connectstmt)
-        return 
+        return
 
 
 # add case with filename

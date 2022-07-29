@@ -89,7 +89,6 @@ extern uint16_t tsTelemPort;
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
 extern int64_t tsQueryBufferSizeBytes;   // maximum allowed usage buffer size in byte for each data node
-extern bool    tsRetrieveBlockingModel;  // retrieve threads will be blocked
 
 // query client
 extern int32_t tsQueryPolicy;

@@ -82,7 +82,7 @@ int64_t tsNumOfTraceLogs = 0;
 // log
 int32_t dDebugFlag = 135;
 int32_t vDebugFlag = 135;
-int32_t mDebugFlag = 131;
+int32_t mDebugFlag = 135;
 int32_t cDebugFlag = 131;
 int32_t jniDebugFlag = 131;
 int32_t tmrDebugFlag = 131;
