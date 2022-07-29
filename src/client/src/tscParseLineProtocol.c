@@ -2058,6 +2058,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
   const char *start, *cur;
   int32_t     ret = TSDB_CODE_SUCCESS;
   char       *value = NULL;
+  int32_t     bufSize = TSDB_FUNC_BUF_SIZE;
   int16_t     len = 0;
 
   bool   kv_done = false;
@@ -2077,6 +2078,11 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
     val_rqoute
   } val_state;
 
+  value = malloc(bufSize);
+  if (value == NULL) {
+    ret = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    goto error;
+  }
   start = cur = *idx;
   tag_state = tag_common;
   val_state = val_common;
@@ -2095,7 +2101,6 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
 
           back_slash = false;
           cur++;
-          len++;
           break;
         }
 
@@ -2104,7 +2109,6 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
             tag_state = tag_lqoute;
           }
           cur += 1;
-          len += 1;
           break;
         } else if (*cur == 'L') {
           line_len = strlen(*idx);
@@ -2122,7 +2126,6 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
               tag_state = tag_lqoute;
             }
             cur += 2;
-            len += 2;
             break;
           }
         }
@@ -2131,8 +2134,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
         case '\\':
           back_slash = true;
           cur++;
-          len++;
-          break;
+          continue;
         case ',':
           kv_done = true;
           break;
@@ -2146,7 +2148,6 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
 
         default:
           cur++;
-          len++;
         }
 
         break;
@@ -2160,7 +2161,6 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
 
           back_slash = false;
           cur++;
-          len++;
           break;
         } else if (double_quote == true) {
           if (*cur != ' ' && *cur != ',' && *cur != '\0') {
@@ -2182,13 +2182,11 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
         case '\\':
           back_slash = true;
           cur++;
-          len++;
-          break;
+          continue;
 
         case '"':
           double_quote = true;
           cur++;
-          len++;
           break;
 
         case '\0':
@@ -2199,7 +2197,6 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
 
         default:
           cur++;
-          len++;
         }
 
         break;
@@ -2217,9 +2214,8 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
             goto error;
           }
 
-	  back_slash = false;
-	  cur++;
-	  len++;
+          back_slash = false;
+          cur++;
           break;
         }
 
@@ -2235,7 +2231,6 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
           }
 
           cur += 1;
-          len += 1;
           break;
         } else if (*cur == 'L') {
           line_len = strlen(*idx);
@@ -2252,12 +2247,10 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
             if (cur + 1 == *idx + 1) {
               val_state = val_lqoute;
               cur += 2;
-              len += 2;
             } else {
               /* MUST at the end of string */
               if (cur + 2 >= *idx + line_len) {
                 cur += 2;
-                len += 2;
                 *is_last_kv = true;
                 kv_done = true;
               } else {
@@ -2271,7 +2264,6 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
                   }
 
                   cur += 2;
-                  len += 2;
                   kv_done = true;
                 }
               }
@@ -2284,8 +2276,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
         case '\\':
           back_slash = true;
           cur++;
-          len++;
-          break;
+          continue;
 
         case ',':
           kv_done = true;
@@ -2300,7 +2291,6 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
 
         default:
           cur++;
-          len++;
         }
 
         break;
@@ -2311,10 +2301,11 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
             ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
             goto error;
           }
-
+          if (*cur == '"') {
+            start++;
+          }
           back_slash = false;
           cur++;
-          len++;
           break;
         } else if (double_quote == true) {
           if (*cur != ' ' && *cur != ',' && *cur != '\0') {
@@ -2336,13 +2327,11 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
         case '\\':
           back_slash = true;
           cur++;
-          len++;
-          break;
+          continue;
 
         case '"':
           double_quote = true;
           cur++;
-          len++;
           break;
 
         case '\0':
@@ -2353,7 +2342,6 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
 
         default:
           cur++;
-          len++;
         }
 
         break;
@@ -2362,24 +2350,35 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
       }
     }
 
+    if (start < cur) {
+      if (bufSize <= len + (cur - start)) {
+        bufSize *= 2;
+        char *tmp = realloc(value, bufSize);
+        if (tmp == NULL) {
+            ret = TSDB_CODE_TSC_OUT_OF_MEMORY;
+            goto error;
+        }
+        value = tmp;
+      }
+      memcpy(value + len, start, cur - start);  // [start, cur)
+      len += cur - start;
+      start = cur;
+    }
+
     if (kv_done == true) {
       break;
     }
   }
 
   if (len == 0 || ret != TSDB_CODE_SUCCESS) {
-    free(pKV->key);
-    pKV->key = NULL;
-    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+    ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+    goto error;
   }
 
-  value = calloc(len + 1, 1);
-  memcpy(value, start, len);
   value[len] = '\0';
   if (!convertSmlValueType(pKV, value, len, info, isTag)) {
     tscError("SML:0x%"PRIx64" Failed to convert sml value string(%s) to any type",
             info->id, value);
-    free(value);
     ret = TSDB_CODE_TSC_INVALID_VALUE;
     goto error;
   }
@@ -2389,7 +2388,8 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
   return ret;
 
 error:
-  //free previous alocated key field
+  //free previous alocated buffer and key field
+  free(value);
   free(pKV->key);
   pKV->key = NULL;
   return ret;
