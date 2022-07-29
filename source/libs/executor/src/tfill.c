@@ -435,7 +435,7 @@ static int32_t taosNumOfRemainRows(SFillInfo* pFillInfo) {
 
 struct SFillInfo* taosCreateFillInfo(TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
                                      SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol,
-                                     int32_t primaryTsSlotId, const char* id) {
+                                     int32_t primaryTsSlotId, int32_t order, const char* id) {
   if (fillType == TSDB_FILL_NONE) {
     return NULL;
   }
@@ -446,6 +446,7 @@ struct SFillInfo* taosCreateFillInfo(TSKEY skey, int32_t numOfTags, int32_t capa
     return NULL;
   }
 
+  pFillInfo->order = order;
   pFillInfo->tsSlotId = primaryTsSlotId;
   taosResetFillInfo(pFillInfo, skey);
 

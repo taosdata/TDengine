@@ -76,10 +76,9 @@ bool taosFillHasMoreResults(struct SFillInfo* pFillInfo);
 
 SFillInfo* taosCreateFillInfo(TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
                               SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol, int32_t slotId,
-                              const char* id);
+                              int32_t order, const char* id);
 
 void* taosDestroyFillInfo(struct SFillInfo *pFillInfo);
-void taosFillSetDataOrderInfo(SFillInfo* pFillInfo, int32_t order);
 int64_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity);
 int64_t getFillInfoStart(struct SFillInfo *pFillInfo);
 
