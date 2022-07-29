@@ -1026,6 +1026,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
 void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsColIndex);
 
+bool groupbyTbname(SNodeList* pGroupList);
 int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* groupKey);
 SSDataBlock* createSpecialDataBlock(EStreamType type);
 void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput);

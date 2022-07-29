@@ -3829,6 +3829,19 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo, int32_t groupNum) 
   return TDB_CODE_SUCCESS;
 }
 
+bool groupbyTbname(SNodeList* pGroupList)  {
+  bool bytbname = false;
+  if (LIST_LENGTH(pGroupList) == 0) {
+    SNode* p = nodesListGetNode(pGroupList, 0);
+    if (p->type == QUERY_NODE_FUNCTION) {
+      // partition by tbname/group by tbname
+      bytbname = (strcmp(((struct SFunctionNode*)p)->functionName, "tbname") == 0);
+    }
+  }
+
+  return bytbname;
+}
+
 int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group) {
   if (group == NULL) {
     return TDB_CODE_SUCCESS;
@@ -3855,12 +3868,21 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  bool assignUid = groupbyTbname(group);
+
   int32_t groupNum = 0;
-  for (int32_t i = 0; i < taosArrayGetSize(pTableListInfo->pTableList); i++) {
+  size_t numOfTables = taosArrayGetSize(pTableListInfo->pTableList);
+
+  for (int32_t i = 0; i < numOfTables; i++) {
     STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
-    int32_t        code = getGroupIdFromTagsVal(pHandle->meta, info->uid, group, keyBuf, &info->groupId);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
+
+    if (assignUid) {
+      info->groupId = info->uid;
+    } else {
+      int32_t code = getGroupIdFromTagsVal(pHandle->meta, info->uid, group, keyBuf, &info->groupId);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
 
     taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &info->groupId, sizeof(uint64_t));

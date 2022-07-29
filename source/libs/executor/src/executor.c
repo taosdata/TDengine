@@ -248,9 +248,11 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
     }
 
     // todo refactor STableList
+    bool assignUid = false;
     size_t bufLen = (pScanInfo->pGroupTags != NULL) ? getTableTagsBufLen(pScanInfo->pGroupTags) : 0;
     char*  keyBuf = NULL;
     if (bufLen > 0) {
+      assignUid = groupbyTbname(pScanInfo->pGroupTags);
       keyBuf = taosMemoryMalloc(bufLen);
       if (keyBuf == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
@@ -262,14 +264,19 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
       STableKeyInfo keyInfo = {.uid = *uid, .groupId = 0};
 
       if (bufLen > 0) {
-        code = getGroupIdFromTagsVal(pScanInfo->readHandle.meta, keyInfo.uid, pScanInfo->pGroupTags, keyBuf,
-                                     &keyInfo.groupId);
-        if (code != TSDB_CODE_SUCCESS) {
-          return code;
+        if (assignUid) {
+          keyInfo.groupId = keyInfo.uid;
+        } else {
+          code = getGroupIdFromTagsVal(pScanInfo->readHandle.meta, keyInfo.uid, pScanInfo->pGroupTags, keyBuf,
+                                       &keyInfo.groupId);
+          if (code != TSDB_CODE_SUCCESS) {
+            return code;
+          }
         }
       }
 
       taosArrayPush(pTaskInfo->tableqinfoList.pTableList, &keyInfo);
+      taosHashPut(pTaskInfo->tableqinfoList.map, &keyInfo.uid, sizeof(keyInfo.uid), &keyInfo.groupId, sizeof(keyInfo.groupId));
     }
 
     if (keyBuf != NULL) {
