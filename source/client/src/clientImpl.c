@@ -591,7 +591,7 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
   return code;
 }
 
-void freeVgList(void *list) {
+void freeVgList(void* list) {
   SArray* pList = *(SArray**)list;
   taosArrayDestroy(pList);
 }
@@ -1278,8 +1278,8 @@ int32_t doProcessMsgFromServer(void* param) {
   char      tbuf[40] = {0};
   TRACE_TO_STR(trace, tbuf);
 
-  tscDebug("processMsgFromServer handle %p, message: %s, code: %s, gtid: %s", pMsg->info.handle, TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code),
-           tbuf);
+  tscDebug("processMsgFromServer handle %p, message: %s, code: %s, gtid: %s", pMsg->info.handle,
+           TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code), tbuf);
 
   if (pSendInfo->requestObjRefId != 0) {
     SRequestObj* pRequest = (SRequestObj*)taosAcquireRef(clientReqRefPool, pSendInfo->requestObjRefId);
@@ -2114,7 +2114,7 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
     return NULL;
   }
 
-  TAOS_RES* pRes = execQuery(connId, sql, sqlLen, validateOnly);
+  TAOS_RES* pRes = execQuery(*(int64_t*)taos, sql, sqlLen, validateOnly);
   return pRes;
 #endif
 }
