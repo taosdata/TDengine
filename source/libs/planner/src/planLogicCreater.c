@@ -1229,6 +1229,7 @@ static int32_t createDeleteScanLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* p
   // set columns to scan
   if (TSDB_CODE_SUCCESS == code) {
     pScan->scanType = SCAN_TYPE_TABLE;
+    pScan->scanRange = pDelete->timeRange;
     pScan->pScanCols = nodesCloneList(((SFunctionNode*)pDelete->pCountFunc)->pParameterList);
     if (NULL == pScan->pScanCols) {
       code = TSDB_CODE_OUT_OF_MEMORY;
