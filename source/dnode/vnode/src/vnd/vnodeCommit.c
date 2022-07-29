@@ -288,7 +288,7 @@ int vnodeCommit(SVnode *pVnode) {
   // apply the commit (TODO)
   walEndSnapshot(pVnode->pWal);
 
-  vInfo("vgId:%d, commit over", TD_VID(pVnode));
+  vInfo("vgId:%d, commit end", TD_VID(pVnode));
 
   return 0;
 }
