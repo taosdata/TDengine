@@ -183,7 +183,7 @@
 36,,script,./test.sh -f unique/arbitrator/offline_replica3_createTable_online.sim 
 36,,script,./test.sh -f unique/arbitrator/offline_replica2_dropTable_online.sim 
 36,,script,./test.sh -f general/parser/tbnameIn.sim 
-36,,pytest,python3 test.py -f tools/taosdumpTestNanoSupport.py 
+#36,,pytest,python3 test.py -f tools/taosdumpTestNanoSupport.py 
 35,,script,./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir_stopAll_starAll.sim 
 35,,script,./test.sh -f unique/arbitrator/offline_replica3_alterTag_online.sim 
 35,,script,./test.sh -f unique/arbitrator/offline_replica2_alterTag_online.sim 
@@ -290,7 +290,7 @@
 20,,pytest,python3 test.py -f table/create.py 
 19,,script,./test.sh -f unique/stable/dnode2.sim 
 19,,script,./test.sh -f general/db/vnodes.sim 
-19,,pytest,python3 test.py -f tools/taosdumpTest3.py 
+#19,,pytest,python3 test.py -f tools/taosdumpTest3.py 
 19,,pytest,python3 test.py -f query/udf.py 
 19,,pytest,python3 test.py -f import_merge/importLastTPO.py 
 19,,pytest,python3 test.py -f import_merge/importDataLastHO.py 
@@ -542,22 +542,22 @@
 9,,pytest,python3 test.py -f stream/showStreamExecTimeisNull.py 
 9,,pytest,python3 test.py -f query/bug1876.py 
 9,,pytest,python3 test.py -f alter/alter_table_crash.py 
-9,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeSmallInt.py 
-9,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeFloat.py
+#9,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeSmallInt.py 
+#9,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeFloat.py
 9,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_json_alltypes.py
 9,,docs-examples-test,./test_go.sh
-8,,pytest,python3 test.py -f tools/taosdumpTest.py 
+#8,,pytest,python3 test.py -f tools/taosdumpTest.py 
 8,,pytest,python3 test.py -f query/unionAllTest.py 
 8,,pytest,python3 test.py -f query/queryFilterTswithDateUnit.py 
 8,,pytest,python3 test.py -f query/queryDiffColsTagsAndOr.py 
 8,2,pytest,python3 test.py -f query/nestedQuery/nestedQuery_datacheck.py 
 8,,pytest,python3 test.py -f query/bug1874.py 
 8,,pytest,python3 test.py -f functions/function_floor.py 
-8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedTinyInt.py 
-8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedBigInt.py 
-8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeTinyInt.py 
-8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeInt.py 
-8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeDouble.py 
+#8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedTinyInt.py 
+#8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedBigInt.py 
+#8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeTinyInt.py 
+#8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeInt.py 
+#8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeDouble.py 
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/insert_alltypes_json.py
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/query_json.py
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_interlace.py
@@ -566,18 +566,18 @@
 8,,pytest,python3 test.py -f update/update2.py
 7,,docs-examples-test,./test_node.sh
 7,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonSml-otherPara.py 
-7,,pytest,python3 test.py -f tools/taosdumpTest2.py 
+#7,,pytest,python3 test.py -f tools/taosdumpTest2.py 
 7,,pytest,python3 test.py -f tools/taosdemoTestdatatype.py 
 7,,pytest,python3 test.py -f tag_lite/unsignedInt.py 
 7,,pytest,python3 test.py -f query/bug1875.py 
 7,,pytest,python3 test.py -f functions/function_stateWindow.py 
 7,,pytest,python3 test.py -f client/version.py 
 7,,pytest,python3 client/twoClients.py 
-7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedSmallInt.py 
-7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedInt.py 
-7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeJson.py 
-7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBool.py 
-7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBigInt.py 
+#7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedSmallInt.py 
+#7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedInt.py 
+#7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeJson.py 
+#7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBool.py 
+#7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBigInt.py 
 7,,develop-test,python3 ./test.py -f 2-query/constant_compare.py
 7,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/limit_offset_json.py
 6,,pytest,python3 test.py -f wal/addOldWalTest.py 
@@ -624,7 +624,7 @@
 5,,pytest,python3 testMinTablesPerVnode.py 
 5,,pytest,python3 test.py -f tag_lite/unsignedTinyint.py 
 5,,pytest,python3 test.py -f tag_lite/timestamp.py 
-5,,pytest,python3 test.py -f tag_lite/TestModifyTag.py 
+#5,,pytest,python3 test.py -f tag_lite/TestModifyTag.py 
 5,,pytest,python3 test.py -f tag_lite/json_tag_extra.py 
 5,,pytest,python3 test.py -f tag_lite/int_binary.py 
 5,,pytest,python3 test.py -f tag_lite/float.py 
@@ -763,5 +763,5 @@
 3,,develop-test,python3 ./test.py -f 1-insert/uppercase_in_stmt.py
 3,,develop-test,python3 ./test.py -f 2-query/ts_shortcut.py
 3,,develop-test,python3 ./test.py -f 2-query/TD-13414.py
-3,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestInspect.py 
+#3,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestInspect.py 
 1,,docs-examples-test, ./test_R.sh
