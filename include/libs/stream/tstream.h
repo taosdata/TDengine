@@ -55,7 +55,6 @@ enum {
   TASK_INPUT_STATUS__NORMAL = 1,
   TASK_INPUT_STATUS__BLOCKED,
   TASK_INPUT_STATUS__RECOVER,
-  TASK_INPUT_STATUS__PROCESSING,
   TASK_INPUT_STATUS__STOP,
   TASK_INPUT_STATUS__FAILED,
 };
@@ -320,17 +319,6 @@ int32_t      tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeSStreamTask(SStreamTask* pTask);
 
 static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem* pItem) {
-#if 0
-  while (1) {
-    int8_t inputStatus =
-        atomic_val_compare_exchange_8(&pTask->inputStatus, TASK_INPUT_STATUS__NORMAL, TASK_INPUT_STATUS__PROCESSING);
-    if (inputStatus == TASK_INPUT_STATUS__NORMAL) {
-      break;
-    }
-    ASSERT(0);
-  }
-#endif
-
   if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit*)pItem);
     if (pSubmitClone == NULL) {
@@ -443,13 +431,14 @@ typedef struct {
 typedef struct {
   int64_t streamId;
   int32_t taskId;
-  int32_t sourceTaskId;
-  int32_t sourceVg;
+  int32_t upstreamTaskId;
+  int32_t upstreamNodeId;
 } SStreamTaskRecoverReq;
 
 typedef struct {
   int64_t streamId;
-  int32_t taskId;
+  int32_t rspTaskId;
+  int32_t reqTaskId;
   int8_t  inputStatus;
 } SStreamTaskRecoverRsp;
 

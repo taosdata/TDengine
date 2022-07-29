@@ -2336,7 +2336,7 @@ static int32_t tagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubp
     FOREACH(pAggTarget, pAgg->pTargets) {
       SNode* pScanTarget = NULL;
       FOREACH(pScanTarget, pScanNode->node.pTargets) {
-        if (0 == strcmp(((SColumnNode*)pAggTarget)->colName, ((SColumnNode*)pAggTarget)->colName)) {
+        if (0 == strcmp(((SColumnNode*)pAggTarget)->colName, ((SColumnNode*)pScanTarget)->colName)) {
           nodesListAppend(pScanTargets, nodesCloneNode(pScanTarget));
           break;
         }

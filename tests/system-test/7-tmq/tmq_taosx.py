@@ -45,7 +45,7 @@ class TDTestCase:
                 break
 
         tdSql.execute('use db_taosx')
-        tdSql.query("select * from ct3")
+        tdSql.query("select * from ct3 order by c1  desc")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 51)
         tdSql.checkData(0, 4, 940)
@@ -58,17 +58,17 @@ class TDTestCase:
         tdSql.query("select * from ct2")
         tdSql.checkRows(0)
 
-        tdSql.query("select * from ct0")
+        tdSql.query("select * from ct0 order by c1 ")
         tdSql.checkRows(2)
         tdSql.checkData(0, 3, "a")
         tdSql.checkData(1, 4, None)
 
-        tdSql.query("select * from n1")
+        tdSql.query("select * from n1 order by ts")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, "eeee")
         tdSql.checkData(1, 2, 940)
 
-        tdSql.query("select * from jt")
+        tdSql.query("select * from jt order by i desc;")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 11)
         tdSql.checkData(0, 2, None)

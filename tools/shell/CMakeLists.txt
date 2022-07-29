@@ -24,4 +24,7 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+    add_dependencies(taosd jemalloc)
+ENDIF ()
 SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)

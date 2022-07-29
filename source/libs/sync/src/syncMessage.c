@@ -963,9 +963,9 @@ void syncClientRequestLog2(char* s, const SyncClientRequest* pMsg) {
 // block2: SRaftMeta array
 // block3: rpc msg array (with pCont)
 
-SyncClientRequestBatch* syncClientRequestBatchBuild(SRpcMsg* rpcMsgArr, SRaftMeta* raftArr, int32_t arrSize,
+SyncClientRequestBatch* syncClientRequestBatchBuild(SRpcMsg** rpcMsgPArr, SRaftMeta* raftArr, int32_t arrSize,
                                                     int32_t vgId) {
-  ASSERT(rpcMsgArr != NULL);
+  ASSERT(rpcMsgPArr != NULL);
   ASSERT(arrSize > 0);
 
   int32_t dataLen = 0;
@@ -991,7 +991,7 @@ SyncClientRequestBatch* syncClientRequestBatchBuild(SRpcMsg* rpcMsgArr, SRaftMet
     raftMetaArr[i].seqNum = raftArr[i].seqNum;
 
     // init msgArr
-    msgArr[i] = rpcMsgArr[i];
+    msgArr[i] = *(rpcMsgPArr[i]);
   }
 
   return pMsg;

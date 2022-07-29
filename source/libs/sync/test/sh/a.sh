@@ -22,25 +22,25 @@ done
 
 echo ""
 echo "generate vgId ..."
-cat ${logpath}/log.dnode* | grep "vgId:" | grep -v ERROR | awk '{print $5}' | sort | uniq > ${logpath}/log.vgIds.tmp
+cat ${logpath}/log.dnode* | grep "vgId:" | grep -v ERROR | awk '{print $5}' | awk -F, '{print $1}' | sort -T. | uniq | awk -F: '{print $2, $0}' | sort -T. -k1 -n | awk '{print $2}' > ${logpath}/log.vgIds.tmp
 echo "all vgIds:" > ${logpath}/log.vgIds
-cat ${logpath}/log.dnode* | grep "vgId:" | grep -v ERROR | awk '{print $5}' | awk -F, '{print $1}' | sort | uniq >> ${logpath}/log.vgIds
+cat ${logpath}/log.dnode* | grep "vgId:" | grep -v ERROR | awk '{print $5}' | awk -F, '{print $1}' | sort -T. | uniq | awk -F: '{print $2, $0}' | sort -T. -k1 -n | awk '{print $2}' >> ${logpath}/log.vgIds
 for dnode in `ls ${logpath} | grep dnode | grep -v log`;do
 	echo "" >> ${logpath}/log.vgIds
 	echo "" >> ${logpath}/log.vgIds
 	echo "${dnode}:" >> ${logpath}/log.vgIds
-	cat ${logpath}/${dnode}/log/taosdlog.* | grep SYN | grep "vgId:" | grep -v ERROR | awk '{print $5}' | awk -F, '{print $1}' | sort | uniq >> ${logpath}/log.vgIds 
+	cat ${logpath}/${dnode}/log/taosdlog.* | grep SYN | grep "vgId:" | grep -v ERROR | awk '{print $5}' | awk -F, '{print $1}' | sort -T. | uniq | awk -F: '{print $2, $0}' | sort -T. -k1 -n | awk '{print $2}' >> ${logpath}/log.vgIds
 done
 
 echo ""
 echo "generate log.dnode.vgId ..."
 for logdnode in `ls ${logpath}/log.dnode*`;do
 	for vgId in `cat ${logpath}/log.vgIds.tmp`;do
-		rowNum=`cat ${logdnode} | grep "${vgId}" | awk 'BEGIN{rowNum=0}{rowNum++}END{print rowNum}'`
+		rowNum=`cat ${logdnode} | grep "${vgId}," | awk 'BEGIN{rowNum=0}{rowNum++}END{print rowNum}'`
 		#echo "-----${rowNum}"
 		if [ $rowNum -gt 0 ] ; then
 			echo "generate ${logdnode}.${vgId}"
-			cat ${logdnode} | grep "${vgId}" > ${logdnode}.${vgId}
+			cat ${logdnode} | grep "${vgId}," > ${logdnode}.${vgId}
 		fi
 	done
 done
@@ -54,7 +54,7 @@ done
 
 echo ""
 echo "generate log.leader.term ..."
-cat ${logpath}/*.main | grep "become leader" | grep -v "config change" | awk '{print $5,$0}' | awk -F, '{print $4"_"$0}' | sort -k1 > ${logpath}/log.leader.term
+cat ${logpath}/*.main | grep "become leader" | grep -v "config change" | awk '{print $5,$0}' | awk -F, '{print $4"_"$0}' | sort -T. -k1 > ${logpath}/log.leader.term
 
 echo ""
 echo "generate log.index, log.snapshot, log.records, log.actions ..."
