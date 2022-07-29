@@ -97,7 +97,7 @@
 # TD-17738 ./test.sh -f tsim/parser/col_arithmetic_operation.sim     
 # TD-17661 ./test.sh -f tsim/parser/columnValue.sim
 ./test.sh -f tsim/parser/commit.sim
-# TD-17661 ./test.sh -f tsim/parser/condition.sim
+./test.sh -f tsim/parser/condition.sim
 ./test.sh -f tsim/parser/constCol.sim
 #./test.sh -f tsim/parser/create_db.sim
 ./test.sh -f tsim/parser/create_mt.sim
@@ -298,8 +298,8 @@
 ./test.sh -f tsim/sma/drop_sma.sim
 ./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
 # temp disable
-#./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
-#./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
+./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
+./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
 
 # --- valgrind
 ./test.sh -f tsim/valgrind/checkError1.sim
@@ -325,7 +325,7 @@
 
 # --- sync
 ./test.sh -f tsim/sync/3Replica1VgElect.sim
-./test.sh -f tsim/sync/3Replica5VgElect.sim
+#./test.sh -f tsim/sync/3Replica5VgElect.sim
 ./test.sh -f tsim/sync/oneReplica1VgElect.sim
 ./test.sh -f tsim/sync/oneReplica5VgElect.sim
 

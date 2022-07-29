@@ -251,19 +251,39 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
       }
     }
 
+    bool assignUid = false;
+
+    if (LIST_LENGTH(pScanInfo->pGroupTags) > 0) {
+      SNode* p = nodesListGetNode(pScanInfo->pGroupTags, 0);
+      if (p->type == QUERY_NODE_FUNCTION) {
+        // partition by tbname/group by tbname
+        assignUid = (strcmp(((struct SFunctionNode*)p)->functionName, "tbname") == 0);
+      }
+    }
+
     for (int32_t i = 0; i < taosArrayGetSize(qa); ++i) {
       uint64_t*     uid = taosArrayGet(qa, i);
       STableKeyInfo keyInfo = {.uid = *uid, .groupId = 0};
 
       if (bufLen > 0) {
-        code = getGroupIdFromTagsVal(pScanInfo->readHandle.meta, keyInfo.uid, pScanInfo->pGroupTags, keyBuf,
-                                     &keyInfo.groupId);
-        if (code != TSDB_CODE_SUCCESS) {
-          return code;
+        if (assignUid) {
+          keyInfo.groupId = keyInfo.uid;
+        } else {
+          code = getGroupIdFromTagsVal(pScanInfo->readHandle.meta, keyInfo.uid, pScanInfo->pGroupTags, keyBuf,
+                                       &keyInfo.groupId);
+          if (code != TSDB_CODE_SUCCESS) {
+            return code;
+          }
         }
       }
 
       taosArrayPush(pTaskInfo->tableqinfoList.pTableList, &keyInfo);
+      if (pTaskInfo->tableqinfoList.map == NULL) {
+        pTaskInfo->tableqinfoList.map =
+            taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+      }
+
+      taosHashPut(pTaskInfo->tableqinfoList.map, uid, sizeof(uid), &keyInfo.groupId, sizeof(keyInfo.groupId));
     }
 
     if (keyBuf != NULL) {

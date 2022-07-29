@@ -111,14 +111,14 @@ class TDTestCase:
         # seperate vnode and mnode in different dnodes.
         # create database and stable
         stopcount =0 
-        while stopcount <= 2:
+        while stopcount < restartNumber:
             tdLog.info("first restart loop")
             for i in range(dnodenumbers):
                 tdDnodes[i].stoptaosd()
                 tdDnodes[i].starttaosd()
             stopcount+=1
         clusterComCheck.checkDnodes(dnodenumbers)
-        clusterComCheck.checkMnodeStatus(3)
+        clusterComCheck.checkMnodeStatus(mnodeNums)
 
     def run(self): 
         # print(self.master_dnode.cfgDict)

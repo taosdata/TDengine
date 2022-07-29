@@ -438,7 +438,7 @@ FAIL:
   return code;
 }
 
-int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb) {
+int32_t streamDispatch(SStreamTask* pTask) {
   ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);
 #if 1
   int8_t old =
