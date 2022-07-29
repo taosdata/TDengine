@@ -1,0 +1,1 @@
+tt --group-file=cloud/third-party.txt --use=cloud/cloud_test.yaml --keep
