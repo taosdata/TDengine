@@ -10,7 +10,6 @@ from util.cases import *
 from util.dnodes import *
 from util.dnodes import TDDnodes
 from util.dnodes import TDDnode
-from util.common import *
 from util.cluster import *
 from test import tdDnodes
 sys.path.append("./6-cluster")
@@ -30,6 +29,7 @@ class TDTestCase:
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
 
+
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
@@ -48,7 +48,7 @@ class TDTestCase:
 
     def fiveDnodeThreeMnode(self,dnodenumbers,mnodeNums,restartNumber):
         tdLog.printNoPrefix("======== test case 1: ")
-        paraDict = {'dbName':     'db',
+        paraDict = {'dbName':     'db0_0',
                     'dropFlag':   1,
                     'event':      '',
                     'vgroups':    4,
@@ -68,7 +68,7 @@ class TDTestCase:
                     'showRow':    1}
         dnodenumbers=int(dnodenumbers)
         mnodeNums=int(mnodeNums)
-        dbNumbers = int(dnodenumbers * restartNumber)
+        dbNumbers = 1
         
         tdLog.info("first check dnode and mnode")
         tdSql.query("show dnodes;")
@@ -88,41 +88,31 @@ class TDTestCase:
         tdLog.info("Confirm the status of the dnode again")
         tdSql.error("create mnode on dnode 2")
         tdSql.query("show dnodes;")
-        print(tdSql.queryResult)
+        # print(tdSql.queryResult)
         clusterComCheck.checkDnodes(dnodenumbers)
-
-        # check status of connection
-
-
-
         # restart all taosd
-        tdDnodes=cluster.dnodes 
-        for i in range(mnodeNums):
-            tdDnodes[i].stoptaosd()
-            for j in range(dnodenumbers):
-                if j != i:
-                    cluster.checkConnectStatus(j)
-            clusterComCheck.check3mnodeoff(i+1,3)
-            clusterComCheck.init(cluster.checkConnectStatus(i+1))        
-            tdDnodes[i].starttaosd()
-            clusterComCheck.checkMnodeStatus(mnodeNums)
-            
-        tdLog.info("Take turns stopping all dnodes ") 
-        # seperate vnode and mnode in different dnodes.
-        # create database and stable
-        stopcount =0 
-        while stopcount < restartNumber:
-            tdLog.info("first restart loop")
-            for i in range(dnodenumbers):
-                tdDnodes[i].stoptaosd()
-                tdDnodes[i].starttaosd()
-            stopcount+=1
-        clusterComCheck.checkDnodes(dnodenumbers)
-        clusterComCheck.checkMnodeStatus(mnodeNums)
+        tdDnodes=cluster.dnodes
+        tdLog.info("stop two mnode ")
+
+        tdDnodes[0].stoptaosd()
+        tdDnodes[1].stoptaosd()
+
+        # tdLog.info("check  whether 2 mnode status is  offline")
+        # clusterComCheck.check3mnode2off()
+        # tdSql.error("create user user1 pass '123';")
+        
+        tdLog.info("start one mnode" )
+        tdDnodes[0].starttaosd()
+        clusterComCheck.check3mnodeoff(2)
+        
+        clusterComCreate.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])
+        clusterComCheck.checkDb(dbNumbers,1,'db0')
+
+
 
     def run(self): 
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(5,3,1)
+        self.fiveDnodeThreeMnode(dnodenumbers=5,mnodeNums=3,restartNumber=1)
  
     def stop(self):
         tdSql.close()

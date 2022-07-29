@@ -325,7 +325,7 @@
 
 # --- sync
 ./test.sh -f tsim/sync/3Replica1VgElect.sim
-./test.sh -f tsim/sync/3Replica5VgElect.sim
+#./test.sh -f tsim/sync/3Replica5VgElect.sim
 ./test.sh -f tsim/sync/oneReplica1VgElect.sim
 ./test.sh -f tsim/sync/oneReplica5VgElect.sim
 
