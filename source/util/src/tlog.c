@@ -16,8 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "tlog.h"
 #include "os.h"
-#include "tutil.h"
 #include "tconfig.h"
+#include "tutil.h"
 
 #define LOG_MAX_LINE_SIZE             (1024)
 #define LOG_MAX_LINE_BUFFER_SIZE      (LOG_MAX_LINE_SIZE + 3)
@@ -40,7 +40,7 @@
 #define LOG_BUF_MUTEX(x)  ((x)->buffMutex)
 
 typedef struct {
-  char *        buffer;
+  char         *buffer;
   int32_t       buffStart;
   int32_t       buffEnd;
   int32_t       buffSize;
@@ -59,15 +59,15 @@ typedef struct {
   int32_t       openInProgress;
   pid_t         pid;
   char          logName[LOG_FILE_NAME_LEN];
-  SLogBuff *    logHandle;
+  SLogBuff     *logHandle;
   TdThreadMutex logMutex;
 } SLogObj;
 
 extern SConfig *tsCfg;
-static int8_t  tsLogInited = 0;
-static SLogObj tsLogObj = {.fileNum = 1};
-static int64_t tsAsyncLogLostLines = 0;
-static int32_t tsWriteInterval = LOG_DEFAULT_INTERVAL;
+static int8_t   tsLogInited = 0;
+static SLogObj  tsLogObj = {.fileNum = 1};
+static int64_t  tsAsyncLogLostLines = 0;
+static int32_t  tsWriteInterval = LOG_DEFAULT_INTERVAL;
 
 bool    tsLogEmbedded = 0;
 bool    tsAsyncLog = true;
@@ -106,7 +106,7 @@ int64_t dbgSmallWN = 0;
 int64_t dbgBigWN = 0;
 int64_t dbgWSize = 0;
 
-static void *    taosAsyncOutputLog(void *param);
+static void     *taosAsyncOutputLog(void *param);
 static int32_t   taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msgLen);
 static SLogBuff *taosLogBuffNew(int32_t bufSize);
 static void      taosCloseLogByFd(TdFilePtr pFile);
@@ -128,7 +128,11 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles) {
   osUpdate();
 
   char fullName[PATH_MAX] = {0};
-  snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logName);
+  if (strlen(tsLogDir) != 0) {
+    snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logName);
+  } else {
+    snprintf(fullName, PATH_MAX, "%s", logName);
+  }
 
   tsLogObj.logHandle = taosLogBuffNew(LOG_DEFAULT_BUF_SIZE);
   if (tsLogObj.logHandle == NULL) return -1;
@@ -704,7 +708,7 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   int32_t compressSize = 163840;
   int32_t ret = 0;
   int32_t len = 0;
-  char *  data = taosMemoryMalloc(compressSize);
+  char   *data = taosMemoryMalloc(compressSize);
   //  gzFile  dstFp = NULL;
 
   // srcFp = fopen(srcFileName, "r");

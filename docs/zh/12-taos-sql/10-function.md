@@ -594,6 +594,24 @@ INSERT INTO tb_name VALUES (TODAY(), ...);
 
 TDengine 支持针对数据的聚合查询。提供如下聚合函数。
 
+### APERCENTILE
+
+```sql
+SELECT APERCENTILE(field_name, P[, algo_type]) FROM { tb_name | stb_name } [WHERE clause]
+```
+
+**功能说明**：统计表/超级表中指定列的值的近似百分比分位数，与 PERCENTILE 函数相似，但是返回近似结果。
+
+**返回数据类型**： DOUBLE。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**说明**：
+- P值范围是[0,100]，当为0时等同于MIN，为100时等同于MAX。
+- algo_type 取值为 "default" 或 "t-digest"。 输入为 "default" 时函数使用基于直方图算法进行计算。输入为 "t-digest" 时使用t-digest算法计算分位数的近似结果。如果不指定 algo_type 则使用 "default" 算法。
+
 ### AVG
 
 ```sql
@@ -656,6 +674,7 @@ SELECT ELAPSED(ts_primary_key [, time_unit]) FROM { tb_name | stb_name } [WHERE 
 - 对于嵌套查询，仅当内层查询会输出隐式时间戳列时有效。例如select elapsed(ts) from (select diff(value) from sub1)语句，diff函数会让内层查询输出隐式时间戳列，此为主键列，可以用于elapsed函数的第一个参数。相反，例如select elapsed(ts) from (select * from sub1) 语句，ts列输出到外层时已经没有了主键列的含义，无法使用elapsed函数。此外，elapsed函数作为一个与时间线强依赖的函数，形如select elapsed(ts) from (select diff(value) from st group by tbname)尽管会返回一条计算结果，但并无实际意义，这种用法后续也将被限制。
 - 不支持与leastsquares、diff、derivative、top、bottom、last_row、interp等函数混合使用。
 
+
 ### LEASTSQUARES
 
 ```sql
@@ -669,21 +688,6 @@ SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause]
 **适用数据类型**：field_name 必须是数值类型。
 
 **适用于**：表。
-
-
-### MODE
-
-```sql
-SELECT MODE(field_name) FROM tb_name [WHERE clause];
-```
-
-**功能说明**：返回出现频率最高的值，若存在多个频率相同的最高值，输出NULL。
-
-**返回数据类型**：与输入数据类型一致。
-
-**适用数据类型**：全部类型字段。
-
-**适用于**：表和超级表。
 
 
 ### SPREAD
@@ -778,28 +782,26 @@ SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_nam
 3. normalized 是否将返回结果归一化到 0~1 之间 。有效输入为 0 和 1。
 
 
-## 选择函数
-
-选择函数根据语义在查询结果集中选择一行或多行结果返回。用户可以同时指定输出 ts 列或其他列（包括 tbname 和标签列），这样就可以方便地知道被选出的值是源于哪个数据行的。
-
-### APERCENTILE
+### PERCENTILE
 
 ```sql
-SELECT APERCENTILE(field_name, P[, algo_type])
-FROM { tb_name | stb_name } [WHERE clause]
+SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
 ```
 
-**功能说明**：统计表/超级表中指定列的值的近似百分比分位数，与 PERCENTILE 函数相似，但是返回近似结果。
+**功能说明**：统计表中某列的值百分比分位数。
 
 **返回数据类型**： DOUBLE。
 
-**适用数据类型**：数值类型。
+**应用字段**：数值类型。
 
-**适用于**：表和超级表。
+**适用于**：表。
 
-**说明**：
-- P值范围是[0,100]，当为0时等同于MIN，为100时等同于MAX。
-- algo_type 取值为 "default" 或 "t-digest"。 输入为 "default" 时函数使用基于直方图算法进行计算。输入为 "t-digest" 时使用t-digest算法计算分位数的近似结果。如果不指定 algo_type 则使用 "default" 算法。
+**使用说明**：*P*值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX。
+
+
+## 选择函数
+
+选择函数根据语义在查询结果集中选择一行或多行结果返回。用户可以同时指定输出 ts 列或其他列（包括 tbname 和标签列），这样就可以方便地知道被选出的值是源于哪个数据行的。
 
 ### BOTTOM
 
@@ -935,21 +937,41 @@ SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
 **适用于**：表和超级表。
 
 
-### PERCENTILE
+### MODE
 
 ```sql
-SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
+SELECT MODE(field_name) FROM tb_name [WHERE clause];
 ```
 
-**功能说明**：统计表中某列的值百分比分位数。
+**功能说明**：返回出现频率最高的值，若存在多个频率相同的最高值，输出NULL。
 
-**返回数据类型**： DOUBLE。
+**返回数据类型**：与输入数据类型一致。
 
-**应用字段**：数值类型。
+**适用数据类型**：全部类型字段。
 
-**适用于**：表。
+**适用于**：表和超级表。
 
-**使用说明**：*P*值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX。
+
+### SAMPLE
+
+```sql
+SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+```
+
+  **功能说明**： 获取数据的 k 个采样值。参数 k 的合法输入范围是 1≤ k ≤ 1000。
+
+  **返回结果类型**： 同原始数据类型， 返回结果中带有该行记录的时间戳。
+
+  **适用数据类型**： 在超级表查询中使用时，不能应用在标签之上。
+
+  **嵌套子查询支持**： 适用于内层查询和外层查询。
+
+  **适用于**：表和超级表。
+
+  **使用说明**： 
+  
+  - 不能参与表达式计算；该函数可以应用在普通表和超级表上；
+  - 使用在超级表上的时候，需要搭配 PARTITION by tbname 使用，将结果强制规约到单个时间线。
 
 
 ### TAIL
@@ -1016,7 +1038,7 @@ SELECT CSUM(field_name) FROM { tb_name | stb_name } [WHERE clause]
 
 **功能说明**：累加和（Cumulative sum），输出行与输入行数相同。
 
-**返回结果类型**： 输入列如果是整数类型返回值为长整型 （int64_t），浮点数返回值为双精度浮点数（Double）。无符号整数类型返回值为无符号长整型（uint64_t）。 返回结果中同时带有每行记录对应的时间戳。
+**返回结果类型**： 输入列如果是整数类型返回值为长整型 （int64_t），浮点数返回值为双精度浮点数（Double）。无符号整数类型返回值为无符号长整型（uint64_t）。
 
 **适用数据类型**：数值类型。
 
@@ -1045,8 +1067,10 @@ SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHER
 
 **适用于**：表和超级表。
 
-**使用说明**: DERIVATIVE 函数可以在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）。
-
+**使用说明**: 
+  
+  - DERIVATIVE 函数可以在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）。
+  - 可以与选择相关联的列一起使用。 例如: select \_rowts, DERIVATIVE() from。
 
 ### DIFF
 
@@ -1062,7 +1086,10 @@ SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHER
 
 **适用于**：表和超级表。
 
-**使用说明**: 输出结果行数是范围内总行数减一，第一行没有结果输出。
+**使用说明**: 
+
+  - 输出结果行数是范围内总行数减一，第一行没有结果输出。
+  - 可以与选择相关联的列一起使用。 例如: select \_rowts, DIFF() from。
 
 
 ### IRATE
@@ -1102,26 +1129,6 @@ SELECT MAVG(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
   - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
   - 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
 
-### SAMPLE
-
-```sql
-SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
-```
-
-  **功能说明**： 获取数据的 k 个采样值。参数 k 的合法输入范围是 1≤ k ≤ 1000。
-
-  **返回结果类型**： 同原始数据类型， 返回结果中带有该行记录的时间戳。
-
-  **适用数据类型**： 在超级表查询中使用时，不能应用在标签之上。
-
-  **嵌套子查询支持**： 适用于内层查询和外层查询。
-
-  **适用于**：表和超级表。
-
-  **使用说明**： 
-  
-  - 不能参与表达式计算；该函数可以应用在普通表和超级表上；
-  - 使用在超级表上的时候，需要搭配 PARTITION by tbname 使用，将结果强制规约到单个时间线。
 
 ### STATECOUNT
 
@@ -1162,7 +1169,7 @@ SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [W
 
 - oper : "LT" (小于)、"GT"（大于）、"LE"（小于等于）、"GE"（大于等于）、"NE"（不等于）、"EQ"（等于），不区分大小写。
 - val : 数值型
-- unit : 时间长度的单位，范围[1s、1m、1h ]，不足一个单位舍去。默认为 1s。
+- unit : 时间长度的单位，可取值时间单位： 1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。如果省略，默认为当前数据库精度。
 
 **返回结果类型**：INTEGER。
 
