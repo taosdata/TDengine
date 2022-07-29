@@ -1,9 +1,6 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-sleep 100
 sql connect
 
 $dbPrefix = ti_db
@@ -63,14 +60,13 @@ while $i < $halfNum
 endw 
 print ====== tables created
 
-run general/parser/tbnameIn_query.sim
+run tsim/parser/tbnameIn_query.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 500
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 
-run general/parser/tbnameIn_query.sim
+run tsim/parser/tbnameIn_query.sim
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -112,7 +112,7 @@ char *syncCfg2SimpleStr(SSyncCfg *pSyncCfg) {
     char *  s = taosMemoryMalloc(len);
     memset(s, 0, len);
 
-    snprintf(s, len, "{replica-num:%d, my-index:%d, ", pSyncCfg->replicaNum, pSyncCfg->myIndex);
+    snprintf(s, len, "{r-num:%d, my:%d, ", pSyncCfg->replicaNum, pSyncCfg->myIndex);
     char *p = s + strlen(s);
     for (int i = 0; i < pSyncCfg->replicaNum; ++i) {
       /*

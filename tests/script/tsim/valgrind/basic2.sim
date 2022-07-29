@@ -1,7 +1,7 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c debugflag -v 131
-system sh/exec.sh -n dnode1 -s start -v
+system sh/exec.sh -n dnode1 -s start
 sql connect
 
 print =============== step1: create drop show dnodes
@@ -22,63 +22,73 @@ if $data(1)[4] != ready then
   goto step1
 endi
 
-print =============== step2: create db
-sql create database d1 vgroups 3 buffer 3
-sql show databases
-sql use d1
-sql show vgroups
+$tbPrefix = tb
+$tbNum = 5
+$rowNum = 10
 
-print =============== step3: create show stable, include all type
-sql create table if not exists stb (ts timestamp, c1 bool, c2 tinyint, c3 smallint, c4 int, c5 bigint, c6 float, c7 double, c8 binary(16), c9 nchar(16), c10 timestamp, c11 tinyint unsigned, c12 smallint unsigned, c13 int unsigned, c14 bigint unsigned) tags (t1 bool, t2 tinyint, t3 smallint, t4 int, t5 bigint, t6 float, t7 double, t8 binary(16), t9 nchar(16), t10 timestamp, t11 tinyint unsigned, t12 smallint unsigned, t13 int unsigned, t14 bigint unsigned)
-sql create stable if not exists stb_1 (ts timestamp, c1 int) tags (j int)
-sql create table stb_2 (ts timestamp, c1 int) tags (t1 int)
-sql create stable stb_3 (ts timestamp, c1 int) tags (t1 int)
-sql show stables
-if $rows != 4 then 
-  return -1
-endi
+print =============== step2: prepare data
+sql create database db vgroups 2
+sql use db
+sql create table if not exists stb (ts timestamp, tbcol int, tbcol2 float, tbcol3 double) tags (tgcol int unsigned)
 
-print =============== step4: ccreate child table
-sql create table c1 using stb tags(true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
-sql create table c2 using stb tags(false, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 2', 'child tbl 2', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
-sql show tables
-if $rows != 2 then 
-  return -1
-endi
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using stb tags( $i )
+  $x = 0
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+    sql insert into $tb values ($ms , $x , $x , $x ) 
+    $x = $x + 1
+  endw 
 
-print =============== step5: insert data
-sql insert into c1 values(now-1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
-sql insert into c1 values(now+0s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) (now+1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) (now+2s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
-sql insert into c2 values(now-1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
-sql insert into c2 values(now+0s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) (now+1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) (now+2s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
+  $cc = $x * 60000
+  $ms = 1601481600000 + $cc
+  sql insert into $tb values ($ms , NULL , NULL , NULL ) 
+  $i = $i + 1
+endw 
 
-print =============== step6: alter insert
-sql insert into c3 using stb tags(true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) values(now-1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) 
-sql insert into c3 using stb tags(true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) values(now+0s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) 
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start -v
 
-goto _OVER
-print =============== stepa: query data
-sql select * from c1
-sql select * from stb
-sql select * from stb_1
-sql select ts, c1, c2, c3 from c1
-sql select ts, c1, c2, c3 from stb
-sql select ts, c1 from stb_2
-sql select ts, c1, t1 from c1
-sql select ts, c1, t1 from stb
-sql select ts, c1, t1 from stb_2
+print =============== step3: tb
+sql select avg(tbcol) from tb1
+sql select avg(tbcol) from tb1 where ts <= 1601481840000
+sql select avg(tbcol) as b from tb1
+sql select avg(tbcol) as b from tb1 interval(1d)
+sql select avg(tbcol) as b from tb1 where ts <= 1601481840000 interval(1m)
+sql select bottom(tbcol, 2) from tb1 where ts <= 1601481840000 
+sql select top(tbcol, 2) from tb1 where ts <= 1601481840000 
+sql select percentile(tbcol, 2) from tb1 where ts <= 1601481840000 
+sql select leastsquares(tbcol, 1, 1) as b from tb1 where ts <= 1601481840000
+sql show table distributed tb1
+sql select count(tbcol) as b from tb1 where ts <= 1601481840000 interval(1m)
+sql select diff(tbcol) from tb1 where ts <= 1601481840000 
+sql select diff(tbcol) from tb1 where tbcol > 5 and tbcol < 20
+sql select first(tbcol), last(tbcol) as b from tb1 where ts <= 1601481840000 interval(1m)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), sum(tbcol), stddev(tbcol) from tb1 where ts <= 1601481840000 partition by tgcol interval(1m)
+#sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from tb1 where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
+sql select last_row(*) from tb1 where tbcol > 5 and tbcol < 20
 
-print =============== stepb: count
-#sql select count(*) from c1;
-#sql select count(*) from stb;
-#sql select count(ts), count(c1), count(c2), count(c3) from c1
-#sql select count(ts), count(c1), count(c2), count(c3) from stb
-
-print =============== stepc: func
-#sql select first(ts), first(c1), first(c2), first(c3) from c1
-#sql select min(c1), min(c2), min(c3) from c1
-#sql select max(c1), max(c2), max(c3) from c1
-#sql select sum(c1), sum(c2), sum(c3) from c1
+print =============== step4: stb
+sql select avg(tbcol) as c from stb
+sql select avg(tbcol) as c from stb where ts <= 1601481840000
+sql select avg(tbcol) as c from stb where tgcol < 5 and ts <= 1601481840000
+sql select avg(tbcol) as c from stb interval(1m)
+sql select avg(tbcol) as c from stb interval(1d)
+sql select avg(tbcol) as b from stb where ts <= 1601481840000 interval(1m)
+sql select avg(tbcol) as c from stb group by tgcol
+sql select avg(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+sql show table distributed stb
+sql select count(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+sql select diff(tbcol) from stb where ts <= 1601481840000 
+sql select first(tbcol), last(tbcol) as c from stb group by tgcol
+sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 and tbcol2 is null partition by tgcol interval(1m)
+sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), sum(tbcol), stddev(tbcol) from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+#sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from stb where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
+sql select last_row(tbcol), stddev(tbcol) from stb where tbcol > 5 and tbcol < 20 group by tgcol
 
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -87,7 +97,7 @@ $null=
 
 system_content sh/checkValgrind.sh -n dnode1 
 print cmd return result ----> [ $system_content ]
-if $system_content > 1 then
+if $system_content > 0 then
   return -1
 endi 
 

@@ -53,6 +53,8 @@ TEST_F(PlanOptimizeTest, sortPrimaryKey) {
 
   run("SELECT c1 FROM t1 ORDER BY ts");
 
+  run("SELECT c1 FROM st1 ORDER BY ts");
+
   run("SELECT c1 FROM t1 ORDER BY ts DESC");
 
   run("SELECT COUNT(*) FROM t1 INTERVAL(10S) ORDER BY _WSTART DESC");
@@ -82,6 +84,12 @@ TEST_F(PlanOptimizeTest, eliminateProjection) {
   run("SELECT * FROM st1");
   run("SELECT c1 FROM st1s3");
   // run("select 1-abs(c1) from (select unique(c1) c1 from st1s3) order by 1 nulls first");
+}
+
+TEST_F(PlanOptimizeTest, mergeProjects) {
+  useDb("root", "test");
+
+  run("SELECT * FROM (SELECT * FROM t1 WHERE c1 > 10 ORDER BY ts) ORDER BY ts");
 }
 
 TEST_F(PlanOptimizeTest, pushDownProjectCond) {

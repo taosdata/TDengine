@@ -55,7 +55,7 @@ int32_t sclCreateColumnInfoData(SDataType* pType, int32_t numOfRows, SScalarPara
   }
 
   pParam->columnData = pColumnData;
-  pParam->type = SHOULD_FREE_COLDATA;
+  pParam->colAlloced = true;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -166,6 +166,10 @@ void sclFreeRes(SHashObj *res) {
 }
 
 void sclFreeParam(SScalarParam *param) {
+  if (!param->colAlloced) {
+    return;
+  }
+  
   if (param->columnData != NULL) {
     colDataDestroy(param->columnData);
     taosMemoryFreeClear(param->columnData);
@@ -173,6 +177,7 @@ void sclFreeParam(SScalarParam *param) {
 
   if (param->pHashFilter != NULL) {
     taosHashCleanup(param->pHashFilter);
+    param->pHashFilter = NULL;
   }
 }
 
@@ -189,6 +194,19 @@ int32_t sclCopyValueNodeValue(SValueNode *pNode, void **res) {
 
   memcpy(*res, nodesGetValueFromNode(pNode), pNode->node.resType.bytes);
   return TSDB_CODE_SUCCESS;
+}
+
+void sclFreeParamList(SScalarParam *param, int32_t paramNum) {
+  if (NULL == param) {
+    return;
+  }
+
+  for (int32_t i = 0; i < paramNum; ++i) {
+    SScalarParam* p = param + i;
+    sclFreeParam(p);
+  }
+
+  taosMemoryFree(param);
 }
 
 int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t *rowNum) {
@@ -225,11 +243,14 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
 
       SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type));
       param->hashValueType = type;
+      param->colAlloced = true;
       if (taosHashPut(ctx->pRes, &node, POINTER_BYTES, param, sizeof(*param))) {
         taosHashCleanup(param->pHashFilter);
+        param->pHashFilter = NULL;
         sclError("taosHashPut nodeList failed, size:%d", (int32_t)sizeof(*param));
         return TSDB_CODE_QRY_OUT_OF_MEMORY;
       }
+      param->colAlloced = false;
       break;
     }
     case QUERY_NODE_COLUMN: {
@@ -274,6 +295,7 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         SCL_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
       }
       *param = *res;
+      param->colAlloced = false;
       break;
     }
     default:
@@ -455,11 +477,7 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
 
 _return:
 
-  for (int32_t i = 0; i < paramNum; ++i) {
-//    sclFreeParamNoData(params + i);
-  }
-
-  taosMemoryFreeClear(params);
+  sclFreeParamList(params, paramNum);
   SCL_RET(code);
 }
 
@@ -533,11 +551,7 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
 
 _return:
 
-  for (int32_t i = 0; i < paramNum; ++i) {
-//    sclFreeParamNoData(params + i);
-  }
-
-  taosMemoryFreeClear(params);
+  sclFreeParamList(params, paramNum);
   SCL_RET(code);
 }
 
@@ -573,14 +587,8 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   code = terrno;
 
 _return:
-  for (int32_t i = 0; i < paramNum; ++i) {
-    if (params[i].type == SHOULD_FREE_COLDATA) {
-      colDataDestroy(params[i].columnData);
-      taosMemoryFreeClear(params[i].columnData);
-    }
-  }
 
-  taosMemoryFreeClear(params);
+  sclFreeParamList(params, paramNum);
   SCL_RET(code);
 }
 
@@ -700,7 +708,7 @@ EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
 EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode* tnode = NULL;
-  if (!fmIsScalarFunc(node->funcId)) {
+  if (!fmIsScalarFunc(node->funcId) && (!ctx->dual)) {
     return DEAL_RES_CONTINUE;
   }
 
@@ -727,15 +735,13 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
+  res->node.resType.type = output.columnData->info.type;
+  res->node.resType.bytes = output.columnData->info.bytes;
+  res->node.resType.scale = output.columnData->info.scale;
+  res->node.resType.precision = output.columnData->info.precision;
   if (colDataIsNull_s(output.columnData, 0)) {
     res->isNull = true;
-    //res->node.resType.type = TSDB_DATA_TYPE_NULL;
-    //res->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
   } else {
-    res->node.resType.type = output.columnData->info.type;
-    res->node.resType.bytes = output.columnData->info.bytes;
-    res->node.resType.scale = output.columnData->info.scale;
-    res->node.resType.precision = output.columnData->info.precision;
     int32_t type = output.columnData->info.type;
     if (type == TSDB_DATA_TYPE_JSON){
       int32_t len = getJsonValueLen(output.columnData->pData);
@@ -818,16 +824,11 @@ EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
+  res->node.resType = node->node.resType;
   if (colDataIsNull_s(output.columnData, 0)) {
-    if(node->node.resType.type != TSDB_DATA_TYPE_JSON){
-      res->node.resType.type = TSDB_DATA_TYPE_NULL;
-      res->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
-    }else{
-      res->node.resType = node->node.resType;
-      res->isNull = true;
-    }
-  } else {
+    res->isNull = true;
     res->node.resType = node->node.resType;
+  } else {
     int32_t type = output.columnData->info.type;
     if (IS_VAR_DATA_TYPE(type)) {  // todo refactor
       res->datum.p = output.columnData->pData;
@@ -871,7 +872,6 @@ EDealRes sclWalkFunction(SNode* pNode, SScalarCtx *ctx) {
     return DEAL_RES_ERROR;
   }
 
-  output.type = DELEGATED_MGMT_COLDATA;
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
     ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
@@ -906,7 +906,6 @@ EDealRes sclWalkOperator(SNode* pNode, SScalarCtx *ctx) {
     return DEAL_RES_ERROR;
   }
 
-  output.type = DELEGATED_MGMT_COLDATA;
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
     ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;

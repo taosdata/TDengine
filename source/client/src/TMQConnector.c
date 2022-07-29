@@ -278,7 +278,7 @@ JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetTableNam
 }
 
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_fetchRawBlockImp(JNIEnv *env, jobject jobj, jlong con,
-                                                                                jlong res, jobject rowobj, jint flag,
+                                                                                jlong res, jobject rowobj,
                                                                                 jobject arrayListObj) {
   TAOS   *tscon = (TAOS *)con;
   int32_t code = check_for_params(jobj, con, res);
@@ -309,16 +309,14 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_fetchRawBlockImp(
 
   TAOS_FIELD *fields = taos_fetch_fields(tres);
   jniDebug("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, tres, numOfFields);
-  if (flag) {
-    for (int i = 0; i < numOfFields; ++i) {
-      jobject metadataObj = (*env)->NewObject(env, g_metadataClass, g_metadataConstructFp);
-      (*env)->SetIntField(env, metadataObj, g_metadataColtypeField, fields[i].type);
-      (*env)->SetIntField(env, metadataObj, g_metadataColsizeField, fields[i].bytes);
-      (*env)->SetIntField(env, metadataObj, g_metadataColindexField, i);
-      jstring metadataObjColname = (*env)->NewStringUTF(env, fields[i].name);
-      (*env)->SetObjectField(env, metadataObj, g_metadataColnameField, metadataObjColname);
-      (*env)->CallBooleanMethod(env, arrayListObj, g_arrayListAddFp, metadataObj);
-    }
+  for (int i = 0; i < numOfFields; ++i) {
+    jobject metadataObj = (*env)->NewObject(env, g_metadataClass, g_metadataConstructFp);
+    (*env)->SetIntField(env, metadataObj, g_metadataColtypeField, fields[i].type);
+    (*env)->SetIntField(env, metadataObj, g_metadataColsizeField, fields[i].bytes);
+    (*env)->SetIntField(env, metadataObj, g_metadataColindexField, i);
+    jstring metadataObjColname = (*env)->NewStringUTF(env, fields[i].name);
+    (*env)->SetObjectField(env, metadataObj, g_metadataColnameField, metadataObjColname);
+    (*env)->CallBooleanMethod(env, arrayListObj, g_arrayListAddFp, metadataObj);
   }
 
   (*env)->CallVoidMethod(env, rowobj, g_blockdataSetNumOfRowsFp, (jint)numOfRows);

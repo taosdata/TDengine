@@ -40,16 +40,16 @@ print ============= create database with all options
 #  | BUFFER value       [3~16384, default: 96]
 #  | PAGES value        [64~16384, default: 256]
 #  | PAGESIZE value     [1~16384, default: 4]
-#  | CACHELAST value    [0, 1, 2, 3, default: 0]
+#  | CACHEMODEL value   ['node', 'last_row', 'last_value', 'both', default: 'node']
 #  | COMP               [0 | 1 | 2, default: 2]
 #  | DURATION value         [60m ~ min(3650d,keep), default: 10d, unit may be minut/hour/day]
-#  | FSYNC value        [0 ~ 180000 ms, default: 3000]
+#  | WAL_FSYNC_PERIOD value        [0 ~ 180000 ms, default: 3000]
 #  | MAXROWS value      [200~10000, default: 4096]
 #  | MINROWS value      [10~1000, default: 100]
 #  | KEEP value         [max(1d ~ 365000d), default: 1d, unit may be minut/hour/day]
 #  | PRECISION          ['ms' | 'us' | 'ns', default: ms]
 #  | REPLICA value      [1 | 3, default: 1]
-#  | WAL value          [1 | 2, default: 1]
+#  | WAL_LEVEL value          [1 | 2, default: 1]
 #  | VGROUPS value      [default: 2]
 #  | SINGLE_STABLE      [0 | 1, default: ]
 #
@@ -62,7 +62,7 @@ print ============= create database with all options
 #$data7_db  : keep
 #$data10_db : minrows
 #$data11_db : maxrows
-#$data12_db : wal
+#$data12_db : wal_level
 #$data13_db : fsync
 #$data14_db : comp
 #$data15_db : cachelast
@@ -89,7 +89,7 @@ if $data4_db != 1 then  # replica
   print expect 1, actual: $data4_db
   return -1
 endi
-if $data5_db != no_strict then  # strict
+if $data5_db != off then  # strict
   return -1
 endi
 if $data6_db != 14400m then  # duration
@@ -113,21 +113,22 @@ endi
 if $data12_db != 4096 then  # maxrows
   return -1
 endi
-if $data13_db != 1 then  # wal
+if $data13_db != 2 then  # comp
   return -1
 endi
-if $data14_db != 3000 then  # fsync
+if $data14_db != ms then  # precision
   return -1
 endi
-if $data15_db != 2 then  # comp
+if $data18_db != none then  # cachelast
   return -1
 endi
-if $data16_db != 0 then  # cachelast
+if $data20_db != 1 then  # wal_level
   return -1
 endi
-if $data17_db != ms then  # precision
+if $data21_db != 3000 then  # wal_fsync_period
   return -1
 endi
+
 sql drop database db
 
 #print ====> BLOCKS value       [3~1000, default: 6]
@@ -167,38 +168,38 @@ sql drop database db
 #endi
 #sql drop database db
 
-print ====> CACHELAST value [0, 1, 2, 3, default: 0]
-sql create database db CACHELAST 1
+print ====> CACHEMODEL value [0, 1, 2, 3, default: 0]
+sql create database db CACHEMODEL 'last_row'
 sql show databases
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
-if $data16_db != 1 then
+if $data18_db != last_row then
   return -1
 endi
 sql drop database db
 
-sql create database db CACHELAST 2
+sql create database db CACHEMODEL 'last_value'
 sql show databases
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
-if $data16_db != 2 then
+if $data18_db != last_value then
   return -1
 endi
 sql drop database db
 
-sql create database db CACHELAST 3
+sql create database db CACHEMODEL 'both'
 sql show databases
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
-if $data16_db != 3 then
+if $data18_db != both then
   return -1
 endi
 sql drop database db
-sql_error create database db CACHELAST 4
-sql_error create database db CACHELAST -1
+sql_error create database db CACHEMODEL 'other'
+sql_error create database db CACHEMODEL '-1'
 
 print ====> COMP [0 | 1 | 2, default: 2]
 sql create database db COMP 1
 sql show databases
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
-if $data15_db != 1 then
+if $data13_db != 1 then
   return -1
 endi
 sql drop database db
@@ -206,7 +207,7 @@ sql drop database db
 sql create database db COMP 0
 sql show databases
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
-if $data15_db != 0 then
+if $data13_db != 0 then
   return -1
 endi
 sql drop database db
@@ -253,24 +254,24 @@ sql_error create database db COMP -1
 #sql_error create database db KEEP 525600001m
 #sql_error create database db KEEP 365001d
 
-print ====> FSYNC value [0 ~ 180000 ms, default: 3000]
-sql create database db FSYNC 0
+print ====> WAL_FSYNC_PERIOD value [0 ~ 180000 ms, default: 3000]
+sql create database db WAL_FSYNC_PERIOD 0
 sql show databases
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
-if $data14_db != 0 then
+if $data21_db != 0 then
   return -1
 endi
 sql drop database db
 
-sql create database db FSYNC 180000
+sql create database db WAL_FSYNC_PERIOD 180000
 sql show databases
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
-if $data14_db != 180000 then
+if $data21_db != 180000 then
   return -1
 endi
 sql drop database db
-sql_error create database db FSYNC 180001
-sql_error create database db FSYNC -1
+sql_error create database db WAL_FSYNC_PERIOD 180001
+sql_error create database db WAL_FSYNC_PERIOD -1
 
 print ====> MAXROWS value [200~10000, default: 4096], MINROWS value [10~1000, default: 100]
 sql create database db MAXROWS 10000 MINROWS 1000
@@ -308,7 +309,7 @@ print ====> PRECISION ['ms' | 'us' | 'ns', default: ms]
 sql create database db PRECISION 'us'
 sql show databases
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
-if $data17_db != us then
+if $data14_db != us then
   return -1
 endi
 sql drop database db
@@ -316,7 +317,7 @@ sql drop database db
 sql create database db PRECISION 'ns'
 sql show databases
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
-if $data17_db != ns then
+if $data14_db != ns then
   return -1
 endi
 sql drop database db
@@ -385,25 +386,25 @@ sql_error create database db REPLICA 4
 #sql_error create database db TTL 0
 #sql_error create database db TTL -1
 
-print ====> WAL value [1 | 2, default: 1]
-sql create database db WAL 2
+print ====> WAL_LEVEL value [1 | 2, default: 1]
+sql create database db WAL_LEVEL 2
 sql show databases
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
-if $data13_db != 2 then
+if $data20_db != 2 then
   return -1
 endi
 sql drop database db
 
-sql create database db WAL 1
+sql create database db WAL_LEVEL 1
 sql show databases
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
-if $data13_db != 1 then
+if $data20_db != 1 then
   return -1
 endi
 sql drop database db
-sql_error create database db WAL 3
-sql_error create database db WAL -1
-sql_error create database db WAL 0
+sql_error create database db WAL_LEVEL 3
+sql_error create database db WAL_LEVEL -1
+sql_error create database db WAL_LEVEL 0
 
 print ====> VGROUPS value [1~4096, default: 2]
 sql create database db VGROUPS 1

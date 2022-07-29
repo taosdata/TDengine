@@ -382,6 +382,15 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   if (msgInfo->rpcType == UDFD_RPC_MNODE_CONNECT) {
     SConnectRsp connectRsp = {0};
     tDeserializeSConnectRsp(pMsg->pCont, pMsg->contLen, &connectRsp);
+    
+    int32_t now = taosGetTimestampSec();
+    int32_t delta = abs(now - connectRsp.svrTimestamp);
+    if (delta > 900) {
+      msgInfo->code = TSDB_CODE_TIME_UNSYNCED;
+      goto _return;
+    }
+    
+     
     if (connectRsp.epSet.numOfEps == 0) {
       msgInfo->code = TSDB_CODE_MND_APP_ERROR;
       goto _return;
@@ -662,6 +671,9 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
       fnError("udfd can not allocate enough memory") buf->base = NULL;
       buf->len = 0;
     }
+  } else if (ctx->inputTotal == -1 && ctx->inputLen < msgHeadSize) {
+      buf->base = ctx->inputBuf + ctx->inputLen;
+      buf->len = msgHeadSize - ctx->inputLen;
   } else {
     ctx->inputCap = ctx->inputTotal > ctx->inputCap ? ctx->inputTotal : ctx->inputCap;
     void *inputBuf = taosMemoryRealloc(ctx->inputBuf, ctx->inputCap);
@@ -904,8 +916,8 @@ void udfdConnectMnodeThreadFunc(void *args) {
 }
 
 int main(int argc, char *argv[]) {
-  if (!taosCheckSystemIsSmallEnd()) {
-    printf("failed to start since on non-small-end machines\n");
+  if (!taosCheckSystemIsLittleEnd()) {
+    printf("failed to start since on non-little-end machines\n");
     return -1;
   }
 

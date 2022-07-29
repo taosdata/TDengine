@@ -123,6 +123,14 @@ class ParserTestBaseImpl {
     delete pMetaCache;
   }
 
+  static void _destroyQuery(SQuery** pQuery) {
+    if (nullptr == pQuery) {
+      return;
+    }
+    qDestroyQuery(*pQuery);
+    taosMemoryFree(pQuery);
+  }
+
   bool checkResultCode(const string& pFunc, int32_t resultCode) {
     return !(stmtEnv_.checkFunc_.empty())
                ? ((stmtEnv_.checkFunc_ == pFunc) ? stmtEnv_.expect_ == resultCode : TSDB_CODE_SUCCESS == resultCode)
@@ -192,7 +200,7 @@ class ParserTestBaseImpl {
 
   void setParseContext(const string& sql, SParseContext* pCxt, bool async = false) {
     stmtEnv_.sql_ = sql;
-    transform(stmtEnv_.sql_.begin(), stmtEnv_.sql_.end(), stmtEnv_.sql_.begin(), ::tolower);
+    strtolower((char*)stmtEnv_.sql_.c_str(), sql.c_str());
 
     pCxt->acctId = atoi(caseEnv_.acctId_.c_str());
     pCxt->db = caseEnv_.db_.c_str();
@@ -278,9 +286,9 @@ class ParserTestBaseImpl {
       SParseContext cxt = {0};
       setParseContext(sql, &cxt);
 
-      SQuery* pQuery = nullptr;
-      doParse(&cxt, &pQuery);
-      unique_ptr<SQuery, void (*)(SQuery*)> query(pQuery, qDestroyQuery);
+      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
+      doParse(&cxt, query.get());
+      SQuery* pQuery = *(query.get());
 
       doAuthenticate(&cxt, pQuery, nullptr);
 
@@ -306,9 +314,9 @@ class ParserTestBaseImpl {
       SParseContext cxt = {0};
       setParseContext(sql, &cxt);
 
-      SQuery* pQuery = nullptr;
-      doParseSql(&cxt, &pQuery);
-      unique_ptr<SQuery, void (*)(SQuery*)> query(pQuery, qDestroyQuery);
+      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
+      doParseSql(&cxt, query.get());
+      SQuery* pQuery = *(query.get());
 
       if (g_dump) {
         dump();
@@ -328,9 +336,9 @@ class ParserTestBaseImpl {
       SParseContext cxt = {0};
       setParseContext(sql, &cxt, true);
 
-      SQuery* pQuery = nullptr;
-      doParse(&cxt, &pQuery);
-      unique_ptr<SQuery, void (*)(SQuery*)> query(pQuery, qDestroyQuery);
+      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
+      doParse(&cxt, query.get());
+      SQuery* pQuery = *(query.get());
 
       unique_ptr<SParseMetaCache, void (*)(SParseMetaCache*)> metaCache(new SParseMetaCache(), _destoryParseMetaCache);
       doCollectMetaKey(&cxt, pQuery, metaCache.get());
@@ -386,9 +394,9 @@ class ParserTestBaseImpl {
 
       unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
                                                                  MockCatalogService::destoryCatalogReq);
-      SQuery*                                         pQuery = nullptr;
-      doParseSqlSyntax(&cxt, &pQuery, catalogReq.get());
-      unique_ptr<SQuery, void (*)(SQuery*)> query(pQuery, qDestroyQuery);
+      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
+      doParseSqlSyntax(&cxt, query.get(), catalogReq.get());
+      SQuery* pQuery = *(query.get());
 
       string err;
       thread t1([&]() {

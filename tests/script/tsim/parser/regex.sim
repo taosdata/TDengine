@@ -1,10 +1,6 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
-system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
 system sh/exec.sh -n dnode1 -s start
-
-sleep 100
 sql connect
 
 $db = testdb
@@ -22,11 +18,14 @@ sql create table $ct1_name using $st_name tags('taosdata1')
 sql create table $ct2_name using $st_name tags('taosdata2')
 sql create table not_match using $st_name tags('NOTMATCH')
 
+sql insert into $ct1_name values(now, 'this is engine')
+sql insert into $ct2_name values(now, 'this is app egnine')
+sql insert into not_match values (now + 1s, '1234')
+
 sql select tbname from $st_name where tbname match '.*'
 if $rows != 3 then
   return -1
 endi
-
 
 sql select tbname from $st_name where tbname match '^ct[[:digit:]]'
 if $rows != 2 then
@@ -58,9 +57,6 @@ if $rows != 1 then
   return -1
 endi
 
-sql insert into $ct1_name values(now, 'this is engine')
-sql insert into $ct2_name values(now, 'this is app egnine')
-
 sql select c1b from $st_name where c1b match 'engine'
 if $data00 != @this is engine@ then
   return -1
@@ -70,12 +66,11 @@ if $rows != 1 then
   return -1
 endi  
 
-sql select c1b from $st_name where c1b nmatch 'engine'
+sql select c1b from $st_name where c1b nmatch 'engine' order by ts
 if $data00 != @this is app egnine@ then
   return -1
 endi
-
-if $rows != 1 then
+if $rows != 2 then
   return -1
 endi  
 
@@ -100,8 +95,8 @@ sql_error select * from wrong_type where c5 match '.*'
 sql_error select * from wrong_type where c5 nmatch '.*'
 sql_error select * from wrong_type where c6 match '.*'
 sql_error select * from wrong_type where c6 nmatch '.*'
-sql_error select * from wrong_type where c7 match '.*'
-sql_error select * from wrong_type where c7 nmatch '.*'
+sql select * from wrong_type where c7 match '.*'
+sql select * from wrong_type where c7 nmatch '.*'
 sql_error select * from wrong_type where t1 match '.*'
 sql_error select * from wrong_type where t1 nmatch '.*'
 sql_error select * from wrong_type where t2 match '.*'
@@ -114,9 +109,7 @@ sql_error select * from wrong_type where t5 match '.*'
 sql_error select * from wrong_type where t5 nmatch '.*'
 sql_error select * from wrong_type where t6 match '.*'
 sql_error select * from wrong_type where t6 nmatch '.*'
-sql_error select * from wrong_type where t7 match '.*'
-sql_error select * from wrong_type where t7 nmatch '.*'
+sql select * from wrong_type where t7 match '.*'
+sql select * from wrong_type where t7 nmatch '.*'
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-
-

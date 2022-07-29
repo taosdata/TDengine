@@ -40,6 +40,7 @@ enum {
   || x == TDMT_VND_CREATE_TABLE   \
   || x == TDMT_VND_ALTER_TABLE    \
   || x == TDMT_VND_DROP_TABLE     \
+  || x == TDMT_VND_DELETE         \
 )
 // clang-format on
 
@@ -54,12 +55,12 @@ enum {
 enum {
   STREAM_INPUT__DATA_SUBMIT = 1,
   STREAM_INPUT__DATA_BLOCK,
+  STREAM_INPUT__MERGED_SUBMIT,
   // STREAM_INPUT__TABLE_SCAN,
   STREAM_INPUT__TQ_SCAN,
   STREAM_INPUT__DATA_RETRIEVE,
-  STREAM_INPUT__TRIGGER,
+  STREAM_INPUT__GET_RES,
   STREAM_INPUT__CHECKPOINT,
-  STREAM_INPUT__DROP,
 };
 
 typedef enum EStreamType {
@@ -80,8 +81,6 @@ typedef struct {
   SArray*   pTableList;
   SHashObj* map;  // speedup acquire the tableQueryInfo by table uid
   bool      needSortTableByGroupId;
-  void*     pTagCond;
-  void*     pTagIndexCond;
   uint64_t  suid;
 } STableListInfo;
 
@@ -105,6 +104,7 @@ typedef struct SDataBlockInfo {
   int16_t     hasVarCol;
   uint32_t    capacity;
   // TODO: optimize and remove following
+  int64_t     version;  // used for stream, and need serialization
   int32_t     childId;  // used for stream, do not serialize
   EStreamType type;     // used for stream, do not serialize
   STimeWindow calWin;   // used for stream, do not serialize
@@ -154,8 +154,7 @@ typedef struct SQueryTableDataCond {
   int32_t      order;  // desc|asc order to iterate the data block
   int32_t      numOfCols;
   SColumnInfo* colList;
-  int32_t      type;  // data block load type:
-//  int32_t      numOfTWindows;
+  int32_t      type;   // data block load type:
   STimeWindow  twindows;
   int64_t      startVersion;
   int64_t      endVersion;

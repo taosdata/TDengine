@@ -1,4 +1,5 @@
 import datetime
+import time
 
 from dataclasses import dataclass
 from typing import List, Any, Tuple
@@ -325,10 +326,21 @@ class TDTestCase:
     def __sma_create_check(self, sma:SMAschema):
         if  self.updatecfgDict["querySmaOptimize"] == 0:
             return False
-        # TODO: if database is a rollup-db, can not create sma index
-        # tdSql.query("select database()")
-        # if sma.rollup_db :
-        #     return False
+        tdSql.query("select database()")
+        dbname =  tdSql.getData(0,0)
+        tdSql.query("show databases")
+        for index , value in enumerate(tdSql.cursor.description):
+            if value[0] == "retention":
+                r_index = index
+                break
+        for row in tdSql.queryResult:
+            if row[0] == dbname:
+                if row[r_index] is None:
+                    continue
+                if ":" in row[r_index]:
+                    sma.rollup_db = True
+        if sma.rollup_db :
+            return False
         tdSql.query("show stables")
         if not sma.tbname:
             return False
@@ -379,8 +391,9 @@ class TDTestCase:
             tdSql.query(self.__create_sma_index(sma))
             self.sma_count += 1
             self.sma_created_index.append(sma.index_name)
-            tdSql.query("show streams")
+            tdSql.query(self.__show_sma_index(sma))
             tdSql.checkRows(self.sma_count)
+            tdSql.checkData(0, 2, sma.tbname)
 
         else:
             tdSql.error(self.__create_sma_index(sma))
@@ -402,12 +415,11 @@ class TDTestCase:
     def sma_drop_check(self, sma:SMAschema):
         if self.__sma_drop_check(sma):
             tdSql.query(self.__drop_sma_index(sma))
-            print(self.__drop_sma_index(sma))
             self.sma_count -= 1
             self.sma_created_index = list(filter(lambda x: x != sma.index_name, self.sma_created_index))
             tdSql.query("show streams")
             tdSql.checkRows(self.sma_count)
-
+            time.sleep(1)
         else:
             tdSql.error(self.__drop_sma_index(sma))
 
@@ -614,20 +626,20 @@ class TDTestCase:
         self.__insert_data()
         self.all_test()
 
-        #tdLog.printNoPrefix("==========step2:create table in rollup database")
-        #tdSql.execute("create database db3 retentions 1s:4m,2s:8m,3s:12m")
-        #tdSql.execute("use db3")
-        # self.__create_tb()
-        #tdSql.execute(f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) watermark 5s max_delay 1m sma({INT_COL}) ")
-        #self.all_test()
-
-        # self.__insert_data()
+        tdLog.printNoPrefix("==========step2:create table in rollup database")
+        tdSql.execute("create database db3 retentions 1s:4m,2s:8m,3s:12m")
+        tdSql.execute("use db3")
+        tdSql.execute(f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) watermark 5s max_delay 1m sma({INT_COL}) ")
+        self.all_test()
 
         tdSql.execute("drop database if exists db1 ")
         tdSql.execute("drop database if exists db2 ")
 
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        # tdDnodes.stop(1)
+        # tdDnodes.start(1)
+
+        tdSql.execute("flush database db ")
+
 
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()

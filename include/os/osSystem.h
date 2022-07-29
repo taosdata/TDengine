@@ -29,9 +29,6 @@ extern "C" {
     #define tcgetattr TCGETATTR_FUNC_TAOS_FORBID
 #endif
 
-#define TAOS_CONSOLE_PROMPT_HEADER "taos> "
-#define TAOS_CONSOLE_PROMPT_CONTINUE "   -> "
-
 typedef struct TdCmd *TdCmdPtr;
 
 TdCmdPtr taosOpenCmd(const char* cmd);

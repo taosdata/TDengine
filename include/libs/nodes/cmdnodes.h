@@ -51,7 +51,8 @@ extern "C" {
 typedef struct SDatabaseOptions {
   ENodeType   type;
   int32_t     buffer;
-  int8_t      cacheLast;
+  char        cacheModelStr[TSDB_CACHE_MODEL_STR_LEN];
+  int8_t      cacheModel;
   int32_t     cacheLastSize;
   int8_t      compressionLevel;
   int32_t     daysPerFile;
@@ -66,12 +67,17 @@ typedef struct SDatabaseOptions {
   char        precisionStr[3];
   int8_t      precision;
   int8_t      replica;
+  char        strictStr[TSDB_DB_STRICT_STR_LEN];
   int8_t      strict;
   int8_t      walLevel;
   int32_t     numOfVgroups;
   int8_t      singleStable;
   SNodeList*  pRetentions;
   int8_t      schemaless;
+  int32_t     walRetentionPeriod;
+  int32_t     walRetentionSize;
+  int32_t     walRollPeriod;
+  int32_t     walSegmentSize;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {

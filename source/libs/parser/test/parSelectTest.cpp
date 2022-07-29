@@ -144,17 +144,17 @@ TEST_F(ParserSelectTest, IndefiniteRowsFunc) {
 TEST_F(ParserSelectTest, IndefiniteRowsFuncSemanticCheck) {
   useDb("root", "test");
 
-  run("SELECT DIFF(c1), c2 FROM t1", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  run("SELECT DIFF(c1), c2 FROM t1");
 
-  run("SELECT DIFF(c1), tbname FROM t1", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  run("SELECT DIFF(c1), tbname FROM t1");
 
   run("SELECT DIFF(c1), count(*) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
   run("SELECT DIFF(c1), CSUM(c1) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
-  run("SELECT CSUM(c3) FROM t1 STATE_WINDOW(c1)", TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC);
+  run("SELECT CSUM(c3) FROM t1 STATE_WINDOW(c1)", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
-  run("SELECT DIFF(c1) FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC);
+  run("SELECT DIFF(c1) FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 }
 
 TEST_F(ParserSelectTest, useDefinedFunc) {
@@ -178,9 +178,9 @@ TEST_F(ParserSelectTest, uniqueFunc) {
 TEST_F(ParserSelectTest, uniqueFuncSemanticCheck) {
   useDb("root", "test");
 
-  run("SELECT UNIQUE(c1) FROM t1 INTERVAL(10S)", TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC);
+  run("SELECT UNIQUE(c1) FROM t1 INTERVAL(10S)", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
-  run("SELECT UNIQUE(c1) FROM t1 GROUP BY c2", TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC);
+  run("SELECT UNIQUE(c1) FROM t1 GROUP BY c2", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 }
 
 TEST_F(ParserSelectTest, tailFunc) {
@@ -194,9 +194,9 @@ TEST_F(ParserSelectTest, tailFunc) {
 TEST_F(ParserSelectTest, tailFuncSemanticCheck) {
   useDb("root", "test");
 
-  run("SELECT TAIL(c1, 10) FROM t1 INTERVAL(10S)", TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC);
+  run("SELECT TAIL(c1, 10) FROM t1 INTERVAL(10S)", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
-  run("SELECT TAIL(c1, 10) FROM t1 GROUP BY c2", TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC);
+  run("SELECT TAIL(c1, 10) FROM t1 GROUP BY c2", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 }
 
 TEST_F(ParserSelectTest, partitionBy) {
@@ -341,11 +341,12 @@ TEST_F(ParserSelectTest, semanticCheck) {
 
   run("SELECT t1.c1, t1.cc1 FROM t1", TSDB_CODE_PAR_INVALID_COLUMN);
 
+  // TSDB_CODE_PAR_GET_META_ERROR
+  run("SELECT * FROM t10", TSDB_CODE_PAR_GET_META_ERROR);
+
+  run("SELECT * FROM test.t10", TSDB_CODE_PAR_GET_META_ERROR);
+
   // TSDB_CODE_PAR_TABLE_NOT_EXIST
-  run("SELECT * FROM t10", TSDB_CODE_PAR_TABLE_NOT_EXIST);
-
-  run("SELECT * FROM test.t10", TSDB_CODE_PAR_TABLE_NOT_EXIST);
-
   run("SELECT t2.c1 FROM t1", TSDB_CODE_PAR_TABLE_NOT_EXIST);
 
   // TSDB_CODE_PAR_AMBIGUOUS_COLUMN
@@ -442,6 +443,13 @@ TEST_F(ParserSelectTest, withoutFrom) {
   run("SELECT CURRENT_USER()");
 
   run("SELECT USER()");
+}
+
+TEST_F(ParserSelectTest, withoutFromSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT c1", TSDB_CODE_PAR_INVALID_COLUMN);
+  run("SELECT TBNAME", TSDB_CODE_PAR_INVALID_TBNAME);
 }
 
 }  // namespace ParserTest

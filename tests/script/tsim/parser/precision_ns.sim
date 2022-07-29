@@ -1,9 +1,6 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-sleep 1000
 sql connect
 
 $dbPrefix = m_di_db_ns
@@ -50,8 +47,6 @@ while $x < $rowNum
     sql insert into $nt values (now + $ns , $x ) 
     $x = $x + 1  
 endw
-
-sleep 100
 
 print =============== step2: select count(*) from tables
 $i = 0
@@ -106,7 +101,7 @@ sql select count(*) from $mt interval(100000000b) sliding(100000000b)
 print =============== clear
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 

@@ -19,6 +19,11 @@
 SShellObj shell = {0};
 
 int main(int argc, char *argv[]) {
+#ifdef WEBSOCKET
+  shell.args.timeout = 10;
+  shell.args.cloud = true;
+#endif
+
   if (shellCheckIntSize() != 0) {
     return -1;
   }
@@ -41,7 +46,9 @@ int main(int argc, char *argv[]) {
     shellPrintHelp();
     return 0;
   }
-
+#ifdef WEBSOCKET 
+  shellCheckConnectMode();
+#endif
   taos_init();
 
   if (shell.args.is_dump_config) {

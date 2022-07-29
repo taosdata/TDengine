@@ -1,11 +1,8 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-
-sleep 100
 sql connect
+
 print ======================== dnode1 start
 
 $dbPrefix = fi_in_db
@@ -65,7 +62,7 @@ sql_error insert into $tb values (now, 1, 2.0);
 
 sql alter stable $stb add tag tag2 int;
 
-sql alter stable $stb change tag tag2 tag3;
+sql alter stable $stb rename tag tag2 tag3;
 
 sql_error drop stable $tb
 
@@ -88,7 +85,7 @@ print create/alter/drop stable test passed
 
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 

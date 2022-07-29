@@ -190,14 +190,14 @@ bool fmIsUserDefinedFunc(int32_t funcId);
 bool fmIsDistExecFunc(int32_t funcId);
 bool fmIsForbidFillFunc(int32_t funcId);
 bool fmIsForbidStreamFunc(int32_t funcId);
-bool fmIsForbidWindowFunc(int32_t funcId);
-bool fmIsForbidGroupByFunc(int32_t funcId);
 bool fmIsIntervalInterpoFunc(int32_t funcId);
 bool fmIsInterpFunc(int32_t funcId);
 bool fmIsLastRowFunc(int32_t funcId);
 bool fmIsSystemInfoFunc(int32_t funcId);
 bool fmIsImplicitTsFunc(int32_t funcId);
 bool fmIsClientPseudoColumnFunc(int32_t funcId);
+bool fmIsMultiRowsFunc(int32_t funcId);
+bool fmIsKeepOrderFunc(int32_t funcId);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 
@@ -209,6 +209,7 @@ typedef enum EFuncDataRequired {
 } EFuncDataRequired;
 
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
+EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, STimeWindow* pTimeWindow);
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);

@@ -20,6 +20,8 @@ import threading
 import requests
 import time
 # import socketfrom
+import json
+import toml
 
 import taos
 from util.log import *
@@ -127,9 +129,12 @@ class TMQCom:
     def stopTmqSimProcess(self, processorName):
         psCmd = "ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+        onlyKillOnceWindows = 0
         while(processID):
-            killCmd = "kill -INT %s > /dev/null 2>&1" % processID
-            os.system(killCmd)
+            if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
+                killCmd = "kill -INT %s > /dev/null 2>&1" % processID
+                os.system(killCmd)
+                onlyKillOnceWindows = 1
             time.sleep(0.2)
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         tdLog.debug("%s is stopped by kill -INT" % (processorName))
@@ -204,6 +209,13 @@ class TMQCom:
         
         tdLog.debug("complete to create %d child tables by %s.%s" %(ctbNum, dbName, stbName))
         return    
+
+    def drop_ctable(self, tsql, dbname=None, count=1, default_ctbname_prefix="ctb",ctbStartIdx=0):
+        for _ in range(count):
+            create_ctable_sql = f'drop table if exists {dbname}.{default_ctbname_prefix}{ctbStartIdx};'
+            ctbStartIdx += 1
+            tdLog.info("drop ctb sql: %s"%create_ctable_sql)
+            tsql.execute(create_ctable_sql)
 
     # schema: (ts timestamp, c1 int, c2 binary(16))
     def insert_data(self,tsql,dbName,stbName,ctbNum,rowsPerTbl,batchNum,startTs=None):
@@ -353,7 +365,7 @@ class TMQCom:
         return pThread
 
     def insert_data_with_autoCreateTbl(self,tsql,dbName,stbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs=0,ctbStartIdx=0):
-        tdLog.debug("start to insert data wiht auto create child table ............")
+        tdLog.debug("start to insert data with auto create child table ............")
         tsql.execute("use %s" %dbName)
         pre_insert = "insert into "
         sql = pre_insert
@@ -495,6 +507,63 @@ class TMQCom:
             else:
                 break
         return 
+
+    def create_ntable(self, tsql, dbname=None, tbname_prefix="ntb", tbname_index_start_num = 1, column_elm_list=None, colPrefix='c', tblNum=1, **kwargs):
+        tb_params = ""
+        if len(kwargs) > 0:
+            for param, value in kwargs.items():
+                tb_params += f'{param} "{value}" '
+        column_type_str = tdCom.gen_column_type_str(colPrefix, column_elm_list)
+
+        for _ in range(tblNum):
+            create_table_sql = f'create table {dbname}.{tbname_prefix}{tbname_index_start_num} ({column_type_str}) {tb_params};'
+            tbname_index_start_num += 1
+            tsql.execute(create_table_sql)
+
+    def insert_rows_into_ntbl(self, tsql, dbname=None, tbname_prefix="ntb", tbname_index_start_num = 1, column_ele_list=None, startTs=None, tblNum=1, rows=1):
+        if startTs is None:
+            startTs = tdCom.genTs()[0]
+
+        for tblIdx in range(tblNum):
+            for rowIdx in range(rows):
+                column_value_list = tdCom.gen_column_value_list(column_ele_list, f'{startTs}+{rowIdx}s')
+                column_value_str = ''
+                idx = 0
+                for column_value in column_value_list:
+                    if isinstance(column_value, str) and idx != 0:
+                        column_value_str += f'"{column_value}", '
+                    else:
+                        column_value_str += f'{column_value}, '
+                        idx += 1
+                column_value_str = column_value_str.rstrip()[:-1]
+                insert_sql = f'insert into {dbname}.{tbname_prefix}{tblIdx+tbname_index_start_num} values ({column_value_str});'
+                tsql.execute(insert_sql)
+        
+    def waitSubscriptionExit(self, tsql, topicName):
+        wait_cnt = 0
+        while True:
+            exit_flag = 1
+            tsql.query("show subscriptions")
+            rows = tsql.getRows()
+            for idx in range (rows):
+                if tsql.getData(idx, 0) != topicName:
+                    continue
+                
+                if tsql.getData(idx, 3) == None:
+                    continue
+                else:
+                    time.sleep(0.5)
+                    wait_cnt += 1
+                    exit_flag = 0
+                    break
+            
+            if exit_flag == 1:
+                break
+            
+        tsql.query("show subscriptions")
+        tdLog.info("show subscriptions:")
+        tdLog.info(tsql.queryResult)
+        tdLog.info("wait subscriptions exit for %d s"%wait_cnt)
 
     def close(self):
         self.cursor.close()

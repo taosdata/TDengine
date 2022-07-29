@@ -1,10 +1,6 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
-system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 5
 system sh/exec.sh -n dnode1 -s start
-sleep 100
 sql connect
 
 $dbPrefix = sav_db
@@ -31,6 +27,7 @@ $ts = $ts0
 while $i < $tbNum
   $tb = $tbPrefix . $i
   sql create table $tb using $stb tags( $i , 0 )
+  sql insert into $tb (ts, c1) values (now, 1);
   $i = $i + 1
 endw 
 
@@ -54,7 +51,7 @@ sql_error select distinct t1, t2 from &stb
 
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 

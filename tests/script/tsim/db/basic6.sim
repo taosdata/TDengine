@@ -15,7 +15,7 @@ $tb = $tbPrefix . $i
 
 print =============== step1
 # quorum  presicion 
-sql create database $db vgroups 8 replica 1 duration 2 keep 10 minrows 80 maxrows 10000 wal 2 fsync 1000 comp 0 cachelast 2 precision 'us'
+sql create database $db vgroups 8 replica 1 duration 2 keep 10 minrows 80 maxrows 10000 wal_level 2 wal_fsync_period 1000 comp 0 cachemodel 'last_value' precision 'us'
 sql show databases
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 

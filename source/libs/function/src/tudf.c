@@ -855,6 +855,7 @@ int32_t convertDataBlockToScalarParm(SSDataBlock *input, SScalarParam *output) {
   memcpy(output->columnData,
          taosArrayGet(input->pDataBlock, 0),
          sizeof(SColumnInfoData));
+  output->colAlloced = true;       
 
   return 0;
 }
@@ -874,9 +875,9 @@ bool isUdfcUvMsgComplete(SClientConnBuf *connBuf);
 void udfcUvHandleRsp(SClientUvConn *conn);
 void udfcUvHandleError(SClientUvConn *conn);
 void onUdfcPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf);
-void onUdfcPipetWrite(uv_write_t *write, int status);
+void onUdfcPipeWrite(uv_write_t *write, int status);
 void onUdfcPipeConnect(uv_connect_t *connect, int status);
-int32_t udfcCreateUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvTaskNode **pUvTask);
+int32_t udfcInitializeUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvTaskNode *uvTask);
 int32_t udfcQueueUvTask(SClientUvTaskNode *uvTask);
 int32_t udfcStartUvTask(SClientUvTaskNode *uvTask);
 void udfcAsyncTaskCb(uv_async_t *async);
@@ -1225,7 +1226,7 @@ int32_t udfcGetUdfTaskResultFromUvTask(SClientUdfTask *task, SClientUvTaskNode *
 }
 
 void udfcAllocateBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
-  SClientUvConn *conn = handle->data;
+  SClientUvConn  *conn = handle->data;
   SClientConnBuf *connBuf = &conn->readBuf;
 
   int32_t msgHeadSize = sizeof(int32_t) + sizeof(int64_t);
@@ -1243,6 +1244,9 @@ void udfcAllocateBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf
       buf->base = NULL;
       buf->len = 0;
     }
+  } else if (connBuf->total == -1 && connBuf->len < msgHeadSize) {
+    buf->base = connBuf->buf + connBuf->len;
+    buf->len = msgHeadSize - connBuf->len;
   } else {
     connBuf->cap = connBuf->total > connBuf->cap ? connBuf->total : connBuf->cap;
     void *resultBuf = taosMemoryRealloc(connBuf->buf, connBuf->cap);
@@ -1257,8 +1261,7 @@ void udfcAllocateBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf
     }
   }
 
-  fnTrace("conn buf cap - len - total : %d - %d - %d", connBuf->cap, connBuf->len, connBuf->total);
-
+  fnDebug("udfc uv alloc buffer: cap - len - total : %d - %d - %d", connBuf->cap, connBuf->len, connBuf->total);
 }
 
 bool isUdfcUvMsgComplete(SClientConnBuf *connBuf) {
@@ -1266,7 +1269,7 @@ bool isUdfcUvMsgComplete(SClientConnBuf *connBuf) {
     connBuf->total = *(int32_t *) (connBuf->buf);
   }
   if (connBuf->len == connBuf->cap && connBuf->total == connBuf->cap) {
-    fnTrace("udfc complete message is received, now handle it");
+    fnDebug("udfc complete message is received, now handle it");
     return true;
   }
   return false;
@@ -1277,7 +1280,7 @@ void udfcUvHandleRsp(SClientUvConn *conn) {
   int64_t seqNum = *(int64_t *) (connBuf->buf + sizeof(int32_t)); // msglen then seqnum
 
   if (QUEUE_EMPTY(&conn->taskQueue)) {
-    fnError("udfc no task waiting for response on connection");
+    fnError("udfc no task waiting on connection. response seqnum:%"PRId64, seqNum);
     return;
   }
   bool found = false;
@@ -1286,6 +1289,7 @@ void udfcUvHandleRsp(SClientUvConn *conn) {
   SClientUvTaskNode *task = QUEUE_DATA(h, SClientUvTaskNode, connTaskQueue);
 
   while (h != &conn->taskQueue) {
+    fnDebug("udfc handle response iterate through queue. uvTask:%d-%p", task->seqNum, task);
     if (task->seqNum == seqNum) {
       if (found == false) {
         found = true;
@@ -1314,6 +1318,7 @@ void udfcUvHandleRsp(SClientUvConn *conn) {
 }
 
 void udfcUvHandleError(SClientUvConn *conn) {
+  fnDebug("handle error on conn: %p, pipe: %p", conn, conn->pipe);
   while (!QUEUE_EMPTY(&conn->taskQueue)) {
     QUEUE* h = QUEUE_HEAD(&conn->taskQueue);
     SClientUvTaskNode *task = QUEUE_DATA(h, SClientUvTaskNode, connTaskQueue);
@@ -1327,7 +1332,7 @@ void udfcUvHandleError(SClientUvConn *conn) {
 }
 
 void onUdfcPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
-  fnTrace("udfc client %p, client read from pipe. nread: %zd", client, nread);
+  fnDebug("udfc client %p, client read from pipe. nread: %zd", client, nread);
   if (nread == 0) return;
 
   SClientUvConn *conn = client->data;
@@ -1337,31 +1342,25 @@ void onUdfcPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
     if (isUdfcUvMsgComplete(connBuf)) {
       udfcUvHandleRsp(conn);
     }
-
   }
   if (nread < 0) {
-    fnError("udfc client pipe %p read error: %zd, %s.", client, nread, uv_strerror(nread));
+    fnError("udfc client pipe %p read error: %zd(%s).", client, nread, uv_strerror(nread));
     if (nread == UV_EOF) {
       fnError("\tudfc client pipe %p closed", client);
     }
     udfcUvHandleError(conn);
   }
-
 }
 
-void onUdfcPipetWrite(uv_write_t *write, int status) {
-  SClientUvTaskNode *uvTask = write->data;
-  uv_pipe_t *pipe = uvTask->pipe;
-  fnTrace("udfc client %p write length:%zu", pipe, uvTask->reqBuf.len);
-  SClientUvConn *conn = pipe->data;
-  if (status == 0) {
-    QUEUE_INSERT_TAIL(&conn->taskQueue, &uvTask->connTaskQueue);
-  } else {
-    fnError("udfc client %p write error.", pipe);
+void onUdfcPipeWrite(uv_write_t *write, int status) {
+  SClientUvConn *conn = write->data;
+  if (status < 0) {
+    fnError("udfc client connection %p write failed. status: %d(%s)", conn, status, uv_strerror(status));
     udfcUvHandleError(conn);
+  } else {
+    fnDebug("udfc client connection %p write succeed", conn);
   }
   taosMemoryFree(write);
-  taosMemoryFree(uvTask->reqBuf.base);
 }
 
 void onUdfcPipeConnect(uv_connect_t *connect, int status) {
@@ -1377,8 +1376,7 @@ void onUdfcPipeConnect(uv_connect_t *connect, int status) {
   uv_sem_post(&uvTask->taskSem);
 }
 
-int32_t udfcCreateUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvTaskNode **pUvTask) {
-  SClientUvTaskNode *uvTask = taosMemoryCalloc(1, sizeof(SClientUvTaskNode));
+int32_t udfcInitializeUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvTaskNode *uvTask) {
   uvTask->type = uvTaskType;
   uvTask->udfc = task->session->udfc;
 
@@ -1413,12 +1411,11 @@ int32_t udfcCreateUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvTaskN
   }
   uv_sem_init(&uvTask->taskSem, 0);
 
-  *pUvTask = uvTask;
   return 0;
 }
 
 int32_t udfcQueueUvTask(SClientUvTaskNode *uvTask) {
-  fnTrace("queue uv task to event loop, task: %d, %p", uvTask->type, uvTask);
+  fnDebug("queue uv task to event loop, uvTask: %d-%p", uvTask->type, uvTask);
   SUdfcProxy *udfc = uvTask->udfc;
   uv_mutex_lock(&udfc->taskQueueMutex);
   QUEUE_INSERT_TAIL(&udfc->taskQueue, &uvTask->recvTaskQueue);
@@ -1426,14 +1423,14 @@ int32_t udfcQueueUvTask(SClientUvTaskNode *uvTask) {
   uv_async_send(&udfc->loopTaskAync);
 
   uv_sem_wait(&uvTask->taskSem);
-  fnInfo("udfc uv task finished. task: %d, %p", uvTask->type, uvTask);
+  fnInfo("udfc uvTask finished. uvTask:%"PRId64"-%d-%p", uvTask->seqNum, uvTask->type, uvTask);
   uv_sem_destroy(&uvTask->taskSem);
 
   return 0;
 }
 
 int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
-  fnTrace("event loop start uv task. task: %d, %p", uvTask->type, uvTask);
+  fnDebug("event loop start uv task. uvTask: %"PRId64"-%d-%p", uvTask->seqNum, uvTask->type, uvTask);
   int32_t code = 0;
 
   switch (uvTask->type) {
@@ -1464,10 +1461,12 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
         code = TSDB_CODE_UDF_PIPE_NO_PIPE;
       } else {
         uv_write_t *write = taosMemoryMalloc(sizeof(uv_write_t));
-        write->data = uvTask;
-        int err = uv_write(write, (uv_stream_t *)pipe, &uvTask->reqBuf, 1, onUdfcPipetWrite);
+        write->data = pipe->data;
+        QUEUE* connTaskQueue = &((SClientUvConn*)pipe->data)->taskQueue;
+        QUEUE_INSERT_TAIL(connTaskQueue, &uvTask->connTaskQueue);
+        int err = uv_write(write, (uv_stream_t *)pipe, &uvTask->reqBuf, 1, onUdfcPipeWrite);
         if (err != 0) {
-          fnError("udfc event loop start req/rsp task uv_write failed. code: %s", uv_strerror(err));
+          fnError("udfc event loop start req_rsp task uv_write failed. uvtask: %p, code: %s", uvTask, uv_strerror(err));
         }
         code = err;
       }
@@ -1614,9 +1613,10 @@ int32_t udfcClose() {
 }
 
 int32_t udfcRunUdfUvTask(SClientUdfTask *task, int8_t uvTaskType) {
-  SClientUvTaskNode *uvTask = NULL;
+  SClientUvTaskNode *uvTask = taosMemoryCalloc(1, sizeof(SClientUvTaskNode));
+  fnDebug("udfc client task: %p created uvTask: %p. pipe: %p", task, uvTask, task->session->udfUvPipe);
 
-  udfcCreateUvTask(task, uvTaskType, &uvTask);
+  udfcInitializeUvTask(task, uvTaskType, uvTask);
   udfcQueueUvTask(uvTask);
   udfcGetUdfTaskResultFromUvTask(task, uvTask);
   if (uvTaskType == UV_TASK_CONNECT) {
@@ -1624,7 +1624,11 @@ int32_t udfcRunUdfUvTask(SClientUdfTask *task, int8_t uvTaskType) {
     SClientUvConn *conn = uvTask->pipe->data;
     conn->session = task->session;
   }
+  taosMemoryFree(uvTask->reqBuf.base);
+  uvTask->reqBuf.base = NULL;
   taosMemoryFree(uvTask);
+  fnDebug("udfc freed uvTask: %p", task);
+
   uvTask = NULL;
   return task->errCode;
 }
@@ -1669,7 +1673,7 @@ int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
 
 int32_t callUdf(UdfcFuncHandle handle, int8_t callType, SSDataBlock *input, SUdfInterBuf *state, SUdfInterBuf *state2,
                 SSDataBlock* output, SUdfInterBuf *newState) {
-  fnTrace("udfc call udf. callType: %d, funcHandle: %p", callType, handle);
+  fnDebug("udfc call udf. callType: %d, funcHandle: %p", callType, handle);
   SUdfcUvSession *session = (SUdfcUvSession *) handle;
   if (session->udfUvPipe == NULL) {
     fnError("No pipe to udfd");

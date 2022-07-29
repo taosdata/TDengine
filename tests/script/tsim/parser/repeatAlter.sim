@@ -2,7 +2,7 @@ $i = 1
 $loops = 10
 while $i <= $loops
   print ====== repeat: $i
-  run general/parser/alter.sim
+  run tsim/parser/alter.sim
   $i = $i + 1
 endw
 

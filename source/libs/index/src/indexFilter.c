@@ -86,7 +86,9 @@ static void sifFreeParam(SIFParam *param) {
 
   taosArrayDestroy(param->result);
   taosMemoryFree(param->condValue);
+  param->condValue = NULL;
   taosHashCleanup(param->pFilter);
+  param->pFilter = NULL;
 }
 
 static int32_t sifGetOperParamNum(EOperatorType ty) {
@@ -180,6 +182,7 @@ static int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   param->colId = l->colId;
   param->colValType = l->node.resType.type;
   memcpy(param->dbName, l->dbName, sizeof(l->dbName));
+  if (r->literal == NULL) return TSDB_CODE_QRY_INVALID_INPUT;
   memcpy(param->colName, r->literal, strlen(r->literal));
   param->colValType = r->typeData;
   param->status = SFLT_COARSE_INDEX;
@@ -281,6 +284,7 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
     return TSDB_CODE_SUCCESS;
   }
 _return:
+  for (int i = 0; i < nParam; i++) sifFreeParam(&paramList[i]);
   taosMemoryFree(paramList);
   SIF_RET(code);
 }
@@ -381,7 +385,7 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
                            .reverse = reverse,
                            .filterFunc = filterFunc};
 
-    ret = metaFilteTableIds(arg->metaEx, &param, output->result);
+    ret = metaFilterTableIds(arg->metaEx, &param, output->result);
   }
   return ret;
 }
@@ -536,6 +540,7 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   SIF_ERR_RET(sifInitOperParams(&params, node, ctx));
 
   if (params[0].status == SFLT_NOT_INDEX && (nParam > 1 && params[1].status == SFLT_NOT_INDEX)) {
+    for (int i = 0; i < nParam; i++) sifFreeParam(&params[i]);
     output->status = SFLT_NOT_INDEX;
     return code;
   }
@@ -545,17 +550,18 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   sif_func_t operFn = sifNullFunc;
 
   if (!ctx->noExec) {
-    SIF_ERR_RET(sifGetOperFn(node->opType, &operFn, &output->status));
-    SIF_ERR_RET(operFn(&params[0], nParam > 1 ? &params[1] : NULL, output));
+    SIF_ERR_JRET(sifGetOperFn(node->opType, &operFn, &output->status));
+    SIF_ERR_JRET(operFn(&params[0], nParam > 1 ? &params[1] : NULL, output));
   } else {
     // ugly code, refactor later
     if (nParam > 1 && params[1].status == SFLT_NOT_INDEX) {
       output->status = SFLT_NOT_INDEX;
       return code;
     }
-    SIF_ERR_RET(sifGetOperFn(node->opType, &operFn, &output->status));
+    SIF_ERR_JRET(sifGetOperFn(node->opType, &operFn, &output->status));
   }
-
+_return:
+  for (int i = 0; i < nParam; i++) sifFreeParam(&params[i]);
   taosMemoryFree(params);
   return code;
 }
@@ -573,11 +579,13 @@ static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *ou
 
   if (ctx->noExec == false) {
     for (int32_t m = 0; m < node->pParameterList->length; m++) {
-      // add impl later
       if (node->condType == LOGIC_COND_TYPE_AND) {
         taosArrayAddAll(output->result, params[m].result);
+        // taosArrayDestroy(params[m].result);
+        //  params[m].result = NULL;
       } else if (node->condType == LOGIC_COND_TYPE_OR) {
         taosArrayAddAll(output->result, params[m].result);
+        // params[m].result = NULL;
       } else if (node->condType == LOGIC_COND_TYPE_NOT) {
         // taosArrayAddAll(output->result, params[m].result);
       }
@@ -587,6 +595,8 @@ static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *ou
   } else {
     for (int32_t m = 0; m < node->pParameterList->length; m++) {
       output->status = sifMergeCond(node->condType, output->status, params[m].status);
+      taosArrayDestroy(params[m].result);
+      params[m].result = NULL;
     }
   }
 _return:
@@ -601,6 +611,7 @@ static EDealRes sifWalkFunction(SNode *pNode, void *context) {
   SIFCtx *ctx = context;
   ctx->code = sifExecFunction(node, ctx, &output);
   if (ctx->code != TSDB_CODE_SUCCESS) {
+    sifFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
@@ -618,6 +629,7 @@ static EDealRes sifWalkLogic(SNode *pNode, void *context) {
   SIFCtx *ctx = context;
   ctx->code = sifExecLogic(node, ctx, &output);
   if (ctx->code) {
+    sifFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
@@ -634,6 +646,7 @@ static EDealRes sifWalkOper(SNode *pNode, void *context) {
   SIFCtx *ctx = context;
   ctx->code = sifExecOper(node, ctx, &output);
   if (ctx->code) {
+    sifFreeParam(&output);
     return DEAL_RES_ERROR;
   }
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
@@ -692,7 +705,11 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
   }
 
   nodesWalkExprPostOrder(pNode, sifCalcWalker, &ctx);
-  SIF_ERR_RET(ctx.code);
+
+  if (ctx.code != 0) {
+    sifFreeRes(ctx.pRes);
+    return ctx.code;
+  }
 
   if (pDst) {
     SIFParam *res = (SIFParam *)taosHashGet(ctx.pRes, (void *)&pNode, POINTER_BYTES);
@@ -707,7 +724,8 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
     sifFreeParam(res);
     taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
   }
-  SIF_RET(code);
+  sifFreeRes(ctx.pRes);
+  return code;
 }
 
 static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status) {
@@ -724,8 +742,10 @@ static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status) {
   }
 
   nodesWalkExprPostOrder(pNode, sifCalcWalker, &ctx);
-
-  SIF_ERR_RET(ctx.code);
+  if (ctx.code != 0) {
+    sifFreeRes(ctx.pRes);
+    return ctx.code;
+  }
 
   SIFParam *res = (SIFParam *)taosHashGet(ctx.pRes, (void *)&pNode, POINTER_BYTES);
   if (res == NULL) {
@@ -736,8 +756,8 @@ static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status) {
 
   sifFreeParam(res);
   taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
-
-  SIF_RET(code);
+  taosHashCleanup(ctx.pRes);
+  return code;
 }
 
 int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, SIdxFltStatus *status) {
@@ -751,7 +771,11 @@ int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, 
 
   SArray  *output = taosArrayInit(8, sizeof(uint64_t));
   SIFParam param = {.arg = *metaArg, .result = output};
-  SIF_ERR_RET(sifCalculate((SNode *)pFilterNode, &param));
+  int32_t  code = sifCalculate((SNode *)pFilterNode, &param);
+  if (code != 0) {
+    sifFreeParam(&param);
+    return code;
+  }
 
   taosArrayAddAll(result, param.result);
   sifFreeParam(&param);

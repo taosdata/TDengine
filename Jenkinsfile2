@@ -115,6 +115,12 @@ def pre_test(){
     }
     sh '''
         cd ${WKC}
+        git rm --cached tools/taos-tools 2>/dev/null || :
+        git rm --cached tools/taosadapter 2>/dev/null || :
+        git rm --cached tools/taosws-rs 2>/dev/null || :
+    '''
+    sh '''
+        cd ${WKC}
         git submodule update --init --recursive
     '''
     sh '''
@@ -260,6 +266,13 @@ def pre_test_win(){
     '''
     bat '''
         cd %WIN_COMMUNITY_ROOT%
+        git rm --cached tools/taos-tools 2>nul
+        git rm --cached tools/taosadapter 2>nul
+        git rm --cached tools/taosws-rs 2>nul
+        exit 0
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
         git submodule update --init --recursive
     '''
     bat '''
@@ -333,6 +346,11 @@ pipeline {
     }
     stages {
         stage('run test') {
+            when {
+                allOf {
+                    not { expression { env.CHANGE_BRANCH =~ /docs\// }}
+                }
+            }
             parallel {
                 stage('windows test') {
                     agent{label " windows10_01 || windows10_02 || windows10_03 || windows10_04 "}

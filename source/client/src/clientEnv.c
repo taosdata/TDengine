@@ -35,6 +35,8 @@ SAppInfo appInfo;
 int32_t  clientReqRefPool = -1;
 int32_t  clientConnRefPool = -1;
 
+int32_t timestampDeltaLimit = 900;  // s
+
 static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t    tscInitRes = 0;
 
@@ -86,7 +88,7 @@ void closeTransporter(SAppInstInfo *pAppInfo) {
 static bool clientRpcRfp(int32_t code, tmsg_t msgType) {
   if (NEED_REDIRECT_ERROR(code)) {
     if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH ||
-        msgType == TDMT_SCH_MERGE_FETCH) {
+        msgType == TDMT_SCH_MERGE_FETCH || msgType == TDMT_SCH_QUERY_HEARTBEAT || msgType == TDMT_SCH_DROP_TASK) {
       return false;
     }
     return true;
@@ -181,7 +183,7 @@ void destroyTscObj(void *pObj) {
 
   destroyAllRequests(pTscObj->pRequests);
   taosHashCleanup(pTscObj->pRequests);
-  
+
   schedulerStopQueryHb(pTscObj->pAppInfo->pTransporter);
   tscDebug("connObj 0x%" PRIx64 " p:%p destroyed, remain inst totalConn:%" PRId64, pTscObj->id, pTscObj,
            pTscObj->pAppInfo->numOfConns);
@@ -242,6 +244,7 @@ void *createRequest(uint64_t connId, int32_t type) {
 
   STscObj *pTscObj = acquireTscObj(connId);
   if (pTscObj == NULL) {
+    taosMemoryFree(pRequest);
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
   }
@@ -363,8 +366,7 @@ void taos_init_imp(void) {
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   catalogInit(&cfg);
 
-  SSchedulerCfg scfg = {.maxJobNum = 100};
-  schedulerInit(&scfg);
+  schedulerInit();
   tscDebug("starting to initialize TAOS driver");
 
   taosSetCoreDump(true);

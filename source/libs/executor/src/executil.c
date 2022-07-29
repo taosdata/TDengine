@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "ttime.h"
 #include "function.h"
 #include "functionMgt.h"
 #include "index.h"
@@ -21,6 +20,7 @@
 #include "tdatablock.h"
 #include "thash.h"
 #include "tmsg.h"
+#include "ttime.h"
 
 #include "executil.h"
 #include "executorimpl.h"
@@ -43,10 +43,6 @@ void cleanupResultRowInfo(SResultRowInfo* pResultRowInfo) {
   }
 }
 
-void closeAllResultRows(SResultRowInfo* pResultRowInfo) {
-  // do nothing
-}
-
 bool isResultRowClosed(SResultRow* pRow) { return (pRow->closed == true); }
 
 void closeResultRow(SResultRow* pResultRow) { pResultRow->closed = true; }
@@ -65,15 +61,19 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   }
 
   rowSize +=
-      (numOfOutput * sizeof(bool));  // expand rowSize to mark if col is null for top/bottom result(saveTupleData)
+      (numOfOutput * sizeof(bool));  // expand rowSize to mark if col is null for top/bottom result(doSaveTupleData)
   return rowSize;
 }
 
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   assert(pGroupResInfo != NULL);
 
-  taosArrayDestroy(pGroupResInfo->pRows);
-  pGroupResInfo->pRows = NULL;
+  for (int32_t i = 0; i < taosArrayGetSize(pGroupResInfo->pRows); ++i) {
+    SResKeyPos* pRes = taosArrayGetP(pGroupResInfo->pRows, i);
+    taosMemoryFree(pRes);
+  }
+
+  pGroupResInfo->pRows = taosArrayDestroy(pGroupResInfo->pRows);
   pGroupResInfo->index = 0;
 }
 
@@ -115,9 +115,6 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int
     p->groupId = *(uint64_t*)key;
     p->pos = *(SResultRowPosition*)pData;
     memcpy(p->key, (char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
-#ifdef BUF_PAGE_DEBUG
-    qDebug("page_groupRes, groupId:%" PRIu64 ",pageId:%d,offset:%d\n", p->groupId, p->pos.pageId, p->pos.offset);
-#endif
     taosArrayPush(pGroupResInfo->pRows, &p);
   }
 
@@ -159,11 +156,13 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo) {
 
 SArray* createSortInfo(SNodeList* pNodeList) {
   size_t numOfCols = 0;
+
   if (pNodeList != NULL) {
     numOfCols = LIST_LENGTH(pNodeList);
   } else {
     numOfCols = 0;
   }
+
   SArray* pList = taosArrayInit(numOfCols, sizeof(SBlockOrderInfo));
   if (pList == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -194,11 +193,7 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
   pBlock->info.calWin = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    SSlotDescNode* pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
-    /*if (!pDescNode->output) {  // todo disable it temporarily*/
-    /*continue;*/
-    /*}*/
-
+    SSlotDescNode*  pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
     SColumnInfoData idata =
         createColumnInfoData(pDescNode->dataType.type, pDescNode->dataType.bytes, pDescNode->slotId);
     idata.info.scale = pDescNode->dataType.scale;
@@ -264,34 +259,46 @@ EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static bool isTableOk(STableKeyInfo* info, SNode* pTagCond, SMeta* metaHandle) {
+int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified) {
+  int32_t     code = TSDB_CODE_SUCCESS;
   SMetaReader mr = {0};
+
   metaReaderInit(&mr, metaHandle, 0);
-  metaGetTableEntryByUid(&mr, info->uid);
+  code = metaGetTableEntryByUid(&mr, info->uid);
+  if (TSDB_CODE_SUCCESS != code) {
+    metaReaderClear(&mr);
+    *pQualified = false;
+
+    return TSDB_CODE_SUCCESS;
+  }
 
   SNode* pTagCondTmp = nodesCloneNode(pTagCond);
 
   nodesRewriteExprPostOrder(&pTagCondTmp, doTranslateTagExpr, &mr);
   metaReaderClear(&mr);
 
-  SNode*  pNew = NULL;
-  int32_t code = scalarCalculateConstants(pTagCondTmp, &pNew);
+  SNode* pNew = NULL;
+  code = scalarCalculateConstants(pTagCondTmp, &pNew);
   if (TSDB_CODE_SUCCESS != code) {
     terrno = code;
     nodesDestroyNode(pTagCondTmp);
-    return false;
+    *pQualified = false;
+
+    return code;
   }
 
   ASSERT(nodeType(pNew) == QUERY_NODE_VALUE);
   SValueNode* pValue = (SValueNode*)pNew;
 
   ASSERT(pValue->node.resType.type == TSDB_DATA_TYPE_BOOL);
-  bool result = pValue->datum.b;
+  *pQualified = pValue->datum.b;
+
   nodesDestroyNode(pNew);
-  return result;
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, STableListInfo* pListInfo) {
+int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
+                     STableListInfo* pListInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   pListInfo->pTableList = taosArrayInit(8, sizeof(STableKeyInfo));
@@ -303,8 +310,6 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
 
   pListInfo->suid = pScanNode->suid;
 
-  SNode* pTagCond = (SNode*)pListInfo->pTagCond;
-  SNode* pTagIndexCond = (SNode*)pListInfo->pTagIndexCond;
   if (pScanNode->tableType == TSDB_SUPER_TABLE) {
     if (pTagIndexCond) {
       SIndexMetaArg metaArg = {
@@ -315,14 +320,14 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       code = doFilterTag(pTagIndexCond, &metaArg, res, &status);
       if (code != 0 || status == SFLT_NOT_INDEX) {
         qError("failed to get tableIds from index, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
-//        code = TSDB_CODE_INDEX_REBUILDING;
+        //        code = TSDB_CODE_INDEX_REBUILDING;
         code = vnodeGetAllTableList(pVnode, tableUid, pListInfo->pTableList);
       } else {
         qDebug("success to get tableIds, size:%d, suid:%" PRIu64, (int)taosArrayGetSize(res), tableUid);
       }
 
       for (int i = 0; i < taosArrayGetSize(res); i++) {
-        STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, .uid = *(uint64_t*)taosArrayGet(res, i), .groupId = 0};
+        STableKeyInfo info = {.uid = *(uint64_t*)taosArrayGet(res, i), .groupId = 0};
         taosArrayPush(pListInfo->pTableList, &info);
       }
       taosArrayDestroy(res);
@@ -336,7 +341,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       return code;
     }
   } else {  // Create one table group.
-    STableKeyInfo info = {.lastKey = 0, .uid = tableUid, .groupId = 0};
+    STableKeyInfo info = {.uid = tableUid, .groupId = 0};
     taosArrayPush(pListInfo->pTableList, &info);
   }
 
@@ -344,9 +349,14 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
     int32_t i = 0;
     while (i < taosArrayGetSize(pListInfo->pTableList)) {
       STableKeyInfo* info = taosArrayGet(pListInfo->pTableList, i);
-      bool           isOk = isTableOk(info, pTagCond, metaHandle);
-      if (terrno) return terrno;
-      if (!isOk) {
+
+      bool qualified = true;
+      code = isQualifiedTable(info, pTagCond, metaHandle, &qualified);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
+      if (!qualified) {
         taosArrayRemove(pListInfo->pTableList, i);
         continue;
       }
@@ -361,8 +371,83 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
 
   // put into list as default group, remove it if grouping sorting is required later
   taosArrayPush(pListInfo->pGroupList, &pListInfo->pTableList);
-
   return code;
+}
+
+size_t getTableTagsBufLen(const SNodeList* pGroups) {
+  size_t keyLen = 0;
+
+  SNode* node;
+  FOREACH(node, pGroups) {
+    SExprNode* pExpr = (SExprNode*)node;
+    keyLen += pExpr->resType.bytes;
+  }
+
+  keyLen += sizeof(int8_t) * LIST_LENGTH(pGroups);
+  return keyLen;
+}
+
+int32_t getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId) {
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, pMeta, 0);
+  metaGetTableEntryByUid(&mr, uid);
+
+  SNodeList* groupNew = nodesCloneList(pGroupNode);
+
+  nodesRewriteExprsPostOrder(groupNew, doTranslateTagExpr, &mr);
+  char* isNull = (char*)keyBuf;
+  char* pStart = (char*)keyBuf + sizeof(int8_t) * LIST_LENGTH(pGroupNode);
+
+  SNode*  pNode;
+  int32_t index = 0;
+  FOREACH(pNode, groupNew) {
+    SNode*  pNew = NULL;
+    int32_t code = scalarCalculateConstants(pNode, &pNew);
+    if (TSDB_CODE_SUCCESS == code) {
+      REPLACE_NODE(pNew);
+    } else {
+      taosMemoryFree(keyBuf);
+      nodesDestroyList(groupNew);
+      metaReaderClear(&mr);
+      return code;
+    }
+
+    ASSERT(nodeType(pNew) == QUERY_NODE_VALUE);
+    SValueNode* pValue = (SValueNode*)pNew;
+
+    if (pValue->node.resType.type == TSDB_DATA_TYPE_NULL || pValue->isNull) {
+      isNull[index++] = 1;
+      continue;
+    } else {
+      isNull[index++] = 0;
+      char* data = nodesGetValueFromNode(pValue);
+      if (pValue->node.resType.type == TSDB_DATA_TYPE_JSON) {
+        if (tTagIsJson(data)) {
+          terrno = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
+          taosMemoryFree(keyBuf);
+          nodesDestroyList(groupNew);
+          metaReaderClear(&mr);
+          return terrno;
+        }
+        int32_t len = getJsonValueLen(data);
+        memcpy(pStart, data, len);
+        pStart += len;
+      } else if (IS_VAR_DATA_TYPE(pValue->node.resType.type)) {
+        memcpy(pStart, data, varDataTLen(data));
+        pStart += varDataTLen(data);
+      } else {
+        memcpy(pStart, data, pValue->node.resType.bytes);
+        pStart += pValue->node.resType.bytes;
+      }
+    }
+  }
+
+  int32_t len = (int32_t)(pStart - (char*)keyBuf);
+  *pGroupId = calcGroupId(keyBuf, len);
+
+  nodesDestroyList(groupNew);
+  metaReaderClear(&mr);
+  return TSDB_CODE_SUCCESS;
 }
 
 SArray* extractPartitionColInfo(SNodeList* pNodeList) {
@@ -604,17 +689,13 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
     const char* pName = pCtx[i].pExpr->pExpr->_function.functionName;
-    if ((strcmp(pName, "_select_value") == 0) ||
-        (strcmp(pName, "_group_key") == 0)) {
+    if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0)) {
       pValCtx[num++] = &pCtx[i];
     } else if (fmIsSelectFunc(pCtx[i].functionId)) {
       p = &pCtx[i];
     }
   }
 
-#ifdef BUF_PAGE_DEBUG
-  qDebug("page_setSelect num:%d", num);
-#endif
   if (p != NULL) {
     p->subsidiaries.pCtx = pValCtx;
     p->subsidiaries.num = num;
@@ -741,11 +822,11 @@ SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode) {
 SColumn extractColumnFromColumnNode(SColumnNode* pColNode) {
   SColumn c = {0};
 
-  c.slotId    = pColNode->slotId;
-  c.colId     = pColNode->colId;
-  c.type      = pColNode->node.resType.type;
-  c.bytes     = pColNode->node.resType.bytes;
-  c.scale     = pColNode->node.resType.scale;
+  c.slotId = pColNode->slotId;
+  c.colId = pColNode->colId;
+  c.type = pColNode->node.resType.type;
+  c.bytes = pColNode->node.resType.bytes;
+  c.scale = pColNode->node.resType.scale;
   c.precision = pColNode->node.resType.precision;
   return c;
 }
@@ -762,10 +843,10 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   // pCond->twindow = pTableScanNode->scanRange;
   // TODO: get it from stable scan node
   pCond->twindows = pTableScanNode->scanRange;
-  pCond->suid     = pTableScanNode->scan.suid;
-  pCond->type     = BLOCK_LOAD_OFFSET_ORDER;
+  pCond->suid = pTableScanNode->scan.suid;
+  pCond->type = TIMEWINDOW_RANGE_CONTAINED;
   pCond->startVersion = -1;
-  pCond->endVersion   = -1;
+  pCond->endVersion = -1;
   //  pCond->type = pTableScanNode->scanFlag;
 
   int32_t j = 0;
@@ -818,10 +899,10 @@ int32_t convertFillType(int32_t mode) {
 
 static void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery) {
   if (ascQuery) {
-    getAlignQueryTimeWindow(pInterval, pInterval->precision, ts, w);
+    *w = getAlignQueryTimeWindow(pInterval, pInterval->precision, ts);
   } else {
     // the start position of the first time window in the endpoint that spreads beyond the queried last timestamp
-    getAlignQueryTimeWindow(pInterval, pInterval->precision, ts, w);
+    *w = getAlignQueryTimeWindow(pInterval, pInterval->precision, ts);
 
     int64_t key = w->skey;
     while (key < ts) {  // moving towards end
@@ -836,39 +917,19 @@ static void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindo
 }
 
 static STimeWindow doCalculateTimeWindow(int64_t ts, SInterval* pInterval) {
-  STimeWindow  w =  {0};
+  STimeWindow w = {0};
 
-  if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
-    w.skey = taosTimeTruncate(ts, pInterval, pInterval->precision);
-    w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
-  } else {
-    int64_t st = w.skey;
-    if (pInterval->offset > 0) {
-      st = taosTimeAdd(st, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
-    }
-
-    if (st > ts) {
-      st -= ((st - ts + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
-    }
-
-    int64_t et = st + pInterval->interval - 1;
-    if (et < ts) {
-      st += ((ts - et + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
-    }
-
-    w.skey = st;
-    w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
-  }
-
+  w.skey = taosTimeTruncate(ts, pInterval, pInterval->precision);
+  w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
   return w;
 }
 
 STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInterval* pInterval, int32_t order) {
-  int32_t factor = (order == TSDB_ORDER_ASC)? -1:1;
+  int32_t factor = (order == TSDB_ORDER_ASC) ? -1 : 1;
 
   STimeWindow win = *pWindow;
   STimeWindow save = win;
-  while(win.skey <= ts && win.ekey >= ts) {
+  while (win.skey <= ts && win.ekey >= ts) {
     save = win;
     win.skey = taosTimeAdd(win.skey, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
     win.ekey = taosTimeAdd(win.ekey, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
@@ -878,6 +939,7 @@ STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInter
 }
 
 // get the correct time window according to the handled timestamp
+// todo refactor
 STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int64_t ts, SInterval* pInterval,
                                 int32_t order) {
   STimeWindow w = {0};
@@ -901,4 +963,22 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
   }
 
   return w;
+}
+
+bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo) {
+  return (pLimitInfo->limit.limit != -1 || pLimitInfo->limit.offset != -1 || pLimitInfo->slimit.limit != -1 ||
+          pLimitInfo->slimit.offset != -1);
+}
+
+static int64_t getLimit(const SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->limit; }
+static int64_t getOffset(const SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->offset; }
+
+void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimitInfo) {
+  SLimit limit = {.limit = getLimit(pLimit), .offset = getOffset(pLimit)};
+  SLimit slimit = {.limit = getLimit(pSLimit), .offset = getOffset(pSLimit)};
+
+  pLimitInfo->limit = limit;
+  pLimitInfo->slimit = slimit;
+  pLimitInfo->remainOffset = limit.offset;
+  pLimitInfo->remainGroupOffset = slimit.offset;
 }

@@ -190,6 +190,11 @@ int32_t tNameGetDbName(const SName* name, char* dst) {
   return 0;
 }
 
+const char* tNameGetDbNameP(const SName* name) {
+  return &name->dbname[0];
+}
+
+
 int32_t tNameGetFullDbName(const SName* name, char* dst) {
   assert(name != NULL && dst != NULL);
   snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);

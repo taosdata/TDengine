@@ -1,10 +1,6 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
-system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
 system sh/exec.sh -n dnode1 -s start
-sleep 100
 sql connect
 
 $dbPrefix = group_db
@@ -65,8 +61,6 @@ while $i < $half
   $i = $i + 1
   $tstart = 100000
 endw
-
-sleep 100
 
 $i1 = 1
 $i2 = 0
@@ -275,11 +269,11 @@ endi
 
 #[tbase-695]
 sql select ts,tbname from group_mt0 where ts>='1970-01-01 8:1:40' and ts<'1970-1-1 8:1:45' and c1<99999999 limit 100000 offset 5000
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
+print ===> $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
+print ===> $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37 $data38 $data39
 if $row != 35000 then
-   return -1
-endi
-
-if $data00 != @70-01-01 08:01:40.000@ then
    return -1
 endi
 
@@ -291,13 +285,13 @@ sql_error select ts,tbname from group_mt0 order by ts desc slimit -1, 100;
 sql_error select ts,tbname from group_mt0 order by ts desc slimit 1 soffset 1;
 
 #================================functions applys to sql===================================
-sql_error select first(t1) from group_mt0;
-sql_error select last(t1) from group_mt0;
-sql_error select min(t1) from group_mt0;
-sql_error select max(t1) from group_mt0;
-sql_error select top(t1, 20) from group_mt0;
-sql_error select bottom(t1, 20) from group_mt0;
-sql_error select avg(t1) from group_mt0;
+sql select first(t1) from group_mt0;
+sql select last(t1) from group_mt0;
+sql select min(t1) from group_mt0;
+sql select max(t1) from group_mt0;
+sql select top(t1, 20) from group_mt0;
+sql select bottom(t1, 20) from group_mt0;
+sql select avg(t1) from group_mt0;
 sql_error select percentile(t1, 50) from group_mt0;
 sql_error select percentile(t1, 50) from group_mt0;
 sql_error select percentile(t1, 50) from group_mt0;
@@ -313,7 +307,7 @@ endi
 
 #====================================tbase-716==============================================
 print tbase-716
-sql_error select count(*) from group_tb0 where ts in ('2016-1-1 12:12:12');
+sql select count(*) from group_tb0 where ts in ('2016-1-1 12:12:12');
 sql_error select count(*) from group_tb0 where ts < '12:12:12';
 
 #===============================sql for twa==========================================
@@ -349,7 +343,7 @@ if $rows != 0 then
   return -1
 endi
 
-sql select count(*),first(k),last(k) from m1 where tbname in ('tm0') interval(1s) order by ts desc;
+sql select _wstart, count(*),first(k),last(k) from m1 where tbname in ('tm0') interval(1s) order by _wstart desc;
 if $row != 5 then
     return -1
 endi
@@ -378,6 +372,7 @@ if $data13 != NULL then
    return -1
 endi
 
+
 print =============tbase-1324
 sql select a, k-k from m1
 if $row != 8 then
@@ -388,8 +383,7 @@ sql select diff(k) from tm0
 if $row != 3 then
    return -1
 endi
-
-if $data21 != -1 then
+if $data20 != -1 then
    return -1
 endi
 
@@ -399,20 +393,19 @@ sql_error select * from 1;
 sql_error select k+k;
 sql_error select k+1;
 sql_error select abc();
-sql_error select 1 where 1=2;
-sql_error select 1 limit 1;
-sql_error select 1 slimit 1;
-sql_error select 1 interval(1h);
+sql select 1 where 1=2;
+sql select 1 limit 1;
+sql select 1 slimit 1;
+sql select 1 interval(1h);
 sql_error select count(*);
 sql_error select sum(k);
-sql_error select 'abc';
+sql select 'abc';
 sql_error select k+1,sum(k) from tm0;
 sql_error select k, sum(k) from tm0;
 sql_error select k, sum(k)+1 from tm0;
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 500
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 

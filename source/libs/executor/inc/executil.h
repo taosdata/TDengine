@@ -15,6 +15,7 @@
 #ifndef TDENGINE_QUERYUTIL_H
 #define TDENGINE_QUERYUTIL_H
 
+#include "vnode.h"
 #include "function.h"
 #include "nodes.h"
 #include "plannodes.h"
@@ -81,8 +82,6 @@ size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
 void   cleanupResultRowInfo(SResultRowInfo* pResultRowInfo);
 
-void closeAllResultRows(SResultRowInfo* pResultRowInfo);
-
 void initResultRow(SResultRow* pResultRow);
 void closeResultRow(SResultRow* pResultRow);
 bool isResultRowClosed(SResultRow* pResultRow);
@@ -95,10 +94,15 @@ static FORCE_INLINE SResultRow* getResultRowByPos(SDiskbasedBuf* pBuf, SResultRo
   return pRow;
 }
 
-void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order);
-void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
+static FORCE_INLINE void setResultBufPageDirty(SDiskbasedBuf* pBuf, SResultRowPosition* pos) {
+  void* pPage = getBufPage(pBuf, pos->pageId);
+  setBufPageDirty(pPage, true);
+}
 
+void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order);
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
+
+void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
 bool hasDataInGroupInfo(SGroupResInfo* pGroupResInfo);
 
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
@@ -106,7 +110,10 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode);
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext);
-int32_t  getTableList(void* metaHandle, void* vnode, SScanPhysiNode* pScanNode, STableListInfo* pListInfo);
+int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond, STableListInfo* pListInfo);
+int32_t getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId);
+size_t  getTableTagsBufLen(const SNodeList* pGroups);
+
 SArray*  createSortInfo(SNodeList* pNodeList);
 SArray*  extractPartitionColInfo(SNodeList* pNodeList);
 SArray*  extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
@@ -127,5 +134,7 @@ void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 int32_t convertFillType(int32_t mode);
 
 int32_t resultrowComparAsc(const void* p1, const void* p2);
+
+int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified);
 
 #endif  // TDENGINE_QUERYUTIL_H

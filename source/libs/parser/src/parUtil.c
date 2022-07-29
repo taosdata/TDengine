@@ -31,6 +31,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid column name: %s";
     case TSDB_CODE_PAR_TABLE_NOT_EXIST:
       return "Table does not exist: %s";
+    case TSDB_CODE_PAR_GET_META_ERROR:
+      return "Fail to get table info, error: %s";
     case TSDB_CODE_PAR_AMBIGUOUS_COLUMN:
       return "Column ambiguously defined: %s";
     case TSDB_CODE_PAR_WRONG_VALUE_TYPE:
@@ -67,32 +69,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid identifier name: %s";
     case TSDB_CODE_PAR_CORRESPONDING_STABLE_ERR:
       return "Corresponding super table not in this db";
-    case TSDB_CODE_PAR_INVALID_RANGE_OPTION:
-      return "Invalid option %s: %" PRId64 " valid range: [%d, %d]";
-    case TSDB_CODE_PAR_INVALID_STR_OPTION:
-      return "Invalid option %s: %s";
-    case TSDB_CODE_PAR_INVALID_ENUM_OPTION:
-      return "Invalid option %s: %" PRId64 ", only %d, %d allowed";
-    case TSDB_CODE_PAR_INVALID_KEEP_NUM:
-      return "Invalid number of keep options";
-    case TSDB_CODE_PAR_INVALID_KEEP_ORDER:
-      return "Invalid keep value, should be keep0 <= keep1 <= keep2";
-    case TSDB_CODE_PAR_INVALID_KEEP_VALUE:
-      return "Invalid option keep: %" PRId64 ", %" PRId64 ", %" PRId64 " valid range: [%dm, %dm]";
-    case TSDB_CODE_PAR_INVALID_COMMENT_OPTION:
-      return "Invalid option comment, length cannot exceed %d";
-    case TSDB_CODE_PAR_INVALID_F_RANGE_OPTION:
-      return "Invalid option %s: %f valid range: [%d, %d]";
-    case TSDB_CODE_PAR_INVALID_ROLLUP_OPTION:
-      return "Invalid option rollup: only one function is allowed";
-    case TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION:
-      return "Invalid option retentions";
     case TSDB_CODE_PAR_GROUPBY_WINDOW_COEXIST:
       return "GROUP BY and WINDOW-clause can't be used together";
-    case TSDB_CODE_PAR_INVALID_OPTION_UNIT:
-      return "Invalid option %s unit: %c, only %c, %c, %c allowed";
-    case TSDB_CODE_PAR_INVALID_KEEP_UNIT:
-      return "Invalid option keep unit: %c, only m, h, d allowed";
     case TSDB_CODE_PAR_AGG_FUNC_NESTING:
       return "Aggregate functions do not support nesting";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE:
@@ -116,15 +94,13 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG:
       return "sliding value no larger than the interval value";
     case TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL:
-      return "sliding value can not less than 1% of interval value";
+      return "sliding value can not less than 1%% of interval value";
     case TSDB_CODE_PAR_ONLY_ONE_JSON_TAG:
       return "Only one tag if there is a json tag";
     case TSDB_CODE_PAR_INCORRECT_NUM_OF_COL:
       return "Query block has incorrect number of result columns";
     case TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL:
       return "Incorrect TIMESTAMP value: %s";
-    case TSDB_CODE_PAR_INVALID_DAYS_VALUE:
-      return "Invalid days value, should be keep2 >= keep1 >= keep0 >= days";
     case TSDB_CODE_PAR_OFFSET_LESS_ZERO:
       return "soffset/offset can not be less than 0";
     case TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_BY:
@@ -194,8 +170,6 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "%s function is not supported in stream query";
     case TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC:
       return "%s function is not supported in group query";
-    case TSDB_CODE_PAR_INVALID_TABLE_OPTION:
-      return "Invalid option %s";
     case TSDB_CODE_PAR_INVALID_INTERP_CLAUSE:
       return "Invalid usage of RANGE clause, EVERY clause or FILL clause";
     case TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN:
@@ -389,7 +363,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
       continue;
     }
     STagVal val = {0};
-//    strcpy(val.colName, colName);
+    //    strcpy(val.colName, colName);
     val.pKey = jsonKey;
     taosHashPut(keyHash, jsonKey, keyLen, &keyLen,
                 CHAR_BYTES);  // add key to hash to remove dumplicate, value is useless
@@ -891,11 +865,16 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   STableCfg* pNew = taosMemoryMalloc(sizeof(*pNew));
 
   memcpy(pNew, pCfg, sizeof(*pNew));
-  if (pNew->pComment) {
-    pNew->pComment = strdup(pNew->pComment);
+  if (NULL != pNew->pComment) {
+    pNew->pComment = taosMemoryCalloc(pNew->commentLen + 1, 1);
+    memcpy(pNew->pComment, pCfg->pComment, pNew->commentLen);
   }
-  if (pNew->pFuncs) {
+  if (NULL != pNew->pFuncs) {
     pNew->pFuncs = taosArrayDup(pNew->pFuncs);
+  }
+  if (NULL != pNew->pTags) {
+    pNew->pTags = taosMemoryCalloc(pNew->tagsLen + 1, 1);
+    memcpy(pNew->pTags, pCfg->pTags, pNew->tagsLen);
   }
 
   int32_t schemaSize = (pCfg->numOfColumns + pCfg->numOfTags) * sizeof(SSchema);

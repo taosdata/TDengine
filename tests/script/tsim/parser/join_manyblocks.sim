@@ -1,12 +1,7 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
-system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
-
 system sh/exec.sh -n dnode1 -s start
 sql connect
-sleep 100
 
 $dbPrefix = join_m_db
 $tbPrefix = join_tb
@@ -77,8 +72,6 @@ while $i < $tbNum
   $i = $i + 1
   $tstart = 100000
 endw
-
-sleep 100
 
 print ===============join_manyblocks.sim
 print ==============> td-3313

@@ -28,9 +28,9 @@ from util.dnodes import *
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), logSql)
 
-    def csum_query_form(self, col="c1",  alias="", table_expr="t1", condition=""):
+    def csum_query_form(self, col="c1",  alias="", table_expr="db.t1", condition=""):
 
         '''
         csum function:
@@ -44,7 +44,7 @@ class TDTestCase:
 
         return f"select csum({col}) {alias} from {table_expr} {condition}"
 
-    def checkcsum(self,col="c1", alias="", table_expr="t1", condition="" ):
+    def checkcsum(self,col="c1", alias="", table_expr="db.t1", condition="" ):
         line = sys._getframe().f_back.f_lineno
         pre_sql = self.csum_query_form(
             col=col, table_expr=table_expr, condition=condition
@@ -59,11 +59,11 @@ class TDTestCase:
             tdSql.checkRows(0)
             return
 
-        if "order by tbname" in condition:
-            tdSql.error(self.csum_query_form(
-                col=col, alias=alias, table_expr=table_expr, condition=condition
-            ))
-            return
+        # if "order by tbname" in condition:
+        #     tdSql.error(self.csum_query_form(
+        #         col=col, alias=alias, table_expr=table_expr, condition=condition
+        #     ))
+        #     return
 
         if "group" in condition:
 
@@ -123,7 +123,8 @@ class TDTestCase:
             return
 
         else:
-            tdSql.query(f"select {col} from {table_expr} {re.sub('limit [0-9]*|offset [0-9]*','',condition)}")
+
+            tdSql.query(f"select {col} from {table_expr} {re.sub('limit [0-9]*|offset [0-9]*','',condition)} " )
             offset_val = condition.split("offset")[1].split(" ")[1] if "offset" in condition else 0
             pre_result = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
             if (platform.system().lower() == 'windows' and pre_result.dtype == 'int32'):
@@ -161,12 +162,12 @@ class TDTestCase:
         self.checkcsum(**case6)
 
         # case7~8: nested query
-        # case7 = {"table_expr": "(select c1 from stb1)"}
-        # self.checkcsum(**case7)
-        # case8 = {"table_expr": "(select csum(c1) c1 from stb1 group by tbname)"}
-        # self.checkcsum(**case8)
+        case7 = {"table_expr": "(select c1 from db.stb1 order by tbname ,ts )"}
+        self.checkcsum(**case7)
+        case8 = {"table_expr": "(select csum(c1) c1 from db.t1 partition by tbname)"}
+        self.checkcsum(**case8)
 
-        # case9~10: mix with tbname/ts/tag/col
+        # case9~10: mix with tbname/ts/tag/col not support , must partition by alias  ,such as select tbname ,csum(c1) partition by tbname
         # case9 = {"alias": ", tbname"}
         # self.checkcsum(**case9)
         # case10 = {"alias": ", _c0"}
@@ -196,37 +197,37 @@ class TDTestCase:
         }
         self.checkcsum(**case17)
         # case18~19: with group by
-        # case18 = {
-        #     "table_expr": "t1",
-        #     "condition": "group by c6"
-        # }
-        # self.checkcsum(**case18)
-        # case19 = {
-        #     "table_expr": "stb1",
-        #     "condition": "partition by tbname"  # partition by tbname
-        # }
-        # self.checkcsum(**case19)
+        case18 = {
+            "table_expr": "db.t1",
+            "condition": "where c6 <0 partition by c6 order by c6"
+        }
+        self.checkcsum(**case18)
+        case19 = {
+            "table_expr": "db.t1",
+            "condition": " "  # partition by tbname
+        }
+        self.checkcsum(**case19)
 
-        # # case20~21: with order by
-        # case20 = {"condition": "order by ts"}
-        # self.checkcsum(**case20)
+        # case20~21: with order by
+        case20 = {"condition": "partition by tbname order by tbname  "}
+        # self.checkcsum(**case20) # order by without order by tbname ,because check will random failed
 
-        # # case22: with union
-        # case22 = {
-        #     "condition": "union all select csum(c1) from t2"
-        # }
-        # self.checkcsum(**case22)
+        # case22: with union
+        case22 = {
+            "condition": "union all select csum(c1) from db.t2"
+        }
+        # self.checkcsum(**case22) union all without check result becasue ,it will random return table_records
 
         # case23: with limit/slimit
         case23 = {
             "condition": "limit 1"
         }
         self.checkcsum(**case23)
-        # case24 = {
-        #     "table_expr": "stb1",
-        #     "condition": "group by tbname slimit 1 soffset 1"
-        # }
-        # self.checkcsum(**case24)
+        case24 = {
+            "table_expr": "db.t1",
+            "condition": "partition by tbname "
+        }
+        self.checkcsum(**case24)
 
         pass
 
@@ -291,17 +292,17 @@ class TDTestCase:
         }
         tdSql.error(self.csum_query_form(**interval_sql))       # interval
         group_normal_col = {
-            "table_expr": "t1",
+            "table_expr": "db.t1",
             "condition": "group by c6"
         }
         tdSql.error(self.csum_query_form(**group_normal_col))       # group by normal col
         slimit_soffset_sql = {
-            "table_expr": "stb1",
+            "table_expr": "db.stb1",
             "condition": "group by tbname slimit 1 soffset 1"
         }
         # tdSql.error(self.csum_query_form(**slimit_soffset_sql))
         order_by_tbname_sql = {
-            "table_expr": "stb1",
+            "table_expr": "db.stb1",
             "condition": "group by tbname order by tbname"
         }
         tdSql.error(self.csum_query_form(**order_by_tbname_sql))
@@ -346,8 +347,8 @@ class TDTestCase:
             "create stable db.stb2 (ts timestamp, c1 int) tags(st2 int)"
         )
         for i in range(tbnum):
-            tdSql.execute(f"create table t{i} using stb1 tags({i})")
-            tdSql.execute(f"create table tt{i} using stb2 tags({i})")
+            tdSql.execute(f"create table db.t{i} using db.stb1 tags({i})")
+            tdSql.execute(f"create table db.tt{i} using db.stb2 tags({i})")
 
         pass
 
@@ -364,25 +365,25 @@ class TDTestCase:
 
         tdLog.printNoPrefix("######## insert only NULL test:")
         for i in range(tbnum):
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime - 5})")
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime + 5})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime - 5})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime + 5})")
         self.csum_current_query()
         self.csum_error_query()
 
         tdLog.printNoPrefix("######## insert data in the range near the max(bigint/double):")
         self.csum_test_table(tbnum)
-        tdSql.execute(f"insert into t1(ts, c1,c2,c5,c7) values "
+        tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
                       f"({nowtime - (per_table_rows + 1) * 10}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
-        tdSql.execute(f"insert into t1(ts, c1,c2,c5,c7) values "
+        tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
                       f"({nowtime - (per_table_rows + 2) * 10}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
         self.csum_current_query()
         self.csum_error_query()
 
         tdLog.printNoPrefix("######## insert data in the range near the min(bigint/double):")
         self.csum_test_table(tbnum)
-        tdSql.execute(f"insert into t1(ts, c1,c2,c5,c7) values "
+        tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
                       f"({nowtime - (per_table_rows + 1) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {1-2**63})")
-        tdSql.execute(f"insert into t1(ts, c1,c2,c5,c7) values "
+        tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
                       f"({nowtime - (per_table_rows + 2) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {512-2**63})")
         self.csum_current_query()
         self.csum_error_query()
@@ -396,9 +397,9 @@ class TDTestCase:
 
         tdLog.printNoPrefix("######## insert data mix with NULL test:")
         for i in range(tbnum):
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime})")
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime-(per_table_rows+3)*10})")
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime+(per_table_rows+3)*10})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime-(per_table_rows+3)*10})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime+(per_table_rows+3)*10})")
         self.csum_current_query()
         self.csum_error_query()
 
@@ -411,65 +412,65 @@ class TDTestCase:
         tdDnodes.start(index)
         self.csum_current_query()
         self.csum_error_query()
-        tdSql.query("select csum(1) from t1 ")
+        tdSql.query("select csum(1) from db.t1 ")
         tdSql.checkRows(7)
         tdSql.checkData(0,0,1)
         tdSql.checkData(1,0,2)
         tdSql.checkData(2,0,3)
         tdSql.checkData(3,0,4)
-        tdSql.query("select csum(abs(c1))+2 from t1 ")
+        tdSql.query("select csum(abs(c1))+2 from db.t1 ")
         tdSql.checkRows(4)
 
     def csum_support_stable(self):
-        tdSql.query(" select csum(1) from stb1 ")
+        tdSql.query(" select csum(1) from db.stb1 ")
         tdSql.checkRows(70)
-        tdSql.query("select csum(c1) from stb1 partition by tbname ")
+        tdSql.query("select csum(c1) from db.stb1 partition by tbname ")
         tdSql.checkRows(40)
-        # tdSql.query("select csum(st1) from stb1 partition by tbname")
-        # tdSql.checkRows(70)
-        tdSql.query("select csum(st1+c1) from stb1 partition by tbname")
+        tdSql.query("select csum(st1) from db.stb1 partition by tbname")
+        tdSql.checkRows(70)
+        tdSql.query("select csum(st1+c1) from db.stb1 partition by tbname")
         tdSql.checkRows(40)
-        tdSql.query("select csum(st1+c1) from stb1 partition by tbname")
+        tdSql.query("select csum(st1+c1) from db.stb1 partition by tbname")
         tdSql.checkRows(40)
-        tdSql.query("select csum(st1+c1) from stb1 partition by tbname")
+        tdSql.query("select csum(st1+c1) from db.stb1 partition by tbname")
         tdSql.checkRows(40)
 
         # # bug need fix
-        # tdSql.query("select csum(st1+c1) from stb1 partition by tbname slimit 1 ")
-        # tdSql.checkRows(4)
-        # tdSql.error("select csum(st1+c1) from stb1 partition by tbname limit 1 ")
+        tdSql.query("select csum(st1+c1) from db.stb1 partition by tbname slimit 1 ")
+        tdSql.checkRows(4)
+        # tdSql.error("select csum(st1+c1) from db.stb1 partition by tbname limit 1 ")
 
 
         # bug need fix
-        tdSql.query("select csum(st1+c1) from stb1 partition by tbname")
+        tdSql.query("select csum(st1+c1) from db.stb1 partition by tbname")
         tdSql.checkRows(40)
 
         # bug need fix
-        # tdSql.query("select tbname , csum(c1) from stb1 partition by tbname")
-        # tdSql.checkRows(40)
-        # tdSql.query("select tbname , csum(st1) from stb1 partition by tbname")
-        # tdSql.checkRows(70)
-        # tdSql.query("select tbname , csum(st1) from stb1 partition by tbname slimit 1")
-        # tdSql.checkRows(7)
+        tdSql.query("select tbname , csum(c1) from db.stb1 partition by tbname")
+        tdSql.checkRows(40)
+        tdSql.query("select tbname , csum(st1) from db.stb1 partition by tbname")
+        tdSql.checkRows(70)
+        tdSql.query("select tbname , csum(st1) from db.stb1 partition by tbname slimit 1")
+        tdSql.checkRows(7)
 
         # partition by tags
-        # tdSql.query("select st1 , csum(c1) from stb1 partition by st1")
-        # tdSql.checkRows(40)
-        # tdSql.query("select csum(c1) from stb1 partition by st1")
-        # tdSql.checkRows(40)
-        # tdSql.query("select st1 , csum(c1) from stb1 partition by st1 slimit 1")
-        # tdSql.checkRows(4)
-        # tdSql.query("select csum(c1) from stb1 partition by st1 slimit 1")
-        # tdSql.checkRows(4)
+        tdSql.query("select st1 , csum(c1) from db.stb1 partition by st1")
+        tdSql.checkRows(40)
+        tdSql.query("select csum(c1) from db.stb1 partition by st1")
+        tdSql.checkRows(40)
+        tdSql.query("select st1 , csum(c1) from db.stb1 partition by st1 slimit 1")
+        tdSql.checkRows(4)
+        tdSql.query("select csum(c1) from db.stb1 partition by st1 slimit 1")
+        tdSql.checkRows(4)
 
         # partition by col
-        # tdSql.query("select c1 , csum(c1) from stb1 partition by c1")
+        # tdSql.query("select c1 , csum(c1) from db.stb1 partition by c1")
         # tdSql.checkRows(41)
-        # tdSql.query("select csum(c1) from stb1 partition by c1")
+        # tdSql.query("select csum(c1) from db.stb1 partition by c1")
         # tdSql.checkRows(41)
-        # tdSql.query("select c1 , csum(c1) from stb1 partition by st1 slimit 1")
+        # tdSql.query("select c1 , csum(c1) from db.stb1 partition by st1 slimit 1")
         # tdSql.checkRows(4)
-        # tdSql.query("select csum(c1) from stb1 partition by st1 slimit 1")
+        # tdSql.query("select csum(c1) from db.stb1 partition by st1 slimit 1")
         # tdSql.checkRows(4)
 
 

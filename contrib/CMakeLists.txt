@@ -9,6 +9,28 @@ endfunction(cat IN_FILE OUT_FILE)
 set(CONTRIB_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
 configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
+# taos-tools
+if(${BUILD_TOOLS})
+    cat("${TD_SUPPORT_DIR}/taostools_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
+
+# taosws-rs
+if(${WEBSOCKET})
+    cat("${TD_SUPPORT_DIR}/taosws_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
+
+# taosadapter
+if(${BUILD_HTTP})
+    MESSAGE("BUILD_HTTP is on")
+else ()
+    MESSAGE("BUILD_HTTP is off, use taosAdapter")
+    cat("${TD_SUPPORT_DIR}/taosadapter_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
+
+if(TD_LINUX_64 AND JEMALLOC_ENABLED)
+    cat("${TD_SUPPORT_DIR}/jemalloc_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
+
 # pthread
 if(${BUILD_PTHREAD})
     cat("${TD_SUPPORT_DIR}/pthread_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -381,6 +403,18 @@ if(${BUILD_ADDR2LINE})
     endif(NOT ${TD_WINDOWS})
 endif(${BUILD_ADDR2LINE})
 
+# jemalloc
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+    include(ExternalProject)
+    ExternalProject_Add(jemalloc
+        PREFIX        "jemalloc"
+        SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/jemalloc
+        BUILD_IN_SOURCE     1
+        CONFIGURE_COMMAND   ./autogen.sh COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/
+        BUILD_COMMAND       ${MAKE}
+        )
+    INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
+ENDIF ()
 
 # ================================================================================================
 # Build test

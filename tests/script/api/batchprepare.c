@@ -218,7 +218,7 @@ typedef struct {
 } CaseCtrl;
 
 #if 0
-CaseCtrl gCaseCtrl = { // default
+CaseCtrl gCaseCtrl = {
   .precision = TIME_PRECISION_MICRO,
   .bindNullNum = 0,
   .printCreateTblSql = false,
@@ -251,7 +251,7 @@ CaseCtrl gCaseCtrl = { // default
 
 
 #if 1
-CaseCtrl gCaseCtrl = {
+CaseCtrl gCaseCtrl = {  // default
   .precision = TIME_PRECISION_MILLI,
   .bindNullNum = 0,
   .printCreateTblSql = false,
@@ -299,7 +299,7 @@ CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   .printRes = true,
   .runTimes = 0,
   .caseRunIdx = -1,
-  .caseIdx = 23,
+  .caseIdx = 5,
   .caseNum = 1,
   .caseRunNum = 1,
 };
@@ -328,7 +328,7 @@ CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   //.optrIdxList = optrIdxList,
   //.bindColTypeNum = tListLen(bindColTypeList),
   //.bindColTypeList = bindColTypeList,
-  .caseIdx = 24,
+  .caseIdx = 8,
   .caseNum = 1,
   .caseRunNum = 1,
 };
@@ -1384,6 +1384,7 @@ void bpCheckTagFields(TAOS_STMT *stmt, TAOS_MULTI_BIND* pBind) {
   }
   
   bpCheckColTagFields(stmt, fieldNum, pFields, gCurCase->bindTagNum, pBind, BP_BIND_TAG);
+  taosMemoryFree(pFields);
 }
 
 void bpCheckColFields(TAOS_STMT *stmt, TAOS_MULTI_BIND* pBind) {
@@ -1401,12 +1402,13 @@ void bpCheckColFields(TAOS_STMT *stmt, TAOS_MULTI_BIND* pBind) {
   }
   
   bpCheckColTagFields(stmt, fieldNum, pFields, gCurCase->bindColNum, pBind, BP_BIND_COL);
+  taosMemoryFree(pFields);
 }
 
 void bpShowBindParam(TAOS_MULTI_BIND *bind, int32_t num) {
   for (int32_t i = 0; i < num; ++i) {
     TAOS_MULTI_BIND* b = &bind[i];
-    printf("Bind %d: type[%d],buf[%p],buflen[%d],len[%],null[%d],num[%d]\n", 
+    printf("Bind %d: type[%d],buf[%p],buflen[%d],len[%d],null[%d],num[%d]\n", 
       i, b->buffer_type, b->buffer, b->buffer_length, b->length ? *b->length : 0, b->is_null ? *b->is_null : 0, b->num);
   }
 }
@@ -2596,6 +2598,7 @@ void runAll(TAOS *taos) {
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   runCaseList(taos);
 
+#if 0
   strcpy(gCaseCtrl.caseCatalog, "Micro DB precision Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.precision = TIME_PRECISION_MICRO;
@@ -2626,7 +2629,6 @@ void runAll(TAOS *taos) {
   runCaseList(taos);
   gCaseCtrl.bindRowNum = 0;
 
-#if 0
   strcpy(gCaseCtrl.caseCatalog, "Row Num Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.rowNum = 1000;
@@ -2640,7 +2642,6 @@ void runAll(TAOS *taos) {
   gCaseCtrl.runTimes = 2;
   runCaseList(taos);
   gCaseCtrl.runTimes = 0;
-#endif
 
   strcpy(gCaseCtrl.caseCatalog, "Check Param Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
@@ -2648,19 +2649,20 @@ void runAll(TAOS *taos) {
   runCaseList(taos);
   gCaseCtrl.checkParamNum = false;
 
-#if 0
   strcpy(gCaseCtrl.caseCatalog, "Bind Col Num Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.bindColNum = 6;
   runCaseList(taos);
   gCaseCtrl.bindColNum = 0;
+#endif
 
+/*
   strcpy(gCaseCtrl.caseCatalog, "Bind Col Type Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.bindColTypeNum = tListLen(bindColTypeList);
   gCaseCtrl.bindColTypeList = bindColTypeList;  
   runCaseList(taos);
-#endif
+*/
 
   printf("All Test End\n");  
 }
@@ -2684,6 +2686,8 @@ int main(int argc, char *argv[])
   }   
 
   runAll(taos);
+
+  taos_close(taos);
 
   return 0;
 }

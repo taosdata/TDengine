@@ -14,4 +14,7 @@ target_include_directories(
     taosd
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/node_mgmt/inc"
 )
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+    add_dependencies(taosd jemalloc)
+ENDIF ()
 target_link_libraries(taosd dnode)

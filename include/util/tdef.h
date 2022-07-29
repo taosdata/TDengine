@@ -53,7 +53,7 @@ extern const int32_t TYPE_BYTES[16];
 #define TSDB_DATA_BIGINT_NULL    0x8000000000000000LL
 #define TSDB_DATA_TIMESTAMP_NULL TSDB_DATA_BIGINT_NULL
 
-#define TSDB_DATA_FLOAT_NULL  0x7FF00000           // it is an NAN
+#define TSDB_DATA_FLOAT_NULL  0x7FF00000            // it is an NAN
 #define TSDB_DATA_DOUBLE_NULL 0x7FFFFF0000000000LL  // an NAN
 #define TSDB_DATA_NCHAR_NULL  0xFFFFFFFF
 #define TSDB_DATA_BINARY_NULL 0xFF
@@ -107,9 +107,10 @@ extern const int32_t TYPE_BYTES[16];
 
 #define TSDB_INS_USER_STABLES_DBNAME_COLID 2
 
-#define TSDB_TICK_PER_SECOND(precision)                      \
-  ((int64_t)((precision) == TSDB_TIME_PRECISION_MILLI ? 1000LL \
-                                                      : ((precision) == TSDB_TIME_PRECISION_MICRO ? 1000000LL : 1000000000LL)))
+#define TSDB_TICK_PER_SECOND(precision)               \
+  ((int64_t)((precision) == TSDB_TIME_PRECISION_MILLI \
+                 ? 1000LL                             \
+                 : ((precision) == TSDB_TIME_PRECISION_MICRO ? 1000000LL : 1000000000LL)))
 
 #define T_MEMBER_SIZE(type, member) sizeof(((type *)0)->member)
 #define T_APPEND_MEMBER(dst, ptr, type, member)                                     \
@@ -328,15 +329,25 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_DB_REPLICA             1
 #define TSDB_MAX_DB_REPLICA             3
 #define TSDB_DEFAULT_DB_REPLICA         1
+#define TSDB_DB_STRICT_STR_LEN          sizeof(TSDB_DB_STRICT_OFF_STR)
+#define TSDB_DB_STRICT_OFF_STR          "off"
+#define TSDB_DB_STRICT_ON_STR           "on"
 #define TSDB_DB_STRICT_OFF              0
 #define TSDB_DB_STRICT_ON               1
-#define TSDB_DEFAULT_DB_STRICT          0
-#define TSDB_MIN_DB_CACHE_LAST          0
-#define TSDB_MAX_DB_CACHE_LAST          3
-#define TSDB_DEFAULT_CACHE_LAST         0
-#define TSDB_MIN_DB_CACHE_LAST_SIZE     1  // MB
-#define TSDB_MAX_DB_CACHE_LAST_SIZE     65536
-#define TSDB_DEFAULT_CACHE_LAST_SIZE    1
+#define TSDB_DEFAULT_DB_STRICT          TSDB_DB_STRICT_OFF
+#define TSDB_CACHE_MODEL_STR_LEN        sizeof(TSDB_CACHE_MODEL_LAST_VALUE_STR)
+#define TSDB_CACHE_MODEL_NONE_STR       "none"
+#define TSDB_CACHE_MODEL_LAST_ROW_STR   "last_row"
+#define TSDB_CACHE_MODEL_LAST_VALUE_STR "last_value"
+#define TSDB_CACHE_MODEL_BOTH_STR       "both"
+#define TSDB_CACHE_MODEL_NONE           0
+#define TSDB_CACHE_MODEL_LAST_ROW       1
+#define TSDB_CACHE_MODEL_LAST_VALUE     2
+#define TSDB_CACHE_MODEL_BOTH           3
+#define TSDB_DEFAULT_CACHE_MODEL        TSDB_CACHE_MODEL_NONE
+#define TSDB_MIN_DB_CACHE_SIZE          1  // MB
+#define TSDB_MAX_DB_CACHE_SIZE          65536
+#define TSDB_DEFAULT_CACHE_SIZE         1
 #define TSDB_DB_STREAM_MODE_OFF         0
 #define TSDB_DB_STREAM_MODE_ON          1
 #define TSDB_DEFAULT_DB_STREAM_MODE     0
@@ -346,6 +357,15 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_SCHEMALESS_ON           1
 #define TSDB_DB_SCHEMALESS_OFF          0
 #define TSDB_DEFAULT_DB_SCHEMALESS      TSDB_DB_SCHEMALESS_OFF
+
+#define TSDB_DB_MIN_WAL_RETENTION_PERIOD     -1
+#define TSDB_DEFAULT_DB_WAL_RETENTION_PERIOD 0
+#define TSDB_DB_MIN_WAL_RETENTION_SIZE       -1
+#define TSDB_DEFAULT_DB_WAL_RETENTION_SIZE   0
+#define TSDB_DB_MIN_WAL_ROLL_PERIOD          0
+#define TSDB_DEFAULT_DB_WAL_ROLL_PERIOD      0
+#define TSDB_DB_MIN_WAL_SEGMENT_SIZE         0
+#define TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE     0
 
 #define TSDB_MIN_ROLLUP_MAX_DELAY     1  // unit millisecond
 #define TSDB_MAX_ROLLUP_MAX_DELAY     (15 * 60 * 1000)
@@ -410,7 +430,7 @@ typedef enum ELogicConditionType {
 #define TSDB_DEFAULT_STABLES_HASH_SIZE  100
 #define TSDB_DEFAULT_CTABLES_HASH_SIZE  20000
 
-#define TSDB_MAX_WAL_SIZE (1024 * 1024 * 3)
+#define TSDB_MAX_MSG_SIZE (1024 * 1024 * 10)
 
 #define TSDB_ARB_DUMMY_TIME 4765104000000  // 2121-01-01 00:00:00.000, :P
 

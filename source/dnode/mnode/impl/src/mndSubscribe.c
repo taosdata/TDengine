@@ -298,7 +298,8 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
                 .pVgEp = pVgEp,
             };
             taosHashPut(pHash, &pVgEp->vgId, sizeof(int32_t), &outputVg, sizeof(SMqRebOutputVg));
-            mInfo("mq rebalance: remove vgId:%d from consumer:%" PRId64 ",(first scan)", pVgEp->vgId, pConsumerEp->consumerId);
+            mInfo("mq rebalance: remove vgId:%d from consumer:%" PRId64 ",(first scan)", pVgEp->vgId,
+                  pConsumerEp->consumerId);
           }
           imbCnt++;
         }
@@ -312,7 +313,8 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
               .pVgEp = pVgEp,
           };
           taosHashPut(pHash, &pVgEp->vgId, sizeof(int32_t), &outputVg, sizeof(SMqRebOutputVg));
-          mInfo("mq rebalance: remove vgId:%d from consumer:%" PRId64 ",(first scan)", pVgEp->vgId, pConsumerEp->consumerId);
+          mInfo("mq rebalance: remove vgId:%d from consumer:%" PRId64 ",(first scan)", pVgEp->vgId,
+                pConsumerEp->consumerId);
         }
       }
     }
@@ -354,7 +356,8 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
       taosArrayPush(pConsumerEp->vgs, &pRebVg->pVgEp);
       pRebVg->newConsumerId = pConsumerEp->consumerId;
       taosArrayPush(pOutput->rebVgs, pRebVg);
-      mInfo("mq rebalance: add vgId:%d to consumer:%" PRId64 ",(second scan)", pRebVg->pVgEp->vgId, pConsumerEp->consumerId);
+      mInfo("mq rebalance: add vgId:%d to consumer:%" PRId64 ",(second scan)", pRebVg->pVgEp->vgId,
+            pConsumerEp->consumerId);
     }
   }
 
@@ -371,8 +374,14 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
       ASSERT(pConsumerEp->consumerId > 0);
       taosArrayPush(pConsumerEp->vgs, &pRebVg->pVgEp);
       pRebVg->newConsumerId = pConsumerEp->consumerId;
+      if (pRebVg->newConsumerId == pRebVg->oldConsumerId) {
+        mInfo("mq rebalance: skip vg %d for same consumer:%" PRId64 ",(second scan)", pRebVg->pVgEp->vgId,
+              pConsumerEp->consumerId);
+        continue;
+      }
       taosArrayPush(pOutput->rebVgs, pRebVg);
-      mInfo("mq rebalance: add vgId:%d to consumer:%" PRId64 ",(second scan)", pRebVg->pVgEp->vgId, pConsumerEp->consumerId);
+      mInfo("mq rebalance: add vgId:%d to consumer:%" PRId64 ",(second scan)", pRebVg->pVgEp->vgId,
+            pConsumerEp->consumerId);
     }
   } else {
     // if all consumer is removed, put all vg into unassigned
@@ -815,7 +824,7 @@ int32_t mndSetDropSubCommitLogs(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj 
 }
 
 int32_t mndDropSubByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
-  int32_t code = -1;
+  int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
 
   void            *pIter = NULL;
@@ -831,12 +840,14 @@ int32_t mndDropSubByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
 
     if (mndSetDropSubCommitLogs(pMnode, pTrans, pSub) < 0) {
       sdbRelease(pSdb, pSub);
-      goto END;
+      sdbCancelFetch(pSdb, pIter);
+      code = -1;
+      break;
     }
+
+    sdbRelease(pSdb, pSub);
   }
 
-  code = 0;
-END:
   return code;
 }
 
@@ -859,7 +870,10 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
     }
 
     // iter all vnode to delete handle
-    ASSERT(taosHashGetSize(pSub->consumerHash) == 0);
+    if (taosHashGetSize(pSub->consumerHash) != 0) {
+      sdbRelease(pSdb, pSub);
+      return -1;
+    }
     int32_t sz = taosArrayGetSize(pSub->unassignedVgs);
     for (int32_t i = 0; i < sz; i++) {
       SMqVgEp       *pVgEp = taosArrayGetP(pSub->unassignedVgs, i);

@@ -3671,6 +3671,22 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
         SNode *t = node->pLeft;
         node->pLeft = node->pRight;
         node->pRight = t;
+        switch (node->opType) {
+          case OP_TYPE_GREATER_THAN:
+            node->opType = OP_TYPE_LOWER_THAN;
+            break;
+          case OP_TYPE_LOWER_THAN:
+            node->opType = OP_TYPE_GREATER_THAN;
+            break;
+          case OP_TYPE_GREATER_EQUAL:
+            node->opType = OP_TYPE_LOWER_EQUAL;
+            break;
+          case OP_TYPE_LOWER_EQUAL:
+            node->opType = OP_TYPE_GREATER_EQUAL;
+            break;
+          default:
+            break;
+        }
       }
 
       if (OP_TYPE_IN == node->opType && QUERY_NODE_NODE_LIST != nodeType(node->pRight)) {
@@ -3682,6 +3698,10 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
       if (OP_TYPE_IN != node->opType) {
         SColumnNode *refNode = (SColumnNode *)node->pLeft;
         SValueNode *valueNode = (SValueNode *)node->pRight;
+        if (FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP) 
+            && TSDB_DATA_TYPE_UBIGINT == valueNode->node.resType.type && valueNode->datum.u <= INT64_MAX) {
+          valueNode->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+        }
         int32_t type = vectorGetConvertType(refNode->node.resType.type, valueNode->node.resType.type);
         if (0 != type && type != refNode->node.resType.type) {
           stat->scalarMode = true;

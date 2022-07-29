@@ -24,7 +24,7 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
         self.dbname = 'db'
-        self.delaytime = 10
+        self.delaytime = 3
     def get_database_info(self):
         tdSql.query('select database()')
         tdSql.checkData(0,0,None)
@@ -42,12 +42,15 @@ class TDTestCase:
             tdSql.checkData(0,0,version_info)
         
     def get_server_status(self):
+        sleep(self.delaytime)
         tdSql.query('select server_status()')
         tdSql.checkData(0,0,1)
         #!for bug
-        # tdDnodes.stoptaosd(1)
-        # sleep(self.delaytime)
-        # tdSql.error('select server_status()')
+        tdDnodes.stoptaosd(1)
+        sleep(self.delaytime)
+        if platform.system().lower() == 'windows':
+            sleep(10)
+        tdSql.error('select server_status()')
         
     def run(self):
         self.get_database_info()

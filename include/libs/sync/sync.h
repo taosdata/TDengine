@@ -26,7 +26,7 @@ extern "C" {
 
 extern bool gRaftDetailLog;
 
-#define SYNC_RESP_TTL_MS 5000
+#define SYNC_RESP_TTL_MS 10000000
 
 #define SYNC_MAX_BATCH_SIZE 500
 #define SYNC_INDEX_BEGIN 0
@@ -134,7 +134,7 @@ typedef struct SSyncFSM {
   int32_t (*FpSnapshotDoRead)(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32_t* len);
 
   int32_t (*FpSnapshotStartWrite)(struct SSyncFSM* pFsm, void* pWriterParam, void** ppWriter);
-  int32_t (*FpSnapshotStopWrite)(struct SSyncFSM* pFsm, void* pWriter, bool isApply);
+  int32_t (*FpSnapshotStopWrite)(struct SSyncFSM* pFsm, void* pWriter, bool isApply, SSnapshot* pSnapshot);
   int32_t (*FpSnapshotDoWrite)(struct SSyncFSM* pFsm, void* pWriter, void* pBuf, int32_t len);
 
 } SSyncFSM;
@@ -210,7 +210,7 @@ SyncGroupId syncGetVgId(int64_t rid);
 void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
 int32_t     syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak);
-int32_t     syncProposeBatch(int64_t rid, SRpcMsg* pMsgArr, bool* pIsWeakArr, int32_t arrSize);
+int32_t     syncProposeBatch(int64_t rid, SRpcMsg** pMsgPArr, bool* pIsWeakArr, int32_t arrSize);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);

@@ -88,7 +88,7 @@ class TDTestCase:
         tmqCom.startTmqSimProcess(self.pollDelay,self.paraDict["dbName"],self.showMsg, self.showRow,self.cdbName)
 
         tdLog.info("After waiting for a period of time, drop one stable")
-        time.sleep(10)              
+        time.sleep(3)              
         tdSql.execute("drop table %s.%s" %(self.paraDict['dbName'], self.paraDict['stbName']))        
 
         tdLog.info("wait result from consumer, then check it")

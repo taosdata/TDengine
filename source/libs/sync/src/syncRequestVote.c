@@ -45,22 +45,9 @@
 int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
   int32_t ret = 0;
 
-  syncRequestVoteLog2("==syncNodeOnRequestVoteCb==", pMsg);
-
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
-    do {
-      char     logBuf[256];
-      char     host[64];
-      uint16_t port;
-      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-      snprintf(logBuf, sizeof(logBuf),
-               "recv sync-request-vote from %s:%d, term:%" PRIu64 ", lindex:%" PRId64 ", lterm:%" PRIu64
-               ", maybe replica already dropped",
-               host, port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm);
-      syncNodeEventLog(ths, logBuf);
-    } while (0);
-
+    syncLogRecvRequestVote(ths, pMsg, "maybe replica already dropped");
     return -1;
   }
 
@@ -93,15 +80,10 @@ int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
 
   // trace log
   do {
-    char     logBuf[256];
-    char     host[64];
-    uint16_t port;
-    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-    snprintf(logBuf, sizeof(logBuf),
-             "recv sync-request-vote from %s:%d, term:%" PRIu64 ", lindex:%" PRId64 ", lterm:%" PRIu64
-             ", reply-grant:%d",
-             host, port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, pReply->voteGranted);
-    syncNodeEventLog(ths, logBuf);
+    char logBuf[32];
+    snprintf(logBuf, sizeof(logBuf), "grant:%d", pReply->voteGranted);
+    syncLogRecvRequestVote(ths, pMsg, logBuf);
+    syncLogSendRequestVoteReply(ths, pReply, "");
   } while (0);
 
   SRpcMsg rpcMsg;
@@ -159,15 +141,52 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* pSyncNode, SyncRequestVote* pM
   SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
 
   if (myLastTerm == SYNC_TERM_INVALID) {
+    do {
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf),
+               "logok:0, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
+               ", recv-term:%" PRIu64 "}",
+               myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
+      syncNodeEventLog(pSyncNode, logBuf);
+    } while (0);
+
     return false;
   }
 
   if (pMsg->lastLogTerm > myLastTerm) {
+    do {
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf),
+               "logok:1, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
+               ", recv-term:%" PRIu64 "}",
+               myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
+      syncNodeEventLog(pSyncNode, logBuf);
+    } while (0);
+
     return true;
   }
+
   if (pMsg->lastLogTerm == myLastTerm && pMsg->lastLogIndex >= myLastIndex) {
+    do {
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf),
+               "logok:1, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
+               ", recv-term:%" PRIu64 "}",
+               myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
+      syncNodeEventLog(pSyncNode, logBuf);
+    } while (0);
+
     return true;
   }
+
+  do {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf),
+             "logok:0, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
+             ", recv-term:%" PRIu64 "}",
+             myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
+    syncNodeEventLog(pSyncNode, logBuf);
+  } while (0);
 
   return false;
 }
@@ -177,18 +196,7 @@ int32_t syncNodeOnRequestVoteSnapshotCb(SSyncNode* ths, SyncRequestVote* pMsg) {
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
-    do {
-      char     logBuf[256];
-      char     host[64];
-      uint16_t port;
-      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-      snprintf(logBuf, sizeof(logBuf),
-               "recv sync-request-vote from %s:%d, term:%" PRIu64 ", lindex:%" PRId64 ", lterm:%" PRIu64
-               ", maybe replica already dropped",
-               host, port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm);
-      syncNodeEventLog(ths, logBuf);
-    } while (0);
-
+    syncLogRecvRequestVote(ths, pMsg, "maybe replica already dropped");
     return -1;
   }
 
@@ -219,15 +227,10 @@ int32_t syncNodeOnRequestVoteSnapshotCb(SSyncNode* ths, SyncRequestVote* pMsg) {
 
   // trace log
   do {
-    char     logBuf[256];
-    char     host[64];
-    uint16_t port;
-    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-    snprintf(logBuf, sizeof(logBuf),
-             "recv sync-request-vote from %s:%d, term:%" PRIu64 ", lindex:%" PRId64 ", lterm:%" PRIu64
-             ", reply-grant:%d",
-             host, port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, pReply->voteGranted);
-    syncNodeEventLog(ths, logBuf);
+    char logBuf[32];
+    snprintf(logBuf, sizeof(logBuf), "grant:%d", pReply->voteGranted);
+    syncLogRecvRequestVote(ths, pMsg, logBuf);
+    syncLogSendRequestVoteReply(ths, pReply, "");
   } while (0);
 
   SRpcMsg rpcMsg;

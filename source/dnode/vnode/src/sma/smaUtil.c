@@ -32,9 +32,6 @@ static int32_t tdEncodeTFInfo(void **buf, STFInfo *pInfo) {
   tlen += taosEncodeFixedU32(buf, pInfo->ftype);
   tlen += taosEncodeFixedU32(buf, pInfo->fver);
   tlen += taosEncodeFixedI64(buf, pInfo->fsize);
-  if (pInfo->ftype == TD_FTYPE_RSMA_QTASKINFO) {
-    tlen += taosEncodeFixedI64(buf, pInfo->qTaskInfo.submitVer);
-  }
 
   return tlen;
 }
@@ -44,10 +41,6 @@ static void *tdDecodeTFInfo(void *buf, STFInfo *pInfo) {
   buf = taosDecodeFixedU32(buf, &(pInfo->ftype));
   buf = taosDecodeFixedU32(buf, &(pInfo->fver));
   buf = taosDecodeFixedI64(buf, &(pInfo->fsize));
-  // specific
-  if (pInfo->ftype == TD_FTYPE_RSMA_QTASKINFO) {
-    buf = taosDecodeFixedI64(buf, &(pInfo->qTaskInfo.submitVer));
-  }
 
   return buf;
 }
@@ -313,4 +306,99 @@ int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId, const char *tags, int32_t
 
   return TSDB_CODE_SUCCESS;
 }
+
+static int32_t tdCloneQTaskInfo(SSma *pSma, qTaskInfo_t dstTaskInfo, qTaskInfo_t srcTaskInfo, SRSmaParam *param,
+                                tb_uid_t suid, int8_t idx) {
+  SVnode *pVnode = pSma->pVnode;
+  char   *pOutput = NULL;
+  int32_t len = 0;
+
+  if (qSerializeTaskStatus(srcTaskInfo, &pOutput, &len) < 0) {
+    smaError("vgId:%d, rsma clone, table %" PRIi64 " serialize qTaskInfo failed since %s", TD_VID(pVnode), suid,
+             terrstr());
+    goto _err;
+  }
+
+  SReadHandle handle = {
+      .meta = pVnode->pMeta,
+      .vnode = pVnode,
+      .initTqReader = 1,
+  };
+  ASSERT(!dstTaskInfo);
+  dstTaskInfo = qCreateStreamExecTaskInfo(param->qmsg[idx], &handle);
+  if (!dstTaskInfo) {
+    terrno = TSDB_CODE_RSMA_QTASKINFO_CREATE;
+    goto _err;
+  }
+
+  if (qDeserializeTaskStatus(dstTaskInfo, pOutput, len) < 0) {
+    smaError("vgId:%d, rsma clone, restore rsma task for table:%" PRIi64 " failed since %s", TD_VID(pVnode), suid,
+             terrstr());
+    goto _err;
+  }
+
+  smaError("vgId:%d, rsma clone, restore rsma task for table:%" PRIi64 " succeed", TD_VID(pVnode), suid);
+
+  taosMemoryFreeClear(pOutput);
+  return TSDB_CODE_SUCCESS;
+_err:
+  taosMemoryFreeClear(pOutput);
+  tdFreeQTaskInfo(dstTaskInfo, TD_VID(pVnode), idx + 1);
+  return TSDB_CODE_FAILED;
+}
+
+/**
+ * @brief pTSchema is shared
+ * 
+ * @param pSma 
+ * @param pDest 
+ * @param pSrc 
+ * @return int32_t 
+ */
+int32_t tdCloneRSmaInfo(SSma *pSma, SRSmaInfo *pDest, SRSmaInfo *pSrc) {
+  SVnode     *pVnode = pSma->pVnode;
+  SRSmaParam *param = NULL;
+  if (!pSrc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (!pDest) {
+    pDest = taosMemoryCalloc(1, sizeof(SRSmaInfo));
+    if (!pDest) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return TSDB_CODE_FAILED;
+    }
+  }
+
+  memcpy(pDest, pSrc, sizeof(SRSmaInfo));
+
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, SMA_META(pSma), 0);
+  smaDebug("vgId:%d, rsma clone, suid is %" PRIi64, TD_VID(pVnode), pSrc->suid);
+  if (metaGetTableEntryByUid(&mr, pSrc->suid) < 0) {
+    smaError("vgId:%d, rsma clone, failed to get table meta for %" PRIi64 " since %s", TD_VID(pVnode), pSrc->suid,
+             terrstr());
+    goto _err;
+  }
+  ASSERT(mr.me.type == TSDB_SUPER_TABLE);
+  ASSERT(mr.me.uid == pSrc->suid);
+  if (TABLE_IS_ROLLUP(mr.me.flags)) {
+    param = &mr.me.stbEntry.rsmaParam;
+    for (int i = 0; i < TSDB_RETENTION_L2; ++i) {
+      SRSmaInfoItem *pItem = &pSrc->items[i];
+      if (pItem->taskInfo) {
+        tdCloneQTaskInfo(pSma, pDest->items[i].taskInfo, pItem->taskInfo, param, pSrc->suid, i);
+      }
+    }
+    smaDebug("vgId:%d, rsma clone env success for %" PRIi64, TD_VID(pVnode), pSrc->suid);
+  }
+
+  metaReaderClear(&mr);
+  return TSDB_CODE_SUCCESS;
+_err:
+  metaReaderClear(&mr);
+  tdFreeRSmaInfo(pSma, pDest, false);
+  return TSDB_CODE_FAILED;
+}
+
 // ...

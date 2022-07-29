@@ -1,7 +1,7 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c debugflag -v 131
-system sh/exec.sh -n dnode1 -s start -v
+system sh/exec.sh -n dnode1 -s start
 sql connect
 
 print =============== step1: create drop show dnodes
@@ -37,6 +37,7 @@ sql show stables
 if $rows != 4 then 
   return -1
 endi
+sql show stables like 'stb'
 
 print =============== step4: ccreate child table
 sql create table c1 using stb tags(true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
@@ -55,6 +56,10 @@ sql insert into c2 values(now+0s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1
 print =============== step6: alter insert
 sql insert into c3 using stb tags(true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) values(now-1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) 
 sql insert into c3 using stb tags(true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) values(now+0s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) 
+
+print ===============  restart
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start -v
 
 print =============== stepa: query data
 sql select * from c1
@@ -86,7 +91,7 @@ $null=
 
 system_content sh/checkValgrind.sh -n dnode1 
 print cmd return result ----> [ $system_content ]
-if $system_content > 1 then
+if $system_content > 2 then
   return -1
 endi 
 

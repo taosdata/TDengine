@@ -52,6 +52,18 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   SConnectRsp connectRsp = {0};
   tDeserializeSConnectRsp(pMsg->pData, pMsg->len, &connectRsp);
+
+  int32_t now = taosGetTimestampSec();
+  int32_t delta = abs(now - connectRsp.svrTimestamp);
+  if (delta > timestampDeltaLimit) {
+    code = TSDB_CODE_TIME_UNSYNCED;
+    tscError("time diff:%ds is too big", delta);
+    taosMemoryFree(pMsg->pData);
+    setErrno(pRequest, code);
+    tsem_post(&pRequest->body.rspSem);
+    return code;
+  }
+
   /*assert(connectRsp.epSet.numOfEps > 0);*/
   if (connectRsp.epSet.numOfEps == 0) {
     taosMemoryFree(pMsg->pData);
@@ -243,6 +255,8 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     catalogRemoveDB(pCatalog, dropdbRsp.db, dropdbRsp.uid);
   }
 
+  taosMemoryFree(pMsg->pData);
+
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
   } else {
@@ -265,6 +279,8 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     pRequest->body.resInfo.execRes.msgType = TDMT_MND_ALTER_STB;
     pRequest->body.resInfo.execRes.res = alterRsp.pMeta;
   }
+
+  taosMemoryFree(pMsg->pData);
 
   if (pRequest->body.queryFp != NULL) {
     SExecResult* pRes = &pRequest->body.resInfo.execRes;
@@ -374,6 +390,8 @@ int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
     tFreeSShowVariablesRsp(&rsp);
   }
+
+  taosMemoryFree(pMsg->pData);
 
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);

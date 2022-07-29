@@ -1,10 +1,6 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
-system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
 system sh/exec.sh -n dnode1 -s start
-sleep 100
 sql connect
 
 $dbPrefix = slm_db
@@ -21,7 +17,7 @@ $db = $dbPrefix . $i
 $stb = $stbPrefix . $i
 
 sql drop database if exists $db
-sql create database $db maxrows 200 cache 16
+sql create database $db maxrows 200
 print ====== create tables
 sql use $db
 sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 binary(15), t2 int, t3 bigint, t4 nchar(10), t5 double, t6 bool)
@@ -63,7 +59,7 @@ print ====== $db tables created
 
 $db = $dbPrefix . 1
 sql drop database if exists $db
-sql create database $db maxrows 200 cache 16
+sql create database $db maxrows 200 
 sql use $db
 sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 binary(15), t2 int, t3 bigint, t4 nchar(10), t5 double, t6 bool)
 
@@ -93,16 +89,14 @@ while $i < $tbNum
 endw
 print ====== $db tables created
   
-run general/parser/slimit_query.sim
+run tsim/parser/slimit_query.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 500
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 sql connect
-sleep 100
 
-run general/parser/slimit_query.sim
+run tsim/parser/slimit_query.sim
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

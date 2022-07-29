@@ -44,7 +44,6 @@
 #include "scalar.h"
 #include "stub.h"
 #include "taos.h"
-#include "tdatablock.h"
 #include "tdef.h"
 #include "tlog.h"
 #include "tvariant.h"
@@ -207,7 +206,7 @@ void flttMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
 
 void initScalarParam(SScalarParam* pParam) {
   memset(pParam, 0, sizeof(SScalarParam));
-  pParam->type = SHOULD_FREE_COLDATA;
+  pParam->colAlloced = true;
 }
 
 }

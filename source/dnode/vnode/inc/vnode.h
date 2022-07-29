@@ -28,6 +28,7 @@
 
 #include "tcommon.h"
 #include "tfs.h"
+#include "tgrant.h"
 #include "tmsg.h"
 #include "trow.h"
 
@@ -88,6 +89,7 @@ void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t type, STagVal *tagVal);
+int         metaGetTableNameByUid(void* meta, uint64_t uid, char* tbName);
 
 typedef struct SMetaFltParam {
   tb_uid_t suid;
@@ -99,7 +101,7 @@ typedef struct SMetaFltParam {
 
 } SMetaFltParam;
 
-int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *results);
+int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *results);
 
 #if 1  // refact APIs below (TODO)
 typedef SVCreateTbReq   STbCfg;
@@ -116,9 +118,8 @@ int32_t     metaTbCursorNext(SMTbCursor *pTbCur);
 // typedef struct STsdb STsdb;
 typedef struct STsdbReader STsdbReader;
 
-#define BLOCK_LOAD_OFFSET_ORDER   1
-#define BLOCK_LOAD_TABLESEQ_ORDER 2
-#define BLOCK_LOAD_EXTERN_ORDER   3
+#define TIMEWINDOW_RANGE_CONTAINED 1
+#define TIMEWINDOW_RANGE_EXTERNAL  2
 
 #define LASTROW_RETRIEVE_TYPE_ALL    0x1
 #define LASTROW_RETRIEVE_TYPE_SINGLE 0x2
@@ -138,7 +139,7 @@ void   *tsdbGetIdx(SMeta *pMeta);
 void   *tsdbGetIvtIdx(SMeta *pMeta);
 
 int32_t tsdbLastRowReaderOpen(void *pVnode, int32_t type, SArray *pTableIdList, int32_t numOfCols, void **pReader);
-int32_t tsdbRetrieveLastRow(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, SArray* pTableUids);
+int32_t tsdbRetrieveLastRow(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, SArray *pTableUids);
 int32_t tsdbLastrowReaderClose(void *pReader);
 int32_t tsdbGetTableSchema(SVnode *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid);
 
@@ -191,7 +192,7 @@ int32_t vnodeSnapReaderClose(SVSnapReader *pReader);
 int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData);
 // SVSnapWriter
 int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter);
-int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback);
+int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *pSnapshot);
 int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData);
 
 // structs
@@ -232,7 +233,6 @@ struct SVnodeCfg {
 };
 
 typedef struct {
-  TSKEY    lastKey;
   uint64_t uid;
   uint64_t groupId;
 } STableKeyInfo;

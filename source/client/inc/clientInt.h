@@ -222,11 +222,12 @@ typedef struct SRequestObj {
   int32_t              code;
   SArray*              dbList;
   SArray*              tableList;
+  SArray*              targetTableList;
   SQueryExecMetric     metric;
   SRequestSendRecvBody body;
-  bool                 syncQuery;    // todo refactor: async query object
-  bool                 stableQuery;  // todo refactor
-  bool                 validateOnly; // todo refactor
+  bool                 syncQuery;     // todo refactor: async query object
+  bool                 stableQuery;   // todo refactor
+  bool                 validateOnly;  // todo refactor
   bool                 killed;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
@@ -286,7 +287,7 @@ static FORCE_INLINE SReqResultInfo* tscGetCurResInfo(TAOS_RES* res) {
 extern SAppInfo appInfo;
 extern int32_t  clientReqRefPool;
 extern int32_t  clientConnRefPool;
-extern void*    tscQhandle;
+extern int32_t  timestampDeltaLimit;
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
 

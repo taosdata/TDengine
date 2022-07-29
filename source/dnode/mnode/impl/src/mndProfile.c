@@ -15,10 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #include "mndProfile.h"
-#include "mndPrivilege.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
+#include "mndPrivilege.h"
 #include "mndQnode.h"
 #include "mndShow.h"
 #include "mndStb.h"
@@ -240,7 +240,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
 
   if (strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0) {
     mGError("user:%s, failed to login from %s since invalid pass, input:%s", pReq->info.conn.user, ip, connReq.passwd);
-    code = TSDB_CODE_RPC_AUTH_FAILURE;
+    code = TSDB_CODE_MND_AUTH_FAILURE;
     goto _OVER;
   }
 
@@ -274,6 +274,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.connId = pConn->id;
   connectRsp.connType = connReq.connType;
   connectRsp.dnodeNum = mndGetDnodeSize(pMnode);
+  connectRsp.svrTimestamp = taosGetTimestampSec();
 
   strcpy(connectRsp.sVer, version);
   snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,
@@ -311,7 +312,7 @@ static int32_t mndSaveQueryList(SConnObj *pConn, SQueryHbReqBasic *pBasic) {
   pConn->numOfQueries = pBasic->queryDesc ? taosArrayGetSize(pBasic->queryDesc) : 0;
   pBasic->queryDesc = NULL;
 
-  mDebug("queries updated in conn %d, num:%d", pConn->id, pConn->numOfQueries);
+  mDebug("queries updated in conn %u, num:%d", pConn->id, pConn->numOfQueries);
 
   taosWUnLockLatch(&pConn->queryLock);
 
@@ -387,67 +388,7 @@ static void mndCancelGetNextApp(SMnode *pMnode, void *pIter) {
 }
 
 static SClientHbRsp *mndMqHbBuildRsp(SMnode *pMnode, SClientHbReq *pReq) {
-#if 0
-  SClientHbRsp* pRsp = taosMemoryMalloc(sizeof(SClientHbRsp));
-  if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-  pRsp->connKey = pReq->connKey;
-  SMqHbBatchRsp batchRsp;
-  batchRsp.batchRsps = taosArrayInit(0, sizeof(SMqHbRsp));
-  if (batchRsp.batchRsps == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-  SClientHbKey connKey = pReq->connKey;
-  SHashObj* pObj =  pReq->info;
-  SKv* pKv = taosHashGet(pObj, "mq-tmp", strlen("mq-tmp") + 1);
-  if (pKv == NULL) {
-    taosMemoryFree(pRsp);
-    return NULL;
-  }
-  SMqHbMsg mqHb;
-  taosDecodeSMqMsg(pKv->value, &mqHb);
-  /*int64_t clientUid = htonl(pKv->value);*/
-  /*if (mqHb.epoch )*/
-  int sz = taosArrayGetSize(mqHb.pTopics);
-  SMqConsumerObj* pConsumer = mndAcquireConsumer(pMnode, mqHb.consumerId); 
-  for (int i = 0; i < sz; i++) {
-    SMqHbOneTopicBatchRsp innerBatchRsp;
-    innerBatchRsp.rsps = taosArrayInit(sz, sizeof(SMqHbRsp));
-    if (innerBatchRsp.rsps == NULL) {
-      //TODO
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return NULL;
-    }
-    SMqHbTopicInfo* topicInfo = taosArrayGet(mqHb.pTopics, i);
-    SMqConsumerTopic* pConsumerTopic = taosHashGet(pConsumer->topicHash, topicInfo->name, strlen(topicInfo->name)+1);
-    if (pConsumerTopic->epoch != topicInfo->epoch) {
-      //add new vgids into rsp
-      int vgSz = taosArrayGetSize(topicInfo->pVgInfo);
-      for (int j = 0; j < vgSz; j++) {
-        SMqHbRsp innerRsp;
-        SMqHbVgInfo* pVgInfo = taosArrayGet(topicInfo->pVgInfo, i);
-        SVgObj* pVgObj = mndAcquireVgroup(pMnode, pVgInfo->vgId);
-        innerRsp.epSet = mndGetVgroupEpset(pMnode, pVgObj);
-        taosArrayPush(innerBatchRsp.rsps, &innerRsp);
-      }
-    }
-    taosArrayPush(batchRsp.batchRsps, &innerBatchRsp);
-  }
-  int32_t tlen = taosEncodeSMqHbBatchRsp(NULL, &batchRsp);
-  void* buf = taosMemoryMalloc(tlen);
-  if (buf == NULL) {
-    //TODO
-    return NULL;
-  }
-  void* abuf = buf;
-  taosEncodeSMqHbBatchRsp(&abuf, &batchRsp);
-  pRsp->body = buf;
-  pRsp->bodyLen = tlen;
-  return pRsp;
-#endif
+  //
   return NULL;
 }
 
@@ -623,6 +564,7 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   }
 
   SClientHbBatchRsp batchRsp = {0};
+  batchRsp.svrTimestamp = taosGetTimestampSec();
   batchRsp.rsps = taosArrayInit(0, sizeof(SClientHbRsp));
 
   int32_t sz = taosArrayGetSize(batchReq.reqs);

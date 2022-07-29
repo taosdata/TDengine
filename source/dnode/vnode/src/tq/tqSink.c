@@ -49,8 +49,11 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       }
 
       SVCreateTbReq createTbReq = {0};
+      SName         name = {0};
+      tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+
       createTbReq.name = buildCtbNameByGroupId(stbFullName, pDataBlock->info.groupId);
-      createTbReq.ctb.name = strdup(stbFullName);
+      createTbReq.ctb.name = strdup((char*)tNameGetTableName(&name));  // strdup(stbFullName);
       createTbReq.flags = 0;
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
@@ -107,7 +110,6 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
   // TODO
   ret = rpcMallocCont(cap);
   ret->header.vgId = vgId;
-  ret->version = htonl(1);
   ret->length = sizeof(SSubmitReq);
   ret->numOfBlocks = htonl(sz);
 
@@ -123,6 +125,8 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
     blkHead->uid = 0;
 
     int32_t rows = pDataBlock->info.rows;
+
+    tqDebug("tq sink, convert block %d, rows: %d", i, rows);
 
     int32_t dataLen = 0;
 
@@ -175,9 +179,14 @@ void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
   const SArray* pRes = (const SArray*)data;
   SVnode*       pVnode = (SVnode*)vnode;
 
+  tqDebug("vgId:%d, task %d write into table, block num: %d", TD_VID(pVnode), pTask->taskId, (int32_t)pRes->size);
+
   ASSERT(pTask->tbSink.pTSchema);
   SSubmitReq* pReq = tdBlockToSubmit(pRes, pTask->tbSink.pTSchema, true, pTask->tbSink.stbUid,
                                      pTask->tbSink.stbFullName, pVnode->config.vgId);
+
+  tqDebug("vgId:%d, task %d convert blocks over, put into write-queue", TD_VID(pVnode), pTask->taskId);
+
   /*tPrintFixedSchemaSubmitReq(pReq, pTask->tbSink.pTSchema);*/
   // build write msg
   SRpcMsg msg = {

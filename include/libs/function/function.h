@@ -143,6 +143,7 @@ typedef struct SqlFunctionCtx {
   struct SExprInfo      *pExpr;
   struct SDiskbasedBuf  *pBuf;
   struct SSDataBlock    *pSrcBlock;
+  struct SSDataBlock    *pDstBlock; // used by indifinite rows function to set selectivity
   int32_t                curBufPage;
   bool                   increase;
 
@@ -172,13 +173,8 @@ typedef struct tExprNode {
 
 void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *));
 
-typedef enum {
-  SHOULD_FREE_COLDATA    = 0x1,   // the newly created column data needs to be destroyed.
-  DELEGATED_MGMT_COLDATA = 0x2,   // input column data should not be released.
-} ECOLDATA_MGMT_TYPE_E;
-
 struct SScalarParam {
-  ECOLDATA_MGMT_TYPE_E type;
+  bool             colAlloced;
   SColumnInfoData *columnData;
   SHashObj        *pHashFilter;
   int32_t          hashValueType;

@@ -29,7 +29,7 @@
 static void*    getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInfo** pGroupInfo, int32_t len);
 static int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity);
 static int32_t  setGroupResultOutputBuf(SOperatorInfo* pOperator, SOptrBasicInfo* binfo, int32_t numOfCols, char* pData, int16_t bytes,
-                                        int32_t groupId, SDiskbasedBuf* pBuf, SAggSupporter* pAggSup);
+                                        uint64_t groupId, SDiskbasedBuf* pBuf, SAggSupporter* pAggSup);
 
 static void destroyGroupOperatorInfo(void* param, int32_t numOfOutput) {
   SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
@@ -264,7 +264,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     }
 
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
-    int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf, len, 0, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
+    int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf, len, pBlock->info.groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
       longjmp(pTaskInfo->env, TSDB_CODE_QRY_APP_ERROR);
     }
@@ -282,7 +282,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
     int32_t ret =
         setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf, len,
-                                   0, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
+                                pBlock->info.groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
     if (ret != TSDB_CODE_SUCCESS) {
       longjmp(pTaskInfo->env, TSDB_CODE_QRY_APP_ERROR);
     }
@@ -291,6 +291,29 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     doApplyFunctions(pTaskInfo, pCtx, &w, NULL, rowIndex, num, NULL, pBlock->info.rows, pOperator->exprSupp.numOfExprs, TSDB_ORDER_ASC);
     doAssignGroupKeys(pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.rows, rowIndex);
   }
+}
+
+static SSDataBlock* buildGroupResultDataBlock(SOperatorInfo* pOperator) {
+  SGroupbyOperatorInfo* pInfo = pOperator->info;
+
+  SSDataBlock* pRes = pInfo->binfo.pRes;
+  while(1) {
+    doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
+    doFilter(pInfo->pCondition, pRes, NULL);
+
+    bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
+    if (!hasRemain) {
+      doSetOperatorCompleted(pOperator);
+      break;
+    }
+
+    if (pRes->info.rows > 0) {
+      break;
+    }
+  }
+
+  pOperator->resultInfo.totalRows += pRes->info.rows;
+  return (pRes->info.rows == 0)? NULL:pRes;
 }
 
 static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
@@ -304,22 +327,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = pInfo->binfo.pRes;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    while(1) {
-      doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-      doFilter(pInfo->pCondition, pRes);
-
-      bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
-      if (!hasRemain) {
-        doSetOperatorCompleted(pOperator);
-        break;
-      }
-
-      if (pRes->info.rows > 0) {
-        break;
-      }
-    }
-    pOperator->resultInfo.totalRows += pRes->info.rows;
-    return (pRes->info.rows == 0)? NULL:pRes;
+    return buildGroupResultDataBlock(pOperator);
   }
 
   int32_t order = TSDB_ORDER_ASC;
@@ -373,26 +381,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
   initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, 0);
 
   pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-
-  while(1) {
-    doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    doFilter(pInfo->pCondition, pRes);
-
-    bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
-    if (!hasRemain) {
-      doSetOperatorCompleted(pOperator);
-      break;
-    }
-
-    if (pRes->info.rows > 0) {
-      break;
-    }
-  }
-
-  size_t rows = pRes->info.rows;
-  pOperator->resultInfo.totalRows += rows;
-
-  return (rows == 0)? NULL:pRes;
+  return buildGroupResultDataBlock(pOperator);
 }
 
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
@@ -417,7 +406,7 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
     goto _error;
   }
 
-  initResultSizeInfo(pOperator, 4096);
+  initResultSizeInfo(&pOperator->resultInfo, 4096);
   initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, pInfo->groupKeyLen, pTaskInfo->id.str);
   initBasicInfo(&pInfo->binfo, pResultBlock);
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
@@ -451,18 +440,18 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
     int32_t len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
 
-    SDataGroupInfo* pGInfo = NULL;
-    void *pPage = getCurrentDataGroupInfo(pInfo, &pGInfo, len);
+    SDataGroupInfo* pGroupInfo = NULL;
+    void *pPage = getCurrentDataGroupInfo(pInfo, &pGroupInfo, len);
 
-    pGInfo->numOfRows += 1;
-    if (pGInfo->groupId == 0) {
-      pGInfo->groupId = calcGroupId(pInfo->keyBuf, len);
+    pGroupInfo->numOfRows += 1;
+
+    // group id
+    if (pGroupInfo->groupId == 0) {
+      pGroupInfo->groupId = calcGroupId(pInfo->keyBuf, len);
     }
 
     // number of rows
     int32_t* rows = (int32_t*) pPage;
-
-    // group id
 
     size_t numOfCols = pOperator->exprSupp.numOfExprs;
     for(int32_t i = 0; i < numOfCols; ++i) {
@@ -614,7 +603,13 @@ static void clearPartitionOperator(SPartitionOperatorInfo* pInfo) {
 static int compareDataGroupInfo(const void* group1, const void* group2) {
   const SDataGroupInfo* pGroupInfo1 = group1;
   const SDataGroupInfo* pGroupInfo2 = group2;
-  return pGroupInfo1->groupId - pGroupInfo2->groupId;
+
+  if (pGroupInfo1->groupId == pGroupInfo2->groupId) {
+    ASSERT(0);
+    return 0;
+  }
+
+  return (pGroupInfo1->groupId < pGroupInfo2->groupId)? -1:1;
 }
 
 static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
@@ -800,7 +795,7 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
 }
 
 int32_t setGroupResultOutputBuf(SOperatorInfo* pOperator, SOptrBasicInfo* binfo, int32_t numOfCols, char* pData, int16_t bytes,
-                                int32_t groupId, SDiskbasedBuf* pBuf, SAggSupporter* pAggSup) {
+                                uint64_t groupId, SDiskbasedBuf* pBuf, SAggSupporter* pAggSup) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SResultRowInfo* pResultRowInfo = &binfo->resultRowInfo;
   SqlFunctionCtx* pCtx = pOperator->exprSupp.pCtx;

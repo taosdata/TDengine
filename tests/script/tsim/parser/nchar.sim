@@ -1,10 +1,6 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-
-sleep 100
 sql connect
 
 print ======================== dnode1 start
@@ -232,7 +228,8 @@ sql_error select avg(tbcol) from $mt where tbcol1 = 1 group by tgcol
 sql_error select sum(tbcol) from $mt where tbcol1 = 1 group by tgcol 
 sql_error select min(tbcol) from $mt where tbcol1 = 1 group by tgcol 
 sql_error select max(tbcol) from $mt where tbcol1 = 1 group by tgcol  
-sql select first(tbcol) from $mt where tbcol1 = 1 group by tgcol 
+
+sql select first(tbcol), tgcol from $mt where tbcol1 = 1 group by tgcol order by tgcol
 if $rows != 2 then
   return -1
 endi
@@ -248,7 +245,8 @@ endi
 if $data11 != 1 then
   return -1
 endi
-sql select last(tbcol) from $mt where tbcol1 = 1 group by tgcol
+
+sql select last(tbcol), tgcol from $mt where tbcol1 = 1 group by tgcol order by tgcol
 if $rows != 2 then
   return -1
 endi
@@ -269,6 +267,7 @@ sql create table stbb (ts timestamp, c1 nchar(5)) tags (t1 int)
 sql create table tbb1 using stbb tags(1)
 sql insert into tbb1 values ('2018-09-17 09:00:00', '涛思')
 sql insert into tbb1 values ('2018-09-17 09:00:01', 'insrt')
+
 sql select * from tbb1 order by ts asc
 if $rows != 2 then
   return -1

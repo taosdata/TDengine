@@ -21,8 +21,6 @@ namespace ParserTest {
 
 class ParserInitialCTest : public ParserDdlTest {};
 
-// todo compact
-
 TEST_F(ParserInitialCTest, createAccount) {
   useDb("root", "test");
 
@@ -32,6 +30,19 @@ TEST_F(ParserInitialCTest, createAccount) {
 TEST_F(ParserInitialCTest, createBnode) {
   useDb("root", "test");
 
+  SMCreateQnodeReq expect = {0};
+
+  auto setCreateQnodeReq = [&](int32_t dnodeId) { expect.dnodeId = dnodeId; };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_BNODE_STMT);
+    SMCreateQnodeReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS ==
+                tDeserializeSCreateDropMQSBNodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    ASSERT_EQ(req.dnodeId, expect.dnodeId);
+  });
+
+  setCreateQnodeReq(1);
   run("CREATE BNODE ON DNODE 1");
 }
 
@@ -43,10 +54,11 @@ TEST_F(ParserInitialCTest, createBnode) {
  *
  * database_option: {
  *     BUFFER value
- *   | CACHELAST value
+ *   | CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}
+ *   | CACHESIZE value
  *   | COMP {0 | 1 | 2}
  *   | DURATION value
- *   | FSYNC value
+ *   | WAL_FSYNC_PERIOD value
  *   | MAXROWS value
  *   | MINROWS value
  *   | KEEP value
@@ -55,10 +67,14 @@ TEST_F(ParserInitialCTest, createBnode) {
  *   | PRECISION {'ms' | 'us' | 'ns'}
  *   | REPLICA value
  *   | RETENTIONS ingestion_duration:keep_duration ...
- *   | STRICT value
- *   | WAL value
+ *   | STRICT {'off' | 'on'}
+ *   | WAL_LEVEL value
  *   | VGROUPS value
  *   | SINGLE_STABLE {0 | 1}
+ *   | WAL_RETENTION_PERIOD value
+ *   | WAL_ROLL_PERIOD value
+ *   | WAL_RETENTION_SIZE value
+ *   | WAL_SEGMENT_SIZE value
  * }
  */
 TEST_F(ParserInitialCTest, createDatabase) {
@@ -76,11 +92,11 @@ TEST_F(ParserInitialCTest, createDatabase) {
     expect.db[len] = '\0';
     expect.ignoreExist = igExists;
     expect.buffer = TSDB_DEFAULT_BUFFER_PER_VNODE;
-    expect.cacheLast = TSDB_DEFAULT_CACHE_LAST;
-    expect.cacheLastSize = TSDB_DEFAULT_CACHE_LAST_SIZE;
+    expect.cacheLast = TSDB_DEFAULT_CACHE_MODEL;
+    expect.cacheLastSize = TSDB_DEFAULT_CACHE_SIZE;
     expect.compression = TSDB_DEFAULT_COMP_LEVEL;
     expect.daysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
-    expect.fsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
+    expect.walFsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
     expect.maxRows = TSDB_DEFAULT_MAXROWS_FBLOCK;
     expect.minRows = TSDB_DEFAULT_MINROWS_FBLOCK;
     expect.daysToKeep0 = TSDB_DEFAULT_KEEP;
@@ -102,7 +118,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
   auto setDbCachelastSize = [&](int8_t cachelastSize) { expect.cacheLastSize = cachelastSize; };
   auto setDbCompressionFunc = [&](int8_t compressionLevel) { expect.compression = compressionLevel; };
   auto setDbDaysFunc = [&](int32_t daysPerFile) { expect.daysPerFile = daysPerFile; };
-  auto setDbFsyncFunc = [&](int32_t fsyncPeriod) { expect.fsyncPeriod = fsyncPeriod; };
+  auto setDbFsyncFunc = [&](int32_t fsyncPeriod) { expect.walFsyncPeriod = fsyncPeriod; };
   auto setDbMaxRowsFunc = [&](int32_t maxRowsPerBlock) { expect.maxRows = maxRowsPerBlock; };
   auto setDbMinRowsFunc = [&](int32_t minRowsPerBlock) { expect.minRows = minRowsPerBlock; };
   auto setDbKeepFunc = [&](int32_t keep0, int32_t keep1 = 0, int32_t keep2 = 0) {
@@ -131,6 +147,10 @@ TEST_F(ParserInitialCTest, createDatabase) {
     ++expect.numOfRetensions;
   };
   auto setDbSchemalessFunc = [&](int8_t schemaless) { expect.schemaless = schemaless; };
+  auto setDbWalRetentionPeriod = [&](int32_t walRetentionPeriod) { expect.walRetentionPeriod = walRetentionPeriod; };
+  auto setDbWalRetentionSize = [&](int32_t walRetentionSize) { expect.walRetentionSize = walRetentionSize; };
+  auto setDbWalRollPeriod = [&](int32_t walRollPeriod) { expect.walRollPeriod = walRollPeriod; };
+  auto setDbWalSegmentSize = [&](int32_t walSegmentSize) { expect.walSegmentSize = walSegmentSize; };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_DATABASE_STMT);
@@ -149,7 +169,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
     ASSERT_EQ(req.daysToKeep2, expect.daysToKeep2);
     ASSERT_EQ(req.minRows, expect.minRows);
     ASSERT_EQ(req.maxRows, expect.maxRows);
-    ASSERT_EQ(req.fsyncPeriod, expect.fsyncPeriod);
+    ASSERT_EQ(req.walFsyncPeriod, expect.walFsyncPeriod);
     ASSERT_EQ(req.walLevel, expect.walLevel);
     ASSERT_EQ(req.precision, expect.precision);
     ASSERT_EQ(req.compression, expect.compression);
@@ -157,6 +177,10 @@ TEST_F(ParserInitialCTest, createDatabase) {
     ASSERT_EQ(req.strict, expect.strict);
     ASSERT_EQ(req.cacheLast, expect.cacheLast);
     ASSERT_EQ(req.cacheLastSize, expect.cacheLastSize);
+    ASSERT_EQ(req.walRetentionPeriod, expect.walRetentionPeriod);
+    ASSERT_EQ(req.walRetentionSize, expect.walRetentionSize);
+    ASSERT_EQ(req.walRollPeriod, expect.walRollPeriod);
+    ASSERT_EQ(req.walSegmentSize, expect.walSegmentSize);
     // ASSERT_EQ(req.schemaless, expect.schemaless);
     ASSERT_EQ(req.ignoreExist, expect.ignoreExist);
     ASSERT_EQ(req.numOfRetensions, expect.numOfRetensions);
@@ -201,13 +225,17 @@ TEST_F(ParserInitialCTest, createDatabase) {
   setDbVgroupsFunc(100);
   setDbSingleStableFunc(1);
   setDbSchemalessFunc(1);
+  setDbWalRetentionPeriod(-1);
+  setDbWalRetentionSize(-1);
+  setDbWalRollPeriod(10);
+  setDbWalSegmentSize(20);
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
       "BUFFER 64 "
-      "CACHELAST 2 "
-      "CACHELASTSIZE 20 "
+      "CACHEMODEL 'last_value' "
+      "CACHESIZE 20 "
       "COMP 1 "
       "DURATION 100 "
-      "FSYNC 100 "
+      "WAL_FSYNC_PERIOD 100 "
       "MAXROWS 1000 "
       "MINROWS 100 "
       "KEEP 1440 "
@@ -216,11 +244,15 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "PRECISION 'ns' "
       "REPLICA 3 "
       "RETENTIONS 15s:7d,1m:21d,15m:500d "
-      "STRICT 1 "
-      "WAL 2 "
+      "STRICT 'on' "
+      "WAL_LEVEL 2 "
       "VGROUPS 100 "
       "SINGLE_STABLE 1 "
-      "SCHEMALESS 1");
+      "SCHEMALESS 1 "
+      "WAL_RETENTION_PERIOD -1 "
+      "WAL_RETENTION_SIZE -1 "
+      "WAL_ROLL_PERIOD 10 "
+      "WAL_SEGMENT_SIZE 20");
   clearCreateDbReq();
 
   setCreateDbReqFunc("wxy_db", 1);
@@ -235,12 +267,12 @@ TEST_F(ParserInitialCTest, createDatabase) {
 TEST_F(ParserInitialCTest, createDatabaseSemanticCheck) {
   useDb("root", "test");
 
-  run("create database db2 retentions 0s:1d", TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
-  run("create database db2 retentions 10s:0d", TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
-  run("create database db2 retentions 1w:1d", TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
-  run("create database db2 retentions 1w:1n", TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
-  run("create database db2 retentions 15s:7d,15m:21d,10m:500d", TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
-  run("create database db2 retentions 15s:7d,5m:21d,10m:10d", TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
+  run("create database db2 retentions 0s:1d", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("create database db2 retentions 10s:0d", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("create database db2 retentions 1w:1d", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("create database db2 retentions 1w:1n", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("create database db2 retentions 15s:7d,15m:21d,10m:500d", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("create database db2 retentions 15s:7d,5m:21d,10m:10d", TSDB_CODE_PAR_INVALID_DB_OPTION);
 }
 
 TEST_F(ParserInitialCTest, createDnode) {
@@ -513,13 +545,13 @@ TEST_F(ParserInitialCTest, createStableSemanticCheck) {
   useDb("root", "test");
 
   run("CREATE STABLE rollup_db.stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(CEIL)",
-      TSDB_CODE_PAR_INVALID_ROLLUP_OPTION);
+      TSDB_CODE_PAR_INVALID_TABLE_OPTION);
 
   run("CREATE STABLE rollup_db.stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(MAX) MAX_DELAY 0s WATERMARK 1m",
-      TSDB_CODE_PAR_INVALID_RANGE_OPTION);
+      TSDB_CODE_PAR_INVALID_TABLE_OPTION);
 
   run("CREATE STABLE rollup_db.stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(MAX) MAX_DELAY 10s WATERMARK 18m",
-      TSDB_CODE_PAR_INVALID_RANGE_OPTION);
+      TSDB_CODE_PAR_INVALID_TABLE_OPTION);
 }
 
 TEST_F(ParserInitialCTest, createStream) {

@@ -90,7 +90,7 @@ _return:
 
   tsem_post(&pInserter->ready);
 
-  taosMemoryFree(param);
+  taosMemoryFree(pMsg->pData);
   
   return TSDB_CODE_SUCCESS;
 }
@@ -109,6 +109,7 @@ static int32_t sendSubmitRequest(SDataInserterHandle* pInserter, SSubmitReq* pMs
   pParam->pInserter = pInserter;
 
   pMsgSendInfo->param = pParam;
+  pMsgSendInfo->paramFreeFp = taosMemoryFree;        
   pMsgSendInfo->msgInfo.pData = pMsg;
   pMsgSendInfo->msgInfo.len = ntohl(pMsg->length);
   pMsgSendInfo->msgType = TDMT_VND_SUBMIT;
@@ -283,6 +284,8 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pInserter->cachedSize);
   taosArrayDestroy(pInserter->pDataBlocks);
   taosMemoryFree(pInserter->pSchema);
+  taosMemoryFree(pInserter->pParam);
+  taosHashCleanup(pInserter->pCols);
   taosThreadMutexDestroy(&pInserter->mutex);
   return TSDB_CODE_SUCCESS;
 }

@@ -79,8 +79,7 @@ SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaf
     }
   }
 
-  syncNodeLog3("syncIndexMgrGetIndex", pSyncIndexMgr->pSyncNode);
-  ASSERT(0);
+  return SYNC_INDEX_INVALID;
 }
 
 cJSON *syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr) {

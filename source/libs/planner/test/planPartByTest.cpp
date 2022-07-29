@@ -58,7 +58,21 @@ TEST_F(PlanPartitionByTest, withInterval) {
 TEST_F(PlanPartitionByTest, withGroupBy) {
   useDb("root", "test");
 
-  run("select count(*) from t1 partition by c1 group by c2");
+  run("SELECT COUNT(*) FROM t1 PARTITION BY c1 GROUP BY c2");
 
   run("SELECT TBNAME, c1 FROM st1 PARTITION BY TBNAME GROUP BY c1");
+}
+
+TEST_F(PlanPartitionByTest, withTimeLineFunc) {
+  useDb("root", "test");
+
+  run("SELECT TWA(c1) FROM st1 PARTITION BY c1");
+
+  run("SELECT MAVG(c1, 2) FROM st1 PARTITION BY c1");
+}
+
+TEST_F(PlanPartitionByTest, withSlimit) {
+  useDb("root", "test");
+
+  run("SELECT CSUM(c1) FROM st1 PARTITION BY TBNAME SLIMIT 1");
 }

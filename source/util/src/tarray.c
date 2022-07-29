@@ -173,6 +173,46 @@ void taosArrayRemoveDuplicate(SArray* pArray, __compar_fn_t comparFn, void (*fp)
   pArray->size = pos + 1;
 }
 
+void taosArrayRemoveDuplicateP(SArray* pArray, __compar_fn_t comparFn, void (*fp)(void*)) {
+  assert(pArray);
+
+  size_t size = pArray->size;
+  if (size <= 1) {
+    return;
+  }
+
+  int32_t pos = 0;
+  for (int32_t i = 1; i < size; ++i) {
+    char* p1 = taosArrayGet(pArray, pos);
+    char* p2 = taosArrayGet(pArray, i);
+
+    if (comparFn(p1, p2) == 0) {
+      // do nothing
+    } else {
+      if (pos + 1 != i) {
+        void* p = taosArrayGet(pArray, pos + 1);
+        if (fp != NULL) {
+          fp(p);
+        }
+
+        taosArraySet(pArray, pos + 1, p2);
+        pos += 1;
+      } else {
+        pos += 1;
+      }
+    }
+  }
+
+  if (fp != NULL) {
+    for (int32_t i = pos + 1; i < pArray->size; ++i) {
+      void* p = taosArrayGetP(pArray, i);
+      fp(p);
+    }
+  }
+
+  pArray->size = pos + 1;
+}
+
 void* taosArrayAddAll(SArray* pArray, const SArray* pInput) {
   if (pInput) {
     return taosArrayAddBatch(pArray, pInput->pData, (int32_t)taosArrayGetSize(pInput));
@@ -254,7 +294,7 @@ void taosArraySet(SArray* pArray, size_t index, void* pData) {
 void taosArrayPopFrontBatch(SArray* pArray, size_t cnt) {
   assert(cnt <= pArray->size);
   pArray->size = pArray->size - cnt;
-  if (pArray->size == 0) {
+  if (pArray->size == 0 || cnt == 0) {
     return;
   }
   memmove(pArray->pData, (char*)pArray->pData + cnt * pArray->elemSize, pArray->size * pArray->elemSize);

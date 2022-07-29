@@ -5,13 +5,14 @@ from util.sqlset import *
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(),logSql)
+        tdSql.init(conn.cursor(),False)
         self.setsql = TDSetSql()
         self.rowNum = 10
         self.ts = 1537146000000
 
-        self.ntbname = 'ntb'
-        self.stbname = 'stb'
+        dbname = "db"
+        self.ntbname = f'{dbname}.ntb'
+        self.stbname = f'{dbname}.stb'
         self.column_dict = {
             'ts':'timestamp',
             'c1':'int',
@@ -94,17 +95,15 @@ class TDTestCase:
         tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
         for i in range(self.tbnum):
             tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[i]})')
-        #!TODO
-        # tdSql.query(f'SELECT count(*) from (select distinct tbname from {self.stbname})')
-        # tdSql.checkEqual(tdSql.queryResult[0][0],self.tbnum)
+        tdSql.query(f'SELECT count(*) from (select distinct tbname from {self.stbname})')
+        tdSql.checkEqual(tdSql.queryResult[0][0],self.tbnum)
         tdSql.query(f'select count(tbname) from {self.stbname}')
         tdSql.checkRows(0)
         tdSql.execute('flush database db')
         tdSql.query(f'select count(tbname) from {self.stbname}')
         tdSql.checkRows(0)
-        #!TODO
-        # tdSql.query(f'SELECT count(*) from (select distinct tbname from {self.stbname})')
-        # tdSql.checkEqual(tdSql.queryResult[0][0],self.tbnum)
+        tdSql.query(f'SELECT count(*) from (select distinct tbname from {self.stbname})')
+        tdSql.checkEqual(tdSql.queryResult[0][0],self.tbnum)
         for i in range(self.tbnum):
             self.insert_data(self.column_dict,f'{self.stbname}_{i}',self.rowNum)
         self.count_query_stb(self.column_dict,self.tag_dict,self.stbname,self.tbnum,self.rowNum)

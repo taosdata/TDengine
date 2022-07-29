@@ -41,6 +41,7 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
   }
   taosInitRWLatch(&pMemTable->latch);
   pMemTable->pTsdb = pTsdb;
+  pMemTable->pPool = pTsdb->pVnode->inUse;
   pMemTable->nRef = 1;
   pMemTable->minKey = TSKEY_MAX;
   pMemTable->maxKey = TSKEY_MIN;
@@ -54,6 +55,7 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
     taosMemoryFree(pMemTable);
     goto _err;
   }
+  vnodeBufPoolRef(pMemTable->pPool);
 
   *ppMemTable = pMemTable;
   return code;
@@ -65,6 +67,7 @@ _err:
 
 void tsdbMemTableDestroy(SMemTable *pMemTable) {
   if (pMemTable) {
+    vnodeBufPoolUnRef(pMemTable->pPool);
     taosArrayDestroy(pMemTable->aTbData);
     taosMemoryFree(pMemTable);
   }
@@ -90,7 +93,11 @@ static int32_t tbDataPCmprFn(const void *p1, const void *p2) {
 }
 void tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, STbData **ppTbData) {
   STbData *pTbData = &(STbData){.suid = suid, .uid = uid};
-  void    *p = taosArraySearch(pMemTable->aTbData, &pTbData, tbDataPCmprFn, TD_EQ);
+
+  taosRLockLatch(&pMemTable->latch);
+  void *p = taosArraySearch(pMemTable->aTbData, &pTbData, tbDataPCmprFn, TD_EQ);
+  taosRUnLockLatch(&pMemTable->latch);
+
   *ppTbData = p ? *(STbData **)p : NULL;
 }
 
@@ -360,15 +367,19 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
 
   void *p;
   if (idx < 0) {
-    p = taosArrayPush(pMemTable->aTbData, &pTbData);
-  } else {
-    p = taosArrayInsert(pMemTable->aTbData, idx, &pTbData);
+    idx = taosArrayGetSize(pMemTable->aTbData);
   }
+
+  taosWLockLatch(&pMemTable->latch);
+  p = taosArrayInsert(pMemTable->aTbData, idx, &pTbData);
+  taosWUnLockLatch(&pMemTable->latch);
+
+  tsdbDebug("vgId:%d add table data %p at idx:%d", TD_VID(pMemTable->pTsdb->pVnode), pTbData, idx);
+
   if (p == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
-
 _exit:
   *ppTbData = pTbData;
   return code;
@@ -590,3 +601,15 @@ _err:
 }
 
 int32_t tsdbGetNRowsInTbData(STbData *pTbData) { return pTbData->sl.size; }
+
+void tsdbRefMemTable(SMemTable *pMemTable) {
+  int32_t nRef = atomic_fetch_add_32(&pMemTable->nRef, 1);
+  ASSERT(nRef > 0);
+}
+
+void tsdbUnrefMemTable(SMemTable *pMemTable) {
+  int32_t nRef = atomic_sub_fetch_32(&pMemTable->nRef, 1);
+  if (nRef == 0) {
+    tsdbMemTableDestroy(pMemTable);
+  }
+}
