@@ -77,14 +77,14 @@ class TDTestCase:
         tdSql.checkData(7, 1, "NCHAR")
         tdSql.checkData(7, 2, 31)
         tdSql.checkData(7, 3, "TAG")
-        tdSql.query("select tbname from meters where tbname like '$%^*%'")
+        tdSql.query("select distinct(tbname) from meters where tbname like '$%^*%'")
         tdSql.checkRows(2)
         tdSql.execute("drop database if exists newtest")
 
         cmd = "%s -F 7 -n 10 -t 2 -y -M -I stmt" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
-        tdSql.query("select count(tbname) from test.meters")
+        tdSql.query("select count(*) from (select distinct(tbname) from test.meters)")
         tdSql.checkData(0, 0, 2)
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 20)

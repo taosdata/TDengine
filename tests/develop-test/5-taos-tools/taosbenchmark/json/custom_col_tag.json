@@ -58,17 +58,17 @@
       "partial_col_num": 0,
       "columns": [{
         "type": "INT",
-        "name": "first"
+        "name": "first_type"
       }, {
         "type": "UINT",
-        "name": "second",
+        "name": "second_type",
         "count": 5
       },{
         "type": "double",
-        "name": "third"
+        "name": "third_type"
       },{
         "type": "float",
-        "name": "forth",
+        "name": "forth_type",
         "count": 3
       }],
       "tags": [{
