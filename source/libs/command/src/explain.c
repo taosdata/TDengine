@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// clang-format off
 #include "commandInt.h"
 #include "plannodes.h"
 #include "query.h"
@@ -849,6 +850,10 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pIntNode->window.pFuncs->length);
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pIntNode->window.node.pOutputDataBlockDesc->totalRowSize);
+      EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      EXPLAIN_ROW_APPEND(EXPLAIN_INPUT_ORDER_FORMAT, EXPLAIN_ORDER_STRING(pIntNode->window.inputTsOrder));
+      EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      EXPLAIN_ROW_APPEND(EXPLAIN_OUTPUT_ORDER_TYPE_FORMAT, EXPLAIN_ORDER_STRING(pIntNode->window.outputTsOrder));
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
       EXPLAIN_ROW_END();
       QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
