@@ -164,8 +164,7 @@ class TDTestCase:
             threads.append(threading.Thread(target=clusterComCreate.insert_data, args=(newTdSql, paraDict["dbName"],stableName,paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])))
         for tr in threads:
             tr.start()
-        for tr in threads:
-            tr.join()
+
 
         while stopcount < restartNumbers:
             tdLog.info(" restart loop: %d"%stopcount )
@@ -198,7 +197,9 @@ class TDTestCase:
                 # self.check3mnode()
             stopcount+=1
             
-
+        for tr in threads:
+            tr.join()
+            
         clusterComCheck.checkDnodes(dnodeNumbers)
         clusterComCheck.checkDbRows(dbNumbers)
         # clusterComCheck.checkDb(dbNumbers,1,paraDict["dbName"])

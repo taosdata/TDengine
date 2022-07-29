@@ -24,12 +24,12 @@ int         msgSize = 128;
 int         commit = 0;
 TdFilePtr   pDataFile = NULL;
 STaosQueue *qhandle = NULL;
-STaosQset * qset = NULL;
+STaosQset  *qset = NULL;
 
 void processShellMsg() {
   static int num = 0;
   STaosQall *qall;
-  SRpcMsg *  pRpcMsg, rpcMsg;
+  SRpcMsg   *pRpcMsg, rpcMsg;
   int        type;
   SQueueInfo qinfo = {0};
 
@@ -77,7 +77,6 @@ void processShellMsg() {
       taosFreeQitem(pRpcMsg);
 
       {
-        // taosSsleep(1);
         SRpcMsg nRpcMsg = {0};
         nRpcMsg.pCont = rpcMallocCont(msgSize);
         nRpcMsg.contLen = msgSize;
@@ -91,26 +90,6 @@ void processShellMsg() {
   }
 
   taosFreeQall(qall);
-}
-
-int retrieveAuthInfo(void *parent, char *meterId, char *spi, char *encrypt, char *secret, char *ckey) {
-  // app shall retrieve the auth info based on meterID from DB or a data file
-  // demo code here only for simple demo
-  int ret = 0;
-
-  if (strcmp(meterId, "michael") == 0) {
-    *spi = 1;
-    *encrypt = 0;
-    strcpy(secret, "mypassword");
-    strcpy(ckey, "key");
-  } else if (strcmp(meterId, "jeff") == 0) {
-    *spi = 0;
-    *encrypt = 0;
-  } else {
-    ret = -1;  // user not there
-  }
-
-  return ret;
 }
 
 void processRequestMsg(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
@@ -131,11 +110,12 @@ int main(int argc, char *argv[]) {
 
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = 7000;
+  memcpy(rpcInit.localFqdn, "localhost", strlen("localhost"));
   rpcInit.label = "SER";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = processRequestMsg;
-  rpcInit.sessions = 1000;
   rpcInit.idleTime = 2 * 1500;
+  rpcDebugFlag = 131;
 
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-p") == 0 && i < argc - 1) {
@@ -170,7 +150,7 @@ int main(int argc, char *argv[]) {
 
   tsAsyncLog = 0;
   rpcInit.connType = TAOS_CONN_SERVER;
-  taosInitLog("server.log", 10);
+  taosInitLog("server.log", 100000);
 
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
