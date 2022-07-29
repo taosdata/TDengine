@@ -27,6 +27,9 @@
 #define DM_VERSION       "Print program version."
 #define DM_EMAIL         "<support@taosdata.com>"
 static struct {
+#ifdef WINDOWS
+  bool         winServiceMode;
+#endif
   bool         dumpConfig;
   bool         generateGrant;
   bool         printAuth;
@@ -93,6 +96,10 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       global.dumpConfig = true;
     } else if (strcmp(argv[i], "-V") == 0) {
       global.printVersion = true;
+  #ifdef WINDOWS
+    } else if (strcmp(argv[i], "--win_service") == 0) {
+      global.winServiceMode = true;
+  #endif
     } else if (strcmp(argv[i], "-e") == 0) {
       global.envCmd[cmdEnvIndex] = argv[++i];
       cmdEnvIndex++;
@@ -168,6 +175,18 @@ int main(int argc, char const *argv[]) {
     taosCleanupArgs();
     return -1;
   }
+
+#ifdef WINDOWS
+  int mainWindows(int argc,char** argv);
+  if (global.winServiceMode) {
+    stratWindowsService(mainWindows);
+  } else {
+    return mainWindows(argc, argv);
+  }
+  return 0;
+}
+int mainWindows(int argc,char** argv) {
+#endif
 
   if (global.generateGrant) {
     dmGenerateGrant();
