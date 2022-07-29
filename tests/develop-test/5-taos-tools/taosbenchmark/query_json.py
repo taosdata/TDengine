@@ -19,6 +19,7 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import *
+from util.taosadapter import *
 
 
 class TDTestCase:
@@ -55,6 +56,9 @@ class TDTestCase:
             return paths[0]
 
     def run(self):
+        tAdapter.init("")
+        tAdapter.deploy()
+        tAdapter.start()
         binPath = self.getPath()
         os.system("rm -f rest_query_specified-0 rest_query_super-0 taosc_query_specified-0 taosc_query_super-0")
         tdSql.execute("drop database if exists db")

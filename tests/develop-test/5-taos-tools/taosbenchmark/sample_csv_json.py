@@ -56,7 +56,7 @@ class TDTestCase:
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
-        tdSql.query("select count(tbname) from db.stb")
+        tdSql.query("select count(*) from (select distinct(tbname) from db.stb)")
         tdSql.checkData(0, 0, 8)
         tdSql.query("select count(*) from db.stb")
         tdSql.checkData(0, 0, 24)
