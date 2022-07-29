@@ -204,7 +204,7 @@
 36,,script,./test.sh -f unique/arbitrator/offline_replica3_createTable_online.sim 
 36,,script,./test.sh -f unique/arbitrator/offline_replica2_dropTable_online.sim 
 36,,script,./test.sh -f general/parser/tbnameIn.sim 
-36,,pytest,python3 test.py -f tools/taosdumpTestNanoSupport.py 
+#36,,pytest,python3 test.py -f tools/taosdumpTestNanoSupport.py 
 35,,script,./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir_stopAll_starAll.sim 
 35,,script,./test.sh -f unique/arbitrator/offline_replica3_alterTag_online.sim 
 35,,script,./test.sh -f unique/arbitrator/offline_replica2_alterTag_online.sim 
@@ -219,7 +219,7 @@
 33,,script,./test.sh -f general/table/delete_writing.sim 
 33,,script,./test.sh -f general/parser/slimit.sim 
 33,,script,./test.sh -f general/db/topic1.sim 
-32,,system-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestColTag.py 
+#32,,system-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestColTag.py 
 32,,script,./test.sh -f unique/mnode/mgmt21.sim 
 32,,script,./test.sh -f unique/arbitrator/offline_replica3_dropDb_online.sim 
 32,,script,./test.sh -f unique/arbitrator/dn3_mn2_killDnode.sim 
@@ -323,7 +323,7 @@
 19,,script,./test.sh -f unique/stable/dnode2.sim 
 19,,script,./test.sh -f general/db/vnodes.sim 
 19,,pytest,python3 test.py -f multilevel/addAnotherDir.py 
-19,,pytest,python3 test.py -f tools/taosdumpTest3.py 
+#19,,pytest,python3 test.py -f tools/taosdumpTest3.py 
 19,,pytest,python3 test.py -f query/udf.py 
 19,,pytest,python3 test.py -f import_merge/importLastTPO.py 
 19,,pytest,python3 test.py -f import_merge/importDataLastHO.py 
@@ -410,7 +410,7 @@
 15,,pytest,python3 test.py -f functions/function_last.py -r 1 
 15,,pytest,python3 test.py -f functions/function_avg.py -r 1 
 14,,script,./test.sh -f general/stream/metrics_del.sim
-14,,system-test,python3 ./test.py -f 5-taos-tools/TD-12478.py 
+#14,,system-test,python3 ./test.py -f 5-taos-tools/TD-12478.py 
 14,,script,./test.sh -f unique/account/basic.sim 
 14,,script,./test.sh -f general/table/limit.sim 
 14,,script,./test.sh -f general/table/createmulti.sim 
@@ -579,34 +579,34 @@
 9,,pytest,python3 test.py -f stream/showStreamExecTimeisNull.py 
 9,,pytest,python3 test.py -f query/bug1876.py 
 9,,pytest,python3 test.py -f alter/alter_table_crash.py 
-9,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeSmallInt.py 
-9,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeFloat.py 
-8,,pytest,python3 test.py -f tools/taosdumpTest.py 
+#9,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeSmallInt.py 
+#9,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeFloat.py 
+#8,,pytest,python3 test.py -f tools/taosdumpTest.py 
 8,,pytest,python3 test.py -f query/unionAllTest.py 
 8,,pytest,python3 test.py -f query/queryFilterTswithDateUnit.py 
 8,,pytest,python3 test.py -f query/queryDiffColsTagsAndOr.py 
 8,,pytest,python3 test.py -f query/nestedQuery/nestedQuery_datacheck.py 
 8,,pytest,python3 test.py -f query/bug1874.py 
 8,,pytest,python3 test.py -f functions/function_floor.py 
-8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedTinyInt.py 
-8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedBigInt.py 
-8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeTinyInt.py 
-8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeInt.py 
-8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeDouble.py 
+#8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedTinyInt.py 
+#8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedBigInt.py 
+#8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeTinyInt.py 
+#8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeInt.py 
+#8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeDouble.py 
 8,,pytest,python3 test.py -f update/update2.py
 7,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonSml-otherPara.py 
-7,,pytest,python3 test.py -f tools/taosdumpTest2.py 
+#7,,pytest,python3 test.py -f tools/taosdumpTest2.py 
 7,,pytest,python3 test.py -f tools/taosdemoTestdatatype.py 
 7,,pytest,python3 test.py -f tag_lite/unsignedInt.py 
 7,,pytest,python3 test.py -f query/bug1875.py 
 7,,pytest,python3 test.py -f functions/function_stateWindow.py 
 7,,pytest,python3 test.py -f client/version.py 
 7,,pytest,python3 client/twoClients.py 
-7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedSmallInt.py 
-7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedInt.py 
-7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeJson.py 
-7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBool.py 
-7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBigInt.py 
+#7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedSmallInt.py 
+#7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedInt.py 
+#7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeJson.py 
+#7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBool.py 
+#7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBigInt.py 
 7,,develop-test,python3 ./test.py -f 2-query/function_timetruncate.py
 7,,develop-test,python3 ./test.py -f 2-query/function_timediff.py
 7,,pytest,python3 test.py -f tsdb/delete.py
@@ -660,7 +660,7 @@
 5,,pytest,python3 testMinTablesPerVnode.py 
 5,,pytest,python3 test.py -f tag_lite/unsignedTinyint.py 
 5,,pytest,python3 test.py -f tag_lite/timestamp.py 
-5,,pytest,python3 test.py -f tag_lite/TestModifyTag.py 
+#5,,pytest,python3 test.py -f tag_lite/TestModifyTag.py 
 5,,pytest,python3 test.py -f tag_lite/json_tag_extra.py 
 5,,pytest,python3 test.py -f tag_lite/int_binary.py 
 5,,pytest,python3 test.py -f tag_lite/float.py 
@@ -831,4 +831,4 @@
 1,,docs-examples-test, ./test_R.sh
 1,,develop-test,python3 ./test.py -f 2-query/function_state.py
 1,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/demo.py
-3,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestInspect.py 
+#3,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestInspect.py 
