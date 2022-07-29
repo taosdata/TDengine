@@ -413,7 +413,7 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       SyncClientRequestBatch *pSyncMsg = syncClientRequestBatchFromRpcMsg(pMsg);
       ASSERT(pSyncMsg != NULL);
       code = syncNodeOnClientRequestBatchCb(pSyncNode, pSyncMsg);
-      syncClientRequestBatchDestroyDeep(pSyncMsg);
+      syncClientRequestBatchDestroy(pSyncMsg);
     } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
       SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
       ASSERT(pSyncMsg != NULL);

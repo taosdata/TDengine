@@ -677,7 +677,7 @@ int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
   return ret;
 }
 
-int32_t syncProposeBatch(int64_t rid, SRpcMsg* pMsgArr, bool* pIsWeakArr, int32_t arrSize) {
+int32_t syncProposeBatch(int64_t rid, SRpcMsg** pMsgPArr, bool* pIsWeakArr, int32_t arrSize) {
   if (arrSize < 0) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
@@ -690,18 +690,18 @@ int32_t syncProposeBatch(int64_t rid, SRpcMsg* pMsgArr, bool* pIsWeakArr, int32_
   }
   ASSERT(rid == pSyncNode->rid);
 
-  int32_t ret = syncNodeProposeBatch(pSyncNode, pMsgArr, pIsWeakArr, arrSize);
+  int32_t ret = syncNodeProposeBatch(pSyncNode, pMsgPArr, pIsWeakArr, arrSize);
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return ret;
 }
 
-static bool syncNodeBatchOK(SRpcMsg* pMsgArr, int32_t arrSize) {
+static bool syncNodeBatchOK(SRpcMsg** pMsgPArr, int32_t arrSize) {
   for (int32_t i = 0; i < arrSize; ++i) {
-    if (pMsgArr[i].msgType == TDMT_SYNC_CONFIG_CHANGE) {
+    if (pMsgPArr[i]->msgType == TDMT_SYNC_CONFIG_CHANGE) {
       return false;
     }
 
-    if (pMsgArr[i].msgType == TDMT_SYNC_CONFIG_CHANGE_FINISH) {
+    if (pMsgPArr[i]->msgType == TDMT_SYNC_CONFIG_CHANGE_FINISH) {
       return false;
     }
   }
@@ -709,8 +709,8 @@ static bool syncNodeBatchOK(SRpcMsg* pMsgArr, int32_t arrSize) {
   return true;
 }
 
-int32_t syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg* pMsgArr, bool* pIsWeakArr, int32_t arrSize) {
-  if (!syncNodeBatchOK(pMsgArr, arrSize)) {
+int32_t syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg** pMsgPArr, bool* pIsWeakArr, int32_t arrSize) {
+  if (!syncNodeBatchOK(pMsgPArr, arrSize)) {
     syncNodeErrorLog(pSyncNode, "sync propose batch error");
     terrno = TSDB_CODE_SYN_BATCH_ERROR;
     return -1;
@@ -736,16 +736,23 @@ int32_t syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg* pMsgArr, bool* pIsWe
 
   SRaftMeta raftArr[SYNC_MAX_BATCH_SIZE];
   for (int i = 0; i < arrSize; ++i) {
+    do {
+      char eventLog[128];
+      snprintf(eventLog, sizeof(eventLog), "propose type:%s,%d, batch:%d", TMSG_INFO(pMsgPArr[i]->msgType),
+               pMsgPArr[i]->msgType, arrSize);
+      syncNodeEventLog(pSyncNode, eventLog);
+    } while (0);
+
     SRespStub stub;
     stub.createTime = taosGetTimestampMs();
-    stub.rpcMsg = pMsgArr[i];
+    stub.rpcMsg = *(pMsgPArr[i]);
     uint64_t seqNum = syncRespMgrAdd(pSyncNode->pSyncRespMgr, &stub);
 
     raftArr[i].isWeak = pIsWeakArr[i];
     raftArr[i].seqNum = seqNum;
   }
 
-  SyncClientRequestBatch* pSyncMsg = syncClientRequestBatchBuild(pMsgArr, raftArr, arrSize, pSyncNode->vgId);
+  SyncClientRequestBatch* pSyncMsg = syncClientRequestBatchBuild(pMsgPArr, raftArr, arrSize, pSyncNode->vgId);
   ASSERT(pSyncMsg != NULL);
 
   SRpcMsg rpcMsg;
@@ -759,7 +766,7 @@ int32_t syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg* pMsgArr, bool* pIsWe
       SRpcMsg* msgArr = syncClientRequestBatchRpcMsgArr(pSyncMsg);
       ASSERT(arrSize == pSyncMsg->dataCount);
       for (int i = 0; i < arrSize; ++i) {
-        pMsgArr[i].info.conn.applyIndex = msgArr[i].info.conn.applyIndex;
+        pMsgPArr[i]->info.conn.applyIndex = msgArr[i].info.conn.applyIndex;
         syncRespMgrDel(pSyncNode->pSyncRespMgr, raftArr[i].seqNum);
       }
 
@@ -790,9 +797,11 @@ int32_t syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg* pMsgArr, bool* pIsWe
 int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
   int32_t ret = 0;
 
-  char eventLog[128];
-  snprintf(eventLog, sizeof(eventLog), "propose type:%s,%d", TMSG_INFO(pMsg->msgType), pMsg->msgType);
-  syncNodeEventLog(pSyncNode, eventLog);
+  do {
+    char eventLog[128];
+    snprintf(eventLog, sizeof(eventLog), "propose type:%s,%d", TMSG_INFO(pMsg->msgType), pMsg->msgType);
+    syncNodeEventLog(pSyncNode, eventLog);
+  } while (0);
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     if (pSyncNode->changing && pMsg->msgType != TDMT_SYNC_CONFIG_CHANGE_FINISH) {
@@ -860,7 +869,8 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
   } else {
     ret = -1;
     terrno = TSDB_CODE_SYN_NOT_LEADER;
-    sError("vgId:%d, sync propose not leader, %s", pSyncNode->vgId, syncUtilState2String(pSyncNode->state));
+    sError("vgId:%d, sync propose not leader, %s, msgtype:%s,%d", pSyncNode->vgId,
+           syncUtilState2String(pSyncNode->state), TMSG_INFO(pMsg->msgType), pMsg->msgType);
     goto _END;
   }
 
