@@ -38,7 +38,7 @@ class TDTestCase:
         case1: limit offset base function test
         case2: offset return valid
         '''
-        return 
+        return
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -64,7 +64,7 @@ class TDTestCase:
         # self.create_tables();
         self.ts = 1500000000000
 
-    # stop 
+    # stop
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
@@ -76,7 +76,7 @@ class TDTestCase:
     def newcon(self,host,cfg):
         user = "root"
         password = "taosdata"
-        port =6030 
+        port =6030
         con=taos.connect(host=host, user=user, password=password, config=cfg ,port=port)
         tdLog.debug(con)
         return con
@@ -84,7 +84,7 @@ class TDTestCase:
     def stmtExe(self,conn,sql,bindStat):
             queryStat=conn.statement("%s"%sql)
             queryStat.bind_param(bindStat)
-            queryStat.execute() 
+            queryStat.execute()
             result=queryStat.use_result()
             rows=result.fetch_all()
             return rows
@@ -101,7 +101,7 @@ class TDTestCase:
                 ff float, dd double, bb binary(100), nn nchar(100), tt timestamp , vc varchar(100)) tags (t1 timestamp, t2 bool,\
                 t3 tinyint, t4 tinyint, t5 smallint, t6 int, t7 bigint, t8 tinyint unsigned, t9 smallint unsigned, \
                 t10 int unsigned, t11 bigint unsigned, t12 float, t13 double, t14 binary(100), t15 nchar(100), t16 timestamp)"%stablename)
-            
+
             stmt = conn.statement("insert into ? using log tags (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) \
                 values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
             tags = new_bind_params(16)
@@ -140,13 +140,13 @@ class TDTestCase:
             params[14].nchar(["涛思数据", None, "a long string with 中文?字符"])
             params[15].timestamp([None, None, 1626861392591])
             params[16].binary(["涛思数据16", None, None])
-                     
+
             stmt.bind_param_batch(params)
             stmt.execute()
 
             assert stmt.affected_rows == 3
 
-            #query all 
+            #query all
             queryparam=new_bind_params(1)
             queryparam[0].int(10)
             rows=self.stmtExe(conn,"select * from log where bu < ?",queryparam)
@@ -189,7 +189,7 @@ class TDTestCase:
 
             #query: conversion Functions
             queryparam=new_bind_params(1)
-            queryparam[0].binary('1232a')           
+            queryparam[0].binary('1232a')
             rows=self.stmtExe(conn,"select cast( ? as bigint) from log",queryparam)
             tdLog.debug("assert 5th case %s"%rows)
             assert rows[0][0] == 1232, '5th.1 case is failed'
@@ -210,7 +210,7 @@ class TDTestCase:
             tdLog.debug("assert 7th case %s"%rows)
             assert rows[0][0] == 1, '7th case is failed'
             assert rows[1][0] == 1, '7th case is failed'
-            
+
             #query: aggregate Functions
             queryparam=new_bind_params(1)
             queryparam[0].int(123)
@@ -238,7 +238,7 @@ class TDTestCase:
 
             # conn.execute("drop database if exists %s" % dbname)
             conn.close()
-        
+
         except Exception as err:
             # conn.execute("drop database if exists %s" % dbname)
             conn.close()
@@ -251,7 +251,7 @@ class TDTestCase:
         connectstmt=self.newcon(host,config)
         self.test_stmt_set_tbname_tag(connectstmt)
 
-        return 
+        return
 
 
 # add case with filename
