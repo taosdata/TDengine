@@ -559,6 +559,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN,       "Not valid function 
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,  "Only support single table")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SMA_INDEX,          "Invalid sma index")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SELECTED_EXPR,      "Invalid SELECTed expression")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_GET_META_ERROR,             "Fail to get table info")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 
 //planner

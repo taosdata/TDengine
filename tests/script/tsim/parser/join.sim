@@ -243,9 +243,6 @@ if $rows != $val then
   return -1
 endi
 
-#TODO
-return
-
 #===========================aggregation===================================
 #select + where condition
 sql select count(join_tb1.*), count(join_tb0.*) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = false;

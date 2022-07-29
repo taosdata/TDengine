@@ -3586,15 +3586,14 @@ void doDestroyExchangeOperatorInfo(void* param) {
 }
 
 static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t numOfCols, SNodeListNode* pValNode,
-                            STimeWindow win, int32_t capacity, const char* id, SInterval* pInterval, int32_t fillType) {
+                            STimeWindow win, int32_t capacity, const char* id, SInterval* pInterval, int32_t fillType, int32_t order) {
   SFillColInfo* pColInfo = createFillColInfo(pExpr, numOfCols, pValNode);
 
   STimeWindow w = getAlignQueryTimeWindow(pInterval, pInterval->precision, win.skey);
   w = getFirstQualifiedTimeWindow(win.skey, &w, pInterval, TSDB_ORDER_ASC);
 
-  int32_t order = TSDB_ORDER_ASC;
   pInfo->pFillInfo =
-      taosCreateFillInfo(order, w.skey, 0, capacity, numOfCols, pInterval, fillType, pColInfo, pInfo->primaryTsCol, id);
+      taosCreateFillInfo(w.skey, 0, capacity, numOfCols, pInterval, fillType, pColInfo, pInfo->primaryTsCol, order, id);
 
   pInfo->win = win;
   pInfo->p = taosMemoryCalloc(numOfCols, POINTER_BYTES);
@@ -3624,6 +3623,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
             ? &((SMergeAlignedIntervalAggOperatorInfo*)downstream->info)->intervalAggOperatorInfo->interval
             : &((SIntervalAggOperatorInfo*)downstream->info)->interval;
 
+  int32_t order = (pPhyFillNode->inputTsOrder == ORDER_ASC)? TSDB_ORDER_ASC:TSDB_ORDER_DESC;
   int32_t type = convertFillType(pPhyFillNode->mode);
 
   SResultInfo* pResultInfo = &pOperator->resultInfo;
@@ -3635,7 +3635,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
                                                  &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
 
   int32_t code = initFillInfo(pInfo, pExprInfo, num, (SNodeListNode*)pPhyFillNode->pValues, pPhyFillNode->timeRange,
-                              pResultInfo->capacity, pTaskInfo->id.str, pInterval, type);
+                              pResultInfo->capacity, pTaskInfo->id.str, pInterval, type, order);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }

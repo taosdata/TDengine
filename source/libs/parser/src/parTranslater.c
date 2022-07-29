@@ -34,6 +34,7 @@ typedef struct STranslateContext {
   SMsgBuf          msgBuf;
   SArray*          pNsLevel;  // element is SArray*, the element of this subarray is STableNode*
   int32_t          currLevel;
+  int32_t          levelNo;
   ESqlClause       currClause;
   SNode*           pCurrStmt;
   SCmdMsgInfo*     pCmdMsg;
@@ -354,6 +355,7 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* p
   pCxt->msgBuf.len = pParseCxt->msgLen;
   pCxt->pNsLevel = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
   pCxt->currLevel = 0;
+  pCxt->levelNo = 0;
   pCxt->currClause = 0;
   pCxt->pMetaCache = pMetaCache;
   pCxt->pDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
@@ -1871,7 +1873,7 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
             pCxt, toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, &name),
             &(pRealTable->pMeta));
         if (TSDB_CODE_SUCCESS != code) {
-          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, pRealTable->table.tableName);
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
         }
         code = setTableVgroupList(pCxt, &name, pRealTable);
         if (TSDB_CODE_SUCCESS == code) {
@@ -4977,13 +4979,14 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
 }
 
 static int32_t translateSubquery(STranslateContext* pCxt, SNode* pNode) {
-  ++(pCxt->currLevel);
   ESqlClause currClause = pCxt->currClause;
   SNode*     pCurrStmt = pCxt->pCurrStmt;
+  int32_t    currLevel = pCxt->currLevel;
+  pCxt->currLevel = ++(pCxt->levelNo);
   int32_t    code = translateQuery(pCxt, pNode);
-  --(pCxt->currLevel);
   pCxt->currClause = currClause;
   pCxt->pCurrStmt = pCurrStmt;
+  pCxt->currLevel = currLevel;
   return code;
 }
 

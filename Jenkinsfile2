@@ -443,7 +443,7 @@ pipeline {
                                 }
                             }
                         }
-                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                        /*catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                             timeout(time: 15, unit: 'MINUTES'){
                                 script {
                                     sh '''
@@ -455,7 +455,7 @@ pipeline {
                                     '''
                                 }
                             }
-                        }
+                        }*/
                     }
                 }
             }

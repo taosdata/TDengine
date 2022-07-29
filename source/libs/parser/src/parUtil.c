@@ -31,6 +31,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid column name: %s";
     case TSDB_CODE_PAR_TABLE_NOT_EXIST:
       return "Table does not exist: %s";
+    case TSDB_CODE_PAR_GET_META_ERROR:
+      return "Fail to get table info, error: %s";
     case TSDB_CODE_PAR_AMBIGUOUS_COLUMN:
       return "Column ambiguously defined: %s";
     case TSDB_CODE_PAR_WRONG_VALUE_TYPE:

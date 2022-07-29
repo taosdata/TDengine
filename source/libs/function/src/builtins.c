@@ -2083,7 +2083,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "apercentile",
     .type = FUNCTION_TYPE_APERCENTILE,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC,
     .translateFunc = translateApercentile,
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = apercentileFunctionSetup,
@@ -2098,7 +2098,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   },
   {
     .name = "_apercentile_partial",
-    .type = FUNCTION_TYPE_APERCENTILE_PARTIAL,
+    .type = FUNCTION_TYPE_APERCENTILE_PARTIAL | FUNC_MGT_TIMELINE_FUNC,
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateApercentilePartial,
     .getEnvFunc   = getApercentileFuncEnv,
@@ -2111,7 +2111,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_apercentile_merge",
     .type = FUNCTION_TYPE_APERCENTILE_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC,
     .translateFunc = translateApercentileMerge,
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = apercentileFunctionSetup,
@@ -2374,7 +2374,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "histogram",
     .type = FUNCTION_TYPE_HISTOGRAM,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateHistogram,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
@@ -2389,7 +2389,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_histogram_partial",
     .type = FUNCTION_TYPE_HISTOGRAM_PARTIAL,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateHistogramPartial,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
@@ -2401,7 +2401,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_histogram_merge",
     .type = FUNCTION_TYPE_HISTOGRAM_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateHistogramMerge,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = functionSetup,
