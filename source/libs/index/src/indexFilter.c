@@ -385,6 +385,15 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
                            .reverse = reverse,
                            .filterFunc = filterFunc};
 
+    char buf[128] = {0};
+    if (IS_VAR_DATA_TYPE(left->colValType)) {
+      if (!IS_VAR_DATA_TYPE(right->colValType)) {
+        NUM_TO_STRING(right->colValType, right->condValue, sizeof(buf), buf + VARSTR_HEADER_SIZE);
+        varDataSetLen(buf, strlen(buf + VARSTR_HEADER_SIZE));
+
+        param.val = buf;
+      }
+    }
     ret = metaFilterTableIds(arg->metaEx, &param, output->result);
   }
   return ret;
