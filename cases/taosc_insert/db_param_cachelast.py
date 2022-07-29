@@ -11,14 +11,20 @@
 
 # -*- coding: utf-8 -*-
 
+import json
 from taostest import TDCase, T
 from taostest.util.common import TDCom
-
+from taostest.util.remote import Remote
 class TestCachelast(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.cfg = self.tdCom.Boundary.DB_PARAM_CACHELAST_CONFIG
-
+        self.remote: Remote = Remote(self.logger)
+        for env_setting in self.env_setting["settings"]:
+            if env_setting["name"].lower() == "taosd":
+                self.taosd_setting = env_setting
+                self.fqdn = self.taosd_setting["fqdn"][0]
+                self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
     def cachelast_check(self):
         """
         cachelast check
@@ -30,16 +36,38 @@ class TestCachelast(TDCase):
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         # default
-        self.tdSql.checkEqual(db_field_kv_dict[get_param], str(self.cfg["default"]).lower())
+        self.tdSql.checkEqual(db_field_kv_dict[get_param], str(list(self.cfg["default"].keys())[0]).lower())
+        self.tdSql.query(f'show {dbname}.vgroups')
+        db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
+        for i in self.taosd_setting['spec']['dnodes']:
+            fqdn = i['endpoint'].split(':')[0]
+            vnode_dir = i['config']['dataDir']+ "/vnode"
+            if self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'):
+                data = json.loads(self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
+                break
+            else:
+                continue
+        self.tdSql.checkEqual(list(self.cfg["default"].values())[0],int(data['config'][self.cfg["vnode_json_key"]]))
         self.tdSql.execute(f'drop database {dbname}')
         # param_list
-        for param_value in self.cfg["boundary"]:
+        for param_value in self.cfg["boundary"].keys():
             dbname = self.tdCom.get_long_name()
             kv_dict = {test_param: f'"{param_value}"'}
             self.tdCom.createDb(dbname, **kv_dict)
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[get_param], str(param_value).lower())
+            self.tdSql.query(f'show {dbname}.vgroups')
+            db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
+            for i in self.taosd_setting['spec']['dnodes']:
+                fqdn = i['endpoint'].split(':')[0]
+                vnode_dir = i['config']['dataDir']+ "/vnode"
+                if self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'):
+                    data = json.loads(self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
+                    break
+                else:
+                    continue
+            self.tdSql.checkEqual(self.cfg["boundary"][param_value],int(data['config'][self.cfg["vnode_json_key"]]))
             self.tdSql.execute(f'drop database {dbname}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} 0')
 
