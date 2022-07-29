@@ -106,7 +106,9 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
           .meta = pVnode->pMeta, .config = &pVnode->config, .vnode = pVnode, .pMsgCb = &pVnode->msgCb};
 
       code = qWorkerProcessDeleteMsg(&handle, pVnode->pQuery, pMsg, &res);
-      if (code) goto _err;
+      if (code) {
+        goto _err;
+      }
 
       // malloc and encode
       tEncodeSize(tEncodeDeleteRes, &res, size, ret);
@@ -296,7 +298,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("message in fetch queue is processing");
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META ||
-       pMsg->msgType == TDMT_VND_TABLE_CFG) &&
+       pMsg->msgType == TDMT_VND_TABLE_CFG || pMsg->msgType == TDMT_VND_BATCH_META) &&
       !vnodeIsLeader(pVnode)) {
     vnodeRedirectRpcMsg(pVnode, pMsg);
     return 0;
@@ -318,9 +320,11 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     case TDMT_SCH_QUERY_HEARTBEAT:
       return qWorkerProcessHbMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_VND_TABLE_META:
-      return vnodeGetTableMeta(pVnode, pMsg);
+      return vnodeGetTableMeta(pVnode, pMsg, true);
     case TDMT_VND_TABLE_CFG:
-      return vnodeGetTableCfg(pVnode, pMsg);
+      return vnodeGetTableCfg(pVnode, pMsg, true);
+    case TDMT_VND_BATCH_META:
+      return vnodeGetBatchMeta(pVnode, pMsg);
     case TDMT_VND_CONSUME:
       return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_RUN:
@@ -993,6 +997,11 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t version, void *pReq
   SDecoder   *pCoder = &(SDecoder){0};
   SDeleteRes *pRes = &(SDeleteRes){0};
 
+  pRsp->msgType = TDMT_VND_DELETE_RSP;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+  pRsp->code = TSDB_CODE_SUCCESS;
+
   pRes->uidList = taosArrayInit(0, sizeof(tb_uid_t));
   if (pRes->uidList == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -1010,6 +1019,15 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t version, void *pReq
 
   tDecoderClear(pCoder);
   taosArrayDestroy(pRes->uidList);
+
+  SVDeleteRsp rsp = {.affectedRows = pRes->affectedRows};
+  int32_t       ret = 0;
+  tEncodeSize(tEncodeSVDeleteRsp, &rsp, pRsp->contLen, ret);
+  pRsp->pCont = rpcMallocCont(pRsp->contLen);
+  SEncoder      ec = {0};
+  tEncoderInit(&ec, pRsp->pCont, pRsp->contLen);
+  tEncodeSVDeleteRsp(&ec, &rsp);
+  tEncoderClear(&ec);
   return code;
 
 _err:

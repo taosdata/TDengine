@@ -318,6 +318,7 @@ typedef struct STableScanInfo {
   int32_t         currentTable;
   int8_t          scanMode;
   int8_t          noTable;
+  int8_t          assignBlockUid;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
@@ -468,7 +469,6 @@ typedef struct SStreamScanInfo {
   SSDataBlock*           pUpdateDataRes;
   // status for tmq
   // SSchemaWrapper schema;
-  STqOffset              offset;
   SNodeList*             pGroupTags;
   SNode*                 pTagCond;
   SNode*                 pTagIndexCond;
@@ -1021,6 +1021,7 @@ void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsCol
 
 int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* groupKey);
 SSDataBlock* createSpecialDataBlock(EStreamType type);
+void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
 #ifdef __cplusplus
 }

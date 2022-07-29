@@ -218,7 +218,7 @@ GROUP BY 子句中的表达式可以包含表或视图中的任何列，这些�
 
 PARTITION BY 子句是 TDengine 特色语法，按 part_list 对数据进行切分，在每个切分的分片中进行计算。
 
-详见 [TDengine 特色查询](taos-sql/distinguished)
+详见 [TDengine 特色查询](../distinguished)
 
 ## ORDER BY
 

@@ -1287,6 +1287,7 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans) {
     mDebug("trans:%d, stage keep on redoAction since %s", pTrans->id, tstrerror(code));
     continueExec = false;
   } else {
+    pTrans->failedTimes++;
     pTrans->code = terrno;
     if (pTrans->policy == TRN_POLICY_ROLLBACK) {
       if (pTrans->lastAction != 0) {
@@ -1306,7 +1307,6 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans) {
       mError("trans:%d, stage from redoAction to rollback since %s", pTrans->id, terrstr());
       continueExec = true;
     } else {
-      pTrans->failedTimes++;
       mError("trans:%d, stage keep on redoAction since %s, failedTimes:%d", pTrans->id, terrstr(), pTrans->failedTimes);
       continueExec = false;
     }

@@ -22,22 +22,22 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
   SStreamQueueItem* pItem = (SStreamQueueItem*)data;
   if (pItem->type == STREAM_INPUT__GET_RES) {
     SStreamTrigger* pTrigger = (SStreamTrigger*)data;
-    qSetMultiStreamInput(exec, pTrigger->pBlock, 1, STREAM_INPUT__DATA_BLOCK, false);
+    qSetMultiStreamInput(exec, pTrigger->pBlock, 1, STREAM_INPUT__DATA_BLOCK);
   } else if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     ASSERT(pTask->isDataScan);
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)data;
     qDebug("task %d %p set submit input %p %p %d 1", pTask->taskId, pTask, pSubmit, pSubmit->data, *pSubmit->dataRef);
-    qSetStreamInput(exec, pSubmit->data, STREAM_INPUT__DATA_SUBMIT, false);
+    qSetMultiStreamInput(exec, pSubmit->data, 1, STREAM_INPUT__DATA_SUBMIT);
   } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)data;
     SArray*           blocks = pBlock->blocks;
     qDebug("task %d %p set ssdata input", pTask->taskId, pTask);
-    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_INPUT__DATA_BLOCK, false);
+    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_INPUT__DATA_BLOCK);
   } else if (pItem->type == STREAM_INPUT__MERGED_SUBMIT) {
     SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)data;
     SArray*              blocks = pMerged->reqs;
     qDebug("task %d %p set submit input (merged), batch num: %d", pTask->taskId, pTask, (int32_t)blocks->size);
-    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_INPUT__MERGED_SUBMIT, false);
+    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_INPUT__MERGED_SUBMIT);
   } else {
     ASSERT(0);
   }
@@ -141,7 +141,7 @@ int32_t streamPipelineExec(SStreamTask* pTask, int32_t batchNum) {
 
     if (pTask->dispatchType != TASK_DISPATCH__NONE) {
       ASSERT(pTask->sinkType == TASK_SINK__NONE);
-      streamDispatch(pTask, pTask->pMsgCb);
+      streamDispatch(pTask);
     }
   }
 
@@ -229,7 +229,7 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
 }
 
 // TODO: handle version
-int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb) {
+int32_t streamExec(SStreamTask* pTask) {
   SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
   if (pRes == NULL) return -1;
   while (1) {

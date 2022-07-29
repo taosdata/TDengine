@@ -281,8 +281,8 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
     const STraceId *trace = &pMsg->info.traceId;
-    vGTrace("vgId:%d, msg:%p get from vnode-apply queue, type:%s handle:%p", vgId, pMsg, TMSG_INFO(pMsg->msgType),
-            pMsg->info.handle);
+    vGInfo("vgId:%d, msg:%p get from vnode-apply queue, type:%s handle:%p index:%ld", vgId, pMsg,
+           TMSG_INFO(pMsg->msgType), pMsg->info.handle, pMsg->info.conn.applyIndex);
 
     SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
     if (rsp.code == 0) {
@@ -413,7 +413,7 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       SyncClientRequestBatch *pSyncMsg = syncClientRequestBatchFromRpcMsg(pMsg);
       ASSERT(pSyncMsg != NULL);
       code = syncNodeOnClientRequestBatchCb(pSyncNode, pSyncMsg);
-      syncClientRequestBatchDestroyDeep(pSyncMsg);
+      syncClientRequestBatchDestroy(pSyncMsg);
     } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
       SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
       ASSERT(pSyncMsg != NULL);
@@ -503,9 +503,6 @@ static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReCon
 static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   if (cbMeta.isWeak == 0) {
     SVnode *pVnode = pFsm->data;
-    vTrace("vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, msgtype:%d %s",
-           syncGetVgId(pVnode->sync), pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state,
-           syncUtilState2String(cbMeta.state), pMsg->msgType, TMSG_INFO(pMsg->msgType));
 
     if (cbMeta.code == 0) {
       SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen};
@@ -514,11 +511,17 @@ static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta c
       syncGetAndDelRespRpc(pVnode->sync, cbMeta.seqNum, &rpcMsg.info);
       rpcMsg.info.conn.applyIndex = cbMeta.index;
       rpcMsg.info.conn.applyTerm = cbMeta.term;
+
+      vInfo("vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", term:%" PRIu64 ", msg-index:%" PRId64
+            ", isWeak:%d, code:%d, state:%d %s, msgtype:%d %s",
+            syncGetVgId(pVnode->sync), pFsm, cbMeta.index, cbMeta.term, rpcMsg.info.conn.applyIndex, cbMeta.isWeak,
+            cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), pMsg->msgType, TMSG_INFO(pMsg->msgType));
+
       tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, &rpcMsg);
     } else {
       SRpcMsg rsp = {.code = cbMeta.code, .info = pMsg->info};
-      vError("vgId:%d, sync commit error, msgtype:%d,%s, error:0x%X, errmsg:%s", syncGetVgId(pVnode->sync),
-             pMsg->msgType, TMSG_INFO(pMsg->msgType), cbMeta.code, tstrerror(cbMeta.code));
+      vError("vgId:%d, sync commit error, msgtype:%d,%s, index:%ld, error:0x%X, errmsg:%s", syncGetVgId(pVnode->sync),
+             pMsg->msgType, TMSG_INFO(pMsg->msgType), cbMeta.index, cbMeta.code, tstrerror(cbMeta.code));
       if (rsp.info.handle != NULL) {
         tmsgSendRsp(&rsp);
       }

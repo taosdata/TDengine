@@ -289,18 +289,25 @@ int32_t walEndSnapshot(SWal *pWal) {
         newTotSize -= iter->fileSize;
       }
     }
-    char fnameStr[WAL_FILE_LEN];
+    int32_t actualDelete = 0;
+    char    fnameStr[WAL_FILE_LEN];
     // remove file
     for (int i = 0; i < deleteCnt; i++) {
       pInfo = taosArrayGet(pWal->fileInfoSet, i);
       walBuildLogName(pWal, pInfo->firstVer, fnameStr);
-      taosRemoveFile(fnameStr);
+      if (taosRemoveFile(fnameStr) < 0) {
+        goto UPDATE_META;
+      }
       walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
-      taosRemoveFile(fnameStr);
+      if (taosRemoveFile(fnameStr) < 0) {
+        ASSERT(0);
+      }
+      actualDelete++;
     }
 
+  UPDATE_META:
     // make new array, remove files
-    taosArrayPopFrontBatch(pWal->fileInfoSet, deleteCnt);
+    taosArrayPopFrontBatch(pWal->fileInfoSet, actualDelete);
     if (taosArrayGetSize(pWal->fileInfoSet) == 0) {
       pWal->writeCur = -1;
       pWal->vers.firstVer = -1;
@@ -401,6 +408,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   pWal->writeHead.head.version = index;
   pWal->writeHead.head.bodyLen = bodyLen;
   pWal->writeHead.head.msgType = msgType;
+  pWal->writeHead.head.ingestTs = taosGetTimestampMs();
 
   // sync info for sync module
   pWal->writeHead.head.syncMeta = syncMeta;
@@ -457,14 +465,14 @@ int64_t walAppendLog(SWal *pWal, tmsg_t msgType, SWalSyncInfo syncMeta, const vo
     return -1;
   }
 
-  if (pWal->pIdxFile == NULL || pWal->pIdxFile == NULL || pWal->writeCur < 0) {
+  if (pWal->pLogFile == NULL || pWal->pIdxFile == NULL || pWal->writeCur < 0) {
     if (walInitWriteFile(pWal) < 0) {
       taosThreadMutexUnlock(&pWal->mutex);
       return -1;
     }
   }
 
-  ASSERT(pWal->pIdxFile != NULL && pWal->pLogFile != NULL && pWal->writeCur >= 0);
+  ASSERT(pWal->pLogFile != NULL && pWal->pIdxFile != NULL && pWal->writeCur >= 0);
 
   if (walWriteImpl(pWal, index, msgType, syncMeta, body, bodyLen) < 0) {
     taosThreadMutexUnlock(&pWal->mutex);

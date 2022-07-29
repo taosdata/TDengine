@@ -29,7 +29,7 @@ static void msg_process(TAOS_RES* msg) {
   printf("vg: %d\n", tmq_get_vgroup_id(msg));
   if (tmq_get_res_type(msg) == TMQ_RES_TABLE_META) {
     tmq_raw_data raw = {0};
-    int32_t code = tmq_get_raw_meta(msg, &raw);
+    int32_t code = tmq_get_raw(msg, &raw);
     if (code == 0) {
       TAOS* pConn = taos_connect("192.168.1.86", "root", "taosdata", NULL, 0);
       if (pConn == NULL) {
@@ -50,7 +50,7 @@ static void msg_process(TAOS_RES* msg) {
       }
       taos_free_result(pRes);
 
-      int32_t ret = taos_write_raw_meta(pConn, raw);
+      int32_t ret = tmq_write_raw(pConn, raw);
       printf("write raw data: %s\n", tmq_err2str(ret));
       taos_close(pConn);
     }

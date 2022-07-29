@@ -1022,6 +1022,10 @@ void tBlockDataClear(SBlockData *pBlockData, int8_t deepClear) {
   tFree((uint8_t *)pBlockData->aTSKEY);
   taosArrayDestroy(pBlockData->aIdx);
   taosArrayDestroyEx(pBlockData->aColData, deepClear ? tColDataClear : NULL);
+  pBlockData->aColData = NULL;
+  pBlockData->aIdx = NULL;
+  pBlockData->aTSKEY = NULL;
+  pBlockData->aVersion = NULL;
 }
 
 int32_t tBlockDataSetSchema(SBlockData *pBlockData, STSchema *pTSchema) {

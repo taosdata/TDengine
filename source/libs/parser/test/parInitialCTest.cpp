@@ -21,12 +21,6 @@ namespace ParserTest {
 
 class ParserInitialCTest : public ParserDdlTest {};
 
-TEST_F(ParserInitialCTest, compact) {
-  useDb("root", "test");
-
-  run("COMPACT VNODES IN (1, 2)", TSDB_CODE_PAR_EXPRIE_STATEMENT, PARSER_STAGE_PARSE);
-}
-
 TEST_F(ParserInitialCTest, createAccount) {
   useDb("root", "test");
 
@@ -64,7 +58,7 @@ TEST_F(ParserInitialCTest, createBnode) {
  *   | CACHESIZE value
  *   | COMP {0 | 1 | 2}
  *   | DURATION value
- *   | FSYNC value
+ *   | WAL_FSYNC_PERIOD value
  *   | MAXROWS value
  *   | MINROWS value
  *   | KEEP value
@@ -74,7 +68,7 @@ TEST_F(ParserInitialCTest, createBnode) {
  *   | REPLICA value
  *   | RETENTIONS ingestion_duration:keep_duration ...
  *   | STRICT {'off' | 'on'}
- *   | WAL value
+ *   | WAL_LEVEL value
  *   | VGROUPS value
  *   | SINGLE_STABLE {0 | 1}
  *   | WAL_RETENTION_PERIOD value
@@ -241,7 +235,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "CACHESIZE 20 "
       "COMP 1 "
       "DURATION 100 "
-      "FSYNC 100 "
+      "WAL_FSYNC_PERIOD 100 "
       "MAXROWS 1000 "
       "MINROWS 100 "
       "KEEP 1440 "
@@ -251,7 +245,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "REPLICA 3 "
       "RETENTIONS 15s:7d,1m:21d,15m:500d "
       "STRICT 'on' "
-      "WAL 2 "
+      "WAL_LEVEL 2 "
       "VGROUPS 100 "
       "SINGLE_STABLE 1 "
       "SCHEMALESS 1 "

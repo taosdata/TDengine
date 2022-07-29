@@ -111,7 +111,7 @@ TDengine REST API 详情请参考[官方文档](/reference/rest-api/)。
 
    这条命令很快完成 1 亿条记录的插入。具体时间取决于硬件性能。
 
-   taosBenchmark 命令本身带有很多选项，配置表的数目、记录条数等等，您可以设置不同参数进行体验，请执行 `taosBenchmark --help` 详细列出。taosBenchmark 详细使用方法请参照 [taosBenchmark 参考手册](../reference/taosbenchmark)。
+   taosBenchmark 命令本身带有很多选项，配置表的数目、记录条数等等，您可以设置不同参数进行体验，请执行 `taosBenchmark --help` 详细列出。taosBenchmark 详细使用方法请参照 [taosBenchmark 参考手册](../../reference/taosbenchmark)。
 
 ## 体验查询
 
