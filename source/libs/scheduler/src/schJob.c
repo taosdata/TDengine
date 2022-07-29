@@ -916,7 +916,7 @@ int32_t schProcessOnOpBegin(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq
         qDebug("job not initialized or not executable job, refId:0x%" PRIx64, pJob->refId);
         SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
       }
-      break;
+      return TSDB_CODE_SUCCESS;
     default:
       SCH_JOB_ELOG("unknown operation type %d", type);
       SCH_ERR_RET(TSDB_CODE_TSC_APP_ERROR);
