@@ -292,6 +292,9 @@ class TDTestCase:
         os.system(" {} -f {} >>/dev/null 2>&1 ".format(benchmark_build_path , json_file))
         
     def stop_leader_when_Benchmark_inserts(self,dbname , total_rows , json_file ):
+
+        newTdSql=tdCom.newTdSql()
+        
         # stop follower and insert datas , update tables and create new stables
         tdDnodes=cluster.dnodes
         tdSql.execute(" drop database if exists {} ".format(dbname))
