@@ -94,7 +94,7 @@
 ./test.sh -f tsim/parser/auto_create_tb.sim
 ./test.sh -f tsim/parser/between_and.sim
 ./test.sh -f tsim/parser/binary_escapeCharacter.sim
-# TD-17738 ./test.sh -f tsim/parser/col_arithmetic_operation.sim     
+./test.sh -f tsim/parser/col_arithmetic_operation.sim     
 ./test.sh -f tsim/parser/columnValue_bigint.sim
 ./test.sh -f tsim/parser/columnValue_bool.sim
 ./test.sh -f tsim/parser/columnValue_double.sim
