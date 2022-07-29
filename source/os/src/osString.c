@@ -161,6 +161,13 @@ void taosConvDestroy() {
 }
 
 void taosAcquireConv(int32_t *idx) {
+  if (0 == gConvMaxNum) {
+    gConv = taosMemoryCalloc(1, sizeof(SConv));
+    gConv[0].conv = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
+    *idx = 0;
+    return;
+  }
+  
   while (true) {
     int32_t used = atomic_add_fetch_32(&convUsed, 1);
     if (used > gConvMaxNum) {
@@ -189,6 +196,12 @@ void taosAcquireConv(int32_t *idx) {
 }
 
 void taosReleaseConv(int32_t idx) {
+  if (0 == gConvMaxNum) {
+    iconv_close(gConv[0].conv);
+    taosMemoryFreeClear(gConv);
+    return;
+  }
+
   atomic_store_8(&gConv[idx].inUse, 0);
 }
 
