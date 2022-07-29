@@ -97,10 +97,10 @@ if $data23 != TAG then
   return -1
 endi
 
+sql alter table $mt drop tag tgcol2
 sql alter table $mt drop tag tgcol1 -x step40
   return -1
 step40:
-sql alter table $mt drop tag tgcol2
   
 print =============== step5
 $i = 5
@@ -123,11 +123,11 @@ if $data03 != 2 then
   return -1
 endi
 
+sql alter table $mt drop tag tgcol2
 sql alter table $mt drop tag tgcol1 -x step50
   return -1
 step50:
-sql alter table $mt drop tag tgcol2
-  
+ 
 print =============== step6
 $i = 6
 $mt = $mtPrefix . $i
@@ -186,7 +186,7 @@ endi
 if $data31 != TINYINT then 
   return -1
 endi
-if $data41 != BINARY then 
+if $data41 != VARCHAR then 
   return -1
 endi
 if $data22 != 2 then 
@@ -404,8 +404,6 @@ endi
 sql alter table $mt drop tag tgcol3
 sql alter table $mt drop tag tgcol4
 sql alter table $mt drop tag tgcol6
-
-sleep 3000
 
 print =============== step2
 $i = 2
