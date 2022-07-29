@@ -14,30 +14,22 @@
 import random
 import os
 import time
-import taos
 import sys
-from Query.queryutil.createdata import *
-from Query.queryutil.where import *
 from Query.queryutil.stable_func import *
-from itertools import product
 from itertools import combinations
 import subprocess
-
 from taostest import TDCase
 
 class TDTestQuery(TDCase):
     def init(self):
         super(TDTestQuery, self).init()
-        self.tdCreateData = TDCreateData(self.tdSql, self.logger)
+        #self.tdCreateData = TDCreateData(self.tdSql, self.logger)
         
         #basic_param
-        self.db = "meters"
+        self.db = "db"
         self.service_host = ""
-        table_list = ['stb0',]
+        table_list = ['db.stb0',]
         self.table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
-        column_list = ['ts','c0','c1','c2','c3','c4','t0','t1',]
-        num = random.randint(1,8)
-        self.column = str(random.sample(column_list,num)).replace("[","").replace("]","").replace("'","")
         self.testcasePath = os.path.split(__file__)[0]
         self.testcaseFilename = os.path.split(__file__)[-1]
 
@@ -58,8 +50,7 @@ class TDTestQuery(TDCase):
     def data_create(self,db):
         self.createDB_meters("%s" % db, 1)  
         
-    def explain_sql(self,sql):   
-        #执行sql解析    
+    def explain_sql(self,sql):     
         sql = "explain " + sql 
         self.tdSql.query(sql) 
         
@@ -110,23 +101,76 @@ class TDTestQuery(TDCase):
         in_filters = [q_tinyint_list , t_tinyint_list,' (c3 is not null)' , '(c4 is not null)', '(t0 is not null)',]        
         in_filter = str(random.sample(in_filters,1)).replace("[","").replace("]","").replace("'","")
         
-        return(data_filter,like_match_filter,in_filter)
-    
-    def data_check(self,sql):
-        rows = self.tdSql.query(sql).row_count 
-        if rows == 0:
-            sys.exit("data rows = 0 ")
-        self.explain_sql(sql)
+        orderby_filters = ['ts','_c0','_C0','_rowts','c1','c2','c3','c4','t0','t1']
+        i = random.randint(1,8)
+        orderby_filter = str(random.sample(orderby_filters,i)).replace("[","").replace("]","").replace("'","")
+        orderby_filter = str('order by ' + orderby_filter).replace("[","").replace("]","").replace("'","")
         
-        result_file_name = self.testcasePath + '/meters.sql'
+        groupby_filters = ['ts','_c0','_C0','_rowts','c1','c2','c3','c4','t0','t1']
+        i = random.randint(1,8)
+        groupby_filter = str(random.sample(groupby_filters,i)).replace("[","").replace("]","").replace("'","")
+        groupby_filter = str('group by ' + groupby_filter).replace("[","").replace("]","").replace("'","")
+        
+        partitionby_filters = ['ts','_c0','_C0','_rowts','c1','c2','c3','c4','t0','t1']
+        i = random.randint(1,8)
+        partitionby_filter = str(random.sample(partitionby_filters,i)).replace("[","").replace("]","").replace("'","")
+        partitionby_filter = str('partition by ' + partitionby_filter).replace("[","").replace("]","").replace("'","")
+        
+        return(data_filter,like_match_filter,in_filter,orderby_filter,groupby_filter,partitionby_filter)
+    
+    def data_check(self,sql) :
+        #判断sql执行结果，如果执行成功，判断返回rows，>0记录sql到文件， =0提示退出， sql执行不成功，则记录sql，不进入sql文件
+        rows = 0;
+        succ_flag = 0
+        
+        try:
+            self.tdSql.query(sql)
+            rows = self.tdSql.query_row
+            succ_flag = 1
+        except:
+            self.logger.info("sql is not support :=====%s; " %sql)
+            self.tdSql.error(sql)
+            
+        if rows:
+            self.explain_sql(sql) if rows > 0 else sys.exit("data rows = 0")
+        
+        if succ_flag:
+            result_file_name = self.testcasePath + '/meters.sql'        
+            f = open(result_file_name, 'a') 
+            f.write(str(sql) + "; \n")
+            f.close()
+    
+    def data_check_2(self,sql) :
+        #临时测试的
+        rows = 0;
+        self.tdSql.query(sql)
+        rows = self.tdSql.query_row
+        
+        if rows > 0:
+            self.explain_sql(sql) 
+        else :
+            sys.exit("data rows = 0")            
+        
+        result_file_name = self.testcasePath + '/meters.sql'        
         f = open(result_file_name, 'a') 
-        f.write(
-            str(sql) + "; \n")
+        f.write(str(sql) + "; \n")
         f.close()
-                      
+            
+    def column_select(self,num):
+        column = ''
+        column_lists = ['ts','_c0','_C0','_rowts','c1','c2','c3','c4','t0','t1',]
+        if num == 0:    
+            column = '*'
+        elif num == 1:    
+            column = str(column_lists).replace("[","").replace("]","").replace("'","")
+        elif num == 2:            
+            i = random.randint(1,10)
+            column = str(random.sample(column_lists,i)).replace("[","").replace("]","").replace("'","")
+            
+        return column    
+                              
     def select_column(self):
         self.logger.info("\n==========================select_column==========================\n")
-        sql = 'Count the number of sqls'         
                           
         for i in (1,):
             func = tdFunction.func_stable_tbname_all(i)
@@ -139,26 +183,68 @@ class TDTestQuery(TDCase):
                     for data_filter in data_filter:
                         data_filter = str(data_filter).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
                         like_match_filter = where_filters[1]
-                        in_filter = where_filters[2]
+                        in_filter = where_filters[2] 
+                        orderby_filter = where_filters[3]  
+                        groupby_filter = where_filters[4] 
+                        partitonby_filter = where_filters[5]                       
 
-                        sql2 = "select * from %s where  %s %s %s;" %(self.table,data_filter,like_match_filter,in_filter)
-                        self.data_check(sql2)
-                        sql= sql + sql2
+                        # sql2 = "select %s from %s where  %s %s %s " %(self.column_select(0),self.table,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+
+                        # sql2 = "select %s from %s where  %s %s %s " %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from %s where  %s %s %s;" %(self.column,self.table,data_filter,like_match_filter,in_filter)
-                        self.data_check(sql2)
-                        sql= sql + sql2
+                        # sql2 = "select %s from %s where  %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from %s where  %s %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,orderby_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from %s where  %s %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,groupby_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from %s where  %s %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,partitonby_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s where  %s %s %s) " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s ) where  %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s %s ) where  %s %s %s " %(self.column_select(2),self.table,orderby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s %s ) where  %s %s %s " %(self.column_select(2),self.table,groupby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s %s ) where  %s %s %s " %(self.column_select(2),self.table,partitonby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s  where  %s %s %s ) where  %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,orderby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,partitonby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,orderby_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,partitonby_filter)
+                        # self.data_check(sql2)
                         
 
             except Exception as e:
                 raise e   
-        
-        num = sql.count('where')
-        self.logger.info("select_column %d" % num) 
                     
     def select_column_union(self):
-        self.logger.info("\n==========================select_column==========================\n")
-        sql = 'Count the number of sqls'         
+        self.logger.info("\n==========================select_column==========================\n")       
                           
         for i in (1,):
             func = tdFunction.func_stable_tbname_all(i)
@@ -166,38 +252,112 @@ class TDTestQuery(TDCase):
                 self.tdSql.execute('use %s;' %self.db)            
                 self.logger.info("\n\n\n=======hanshu num = %d======select_column======\n\n\n" %i)                
                 where_filters = self.where_filter()
+                where_filters_2 = self.where_filter()
                 for i in range(2,len(where_filters[0])+1):
                     data_filter = list(combinations(where_filters[0],i))
+                    data_filter_2 = list(combinations(where_filters_2[0],i))
                     for data_filter in data_filter:
                         data_filter = str(data_filter).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
+                        data_filter_2 = str(data_filter_2).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","").replace("[","").replace("]","")
                         like_match_filter = where_filters[1]
                         in_filter = where_filters[2]
-
-                        sql2 = "select * from %s where  %s %s %s " %(self.table,data_filter,like_match_filter,in_filter)
-                        sql2 += " union select * from %s where  %s %s %s;" %(self.table,data_filter,like_match_filter,in_filter)
-                        self.data_check(sql2)
-                        sql= sql + sql2
-
-                        sql2 = "select * from %s where  %s %s %s " %(self.table,data_filter,like_match_filter,in_filter)
-                        sql2 += "union all select * from %s where  %s %s %s;" %(self.table,data_filter,like_match_filter,in_filter)
-                        self.data_check(sql2)
-                        sql= sql + sql2
-                                                
-                        sql2 = "select %s from %s where  %s %s %s ;" %(self.column,self.table,data_filter,like_match_filter,in_filter)
-                        self.data_check(sql2)
-                        sql= sql + sql2
+                        orderby_filter = where_filters[3]  
+                        groupby_filter = where_filters[4] 
+                        partitonby_filter = where_filters[5]  
                         
+                        like_match_filter_2 = where_filters_2[1]
+                        in_filter_2 = where_filters_2[2]
+                        column_select = self.column_select(2) #针对union多列返回的个数不一样
+
+                        # sql2 = "select %s from %s where  %s %s %s " %(self.column_select(0),self.table,data_filter,like_match_filter,in_filter)
+                        # sql2 += " union select %s from %s where  %s %s %s " %(self.column_select(0),self.table,data_filter_2,like_match_filter_2,in_filter_2)
+                        # self.data_check(sql2)
+
+                        # sql2 = "select %s from %s where  %s %s %s " %(column_select,self.table,data_filter,like_match_filter,in_filter)
+                        # sql2 += " union all select %s from %s where  %s %s %s " %(column_select,self.table,data_filter_2,like_match_filter_2,in_filter_2)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select %s from %s where  %s %s %s " %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter)
+                        # sql2 += " union select %s from %s where  %s %s %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2)
+                        # self.data_check(sql2)
+
+                        # sql2 = "select %s from %s where  %s %s %s " %(column_select,self.table,data_filter,like_match_filter,in_filter)
+                        # sql2 += " union all select %s from %s where  %s %s %s " %(column_select,self.table,data_filter_2,like_match_filter_2,in_filter_2)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from %s where  %s %s %s " %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter)
+                        # sql2 += " union select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,orderby_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "(select %s from %s where  %s %s %s  %s )" %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter,orderby_filter)
+                        # sql2 += " union select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,orderby_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from %s where  %s %s %s " %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter)
+                        # sql2 += " union all select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,partitonby_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from %s where  %s %s %s  %s" %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter,partitonby_filter)
+                        # sql2 += " union all select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,partitonby_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "(select %s from %s where  %s %s %s  %s )" %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter,orderby_filter)
+                        # sql2 += " union select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,partitonby_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "(select %s from %s where  %s %s %s  %s )" %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter,partitonby_filter)
+                        # sql2 += " union select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,orderby_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select %s from %s where  %s %s %s " %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter)
+                        # sql2 += " union select %s from %s where  %s %s %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2)
+                        # sql2 += " union all select %s from %s where  %s %s %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2)
+                        # self.data_check(sql2)
+
+                        # sql2 = "select %s from %s where  %s %s %s " %(column_select,self.table,data_filter,like_match_filter,in_filter)
+                        # sql2 += " union all select %s from %s where  %s %s %s " %(column_select,self.table,data_filter_2,like_match_filter_2,in_filter_2)
+                        # sql2 += " union select %s from %s where  %s %s %s " %(column_select,self.table,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from %s where  %s %s %s  %s" %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter,partitonby_filter)
+                        # sql2 += " union select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,partitonby_filter)
+                        # sql2 += " union all select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,orderby_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "(select %s from %s where  %s %s %s  %s)" %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter,partitonby_filter)
+                        # sql2 += " union  (select %s from %s where  %s %s %s  %s )" %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,orderby_filter)
+                        # sql2 += " union all select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,orderby_filter)
+                        # self.data_check(sql2)
+                        
+                        sql2 = "(select %s from %s where  %s %s %s  %s)" %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter,orderby_filter)
+                        sql2 += " union  (select %s from %s where  %s %s %s  %s )" %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,orderby_filter)
+                        sql2 += " union all select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,partitonby_filter)
+                        self.data_check(sql2)
+                        
+                        sql2 = "(select %s from %s where  %s %s %s  %s)" %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter,orderby_filter)
+                        sql2 += " union  select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,partitonby_filter)
+                        sql2 += " union all select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,partitonby_filter)
+                        self.data_check(sql2)
 
             except Exception as e:
                 raise e   
         
-        num = sql.count('where')
-        self.logger.info("select_column %d" % num) 
 
     def rm_sql(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
         self.tdCreateData.drop_db("%s" % self.db)  
-                                
+
+    def taos_f_sql(self):
+        os.system("cp %s/meters.sql /root/meters.sql" % self.testcasePath)
+        service_host = "ceph01"
+        taos_cmd1 = "taos -h %s -f /root/meters.sql" % (service_host)
+        _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")   
+        
+    def sql_count(self):
+        self.logger.info("===================sql count:=============")
+        os.system("cat %s/meters.sql | wc -l " % (self.testcasePath))   
+        self.logger.info("===================sql count:=============\n")
+                                        
     def run(self):
         startTime = time.time() 
         
@@ -209,6 +369,11 @@ class TDTestQuery(TDCase):
         self.select_column_union()
 
         endTime = time.time()
+        
+        #self.taos_f_sql()
+        
         #self.rm_sql()
         self.logger.info("total time %ds" % (endTime - startTime))
+        
+        self.sql_count()
 
