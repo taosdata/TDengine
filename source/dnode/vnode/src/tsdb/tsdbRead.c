@@ -1445,10 +1445,10 @@ static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanI
     if ((pDumpInfo->rowIndex < pDumpInfo->totalRows - 1 && pReader->order == TSDB_ORDER_ASC) ||
         (pDumpInfo->rowIndex > 0 && pReader->order == TSDB_ORDER_DESC)) {
       int32_t step = pReader->order == TSDB_ORDER_ASC? 1:-1;
-      int64_t  nextKey = pBlockData->aTSKEY[pDumpInfo->rowIndex + step];
-      if (nextKey != key) {
-        // merge is not needed
+      int64_t nextKey = pBlockData->aTSKEY[pDumpInfo->rowIndex + step];
+      if (nextKey != key) { // merge is not needed
         doAppendRowFromBlock(pReader->pResBlock, pReader, pBlockData, pDumpInfo->rowIndex);
+        pDumpInfo->rowIndex += step;
         return TSDB_CODE_SUCCESS;
       }
     }
