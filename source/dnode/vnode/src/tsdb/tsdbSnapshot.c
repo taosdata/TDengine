@@ -694,8 +694,8 @@ static int32_t tsdbSnapWriteTableDataImpl(STsdbSnapWriter* pWriter) {
     if (pWriter->bDataW.nRow < pWriter->maxRow * 4 / 5) continue;
 
   _write_block:
-    code = tsdbWriteBlockData(pWriter->pDataFWriter, &pWriter->bDataW, NULL, NULL, pWriter->pBlockIdx, &pWriter->blockW,
-                              pWriter->cmprAlg);
+    code = tsdbWriteBlockData(pWriter->pDataFWriter, &pWriter->bDataW, NULL, NULL, pWriter->pBlockIdxW,
+                              &pWriter->blockW, pWriter->cmprAlg);
     if (code) goto _err;
 
     code = tMapDataPutItem(&pWriter->mBlockW, &pWriter->blockW, tPutBlock);
