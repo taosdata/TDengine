@@ -305,6 +305,8 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
               taosArrayPush(desc.subDesc, &sDesc);
             }
           }
+          
+          ASSERT(desc.subPlanNum == taosArrayGetSize(desc.subDesc));
 
           taosArrayPush(pReq->query->queryDesc, &desc);
         }
@@ -5682,6 +5684,7 @@ int32_t tEncodeDeleteRes(SEncoder *pCoder, const SDeleteRes *pRes) {
   if (tEncodeI64v(pCoder, pRes->affectedRows) < 0) return -1;
 
   if (tEncodeCStr(pCoder, pRes->tableFName) < 0) return -1;
+  if (tEncodeCStr(pCoder, pRes->tsColName) < 0) return -1;
   return 0;
 }
 
@@ -5700,6 +5703,7 @@ int32_t tDecodeDeleteRes(SDecoder *pCoder, SDeleteRes *pRes) {
   if (tDecodeI64v(pCoder, &pRes->affectedRows) < 0) return -1;
 
   if (tDecodeCStrTo(pCoder, pRes->tableFName) < 0) return -1;
+  if (tDecodeCStrTo(pCoder, pRes->tsColName) < 0) return -1;
   return 0;
 }
 int32_t tEncodeSMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {

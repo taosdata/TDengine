@@ -333,6 +333,7 @@ typedef struct STableScanInfo {
   int8_t          scanMode;
   int8_t          noTable;
   SAggOptrPushDownInfo pdInfo;
+  int8_t          assignBlockUid;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
@@ -540,8 +541,7 @@ typedef struct SIntervalAggOperatorInfo {
   SArray*            pDelWins;           // SWinRes
   int32_t            delIndex;
   SSDataBlock*       pDelRes;
-
-  SNode *pCondition;
+  SNode*             pCondition;
 } SIntervalAggOperatorInfo;
 
 typedef struct SMergeAlignedIntervalAggOperatorInfo {

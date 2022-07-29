@@ -68,7 +68,7 @@ class TDTestCase:
                     'showRow':    1}
         dnodenumbers=int(dnodenumbers)
         mnodeNums=int(mnodeNums)
-        dbNumbers = int(dnodenumbers * restartNumber)
+        dbNumbers = 1
         
         tdLog.info("first check dnode and mnode")
         tdSql.query("show dnodes;")
@@ -104,7 +104,7 @@ class TDTestCase:
         tdDnodes[1].starttaosd()
         tdDnodes[2].starttaosd()
 
-        clusterComCheck.checkMnodeStatus(3)
+        clusterComCheck.checkMnodeStatus(mnodeNums)
 
 
     def run(self): 

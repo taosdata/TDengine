@@ -51,32 +51,32 @@ class TDTestCase:
         tdCom.create_ctable(tdSql, dbname=paraDict["dbName"],stbname=paraDict["stbName"],tag_elm_list=paraDict['tagSchema'],count=paraDict["ctbNum"], default_ctbname_prefix=paraDict['ctbPrefix'])
         # tdLog.info("insert data")
         # tmqCom.insert_data(tdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])
-        
+
         tdLog.info("create 4 topics")
         sqlString = "create topic %s as database %s" %(topicNameList[0], paraDict['dbName'])
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        
+
         sqlString = "create topic %s as stable %s.%s" %(topicNameList[1], paraDict['dbName'], paraDict['stbName'])
         tdLog.info("create topic sql: %s"%sqlString)
-        tdSql.execute(sqlString)        
+        tdSql.execute(sqlString)
 
         queryString = "select * from %s.%s where c1 %% 7 == 0" %(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicNameList[2], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        
+
         queryString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s where c1 %% 7 == 0" %(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s " %(topicNameList[3], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
 
         tdSql.query("show topics")
-        tdLog.debug(tdSql.queryResult)     
+        tdLog.debug(tdSql.queryResult)
         rows = tdSql.getRows()
         if rows != len(consumerIdList):
             tdLog.exit("topic rows error")
-            
+
         for i in range (rows):
             topicName = tdSql.getData(i,0)
             matchFlag = 0
@@ -87,24 +87,24 @@ class TDTestCase:
                         break
                 if matchFlag == 0:
                     tdLog.exit("topic name: %s is error", topicName)
-        
+
         # init consume info, and start tmq_sim, then check consume result
         tdLog.info("insert consume info to consume processor")
         expectrowcnt = paraDict["rowsPerTbl"] * paraDict["ctbNum"]
         topicList    = topicNameList[0]
         ifcheckdata  = 0
-        ifManualCommit = 0        
+        ifManualCommit = 0
         keyList      = 'group.id:%s, enable.auto.commit:false, auto.commit.interval.ms:6000, auto.offset.reset:earliest'%consumeGroupIdList[0]
         tmqCom.insertConsumerInfo(consumerIdList[0], expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
-                
+
         topicList    = topicNameList[1]
         keyList      = 'group.id:%s, enable.auto.commit:false, auto.commit.interval.ms:6000, auto.offset.reset:earliest'%consumeGroupIdList[1]
         tmqCom.insertConsumerInfo(consumerIdList[1], expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
-        
+
         topicList    = topicNameList[2]
         keyList      = 'group.id:%s, enable.auto.commit:false, auto.commit.interval.ms:6000, auto.offset.reset:earliest'%consumeGroupIdList[2]
         tmqCom.insertConsumerInfo(consumerIdList[2], expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
-        
+
         topicList    = topicNameList[3]
         keyList      = 'group.id:%s, enable.auto.commit:false, auto.commit.interval.ms:6000, auto.offset.reset:earliest'%consumeGroupIdList[3]
         tmqCom.insertConsumerInfo(consumerIdList[3], expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
@@ -118,27 +118,27 @@ class TDTestCase:
         time.sleep(5)
         tdLog.info("check show consumers")
         tdSql.query("show consumers")
-        # tdLog.info(tdSql.queryResult)     
+        # tdLog.info(tdSql.queryResult)
         rows = tdSql.getRows()
         tdLog.info("show consumers rows: %d"%rows)
         if rows != len(topicNameList):
             tdLog.exit("show consumers rows error")
-        
-        tdLog.info("check show subscriptions")      
+
+        tdLog.info("check show subscriptions")
         tdSql.query("show subscriptions")
-        # tdLog.debug(tdSql.queryResult)     
+        # tdLog.debug(tdSql.queryResult)
         rows = tdSql.getRows()
         tdLog.info("show subscriptions rows: %d"%rows)
         if rows != paraDict['vgroups'] * len(topicNameList):
             tdLog.exit("show subscriptions rows error")
 
         pThread.join()
-        
+
         tdLog.info("insert process end, and start to check consume result")
         expectRows = len(consumerIdList)
         _ = tmqCom.selectConsumeResult(expectRows)
-        
-        time.sleep(10)        
+
+        time.sleep(10)
         for i in range(len(topicNameList)):
             tdSql.query("drop topic %s"%topicNameList[i])
 

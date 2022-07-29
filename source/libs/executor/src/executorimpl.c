@@ -3831,7 +3831,7 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo, int32_t groupNum) 
 
 bool groupbyTbname(SNodeList* pGroupList)  {
   bool bytbname = false;
-  if (LIST_LENGTH(pGroupList) == 0) {
+  if (LIST_LENGTH(pGroupList) > 0) {
     SNode* p = nodesListGetNode(pGroupList, 0);
     if (p->type == QUERY_NODE_FUNCTION) {
       // partition by tbname/group by tbname

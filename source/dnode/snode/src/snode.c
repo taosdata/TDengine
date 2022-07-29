@@ -179,7 +179,7 @@ static int32_t sndProcessTaskRecoverRsp(SSnode *pNode, SRpcMsg *pMsg) {
   SStreamMeta *pMeta = pNode->pMeta;
 
   SStreamTaskRecoverRsp *pRsp = pMsg->pCont;
-  int32_t                taskId = pRsp->taskId;
+  int32_t                taskId = pRsp->rspTaskId;
   SStreamTask           *pTask = *(SStreamTask **)taosHashGet(pMeta->pHash, &taskId, sizeof(int32_t));
   streamProcessRecoverRsp(pTask, pRsp);
   return 0;

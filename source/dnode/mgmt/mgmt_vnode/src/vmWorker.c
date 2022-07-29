@@ -89,7 +89,7 @@ static void vmProcessStreamQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   int32_t code = vnodeProcessFetchMsg(pVnode->pImpl, pMsg, pInfo);
   if (code != 0) {
     if (terrno != 0) code = terrno;
-    dGError("vgId:%d, msg:%p failed to stream since %s", pVnode->vgId, pMsg, terrstr());
+    dGError("vgId:%d, msg:%p failed to process stream since %s", pVnode->vgId, pMsg, terrstr());
     vmSendRsp(pMsg, code);
   }
 

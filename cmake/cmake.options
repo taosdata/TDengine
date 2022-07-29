@@ -85,6 +85,12 @@ ELSE ()
 ENDIF ()
 
 option(
+    JEMALLOC_ENABLED
+    "If build with jemalloc"
+    OFF
+    )
+
+option(
     BUILD_SANITIZER
     "If build sanitizer"
     OFF

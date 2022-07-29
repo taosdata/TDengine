@@ -3044,11 +3044,40 @@ typedef struct SDeleteRes {
   int64_t  skey;
   int64_t  ekey;
   int64_t  affectedRows;
-  char     tableFName[TSDB_TABLE_FNAME_LEN];
+  char     tableFName[TSDB_TABLE_NAME_LEN];
+  char     tsColName[TSDB_COL_NAME_LEN];
 } SDeleteRes;
 
 int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
 int32_t tDecodeDeleteRes(SDecoder* pCoder, SDeleteRes* pRes);
+
+typedef struct {
+  int32_t msgType;
+  int32_t msgLen;
+  void*   msg;
+} SBatchMsg;
+
+typedef struct {
+  SMsgHead  header;
+  int32_t   msgNum;
+  SBatchMsg msg[];
+} SBatchReq;
+
+typedef struct {
+  int32_t reqType;
+  int32_t msgLen;
+  int32_t rspCode;
+  void*   msg;
+} SBatchRsp;
+
+static FORCE_INLINE void tFreeSBatchRsp(void *p) {
+  if (NULL == p) {
+    return;
+  }
+
+  SBatchRsp* pRsp = (SBatchRsp*)p;
+  taosMemoryFree(pRsp->msg);
+}
 
 #pragma pack(pop)
 

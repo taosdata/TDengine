@@ -481,6 +481,10 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
       pBlock->info.groupId = *groupId;
     }
 
+    if (pTableScanInfo->assignBlockUid) {
+      pBlock->info.groupId = pBlock->info.uid;
+    }
+
     pOperator->resultInfo.totalRows = pTableScanInfo->readRecorder.totalRows;
     pTableScanInfo->readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
 
@@ -690,6 +694,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->scanFlag = MAIN_SCAN;
   pInfo->pColMatchInfo = pColList;
   pInfo->currentGroupId = -1;
+  pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
 
   pOperator->name = "TableScanOperator";  // for debug purpose
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;

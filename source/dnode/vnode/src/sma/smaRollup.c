@@ -599,20 +599,20 @@ static int32_t tdRSmaFetchAndSubmitResult(SRSmaInfoItem *pItem, STSchema *pTSche
       SSubmitReq *pReq = NULL;
       // TODO: the schema update should be handled
       if (buildSubmitReqFromDataBlock(&pReq, pResult, pTSchema, SMA_VID(pSma), suid) < 0) {
-        smaError("vgId:%d, build submit req for rsma table %" PRIi64 "l evel %" PRIi8 " failed since %s", SMA_VID(pSma),
+        smaError("vgId:%d, build submit req for rsma stable %" PRIi64 " level %" PRIi8 " failed since %s", SMA_VID(pSma),
                  suid, pItem->level, terrstr());
         goto _err;
       }
 
       if (pReq && tdProcessSubmitReq(sinkTsdb, output->info.version, pReq) < 0) {
         taosMemoryFreeClear(pReq);
-        smaError("vgId:%d, process submit req for rsma table %" PRIi64 " level %" PRIi8 " failed since %s",
+        smaError("vgId:%d, process submit req for rsma stable %" PRIi64 " level %" PRIi8 " failed since %s",
                  SMA_VID(pSma), suid, pItem->level, terrstr());
         goto _err;
       }
 
-      smaDebug("vgId:%d, process submit req for rsma table %" PRIi64 " level %" PRIi8 " version:%"PRIi64, SMA_VID(pSma),
-               suid, pItem->level, output->info.version);
+      smaDebug("vgId:%d, process submit req for rsma table %" PRIi64 " level %" PRIi8 " version:%" PRIi64,
+               SMA_VID(pSma), suid, pItem->level, output->info.version);
 
       taosMemoryFreeClear(pReq);
       taosArrayClear(pResult);
@@ -644,7 +644,7 @@ static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t inputType
   smaDebug("vgId:%d, execute rsma %" PRIi8 " task for qTaskInfo:%p suid:%" PRIu64, SMA_VID(pSma), level,
            pItem->taskInfo, suid);
 
-  if (qSetStreamInput(pItem->taskInfo, pMsg, inputType, true) < 0) {  // INPUT__DATA_SUBMIT
+  if (qSetMultiStreamInput(pItem->taskInfo, pMsg, 1, inputType) < 0) {  // INPUT__DATA_SUBMIT
     smaError("vgId:%d, rsma % " PRIi8 " qSetStreamInput failed since %s", SMA_VID(pSma), level, tstrerror(terrno));
     return TSDB_CODE_FAILED;
   }
@@ -1329,7 +1329,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
       tdRefRSmaInfo(pSma, pRSmaInfo);
 
       SSDataBlock dataBlock = {.info.type = STREAM_GET_ALL};
-      qSetStreamInput(pItem->taskInfo, &dataBlock, STREAM_INPUT__DATA_BLOCK, false);
+      qSetMultiStreamInput(pItem->taskInfo, &dataBlock, 1, STREAM_INPUT__DATA_BLOCK);
       tdRSmaFetchAndSubmitResult(pItem, pRSmaInfo->pTSchema, pRSmaInfo->suid, pStat, STREAM_INPUT__DATA_BLOCK);
 
       tdUnRefRSmaInfo(pSma, pRSmaInfo);
