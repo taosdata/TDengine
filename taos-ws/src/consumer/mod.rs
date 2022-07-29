@@ -1,18 +1,16 @@
-use bytes::{Bytes};
+use bytes::Bytes;
 use futures::{FutureExt, SinkExt, StreamExt};
 use itertools::Itertools;
 use scc::HashMap;
 
-
 use taos_query::block_in_place_or_global;
 use taos_query::common::{JsonMeta, RawMeta};
 use taos_query::tmq::{
-    AsAsyncConsumer, AsConsumer, IsAsyncMeta, IsOffset, MessageSet, SyncOnAsync, Timeout,
+    AsAsyncConsumer, AsConsumer, IsAsyncData, IsAsyncMeta, IsOffset, MessageSet, SyncOnAsync,
+    Timeout,
 };
-use taos_query::util::{InlinableRead};
-use taos_query::{
-    AsyncFetchable, DeError, DsnError, IntoDsn, RawBlock, TBuilder,
-};
+use taos_query::util::InlinableRead;
+use taos_query::{AsyncFetchable, DeError, DsnError, IntoDsn, RawBlock, TBuilder};
 use thiserror::Error;
 use tokio::sync::{oneshot, watch};
 
@@ -239,6 +237,19 @@ impl Iterator for Data {
 
     fn next(&mut self) -> Option<Self::Item> {
         block_in_place_or_global(self.fetch_block()).transpose()
+    }
+}
+
+#[async_trait::async_trait]
+impl IsAsyncData for Data {
+    type Error = Error;
+
+    async fn as_raw_data(&self) -> StdResult<taos_query::common::RawData, Self::Error> {
+        todo!()
+    }
+
+    async fn fetch_raw_block(&self) -> StdResult<Option<RawBlock>, Self::Error> {
+        todo!()
     }
 }
 

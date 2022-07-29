@@ -18,10 +18,12 @@ int main() {
     return 0;
   }
 
-  const char* version = ws_get_server_info(taos);
+  const char *version = ws_get_server_info(taos);
   dprintf(2, "Server version: %s\n", version);
 
   WS_RES *rs = ws_query(taos, "show databases");
+  int64_t timing = ws_take_timing(rs);
+  dprintf(2, "Query timing: %ldns\n", timing);
   int code = ws_errno(rs);
   if (code != 0) {
     const char *errstr = ws_errstr(taos);
@@ -53,6 +55,8 @@ int main() {
     int rows = 0;
     const void *data = NULL;
     code = ws_fetch_block(rs, &data, &rows);
+    int64_t timing = ws_take_timing(rs);
+    dprintf(2, "Fetch block timing: %ldns\n", timing);
 
     if (rows == 0)
       break;

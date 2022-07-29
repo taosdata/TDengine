@@ -248,6 +248,10 @@ impl taos_query::AsyncQueryable for Taos {
                 .await
         }
     }
+
+    async fn write_raw_block(&self, block: &taos_query::RawBlock) -> Result<(), Self::Error> {
+        todo!()
+    }
 }
 
 #[cfg(test)]
@@ -260,7 +264,7 @@ mod tests {
 
     #[test]
     fn ws_sync_json() -> anyhow::Result<()> {
-        std::env::set_var("RUST_LOG", "trace");
+        std::env::set_var("RUST_LOG", "debug");
         pretty_env_logger::init();
         use taos_query::{Fetchable, Queryable};
         let client = TaosBuilder::from_dsn("ws://localhost:6041/")?.build()?;

@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     ffi::c_void,
     fmt::{Display, Write},
 };
@@ -81,13 +82,13 @@ impl RawDataInner {
             RawDataInner::Data(bytes) => unsafe { bytes.as_ptr().offset(RAW_PTR_OFFSET as _) as _ },
         }
     }
-    fn into_owned(self) -> Self {
-        Self::Data(self.to_bytes())
+    fn into_bytes(self) -> Self {
+        Self::Data(self.as_bytes().into_owned())
     }
-    fn to_bytes(&self) -> Bytes {
+    fn as_bytes(&self) -> Cow<Bytes> {
         match self {
-            Self::Raw(raw) => raw.to_bytes(),
-            Self::Data(bytes) => bytes.clone(),
+            Self::Raw(raw) => Cow::Owned(raw.to_bytes()),
+            Self::Data(bytes) => Cow::Borrowed(bytes),
         }
     }
 }
@@ -131,6 +132,10 @@ impl RawData {
             raw_type: self.raw_type(),
         }
     }
+
+    pub fn as_bytes(&self) -> Cow<Bytes> {
+        self.0.as_bytes()
+    }
 }
 
 impl Inlinable for RawData {
@@ -152,7 +157,7 @@ impl Inlinable for RawData {
     }
 
     fn write_inlined<W: std::io::Write>(&self, wtr: &mut W) -> std::io::Result<usize> {
-        let bytes = self.0.to_bytes();
+        let bytes = self.0.as_bytes();
         wtr.write_all(&bytes)?;
         Ok(bytes.len())
     }
@@ -185,7 +190,7 @@ impl crate::util::AsyncInlinable for RawData {
         wtr: &mut W,
     ) -> std::io::Result<usize> {
         use tokio::io::*;
-        let bytes = self.0.to_bytes();
+        let bytes = self.0.as_bytes();
         wtr.write_all(&bytes).await?;
         Ok(bytes.len())
     }

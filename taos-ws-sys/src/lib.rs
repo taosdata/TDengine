@@ -382,6 +382,10 @@ impl WsResultSet {
             None => (Ty::Null, 0, std::ptr::null()),
         }
     }
+
+    fn take_timing(&mut self) -> Duration {
+        self.rs.take_timing()
+    }
 }
 
 unsafe fn connect_with_dsn(dsn: *const c_char) -> WsTaos {
@@ -514,6 +518,21 @@ pub unsafe extern "C" fn ws_query_timeout(
     let res: WsMaybeError<WsResultSet> =
         query_with_sql_timeout(taos, sql, Duration::from_secs(seconds as _)).into();
     Box::into_raw(Box::new(res)) as _
+}
+
+/// Get taosc execution timing duration as nanoseconds.
+#[no_mangle]
+pub unsafe extern "C" fn ws_take_timing(rs: *mut WS_RES) -> i64 {
+    match (rs as *mut WsMaybeError<WsResultSet>).as_mut() {
+        Some(rs) => rs.take_timing().as_nanos() as _,
+        _ => {
+            C_ERRNO = Code::Failed;
+            let dst = C_ERROR_CONTAINER.as_mut_ptr();
+            const NULL_PTR_RES: &'static str = "WS_RES is null";
+            std::ptr::copy_nonoverlapping(NULL_PTR_RES.as_ptr(), dst, NULL_PTR_RES.len());
+            Code::Failed.into()
+        }
+    }
 }
 
 #[no_mangle]

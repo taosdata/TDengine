@@ -1,4 +1,4 @@
-use once_cell::sync::{OnceCell};
+use once_cell::sync::OnceCell;
 use taos_error::Code;
 use taos_query::common::{Field, Precision, RawBlock, RawMeta};
 use taos_query::{DeError, DsnError, Fetchable, IntoDsn, Queryable};
@@ -10,11 +10,11 @@ use tokio_tungstenite::tungstenite::Message;
 use crate::stmt::sync::{WsSyncStmt, WsSyncStmtClient};
 use crate::{infra::*, stmt, TaosBuilder};
 
-
 use std::cell::UnsafeCell;
 use std::fmt::Debug;
+use std::ops::AddAssign;
 use std::sync::atomic::{AtomicBool, AtomicU64};
-use std::sync::{Arc};
+use std::sync::Arc;
 use std::time::Duration;
 
 use scc::HashMap;
@@ -75,6 +75,7 @@ pub struct ResultSet {
     affected_rows: usize,
     precision: Precision,
     alive: Arc<AtomicBool>,
+    timing: UnsafeCell<Duration>,
     summary: UnsafeCell<(usize, usize)>,
 }
 
@@ -323,6 +324,8 @@ impl WsClient {
                                 log::debug!("fetch block with {} bytes.", block.len());
                                 let mut slice = block.as_slice();
                                 use taos_query::util::InlinableRead;
+                                let timing = slice.read_u64().unwrap();
+                                let timing = Duration::from_nanos(timing as _);
                                 let res_id = slice.read_u64().unwrap();
                                 if is_v3 {
                                     // v3
@@ -330,7 +333,11 @@ impl WsClient {
                                     if let Some(v) = fetches_sender.read(&res_id, |_, v| v.clone())
                                     {
                                         log::debug!("send data to fetches with id {}", res_id);
-                                        v.send(Ok(WsFetchData::Block(block[8..].to_vec()).clone()))
+                                        v.send(Ok(WsFetchData::Block(
+                                            timing,
+                                            block[16..].to_vec(),
+                                        )
+                                        .clone()))
                                             .unwrap();
                                     }
                                 } else {
@@ -339,8 +346,11 @@ impl WsClient {
                                     if let Some(v) = fetches_sender.read(&res_id, |_, v| v.clone())
                                     {
                                         log::debug!("send data to fetches with id {}", res_id);
-                                        v.send(Ok(WsFetchData::BlockV2(block[8..].to_vec())))
-                                            .unwrap();
+                                        v.send(Ok(WsFetchData::BlockV2(
+                                            timing,
+                                            block[16..].to_vec(),
+                                        )))
+                                        .unwrap();
                                     }
                                 }
                             }
@@ -469,6 +479,7 @@ impl WsClient {
                 },
                 alive: self.alive.clone(),
                 summary: UnsafeCell::default(),
+                timing: UnsafeCell::new(resp.timing),
             })
         } else {
             Ok(ResultSet {
@@ -487,6 +498,7 @@ impl WsClient {
                 precision: resp.precision,
                 alive: self.alive.clone(),
                 summary: UnsafeCell::default(),
+                timing: UnsafeCell::new(resp.timing),
             })
         }
     }
@@ -572,6 +584,11 @@ impl ResultSet {
             unreachable!()
         };
 
+        unsafe {
+            let t = &mut *self.timing.get();
+            t.add_assign(fetch_resp.timing);
+        }
+
         if fetch_resp.completed {
             return Ok(None);
         }
@@ -581,7 +598,7 @@ impl ResultSet {
         self.sender.send_timeout(fetch_block, self.timeout).await?;
 
         match rx.recv_timeout(self.timeout)?? {
-            WsFetchData::Block(raw) => {
+            WsFetchData::Block(timing, raw) => {
                 let mut raw = RawBlock::parse_from_raw_block(
                     raw,
                     fetch_resp.rows,
@@ -596,9 +613,14 @@ impl ResultSet {
                     }
                 }
                 raw.with_field_names(self.fields.as_ref().unwrap().iter().map(Field::name));
+
+                unsafe {
+                    let t = &mut *self.timing.get();
+                    t.add_assign(timing);
+                }
                 Ok(Some(raw))
             }
-            WsFetchData::BlockV2(raw) => {
+            WsFetchData::BlockV2(timing, raw) => {
                 let mut raw = RawBlock::parse_from_raw_block_v2(
                     raw,
                     self.fields.as_ref().unwrap(),
@@ -613,7 +635,13 @@ impl ResultSet {
                         log::debug!("({}, {}): {:?}", row, col, v);
                     }
                 }
+
                 raw.with_field_names(self.fields.as_ref().unwrap().iter().map(Field::name));
+
+                unsafe {
+                    let t = &mut *self.timing.get();
+                    t.add_assign(timing);
+                }
                 Ok(Some(raw))
             }
             _ => Ok(None),
@@ -623,6 +651,12 @@ impl ResultSet {
         let rt = &self.rt;
         let future = self.fetch_block_a();
         rt.block_on(future)
+    }
+
+    pub fn take_timing(&mut self) -> Duration {
+        let timing = *self.timing.get_mut();
+        self.timing = UnsafeCell::new(Duration::ZERO);
+        timing
     }
 }
 impl Iterator for ResultSet {
