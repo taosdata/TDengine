@@ -110,6 +110,8 @@ class TDTestCase:
                     "rowsPerTbl": 100,
                     "batchNum": 5000
                     }
+        username="user1"
+        passwd="123"
                     
         dnodeNumbers=int(dnodeNumbers)
         mnodeNums=int(mnodeNums)
@@ -140,76 +142,97 @@ class TDTestCase:
         print(tdSql.queryResult)
         clusterComCheck.checkDnodes(dnodeNumbers)
 
-        # create database and stable
-        clusterComCreate.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])
-        tdLog.info("Take turns stopping Mnodes ") 
-
+        # recreate mnode
+        tdSql.execute("drop dnode 2;")
+        tdSql.execute('create dnode "%s:6130";'%self.host)
         tdDnodes=cluster.dnodes
-        stopcount =0
-        threads=[]
+        tdDnodes[1].stoptaosd()
+        tdDnodes[1].deploy()
 
-        # create stable:stb_0
-        stableName= paraDict['stbName']
-        newTdSql=tdCom.newTdSql()
-        clusterComCreate.create_stables(newTdSql, paraDict["dbName"],stableName,paraDict['stbNumbers'])
-        #create child table:ctb_0
-        for i in range(paraDict['stbNumbers']):
-            stableName= '%s_%d'%(paraDict['stbName'],i)
-            newTdSql=tdCom.newTdSql()
-            clusterComCreate.create_ctable(newTdSql, paraDict["dbName"],stableName,stableName, paraDict['ctbNum'])
-        #insert date
-        for i in range(paraDict['stbNumbers']):
-            stableName= '%s_%d'%(paraDict['stbName'],i)
-            newTdSql=tdCom.newTdSql()
-            threads.append(threading.Thread(target=clusterComCreate.insert_data, args=(newTdSql, paraDict["dbName"],stableName,paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])))
-        for tr in threads:
-            tr.start()
-        for tr in threads:
-            tr.join()
-
-        while stopcount < restartNumbers:
-            tdLog.info(" restart loop: %d"%stopcount )
-            if stopRole == "mnode":
-                for i in range(mnodeNums):
-                    tdDnodes[i].stoptaosd()
-                    # sleep(10)
-                    tdDnodes[i].starttaosd()
-                    # sleep(10) 
-            elif stopRole == "vnode":
-                for i in range(vnodeNumbers):
-                    tdDnodes[i+mnodeNums].stoptaosd()
-                    # sleep(10)
-                    tdDnodes[i+mnodeNums].starttaosd()
-                    # sleep(10)
-            elif stopRole == "dnode":
-                for i in range(dnodeNumbers):
-                    tdDnodes[i].stoptaosd()
-                    # sleep(10)
-                    tdDnodes[i].starttaosd()
-                    # sleep(10) 
-
-            # dnodeNumbers don't include database of schema
-            if clusterComCheck.checkDnodes(dnodeNumbers):
-                tdLog.info("dnode is ready")
-            else:
-                print("dnodes is not  ready")
-                self.stopThread(threads)
-                tdLog.exit("one or more of dnodes failed to start ")
-                # self.check3mnode()
-            stopcount+=1
-            
-
+        tdDnodes[1].starttaosd()
         clusterComCheck.checkDnodes(dnodeNumbers)
-        clusterComCheck.checkDbRows(dbNumbers)
-        # clusterComCheck.checkDb(dbNumbers,1,paraDict["dbName"])
 
-        tdSql.execute("use %s" %(paraDict["dbName"]))
-        tdSql.query("show stables")
-        tdSql.checkRows(paraDict["stbNumbers"])
+        tdSql.execute("create mnode on dnode 6")
+        tdSql.error("drop dnode 1;")
+
+        # check status of clusters
+        clusterComCheck.checkMnodeStatus(3)
+        tdSql.execute("create user %s pass '%s' ;"%(username,passwd))
+        tdSql.query("show users")
+        for i in range(tdSql.queryRows):
+            if tdSql.queryResult[i][0] == "%s"%username :
+                tdLog.info("create user:%s successfully"%username)
+                
+        # # create database and stable
+        # clusterComCreate.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])
+        # tdLog.info("Take turns stopping Mnodes ") 
+
+        # tdDnodes=cluster.dnodes
+        # stopcount =0
+        # threads=[]
+
+        # # create stable:stb_0
+        # stableName= paraDict['stbName']
+        # newTdSql=tdCom.newTdSql()
+        # clusterComCreate.create_stables(newTdSql, paraDict["dbName"],stableName,paraDict['stbNumbers'])
+        # #create child table:ctb_0
         # for i in range(paraDict['stbNumbers']):
         #     stableName= '%s_%d'%(paraDict['stbName'],i)
-        #     tdSql.query("select * from %s"%stableName)
-        #     tdSql.checkRows(rowsPerStb)
+        #     newTdSql=tdCom.newTdSql()
+        #     clusterComCreate.create_ctable(newTdSql, paraDict["dbName"],stableName,stableName, paraDict['ctbNum'])
+        # #insert date
+        # for i in range(paraDict['stbNumbers']):
+        #     stableName= '%s_%d'%(paraDict['stbName'],i)
+        #     newTdSql=tdCom.newTdSql()
+        #     threads.append(threading.Thread(target=clusterComCreate.insert_data, args=(newTdSql, paraDict["dbName"],stableName,paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])))
+        # for tr in threads:
+        #     tr.start()
+        # for tr in threads:
+        #     tr.join()
+
+        # while stopcount < restartNumbers:
+        #     tdLog.info(" restart loop: %d"%stopcount )
+        #     if stopRole == "mnode":
+        #         for i in range(mnodeNums):
+        #             tdDnodes[i].stoptaosd()
+        #             # sleep(10)
+        #             tdDnodes[i].starttaosd()
+        #             # sleep(10) 
+        #     elif stopRole == "vnode":
+        #         for i in range(vnodeNumbers):
+        #             tdDnodes[i+mnodeNums].stoptaosd()
+        #             # sleep(10)
+        #             tdDnodes[i+mnodeNums].starttaosd()
+        #             # sleep(10)
+        #     elif stopRole == "dnode":
+        #         for i in range(dnodeNumbers):
+        #             tdDnodes[i].stoptaosd()
+        #             # sleep(10)
+        #             tdDnodes[i].starttaosd()
+        #             # sleep(10) 
+
+        #     # dnodeNumbers don't include database of schema
+        #     if clusterComCheck.checkDnodes(dnodeNumbers):
+        #         tdLog.info("dnode is ready")
+        #     else:
+        #         print("dnodes is not  ready")
+        #         self.stopThread(threads)
+        #         tdLog.exit("one or more of dnodes failed to start ")
+        #         # self.check3mnode()
+        #     stopcount+=1
+            
+
+        # clusterComCheck.checkDnodes(dnodeNumbers)
+        # clusterComCheck.checkDbRows(dbNumbers)
+        # # clusterComCheck.checkDb(dbNumbers,1,paraDict["dbName"])
+
+        # tdSql.execute("use %s" %(paraDict["dbName"]))
+        # tdSql.query("show stables")
+        # tdSql.checkRows(paraDict["stbNumbers"])
+        # # for i in range(paraDict['stbNumbers']):
+        # #     stableName= '%s_%d'%(paraDict['stbName'],i)
+        # #     tdSql.query("select * from %s"%stableName)
+        # #     tdSql.checkRows(rowsPerStb)
 
     def run(self): 
         # print(self.master_dnode.cfgDict)

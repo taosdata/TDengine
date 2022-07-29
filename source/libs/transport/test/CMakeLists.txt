@@ -1,6 +1,7 @@
 add_executable(transportTest "")
 add_executable(transUT "")
-add_executable(pushServer "")
+add_executable(svrBench "")
+add_executable(cliBench "")
 
 target_sources(transUT
   PRIVATE
@@ -12,9 +13,13 @@ target_sources(transportTest
   "transportTests.cpp"
 )
 
-target_sources(pushServer
+target_sources(svrBench
   PRIVATE
-  "pushServer.c"
+  "svrBench.c"
+)
+target_sources(cliBench
+  PRIVATE
+  "cliBench.c"
 )
 
 target_include_directories(transportTest 
@@ -45,13 +50,37 @@ target_include_directories(transUT
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
-target_include_directories(pushServer
+target_include_directories(svrBench
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/transport" 
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(svrBench
   PUBLIC
   "${TD_SOURCE_DIR}/include/libs/transport" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
-target_link_libraries (pushServer
+target_link_libraries (svrBench
+  os  
+  util
+  common
+  gtest_main
+  transport 
+)
+
+target_include_directories(cliBench
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/transport" 
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(cliBench
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/transport" 
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+
+target_link_libraries (cliBench
   os  
   util
   common

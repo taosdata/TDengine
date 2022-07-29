@@ -1091,6 +1091,8 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pSup->pCtx, pBlock, pInfo->order, scanFlag, true);
+    blockDataUpdateTsWindow(pBlock, pInfo->primaryTsIndex);    
+    
     hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, scanFlag, NULL);
   }
 
