@@ -297,6 +297,20 @@ enum {
   TABLE_SCAN__BLOCK_ORDER = 2,
 };
 
+typedef struct SAggSupporter {
+    SHashObj*      pResultRowHashTable;  // quick locate the window object for each result
+    char*          keyBuf;               // window key buffer
+    SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
+    int32_t        resultRowSize;        // the result buffer size for each result row, with the meta data size for each row
+} SAggSupporter;
+
+typedef struct {
+    // if the upstream is an interval operator, the interval info is also kept here to get the time window to check if current data block needs to be loaded.
+ SInterval      interval;
+ SAggSupporter *pAggSup;
+ SExprSupp     *pExprSup;         // expr supporter of aggregate operator
+} SAggOptrPushDownInfo;
+
 typedef struct STableScanInfo {
   STsdbReader*    dataReader;
   SReadHandle     readHandle;
@@ -312,12 +326,13 @@ typedef struct STableScanInfo {
   SQueryTableDataCond cond;
   int32_t         scanFlag;     // table scan flag to denote if it is a repeat/reverse/main scan
   int32_t         dataBlockLoadFlag;
-  SInterval       interval;     // if the upstream is an interval operator, the interval info is also kept here to get the time window to check if current data block needs to be loaded.
+//  SInterval       interval;     // if the upstream is an interval operator, the interval info is also kept here to get the time window to check if current data block needs to be loaded.
   SSampleExecInfo sample;       // sample execution info
   int32_t         currentGroupId;
   int32_t         currentTable;
   int8_t          scanMode;
   int8_t          noTable;
+  SAggOptrPushDownInfo pdInfo;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
@@ -503,13 +518,6 @@ typedef struct SOptrBasicInfo {
   SResultRowInfo  resultRowInfo;
   SSDataBlock*    pRes;
 } SOptrBasicInfo;
-
-typedef struct SAggSupporter {
-  SHashObj*      pResultRowHashTable;  // quick locate the window object for each result
-  char*          keyBuf;               // window key buffer
-  SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
-  int32_t        resultRowSize;        // the result buffer size for each result row, with the meta data size for each row
-} SAggSupporter;
 
 typedef struct SIntervalAggOperatorInfo {
   // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode

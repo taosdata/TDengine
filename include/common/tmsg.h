@@ -1404,7 +1404,7 @@ typedef struct STableScanAnalyzeInfo {
   uint32_t skipBlocks;
   uint32_t filterOutBlocks;
   double   elapsedTime;
-  uint64_t filterTime;
+  double   filterTime;
 } STableScanAnalyzeInfo;
 
 int32_t tSerializeSExplainRsp(void* buf, int32_t bufLen, SExplainRsp* pRsp);
