@@ -694,8 +694,8 @@ static int32_t tsdbSnapWriteTableDataImpl(STsdbSnapWriter* pWriter) {
     if (pWriter->bDataW.nRow < pWriter->maxRow * 4 / 5) continue;
 
   _write_block:
-    code = tsdbWriteBlockData(pWriter->pDataFWriter, &pWriter->bDataW, NULL, NULL, pWriter->pBlockIdx, &pWriter->blockW,
-                              pWriter->cmprAlg);
+    code = tsdbWriteBlockData(pWriter->pDataFWriter, &pWriter->bDataW, NULL, NULL, pWriter->pBlockIdxW,
+                              &pWriter->blockW, pWriter->cmprAlg);
     if (code) goto _err;
 
     code = tMapDataPutItem(&pWriter->mBlockW, &pWriter->blockW, tPutBlock);
@@ -756,7 +756,7 @@ static int32_t tsdbSnapWriteTableData(STsdbSnapWriter* pWriter, TABLEID id) {
     if (pWriter->iBlockIdx < taosArrayGetSize(pWriter->aBlockIdx)) {
       ASSERT(pWriter->pDataFReader);
 
-      SBlockIdx* pBlockIdx = (SBlockIdx*)taosArrayGet(pWriter->aBlockIdx, pWriter->iBlock);
+      SBlockIdx* pBlockIdx = (SBlockIdx*)taosArrayGet(pWriter->aBlockIdx, pWriter->iBlockIdx);
       int32_t    c = tTABLEIDCmprFn(pBlockIdx, &id);
 
       ASSERT(c >= 0);
@@ -833,7 +833,7 @@ static int32_t tsdbSnapWriteDataEnd(STsdbSnapWriter* pWriter) {
   }
 
 _exit:
-  tsdbError("vgId:%d vnode snapshot tsdb writer data end", TD_VID(pTsdb->pVnode));
+  tsdbInfo("vgId:%d vnode snapshot tsdb writer data end", TD_VID(pTsdb->pVnode));
   return code;
 
 _err:
