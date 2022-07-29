@@ -328,7 +328,7 @@ impl Fetchable for ResultSet {
 }
 
 impl Iterator for ResultSet {
-    type Item = RawData;
+    type Item = RawBlock;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.raw.fetch_raw_block() {

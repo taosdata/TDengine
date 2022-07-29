@@ -2,10 +2,13 @@
 //!
 #![cfg_attr(nightly, feature(const_slice_from_raw_parts))]
 #![cfg_attr(nightly, feature(const_slice_index))]
+#![feature(fn_traits)]
+#![feature(unboxed_closures)]
 
 use std::{
     collections::BTreeMap,
     fmt::{Debug, Display},
+    mem::MaybeUninit,
     ops::{Deref, DerefMut},
     rc::Rc,
 };
@@ -24,14 +27,42 @@ pub mod util;
 use common::*;
 pub use iter::*;
 
-pub use common::RawData;
+pub use common::RawBlock;
 
 pub mod stmt;
+pub mod tmq;
 
 pub mod prelude;
 
 pub use prelude::sync::{Fetchable, Queryable};
 pub use prelude::{AsyncFetchable, AsyncQueryable};
+
+static mut RT: MaybeUninit<tokio::runtime::Runtime> = MaybeUninit::uninit();
+static INIT: std::sync::Once = std::sync::Once::new();
+
+pub fn global_tokio_runtime() -> &'static tokio::runtime::Runtime {
+    unsafe {
+        INIT.call_once(|| {
+            RT.write(
+                tokio::runtime::Builder::new_multi_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap(),
+            );
+        });
+        RT.assume_init_mut()
+    }
+}
+
+pub fn block_in_place_or_global<F: std::future::Future>(fut: F) -> F::Output {
+    use tokio::runtime::Handle;
+    use tokio::task;
+
+    match Handle::try_current() {
+        Ok(handle) => task::block_in_place(move || handle.block_on(fut)),
+        Err(_) => global_tokio_runtime().block_on(fut),
+    }
+}
 
 pub enum CodecOpts {
     Raw,
@@ -54,7 +85,7 @@ impl Display for PingError {
 }
 
 /// A struct is `Connectable` when it can be build from a `Dsn`.
-pub trait Connectable: Sized + Send + Sync + 'static {
+pub trait TBuilder: Sized + Send + Sync + 'static {
     type Target: Send + Sync + 'static;
     type Error: std::error::Error + From<DsnError>;
 
@@ -67,9 +98,6 @@ pub trait Connectable: Sized + Send + Sync + 'static {
     /// Get client version.
     fn client_version() -> &'static str;
 
-    /// Get server version.
-    fn server_version(&self) -> &str;
-
     /// Check a connection is still alive.
     fn ping(&self, _: &mut Self::Target) -> Result<(), Self::Error>;
 
@@ -80,7 +108,7 @@ pub trait Connectable: Sized + Send + Sync + 'static {
     fn ready(&self) -> bool;
 
     /// Create a new connection from this struct.
-    fn connect(&self) -> Result<Self::Target, Self::Error>;
+    fn build(&self) -> Result<Self::Target, Self::Error>;
 
     /// Build connection pool with [r2d2::Pool]
     #[cfg(feature = "r2d2")]
@@ -100,13 +128,13 @@ pub trait Connectable: Sized + Send + Sync + 'static {
 }
 
 #[cfg(feature = "r2d2")]
-impl<T: Connectable> r2d2::ManageConnection for Manager<T> {
+impl<T: TBuilder> r2d2::ManageConnection for Manager<T> {
     type Connection = T::Target;
 
     type Error = T::Error;
 
     fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        self.deref().connect()
+        self.deref().build()
     }
 
     fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
@@ -136,7 +164,7 @@ impl<T> DerefMut for Manager<T> {
     }
 }
 
-impl<T: Connectable> Default for Manager<T> {
+impl<T: TBuilder> Default for Manager<T> {
     fn default() -> Self {
         Self {
             manager: T::from_dsn("taos:///").expect("connect with empty default TDengine dsn"),
@@ -144,7 +172,7 @@ impl<T: Connectable> Default for Manager<T> {
     }
 }
 
-impl<T: Connectable> Manager<T> {
+impl<T: TBuilder> Manager<T> {
     pub fn new(builder: T) -> Self {
         Self { manager: builder }
     }
@@ -198,14 +226,14 @@ mod tests {
     struct MyResultSet;
 
     impl Iterator for MyResultSet {
-        type Item = Result<RawData, Error>;
+        type Item = Result<RawBlock, Error>;
 
         fn next(&mut self) -> Option<Self::Item> {
             static mut AVAILABLE: bool = true;
             if unsafe { AVAILABLE } {
                 unsafe { AVAILABLE = false };
 
-                Some(Ok(RawData::parse_from_raw_block_v2(
+                Some(Ok(RawBlock::parse_from_raw_block_v2(
                     [1].as_slice(),
                     &[Field::new("a", Ty::TinyInt, 1)],
                     &[1],
@@ -238,9 +266,9 @@ mod tests {
             0
         }
 
-        fn update_summary(&mut self, rows: usize) {}
+        fn update_summary(&mut self, _rows: usize) {}
 
-        fn fetch_raw_block(&mut self) -> Result<Option<RawData>, Self::Error> {
+        fn fetch_raw_block(&mut self) -> Result<Option<RawBlock>, Self::Error> {
             static mut B: AtomicUsize = AtomicUsize::new(4);
             unsafe {
                 if B.load(std::sync::atomic::Ordering::SeqCst) == 0 {
@@ -249,7 +277,7 @@ mod tests {
             }
             unsafe { B.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) };
 
-            Ok(Some(RawData::parse_from_raw_block_v2(
+            Ok(Some(RawBlock::parse_from_raw_block_v2(
                 [1].as_slice(),
                 &[Field::new("a", Ty::TinyInt, 1)],
                 &[1],
@@ -281,7 +309,7 @@ mod tests {
         }
     }
 
-    impl Connectable for Conn {
+    impl TBuilder for Conn {
         type Target = MyResultSet;
 
         type Error = Error;
@@ -290,7 +318,7 @@ mod tests {
             &[]
         }
 
-        fn from_dsn<D: IntoDsn>(dsn: D) -> Result<Self, Self::Error> {
+        fn from_dsn<D: IntoDsn>(_dsn: D) -> Result<Self, Self::Error> {
             Ok(Self)
         }
 
@@ -298,15 +326,11 @@ mod tests {
             "3"
         }
 
-        fn server_version(&self) -> &str {
-            "3"
-        }
-
         fn ready(&self) -> bool {
             true
         }
 
-        fn connect(&self) -> Result<Self::Target, Self::Error> {
+        fn build(&self) -> Result<Self::Target, Self::Error> {
             Ok(MyResultSet)
         }
 
@@ -326,6 +350,10 @@ mod tests {
 
         fn exec<T: AsRef<str>>(&self, _sql: T) -> Result<usize, Self::Error> {
             Ok(1)
+        }
+
+        fn write_meta(&self, _: RawMeta) -> Result<(), Self::Error> {
+            Ok(())
         }
     }
     #[test]
@@ -381,8 +409,6 @@ mod tests {
         assert_eq!(aff, 1);
 
         let mut set = conn.query("abc").unwrap();
-
-        use futures::stream::*;
 
         for row in set.deserialize::<u8>() {
             let row = row.unwrap();

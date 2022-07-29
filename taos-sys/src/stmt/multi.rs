@@ -1,10 +1,3 @@
-use taos_query::common::{
-    itypes::{IsPrimitive, IsValue},
-    Ty,
-};
-
-use crate::{BindFrom, TaosBind, TaosBindV2, TaosMultiBind};
-
 fn box_into_raw<T>(v: T) -> *mut T {
     Box::into_raw(Box::new(v))
 }
@@ -58,7 +51,7 @@ fn box_into_raw<T>(v: T) -> *mut T {
 
 #[cfg(test)]
 mod tests {
-    use crate::{TaosBind, TaosBindV2};
+    use crate::types::TaosBindV2;
 
     #[test]
     fn bind_bool() {

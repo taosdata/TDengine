@@ -1,16 +1,15 @@
 use std::{
     cell::UnsafeCell,
-    ffi::{CStr, CString},
     os::raw::{c_int, c_void},
     pin::Pin,
     task::{Context, Poll, Waker},
 };
 
 use futures::Stream;
-use taos_error::{Code, Error};
-use taos_query::common::{Field, Precision, RawData};
+use taos_error::Error;
+use taos_query::common::{Field, Precision, RawBlock};
 
-use crate::ffi::{taos_fetch_raw_block_a, taos_get_raw_block, TAOS_RES};
+use crate::ffi::{taos_get_raw_block, TAOS_RES};
 
 use super::raw_res::RawRes;
 
@@ -23,7 +22,7 @@ pub struct Blocks {
 }
 
 impl Iterator for Blocks {
-    type Item = Result<RawData, Error>;
+    type Item = Result<RawBlock, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.res.fetch_raw_block(&self.fields).transpose()
@@ -31,7 +30,7 @@ impl Iterator for Blocks {
 }
 
 impl IntoIterator for RawRes {
-    type Item = Result<RawData, Error>;
+    type Item = Result<RawBlock, Error>;
 
     type IntoIter = Blocks;
 
@@ -59,7 +58,7 @@ impl Default for SharedState {
 }
 
 impl Stream for Blocks {
-    type Item = Result<RawData, Error>;
+    type Item = Result<RawBlock, Error>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let state = unsafe { &mut *self.shared_state.get() };
@@ -74,14 +73,15 @@ impl Stream for Blocks {
             if state.num > 0 {
                 // has next block.
                 let mut raw = unsafe {
-                    RawData::parse_from_ptr(
+                    RawBlock::parse_from_ptr(
                         state.block as _,
                         state.num as usize,
                         self.fields.len(),
                         self.precision,
                     )
                 };
-                raw.with_fields(self.fields.clone());
+                raw.with_field_names(self.fields.iter().map(|f| f.name()));
+
                 if state.num > 100 {
                     state.num = 0;
                     state.done = false;

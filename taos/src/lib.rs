@@ -31,8 +31,6 @@ pub mod helpers;
 
 pub mod stream;
 
-mod result;
-
 pub mod tmq;
 
 mod schemaless;
@@ -118,7 +116,7 @@ pub mod prelude {
     pub use crate::schemaless::{SchemalessPrecision, SchemalessProtocol};
     pub use crate::stmt::{TaosBind, TaosMultiBind};
     pub use crate::Taos;
-    pub use taos_query::common::{Precision, RawData, Timestamp, Ty, Value};
+    pub use taos_query::common::{Precision, RawBlock, Timestamp, Ty, Value};
     pub use taos_query::{common, AsyncFetchable, AsyncQueryable, BlockCodec, BlockExt};
 
     #[cfg(feature = "r2d2")]
@@ -141,7 +139,7 @@ pub mod prelude {
         pub use crate::Taos;
         // pub use mdsn::{Dsn, IntoDsn};
 
-        pub use taos_query::common::{Precision, RawData, Timestamp, Ty, Value};
+        pub use taos_query::common::{Precision, RawBlock, Timestamp, Ty, Value};
         pub use taos_query::{common, BlockCodec, BlockExt, Fetchable, Queryable};
 
         #[cfg(feature = "r2d2")]

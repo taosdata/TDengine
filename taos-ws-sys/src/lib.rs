@@ -11,7 +11,7 @@ use std::{
 use taos_error::Code;
 
 use taos_query::{
-    common::{Field, RawData as Block, Timestamp},
+    common::{Field, RawBlock as Block, Timestamp},
     common::{Precision, Ty},
     Fetchable,
 };

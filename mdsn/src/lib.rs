@@ -95,6 +95,10 @@ pub enum DsnError {
     InvalidAddresses(Vec<Address>),
     #[error("requires database: {0}")]
     RequireDatabase(String),
+    #[error("requires parameter: {0}")]
+    RequireParam(String),
+    #[error("invalid parameter for {0}: {1}")]
+    InvalidParam(String, String),
 }
 
 /// A simple struct to represent a server address, with host:port or socket path.

@@ -1,6 +1,7 @@
 use std::fmt;
 
-use super::Inlinable;
+// use super::{Inlinable, AsyncInlinable};
+use tokio::io::*;
 
 #[repr(C)]
 #[repr(packed(1))]
@@ -36,27 +37,40 @@ macro_rules! _impl_inline_str {
                 }
             }
 
-            impl Inlinable for InlineStr<$ty> {
+            impl super::Inlinable for InlineStr<$ty> {
                 #[inline]
-                fn write_inlined<W: std::io::Write>(&self, mut wtr: W) -> std::io::Result<usize> {
+                fn write_inlined<W: std::io::Write>(&self, wtr: &mut W) -> std::io::Result<usize> {
                     let l = wtr.write(&self.len.to_le_bytes())?;
                     Ok(l + wtr.write(self.as_bytes())?)
                 }
 
                 #[inline]
-                fn read_inlined<R: std::io::Read>(_: R) -> std::io::Result<Self> {
+                fn read_inlined<R: std::io::Read>(_: &mut R) -> std::io::Result<Self> {
+                    Err(std::io::Error::new(std::io::ErrorKind::Other, "can't read into a inlined string"))
+                }
+            }
+
+            #[async_trait::async_trait]
+            impl super::AsyncInlinable for InlineStr<$ty> {
+                #[inline]
+                async fn write_inlined<W: AsyncWrite + Unpin + Send>(&self, wtr: &mut W) -> std::io::Result<usize> {
+                    let l = wtr.write(&self.len.to_le_bytes()).await?;
+                    Ok(l + wtr.write(self.as_bytes()).await?)
+                }
+
+                async fn read_inlined<R: AsyncRead + Send + Unpin>(_: &mut R) -> std::io::Result<Self> {
                     Err(std::io::Error::new(std::io::ErrorKind::Other, "can't read into a inlined string"))
                 }
             }
 
             impl InlineStr<$ty> {
                 #[inline]
-                pub fn from_ptr<'a>(ptr: *const u8) -> &'a Self {
-                    unsafe { std::mem::transmute::<*const u8, &InlineStr<$ty>>(ptr) }
+                pub const fn from_ptr<'a>(ptr: *const u8) -> &'a Self {
+                    unsafe { &*std::mem::transmute::<*const u8, *const InlineStr<$ty>>(ptr) }
                 }
 
                 #[inline]
-                pub fn as_ptr(&self) -> *const u8 {
+                pub const fn as_ptr(&self) -> *const u8 {
                     self.data.as_ptr()
                 }
 
@@ -90,6 +104,7 @@ _impl_inline_str!(u8 u16 u32 u64 usize);
 macro_rules! _impl_test_inline_str {
     ($ty:ty, $bytes:literal, $print:literal) => {{
         let bytes = $bytes;
+        use super::Inlinable;
         let inline = InlineStr::<$ty>::from_ptr(bytes.as_ptr());
         dbg!(inline);
         assert_eq!(inline.len(), 4);

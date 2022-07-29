@@ -15,7 +15,8 @@ bytes = "1.1.0"
 # parking_lot = "0.12.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
-serde_with = "1.14.0"
+serde_with = "2.0.0"
+serde_repr = "0.1.8"
 thiserror = "1"
 # tungstenite = { version = "0.17", features = ["native-tls-vendored"] }
 

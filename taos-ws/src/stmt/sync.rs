@@ -8,7 +8,7 @@ pub struct WsSyncStmtClient {
 }
 
 impl WsSyncStmtClient {
-    pub(crate) fn new(info: &WsInfo, rt: Arc<Runtime>) -> Result<Self> {
+    pub(crate) fn new(info: &TaosBuilder, rt: Arc<Runtime>) -> Result<Self> {
         let client = rt.block_on(WsStmtClient::from_wsinfo(info))?;
         Ok(Self { rt, client })
     }
@@ -75,79 +75,86 @@ impl WsSyncStmt {
     }
 }
 
-#[test]
-fn test_stmt_stable() -> anyhow::Result<()> {
-    use crate::Ws;
-    use taos_query::Queryable;
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+    use taos_query::{Dsn, TBuilder};
 
-    let dsn = Dsn::from_str("taos://localhost:6041")?;
-    dbg!(&dsn);
-    let taos = crate::sync::WsClient::from_dsn(&dsn)?;
+    
+    #[test]
+    fn test_stmt_stable() -> anyhow::Result<()> {
+        
+        use taos_query::Queryable;
 
-    taos.exec("drop database if exists stmt_s")?;
-    taos.exec("create database stmt_s")?;
-    taos.exec("create table stmt_s.stb (ts timestamp, v int) tags(t1 binary(100))")?;
+        let dsn = Dsn::try_from("taos://localhost:6041")?;
+        dbg!(&dsn);
+        let taos = crate::sync::WsClient::from_dsn(&dsn)?;
 
-    std::env::set_var("RUST_LOG", "debug");
-    pretty_env_logger::init();
+        taos.exec("drop database if exists stmt_s")?;
+        taos.exec("create database stmt_s")?;
+        taos.exec("create table stmt_s.stb (ts timestamp, v int) tags(t1 binary(100))")?;
 
-    let mut stmt = taos.stmt_init()?;
+        std::env::set_var("RUST_LOG", "debug");
+        pretty_env_logger::init();
 
-    stmt.prepare("insert into ? using stmt_s.stb tags(?) values(?, ?)")?;
+        let mut stmt = taos.stmt_init()?;
 
-    stmt.set_tbname("stmt_s.tb1")?;
+        stmt.prepare("insert into ? using stmt_s.stb tags(?) values(?, ?)")?;
 
-    // stmt.set_tags(vec![json!({"name": "value"})]).await?;
+        stmt.set_tbname("stmt_s.tb1")?;
 
-    // stmt.set_tags(vec![json!(json!({"name": "value"}))])?;
-    stmt.set_tags(vec![json!(r#"{"a":"b"}"#)])?;
+        // stmt.set_tags(vec![json!({"name": "value"})]).await?;
 
-    stmt.bind_all(vec![
-        json!([
-            "2022-06-07T11:02:44.022450088+08:00",
-            "2022-06-07T11:02:45.022450088+08:00"
-        ]),
-        json!([2, 3]),
-    ])?;
-    let res = stmt.exec()?;
+        // stmt.set_tags(vec![json!(json!({"name": "value"}))])?;
+        stmt.set_tags(vec![json!(r#"{"a":"b"}"#)])?;
 
-    assert_eq!(res, 2);
-    taos.exec("drop database stmt_s")?;
-    Ok(())
-}
+        stmt.bind_all(vec![
+            json!([
+                "2022-06-07T11:02:44.022450088+08:00",
+                "2022-06-07T11:02:45.022450088+08:00"
+            ]),
+            json!([2, 3]),
+        ])?;
+        let res = stmt.exec()?;
 
-#[test]
-fn test_stmt_table() -> anyhow::Result<()> {
-    use crate::Ws;
-    use taos_query::Queryable;
+        assert_eq!(res, 2);
+        taos.exec("drop database stmt_s")?;
+        Ok(())
+    }
 
-    let dsn = Dsn::from_str("taos://localhost:6041")?;
-    dbg!(&dsn);
-    let taos = crate::sync::WsClient::from_dsn(&dsn)?;
+    #[test]
+    fn test_stmt_table() -> anyhow::Result<()> {
+        
+        use taos_query::Queryable;
 
-    taos.exec("drop database if exists stmt_c")?;
-    taos.exec("create database stmt_c")?;
-    taos.exec("create table stmt_c.tb1 (ts timestamp, v int)")?;
+        let dsn = Dsn::try_from("taos://localhost:6041")?;
+        dbg!(&dsn);
+        let taos = crate::sync::WsClient::from_dsn(&dsn)?;
 
-    std::env::set_var("RUST_LOG", "debug");
-    pretty_env_logger::init();
+        taos.exec("drop database if exists stmt_c")?;
+        taos.exec("create database stmt_c")?;
+        taos.exec("create table stmt_c.tb1 (ts timestamp, v int)")?;
 
-    let mut stmt = taos.stmt_init()?;
+        std::env::set_var("RUST_LOG", "debug");
+        pretty_env_logger::init();
 
-    stmt.prepare("insert into ? values(?, ?)")?;
+        let mut stmt = taos.stmt_init()?;
 
-    stmt.set_tbname("stmt_c.`tb1`")?;
+        stmt.prepare("insert into ? values(?, ?)")?;
 
-    stmt.bind_all(vec![
-        json!([
-            "2022-06-07T11:02:44.022450088+08:00",
-            "2022-06-07T11:02:45.022450088+08:00"
-        ]),
-        json!([2, 3]),
-    ])?;
-    let res = stmt.exec()?;
+        stmt.set_tbname("stmt_c.`tb1`")?;
 
-    assert_eq!(res, 2);
-    taos.exec("drop database stmt_c")?;
-    Ok(())
+        stmt.bind_all(vec![
+            json!([
+                "2022-06-07T11:02:44.022450088+08:00",
+                "2022-06-07T11:02:45.022450088+08:00"
+            ]),
+            json!([2, 3]),
+        ])?;
+        let res = stmt.exec()?;
+
+        assert_eq!(res, 2);
+        taos.exec("drop database stmt_c")?;
+        Ok(())
+    }
 }

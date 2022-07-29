@@ -76,17 +76,21 @@ impl BlockStream {
             let mut raw = RawData::parse_from_ptr(raw as _, rows as usize, cols, precision);
 
             let field = taos_fetch_fields(res);
-            let fields: Vec<Field> = std::slice::from_raw_parts(field, cols)
-                .iter()
-                .map(|f| f.into())
-                .collect();
+            // let fields: Vec<Field> = std::slice::from_raw_parts(field, cols)
+            //     .iter()
+            //     .map(|f| f.into())
+            //     .collect();
 
-            raw.with_fields(fields);
+            raw.with_field_names(
+                std::slice::from_raw_parts(field, cols)
+                    .iter()
+                    .map(|f| f.name().to_str().unwrap()),
+            );
 
-            let db_name = tmq_get_db_name(res);
-            if !db_name.is_null() {
-                raw.with_database_name(CStr::from_ptr(db_name).to_str().unwrap());
-            }
+            // let db_name = tmq_get_db_name(res);
+            // if !db_name.is_null() {
+            //     raw.with_database_name(CStr::from_ptr(db_name).to_str().unwrap());
+            // }
 
             let tbname = tmq_get_table_name(res);
             if !tbname.is_null() {

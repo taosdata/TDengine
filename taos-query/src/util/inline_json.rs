@@ -38,13 +38,13 @@ macro_rules! _impl_inline_str {
 
             impl Inlinable for InlineJson<$ty> {
                 #[inline]
-                fn write_inlined<W: std::io::Write>(&self, mut wtr: W) -> std::io::Result<usize> {
+                fn write_inlined<W: std::io::Write>(&self, wtr: &mut W) -> std::io::Result<usize> {
                     let l = wtr.write(&self.len.to_le_bytes())?;
                     Ok(l + wtr.write(self.as_bytes())?)
                 }
 
                 #[inline]
-                fn read_inlined<R: std::io::Read>(_: R) -> std::io::Result<Self> {
+                fn read_inlined<R: std::io::Read>(_: &mut R) -> std::io::Result<Self> {
                     Err(std::io::Error::new(std::io::ErrorKind::Other, "can't read into a inlined string"))
                 }
             }

@@ -14,8 +14,8 @@ impl<'stmt> Stmt<'stmt> {
         self.0.execute()
     }
 
-    pub fn result(&mut self) -> ResultSet {
-        ResultSet::from_raw_res(self.0.use_result())
+    pub fn result(&mut self) -> Result<ResultSet> {
+        Ok(ResultSet::from_raw_res(self.0.use_result())?)
     }
 
     pub fn multi_bind(&mut self, params: &[TaosMultiBind]) -> Result<()> {

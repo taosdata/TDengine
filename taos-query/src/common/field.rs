@@ -1,5 +1,7 @@
 use std::fmt::{Debug, Display};
 
+use serde::{Deserialize, Serialize};
+
 use crate::util::{Inlinable, InlinableRead, InlinableWrite};
 
 use super::ty::Ty;
@@ -15,22 +17,25 @@ use super::ty::Ty;
 /// 2. `{ name: "n", ty: NChar, bytes: 100 }`, a `NCHAR` filed with name `n`,
 ///    bytes length 100 which is the length of the variable-length data.
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Field {
-    name: String,
-    ty: Ty,
-    bytes: u32,
+    pub(crate) name: String,
+    #[serde(rename = "type")]
+    pub(crate) ty: Ty,
+    #[serde(default)]
+    #[serde(rename = "length")]
+    pub(crate) bytes: u32,
 }
 
 impl Inlinable for Field {
-    fn write_inlined<W: std::io::Write>(&self, mut wtr: W) -> std::io::Result<usize> {
-        let mut l = wtr.write_u8(self.ty as u8)?;
-        l += wtr.write_u32(self.bytes)?;
+    fn write_inlined<W: std::io::Write>(&self, wtr: &mut W) -> std::io::Result<usize> {
+        let mut l = wtr.write_u8_le(self.ty as u8)?;
+        l += wtr.write_u32_le(self.bytes)?;
         l += wtr.write_inlined_str::<2>(&self.name)?;
         Ok(l)
     }
 
-    fn read_inlined<R: std::io::Read>(mut reader: R) -> std::io::Result<Self> {
+    fn read_inlined<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let ty = Ty::from(reader.read_u8()?);
         let bytes = reader.read_u32()?;
         let name = reader.read_inlined_str::<2>()?;
@@ -56,6 +61,11 @@ impl Field {
         &self.name
     }
 
+    /// Escaped file name
+    pub fn escaped_name(&self) -> String {
+        format!("`{}`", self.name())
+    }
+
     /// Data type of the field.
     pub const fn ty(&self) -> Ty {
         self.ty
@@ -74,9 +84,9 @@ impl Field {
     pub fn sql_repr(&self) -> String {
         let ty = self.ty();
         if ty.is_var_type() {
-            format!("{}({})", ty.name(), self.bytes())
+            format!("`{}` {}({})", self.name(), ty.name(), self.bytes())
         } else {
-            ty.name().to_string()
+            format!("`{}` {}", self.name(), ty.name())
         }
     }
 }
@@ -85,9 +95,9 @@ impl Display for Field {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let ty = self.ty();
         if ty.is_var_type() {
-            write!(f, "({}: {}({}))", self.name(), ty.name(), self.bytes())
+            write!(f, "`{}` {}({})", self.name(), ty.name(), self.bytes())
         } else {
-            write!(f, "({}: {})", self.name(), ty.name())
+            write!(f, "`{}` {}", self.name(), ty.name())
         }
     }
 }

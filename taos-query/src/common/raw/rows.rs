@@ -7,17 +7,17 @@ use serde::{
 
 use crate::{
     common::{BorrowedValue, Value},
-    RawData,
+    RawBlock,
 };
 
 pub struct IntoRowsIter<'a> {
-    pub(crate) raw: RawData,
+    pub(crate) raw: RawBlock,
     pub(crate) row: usize,
     pub(crate) _marker: PhantomData<&'a bool>,
 }
 
 pub struct RowsIter<'a> {
-    pub(super) raw: NonNull<RawData>,
+    pub(super) raw: NonNull<RawBlock>,
     pub(super) row: usize,
     pub(crate) _marker: PhantomData<&'a usize>,
 }
@@ -61,7 +61,7 @@ impl<'a> RowsIter<'a> {
 }
 
 pub struct ValueIter<'a> {
-    raw: &'a RawData,
+    raw: &'a RawBlock,
     row: usize,
     col: usize,
 }
@@ -83,7 +83,7 @@ impl<'a> Iterator for ValueIter<'a> {
 }
 
 pub struct RowView<'a> {
-    raw: &'a RawData,
+    raw: &'a RawBlock,
     row: usize,
     col: usize,
 }
@@ -182,7 +182,7 @@ impl<'de, 'a: 'de> Deserializer<'de> for &mut RowView<'a> {
     // Look at the input data to decide what Serde data model type to
     // deserialize as. Not all data formats are able to support this operation.
     // Formats that support `deserialize_any` are known as self-describing.
-    fn deserialize_any<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
@@ -204,7 +204,7 @@ impl<'de, 'a: 'de> Deserializer<'de> for &mut RowView<'a> {
 
     // Refer to the "Understanding deserializer lifetimes" page for information
     // about the three deserialization flavors of strings in Serde.
-    fn deserialize_str<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
@@ -226,7 +226,7 @@ impl<'de, 'a: 'de> Deserializer<'de> for &mut RowView<'a> {
         self.deserialize_str(visitor)
     }
 
-    fn deserialize_option<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
@@ -251,7 +251,7 @@ impl<'de, 'a: 'de> Deserializer<'de> for &mut RowView<'a> {
     }
 
     // In Serde, unit means an anonymous value containing no data.
-    fn deserialize_unit<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {

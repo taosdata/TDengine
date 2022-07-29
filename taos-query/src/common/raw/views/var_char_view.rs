@@ -1,4 +1,4 @@
-use std::{ffi::c_void, fmt::Debug, ops::Deref};
+use std::{ffi::c_void, fmt::Debug};
 
 use super::Offsets;
 use crate::{
@@ -69,7 +69,7 @@ impl VarCharView {
     pub(crate) unsafe fn get_raw_value_unchecked(&self, row: usize) -> (Ty, u32, *const c_void) {
         match self.get_unchecked(row) {
             Some(s) => (Ty::VarChar, s.len() as _, s.as_ptr() as _),
-            None => (Ty::Null, 0, std::ptr::null()),
+            None => (Ty::VarChar, 0, std::ptr::null()),
         }
     }
 

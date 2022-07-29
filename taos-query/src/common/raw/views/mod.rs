@@ -1,9 +1,9 @@
 mod bool_view;
-use bitvec::vec::IntoIter;
+
 pub use bool_view::BoolView;
 
 mod tinyint_view;
-use serde_json::map::Iter;
+
 pub use tinyint_view::TinyIntView;
 
 mod smallint_view;
@@ -62,13 +62,13 @@ use crate::common::{BorrowedValue, Column, Ty};
 use std::{ffi::c_void, fmt::Debug, iter::FusedIterator};
 
 /// Compatible version for var char.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum Version {
     V2,
     V3,
 }
 
 // #[derive(Debug)]
-#[derive(Clone)]
 pub enum ColumnView {
     Bool(BoolView),           // 1
     TinyInt(TinyIntView),     // 2

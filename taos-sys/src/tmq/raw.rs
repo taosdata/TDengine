@@ -3,17 +3,19 @@ pub(super) use list::Topics;
 pub(super) use tmq::RawTmq;
 
 pub(super) mod tmq {
-    use std::{os::raw::c_void, time::Duration};
+    use std::os::raw::c_void;
 
     use itertools::Itertools;
 
-    use crate::RawError;
+    use crate::{RawError, RawRes};
 
     use super::{super::ffi::*, Topics};
-    use crate::{query::RawRes, tmq_t, Message, Offset};
 
     #[derive(Debug, Clone, Copy)]
     pub(crate) struct RawTmq(pub(crate) *mut tmq_t);
+
+    unsafe impl Send for RawTmq {}
+    unsafe impl Sync for RawTmq {}
 
     impl RawTmq {
         pub(crate) fn subscribe(&mut self, topics: &Topics) -> Result<(), RawError> {
@@ -32,11 +34,11 @@ pub(super) mod tmq {
             tl
         }
 
-        pub fn commit_sync(&mut self, msg: RawRes) -> Result<(), RawError> {
+        pub fn commit_sync(&self, msg: RawRes) -> Result<(), RawError> {
             unsafe { tmq_commit_sync(self.0, msg.0 as _) }.ok_or("commit failed")
         }
 
-        pub fn commit_async(&mut self, msg: RawRes, cb: tmq_commit_cb, param: *mut c_void) {
+        pub fn commit_async(&self, msg: RawRes, cb: tmq_commit_cb, param: *mut c_void) {
             unsafe { tmq_commit_async(self.0, msg.0, cb, param) }
         }
 
@@ -66,7 +68,7 @@ pub(super) mod tmq {
             }
         }
 
-        pub async fn commit(&mut self, msg: RawRes) -> Result<(), RawError> {
+        pub async fn commit(&self, msg: RawRes) -> Result<(), RawError> {
             // use tokio::sync::oneshot::{channel, Sender};
             use std::sync::mpsc::{channel, Sender};
             let (sender, rx) = channel::<Result<(), RawError>>();
@@ -78,10 +80,12 @@ pub(super) mod tmq {
                 let offsets = resp.ok_or("commit failed").map(|_| ());
                 let sender = param as *mut Sender<_>;
                 let sender = Box::from_raw(sender);
+                log::error!("commit async callback");
                 sender.send(offsets).unwrap();
             }
 
             unsafe {
+                log::error!("commit async with {:p}", msg.0);
                 tmq_commit_async(
                     self.0,
                     msg.0,
@@ -93,12 +97,13 @@ pub(super) mod tmq {
         }
 
         /// Wait a message forever
-        pub fn next_or_forever(&mut self) -> RawRes {
+        pub fn next_or_forever(&self) -> RawRes {
             self.poll_timeout(-1)
                 .expect("wait forever if there's no message")
         }
 
-        pub fn poll_timeout(&mut self, timeout: i64) -> Option<RawRes> {
+        pub fn poll_timeout(&self, timeout: i64) -> Option<RawRes> {
+            log::info!("poll next message with timeout {}", timeout);
             let res = unsafe { tmq_consumer_poll(self.0, timeout) };
             if res.is_null() {
                 None
@@ -124,7 +129,7 @@ pub(super) mod tmq {
 }
 
 pub(super) mod conf {
-    use crate::IntoCStr;
+    use crate::{tmq::ffi::*, IntoCStr};
     use taos_error::*;
 
     use crate::*;
@@ -141,7 +146,7 @@ pub(super) mod conf {
             self.0
         }
         pub(crate) fn new() -> Self {
-            Self(unsafe { tmq_conf_new() })
+            Self(unsafe { tmq_conf_new() }).disable_auto_commit().with_table_name()
         }
 
         pub(crate) fn from_dsn(dsn: &Dsn) -> Result<Self> {
@@ -186,6 +191,23 @@ pub(super) mod conf {
         }
         pub fn disable_auto_commit(mut self) -> Self {
             self.set("enable.auto.commit", "false")
+                .expect("set group.id should always be ok");
+            self
+        }
+
+        pub(crate) fn enable_heartbeat_background(mut self) -> Self {
+            self.set("enable.heartbeat.background", "true")
+                .expect("set heartbeat at background");
+            self
+        }
+
+        pub fn with_table_name(mut self) -> Self {
+            self.set("msg.with.table.name", "true")
+                .expect("set group.id should always be ok");
+            self
+        }
+        pub fn without_table_name(mut self) -> Self {
+            self.set("msg.with.table.name", "false")
                 .expect("set group.id should always be ok");
             self
         }

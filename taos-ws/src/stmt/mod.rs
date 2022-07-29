@@ -1,8 +1,7 @@
-use futures::{FutureExt, SinkExt, StreamExt};
+use futures::{SinkExt, StreamExt};
 use scc::HashMap;
-use serde_json::json;
-use taos_query::common::{Column, Field, Precision};
-use taos_query::{AsyncFetchable, AsyncQueryable, Connectable, DeError, Dsn, DsnError, IntoDsn};
+
+use taos_query::{AsyncFetchable, AsyncQueryable, DeError, DsnError, IntoDsn, TBuilder};
 use thiserror::Error;
 use tokio::sync::{oneshot, watch};
 
@@ -11,12 +10,12 @@ use tokio_tungstenite::tungstenite::Error as WsError;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 
 use crate::infra::ToMessage;
-use crate::{infra::WsConnReq, WsInfo};
+use crate::TaosBuilder;
 use messages::*;
 
 use std::fmt::Debug;
 use std::result::Result as StdResult;
-use std::str::FromStr;
+
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::Duration;
@@ -124,7 +123,7 @@ impl Drop for WsStmtClient {
 }
 
 impl WsStmtClient {
-    pub(crate) async fn from_wsinfo(info: &WsInfo) -> Result<Self> {
+    pub(crate) async fn from_wsinfo(info: &TaosBuilder) -> Result<Self> {
         let (ws, _) = connect_async(info.to_stmt_url()).await?;
         let req_id = 0;
         let (mut sender, mut reader) = ws.split();
@@ -274,7 +273,7 @@ impl WsStmtClient {
     /// ```
     ///
     pub async fn from_dsn(dsn: impl IntoDsn) -> Result<Self> {
-        let info = WsInfo::from_dsn(dsn)?;
+        let info = TaosBuilder::from_dsn(dsn)?;
         Self::from_wsinfo(&info).await
     }
 
@@ -387,76 +386,83 @@ impl WsAsyncStmt {
     }
 }
 
-// !Websocket tests should always use `multi_thread`
-#[tokio::test(flavor = "multi_thread", worker_threads = 10)]
-async fn test_client() -> anyhow::Result<()> {
-    use crate::Ws;
-    use taos_query::AsyncQueryable;
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+    use taos_query::{Dsn, TBuilder};
 
-    let taos = WsInfo::from_dsn("taos://localhost:6041")?.connect()?;
-    taos.exec("drop database if exists stmt").await?;
-    taos.exec("create database stmt").await?;
-    taos.exec("create table stmt.ctb (ts timestamp, v int)")
+    use crate::{stmt::WsStmtClient, TaosBuilder};
+
+    // !Websocket tests should always use `multi_thread`
+    #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
+    async fn test_client() -> anyhow::Result<()> {
+        
+        use taos_query::AsyncQueryable;
+
+        let taos = TaosBuilder::from_dsn("taos://localhost:6041")?.build()?;
+        taos.exec("drop database if exists stmt").await?;
+        taos.exec("create database stmt").await?;
+        taos.exec("create table stmt.ctb (ts timestamp, v int)")
+            .await?;
+
+        
+        std::env::set_var("RUST_LOG", "debug");
+        pretty_env_logger::init();
+        let client = WsStmtClient::from_dsn("taos+ws://localhost:6041/stmt").await?;
+        let stmt = client.s_stmt("insert into stmt.ctb values(?, ?)").await?;
+
+        stmt.bind_all(vec![
+            json!([
+                "2022-06-07T11:02:44.022450088+08:00",
+                "2022-06-07T11:02:45.022450088+08:00"
+            ]),
+            json!([2, 3]),
+        ])
         .await?;
+        let res = stmt.exec().await?;
 
-    use futures::TryStreamExt;
-    std::env::set_var("RUST_LOG", "debug");
-    pretty_env_logger::init();
-    let client = WsStmtClient::from_dsn("taos+ws://localhost:6041/stmt").await?;
-    let stmt = client.s_stmt("insert into stmt.ctb values(?, ?)").await?;
+        assert_eq!(res, 2);
+        Ok(())
+    }
 
-    stmt.bind_all(vec![
-        json!([
-            "2022-06-07T11:02:44.022450088+08:00",
-            "2022-06-07T11:02:45.022450088+08:00"
-        ]),
-        json!([2, 3]),
-    ])
-    .await?;
-    let res = stmt.exec().await?;
+    #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
+    async fn test_stmt_stable() -> anyhow::Result<()> {
+        use taos_query::AsyncQueryable;
 
-    assert_eq!(res, 2);
-    Ok(())
-}
+        let dsn = Dsn::try_from("taos://localhost:6041")?;
+        dbg!(&dsn);
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 10)]
-async fn test_stmt_stable() -> anyhow::Result<()> {
-    use crate::Ws;
-    use taos_query::AsyncQueryable;
+        let taos = TaosBuilder::from_dsn("taos://localhost:6041")?.build()?;
+        taos.exec("drop database if exists stmt_s").await?;
+        taos.exec("create database stmt_s").await?;
+        taos.exec("create table stmt_s.stb (ts timestamp, v int) tags(t1 int)")
+            .await?;
 
-    let dsn = Dsn::from_str("taos://localhost:6041")?;
-    dbg!(&dsn);
+        std::env::set_var("RUST_LOG", "debug");
+        pretty_env_logger::init();
+        let client = WsStmtClient::from_dsn("taos+ws://localhost:6041/stmt_s").await?;
+        let stmt = client
+            .s_stmt("insert into ? using stb tags(?) values(?, ?)")
+            .await?;
 
-    let taos = WsInfo::from_dsn("taos://localhost:6041")?.connect()?;
-    taos.exec("drop database if exists stmt_s").await?;
-    taos.exec("create database stmt_s").await?;
-    taos.exec("create table stmt_s.stb (ts timestamp, v int) tags(t1 int)")
+        stmt.set_tbname("tb1").await?;
+
+        // stmt.set_tags(vec![json!({"name": "value"})]).await?;
+
+        stmt.set_tags(vec![json!(1)]).await?;
+
+        stmt.bind_all(vec![
+            json!([
+                "2022-06-07T11:02:44.022450088+08:00",
+                "2022-06-07T11:02:45.022450088+08:00"
+            ]),
+            json!([2, 3]),
+        ])
         .await?;
+        let res = stmt.exec().await?;
 
-    std::env::set_var("RUST_LOG", "debug");
-    pretty_env_logger::init();
-    let client = WsStmtClient::from_dsn("taos+ws://localhost:6041/stmt_s").await?;
-    let stmt = client
-        .s_stmt("insert into ? using stb tags(?) values(?, ?)")
-        .await?;
-
-    stmt.set_tbname("tb1").await?;
-
-    // stmt.set_tags(vec![json!({"name": "value"})]).await?;
-
-    stmt.set_tags(vec![json!(1)]).await?;
-
-    stmt.bind_all(vec![
-        json!([
-            "2022-06-07T11:02:44.022450088+08:00",
-            "2022-06-07T11:02:45.022450088+08:00"
-        ]),
-        json!([2, 3]),
-    ])
-    .await?;
-    let res = stmt.exec().await?;
-
-    assert_eq!(res, 2);
-    taos.exec("drop database stmt_s").await?;
-    Ok(())
+        assert_eq!(res, 2);
+        taos.exec("drop database stmt_s").await?;
+        Ok(())
+    }
 }

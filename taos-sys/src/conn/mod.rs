@@ -1,24 +1,12 @@
-use std::{
-    cell::UnsafeCell,
-    ffi::CStr,
-    future::Future,
-    marker::PhantomData,
-    ops::Deref,
-    os::raw::*,
-    process::Output,
-    sync::{Arc, Mutex},
-    task::{Context, Poll},
-};
+use std::{ffi::CStr, os::raw::*};
 
-use once_cell::sync::OnceCell;
 use taos_error::{Code, Error};
-use taos_query::{
-    common::{Field, RawData, Ty},
-    AsyncFetchable, Connectable, Fetchable, Queryable,
-};
+use taos_query::common::raw_data_t;
+use taos_query::RawBlock;
 
+use crate::tmq::taos_write_raw_block;
 use crate::{err_or, into_c_str::IntoCStr, query::QueryFuture};
-use crate::{ffi::*, taos_write_raw_meta, Meta, RawRes, ResultSet};
+use crate::{ffi::*, tmq::ffi::tmq_write_raw, RawRes, ResultSet};
 
 #[derive(Debug, Clone)]
 #[repr(transparent)]
@@ -143,8 +131,23 @@ impl RawTaos {
     }
 
     #[inline]
-    pub fn write_raw_meta(&self, meta: Meta) -> Result<(), Error> {
-        err_or!(taos_write_raw_meta(self.as_ptr(), meta.to_raw()))
+    pub fn write_raw_meta(&self, meta: raw_data_t) -> Result<(), Error> {
+        err_or!(tmq_write_raw(self.as_ptr(), meta))
+    }
+
+    #[inline]
+    pub fn write_raw_block(&self, block: &RawBlock) -> Result<(), Error> {
+        let nrows = block.nrows();
+        let name = block
+            .table_name()
+            .ok_or(Error::new(Code::Failed, "raw block should have table name"))?;
+        let ptr = block.as_raw_bytes().as_ptr();
+        err_or!(taos_write_raw_block(
+            self.as_ptr(),
+            nrows as _,
+            ptr as _,
+            name.into_c_str().as_ptr()
+        ))
     }
 
     #[inline]

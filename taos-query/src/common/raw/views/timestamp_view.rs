@@ -98,7 +98,7 @@ impl TimestampView {
     pub unsafe fn get_raw_value_unchecked(&self, row: usize) -> (Ty, u32, *const c_void) {
         if self.nulls.is_null_unchecked(row) {
             (
-                Ty::Null,
+                Ty::Timestamp,
                 std::mem::size_of::<Target>() as _,
                 std::ptr::null(),
             )

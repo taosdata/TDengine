@@ -46,13 +46,13 @@ macro_rules! _impl_inline_str {
 
             impl Inlinable for InlineNChar<$ty> {
                 #[inline]
-                fn write_inlined<W: std::io::Write>(&self, mut wtr: W) -> std::io::Result<usize> {
+                fn write_inlined<W: std::io::Write>(&self, wtr: &mut W) -> std::io::Result<usize> {
                     let l = wtr.write(&self.len.to_le_bytes())?;
                     Ok(l + wtr.write(self.as_bytes())?)
                 }
 
                 #[inline]
-                fn read_inlined<R: std::io::Read>(_: R) -> std::io::Result<Self> {
+                fn read_inlined<R: std::io::Read>(_: &mut R) -> std::io::Result<Self> {
                     Err(std::io::Error::new(std::io::ErrorKind::Other, "can't read into a inlined string"))
                 }
             }
@@ -90,6 +90,9 @@ macro_rules! _impl_inline_str {
                 #[inline]
                 #[allow(mutable_transmutes)]
                 pub unsafe fn into_inline_str(&self) -> &super::InlineStr<$ty> {
+                    if self.len() == 0 {
+                        return std::mem::transmute(self);
+                    }
                     let v: &mut super::InlineStr<$ty> = std::mem::transmute(self);
                     let ptr = self.data.as_ptr() as *mut u8;
                     let chars = self.chars();
