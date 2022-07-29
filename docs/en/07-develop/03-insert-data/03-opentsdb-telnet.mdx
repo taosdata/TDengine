@@ -23,7 +23,7 @@ A single line of text is used in OpenTSDB line protocol to represent one row of 
 
 - `metric` will be used as the STable name.
 - `timestamp` is the timestamp of current row of data. The time precision will be determined automatically based on the length of the timestamp. Second and millisecond time precision are supported.
-- `value` is a metric which must be a numeric value, the corresponding column name is "value".
+- `value` is a metric which must be a numeric value, the corresponding column name is "_value".
 - The last part is the tag set separated by spaces, all tags will be converted to nchar type automatically.
 
 For example:
@@ -74,7 +74,7 @@ taos> show STables;
 Query OK, 2 row(s) in set (0.002544s)
 
 taos> select tbname, * from `meters.current`;
-             tbname             |           ts            |           value           | groupid |            location            |
+             tbname             |           _ts            |           _value           | groupid |            location            |
 ==================================================================================================================================
  t_0e7bcfa21a02331c06764f275... | 2022-03-28 09:56:51.249 |              10.800000000 | 3       | California.LoSangeles                |
  t_0e7bcfa21a02331c06764f275... | 2022-03-28 09:56:51.250 |              11.300000000 | 3       | California.LoSangeles                |
