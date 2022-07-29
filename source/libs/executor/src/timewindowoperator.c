@@ -3097,6 +3097,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
   pInfo->delIndex = 0;
   pInfo->pDelWins = taosArrayInit(4, sizeof(SWinRes));
+  pInfo->pRecycledPages = taosArrayInit(4, sizeof(int32_t));
 
   pOperator->operatorType = pPhyNode->type;
   pOperator->blocking = true;
