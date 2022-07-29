@@ -175,7 +175,7 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, ST
     cacheRow = (STSRow *)taosLRUCacheValue(pCache, h);
     if (row->ts >= cacheRow->ts) {
       if (row->ts == cacheRow->ts) {
-        STSRow    *mergedRow;
+        STSRow    *mergedRow = NULL;
         SRowMerger merger = {0};
         STSchema  *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1);
 

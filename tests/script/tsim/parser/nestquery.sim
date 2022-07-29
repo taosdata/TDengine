@@ -135,6 +135,7 @@ print ===================> nest query interval
 sql_error select ts, avg(c1) from (select ts, c1 from nest_tb0);
 
 sql select _wstart, avg(c1) from (select * from nest_tb0) interval(3d)
+print $data00 $data01 $data10 $data11 $data20 $data21
 if $rows != 3 then
   return -1
 endi
@@ -147,19 +148,19 @@ endi
 if $data10 != @20-09-17 00:00:00.000@  then
   return -1
 endi
-if $data11 != 49.581325301 then
+if $data11 != 49.685185185 then
   return -1
 endi
 if $data20 != @20-09-20 00:00:00.000@  then
   return -1
 endi
-if $data21 != 49.703539823 then
+if $data21 != 49.500000000 then
   return -1
 endi
 
 sql select stddev(c1) from (select c1 from nest_tb0);
 sql_error select percentile(c1, 20) from (select * from nest_tb0);
-sql_error select interp(c1) from (select * from nest_tb0);
+sql select interp(c1) from (select * from nest_tb0);
 sql_error select derivative(val, 1s, 0) from (select c1 val from nest_tb0);
 sql_error select twa(c1) from (select c1 from nest_tb0);
 sql_error select irate(c1) from (select c1 from nest_tb0);
@@ -217,19 +218,14 @@ if $data00 != 0.016666667 then
 endi
 
 sql select derivative(c1, 1s, 0) from (select * from nest_tb0);
+print $rows $data00 $data10 
 if $rows != 9999 then
   return -1
 endi
-if $data00 != @20-09-15 00:01:00.000@ then
+if $data00 != 0.016666667 then
   return -1
 endi
-if $data01 != 0.016666667 then
-  return -1
-endi
-if $data10 != @20-09-15 00:02:00.000@ then
-  return -1
-endi
-if $data11 != 0.016666667 then
+if $data10 != 0.016666667 then
   return -1
 endi
 
@@ -238,7 +234,7 @@ if $rows != 9999 then
   return -1
 endi
 
-sql select avg(c1),sum(c2), max(c3), min(c4), count(*), first(c7), last(c7),spread(c6) from (select * from nest_tb0) interval(1d);
+sql select _wstart, avg(c1),sum(c2), max(c3), min(c4), count(*), first(c7), last(c7),spread(c6) from (select * from nest_tb0) interval(1d);
 if $rows != 7 then
   return -1
 endi
@@ -291,7 +287,7 @@ print ===================> group by + having
 print =========================> ascending order/descending order
 
 print =========================> nest query join
-sql select a.ts,a.k,b.ts from (select count(*) k from nest_tb0 interval(30a)) a, (select count(*) f from nest_tb1 interval(30a)) b where a.ts = b.ts ;
+sql select a.ts,a.k,b.ts from (select _wstart ts, count(*) k from nest_tb0 interval(30a)) a, (select _wstart ts, count(*) f from nest_tb1 interval(30a)) b where a.ts = b.ts ;
 if $rows != 10000 then
   return -1
 endi
@@ -314,7 +310,7 @@ if $data12 != @20-09-15 00:01:00.000@ then
   return -1
 endi
 
-sql select sum(a.k), sum(b.f) from (select count(*) k from nest_tb0 interval(30a)) a, (select count(*) f from nest_tb1 interval(30a)) b where a.ts = b.ts ;
+sql select sum(a.k), sum(b.f) from (select _wstart ts, count(*) k from nest_tb0 interval(30a)) a, (select _wstart ts, count(*) f from nest_tb1 interval(30a)) b where a.ts = b.ts ;
 if $rows != 1 then
   return -1
 endi
@@ -325,7 +321,7 @@ if $data01 != 10000 then
   return -1
 endi
 
-sql select a.ts,a.k,b.ts,c.ts,c.ts,c.x from (select count(*) k from nest_tb0 interval(30a)) a, (select count(*) f from nest_tb1 interval(30a)) b, (select count(*) x from nest_tb2 interval(30a)) c where a.ts = b.ts and a.ts = c.ts
+sql select a.ts,a.k,b.ts,c.ts,c.ts,c.x from (select _wstart ts, count(*) k from nest_tb0 interval(30a)) a, (select _wstart ts, count(*) f from nest_tb1 interval(30a)) b, (select _wstart ts, count(*) x from nest_tb2 interval(30a)) c where a.ts = b.ts and a.ts = c.ts
 if $rows != 10000 then
   return -1
 endi
@@ -346,10 +342,7 @@ sql select diff(val) from (select c1 val from nest_tb0);
 if $rows != 9999 then
   return -1
 endi
-if $data00 != @70-01-01 08:00:00.000@ then
-  return -1
-endi
-if $data01 != 1 then
+if $data00 != 1 then
   return -1
 endi
 
@@ -376,7 +369,7 @@ if $data11 != 1 then
 endi
 
 print =====================>TD-5157
-sql select twa(c1) from nest_tb1 interval(19a);
+sql select _wstart, twa(c1) from nest_tb1 interval(19a);
 if $rows != 10000 then
   return -1
 endi
@@ -388,29 +381,14 @@ if $data01 != 0.000083333 then
 endi
 
 print ======================>TD-5271
-sql select min(val),max(val),first(val),last(val),count(val),sum(val),avg(val) from (select count(*) val from nest_mt0 group by tbname)
-if $rows != 1 then
-  return -1
-endi
-if $data00 != 10000 then
-  return -1
-endi
-if $data01 != 10000 then
-  return -1
-endi
-if $data04 != 10 then
-  return -1
-endi
-if $data05 != 100000 then
-  return -1
-endi
+sql_error select min(val),max(val),first(val),last(val),count(val),sum(val),avg(val) from (select count(*) val from nest_mt0 group by tbname)
 
 print =================>us database interval query, TD-5039
 sql create database test precision 'us';
 sql use test;
 sql create table t1(ts timestamp, k int);
 sql insert into t1 values('2020-01-01 01:01:01.000', 1) ('2020-01-01 01:02:00.000', 2);
-sql select avg(k) from (select avg(k) k from t1 interval(1s)) interval(1m);
+sql select _wstart, avg(k) from (select _wstart, avg(k) k from t1 interval(1s)) interval(1m);
 if $rows != 2 then
   return -1
 endi

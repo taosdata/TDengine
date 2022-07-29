@@ -489,7 +489,7 @@ class TDDnode:
             onlyKillOnceWindows = 0
             while(processID):
                 if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
-                    killCmd = "kill -4 %s > /dev/null 2>&1" % processID
+                    killCmd = "kill -INT %s > /dev/null 2>&1" % processID
                     os.system(killCmd)
                     onlyKillOnceWindows = 1
                 time.sleep(1)
@@ -503,7 +503,7 @@ class TDDnode:
                 time.sleep(2)
 
             self.running = 0
-            tdLog.debug("dnode:%d is stopped by kill -4" % (self.index))
+            tdLog.debug("dnode:%d is stopped by kill -INT" % (self.index))
 
 
     def stoptaosd(self):
@@ -527,7 +527,7 @@ class TDDnode:
             onlyKillOnceWindows = 0
             while(processID):
                 if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
-                    killCmd = "kill -4 %s > /dev/null 2>&1" % processID
+                    killCmd = "kill -INT %s > /dev/null 2>&1" % processID
                     os.system(killCmd)
                     onlyKillOnceWindows = 1
                 time.sleep(1)
@@ -537,7 +537,7 @@ class TDDnode:
                 time.sleep(2)
 
             self.running = 0
-            tdLog.debug("dnode:%d is stopped by kill -4" % (self.index))
+            tdLog.debug("dnode:%d is stopped by kill -INT" % (self.index))
 
     def forcestop(self):
         if (not self.remoteIP == ""):
