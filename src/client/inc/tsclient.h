@@ -401,7 +401,6 @@ typedef struct SSqlObj {
   // connect alive
   int64_t          lastProbe;    
   int64_t          lastAlive;
-  char             noAckCnt; // no recevie ack from sever count
   void *           pPrevContext;
   void *           pPrevConn;
   void *           pPrevFdObj;

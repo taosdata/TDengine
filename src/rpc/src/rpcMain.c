@@ -1101,7 +1101,7 @@ static void rpcProcessProbeMsg(SRecvInfo *pRecv, SRpcConn *pConn) {
     memcpy(rspHead.user, pHead->user, tListLen(pHead->user));
 
     bool ret = rpcSendMsgToPeer(pConn, &rspHead, sizeof(SRpcHead));
-    tDebug("PROBE 0x%" PRIx64 " recv probe msg and response. ret=%d", pHead->ahandle, ret);
+    tInfo("PROBE 0x%" PRIx64 " recv probe msg and do response. ret=%d", pHead->ahandle, ret);
     rpcFreeMsg(pRecv->msg);
     rpcUnlockConn(pConn);
   } else if (pHead->msgType == TSDB_MSG_TYPE_PROBE_CONN_RSP) {
@@ -1115,12 +1115,14 @@ static void rpcProcessProbeMsg(SRecvInfo *pRecv, SRpcConn *pConn) {
         rpcProcessIncomingMsg(pConn, pHead, pContext);
         taosReleaseRef(tsRpcRefId, pConn->rid);
       } else {
-        tError("PROBE recv probe msg get context is NULL. rid=%" PRId64 " NULL.", pConn->rid);
+        tInfo("PROBE 0x%" PRIx64 " get reqContext by rid return NULL. pConn->rid=0x%" PRIX64, pHead->ahandle, pConn->rid);
       }
   
       rpcUnlockConn(pConn);
+      tInfo("PROBE 0x%" PRIx64 " recv response probe msg and update lastLiveTime. pConn=%p", pHead->ahandle, pConn);
+    } else {
+      tInfo("PROBE 0x%" PRIx64 " recv response probe msg but pConn is NULL.", pHead->ahandle);
     }
-    tDebug("PROBE 0x%" PRIx64 " recv response probe msg and update lastLiveTime. pConn=%p", pHead->ahandle, pConn);
   }
 
 }
@@ -1789,46 +1791,46 @@ bool rpcSendProbe(int64_t rpcRid, void* pPrevContext, void* pPrevConn, void* pPr
   // return false can kill query
   bool ret = false;
   if(rpcRid < 0) {
-    tError("PROBE rpcRid=%" PRId64 " less than zero, invalid.", rpcRid);
+    tError("PROBE rpcRid=0x%" PRIx64 " less than zero, invalid.", rpcRid);
     return false;
   }
 
   // get req content
   SRpcReqContext *pContext = taosAcquireRef(tsRpcRefId, rpcRid);
   if (pContext == NULL) {
-    tError("PROBE rpcRid=%" PRId64 " get context NULL. sql finished no need send probe.", rpcRid);
+    tError("PROBE rpcRid=0x%" PRIx64 " get context NULL. sql finished no need send probe.", rpcRid);
     return true;
   }
 
   // context same
   if(pContext != pPrevContext) {
-    tError("PROBE rpcRid=%" PRId64 " context diff. pContext=%p pPreContent=%p", rpcRid, pContext, pPrevContext);
+    tError("PROBE rpcRid=0x%" PRIx64 " context diff. pContext=%p pPreContent=%p", rpcRid, pContext, pPrevContext);
     goto _END;
   }
 
   // conn same
   if (pContext->pConn != pPrevConn) {
-    tError("PROBE rpcRid=%" PRId64 " connect obj diff. pContext->pConn=%p pPreConn=%p", rpcRid, pContext->pConn, pPrevConn);
+    tError("PROBE rpcRid=0x%" PRIx64 " connect obj diff. pContext->pConn=%p pPreConn=%p", rpcRid, pContext->pConn, pPrevConn);
     ret = pContext->pConn == NULL;
     goto _END;
   }
 
   // fdObj same
   if (pContext->pConn->chandle != pPrevFdObj) {
-    tError("PROBE rpcRid=%" PRId64 " connect fdObj diff. pContext->pConn->chandle=%p pPrevFdObj=%p", rpcRid, pContext->pConn->chandle, pPrevFdObj);
+    tError("PROBE rpcRid=0x%" PRIx64 " connect fdObj diff. pContext->pConn->chandle=%p pPrevFdObj=%p", rpcRid, pContext->pConn->chandle, pPrevFdObj);
     goto _END;
   }
 
   // fd same
   int32_t fd = taosGetFdID(pContext->pConn->chandle);
   if (fd != prevFd) {
-    tError("PROBE rpcRid=%" PRId64 " connect fd diff.fd=%d prevFd=%d", rpcRid, fd, prevFd);
+    tError("PROBE rpcRid=0x%" PRIx64 " connect fd diff.fd=%d prevFd=%d", rpcRid, fd, prevFd);
     goto _END;
   }
 
   // send syn
   ret = doRpcSendProbe(pContext->pConn);
-  tInfo("PROBE 0x%" PRIx64 " rpcRid=%" PRId64 " send data ret=%d fd=%d.", (int64_t)pContext->ahandle, rpcRid, ret, fd);
+  tInfo("PROBE 0x%" PRIx64 " rrpcRid=0x%" PRIx64 " send data ret=%d fd=%d.", (int64_t)pContext->ahandle, rpcRid, ret, fd);
 
 _END:
   // put back req context
@@ -1839,13 +1841,13 @@ _END:
 // after sql request send , save conn info
 bool rpcSaveSendInfo(int64_t rpcRid, void** ppContext, void** ppConn, void** ppFdObj, int32_t* pFd) {
   if(rpcRid < 0) {
-    tError("PROBE saveSendInfo rpcRid=%" PRId64 " less than zero, invalid.", rpcRid);
+    tError("PROBE saveSendInfo rpcRid=0x%" PRIx64 " less than zero, invalid.", rpcRid);
     return false;
   }  
   // get req content
   SRpcReqContext *pContext = taosAcquireRef(tsRpcRefId, rpcRid);
   if (pContext == NULL) {
-    tError("PROBE rpcRid=%" PRId64 " get context NULL.", rpcRid);
+    tError("PROBE saveSendInfo rpcRid=0x%" PRIx64 " get context NULL.", rpcRid);
     return false;
   }
 

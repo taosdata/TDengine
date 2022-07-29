@@ -284,10 +284,9 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
 // pSql connection link is broken
 bool dealConnBroken(SSqlObj * pSql) {
   // check valid
-  if (pSql == NULL || pSql->signature != pSql) {
-    return false;
-  }
-  if (pSql->cmd.command >= TSDB_SQL_LOCAL) {
+  
+  if (pSql->signature != pSql) {
+    tscInfo("PROBE 0x%" PRIx64 " break link signature is not equal pSql. signature=%p", pSql->self, pSql->signature);
     return false;
   }
 
@@ -296,13 +295,15 @@ bool dealConnBroken(SSqlObj * pSql) {
 
   // cancel
   if (pSql->rpcRid > 0) {
-    tscDebug("PROBE 0x%" PRIx64 " rpc cancel request rpcRid=0x%" PRIx64 ".", pSql->self, pSql->rpcRid);
+    tscInfo("PROBE 0x%" PRIx64 " break link done. rpcRid=0x%" PRIx64, pSql->self, pSql->rpcRid);
     rpcCancelRequest(pSql->rpcRid);
     pSql->rpcRid = -1;
+  } else {
+    tscInfo("PROBE 0x%" PRIx64 " break link rpcRid <=0. rpcRid=0x%" PRIx64, pSql->self, pSql->rpcRid);
   }
 
-  // error
-  tscDebug("PROBE 0x%"PRIx64" async result error.", pSql->self);
+  // error notify
+  tscInfo("PROBE 0x%"PRIx64" async result error. rpcRid=0x%" PRIx64, pSql->self, pSql->rpcRid);
   tscAsyncResultOnError(pSql);
 
   return true;
@@ -316,6 +317,7 @@ bool sendProbeConnMsg(SSqlObj* pSql) {
 
   if(pSql->stime == 0) {
     // not start , no need probe
+    tscInfo("PROBE 0x%" PRIx64 " not start, no need probe.", pSql->self);
     return true;
   }
 
@@ -323,39 +325,47 @@ bool sendProbeConnMsg(SSqlObj* pSql) {
   int32_t diff = (int32_t)(taosGetTimestampMs() - stime);
   if (diff < tsProbeSeconds * 1000) {
     // exec time short , need not probe alive
+    tscInfo("PROBE 0x%" PRIx64 "not arrived probe time. timeout=%ds, no need probe. lastAlive=%" PRId64 " stime=%" PRId64, \
+                      pSql->self, tsProbeSeconds, pSql->lastAlive, pSql->stime);
     return true;
   }
 
   if (diff > tsProbeKillSeconds * 1000) {
     // need kill query
-    tscDebug("PROBE 0x%"PRIx64" need killed, noAckCnt:%d diff=%d", pSql->self, pSql->noAckCnt, diff);
+    tscInfo("PROBE 0x%" PRIx64 "kill query by probe. because arrived kill time. timeout=%ds lastAlive=%" PRId64 " stime=%" PRId64, \
+                    pSql->self, tsProbeKillSeconds, pSql->lastAlive, pSql->stime);
+
     return false;
   }
 
   if (pSql->pPrevContext == NULL || pSql->pPrevConn == NULL ||  pSql->pPrevFdObj == NULL || pSql->prevFd <= 0) {
     // last connect info save uncompletely, so can't probe
+    tscInfo("PROBE 0x%" PRIx64 "save last connect info uncompletely. prev context=%p conn=%p fdobj=%p fd=%d", \
+                    pSql->self, pSql->pPrevContext, pSql->pPrevConn, pSql->pPrevFdObj, pSql->prevFd);
     return true;
   }
 
   if(pSql->rpcRid == -1) {
     // cancel or reponse ok from server, so need not probe
+    tscInfo("PROBE 0x%" PRIx64 " rpcRid is -1, response ok. no need probe.", pSql->self);
     return true;
   }
 
   // It's long time from lastAlive, so need probe
-  pSql->noAckCnt++;
   pSql->lastProbe = taosGetTimestampMs();
-  tscDebug("0x%"PRIx64" sendProbeConnMsg noAckCnt:%d diff=%d", pSql->self, pSql->noAckCnt, diff);
-
-  return rpcSendProbe(pSql->rpcRid, pSql->pPrevContext, pSql->pPrevConn, pSql->pPrevFdObj, pSql->prevFd);
+  
+  bool ret = rpcSendProbe(pSql->rpcRid, pSql->pPrevContext, pSql->pPrevConn, pSql->pPrevFdObj, pSql->prevFd);
+  tscInfo("PROBE 0x%" PRIx64 " rpcRid=0x%" PRIx64 " send probe msg, ret=%d", pSql->self, pSql->rpcRid, ret);
+  return ret;
 }
 
 // check have broken link queries than killed
 void checkBrokenQueries(STscObj *pTscObj) {
-  // 
+  tscDebug("PROBE checkBrokenQueries pTscObj=%p pTscObj->rid=0x%" PRIx64, pTscObj, pTscObj->rid);
   SSqlObj *pSql = pTscObj->sqlList;
   while (pSql) {
     int32_t numOfSub = pSql->subState.numOfSub;
+    tscInfo("PROBE 0x%" PRIx64 " numOfSub=%d sql=%s", pSql->self, numOfSub, pSql->sqlstr == NULL ? "" : pSql->sqlstr);
     if (numOfSub == 0) {
       // no sub sql
       if(!sendProbeConnMsg(pSql)) {
@@ -396,9 +406,9 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
   assert(pHB->self == pObj->hbrid);
 
   // check queries already death
-  static int activetyTimerCnt = 0;
-  if (++activetyTimerCnt > 3) { // 1.5s * 10 = 15s interval call
-    activetyTimerCnt = 0;
+  static int activetyCnt = 0;
+  if (++activetyCnt > 3) { // 1.5s * 10 = 15s interval call
+    activetyCnt = 0;
 
     // call check if have query doing
     if(pObj->sqlList) {
@@ -532,9 +542,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
   // check msgtype
   if(rpcMsg->msgType == TSDB_MSG_TYPE_PROBE_CONN_RSP) {
-    pSql->noAckCnt  = 0;
     pSql->lastAlive = taosGetTimestampMs();
-    tscDebug("PROBE 0x%" PRIx64 " recv probe msg. sql=%s", pSql->self, pSql->sqlstr);
+    tscDebug("PROBE 0x%" PRIx64 " recv probe response msg. rpcRid=0x%" PRIx64, pSql->self, pSql->rpcRid);
     rpcFreeCont(rpcMsg->pCont);
     return ;
   }
