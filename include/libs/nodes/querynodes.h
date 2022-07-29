@@ -253,6 +253,7 @@ typedef struct SSelectStmt {
   char        stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t     precision;
   int32_t     selectFuncNum;
+  int32_t     returnRows;  // EFuncReturnRows
   bool        isEmptyResult;
   bool        isTimeLineResult;
   bool        isSubquery;

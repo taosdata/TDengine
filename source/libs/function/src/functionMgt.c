@@ -89,6 +89,14 @@ int32_t fmGetFuncInfo(SFunctionNode* pFunc, char* pMsg, int32_t msgLen) {
   return TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION;
 }
 
+EFuncReturnRows fmGetFuncReturnRows(SFunctionNode* pFunc) {
+  if (NULL != funcMgtBuiltins[pFunc->funcId].estimateReturnRowsFunc) {
+    return funcMgtBuiltins[pFunc->funcId].estimateReturnRowsFunc(pFunc);
+  }
+  return (fmIsIndefiniteRowsFunc(pFunc->funcId) || fmIsMultiRowsFunc(pFunc->funcId)) ? FUNC_RETURN_ROWS_INDEFINITE
+                                                                                     : FUNC_RETURN_ROWS_NORMAL;
+}
+
 bool fmIsBuiltinFunc(const char* pFunc) {
   return NULL != taosHashGet(gFunMgtService.pFuncNameHashTable, pFunc, strlen(pFunc));
 }
@@ -191,6 +199,8 @@ bool fmIsClientPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(
 bool fmIsMultiRowsFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_MULTI_ROWS_FUNC); }
 
 bool fmIsKeepOrderFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_KEEP_ORDER_FUNC); }
+
+bool fmIsCumulativeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_CUMULATIVE_FUNC); }
 
 bool fmIsInterpFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
