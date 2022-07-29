@@ -35,9 +35,9 @@ class TestVgroups(TDCase):
     def get_vnode_count(self):
         vnode_sum = 0
         for i in self.taosd_setting['spec']['dnodes']:
-            self.fqdn = i['endpoint'].split(':')[0]
+            fqdn = i['endpoint'].split(':')[0]
             vnode_dir = i['config']['dataDir']+ "/vnode"
-            vnode_sum += int(self._remote.cmd(self.fqdn, [f'ls {vnode_dir} | grep -v vnodes.json | grep -v shmfile | wc -l']))
+            vnode_sum += int(self._remote.cmd(fqdn, [f'ls {vnode_dir} | grep -v vnodes.json | grep -v shmfile | wc -l']))
         if 'DATABASE_REPLICAS' in str(os.environ.keys()).upper():
             if os.environ.get('DATABASE_REPLICAS') == '1':
                 return vnode_sum
