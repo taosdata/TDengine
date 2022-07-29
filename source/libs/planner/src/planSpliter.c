@@ -1040,9 +1040,6 @@ static int32_t stableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       code = stbSplSplitScanNode(pCxt, &info);
       break;
-    case QUERY_NODE_LOGIC_PLAN_JOIN:
-      code = stbSplSplitJoinNode(pCxt, &info);
-      break;
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
       code = stbSplSplitPartitionNode(pCxt, &info);
       break;
