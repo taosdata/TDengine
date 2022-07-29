@@ -222,11 +222,12 @@ typedef struct SRequestObj {
   int32_t              code;
   SArray*              dbList;
   SArray*              tableList;
+  SArray*              targetTableList;
   SQueryExecMetric     metric;
   SRequestSendRecvBody body;
-  bool                 syncQuery;    // todo refactor: async query object
-  bool                 stableQuery;  // todo refactor
-  bool                 validateOnly; // todo refactor
+  bool                 syncQuery;     // todo refactor: async query object
+  bool                 stableQuery;   // todo refactor
+  bool                 validateOnly;  // todo refactor
   bool                 killed;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;

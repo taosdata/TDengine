@@ -63,7 +63,7 @@ print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4] $data[2][5] $d
 if $rows != 3 then
   return -1
 endi
-if $data[2][19] != ready then
+if $data[2][15] != ready then
   goto check_db_ready
 endi
 
@@ -698,7 +698,7 @@ print $data(db1)[0] $data(db1)[1] $data(db1)[2] $data(db1)[3] $data(db1)[4] $dat
 if $rows != 4 then
   return -1
 endi
-if $data(db1)[19] != ready then
+if $data(db1)[15] != ready then
   goto check_db_ready1
 endi
 

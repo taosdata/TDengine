@@ -64,7 +64,7 @@ int32_t tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   if (tEncodeI32(pEncoder, pTask->selfChildId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->nodeId) < 0) return -1;
   if (tEncodeSEpSet(pEncoder, &pTask->epSet) < 0) return -1;
-  if (tEncodeI32(pEncoder, pTask->numOfVgroups) < 0) return -1;
+  /*if (tEncodeI32(pEncoder, pTask->numOfVgroups) < 0) return -1;*/
 
   int32_t epSz = taosArrayGetSize(pTask->childEpInfo);
   if (tEncodeI32(pEncoder, epSz) < 0) return -1;
@@ -119,7 +119,7 @@ int32_t tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tDecodeI32(pDecoder, &pTask->selfChildId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->nodeId) < 0) return -1;
   if (tDecodeSEpSet(pDecoder, &pTask->epSet) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pTask->numOfVgroups) < 0) return -1;
+  /*if (tDecodeI32(pDecoder, &pTask->numOfVgroups) < 0) return -1;*/
 
   int32_t epSz;
   if (tDecodeI32(pDecoder, &epSz) < 0) return -1;

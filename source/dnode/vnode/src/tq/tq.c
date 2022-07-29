@@ -653,7 +653,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen) {
     } else {
       SReadHandle mgHandle = {
           .vnode = NULL,
-          .numOfVgroups = pTask->numOfVgroups,
+          .numOfVgroups = (int32_t)taosArrayGetSize(pTask->childEpInfo),
       };
       pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &mgHandle);
     }
@@ -796,7 +796,7 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
 
 int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTaskRecoverRsp* pRsp = pMsg->pCont;
-  int32_t                taskId = pRsp->taskId;
+  int32_t                taskId = pRsp->rspTaskId;
   SStreamTask**          ppTask = (SStreamTask**)taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
   if (ppTask) {
     streamProcessRecoverRsp(*ppTask, pRsp);

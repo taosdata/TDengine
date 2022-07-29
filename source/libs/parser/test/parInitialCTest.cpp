@@ -21,12 +21,6 @@ namespace ParserTest {
 
 class ParserInitialCTest : public ParserDdlTest {};
 
-TEST_F(ParserInitialCTest, compact) {
-  useDb("root", "test");
-
-  run("COMPACT VNODES IN (1, 2)", TSDB_CODE_PAR_EXPRIE_STATEMENT, PARSER_STAGE_PARSE);
-}
-
 TEST_F(ParserInitialCTest, createAccount) {
   useDb("root", "test");
 
@@ -64,7 +58,7 @@ TEST_F(ParserInitialCTest, createBnode) {
  *   | CACHESIZE value
  *   | COMP {0 | 1 | 2}
  *   | DURATION value
- *   | FSYNC value
+ *   | WAL_FSYNC_PERIOD value
  *   | MAXROWS value
  *   | MINROWS value
  *   | KEEP value
@@ -74,7 +68,7 @@ TEST_F(ParserInitialCTest, createBnode) {
  *   | REPLICA value
  *   | RETENTIONS ingestion_duration:keep_duration ...
  *   | STRICT {'off' | 'on'}
- *   | WAL value
+ *   | WAL_LEVEL value
  *   | VGROUPS value
  *   | SINGLE_STABLE {0 | 1}
  *   | WAL_RETENTION_PERIOD value
@@ -102,7 +96,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
     expect.cacheLastSize = TSDB_DEFAULT_CACHE_SIZE;
     expect.compression = TSDB_DEFAULT_COMP_LEVEL;
     expect.daysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
-    expect.fsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
+    expect.walFsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
     expect.maxRows = TSDB_DEFAULT_MAXROWS_FBLOCK;
     expect.minRows = TSDB_DEFAULT_MINROWS_FBLOCK;
     expect.daysToKeep0 = TSDB_DEFAULT_KEEP;
@@ -124,7 +118,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
   auto setDbCachelastSize = [&](int8_t cachelastSize) { expect.cacheLastSize = cachelastSize; };
   auto setDbCompressionFunc = [&](int8_t compressionLevel) { expect.compression = compressionLevel; };
   auto setDbDaysFunc = [&](int32_t daysPerFile) { expect.daysPerFile = daysPerFile; };
-  auto setDbFsyncFunc = [&](int32_t fsyncPeriod) { expect.fsyncPeriod = fsyncPeriod; };
+  auto setDbFsyncFunc = [&](int32_t fsyncPeriod) { expect.walFsyncPeriod = fsyncPeriod; };
   auto setDbMaxRowsFunc = [&](int32_t maxRowsPerBlock) { expect.maxRows = maxRowsPerBlock; };
   auto setDbMinRowsFunc = [&](int32_t minRowsPerBlock) { expect.minRows = minRowsPerBlock; };
   auto setDbKeepFunc = [&](int32_t keep0, int32_t keep1 = 0, int32_t keep2 = 0) {
@@ -175,7 +169,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
     ASSERT_EQ(req.daysToKeep2, expect.daysToKeep2);
     ASSERT_EQ(req.minRows, expect.minRows);
     ASSERT_EQ(req.maxRows, expect.maxRows);
-    ASSERT_EQ(req.fsyncPeriod, expect.fsyncPeriod);
+    ASSERT_EQ(req.walFsyncPeriod, expect.walFsyncPeriod);
     ASSERT_EQ(req.walLevel, expect.walLevel);
     ASSERT_EQ(req.precision, expect.precision);
     ASSERT_EQ(req.compression, expect.compression);
@@ -241,7 +235,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "CACHESIZE 20 "
       "COMP 1 "
       "DURATION 100 "
-      "FSYNC 100 "
+      "WAL_FSYNC_PERIOD 100 "
       "MAXROWS 1000 "
       "MINROWS 100 "
       "KEEP 1440 "
@@ -251,7 +245,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "REPLICA 3 "
       "RETENTIONS 15s:7d,1m:21d,15m:500d "
       "STRICT 'on' "
-      "WAL 2 "
+      "WAL_LEVEL 2 "
       "VGROUPS 100 "
       "SINGLE_STABLE 1 "
       "SCHEMALESS 1 "

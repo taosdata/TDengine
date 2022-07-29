@@ -498,4 +498,7 @@ if $data15 != 3 then
   goto loop5
 endi
 
+sql drop database test;
+sql drop database test1;
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

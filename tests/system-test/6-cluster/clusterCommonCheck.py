@@ -55,6 +55,7 @@ class ClusterComCheck:
             count+=1
             time.sleep(1)
         else:
+            tdSql.query("show dnodes")
             tdLog.debug(tdSql.queryResult)
             tdLog.exit("it find cluster with %d dnodes but  check that there dnodes are not ready within 30s ! "%dnodeNumbers)
 
@@ -82,7 +83,7 @@ class ClusterComCheck:
                 for i in range(alldbNumbers):
                     tdSql.query("show databases;")
                     if "%s_%d"%(dbNameIndex,j) == tdSql.queryResult[i][0] :   
-                        if tdSql.queryResult[i][19] == "ready":
+                        if tdSql.queryResult[i][15] == "ready":
                             query_status+=1
                             tdLog.debug("check %s_%d that status is ready "%(dbNameIndex,j))      
                         else:
@@ -111,7 +112,7 @@ class ClusterComCheck:
     def checkMnodeStatus(self,mnodeNums):
         self.mnodeNums=int(mnodeNums)
         # self.leaderDnode=int(leaderDnode)
-        
+        tdLog.debug("start to check status of mnodes")
         count=0
 
         while count < 10:

@@ -235,6 +235,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
   if (TSDB_CODE_SUCCESS == code || NEED_CLIENT_HANDLE_ERROR(code)) {
     TSWAP(pRequest->dbList, (*pQuery)->pDbList);
     TSWAP(pRequest->tableList, (*pQuery)->pTableList);
+    TSWAP(pRequest->targetTableList, (*pQuery)->pTargetTableList);
   }
 
   return code;
@@ -590,7 +591,7 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
   return code;
 }
 
-void freeVgList(void *list) {
+void freeVgList(void* list) {
   SArray* pList = *(SArray**)list;
   taosArrayDestroy(pList);
 }
@@ -851,7 +852,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
 
   tscDebug("schedulerExecCb request type %s", TMSG_INFO(pRequest->type));
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
-    removeMeta(pTscObj, pRequest->tableList);
+    removeMeta(pTscObj, pRequest->targetTableList);
   }
 
   // return to client
@@ -1094,7 +1095,7 @@ SRequestObj* execQuery(uint64_t connId, const char* sql, int sqlLen, bool valida
   } while (retryNum++ < REQUEST_TOTAL_EXEC_TIMES);
 
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
-    removeMeta(pRequest->pTscObj, pRequest->tableList);
+    removeMeta(pRequest->pTscObj, pRequest->targetTableList);
   }
 
   return pRequest;
@@ -1277,8 +1278,8 @@ int32_t doProcessMsgFromServer(void* param) {
   char      tbuf[40] = {0};
   TRACE_TO_STR(trace, tbuf);
 
-  tscDebug("processMsgFromServer handle %p, message: %s, code: %s, gtid: %s", pMsg->info.handle, TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code),
-           tbuf);
+  tscDebug("processMsgFromServer handle %p, message: %s, code: %s, gtid: %s", pMsg->info.handle,
+           TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code), tbuf);
 
   if (pSendInfo->requestObjRefId != 0) {
     SRequestObj* pRequest = (SRequestObj*)taosAcquireRef(clientReqRefPool, pSendInfo->requestObjRefId);
@@ -2113,7 +2114,7 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
     return NULL;
   }
 
-  TAOS_RES* pRes = execQuery(connId, sql, sqlLen, validateOnly);
+  TAOS_RES* pRes = execQuery(*(int64_t*)taos, sql, sqlLen, validateOnly);
   return pRes;
 #endif
 }

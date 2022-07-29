@@ -1522,6 +1522,7 @@ static const char* jkTableScanPhysiPlanWatermark = "Watermark";
 static const char* jkTableScanPhysiPlanIgnoreExpired = "IgnoreExpired";
 static const char* jkTableScanPhysiPlanGroupTags = "GroupTags";
 static const char* jkTableScanPhysiPlanGroupSort = "GroupSort";
+static const char* jkTableScanPhysiPlanAssignBlockUid = "AssignBlockUid";
 
 static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   const STableScanPhysiNode* pNode = (const STableScanPhysiNode*)pObj;
@@ -1577,6 +1578,9 @@ static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkTableScanPhysiPlanGroupSort, pNode->groupSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkTableScanPhysiPlanAssignBlockUid, pNode->assignBlockUid);
   }
 
   return code;
@@ -1636,6 +1640,9 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkTableScanPhysiPlanGroupSort, &pNode->groupSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkTableScanPhysiPlanAssignBlockUid, &pNode->assignBlockUid);
   }
 
   return code;
@@ -1712,6 +1719,7 @@ static int32_t jsonToPhysiProjectNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkJoinPhysiPlanJoinType = "JoinType";
+static const char* jkJoinPhysiPlanInputTsOrder = "InputTsOrder";
 static const char* jkJoinPhysiPlanMergeCondition = "MergeCondition";
 static const char* jkJoinPhysiPlanOnConditions = "OnConditions";
 static const char* jkJoinPhysiPlanTargets = "Targets";
@@ -1722,6 +1730,9 @@ static int32_t physiJoinNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = physicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkJoinPhysiPlanJoinType, pNode->joinType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkJoinPhysiPlanInputTsOrder, pNode->inputTsOrder);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkJoinPhysiPlanMergeCondition, nodeToJson, pNode->pMergeCondition);
@@ -1742,7 +1753,9 @@ static int32_t jsonToPhysiJoinNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToPhysicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     tjsonGetNumberValue(pJson, jkJoinPhysiPlanJoinType, pNode->joinType, code);
-    ;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkJoinPhysiPlanInputTsOrder, pNode->inputTsOrder, code);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkJoinPhysiPlanOnConditions, &pNode->pOnConditions);
@@ -4519,7 +4532,6 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
       return jsonToPhysiScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
-
       return jsonToPhysiLastRowScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:

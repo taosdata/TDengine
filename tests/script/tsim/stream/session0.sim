@@ -83,22 +83,22 @@ if $data11 != 3 then
   goto loop0
 endi
 
-if $data12 != 10 then
+if $data12 != NULL then
   print ======data12=$data12
   goto loop0
 endi
 
-if $data13 != 10 then
+if $data13 != NULL then
   print ======data13=$data13
   goto loop0
 endi
 
-if $data14 != 1.100000000 then
+if $data14 != NULL then
   print ======data14=$data14
   return -1
 endi
 
-if $data15 != 0.000000000 then
+if $data15 != NULL then
   print ======data15=$data15
   return -1
 endi
@@ -141,22 +141,22 @@ if $data01 != 7 then
   goto loop1
 endi
 
-if $data02 != 18 then
+if $data02 != NULL then
   print =====data02=$data02
   goto loop1
 endi
 
-if $data03 != 4 then
+if $data03 != NULL then
   print =====data03=$data03
   goto loop1
 endi
 
-if $data04 != 1.000000000 then
+if $data04 != NULL then
   print ======$data04
   return -1
 endi
 
-if $data05 != 1.154700538 then
+if $data05 != NULL then
   print ======$data05
   return -1
 endi

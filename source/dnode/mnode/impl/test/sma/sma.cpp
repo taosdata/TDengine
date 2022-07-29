@@ -49,7 +49,7 @@ void* MndTestSma::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
   createReq.daysToKeep2 = 3650 * 1440;
   createReq.minRows = 100;
   createReq.maxRows = 4096;
-  createReq.fsyncPeriod = 3000;
+  createReq.walFsyncPeriod = 3000;
   createReq.walLevel = 1;
   createReq.precision = 0;
   createReq.compression = 2;
