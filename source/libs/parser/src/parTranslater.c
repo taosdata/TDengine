@@ -1857,7 +1857,7 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
             pCxt, toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, &name),
             &(pRealTable->pMeta));
         if (TSDB_CODE_SUCCESS != code) {
-          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, pRealTable->table.tableName);
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
         }
         code = setTableVgroupList(pCxt, &name, pRealTable);
         if (TSDB_CODE_SUCCESS == code) {

@@ -305,6 +305,8 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
               taosArrayPush(desc.subDesc, &sDesc);
             }
           }
+          
+          ASSERT(desc.subPlanNum == taosArrayGetSize(desc.subDesc));
 
           taosArrayPush(pReq->query->queryDesc, &desc);
         }
