@@ -1102,7 +1102,7 @@ static void rpcProcessProbeMsg(SRecvInfo *pRecv, SRpcConn *pConn) {
 
     bool ret = rpcSendMsgToPeer(pConn, &rspHead, sizeof(SRpcHead));
     tDebug("PROBE 0x%" PRIx64 " recv probe msg and response. ret=%d", pHead->ahandle, ret);
-    rpcFreeCont(pRecv->msg);
+    rpcFreeMsg(pRecv->msg);
     rpcUnlockConn(pConn);
   } else if (pHead->msgType == TSDB_MSG_TYPE_PROBE_CONN_RSP) {
     if(pConn) {
@@ -1786,6 +1786,7 @@ bool doRpcSendProbe(SRpcConn *pConn) {
 
 // send server syn
 bool rpcSendProbe(int64_t rpcRid, void* pPrevContext, void* pPrevConn, void* pPrevFdObj, int32_t prevFd) {
+  // return false can kill query
   bool ret = false;
   if(rpcRid < 0) {
     tError("PROBE rpcRid=%" PRId64 " less than zero, invalid.", rpcRid);
@@ -1795,8 +1796,8 @@ bool rpcSendProbe(int64_t rpcRid, void* pPrevContext, void* pPrevConn, void* pPr
   // get req content
   SRpcReqContext *pContext = taosAcquireRef(tsRpcRefId, rpcRid);
   if (pContext == NULL) {
-    tError("PROBE rpcRid=%" PRId64 " get context NULL.", rpcRid);
-    return false;
+    tError("PROBE rpcRid=%" PRId64 " get context NULL. sql finished no need send probe.", rpcRid);
+    return true;
   }
 
   // context same
@@ -1808,6 +1809,7 @@ bool rpcSendProbe(int64_t rpcRid, void* pPrevContext, void* pPrevConn, void* pPr
   // conn same
   if (pContext->pConn != pPrevConn) {
     tError("PROBE rpcRid=%" PRId64 " connect obj diff. pContext->pConn=%p pPreConn=%p", rpcRid, pContext->pConn, pPrevConn);
+    ret = pContext->pConn == NULL;
     goto _END;
   }
 

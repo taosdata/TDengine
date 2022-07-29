@@ -312,7 +312,7 @@ bool dealConnBroken(SSqlObj * pSql) {
 bool sendProbeConnMsg(SSqlObj* pSql) {
   // TEST TODO DELETE
   tsProbeSeconds = 1;   // over this value send probe msg
-  tsProbeKillSeconds = 3*60; // over this value query can be killed
+  tsProbeKillSeconds = 2*60; // over this value query can be killed
 
   if(pSql->stime == 0) {
     // not start , no need probe
@@ -329,7 +329,7 @@ bool sendProbeConnMsg(SSqlObj* pSql) {
   if (diff > tsProbeKillSeconds * 1000) {
     // need kill query
     tscDebug("PROBE 0x%"PRIx64" need killed, noAckCnt:%d diff=%d", pSql->self, pSql->noAckCnt, diff);
-    //return false;
+    return false;
   }
 
   if (pSql->pPrevContext == NULL || pSql->pPrevConn == NULL ||  pSql->pPrevFdObj == NULL || pSql->prevFd <= 0) {

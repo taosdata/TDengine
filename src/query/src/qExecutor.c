@@ -6367,6 +6367,10 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
     SSDataBlock* pBlock = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
     publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
 
+    // TEST TODU DELETE
+    taosMsleep(10*1000);
+
+
     if (pBlock == NULL) {
       //assert(*newgroup == false);
 
