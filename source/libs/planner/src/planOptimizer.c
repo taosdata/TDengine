@@ -100,6 +100,27 @@ static EDealRes optRebuildTbanme(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static void optSetParentOrder(SLogicNode* pNode, EOrder order) {
+  if (NULL == pNode) {
+    return;
+  }
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_WINDOW:
+      ((SWindowLogicNode*)pNode)->inputTsOrder = order;
+      // window has a sorting function, and the operator behind it uses its output order
+      return;
+    case QUERY_NODE_LOGIC_PLAN_JOIN:
+      ((SJoinLogicNode*)pNode)->inputTsOrder = order;
+      break;
+    case QUERY_NODE_LOGIC_PLAN_FILL:
+      ((SFillLogicNode*)pNode)->inputTsOrder = order;
+      break;
+    default:
+      break;
+  }
+  optSetParentOrder(pNode->pParent, order);
+}
+
 EDealRes scanPathOptHaveNormalColImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     // *((bool*)pContext) = (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType);
@@ -305,10 +326,12 @@ static void scanPathOptSetScanOrder(EScanOrder scanOrder, SScanLogicNode* pScan)
     case SCAN_ORDER_ASC:
       pScan->scanSeq[0] = 1;
       pScan->scanSeq[1] = 0;
+      optSetParentOrder(pScan->node.pParent, ORDER_ASC);
       break;
     case SCAN_ORDER_DESC:
       pScan->scanSeq[0] = 0;
       pScan->scanSeq[1] = 1;
+      optSetParentOrder(pScan->node.pParent, ORDER_DESC);
       break;
     case SCAN_ORDER_BOTH:
       pScan->scanSeq[0] = 1;
@@ -1038,9 +1061,6 @@ static int32_t pushDownCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
 }
 
 static bool sortPriKeyOptIsPriKeyOrderBy(SNodeList* pSortKeys) {
-  if (1 != LIST_LENGTH(pSortKeys)) {
-    return false;
-  }
   SNode* pNode = ((SOrderByExprNode*)nodesListGetNode(pSortKeys, 0))->pExpr;
   return (QUERY_NODE_COLUMN == nodeType(pNode) ? (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) : false);
 }
@@ -1051,12 +1071,13 @@ static bool sortPriKeyOptMayBeOptimized(SLogicNode* pNode) {
   }
   SSortLogicNode* pSort = (SSortLogicNode*)pNode;
   if (pSort->groupSort || !sortPriKeyOptIsPriKeyOrderBy(pSort->pSortKeys) || 1 != LIST_LENGTH(pSort->node.pChildren)) {
-    return TSDB_CODE_SUCCESS;
+    return false;
   }
   return true;
 }
 
-static int32_t sortPriKeyOptGetScanNodesImpl(SLogicNode* pNode, bool* pNotOptimize, SNodeList** pScanNodes) {
+static int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool* pNotOptimize,
+                                                   SNodeList** pSequencingNodes) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pScan = (SScanLogicNode*)pNode;
@@ -1064,17 +1085,19 @@ static int32_t sortPriKeyOptGetScanNodesImpl(SLogicNode* pNode, bool* pNotOptimi
         *pNotOptimize = true;
         return TSDB_CODE_SUCCESS;
       }
-      return nodesListMakeAppend(pScanNodes, (SNode*)pNode);
+      return nodesListMakeAppend(pSequencingNodes, (SNode*)pNode);
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
-      int32_t code =
-          sortPriKeyOptGetScanNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 0), pNotOptimize, pScanNodes);
+      int32_t code = sortPriKeyOptGetSequencingNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 0),
+                                                         pNotOptimize, pSequencingNodes);
       if (TSDB_CODE_SUCCESS == code) {
-        code =
-            sortPriKeyOptGetScanNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 1), pNotOptimize, pScanNodes);
+        code = sortPriKeyOptGetSequencingNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 1), pNotOptimize,
+                                                   pSequencingNodes);
       }
       return code;
     }
+    case QUERY_NODE_LOGIC_PLAN_WINDOW:
+      return nodesListMakeAppend(pSequencingNodes, (SNode*)pNode);
     case QUERY_NODE_LOGIC_PLAN_AGG:
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
       *pNotOptimize = true;
@@ -1088,14 +1111,15 @@ static int32_t sortPriKeyOptGetScanNodesImpl(SLogicNode* pNode, bool* pNotOptimi
     return TSDB_CODE_SUCCESS;
   }
 
-  return sortPriKeyOptGetScanNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 0), pNotOptimize, pScanNodes);
+  return sortPriKeyOptGetSequencingNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 0), pNotOptimize,
+                                             pSequencingNodes);
 }
 
-static int32_t sortPriKeyOptGetScanNodes(SLogicNode* pNode, SNodeList** pScanNodes) {
+static int32_t sortPriKeyOptGetSequencingNodes(SLogicNode* pNode, SNodeList** pSequencingNodes) {
   bool    notOptimize = false;
-  int32_t code = sortPriKeyOptGetScanNodesImpl(pNode, &notOptimize, pScanNodes);
+  int32_t code = sortPriKeyOptGetSequencingNodesImpl(pNode, &notOptimize, pSequencingNodes);
   if (TSDB_CODE_SUCCESS != code || notOptimize) {
-    nodesClearList(*pScanNodes);
+    nodesClearList(*pSequencingNodes);
   }
   return code;
 }
@@ -1104,34 +1128,26 @@ static EOrder sortPriKeyOptGetPriKeyOrder(SSortLogicNode* pSort) {
   return ((SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0))->order;
 }
 
-static void sortPriKeyOptSetParentOrder(SLogicNode* pNode, EOrder order) {
-  if (NULL == pNode) {
-    return;
-  }
-  if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode)) {
-    ((SWindowLogicNode*)pNode)->inputTsOrder = order;
-  } else if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pNode)) {
-    ((SJoinLogicNode*)pNode)->inputTsOrder = order;
-  }
-  sortPriKeyOptSetParentOrder(pNode->pParent, order);
-}
-
 static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SSortLogicNode* pSort,
-                                  SNodeList* pScanNodes) {
+                                  SNodeList* pSequencingNodes) {
   EOrder order = sortPriKeyOptGetPriKeyOrder(pSort);
-  SNode* pScanNode = NULL;
-  FOREACH(pScanNode, pScanNodes) {
-    SScanLogicNode* pScan = (SScanLogicNode*)pScanNode;
-    if ((ORDER_DESC == order && pScan->scanSeq[0] > 0) || (ORDER_ASC == order && pScan->scanSeq[1] > 0)) {
-      TSWAP(pScan->scanSeq[0], pScan->scanSeq[1]);
+  SNode* pSequencingNode = NULL;
+  FOREACH(pSequencingNode, pSequencingNodes) {
+    if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pSequencingNode)) {
+      SScanLogicNode* pScan = (SScanLogicNode*)pSequencingNode;
+      if ((ORDER_DESC == order && pScan->scanSeq[0] > 0) || (ORDER_ASC == order && pScan->scanSeq[1] > 0)) {
+        TSWAP(pScan->scanSeq[0], pScan->scanSeq[1]);
+      }
+      if (TSDB_SUPER_TABLE == pScan->tableType) {
+        pScan->scanType = SCAN_TYPE_TABLE_MERGE;
+        pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+        pScan->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+      }
+      pScan->sortPrimaryKey = true;
+    } else if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pSequencingNode)) {
+      ((SWindowLogicNode*)pSequencingNode)->outputTsOrder = order;
     }
-    if (TSDB_SUPER_TABLE == pScan->tableType) {
-      pScan->scanType = SCAN_TYPE_TABLE_MERGE;
-      pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
-      pScan->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
-    }
-    sortPriKeyOptSetParentOrder(pScan->node.pParent, order);
-    pScan->sortPrimaryKey = true;
+    optSetParentOrder(((SLogicNode*)pSequencingNode)->pParent, order);
   }
 
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0);
@@ -1148,12 +1164,13 @@ static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 }
 
 static int32_t sortPrimaryKeyOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SSortLogicNode* pSort) {
-  SNodeList* pScanNodes = NULL;
-  int32_t    code = sortPriKeyOptGetScanNodes((SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0), &pScanNodes);
-  if (TSDB_CODE_SUCCESS == code && NULL != pScanNodes) {
-    code = sortPriKeyOptApply(pCxt, pLogicSubplan, pSort, pScanNodes);
+  SNodeList* pSequencingNodes = NULL;
+  int32_t    code =
+      sortPriKeyOptGetSequencingNodes((SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0), &pSequencingNodes);
+  if (TSDB_CODE_SUCCESS == code && NULL != pSequencingNodes) {
+    code = sortPriKeyOptApply(pCxt, pLogicSubplan, pSort, pSequencingNodes);
   }
-  nodesClearList(pScanNodes);
+  nodesClearList(pSequencingNodes);
   return code;
 }
 

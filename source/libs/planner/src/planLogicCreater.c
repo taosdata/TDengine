@@ -632,6 +632,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
     pWindow->igExpired = pCxt->pPlanCxt->igExpired;
   }
   pWindow->inputTsOrder = ORDER_ASC;
+  pWindow->outputTsOrder = ORDER_ASC;
 
   int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, fmIsWindowClauseFunc, &pWindow->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
@@ -764,6 +765,7 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pFill->node.groupAction = GROUP_ACTION_KEEP;
   pFill->node.requireDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
   pFill->node.resultDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
+  pFill->inputTsOrder = ORDER_ASC;
 
   int32_t code = nodesCollectColumns(pSelect, SQL_CLAUSE_WINDOW, NULL, COLLECT_COL_TYPE_ALL, &pFill->node.pTargets);
   if (TSDB_CODE_SUCCESS == code && NULL == pFill->node.pTargets) {
