@@ -97,7 +97,7 @@
 # TD-17738 ./test.sh -f tsim/parser/col_arithmetic_operation.sim     
 # TD-17661 ./test.sh -f tsim/parser/columnValue.sim
 ./test.sh -f tsim/parser/commit.sim
-# TD-17661 ./test.sh -f tsim/parser/condition.sim
+./test.sh -f tsim/parser/condition.sim
 ./test.sh -f tsim/parser/constCol.sim
 #./test.sh -f tsim/parser/create_db.sim
 ./test.sh -f tsim/parser/create_mt.sim
