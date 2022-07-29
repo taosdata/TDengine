@@ -2,6 +2,17 @@
 set -e
 set -x
 
+python3 ./test.py -f 0-others/taosShell.py
+python3 ./test.py -f 0-others/taosShellError.py
+python3 ./test.py -f 0-others/taosShellNetChk.py
+python3 ./test.py -f 0-others/telemetry.py
+python3 ./test.py -f 0-others/taosdMonitor.py
+python3 ./test.py -f 0-others/udfTest.py
+python3 ./test.py -f 0-others/udf_create.py
+python3 ./test.py -f 0-others/udf_restart_taosd.py
+python3 ./test.py -f 0-others/cachemodel.py
+python3 ./test.py -f 0-others/udf_cfg1.py
+python3 ./test.py -f 0-others/udf_cfg2.py
 
 python3 ./test.py -f 0-others/sysinfo.py
 python3 ./test.py -f 0-others/user_control.py
@@ -416,4 +427,3 @@ python3 ./test.py -f 2-query/count_partition.py -Q 3
 python3 ./test.py -f 2-query/max_partition.py -Q 3
 python3 ./test.py -f 2-query/last_row.py -Q 3
 python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
-
