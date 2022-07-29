@@ -1597,7 +1597,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       continue;
     }
 
-    if (pBlock->info.type == STREAM_NORMAL) {
+    if (pBlock->info.type == STREAM_NORMAL && pBlock->info.version != 0) {
       // set input version
       pTaskInfo->version = pBlock->info.version;
     }
