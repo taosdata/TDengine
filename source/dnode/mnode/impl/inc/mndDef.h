@@ -164,8 +164,8 @@ typedef struct {
   int32_t     lastErrorNo;
   tmsg_t      lastMsgType;
   SEpSet      lastEpset;
-  char        dbname1[TSDB_DB_FNAME_LEN];
-  char        dbname2[TSDB_DB_FNAME_LEN];
+  char        dbname1[TSDB_TABLE_FNAME_LEN];
+  char        dbname2[TSDB_TABLE_FNAME_LEN];
   int32_t     startFunc;
   int32_t     stopFunc;
   int32_t     paramLen;
@@ -294,7 +294,7 @@ typedef struct {
   int32_t daysToKeep2;
   int32_t minRows;
   int32_t maxRows;
-  int32_t fsyncPeriod;
+  int32_t walFsyncPeriod;
   int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;
@@ -302,9 +302,13 @@ typedef struct {
   int8_t  strict;
   int8_t  hashMethod;  // default is 1
   int8_t  cacheLast;
+  int8_t  schemaless;
   int32_t numOfRetensions;
   SArray* pRetensions;
-  int8_t  schemaless;
+  int32_t walRetentionPeriod;
+  int64_t walRetentionSize;
+  int32_t walRollPeriod;
+  int64_t walSegmentSize;
 } SDbCfg;
 
 typedef struct {

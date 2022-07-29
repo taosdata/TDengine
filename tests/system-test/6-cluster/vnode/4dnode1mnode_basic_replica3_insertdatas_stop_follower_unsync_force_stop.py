@@ -80,14 +80,14 @@ class TDTestCase:
                 is_leader=True
 
         if count==1 and is_leader:
-            tdLog.info("===== depoly cluster success with 1 mnode as leader =====")
+            tdLog.notice("===== depoly cluster success with 1 mnode as leader =====")
         else:
             tdLog.exit("===== depoly cluster fail with 1 mnode as leader =====")
 
         for k ,v in self.dnode_list.items():
             if k == mnode_name:
                 if v[3]==0:
-                    tdLog.info("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
+                    tdLog.notice("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
                 else:
                     tdLog.exit("===== depoly cluster mnode only fail at {} , support_vnodes is {} ".format(mnode_name,v[3]))
             else:
@@ -130,7 +130,7 @@ class TDTestCase:
 
         for k , v in vgroups_infos.items():
             if len(v) ==1 and v[0]=="leader":
-                tdLog.info(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
+                tdLog.notice(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
             else:
                 tdLog.exit(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
 
@@ -138,7 +138,7 @@ class TDTestCase:
         drop_db_sql = "drop database if exists {}".format(dbname)
         create_db_sql = "create database {} replica {} vgroups {}".format(dbname,replica_num,vgroup_nums)
 
-        tdLog.info(" ==== create database {} and insert rows begin =====".format(dbname))
+        tdLog.notice(" ==== create database {} and insert rows begin =====".format(dbname))
         tdSql.execute(drop_db_sql)
         tdSql.execute(create_db_sql)
         tdSql.execute("use {}".format(dbname))
@@ -161,7 +161,7 @@ class TDTestCase:
                 ts = self.ts + self.ts_step*row_num
                 tdSql.execute(f"insert into {sub_tbname} values ({ts}, {row_num} ,{row_num}, 10 ,1 ,{row_num} ,{row_num},true,'bin_{row_num}','nchar_{row_num}',now) ")
 
-        tdLog.info(" ==== stable {} insert rows execute end =====".format(stablename))
+        tdLog.notice(" ==== stable {} insert rows execute end =====".format(stablename))
     
     def append_rows_of_exists_tables(self,dbname ,stablename , tbname , append_nums ):
         
@@ -170,7 +170,7 @@ class TDTestCase:
         for row_num in range(append_nums):
             tdSql.execute(f"insert into {tbname} values (now, {row_num} ,{row_num}, 10 ,1 ,{row_num} ,{row_num},true,'bin_{row_num}','nchar_{row_num}',now) ")
             # print(f"insert into {tbname} values (now, {row_num} ,{row_num}, 10 ,1 ,{row_num} ,{row_num},true,'bin_{row_num}','nchar_{row_num}',now) ")
-        tdLog.info(" ==== append new rows of table {} belongs to  stable {} execute end =====".format(tbname,stablename))
+        tdLog.notice(" ==== append new rows of table {} belongs to  stable {} execute end =====".format(tbname,stablename))
         os.system("taos -s 'select count(*) from {}.{}';".format(dbname,stablename))
 
     def check_insert_rows(self, dbname, stablename , tb_nums , row_nums, append_rows):
@@ -197,7 +197,7 @@ class TDTestCase:
                 time.sleep(0.1)
                 tdSql.query("select count(*) from {}.{}".format(dbname,stablename))
             status_OK = self.mycheckData("select count(*) from {}.{}".format(dbname,stablename) ,0 , 0 , tb_nums*row_nums+append_rows)
-            tdLog.info(" ==== check insert rows first failed , this is {}_th retry check rows of database {}".format(count , dbname))
+            tdLog.notice(" ==== check insert rows first failed , this is {}_th retry check rows of database {}".format(count , dbname))
             count += 1
         
 
@@ -218,7 +218,7 @@ class TDTestCase:
                 time.sleep(0.1)
                 tdSql.query("select distinct tbname from {}.{}".format(dbname,stablename))
             status_OK = self.mycheckRows("select distinct tbname from {}.{}".format(dbname,stablename) ,tb_nums)
-            tdLog.info(" ==== check insert tbnames first failed , this is {}_th retry check tbnames of database {}".format(count , dbname))
+            tdLog.notice(" ==== check insert tbnames first failed , this is {}_th retry check tbnames of database {}".format(count , dbname))
             count += 1
 
     def _get_stop_dnode_id(self,dbname):
@@ -256,8 +256,8 @@ class TDTestCase:
         while status !="offline":
             time.sleep(0.1)
             status = _get_status()
-            # tdLog.info("==== stop dnode has not been stopped , endpoint is {}".format(self.stop_dnode))
-        tdLog.info("==== stop_dnode has stopped , id is {}".format(self.stop_dnode_id))
+            # tdLog.notice("==== stop dnode has not been stopped , endpoint is {}".format(self.stop_dnode))
+        tdLog.notice("==== stop_dnode has stopped , id is {}".format(self.stop_dnode_id))
 
     def wait_start_dnode_OK(self):
     
@@ -278,8 +278,8 @@ class TDTestCase:
         while status !="ready":
             time.sleep(0.1)
             status = _get_status()
-            # tdLog.info("==== stop dnode has not been stopped , endpoint is {}".format(self.stop_dnode))
-        tdLog.info("==== stop_dnode has restart , id is {}".format(self.stop_dnode_id))
+            # tdLog.notice("==== stop dnode has not been stopped , endpoint is {}".format(self.stop_dnode))
+        tdLog.notice("==== stop_dnode has restart , id is {}".format(self.stop_dnode_id))
 
     def _parse_datetime(self,timestr):
         try:
@@ -343,9 +343,9 @@ class TDTestCase:
         elif isinstance(data, str):
             tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                        (sql, row, col, tdSql.queryResult[row][col], data))
-        elif isinstance(data, datetime.date):
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (sql, row, col, tdSql.queryResult[row][col], data))
+        # elif isinstance(data, datetime.date):
+        #     tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
+        #                (sql, row, col, tdSql.queryResult[row][col], data))
         elif isinstance(data, float):
             tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                        (sql, row, col, tdSql.queryResult[row][col], data))
@@ -390,15 +390,15 @@ class TDTestCase:
             # append rows of stablename when dnode stop 
             
             tbname = "sub_{}_{}".format(stablename , 0)
-            tdLog.info(" ==== begin  append rows of exists table {} when dnode {} offline ====".format(tbname , self.stop_dnode_id))
+            tdLog.notice(" ==== begin  append rows of exists table {} when dnode {} offline ====".format(tbname , self.stop_dnode_id))
             self.append_rows_of_exists_tables(db_name ,stablename , tbname , 100 )
-            tdLog.info(" ==== check  append rows of exists table {} when dnode {} offline ====".format(tbname , self.stop_dnode_id))
+            tdLog.notice(" ==== check  append rows of exists table {} when dnode {} offline ====".format(tbname , self.stop_dnode_id))
             self.check_insert_rows(db_name ,stablename ,tb_nums=10 , row_nums= 10 ,append_rows=100)
 
             # create new stables
-            tdLog.info(" ==== create new stable {} when  dnode {} offline ====".format('new_stb1' , self.stop_dnode_id))
+            tdLog.notice(" ==== create new stable {} when  dnode {} offline ====".format('new_stb1' , self.stop_dnode_id))
             self.create_stable_insert_datas(dbname = db_name , stablename = 'new_stb1' , tb_nums= 10 ,row_nums= 10 )
-            tdLog.info(" ==== check new stable {} when  dnode {} offline ====".format('new_stb1' , self.stop_dnode_id))
+            tdLog.notice(" ==== check new stable {} when  dnode {} offline ====".format('new_stb1' , self.stop_dnode_id))
             self.check_insert_rows(db_name ,'new_stb1' ,tb_nums=10 , row_nums= 10 ,append_rows=0)
 
             # begin start dnode 
@@ -410,9 +410,9 @@ class TDTestCase:
                 tdLog.exit(" ==== restart dnode {} cost too much time , please check ====".format(self.stop_dnode_id))
                 
             # create new stables again 
-            tdLog.info(" ==== create new stable {} when  dnode {} restart ====".format('new_stb2' , self.stop_dnode_id))
+            tdLog.notice(" ==== create new stable {} when  dnode {} restart ====".format('new_stb2' , self.stop_dnode_id))
             self.create_stable_insert_datas(dbname = db_name , stablename = 'new_stb2' , tb_nums= 10 ,row_nums= 10 )
-            tdLog.info(" ==== check new stable {} when  dnode {} restart ====".format('new_stb2' , self.stop_dnode_id))
+            tdLog.notice(" ==== check new stable {} when  dnode {} restart ====".format('new_stb2' , self.stop_dnode_id))
             self.check_insert_rows(db_name ,'new_stb2' ,tb_nums=10 , row_nums= 10 ,append_rows=0)
     
     def unsync_run_case(self):
@@ -453,7 +453,7 @@ class TDTestCase:
             self.create_database(dbname = db_name ,replica_num= self.replica  , vgroup_nums= 1)
             self.create_stable_insert_datas(dbname = db_name , stablename = stablename , tb_nums= 10 ,row_nums= 10 )
 
-            tdLog.info(" ===== restart dnode of database {}  in an unsync threading  ===== ".format(db_name))
+            tdLog.notice(" ===== restart dnode of database {}  in an unsync threading  ===== ".format(db_name))
 
             # create sync threading and start it 
             self.current_thread = _create_threading(db_name)
@@ -463,21 +463,21 @@ class TDTestCase:
             self.check_insert_rows(db_name ,stablename ,tb_nums=10 , row_nums= 10 ,append_rows=0)
 
             tbname = "sub_{}_{}".format(stablename , 0)
-            tdLog.info(" ==== begin  append rows of exists table {} when dnode {} offline ====".format(tbname , self.stop_dnode_id))
+            tdLog.notice(" ==== begin  append rows of exists table {} when dnode {} offline ====".format(tbname , self.stop_dnode_id))
             self.append_rows_of_exists_tables(db_name ,stablename , tbname , 100 )
-            tdLog.info(" ==== check  append rows of exists table {} when dnode {} offline ====".format(tbname , self.stop_dnode_id))
+            tdLog.notice(" ==== check  append rows of exists table {} when dnode {} offline ====".format(tbname , self.stop_dnode_id))
             self.check_insert_rows(db_name ,stablename ,tb_nums=10 , row_nums= 10 ,append_rows=100)
 
             # create new stables
-            tdLog.info(" ==== create new stable {} when  dnode {} offline ====".format('new_stb1' , self.stop_dnode_id))
+            tdLog.notice(" ==== create new stable {} when  dnode {} offline ====".format('new_stb1' , self.stop_dnode_id))
             self.create_stable_insert_datas(dbname = db_name , stablename = 'new_stb1' , tb_nums= 10 ,row_nums= 10 )
-            tdLog.info(" ==== check new stable {} when  dnode {} offline ====".format('new_stb1' , self.stop_dnode_id))
+            tdLog.notice(" ==== check new stable {} when  dnode {} offline ====".format('new_stb1' , self.stop_dnode_id))
             self.check_insert_rows(db_name ,'new_stb1' ,tb_nums=10 , row_nums= 10 ,append_rows=0)
 
             # create new stables again 
-            tdLog.info(" ==== create new stable {} when  dnode {} restart ====".format('new_stb2' , self.stop_dnode_id))
+            tdLog.notice(" ==== create new stable {} when  dnode {} restart ====".format('new_stb2' , self.stop_dnode_id))
             self.create_stable_insert_datas(dbname = db_name , stablename = 'new_stb2' , tb_nums= 10 ,row_nums= 10 )
-            tdLog.info(" ==== check new stable {} when  dnode {} restart ====".format('new_stb2' , self.stop_dnode_id))
+            tdLog.notice(" ==== check new stable {} when  dnode {} restart ====".format('new_stb2' , self.stop_dnode_id))
             self.check_insert_rows(db_name ,'new_stb2' ,tb_nums=10 , row_nums= 10 ,append_rows=0)
 
             self.current_thread.join()
@@ -493,7 +493,7 @@ class TDTestCase:
             else:
                 continue
         if port:
-            tdLog.info(" ==== dnode {} will be force stop by kill -9 ====".format(dnode_id))
+            tdLog.notice(" ==== dnode {} will be force stop by kill -9 ====".format(dnode_id))
             psCmd = '''netstat -anp|grep -w LISTEN|grep -w %s |grep -o "LISTEN.*"|awk '{print $2}'|cut -d/ -f1|head -n1''' %(port)
             processID = subprocess.check_output(
                 psCmd, shell=True).decode("utf-8")

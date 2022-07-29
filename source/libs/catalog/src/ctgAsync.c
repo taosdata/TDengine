@@ -473,8 +473,15 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgJob** job, const
   pJob->tbCfgNum = tbCfgNum;
   pJob->svrVerNum = svrVerNum;
 
-  pJob->pTasks = taosArrayInit(taskNum, sizeof(SCtgTask));
+#if CTG_BATCH_FETCH
+  pJob->pBatchs = taosHashInit(CTG_DEFAULT_BATCH_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (NULL == pJob->pBatchs) {
+    ctgError("taosHashInit %d batch failed", CTG_DEFAULT_BATCH_NUM);
+    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+#endif
 
+  pJob->pTasks = taosArrayInit(taskNum, sizeof(SCtgTask));
   if (NULL == pJob->pTasks) {
     ctgError("taosArrayInit %d tasks failed", taskNum);
     CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
@@ -560,7 +567,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgJob** job, const
 
 _return:
 
-  taosMemoryFreeClear(*job);
+  ctgFreeJob(*job);
   CTG_RET(code);
 }
 
@@ -776,7 +783,8 @@ int32_t ctgCallSubCb(SCtgTask *pTask) {
         pParent->subRes.code = code;
       }
     }
-    
+
+    pParent->pBatchs = pTask->pBatchs;    
     CTG_ERR_JRET(pParent->subRes.fp(pParent));
   }
   
@@ -872,7 +880,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf *
             SVgroupInfo vgInfo = {0};
             CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, dbCache->vgCache.vgInfo, ctx->pName, &vgInfo));
           
-            ctgDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(ctx->pName), ctx->flag);
+            ctgDebug("will refresh tbmeta, supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(ctx->pName), ctx->flag);
 
             ctx->vgId = vgInfo.vgId;          
             CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, ctx->pName, &vgInfo, NULL, pTask));
@@ -890,7 +898,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf *
           return TSDB_CODE_SUCCESS;
         }
         
-        ctgError("no tbmeta got, tbNmae:%s", tNameGetTableName(ctx->pName));
+        ctgError("no tbmeta got, tbName:%s", tNameGetTableName(ctx->pName));
         ctgRemoveTbMetaFromCache(pCtg, ctx->pName, false);
         
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
@@ -1653,6 +1661,7 @@ int32_t ctgSetSubTaskCb(SCtgTask *pSub, SCtgTask *pTask) {
   if (CTG_TASK_DONE == pSub->status) {
     pTask->subRes.code = pSub->code;
     CTG_ERR_JRET((*gCtgAsyncFps[pTask->type].cloneFp)(pSub, &pTask->subRes.res));
+    pTask->pBatchs = pSub->pBatchs;
     CTG_ERR_JRET(pTask->subRes.fp(pTask));
   } else {
     if (NULL == pSub->pParents) {
@@ -1690,6 +1699,7 @@ int32_t ctgLaunchSubTask(SCtgTask *pTask, CTG_TASK_TYPE type, ctgSubTaskCbFp fp,
   CTG_ERR_RET(ctgSetSubTaskCb(pSub, pTask));
 
   if (newTask) {
+    pSub->pBatchs = pTask->pBatchs;
     CTG_ERR_RET((*gCtgAsyncFps[pSub->type].launchFp)(pSub));
     pSub->status = CTG_TASK_LAUNCHED;
   }
@@ -1702,9 +1712,11 @@ int32_t ctgLaunchJob(SCtgJob *pJob) {
   
   for (int32_t i = 0; i < taskNum; ++i) {
     SCtgTask *pTask = taosArrayGet(pJob->pTasks, i);
+    pTask->pBatchs = pJob->pBatchs;
 
     qDebug("QID:0x%" PRIx64 " ctg launch [%dth] task", pJob->queryId, pTask->taskId);
     CTG_ERR_RET((*gCtgAsyncFps[pTask->type].launchFp)(pTask));
+    
     pTask->status = CTG_TASK_LAUNCHED;
   }
 
@@ -1712,6 +1724,10 @@ int32_t ctgLaunchJob(SCtgJob *pJob) {
     qDebug("QID:0x%" PRIx64 " ctg call user callback with rsp %s", pJob->queryId, tstrerror(pJob->jobResCode));
     
     taosAsyncExec(ctgCallUserCb, pJob, NULL);
+#if CTG_BATCH_FETCH    
+  } else {
+    ctgLaunchBatchs(pJob->pCtg, pJob, pJob->pBatchs);
+#endif
   }
 
   return TSDB_CODE_SUCCESS;

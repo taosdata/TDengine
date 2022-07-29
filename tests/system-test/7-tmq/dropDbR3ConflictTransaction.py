@@ -100,14 +100,9 @@ class TDTestCase:
         #                                       ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
         #                                       startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
         # tmqCom.asyncInsertDataByInterlace(paraDict)
-        tdLog.printNoPrefix("11111111111111111111111") 
         tmqCom.create_ntable(tdSql, dbname=paraDict["dbName"], tbname_prefix="ntb", tbname_index_start_num = 1, column_elm_list=paraDict["colSchema"], colPrefix='c', tblNum=1)
-        tdLog.printNoPrefix("222222222222222") 
         tmqCom.insert_rows_into_ntbl(tdSql, dbname=paraDict["dbName"], tbname_prefix="ntb", tbname_index_start_num = 1, column_ele_list=paraDict["colSchema"], startTs=paraDict["startTs"], tblNum=1, rows=2)        # tdLog.info("restart taosd to ensure that the data falls into the disk")        
-        
-        tdLog.printNoPrefix("333333333333333333333")  
         tdSql.query("drop database %s"%paraDict["dbName"])
-        tdLog.printNoPrefix("44444444444444444") 
         return
 
     def tmqCase1(self):        

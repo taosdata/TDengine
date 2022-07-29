@@ -75,61 +75,61 @@ if $data02 != leader then
   return -1
 endi
 
-print =============== create drop bnode 1
-sql create bnode on dnode 1
-sql show bnodes
-if $rows != 1 then 
-  return -1
-endi
-if $data00 != 1 then 
-  return -1
-endi
-sql_error create bnode on dnode 1
+#print =============== create drop bnode 1
+#sql create bnode on dnode 1
+#sql show bnodes
+#if $rows != 1 then 
+#  return -1
+#endi
+#if $data00 != 1 then 
+#  return -1
+#endi
+#sql_error create bnode on dnode 1
+#
+#sql drop bnode on dnode 1
+#sql show bnodes
+#if $rows != 0 then 
+#  return -1
+#endi
+#sql_error drop bnode on dnode 1
+#
+#print =============== create drop bnode 2
+#sql create bnode on dnode 2
+#sql show bnodes
+#if $rows != 1 then 
+#  return -1
+#endi
+#if $data00 != 2 then 
+#  return -1
+#endi
+#sql_error create bnode on dnode 2
+#
+#sql drop bnode on dnode 2
+#sql show bnodes
+#if $rows != 0 then 
+#  return -1
+#endi
+#sql_error drop bnode on dnode 2
+#
+#print =============== create drop bnodes
+#sql create bnode on dnode 1
+#sql create bnode on dnode 2
+#sql show bnodes
+#if $rows != 2 then 
+#  return -1
+#endi
 
-sql drop bnode on dnode 1
-sql show bnodes
-if $rows != 0 then 
-  return -1
-endi
-sql_error drop bnode on dnode 1
-
-print =============== create drop bnode 2
-sql create bnode on dnode 2
-sql show bnodes
-if $rows != 1 then 
-  return -1
-endi
-if $data00 != 2 then 
-  return -1
-endi
-sql_error create bnode on dnode 2
-
-sql drop bnode on dnode 2
-sql show bnodes
-if $rows != 0 then 
-  return -1
-endi
-sql_error drop bnode on dnode 2
-
-print =============== create drop bnodes
-sql create bnode on dnode 1
-sql create bnode on dnode 2
-sql show bnodes
-if $rows != 2 then 
-  return -1
-endi
-
-print =============== restart
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
-system sh/exec.sh -n dnode1 -s start
-system sh/exec.sh -n dnode2 -s start
-
-sleep 2000
-sql show bnodes
-if $rows != 2 then 
-  return -1
-endi
+#print =============== restart
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+#system sh/exec.sh -n dnode2 -s stop -x SIGINT
+#system sh/exec.sh -n dnode1 -s start
+#system sh/exec.sh -n dnode2 -s start
+#
+#sleep 2000
+#sql show bnodes
+#if $rows != 2 then 
+#  return -1
+#endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT

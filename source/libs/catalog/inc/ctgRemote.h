@@ -20,12 +20,6 @@
 extern "C" {
 #endif
 
-typedef struct SCtgTaskCallbackParam {
-  uint64_t                queryId;
-  int64_t                 refId;
-  uint64_t                taskId;
-  int32_t                 reqType;
-} SCtgTaskCallbackParam;
 
 
 #ifdef __cplusplus

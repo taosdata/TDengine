@@ -7,8 +7,7 @@
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
+ * FITNESS FOR A PARTICULAR PURPOSE.  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
@@ -211,6 +210,7 @@ typedef struct SConnBuffer {
   char* buf;
   int   len;
   int   cap;
+  int   left;
   int   total;
 } SConnBuffer;
 
@@ -282,6 +282,8 @@ int  transClearBuffer(SConnBuffer* buf);
 int  transDestroyBuffer(SConnBuffer* buf);
 int  transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 bool transReadComplete(SConnBuffer* connBuf);
+int  transResetBuffer(SConnBuffer* connBuf);
+int  transDumpFromBuffer(SConnBuffer* connBuf, char** buf);
 
 int transSetConnOption(uv_tcp_t* stream);
 
