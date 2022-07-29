@@ -3355,6 +3355,7 @@ static void destroyOperatorInfo(SOperatorInfo* pOperator) {
     pOperator->numOfDownstream = 0;
   }
 
+  cleanupExprSupp(&pOperator->exprSupp);
   taosMemoryFreeClear(pOperator);
 }
 

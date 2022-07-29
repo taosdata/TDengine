@@ -2393,6 +2393,7 @@ int32_t doAppendRowFromBlock(SSDataBlock* pResBlock, STsdbReader* pReader, SBloc
   SColumnInfoData* pColData = taosArrayGet(pResBlock->pDataBlock, i);
   if (pColData->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
     colDataAppendInt64(pColData, outputRowIndex, &pBlockData->aTSKEY[rowIndex]);
+    i += 1;
   }
 
   SColVal cv = {0};
@@ -2404,8 +2405,8 @@ int32_t doAppendRowFromBlock(SSDataBlock* pResBlock, STsdbReader* pReader, SBloc
     SColData* pData = tBlockDataGetColDataByIdx(pBlockData, j);
 
     if (pData->cid == pCol->info.colId) {
-        tColDataGetValue(pData, j, &cv);
-        doCopyColVal(pCol, outputRowIndex++, i, &cv, pSupInfo);
+      tColDataGetValue(pData, rowIndex, &cv);
+      doCopyColVal(pCol, outputRowIndex, i, &cv, pSupInfo);
       j += 1;
     } else {  // the specified column does not exist in file block, fill with null data
       colDataAppendNULL(pCol, outputRowIndex);
@@ -2416,7 +2417,7 @@ int32_t doAppendRowFromBlock(SSDataBlock* pResBlock, STsdbReader* pReader, SBloc
 
   while (i < numOfOutputCols) {
     SColumnInfoData* pCol = taosArrayGet(pResBlock->pDataBlock, i);
-    colDataAppendNULL(pCol, rowIndex);
+    colDataAppendNULL(pCol, outputRowIndex);
     i += 1;
   }
 
