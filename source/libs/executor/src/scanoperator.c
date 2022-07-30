@@ -481,10 +481,6 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
       pBlock->info.groupId = *groupId;
     }
 
-    if (pTableScanInfo->assignBlockUid) {
-      pBlock->info.groupId = pBlock->info.uid;
-    }
-
     pOperator->resultInfo.totalRows = pTableScanInfo->readRecorder.totalRows;
     pTableScanInfo->readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
 
@@ -1172,12 +1168,6 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     pInfo->pRes->info.groupId = *groupIdPre;
   } else {
     pInfo->pRes->info.groupId = 0;
-  }
-
-  // for generating rollup SMA result, each time is an independent time serie.
-  // TODO temporarily used, when the statement of "partition by tbname" is ready, remove this
-  if (pInfo->assignBlockUid) {
-    pInfo->pRes->info.groupId = pBlock->info.uid;
   }
 
   // todo extract method

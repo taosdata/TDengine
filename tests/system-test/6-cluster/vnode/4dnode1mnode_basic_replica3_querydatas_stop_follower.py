@@ -182,25 +182,40 @@ class TDTestCase:
             tdLog.notice(" ==== check insert tbnames first failed , this is {}_th retry check tbnames of database {}".format(count , dbname))
             count += 1
 
-    def _get_stop_dnode_id(self,dbname):
+    def _get_stop_dnode_id(self,dbname ,dnode_role):
         tdSql.query("show {}.vgroups".format(dbname))
         vgroup_infos = tdSql.queryResult
+        status = False
+        for vgroup_info in vgroup_infos:
+            if "error" not in vgroup_info:
+                status = True
+            else:
+                status = False
+        while status!=True :
+            time.sleep(0.1)
+            tdSql.query("show {}.vgroups".format(dbname))
+            vgroup_infos = tdSql.queryResult
+            for vgroup_info in vgroup_infos:
+                if "error" not in vgroup_info:
+                    status = True
+                else:
+                    status = False
+            # print(status)
         for vgroup_info in vgroup_infos:
             leader_infos = vgroup_info[3:-4]
             # print(vgroup_info)
             for ind ,role in enumerate(leader_infos):
-                if role =='follower':
+                if role == dnode_role:
                     # print(ind,leader_infos)
                     self.stop_dnode_id = leader_infos[ind-1]
                     break
 
-
         return self.stop_dnode_id
 
-    def wait_stop_dnode_OK(self):
-
+    def wait_stop_dnode_OK(self ,newTdSql):
+    
         def _get_status():
-            newTdSql=tdCom.newTdSql()
+            # newTdSql=tdCom.newTdSql()
 
             status =  ""
             newTdSql.query("show dnodes")
@@ -220,10 +235,10 @@ class TDTestCase:
             # tdLog.notice("==== stop dnode has not been stopped , endpoint is {}".format(self.stop_dnode))
         tdLog.notice("==== stop_dnode has stopped , id is {}".format(self.stop_dnode_id))
 
-    def wait_start_dnode_OK(self):
-
+    def wait_start_dnode_OK(self ,newTdSql):
+    
         def _get_status():
-            newTdSql=tdCom.newTdSql()
+            # newTdSql=tdCom.newTdSql()
             status =  ""
             newTdSql.query("show dnodes")
             dnode_infos = newTdSql.queryResult
@@ -372,22 +387,24 @@ class TDTestCase:
     def stop_follower_when_query_going(self):
 
         tdDnodes = cluster.dnodes
+        newTdSql=tdCom.newTdSql()
         self.create_database(dbname = self.db_name ,replica_num= self.replica  , vgroup_nums= 1)
         self.create_stable_insert_datas(dbname = self.db_name , stablename = "stb1" , tb_nums= self.tb_nums ,row_nums= self.row_nums)
 
-        # let query task start
-        self.thread_list = self.multi_thread_query_task(10 ,self.db_name ,'stb1' )
+        # let query task start 
+        self.thread_list = self.multi_thread_query_task(5 ,self.db_name ,'stb1' )
+
 
         # force stop follower
         for loop in range(self.loop_restart_times):
             tdLog.debug(" ==== this is {}_th restart follower of database {} ==== ".format(loop ,self.db_name))
-            self.stop_dnode_id = self._get_stop_dnode_id(self.db_name)
+            self.stop_dnode_id = self._get_stop_dnode_id(self.db_name,"follower" )
             tdDnodes[self.stop_dnode_id-1].stoptaosd()
-            self.wait_stop_dnode_OK()
+            self.wait_stop_dnode_OK(newTdSql)
 
             start = time.time()
             tdDnodes[self.stop_dnode_id-1].starttaosd()
-            self.wait_start_dnode_OK()
+            self.wait_start_dnode_OK(newTdSql)
             end = time.time()
             time_cost = int(end-start)
 
@@ -403,8 +420,6 @@ class TDTestCase:
         # basic check of cluster
         self.check_setup_cluster_status()
         self.stop_follower_when_query_going()
-
-
 
 
 

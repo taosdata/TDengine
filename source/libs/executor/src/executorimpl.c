@@ -1445,6 +1445,7 @@ static void doUpdateNumOfRows(SResultRow* pRow, int32_t numOfExprs, const int32_
   }
 }
 
+// todo extract method with copytoSSDataBlock
 int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
                                              SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs,
                                              const int32_t* rowCellOffset, SSDataBlock* pBlock,

@@ -462,7 +462,8 @@ int32_t streamDispatch(SStreamTask* pTask) {
   if (streamDispatchAllBlocks(pTask, pBlock) < 0) {
     ASSERT(0);
     code = -1;
-    // TODO set status fail
+    streamQueueProcessFail(pTask->outputQueue);
+    atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
     goto FREE;
   }
   /*atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);*/

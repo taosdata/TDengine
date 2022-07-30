@@ -48,7 +48,6 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     pOperator->status = OP_NOT_OPENED;
 
     SStreamScanInfo* pInfo = pOperator->info;
-    /*pInfo->assignBlockUid = assignUid;*/
 
     // TODO: if a block was set but not consumed,
     // prevent setting a different type of block
