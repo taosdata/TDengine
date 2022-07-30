@@ -283,12 +283,14 @@ print ================== server restart completed
 sql connect
 sql use first_db0;
 
-sql select last(*), tbname from m1 group by tbname;
+sql select last(*), tbname from m1 group by tbname order by tbname;
+
 if $rows != 2 then
   return -1
 endi
 
 if $data00 != @20-03-01 01:01:01.000@ then
+  print data00 $data00 != 20-03-01 01:01:01.000@
   return -1
 endi
 
