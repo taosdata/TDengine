@@ -767,8 +767,8 @@ SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_nam
 **适用于**: 表和超级表。
 
 **详细说明**：
-1. bin_type 用户指定的分桶类型, 有效输入类型为"user_input“, ”linear_bin", "log_bin"。
-2. bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式(均为 JSON 格式字符串)：       
+- bin_type 用户指定的分桶类型, 有效输入类型为"user_input“, ”linear_bin", "log_bin"。
+- bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式(均为 JSON 格式字符串)：       
     - "user_input": "[1, 3, 5, 7]" 
        用户指定 bin 的具体数值。
        
@@ -779,7 +779,7 @@ SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_nam
     - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
        "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
        生成区间为[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf]。
-3. normalized 是否将返回结果归一化到 0~1 之间 。有效输入为 0 和 1。
+- normalized 是否将返回结果归一化到 0~1 之间 。有效输入为 0 和 1。
 
 
 ### PERCENTILE
