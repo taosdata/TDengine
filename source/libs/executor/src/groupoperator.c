@@ -507,6 +507,7 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
           colDataSetNull_f(bitmap, (*rows));
         } else {
           memcpy(data + (*columnLen), colDataGetData(pColInfoData, j), bytes);
+          ASSERT((data + (*columnLen) + bytes - (char*)pPage) <= getBufPageSize(pInfo->pBuf));
         }
         contentLen = bytes;
       }
