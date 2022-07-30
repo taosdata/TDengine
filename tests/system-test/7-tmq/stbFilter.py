@@ -79,27 +79,27 @@ class TDTestCase:
         topicNameList = ['topic1', 'topic2', 'topic3']
         expectRowsList = []
         tmqCom.initConsumerTable()
-        
+
         tdLog.info("create topics from stb with filter")
         queryString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s where c1 %% 4 == 0" %(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicNameList[0], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        tdSql.query(queryString)        
+        tdSql.query(queryString)
         expectRowsList.append(tdSql.getRows())
 
         queryString = "select ts, log(c1), cos(c1) from %s.%s where c1 > 5000" %(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicNameList[1], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        tdSql.query(queryString)        
+        tdSql.query(queryString)
         expectRowsList.append(tdSql.getRows())
 
         queryString = "select ts, log(c1), atan(c1) from %s.%s where ts >= %d" %(paraDict['dbName'], paraDict['stbName'], paraDict["startTs"]+9000)
         sqlString = "create topic %s as %s" %(topicNameList[2], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        tdSql.query(queryString)        
+        tdSql.query(queryString)
         expectRowsList.append(tdSql.getRows())
 
         # init consume info, and start tmq_sim, then check consume result
@@ -115,10 +115,10 @@ class TDTestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'])
 
-        tdLog.info("wait the consume result") 
+        tdLog.info("wait the consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
-        
+
         if expectRowsList[0] != resultList[0]:
             tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[0], resultList[0]))
             tdLog.exit("0 tmq consume rows error!")
@@ -132,7 +132,7 @@ class TDTestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'])
 
-        tdLog.info("wait the consume result") 
+        tdLog.info("wait the consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
         if expectRowsList[1] != resultList[0]:
@@ -148,14 +148,14 @@ class TDTestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'])
 
-        tdLog.info("wait the consume result") 
+        tdLog.info("wait the consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
         if expectRowsList[2] != resultList[0]:
             tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[2], resultList[0]))
             tdLog.exit("2 tmq consume rows error!")
 
-        time.sleep(10)        
+        time.sleep(10)
         for i in range(len(topicNameList)):
             tdSql.query("drop topic %s"%topicNameList[i])
 
@@ -193,7 +193,7 @@ class TDTestCase:
         sqlString = "create topic %s as %s" %(topicNameList[0], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        tdSql.query(queryString)        
+        tdSql.query(queryString)
         expectRowsList.append(tdSql.getRows())
 
         queryString = "select ts, sin(c1), pow(c2,3) from %s.%s where sin(c2) >= 0" %(paraDict['dbName'], paraDict['stbName'])
@@ -209,7 +209,7 @@ class TDTestCase:
         tdSql.execute(sqlString)
         tdSql.query(queryString)
         expectRowsList.append(tdSql.getRows())
-  
+
         # start tmq consume processor
         tdLog.info("insert consume info to consume processor")
         consumerId   = 0
@@ -223,10 +223,10 @@ class TDTestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'])
 
-        tdLog.info("wait the consume result") 
+        tdLog.info("wait the consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
-        
+
         if expectRowsList[0] != resultList[0]:
             tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[0], resultList[0]))
             tdLog.exit("0 tmq consume rows error!")
@@ -240,7 +240,7 @@ class TDTestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'])
 
-        tdLog.info("wait the consume result") 
+        tdLog.info("wait the consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
         if expectRowsList[1] != resultList[0]:
@@ -256,14 +256,14 @@ class TDTestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'])
 
-        tdLog.info("wait the consume result") 
+        tdLog.info("wait the consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
         if expectRowsList[2] != resultList[0]:
             tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[2], resultList[0]))
             tdLog.exit("2 tmq consume rows error!")
 
-        # time.sleep(10)        
+        # time.sleep(10)
         # for i in range(len(topicNameList)):
         #     tdSql.query("drop topic %s"%topicNameList[i])
 
