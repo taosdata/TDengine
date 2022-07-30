@@ -1738,6 +1738,10 @@ void tscFreeSqlObj(SSqlObj* pSql) {
 
   tscFreeSubobj(pSql);
 
+  if (pSql && (pSql == pSql->rootObj)) {
+    pthread_mutex_destroy(&pSql->mtxSubs);
+  }
+
   pSql->signature = NULL;
   pSql->fp = NULL;
   tfree(pSql->sqlstr);

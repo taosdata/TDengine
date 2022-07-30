@@ -386,6 +386,7 @@ typedef struct SSqlObj {
   SSqlRes          res;
 
   SSubqueryState   subState;
+  pthread_mutex_t  mtxSubs;      // avoid double access pSubs after failure
   struct SSqlObj **pSubs;
   struct SSqlObj  *rootObj;
 
