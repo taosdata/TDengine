@@ -1175,11 +1175,6 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
     getSTSRowAppendInfo(pBuilder->rowType, spd, i, &param.toffset, &param.colIdx);
     CHECK_CODE(parseValueToken(&pCxt->pSql, &sToken, pSchema, timePrec, tmpTokenBuf, MemRowAppend, &param, &pCxt->msg));
 
-    if (PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
-      TSKEY tsKey = TD_ROW_KEY(row);
-      checkTimestamp(pDataBlocks, (const char*)&tsKey);
-    }
-
     if (i < spd->numOfBound - 1) {
       NEXT_VALID_TOKEN(pCxt->pSql, sToken);
       if (TK_NK_COMMA != sToken.type) {
@@ -1187,6 +1182,9 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
       }
     }
   }
+
+  TSKEY tsKey = TD_ROW_KEY(row);
+  checkTimestamp(pDataBlocks, (const char*)&tsKey);
 
   if (!isParseBindParam) {
     // set the null value for the columns that do not assign values

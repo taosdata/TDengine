@@ -2427,5 +2427,8 @@ static int32_t applyOptimizeRule(SPlanContext* pCxt, SLogicSubplan* pLogicSubpla
 }
 
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  if (SUBPLAN_TYPE_MODIFY == pLogicSubplan->subplanType && NULL == pLogicSubplan->pNode->pChildren) {
+    return TSDB_CODE_SUCCESS;
+  }
   return applyOptimizeRule(pCxt, pLogicSubplan);
 }
