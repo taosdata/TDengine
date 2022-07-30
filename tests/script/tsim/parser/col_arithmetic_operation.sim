@@ -131,20 +131,5 @@ sql_error select max(c1-c2) from $tb
 #========================================regression test cases====================================
 print =====================> td-1764
 sql select sum(c1)/count(*), sum(c1) as b, count(*) as b from $stb interval(1y)
-if $rows != 1 then
-  return -1
-endi
-
-if $data00 != @18-01-01 00:00:00.000@ then
-  return -1
-endi
-
-if $data01 != 2.250000000 then
-  return -1
-endi
-
-if $data02 != 225000 then
-  return -1
-endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

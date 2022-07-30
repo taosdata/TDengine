@@ -20,11 +20,6 @@ target_link_libraries(
 )
 
 if(TD_WINDOWS)
-    set_target_properties(taos
-        PROPERTIES
-        LINK_FLAGS
-        /DEF:${CMAKE_CURRENT_SOURCE_DIR}/src/taos.def
-    )
     INCLUDE_DIRECTORIES(jni/windows)
     INCLUDE_DIRECTORIES(jni/windows/win32)
     INCLUDE_DIRECTORIES(jni/windows/win32/bridge)

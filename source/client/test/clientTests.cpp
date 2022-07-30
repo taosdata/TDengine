@@ -123,7 +123,7 @@ void createNewTable(TAOS* pConn, int32_t index) {
   }
   taos_free_result(pRes);
 
-  for(int32_t i = 0; i < 1000; i += 20) {
+  for(int32_t i = 0; i < 100000; i += 20) {
     char sql[1024] = {0};
     sprintf(sql,
             "insert into tu%d values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
@@ -154,7 +154,7 @@ TEST(testCase, driverInit_Test) {
 }
 
 TEST(testCase, connect_Test) {
-//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/ubuntu/first/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/tdengine/sim/dnode1/cfg");
 
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   if (pConn == NULL) {
@@ -501,7 +501,6 @@ TEST(testCase, show_vgroup_Test) {
   taos_close(pConn);
 }
 
-
 TEST(testCase, create_multiple_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
@@ -665,6 +664,7 @@ TEST(testCase, insert_test) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
+#endif
 
 TEST(testCase, projection_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -697,7 +697,7 @@ TEST(testCase, projection_query_tables) {
   }
   taos_free_result(pRes);
 
-  for(int32_t i = 0; i < 100; ++i) {
+  for(int32_t i = 0; i < 1; ++i) {
     printf("create table :%d\n", i);
     createNewTable(pConn, i);
   }
@@ -723,6 +723,7 @@ TEST(testCase, projection_query_tables) {
   taos_close(pConn);
 }
 
+#if 0
 TEST(testCase, projection_query_stables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
@@ -820,21 +821,8 @@ TEST(testCase, async_api_test) {
   getchar();
   taos_close(pConn);
 }
-#endif
-
 
 TEST(testCase, update_test) {
-
-  SInterval interval = {0};
-  interval.offset = 8000;
-  interval.interval = 10000;
-  interval.sliding = 4000;
-  interval.intervalUnit = 's';
-  interval.offsetUnit = 's';
-  interval.slidingUnit = 's';
-// STimeWindow w = getAlignQueryTimeWindow(&interval, 0, 1630000000000);
- STimeWindow w = getAlignQueryTimeWindow(&interval, 0, 1629999999999);
-
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
@@ -869,4 +857,8 @@ TEST(testCase, update_test) {
     taos_free_result(pRes);
   }
 }
+
+#endif
+
+
 #pragma GCC diagnostic pop

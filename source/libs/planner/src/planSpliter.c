@@ -492,7 +492,7 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
     ((SWindowLogicNode*)pInfo->pSplitNode)->windowAlgo = INTERVAL_ALGO_MERGE;
     SNodeList* pMergeKeys = NULL;
     code = stbSplCreateMergeKeysByPrimaryKey(((SWindowLogicNode*)pInfo->pSplitNode)->pTspk,
-                                             ((SWindowLogicNode*)pInfo->pSplitNode)->inputTsOrder, &pMergeKeys);
+                                             ((SWindowLogicNode*)pInfo->pSplitNode)->outputTsOrder, &pMergeKeys);
     if (TSDB_CODE_SUCCESS == code) {
       code = stbSplCreateMergeNode(pCxt, NULL, pInfo->pSplitNode, pMergeKeys, pPartWindow, true);
     }

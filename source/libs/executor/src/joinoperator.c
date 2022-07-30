@@ -77,11 +77,11 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
     pInfo->pCondAfterMerge = NULL;
   }
 
-  pInfo->inputTsOrder = TSDB_ORDER_ASC;
+  pInfo->inputOrder = TSDB_ORDER_ASC;
   if (pJoinNode->inputTsOrder == ORDER_ASC) {
-    pInfo->inputTsOrder = TSDB_ORDER_ASC;
+    pInfo->inputOrder = TSDB_ORDER_ASC;
   } else if (pJoinNode->inputTsOrder == ORDER_DESC) {
-    pInfo->inputTsOrder = TSDB_ORDER_DESC;
+    pInfo->inputOrder = TSDB_ORDER_DESC;
   }
 
   pOperator->fpSet =
@@ -312,7 +312,7 @@ static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) 
 
   int32_t nrows = pRes->info.rows;
 
-  bool asc = (pJoinInfo->inputTsOrder == TSDB_ORDER_ASC) ? true : false;
+  bool asc = (pJoinInfo->inputOrder == TSDB_ORDER_ASC) ? true : false;
 
   while (1) {
     int64_t leftTs = 0;

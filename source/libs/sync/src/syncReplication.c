@@ -132,7 +132,8 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
     SyncIndex preLogIndex = syncNodeGetPreIndex(pSyncNode, nextIndex);
     SyncTerm  preLogTerm = syncNodeGetPreTerm(pSyncNode, nextIndex);
     if (preLogTerm == SYNC_TERM_INVALID) {
-      SyncIndex newNextIndex = syncNodeGetLastIndex(pSyncNode) + 1;
+      // SyncIndex newNextIndex = syncNodeGetLastIndex(pSyncNode) + 1;
+      SyncIndex newNextIndex = nextIndex + 1;
       syncIndexMgrSetIndex(pSyncNode->pNextIndex, pDestId, newNextIndex);
       syncIndexMgrSetIndex(pSyncNode->pMatchIndex, pDestId, SYNC_INDEX_INVALID);
       sError("vgId:%d sync get pre term error, nextIndex:%" PRId64 ", update next-index:%" PRId64
@@ -222,7 +223,8 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
     SyncIndex preLogIndex = syncNodeGetPreIndex(pSyncNode, nextIndex);
     SyncTerm  preLogTerm = syncNodeGetPreTerm(pSyncNode, nextIndex);
     if (preLogTerm == SYNC_TERM_INVALID) {
-      SyncIndex newNextIndex = syncNodeGetLastIndex(pSyncNode) + 1;
+      // SyncIndex newNextIndex = syncNodeGetLastIndex(pSyncNode) + 1;
+      SyncIndex newNextIndex = nextIndex + 1;
       syncIndexMgrSetIndex(pSyncNode->pNextIndex, pDestId, newNextIndex);
       syncIndexMgrSetIndex(pSyncNode->pMatchIndex, pDestId, SYNC_INDEX_INVALID);
       sError("vgId:%d sync get pre term error, nextIndex:%" PRId64 ", update next-index:%" PRId64

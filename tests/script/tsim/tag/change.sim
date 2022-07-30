@@ -311,7 +311,7 @@ sql select * from $mt where tgcol2 = 1 -x step52
   return -1
 step52:
 
-sql select * from $mt where tgcol3 = 1
+sql select * from $mt where tgcol3 < 2
 print $data01 $data02 $data03
 if $rows != 1 then 
   return -1

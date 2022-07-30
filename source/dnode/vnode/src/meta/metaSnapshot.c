@@ -147,6 +147,8 @@ int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWr
   
   metaBegin(pMeta);
 
+  metaBegin(pMeta);
+
   *ppWriter = pWriter;
   return code;
 
