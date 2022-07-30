@@ -31,14 +31,21 @@ static int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity
 static int32_t  setGroupResultOutputBuf(SOperatorInfo* pOperator, SOptrBasicInfo* binfo, int32_t numOfCols, char* pData, int16_t bytes,
                                         uint64_t groupId, SDiskbasedBuf* pBuf, SAggSupporter* pAggSup);
 
+static void freeGroupKey(void* param) {
+  SGroupKeys* pKey = (SGroupKeys*) param;
+  taosMemoryFree(pKey->pData);
+}
+
 static void destroyGroupOperatorInfo(void* param, int32_t numOfOutput) {
   SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   taosMemoryFreeClear(pInfo->keyBuf);
   taosArrayDestroy(pInfo->pGroupCols);
-  taosArrayDestroy(pInfo->pGroupColVals);
+  taosArrayDestroyEx(pInfo->pGroupColVals, freeGroupKey);
   cleanupExprSupp(&pInfo->scalarSup);
-  
+
+  cleanupGroupResInfo(&pInfo->groupResInfo);
+  cleanupAggSup(&pInfo->aggSup);
   taosMemoryFreeClear(param);
 }
 
@@ -414,8 +421,6 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
   pOperator->blocking     = true;
   pOperator->status       = OP_NOT_OPENED;
   // pOperator->operatorType = OP_Groupby;
-  pOperator->exprSupp.pExprInfo    = pExprInfo;
-  pOperator->exprSupp.numOfExprs   = numOfCols;
   pOperator->info         = pInfo;
   pOperator->pTaskInfo    = pTaskInfo;
 

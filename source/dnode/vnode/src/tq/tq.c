@@ -684,6 +684,9 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen) {
 
   taosHashPut(pTq->pStreamTasks, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void*));
 
+  /*SMeta* pMeta = pTq->pVnode->pMeta;*/
+  /*tdbTbUpsert(pMeta->pTaskIdx, &pTask->taskId, sizeof(int32_t), msg, msgLen, &pMeta->txn);*/
+
   return 0;
 FAIL:
   if (pTask->inputQueue) streamQueueClose(pTask->inputQueue);

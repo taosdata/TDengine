@@ -20,7 +20,7 @@ class TDTestCase:
         self.vgroups    = 4
         self.ctbNum     = 1
         self.rowsPerTbl = 10000
-        
+
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
@@ -50,7 +50,7 @@ class TDTestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        
+
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1,wal_retention_size=-1, wal_retention_period=-1)
         tdLog.info("create stb")
@@ -65,11 +65,11 @@ class TDTestCase:
         # tmqCom.insert_data_with_autoCreateTbl(tsql=tdSql,dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix="ctbx",
         #                                       ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
         #                                       startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
-        
-        # tdLog.info("restart taosd to ensure that the data falls into the disk")        
+
+        # tdLog.info("restart taosd to ensure that the data falls into the disk")
         # tdSql.query("flush database %s"%(paraDict['dbName']))
         return
-    
+
     def delData(self,tsql,dbName,ctbPrefix,ctbNum,startTs=0,endTs=0,ctbStartIdx=0):
         tdLog.debug("start to del data ............")
         for i in range(ctbNum):
@@ -84,12 +84,12 @@ class TDTestCase:
         newTdSql = tdCom.newTdSql()
         self.delData(newTdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["startTs"],paraDict["endTs"],paraDict["ctbStartIdx"])
         return
-    
+
     def asyncDeleteData(self, paraDict):
         pThread = threading.Thread(target=self.threadFunctionForDeletaData, kwargs=paraDict)
         pThread.start()
         return pThread
-    
+
     def tmqCase1(self):
         tdLog.printNoPrefix("======== test case 1: ")
         paraDict = {'dbName':     'dbt',
@@ -116,29 +116,29 @@ class TDTestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        
-        # del some data        
+
+        # del some data
         rowsOfDelete = int(paraDict["rowsPerTbl"] / 4)
         paraDict["endTs"] = paraDict["startTs"] + rowsOfDelete - 1
-        self.delData(tsql=tdSql,dbName=paraDict["dbName"],ctbPrefix=paraDict["ctbPrefix"],ctbNum=paraDict["ctbNum"], 
+        self.delData(tsql=tdSql,dbName=paraDict["dbName"],ctbPrefix=paraDict["ctbPrefix"],ctbNum=paraDict["ctbNum"],
                      startTs=paraDict["startTs"], endTs=paraDict["endTs"],ctbStartIdx=paraDict['ctbStartIdx'])
-                
+
         tdLog.info("create topics from stb1")
-        topicFromStb1 = 'topic_stb1'                
+        topicFromStb1 = 'topic_stb1'
         queryString = "select ts, c1, c2 from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
         tdLog.info("create topic sql: %s"%sqlString)
-        tdSql.execute(sqlString)         
-        
+        tdSql.execute(sqlString)
+
         if self.snapshot == 0:
             consumerId     = 0
         elif self.snapshot == 1:
             consumerId     = 1
             rowsOfDelete = 0
-        
+
         # paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        
+
         expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"])
         topicList      = topicFromStb1
         ifcheckdata    = 1
@@ -161,23 +161,23 @@ class TDTestCase:
 
         tdSql.query(queryString)
         totalRowsFromQuery = tdSql.getRows()
-                        
+
         tdLog.info("act consume rows: %d, expect consume rows: %d, act query rows: %d"%(totalConsumeRows, expectrowcnt, totalRowsFromQuery))
-        
+
         if self.snapshot == 0:
             if totalConsumeRows != expectrowcnt:
                 tdLog.exit("tmq consume rows error with snapshot = 0!")
         elif self.snapshot == 1:
             if totalConsumeRows != totalRowsFromQuery:
                 tdLog.exit("tmq consume rows error with snapshot = 1!")
-            
-        tmqCom.checkFileContent(consumerId=consumerId, queryString=queryString, skipRowsOfCons=rowsOfDelete) 
+
+        tmqCom.checkFileContent(consumerId=consumerId, queryString=queryString, skipRowsOfCons=rowsOfDelete)
 
         tdSql.query("drop topic %s"%topicFromStb1)
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def tmqCase2(self):
-        tdLog.printNoPrefix("======== test case 2: ")  
+        tdLog.printNoPrefix("======== test case 2: ")
         paraDict = {'dbName':     'dbt',
                     'dropFlag':   1,
                     'event':      '',
@@ -197,50 +197,50 @@ class TDTestCase:
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
-        
+
         paraDict['snapshot'] = self.snapshot
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        
-        tdLog.info("restart taosd to ensure that the data falls into the disk")        
+
+        tdLog.info("restart taosd to ensure that the data falls into the disk")
         tdSql.query("flush database %s"%(paraDict['dbName']))
-        
+
         # update to 1/4 rows and insert 3/4 new rows
         paraDict['startTs'] = paraDict['startTs'] + int(self.rowsPerTbl * 3 / 4)
         # paraDict['rowsPerTbl'] = self.rowsPerTbl
         tmqCom.insert_data_with_autoCreateTbl(tsql=tdSql,dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict["ctbPrefix"],
                                               ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
-                                              startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])        
+                                              startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
         # tmqCom.insert_data_interlaceByMultiTbl(tsql=tdSql,dbName=paraDict["dbName"],ctbPrefix=paraDict["ctbPrefix"],
         #                                        ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
-        #                                        startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])     
-        
+        #                                        startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
+
         # del some data
         rowsOfDelete = int(self.rowsPerTbl / 4 )
         paraDict["endTs"] = paraDict["startTs"] + rowsOfDelete - 1
-        self.delData(tsql=tdSql,dbName=paraDict["dbName"],ctbPrefix=paraDict["ctbPrefix"],ctbNum=paraDict["ctbNum"], 
+        self.delData(tsql=tdSql,dbName=paraDict["dbName"],ctbPrefix=paraDict["ctbPrefix"],ctbNum=paraDict["ctbNum"],
                      startTs=paraDict["startTs"], endTs=paraDict["endTs"],ctbStartIdx=paraDict['ctbStartIdx'])
-        
+
         tmqCom.initConsumerTable()
         tdLog.info("create topics from stb1")
-        topicFromStb1 = 'topic_stb1'                
+        topicFromStb1 = 'topic_stb1'
         queryString = "select ts, c1, c2 from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        
+
         # paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        consumerId     = 1        
-        
+        consumerId     = 1
+
         if self.snapshot == 0:
-            consumerId     = 2        
+            consumerId     = 2
             expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 + 1/4 + 3/4))
         elif self.snapshot == 1:
             consumerId     = 3
             expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 - 1/4 + 1/4 + 3/4))
-        
+
         topicList      = topicFromStb1
         ifcheckdata    = 1
         ifManualCommit = 1
@@ -252,7 +252,7 @@ class TDTestCase:
 
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
-        
+
         tdLog.info("start to check consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
@@ -262,24 +262,24 @@ class TDTestCase:
 
         tdSql.query(queryString)
         totalRowsFromQuery = tdSql.getRows()
-        
+
         tdLog.info("act consume rows: %d, act query rows: %d, expect consume rows: %d, "%(totalConsumeRows, totalRowsFromQuery, expectrowcnt))
-                
+
         if self.snapshot == 0:
             if totalConsumeRows != expectrowcnt:
                 tdLog.exit("tmq consume rows error with snapshot = 0!")
         elif self.snapshot == 1:
             if totalConsumeRows != totalRowsFromQuery:
                 tdLog.exit("tmq consume rows error with snapshot = 1!")
-               
-        # tmqCom.checkFileContent(consumerId, queryString)   
+
+        # tmqCom.checkFileContent(consumerId, queryString)
 
         tdSql.query("drop topic %s"%topicFromStb1)
 
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def tmqCase3(self):
-        tdLog.printNoPrefix("======== test case 3: ")  
+        tdLog.printNoPrefix("======== test case 3: ")
         paraDict = {'dbName':     'dbt',
                     'dropFlag':   1,
                     'event':      '',
@@ -299,34 +299,34 @@ class TDTestCase:
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
-        
+
         paraDict['snapshot'] = self.snapshot
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        
-        tdLog.info("restart taosd to ensure that the data falls into the disk")        
+
+        tdLog.info("restart taosd to ensure that the data falls into the disk")
         tdSql.query("flush database %s"%(paraDict['dbName']))
-                
+
         tmqCom.initConsumerTable()
         tdLog.info("create topics from stb1")
-        topicFromStb1 = 'topic_stb1'                
+        topicFromStb1 = 'topic_stb1'
         queryString = "select ts, c1, c2 from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        
+
         # paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        consumerId     = 1        
-        
+        consumerId     = 1
+
         if self.snapshot == 0:
-            consumerId     = 4        
+            consumerId     = 4
             expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 + 1/4 + 3/4))
         elif self.snapshot == 1:
             consumerId     = 5
             expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 - 1/4 + 1/4 + 3/4))
-        
+
         topicList      = topicFromStb1
         ifcheckdata    = 1
         ifManualCommit = 1
@@ -340,20 +340,20 @@ class TDTestCase:
         rowsOfDelete = int(self.rowsPerTbl / 4 )
         paraDict["endTs"] = paraDict["startTs"] + rowsOfDelete - 1
         pDeleteThread = self.asyncDeleteData(paraDict)
-        
+
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
-        
+
         # update to 1/4 rows and insert 3/4 new rows
         paraDict['startTs'] = paraDict['startTs'] + int(self.rowsPerTbl * 3 / 4)
         # paraDict['rowsPerTbl'] = self.rowsPerTbl
         # tmqCom.insert_data_with_autoCreateTbl(tsql=tdSql,dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict["ctbPrefix"],
         #                                       ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
-        #                                       startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])        
+        #                                       startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
         pInsertThread = tmqCom.asyncInsertDataByInterlace(paraDict)
 
         pInsertThread.join()
-        
+
         tdLog.info("start to check consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
@@ -363,17 +363,17 @@ class TDTestCase:
 
         tdSql.query(queryString)
         totalRowsFromQuery = tdSql.getRows()
-        
+
         tdLog.info("act consume rows: %d, act query rows: %d, expect consume rows: %d, "%(totalConsumeRows, totalRowsFromQuery, expectrowcnt))
-                
+
         if self.snapshot == 0:
             if totalConsumeRows != expectrowcnt:
                 tdLog.exit("tmq consume rows error with snapshot = 0!")
         elif self.snapshot == 1:
             if not ((totalConsumeRows >= totalRowsFromQuery) and (totalConsumeRows <= expectrowcnt)):
                 tdLog.exit("tmq consume rows error with snapshot = 1!")
-               
-        # tmqCom.checkFileContent(consumerId, queryString)   
+
+        # tmqCom.checkFileContent(consumerId, queryString)
 
         tdSql.query("drop topic %s"%topicFromStb1)
 
@@ -385,17 +385,17 @@ class TDTestCase:
         tdLog.printNoPrefix("=============================================")
         tdLog.printNoPrefix("======== snapshot is 0: only consume from wal")
         self.snapshot = 0
-        self.prepareTestEnv()        
+        self.prepareTestEnv()
         self.tmqCase1()
-        self.tmqCase2()                
-        
+        self.tmqCase2()
+
         tdLog.printNoPrefix("====================================================================")
         tdLog.printNoPrefix("======== snapshot is 1: firstly consume from tsbs, and then from wal")
         self.snapshot = 1
         self.prepareTestEnv()
         self.tmqCase1()
-        self.tmqCase2()    
-            
+        self.tmqCase2()
+
         tdLog.printNoPrefix("=============================================")
         tdLog.printNoPrefix("======== snapshot is 0: only consume from wal")
         self.snapshot = 0
@@ -404,7 +404,7 @@ class TDTestCase:
         tdLog.printNoPrefix("====================================================================")
         tdLog.printNoPrefix("======== snapshot is 1: firstly consume from tsbs, and then from wal")
         self.snapshot = 1
-        self.prepareTestEnv()        
+        self.prepareTestEnv()
         self.tmqCase3()
 
     def stop(self):

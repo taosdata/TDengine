@@ -233,18 +233,22 @@ SNode* createRawExprNodeExt(SAstCreateContext* pCxt, const SToken* pStart, const
 SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
   CHECK_PARSER_STATUS(pCxt);
   SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
-  SNode*        pExpr = pRawExpr->pNode;
-  if (nodesIsExprNode(pExpr)) {
+  SNode*        pRealizedExpr = pRawExpr->pNode;
+  if (nodesIsExprNode(pRealizedExpr)) {
+    SExprNode* pExpr = (SExprNode*)pRealizedExpr;
     if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
-      strcpy(((SExprNode*)pExpr)->aliasName, ((SColumnNode*)pExpr)->colName);
+      strcpy(pExpr->aliasName, ((SColumnNode*)pExpr)->colName);
+      strcpy(pExpr->userAlias, ((SColumnNode*)pExpr)->colName);
     } else {
-      int32_t len = TMIN(sizeof(((SExprNode*)pExpr)->aliasName) - 1, pRawExpr->n);
-      strncpy(((SExprNode*)pExpr)->aliasName, pRawExpr->p, len);
-      ((SExprNode*)pExpr)->aliasName[len] = '\0';
+      int32_t len = TMIN(sizeof(pExpr->aliasName) - 1, pRawExpr->n);
+      strncpy(pExpr->aliasName, pRawExpr->p, len);
+      pExpr->aliasName[len] = '\0';
+      strncpy(pExpr->userAlias, pRawExpr->p, len);
+      pExpr->userAlias[len] = '\0';
     }
   }
   taosMemoryFreeClear(pNode);
-  return pExpr;
+  return pRealizedExpr;
 }
 
 SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
@@ -641,11 +645,12 @@ SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd
 SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, SToken* pAlias) {
   CHECK_PARSER_STATUS(pCxt);
   trimEscape(pAlias);
-  int32_t len = TMIN(sizeof(((SExprNode*)pNode)->aliasName) - 1, pAlias->n);
-  strncpy(((SExprNode*)pNode)->aliasName, pAlias->z, len);
-  ((SExprNode*)pNode)->aliasName[len] = '\0';
-  strncpy(((SExprNode*)pNode)->userAlias, pAlias->z, len);
-  ((SExprNode*)pNode)->userAlias[len] = '\0';
+  SExprNode* pExpr = (SExprNode*)pNode;
+  int32_t    len = TMIN(sizeof(pExpr->aliasName) - 1, pAlias->n);
+  strncpy(pExpr->aliasName, pAlias->z, len);
+  pExpr->aliasName[len] = '\0';
+  strncpy(pExpr->userAlias, pAlias->z, len);
+  pExpr->userAlias[len] = '\0';
   return pNode;
 }
 
@@ -766,13 +771,21 @@ SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pPr
   return (SNode*)select;
 }
 
+static void setSubquery(SNode* pStmt) {
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    ((SSelectStmt*)pStmt)->isSubquery = true;
+  }
+}
+
 SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* pLeft, SNode* pRight) {
   CHECK_PARSER_STATUS(pCxt);
   SSetOperator* setOp = (SSetOperator*)nodesMakeNode(QUERY_NODE_SET_OPERATOR);
   CHECK_OUT_OF_MEM(setOp);
   setOp->opType = type;
   setOp->pLeft = pLeft;
+  setSubquery(setOp->pLeft);
   setOp->pRight = pRight;
+  setSubquery(setOp->pRight);
   sprintf(setOp->stmtName, "%p", setOp);
   return (SNode*)setOp;
 }

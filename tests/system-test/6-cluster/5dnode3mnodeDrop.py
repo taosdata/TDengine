@@ -3,7 +3,7 @@ from paramiko import HostKeys
 import taos
 import sys
 import time
-import os 
+import os
 
 from util.log import *
 from util.sql import *
@@ -19,7 +19,7 @@ class MyDnodes(TDDnodes):
         super(MyDnodes,self).__init__()
         self.dnodes = dnodes_lists  # dnode must be TDDnode instance
         self.simDeployed = False
-        
+
 class TDTestCase:
 
     def init(self,conn ,logSql):
@@ -48,7 +48,7 @@ class TDTestCase:
                     buildPath = root[:len(root) - len("/build/bin")]
                     break
         return buildPath
-    
+
     def insert_data(self,count):
         # fisrt add data : db\stable\childtable\general table
         for couti in count:
@@ -70,10 +70,10 @@ class TDTestCase:
             for i in range(4):
                 tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
 
-    def depoly_cluster(self ,dnodes_nums): 
+    def depoly_cluster(self ,dnodes_nums):
 
         testCluster = False
-        valgrind = 0  
+        valgrind = 0
         hostname = socket.gethostname()
         tdLog.debug(hostname)
         dnodes = []
@@ -88,7 +88,7 @@ class TDTestCase:
             dnode.addExtraCfg("monitorPort", 7043)
             dnode.addExtraCfg("secondEp", f"{hostname}:{start_port_sec}")
             dnodes.append(dnode)
-        
+
         self.TDDnodes = MyDnodes(dnodes)
         self.TDDnodes.init("")
         self.TDDnodes.setTestCluster(testCluster)
@@ -96,11 +96,11 @@ class TDTestCase:
         self.TDDnodes.stopAll()
         for dnode in self.TDDnodes.dnodes:
             self.TDDnodes.deploy(dnode.index,{})
-            
+
         for dnode in self.TDDnodes.dnodes:
             self.TDDnodes.starttaosd(dnode.index)
 
-        # create cluster 
+        # create cluster
         for dnode in self.TDDnodes.dnodes[1:]:
             # tdLog.debug(dnode.cfgDict)
             dnode_id = dnode.cfgDict["fqdn"] +  ":" +dnode.cfgDict["serverPort"]
@@ -109,7 +109,7 @@ class TDTestCase:
             cmd = f" taos -h {dnode_first_host} -P {dnode_first_port} -s ' create dnode \"{dnode_id} \" ' ;"
             tdLog.debug(cmd)
             os.system(cmd)
-        
+
         time.sleep(2)
         tdLog.info(" create cluster with %d dnode  done! " %dnodes_nums)
 
@@ -118,8 +118,8 @@ class TDTestCase:
         while count < 10:
             time.sleep(1)
             tdSql.query("show mnodes;")
-            if tdSql.checkRows(3) :     
-                tdLog.debug("mnode is  three nodes")           
+            if tdSql.checkRows(3) :
+                tdLog.debug("mnode is  three nodes")
             if  tdSql.queryResult[0][2]=='leader' :
                 if  tdSql.queryResult[1][2]=='follower':
                     if  tdSql.queryResult[2][2]=='follower':
@@ -129,20 +129,20 @@ class TDTestCase:
                 if  tdSql.queryResult[1][2]=='leader':
                     if  tdSql.queryResult[2][2]=='follower':
                         tdLog.debug("three mnodes is ready in 10s")
-                        break      
+                        break
             elif tdSql.queryResult[0][2]=='follower' :
                 if  tdSql.queryResult[1][2]=='follower':
                     if  tdSql.queryResult[2][2]=='leader':
                         tdLog.debug("three mnodes is ready in 10s")
-                        break                   
+                        break
             count+=1
         else:
             tdLog.debug(tdSql.queryResult)
             tdLog.debug("three mnodes is not ready in 10s ")
             return -1
 
-        tdSql.query("show mnodes;")       
-        tdSql.checkRows(3) 
+        tdSql.query("show mnodes;")
+        tdSql.checkRows(3)
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,3,'ready')
         tdSql.checkData(1,1,'%s:6130'%self.host)
@@ -169,11 +169,11 @@ class TDTestCase:
             count+=1
         else:
             tdLog.debug("stop mnodes  on dnode 2 failed in 10s ")
-            return -1 
+            return -1
         tdSql.error("drop mnode on dnode 1;")
 
-        tdSql.query("show mnodes;")       
-        tdSql.checkRows(3) 
+        tdSql.query("show mnodes;")
+        tdSql.checkRows(3)
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'offline')
         tdSql.checkData(0,3,'ready')
@@ -200,8 +200,8 @@ class TDTestCase:
             return -1
         tdSql.error("drop mnode on dnode 2;")
 
-        tdSql.query("show mnodes;")       
-        tdSql.checkRows(3) 
+        tdSql.query("show mnodes;")
+        tdSql.checkRows(3)
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'leader')
         tdSql.checkData(0,3,'ready')
@@ -229,8 +229,8 @@ class TDTestCase:
             tdLog.debug("stop mnodes  on dnode 3 failed in 10s")
             return -1
         tdSql.error("drop mnode on dnode 3;")
-        tdSql.query("show mnodes;")       
-        tdSql.checkRows(3) 
+        tdSql.query("show mnodes;")
+        tdSql.checkRows(3)
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'leader')
         tdSql.checkData(0,3,'ready')
@@ -249,8 +249,8 @@ class TDTestCase:
         tdSql.checkData(4,1,'%s:6430'%self.host)
         tdSql.checkData(0,4,'ready')
         tdSql.checkData(4,4,'ready')
-        tdSql.query("show mnodes;")   
-        tdSql.checkRows(1)    
+        tdSql.query("show mnodes;")
+        tdSql.checkRows(1)
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'leader')
         tdSql.checkData(0,3,'ready')
@@ -270,8 +270,8 @@ class TDTestCase:
         tdSql.query("show dnodes;")
         tdLog.debug(tdSql.queryResult)
 
-        #  drop follower of mnode 
-        dropcount =0 
+        #  drop follower of mnode
+        dropcount =0
         while dropcount <= 10:
             for i in range(1,3):
                 tdLog.debug("drop mnode on dnode %d"%(i+1))
@@ -306,7 +306,7 @@ class TDTestCase:
         return taos.connect(host=host, port=int(port), config=config_dir)
 
 
-    def run(self): 
+    def run(self):
         # tdLog.debug(self.master_dnode.cfgDict)
         self.buildcluster(5)
         self.five_dnode_three_mnode()
