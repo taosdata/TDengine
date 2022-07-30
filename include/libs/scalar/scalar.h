@@ -25,7 +25,7 @@ extern "C" {
 
 typedef struct SFilterInfo SFilterInfo;
 
-int32_t scalarGetOperatorResultType(SOperatorNode* pOp);
+int32_t scalarGetOperatorResultType(SOperatorNode *pOp);
 
 /*
 pNode will be freed in API;
@@ -43,7 +43,7 @@ int32_t scalarGetOperatorParamNum(EOperatorType type);
 int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type);
 
 int32_t vectorGetConvertType(int32_t type1, int32_t type2);
-int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut, int32_t* overflow);
+int32_t vectorConvertImpl(const SScalarParam *pIn, SScalarParam *pOut, int32_t *overflow);
 
 /* Math functions */
 int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -86,7 +86,7 @@ int32_t nowFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
 int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t timezoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
-bool getTimePseudoFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool getTimePseudoFuncEnv(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
 
 int32_t winStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
