@@ -1,0 +1,426 @@
+{
+    "filetype":"subscribe",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "databases": "db",
+    "confirm_parameter_prompt": "no",
+      "super_table_query": 
+      {
+       "stblname": "stb1",
+       "threads":4, 
+       "mode":"sync", 
+       "interval":0, 
+       "restart":"no", 
+       "resubAfterConsume":-1,
+       "endAfterConsume":1, 
+       "keepProgress":"no",
+       "sqls": [
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res2.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        },
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
+          "result": "./subscribe_res3.txt"
+        }]
+      }
+}
