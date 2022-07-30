@@ -447,6 +447,7 @@ _err:
 
 static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SDecoder           decoder = {0};
+  SEncoder           encoder = {0};
   int32_t            rcode = 0;
   SVCreateTbBatchReq req = {0};
   SVCreateTbReq     *pCreateReq;
@@ -515,7 +516,6 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pR
   tdUidStoreFree(pStore);
 
   // prepare rsp
-  SEncoder encoder = {0};
   int32_t  ret = 0;
   tEncodeSize(tEncodeSVCreateTbBatchRsp, &rsp, pRsp->contLen, ret);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);

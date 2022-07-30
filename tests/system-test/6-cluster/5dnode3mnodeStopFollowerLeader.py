@@ -2,7 +2,7 @@ from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
 import taos
 import sys
 import time
-import os 
+import os
 
 from util.log import *
 from util.sql import *
@@ -15,13 +15,13 @@ from test import tdDnodes
 sys.path.append("./6-cluster")
 
 from clusterCommonCreate import *
-from clusterCommonCheck import * 
+from clusterCommonCheck import *
 import time
 import socket
 import subprocess
 from multiprocessing import Process
 
-        
+
 class TDTestCase:
 
     def init(self,conn ,logSql):
@@ -69,7 +69,7 @@ class TDTestCase:
         dnodenumbers=int(dnodenumbers)
         mnodeNums=int(mnodeNums)
         dbNumbers = 1
-        
+
         tdLog.info("first check dnode and mnode")
         tdSql.query("show dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
@@ -84,7 +84,7 @@ class TDTestCase:
         tdSql.execute("create mnode on dnode 3")
         clusterComCheck.checkMnodeStatus(3)
 
-        # add some error operations and 
+        # add some error operations and
         tdLog.info("Confirm the status of the dnode again")
         tdSql.error("create mnode on dnode 2")
         tdSql.query("show dnodes;")
@@ -100,20 +100,20 @@ class TDTestCase:
         # tdLog.info("check  whether 2 mnode status is  offline")
         # clusterComCheck.check3mnode2off()
         # tdSql.error("create user user1 pass '123';")
-        
+
         tdLog.info("start one mnode" )
         tdDnodes[0].starttaosd()
         clusterComCheck.check3mnodeoff(2)
-        
+
         clusterComCreate.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])
         clusterComCheck.checkDb(dbNumbers,1,'db0')
 
 
 
-    def run(self): 
+    def run(self):
         # print(self.master_dnode.cfgDict)
         self.fiveDnodeThreeMnode(dnodenumbers=5,mnodeNums=3,restartNumber=1)
- 
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")

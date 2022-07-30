@@ -56,12 +56,12 @@ class TDTestCase:
         print(cur)
         return cur
 
-    def initConsumerTable(self,cdbName='cdb'):        
+    def initConsumerTable(self,cdbName='cdb'):
         tdLog.info("create consume database, and consume info table, and consume result table")
         tdSql.query("drop database if exists %s "%(cdbName))
         tdSql.query("create database %s vgroups 1"%(cdbName))
         tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
-        tdSql.query("drop table if exists %s.consumeresult "%(cdbName))        
+        tdSql.query("drop table if exists %s.consumeresult "%(cdbName))
 
         tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"%cdbName)
         tdSql.query("create table %s.consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)"%cdbName)
@@ -75,7 +75,7 @@ class TDTestCase:
         tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
         tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"%cdbName)
 
-    def insertConsumerInfo(self,consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifmanualcommit,cdbName='cdb'):    
+    def insertConsumerInfo(self,consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifmanualcommit,cdbName='cdb'):
         sql = "insert into %s.consumeinfo values "%cdbName
         sql += "(now, %d, '%s', '%s', %d, %d, %d)"%(consumerId, topicList, keyList, expectrowcnt, ifcheckdata, ifmanualcommit)
         tdLog.info("consume info sql: %s"%sql)
@@ -90,11 +90,11 @@ class TDTestCase:
                 break
             else:
                 time.sleep(5)
-        
+
         for i in range(expectRows):
             tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
             resultList.append(tdSql.getData(i , 3))
-        
+
         return resultList
 
     def startTmqSimProcess(self,buildPath,cfgPath,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0):
@@ -102,14 +102,14 @@ class TDTestCase:
             logFile = cfgPath + '/../log/valgrind-tmq.log'
             shellCmd = 'nohup valgrind --log-file=' + logFile
             shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
-        
+
         if (platform.system().lower() == 'windows'):
             shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName) 
-            shellCmd += "> nul 2>&1 &"   
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName)
+            shellCmd += "> nul 2>&1 &"
         else:
             shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName) 
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName)
             shellCmd += "> /dev/null 2>&1 &"
         tdLog.info(shellCmd)
         os.system(shellCmd)
@@ -139,7 +139,7 @@ class TDTestCase:
                 sql = pre_create
         if sql != pre_create:
             tsql.execute(sql)
-        
+
         tdLog.debug("complete to create %d child tables in %s.%s" %(ctbNum, dbName, stbName))
         return
 
@@ -158,7 +158,7 @@ class TDTestCase:
             ctbDict[i] = 0
 
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
-        rowsOfCtb = 0        
+        rowsOfCtb = 0
         while rowsOfCtb < rowsPerTbl:
             for i in range(ctbNum):
                 sql += " %s.%s_%d values "%(dbName,ctbPrefix,i)
@@ -185,7 +185,7 @@ class TDTestCase:
             startTs = int(round(t * 1000))
 
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
-        rowsOfSql = 0        
+        rowsOfSql = 0
         for i in range(ctbNum):
             sql += " %s_%d values "%(ctbPrefix,i)
             for j in range(rowsPerTbl):
@@ -216,7 +216,7 @@ class TDTestCase:
             startTs = int(round(t * 1000))
 
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
-        rowsOfSql = 0        
+        rowsOfSql = 0
         for i in range(ctbNum):
             sql += " %s.%s_%d using %s.%s tags (%d) values "%(dbName,ctbPrefix,i,dbName,stbName,i)
             for j in range(rowsPerTbl):
@@ -235,8 +235,8 @@ class TDTestCase:
             tsql.execute(sql)
         tdLog.debug("insert data ............ [OK]")
         return
-        
-    def prepareEnv(self, **parameterDict):            
+
+    def prepareEnv(self, **parameterDict):
         # create new connector for my thread
         tsql=self.newcur(parameterDict['cfg'], 'localhost', 6030)
 
@@ -255,7 +255,7 @@ class TDTestCase:
         return
 
     def tmqCase1(self, cfgPath, buildPath):
-        tdLog.printNoPrefix("======== test case 1: ")       
+        tdLog.printNoPrefix("======== test case 1: ")
         '''
         subscribe one db, multi normal table which have not same schema, and include rows of all tables in one insert sql
         '''
@@ -274,11 +274,11 @@ class TDTestCase:
                          'batchNum':   100,      \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
-        
+
         self.create_database(tdSql, parameterDict["dbName"])
         tdSql.execute("create table %s.ntb0 (ts timestamp, c1 int)"%(parameterDict["dbName"]))
         tdSql.execute("create table %s.ntb1 (ts timestamp, c1 int, c2 float)"%(parameterDict["dbName"]))
-        tdSql.execute("create table %s.ntb2 (ts timestamp, c1 int, c2 float, c3 binary(32))"%(parameterDict["dbName"]))        
+        tdSql.execute("create table %s.ntb2 (ts timestamp, c1 int, c2 float, c3 binary(32))"%(parameterDict["dbName"]))
         tdSql.execute("create table %s.ntb3 (ts timestamp, c1 int, c2 float, c3 binary(32), c4 timestamp)"%(parameterDict["dbName"]))
 
         tdSql.execute("insert into %s.ntb0 values(now, 1) %s.ntb1 values(now, 1, 1) %s.ntb2 values(now, 1, 1, '1') %s.ntb3 values(now, 1, 1, '1', now)"%(parameterDict["dbName"],parameterDict["dbName"],parameterDict["dbName"],parameterDict["dbName"]))
@@ -301,7 +301,7 @@ class TDTestCase:
 
         tdLog.info("create topics from db")
         topicFromDb = 'topic_db_mulit_tbl'
-        
+
         tdSql.execute("create topic %s as database %s" %(topicFromDb, parameterDict['dbName']))
         consumerId     = 0
         expectrowcnt   = numOfNtb * rowsOfPerNtb
@@ -324,7 +324,7 @@ class TDTestCase:
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
-        
+
         if totalConsumeRows != expectrowcnt:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
             tdLog.exit("tmq consume rows error!")
@@ -334,7 +334,7 @@ class TDTestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def tmqCase2(self, cfgPath, buildPath):
-        tdLog.printNoPrefix("======== test case 2: ")    
+        tdLog.printNoPrefix("======== test case 2: ")
         '''
         subscribe one stb, multi child talbe and normal table which have not same schema, and include rows of all tables in one insert sql
         '''
@@ -355,7 +355,7 @@ class TDTestCase:
         parameterDict['cfg'] = cfgPath
 
         dbName = parameterDict["dbName"]
-        
+
         self.create_database(tdSql, dbName)
 
         tdSql.execute("create stable %s.stb (ts timestamp, s1 bigint, s2 binary(32), s3 double) tags (t1 int, t2 binary(32))"%(dbName))
@@ -364,7 +364,7 @@ class TDTestCase:
 
         tdSql.execute("create table %s.ntb0 (ts timestamp, c1 binary(32))"%(dbName))
         tdSql.execute("create table %s.ntb1 (ts timestamp, c1 binary(32), c2 float)"%(dbName))
-        tdSql.execute("create table %s.ntb2 (ts timestamp, c1 int, c2 float, c3 binary(32))"%(dbName))        
+        tdSql.execute("create table %s.ntb2 (ts timestamp, c1 int, c2 float, c3 binary(32))"%(dbName))
         tdSql.execute("create table %s.ntb3 (ts timestamp, c1 int, c2 float, c3 binary(32), c4 timestamp)"%(dbName))
 
         tdSql.execute("insert into %s.ntb0 values(now, 'ntb0-11') \
@@ -401,7 +401,7 @@ class TDTestCase:
 
         tdLog.info("create topics from db")
         topicFromStb = 'topic_stb_mulit_tbl'
-        
+
         tdSql.execute("create topic %s as stable %s.stb" %(topicFromStb, dbName))
         consumerId     = 0
         expectrowcnt   = numOfCtb * rowsOfPerNtb
@@ -424,7 +424,7 @@ class TDTestCase:
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
-        
+
         if totalConsumeRows != expectrowcnt:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
             tdLog.exit("tmq consume rows error!")
@@ -445,7 +445,7 @@ class TDTestCase:
         tdLog.info("cfgPath: %s" % cfgPath)
 
         self.tmqCase1(cfgPath, buildPath)
-        self.tmqCase2(cfgPath, buildPath) 
+        self.tmqCase2(cfgPath, buildPath)
 
     def stop(self):
         tdSql.close()

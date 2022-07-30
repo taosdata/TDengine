@@ -100,9 +100,9 @@ def telemetryInfoCheck(infoDict=''):
 
     if "compStorage" not in infoDict or infoDict["compStorage"] < 0:
         tdLog.exit("compStorage is null!")
-    
 
-class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):    
+
+class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         """
         process GET request
@@ -117,26 +117,26 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         if contentEncoding == 'gzip':
             req_body = self.rfile.read(int(self.headers["Content-Length"]))
             plainText = gzip.decompress(req_body).decode()
-        else: 
+        else:
             plainText = self.rfile.read(int(self.headers["Content-Length"])).decode()
 
         print("monitor info:\n%s"%plainText)
 
         # 1. send response code and header
-        self.send_response(200)        
+        self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()
-        
+
         # 2. send response content
         #self.wfile.write(("Hello World: " + req_body + "\n").encode("utf-8"))
-        
+
         # 3. check request body info
         infoDict = json.loads(plainText)
         #print("================")
         #print(infoDict)
         telemetryInfoCheck(infoDict)
 
-        # 4. shutdown the server and exit case 
+        # 4. shutdown the server and exit case
         assassin = threading.Thread(target=self.server.shutdown)
         assassin.daemon = True
         assassin.start()
@@ -176,7 +176,7 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
-    
+
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
         # time.sleep(2)

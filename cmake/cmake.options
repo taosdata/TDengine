@@ -91,6 +91,12 @@ ELSE ()
 ENDIF ()
 
 option(
+    RUST_BINDINGS
+    "If build with rust-bindings"
+    ON
+    )
+
+option(
     JEMALLOC_ENABLED
     "If build with jemalloc"
     OFF
