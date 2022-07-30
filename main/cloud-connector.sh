@@ -1,1 +1,4 @@
-tt --group-dir=cloud/connector --use=cloud/cloud_test.yaml --early_stop --keep
+# $1 = test | aws | google | azu
+
+tt --group-dir=cloud/connector --use=cloud/cloud_$1.yaml --early_stop --keep
+
