@@ -242,22 +242,14 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
     }
 
     // todo refactor STableList
+    bool assignUid = false;
     size_t bufLen = (pScanInfo->pGroupTags != NULL) ? getTableTagsBufLen(pScanInfo->pGroupTags) : 0;
     char*  keyBuf = NULL;
     if (bufLen > 0) {
+      assignUid = groupbyTbname(pScanInfo->pGroupTags);
       keyBuf = taosMemoryMalloc(bufLen);
       if (keyBuf == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
-      }
-    }
-
-    bool assignUid = false;
-
-    if (LIST_LENGTH(pScanInfo->pGroupTags) > 0) {
-      SNode* p = nodesListGetNode(pScanInfo->pGroupTags, 0);
-      if (p->type == QUERY_NODE_FUNCTION) {
-        // partition by tbname/group by tbname
-        assignUid = (strcmp(((struct SFunctionNode*)p)->functionName, "tbname") == 0);
       }
     }
 

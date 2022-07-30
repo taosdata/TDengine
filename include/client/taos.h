@@ -271,8 +271,6 @@ DLL_EXPORT tmq_res_t     tmq_get_res_type(TAOS_RES *res);
 DLL_EXPORT int32_t       tmq_get_raw(TAOS_RES *res, tmq_raw_data *raw);
 DLL_EXPORT int32_t       tmq_write_raw(TAOS *taos, tmq_raw_data raw);
 DLL_EXPORT int           taos_write_raw_block(TAOS *taos, int numOfRows, char *pData, const char* tbname);
-
-
 DLL_EXPORT void          tmq_free_raw(tmq_raw_data raw);
 DLL_EXPORT char         *tmq_get_json_meta(TAOS_RES *res);   // Returning null means error. Returned result need to be freed by tmq_free_json_meta
 DLL_EXPORT void          tmq_free_json_meta(char* jsonMeta);

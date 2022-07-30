@@ -41,12 +41,10 @@ sql_error insert into tb17 (ts, c1, c3) using stb (t1, t3) tags ('tag5', 11.11, 
 sql_error insert into tb18 (ts, c1, c3) using stb tags ('tag5', 16) values ( now + 5s, 'binary6', 6.6)
 sql_error insert into tb19 (ts, c1, c2, c3) using stb tags (19, 'tag5', 91.11) values ( now + 5s, 'binary7', 7, 7.7)
 
-
-
 sql create table stbx (ts timestamp, c1 binary(10), c2 int, c3 float) tags (t1 binary(10), t2 int, t3 float)
 sql insert into tb100 (ts, c1, c2, c3) using stbx (t1, t2, t3) tags ('tag100', 100, 100.123456) values ( now + 10s, 'binary100', 100, 100.9) tb101 (ts, c1, c2, c3) using stbx (t1, t2, t3) tags ('tag101', 101, 101.9) values ( now + 10s, 'binary101', 101, 101.9) tb102 (ts, c1, c2, c3) using stbx (t1, t2, t3) tags ('tag102', 102, 102.9) values ( now + 10s, 'binary102', 102, 102.9)
 
-sql select * from stbx
+sql select * from stbx order by t1
 if $rows != 3 then
   return -1
 endi

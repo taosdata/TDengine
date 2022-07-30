@@ -103,7 +103,7 @@ endi
 
 print ================== change a tag value
 sql alter table car1 set tag carid=10
-sql select carId, carmodel from car1
+sql select distinct carId, carmodel from car1
 if $rows != 1 then
   return -1
 endi

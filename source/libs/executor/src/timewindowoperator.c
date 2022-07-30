@@ -1218,7 +1218,7 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator) {
       doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
       doFilter(pInfo->pCondition, pBInfo->pRes, NULL);
 
-      bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
+      bool hasRemain = hasRemainResults(&pInfo->groupResInfo);
       if (!hasRemain) {
         doSetOperatorCompleted(pOperator);
         break;
@@ -1257,7 +1257,7 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
     doFilter(pInfo->pCondition, pBInfo->pRes, NULL);
 
-    bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
+    bool hasRemain = hasRemainResults(&pInfo->groupResInfo);
     if (!hasRemain) {
       doSetOperatorCompleted(pOperator);
       break;
@@ -1294,7 +1294,7 @@ static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator) {
       doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
       doFilter(pInfo->pCondition, pBlock, NULL);
 
-      bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
+      bool hasRemain = hasRemainResults(&pInfo->groupResInfo);
       if (!hasRemain) {
         doSetOperatorCompleted(pOperator);
         break;
@@ -1563,7 +1563,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     }
 
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    if (pInfo->binfo.pRes->info.rows == 0 || !hasDataInGroupInfo(&pInfo->groupResInfo)) {
+    if (pInfo->binfo.pRes->info.rows == 0 || !hasRemainResults(&pInfo->groupResInfo)) {
       pOperator->status = OP_EXEC_DONE;
       qDebug("===stream===single interval is done");
       freeAllPages(pInfo->pRecycledPages, pInfo->aggSup.pResultBuf);
@@ -1596,7 +1596,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       continue;
     }
 
-    if (pBlock->info.type == STREAM_NORMAL) {
+    if (pBlock->info.type == STREAM_NORMAL && pBlock->info.version != 0) {
       // set input version
       pTaskInfo->version = pBlock->info.version;
     }
@@ -2010,7 +2010,7 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
       doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
       doFilter(pInfo->pCondition, pBInfo->pRes, NULL);
 
-      bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
+      bool hasRemain = hasRemainResults(&pInfo->groupResInfo);
       if (!hasRemain) {
         doSetOperatorCompleted(pOperator);
         break;
@@ -2053,7 +2053,7 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
     doFilter(pInfo->pCondition, pBInfo->pRes, NULL);
 
-    bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
+    bool hasRemain = hasRemainResults(&pInfo->groupResInfo);
     if (!hasRemain) {
       doSetOperatorCompleted(pOperator);
       break;
@@ -2219,7 +2219,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
 
   //  if (pOperator->status == OP_RES_TO_RETURN) {
   //    //    doBuildResultDatablock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pIntervalInfo->pRes);
-  //    if (pResBlock->info.rows == 0 || !hasDataInGroupInfo(&pSliceInfo->groupResInfo)) {
+  //    if (pResBlock->info.rows == 0 || !hasRemainResults(&pSliceInfo->groupResInfo)) {
   //      doSetOperatorCompleted(pOperator);
   //    }
   //
@@ -3860,7 +3860,7 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
       return pInfo->pDelRes;
     }
     doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
-    if (pBInfo->pRes->info.rows == 0 || !hasDataInGroupInfo(&pInfo->groupResInfo)) {
+    if (pBInfo->pRes->info.rows == 0 || !hasRemainResults(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
     }
     printDataBlock(pBInfo->pRes, IS_FINAL_OP(pInfo) ? "final session" : "single session");
@@ -4420,7 +4420,7 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
       return pInfo->pDelRes;
     }
     doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
-    if (pBInfo->pRes->info.rows == 0 || !hasDataInGroupInfo(&pInfo->groupResInfo)) {
+    if (pBInfo->pRes->info.rows == 0 || !hasRemainResults(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
     }
     printDataBlock(pBInfo->pRes, "single state");

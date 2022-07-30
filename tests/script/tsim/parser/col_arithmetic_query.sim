@@ -511,24 +511,21 @@ if $rows != 1 then
 endi
 
 # slimit/soffset not support for normal table query. [d.11]===============================================================
-sql select sum(c1) from $stb slimit 1 soffset 19;
-if $rows != 0 then
-  return -1
-endi
+sql_error select sum(c1) from $stb slimit 1 soffset 19;
 
-sql select sum(c1) from $stb interval(1s) group by tbname slimit 1 soffset 1
-sql select sum(c1) from ca_stb0 interval(1s) group by tbname slimit 2 soffset 4 limit 10 offset 1
+sql select sum(c1) from ca_stb0 partition by tbname interval(1s) slimit 1 soffset 1
+sql select sum(c1) from ca_stb0 partition by tbname interval(1s) slimit 2 soffset 4 limit 10 offset 1
 
 # fill [d.12]===============================================================
-sql_error select first(c1)-last(c1), sum(c3)*count(c3), spread(c5 ) % count(*) from $stb interval(1s) fill(prev);
-sql_error select first(c1) from $stb fill(value, 20);
+sql_error select first(c1)-last(c1), sum(c3)*count(c3), spread(c5 ) % count(*) from ca_stb0 interval(1s) fill(prev);
+sql_error select first(c1) from ca_stb0 fill(value, 20);
 
 # constant column. [d.13]===============================================================
 
 # column value filter [d.14]===============================================================
 
 # tag filter. [d.15]===============================================================
-sql select sum(c2)+99 from $stb where t1=12;
+sql select sum(c2)+99 from ca_stb0 where t1=12;
 
 # multi-field output [d.16]===============================================================
 sql select count(*), sum(c1)*avg(c2), avg(c3)*count(c3), sum(c3), sum(c4), first(c7), last(c8), first(c9), first(c7), last(c8) from $tb
@@ -548,15 +545,12 @@ if $data90 != 9.500000000 then
 endi
 
 # interval query [d.17]===============================================================
-sql select avg(c2)*count(c2), sum(c3)-first(c3), last(c4)+9 from $stb interval(1s)
+sql select avg(c2)*count(c2), sum(c3)-first(c3), last(c4)+9 from ca_stb0 interval(1s)
 if $rows != 10000 then
   return -1
 endi
-if $data00 != @18-09-17 09:00:00.000@ then
-  return -1
-endi
 
-sql_error select first(c7)- last(c1) from $tb interval(2y)
+sql select first(c7)- last(c1) from $tb interval(2y)
 
 # aggregation query [d.18]===============================================================
 # all cases in this part are aggregation query test.

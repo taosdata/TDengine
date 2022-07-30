@@ -137,7 +137,7 @@ void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayL
   ASSERT(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
 }
 
-bool hasDataInGroupInfo(SGroupResInfo* pGroupResInfo) {
+bool hasRemainResults(SGroupResInfo* pGroupResInfo) {
   if (pGroupResInfo->pRows == NULL) {
     return false;
   }
