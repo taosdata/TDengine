@@ -385,13 +385,26 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
                            .reverse = reverse,
                            .filterFunc = filterFunc};
 
-    char buf[128] = {0};
+    char  buf[128] = {0};
+    float f = 0.0;
     if (IS_VAR_DATA_TYPE(left->colValType)) {
       if (!IS_VAR_DATA_TYPE(right->colValType)) {
-        NUM_TO_STRING(right->colValType, right->condValue, sizeof(buf), buf + VARSTR_HEADER_SIZE);
+        NUM_TO_STRING(right->colValType, right->condValue, sizeof(buf) - 2, buf + VARSTR_HEADER_SIZE);
         varDataSetLen(buf, strlen(buf + VARSTR_HEADER_SIZE));
-
         param.val = buf;
+      }
+    } else {
+      if (left->colValType == TSDB_DATA_TYPE_FLOAT) {
+        if (right->colValType == TSDB_DATA_TYPE_DOUBLE) {
+          f = GET_DOUBLE_VAL(right->condValue);
+          param.val = &f;
+        } else if (right->colValType == TSDB_DATA_TYPE_BIGINT) {
+          f = *(int64_t *)(right->condValue);
+          param.val = &f;
+        } else {
+          f = *(int32_t *)(right->condValue);
+          param.val = &f;
+        }
       }
     }
     ret = metaFilterTableIds(arg->metaEx, &param, output->result);
