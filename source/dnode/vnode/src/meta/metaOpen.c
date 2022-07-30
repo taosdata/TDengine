@@ -22,6 +22,7 @@ static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
 static int ttlIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int uidIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int smaIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+static int taskIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
 static int32_t metaInitLock(SMeta *pMeta) { return taosThreadRwlockInit(&pMeta->lock, NULL); }
 static int32_t metaDestroyLock(SMeta *pMeta) { return taosThreadRwlockDestroy(&pMeta->lock); }
@@ -130,6 +131,12 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
     goto _err;
   }
 
+  ret = tdbTbOpen("stream.task.db", sizeof(int64_t), -1, taskIdxKeyCmpr, pMeta->pEnv, &pMeta->pTaskIdx);
+  if (ret < 0) {
+    metaError("vgId: %d, failed to open meta stream task index since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
   // open index
   if (metaOpenIdx(pMeta) < 0) {
     metaError("vgId:%d, failed to open meta index since %s", TD_VID(pVnode), tstrerror(terrno));
@@ -143,6 +150,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
 
 _err:
   if (pMeta->pIdx) metaCloseIdx(pMeta);
+  if (pMeta->pTaskIdx) tdbTbClose(pMeta->pTaskIdx);
   if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
   if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
   if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
@@ -162,6 +170,7 @@ _err:
 int metaClose(SMeta *pMeta) {
   if (pMeta) {
     if (pMeta->pIdx) metaCloseIdx(pMeta);
+    if (pMeta->pTaskIdx) tdbTbClose(pMeta->pTaskIdx);
     if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
     if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
     if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
@@ -372,6 +381,19 @@ static int smaIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
   if (pSmaIdxKey1->smaUid > pSmaIdxKey2->smaUid) {
     return 1;
   } else if (pSmaIdxKey1->smaUid < pSmaIdxKey2->smaUid) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int taskIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
+  int32_t uid1 = *(int32_t *)pKey1;
+  int32_t uid2 = *(int32_t *)pKey2;
+
+  if (uid1 > uid2) {
+    return 1;
+  } else if (uid1 < uid2) {
     return -1;
   }
 

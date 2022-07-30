@@ -48,7 +48,7 @@ int32_t tqMetaOpen(STQ* pTq) {
     ASSERT(0);
   }
 
-  if (tdbTbOpen("handles", -1, -1, 0, pTq->pMetaStore, &pTq->pExecStore) < 0) {
+  if (tdbTbOpen("handles", -1, -1, NULL, pTq->pMetaStore, &pTq->pExecStore) < 0) {
     ASSERT(0);
   }
 
