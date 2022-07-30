@@ -443,6 +443,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(igExpired);
   COPY_SCALAR_FIELD(windowAlgo);
   COPY_SCALAR_FIELD(inputTsOrder);
+  COPY_SCALAR_FIELD(outputTsOrder);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -452,6 +453,7 @@ static int32_t logicFillCopy(const SFillLogicNode* pSrc, SFillLogicNode* pDst) {
   CLONE_NODE_FIELD(pWStartTs);
   CLONE_NODE_FIELD(pValues);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  COPY_SCALAR_FIELD(inputTsOrder);
   return TSDB_CODE_SUCCESS;
 }
 

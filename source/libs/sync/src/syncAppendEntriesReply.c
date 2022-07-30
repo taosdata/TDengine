@@ -213,6 +213,11 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
     if (nextIndex > SYNC_INDEX_BEGIN) {
       --nextIndex;
 
+      // speed up
+      if (nextIndex > pMsg->matchIndex + 1) {
+        nextIndex = pMsg->matchIndex + 1;
+      }
+
       bool needStartSnapshot = false;
       if (nextIndex >= SYNC_INDEX_BEGIN && !ths->pLogStore->syncLogExist(ths->pLogStore, nextIndex)) {
         needStartSnapshot = true;
