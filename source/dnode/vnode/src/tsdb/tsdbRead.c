@@ -2126,6 +2126,10 @@ int32_t doMergeRowsInBuf(SIterInfo* pIter, uint64_t uid, int64_t ts, SArray* pDe
     }
 
     tRowMergerAdd(pMerger, pRow, pTSchema);
+
+    if (sversion != pReader->pSchema->version) {
+      taosMemoryFree(pTSchema);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2262,6 +2266,10 @@ void doMergeMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo* pIter, SArray* pDe
   doMergeRowsInBuf(pIter, uid, k.ts, pDelList, &merge, pReader);
   tRowMergerGetRow(&merge, pTSRow);
   tRowMergerClear(&merge);
+
+  if (sversion != pReader->pSchema->version) {
+    taosMemoryFree(pTSchema);
+  }
 }
 
 void doMergeMemIMemRows(TSDBROW* pRow, TSDBROW* piRow, STableBlockScanInfo* pBlockScanInfo, STsdbReader* pReader,
