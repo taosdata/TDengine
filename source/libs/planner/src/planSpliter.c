@@ -763,6 +763,8 @@ static SNode* stbSplCreateColumnNode(SExprNode* pExpr) {
     return NULL;
   }
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+    strcpy(pCol->dbName, ((SColumnNode*)pExpr)->dbName);
+    strcpy(pCol->tableName, ((SColumnNode*)pExpr)->tableName);
     strcpy(pCol->tableAlias, ((SColumnNode*)pExpr)->tableAlias);
   }
   strcpy(pCol->colName, pExpr->aliasName);

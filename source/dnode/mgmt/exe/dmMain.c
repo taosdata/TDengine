@@ -218,6 +218,8 @@ int mainWindows(int argc,char** argv) {
     taosCleanupArgs();
     return -1;
   }
+  
+  taosConvInit();
 
   if (global.dumpConfig) {
     dmDumpCfg();
