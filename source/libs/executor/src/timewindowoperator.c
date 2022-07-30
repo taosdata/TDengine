@@ -4627,9 +4627,8 @@ static void doMergeAlignedIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultR
     ASSERT(taosHashGetSize(iaInfo->aggSup.pResultRowHashTable) == 1);
     if (currTs != miaInfo->curTs) {
       outputMergeAlignedIntervalResult(pOperatorInfo, tableGroupId, pResultBlock, miaInfo->curTs);
+      miaInfo->curTs = INT64_MIN;
     }
-
-    miaInfo->curTs = INT64_MIN;
   }
 
   STimeWindow win = {0};
@@ -4644,6 +4643,7 @@ static void doMergeAlignedIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultR
     longjmp(pTaskInfo->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
+  miaInfo->curTs = win.skey;
   int32_t currPos = startPos;
 
   STimeWindow currWin = win;
@@ -4652,12 +4652,12 @@ static void doMergeAlignedIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultR
       continue;
     }
 
-    miaInfo->curTs = currWin.skey;
     updateTimeWindowInfo(&iaInfo->twAggSup.timeWindowData, &currWin, true);
     doApplyFunctions(pTaskInfo, pSup->pCtx, &currWin, &iaInfo->twAggSup.timeWindowData, startPos, currPos - startPos,
                      tsCols, pBlock->info.rows, numOfOutput, iaInfo->inputOrder);
 
     outputMergeAlignedIntervalResult(pOperatorInfo, tableGroupId, pResultBlock, currTs);
+    miaInfo->curTs = INT64_MIN;
 
     currTs = tsCols[currPos];
     currWin.skey = currTs;
@@ -4670,6 +4670,8 @@ static void doMergeAlignedIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultR
     if (ret != TSDB_CODE_SUCCESS || pResult == NULL) {
       longjmp(pTaskInfo->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
+
+    miaInfo->curTs = currWin.skey;
   }
 
   updateTimeWindowInfo(&iaInfo->twAggSup.timeWindowData, &currWin, true);
