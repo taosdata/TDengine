@@ -213,7 +213,7 @@ class TDTestCase:
         tdSql.error("select irate(c1), abs(c1) from ct4 ")
 
         # agg functions mix with agg functions
-        tdSql.query("select irate(c1), count(c5) from stb1 partition by tbname ")
+        tdSql.query("select irate(c1), count(c5) from stb1 partition by tbname order by tbname")
         tdSql.checkData(0, 0, 0.000000000)
         tdSql.checkData(1, 0, 0.000000000)
         tdSql.checkData(0, 1, 13)

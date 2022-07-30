@@ -3,7 +3,7 @@ from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
 import taos
 import sys
 import time
-import os 
+import os
 
 from util.log import *
 from util.sql import *
@@ -95,7 +95,7 @@ class TDTestCase:
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
             '''
         )
-        
+
         for i in range(5):
             tdSql.execute("create table sub_tb_{} using stb1 tags({})".format(i,i))
         tdSql.query("show stables")
@@ -126,7 +126,7 @@ class TDTestCase:
         return taos.connect(host=host, port=int(port), config=config_dir)
 
 
-    def run(self): 
+    def run(self):
         self.check_setup_cluster_status()
         self.create_db_check_vgroups()
 
