@@ -144,7 +144,6 @@ def pre_test_arm64() {
         go env -w GO111MODULE=on
         cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true > /dev/null
         make -j8 >/dev/null
-        make install
     '''
     return 1
 }
