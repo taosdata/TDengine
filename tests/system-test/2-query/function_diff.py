@@ -280,7 +280,7 @@ class TDTestCase:
         tdSql.error(self.diff_query_form(alias=", min(c1)"))    # mix with select function 1
         tdSql.error(self.diff_query_form(alias=", top(c1, 5)")) # mix with select function 2
         tdSql.error(self.diff_query_form(alias=", spread(c1)")) # mix with calculation function  1
-        tdSql.error(self.diff_query_form(alias=", diff(c1)"))   # mix with calculation function  2
+        tdSql.query(self.diff_query_form(alias=", diff(c1)"))   # mix with calculation function  2
         # tdSql.error(self.diff_query_form(alias=" + 2"))         # mix with arithmetic 1
         tdSql.error(self.diff_query_form(alias=" + avg(c1)"))   # mix with arithmetic 2
         tdSql.query(self.diff_query_form(alias=", c2"))         # mix with other 1

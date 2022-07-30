@@ -141,8 +141,8 @@ class TDTestCase:
         query_data = tdSql.queryResult
 
         # nest query for support max
-        tdSql.query(f"select apercentile(c2+2,10)+1 from (select max(c1) c2  from {dbname}.stb1)")
-        tdSql.checkData(0,0,31.000000000)
+        #tdSql.query(f"select apercentile(c2+2,10)+1 from (select max(c1) c2  from {dbname}.stb1)")
+        #tdSql.checkData(0,0,31.000000000)
         tdSql.query(f"select apercentile(c1+2,10)+1  as c2 from (select ts ,c1 ,c2  from {dbname}.stb1)")
         tdSql.checkData(0,0,7.560701700)
         tdSql.query(f"select apercentile(a+2,10)+1  as c2 from (select ts ,abs(c1) a ,c2  from {dbname}.stb1)")

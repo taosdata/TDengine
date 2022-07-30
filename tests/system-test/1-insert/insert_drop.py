@@ -38,7 +38,7 @@ class TDTestCase:
         tlist = self.genMultiThreadSeq(sql_list)
         self.multiThreadRun(tlist)
         tdSql.query(f'show databases')
-        
+
 
     def stop(self):
         tdSql.close()

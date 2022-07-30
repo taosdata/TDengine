@@ -27,10 +27,6 @@ else ()
     cat("${TD_SUPPORT_DIR}/taosadapter_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
-if(TD_LINUX_64 AND JEMALLOC_ENABLED)
-    cat("${TD_SUPPORT_DIR}/jemalloc_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif()
-
 # pthread
 if(${BUILD_PTHREAD})
     cat("${TD_SUPPORT_DIR}/pthread_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -109,6 +105,11 @@ if(${BUILD_WITH_SQLITE})
     cat("${TD_SUPPORT_DIR}/sqlite_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_WITH_SQLITE})
 
+# rust-bindings
+if(${RUST_BINDINGS})
+    cat("${TD_SUPPORT_DIR}/rust-bindings_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(${RUST_BINDINGS})
+
 # lucene
 if(${BUILD_WITH_LUCENE})
     cat("${TD_SUPPORT_DIR}/lucene_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -119,6 +120,11 @@ endif(${BUILD_WITH_LUCENE})
 if(${BUILD_WITH_NURAFT})
     cat("${TD_SUPPORT_DIR}/nuraft_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_WITH_NURAFT})
+
+# crashdump
+if(${BUILD_CRASHDUMP})
+    cat("${TD_SUPPORT_DIR}/crashdump_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(${BUILD_CRASHDUMP})
 
 # addr2line
 if(${BUILD_ADDR2LINE})
@@ -134,6 +140,24 @@ execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
         WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
 execute_process(COMMAND "${CMAKE_COMMAND}" --build .
         WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
+     
+# clear submodule
+execute_process(COMMAND git submodule deinit -f tools/taos-tools
+        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
+execute_process(COMMAND git rm --cached tools/taos-tools
+        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
+execute_process(COMMAND git submodule deinit -f tools/taosadapter
+        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
+execute_process(COMMAND git rm --cached tools/taosadapter
+        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
+execute_process(COMMAND git submodule deinit -f tools/taosws-rs
+        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
+execute_process(COMMAND git rm --cached tools/taosws-rs
+        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
+execute_process(COMMAND git submodule deinit -f examples/rust
+        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
+execute_process(COMMAND git rm --cached examples/rust
+        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
 
 # ================================================================================================
 # Build
@@ -255,6 +279,16 @@ if(${BUILD_PTHREAD})
     set_target_properties(libpthreadVC3 PROPERTIES OUTPUT_NAME pthread)
     add_library(pthread INTERFACE)
     target_link_libraries(pthread INTERFACE libpthreadVC3)
+endif()
+
+# crashdump
+if(${BUILD_CRASHDUMP})
+    add_executable(dumper "crashdump/dumper/dumper.c")
+    target_link_libraries(dumper User32.lib dbghelp.lib)
+    file(READ "crashdump/crasher/crasher.c" CRASHDUMP_CONTENT)
+    string(REPLACE "main(" "main_crashdump(" CRASHDUMP_CONTENT "${CRASHDUMP_CONTENT}")
+    file(WRITE "crashdump/crasher/crasher.c" "${CRASHDUMP_CONTENT}")
+    add_library(crashdump STATIC "crashdump/crasher/crasher.c")
 endif()
 
 # iconv
@@ -403,18 +437,6 @@ if(${BUILD_ADDR2LINE})
     endif(NOT ${TD_WINDOWS})
 endif(${BUILD_ADDR2LINE})
 
-# jemalloc
-IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
-    include(ExternalProject)
-    ExternalProject_Add(jemalloc
-        PREFIX        "jemalloc"
-        SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/jemalloc
-        BUILD_IN_SOURCE     1
-        CONFIGURE_COMMAND   ./autogen.sh COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/
-        BUILD_COMMAND       ${MAKE}
-        )
-    INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
-ENDIF ()
 
 # ================================================================================================
 # Build test

@@ -49,7 +49,7 @@ int32_t tsNumOfShmThreads = 1;
 // queue & threads
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfCommitThreads = 2;
-int32_t tsNumOfTaskQueueThreads = 1;
+int32_t tsNumOfTaskQueueThreads = 4;
 int32_t tsNumOfMnodeQueryThreads = 4;
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
@@ -123,9 +123,6 @@ int32_t tsMinIntervalTime = 1;
 // positive value (in MB)
 int32_t tsQueryBufferSize = -1;
 int64_t tsQueryBufferSizeBytes = -1;
-
-// in retrieve blocking model, the retrieve threads will wait for the completion of the query processing.
-bool tsRetrieveBlockingModel = false;
 
 // tsdb config
 // For backward compatibility
@@ -296,6 +293,7 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "smaDebugFlag", smaDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "idxDebugFlag", idxDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "tdbDebugFlag", tdbDebugFlag, 0, 255, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "metaDebugFlag", metaDebugFlag, 0, 255, 0) != 0) return -1;
   return 0;
 }
 
@@ -319,9 +317,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
 
-  tsNumOfTaskQueueThreads = tsNumOfCores / 4;
-  tsNumOfTaskQueueThreads = TRANGE(tsNumOfTaskQueueThreads, 1, 2);
-  if (cfgAddInt32(pCfg, "numOfTaskQueueThreads", tsNumOfTaskQueueThreads, 1, 1024, 0) != 0) return -1;
+  tsNumOfTaskQueueThreads = tsNumOfCores / 2;
+  tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
+  if (cfgAddInt32(pCfg, "numOfTaskQueueThreads", tsNumOfTaskQueueThreads, 4, 1024, 0) != 0) return -1;
 
   return 0;
 }
@@ -362,7 +360,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "maxNumOfDistinctRes", tsMaxNumOfDistinctResults, 10 * 10000, 10000 * 10000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "countAlwaysReturnValue", tsCountAlwaysReturnValue, 0, 1, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryBufferSize", tsQueryBufferSize, -1, 500000000000, 0) != 0) return -1;
-  if (cfgAddBool(pCfg, "retrieveBlockingModel", tsRetrieveBlockingModel, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "printAuth", tsPrintAuth, 0) != 0) return -1;
 
   if (cfgAddInt32(pCfg, "multiProcess", tsMultiProcess, 0, 2, 0) != 0) return -1;
@@ -476,6 +473,7 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
   smaDebugFlag = cfgGetItem(pCfg, "smaDebugFlag")->i32;
   idxDebugFlag = cfgGetItem(pCfg, "idxDebugFlag")->i32;
   tdbDebugFlag = cfgGetItem(pCfg, "tdbDebugFlag")->i32;
+  metaDebugFlag = cfgGetItem(pCfg, "metaDebugFlag")->i32;
 }
 
 static int32_t taosSetClientCfg(SConfig *pCfg) {
@@ -547,7 +545,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMaxNumOfDistinctResults = cfgGetItem(pCfg, "maxNumOfDistinctRes")->i32;
   tsCountAlwaysReturnValue = cfgGetItem(pCfg, "countAlwaysReturnValue")->i32;
   tsQueryBufferSize = cfgGetItem(pCfg, "queryBufferSize")->i32;
-  tsRetrieveBlockingModel = cfgGetItem(pCfg, "retrieveBlockingModel")->bval;
   tsPrintAuth = cfgGetItem(pCfg, "printAuth")->bval;
 
   tsMultiProcess = cfgGetItem(pCfg, "multiProcess")->bval;
@@ -596,6 +593,20 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   return 0;
 }
+
+void taosLocalCfgForbiddenToChange(char* name, bool* forbidden) {
+  int32_t len = strlen(name);
+  char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
+  strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
+
+  if (strcasecmp("charset", name) == 0) {
+    *forbidden = true;
+    return;
+  }
+
+  *forbidden = false;
+}
+
 
 int32_t taosSetCfg(SConfig *pCfg, char *name) {
   int32_t len = strlen(name);
@@ -832,9 +843,7 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
       break;
     }
     case 'r': {
-      if (strcasecmp("retrieveBlockingModel", name) == 0) {
-        tsRetrieveBlockingModel = cfgGetItem(pCfg, "retrieveBlockingModel")->bval;
-      } else if (strcasecmp("rpcQueueMemoryAllowed", name) == 0) {
+      if (strcasecmp("rpcQueueMemoryAllowed", name) == 0) {
         tsRpcQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64;
       } else if (strcasecmp("rpcDebugFlag", name) == 0) {
         rpcDebugFlag = cfgGetItem(pCfg, "rpcDebugFlag")->i32;
@@ -1100,12 +1109,12 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
   const char *options[] = {
       "dDebugFlag",   "vDebugFlag",  "mDebugFlag",   "wDebugFlag",   "sDebugFlag",   "tsdbDebugFlag",
       "tqDebugFlag",  "fsDebugFlag", "udfDebugFlag", "smaDebugFlag", "idxDebugFlag", "tdbDebugFlag",
-      "tmrDebugFlag", "uDebugFlag",  "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",
+      "tmrDebugFlag", "uDebugFlag",  "smaDebugFlag", "rpcDebugFlag", "qDebugFlag", "metaDebugFlag",
   };
   int32_t *optionVars[] = {
       &dDebugFlag,   &vDebugFlag,  &mDebugFlag,   &wDebugFlag,   &sDebugFlag,   &tsdbDebugFlag,
       &tqDebugFlag,  &fsDebugFlag, &udfDebugFlag, &smaDebugFlag, &idxDebugFlag, &tdbDebugFlag,
-      &tmrDebugFlag, &uDebugFlag,  &smaDebugFlag, &rpcDebugFlag, &qDebugFlag,
+      &tmrDebugFlag, &uDebugFlag,  &smaDebugFlag, &rpcDebugFlag, &qDebugFlag, &metaDebugFlag,
   };
 
   int32_t optionSize = tListLen(options);
@@ -1152,5 +1161,6 @@ void taosSetAllDebugFlag(int32_t flag) {
   taosSetDebugFlag(&smaDebugFlag, "smaDebugFlag", flag);
   taosSetDebugFlag(&idxDebugFlag, "idxDebugFlag", flag);
   taosSetDebugFlag(&tdbDebugFlag, "tdbDebugFlag", flag);
+  taosSetDebugFlag(&metaDebugFlag, "metaDebugFlag", flag);
   uInfo("all debug flag are set to %d", flag);
 }

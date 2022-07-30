@@ -75,6 +75,8 @@ void taos_cleanup(void) {
 
   cleanupTaskQueue();
 
+  taosConvDestroy();
+  
   tscInfo("all local resources released");
   taosCleanupCfg();
   taosCloseLog();

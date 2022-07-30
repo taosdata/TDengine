@@ -90,6 +90,9 @@ int32_t tsdbRowCmprFn(const void *p1, const void *p2);
 void     tRowIterInit(SRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
 SColVal *tRowIterNext(SRowIter *pIter);
 // SRowMerger
+int32_t tRowMergerInit2(SRowMerger *pMerger, STSchema *pResTSchema, TSDBROW *pRow, STSchema *pTSchema);
+int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
+
 int32_t tRowMergerInit(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
 void    tRowMergerClear(SRowMerger *pMerger);
 int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow);
@@ -97,7 +100,6 @@ int32_t tRowMergerGetRow(SRowMerger *pMerger, STSRow **ppRow);
 // TABLEID
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 // TSDBKEY
-int32_t tsdbKeyCmprFn(const void *p1, const void *p2);
 #define MIN_TSDBKEY(KEY1, KEY2) ((tsdbKeyCmprFn(&(KEY1), &(KEY2)) < 0) ? (KEY1) : (KEY2))
 #define MAX_TSDBKEY(KEY1, KEY2) ((tsdbKeyCmprFn(&(KEY1), &(KEY2)) > 0) ? (KEY1) : (KEY2))
 // SBlockCol
@@ -557,6 +559,26 @@ struct STsdbReadSnap {
   SMemTable *pIMem;
   STsdbFS    fs;
 };
+
+// ========== inline functions ==========
+static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
+  TSDBKEY *pKey1 = (TSDBKEY *)p1;
+  TSDBKEY *pKey2 = (TSDBKEY *)p2;
+
+  if (pKey1->ts < pKey2->ts) {
+    return -1;
+  } else if (pKey1->ts > pKey2->ts) {
+    return 1;
+  }
+
+  if (pKey1->version < pKey2->version) {
+    return -1;
+  } else if (pKey1->version > pKey2->version) {
+    return 1;
+  }
+
+  return 0;
+}
 
 #ifdef __cplusplus
 }

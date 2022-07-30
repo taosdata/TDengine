@@ -39,20 +39,20 @@ class TDTestCase:
         cmdStr = '%s/build/bin/taos -c %s -s "%s >> %s"'%(buildPath, cfgPath, queryString, dstFile)
         tdLog.info(cmdStr)
         os.system(cmdStr)
-        
+
         consumeRowsFile = '%s/../log/consumerid_%d.txt'%(cfgPath, consumerId)
         tdLog.info("rows file: %s, %s"%(consumeRowsFile, dstFile))
 
         consumeFile = open(consumeRowsFile, mode='r')
         queryFile = open(dstFile, mode='r')
-        
+
         # skip first line for it is schema
         queryFile.readline()
 
         while True:
             dst = queryFile.readline()
             src = consumeFile.readline()
-            
+
             if dst:
                 if dst != src:
                     tdLog.exit("consumerId %d consume rows is not match the rows by direct query"%consumerId)
@@ -85,7 +85,7 @@ class TDTestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        
+
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=self.replica)
         tdLog.info("create stb")
@@ -101,7 +101,7 @@ class TDTestCase:
         #                                       ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
         #                                       startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
         tmqCom.asyncInsertDataByInterlace(paraDict)
-        
+
         tdLog.info("wait some data inserted")
         exitFlag = 1
         while exitFlag:
@@ -112,7 +112,7 @@ class TDTestCase:
                 if (rowsInserted > ((self.ctbNum * self.rowsPerTbl)/5)):
                     exitFlag = 0
             time.sleep(0.1)
-                            
+
         tdLog.info("inserted rows: %d"%tdSql.getData(0,0))
         # tdDnodes=cluster.dnodes
         tdLog.info("================= restart dnode 2===========================")
@@ -123,18 +123,18 @@ class TDTestCase:
         cluster.dnodes[2].starttaosd()
         tdLog.info("================= restart dnode 4===========================")
         cluster.dnodes[3].stoptaosd()
-        cluster.dnodes[3].starttaosd()     
+        cluster.dnodes[3].starttaosd()
         tdLog.info("================= restart dnode 5===========================")
         cluster.dnodes[4].stoptaosd()
         cluster.dnodes[4].starttaosd()
-        
-        # tdLog.info("restart taosd to ensure that the data falls into the disk")        
+
+        # tdLog.info("restart taosd to ensure that the data falls into the disk")
         # tdSql.query("flush database %s"%(paraDict['dbName']))
         return
 
     def tmqCase1(self):
-        tdLog.printNoPrefix("======== test case 1: ")       
-        
+        tdLog.printNoPrefix("======== test case 1: ")
+
         # create and start thread
         paraDict = {'dbName':     'dbt',
                     'dropFlag':   1,
@@ -159,14 +159,14 @@ class TDTestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        
+
         tdLog.info("create topics from stb1")
-        topicFromStb1 = 'topic_stb1'        
+        topicFromStb1 = 'topic_stb1'
         queryString = "select ts, c1, c2 from %s.%s  where t4 == 'beijing' or t4 == 'changsha' "%(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        
+
         consumerId     = 0
         expectrowcnt   = paraDict["rowsPerTbl"] * paraDict["ctbNum"]
         topicList      = topicFromStb1
@@ -178,9 +178,9 @@ class TDTestCase:
                         auto.offset.reset:earliest'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
-        tdLog.info("start consume processor")        
+        tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
-        
+
         tdLog.info("start to check consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
@@ -190,13 +190,13 @@ class TDTestCase:
 
         tdSql.query(queryString)
         totalRowsFromQuery = tdSql.getRows()
-        
+
         tdLog.info("act consume rows: %d, act query rows: %d, expect consume rows: %d, "%(totalConsumeRows, totalRowsFromQuery, expectrowcnt))
-        
+
         if totalConsumeRows != totalRowsFromQuery:
             tdLog.exit("tmq consume rows error!")
-            
-        # tmqCom.checkFileContent(consumerId, queryString)   
+
+        # tmqCom.checkFileContent(consumerId, queryString)
 
         tmqCom.waitSubscriptionExit(tdSql, topicFromStb1)
         tdSql.query("drop topic %s"%topicFromStb1)
@@ -204,8 +204,8 @@ class TDTestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def tmqCase2(self):
-        tdLog.printNoPrefix("======== test case 2: ")       
-        
+        tdLog.printNoPrefix("======== test case 2: ")
+
         # create and start thread
         paraDict = {'dbName':     'dbt',
                     'dropFlag':   1,
@@ -230,14 +230,14 @@ class TDTestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        
+
         tdLog.info("create topics from stb1")
-        topicFromStb1 = 'topic_stb1'        
+        topicFromStb1 = 'topic_stb1'
         queryString = "select ts, c1, c2 from %s.%s  where t4 == 'beijing' or t4 == 'changsha' "%(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        
+
         consumerId     = 0
         expectrowcnt   = paraDict["rowsPerTbl"] * paraDict["ctbNum"]
         topicList      = topicFromStb1
@@ -249,7 +249,7 @@ class TDTestCase:
                         auto.offset.reset:earliest'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
-        tdLog.info("start consume processor")        
+        tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
         tdLog.info("================= restart dnode 2===========================")
@@ -260,11 +260,11 @@ class TDTestCase:
         cluster.dnodes[2].starttaosd()
         tdLog.info("================= restart dnode 4===========================")
         cluster.dnodes[3].stoptaosd()
-        cluster.dnodes[3].starttaosd()     
+        cluster.dnodes[3].starttaosd()
         tdLog.info("================= restart dnode 5===========================")
         cluster.dnodes[4].stoptaosd()
         cluster.dnodes[4].starttaosd()
-        
+
         tdLog.info("start to check consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
@@ -274,13 +274,13 @@ class TDTestCase:
 
         tdSql.query(queryString)
         totalRowsFromQuery = tdSql.getRows()
-        
+
         tdLog.info("act consume rows: %d, act query rows: %d, expect consume rows: %d, "%(totalConsumeRows, totalRowsFromQuery, expectrowcnt))
-        
+
         if totalConsumeRows != totalRowsFromQuery:
             tdLog.exit("tmq consume rows error!")
-            
-        # tmqCom.checkFileContent(consumerId, queryString)   
+
+        # tmqCom.checkFileContent(consumerId, queryString)
 
         tmqCom.waitSubscriptionExit(tdSql, topicFromStb1)
         tdSql.query("drop topic %s"%topicFromStb1)

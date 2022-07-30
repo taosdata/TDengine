@@ -3,7 +3,7 @@ from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
 import taos
 import sys
 import time
-import os 
+import os
 
 from util.log import *
 from util.sql import *
@@ -25,9 +25,9 @@ class TDTestCase:
         self.dnode_list = {}
         self.ts = 1483200000000
         self.db_name ='testdb'
-        self.replica = 1 
+        self.replica = 1
         self.vgroups = 2
-        self.tb_nums = 10 
+        self.tb_nums = 10
         self.row_nums = 100
         self.max_vote_time_cost = 10  # seconds
 
@@ -101,7 +101,7 @@ class TDTestCase:
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
             '''
         )
-        
+
         for i in range(5):
             tdSql.execute("create table sub_tb_{} using stb1 tags({})".format(i,i))
         tdSql.query("show stables")
@@ -134,7 +134,7 @@ class TDTestCase:
             vgroup_id = vgroup_info[0]
             vgroup_status = []
             for ind , role in enumerate(vgroup_info[3:-4]):
-                
+
                 if ind%2==0:
                     continue
                 else:
@@ -151,7 +151,7 @@ class TDTestCase:
         while not status:
             time.sleep(0.1)
             status = self.check_vgroups_init_done(dbname)
-            
+
             # tdLog.notice("=== database {} show vgroups vote the leader is in progress ===".format(dbname))
         end = time.time()
         cost_time = end - start
@@ -159,16 +159,16 @@ class TDTestCase:
         # os.system("taos -s 'show {}.vgroups;'".format(dbname))
         if cost_time >= self.max_vote_time_cost:
             tdLog.exit(" ==== database %s vote the leaders cost too large time , cost time is %.3f second ===="%(dbname,cost_time) )
-        
-        
+
+
         return cost_time
-        
+
     def test_init_vgroups_time_costs(self):
 
         tdLog.notice(" ====start check time cost about vgroups vote leaders ==== ")
         tdLog.notice(" ==== current max time cost is set value : {} =======".format(self.max_vote_time_cost))
 
-        # create database replica 3 vgroups 1 
+        # create database replica 3 vgroups 1
 
         db1 = 'db_1'
         create_db_replica_3_vgroups_1 = "create database {} replica 3 vgroups 1".format(db1)
@@ -189,10 +189,10 @@ class TDTestCase:
         tdLog.notice('=======database {} replica 3 vgroups 100 ======'.format(db3))
         tdSql.execute(create_db_replica_3_vgroups_100)
         self.vote_leader_time_costs(db3)
-        
 
-   
-    def run(self): 
+
+
+    def run(self):
         self.check_setup_cluster_status()
         self.test_init_vgroups_time_costs()
 

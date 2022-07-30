@@ -2222,13 +2222,18 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
   SyncIndex       preIndex = index - 1;
   SSyncRaftEntry* pPreEntry = NULL;
   int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, preIndex, &pPreEntry);
+
+  SSnapshot snapshot = {.data = NULL,
+                        .lastApplyIndex = SYNC_INDEX_INVALID,
+                        .lastApplyTerm = SYNC_TERM_INVALID,
+                        .lastConfigIndex = SYNC_INDEX_INVALID};
+
   if (code == 0) {
     ASSERT(pPreEntry != NULL);
     preTerm = pPreEntry->term;
     taosMemoryFree(pPreEntry);
     return preTerm;
   } else {
-    SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
     if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
       pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
       if (snapshot.lastApplyIndex == preIndex) {
@@ -2239,7 +2244,8 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
 
   do {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "sync node get pre term error, index:%" PRId64, index);
+    snprintf(logBuf, sizeof(logBuf), "sync node get pre term error, index:%ld, snap-index:%ld, snap-term:%lu", index,
+             snapshot.lastApplyIndex, snapshot.lastApplyTerm);
     syncNodeErrorLog(pSyncNode, logBuf);
   } while (0);
 

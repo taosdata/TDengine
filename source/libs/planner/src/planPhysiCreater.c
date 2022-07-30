@@ -1089,6 +1089,8 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   pWindow->triggerType = pWindowLogicNode->triggerType;
   pWindow->watermark = pWindowLogicNode->watermark;
   pWindow->igExpired = pWindowLogicNode->igExpired;
+  pWindow->inputTsOrder = pWindowLogicNode->inputTsOrder;
+  pWindow->outputTsOrder = pWindowLogicNode->outputTsOrder;
 
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pFuncs = NULL;
@@ -1363,6 +1365,7 @@ static int32_t createFillPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
 
   pFill->mode = pFillNode->mode;
   pFill->timeRange = pFillNode->timeRange;
+  pFill->inputTsOrder = pFillNode->inputTsOrder;
 
   SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
   int32_t code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFillNode->node.pTargets, &pFill->pTargets);

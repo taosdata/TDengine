@@ -96,6 +96,7 @@ typedef struct SScanLogicNode {
   bool          groupSort;
   int8_t        cacheLastMode;
   bool          hasNormalCols;  // neither tag column nor primary key tag column
+  bool          sortPrimaryKey;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -204,6 +205,7 @@ typedef struct SWindowLogicNode {
   int8_t           igExpired;
   EWindowAlgorithm windowAlgo;
   EOrder           inputTsOrder;
+  EOrder           outputTsOrder;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -212,6 +214,7 @@ typedef struct SFillLogicNode {
   SNode*      pWStartTs;
   SNode*      pValues;  // SNodeListNode
   STimeWindow timeRange;
+  EOrder      inputTsOrder;
 } SFillLogicNode;
 
 typedef struct SSortLogicNode {
@@ -410,6 +413,8 @@ typedef struct SWinodwPhysiNode {
   int8_t     triggerType;
   int64_t    watermark;
   int8_t     igExpired;
+  EOrder     inputTsOrder;
+  EOrder     outputTsOrder;
 } SWinodwPhysiNode;
 
 typedef struct SIntervalPhysiNode {
@@ -434,6 +439,7 @@ typedef struct SFillPhysiNode {
   SNode*      pValues;    // SNodeListNode
   SNodeList*  pTargets;
   STimeWindow timeRange;
+  EOrder      inputTsOrder;
 } SFillPhysiNode;
 
 typedef struct SMultiTableIntervalPhysiNode {
