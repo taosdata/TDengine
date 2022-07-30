@@ -96,10 +96,10 @@ else
 fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
-wslib_files="${build_dir}/lib/libtaosws.so."
+wslib_files="${build_dir}/lib/libtaosws.so"
 
 header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
-wsheader_files="${code_dir}/inc/taosws.h"
+wsheader_files="${build_dir}/include/taosws.h"
 
 if [ "$dbName" != "taos" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
@@ -171,6 +171,10 @@ if [ -n "${taostools_bin_files}" ]; then
   mkdir -p ${taostools_install_dir}/bin &&
     cp ${taostools_bin_files} ${taostools_install_dir}/bin &&
     chmod a+x ${taostools_install_dir}/bin/* || :
+  if [ -f ${wslib_files} ]; then
+    mkdir -p ${taostools_install_dir}/driver &&
+    cp ${wslib_files} ${taostools_install_dir}/driver ||:
+  fi
 
   if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/install-${toolsName}.sh ]; then
     cp ${top_dir}/src/kit/taos-tools/packaging/tools/install-${toolsName}.sh \

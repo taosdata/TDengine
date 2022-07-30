@@ -45,7 +45,7 @@ INTERNAL_REPDIR=$WORKDIR/TDinternal
 
 docker run \
     -v $INTERNAL_REPDIR:/home \
-    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd /home/$COMMUNITY;rm -rf debug;mkdir -p debug;cd debug;cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true;make -j $THREAD_COUNT"
+    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd /home/$COMMUNITY;rm -rf debug;mkdir -p debug;cd debug;cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DWEBSOCKET=true;make -j $THREAD_COUNT;make install"
 
 ret=$?
 exit $ret

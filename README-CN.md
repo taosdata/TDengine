@@ -400,6 +400,12 @@ TDengine 的测试框架和所有测试例全部开源。
 
 TDengine 官方社群「物联网大数据群」对外开放，欢迎您加入讨论。搜索微信号 "tdengine"，加小 T 为好友，即可入群。
 
+<img
+    src="docs/assets/tdengine-wechat.jpg"
+    alt="TDengine WeChat"
+    width="150"
+/>
+
 # [谁在使用 TDengine](https://github.com/taosdata/TDengine/issues/2432)
 
 欢迎所有 TDengine 用户及贡献者在 [这里](https://github.com/taosdata/TDengine/issues/2432) 分享您在当前工作中开发/使用 TDengine 的故事。

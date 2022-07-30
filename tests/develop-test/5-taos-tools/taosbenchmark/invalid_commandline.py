@@ -62,19 +62,19 @@ class TDTestCase:
         tdLog.info("%s" % cmd)
         assert (os.system("%s" % cmd) != 0)
 
-        cmd = "%s -f non_exist_file" %binPath
+        cmd = "%s -f non_exist_file -y" %binPath
         tdLog.info("%s" % cmd)
         assert (os.system("%s" % cmd) != 0)
 
-        cmd = "%s -h non_exist_host" %binPath
+        cmd = "%s -h non_exist_host -y" %binPath
         tdLog.info("%s" % cmd)
         assert (os.system("%s" % cmd) != 0)
 
-        cmd = "%s -p non_exist_pass" %binPath
+        cmd = "%s -p non_exist_pass -y" %binPath
         tdLog.info("%s" % cmd)
         assert (os.system("%s" % cmd) != 0)
 
-        cmd = "%s -u non_exist_user" %binPath
+        cmd = "%s -u non_exist_user -y" %binPath
         tdLog.info("%s" % cmd)
         assert (os.system("%s" % cmd) != 0)
 
