@@ -523,6 +523,9 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
   if ('\0' == pCol->node.aliasName[0]) {
     strcpy(pCol->node.aliasName, pColSchema->name);
   }
+  if ('\0' == pCol->node.userAlias[0]) {
+    strcpy(pCol->node.userAlias, pColSchema->name);
+  }
   pCol->tableId = pTable->pMeta->uid;
   pCol->tableType = pTable->pMeta->tableType;
   pCol->colId = pColSchema->colId;
@@ -548,6 +551,9 @@ static void setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SColum
   strcpy(pCol->colName, pExpr->aliasName);
   if ('\0' == pCol->node.aliasName[0]) {
     strcpy(pCol->node.aliasName, pCol->colName);
+  }
+  if ('\0' == pCol->node.userAlias[0]) {
+    strcpy(pCol->node.userAlias, pCol->colName);
   }
   pCol->node.resType = pExpr->resType;
 }
@@ -2175,7 +2181,13 @@ static int32_t translateFillValues(STranslateContext* pCxt, SSelectStmt* pSelect
 static int32_t rewriteProjectAlias(SNodeList* pProjectionList) {
   int32_t no = 1;
   SNode*  pProject = NULL;
-  FOREACH(pProject, pProjectionList) { sprintf(((SExprNode*)pProject)->aliasName, "#expr_%d", no++); }
+  FOREACH(pProject, pProjectionList) {
+    SExprNode* pExpr = (SExprNode*)pProject;
+    if ('\0' == pExpr->userAlias[0]) {
+      strcpy(pExpr->userAlias, pExpr->aliasName);
+    }
+    sprintf(pExpr->aliasName, "#expr_%d", no++);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
