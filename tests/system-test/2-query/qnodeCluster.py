@@ -8,6 +8,14 @@ import random
 from util.log import *
 from util.sql import *
 from util.cases import *
+from util.cluster import *
+from util.common import *
+
+sys.path.append("./6-cluster/")
+from clusterCommonCreate import *
+from clusterCommonCheck import clusterComCheck 
+
+import threading 
 
 class TDTestCase:
 
@@ -64,16 +72,7 @@ class TDTestCase:
         self.create_ctable(tsql=tdSql,dbName=dbname,stbName=stabname1,ctbPrefix=ctbnamePre1,ctbNum=ctbNums)
         self.create_ctable(tsql=tdSql,dbName=dbname,stbName=stabname2,ctbPrefix=ctbnamePre2,ctbNum=ctbNums)
 
-        # for i in range(ctbNum):
-        #     if i %10 == 0 :
-        #         # tdLog.debug(f"create table rct{i} using readings (name,fleet,driver,model,device_version) tags ('truck_{i}','South{i}','Trish{i}', NULL,'v2.3')")
-        #         tdSql.execute(f"create table rct{i} using readings (name,fleet,driver,model,device_version) tags ('truck_{i}','South{i}','Trish{i}', NULL,'v2.3')")
-        #     else :
-        #         tdSql.execute(f"create table rct{i} using readings (name,fleet,driver,model,device_version) tags ('truck_{i}','South{i}','Trish{i}','H-{i}','v2.3')")
-        #     if i %10 == 0 :
-        #         tdSql.execute(f"create table dct{i} using diagnostics (name,fleet,driver,model,device_version) tags ('truck_{i}','South{i}','Trish{i}',NULL ,'v2.3')")
-        #     else:
-        #         tdSql.execute(f"create table dct{i} using diagnostics (name,fleet,driver,model,device_version) tags ('truck_{i}','South{i}','Trish{i}','H-{i}','v2.3')")
+
         for j in range(ctbNums): 
             for i in range(rowNUms):
                 tdSql.execute(
@@ -100,23 +99,30 @@ class TDTestCase:
     #         tdLog.info("avg value check pass , it work as expected ,sql is \"%s\"   "%check_query )
 
 
-    def tsbsIotQuery(self):
-        
+    def createCluster(self):
+        tdSql.execute("create mnode on dnode 2")
+        tdSql.execute("create mnode on dnode 3")
+        tdSql.execute("create qnode on dnode 1")
+        tdSql.execute("create qnode on dnode 2")
+        tdSql.execute("create qnode on dnode 3")
+        time.sleep(10)
+
+    def tsbsIotQuery(self,tdSql):
         tdSql.execute("use db_tsbs")
         
         # test interval and partition
         tdSql.query(" SELECT avg(velocity) as mean_velocity ,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet; ")
-        print(tdSql.queryResult)
+        # print(tdSql.queryResult)
         parRows=tdSql.queryRows
         tdSql.query(" SELECT avg(velocity) as mean_velocity ,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet interval(10m); ")
         tdSql.checkRows(parRows)
         
         
-        # test insert into 
-        tdSql.execute("create table testsnode (ts timestamp, c1 float,c2 binary(30),c3 binary(30),c4 binary(30)) ;")
-        tdSql.query("insert into testsnode SELECT ts,avg(velocity) as mean_velocity,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet,ts interval(10m);")
+        # # test insert into 
+        # tdSql.execute("create table testsnode (ts timestamp, c1 float,c2 binary(30),c3 binary(30),c4 binary(30)) ;")
+        # tdSql.query("insert into testsnode SELECT ts,avg(velocity) as mean_velocity,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet,ts interval(10m);")
         
-        tdSql.query("insert into testsnode(ts,c1,c2,c3,c4)  SELECT ts,avg(velocity) as mean_velocity,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet,ts interval(10m);")
+        # tdSql.query("insert into testsnode(ts,c1,c2,c3,c4)  SELECT ts,avg(velocity) as mean_velocity,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet,ts interval(10m);")
 
 
         # test paitition interval fill
@@ -178,16 +184,6 @@ class TDTestCase:
 
 
         tdSql.query(" SELECT model,state_changed,count(state_changed)  FROM (SELECT model,diff(broken_down) AS state_changed   FROM (SELECT _wstart,model,cast(cast(floor(2*(sum(nzs)/count(nzs))) as bool) as int) AS broken_down FROM (SELECT ts,model, cast(cast(status as bool) as int) AS nzs FROM diagnostics WHERE  ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z' ) WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition BY model interval(10m)) partition BY model) where state_changed =1 partition BY model,state_changed ;")
-        sql="select  model,ctc from (SELECT model,count(state_changed) as ctc FROM (SELECT model,diff(broken_down) AS state_changed FROM (SELECT model,cast(cast(floor(2*(sum(nzs)/count(nzs))) as bool) as int) AS broken_down FROM (SELECT ts,model, cast(cast(status as bool) as int) AS nzs FROM diagnostics WHERE ts >= 1451606400000 AND ts < 1451952001000 ) WHERE ts >= 1451606400000 AND ts < 1451952001000 partition BY model interval(10m)) partition BY model) WHERE state_changed = 1 partition BY model )where model is null;"
-
-        for i in range(2):
-            tdSql.query("%s"%sql)
-            quertR1=tdSql.queryResult  
-            for j in  range(5):
-                tdSql.query("%s"%sql)
-                quertR2=tdSql.queryResult
-                assert quertR1 == quertR2 , "The results of multiple queries are different"             
-
         
         #it's already supported:
         # last-loc
@@ -199,11 +195,91 @@ class TDTestCase:
         
         # 3. avg-vs-projected-fuel-consumption
         tdSql.query("select avg(fuel_consumption) as avg_fuel_consumption,avg(nominal_fuel_consumption) as nominal_fuel_consumption from readings where velocity > 1 group by fleet")
-        
+
+    def restartFunc(self,func_name,threadNumbers,dnodeNumbers,mnodeNums,restartNumbers,stopRole):
+        tdLog.printNoPrefix("======== test case 1: ")
+        paraDict = {'dbName':     'db',
+                    'dbNumbers':   8,
+                    'dropFlag':   1,
+                    'event':      '',
+                    'vgroups':    2,
+                    'replica':    1,
+                    'stbName':    'stb',
+                    'stbNumbers': 100,
+                    'colPrefix':  'c',
+                    'tagPrefix':  't',
+                    'colSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
+                    'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
+                    'ctbPrefix':  'ctb',
+                    'ctbNum':     1,
+                    }
+                    
+        dnodeNumbers=int(dnodeNumbers)
+        mnodeNums=int(mnodeNums)
+        vnodeNumbers = int(dnodeNumbers-mnodeNums)
+       
+        tdSql.query("show dnodes;")
+        tdLog.debug(tdSql.queryResult)
+        clusterComCheck.checkDnodes(dnodeNumbers)
+
+        tdLog.info("create database and stable") 
+        tdDnodes=cluster.dnodes
+        stopcount =0
+        threads=[]
+        for i in range(threadNumbers):
+            newTdSql=tdCom.newTdSql()
+            print("123")
+            threads.append(threading.Thread(target=func_name,args=(newTdSql,)))
+            print("456")
+        for tr in threads:
+            tr.start()
+
+        tdLog.info("Take turns stopping %s "%stopRole) 
+        while stopcount < restartNumbers:
+            tdLog.info(" restart loop: %d"%stopcount )
+            if stopRole == "mnode":
+                for i in range(mnodeNums):
+                    tdDnodes[i].stoptaosd()
+                    # sleep(10)
+                    tdDnodes[i].starttaosd()
+                    # sleep(10) 
+            elif stopRole == "vnode":
+                for i in range(vnodeNumbers):
+                    tdDnodes[i+mnodeNums].stoptaosd()
+                    # sleep(10)
+                    tdDnodes[i+mnodeNums].starttaosd()
+                    # sleep(10)
+            elif stopRole == "dnode":
+                for i in range(dnodeNumbers):
+                    tdDnodes[i].stoptaosd()
+                    # sleep(10)
+                    tdDnodes[i].starttaosd()
+                    # sleep(10) 
+
+            # dnodeNumbers don't include database of schema
+            if clusterComCheck.checkDnodes(dnodeNumbers):
+                tdLog.info("check dnodes status is ready")
+            else:
+                tdLog.info("check dnodes status is not ready")
+                self.stopThread(threads)
+                tdLog.exit("one or more of dnodes failed to start ")
+                # self.check3mnode()
+            stopcount+=1
+            
+        for tr in threads:
+            tr.join()
+
+
     def run(self):  
         tdLog.printNoPrefix("==========step1:create database and table,insert data  ==============")
+        self.createCluster()
         self.prepareData()
-        self.tsbsIotQuery()
+        queryPolicy=2
+        simClientCfg="%s/taos.cfg"%tdDnodes.getSimCfgPath()
+        cmd='sed -i "s/^queryPolicy.*/queryPolicy 2/g" %s'%simClientCfg
+        os.system(cmd)
+        # self.tsbsIotQuery()
+        self.restartFunc(func_name=self.tsbsIotQuery,threadNumbers=3,dnodeNumbers=5,mnodeNums=3,restartNumbers=3,stopRole='mnode')
 
 
     def stop(self):
