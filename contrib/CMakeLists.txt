@@ -144,6 +144,24 @@ execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
         WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
 execute_process(COMMAND "${CMAKE_COMMAND}" --build .
         WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
+     
+# clear submodule
+execute_process(COMMAND git submodule deinit -f tools/taos-tools
+        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
+execute_process(COMMAND git rm --cached tools/taos-tools
+        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
+execute_process(COMMAND git submodule deinit -f tools/taosadapter
+        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
+execute_process(COMMAND git rm --cached tools/taosadapter
+        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
+execute_process(COMMAND git submodule deinit -f tools/taosws-rs
+        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
+execute_process(COMMAND git rm --cached tools/taosws-rs
+        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
+execute_process(COMMAND git submodule deinit -f examples/rust
+        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
+execute_process(COMMAND git rm --cached examples/rust
+        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
 
 # ================================================================================================
 # Build
