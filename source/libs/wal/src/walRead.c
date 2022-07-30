@@ -441,9 +441,12 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     return -1;
   }
 
+  taosThreadMutexLock(&pReader->mutex);
+
   if (pReader->curInvalid || pReader->curVersion != ver) {
     if (walReadSeekVer(pReader, ver) < 0) {
       wError("vgId:%d, unexpected wal log, index:%" PRId64 ", since %s", pReader->pWal->cfg.vgId, ver, terrstr());
+      taosThreadMutexUnlock(&pReader->mutex);
       return -1;
     }
     seeked = true;
@@ -464,6 +467,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
         terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
       }
       ASSERT(0);
+      taosThreadMutexUnlock(&pReader->mutex);
       return -1;
     }
   }
@@ -473,6 +477,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     wError("vgId:%d, unexpected wal log, index:%" PRId64 ", since head checksum not passed", pReader->pWal->cfg.vgId,
            ver);
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+    taosThreadMutexUnlock(&pReader->mutex);
     return -1;
   }
 
@@ -480,6 +485,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     void *ptr = taosMemoryRealloc(pReader->pHead, sizeof(SWalCkHead) + pReader->pHead->head.bodyLen);
     if (ptr == NULL) {
       terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+      taosThreadMutexUnlock(&pReader->mutex);
       return -1;
     }
     pReader->pHead = ptr;
@@ -494,6 +500,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
       ASSERT(0);
     }
+    taosThreadMutexUnlock(&pReader->mutex);
     return -1;
   }
 
@@ -503,6 +510,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     pReader->curInvalid = 1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     ASSERT(0);
+    taosThreadMutexUnlock(&pReader->mutex);
     return -1;
   }
 
@@ -516,9 +524,12 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     pReader->curInvalid = 1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     ASSERT(0);
+    taosThreadMutexUnlock(&pReader->mutex);
     return -1;
   }
   pReader->curVersion++;
+
+  taosThreadMutexUnlock(&pReader->mutex);
 
   return 0;
 }
