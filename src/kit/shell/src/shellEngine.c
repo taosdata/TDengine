@@ -27,6 +27,7 @@
 #include "tglobal.h"
 #include "tsclient.h"
 #include "cJSON.h"
+#include "shellAuto.h"
 
 #include <regex.h>
 
@@ -327,6 +328,12 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     fprintf(stdout, "Database changed.\n\n");
     fflush(stdout);
 
+#ifndef WINDOWS
+    // call back auto tab module
+    callbackAutoTab(command, pSql, true);
+#endif    
+
+
     atomic_store_64(&result, 0);
     freeResultWithRid(oresult);
     return;
@@ -365,6 +372,11 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     int num_rows_affacted = taos_affected_rows(pSql);
     et = taosGetTimestampUs();
     printf("Query OK, %d of %d row(s) in database (%.6fs)\n", num_rows_affacted, num_rows_affacted, (et - st) / 1E6);
+
+#ifndef WINDOWS
+    // call auto tab
+    callbackAutoTab(command, pSql, false);
+#endif
   }
 
   printf("\n");
@@ -1169,12 +1181,12 @@ int parse_cloud_dsn() {
             }
         }
         char *port = strstr(args.cloudHost, ":");
-        if ((port == NULL) || (port + strlen(":")) == NULL) {
+        if (port == NULL) {
             fprintf(stderr, "Invalid format in TDengine cloud dsn: %s\n", args.cloudDsn);
             return 1;
         }
         char *token = strstr(port + strlen(":"), "?token=");
-        if ((token == NULL) || (token + strlen("?token=")) == NULL ||
+        if ((token == NULL) ||
             (strlen(token + strlen("?token=")) == 0)) {
             fprintf(stderr, "Invalid format in TDengine cloud dsn: %s\n", args.cloudDsn);
             return -1;

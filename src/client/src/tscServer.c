@@ -335,7 +335,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 
   if ((rpcMsg.msgType == TSDB_MSG_TYPE_SUBMIT) && (tsShortcutFlag & TSDB_SHORTCUT_RB_RPC_SEND_SUBMIT)) {
     rpcFreeCont(rpcMsg.pCont);
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_RPC_SHORTCUT;
   }
 
   rpcSendRequest(pObj->pRpcObj->pDnodeConn, &pSql->epSet, &rpcMsg, &pSql->rpcRid);
@@ -3251,7 +3251,9 @@ int tscRenewTableMeta(SSqlObj *pSql) {
   pSql->rootObj->retryReason = pSql->retryReason;
 
   SSqlObj *rootSql = pSql->rootObj;
+  pthread_mutex_lock(&rootSql->mtxSubs);
   tscFreeSubobj(rootSql);
+  pthread_mutex_unlock(&rootSql->mtxSubs);
   tfree(rootSql->pSubs);
   tscResetSqlCmd(&rootSql->cmd, true, rootSql->self);
 

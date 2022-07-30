@@ -40,9 +40,11 @@ import TabItem from "@theme/TabItem";
 
 从服务器配置的角度来说，也有很多优化写入性能的方法。
 
-如果无论怎么调节客户端程序，taosd 进程的 CPU 使用率都很低，那很可能需要增加 vgroup 的数量。比如：数据库总表数是 1000 且 minTablesPerVnode 设置的也是 1000，那么这个数据至多有一个 vgroup。此时如果将 minTablesPerVnode 和 tablelncStepPerVnode 都设置成 100， 则这个数据库可能用到 10 个 vgroup。
+如果总表数不多(远小于核数乘以1000), 且无论怎么调节客户端程序，taosd 进程的 CPU 使用率都很低，那么很可能是因为表在各个 vgroup 分布不均。比如：数据库总表数是 1000 且 minTablesPerVnode 设置的也是 1000，那么所有的表都会分布在 1 个 vgroup 上。此时如果将 minTablesPerVnode 和 tablelncStepPerVnode 都设置成 100， 则可将表分布至 10 个 vgroup。（假设 maxVgroupsPerDb 大于等于 10）。
 
-更多调优参数，请参考[性能优化](../../operation/optimize)和[配置参考](../../reference/config)部分。
+如果总表数比较大（比如大于500万），适当增加 maxVgroupsPerDb 也能显著提高建表的速度。maxVgroupsPerDb 默认值为 0， 自动配置为 CPU 的核数。 如果表的数量巨大，也建议调节 maxTablesPerVnode 参数，以免超过单个 vnode 建表的上限。
+
+更多调优参数，请参考[性能优化](../../../operation/optimize)和[配置参考](../../../reference/config)部分。
 
 ## 高效写入示例 {#sample-code}
 
@@ -94,7 +96,7 @@ import TabItem from "@theme/TabItem";
 
 1. 读线程个数。默认为 1。
 2. 写线程个数。默认为 3。
-3. 模拟生成的总表数。默认为 1000。将会平分给各个读线程。
+3. 模拟生成的总表数。默认为 1000。将会平分给各个读线程。如果总表数较大，建表需要花费较长，开始统计的写入速度可能较慢。
 4. 每批最多写入记录数量。默认为 3000。
 
 队列容量(taskQueueCapacity)也是与性能有关的参数，可通过修改程序调节。一般来讲，队列容量越大，入队被阻塞的概率越小，队列的吞吐量越大，但是内存占用也会越大。 示例程序默认值已经设置地足够大。
@@ -425,6 +427,12 @@ SQLWriter 类封装了拼 SQL 和写数据的逻辑。所有的表都没有提�
    ```
 
 </details>
+
+:::note
+使用 Python 连接器多进程连接 TDengine 的时候，有一个限制：不能在父进程中建立连接，所有连接只能在子进程中创建。
+如果在父进程中创建连接，子进程再创建连接就会一直阻塞。这是个已知问题。
+
+:::
 
 </TabItem>
 </Tabs>
