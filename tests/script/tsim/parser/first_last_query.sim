@@ -283,7 +283,8 @@ print ================== server restart completed
 sql connect
 sql use first_db0;
 
-sql select last(*), tbname from m1 group by tbname;
+sql select last(*), tbname from m1 group by tbname order by tbname;
+print $data00 $data01 $data02 $data10 $data11 $data12
 if $rows != 2 then
   return -1
 endi
