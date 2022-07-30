@@ -401,7 +401,7 @@ SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
 
 **返回结果类型**：CAST 中指定的类型（type_name)。
 
-**适用数据类型**：输入参数 expression 的类型可以是BLOB、MEDIUMBLOB和JSON外的所有类型。
+**适用数据类型**：输入参数 expression 的类型可以是除JSON外的所有类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -410,10 +410,10 @@ SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
 **使用说明**：
 
 - 对于不能支持的类型转换会直接报错。
-- 对于类型支持但某些值无法正确转换的情况对应的转换后的值以转换函数输出为准。目前可能遇到的几种情况：
+- 对于类型支持但某些值无法正确转换的情况，对应的转换后的值以转换函数输出为准。目前可能遇到的几种情况：
         1）字符串类型转换数值类型时可能出现的无效字符情况，例如"a"可能转为0，但不会报错。
         2）转换到数值类型时，数值大于type_name可表示的范围时，则会溢出，但不会报错。
-        3）转换到字符串类型时，如果转换后长度超过type_name的长度，则会截断，但不会报错。
+        3）转换到字符串类型时，如果转换后长度超过type_name中指定的长度，则会截断，但不会报错。
 
 #### TO_ISO8601
 
@@ -421,7 +421,7 @@ SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
 SELECT TO_ISO8601(ts[, timezone]) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**功能说明**：将 UNIX 时间戳转换成为 ISO8601 标准的日期时间格式，并附加时区信息。timezone 参数允许用户为输出结果指定附带任意时区信息。如果 timezone 参数省略，输出结果附带当前客户端的系统时区信息。
+**功能说明**：将 UNIX 时间戳转换成为 ISO8601 标准的日期时间格式，并附加时区信息。timezone 参数允许用户为输出结果指定附带任意时区信息。如果 timezone 参数省略，输出结果则附带当前客户端的系统时区信息。
 
 **返回结果数据类型**：VARCHAR 类型。
 
@@ -435,7 +435,7 @@ SELECT TO_ISO8601(ts[, timezone]) FROM { tb_name | stb_name } [WHERE clause];
 
 - timezone 参数允许输入的时区格式为: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]。例如，TO_ISO8601(1, "+00:00")。
 - 如果输入是表示 UNIX 时间戳的整形，返回格式精度由时间戳的位数决定; 
-- 如果输入是 TIMSTAMP 类型的列，返回格式的时间戳精度与当前 DATABASE 设置的时间精度一致。
+- 如果输入是 TIMESTAMP 类型的列，返回格式的时间戳精度与当前 DATABASE 设置的时间精度一致。
 
 
 #### TO_JSON
@@ -516,7 +516,7 @@ SELECT TIMEDIFF(ts | datetime_string1, ts | datetime_string2 [, time_unit]) FROM
 
 **功能说明**：计算两个时间戳之间的差值，并近似到时间单位 time_unit 指定的精度。
 
-**返回结果数据类型**：BIGINT。输入包含不符合时间日期格式字符串则返回 NULL。
+**返回结果数据类型**：BIGINT。
 
 **应用字段**：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
 
@@ -528,6 +528,7 @@ SELECT TIMEDIFF(ts | datetime_string1, ts | datetime_string2 [, time_unit]) FROM
 - 支持的时间单位 time_unit 如下：
           1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。
 - 如果时间单位 time_unit 未指定， 返回的时间差值精度与当前 DATABASE 设置的时间精度一致。
+- 输入包含不符合时间日期格式的字符串则返回 NULL。
 
 
 #### TIMETRUNCATE
@@ -548,6 +549,7 @@ SELECT TIMETRUNCATE(ts | datetime_string , time_unit) FROM { tb_name | stb_name 
 - 支持的时间单位 time_unit 如下：
           1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+- 输入包含不符合时间日期格式的字符串则返回 NULL。
 
 
 #### TIMEZONE
