@@ -143,17 +143,15 @@ SConv *gConv = NULL;
 int32_t convUsed = 0;
 int32_t gConvMaxNum = 0;
 
-void taosConvInitImpl(void) {
+void taosConvInit(void) {
   gConvMaxNum = 512;
   gConv = taosMemoryCalloc(gConvMaxNum, sizeof(SConv));
   for (int32_t i = 0; i < gConvMaxNum; ++i) {
     gConv[i].conv = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
+    if ((iconv_t)-1 == gConv[i].conv || (iconv_t)0 == gConv[i].conv) {
+      ASSERT(0);
+    }
   }
-}
-
-static TdThreadOnce convInit = PTHREAD_ONCE_INIT;
-void taosConvInit() {
-  taosThreadOnce(&convInit, taosConvInitImpl);
 }
 
 void taosConvDestroy() {
@@ -161,11 +159,13 @@ void taosConvDestroy() {
     iconv_close(gConv[i].conv);
   }
   taosMemoryFreeClear(gConv);
+  gConvMaxNum = -1;
 }
 
-void taosAcquireConv(int32_t *idx) {
-  if (0 == gConvMaxNum) {
-    taosConvInit();
+iconv_t taosAcquireConv(int32_t *idx) {
+  if (gConvMaxNum <= 0) {
+    *idx = -1;
+    return iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
   }
   
   while (true) {
@@ -193,12 +193,12 @@ void taosAcquireConv(int32_t *idx) {
   }
 
   *idx = startId;
+  return gConv[startId].conv;
 }
 
-void taosReleaseConv(int32_t idx) {
-  if (0 == gConvMaxNum) {
-    iconv_close(gConv[0].conv);
-    taosMemoryFreeClear(gConv);
+void taosReleaseConv(int32_t idx, iconv_t conv) {
+  if (idx < 0) {
+    iconv_close(conv);
     return;
   }
 
@@ -213,16 +213,16 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
 #else
   memset(ucs4, 0, ucs4_max_len);
 
-  int32_t idx = 0;
-  taosAcquireConv(&idx);
+  int32_t idx = -1;
+  iconv_t conv = taosAcquireConv(&idx);
   size_t  ucs4_input_len = mbsLength;
   size_t  outLeft = ucs4_max_len;
-  if (iconv(gConv[idx].conv, (char **)&mbs, &ucs4_input_len, (char **)&ucs4, &outLeft) == -1) {
-    taosReleaseConv(idx);
+  if (iconv(conv, (char **)&mbs, &ucs4_input_len, (char **)&ucs4, &outLeft) == -1) {
+    taosReleaseConv(idx, conv);
     return false;
   }
 
-  taosReleaseConv(idx);
+  taosReleaseConv(idx, conv);
   if (len != NULL) {
     *len = (int32_t)(ucs4_max_len - outLeft);
     if (*len < 0) {
