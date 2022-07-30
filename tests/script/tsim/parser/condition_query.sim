@@ -2631,7 +2631,7 @@ sql_error select tb1.ts,tb1.c1,tb2_1.u1 from tb1, tb2_1 where tb1.ts=tb2_1.ts or
 
 
 print "ts&tbname test"
-sql_error select count(*) from stb1 where ts > 0 or tbname like 'tb%';
+sql select count(*) from stb1 where ts > 0 or tbname like 'tb%';
 
 print "ts&tag test"
 sql select count(*) from stb1 where ts > 0 or t1 > 0;
@@ -2717,9 +2717,9 @@ print "tbname&tag&join test"
 
 
 print "column&ts&tbname&tag test"
-sql_error select * from stb1 where (tbname like 'tb%' or ts > '2021-05-05 18:19:01.000') and (t1 > 5 or t1 < 4) and c1 > 0;
+sql select * from stb1 where (tbname like 'tb%' or ts > '2021-05-05 18:19:01.000') and (t1 > 5 or t1 < 4) and c1 > 0;
 sql select * from stb1 where (ts > '2021-05-05 18:19:01.000') and (ts > '2021-05-05 18:19:02.000' or t1 > 3) and (t1 > 5 or t1 < 4) and c1 > 0;
-sql_error select ts,c1,c7 from stb1 where ts > '2021-05-05 18:19:03.000' or ts > '2021-05-05 18:19:20.000' and col > 0 and t1 > 0;
+sql select ts,c1,c7 from stb1 where ts > '2021-05-05 18:19:03.000' or ts > '2021-05-05 18:19:20.000' and c1 > 0 and t1 > 0;
 
 
 print "column&ts&tbname&join test"
