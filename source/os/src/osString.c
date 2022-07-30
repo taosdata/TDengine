@@ -143,14 +143,17 @@ SConv *gConv = NULL;
 int32_t convUsed = 0;
 int32_t gConvMaxNum = 0;
 
-int32_t taosConvInit(int32_t maxNum) {
-  gConvMaxNum = maxNum * 2;
+void taosConvInitImpl(void) {
+  gConvMaxNum = 512;
   gConv = taosMemoryCalloc(gConvMaxNum, sizeof(SConv));
   for (int32_t i = 0; i < gConvMaxNum; ++i) {
     gConv[i].conv = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
   }
+}
 
-  return 0;
+static TdThreadOnce convInit = PTHREAD_ONCE_INIT;
+void taosConvInit() {
+  taosThreadOnce(&convInit, taosConvInitImpl);
 }
 
 void taosConvDestroy() {
@@ -162,10 +165,7 @@ void taosConvDestroy() {
 
 void taosAcquireConv(int32_t *idx) {
   if (0 == gConvMaxNum) {
-    gConv = taosMemoryCalloc(1, sizeof(SConv));
-    gConv[0].conv = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
-    *idx = 0;
-    return;
+    taosConvInit();
   }
   
   while (true) {

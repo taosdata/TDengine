@@ -361,8 +361,6 @@ void taos_init_imp(void) {
 
   initQueryModuleMsgHandle();
 
-  taosConvInit(256);
-  
   rpcInit();
 
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
