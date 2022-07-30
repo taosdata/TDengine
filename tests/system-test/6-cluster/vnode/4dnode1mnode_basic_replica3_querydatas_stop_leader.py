@@ -425,7 +425,7 @@ class TDTestCase:
         self.create_stable_insert_datas(dbname = self.db_name , stablename = "stb1" , tb_nums= self.tb_nums ,row_nums= self.row_nums)
 
         # let query task start 
-        self.thread_list = self.multi_thread_query_task(10 ,self.db_name ,'stb1' )
+        self.thread_list = self.multi_thread_query_task(2 ,self.db_name ,'stb1' )
 
         newTdSql=tdCom.newTdSql()
         # force stop follower
@@ -435,7 +435,7 @@ class TDTestCase:
             # get leader info before stop 
             before_leader_infos = self.get_leader_infos(newTdSql , self.db_name)
 
-            self.stop_dnode_id = self._get_stop_dnode_id(self.db_name)
+            self.stop_dnode_id = self._get_stop_dnode_id(self.db_name,"leader")
             tdDnodes[self.stop_dnode_id-1].stoptaosd()
 
             start = time.time()

@@ -29,7 +29,7 @@ class TDTestCase:
         self.replica = 3 
         self.vgroups = 1
         self.tb_nums = 10 
-        self.row_nums = 2000
+        self.row_nums = 1000
         self.query_times = 100
 
     def getBuildPath(self):
@@ -170,10 +170,10 @@ class TDTestCase:
         # tdSql.checkRows(tb_nums)
 
     def loop_query_constantly(self, times ,  db_name, tb_nums ,row_nums):
-
+        newTdSql=tdCom.newTdSql()
         for loop_time in range(times):
             tdLog.debug(" === query is going ,this is {}_th query === ".format(loop_time))
-            self.check_insert_status( db_name, tb_nums , row_nums)
+            self.check_insert_status( newTdSql ,db_name, tb_nums , row_nums)
 
     def loop_create_databases(self, times , tb_nums , row_nums):
         newTdSql=tdCom.newTdSql()
@@ -203,7 +203,7 @@ class TDTestCase:
         reading = threading.Thread(target = self.loop_query_constantly, args=(self.query_times,self.db_name , self.tb_nums , self.row_nums))
         reading.start()
 
-        create_db = threading.Thread(target = self.loop_create_databases, args=(10, 10 , 10))
+        create_db = threading.Thread(target = self.loop_create_databases, args=(5, 10 , 10))
         create_db.start()
         
         writing.join()

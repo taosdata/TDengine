@@ -30,7 +30,7 @@ class TDTestCase:
         self.vgroups = 1
         self.tb_nums = 10 
         self.row_nums = 1000
-        self.query_times = 1000
+        self.query_times = 500
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))

@@ -29,9 +29,10 @@ class TDTestCase:
         self.replica = 3 
         self.vgroups = 10
         self.tb_nums = 10 
-        self.row_nums = 1000
+        self.row_nums = 100
         self.max_restart_time = 20
-        self.restart_server_times = 10 
+        self.restart_server_times = 5
+        self.query_times = 100 
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -300,7 +301,7 @@ class TDTestCase:
         restart_servers = threading.Thread(target = self.loop_restart_follower_constantly, args = (self.restart_server_times ,self.db_name))
         restart_servers.start()
 
-        reading = threading.Thread(target = self.loop_query_constantly, args=(1000,self.db_name , self.tb_nums , self.row_nums))
+        reading = threading.Thread(target = self.loop_query_constantly, args=(self.query_times,self.db_name , self.tb_nums , self.row_nums))
         reading.start()
         
         writing.join()

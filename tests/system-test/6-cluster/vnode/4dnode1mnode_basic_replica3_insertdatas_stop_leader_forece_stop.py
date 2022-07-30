@@ -33,10 +33,10 @@ class TDTestCase:
         self.tb_nums = 10 
         self.row_nums = 100
         self.stop_dnode_id = None
-        self.loop_restart_times = 10
+        self.loop_restart_times = 5
         self.current_thread = None
         self.max_restart_time = 5
-
+        self.try_check_times = 10
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
         if ("community" in selfPath):

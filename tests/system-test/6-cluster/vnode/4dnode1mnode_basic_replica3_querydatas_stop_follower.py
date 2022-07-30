@@ -392,7 +392,7 @@ class TDTestCase:
         self.create_stable_insert_datas(dbname = self.db_name , stablename = "stb1" , tb_nums= self.tb_nums ,row_nums= self.row_nums)
 
         # let query task start 
-        self.thread_list = self.multi_thread_query_task(10 ,self.db_name ,'stb1' )
+        self.thread_list = self.multi_thread_query_task(5 ,self.db_name ,'stb1' )
 
         # force stop follower
         for loop in range(self.loop_restart_times):
