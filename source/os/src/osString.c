@@ -203,6 +203,7 @@ void taosReleaseConv(int32_t idx) {
   }
 
   atomic_store_8(&gConv[idx].inUse, 0);
+  atomic_sub_fetch_32(&convUsed, 1);
 }
 
 bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len) {
