@@ -311,6 +311,8 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
 
     tfsAllocDisk(pTsdb->pVnode->pTfs, 0, &did);
 
+    tfsMkdirRecurAt(pTsdb->pVnode->pTfs, pTsdb->path, did);
+
     wSet.diskId = did;
     wSet.fid = pCommitter->commitFid;
     fHead = (SHeadFile){.commitID = pCommitter->commitID, .offset = 0, .size = 0};
