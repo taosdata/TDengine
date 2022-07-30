@@ -594,6 +594,20 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   return 0;
 }
 
+void taosLocalCfgForbiddenToChange(char* name, bool* forbidden) {
+  int32_t len = strlen(name);
+  char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
+  strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
+
+  if (strcasecmp("charset", name) == 0) {
+    *forbidden = true;
+    return;
+  }
+
+  *forbidden = false;
+}
+
+
 int32_t taosSetCfg(SConfig *pCfg, char *name) {
   int32_t len = strlen(name);
   char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
