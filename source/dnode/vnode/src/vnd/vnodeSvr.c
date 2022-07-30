@@ -1009,21 +1009,21 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
   }
 
   if (pVnode->config.tsdbCfg.keep0 != alterReq.daysToKeep0) {
-    pVnode->config.tsdbCfg.keep0 != alterReq.daysToKeep0;
+    pVnode->config.tsdbCfg.keep0 = alterReq.daysToKeep0;
     if (!VND_IS_RSMA(pVnode)) {
       tsdbChanged = true;
     }
   }
 
   if (pVnode->config.tsdbCfg.keep1 != alterReq.daysToKeep1) {
-    pVnode->config.tsdbCfg.keep1 != alterReq.daysToKeep1;
+    pVnode->config.tsdbCfg.keep1 = alterReq.daysToKeep1;
     if (!VND_IS_RSMA(pVnode)) {
       tsdbChanged = true;
     }
   }
 
   if (pVnode->config.tsdbCfg.keep2 != alterReq.daysToKeep2) {
-    pVnode->config.tsdbCfg.keep2 != alterReq.daysToKeep2;
+    pVnode->config.tsdbCfg.keep2 = alterReq.daysToKeep2;
     if (!VND_IS_RSMA(pVnode)) {
       tsdbChanged = true;
     }
