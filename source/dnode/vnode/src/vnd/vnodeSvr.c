@@ -978,6 +978,7 @@ static int32_t vnodeProcessAlterHashRangeReq(SVnode *pVnode, int64_t version, vo
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SAlterVnodeReq alterReq = {0};
   bool           walChanged = false;
+  bool           tsdbChanged = false;
 
   if (tDeserializeSAlterVnodeReq(pReq, len, &alterReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -1010,26 +1011,30 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
   if (pVnode->config.tsdbCfg.keep0 != alterReq.daysToKeep0) {
     pVnode->config.tsdbCfg.keep0 != alterReq.daysToKeep0;
     if (!VND_IS_RSMA(pVnode)) {
-      pVnode->pTsdb->keepCfg.keep0 = alterReq.daysToKeep0;
+      tsdbChanged = true;
     }
   }
 
   if (pVnode->config.tsdbCfg.keep1 != alterReq.daysToKeep1) {
     pVnode->config.tsdbCfg.keep1 != alterReq.daysToKeep1;
     if (!VND_IS_RSMA(pVnode)) {
-      pVnode->pTsdb->keepCfg.keep1 = alterReq.daysToKeep1;
+      tsdbChanged = true;
     }
   }
 
   if (pVnode->config.tsdbCfg.keep2 != alterReq.daysToKeep2) {
     pVnode->config.tsdbCfg.keep2 != alterReq.daysToKeep2;
     if (!VND_IS_RSMA(pVnode)) {
-      pVnode->pTsdb->keepCfg.keep2 = alterReq.daysToKeep2;
+      tsdbChanged = true;
     }
   }
 
   if (walChanged) {
-    walAlter(pVnode->pWal, pVnode->config.walCfg);
+    walAlter(pVnode->pWal, &pVnode->config.walCfg);
+  }
+
+  if (tsdbChanged) {
+    tsdbSetKeepCfg(pVnode->pTsdb, &pVnode->config.tsdbCfg);
   }
 
   return 0;
