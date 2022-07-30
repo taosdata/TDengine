@@ -11,7 +11,7 @@ from util.dnodes import *
 
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 , 
+    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
     "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
     "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
     def init(self, conn, logSql):
@@ -37,7 +37,7 @@ class TDTestCase:
     def illegal_params(self):
 
         illegal_params = ["1","0","NULL","False","True" ,"keep","now" ,"*" , "," ,"_" , "abc" ,"keep"]
-        
+
         for value in illegal_params:
 
             tdSql.error("create database testdb replica 1 cachemodel '%s' " %value)
@@ -80,9 +80,9 @@ class TDTestCase:
                 tdSql.execute(" insert into tb2 values(now , %d, %f)" %(k,k*10) )
 
     def check_cachemodel_sets(self):
-        
-        
-        # check cache_last value for database 
+
+
+        # check cache_last value for database
 
         tdSql.query(" show databases ")
         databases_infos = tdSql.queryResult
@@ -96,10 +96,10 @@ class TDTestCase:
                 continue
             cache_lasts[dbname]=self.getCacheModelNum(cache_last_value)
 
-        
-        # cache_last_set value 
+
+        # cache_last_set value
         for k , v in cache_lasts.items():
-            
+
             if k=="testdb_"+str(self.getCacheModelStr(v)):
                 tdLog.info(" database %s cache_last value check pass, value is %s "%(k,self.getCacheModelStr(v)) )
             else:
@@ -116,7 +116,7 @@ class TDTestCase:
         dataPath = buildPath + "/../sim/dnode1/data"
         abs_vnodePath = os.path.abspath(dataPath)+"/vnode/"
         tdLog.info("abs_vnodePath: %s" % abs_vnodePath)
-        
+
         tdSql.query(" show dnodes ")
         dnode_id  = tdSql.queryResult[0][0]
 
@@ -127,7 +127,7 @@ class TDTestCase:
             vgroups_infos = tdSql.queryResult
             for vgroup_info in vgroups_infos:
                 vnode_json = abs_vnodePath + "/vnode" +f"{vgroup_info[0]}/" + "vnode.json"
-                vnode_info_of_db = f"cat {vnode_json}" 
+                vnode_info_of_db = f"cat {vnode_json}"
                 vnode_info = subprocess.check_output(vnode_info_of_db, shell=True).decode("utf-8")
                 infoDict = json.loads(vnode_info)
                 vnode_json_of_dbname = f"{dnode_id}."+ dbname
@@ -142,7 +142,7 @@ class TDTestCase:
                         tdLog.exit("cacheLast not found in vnode.json of vnode%d "%(vgroup_info[0]))
 
     def restart_check_cachemodel_sets(self):
-        
+
         for i in range(3):
             tdSql.query("show dnodes")
             index = tdSql.getData(0, 0)
@@ -157,7 +157,7 @@ class TDTestCase:
         self.prepare_datas()
         self.check_cachemodel_sets()
         self.restart_check_cachemodel_sets()
-       
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
