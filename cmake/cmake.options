@@ -47,15 +47,21 @@ IF(${TD_WINDOWS})
         )
 
     option(
-        BUILD_TEST 
-        "If build unit tests using googletest" 
-        ON
-    )
+            BUILD_TEST 
+            "If build unit tests using googletest" 
+            ON
+        )
     
     option(
-        TDENGINE_3
-        "TDengine 3.x"
-        ON
+            TDENGINE_3
+            "TDengine 3.x for taos-tools"
+            ON
+        )
+    
+    option(
+            BUILD_CRASHDUMP
+            "If build crashdump on Windows" 
+            ON
         )
 
 ELSEIF (TD_DARWIN_64)
@@ -83,6 +89,12 @@ ELSE ()
         )
     ENDIF ()
 ENDIF ()
+
+option(
+    RUST_BINDINGS
+    "If build with rust-bindings"
+    ON
+    )
 
 option(
     JEMALLOC_ENABLED

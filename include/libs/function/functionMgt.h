@@ -157,6 +157,13 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_UDF = 10000
 } EFunctionType;
 
+typedef enum EFuncReturnRows {
+  FUNC_RETURN_ROWS_NORMAL = 1,
+  FUNC_RETURN_ROWS_INDEFINITE,
+  FUNC_RETURN_ROWS_N,
+  FUNC_RETURN_ROWS_N_MINUS_1
+} EFuncReturnRows;
+
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 struct STimeWindow;
@@ -166,6 +173,8 @@ int32_t fmFuncMgtInit();
 void fmFuncMgtDestroy();
 
 int32_t fmGetFuncInfo(SFunctionNode* pFunc, char* pMsg, int32_t msgLen);
+
+EFuncReturnRows fmGetFuncReturnRows(SFunctionNode* pFunc);
 
 bool fmIsBuiltinFunc(const char* pFunc);
 
@@ -198,6 +207,7 @@ bool fmIsImplicitTsFunc(int32_t funcId);
 bool fmIsClientPseudoColumnFunc(int32_t funcId);
 bool fmIsMultiRowsFunc(int32_t funcId);
 bool fmIsKeepOrderFunc(int32_t funcId);
+bool fmIsCumulativeFunc(int32_t funcId);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 

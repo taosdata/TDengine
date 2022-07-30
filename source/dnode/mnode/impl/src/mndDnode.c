@@ -788,9 +788,9 @@ _OVER:
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   const char *options[] = {
-      "debugFlag",     "dDebugFlag",   "vDebugFlag",  "mDebugFlag",   "wDebugFlag",   "sDebugFlag",
-      "tsdbDebugFlag", "tqDebugFlag",  "fsDebugFlag", "udfDebugFlag", "smaDebugFlag", "idxDebugFlag",
-      "tdbDebugFlag",  "tmrDebugFlag", "uDebugFlag",  "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",
+      "debugFlag",   "dDebugFlag",   "vDebugFlag",   "mDebugFlag",   "wDebugFlag",    "sDebugFlag",   "tsdbDebugFlag",
+      "tqDebugFlag", "fsDebugFlag",  "udfDebugFlag", "smaDebugFlag", "idxDebugFlag",  "tdbDebugFlag", "tmrDebugFlag",
+      "uDebugFlag",  "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",   "metaDebugFlag",
   };
   int32_t optionSize = tListLen(options);
 

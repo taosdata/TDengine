@@ -20,11 +20,11 @@ class TDTestCase:
         self.vgroups    = 4
         self.ctbNum     = 1000
         self.rowsPerTbl = 10
-        
+
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
-        
+
     # drop some ntbs
     def tmqCase1(self):
         tdLog.printNoPrefix("======== test case 1: ")
@@ -51,8 +51,8 @@ class TDTestCase:
         paraDict['snapshot'] = self.snapshot
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
-        paraDict['rowsPerTbl'] = self.rowsPerTbl        
-        
+        paraDict['rowsPerTbl'] = self.rowsPerTbl
+
         tmqCom.initConsumerTable()
         tdLog.info("start create database....")
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
@@ -60,11 +60,11 @@ class TDTestCase:
         tmqCom.create_ntable(tsql=tdSql, dbname=paraDict["dbName"], tbname_prefix=paraDict["ctbPrefix"], tbname_index_start_num = 1, column_elm_list=paraDict["colSchema"], colPrefix='c', tblNum=paraDict["ctbNum"])
         tdLog.info("start insert data into normal tables....")
         tmqCom.insert_rows_into_ntbl(tsql=tdSql, dbname=paraDict["dbName"], tbname_prefix=paraDict["ctbPrefix"], tbname_index_start_num = 1, column_ele_list=paraDict["colSchema"],startTs=paraDict["startTs"], tblNum=paraDict["ctbNum"], rows=paraDict["rowsPerTbl"])
-                
+
         tdLog.info("create topics from database")
-        topicFromDb = 'topic_dbt'                
+        topicFromDb = 'topic_dbt'
         tdSql.execute("create topic %s as database %s" %(topicFromDb, paraDict['dbName']))
-        
+
         if self.snapshot == 0:
             consumerId     = 0
         elif self.snapshot == 1:
@@ -83,13 +83,13 @@ class TDTestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
-        tmqCom.getStartConsumeNotifyFromTmqsim()  
+        tmqCom.getStartConsumeNotifyFromTmqsim()
         tdLog.info("drop some ntables")
         # drop 1/4 ctbls from half offset
         paraDict["ctbStartIdx"] = paraDict["ctbStartIdx"] + int(paraDict["ctbNum"] * 1 / 2)
         paraDict["ctbNum"] = int(paraDict["ctbNum"] / 4)
         tmqCom.drop_ctable(tdSql, dbname=paraDict['dbName'], count=paraDict["ctbNum"], default_ctbname_prefix=paraDict["ctbPrefix"], ctbStartIdx=paraDict["ctbStartIdx"])
-        
+
         tdLog.info("start to check consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
@@ -98,19 +98,19 @@ class TDTestCase:
             totalConsumeRows += resultList[i]
 
         tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
-        
+
         if not ((totalConsumeRows >= expectrowcnt * 3/4) and (totalConsumeRows < expectrowcnt)):
             tdLog.exit("tmq consume rows error with snapshot = 0!")
-        
-        tdLog.info("wait subscriptions exit ....")      
+
+        tdLog.info("wait subscriptions exit ....")
         tmqCom.waitSubscriptionExit(tdSql, topicFromDb)
-            
+
         tdSql.query("drop topic %s"%topicFromDb)
         tdLog.info("success dorp topic: %s"%topicFromDb)
         tdLog.printNoPrefix("======== test case 1 end ...... ")
-    
 
-    
+
+
     # drop some ntbs and create some new ntbs
     def tmqCase2(self):
         tdLog.printNoPrefix("======== test case 2: ")
@@ -137,8 +137,8 @@ class TDTestCase:
         paraDict['snapshot'] = self.snapshot
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
-        paraDict['rowsPerTbl'] = self.rowsPerTbl        
-        
+        paraDict['rowsPerTbl'] = self.rowsPerTbl
+
         tmqCom.initConsumerTable()
         tdLog.info("start create database....")
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
@@ -146,11 +146,11 @@ class TDTestCase:
         tmqCom.create_ntable(tsql=tdSql, dbname=paraDict["dbName"], tbname_prefix=paraDict["ctbPrefix"], tbname_index_start_num = 1, column_elm_list=paraDict["colSchema"], colPrefix='c', tblNum=paraDict["ctbNum"])
         tdLog.info("start insert data into normal tables....")
         tmqCom.insert_rows_into_ntbl(tsql=tdSql, dbname=paraDict["dbName"], tbname_prefix=paraDict["ctbPrefix"], tbname_index_start_num = 1, column_ele_list=paraDict["colSchema"],startTs=paraDict["startTs"], tblNum=paraDict["ctbNum"], rows=paraDict["rowsPerTbl"])
-                
+
         tdLog.info("create topics from database")
-        topicFromDb = 'topic_dbt'                
+        topicFromDb = 'topic_dbt'
         tdSql.execute("create topic %s as database %s" %(topicFromDb, paraDict['dbName']))
-        
+
         if self.snapshot == 0:
             consumerId     = 2
         elif self.snapshot == 1:
@@ -169,20 +169,20 @@ class TDTestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
-        tmqCom.getStartConsumeNotifyFromTmqsim()  
+        tmqCom.getStartConsumeNotifyFromTmqsim()
         tdLog.info("drop some ntables")
         # drop 1/4 ctbls from half offset
         paraDict["ctbStartIdx"] = paraDict["ctbStartIdx"] + int(paraDict["ctbNum"] * 1 / 2)
         paraDict["ctbNum"] = int(paraDict["ctbNum"] / 4)
         tmqCom.drop_ctable(tdSql, dbname=paraDict['dbName'], count=paraDict["ctbNum"], default_ctbname_prefix=paraDict["ctbPrefix"], ctbStartIdx=paraDict["ctbStartIdx"])
-                
+
         tdLog.info("start create some new normal tables....")
         paraDict["ctbPrefix"] = 'newCtb'
         paraDict["ctbNum"] = self.ctbNum
         tmqCom.create_ntable(tsql=tdSql, dbname=paraDict["dbName"], tbname_prefix=paraDict["ctbPrefix"], tbname_index_start_num = 1, column_elm_list=paraDict["colSchema"], colPrefix='c', tblNum=paraDict["ctbNum"])
         tdLog.info("start insert data into these new normal tables....")
         tmqCom.insert_rows_into_ntbl(tsql=tdSql, dbname=paraDict["dbName"], tbname_prefix=paraDict["ctbPrefix"], tbname_index_start_num = 1, column_ele_list=paraDict["colSchema"],startTs=paraDict["startTs"], tblNum=paraDict["ctbNum"], rows=paraDict["rowsPerTbl"])
-        
+
         tdLog.info("start to check consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
@@ -191,24 +191,24 @@ class TDTestCase:
             totalConsumeRows += resultList[i]
 
         tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
-        
+
         if not ((totalConsumeRows >= expectrowcnt / 2 * (1 + 3/4)) and (totalConsumeRows < expectrowcnt)):
             tdLog.exit("tmq consume rows error with snapshot = 0!")
-        
-        tdLog.info("wait subscriptions exit ....")      
+
+        tdLog.info("wait subscriptions exit ....")
         tmqCom.waitSubscriptionExit(tdSql, topicFromDb)
-            
+
         tdSql.query("drop topic %s"%topicFromDb)
         tdLog.info("success dorp topic: %s"%topicFromDb)
         tdLog.printNoPrefix("======== test case 2 end ...... ")
-        
-    def run(self):        
+
+    def run(self):
         # tdLog.printNoPrefix("=============================================")
         # tdLog.printNoPrefix("======== snapshot is 0: only consume from wal")
         # self.snapshot = 0
         # self.tmqCase1()
-        # self.tmqCase2()               
-        
+        # self.tmqCase2()
+
         tdLog.printNoPrefix("====================================================================")
         tdLog.printNoPrefix("======== snapshot is 1: firstly consume from tsbs, and then from wal")
         self.snapshot = 1

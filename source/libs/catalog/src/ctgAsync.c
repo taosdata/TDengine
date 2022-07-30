@@ -398,7 +398,7 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob *pJob, con
 
   SName* name = taosHashIterate(pTb, NULL);
   while (name) {
-    catalogRemoveTableMeta(pCtg, name);
+    ctgRemoveTbMeta(pCtg, name);
     name = taosHashIterate(pTb, name);
   }
 

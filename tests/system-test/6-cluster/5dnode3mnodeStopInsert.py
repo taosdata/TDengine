@@ -2,7 +2,7 @@ from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
 import taos
 import sys
 import time
-import os 
+import os
 
 from util.log import *
 from util.sql import *
@@ -13,7 +13,7 @@ import time
 import socket
 import subprocess
 from multiprocessing import Process
-import threading 
+import threading
 import time
 import inspect
 import ctypes
@@ -36,7 +36,7 @@ class TDTestCase:
         self.host=self.master_dnode.cfgDict["fqdn"]
         conn1 = taos.connect(self.master_dnode.cfgDict["fqdn"] , config=self.master_dnode.cfgDir)
         tdSql.init(conn1.cursor())
-        
+
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -62,7 +62,7 @@ class TDTestCase:
         if res == 0:
             raise ValueError("invalid thread id")
         elif res != 1:
-            # """if it returns a number greater than one, you're in trouble, 
+            # """if it returns a number greater than one, you're in trouble,
             # and you should call it again with exc=NULL to revert the effect"""
             ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, None)
             raise SystemError("PyThreadState_SetAsyncExc failed")
@@ -73,7 +73,7 @@ class TDTestCase:
 
     def insert_data(self,countstart,countstop):
         # fisrt add data : db\stable\childtable\general table
-        
+
         for couti in range(countstart,countstop):
             tdLog.debug("drop database if exists db%d" %couti)
             tdSql.execute("drop database if exists db%d" %couti)
@@ -95,10 +95,10 @@ class TDTestCase:
             for i in range(4):
                 tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
 
-    def depoly_cluster(self ,dnodes_nums): 
+    def depoly_cluster(self ,dnodes_nums):
 
         testCluster = False
-        valgrind = 0  
+        valgrind = 0
         hostname = socket.gethostname()
         dnodes = []
         start_port = 6030
@@ -112,7 +112,7 @@ class TDTestCase:
             dnode.addExtraCfg("monitorPort", 7043)
             dnode.addExtraCfg("secondEp", f"{hostname}:{start_port_sec}")
             dnodes.append(dnode)
-        
+
         self.TDDnodes = MyDnodes(dnodes)
         self.TDDnodes.init("")
         self.TDDnodes.setTestCluster(testCluster)
@@ -120,11 +120,11 @@ class TDTestCase:
         self.TDDnodes.stopAll()
         for dnode in self.TDDnodes.dnodes:
             self.TDDnodes.deploy(dnode.index,{})
-            
+
         for dnode in self.TDDnodes.dnodes:
             self.TDDnodes.starttaosd(dnode.index)
 
-        # create cluster 
+        # create cluster
         for dnode in self.TDDnodes.dnodes[1:]:
             # tdLog.debug(dnode.cfgDict)
             dnode_id = dnode.cfgDict["fqdn"] +  ":" +dnode.cfgDict["serverPort"]
@@ -133,7 +133,7 @@ class TDTestCase:
             cmd = f" taos -h {dnode_first_host} -P {dnode_first_port} -s ' create dnode \"{dnode_id} \" ' ;"
             tdLog.debug(cmd)
             os.system(cmd)
-        
+
         time.sleep(2)
         tdLog.info(" create cluster with %d dnode  done! " %dnodes_nums)
 
@@ -143,8 +143,8 @@ class TDTestCase:
             time.sleep(1)
             statusReadyBumber=0
             tdSql.query("show dnodes;")
-            if tdSql.checkRows(dnodenumber) :     
-                tdLog.debug("dnode is %d nodes"%dnodenumber)   
+            if tdSql.checkRows(dnodenumber) :
+                tdLog.debug("dnode is %d nodes"%dnodenumber)
             for i in range(dnodenumber):
                 if tdSql.queryResult[i][4] !='ready'  :
                     status=tdSql.queryResult[i][4]
@@ -161,15 +161,15 @@ class TDTestCase:
         else:
             tdLog.debug("%d mnodes is not ready in 10s "%dnodenumber)
             return False
-           
+
 
     def check3mnode(self):
         count=0
         while count < 10:
             time.sleep(1)
             tdSql.query("show mnodes;")
-            if tdSql.checkRows(3) :     
-                tdLog.debug("mnode is  three nodes")           
+            if tdSql.checkRows(3) :
+                tdLog.debug("mnode is  three nodes")
             if  tdSql.queryResult[0][2]=='leader' :
                 if  tdSql.queryResult[1][2]=='follower':
                     if  tdSql.queryResult[2][2]=='follower':
@@ -179,19 +179,19 @@ class TDTestCase:
                 if  tdSql.queryResult[1][2]=='leader':
                     if  tdSql.queryResult[2][2]=='follower':
                         tdLog.debug("three mnodes is ready in 10s")
-                        break      
+                        break
             elif tdSql.queryResult[0][2]=='follower' :
                 if  tdSql.queryResult[1][2]=='follower':
                     if  tdSql.queryResult[2][2]=='leader':
                         tdLog.debug("three mnodes is ready in 10s")
-                        break                   
+                        break
             count+=1
         else:
             tdLog.debug("three mnodes is not ready in 10s ")
             return -1
 
-        tdSql.query("show mnodes;")       
-        tdSql.checkRows(3) 
+        tdSql.query("show mnodes;")
+        tdSql.checkRows(3)
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,3,'ready')
         tdSql.checkData(1,1,'%s:6130'%self.host)
@@ -221,8 +221,8 @@ class TDTestCase:
             return -1
         tdSql.error("drop mnode on dnode 1;")
 
-        tdSql.query("show mnodes;")       
-        tdSql.checkRows(3) 
+        tdSql.query("show mnodes;")
+        tdSql.checkRows(3)
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'offline')
         tdSql.checkData(0,3,'ready')
@@ -249,8 +249,8 @@ class TDTestCase:
             return -1
         tdSql.error("drop mnode on dnode 2;")
 
-        tdSql.query("show mnodes;")       
-        tdSql.checkRows(3) 
+        tdSql.query("show mnodes;")
+        tdSql.checkRows(3)
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'leader')
         tdSql.checkData(0,3,'ready')
@@ -278,8 +278,8 @@ class TDTestCase:
             tdLog.debug("stop mnodes  on dnode 3 failed in 10s")
             return -1
         tdSql.error("drop mnode on dnode 3;")
-        tdSql.query("show mnodes;")       
-        tdSql.checkRows(3) 
+        tdSql.query("show mnodes;")
+        tdSql.checkRows(3)
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'leader')
         tdSql.checkData(0,3,'ready')
@@ -296,8 +296,8 @@ class TDTestCase:
         tdSql.checkData(4,1,'%s:6430'%self.host)
         tdSql.checkData(0,4,'ready')
         tdSql.checkData(4,4,'ready')
-        tdSql.query("show mnodes;")   
-        tdSql.checkRows(1)    
+        tdSql.query("show mnodes;")
+        tdSql.checkRows(1)
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'leader')
         tdSql.checkData(0,3,'ready')
@@ -312,13 +312,13 @@ class TDTestCase:
         tdSql.error("create mnode on dnode 2")
         tdSql.query("show dnodes;")
         tdLog.debug(tdSql.queryResult)
-        tdLog.debug("stop all of mnode ") 
+        tdLog.debug("stop all of mnode ")
 
-        stopcount =0 
+        stopcount =0
         while stopcount <= 2:
             for i in range(dnodenumber):
                 # threads=[]
-                # threads = MyThreadFunc(self.insert_data(i*2,i*2+2)) 
+                # threads = MyThreadFunc(self.insert_data(i*2,i*2+2))
                 threads=threading.Thread(target=self.insert_data, args=((stopcount+i)*2,(i+stopcount)*2+2))
                 threads.start()
                 self.TDDnodes.stoptaosd(i+1)
@@ -344,7 +344,7 @@ class TDTestCase:
         return taos.connect(host=host, port=int(port), config=config_dir)
 
 
-    def run(self): 
+    def run(self):
         # tdLog.debug(self.master_dnode.cfgDict)
         self.buildcluster(5)
         self.five_dnode_three_mnode(5)

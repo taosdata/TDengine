@@ -118,6 +118,7 @@ int32_t firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t getFirstLastInfoSize(int32_t resBytes);
+EFuncDataRequired lastDynDataReq(void* pRes, STimeWindow* pTimeWindow);
 
 int32_t lastRowFunction(SqlFunctionCtx *pCtx);
 

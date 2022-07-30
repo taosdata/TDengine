@@ -34,14 +34,14 @@ class TDTestCase:
     #
     # --------------- main frame -------------------
     #
-    
+
     def caseDescription(self):
         '''
         limit and offset keyword function test cases;
         case1: limit offset base function test
         case2: offset return valid
         '''
-        return 
+        return
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -68,7 +68,7 @@ class TDTestCase:
         self.ts = 1500000000000
 
 
-    # run case   
+    # run case
     def run(self):
 
         #  test base case
@@ -79,7 +79,7 @@ class TDTestCase:
         # self.test_case2()
         # tdLog.debug(" LIMIT test_case2 ............ [OK]")
 
-    # stop 
+    # stop
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
@@ -101,7 +101,7 @@ class TDTestCase:
                 tdSql.execute(sql)
                 sql = pre_create
         # print(time.time())
-        # end sql        
+        # end sql
         if sql != pre_create:
             tdSql.execute(sql)
         exeEndTime=time.time()
@@ -113,7 +113,7 @@ class TDTestCase:
     def newcur(self,host,cfg):
         user = "root"
         password = "taosdata"
-        port =6030 
+        port =6030
         con=taos.connect(host=host, user=user, password=password, config=cfg ,port=port)
         cur=con.cursor()
         print(cur)
@@ -123,7 +123,7 @@ class TDTestCase:
         host = "127.0.0.1"
         buildPath = self.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
-        
+
         tsql=self.newcur(host,config)
         tsql.execute("drop database  if exists %s" %(dbname))
         tsql.execute("create database if not exists  %s vgroups %d"%(dbname,vgroups))
@@ -147,7 +147,7 @@ class TDTestCase:
                 tsql.execute(sql)
                 sql = pre_create
         # print(time.time())
-        # end sql        
+        # end sql
         if sql != pre_create:
             # print(sql)
             tsql.execute(sql)
@@ -176,7 +176,7 @@ class TDTestCase:
                     # print(sql)
                     tdSql.execute(sql)
                     sql = "insert into %s_%d values " %(stbname,i)
-        # end sql        
+        # end sql
         if sql != pre_insert:
             # print(sql)
             tdSql.execute(sql)
@@ -189,7 +189,7 @@ class TDTestCase:
         return
 
 
-    # test case1 base 
+    # test case1 base
     def test_case1(self):
         tdLog.debug("-----create database and tables test------- ")
         # tdSql.execute("drop database if exists db1")
@@ -220,7 +220,7 @@ class TDTestCase:
         threads = []
         threadNumbers=2
         for i in range(threadNumbers):
-            threads.append(mp.Process(target=self.new_create_tables, args=("db1%d"%i, vgroups, "stb1", 0,count,))) 
+            threads.append(mp.Process(target=self.new_create_tables, args=("db1%d"%i, vgroups, "stb1", 0,count,)))
         start_time = time.time()
         for tr in threads:
             tr.start()
@@ -247,7 +247,7 @@ class TDTestCase:
 
         # tdSql.execute("create database db16 vgroups 16")
         # self.create_tables("db16", "stb16", 30*10000)
-        return 
+        return
 
     # test case2 base:insert data
     def test_case2(self):
@@ -266,7 +266,7 @@ class TDTestCase:
         tdSql.execute("create database db1 vgroups 1")
         self.create_tables("db1", "stb1", 1*100)
         self.insert_data("db1", "stb1", self.ts, 1*50,1*10000)
-        
+
 
         tdSql.execute("create database db4 vgroups 4")
         self.create_tables("db4", "stb4", 1*100)
@@ -287,7 +287,7 @@ class TDTestCase:
         tdSql.execute("create database db16 vgroups 16")
         self.create_tables("db16", "stb16", 1*100)
         self.insert_data("db16", "stb16", self.ts, 1*100,1*10000)
-                
+
         return
 
 #
