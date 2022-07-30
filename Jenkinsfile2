@@ -150,14 +150,8 @@ def pre_test_arm64() {
 def pre_test() {
     sync_source()
     sh '''
-        cd ${WK}
-        mkdir -p debug
-        cd debug
-        go env -w GOPROXY=https://goproxy.cn,direct
-        go env -w GO111MODULE=on
-        cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true > /dev/null
-        make -j8 >/dev/null
-        make install
+        cd ${WKC}/tests/parallel_test
+        ./container_build.sh -w ${WKDIR} -t 8 >/dev/null
     '''
     return 1
 }
@@ -325,6 +319,7 @@ pipeline {
     agent none
     options { skipDefaultCheckout() }
     environment{
+        WKDIR = '/var/data/jenkins/workspace'
         WK = '/var/data/jenkins/workspace/TDinternal'
         WKC = '/var/data/jenkins/workspace/TDinternal/community'
         LOGDIR = '/var/data/jenkins/workspace/log'
