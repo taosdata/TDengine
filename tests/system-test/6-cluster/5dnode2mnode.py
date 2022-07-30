@@ -2,7 +2,7 @@ from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
 import taos
 import sys
 import time
-import os 
+import os
 
 from util.log import *
 from util.sql import *
@@ -17,8 +17,8 @@ import subprocess
 sys.path.append("./6-cluster")
 
 from clusterCommonCreate import *
-from clusterCommonCheck import * 
- 
+from clusterCommonCheck import *
+
 class TDTestCase:
     def init(self,conn ,logSql):
         tdLog.debug(f"start to excute {__file__}")
@@ -48,7 +48,7 @@ class TDTestCase:
         tdSql.checkData(4,1,'%s:6430'%self.host)
         tdSql.checkData(0,4,'ready')
         tdSql.checkData(4,4,'ready')
-        tdSql.query("show mnodes;")       
+        tdSql.query("show mnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'leader')
         tdSql.checkData(0,3,'ready')
@@ -63,7 +63,7 @@ class TDTestCase:
         while count < 10:
             time.sleep(1)
             tdSql.query("show mnodes;")
-            tdSql.checkRows(2) 
+            tdSql.checkRows(2)
             if  tdSql.queryResult[0][2]=='leader' :
                 if  tdSql.queryResult[1][2]=='follower':
                     print("two mnodes is ready")
@@ -73,7 +73,7 @@ class TDTestCase:
             print("two mnodes is not ready in 10s ")
 
         # fisrt check statut ready
-                
+
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'leader')
         tdSql.checkData(0,3,'ready')
@@ -106,7 +106,7 @@ class TDTestCase:
         clusterComCheck.checkDnodes(5)
         # restart all taosd
         tdDnodes=cluster.dnodes
-       
+
         # stop follower
         tdLog.info("stop follower")
         tdDnodes[1].stoptaosd()
@@ -118,7 +118,7 @@ class TDTestCase:
         tdDnodes[1].starttaosd()
         if clusterComCheck.checkMnodeStatus(2) :
             print("both mnodes are ready")
-        
+
         # stop leader
         tdLog.info("stop leader")
         tdDnodes[0].stoptaosd()
@@ -133,7 +133,7 @@ class TDTestCase:
         if clusterComCheck.checkMnodeStatus(2) :
             print("both mnodes are ready")
 
-    def run(self): 
+    def run(self):
         self.five_dnode_two_mnode()
 
 

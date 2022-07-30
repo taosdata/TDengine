@@ -38,20 +38,20 @@ class TDTestCase:
         cmdStr = '%s/build/bin/taos -c %s -s "%s >> %s"'%(buildPath, cfgPath, queryString, dstFile)
         tdLog.info(cmdStr)
         os.system(cmdStr)
-        
+
         consumeRowsFile = '%s/../log/consumerid_%d.txt'%(cfgPath, consumerId)
         tdLog.info("rows file: %s, %s"%(consumeRowsFile, dstFile))
 
         consumeFile = open(consumeRowsFile, mode='r')
         queryFile = open(dstFile, mode='r')
-        
+
         # skip first line for it is schema
         queryFile.readline()
 
         while True:
             dst = queryFile.readline()
             src = consumeFile.readline()
-            
+
             if dst:
                 if dst != src:
                     tdLog.exit("consumerId %d consume rows is not match the rows by direct query"%consumerId)
@@ -84,7 +84,7 @@ class TDTestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        
+
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=self.replica)
         tdLog.info("create stb")
@@ -101,13 +101,13 @@ class TDTestCase:
         #                                       startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
         # tmqCom.asyncInsertDataByInterlace(paraDict)
         tmqCom.create_ntable(tdSql, dbname=paraDict["dbName"], tbname_prefix="ntb", tbname_index_start_num = 1, column_elm_list=paraDict["colSchema"], colPrefix='c', tblNum=1)
-        tmqCom.insert_rows_into_ntbl(tdSql, dbname=paraDict["dbName"], tbname_prefix="ntb", tbname_index_start_num = 1, column_ele_list=paraDict["colSchema"], startTs=paraDict["startTs"], tblNum=1, rows=2)        # tdLog.info("restart taosd to ensure that the data falls into the disk")        
+        tmqCom.insert_rows_into_ntbl(tdSql, dbname=paraDict["dbName"], tbname_prefix="ntb", tbname_index_start_num = 1, column_ele_list=paraDict["colSchema"], startTs=paraDict["startTs"], tblNum=1, rows=2)        # tdLog.info("restart taosd to ensure that the data falls into the disk")
         tdSql.query("drop database %s"%paraDict["dbName"])
         return
 
-    def tmqCase1(self):        
-        tdLog.printNoPrefix("======== test case 1: ")       
-        
+    def tmqCase1(self):
+        tdLog.printNoPrefix("======== test case 1: ")
+
         # create and start thread
         paraDict = {'dbName':     'dbt',
                     'dropFlag':   1,
@@ -132,14 +132,14 @@ class TDTestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        
+
         tdLog.info("create topics from stb1")
-        topicFromStb1 = 'topic_stb1'        
+        topicFromStb1 = 'topic_stb1'
         queryString = "select ts, c1, c2 from %s.%s  where t4 == 'beijing' or t4 == 'changsha' "%(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        
+
         consumerId     = 0
         expectrowcnt   = paraDict["rowsPerTbl"] * paraDict["ctbNum"]
         topicList      = topicFromStb1
@@ -166,13 +166,13 @@ class TDTestCase:
 
         tdSql.query(queryString)
         totalRowsInserted = tdSql.getRows()
-        
+
         tdLog.info("act consume rows: %d, act insert rows: %d, expect consume rows: %d, "%(totalConsumeRows, totalRowsInserted, expectrowcnt))
-        
+
         if totalConsumeRows != expectrowcnt:
             tdLog.exit("tmq consume rows error!")
-            
-        # tmqCom.checkFileContent(consumerId, queryString)   
+
+        # tmqCom.checkFileContent(consumerId, queryString)
 
         tmqCom.waitSubscriptionExit(tdSql, topicFromStb1)
         tdSql.query("drop topic %s"%topicFromStb1)

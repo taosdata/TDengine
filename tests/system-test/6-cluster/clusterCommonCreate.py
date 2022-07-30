@@ -37,23 +37,23 @@ class ClusterComCreate:
         tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def initConsumerTable(self,cdbName='cdb'):        
+    def initConsumerTable(self,cdbName='cdb'):
         tdLog.info("create consume database, and consume info table, and consume result table")
         tdSql.query("create database if not exists %s vgroups 1"%(cdbName))
         tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
         tdSql.query("drop table if exists %s.consumeresult "%(cdbName))
-        tdSql.query("drop table if exists %s.notifyinfo "%(cdbName))      
+        tdSql.query("drop table if exists %s.notifyinfo "%(cdbName))
 
         tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"%cdbName)
         tdSql.query("create table %s.consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)"%cdbName)
         tdSql.query("create table %s.notifyinfo (ts timestamp, cmdid int, consumerid int)"%cdbName)
 
-    def initConsumerInfoTable(self,cdbName='cdb'):        
+    def initConsumerInfoTable(self,cdbName='cdb'):
         tdLog.info("drop consumeinfo table")
         tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
         tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"%cdbName)
 
-    def insertConsumerInfo(self,consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifmanualcommit,cdbName='cdb'):    
+    def insertConsumerInfo(self,consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifmanualcommit,cdbName='cdb'):
         sql = "insert into %s.consumeinfo values "%cdbName
         sql += "(now, %d, '%s', '%s', %d, %d, %d)"%(consumerId, topicList, keyList, expectrowcnt, ifcheckdata, ifmanualcommit)
         tdLog.info("consume info sql: %s"%sql)
@@ -68,11 +68,11 @@ class ClusterComCreate:
                 break
             else:
                 time.sleep(5)
-        
+
         for i in range(expectRows):
             tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
             resultList.append(tdSql.getData(i , 3))
-        
+
         return resultList
 
     def startTmqSimProcess(self,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0):
@@ -82,14 +82,14 @@ class ClusterComCreate:
             logFile = cfgPath + '/../log/valgrind-tmq.log'
             shellCmd = 'nohup valgrind --log-file=' + logFile
             shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
-        
+
         if (platform.system().lower() == 'windows'):
             shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName) 
-            shellCmd += "> nul 2>&1 &"   
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName)
+            shellCmd += "> nul 2>&1 &"
         else:
             shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName) 
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName)
             shellCmd += "> /dev/null 2>&1 &"
         tdLog.info(shellCmd)
         os.system(shellCmd)
@@ -142,7 +142,7 @@ class ClusterComCreate:
             tdLog.debug("create table if not exists %s.%s_%d (ts timestamp, c1 int, c2 int, c3 binary(16)) tags(t1 int, t2 binary(32))"%(dbNameIndex, stbNameIndex,i))
             tsql.execute("create table if not exists %s.%s_%d (ts timestamp, c1 int, c2 int, c3 binary(16)) tags(t1 int, t2 binary(32))"%(dbNameIndex, stbNameIndex,i))
             tdLog.debug("complete to create %s.%s_%d" %(dbNameIndex, stbNameIndex,i))
-        return 
+        return
 
     def create_ctable(self,tsql=None, dbName='dbx',stbName='stb',ctbPrefix='ctb',ctbNum=1):
         tsql.execute("use %s" %dbName)
@@ -153,14 +153,14 @@ class ClusterComCreate:
             tagValue = 'beijing'
             if (i % 2 == 0):
                 tagValue = 'shanghai'
-            
+
             sql += " %s_%d using %s tags(%d, '%s')"%(ctbPrefix,i,stbName,i+1, tagValue)
             if (i > 0) and (i%100 == 0):
                 tsql.execute(sql)
                 sql = pre_create
         if sql != pre_create:
             tsql.execute(sql)
-        
+
         tdLog.debug("complete to create %d child tables in %s.%s" %(ctbNum, dbName, stbName))
         return
 
@@ -189,7 +189,7 @@ class ClusterComCreate:
             #print("insert sql:%s"%sql)
             tsql.execute(sql)
         tdLog.debug("insert data ............ [OK]")
-        return        
+        return
 
     def insert_data_1(self,tsql,dbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs):
         tdLog.debug("start to insert data ............")
@@ -235,7 +235,7 @@ class ClusterComCreate:
             ctbDict[i] = 0
 
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
-        rowsOfCtb = 0        
+        rowsOfCtb = 0
         while rowsOfCtb < rowsPerTbl:
             for i in range(ctbNum):
                 sql += " %s.%s_%d values "%(dbName,ctbPrefix,i)
@@ -262,7 +262,7 @@ class ClusterComCreate:
             startTs = int(round(t * 1000))
 
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
-        rowsOfSql = 0        
+        rowsOfSql = 0
         for i in range(ctbNum):
             sql += " %s.%s_%d using %s.%s tags (%d) values "%(dbName,ctbPrefix,i,dbName,stbName,i)
             for j in range(rowsPerTbl):
@@ -294,7 +294,7 @@ class ClusterComCreate:
         for i in range(ctbNum):
             tbName = '%s%s'%(ctbPrefix,i)
             tdCom.insert_rows(tsql,dbname=paraDict["dbName"],tbname=tbName,start_ts_value=paraDict['startTs'],count=paraDict['rowsPerTbl'])
-        return 
+        return
 
     def threadFunction(self, **paraDict):
         # create new connector for new tdSql instance in my thread

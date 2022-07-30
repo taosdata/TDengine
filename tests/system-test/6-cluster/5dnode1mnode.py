@@ -2,7 +2,7 @@ from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
 import taos
 import sys
 import time
-import os 
+import os
 
 from util.log import *
 from util.sql import *
@@ -18,7 +18,7 @@ class MyDnodes(TDDnodes):
         super(MyDnodes,self).__init__()
         self.dnodes = dnodes_lists  # dnode must be TDDnode instance
         self.simDeployed = False
-        
+
 class TDTestCase:
     noConn = True
     def init(self,conn ,logSql):
@@ -29,7 +29,7 @@ class TDTestCase:
         self.host=self.master_dnode.cfgDict["fqdn"]
         conn1 = taos.connect(self.master_dnode.cfgDict["fqdn"] , config=self.master_dnode.cfgDir)
         tdSql.init(conn1.cursor())
-        
+
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -46,12 +46,12 @@ class TDTestCase:
                     buildPath = root[:len(root) - len("/build/bin")]
                     break
         return buildPath
-    
 
-    def depoly_cluster(self ,dnodes_nums): 
+
+    def depoly_cluster(self ,dnodes_nums):
 
         testCluster = False
-        valgrind = 0  
+        valgrind = 0
         hostname = socket.gethostname()
         dnodes = []
         start_port = 6030
@@ -63,7 +63,7 @@ class TDTestCase:
             dnode.addExtraCfg("monitorFqdn", hostname)
             dnode.addExtraCfg("monitorPort", 7043)
             dnodes.append(dnode)
-        
+
         self.TDDnodes = MyDnodes(dnodes)
         self.TDDnodes.init("")
         self.TDDnodes.setTestCluster(testCluster)
@@ -71,11 +71,11 @@ class TDTestCase:
         self.TDDnodes.stopAll()
         for dnode in self.TDDnodes.dnodes:
             self.TDDnodes.deploy(dnode.index,{})
-            
+
         for dnode in self.TDDnodes.dnodes:
             self.TDDnodes.starttaosd(dnode.index)
 
-        # create cluster 
+        # create cluster
         for dnode in self.TDDnodes.dnodes[1:]:
             # print(dnode.cfgDict)
             dnode_id = dnode.cfgDict["fqdn"] +  ":" +dnode.cfgDict["serverPort"]
@@ -84,7 +84,7 @@ class TDTestCase:
             cmd = f"{self.getBuildPath()}/build/bin/taos -h {dnode_first_host} -P {dnode_first_port} -s \"create dnode \\\"{dnode_id}\\\"\""
             print(cmd)
             os.system(cmd)
-        
+
         time.sleep(2)
         tdLog.info(" create cluster done! ")
 
@@ -94,7 +94,7 @@ class TDTestCase:
         tdSql.checkData(4,1,'%s:6430'%self.host)
         tdSql.checkData(0,4,'ready')
         tdSql.checkData(4,4,'ready')
-        tdSql.query("show mnodes;")       
+        tdSql.query("show mnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'leader')
         tdSql.checkData(0,3,'ready')
@@ -120,7 +120,7 @@ class TDTestCase:
         )
         for i in range(4):
             tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
-            
+
         tdSql.query('show databases;')
         tdSql.checkData(2,5,'off')
         tdSql.error("alter database db strict 'off'")
@@ -135,7 +135,7 @@ class TDTestCase:
         return taos.connect(host=host, port=int(port), config=config_dir)
 
 
-    def run(self): 
+    def run(self):
         # print(self.master_dnode.cfgDict)
         self.five_dnode_one_mnode()
 
