@@ -4681,6 +4681,7 @@ static void doMergeAlignedIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultR
   if (currPos >= pBlock->info.rows) {
     // we need to see next block if exists
   } else {
+    ASSERT(0);
     outputMergeAlignedIntervalResult(pOperatorInfo, tableGroupId, pResultBlock, currTs);
     miaInfo->curTs = INT64_MIN;
   }
