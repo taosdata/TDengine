@@ -87,8 +87,8 @@ class TDTestQuery(TDCase):
                        'c0 is not null and ', 'c1 is not null and ' ,'c2 is not null and ' ,'t0 is not null and ' ,]        
         data_filter = random.sample(data_filters,6)
 
-        like_filters = ['c3 like \'varchar%\' and','(c3 like \'varchar%\'  or c3 = \'0\'  or c3 = \'varchar_\' ) and','c4 like \'nchar%\' and','(c4 like \'nchar%\' or c4 = \'0\'  or c4 = \'nchar_\' ) and','t1 like \'varchar%\' and','(t1 like \'varchar%\' or t1 = \'0\'  or t1 = \'varchar_\' ) and',]
-        match_filters = ['c3 match \'varchar\' and','c4 nmatch \'varcharnchar\' and','c4 match \'nchar\' and','c3 nmatch \'varcharnchar\' and','t1 match \'varchar\' and','t1 nmatch \'ncharvarchar\' and',]
+        like_filters = ['c3 like \'varchar%\' and','(c3 like \'varchar%\'  or c3 = \'0\'  or c3 = \'varchar_\' or c3 is not null ) and','c4 like \'nchar%\' and','(c4 like \'nchar%\' or c4 = \'0\'  or c4 = \'nchar_\' or c4 is not null  ) and','t1 like \'varchar%\' and','(t1 like \'varchar%\' or t1 = \'0\'  or t1 = \'varchar_\'  or t1 is not null ) and',]
+        match_filters = ['c3 match \'va\' and','c4 nmatch \'varcharnchar\' and','c4 match \'nc\' and','c3 nmatch \'varcharnchar\' and','t1 match \'va\' and','t1 nmatch \'ncharvarchar\' and',]
         like_match_filters = random.sample(random.sample(like_filters,1) + random.sample(match_filters,1),1)
         like_match_filter = str(like_match_filters).replace("[","").replace("]","").replace("\"","")
 
@@ -116,7 +116,10 @@ class TDTestQuery(TDCase):
         partitionby_filter = str(random.sample(partitionby_filters,i)).replace("[","").replace("]","").replace("'","")
         partitionby_filter = str('partition by ' + partitionby_filter).replace("[","").replace("]","").replace("'","")
         
-        return(data_filter,like_match_filter,in_filter,orderby_filter,groupby_filter,partitionby_filter)
+        limit_filters = ['limit 100000','limit 100000,1000','limit 100000 offset 10000','slimit 100000','slimit 100000,1000','slimit 100000 soffset 10000']
+        limit_filter = str(random.sample(limit_filters,1)).replace("[","").replace("]","").replace("'","")
+        
+        return(data_filter,like_match_filter,in_filter,orderby_filter,groupby_filter,partitionby_filter,limit_filter)
     
     def data_check(self,sql) :
         #判断sql执行结果，如果执行成功，判断返回rows，>0记录sql到文件， =0提示退出， sql执行不成功，则记录sql，不进入sql文件
@@ -186,7 +189,8 @@ class TDTestQuery(TDCase):
                         in_filter = where_filters[2] 
                         orderby_filter = where_filters[3]  
                         groupby_filter = where_filters[4] 
-                        partitonby_filter = where_filters[5]                       
+                        partitonby_filter = where_filters[5] 
+                        limit_filter = where_filters[6]                       
 
                         # sql2 = "select %s from %s where  %s %s %s " %(self.column_select(0),self.table,data_filter,like_match_filter,in_filter)
                         # self.data_check(sql2)
@@ -206,10 +210,25 @@ class TDTestQuery(TDCase):
                         # sql2 = "select %s from %s where  %s %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,partitonby_filter)
                         # self.data_check(sql2)
                         
+                        # sql2 = "select %s from %s where  %s %s %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from %s where  %s %s %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,groupby_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from %s where  %s %s %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
                         # sql2 = "select %s from (select * from %s where  %s %s %s) " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter)
                         # self.data_check(sql2)
                         
                         # sql2 = "select %s from (select * from %s ) where  %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s where  %s %s %s %s) " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s ) where  %s %s %s  %s" %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,limit_filter)
                         # self.data_check(sql2)
                         
                         # sql2 = "select %s from (select * from %s %s ) where  %s %s %s " %(self.column_select(2),self.table,orderby_filter,data_filter,like_match_filter,in_filter)
@@ -221,6 +240,15 @@ class TDTestQuery(TDCase):
                         # sql2 = "select * from (select %s from %s %s ) where  %s %s %s " %(self.column_select(2),self.table,partitonby_filter,data_filter,like_match_filter,in_filter)
                         # self.data_check(sql2)
                         
+                        # sql2 = "select %s from (select * from %s %s ) where  %s %s %s  %s" %(self.column_select(2),self.table,orderby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s %s ) where  %s %s %s  %s" %(self.column_select(2),self.table,groupby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s %s ) where  %s %s %s  %s" %(self.column_select(2),self.table,partitonby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
                         # sql2 = "select %s from (select * from %s  where  %s %s %s ) where  %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter)
                         # self.data_check(sql2)
                         
@@ -228,6 +256,24 @@ class TDTestQuery(TDCase):
                         # self.data_check(sql2)
                         
                         # sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,partitonby_filter,data_filter,like_match_filter,in_filter)
+                        # # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s  where  %s %s %s ) where  %s %s %s  %s" %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s  %s" %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,orderby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s  %s" %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,partitonby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s  where  %s %s %s  %s) where  %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s where %s %s %s  %s %s) where  %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s where %s %s %s  %s %s) where  %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter,data_filter,like_match_filter,in_filter)
                         # self.data_check(sql2)
                                                 
                         # sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter)
@@ -238,6 +284,24 @@ class TDTestQuery(TDCase):
                                                 
                         # sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,partitonby_filter)
                         # self.data_check(sql2)
+                                                
+                        sql2 = "select * from (select %s from %s  where  %s %s %s  %s ) where  %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter)
+                        self.data_check(sql2)
+                                                
+                        sql2 = "select * from (select %s from %s  where  %s %s %s  %s ) where  %s %s %s  %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter,orderby_filter)
+                        self.data_check(sql2)
+                                                
+                        sql2 = "select * from (select %s from %s  where  %s %s %s  %s ) where  %s %s %s  %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter,partitonby_filter)
+                        self.data_check(sql2)
+                                                
+                        sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        self.data_check(sql2)
+                                                
+                        sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter)
+                        self.data_check(sql2)
+                                                
+                        sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter)
+                        self.data_check(sql2)
                         
 
             except Exception as e:
@@ -329,15 +393,15 @@ class TDTestQuery(TDCase):
                         # sql2 += " union all select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,orderby_filter)
                         # self.data_check(sql2)
                         
-                        sql2 = "(select %s from %s where  %s %s %s  %s)" %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter,orderby_filter)
-                        sql2 += " union  (select %s from %s where  %s %s %s  %s )" %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,orderby_filter)
-                        sql2 += " union all select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,partitonby_filter)
-                        self.data_check(sql2)
+                        # sql2 = "(select %s from %s where  %s %s %s  %s)" %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter,orderby_filter)
+                        # sql2 += " union  (select %s from %s where  %s %s %s  %s )" %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,orderby_filter)
+                        # sql2 += " union all select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,partitonby_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "(select %s from %s where  %s %s %s  %s)" %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter,orderby_filter)
-                        sql2 += " union  select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,partitonby_filter)
-                        sql2 += " union all select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,partitonby_filter)
-                        self.data_check(sql2)
+                        # sql2 = "(select %s from %s where  %s %s %s  %s)" %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter,orderby_filter)
+                        # sql2 += " union  select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,partitonby_filter)
+                        # sql2 += " union all select %s from %s where  %s %s %s  %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2,partitonby_filter)
+                        # self.data_check(sql2)
 
             except Exception as e:
                 raise e   
