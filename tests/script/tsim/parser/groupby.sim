@@ -681,12 +681,13 @@ if $data14 != 1 then
   return -1
 endi
 
-sql select _wstart, irate(c), tbname, t1, t2 from st where t1=1 and ts >= '2020-03-27 04:11:17.732' and ts < '2020-03-27 05:11:17.732' partition by tbname, t1, t2 interval(1m) sliding(15s) order by tbname desc limit 1;
+sql select _wstart, irate(c), tbname, t1, t2 from st where t1=1 and ts >= '2020-03-27 04:11:17.732' and ts < '2020-03-27 05:11:17.732' partition by tbname, t1, t2 interval(1m) sliding(15s) order by tbname desc,_wstart asc limit 1;
 if $rows != 1 then
   return -1
 endi
 
 if $data01 != 1.000000000 then
+  print expect 1.000000000, actual: $data01
   return -1
 endi
 if $data02 != t2 then

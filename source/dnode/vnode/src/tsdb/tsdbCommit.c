@@ -307,7 +307,11 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
     fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0};
     fSma = *pRSet->pSmaF;
   } else {
-    wSet.diskId = (SDiskID){.level = 0, .id = 0};
+    SDiskID did = {0};
+
+    tfsAllocDisk(pTsdb->pVnode->pTfs, 0, &did);
+
+    wSet.diskId = did;
     wSet.fid = pCommitter->commitFid;
     fHead = (SHeadFile){.commitID = pCommitter->commitID, .offset = 0, .size = 0};
     fData = (SDataFile){.commitID = pCommitter->commitID, .size = 0};
