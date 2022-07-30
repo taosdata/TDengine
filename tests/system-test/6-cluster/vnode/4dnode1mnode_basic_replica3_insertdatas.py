@@ -3,7 +3,7 @@ from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
 import taos
 import sys
 import time
-import os 
+import os
 
 from util.log import *
 from util.sql import *
@@ -26,9 +26,9 @@ class TDTestCase:
         self.dnode_list = {}
         self.ts = 1483200000000
         self.db_name ='testdb'
-        self.replica = 3 
+        self.replica = 3
         self.vgroups = 2
-        self.tb_nums = 10 
+        self.tb_nums = 10
         self.row_nums = 100
 
     def getBuildPath(self):
@@ -101,7 +101,7 @@ class TDTestCase:
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
             '''
         )
-        
+
         for i in range(5):
             tdSql.execute("create table sub_tb_{} using stb1 tags({})".format(i,i))
         tdSql.query("show stables")
@@ -145,7 +145,7 @@ class TDTestCase:
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(32),c9 nchar(32), c10 timestamp)
             '''
         )
-        
+
         for i in range(tb_nums):
             sub_tbname = "sub_tb_{}".format(i)
             tdSql.execute("create table {} using stb1 tags({})".format(sub_tbname,i))
@@ -164,7 +164,7 @@ class TDTestCase:
         tdSql.query("select distinct tbname from {}.{}".format(dbname,'stb1'))
         tdSql.checkRows(tb_nums)
 
-    def run(self): 
+    def run(self):
         self.check_setup_cluster_status()
         self.create_db_check_vgroups()
         self.create_db_replica_3_insertdatas(self.db_name , self.replica , self.vgroups , self.tb_nums , self.row_nums)

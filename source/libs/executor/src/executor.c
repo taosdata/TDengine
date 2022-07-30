@@ -496,11 +496,9 @@ void qDestroyTask(qTaskInfo_t qTaskHandle) {
   doDestroyTask(pTaskInfo);
 }
 
-int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, int32_t* resNum, SExplainExecInfo** pRes) {
+int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, SArray* pExecInfoList) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  int32_t        capacity = 0;
-
-  return getOperatorExplainExecInfo(pTaskInfo->pRoot, pRes, &capacity, resNum);
+  return getOperatorExplainExecInfo(pTaskInfo->pRoot, pExecInfoList);
 }
 
 int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len) {

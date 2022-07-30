@@ -20,7 +20,7 @@ class TDTestCase:
         self.vgroups    = 4
         self.ctbNum     = 100
         self.rowsPerTbl = 1000
-        
+
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
@@ -50,7 +50,7 @@ class TDTestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        
+
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
         tdLog.info("create stb")
@@ -58,12 +58,12 @@ class TDTestCase:
         tdLog.info("create ctb")
         tmqCom.create_ctable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict['ctbPrefix'],
                              ctbNum=paraDict["ctbNum"],ctbStartIdx=paraDict['ctbStartIdx'])
-        
+
         tdLog.info("insert data")
         tmqCom.insert_data_interlaceByMultiTbl(tsql=tdSql,dbName=paraDict["dbName"],ctbPrefix=paraDict["ctbPrefix"],
                                                ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
                                                startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
-        
+
         tdLog.info("flush db to let data falls into the disk")
         tdSql.query("flush database %s"%(paraDict['dbName']))
         return
@@ -93,18 +93,18 @@ class TDTestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        
+
         topicNameList = ['topic1']
         expectRowsList = []
         tmqCom.initConsumerTable()
-        
+
         tdLog.info("create topics from stb with filter")
         queryString = "select * from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
         # sqlString = "create topic %s as stable %s" %(topicNameList[0], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicNameList[0], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        # tdSql.query(queryString)        
+        # tdSql.query(queryString)
         # expectRowsList.append(tdSql.getRows())
 
         # init consume info, and start tmq_sim, then check consume result
@@ -121,29 +121,29 @@ class TDTestCase:
         paraDict['batchNum']   = 100
         paraDict['startTs'] = paraDict['startTs'] + self.rowsPerTbl
         pInsertThread = tmqCom.asyncInsertDataByInterlace(paraDict)
-        
+
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
         pInsertThread.join()
-        
-        tdSql.query(queryString)        
+
+        tdSql.query(queryString)
         expectRowsList.append(tdSql.getRows())
-        
-        tdLog.info("wait the consume result")         
+
+        tdLog.info("wait the consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
-                
+
         tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[0], resultList[0]))
         if expectRowsList[0] != resultList[0]:
             tdLog.exit("%d tmq consume rows error!"%consumerId)
 
-        # tmqCom.checkFileContent(consumerId, queryString) 
+        # tmqCom.checkFileContent(consumerId, queryString)
 
         tdSql.query("flush database %s"%(paraDict['dbName']))
-        
+
         for i in range(len(topicNameList)):
-            tmqCom.waitSubscriptionExit(tdSql,topicNameList[i])    
+            tmqCom.waitSubscriptionExit(tdSql,topicNameList[i])
             tdSql.query("drop topic %s"%topicNameList[i])
 
         tdLog.printNoPrefix("======== test case 1 end ...... ")
@@ -173,18 +173,18 @@ class TDTestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        
+
         topicNameList = ['topic1']
         expectRowsList = []
         tmqCom.initConsumerTable()
-        
+
         tdLog.info("create topics from stb with filter")
         queryString = "select * from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
         # sqlString = "create topic %s as stable %s" %(topicNameList[0], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicNameList[0], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        tdSql.query(queryString)        
+        tdSql.query(queryString)
         expectRowsList.append(tdSql.getRows())
         totalRowsInserted = expectRowsList[0]
 
@@ -200,36 +200,36 @@ class TDTestCase:
 
         tdLog.info("start consume processor 0")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
-        tdLog.info("wait the consume result") 
-        
+        tdLog.info("wait the consume result")
+
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
         actConsumeRows = resultList[0]
-                
+
         tdLog.info("act consume rows: %d, expect consume rows between %d and %d"%(actConsumeRows, expectrowcnt, totalRowsInserted))
         if not (expectrowcnt <= actConsumeRows and totalRowsInserted >= actConsumeRows):
             tdLog.exit("%d tmq consume rows error!"%consumerId)
-        
+
         # reinit consume info, and start tmq_sim, then check consume result
         tmqCom.initConsumerTable()
         consumerId   = 2
         expectrowcnt = math.ceil(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * 2/3)
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
-        
+
         tdLog.info("start consume processor 1")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
-        tdLog.info("wait the consume result") 
-        
+        tdLog.info("wait the consume result")
+
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
-        
+
         actConsumeRows = resultList[0]
-        tdLog.info("act consume rows: %d, expect rows: %d, act insert rows: %d"%(actConsumeRows, expectrowcnt, totalRowsInserted))    
+        tdLog.info("act consume rows: %d, expect rows: %d, act insert rows: %d"%(actConsumeRows, expectrowcnt, totalRowsInserted))
         if not ((actConsumeRows >= expectrowcnt) and (totalRowsInserted > actConsumeRows)):
             tdLog.exit("%d tmq consume rows error!"%consumerId)
-            
+
         for i in range(len(topicNameList)):
-            tmqCom.waitSubscriptionExit(tdSql,topicNameList[i])    
+            tmqCom.waitSubscriptionExit(tdSql,topicNameList[i])
             tdSql.query("drop topic %s"%topicNameList[i])
 
         tdLog.printNoPrefix("======== test case 2 end ...... ")
