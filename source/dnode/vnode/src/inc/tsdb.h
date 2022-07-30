@@ -90,6 +90,9 @@ int32_t tsdbRowCmprFn(const void *p1, const void *p2);
 void     tRowIterInit(SRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
 SColVal *tRowIterNext(SRowIter *pIter);
 // SRowMerger
+int32_t tRowMergerInit2(SRowMerger *pMerger, STSchema *pResTSchema, TSDBROW *pRow, STSchema *pTSchema);
+int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
+
 int32_t tRowMergerInit(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
 void    tRowMergerClear(SRowMerger *pMerger);
 int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow);

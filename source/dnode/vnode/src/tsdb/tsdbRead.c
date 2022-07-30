@@ -143,7 +143,7 @@ static int      buildDataBlockFromBufImpl(STableBlockScanInfo* pBlockScanInfo, i
 static TSDBROW* getValidRow(SIterInfo* pIter, const SArray* pDelList, STsdbReader* pReader);
 static int32_t  doMergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pScanInfo, STsdbReader* pReader,
                                         SRowMerger* pMerger);
-static int32_t  doMergeRowsInBuf(SIterInfo* pIter, int64_t ts, SArray* pDelList, SRowMerger* pMerger,
+static int32_t  doMergeRowsInBuf(SIterInfo* pIter, uint64_t uid, int64_t ts, SArray* pDelList, SRowMerger* pMerger,
                                  STsdbReader* pReader);
 static int32_t  doAppendOneRow(SSDataBlock* pBlock, STsdbReader* pReader, STSRow* pTSRow);
 static void     setComposedBlockFlag(STsdbReader* pReader, bool composed);
@@ -1230,7 +1230,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
       doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
 
       tRowMerge(&merge, pRow);
-      doMergeRowsInBuf(pIter, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
+      doMergeRowsInBuf(pIter, pBlockScanInfo->uid, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
 
       tRowMergerGetRow(&merge, &pTSRow);
     }
@@ -1246,7 +1246,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
       updateSchema(pRow, pBlockScanInfo->uid, pReader);
 
       tRowMergerInit(&merge, pRow, pReader->pSchema);
-      doMergeRowsInBuf(pIter, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
+      doMergeRowsInBuf(pIter, pBlockScanInfo->uid, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
 
       tRowMerge(&merge, &fRow);
       doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
@@ -1291,12 +1291,12 @@ static int32_t doMergeThreeLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
 
       if (ik.ts == key) {
         tRowMerge(&merge, piRow);
-        doMergeRowsInBuf(&pBlockScanInfo->iiter, key, pBlockScanInfo->delSkyline, &merge, pReader);
+        doMergeRowsInBuf(&pBlockScanInfo->iiter, uid, key, pBlockScanInfo->delSkyline, &merge, pReader);
       }
 
       if (k.ts == key) {
         tRowMerge(&merge, pRow);
-        doMergeRowsInBuf(&pBlockScanInfo->iter, key, pBlockScanInfo->delSkyline, &merge, pReader);
+        doMergeRowsInBuf(&pBlockScanInfo->iter, uid, key, pBlockScanInfo->delSkyline, &merge, pReader);
       }
 
       tRowMergerGetRow(&merge, &pTSRow);
@@ -1336,11 +1336,11 @@ static int32_t doMergeThreeLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
       updateSchema(pRow, uid, pReader);
 
       tRowMergerInit(&merge, pRow, pReader->pSchema);
-      doMergeRowsInBuf(&pBlockScanInfo->iter, key, pBlockScanInfo->delSkyline, &merge, pReader);
+      doMergeRowsInBuf(&pBlockScanInfo->iter, uid, key, pBlockScanInfo->delSkyline, &merge, pReader);
 
       if (ik.ts == k.ts) {
         tRowMerge(&merge, piRow);
-        doMergeRowsInBuf(&pBlockScanInfo->iiter, key, pBlockScanInfo->delSkyline, &merge, pReader);
+        doMergeRowsInBuf(&pBlockScanInfo->iiter, uid, key, pBlockScanInfo->delSkyline, &merge, pReader);
       }
 
       if (k.ts == key) {
@@ -2097,7 +2097,8 @@ TSDBROW* getValidRow(SIterInfo* pIter, const SArray* pDelList, STsdbReader* pRea
   }
 }
 
-int32_t doMergeRowsInBuf(SIterInfo* pIter, int64_t ts, SArray* pDelList, SRowMerger* pMerger, STsdbReader* pReader) {
+int32_t doMergeRowsInBuf(SIterInfo* pIter, uint64_t uid, int64_t ts, SArray* pDelList, SRowMerger* pMerger,
+                         STsdbReader* pReader) {
   while (1) {
     pIter->hasVal = tsdbTbDataIterNext(pIter->iter);
     if (!pIter->hasVal) {
@@ -2116,7 +2117,15 @@ int32_t doMergeRowsInBuf(SIterInfo* pIter, int64_t ts, SArray* pDelList, SRowMer
       break;
     }
 
-    tRowMerge(pMerger, pRow);
+    int32_t   sversion = TSDBROW_SVERSION(pRow);
+    STSchema* pTSchema = NULL;
+    if (sversion != pReader->pSchema->version) {
+      metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->suid, uid, sversion, &pTSchema);
+    } else {
+      pTSchema = pReader->pSchema;
+    }
+
+    tRowMergerAdd(pMerger, pRow, pTSchema);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2229,7 +2238,7 @@ void updateSchema(TSDBROW* pRow, uint64_t uid, STsdbReader* pReader) {
 
   if (pReader->pSchema == NULL) {
     metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->suid, uid, sversion, &pReader->pSchema);
-  } else if (pReader->pSchema->version < sversion) {
+  } else if (pReader->pSchema->version != sversion) {
     taosMemoryFreeClear(pReader->pSchema);
     metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->suid, uid, sversion, &pReader->pSchema);
   }
@@ -2240,10 +2249,17 @@ void doMergeMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo* pIter, SArray* pDe
   SRowMerger merge = {0};
 
   TSDBKEY k = TSDBROW_KEY(pRow);
-  updateSchema(pRow, uid, pReader);
+  // updateSchema(pRow, uid, pReader);
+  int32_t   sversion = TSDBROW_SVERSION(pRow);
+  STSchema* pTSchema = NULL;
+  if (sversion != pReader->pSchema->version) {
+    metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->suid, uid, sversion, &pTSchema);
+  } else {
+    pTSchema = pReader->pSchema;
+  }
 
-  tRowMergerInit(&merge, pRow, pReader->pSchema);
-  doMergeRowsInBuf(pIter, k.ts, pDelList, &merge, pReader);
+  tRowMergerInit2(&merge, pReader->pSchema, pRow, pTSchema);
+  doMergeRowsInBuf(pIter, uid, k.ts, pDelList, &merge, pReader);
   tRowMergerGetRow(&merge, pTSRow);
   tRowMergerClear(&merge);
 }
@@ -2259,18 +2275,18 @@ void doMergeMemIMemRows(TSDBROW* pRow, TSDBROW* piRow, STableBlockScanInfo* pBlo
     updateSchema(piRow, pBlockScanInfo->uid, pReader);
 
     tRowMergerInit(&merge, piRow, pReader->pSchema);
-    doMergeRowsInBuf(&pBlockScanInfo->iiter, ik.ts, pBlockScanInfo->delSkyline, &merge, pReader);
+    doMergeRowsInBuf(&pBlockScanInfo->iiter, pBlockScanInfo->uid, ik.ts, pBlockScanInfo->delSkyline, &merge, pReader);
 
     tRowMerge(&merge, pRow);
-    doMergeRowsInBuf(&pBlockScanInfo->iter, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
+    doMergeRowsInBuf(&pBlockScanInfo->iter, pBlockScanInfo->uid, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
   } else {
     updateSchema(pRow, pBlockScanInfo->uid, pReader);
 
     tRowMergerInit(&merge, pRow, pReader->pSchema);
-    doMergeRowsInBuf(&pBlockScanInfo->iter, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
+    doMergeRowsInBuf(&pBlockScanInfo->iter, pBlockScanInfo->uid, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
 
     tRowMerge(&merge, piRow);
-    doMergeRowsInBuf(&pBlockScanInfo->iiter, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
+    doMergeRowsInBuf(&pBlockScanInfo->iiter, pBlockScanInfo->uid, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
   }
 
   tRowMergerGetRow(&merge, pTSRow);
