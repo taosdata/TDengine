@@ -1,17 +1,18 @@
 settings:
   - name: taosd
-    fqdn: [vm85]
+    fqdn: [vm83]
     spec:
       version: 2.4.0.0  #
       config: # common config for all dnodes
-        firstEP: vm85:6030
+        firstEP: vm83:6030
       dnodes:
-        - endpoint: vm85:6030
+        - endpoint: vm83:6030
           config_dir: /etc/taos
           config: # will write into taos.cfg
             dataDir: /var/lib/taos
             logDir: /var/log/taos
             debugFlag: 131
+            asynclog: 0
         
   - name: taospy
     fqdn: [vm83]
@@ -19,9 +20,9 @@ settings:
       version: 2.2.0  
       client_version: 2.4.0.0
       config:
-        firstEP: vm85:6030
+        firstEP: vm83:6030
         logDir: /var/log/taos
-        debugFlag: 131
+        debugFlag: 135
         asynclog: 0
     
   - name: taosBenchmark
@@ -31,9 +32,19 @@ settings:
       taos_version: 2.4.0.0
       config_dir: /etc/taos
       taos_config:
-        firstEP: vm85:6030
+        firstEP: vm83:6030
         logDir: /var/log/taos
-        debugFlag: 131
+        debugFlag: 135
+  - name: taosBenchmark
+    fqdn: [vm83]
+    spec:
+      version: 1.0.0
+      taos_version: 2.4.0.0
+      config_dir: /etc/taos
+      taos_config:
+        firstEP: vm83:6030
+        logDir: /var/log/taos
+        debugFlag: 135
 
 
   - name: prometheus
@@ -50,14 +61,14 @@ settings:
             job_name: prometheus
             targets: [192.168.1.188:9090]
       node_exporter:
-        fqdn: [vm85,vm83]
+        fqdn: [vm83]
         run_dir: /opt/node_exporter
       process_exporter:
-        fqdn: [vm85,vm83]
+        fqdn: [vm83]
         run_dir: /opt/process_exporter
         config:
           common_process: [taosd, taosBenchmark]
           custom_process:
-            vm85: [taosd]
-            vm83: [taosBenchmark]
+            vm83: [taosd, taosBenchmark]
+            # vm83: [taosBenchmark]
 

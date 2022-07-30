@@ -2,26 +2,25 @@ case1:
   json_file1:
     stream_info: 
       stream_name: perf_stream
-      stream_stb: perf_db1.output_streamtb
-      trigger_mode: "at_once"
-      interval: "10s"
-      watermark: "3650d"
+      stream_stb: perf_db2.output_streamtb
+      trigger_mode: "window_close"
+      interval: "1s"
       # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
-      source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), avg(c7), now, max(cast(ts as bigint)) from stb interval(10s)"
-      drop: "yes"
+      source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+      drop: "no"
     json_info:
-      host: "vm85"
+      host: "vm83"
       port: 6030
-      thread_count: 16
-      thread_count_create_tbl: 4
+      thread_count: 100
+      thread_count_create_tbl: 32
       result_file: "/root/taosBenchmark_result.log"
       confirm_parameter_prompt: "no"
       insert_interval: 0
-      num_of_records_per_req: 100
+      num_of_records_per_req: 500
       max_sql_len: 1024000
     db_info:
       db_name: "perf_db1"
-      drop: "yes"
+      drop: "no"
       replica: 1
       cache: 16
       blocks: 8
@@ -31,7 +30,6 @@ case1:
       maxRows: 4096
       comp: 2
       walLevel: 1
-      cachelast: 0
       quorum: 1
       fsync: 3000
       update: 0
@@ -40,12 +38,14 @@ case1:
       stb_name: "stb"
       child_table_exists: "no"
       childtable_count: 10
-      childtable_prefix: "stb_0"
+      childtable_prefix: "stb1_0"
       escape_character: "no"
       auto_create_table: "no"
+      stream_config: "trigger ignore expired"
       batch_create_tbl_num: 1
       data_source: "rand"
       insert_mode: "taosc"
+      interlace_rows: 0
       line_protocol: null
       tcp_transfer: "no"
       insert_rows: 1000000
@@ -56,16 +56,100 @@ case1:
       max_sql_len: 65480
       disorder_ratio: 0
       disorder_range: 1000
-      timestamp_step: 1000
+      timestamp_step: 11
       start_timestamp: "2020-01-01 00:00:00"
       sample_format: "csv"
       sample_file: "./sample.csv"
       tags_file: ""
       col_timestamp_count: 1
       col_float_count: 0
-      col_int_count: 4
-      col_double_count: 4
-      col_binary_count: 2
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+  json_file2:
+    stream_info: 
+      stream_name: perf_stream
+      stream_stb: perf_db2.output_streamtb
+      trigger_mode: "window_close"
+      interval: "1s"
+      # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+      source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+      drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 10
+      childtable_prefix: "stb2_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 1000000
+
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
       col_binary_length: 16
       col_nchar_count: 0
       col_nchar_length: 16
@@ -84,420 +168,1852 @@ case1:
       tag_bigint_count: 0
       tag_timestamp_count: 0
 
-# case1:
-#   json_file1:
-#     stream_info: 
-#       stream_name: perf_stream
-#       stream_stb: perf_db2.output_streamtb
-#       trigger_mode: "window_close"
-#       interval: "10s"
-#       # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
-#       source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), avg(c7), now  from stb partition by tbname interval(10s)"
-#       drop: "yes"
-#     json_info:
-#       host: "vm85"
-#       port: 6030
-#       thread_count: 16
-#       thread_count_create_tbl: 4
-#       result_file: "/root/taosBenchmark_result.log"
-#       confirm_parameter_prompt: "no"
-#       insert_interval: 0
-#       num_of_records_per_req: 100
-#       max_sql_len: 1024000
-#     db_info:
-#       db_name: "perf_db1"
-#       drop: "yes"
-#       replica: 1
-#       cache: 16
-#       blocks: 8
-#       precision: "ms"
-#       keep: 3650
-#       minRows: 100
-#       maxRows: 4096
-#       comp: 2
-#       walLevel: 1
-#       cachelast: 0
-#       quorum: 1
-#       fsync: 3000
-#       update: 0
-#       vgroups: 1
-#     stb_info:
-#       stb_name: "stb"
-#       child_table_exists: "no"
-#       childtable_count: 100
-#       childtable_prefix: "stb_0"
-#       escape_character: "no"
-#       auto_create_table: "no"
-#       batch_create_tbl_num: 1
-#       data_source: "rand"
-#       insert_mode: "taosc"
-#       line_protocol: null
-#       tcp_transfer: "no"
-#       insert_rows: 100000
+case2:
+  json_file1:
+    stream_info: 
+      stream_name: perf_stream
+      stream_stb: perf_db2.output_streamtb
+      trigger_mode: "window_close"
+      interval: "1s"
+      # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+      source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+      drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 100
+      childtable_prefix: "stb1_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 100000
 
-#       childtable_limit: 0
-#       childtable_offset: 0
-#       rows_per_tbl: 0
-#       max_sql_len: 65480
-#       disorder_ratio: 0
-#       disorder_range: 1000
-#       timestamp_step: 1000
-#       start_timestamp: "2020-01-01 00:00:00"
-#       sample_format: "csv"
-#       sample_file: "./sample.csv"
-#       tags_file: ""
-#       col_timestamp_count: 1
-#       col_float_count: 0
-#       col_int_count: 4
-#       col_double_count: 4
-#       col_binary_count: 2
-#       col_binary_length: 16
-#       col_nchar_count: 0
-#       col_nchar_length: 16
-#       col_tinyint_count: 0
-#       col_smallint_count: 0
-#       col_bigint_count: 0
-#       tag_float_count: 0
-#       tag_int_count: 1
-#       tag_double_count: 0
-#       tag_binary_count: 1
-#       tag_binary_length: 16
-#       tag_nchar_count: 0
-#       tag_nchar_length: 16
-#       tag_tinyint_count: 0
-#       tag_smallint_count: 0
-#       tag_bigint_count: 0
-#       tag_timestamp_count: 0
-# case2:
-#   json_file1:
-#     stream_info: 
-#       stream_name: case2_stream
-#       stream_stb: case2_output_streamtb
-#       trigger_mode: "at_once"
-#       interval: "10s"
-#       watermark: "10s"
-#       source_sql: "select _wstartts as start, min(c1),max(c2),sum(c3),first(c4),last(c5),avg(c7),count(c8),spread(c1),stddev(c2),hyperloglog(c9), now  from stb partition by tbname interval(10s)"
-#       drop: "yes"
-#     json_info:
-#       host: "vm85"
-#       port: 6030
-#       thread_count: 8
-#       thread_count_create_tbl: 4
-#       result_file: "/root/taosBenchmark_result.log"
-#       confirm_parameter_prompt: "no"
-#       insert_interval: 0
-#       num_of_records_per_req: 1000
-#       max_sql_len: 1024000
-#     db_info:
-#       db_name: "perf_db1"
-#       drop: "yes"
-#       replica: 1
-#       cache: 16
-#       blocks: 8
-#       precision: "ms"
-#       keep: 3650
-#       minRows: 100
-#       maxRows: 4096
-#       comp: 2
-#       walLevel: 1
-#       cachelast: 0
-#       quorum: 1
-#       fsync: 3000
-#       update: 0
-#     stb_info:
-#       stb_name: "stb"
-#       child_table_exists: "no"
-#       childtable_count: 100
-#       childtable_prefix: "stb_0"
-#       escape_character: "no"
-#       auto_create_table: "no"
-#       batch_create_tbl_num: 1
-#       data_source: "rand"
-#       insert_mode: "taosc"
-#       line_protocol: null
-#       tcp_transfer: "no"
-#       insert_rows: 10000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+  json_file2:
+    stream_info: 
+      stream_name: perf_stream
+      stream_stb: perf_db2.output_streamtb
+      trigger_mode: "window_close"
+      interval: "1s"
+      # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+      source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+      drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 100
+      childtable_prefix: "stb2_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 100000
 
-#       childtable_limit: 0
-#       childtable_offset: 0
-#       rows_per_tbl: 0
-#       max_sql_len: 65480
-#       disorder_ratio: 0
-#       disorder_range: 1000
-#       timestamp_step: 11000
-#       start_timestamp: "2020-01-01 00:00:00"
-#       sample_format: "csv"
-#       sample_file: "./sample.csv"
-#       tags_file: ""
-#       col_timestamp_count: 1
-#       col_float_count: 0
-#       col_int_count: 4
-#       col_double_count: 4
-#       col_binary_count: 2
-#       col_binary_length: 16
-#       col_nchar_count: 0
-#       col_nchar_length: 16
-#       col_tinyint_count: 0
-#       col_smallint_count: 0
-#       col_bigint_count: 0
-#       tag_float_count: 0
-#       tag_int_count: 1
-#       tag_double_count: 0
-#       tag_binary_count: 1
-#       tag_binary_length: 16
-#       tag_nchar_count: 0
-#       tag_nchar_length: 16
-#       tag_tinyint_count: 0
-#       tag_smallint_count: 0
-#       tag_bigint_count: 0
-#       tag_timestamp_count: 0
-# case3:
-#   json_file1:
-#     stream_info: 
-#       stream_name: case3_stream
-#       stream_stb: case3_output_streamtb
-#       trigger_mode: "at_once"
-#       interval: "10s"
-#       watermark: "10s"
-#       source_sql: "select _wstartts as start, min(c1),max(c2),sum(c3),first(c4),last(c5),avg(c7),count(c8),spread(c1),stddev(c2),hyperloglog(c9), now  from stb partition by tbname interval(10s)"
-#       drop: "yes"
-#     json_info:
-#       host: "vm85"
-#       port: 6030
-#       thread_count: 8
-#       thread_count_create_tbl: 4
-#       result_file: "/root/taosBenchmark_result.log"
-#       confirm_parameter_prompt: "no"
-#       insert_interval: 0
-#       num_of_records_per_req: 1000
-#       max_sql_len: 1024000
-#     db_info:
-#       db_name: "perf_db1"
-#       drop: "yes"
-#       replica: 1
-#       cache: 16
-#       blocks: 8
-#       precision: "ms"
-#       keep: 3650
-#       minRows: 100
-#       maxRows: 4096
-#       comp: 2
-#       walLevel: 1
-#       cachelast: 0
-#       quorum: 1
-#       fsync: 3000
-#       update: 0
-#     stb_info:
-#       stb_name: "stb"
-#       child_table_exists: "no"
-#       childtable_count: 1000
-#       childtable_prefix: "stb_0"
-#       escape_character: "no"
-#       auto_create_table: "no"
-#       batch_create_tbl_num: 1
-#       data_source: "rand"
-#       insert_mode: "taosc"
-#       line_protocol: null
-#       tcp_transfer: "no"
-#       insert_rows: 10000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+case3:
+  json_file1:
+    stream_info: 
+      stream_name: perf_stream
+      stream_stb: perf_db2.output_streamtb
+      trigger_mode: "window_close"
+      interval: "1s"
+      # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+      source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+      drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 1000
+      childtable_prefix: "stb1_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 10000
 
-#       childtable_limit: 0
-#       childtable_offset: 0
-#       rows_per_tbl: 0
-#       max_sql_len: 65480
-#       disorder_ratio: 0
-#       disorder_range: 1000
-#       timestamp_step: 11000
-#       start_timestamp: "2020-01-01 00:00:00"
-#       sample_format: "csv"
-#       sample_file: "./sample.csv"
-#       tags_file: ""
-#       col_timestamp_count: 1
-#       col_float_count: 0
-#       col_int_count: 4
-#       col_double_count: 4
-#       col_binary_count: 2
-#       col_binary_length: 16
-#       col_nchar_count: 0
-#       col_nchar_length: 16
-#       col_tinyint_count: 0
-#       col_smallint_count: 0
-#       col_bigint_count: 0
-#       tag_float_count: 0
-#       tag_int_count: 1
-#       tag_double_count: 0
-#       tag_binary_count: 1
-#       tag_binary_length: 16
-#       tag_nchar_count: 0
-#       tag_nchar_length: 16
-#       tag_tinyint_count: 0
-#       tag_smallint_count: 0
-#       tag_bigint_count: 0
-#       tag_timestamp_count: 0
-# case4:
-#   json_file1:
-#     stream_info: 
-#       stream_name: case4_stream
-#       stream_stb: case4_output_streamtb
-#       trigger_mode: "at_once"
-#       interval: "10s"
-#       watermark: "10s"
-#       source_sql: "select _wstartts as start, min(c1),max(c2),sum(c3),first(c4),last(c5),avg(c7),count(c8),spread(c1),stddev(c2),hyperloglog(c9), now  from stb partition by tbname interval(10s)"
-#       drop: "yes"
-#     json_info:
-#       host: "vm85"
-#       port: 6030
-#       thread_count: 8
-#       thread_count_create_tbl: 4
-#       result_file: "/root/taosBenchmark_result.log"
-#       confirm_parameter_prompt: "no"
-#       insert_interval: 0
-#       num_of_records_per_req: 1000
-#       max_sql_len: 1024000
-#     db_info:
-#       db_name: "perf_db1"
-#       drop: "yes"
-#       replica: 1
-#       cache: 16
-#       blocks: 8
-#       precision: "ms"
-#       keep: 3650
-#       minRows: 100
-#       maxRows: 4096
-#       comp: 2
-#       walLevel: 1
-#       cachelast: 0
-#       quorum: 1
-#       fsync: 3000
-#       update: 0
-#     stb_info:
-#       stb_name: "stb"
-#       child_table_exists: "no"
-#       childtable_count: 10000
-#       childtable_prefix: "stb_0"
-#       escape_character: "no"
-#       auto_create_table: "no"
-#       batch_create_tbl_num: 1
-#       data_source: "rand"
-#       insert_mode: "taosc"
-#       line_protocol: null
-#       tcp_transfer: "no"
-#       insert_rows: 10000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+  json_file2:
+    stream_info: 
+      stream_name: perf_stream
+      stream_stb: perf_db2.output_streamtb
+      trigger_mode: "window_close"
+      interval: "1s"
+      # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+      source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+      drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 1000
+      childtable_prefix: "stb2_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 10000
 
-#       childtable_limit: 0
-#       childtable_offset: 0
-#       rows_per_tbl: 0
-#       max_sql_len: 65480
-#       disorder_ratio: 0
-#       disorder_range: 1000
-#       timestamp_step: 11000
-#       start_timestamp: "2020-01-01 00:00:00"
-#       sample_format: "csv"
-#       sample_file: "./sample.csv"
-#       tags_file: ""
-#       col_timestamp_count: 1
-#       col_float_count: 0
-#       col_int_count: 4
-#       col_double_count: 4
-#       col_binary_count: 2
-#       col_binary_length: 16
-#       col_nchar_count: 0
-#       col_nchar_length: 16
-#       col_tinyint_count: 0
-#       col_smallint_count: 0
-#       col_bigint_count: 0
-#       tag_float_count: 0
-#       tag_int_count: 1
-#       tag_double_count: 0
-#       tag_binary_count: 1
-#       tag_binary_length: 16
-#       tag_nchar_count: 0
-#       tag_nchar_length: 16
-#       tag_tinyint_count: 0
-#       tag_smallint_count: 0
-#       tag_bigint_count: 0
-#       tag_timestamp_count: 0
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+case4:
+  json_file1:
+    stream_info: 
+      stream_name: perf_stream
+      stream_stb: perf_db2.output_streamtb
+      trigger_mode: "window_close"
+      interval: "1s"
+      # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+      source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+      drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "stb1_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 1000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+  json_file2:
+    stream_info: 
+      stream_name: perf_stream
+      stream_stb: perf_db2.output_streamtb
+      trigger_mode: "window_close"
+      interval: "1s"
+      # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+      source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+      drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "stb2_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 1000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+case5:
+  json_file1:
+    stream_info: 
+      stream_name: perf_stream
+      stream_stb: perf_db2.output_streamtb
+      trigger_mode: "window_close"
+      interval: "1s"
+      # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+      source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+      drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 100000
+      childtable_prefix: "stb1_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 100
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+  json_file2:
+    stream_info: 
+      stream_name: perf_stream
+      stream_stb: perf_db2.output_streamtb
+      trigger_mode: "window_close"
+      interval: "1s"
+      # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+      source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+      drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 100000
+      childtable_prefix: "stb2_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 100
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+case6:
+  json_file1:
+    stream_info: 
+      stream_name: perf_stream
+      stream_stb: perf_db2.output_streamtb
+      trigger_mode: "window_close"
+      interval: "1s"
+      # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+      source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+      drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 1000000
+      childtable_prefix: "stb1_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 10
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+  json_file2:
+    stream_info: 
+      stream_name: perf_stream
+      stream_stb: perf_db2.output_streamtb
+      trigger_mode: "window_close"
+      interval: "1s"
+      # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+      source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+      drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 1000000
+      childtable_prefix: "stb2_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 10
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
 
-# case5:
-#   json_file1:
-#     stream_info: 
-#       stream_name: case5_stream
-#       stream_stb: case5_output_streamtb
-#       trigger_mode: "at_once"
-#       interval: "10s"
-#       watermark: "10s"
-#       source_sql: "select _wstartts as start, min(c1),max(c2),sum(c3),first(c4),last(c5),avg(c7),count(c8),spread(c1),stddev(c2),hyperloglog(c9), now  from stb partition by tbname interval(10s)"
-#       drop: "yes"
-#     json_info:
-#       host: "vm85"
-#       port: 6030
-#       thread_count: 8
-#       thread_count_create_tbl: 4
-#       result_file: "/root/taosBenchmark_result.log"
-#       confirm_parameter_prompt: "no"
-#       insert_interval: 0
-#       num_of_records_per_req: 1000
-#       max_sql_len: 1024000
-#     db_info:
-#       db_name: "perf_db1"
-#       drop: "yes"
-#       replica: 1
-#       cache: 16
-#       blocks: 8
-#       precision: "ms"
-#       keep: 3650
-#       minRows: 100
-#       maxRows: 4096
-#       comp: 2
-#       walLevel: 1
-#       cachelast: 0
-#       quorum: 1
-#       fsync: 3000
-#       update: 0
-#     stb_info:
-#       stb_name: "stb"
-#       child_table_exists: "no"
-#       childtable_count: 100000
-#       childtable_prefix: "stb_0"
-#       escape_character: "no"
-#       auto_create_table: "no"
-#       batch_create_tbl_num: 1
-#       data_source: "rand"
-#       insert_mode: "taosc"
-#       line_protocol: null
-#       tcp_transfer: "no"
-#       insert_rows: 10000
+case7:
+  json_file1:
+    # stream_info: 
+    #   stream_name: perf_stream
+    #   stream_stb: perf_db2.output_streamtb
+    #   trigger_mode: "window_close"
+    #   interval: "1s"
+    #   # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+    #   source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+    #   drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 10
+      childtable_prefix: "stb1_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 1000000
 
-#       childtable_limit: 0
-#       childtable_offset: 0
-#       rows_per_tbl: 0
-#       max_sql_len: 65480
-#       disorder_ratio: 0
-#       disorder_range: 1000
-#       timestamp_step: 11000
-#       start_timestamp: "2020-01-01 00:00:00"
-#       sample_format: "csv"
-#       sample_file: "./sample.csv"
-#       tags_file: ""
-#       col_timestamp_count: 1
-#       col_float_count: 0
-#       col_int_count: 4
-#       col_double_count: 4
-#       col_binary_count: 2
-#       col_binary_length: 16
-#       col_nchar_count: 0
-#       col_nchar_length: 16
-#       col_tinyint_count: 0
-#       col_smallint_count: 0
-#       col_bigint_count: 0
-#       tag_float_count: 0
-#       tag_int_count: 1
-#       tag_double_count: 0
-#       tag_binary_count: 1
-#       tag_binary_length: 16
-#       tag_nchar_count: 0
-#       tag_nchar_length: 16
-#       tag_tinyint_count: 0
-#       tag_smallint_count: 0
-#       tag_bigint_count: 0
-#       tag_timestamp_count: 0
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+  json_file2:
+    # stream_info: 
+    #   stream_name: perf_stream
+    #   stream_stb: perf_db2.output_streamtb
+    #   trigger_mode: "window_close"
+    #   interval: "1s"
+    #   # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+    #   source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+    #   drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 10
+      childtable_prefix: "stb2_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 1000000
+
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+
+case8:
+  json_file1:
+    # stream_info: 
+    #   stream_name: perf_stream
+    #   stream_stb: perf_db2.output_streamtb
+    #   trigger_mode: "window_close"
+    #   interval: "1s"
+    #   # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+    #   source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+    #   drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 100
+      childtable_prefix: "stb1_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 100000
+
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+  json_file2:
+    # stream_info: 
+    #   stream_name: perf_stream
+    #   stream_stb: perf_db2.output_streamtb
+    #   trigger_mode: "window_close"
+    #   interval: "1s"
+    #   # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+    #   source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+    #   drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 100
+      childtable_prefix: "stb2_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 100000
+
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+case9:
+  json_file1:
+    # stream_info: 
+    #   stream_name: perf_stream
+    #   stream_stb: perf_db2.output_streamtb
+    #   trigger_mode: "window_close"
+    #   interval: "1s"
+    #   # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+    #   source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+    #   drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 1000
+      childtable_prefix: "stb1_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 10000
+
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+  json_file2:
+    # stream_info: 
+    #   stream_name: perf_stream
+    #   stream_stb: perf_db2.output_streamtb
+    #   trigger_mode: "window_close"
+    #   interval: "1s"
+    #   # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+    #   source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+    #   drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 1000
+      childtable_prefix: "stb2_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 10000
+
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+case10:
+  json_file1:
+    # stream_info: 
+    #   stream_name: perf_stream
+    #   stream_stb: perf_db2.output_streamtb
+    #   trigger_mode: "window_close"
+    #   interval: "1s"
+    #   # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+    #   source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+    #   drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "stb1_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 1000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+  json_file2:
+    # stream_info: 
+    #   stream_name: perf_stream
+    #   stream_stb: perf_db2.output_streamtb
+    #   trigger_mode: "window_close"
+    #   interval: "1s"
+    #   # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+    #   source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+    #   drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "stb2_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 1000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+case11:
+  json_file1:
+    # stream_info: 
+    #   stream_name: perf_stream
+    #   stream_stb: perf_db2.output_streamtb
+    #   trigger_mode: "window_close"
+    #   interval: "1s"
+    #   # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+    #   source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+    #   drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 100000
+      childtable_prefix: "stb1_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 100
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+  json_file2:
+    # stream_info: 
+    #   stream_name: perf_stream
+    #   stream_stb: perf_db2.output_streamtb
+    #   trigger_mode: "window_close"
+    #   interval: "1s"
+    #   # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+    #   source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+    #   drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 100000
+      childtable_prefix: "stb2_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 100
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+case12:
+  json_file1:
+    # stream_info: 
+    #   stream_name: perf_stream
+    #   stream_stb: perf_db2.output_streamtb
+    #   trigger_mode: "window_close"
+    #   interval: "1s"
+    #   # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+    #   source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+    #   drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 1000000
+      childtable_prefix: "stb1_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 10
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+  json_file2:
+    # stream_info: 
+    #   stream_name: perf_stream
+    #   stream_stb: perf_db2.output_streamtb
+    #   trigger_mode: "window_close"
+    #   interval: "1s"
+    #   # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
+    #   source_sql: "select _wstart as start, min(c1),max(c2), sum(c3), avg(c0), count(c3), first(c0), last(c1), now  from perf_db1.stb partition by tbname interval(1s)"
+    #   drop: "no"
+    json_info:
+      host: "vm83"
+      port: 6030
+      thread_count: 100
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 500
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb"
+      child_table_exists: "no"
+      childtable_count: 1000000
+      childtable_prefix: "stb2_0"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 10
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 11
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 1
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 2
+      col_binary_count: 0
+      col_binary_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
