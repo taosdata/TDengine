@@ -166,6 +166,67 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
   return false;
 }
 
+// this function is for table scanner to extract temporary results of upstream aggregate results.
+static SResultRow* getTableGroupOutputBuf(SOperatorInfo* pOperator, uint64_t groupId, SFilePage** pPage) {
+  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    return NULL;
+  }
+
+  int64_t buf[2] = {0};
+  SET_RES_WINDOW_KEY((char*)buf, &groupId, sizeof(groupId), groupId);
+
+  STableScanInfo* pTableScanInfo = pOperator->info;
+
+  SResultRowPosition* p1 =
+      (SResultRowPosition*)taosHashGet(pTableScanInfo->pdInfo.pAggSup->pResultRowHashTable, buf, GET_RES_WINDOW_KEY_LEN(sizeof(groupId)));
+
+  if (p1 == NULL) {
+    return NULL;
+  }
+
+  *pPage = getBufPage(pTableScanInfo->pdInfo.pAggSup->pResultBuf, p1->pageId);
+  return (SResultRow*)((char*)(*pPage) + p1->offset);
+}
+
+static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SDataBlockInfo* pBlockInfo, uint32_t* status) {
+  STableScanInfo* pTableScanInfo = pOperator->info;
+
+  if (pTableScanInfo->pdInfo.pExprSup == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SExprSupp* pSup1 = pTableScanInfo->pdInfo.pExprSup;
+
+  SFilePage*  pPage = NULL;
+  SResultRow* pRow = getTableGroupOutputBuf(pOperator, pBlockInfo->groupId, &pPage);
+
+  if (pRow == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  bool notLoadBlock = true;
+  for (int32_t i = 0; i < pSup1->numOfExprs; ++i) {
+    int32_t functionId = pSup1->pCtx[i].functionId;
+
+    SResultRowEntryInfo* pEntry = getResultEntryInfo(pRow, i, pTableScanInfo->pdInfo.pExprSup->rowEntryInfoOffset);
+
+    int32_t reqStatus = fmFuncDynDataRequired(functionId, pEntry, &pBlockInfo->window);
+    if (reqStatus != FUNC_DATA_REQUIRED_NOT_LOAD) {
+      notLoadBlock = false;
+      break;
+    }
+  }
+
+  // release buffer pages
+  releaseBufPage(pTableScanInfo->pdInfo.pAggSup->pResultBuf, pPage);
+
+  if (notLoadBlock) {
+    *status = FUNC_DATA_REQUIRED_NOT_LOAD;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock,
                              uint32_t* status) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
@@ -178,7 +239,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
 
   *status = pInfo->dataBlockLoadFlag;
   if (pTableScanInfo->pFilterNode != NULL ||
-      overlapWithTimeWindow(&pTableScanInfo->interval, &pBlock->info, pTableScanInfo->cond.order)) {
+      overlapWithTimeWindow(&pTableScanInfo->pdInfo.interval, &pBlock->info, pTableScanInfo->cond.order)) {
     (*status) = FUNC_DATA_REQUIRED_DATA_LOAD;
   }
 
@@ -232,6 +293,16 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   ASSERT(*status == FUNC_DATA_REQUIRED_DATA_LOAD);
 
   // todo filter data block according to the block sma data firstly
+
+  doDynamicPruneDataBlock(pOperator, pBlockInfo, status);
+  if (*status == FUNC_DATA_REQUIRED_NOT_LOAD) {
+    qDebug("%s data block skipped, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
+           pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
+    pCost->skipBlocks += 1;
+
+    return TSDB_CODE_SUCCESS;
+  }
+
 #if 0
   if (!doFilterByBlockStatistics(pBlock->pBlockStatis, pTableScanInfo->pCtx, pBlockInfo->rows)) {
     pCost->filterOutBlocks += 1;
@@ -263,18 +334,20 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     }
   }
 
-  int64_t st = taosGetTimestampMs();
-  doFilter(pTableScanInfo->pFilterNode, pBlock, pTableScanInfo->pColMatchInfo);
+  if (pTableScanInfo->pFilterNode != NULL) {
+    int64_t st = taosGetTimestampUs();
+    doFilter(pTableScanInfo->pFilterNode, pBlock, pTableScanInfo->pColMatchInfo);
 
-  int64_t et = taosGetTimestampMs();
-  pTableScanInfo->readRecorder.filterTime += (et - st);
+    double el = (taosGetTimestampUs() - st) / 1000.0;
+    pTableScanInfo->readRecorder.filterTime += el;
 
-  if (pBlock->info.rows == 0) {
-    pCost->filterOutBlocks += 1;
-    qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
-           pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
-  } else {
-    qDebug("%s data block filter out, elapsed time:%" PRId64, GET_TASKID(pTaskInfo), (et - st));
+    if (pBlock->info.rows == 0) {
+      pCost->filterOutBlocks += 1;
+      qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%d, elapsed time:%.2f ms",
+             GET_TASKID(pTaskInfo), pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows, el);
+    } else {
+      qDebug("%s data block filter applied, elapsed time:%.2f ms", GET_TASKID(pTaskInfo), el);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -603,10 +676,11 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   }
 
   pInfo->scanInfo = (SScanInfo){.numOfAsc = pTableScanNode->scanSeq[0], .numOfDesc = pTableScanNode->scanSeq[1]};
-  //    pInfo->scanInfo = (SScanInfo){.numOfAsc = 0, .numOfDesc = 1}; // for debug purpose
+//      pInfo->scanInfo = (SScanInfo){.numOfAsc = 0, .numOfDesc = 1}; // for debug purpose
+//      pInfo->cond.order = TSDB_ORDER_DESC;
 
+  pInfo->pdInfo.interval = extractIntervalInfo(pTableScanNode);
   pInfo->readHandle = *readHandle;
-  pInfo->interval = extractIntervalInfo(pTableScanNode);
   pInfo->sample.sampleRatio = pTableScanNode->ratio;
   pInfo->sample.seed = taosGetTimestampSec();
 
@@ -1479,14 +1553,14 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
       pInfo->tqReader = pHandle->tqReader;
     }
 
-    if (pTSInfo->interval.interval > 0) {
-      pInfo->pUpdateInfo = updateInfoInitP(&pTSInfo->interval, pInfo->twAggSup.waterMark);
+    if (pTSInfo->pdInfo.interval.interval > 0) {
+      pInfo->pUpdateInfo = updateInfoInitP(&pTSInfo->pdInfo.interval, pInfo->twAggSup.waterMark);
     } else {
       pInfo->pUpdateInfo = NULL;
     }
 
     pInfo->pTableScanOp = pTableScanOp;
-    pInfo->interval = pTSInfo->interval;
+    pInfo->interval = pTSInfo->pdInfo.interval;
 
     pInfo->readHandle = *pHandle;
     pInfo->tableUid = pScanPhyNode->uid;
@@ -2662,16 +2736,20 @@ static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeSc
     }
   }
 
-  int64_t st = taosGetTimestampMs();
-  doFilter(pTableScanInfo->pFilterNode, pBlock, pTableScanInfo->pColMatchInfo);
+  if (pTableScanInfo->pFilterNode != NULL) {
+    int64_t st = taosGetTimestampMs();
+    doFilter(pTableScanInfo->pFilterNode, pBlock, pTableScanInfo->pColMatchInfo);
 
-  int64_t et = taosGetTimestampMs();
-  pTableScanInfo->readRecorder.filterTime += (et - st);
+    double el = (taosGetTimestampUs() - st) / 1000.0;
+    pTableScanInfo->readRecorder.filterTime += el;
 
-  if (pBlock->info.rows == 0) {
-    pCost->filterOutBlocks += 1;
-    qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
-           pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
+    if (pBlock->info.rows == 0) {
+      pCost->filterOutBlocks += 1;
+      qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%d, elapsed time:%.2f ms",
+             GET_TASKID(pTaskInfo), pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows, el);
+    } else {
+      qDebug("%s data block filter applied, elapsed time:%.2f ms", GET_TASKID(pTaskInfo), el);
+    }
   }
 
   return TSDB_CODE_SUCCESS;

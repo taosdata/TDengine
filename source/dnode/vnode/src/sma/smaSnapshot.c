@@ -49,7 +49,8 @@ int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapRead
 
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pSma->pRSmaTsdb[i]) {
-      code = tsdbSnapReaderOpen(pSma->pRSmaTsdb[i], sver, ever, &pReader->pDataReader[i]);
+      code = tsdbSnapReaderOpen(pSma->pRSmaTsdb[i], sver, ever, i == 0 ? SNAP_DATA_RSMA1 : SNAP_DATA_RSMA2,
+                                &pReader->pDataReader[i]);
       if (code < 0) {
         goto _err;
       }
@@ -221,10 +222,9 @@ int32_t rsmaSnapWriterClose(SRsmaSnapWriter** ppWriter, int8_t rollback) {
     }
   }
 
+  smaInfo("vgId:%d vnode snapshot rsma writer close succeed", SMA_VID(pWriter->pSma));
   taosMemoryFree(pWriter);
   *ppWriter = NULL;
-
-  smaInfo("vgId:%d vnode snapshot rsma writer close succeed", SMA_VID(pWriter->pSma));
   return code;
 
 _err:
@@ -245,15 +245,17 @@ int32_t rsmaSnapWrite(SRsmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
     code = tsdbSnapWrite(pWriter->pDataWriter[1], pData, nData);
   } else if (pHdr->type == SNAP_DATA_QTASK) {
     code = rsmaSnapWriteQTaskInfo(pWriter, pData, nData);
+  } else {
+    ASSERT(0);
   }
   if (code < 0) goto _err;
 
 _exit:
-  smaInfo("vgId:%d rsma snapshot write for data %" PRIi8 " succeed", SMA_VID(pWriter->pSma), pHdr->type);
+  smaInfo("vgId:%d rsma snapshot write for data type %" PRIi8 " succeed", SMA_VID(pWriter->pSma), pHdr->type);
   return code;
 
 _err:
-  smaError("vgId:%d rsma snapshot write for data %" PRIi8 " failed since %s", SMA_VID(pWriter->pSma), pHdr->type,
+  smaError("vgId:%d rsma snapshot write for data type %" PRIi8 " failed since %s", SMA_VID(pWriter->pSma), pHdr->type,
            tstrerror(code));
   return code;
 }

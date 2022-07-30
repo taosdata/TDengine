@@ -209,6 +209,9 @@ int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen,
 
 // smaFileUtil ================
 
+typedef struct SQTaskFReader  SQTaskFReader;
+typedef struct SQTaskFWriter  SQTaskFWriter;
+
 #define TD_FILE_HEAD_SIZE 512
 
 typedef struct STFInfo STFInfo;

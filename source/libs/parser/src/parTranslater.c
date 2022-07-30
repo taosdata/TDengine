@@ -1112,12 +1112,16 @@ static int32_t translateIndefiniteRowsFunc(STranslateContext* pCxt, SFunctionNod
   if (!fmIsIndefiniteRowsFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
-  if (!isSelectStmt(pCxt->pCurrStmt) || SQL_CLAUSE_SELECT != pCxt->currClause ||
-      ((SSelectStmt*)pCxt->pCurrStmt)->hasIndefiniteRowsFunc || ((SSelectStmt*)pCxt->pCurrStmt)->hasAggFuncs ||
-      ((SSelectStmt*)pCxt->pCurrStmt)->hasMultiRowsFunc) {
+  if (!isSelectStmt(pCxt->pCurrStmt) || SQL_CLAUSE_SELECT != pCxt->currClause) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
   }
-  if (NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pWindow || NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pGroupByList) {
+  SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+  if (pSelect->hasAggFuncs || pSelect->hasMultiRowsFunc ||
+      (pSelect->hasIndefiniteRowsFunc &&
+       (FUNC_RETURN_ROWS_INDEFINITE == pSelect->returnRows || pSelect->returnRows != fmGetFuncReturnRows(pFunc)))) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  }
+  if (NULL != pSelect->pWindow || NULL != pSelect->pGroupByList) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "%s function is not supported in window query or group query", pFunc->functionName);
   }
@@ -1232,18 +1236,28 @@ static int32_t getMultiResFuncNum(SNodeList* pParameterList) {
   return LIST_LENGTH(pParameterList);
 }
 
+static int32_t calcSelectFuncNum(SFunctionNode* pFunc, int32_t currSelectFuncNum) {
+  if (fmIsCumulativeFunc(pFunc->funcId)) {
+    return currSelectFuncNum > 0 ? currSelectFuncNum : 1;
+  }
+  return currSelectFuncNum + ((fmIsMultiResFunc(pFunc->funcId) && !fmIsLastRowFunc(pFunc->funcId))
+                                  ? getMultiResFuncNum(pFunc->pParameterList)
+                                  : 1);
+}
+
 static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
   if (NULL != pCurrStmt && QUERY_NODE_SELECT_STMT == nodeType(pCurrStmt)) {
     SSelectStmt* pSelect = (SSelectStmt*)pCurrStmt;
     pSelect->hasAggFuncs = pSelect->hasAggFuncs ? true : fmIsAggFunc(pFunc->funcId);
     pSelect->hasRepeatScanFuncs = pSelect->hasRepeatScanFuncs ? true : fmIsRepeatScanFunc(pFunc->funcId);
-    pSelect->hasIndefiniteRowsFunc = pSelect->hasIndefiniteRowsFunc ? true : fmIsIndefiniteRowsFunc(pFunc->funcId);
+    if (fmIsIndefiniteRowsFunc(pFunc->funcId)) {
+      pSelect->hasIndefiniteRowsFunc = true;
+      pSelect->returnRows = fmGetFuncReturnRows(pFunc);
+    }
     pSelect->hasMultiRowsFunc = pSelect->hasMultiRowsFunc ? true : fmIsMultiRowsFunc(pFunc->funcId);
     if (fmIsSelectFunc(pFunc->funcId)) {
       pSelect->hasSelectFunc = true;
-      pSelect->selectFuncNum += (fmIsMultiResFunc(pFunc->funcId) && !fmIsLastRowFunc(pFunc->funcId))
-                                    ? getMultiResFuncNum(pFunc->pParameterList)
-                                    : 1;
+      pSelect->selectFuncNum = calcSelectFuncNum(pFunc, pSelect->selectFuncNum);
     } else if (fmIsVectorFunc(pFunc->funcId)) {
       pSelect->hasOtherVectorFunc = true;
     }
@@ -2483,6 +2497,9 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
 }
 
 static int32_t translatePartitionBy(STranslateContext* pCxt, SNodeList* pPartitionByList) {
+  if (NULL == pPartitionByList) {
+    return TSDB_CODE_SUCCESS;
+  }
   pCxt->currClause = SQL_CLAUSE_PARTITION_BY;
   return translateExprList(pCxt, pPartitionByList);
 }
@@ -5571,7 +5588,7 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
 
   int32_t     code = checkCreateTable(pCxt, pStmt, false);
   SVgroupInfo info = {0};
-  SName name;
+  SName       name;
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
   if (TSDB_CODE_SUCCESS == code) {
     code = getTableHashVgroupImpl(pCxt, &name, &info);

@@ -103,7 +103,7 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
 
 void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
-bool hasDataInGroupInfo(SGroupResInfo* pGroupResInfo);
+bool hasRemainResults(SGroupResInfo* pGroupResInfo);
 
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 
