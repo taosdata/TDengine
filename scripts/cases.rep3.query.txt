@@ -134,7 +134,7 @@ taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/ma
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/math/table_math_abs.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_hyperloglog.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/stable_func_error.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/alltype/table_func_error.py --keep
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/alltype/table_func_error.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/str/split/stable_str_cast_1.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/str/split/stable_str_cast_2.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/str/table_str_length.py --keep --containers

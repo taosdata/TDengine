@@ -778,14 +778,6 @@ class TDCreateData():
        
         if  (list1 == list2) and len(list2)>0:
             self.logger.info(("===list=_===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
-        elif str(list1) == str(list2) :
-            self.logger.info(("===list=str_===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
-        elif abs(float(str(list1).replace("]","").replace("[","")) - float(str(list2).replace("]","").replace("[",""))) <= 0.5:
-            #self.logger.info(("=====list_abs===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
-            self.logger.info(("===list_abs===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
-        elif abs(float(str(list1).replace("]","").replace("[","").replace("e+","")) - float(str(list2).replace("]","").replace("[","").replace("e+",""))) <= 0.0001:
-            #self.logger.info(("=====list_abs+e+===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
-            self.logger.info(("===list_abs+e+===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         elif str(list1).replace("]","").replace("[","") == str(list2).replace("]","").replace("[",""):
             #result is NAN -NAN
             self.logger.info(("===list_nan===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
@@ -793,8 +785,19 @@ class TDCreateData():
             #result is None -None
             self.logger.info(("===list_none===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         elif (list1 == 'NULL') and (list2 == 'NULL'):
-            #result is None -None
+            #result is NULL -NULL
             self.logger.info(("===list_none===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
+        elif str(list1) == str(list2) :
+            self.logger.info(("===list=str_===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
+        elif abs(float(str(list1).replace("]","").replace("[","")) - float(str(list2).replace("]","").replace("[",""))) <= 0.5:
+            #self.logger.info(("=====list_abs===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            self.logger.info(("===list_abs===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
+        elif (abs(list1-list2)/list1 <= 0.01) or (abs(list1-list2)/list2 <= 0.01):
+            #self.logger.info(("=====list_abs+e+===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            self.logger.info(("===list_abs+sub/list===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
+        elif abs(float(str(list1).replace("]","").replace("[","").replace("e+","")) - float(str(list2).replace("]","").replace("[","").replace("e+",""))) <= 0.0001:
+            #self.logger.info(("=====list_abs+e+===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            self.logger.info(("===list_abs+e+===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         else:
             self.logger.info(("sql1:'%s' result != sql2:'%s' result") %(sql1,sql2))
             self.logger.info(("=====list_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
