@@ -549,7 +549,8 @@ typedef struct SMergeAlignedIntervalAggOperatorInfo {
   SIntervalAggOperatorInfo *intervalAggOperatorInfo;
 
   bool         hasGroupId;
-  uint64_t     groupId;
+  uint64_t     groupId;  // current groupId
+  int64_t      curTs;    // current ts
   SSDataBlock* prefetchedBlock;
   bool         inputBlocksFinished;
 
