@@ -144,7 +144,7 @@
 # TD-17623 ./test.sh -f tsim/parser/limit2.sim
 ./test.sh -f tsim/parser/mixed_blocks.sim
 ./test.sh -f tsim/parser/nchar.sim
-# TD-17703 ./test.sh -f tsim/parser/nestquery.sim
+./test.sh -f tsim/parser/nestquery.sim
 ./test.sh -f tsim/parser/null_char.sim
 ./test.sh -f tsim/parser/precision_ns.sim
 ./test.sh -f tsim/parser/projection_limit_offset.sim
