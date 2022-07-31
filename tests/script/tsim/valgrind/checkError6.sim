@@ -106,7 +106,17 @@ sql select * from stb where tbcol not in (1,2,3,null);
 sql select * from stb where tbcol + 3 <> null;
 
 print =============== step5: explain
-
+sql explain analyze select ts from stb where -2;
+sql explain analyze select ts from tb1;
+sql explain analyze select ts from stb order by ts;
+sql explain analyze select * from information_schema.user_stables;
+sql explain analyze select count(*),sum(tbcol) from tb1;
+sql explain analyze select count(*),sum(tbcol) from stb;
+sql explain analyze select count(*),sum(tbcol) from stb group by tbcol;
+sql explain analyze select * from information_schema.user_stables;
+sql explain analyze verbose true select * from information_schema.user_stables where db_name='db2';
+sql explain analyze verbose true select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from stb where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
+sql explain select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from stb where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
 
 print =============== check
 $null=
