@@ -87,6 +87,7 @@ typedef struct {
   tsem_t   *pSem;       // for synchronous API
   SRpcEpSet *pSet;      // for synchronous API 
   char      msg[0];     // RpcHead starts from here
+  SSendInfo sendInfo; // save last send information
 } SRpcReqContext;
 
 typedef struct SRpcConn {
@@ -1412,6 +1413,11 @@ static bool rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   if(pContext) 
     pConn->rid = pContext->rid;
 
+  // save  
+  pContext->sendInfo.pConn  = pConn;
+  pContext->sendInfo.pFdObj = pConn->chandle;
+  pContext->sendInfo.fd     = taosGetFdID(pConn->chandle);
+
   bool ret = rpcSendMsgToPeer(pConn, msg, msgLen);
   if (pConn->connType != RPC_CONN_TCPC)
     taosTmrReset(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl, &pConn->pTimer);
@@ -1787,7 +1793,7 @@ bool doRpcSendProbe(SRpcConn *pConn) {
 }
 
 // send server syn
-bool rpcSendProbe(int64_t rpcRid, void* pPrevContext, void* pPrevConn, void* pPrevFdObj, int32_t prevFd) {
+bool rpcSendProbe(int64_t rpcRid, void* pPrevContext) {
   // return false can kill query
   bool ret = false;
   if(rpcRid < 0) {
@@ -1809,28 +1815,27 @@ bool rpcSendProbe(int64_t rpcRid, void* pPrevContext, void* pPrevConn, void* pPr
   }
 
   // conn same
-  if (pContext->pConn != pPrevConn) {
-    tError("PROBE rpcRid=0x%" PRIx64 " connect obj diff. pContext->pConn=%p pPreConn=%p", rpcRid, pContext->pConn, pPrevConn);
+  if (pContext->pConn != pContext->sendInfo.pConn) {
+    tError("PROBE rpcRid=0x%" PRIx64 " connect obj diff. pContext->pConn=%p pPreConn=%p", rpcRid, pContext->pConn, pContext->sendInfo.pConn);
     ret = pContext->pConn == NULL;
     goto _END;
   }
 
   // fdObj same
-  if (pContext->pConn->chandle != pPrevFdObj) {
-    tError("PROBE rpcRid=0x%" PRIx64 " connect fdObj diff. pContext->pConn->chandle=%p pPrevFdObj=%p", rpcRid, pContext->pConn->chandle, pPrevFdObj);
+  if (pContext->pConn->chandle != pContext->sendInfo.pFdObj) {
+    tError("PROBE rpcRid=0x%" PRIx64 " connect fdObj diff. pContext->pConn->chandle=%p pPrevFdObj=%p", rpcRid, pContext->pConn->chandle, pContext->sendInfo.pFdObj);
     goto _END;
   }
 
   // fd same
   int32_t fd = taosGetFdID(pContext->pConn->chandle);
-  if (fd != prevFd) {
-    tError("PROBE rpcRid=0x%" PRIx64 " connect fd diff.fd=%d prevFd=%d", rpcRid, fd, prevFd);
+  if (fd != pContext->sendInfo.fd) {
+    tError("PROBE rpcRid=0x%" PRIx64 " connect fd diff.fd=%d prevFd=%d", rpcRid, fd, pContext->sendInfo.fd);
     goto _END;
   }
 
   // send syn
   ret = doRpcSendProbe(pContext->pConn);
-  tInfo("PROBE 0x%" PRIx64 " rrpcRid=0x%" PRIx64 " send data ret=%d fd=%d.", (int64_t)pContext->ahandle, rpcRid, ret, fd);
 
 _END:
   // put back req context
@@ -1839,7 +1844,7 @@ _END:
 }
 
 // after sql request send , save conn info
-bool rpcSaveSendInfo(int64_t rpcRid, void** ppContext, void** ppConn, void** ppFdObj, int32_t* pFd) {
+bool rpcSaveSendInfo(int64_t rpcRid, void** ppContext) {
   if(rpcRid < 0) {
     tError("PROBE saveSendInfo rpcRid=0x%" PRIx64 " less than zero, invalid.", rpcRid);
     return false;
@@ -1851,18 +1856,8 @@ bool rpcSaveSendInfo(int64_t rpcRid, void** ppContext, void** ppConn, void** ppF
     return false;
   }
 
-  if (pContext->pConn == NULL || pContext->pConn->chandle == NULL) {
-    return false;
-  }
-
   if (ppContext)
     *ppContext = pContext;
-  if (ppConn)
-    *ppConn    = pContext->pConn;
-  if (ppFdObj && pContext->pConn)
-    *ppFdObj   = pContext->pConn->chandle;
-  if (pFd && pContext->pConn)
-    *pFd       = taosGetFdID(pContext->pConn->chandle);
 
   taosReleaseRef(tsRpcRefId, rpcRid);
   return true;

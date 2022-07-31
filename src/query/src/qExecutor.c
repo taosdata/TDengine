@@ -6369,7 +6369,7 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
 
     // TEST TODU DELETE
     static int loop = 0;
-    taosMsleep(3*1000);
+    taosMsleep(1*1000);
     qInfo(" loop=%d pEnv=%p", loop++, pRuntimeEnv);
 
 

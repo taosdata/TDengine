@@ -78,6 +78,13 @@ typedef struct SRpcInit {
   int  (*afp)(char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
 } SRpcInit;
 
+typedef struct SSendInfo {
+  void *pContext;
+  void *pConn;
+  void *pFdObj;
+  int32_t fd; 
+} SSendInfo;
+
 int32_t rpcInit();
 void  rpcCleanup();
 void *rpcOpen(const SRpcInit *pRpc);
@@ -94,9 +101,9 @@ int   rpcReportProgress(void *pConn, char *pCont, int contLen);
 void  rpcCancelRequest(int64_t rid);
 int32_t rpcUnusedSession(void * rpcInfo, bool bLock);
 // send rpc Refid connection probe alive message 
-bool rpcSendProbe(int64_t rpcRid, void* pPrevContext, void* pPrevConn, void* pPrevFdObj, int32_t prevFd);
+bool rpcSendProbe(int64_t rpcRid, void* pPrevContext);
 // after sql request send , save conn info
-bool rpcSaveSendInfo(int64_t rpcRid, void** ppContext, void** ppConn, void** ppFdObj, int32_t* pFd);
+bool rpcSaveSendInfo(int64_t rpcRid, void** ppContext);
 
 #ifdef __cplusplus
 }

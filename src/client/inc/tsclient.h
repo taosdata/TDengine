@@ -402,9 +402,6 @@ typedef struct SSqlObj {
   int64_t          lastProbe;    
   int64_t          lastAlive;
   void *           pPrevContext;
-  void *           pPrevConn;
-  void *           pPrevFdObj;
-  int32_t          prevFd;
 } SSqlObj;
 
 typedef struct SSqlStream {
