@@ -35,16 +35,16 @@ settings:
         firstEP: vm83:6030
         logDir: /var/log/taos
         debugFlag: 135
-  - name: taosBenchmark
-    fqdn: [vm83]
-    spec:
-      version: 1.0.0
-      taos_version: 2.4.0.0
-      config_dir: /etc/taos
-      taos_config:
-        firstEP: vm83:6030
-        logDir: /var/log/taos
-        debugFlag: 135
+  # - name: taosBenchmark
+  #   fqdn: [vm83]
+  #   spec:
+  #     version: 1.0.0
+  #     taos_version: 2.4.0.0
+  #     config_dir: /etc/taos
+  #     taos_config:
+  #       firstEP: vm83:6030
+  #       logDir: /var/log/taos
+  #       debugFlag: 135
 
 
   - name: prometheus

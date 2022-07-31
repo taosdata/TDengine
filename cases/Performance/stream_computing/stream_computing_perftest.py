@@ -252,10 +252,16 @@ class StreamComputingPerfTest(TDCase):
                 f.write(f'\n\n')
 
                 self.tdSql.query(query_sql)
-                init_res = self.tdSql.query_data[0][0]
+                if len(self.tdSql.query_data) > 0:
+                    init_res = self.tdSql.query_data[0][0]
+                else:
+                    init_res = 0
                 time.sleep(1)
                 self.tdSql.query(query_sql)
-                expected_res = self.tdSql.query_data[0][0]
+                if len(self.tdSql.query_data) > 0:
+                    expected_res = self.tdSql.query_data[0][0]
+                else:
+                    expected_res = 0
                 end_tag = 0
                 latency = 0
                 while init_res != expected_res:
@@ -271,9 +277,26 @@ class StreamComputingPerfTest(TDCase):
                         return False
 
                 f.write(f'--------{cases}---- {query_sql} \t--------\n')
-                self.tdSql.query(query_sql)
-                f.write(str(self.tdSql.query_data[0][0]))
+                if len(self.tdSql.query_data) > 0:
+                    self.tdSql.query(query_sql)
+                    f.write(str(self.tdSql.query_data[0][0]))
+                else:
+                    f.write(str(0))
                 f.write(f'\n\n')
+                
+                f.write(f'--------{cases}---- sub_query row_count \t--------\n')
+                self.tdSql.query(cfg[cases][json_file]["stream_info"]["source_sql"])
+                f.write(str(self.tdSql.query_row))
+                f.write(f'\n\n')
+
+                f.write(f'--------{cases}---- target_db row_count \t--------\n')
+                self.tdSql.query(f'select count(*) from {cfg[cases][json_file]["stream_info"]["stream_stb"]};')
+                if len(self.tdSql.query_data) > 0:
+                    f.write(str(self.tdSql.query_data[0][0]))
+                else:
+                    f.write(str(0))
+                f.write(f'\n\n')
+
                 f.close()
             print(result_file_name)
             
