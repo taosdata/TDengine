@@ -517,6 +517,13 @@ static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
     goto _return;
   }
 
+  bool forbidden = false;
+  taosLocalCfgForbiddenToChange(pStmt->config, &forbidden);
+  if (forbidden) {
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    return terrno;
+  }
+
   if (cfgSetItem(tsCfg, pStmt->config, pStmt->value, CFG_STYPE_ALTER_CMD)) {
     return terrno;
   }

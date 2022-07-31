@@ -401,7 +401,7 @@ SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
 
 **返回结果类型**：CAST 中指定的类型（type_name)。
 
-**适用数据类型**：输入参数 expression 的类型可以是BLOB、MEDIUMBLOB和JSON外的所有类型。
+**适用数据类型**：输入参数 expression 的类型可以是除JSON外的所有类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -410,10 +410,10 @@ SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
 **使用说明**：
 
 - 对于不能支持的类型转换会直接报错。
-- 对于类型支持但某些值无法正确转换的情况对应的转换后的值以转换函数输出为准。目前可能遇到的几种情况：
+- 对于类型支持但某些值无法正确转换的情况，对应的转换后的值以转换函数输出为准。目前可能遇到的几种情况：
         1）字符串类型转换数值类型时可能出现的无效字符情况，例如"a"可能转为0，但不会报错。
         2）转换到数值类型时，数值大于type_name可表示的范围时，则会溢出，但不会报错。
-        3）转换到字符串类型时，如果转换后长度超过type_name的长度，则会截断，但不会报错。
+        3）转换到字符串类型时，如果转换后长度超过type_name中指定的长度，则会截断，但不会报错。
 
 #### TO_ISO8601
 
@@ -421,7 +421,7 @@ SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
 SELECT TO_ISO8601(ts[, timezone]) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**功能说明**：将 UNIX 时间戳转换成为 ISO8601 标准的日期时间格式，并附加时区信息。timezone 参数允许用户为输出结果指定附带任意时区信息。如果 timezone 参数省略，输出结果附带当前客户端的系统时区信息。
+**功能说明**：将 UNIX 时间戳转换成为 ISO8601 标准的日期时间格式，并附加时区信息。timezone 参数允许用户为输出结果指定附带任意时区信息。如果 timezone 参数省略，输出结果则附带当前客户端的系统时区信息。
 
 **返回结果数据类型**：VARCHAR 类型。
 
@@ -435,7 +435,7 @@ SELECT TO_ISO8601(ts[, timezone]) FROM { tb_name | stb_name } [WHERE clause];
 
 - timezone 参数允许输入的时区格式为: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]。例如，TO_ISO8601(1, "+00:00")。
 - 如果输入是表示 UNIX 时间戳的整形，返回格式精度由时间戳的位数决定; 
-- 如果输入是 TIMSTAMP 类型的列，返回格式的时间戳精度与当前 DATABASE 设置的时间精度一致。
+- 如果输入是 TIMESTAMP 类型的列，返回格式的时间戳精度与当前 DATABASE 设置的时间精度一致。
 
 
 #### TO_JSON
@@ -516,7 +516,7 @@ SELECT TIMEDIFF(ts | datetime_string1, ts | datetime_string2 [, time_unit]) FROM
 
 **功能说明**：计算两个时间戳之间的差值，并近似到时间单位 time_unit 指定的精度。
 
-**返回结果数据类型**：BIGINT。输入包含不符合时间日期格式字符串则返回 NULL。
+**返回结果数据类型**：BIGINT。
 
 **应用字段**：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
 
@@ -528,6 +528,7 @@ SELECT TIMEDIFF(ts | datetime_string1, ts | datetime_string2 [, time_unit]) FROM
 - 支持的时间单位 time_unit 如下：
           1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。
 - 如果时间单位 time_unit 未指定， 返回的时间差值精度与当前 DATABASE 设置的时间精度一致。
+- 输入包含不符合时间日期格式的字符串则返回 NULL。
 
 
 #### TIMETRUNCATE
@@ -548,6 +549,7 @@ SELECT TIMETRUNCATE(ts | datetime_string , time_unit) FROM { tb_name | stb_name 
 - 支持的时间单位 time_unit 如下：
           1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+- 输入包含不符合时间日期格式的字符串则返回 NULL。
 
 
 #### TIMEZONE
@@ -659,8 +661,6 @@ SELECT ELAPSED(ts_primary_key [, time_unit]) FROM { tb_name | stb_name } [WHERE 
 
 **适用数据类型**：TIMESTAMP。
 
-**支持的版本**：2.6.0.0 及以后的版本。
-
 **适用于**: 表，超级表，嵌套查询的外层查询
 
 **说明**：
@@ -767,19 +767,19 @@ SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_nam
 **适用于**: 表和超级表。
 
 **详细说明**：
-1. bin_type 用户指定的分桶类型, 有效输入类型为"user_input“, ”linear_bin", "log_bin"。
-2. bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式(均为 JSON 格式字符串)：       
+- bin_type 用户指定的分桶类型, 有效输入类型为"user_input“, ”linear_bin", "log_bin"。
+- bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式(均为 JSON 格式字符串)：       
     - "user_input": "[1, 3, 5, 7]" 
        用户指定 bin 的具体数值。
        
     - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
-       "start" 表示数据起始点，"width" 表示每次 bin 偏移量, "count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点跟终点，
+       "start" 表示数据起始点，"width" 表示每次 bin 偏移量, "count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
        生成区间为[-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf]。
  
     - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
-       "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点跟终点，
+       "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
        生成区间为[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf]。
-3. normalized 是否将返回结果归一化到 0~1 之间 。有效输入为 0 和 1。
+- normalized 是否将返回结果归一化到 0~1 之间 。有效输入为 0 和 1。
 
 
 ### PERCENTILE
@@ -958,20 +958,20 @@ SELECT MODE(field_name) FROM tb_name [WHERE clause];
 SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-  **功能说明**： 获取数据的 k 个采样值。参数 k 的合法输入范围是 1≤ k ≤ 1000。
+**功能说明**： 获取数据的 k 个采样值。参数 k 的合法输入范围是 1≤ k ≤ 1000。
 
-  **返回结果类型**： 同原始数据类型， 返回结果中带有该行记录的时间戳。
+**返回结果类型**： 同原始数据类型， 返回结果中带有该行记录的时间戳。
 
-  **适用数据类型**： 在超级表查询中使用时，不能应用在标签之上。
+**适用数据类型**： 在超级表查询中使用时，不能应用在标签之上。
 
-  **嵌套子查询支持**： 适用于内层查询和外层查询。
+**嵌套子查询支持**： 适用于内层查询和外层查询。
 
-  **适用于**：表和超级表。
+**适用于**：表和超级表。
 
-  **使用说明**： 
-  
-  - 不能参与表达式计算；该函数可以应用在普通表和超级表上；
-  - 使用在超级表上的时候，需要搭配 PARTITION by tbname 使用，将结果强制规约到单个时间线。
+**使用说明**： 
+
+- 不能参与表达式计算；该函数可以应用在普通表和超级表上；
+- 使用在超级表上的时候，需要搭配 PARTITION by tbname 使用，将结果强制规约到单个时间线。
 
 
 ### TAIL
@@ -1048,9 +1048,9 @@ SELECT CSUM(field_name) FROM { tb_name | stb_name } [WHERE clause]
 
 **使用说明**： 
   
-  - 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
-  - 只能与聚合（Aggregation）函数一起使用。 该函数可以应用在普通表和超级表上。 
-  - 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
+- 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
+- 只能与聚合（Aggregation）函数一起使用。 该函数可以应用在普通表和超级表上。 
+- 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
 
 
 ### DERIVATIVE
@@ -1069,8 +1069,8 @@ SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHER
 
 **使用说明**: 
   
-  - DERIVATIVE 函数可以在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）。
-  - 可以与选择相关联的列一起使用。 例如: select \_rowts, DERIVATIVE() from。
+- DERIVATIVE 函数可以在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）。
+- 可以与选择相关联的列一起使用。 例如: select \_rowts, DERIVATIVE() from。
 
 ### DIFF
 
@@ -1088,8 +1088,8 @@ SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHER
 
 **使用说明**: 
 
-  - 输出结果行数是范围内总行数减一，第一行没有结果输出。
-  - 可以与选择相关联的列一起使用。 例如: select \_rowts, DIFF() from。
+- 输出结果行数是范围内总行数减一，第一行没有结果输出。
+- 可以与选择相关联的列一起使用。 例如: select \_rowts, DIFF() from。
 
 
 ### IRATE
@@ -1113,21 +1113,21 @@ SELECT IRATE(field_name) FROM tb_name WHERE clause;
 SELECT MAVG(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-  **功能说明**： 计算连续 k 个值的移动平均数（moving average）。如果输入行数小于 k，则无结果输出。参数 k 的合法输入范围是 1≤ k ≤ 1000。
+**功能说明**： 计算连续 k 个值的移动平均数（moving average）。如果输入行数小于 k，则无结果输出。参数 k 的合法输入范围是 1≤ k ≤ 1000。
 
-  **返回结果类型**： DOUBLE。
+**返回结果类型**： DOUBLE。
 
-  **适用数据类型**： 数值类型。
+**适用数据类型**： 数值类型。
 
-  **嵌套子查询支持**： 适用于内层查询和外层查询。
+**嵌套子查询支持**： 适用于内层查询和外层查询。
 
-  **适用于**：表和超级表。
+**适用于**：表和超级表。
 
-  **使用说明**： 
+**使用说明**： 
   
-  - 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1); 
-  - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
-  - 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
+- 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1); 
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
+- 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
 
 
 ### STATECOUNT

@@ -104,6 +104,16 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
 // only start once
 static void syncNodeStartSnapshotOnce(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, SyncTerm lastApplyTerm,
                                       SyncAppendEntriesReply* pMsg) {
+  if (beginIndex > endIndex) {
+    do {
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "snapshot param error, start:%ld, end:%ld", beginIndex, endIndex);
+      syncNodeErrorLog(ths, logBuf);
+    } while (0);
+
+    return;
+  }
+
   // get sender
   SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(pMsg->srcId));
   ASSERT(pSender != NULL);
