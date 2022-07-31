@@ -1445,6 +1445,7 @@ static void doUpdateNumOfRows(SResultRow* pRow, int32_t numOfExprs, const int32_
   }
 }
 
+// todo extract method with copytoSSDataBlock
 int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
                                              SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs,
                                              const int32_t* rowCellOffset, SSDataBlock* pBlock,
@@ -4613,42 +4614,29 @@ void releaseQueryBuf(size_t numOfTables) {
   atomic_add_fetch_64(&tsQueryBufferSizeBytes, t);
 }
 
-int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo** pRes, int32_t* capacity,
-                                   int32_t* resNum) {
-  if (*resNum >= *capacity) {
-    *capacity += 10;
+int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInfoList) {
+  SExplainExecInfo execInfo = {0};
+  SExplainExecInfo* pExplainInfo = taosArrayPush(pExecInfoList, &execInfo);
 
-    *pRes = taosMemoryRealloc(*pRes, (*capacity) * sizeof(SExplainExecInfo));
-    if (NULL == *pRes) {
-      qError("malloc %d failed", (*capacity) * (int32_t)sizeof(SExplainExecInfo));
-      return TSDB_CODE_QRY_OUT_OF_MEMORY;
-    }
-  }
-
-  SExplainExecInfo* pInfo = &(*pRes)[*resNum];
-
-  pInfo->numOfRows = operatorInfo->resultInfo.totalRows;
-  pInfo->startupCost = operatorInfo->cost.openCost;
-  pInfo->totalCost = operatorInfo->cost.totalCost;
+  pExplainInfo->numOfRows = operatorInfo->resultInfo.totalRows;
+  pExplainInfo->startupCost = operatorInfo->cost.openCost;
+  pExplainInfo->totalCost = operatorInfo->cost.totalCost;
+  pExplainInfo->verboseLen = 0;
+  pExplainInfo->verboseInfo = NULL;
 
   if (operatorInfo->fpSet.getExplainFn) {
-    int32_t code = operatorInfo->fpSet.getExplainFn(operatorInfo, &pInfo->verboseInfo, &pInfo->verboseLen);
+    int32_t code = operatorInfo->fpSet.getExplainFn(operatorInfo, &pExplainInfo->verboseInfo, &pExplainInfo->verboseLen);
     if (code) {
       qError("%s operator getExplainFn failed, code:%s", GET_TASKID(operatorInfo->pTaskInfo), tstrerror(code));
       return code;
     }
-  } else {
-    pInfo->verboseLen = 0;
-    pInfo->verboseInfo = NULL;
   }
-
-  ++(*resNum);
 
   int32_t code = 0;
   for (int32_t i = 0; i < operatorInfo->numOfDownstream; ++i) {
-    code = getOperatorExplainExecInfo(operatorInfo->pDownstream[i], pRes, capacity, resNum);
-    if (code) {
-      taosMemoryFreeClear(*pRes);
+    code = getOperatorExplainExecInfo(operatorInfo->pDownstream[i], pExecInfoList);
+    if (code != TSDB_CODE_SUCCESS) {
+//      taosMemoryFreeClear(*pRes);
       return TSDB_CODE_QRY_OUT_OF_MEMORY;
     }
   }

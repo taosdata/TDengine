@@ -39,6 +39,8 @@ TEST_F(PlanOrderByTest, expr) {
   useDb("root", "test");
 
   run("SELECT * FROM t1 ORDER BY c1 + 10, c2");
+
+  run("SELECT c1 FROM st1 ORDER BY ts, _C0");
 }
 
 TEST_F(PlanOrderByTest, nullsOrder) {

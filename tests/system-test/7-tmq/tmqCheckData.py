@@ -27,26 +27,26 @@ class TDTestCase:
         cmdStr = '%s/build/bin/taos -c %s -s "%s >> %s"'%(buildPath, cfgPath, queryString, dstFile)
         tdLog.info(cmdStr)
         os.system(cmdStr)
-        
+
         consumeRowsFile = '%s/../log/consumerid_%d.txt'%(cfgPath, consumerId)
         tdLog.info("rows file: %s, %s"%(consumeRowsFile, dstFile))
 
         consumeFile = open(consumeRowsFile, mode='r')
         queryFile = open(dstFile, mode='r')
-        
+
         # skip first line for it is schema
         queryFile.readline()
 
         while True:
             dst = queryFile.readline()
             src = consumeFile.readline()
-            
+
             if dst:
                 if dst != src:
                     tdLog.exit("consumerId %d consume rows is not match the rows by direct query"%consumerId)
             else:
                 break
-        return 
+        return
 
     def tmqCase1(self):
         tdLog.printNoPrefix("======== test case 1: ")
@@ -78,13 +78,13 @@ class TDTestCase:
         tdCom.create_ctable(tdSql, dbname=paraDict["dbName"],stbname=paraDict["stbName"],tag_elm_list=paraDict['tagSchema'],count=paraDict["ctbNum"], default_ctbname_prefix=paraDict['ctbPrefix'])
         tdLog.info("insert data")
         tmqCom.insert_data(tdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])
-        
+
         tdLog.info("create topics from stb with filter")
         queryString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s where c1 %% 7 == 0" %(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicNameList[0], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        tdSql.query(queryString)        
+        tdSql.query(queryString)
         expectRowsList.append(tdSql.getRows())
 
         # init consume info, and start tmq_sim, then check consume result
@@ -100,15 +100,15 @@ class TDTestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'])
 
-        tdLog.info("wait the consume result") 
+        tdLog.info("wait the consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
-        
+
         if expectRowsList[0] != resultList[0]:
             tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[0], resultList[0]))
             tdLog.exit("0 tmq consume rows error!")
 
-        self.checkFileContent(consumerId, queryString)     
+        self.checkFileContent(consumerId, queryString)
 
         # reinit consume info, and start tmq_sim, then check consume result
         tmqCom.initConsumerTable()
@@ -117,7 +117,7 @@ class TDTestCase:
         sqlString = "create topic %s as %s" %(topicNameList[1], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        tdSql.query(queryString)        
+        tdSql.query(queryString)
         expectRowsList.append(tdSql.getRows())
 
         consumerId   = 1
@@ -127,7 +127,7 @@ class TDTestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'])
 
-        tdLog.info("wait the consume result") 
+        tdLog.info("wait the consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
         if expectRowsList[1] != resultList[0]:
@@ -143,8 +143,8 @@ class TDTestCase:
         sqlString = "create topic %s as %s" %(topicNameList[2], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        tdSql.query(queryString)        
-        expectRowsList.append(tdSql.getRows())                
+        tdSql.query(queryString)
+        expectRowsList.append(tdSql.getRows())
 
         consumerId   = 2
         topicList    = topicNameList[2]
@@ -153,7 +153,7 @@ class TDTestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'])
 
-        tdLog.info("wait the consume result") 
+        tdLog.info("wait the consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
         # if expectRowsList[2] != resultList[0]:
@@ -162,7 +162,7 @@ class TDTestCase:
 
         # self.checkFileContent(consumerId, queryString)
 
-        time.sleep(10)        
+        time.sleep(10)
         for i in range(len(topicNameList)):
             tdSql.query("drop topic %s"%topicNameList[i])
 

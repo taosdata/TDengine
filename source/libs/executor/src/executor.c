@@ -48,7 +48,6 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     pOperator->status = OP_NOT_OPENED;
 
     SStreamScanInfo* pInfo = pOperator->info;
-    /*pInfo->assignBlockUid = assignUid;*/
 
     // TODO: if a block was set but not consumed,
     // prevent setting a different type of block
@@ -496,11 +495,9 @@ void qDestroyTask(qTaskInfo_t qTaskHandle) {
   doDestroyTask(pTaskInfo);
 }
 
-int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, int32_t* resNum, SExplainExecInfo** pRes) {
+int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, SArray* pExecInfoList) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  int32_t        capacity = 0;
-
-  return getOperatorExplainExecInfo(pTaskInfo->pRoot, pRes, &capacity, resNum);
+  return getOperatorExplainExecInfo(pTaskInfo->pRoot, pExecInfoList);
 }
 
 int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len) {

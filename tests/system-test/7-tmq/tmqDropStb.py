@@ -47,7 +47,7 @@ class TDTestCase:
 
     pollDelay = 20
     showMsg   = 1
-    showRow   = 1  
+    showRow   = 1
 
     hostname = socket.gethostname()
 
@@ -59,7 +59,7 @@ class TDTestCase:
     def tmqCase1(self):
         tdLog.printNoPrefix("======== test case 1: ")
         tdLog.info("step 1: create database, stb, ctb and insert data")
-        
+
         tmqCom.initConsumerTable(self.cdbName)
 
         tdCom.create_database(tdSql,self.paraDict["dbName"],self.paraDict["dropFlag"])
@@ -69,35 +69,35 @@ class TDTestCase:
         tdCom.create_ctable(tdSql,dbname=self.paraDict["dbName"],stbname=self.paraDict["stbName"],tag_elm_list=self.paraDict['tagSchema'],count=self.paraDict["ctbNum"],default_ctbname_prefix=self.paraDict["ctbPrefix"])
         tmqCom.insert_data_2(tdSql,self.paraDict["dbName"],self.paraDict["ctbPrefix"],self.paraDict["ctbNum"],self.paraDict["rowsPerTbl"],self.paraDict["batchNum"],self.paraDict["startTs"],self.paraDict["ctbStartIdx"])
         # pThread1 = tmqCom.asyncInsertData(paraDict=self.paraDict)
-        
+
         self.paraDict["stbName"] = 'stb2'
         self.paraDict["ctbPrefix"] = 'newctb'
         self.paraDict["batchNum"] = 10000
         tdCom.create_stable(tdSql,dbname=self.paraDict["dbName"],stbname=self.paraDict["stbName"],column_elm_list=self.paraDict["colSchema"],tag_elm_list=self.paraDict["tagSchema"],count=1, default_stbname_prefix=self.paraDict["stbName"])
         tdCom.create_ctable(tdSql,dbname=self.paraDict["dbName"],stbname=self.paraDict["stbName"],tag_elm_list=self.paraDict['tagSchema'],count=self.paraDict["ctbNum"],default_ctbname_prefix=self.paraDict["ctbPrefix"])
         # tmqCom.insert_data_2(tdSql,self.paraDict["dbName"],self.paraDict["ctbPrefix"],self.paraDict["ctbNum"],self.paraDict["rowsPerTbl"],self.paraDict["batchNum"],self.paraDict["startTs"],self.paraDict["ctbStartIdx"])
-        pThread2 = tmqCom.asyncInsertData(paraDict=self.paraDict)        
+        pThread2 = tmqCom.asyncInsertData(paraDict=self.paraDict)
 
         tdLog.info("create topics from db")
-        topicName1 = 'UpperCasetopic_%s'%(self.paraDict['dbName'])        
+        topicName1 = 'UpperCasetopic_%s'%(self.paraDict['dbName'])
         tdSql.execute("create topic %s as database %s" %(topicName1, self.paraDict['dbName']))
-        
+
         topicList = topicName1 + ',' +topicName1
         keyList = '%s,%s,%s,%s'%(self.groupId,self.autoCommit,self.autoCommitInterval,self.autoOffset)
         self.expectrowcnt = self.paraDict["rowsPerTbl"] * self.paraDict["ctbNum"] * 2
         tmqCom.insertConsumerInfo(self.consumerId, self.expectrowcnt,topicList,keyList,self.ifcheckdata,self.ifManualCommit)
-        
-        tdLog.info("start consume processor")  
+
+        tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(self.pollDelay,self.paraDict["dbName"],self.showMsg, self.showRow,self.cdbName)
-        
-        tmqCom.getStartConsumeNotifyFromTmqsim()  
+
+        tmqCom.getStartConsumeNotifyFromTmqsim()
         tdLog.info("drop one stable")
-        self.paraDict["stbName"] = 'stb1'    
-        tdSql.execute("drop table %s.%s" %(self.paraDict['dbName'], self.paraDict['stbName']))        
+        self.paraDict["stbName"] = 'stb1'
+        tdSql.execute("drop table %s.%s" %(self.paraDict['dbName'], self.paraDict['stbName']))
         # tmqCom.drop_ctable(tdSql, dbname=self.paraDict['dbName'], count=self.paraDict["ctbNum"], default_ctbname_prefix=self.paraDict["ctbPrefix"])
 
         pThread2.join()
-    
+
         tdLog.info("wait result from consumer, then check it")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
@@ -105,7 +105,7 @@ class TDTestCase:
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
-        
+
         if not (totalConsumeRows >= self.expectrowcnt/2 and totalConsumeRows <= self.expectrowcnt):
             tdLog.info("act consume rows: %d, expect consume rows: between %d and %d"%(totalConsumeRows, self.expectrowcnt/2, self.expectrowcnt))
             tdLog.exit("tmq consume rows error!")

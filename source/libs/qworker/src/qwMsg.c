@@ -82,8 +82,9 @@ int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t c
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendExplainRsp(SRpcHandleInfo *pConn, SExplainExecInfo *execInfo, int32_t num) {
-  SExplainRsp rsp = {.numOfPlans = num, .subplanInfo = execInfo};
+int32_t qwBuildAndSendExplainRsp(SRpcHandleInfo *pConn, SArray* pExecList) {
+  SExplainExecInfo* pInfo = taosArrayGet(pExecList, 0);
+  SExplainRsp rsp = {.numOfPlans = taosArrayGetSize(pExecList), .subplanInfo = pInfo};
 
   int32_t contLen = tSerializeSExplainRsp(NULL, 0, &rsp);
   void *  pRsp = rpcMallocCont(contLen);
@@ -96,10 +97,9 @@ int32_t qwBuildAndSendExplainRsp(SRpcHandleInfo *pConn, SExplainExecInfo *execIn
       .code = 0,
       .info = *pConn,
   };
+
   rpcRsp.info.ahandle = NULL;
-
   tmsgSendRsp(&rpcRsp);
-
   return TSDB_CODE_SUCCESS;
 }
 

@@ -146,6 +146,7 @@ struct SConfig *taosGetCfg();
 void    taosSetAllDebugFlag(int32_t flag);
 void    taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal);
 int32_t taosSetCfg(SConfig *pCfg, char *name);
+void    taosLocalCfgForbiddenToChange(char* name, bool* forbidden);
 
 #ifdef __cplusplus
 }

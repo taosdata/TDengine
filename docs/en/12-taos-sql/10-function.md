@@ -273,7 +273,7 @@ SELECT CONCAT(str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHER
 
 **Return value type**: If all input strings are VARCHAR type, the result is VARCHAR type too. If any one of input strings is NCHAR type, then the result is NCHAR. If input strings contain NULL value, the result is NULL. 
 
-**Applicable data types**: VARCHAR, NCHAR.  At least 2 input strings are requird, and at most 8 input strings are allowed. 
+**Applicable data types**: VARCHAR, NCHAR.  At least 2 input strings are required, and at most 8 input strings are allowed. 
 
 **Applicable table types**: table, STable.
 
@@ -290,7 +290,7 @@ SELECT CONCAT_WS(separator, str1|column1, str2|column2, ...) FROM { tb_name | st
 
 **Return value type**: If all input strings are VARCHAR type, the result is VARCHAR type too. If any one of input strings is NCHAR type, then the result is NCHAR. If input strings contain NULL value, the result is NULL. 
 
-**Applicable data types**: VARCHAR, NCHAR. At least 3 input strings are requird, and at most 9 input strings are allowed. 
+**Applicable data types**: VARCHAR, NCHAR. At least 3 input strings are required, and at most 9 input strings are allowed. 
 
 **Applicable table types**: table, STable.
 
@@ -527,6 +527,7 @@ SELECT TIMEDIFF(ts1 | datetime_string1, ts2 | datetime_string2 [, time_unit]) FR
 - Time unit specified by `time_unit` can be:
   1b(nanosecond), 1u(microsecond),1a(millisecond),1s(second),1m(minute),1h(hour),1d(day),1w(week).
 - If `time_unit` parameter is not specified, the precision of the returned time duration is same as the precision set for the current database in use.
+- If input date-time string cannot be converted to UNIX timestamp, NULL value is returned.
 
 #### TIMETRUNCATE
 
@@ -547,6 +548,7 @@ SELECT TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) FROM { tb_name
 - Time unit specified by `time_unit` can be:
   1b(nanosecond),1u(microsecond),1a(millisecond),1s(second),1m(minute),1h(hour),1d(day),1w(week).
 - The precision of the returned timestamp is same as the precision set for the current database in use.
+- If input date-time string cannot be converted to UNIX timestamp, NULL value is returned.
 
 #### TIMEZONE
 
@@ -599,7 +601,7 @@ FROM { tb_name | stb_name } [WHERE clause]
 
 **Return value type**: DOUBLE.
 
-**Applicable column types**: Numeric types.
+**Applicable data types**: Numeric types.
 
 **Applicable table types**: table, STable.
 
@@ -654,7 +656,7 @@ SELECT ELAPSED(field_name[, time_unit]) FROM { tb_name | stb_name } [WHERE claus
 
 **Return value type**：DOUBLE.
 
-**Applicable Column type**：TIMESTAMP.
+**Applicable data type**：TIMESTAMP.
 
 **Applicable tables**: table, STable, outter in nested query.
 
@@ -693,7 +695,7 @@ SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **Return value type**: DOUBLE.
 
-**Applicable column types**: Numeric types.
+**Applicable data types**: Numeric types.
 
 **Applicable table types**: table, STable.
 
@@ -709,7 +711,7 @@ SELECT STDDEV(field_name) FROM tb_name [WHERE clause];
 
 **Return value type**: DOUBLE.
 
-**Applicable column types**: Numeric types.
+**Applicable data types**: Numeric types.
 
 **Applicable table types**: table, STable.
 
@@ -723,7 +725,7 @@ SELECT SUM(field_name) FROM tb_name [WHERE clause];
 
 **Return value type**: DOUBLE.
 
-**Applicable column types**: Numeric types.
+**Applicable data types**: Numeric types.
 
 **Applicable table types**: table, STable.
 
@@ -737,7 +739,7 @@ SELECT HYPERLOGLOG(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **Return value type**: INTEGER.
 
-**Applicable column types**: All data types.
+**Applicable data types**: All data types.
 
 **More explanations**: The benefit of using hyperloglog algorithm is that the memory usage is under control when the data volume is huge. However, when the data volume is very small, the result may be not accurate, it's recommented to use `select count(data) from (select unique(col) as data from table)` in this case.
 
@@ -751,14 +753,14 @@ SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_nam
 
 **Return value type**：DOUBLE or BIGINT, depends on normalized parameter settings.
 
-**Applicable column type**：Numerical types.
+**Applicable data type**：Numerical types.
 
 **Applicable table types**: table, STable.
 
 **Explanations**：
 
-1. bin_type: parameter to indicate the bucket type, valid inputs are: "user_input", "linear_bin", "log_bin"。
-2. bin_description: parameter to describe the rule to generate buckets，can be in the following JSON formats for each bin_type respectively:
+- bin_type: parameter to indicate the bucket type, valid inputs are: "user_input", "linear_bin", "log_bin"。
+- bin_description: parameter to describe the rule to generate buckets，can be in the following JSON formats for each bin_type respectively:
 
    - "user_input": "[1, 3, 5, 7]": User specified bin values.
 
@@ -776,7 +778,7 @@ SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_nam
      "infinity" - whether to add（-inf, inf）as start/end point in generated range of bins.
      The above "log_bin" descriptor generates a set of bins:[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf].
 
-3. normalized: setting to 1/0 to turn on/off result normalization.
+- normalized: setting to 1/0 to turn on/off result normalization.
 
 ### PERCENTILE
 
@@ -788,7 +790,7 @@ SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
 
 **Return value type**: DOUBLE.
 
-**Applicable column types**: Numeric types.
+**Applicable data types**: Numeric types.
 
 **Applicable table types**: table.
 
@@ -808,7 +810,7 @@ SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 
 **Return value type**: Same as the column being operated upon.
 
-**Applicable column types**: Numeric types.
+**Applicable data types**: Numeric types.
 
 **Applicable table types**: table, STable.
 
@@ -828,7 +830,7 @@ SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **Return value type**: Same as the column being operated upon.
 
-**Applicable column types**: All data types.
+**Applicable data types**: All data types.
 
 **Applicable table types**: table, STable.
 
@@ -848,7 +850,7 @@ SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] [ 
 
 **Return value type**: Same as the column being operated upon.
 
-**Applicable column types**: Numeric data types.
+**Applicable data types**: Numeric data types.
 
 **Applicable table types**: table, STable, nested query.
 
@@ -872,7 +874,7 @@ SELECT LAST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **Return value type**: Same as the column being operated upon.
 
-**Applicable column types**: All data types.
+**Applicable data types**: All data types.
 
 **Applicable table types**: table, STable.
 
@@ -892,7 +894,7 @@ SELECT LAST_ROW(field_name) FROM { tb_name | stb_name };
 
 **Return value type**: Same as the column being operated upon.
 
-**Applicable column types**: All data type.
+**Applicable data types**: All data type.
 
 **Applicable table types**: table, STable.
 
@@ -911,7 +913,7 @@ SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **Return value type**: Same as the data type of the column being operated upon.
 
-**Applicable column types**: Numeric types.
+**Applicable data types**: Numeric types.
 
 **Applicable table types**: table, STable.
 
@@ -925,7 +927,7 @@ SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
 
 **Return value type**: Same as the data type of the column being operated upon.
 
-**Applicable column types**: Numeric types.
+**Applicable data types**: Numeric types.
 
 **Applicable table types**: table, STable.
 
@@ -939,7 +941,7 @@ SELECT MODE(field_name) FROM tb_name [WHERE clause];
 
 **Return value type**:Same as the data type of the column being operated upon.
 
-**Applicable column types**: All data types.
+**Applicable data types**: All data types.
 
 **More explanations**:Considering the number of returned result set is unpredictable, it's suggested to limit the number of unique values to 100,000, otherwise error will be returned.
 
@@ -976,7 +978,7 @@ SELECT TAIL(field_name, k, offset_val) FROM {tb_name | stb_name} [WHERE clause];
 
 **Return value type**: Same as the column being operated upon.
 
-**Applicable column types**: All data types.
+**Applicable data types**: All data types.
 
 ### TOP
 
@@ -988,7 +990,7 @@ SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 
 **Return value type**: Same as the column being operated upon.
 
-**Applicable column types**: Numeric types.
+**Applicable data types**: Numeric types.
 
 **Applicable table types**: table, STable.
 
@@ -1008,7 +1010,7 @@ SELECT UNIQUE(field_name) FROM {tb_name | stb_name} [WHERE clause];
 
 **Return value type**: Same as the column or tag being operated upon.
 
-**Applicable column types**: All data types.
+**Applicable data types**: All data types.
 
 **More explanations**:
 
@@ -1050,7 +1052,7 @@ SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHER
 
 **Return value type**: DOUBLE.
 
-**Applicable column types**: Numeric types.
+**Applicable data types**: Numeric types.
 
 **Applicable table types**: table, STable.
 
@@ -1070,7 +1072,7 @@ SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHER
 
 **Return value type**: Same as the column being operated upon.
 
-**Applicable column types**: Numeric types.
+**Applicable data types**: Numeric types.
 
 **Applicable table types**: table, STable.
 
@@ -1090,7 +1092,7 @@ SELECT IRATE(field_name) FROM tb_name WHERE clause;
 
 **Return value type**: DOUBLE.
 
-**Applicable column types**: Numeric types.
+**Applicable data types**: Numeric types.
 
 **Applicable table types**: table, STable.
 
@@ -1183,7 +1185,7 @@ SELECT TWA(field_name) FROM tb_name WHERE clause;
 
 **Return value type**: DOUBLE.
 
-**Applicable column types**: Numeric types.
+**Applicable data types**: Numeric types.
 
 **Applicable table types**: table, STable.
 

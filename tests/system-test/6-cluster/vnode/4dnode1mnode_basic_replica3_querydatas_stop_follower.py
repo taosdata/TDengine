@@ -3,7 +3,7 @@ from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
 import taos
 import sys
 import time
-import os 
+import os
 
 from util.log import *
 from util.sql import *
@@ -30,9 +30,9 @@ class TDTestCase:
         self.ts = 1483200000000
         self.ts_step =1000
         self.db_name ='testdb'
-        self.replica = 3 
+        self.replica = 3
         self.vgroups = 1
-        self.tb_nums = 10 
+        self.tb_nums = 10
         self.row_nums = 100
         self.stop_dnode_id = None
         self.loop_restart_times = 5
@@ -40,7 +40,7 @@ class TDTestCase:
         self.max_restart_time = 10
         self.try_check_times = 10
         self.query_times = 100
-        
+
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -103,7 +103,7 @@ class TDTestCase:
         tdSql.execute(drop_db_sql)
         tdSql.execute(create_db_sql)
         tdSql.execute("use {}".format(dbname))
-       
+
     def create_stable_insert_datas(self,dbname ,stablename , tb_nums , row_nums):
         tdSql.execute("use {}".format(dbname))
         tdSql.execute(
@@ -112,7 +112,7 @@ class TDTestCase:
         tags (t1 int)
         '''.format(stablename)
         )
-    
+
         for i in range(tb_nums):
             sub_tbname = "sub_{}_{}".format(stablename,i)
             tdSql.execute("create table {} using {} tags({})".format(sub_tbname, stablename ,i))
@@ -123,11 +123,11 @@ class TDTestCase:
                 tdSql.execute(f"insert into {sub_tbname} values ({ts}, {row_num} ,{row_num}, 10 ,1 ,{row_num} ,{row_num},true,'bin_{row_num}','nchar_{row_num}',now) ")
 
         tdLog.notice(" ==== stable {} insert rows execute end =====".format(stablename))
-    
+
     def append_rows_of_exists_tables(self,dbname ,stablename , tbname , append_nums ):
-        
+
         tdSql.execute("use {}".format(dbname))
-     
+
         for row_num in range(append_nums):
             tdSql.execute(f"insert into {tbname} values (now, {row_num} ,{row_num}, 10 ,1 ,{row_num} ,{row_num},true,'bin_{row_num}','nchar_{row_num}',now) ")
             # print(f"insert into {tbname} values (now, {row_num} ,{row_num}, 10 ,1 ,{row_num} ,{row_num},true,'bin_{row_num}','nchar_{row_num}',now) ")
@@ -137,7 +137,7 @@ class TDTestCase:
     def check_insert_rows(self, dbname, stablename , tb_nums , row_nums, append_rows):
 
         tdSql.execute("use {}".format(dbname))
-        
+
         tdSql.query("select count(*) from {}.{}".format(dbname,stablename))
 
         while not tdSql.queryResult:
@@ -145,8 +145,8 @@ class TDTestCase:
             tdSql.query("select count(*) from {}.{}".format(dbname,stablename))
 
         status_OK = self.mycheckData("select count(*) from {}.{}".format(dbname,stablename) ,0 , 0 , tb_nums*row_nums+append_rows)
-        
-        count = 0 
+
+        count = 0
         while not status_OK :
             if count > self.try_check_times:
                 os.system("taos -s ' show {}.vgroups; '".format(dbname))
@@ -160,14 +160,14 @@ class TDTestCase:
             status_OK = self.mycheckData("select count(*) from {}.{}".format(dbname,stablename) ,0 , 0 , tb_nums*row_nums+append_rows)
             tdLog.notice(" ==== check insert rows first failed , this is {}_th retry check rows of database {}".format(count , dbname))
             count += 1
-        
+
 
         tdSql.query("select distinct tbname from {}.{}".format(dbname,stablename))
         while not tdSql.queryResult:
             time.sleep(0.1)
             tdSql.query("select distinct tbname from {}.{}".format(dbname,stablename))
         status_OK = self.mycheckRows("select distinct tbname from {}.{}".format(dbname,stablename) ,tb_nums)
-        count = 0 
+        count = 0
         while not status_OK :
             if count > self.try_check_times:
                 os.system("taos -s ' show {}.vgroups;'".format(dbname))
@@ -182,25 +182,40 @@ class TDTestCase:
             tdLog.notice(" ==== check insert tbnames first failed , this is {}_th retry check tbnames of database {}".format(count , dbname))
             count += 1
 
-    def _get_stop_dnode_id(self,dbname):
+    def _get_stop_dnode_id(self,dbname ,dnode_role):
         tdSql.query("show {}.vgroups".format(dbname))
         vgroup_infos = tdSql.queryResult
+        status = False
         for vgroup_info in vgroup_infos:
-            leader_infos = vgroup_info[3:-4] 
+            if "error" not in vgroup_info:
+                status = True
+            else:
+                status = False
+        while status!=True :
+            time.sleep(0.1)
+            tdSql.query("show {}.vgroups".format(dbname))
+            vgroup_infos = tdSql.queryResult
+            for vgroup_info in vgroup_infos:
+                if "error" not in vgroup_info:
+                    status = True
+                else:
+                    status = False
+            # print(status)
+        for vgroup_info in vgroup_infos:
+            leader_infos = vgroup_info[3:-4]
             # print(vgroup_info)
             for ind ,role in enumerate(leader_infos):
-                if role =='follower':
+                if role == dnode_role:
                     # print(ind,leader_infos)
                     self.stop_dnode_id = leader_infos[ind-1]
                     break
 
-
         return self.stop_dnode_id
 
-    def wait_stop_dnode_OK(self):
+    def wait_stop_dnode_OK(self ,newTdSql):
     
         def _get_status():
-            newTdSql=tdCom.newTdSql()
+            # newTdSql=tdCom.newTdSql()
 
             status =  ""
             newTdSql.query("show dnodes")
@@ -211,7 +226,7 @@ class TDTestCase:
                 if id == self.stop_dnode_id:
                     status = dnode_status
                     break
-            return status 
+            return status
 
         status = _get_status()
         while status !="offline":
@@ -220,10 +235,10 @@ class TDTestCase:
             # tdLog.notice("==== stop dnode has not been stopped , endpoint is {}".format(self.stop_dnode))
         tdLog.notice("==== stop_dnode has stopped , id is {}".format(self.stop_dnode_id))
 
-    def wait_start_dnode_OK(self):
+    def wait_start_dnode_OK(self ,newTdSql):
     
         def _get_status():
-            newTdSql=tdCom.newTdSql()
+            # newTdSql=tdCom.newTdSql()
             status =  ""
             newTdSql.query("show dnodes")
             dnode_infos = newTdSql.queryResult
@@ -233,7 +248,7 @@ class TDTestCase:
                 if id == self.stop_dnode_id:
                     status = dnode_status
                     break
-            return status 
+            return status
 
         status = _get_status()
         while status !="ready":
@@ -327,7 +342,7 @@ class TDTestCase:
             tdLog.info("%s(%d) failed: sql:%s, queryRows:%d != expect:%d" % args)
             check_status = False
         return check_status
-        
+
 
     def force_stop_dnode(self, dnode_id ):
 
@@ -335,7 +350,7 @@ class TDTestCase:
         port = None
         for dnode_info in tdSql.queryResult:
             if dnode_id == dnode_info[0]:
-                port = dnode_info[1].split(":")[-1] 
+                port = dnode_info[1].split(":")[-1]
                 break
             else:
                 continue
@@ -349,9 +364,9 @@ class TDTestCase:
             os.system(ps_kill_taosd)
 
     def basic_query_task(self,dbname ,stablename):
-        
+
         sql = "select * from {}.{} ;".format(dbname , stablename)
-        
+
         count = 0
         while count < self.query_times:
             os.system(''' taos -s '{}' >>/dev/null '''.format(sql))
@@ -364,48 +379,48 @@ class TDTestCase:
             self.thread_list.append(task)
 
         for thread in self.thread_list:
-            
+
             thread.start()
         return self.thread_list
 
 
     def stop_follower_when_query_going(self):
-        
+
         tdDnodes = cluster.dnodes
+        newTdSql=tdCom.newTdSql()
         self.create_database(dbname = self.db_name ,replica_num= self.replica  , vgroup_nums= 1)
         self.create_stable_insert_datas(dbname = self.db_name , stablename = "stb1" , tb_nums= self.tb_nums ,row_nums= self.row_nums)
 
         # let query task start 
-        self.thread_list = self.multi_thread_query_task(10 ,self.db_name ,'stb1' )
+        self.thread_list = self.multi_thread_query_task(5 ,self.db_name ,'stb1' )
+
 
         # force stop follower
         for loop in range(self.loop_restart_times):
             tdLog.debug(" ==== this is {}_th restart follower of database {} ==== ".format(loop ,self.db_name))
-            self.stop_dnode_id = self._get_stop_dnode_id(self.db_name)
+            self.stop_dnode_id = self._get_stop_dnode_id(self.db_name,"follower" )
             tdDnodes[self.stop_dnode_id-1].stoptaosd()
-            self.wait_stop_dnode_OK()
+            self.wait_stop_dnode_OK(newTdSql)
 
             start = time.time()
             tdDnodes[self.stop_dnode_id-1].starttaosd()
-            self.wait_start_dnode_OK()
+            self.wait_start_dnode_OK(newTdSql)
             end = time.time()
             time_cost = int(end-start)
-            
+
             if time_cost > self.max_restart_time:
                 tdLog.exit(" ==== restart dnode {} cost too much time , please check ====".format(self.stop_dnode_id))
-        
+
         for thread in self.thread_list:
             thread.join()
 
 
-    def run(self): 
+    def run(self):
 
         # basic check of cluster
         self.check_setup_cluster_status()
         self.stop_follower_when_query_going()
 
-
-        
 
 
     def stop(self):

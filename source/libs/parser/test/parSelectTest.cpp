@@ -70,6 +70,8 @@ TEST_F(ParserSelectTest, condition) {
   run("SELECT c1 FROM t1 WHERE NOT ts in (true, false)");
 
   run("SELECT * FROM t1 WHERE c1 > 10 and c1 is not null");
+
+  run("SELECT * FROM t1 WHERE TBNAME like 'fda%' or TS > '2021-05-05 18:19:01.000'");
 }
 
 TEST_F(ParserSelectTest, pseudoColumn) {
