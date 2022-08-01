@@ -1403,9 +1403,9 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
 }
 
 SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool ignoreExists, SToken* pIndexName,
-                             SToken* pTableName, SNodeList* pCols, SNode* pOptions) {
+                             SNode* pRealTable, SNodeList* pCols, SNode* pOptions) {
   CHECK_PARSER_STATUS(pCxt);
-  if (!checkIndexName(pCxt, pIndexName) || !checkTableName(pCxt, pTableName) || !checkDbName(pCxt, NULL, true)) {
+  if (!checkIndexName(pCxt, pIndexName)) {
     return NULL;
   }
   SCreateIndexStmt* pStmt = (SCreateIndexStmt*)nodesMakeNode(QUERY_NODE_CREATE_INDEX_STMT);
@@ -1413,7 +1413,9 @@ SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool igno
   pStmt->indexType = type;
   pStmt->ignoreExists = ignoreExists;
   COPY_STRING_FORM_ID_TOKEN(pStmt->indexName, pIndexName);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->tableName, pTableName);
+  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
+  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  nodesDestroyNode(pRealTable);
   pStmt->pCols = pCols;
   pStmt->pOptions = (SIndexOptions*)pOptions;
   return (SNode*)pStmt;

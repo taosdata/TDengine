@@ -434,7 +434,7 @@ static FORCE_INLINE int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf,
 }
 
 static bool isNullStr(SToken* pToken) {
-  return ((pToken->type == TK_NK_STRING) && (pToken->n != 0) &&
+  return ((pToken->type == TK_NK_STRING) && (strlen(TSDB_DATA_NULL_STR_L) == pToken->n) &&
           (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0));
 }
 
