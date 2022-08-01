@@ -1,7 +1,7 @@
 #!/bin/bash
 
-if [ $# != 5 ] ; then
-  echo "Uasge: $0 instances vgroups replica ctables rows"
+if [ $# != 6 ] ; then
+  echo "Uasge: $0 instances vgroups replica ctables rows weak"
   echo ""
   exit 1
 fi
@@ -11,11 +11,12 @@ vgroups=$2
 replica=$3
 ctables=$4
 rows=$5
+weak=$6
 
 echo "params: instances:${instances}, vgroups:${vgroups}, replica:${replica}, ctables:${ctables}, rows:${rows}"
 
 dt=`date "+%Y-%m-%d-%H-%M-%S"`
-casedir=instances_${instances}_vgroups_${vgroups}_replica_${replica}_ctables_${ctables}_rows_${rows}_${dt}
+casedir=instances_${instances}_vgroups_${vgroups}_replica_${replica}_ctables_${ctables}_rows_${rows}_weak_${weak}_${dt}
 mkdir ${casedir}
 cp ./insert.tpl.json ${casedir}
 cd ${casedir}
