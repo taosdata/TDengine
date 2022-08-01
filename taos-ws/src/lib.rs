@@ -5,7 +5,7 @@ use infra::WsConnReq;
 use once_cell::sync::OnceCell;
 
 #[cfg(feature = "async")]
-use asyn::WsAsyncClient;
+use asyn::WsTaos;
 use sync::WsClient;
 
 use taos_query::{common::RawMeta, DsnError, IntoDsn, Queryable, TBuilder};
@@ -170,7 +170,7 @@ impl TaosBuilder {
 pub struct Taos {
     dsn: TaosBuilder,
     #[cfg(feature = "async")]
-    async_client: OnceCell<WsAsyncClient>,
+    async_client: OnceCell<WsTaos>,
     sync_client: OnceCell<WsClient>,
 }
 
@@ -229,7 +229,7 @@ impl taos_query::AsyncQueryable for Taos {
         if let Some(ws) = self.async_client.get() {
             ws.s_query(sql.as_ref()).await
         } else {
-            let async_client = WsAsyncClient::from_wsinfo(&self.dsn).await?;
+            let async_client = WsTaos::from_wsinfo(&self.dsn).await?;
             self.async_client
                 .get_or_init(|| async_client)
                 .s_query(sql.as_ref())
@@ -241,7 +241,7 @@ impl taos_query::AsyncQueryable for Taos {
         if let Some(ws) = self.async_client.get() {
             ws.write_meta(raw).await
         } else {
-            let async_client = WsAsyncClient::from_wsinfo(&self.dsn).await?;
+            let async_client = WsTaos::from_wsinfo(&self.dsn).await?;
             self.async_client
                 .get_or_init(|| async_client)
                 .write_meta(raw)

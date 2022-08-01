@@ -64,6 +64,7 @@ impl Drop for WsClient {
 
 #[derive(Debug)]
 pub struct ResultSet {
+    id: ResId,
     rt: Arc<tokio::runtime::Runtime>,
     timeout: Duration,
     sender: MsgSender,
@@ -464,6 +465,7 @@ impl WsClient {
                 self.fetches.insert(resp.id, tx).unwrap();
             }
             Ok(ResultSet {
+                id: resp.id,
                 rt: self.rt.clone(),
                 timeout: self.timeout.clone(),
                 sender: self.sender.clone(),
@@ -483,6 +485,7 @@ impl WsClient {
             })
         } else {
             Ok(ResultSet {
+                id: resp.id,
                 rt: self.rt.clone(),
                 timeout: self.timeout.clone(),
                 affected_rows: resp.affected_rows,
@@ -657,6 +660,14 @@ impl ResultSet {
         let timing = *self.timing.get_mut();
         self.timing = UnsafeCell::new(Duration::ZERO);
         timing
+    }
+
+    pub fn stop_query(&mut self) {
+        if let Some((_, sender)) = self.fetches.remove(&self.id) {
+            sender
+                .send(Err(taos_error::Error::from_string("").into()))
+                .unwrap();
+        }
     }
 }
 impl Iterator for ResultSet {

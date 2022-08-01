@@ -59,7 +59,7 @@ pub(crate) use lengths::*;
 
 use crate::common::{BorrowedValue, Column, Ty};
 
-use std::{ffi::c_void, fmt::Debug, iter::FusedIterator};
+use std::{ffi::c_void, fmt::Debug, iter::FusedIterator, io::Write};
 
 /// Compatible version for var char.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -311,6 +311,26 @@ impl ColumnView {
                 view.as_raw_slice().to_vec(),
             ),
             ColumnView::Json(_) => todo!(),
+        }
+    }
+
+    pub(super) fn write_raw_into<W: Write>(&self, wtr: W) -> std::io::Result<usize> {
+        match self {
+            ColumnView::Bool(view) => view.write_raw_into(wtr),
+            ColumnView::TinyInt(view) => view.write_raw_into(wtr),
+            ColumnView::SmallInt(view) => view.write_raw_into(wtr),
+            ColumnView::Int(view) => view.write_raw_into(wtr),
+            ColumnView::BigInt(view) => view.write_raw_into(wtr),
+            ColumnView::Float(view) => view.write_raw_into(wtr),
+            ColumnView::Double(view) => view.write_raw_into(wtr),
+            ColumnView::VarChar(view) => view.write_raw_into(wtr),
+            ColumnView::Timestamp(view) => view.write_raw_into(wtr),
+            ColumnView::NChar(view) => view.write_raw_into(wtr),
+            ColumnView::UTinyInt(view) => view.write_raw_into(wtr),
+            ColumnView::USmallInt(view) => view.write_raw_into(wtr),
+            ColumnView::UInt(view) => view.write_raw_into(wtr),
+            ColumnView::UBigInt(view) => view.write_raw_into(wtr),
+            ColumnView::Json(view) => view.write_raw_into(wtr),
         }
     }
 }

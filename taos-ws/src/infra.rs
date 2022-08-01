@@ -139,6 +139,7 @@ pub enum WsRecvData {
         block: Vec<u32>,
     },
     WriteMeta,
+    WriteRaw,
 }
 
 #[serde_as]

@@ -119,7 +119,7 @@ struct WsMessageBase {
 }
 
 impl WsMessageBase {
-    async fn fetch_raw_data(&self) -> Result<Option<RawBlock>> {
+    async fn fetch_raw_block(&self) -> Result<Option<RawBlock>> {
         let req_id = self.sender.req_id();
 
         let msg = TmqSend::Fetch(MessageArgs {
@@ -183,7 +183,7 @@ impl WsMessageBase {
     }
     async fn fetch_raw_meta(&self) -> Result<RawMeta> {
         let req_id = self.sender.req_id();
-        let msg = TmqSend::FetchRawMeta(MessageArgs {
+        let msg = TmqSend::FetchRaw(MessageArgs {
             req_id,
             message_id: self.message_id,
         });
@@ -228,7 +228,7 @@ pub struct Data(WsMessageBase);
 
 impl Data {
     pub async fn fetch_block(&self) -> Result<Option<RawBlock>> {
-        self.0.fetch_raw_data().await
+        self.0.fetch_raw_block().await
     }
 }
 
@@ -268,137 +268,17 @@ impl WsMessageSet {
 }
 
 impl Consumer {
-    // pub async fn subscribe<Item: Into<String>, Iter: IntoIterator<Item = Item>>(
-    //     &mut self,
-    //     topics: Iter,
-    // ) -> Result<()> {
-    //     let req_id = self.sender.req_id();
-    //     let action = TmqSend::Subscribe {
-    //         req_id,
-    //         req: self.tmq_conf.clone(),
-    //         topics: topics.into_iter().map(Into::into).collect_vec(),
-    //         conn: self.conn.clone(),
-    //     };
-    //     self.sender.send_recv(action).await?;
-    //     Ok(())
-    // }
-
     pub(crate) async fn poll_timeout(
-        &mut self,
+        &self,
         timeout: Duration,
-    ) -> Result<Option<(Offset, WsMessageSet)>> {
+    ) -> Result<Option<(Offset, MessageSet<Meta, Data>)>> {
         let req_id = self.sender.req_id();
         let action = TmqSend::Poll {
             req_id,
-            blocking_time: -1,
+            blocking_time: timeout.as_millis() as _,
         };
 
         let data = self.sender.send_recv_timeout(action, timeout).await;
-        if data.is_err() {
-            let err = data.unwrap_err();
-            match err {
-                Error::QueryTimeout(_) => return Ok(None),
-                _ => return Err(err),
-            }
-        }
-        let data = data.unwrap();
-
-        match data {
-            TmqRecvData::Poll(TmqPoll {
-                message_id,
-                database,
-                have_message,
-                topic,
-                vgroup_id,
-                message_type,
-            }) => {
-                if have_message {
-                    let offset = Offset {
-                        message_id,
-                        database,
-                        topic,
-                        vgroup_id,
-                    };
-                    let message = WsMessageBase {
-                        sender: self.sender.clone(),
-                        message_id,
-                    };
-                    match message_type {
-                        MessageType::Meta => Ok(Some((offset, WsMessageSet::Meta(Meta(message))))),
-                        MessageType::Data => Ok(Some((offset, WsMessageSet::Data(Data(message))))),
-                        _ => unreachable!(),
-                    }
-                } else {
-                    Ok(None)
-                }
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    // pub async fn commit(&self, offset: Offset) -> Result<()> {
-    //     let req_id = self.sender.req_id();
-    //     let action = TmqSend::Commit(MessageArgs {
-    //         req_id,
-    //         message_id: offset.message_id,
-    //     });
-
-    //     let _ = self.sender.send_recv(action).await?;
-    //     Ok(())
-    // }
-
-    // pub async fn unsubscribe(&mut self) -> Result<()> {
-    //     let action = TmqSend::Close;
-    //     self.sender.send_recv(action).await?;
-    //     Ok(())
-    // }
-}
-
-#[async_trait::async_trait]
-impl AsAsyncConsumer for Consumer {
-    type Error = Error;
-
-    type Offset = Offset;
-
-    type Meta = Meta;
-
-    type Data = Data;
-
-    async fn subscribe<T: Into<String>, I: IntoIterator<Item = T> + Send>(
-        &mut self,
-        topics: I,
-    ) -> Result<()> {
-        let req_id = self.sender.req_id();
-        let action = TmqSend::Subscribe {
-            req_id,
-            req: self.tmq_conf.clone(),
-            topics: topics.into_iter().map(Into::into).collect_vec(),
-            conn: self.conn.clone(),
-        };
-        self.sender.send_recv(action).await?;
-        Ok(())
-    }
-
-    async fn recv_timeout(
-        &self,
-        timeout: taos_query::tmq::Timeout,
-    ) -> StdResult<
-        Option<(
-            Self::Offset,
-            taos_query::tmq::MessageSet<Self::Meta, Self::Data>,
-        )>,
-        Self::Error,
-    > {
-        let req_id = self.sender.req_id();
-        let action = TmqSend::Poll {
-            req_id,
-            blocking_time: -1,
-        };
-
-        let data = self
-            .sender
-            .send_recv_timeout(action, timeout.as_duration())
-            .await;
         if data.is_err() {
             let err = data.unwrap_err();
             match err {
@@ -439,6 +319,98 @@ impl AsAsyncConsumer for Consumer {
             }
             _ => unreachable!(),
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl AsAsyncConsumer for Consumer {
+    type Error = Error;
+
+    type Offset = Offset;
+
+    type Meta = Meta;
+
+    type Data = Data;
+
+    async fn subscribe<T: Into<String>, I: IntoIterator<Item = T> + Send>(
+        &mut self,
+        topics: I,
+    ) -> Result<()> {
+        let req_id = self.sender.req_id();
+        let action = TmqSend::Subscribe {
+            req_id,
+            req: self.tmq_conf.clone(),
+            topics: topics.into_iter().map(Into::into).collect_vec(),
+            conn: self.conn.clone(),
+        };
+        self.sender.send_recv(action).await?;
+        Ok(())
+    }
+
+    async fn recv_timeout(
+        &self,
+        timeout: taos_query::tmq::Timeout,
+    ) -> StdResult<
+        Option<(
+            Self::Offset,
+            taos_query::tmq::MessageSet<Self::Meta, Self::Data>,
+        )>,
+        Self::Error,
+    > {
+        match timeout {
+            Timeout::Never => loop {
+                if let Some(msg) = self.poll_timeout(Duration::MAX).await? {
+                    return Ok(Some(msg));
+                }
+            },
+            Timeout::None => self.poll_timeout(Duration::MAX).await,
+            Timeout::Duration(timeout) => self.poll_timeout(timeout).await,
+        }
+
+        // let data = self
+        //     .sender
+        //     .send_recv_timeout(action, timeout.as_duration())
+        //     .await;
+        // if data.is_err() {
+        //     let err = data.unwrap_err();
+        //     match err {
+        //         Error::QueryTimeout(_) => return Ok(None),
+        //         _ => return Err(err),
+        //     }
+        // }
+        // let data = data.unwrap();
+
+        // match data {
+        //     TmqRecvData::Poll(TmqPoll {
+        //         message_id,
+        //         database,
+        //         have_message,
+        //         topic,
+        //         vgroup_id,
+        //         message_type,
+        //     }) => {
+        //         if have_message {
+        //             let offset = Offset {
+        //                 message_id,
+        //                 database,
+        //                 topic,
+        //                 vgroup_id,
+        //             };
+        //             let message = WsMessageBase {
+        //                 sender: self.sender.clone(),
+        //                 message_id,
+        //             };
+        //             match message_type {
+        //                 MessageType::Meta => Ok(Some((offset, MessageSet::Meta(Meta(message))))),
+        //                 MessageType::Data => Ok(Some((offset, MessageSet::Data(Data(message))))),
+        //                 _ => unreachable!(),
+        //             }
+        //         } else {
+        //             Ok(None)
+        //         }
+        //     }
+        //     _ => unreachable!(),
+        // }
     }
 
     async fn commit(&self, offset: Self::Offset) -> StdResult<(), Self::Error> {
@@ -544,7 +516,9 @@ impl TmqBuilder {
                         log::info!("send done");
                     }
                     _ = rx.changed() => {
-                        log::info!("close sender task");
+                        let _= sender.send(Message::Close(None)).await;
+                        sender.close().await.unwrap();
+                        log::info!("close tmq sender");
                         break;
                     }
                 }
@@ -590,7 +564,7 @@ impl TmqBuilder {
                                                 log::warn!("poll message received but no receiver alive");
                                             }
                                         }
-                                        TmqRecvData::FetchRawMeta { meta: _ }=> {
+                                        TmqRecvData::FetchRaw { meta: _ }=> {
                                             if let Some((_, sender)) = queries_sender.remove(&req_id)
                                             {
                                                 sender.send(ok.map(|_|recv)).unwrap();
@@ -626,14 +600,16 @@ impl TmqBuilder {
                                     // writeUint32(message.buffer, length)
                                     // writeUint16(message.buffer, metaType)
                                     let mut bytes = Bytes::from(data);
-                                    let part = bytes.slice(16..);
+                                    let part = bytes.slice(24..);
                                     // dbg!(&bytes);
                                     use bytes::Buf;
+                                    let timing = bytes.get_u64_le();
                                     let req_id = bytes.get_u64_le();
                                     let message_id = bytes.get_u64_le();
 
 
-                                    log::debug!("receive binary message with req_id {} message_id {}",
+                                    log::debug!("[{:.2}ms] receive binary message with req_id {} message_id {}",
+                                        Duration::from_nanos(timing).as_secs_f64() / 1000.,
                                         req_id, message_id);
 
                                     if let Some((_, sender)) = queries_sender.remove(&req_id)
@@ -674,6 +650,7 @@ impl TmqBuilder {
                     }
                 }
             }
+            log::info!("end consumer loop");
         });
         Ok(Consumer {
             conn: self.info.to_conn_request(),
@@ -697,6 +674,12 @@ pub struct Consumer {
     sender: WsTmqSender,
     close_signal: watch::Sender<bool>,
     timeout: Duration,
+}
+
+impl Drop for Consumer {
+    fn drop(&mut self) {
+        self.close_signal.send(true).unwrap();
+    }
 }
 
 pub struct Offset {
@@ -763,13 +746,6 @@ impl Error {
 }
 
 type Result<T> = std::result::Result<T, Error>;
-
-impl Drop for Consumer {
-    fn drop(&mut self) {
-        // send close signal to reader/writer spawned tasks.
-        let _ = self.close_signal.send(true);
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -863,54 +839,57 @@ mod tests {
         let mut consumer = builder.build_consumer().await?;
         consumer.subscribe(["ws_abc1"]).await?;
 
-        let mut stream = consumer.stream_with_timeout(Timeout::from_secs(5));
+        {
+            let mut stream = consumer.stream_with_timeout(Timeout::from_secs(5));
 
-        while let Some((offset, message)) = stream.try_next().await? {
-            // Offset contains information for topic name, database name and vgroup id,
-            //  similar to kafka topic/partition/offset.
-            let _ = offset.topic();
-            let _ = offset.database();
-            let _ = offset.vgroup_id();
+            while let Some((offset, message)) = stream.try_next().await? {
+                // Offset contains information for topic name, database name and vgroup id,
+                //  similar to kafka topic/partition/offset.
+                let _ = offset.topic();
+                let _ = offset.database();
+                let _ = offset.vgroup_id();
 
-            // Different to kafka message, TDengine consumer would consume two kind of messages.
-            //
-            // 1. meta
-            // 2. data
-            match message {
-                MessageSet::Meta(meta) => {
-                    let _raw = meta.as_raw_meta().await?;
-                    // taos.write_meta(raw).await?;
+                // Different to kafka message, TDengine consumer would consume two kind of messages.
+                //
+                // 1. meta
+                // 2. data
+                match message {
+                    MessageSet::Meta(meta) => {
+                        let _raw = meta.as_raw_meta().await?;
+                        // taos.write_meta(raw).await?;
 
-                    // meta data can be write to an database seamlessly by raw or json (to sql).
-                    let json = meta.as_json_meta().await?;
-                    let sql = dbg!(json.to_string());
-                    if let Err(err) = taos.exec(sql).await {
-                        match err.errno() {
-                            Code::TAG_ALREADY_EXIST => log::info!("tag already exists"),
-                            Code::TAG_NOT_EXIST => log::debug!("tag not exist"),
-                            Code::COLUMN_EXISTS => log::info!("column already exists"),
-                            Code::COLUMN_NOT_EXIST => log::debug!("column not exists"),
-                            Code::INVALID_COLUMN_NAME => log::info!("invalid column name"),
-                            Code::MODIFIED_ALREADY => log::debug!("modified already done"),
-                            Code::TABLE_NOT_EXIST => log::debug!("table does not exists"),
-                            Code::STABLE_NOT_EXIST => log::debug!("stable does not exists"),
-                            _ => {
-                                log::error!("{:?}", err);
-                                panic!("{}", err);
+                        // meta data can be write to an database seamlessly by raw or json (to sql).
+                        let json = meta.as_json_meta().await?;
+                        let sql = dbg!(json.to_string());
+                        if let Err(err) = taos.exec(sql).await {
+                            match err.errno() {
+                                Code::TAG_ALREADY_EXIST => log::info!("tag already exists"),
+                                Code::TAG_NOT_EXIST => log::debug!("tag not exist"),
+                                Code::COLUMN_EXISTS => log::info!("column already exists"),
+                                Code::COLUMN_NOT_EXIST => log::debug!("column not exists"),
+                                Code::INVALID_COLUMN_NAME => log::info!("invalid column name"),
+                                Code::MODIFIED_ALREADY => log::debug!("modified already done"),
+                                Code::TABLE_NOT_EXIST => log::debug!("table does not exists"),
+                                Code::STABLE_NOT_EXIST => log::debug!("stable does not exists"),
+                                _ => {
+                                    log::error!("{:?}", err);
+                                    panic!("{}", err);
+                                }
                             }
                         }
                     }
-                }
-                MessageSet::Data(data) => {
-                    // data message may have more than one data block for various tables.
-                    while let Some(data) = data.fetch_block().await? {
-                        dbg!(data.table_name());
-                        dbg!(data);
+                    MessageSet::Data(data) => {
+                        // data message may have more than one data block for various tables.
+                        while let Some(data) = data.fetch_block().await? {
+                            dbg!(data.table_name());
+                            dbg!(data);
+                        }
                     }
                 }
+                consumer.commit(offset).await?;
             }
-            consumer.commit(offset).await?;
         }
+        consumer.unsubscribe().await;
 
         tokio::time::sleep(Duration::from_secs(2)).await;
 

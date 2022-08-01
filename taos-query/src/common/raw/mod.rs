@@ -6,11 +6,10 @@ use crate::{
 use bytes::Bytes;
 use itertools::Itertools;
 
-use nom::AsBytes;
 use serde::Deserialize;
 
 use std::{
-    cell::{RefCell, UnsafeCell},
+    cell::{Cell, RefCell, UnsafeCell},
     ffi::c_void,
     ops::{Deref, DerefMut},
     ptr::NonNull,
@@ -30,8 +29,8 @@ pub mod views;
 pub use views::ColumnView;
 use views::*;
 
-pub use meta::*;
 pub use data::*;
+pub use meta::*;
 
 mod de;
 mod rows;
@@ -55,7 +54,7 @@ pub struct RawBlock {
     /// Raw bytes version, may be v2 or v3.
     version: Version,
     /// Data is required, which could be v2 websocket block or a v3 raw block.
-    data: Bytes,
+    data: Cell<Bytes>,
     /// Number of rows in current data block.
     rows: usize,
     /// Number of columns (or fields) in current data block.
@@ -181,7 +180,9 @@ impl RawBlock {
         // const U_INT_NULL: u32 = u32::MAX;
         // const U_BIG_INT_NULL: u64 = u64::MAX;
 
-        let layout = Arc::new(RefCell::new(Layout::INLINE_DEFAULT.into()));
+        let layout = Arc::new(RefCell::new(
+            Layout::INLINE_DEFAULT.with_schema_changed().into(),
+        ));
 
         let bytes = bytes.into();
         let cols = fields.len();
@@ -375,7 +376,7 @@ impl RawBlock {
         Self {
             layout,
             version: Version::V2,
-            data: bytes,
+            data: Cell::new(bytes),
             rows,
             cols,
             schemas,
@@ -474,13 +475,13 @@ impl RawBlock {
                     let data = bytes.slice(o2..data_offset);
                     // dbg!()
 
-                    ColumnView::NChar(dbg!(NCharView {
+                    ColumnView::NChar(NCharView {
                         offsets,
                         data,
                         is_chars: UnsafeCell::new(true),
                         version: Version::V3,
                         layout: layout.clone(),
-                    }))
+                    })
                 }
                 Ty::UTinyInt => _primitive_value!(UTinyInt, u8),
                 Ty::USmallInt => _primitive_value!(USmallInt, u16),
@@ -507,7 +508,7 @@ impl RawBlock {
         RawBlock {
             layout,
             version: Version::V3,
-            data: bytes,
+            data: Cell::new(bytes),
             rows,
             cols,
             precision,
@@ -650,7 +651,35 @@ impl RawBlock {
     }
 
     pub fn as_raw_bytes(&self) -> &[u8] {
-        &self.data
+        if self.layout.borrow().schema_changed() {
+            let mut bytes = Vec::new();
+            // 4 bytes total length placeholder.
+            bytes.extend(0u32.to_le_bytes());
+            // 8 bytes group id.
+            bytes.extend(self.group_id.to_le_bytes());
+            // `ncols * std::mem::size_of::<ColSchema>()` bytes schemas.
+            bytes.extend(self.schemas.as_bytes());
+            // `ncols * std::mem::size_of::<u32>()` bytes lengths.
+            bytes.extend(self.lengths.as_bytes());
+            // data for each column
+            for col in self.columns() {
+                col.write_raw_into(&mut bytes).unwrap();
+            }
+            bytes.len();
+            unsafe {
+                *(bytes.as_mut_ptr() as *mut u32) = bytes.len() as u32;
+            }
+            debug_assert_eq!(
+                unsafe { *(bytes.as_ptr() as *const u32) },
+                bytes.len() as u32
+            );
+            let bytes = Bytes::from(bytes);
+            self.data.replace(bytes);
+            self.layout.borrow_mut().set_schema_changed(false);
+            unsafe { &*self.data.as_ptr() }
+        } else {
+            unsafe { &*self.data.as_ptr() }
+        }
     }
 
     pub fn is_null(&self, row: usize, col: usize) -> bool {
@@ -949,7 +978,6 @@ fn test_raw_from_v2() {
     pretty_env_logger::formatted_builder()
         .filter_level(log::LevelFilter::Trace)
         .init();
-    use serde::Deserialize;
     let bytes = b"\x10\x86\x1aA \xcc)AB\xc2\x14AZ],A\xa2\x8d$A\x87\xb9%A\xf5~\x0fA\x96\xf7,AY\xee\x17A1|\x15As\x00\x00\x00q\x00\x00\x00s\x00\x00\x00t\x00\x00\x00u\x00\x00\x00t\x00\x00\x00n\x00\x00\x00n\x00\x00\x00n\x00\x00\x00r\x00\x00\x00";
 
     let block = RawBlock::parse_from_raw_block_v2(
@@ -1095,7 +1123,10 @@ fn test_from_v2() {
         1,
         Precision::Millisecond,
     );
-    dbg!(raw);
+    let bytes = raw.as_raw_bytes();
+    let bytes = Bytes::copy_from_slice(bytes);
+    let raw2 = RawBlock::parse_from_raw_block(bytes, raw.nrows(), raw.ncols(), raw.precision());
+    dbg!(&raw, raw2);
     // dbg!(raw.as_bytes());
     // let v = unsafe { raw.get_ref_unchecked(0, 0) };
     // dbg!(v);

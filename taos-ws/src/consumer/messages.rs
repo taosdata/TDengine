@@ -80,7 +80,7 @@ pub enum TmqSend {
         blocking_time: i64,
     },
     FetchJsonMeta(MessageArgs),
-    FetchRawMeta(MessageArgs),
+    FetchRaw(MessageArgs),
     Fetch(MessageArgs),
     FetchBlock(MessageArgs),
     Commit(MessageArgs),
@@ -104,7 +104,7 @@ impl TmqSend {
                 blocking_time: _,
             } => *req_id,
             TmqSend::FetchJsonMeta(args) => args.req_id,
-            TmqSend::FetchRawMeta(args) => args.req_id,
+            TmqSend::FetchRaw(args) => args.req_id,
             TmqSend::Fetch(args) => args.req_id,
             TmqSend::FetchBlock(args) => args.req_id,
             TmqSend::Commit(args) => args.req_id,
@@ -176,7 +176,7 @@ pub enum TmqRecvData {
     },
     #[serde(skip)]
     Bytes(Bytes),
-    FetchRawMeta {
+    FetchRaw {
         #[serde(skip)]
         meta: Bytes,
     },

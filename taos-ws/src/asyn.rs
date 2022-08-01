@@ -3,8 +3,7 @@ use bytes::Bytes;
 use futures::{FutureExt, SinkExt, StreamExt};
 use scc::HashMap;
 // use std::sync::Mutex;
-use taos_query::common::{Field, Precision, RawBlock, RawMeta};
-use taos_query::prelude::AsyncInlinable;
+use taos_query::common::{Field, Precision, RawBlock, RawMeta, Ty};
 use taos_query::util::InlinableWrite;
 use taos_query::{AsyncFetchable, AsyncQueryable, DeError, DsnError, IntoDsn};
 use thiserror::Error;
@@ -27,11 +26,10 @@ use std::time::Duration;
 type WsFetchResult = std::result::Result<WsFetchData, taos_error::Error>;
 type FetchSender = std::sync::mpsc::SyncSender<WsFetchResult>;
 type FetchReceiver = std::sync::mpsc::Receiver<WsFetchResult>;
-// type WsSenderStream = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
 
 type WsSender = tokio::sync::mpsc::Sender<Message>;
 
-pub struct WsAsyncClient {
+pub struct WsTaos {
     timeout: Duration,
     req_id: Arc<AtomicU64>,
     ws: WsSender,
@@ -72,17 +70,6 @@ impl Debug for ResultSet {
             .finish()
     }
 }
-pub struct ResultSetRef {
-    ws: WsSender,
-    timeout: Duration,
-    fetches: Arc<HashMap<ResId, FetchSender>>,
-    receiver: Option<FetchReceiver>,
-    args: WsResArgs,
-    fields: Option<Vec<Field>>,
-    fields_count: usize,
-    affected_rows: usize,
-    precision: Precision,
-}
 
 impl Drop for ResultSet {
     fn drop(&mut self) {
@@ -97,7 +84,7 @@ impl Drop for ResultSet {
     }
 }
 
-impl Debug for WsAsyncClient {
+impl Debug for WsTaos {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("WsClient")
             .field("req_id", &self.req_id)
@@ -151,14 +138,14 @@ impl Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-impl Drop for WsAsyncClient {
+impl Drop for WsTaos {
     fn drop(&mut self) {
         // send close signal to reader/writer spawned tasks.
         let _ = self.close_signal.send(true);
     }
 }
 
-impl WsAsyncClient {
+impl WsTaos {
     /// Build TDengine websocket client from dsn.
     ///
     /// ```text
@@ -303,12 +290,19 @@ impl WsAsyncClient {
                                                 sender.send(ok.map(|_| WsQueryResp::default())).unwrap();
                                             }
                                         }
+                                        WsRecvData::WriteRaw => {
+                                            if let Some((_, sender)) = queries_sender.remove(&req_id)
+                                            {
+                                                sender.send(ok.map(|_| WsQueryResp::default())).unwrap();
+                                            }
+                                        }
+
                                         // Block type is for binary.
                                         _ => unreachable!(),
                                     }
                                 }
                                 Message::Binary(block) => {
-                                    dbg!(block.len());
+                                    // dbg!(block.len());
                                     let mut slice = block.as_slice();
                                     use taos_query::util::InlinableRead;
                                     let timing = slice.read_u64().unwrap();
@@ -356,7 +350,8 @@ impl WsAsyncClient {
                                 }
                             },
                             Err(err) => {
-                                dbg!(err);
+                                log::error!("{}", err);
+                                break;
                             }
                         }
                     }
@@ -394,6 +389,46 @@ impl WsAsyncClient {
         meta.write_u64_le(message_id)?;
         meta.write_u64_le(raw_meta_message as u64)?;
         meta.write(&raw.as_bytes())?;
+
+        log::debug!(
+            "write meta with req_id: {}, message_id: {}, raw data: {:?}",
+            req_id,
+            message_id,
+            Bytes::copy_from_slice(&meta)
+        );
+
+        let (tx, rx) = oneshot::channel();
+        {
+            self.queries.insert(req_id, tx).unwrap();
+            self.ws
+                .send_timeout(Message::Binary(meta), self.timeout)
+                .await?;
+        }
+        let sleep = tokio::time::sleep(self.timeout);
+        tokio::pin!(sleep);
+        let _resp = tokio::select! {
+            _ = &mut sleep, if !sleep.is_elapsed() => {
+               log::debug!("get server version timed out");
+               Err(Error::QueryTimeout("write meta".to_string()))?
+            }
+            message = rx => {
+                message??
+            }
+        };
+        Ok(())
+    }
+    async fn s_write_raw_block(&self, raw: &RawBlock) -> Result<()> {
+        let req_id = self.req_id();
+        let message_id = req_id;
+        let raw_block_message = 4; // action number from `taosAdapter/controller/rest/const.go:L56`.
+
+        let mut meta = Vec::new();
+        meta.write_u64_le(req_id)?;
+        meta.write_u64_le(message_id)?;
+        meta.write_u64_le(raw_block_message as u64)?;
+        meta.write_u32_le(raw.nrows() as u32)?;
+        meta.write_inlined_str::<2>(raw.table_name().unwrap())?;
+        meta.write(&raw.as_raw_bytes())?;
 
         log::debug!(
             "write meta with req_id: {}, message_id: {}, raw data: {:?}",
@@ -586,90 +621,6 @@ impl ResultSet {
         }
     }
 }
-impl ResultSetRef {
-    async fn fetch(&mut self) -> Result<Option<RawBlock>> {
-        let fetch = WsSend::Fetch(self.args);
-        {
-            log::info!("send fetch message: {fetch:?}");
-            self.ws.send(fetch.to_msg()).await?;
-            log::info!("send done");
-            // unlock mutex when out of scope.
-        }
-        println!("wait for fetch message");
-        let fetch_resp = match self.receiver.as_mut().unwrap().recv()?? {
-            WsFetchData::Fetch(fetch) => fetch,
-            data => panic!("unexpected result {data:?}"),
-        };
-
-        if fetch_resp.completed {
-            return Ok(None);
-        }
-
-        log::info!("fetch with: {fetch_resp:?}");
-
-        let fetch_block = WsSend::FetchBlock(self.args);
-        {
-            // prepare for receiving.
-            log::info!("send fetch message: {fetch_block:?}");
-            self.ws.send(fetch_block.to_msg()).await?;
-            log::info!("send done");
-            // unlock mutex when out of scope.
-        }
-
-        log::info!("receiving block...");
-        match self.receiver.as_mut().unwrap().recv()?? {
-            WsFetchData::Block(timing, raw) => {
-                let mut raw = RawBlock::parse_from_raw_block(
-                    raw,
-                    fetch_resp.rows,
-                    self.fields_count,
-                    self.precision,
-                );
-
-                for row in 0..raw.nrows() {
-                    for col in 0..raw.ncols() {
-                        log::debug!("at ({}, {})", row, col);
-                        let v = unsafe { raw.get_ref_unchecked(row, col) };
-                        println!("({}, {}): {:?}", row, col, v);
-                    }
-                }
-                raw.with_field_names(self.fields.as_ref().unwrap().iter().map(Field::name));
-                Ok(Some(raw))
-            }
-            WsFetchData::BlockV2(timing, raw) => {
-                let mut raw = RawBlock::parse_from_raw_block_v2(
-                    raw,
-                    self.fields.as_ref().unwrap(),
-                    dbg!(fetch_resp.lengths.as_ref().unwrap()),
-                    fetch_resp.rows,
-                    self.precision,
-                );
-
-                for row in 0..raw.nrows() {
-                    for col in 0..raw.ncols() {
-                        log::debug!("at ({}, {})", row, col);
-                        let v = unsafe { raw.get_ref_unchecked(row, col) };
-                        println!("({}, {}): {:?}", row, col, v);
-                    }
-                }
-                raw.with_field_names(self.fields.as_ref().unwrap().iter().map(Field::name));
-                Ok(Some(raw))
-            }
-            _ => Ok(None),
-        }
-    }
-}
-
-impl futures::Stream for ResultSetRef {
-    type Item = Result<RawBlock>;
-
-    fn poll_next(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        self.fetch().map(|v| v.transpose()).boxed().poll_unpin(cx)
-    }
-}
 
 impl AsyncFetchable for ResultSet {
     fn affected_rows(&self) -> i32 {
@@ -704,7 +655,7 @@ impl AsyncFetchable for ResultSet {
 }
 
 #[async_trait::async_trait]
-impl AsyncQueryable for WsAsyncClient {
+impl AsyncQueryable for WsTaos {
     type Error = Error;
 
     type AsyncResultSet = ResultSet;
@@ -720,7 +671,7 @@ impl AsyncQueryable for WsAsyncClient {
     }
 
     async fn write_raw_block(&self, block: &RawBlock) -> StdResult<(), Self::Error> {
-        todo!()
+        self.s_write_raw_block(block).await
     }
 }
 
@@ -733,7 +684,7 @@ async fn test_client() -> anyhow::Result<()> {
     let dsn = std::env::var("TDENGINE_ClOUD_DSN").unwrap_or("http://localhost:6041".to_string());
     // pretty_env_logger::init();
 
-    let client = WsAsyncClient::from_dsn(dsn).await?;
+    let client = WsTaos::from_dsn(dsn).await?;
 
     let _version = client.version();
     assert_eq!(client.exec("drop database if exists abc_a").await?, 0);
@@ -779,7 +730,7 @@ async fn test_client_cloud() -> anyhow::Result<()> {
         return Ok(());
     }
     let dsn = dsn.unwrap();
-    let client = WsAsyncClient::from_dsn(dsn).await?;
+    let client = WsTaos::from_dsn(dsn).await?;
     let mut rs = client.query("select * from test.meters limit 10").await?;
 
     let values = rs.to_records();
@@ -799,10 +750,62 @@ async fn test_client_cloud() -> anyhow::Result<()> {
 async fn ws_show_databases() -> anyhow::Result<()> {
     use taos_query::Queryable;
     let dsn = std::env::var("TDENGINE_ClOUD_DSN").unwrap_or("http://localhost:6041".to_string());
-    let client = WsAsyncClient::from_dsn(dsn).await?;
+    let client = WsTaos::from_dsn(dsn).await?;
     let mut rs = client.query("show databases").await?;
-    let values = rs.to_records();
+    let values = rs.to_records()?;
 
     dbg!(values);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn ws_write_raw_block() -> anyhow::Result<()> {
+    let mut raw = RawBlock::parse_from_raw_block_v2(
+        &[0, 0, 0, 0, 0, 0, 0, 0, 2][..],
+        &[
+            Field::new("ts", Ty::Timestamp, 8),
+            Field::new("v", Ty::Bool, 1),
+        ],
+        &[8, 1],
+        1,
+        Precision::Millisecond,
+    );
+    raw.with_table_name("tb1");
+    dbg!(&raw);
+
+    use futures::TryStreamExt;
+    std::env::set_var("RUST_LOG", "debug");
+    let dsn = std::env::var("TDENGINE_ClOUD_DSN")
+        .unwrap_or("http://localhost:6041".to_string());
+    // pretty_env_logger::init();
+
+    let client = WsTaos::from_dsn(dsn).await?;
+
+    let _version = client.version();
+
+    client.exec_many([
+        "create database write_raw_block_test keep 36500",
+        "use write_raw_block_test",
+        "create table if not exists tb1(ts timestamp, v bool)"
+
+    ]).await?;
+
+    client.write_raw_block(&raw).await?;
+
+    // // let mut rs = client.s_query("select * from abc_a.tb1").unwrap().unwrap();
+    let mut rs = client.query("select * from tb1").await?;
+
+    #[derive(Debug, serde::Deserialize)]
+    #[allow(dead_code)]
+    struct A {
+        ts: String,
+        v: Option<bool>,
+    }
+
+    let values: Vec<A> = rs.deserialize_stream().try_collect().await?;
+
+    dbg!(values);
+
+    assert_eq!(client.exec("drop database write_raw_block_test").await?, 0);
     Ok(())
 }
