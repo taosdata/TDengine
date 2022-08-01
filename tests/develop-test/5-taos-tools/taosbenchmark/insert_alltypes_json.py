@@ -15,7 +15,7 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import *
-
+from util.taosadapter import *
 
 class TDTestCase:
     def caseDescription(self):
@@ -51,6 +51,9 @@ class TDTestCase:
             return paths[0]
 
     def run(self):
+        tAdapter.init("")
+        tAdapter.deploy()
+        tAdapter.start()
         binPath = self.getPath()
         cmd = "%s -f ./5-taos-tools/taosbenchmark/json/taosc_insert_alltypes.json" %binPath
         tdLog.info("%s" % cmd)
