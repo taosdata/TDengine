@@ -179,7 +179,6 @@
 ./test.sh -f tsim/query/scalarFunction.sim
 ./test.sh -f tsim/query/scalarNull.sim
 ./test.sh -f tsim/query/session.sim
-./test.sh -f tsim/query/udf.sim
 
 # ---- qnode
 ./test.sh -f tsim/qnode/basic1.sim
@@ -316,6 +315,7 @@
 ./test.sh -f tsim/valgrind/checkError5.sim
 ./test.sh -f tsim/valgrind/checkError6.sim
 ./test.sh -f tsim/valgrind/checkError7.sim
+./test.sh -f tsim/valgrind/checkUdf.sim
 
 # --- vnode
 # unsupport ./test.sh -f tsim/vnode/replica3_basic.sim
