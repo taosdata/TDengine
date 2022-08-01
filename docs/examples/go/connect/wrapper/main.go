@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/taosdata/driver-go/v2/wrapper"
+	"github.com/taosdata/driver-go/v3/wrapper"
 )
 
 func main() {

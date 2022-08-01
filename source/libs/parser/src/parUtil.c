@@ -653,7 +653,7 @@ static int32_t reserveTableReqInCacheImpl(const char* pTbFName, int32_t len, SHa
 
 static int32_t reserveTableReqInCache(int32_t acctId, const char* pDb, const char* pTable, SHashObj** pTables) {
   char    fullName[TSDB_TABLE_FNAME_LEN];
-  int32_t len = snprintf(fullName, sizeof(fullName), "%d.%s.%s", acctId, pDb, pTable);
+  int32_t len = snprintf(fullName, sizeof(fullName), "%d.`%s`.`%s`", acctId, pDb, pTable);
   return reserveTableReqInCacheImpl(fullName, len, pTables);
 }
 
