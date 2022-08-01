@@ -65,7 +65,7 @@ REST 连接支持所有能运行 Go 的平台。
 
 ### 使用 go get 安装
 
-`go get -u github.com/taosdata/driver-go/v2@develop`
+`go get -u github.com/taosdata/driver-go/v3@latest`
 
 ### 使用 go mod 管理
 
@@ -80,7 +80,7 @@ REST 连接支持所有能运行 Go 的平台。
   ```go
   import (
     "database/sql"
-    _ "github.com/taosdata/driver-go/v2/taosSql"
+    _ "github.com/taosdata/driver-go/v3/taosSql"
   )
   ```
 
@@ -132,7 +132,7 @@ import (
     "database/sql"
     "fmt"
 
-    _ "github.com/taosdata/driver-go/v2/taosSql"
+    _ "github.com/taosdata/driver-go/v3/taosSql"
 )
 
 func main() {
@@ -164,7 +164,7 @@ import (
     "database/sql"
     "fmt"
 
-    _ "github.com/taosdata/driver-go/v2/taosRestful"
+    _ "github.com/taosdata/driver-go/v3/taosRestful"
 )
 
 func main() {
@@ -205,14 +205,14 @@ func main() {
 
 ### 更多示例程序
 
-* [示例程序](https://github.com/taosdata/TDengine/tree/develop/examples/go)
+* [示例程序](https://github.com/taosdata/driver-go/tree/3.0/examples)
 * [视频教程](https://www.taosdata.com/blog/2020/11/11/1951.html)。
 
 ## 使用限制
 
 由于 REST 接口无状态所以 `use db` 语法不会生效，需要将 db 名称放到 SQL 语句中，如：`create table if not exists tb1 (ts timestamp, a int)`改为`create table if not exists test.tb1 (ts timestamp, a int)`否则将报错`[0x217] Database not specified or available`。
 
-也可以将 db 名称放到 DSN 中，将 `root:taosdata@http(localhost:6041)/` 改为 `root:taosdata@http(localhost:6041)/test`，此方法在 TDengine 2.4.0.5 版本的 taosAdapter 开始支持。当指定的 db 不存在时执行 `create database` 语句不会报错，而执行针对该 db 的其他查询或写入操作会报错。
+也可以将 db 名称放到 DSN 中，将 `root:taosdata@http(localhost:6041)/` 改为 `root:taosdata@http(localhost:6041)/test`。当指定的 db 不存在时执行 `create database` 语句不会报错，而执行针对该 db 的其他查询或写入操作会报错。
 
 完整示例如下：
 
@@ -224,7 +224,7 @@ import (
     "fmt"
     "time"
 
-    _ "github.com/taosdata/driver-go/v2/taosRestful"
+    _ "github.com/taosdata/driver-go/v3/taosRestful"
 )
 
 func main() {
@@ -266,35 +266,27 @@ func main() {
 
 ## 常见问题
 
-1. 无法找到包 `github.com/taosdata/driver-go/v2/taosRestful`
-
-  将 `go.mod` 中 require 块对`github.com/taosdata/driver-go/v2`的引用改为`github.com/taosdata/driver-go/v2 develop`，之后执行 `go mod tidy`。
-
-2. database/sql 中 stmt（参数绑定）相关接口崩溃
+1. database/sql 中 stmt（参数绑定）相关接口崩溃
 
   REST 不支持参数绑定相关接口，建议使用`db.Exec`和`db.Query`。
 
-3. 使用 `use db` 语句后执行其他语句报错 `[0x217] Database not specified or available`
+2. 使用 `use db` 语句后执行其他语句报错 `[0x217] Database not specified or available`
 
   在 REST 接口中 SQL 语句的执行无上下文关联，使用 `use db` 语句不会生效，解决办法见上方使用限制章节。
 
-4. 使用 taosSql 不报错使用 taosRestful 报错 `[0x217] Database not specified or available`
+3. 使用 taosSql 不报错使用 taosRestful 报错 `[0x217] Database not specified or available`
 
   因为 REST 接口无状态，使用 `use db` 语句不会生效，解决办法见上方使用限制章节。
 
-5. 升级 `github.com/taosdata/driver-go/v2/taosRestful`
-
-  将 `go.mod` 文件中对 `github.com/taosdata/driver-go/v2` 的引用改为 `github.com/taosdata/driver-go/v2 develop`，之后执行 `go mod tidy`。
-
-6. `readBufferSize` 参数调大后无明显效果
+4. `readBufferSize` 参数调大后无明显效果
 
   `readBufferSize` 调大后会减少获取结果时 `syscall` 的调用。如果查询结果的数据量不大，修改该参数不会带来明显提升，如果该参数修改过大，瓶颈会在解析 JSON 数据。如果需要优化查询速度，需要根据实际情况调整该值来达到查询效果最优。
 
-7. `disableCompression` 参数设置为 `false` 时查询效率降低
+5. `disableCompression` 参数设置为 `false` 时查询效率降低
 
   当 `disableCompression` 参数设置为 `false` 时查询结果会使用 `gzip` 压缩后传输，拿到数据后要先进行 `gzip` 解压。
 
-8. `go get` 命令无法获取包，或者获取包超时
+6. `go get` 命令无法获取包，或者获取包超时
 
   设置 Go 代理 `go env -w GOPROXY=https://goproxy.cn,direct`。
 
@@ -334,17 +326,33 @@ func main() {
 
 #### 订阅
 
-* `func (conn *Connector) Subscribe(restart bool, topic string, sql string, interval time.Duration) (Subscriber, error)`
+* `func NewConsumer(conf *Config) (*Consumer, error)`
 
-  订阅数据。
+创建消费者。
 
-* `func (s *taosSubscriber) Consume() (driver.Rows, error)`
+* `func (c *Consumer) Subscribe(topics []string) error`
 
-  消费订阅数据，返回 `database/sql/driver` 包的 `Rows` 结构。
+订阅主题。
 
-* `func (s *taosSubscriber) Unsubscribe(keepProgress bool)`
+* `func (c *Consumer) Poll(timeout time.Duration) (*Result, error)`
 
-  取消订阅数据。
+轮询消息。
+
+* `func (c *Consumer) Commit(ctx context.Context, message unsafe.Pointer) error`
+
+提交消息。
+
+* `func (c *Consumer) FreeMessage(message unsafe.Pointer)`
+
+释放消息。
+
+* `func (c *Consumer) Unsubscribe() error`
+
+取消订阅。
+
+* `func (c *Consumer) Close() error`
+
+关闭消费者。
 
 #### schemaless
 
@@ -365,10 +373,6 @@ func main() {
 * `func (conn *Connector) StmtExecute(sql string, params *param.Param) (res driver.Result, err error)`
 
   参数绑定单行插入。
-
-* `func (conn *Connector) StmtQuery(sql string, params *param.Param) (rows driver.Rows, err error)`
-
-  参数绑定查询，返回 `database/sql/driver` 包的 `Rows` 结构。
 
 * `func (conn *Connector) InsertStmt() *insertstmt.InsertStmt`
 
@@ -408,4 +412,4 @@ func main() {
 
 ## API 参考
 
-全部 API 见 [driver-go 文档](https://pkg.go.dev/github.com/taosdata/driver-go/v2)
+全部 API 见 [driver-go 文档](https://pkg.go.dev/github.com/taosdata/driver-go/v3)

@@ -687,6 +687,7 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   int32_t   numOfRows = 0;
   int32_t   cols = 0;
   SConnObj *pConn = NULL;
+  int32_t   keepTime = tsShellActivityTimer * 3;
 
   if (pShow->pIter == NULL) {
     SProfileMgmt *pMgmt = &pMnode->profileMgmt;
@@ -698,6 +699,10 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     if (pConn == NULL) {
       pShow->pIter = NULL;
       break;
+    }
+
+    if ((taosGetTimestampMs() - pConn->lastAccessTimeMs) > (keepTime * 1000)) {
+      continue;
     }
 
     cols = 0;
