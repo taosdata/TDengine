@@ -283,6 +283,7 @@ typedef struct SCreateIndexStmt {
   EIndexType     indexType;
   bool           ignoreExists;
   char           indexName[TSDB_INDEX_NAME_LEN];
+  char           dbName[TSDB_DB_NAME_LEN];
   char           tableName[TSDB_TABLE_NAME_LEN];
   SNodeList*     pCols;
   SIndexOptions* pOptions;
