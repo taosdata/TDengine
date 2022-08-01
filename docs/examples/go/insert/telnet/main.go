@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/taosdata/driver-go/v2/af"
+	"github.com/taosdata/driver-go/v3/af"
 )
 
 func prepareDatabase(conn *af.Connector) {
