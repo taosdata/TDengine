@@ -3370,6 +3370,10 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
 }
 
 static int32_t checkCreateDatabase(STranslateContext* pCxt, SCreateDatabaseStmt* pStmt) {
+  if (NULL != strchr(pStmt->dbName, '.')) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,
+                                   "The database name cannot contain '.'");
+  }
   return checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions);
 }
 
