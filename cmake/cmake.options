@@ -157,18 +157,6 @@ option(
     ON 
 )
 
-option(
-    BUILD_WITH_CRAFT
-    "If build with canonical-raft"
-    OFF
-)
-
-option(
-    BUILD_WITH_TRAFT
-    "If build with traft"
-    OFF
-)
-
 IF(${TD_LINUX} MATCHES TRUE)
 
 option(
