@@ -323,8 +323,6 @@ static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) 
     }
 
     if (leftTs == rightTs) {
-      mergeJoinJoinLeftRight(pOperator, pRes, nrows, pJoinInfo->pLeft, pJoinInfo->leftPos, pJoinInfo->pRight,
-                             pJoinInfo->rightPos);
       mergeJoinJoinDownstreamTsRanges(pOperator, leftTs, pRes, &nrows);
     } else if (asc && leftTs < rightTs || !asc && leftTs > rightTs) {
       pJoinInfo->leftPos += 1;
