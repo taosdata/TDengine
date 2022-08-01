@@ -26,7 +26,7 @@ Python 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-con
 
 ## 支持的功能
 
-- 原生连接支持 TDeingine 的所有核心功能， 包括： 连接管理、执行 SQL、参数绑定、订阅、无模式写入（schemaless）。
+- 原生连接支持 TDengine 的所有核心功能， 包括： 连接管理、执行 SQL、参数绑定、订阅、无模式写入（schemaless）。
 - REST 连接支持的功能包括：连接管理、执行 SQL。 (通过执行 SQL 可以： 管理数据库、管理表和超级表、写入数据、查询数据、创建连续查询等)。
 
 ## 安装
@@ -201,7 +201,7 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 
 - `url`： taosAdapter REST 服务的 URL。默认是 <http://localhost:6041>。
 - `user`： TDenigne 用户名。默认是 root。
-- `password`： TDeingine 用户密码。默认是 taosdata。
+- `password`： TDengine 用户密码。默认是 taosdata。
 - `timeout`: HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。 一般无需配置。
 
 </TabItem>
@@ -306,7 +306,7 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 <TabItem value="rest+sqlalchemy" label="REST 连接 + SQLAlchemy">
 
 ```python
-{{#include docs/examples/python/conn_rest_sqlachemy.py}}
+{{#include docs/examples/python/conn_rest_sqlalchemy.py}}
 ```
 
 </TabItem>

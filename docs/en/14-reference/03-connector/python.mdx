@@ -110,7 +110,7 @@ If you have multiple versions of Python on your system, you may have various `pi
 C:\> pip3 install taospy
 Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
 Requirement already satisfied: taospy in c:\users\username\appdata\local\programs\python\python310\lib\site-packages (2.3.0)
-
+```
 :::
 
 ## Establish connection
@@ -255,7 +255,7 @@ The TaosCursor class uses native connections for write and query operations. In 
 
 ##### Use of TaosRestCursor class
 
-The ``TaosRestCursor`` class is an implementation of the PEP249 Cursor interface.
+The `TaosRestCursor` class is an implementation of the PEP249 Cursor interface.
 
 ```python title="Use of TaosRestCursor"
 {{#include docs/examples/python/connect_rest_examples.py:basic}}
@@ -294,18 +294,17 @@ For a more detailed description of the `sql()` method, please refer to [RestClie
 ```
 
 </TabItem>
-<Tabs default="native+sqlalchemy">
-<TabItem value="native" label="原生连接 + SQLAlchemy">
+<TabItem value="native+sqlalchemy" label="Native + SQLAlchemy">
 
 ```python
 {{#include docs/examples/python/conn_native_sqlalchemy.py}}
 ```
 
 </TabItem>
-<TabItem value="rest+sqlalchemy" label="REST 连接 + SQLAlchemy">
+<TabItem value="rest+sqlalchemy" label="REST + SQLAlchemy">
 
 ```python
-{{#include docs/examples/python/conn_rest_sqlachemy.py}}
+{{#include docs/examples/python/conn_rest_sqlalchemy.py}}
 ```
 
 </TabItem>
