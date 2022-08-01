@@ -2129,7 +2129,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'
                    
         # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
-        for i in (3,):
+        for i in (31,32,33,):
             func = tdFunction.func_stable_special(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
