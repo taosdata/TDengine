@@ -15,7 +15,7 @@
 #include "tdbInt.h"
 #include "tq.h"
 
-static int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle) {
+int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeCStr(pEncoder, pHandle->subKey) < 0) return -1;
   if (tEncodeI64(pEncoder, pHandle->consumerId) < 0) return -1;
@@ -29,7 +29,7 @@ static int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle) {
   return pEncoder->pos;
 }
 
-static int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
+int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pHandle->subKey) < 0) return -1;
   if (tDecodeI64(pDecoder, &pHandle->consumerId) < 0) return -1;
@@ -43,33 +43,20 @@ static int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
   return 0;
 }
 
-int32_t tqMetaOpen(STQ* pTq) {
-  if (tdbOpen(pTq->path, 16 * 1024, 1, &pTq->pMetaStore) < 0) {
+int32_t tqMetaRestoreHandle(STQ* pTq) {
+  TBC* pCur = NULL;
+  if (tdbTbcOpen(pTq->pExecStore, &pCur, NULL) < 0) {
     ASSERT(0);
+    return -1;
   }
 
-  if (tdbTbOpen("handles", -1, -1, NULL, pTq->pMetaStore, &pTq->pExecStore) < 0) {
-    ASSERT(0);
-  }
-
-  TXN txn = {0};
-
-  if (tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, 0) < 0) {
-    ASSERT(0);
-  }
-
-  TBC* pCur;
-  if (tdbTbcOpen(pTq->pExecStore, &pCur, &txn) < 0) {
-    ASSERT(0);
-  }
-
-  void* pKey = NULL;
-  int   kLen = 0;
-  void* pVal = NULL;
-  int   vLen = 0;
+  void*    pKey = NULL;
+  int      kLen = 0;
+  void*    pVal = NULL;
+  int      vLen = 0;
+  SDecoder decoder;
 
   tdbTbcMoveToFirst(pCur);
-  SDecoder decoder;
 
   while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
     STqHandle handle;
@@ -79,6 +66,7 @@ int32_t tqMetaOpen(STQ* pTq) {
     handle.pRef = walOpenRef(pTq->pVnode->pWal);
     if (handle.pRef == NULL) {
       ASSERT(0);
+      return -1;
     }
     walRefVer(handle.pRef, handle.snapshotVer);
 
@@ -109,9 +97,24 @@ int32_t tqMetaOpen(STQ* pTq) {
   }
 
   tdbTbcClose(pCur);
-  if (tdbTxnClose(&txn) < 0) {
+  return 0;
+}
+
+int32_t tqMetaOpen(STQ* pTq) {
+  if (tdbOpen(pTq->path, 16 * 1024, 1, &pTq->pMetaStore) < 0) {
     ASSERT(0);
+    return -1;
   }
+
+  if (tdbTbOpen("tq.db", -1, -1, NULL, pTq->pMetaStore, &pTq->pExecStore) < 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  if (tqMetaRestoreHandle(pTq) < 0) {
+    return -1;
+  }
+
   return 0;
 }
 

@@ -548,6 +548,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
     SWalRef* pRef = walRefCommittedVer(pTq->pVnode->pWal);
     if (pRef == NULL) {
       ASSERT(0);
+      return -1;
     }
     int64_t ver = pRef->refVer;
     pHandle->pRef = pRef;
