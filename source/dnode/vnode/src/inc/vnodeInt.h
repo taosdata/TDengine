@@ -153,7 +153,7 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* data);
+int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* data, int64_t ver);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg);

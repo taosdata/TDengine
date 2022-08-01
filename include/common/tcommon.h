@@ -56,7 +56,6 @@ enum {
   STREAM_INPUT__DATA_SUBMIT = 1,
   STREAM_INPUT__DATA_BLOCK,
   STREAM_INPUT__MERGED_SUBMIT,
-  // STREAM_INPUT__TABLE_SCAN,
   STREAM_INPUT__TQ_SCAN,
   STREAM_INPUT__DATA_RETRIEVE,
   STREAM_INPUT__GET_RES,
@@ -154,7 +153,7 @@ typedef struct SQueryTableDataCond {
   int32_t      order;  // desc|asc order to iterate the data block
   int32_t      numOfCols;
   SColumnInfo* colList;
-  int32_t      type;   // data block load type:
+  int32_t      type;  // data block load type:
   STimeWindow  twindows;
   int64_t      startVersion;
   int64_t      endVersion;

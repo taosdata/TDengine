@@ -137,6 +137,7 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTa
 int64_t tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
 void   *tsdbGetIdx(SMeta *pMeta);
 void   *tsdbGetIvtIdx(SMeta *pMeta);
+uint64_t getReaderMaxVersion(STsdbReader *pReader);
 
 int32_t tsdbLastRowReaderOpen(void *pVnode, int32_t type, SArray *pTableIdList, int32_t numOfCols, void **pReader);
 int32_t tsdbRetrieveLastRow(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, SArray *pTableUids);
