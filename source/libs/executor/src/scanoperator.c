@@ -1622,8 +1622,8 @@ static void destroySysScanOperator(void* param, int32_t numOfOutput) {
   blockDataDestroy(pInfo->pRes);
 
   const char* name = tNameGetTableName(&pInfo->name);
-  if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
-      strncasecmp(name, TSDB_INS_TABLE_USER_TAGS, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
+  if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
+      strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
     metaCloseTbCursor(pInfo->pCur);
     pInfo->pCur = NULL;
   }
@@ -1635,7 +1635,7 @@ static void destroySysScanOperator(void* param, int32_t numOfOutput) {
 }
 
 static int32_t getSysTableDbNameColId(const char* pTable) {
-  // if (0 == strcmp(TSDB_INS_TABLE_USER_INDEXES, pTable)) {
+  // if (0 == strcmp(TSDB_INS_TABLE_INDEXES, pTable)) {
   //   return 1;
   // }
   return TSDB_INS_USER_STABLES_DBNAME_COLID;
@@ -1851,7 +1851,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
   tNameGetDbName(&sn, varDataVal(dbname));
   varDataSetLen(dbname, strlen(varDataVal(dbname)));
 
-  SSDataBlock* p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_USER_TAGS);
+  SSDataBlock* p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_TAGS);
   blockDataEnsureCapacity(p, pOperator->resultInfo.capacity);
 
   int32_t ret = 0;
@@ -2022,7 +2022,7 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
     tNameGetDbName(&sn, varDataVal(dbname));
     varDataSetLen(dbname, strlen(varDataVal(dbname)));
 
-    SSDataBlock* p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_USER_TABLES);
+    SSDataBlock* p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_TABLES);
     blockDataEnsureCapacity(p, pOperator->resultInfo.capacity);
 
     char n[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -2189,11 +2189,11 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
     sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
   }
 
-  if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, TSDB_TABLE_FNAME_LEN) == 0) {
+  if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0) {
     return sysTableScanUserTables(pOperator);
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TAGS, TSDB_TABLE_FNAME_LEN) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0) {
     return sysTableScanUserTags(pOperator);
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_STABLES, TSDB_TABLE_FNAME_LEN) == 0 &&
+  } else if (strncasecmp(name, TSDB_INS_TABLE_STABLES, TSDB_TABLE_FNAME_LEN) == 0 &&
              IS_SYS_DBNAME(pInfo->req.db)) {
     return sysTableScanUserSTables(pOperator);
   } else {  // load the meta from mnode of the given epset
@@ -2269,7 +2269,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
 }
 
 int32_t buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capacity) {
-  SSDataBlock* p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_USER_TABLES);
+  SSDataBlock* p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_TABLES);
   blockDataEnsureCapacity(p, capacity);
 
   size_t               size = 0;
@@ -2358,8 +2358,8 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   tNameAssign(&pInfo->name, &pScanNode->tableName);
   const char* name = tNameGetTableName(&pInfo->name);
 
-  if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
-      strncasecmp(name, TSDB_INS_TABLE_USER_TAGS, TSDB_TABLE_FNAME_LEN) == 0) {
+  if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
+      strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0) {
     pInfo->readHandle = *(SReadHandle*)readHandle;
     blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   } else {

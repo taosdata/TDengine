@@ -294,12 +294,12 @@ endi
 return -1
 check_ok_3:
 
-sql select * from performance_schema.`consumers`
+sql select * from performance_schema.perf_consumers
 if $rows != 0 then
   return -1
 endi 
 
-#sql select * from performance_schema.`subscriptions`
+#sql select * from performance_schema.perf_subscriptions
 #if $rows != 0 then
 #  return -1
 #endi 
