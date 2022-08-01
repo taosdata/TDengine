@@ -5,7 +5,7 @@ title: REST API
 为支持各种不同类型平台的开发，TDengine 提供符合 REST 设计标准的 API，即 REST API。为最大程度降低学习成本，不同于其他数据库 REST API 的设计方法，TDengine 直接通过 HTTP POST 请求 BODY 中包含的 SQL 语句来操作数据库，仅需要一个 URL。REST 连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
 
 :::note
-与原生连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。从 2.2.0.0 版本开始，支持在 RESTful URL 中指定 db_name，这时如果 SQL 语句中没有指定数据库名前缀的话，会使用 URL 中指定的这个 db_name。从 2.4.0.0 版本开始，RESTful 默认由 taosAdapter 提供，要求必须在 URL 中指定 db_name。
+与原生连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。支持在 RESTful URL 中指定 db_name，这时如果 SQL 语句中没有指定数据库名前缀的话，会使用 URL 中指定的这个 db_name。
 :::
 
 ## 安装
@@ -28,54 +28,204 @@ curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "show databases;" h1.t
 
 ```json
 {
-  "status": "succ",
-  "head": [
-    "name",
-    "created_time",
-    "ntables",
-    "vgroups",
-    "replica",
-    "quorum",
-    "days",
-    "keep1,keep2,keep(D)",
-    "cache(MB)",
-    "blocks",
-    "minrows",
-    "maxrows",
-    "wallevel",
-    "fsync",
-    "comp",
-    "precision",
-    "status"
-  ],
-  "data": [
-    [
-      "log",
-      "2020-09-02 17:23:00.039",
-      4,
-      1,
-      1,
-      1,
-      10,
-      "30,30,30",
-      1,
-      3,
-      100,
-      4096,
-      1,
-      3000,
-      2,
-      "us",
-      "ready"
-    ]
-  ],
-  "rows": 1
+    "code": 0,
+    "column_meta": [
+        [
+            "name",
+            "VARCHAR",
+            64
+        ],
+        [
+            "create_time",
+            "TIMESTAMP",
+            8
+        ],
+        [
+            "vgroups",
+            "SMALLINT",
+            2
+        ],
+        [
+            "ntables",
+            "BIGINT",
+            8
+        ],
+        [
+            "replica",
+            "TINYINT",
+            1
+        ],
+        [
+            "strict",
+            "VARCHAR",
+            4
+        ],
+        [
+            "duration",
+            "VARCHAR",
+            10
+        ],
+        [
+            "keep",
+            "VARCHAR",
+            32
+        ],
+        [
+            "buffer",
+            "INT",
+            4
+        ],
+        [
+            "pagesize",
+            "INT",
+            4
+        ],
+        [
+            "pages",
+            "INT",
+            4
+        ],
+        [
+            "minrows",
+            "INT",
+            4
+        ],
+        [
+            "maxrows",
+            "INT",
+            4
+        ],
+        [
+            "comp",
+            "TINYINT",
+            1
+        ],
+        [
+            "precision",
+            "VARCHAR",
+            2
+        ],
+        [
+            "status",
+            "VARCHAR",
+            10
+        ],
+        [
+            "retention",
+            "VARCHAR",
+            60
+        ],
+        [
+            "single_stable",
+            "BOOL",
+            1
+        ],
+        [
+            "cachemodel",
+            "VARCHAR",
+            11
+        ],
+        [
+            "cachesize",
+            "INT",
+            4
+        ],
+        [
+            "wal_level",
+            "TINYINT",
+            1
+        ],
+        [
+            "wal_fsync_period",
+            "INT",
+            4
+        ],
+        [
+            "wal_retention_period",
+            "INT",
+            4
+        ],
+        [
+            "wal_retention_size",
+            "BIGINT",
+            8
+        ],
+        [
+            "wal_roll_period",
+            "INT",
+            4
+        ],
+        [
+            "wal_seg_size",
+            "BIGINT",
+            8
+        ]
+    ],
+    "data": [
+        [
+            "information_schema",
+            null,
+            null,
+            14,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "ready",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        ],
+        [
+            "performance_schema",
+            null,
+            null,
+            3,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "ready",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        ]
+    ],
+    "rows": 2
 }
 ```
 
 ## HTTP 请求格式
 
-```
+```text
 http://<fqdn>:<port>/rest/sql/[db_name]
 ```
 
@@ -83,21 +233,21 @@ http://<fqdn>:<port>/rest/sql/[db_name]
 
 - fqnd: 集群中的任一台主机 FQDN 或 IP 地址
 - port: 配置文件中 httpPort 配置项，缺省为 6041
-- db_name: 可选参数，指定本次所执行的 SQL 语句的默认数据库库名。（从 2.2.0.0 版本开始支持）
+- db_name: 可选参数，指定本次所执行的 SQL 语句的默认数据库库名。
 
 例如：`http://h1.taos.com:6041/rest/sql/test` 是指向地址为 `h1.taos.com:6041` 的 URL，并将默认使用的数据库库名设置为 `test`。
 
 HTTP 请求的 Header 里需带有身份认证信息，TDengine 支持 Basic 认证与自定义认证两种机制，后续版本将提供标准安全的数字签名机制来做身份验证。
 
-- 自定义身份认证信息如下所示（token 稍后介绍）
+- [自定义身份认证信息](#自定义授权码)如下所示
 
-  ```
+  ```text
   Authorization: Taosd <TOKEN>
   ```
 
 - Basic 身份认证信息如下所示
 
-  ```
+  ```text
   Authorization: Basic <TOKEN>
   ```
 
@@ -119,41 +269,165 @@ curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name]
 
 ## HTTP 返回格式
 
-返回值为 JSON 格式，如下:
+### HTTP 响应码
+
+| **response code** | **说明**         |
+|-------------------|----------------|
+| 200               | 正确返回和 C 接口错误返回 |
+| 400               | 参数错误返回         |
+| 401               | 鉴权失败           |
+| 404               | 接口不存在          |
+| 500               | 内部错误           |
+| 503               | 系统资源不足         |
+
+### HTTP body 结构
+
+<table>
+<tr>
+  <th>执行结果</th>
+  <th>说明</th>
+  <th>样例</th>
+</tr>
+<tr>
+  <td>正确执行</td>
+  <td>
+  code：（int）0 代表成功
+  <br/>
+  <br/>
+  column_meta：（[][3]any）列信息，每个列会用三个值来说明，分别为：列名(string)、列类型(string)、类型长度(int)
+  <br/>
+  <br/>
+  rows：（int）数据返回行数
+  <br/>
+  <br/>
+  data：（[][]any）具体数据内容
+  </td>
+  <td>
 
 ```json
 {
-    "status": "succ",
-    "head": ["ts","current", …],
-    "column_meta": [["ts",9,8],["current",6,4], …],
-    "data": [
-        ["2018-10-03 14:38:05.000", 10.3, …],
-        ["2018-10-03 14:38:15.000", 12.6, …]
-    ],
-    "rows": 2
+  "code": 0,
+  "column_meta": [["affected_rows", "INT", 4]],
+  "data": [[0]],
+  "rows": 1
 }
 ```
 
-说明：
+  </td>
+</tr>
+<tr>
+    <td>正确查询</td>
+    <td>
+    code：（int）0 代表成功
+    <br/>
+    <br/>
+    column_meta：（[][3]any） 列信息，每个列会用三个值来说明，分别为：列名（string）、列类型（string）、类型长度（int）
+    <br/>
+    <br/>
+    rows：（int）数据返回行数
+    <br/>
+    <br/>
+    data：（[][]any）具体数据内容
+  </td>
+  <td>
 
-- status: 告知操作结果是成功还是失败。
-- head: 表的定义，如果不返回结果集，则仅有一列 “affected_rows”。（从 2.0.17.0 版本开始，建议不要依赖 head 返回值来判断数据列类型，而推荐使用 column_meta。在后续版本中，有可能会从返回值中去掉 head 这一项。）
-- column_meta: 从 2.0.17.0 版本开始，返回值中增加这一项来说明 data 里每一列的数据类型。具体每个列会用三个值来说明，分别为：列名、列类型、类型长度。例如`["current",6,4]`表示列名为“current”；列类型为 6，也即 float 类型；类型长度为 4，也即对应 4 个字节表示的 float。如果列类型为 binary 或 nchar，则类型长度表示该列最多可以保存的内容长度，而不是本次返回值中的具体数据长度。当列类型是 nchar 的时候，其类型长度表示可以保存的 unicode 字符数量，而不是 bytes。
-- data: 具体返回的数据，一行一行的呈现，如果不返回结果集，那么就仅有 [[affected_rows]]。data 中每一行的数据列顺序，与 column_meta 中描述数据列的顺序完全一致。
-- rows: 表明总共多少行数据。
+```json
+{
+  "code": 0,
+  "column_meta": [
+    ["ts", "TIMESTAMP", 8],
+    ["count", "BIGINT", 8],
+    ["endpoint", "VARCHAR", 45],
+    ["status_code", "INT", 4],
+    ["client_ip", "VARCHAR", 40],
+    ["request_method", "VARCHAR", 15],
+    ["request_uri", "VARCHAR", 128]
+  ],
+  "data": [
+    [
+      "2022-06-29T05:50:55.401Z",
+      2,
+      "LAPTOP-NNKFTLTG:6041",
+      200,
+      "172.23.208.1",
+      "POST",
+      "/rest/sql"
+    ],
+    [
+      "2022-06-29T05:52:16.603Z",
+      1,
+      "LAPTOP-NNKFTLTG:6041",
+      200,
+      "172.23.208.1",
+      "POST",
+      "/rest/sql"
+    ],
+    [
+      "2022-06-29T06:28:14.118Z",
+      1,
+      "LAPTOP-NNKFTLTG:6041",
+      200,
+      "172.23.208.1",
+      "POST",
+      "/rest/sql"
+    ],
+    [
+      "2022-06-29T05:52:16.603Z",
+      2,
+      "LAPTOP-NNKFTLTG:6041",
+      401,
+      "172.23.208.1",
+      "POST",
+      "/rest/sql"
+    ]
+  ],
+  "rows": 4
+}
+```
 
-column_meta 中的列类型说明：
+  </td>
+</tr>
+<tr>
+  <td>错误</td>
+  <td>
+  code：（int）错误码
+  <br/>
+  <br/>
+  desc：（string）错误描述
+  </td>
+  <td>
 
-- 1：BOOL
-- 2：TINYINT
-- 3：SMALLINT
-- 4：INT
-- 5：BIGINT
-- 6：FLOAT
-- 7：DOUBLE
-- 8：BINARY
-- 9：TIMESTAMP
-- 10：NCHAR
+```json
+{
+  "code": 9728,
+  "desc": "syntax error near \"1\""
+}
+```
+
+  </td>
+</tr>
+</table>
+
+### 说明
+
+- 时间格式仅支持 RFC3339，结果集为 0 时区
+- 列类型使用如下字符串:
+    > "NULL"
+    > "BOOL"
+    > "TINYINT"
+    > "SMALLINT"
+    > "INT"
+    > "BIGINT"
+    > "FLOAT"
+    > "DOUBLE"
+    > "VARCHAR"
+    > "TIMESTAMP"
+    > "NCHAR"
+    > "TINYINT UNSIGNED"
+    > "SMALLINT UNSIGNED"
+    > "INT UNSIGNED"
+    > "BIGINT UNSIGNED"
+    > "JSON"
 
 ## 自定义授权码
 
@@ -199,19 +473,44 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 
   ```json
   {
-    "status": "succ",
-    "head": ["ts", "current", "voltage", "phase"],
-    "column_meta": [
-      ["ts", 9, 8],
-      ["current", 6, 4],
-      ["voltage", 4, 4],
-      ["phase", 6, 4]
-    ],
-    "data": [
-      ["2018-10-03 14:38:05.000", 10.3, 219, 0.31],
-      ["2018-10-03 14:38:15.000", 12.6, 218, 0.33]
-    ],
-    "rows": 2
+      "code": 0,
+      "column_meta": [
+          [
+              "ts",
+              "TIMESTAMP",
+              8
+          ],
+          [
+              "current",
+              "FLOAT",
+              4
+          ],
+          [
+              "voltage",
+              "INT",
+              4
+          ],
+          [
+              "phase",
+              "FLOAT",
+              4
+          ]
+      ],
+      "data": [
+          [
+              "2022-07-30T06:44:40.32Z",
+              10.3,
+              219,
+              0.31
+          ],
+          [
+              "2022-07-30T06:44:41.32Z",
+              12.6,
+              218,
+              0.33
+          ]
+      ],
+      "rows": 2
   }
   ```
 
@@ -225,83 +524,23 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 
   ```json
   {
-    "status": "succ",
-    "head": ["affected_rows"],
-    "column_meta": [["affected_rows", 4, 4]],
-    "data": [[1]],
-    "rows": 1
+      "code": 0,
+      "column_meta": [
+          [
+              "affected_rows",
+              "INT",
+              4
+          ]
+      ],
+      "data": [
+          [
+              0
+          ]
+      ],
+      "rows": 1
   }
   ```
 
-## 其他用法
+## 参考
 
-### 结果集采用 Unix 时间戳
-
-HTTP 请求 URL 采用 `/rest/sqlt` 时，返回结果集的时间戳将采用 Unix 时间戳格式表示，例如
-
-```bash
-curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "select * from demo.d1001" 192.168.0.1:6041/rest/sqlt
-```
-
-返回结果：
-
-```json
-{
-  "status": "succ",
-  "head": ["ts", "current", "voltage", "phase"],
-  "column_meta": [
-    ["ts", 9, 8],
-    ["current", 6, 4],
-    ["voltage", 4, 4],
-    ["phase", 6, 4]
-  ],
-  "data": [
-    [1538548685000, 10.3, 219, 0.31],
-    [1538548695000, 12.6, 218, 0.33]
-  ],
-  "rows": 2
-}
-```
-
-### 结果集采用 UTC 时间字符串
-
-HTTP 请求 URL 采用 `/rest/sqlutc` 时，返回结果集的时间戳将采用 UTC 时间字符串表示，例如
-
-```bash
-  curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "select * from demo.t1" 192.168.0.1:6041/rest/sqlutc
-```
-
-返回值：
-
-```json
-{
-  "status": "succ",
-  "head": ["ts", "current", "voltage", "phase"],
-  "column_meta": [
-    ["ts", 9, 8],
-    ["current", 6, 4],
-    ["voltage", 4, 4],
-    ["phase", 6, 4]
-  ],
-  "data": [
-    ["2018-10-03T14:38:05.000+0800", 10.3, 219, 0.31],
-    ["2018-10-03T14:38:15.000+0800", 12.6, 218, 0.33]
-  ],
-  "rows": 2
-}
-```
-
-## 重要配置项
-
-下面仅列出一些与 RESTful 接口有关的配置参数，其他系统参数请看配置文件里的说明。
-
-- 对外提供 RESTful 服务的端口号，默认绑定到 6041（实际取值是 serverPort + 11，因此可以通过修改 serverPort 参数的设置来修改）。
-- httpMaxThreads: 启动的线程数量，默认为 2（2.0.17.0 版本开始，默认值改为 CPU 核数的一半向下取整）。
-- restfulRowLimit: 返回结果集（JSON 格式）的最大条数，默认值为 10240。
-- httpEnableCompress: 是否支持压缩，默认不支持，目前 TDengine 仅支持 gzip 压缩格式。
-- httpDebugFlag: 日志开关，默认 131。131：仅错误和报警信息，135：调试信息，143：非常详细的调试信息。
-- httpDbNameMandatory: 是否必须在 RESTful URL 中指定默认的数据库名。默认为 0，即关闭此检查。如果设置为 1，那么每个 RESTful URL 中都必须设置一个默认数据库名，否则无论此时执行的 SQL 语句是否需要指定数据库，都会返回一个执行错误，拒绝执行此 SQL 语句。
-
-:::note
-如果使用 taosd 提供的 REST API, 那么以上配置需要写在 taosd 的配置文件 taos.cfg 中。如果使用 taosAdapter 提供的 REST API, 那么需要参考 taosAdapter [对应的配置方法](/reference/taosadapter/)。
-:::
+[taosAdapter](/reference/taosadapter/)

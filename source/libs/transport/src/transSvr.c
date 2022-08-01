@@ -253,11 +253,11 @@ static void uvHandleReq(SSvrConn* pConn) {
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
     transRefSrvHandle(pConn);
 
-    tGTrace("%s conn %p %s received from %s, local info:%s, msg size:%d", transLabel(pTransInst), pConn,
+    tGTrace("%s conn %p %s received from %s, local info:%s, len:%d", transLabel(pTransInst), pConn,
             TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, transMsg.contLen);
   } else {
-    tGTrace("%s conn %p %s received from %s, local info:%s, msg size:%d, resp:%d, code:%d", transLabel(pTransInst),
-            pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, transMsg.contLen, pHead->noResp, transMsg.code);
+    tGTrace("%s conn %p %s received from %s, local info:%s, len:%d, resp:%d, code:%d", transLabel(pTransInst), pConn,
+            TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, transMsg.contLen, pHead->noResp, transMsg.code);
   }
 
   // pHead->noResp = 1,
@@ -296,11 +296,9 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   if (nread > 0) {
     pBuf->len += nread;
     tTrace("%s conn %p total read:%d, current read:%d", transLabel(pTransInst), conn, pBuf->len, (int)nread);
-    if (transReadComplete(pBuf)) {
+    while (transReadComplete(pBuf)) {
       tTrace("%s conn %p alread read complete packet", transLabel(pTransInst), conn);
       uvHandleReq(conn);
-    } else {
-      tTrace("%s conn %p read partial packet, continue to read", transLabel(pTransInst), conn);
     }
     return;
   }
@@ -418,8 +416,8 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
 
   STrans*   pTransInst = pConn->pTransInst;
   STraceId* trace = &pMsg->info.traceId;
-  tGTrace("%s conn %p %s is sent to %s, local info:%s, msglen:%d", transLabel(pTransInst), pConn,
-          TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, len);
+  tGTrace("%s conn %p %s is sent to %s, local info:%s, len:%d", transLabel(pTransInst), pConn,
+          TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, pMsg->contLen);
   pHead->msgLen = htonl(len);
 
   wb->base = msg;

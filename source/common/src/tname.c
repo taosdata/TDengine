@@ -162,10 +162,7 @@ int32_t tNameGetDbName(const SName* name, char* dst) {
   return 0;
 }
 
-const char* tNameGetDbNameP(const SName* name) {
-  return &name->dbname[0];
-}
-
+const char* tNameGetDbNameP(const SName* name) { return &name->dbname[0]; }
 
 int32_t tNameGetFullDbName(const SName* name, char* dst) {
   assert(name != NULL && dst != NULL);
@@ -211,7 +208,6 @@ int32_t tNameAddTbName(SName* dst, const char* tbName, size_t nameLen) {
   tstrncpy(dst->tname, tbName, nameLen + 1);
   return 0;
 }
-
 
 int32_t tNameSetAcctId(SName* dst, int32_t acctId) {
   assert(dst != NULL);
@@ -266,11 +262,21 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
     char* start = (char*)((p == NULL) ? str : (p + 1));
 
     int32_t len = 0;
-    p = strstr(start, TS_PATH_DELIMITER);
-    if (p == NULL) {
-      len = (int32_t)strlen(start);
+    if (TS_ESCAPE_CHAR == *start) {
+      ++start;
+      char* end = start;
+      while ('`' != *end) {
+        ++end;
+      }
+      len = end - start;
+      p = ++end;
     } else {
-      len = (int32_t)(p - start);
+      p = strstr(start, TS_PATH_DELIMITER);
+      if (p == NULL) {
+        len = (int32_t)strlen(start);
+      } else {
+        len = (int32_t)(p - start);
+      }
     }
 
     // too long account id or too long db name
@@ -288,6 +294,10 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
 
     // too long account id or too long db name
     int32_t len = (int32_t)strlen(start);
+    if (TS_ESCAPE_CHAR == *start) {
+      len -= 2;
+      ++start;
+    }
     if ((len >= tListLen(dst->tname)) || (len <= 0)) {
       return -1;
     }
@@ -340,7 +350,7 @@ void buildChildTableName(RandTableName* rName) {
   char temp[8] = {0};
   rName->childTableName[0] = 't';
   rName->childTableName[1] = '_';
-  for(int i = 0; i < 16; i++){
+  for (int i = 0; i < 16; i++) {
     sprintf(temp, "%02x", context.digest[i]);
     strcat(rName->childTableName, temp);
   }

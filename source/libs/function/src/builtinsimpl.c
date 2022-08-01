@@ -4651,10 +4651,15 @@ int32_t stateCountFunction(SqlFunctionCtx* pCtx) {
     numOfElems++;
     if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
       colDataAppendNULL(pOutput, i);
+      // handle selectivity
+      if (pCtx->subsidiaries.num > 0) {
+        appendSelectivityValue(pCtx, i, i);
+      }
       continue;
     }
 
-    bool    ret = checkStateOp(op, pInputCol, i, pCtx->param[2].param);
+    bool ret = checkStateOp(op, pInputCol, i, pCtx->param[2].param);
+
     int64_t output = -1;
     if (ret) {
       output = ++pInfo->count;
@@ -4662,6 +4667,11 @@ int32_t stateCountFunction(SqlFunctionCtx* pCtx) {
       pInfo->count = 0;
     }
     colDataAppend(pOutput, i, (char*)&output, false);
+
+    // handle selectivity
+    if (pCtx->subsidiaries.num > 0) {
+      appendSelectivityValue(pCtx, i, i);
+    }
   }
 
   return numOfElems;
@@ -4694,6 +4704,10 @@ int32_t stateDurationFunction(SqlFunctionCtx* pCtx) {
     numOfElems++;
     if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
       colDataAppendNULL(pOutput, i);
+      // handle selectivity
+      if (pCtx->subsidiaries.num > 0) {
+        appendSelectivityValue(pCtx, i, i);
+      }
       continue;
     }
 
@@ -4710,6 +4724,11 @@ int32_t stateDurationFunction(SqlFunctionCtx* pCtx) {
       pInfo->durationStart = 0;
     }
     colDataAppend(pOutput, i, (char*)&output, false);
+
+    // handle selectivity
+    if (pCtx->subsidiaries.num > 0) {
+      appendSelectivityValue(pCtx, i, i);
+    }
   }
 
   return numOfElems;
@@ -4760,6 +4779,11 @@ int32_t csumFunction(SqlFunctionCtx* pCtx) {
       } else {
         colDataAppend(pOutput, pos, (char*)&pSumRes->dsum, false);
       }
+    }
+
+    // handle selectivity
+    if (pCtx->subsidiaries.num > 0) {
+      appendSelectivityValue(pCtx, i, pos);
     }
 
     numOfElems++;
@@ -4832,6 +4856,11 @@ int32_t mavgFunction(SqlFunctionCtx* pCtx) {
         colDataAppendNULL(pOutput, pos);
       } else {
         colDataAppend(pOutput, pos, (char*)&result, false);
+      }
+
+      // handle selectivity
+      if (pCtx->subsidiaries.num > 0) {
+        appendSelectivityValue(pCtx, i, pos);
       }
 
       numOfElems++;

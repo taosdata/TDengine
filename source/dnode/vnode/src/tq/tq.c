@@ -695,7 +695,7 @@ FAIL:
   return -1;
 }
 
-int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* pReq) {
+int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* pReq, int64_t ver) {
   void*              pIter = NULL;
   bool               failed = false;
   SStreamDataSubmit* pSubmit = NULL;
@@ -713,7 +713,7 @@ int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* pReq) {
     SStreamTask* pTask = *(SStreamTask**)pIter;
     if (!pTask->isDataScan) continue;
 
-    qDebug("data submit enqueue stream task: %d", pTask->taskId);
+    qDebug("data submit enqueue stream task: %d, ver: %ld", pTask->taskId, ver);
 
     if (!failed) {
       if (streamTaskInput(pTask, (SStreamQueueItem*)pSubmit) < 0) {
