@@ -1,4 +1,4 @@
-use std::ffi::c_void;
+use std::{ffi::c_void, io::Write};
 
 use crate::common::{BorrowedValue, Ty};
 
@@ -103,6 +103,14 @@ impl BoolView {
     /// Convert data to a vector of all nullable values.
     pub fn to_vec(&self) -> Vec<Option<bool>> {
         self.iter().collect()
+    }
+
+    /// Write column data as raw bytes.
+    pub(crate) fn write_raw_into<W: Write>(&self, mut wtr: W) -> std::io::Result<usize> {
+        let nulls = self.nulls.0.as_ref();
+        wtr.write_all(nulls)?;
+        wtr.write_all(&self.data)?;
+        Ok(nulls.len() + self.data.len())
     }
 }
 

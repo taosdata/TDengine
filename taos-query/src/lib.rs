@@ -2,8 +2,6 @@
 //!
 #![cfg_attr(nightly, feature(const_slice_from_raw_parts))]
 #![cfg_attr(nightly, feature(const_slice_index))]
-#![feature(fn_traits)]
-#![feature(unboxed_closures)]
 
 use std::{
     collections::BTreeMap,

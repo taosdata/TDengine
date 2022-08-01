@@ -68,6 +68,14 @@ impl JsonView {
             .map(|row| unsafe { self.get_unchecked(row) }.map(|s| s.to_string()))
             .collect()
     }
+
+    /// Write column data as raw bytes.
+    pub(crate) fn write_raw_into<W: std::io::Write>(&self, mut wtr: W) -> std::io::Result<usize> {
+        let offsets = self.offsets.as_bytes();
+        wtr.write_all(offsets)?;
+        wtr.write_all(&self.data)?;
+        Ok(offsets.len() + self.data.len())
+    }
 }
 
 pub struct VarCharIter<'a> {

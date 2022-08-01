@@ -1,5 +1,5 @@
 use std::{
-    cell::{RefCell},
+    cell::{RefCell, UnsafeCell},
     ffi::c_void,
     fmt::Debug, sync::Arc,
 };
@@ -19,10 +19,11 @@ pub struct NCharView {
     pub(crate) offsets: Offsets,
     pub(crate) data: Bytes,
     /// TDengine v3 raw block use [char] for NChar data type, it's [str] in v2 websocket block.
-    // pub is_chars: UnsafeCell<bool>,
+    pub is_chars: UnsafeCell<bool>,
     pub(crate) version: Version,
     /// Layout should set as NCHAR_DECODED when raw data decoded.
     pub(crate) layout: Arc<RefCell<Layout>>,
+
 }
 
 impl NCharView {
@@ -45,7 +46,7 @@ impl NCharView {
     }
 
     pub unsafe fn nchar_to_utf8(&self) {
-        if self.version == Version::V3 && !self.layout.borrow().nchar_is_decoded() {
+        if self.version == Version::V3 && *self.is_chars.get() {
             let mut ptr: *const u8 = std::ptr::null();
             for offset in &self.offsets {
                 if *offset >= 0 {
@@ -65,6 +66,7 @@ impl NCharView {
                     }
                 }
             }
+            *self.is_chars.get() = false;
             self.layout.borrow_mut().with_nchar_decoded();
         }
     }
@@ -123,6 +125,14 @@ impl NCharView {
     /// Collection to `str`s.
     pub fn to_vec(&self) -> Vec<Option<&str>> {
         self.iter().collect()
+    }
+
+    /// Write column data as raw bytes.
+    pub(crate) fn write_raw_into<W: std::io::Write>(&self, mut wtr: W) -> std::io::Result<usize> {
+        let offsets = self.offsets.as_bytes();
+        wtr.write_all(offsets)?;
+        wtr.write_all(&self.data)?;
+        Ok(offsets.len() + self.data.len())
     }
 }
 

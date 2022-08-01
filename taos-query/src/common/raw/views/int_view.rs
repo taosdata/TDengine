@@ -110,6 +110,14 @@ impl IntView {
     pub fn to_vec(&self) -> Vec<Option<Target>> {
         self.iter().collect()
     }
+
+    /// Write column data as raw bytes.
+    pub(crate) fn write_raw_into<W: std::io::Write>(&self, mut wtr: W) -> std::io::Result<usize> {
+        let nulls = self.nulls.0.as_ref();
+        wtr.write_all(nulls)?;
+        wtr.write_all(&self.data)?;
+        Ok(nulls.len() + self.data.len())
+    }
 }
 
 pub struct IntViewIter<'a> {

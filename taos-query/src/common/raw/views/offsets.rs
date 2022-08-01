@@ -25,13 +25,14 @@ impl Offsets {
     }
     /// As a i32 slice.
     pub fn as_slice(&self) -> &[i32] {
-        unsafe {
-            std::slice::from_raw_parts(
-                self.0.as_ptr() as *const i32,
-                self.len(),
-            )
-        }
+        unsafe { std::slice::from_raw_parts(self.0.as_ptr() as *const i32, self.len()) }
     }
+
+    /// As a [u8] slice.
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+
     pub fn len(&self) -> usize {
         self.0.len() / std::mem::size_of::<i32>()
     }

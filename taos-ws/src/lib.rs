@@ -5,7 +5,7 @@ use infra::WsConnReq;
 use once_cell::sync::OnceCell;
 
 #[cfg(feature = "async")]
-use asyn::WsAsyncClient;
+use asyn::WsTaos;
 use sync::WsClient;
 
 use taos_query::{common::RawMeta, DsnError, IntoDsn, Queryable, TBuilder};
@@ -170,7 +170,7 @@ impl TaosBuilder {
 pub struct Taos {
     dsn: TaosBuilder,
     #[cfg(feature = "async")]
-    async_client: OnceCell<WsAsyncClient>,
+    async_client: OnceCell<WsTaos>,
     sync_client: OnceCell<WsClient>,
 }
 
@@ -229,7 +229,7 @@ impl taos_query::AsyncQueryable for Taos {
         if let Some(ws) = self.async_client.get() {
             ws.s_query(sql.as_ref()).await
         } else {
-            let async_client = WsAsyncClient::from_wsinfo(&self.dsn).await?;
+            let async_client = WsTaos::from_wsinfo(&self.dsn).await?;
             self.async_client
                 .get_or_init(|| async_client)
                 .s_query(sql.as_ref())
@@ -241,12 +241,16 @@ impl taos_query::AsyncQueryable for Taos {
         if let Some(ws) = self.async_client.get() {
             ws.write_meta(raw).await
         } else {
-            let async_client = WsAsyncClient::from_wsinfo(&self.dsn).await?;
+            let async_client = WsTaos::from_wsinfo(&self.dsn).await?;
             self.async_client
                 .get_or_init(|| async_client)
                 .write_meta(raw)
                 .await
         }
+    }
+
+    async fn write_raw_block(&self, block: &taos_query::RawBlock) -> Result<(), Self::Error> {
+        todo!()
     }
 }
 
@@ -260,7 +264,7 @@ mod tests {
 
     #[test]
     fn ws_sync_json() -> anyhow::Result<()> {
-        std::env::set_var("RUST_LOG", "trace");
+        std::env::set_var("RUST_LOG", "debug");
         pretty_env_logger::init();
         use taos_query::{Fetchable, Queryable};
         let client = TaosBuilder::from_dsn("ws://localhost:6041/")?.build()?;
@@ -471,7 +475,7 @@ mod tests {
         let dsn = std::env::var("TEST_DSN").unwrap_or("taos:///".to_string());
 
         let client = TaosBuilder::from_dsn(dsn)?.build()?;
-        let mut rs = client.query("select groupid from test.d0")?;
+        let mut rs = client.query("show databases")?;
         let values = rs.to_rows_vec()?;
 
         dbg!(values);

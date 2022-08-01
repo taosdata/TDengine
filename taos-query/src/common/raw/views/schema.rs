@@ -97,6 +97,10 @@ impl Schemas {
             )
         }
     }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_ref()
+    }
 }
 
 impl Deref for Schemas {

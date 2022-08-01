@@ -167,10 +167,15 @@ impl Layout {
         self
     }
 
-    pub fn with_schema_changed(&mut self) -> &mut Self {
+    pub fn with_schema_changed(mut self) -> Self {
         self.set(Self::SCHEMA_CHANGED, true);
         self
     }
+    pub fn set_schema_changed(&mut self, value: bool) -> &mut Self {
+        self.set(Self::SCHEMA_CHANGED, value);
+        self
+    }
+
 
     pub fn schema_changed(&self) -> bool {
         self.contains(Self::SCHEMA_CHANGED)

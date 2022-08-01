@@ -1,4 +1,4 @@
-
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -87,6 +87,7 @@ pub struct WsFetchArgs {
     id: ResId,
 }
 
+#[serde_as]
 #[derive(Debug, Deserialize, Default, Clone)]
 #[serde(default)]
 pub struct WsQueryResp {
@@ -99,33 +100,46 @@ pub struct WsQueryResp {
     pub fields_types: Option<Vec<Ty>>,
     pub fields_lengths: Option<Vec<u32>>,
     pub precision: Precision,
+    #[serde_as(as = "serde_with::DurationNanoSeconds")]
+    pub timing: Duration,
 }
 
+#[serde_as]
 #[derive(Debug, Deserialize, Clone)]
 pub struct WsFetchResp {
     pub id: ResId,
     pub completed: bool,
     pub lengths: Option<Vec<u32>>,
     pub rows: usize,
+    #[serde_as(as = "serde_with::DurationNanoSeconds")]
+    pub timing: Duration,
 }
 
 #[derive(Debug, Clone)]
 pub enum WsFetchData {
     Fetch(WsFetchResp),
-    Block(Vec<u8>),
-    BlockV2(Vec<u8>),
+    Block(Duration, Vec<u8>),
+    BlockV2(Duration, Vec<u8>),
 }
 
 #[derive(Debug, Deserialize, Clone)]
+#[serde_as]
 #[serde(tag = "action")]
 #[serde(rename_all = "snake_case")]
 pub enum WsRecvData {
     Conn,
-    Version { version: String },
+    Version {
+        version: String,
+    },
     Query(WsQueryResp),
     Fetch(WsFetchResp),
-    Block(Vec<u32>),
+    Block {
+        #[serde_as(as = "serde_with::DurationNanoSeconds")]
+        timing: Duration,
+        block: Vec<u32>,
+    },
     WriteMeta,
+    WriteRaw,
 }
 
 #[serde_as]
@@ -180,12 +194,10 @@ impl ToMessage for WsSend {}
 
 #[cfg(test)]
 mod tests {
-    
+
     // use websocket::ClientBuilder;
 
     use crate::*;
-
-    
 
     #[test]
     fn dsn_error() {

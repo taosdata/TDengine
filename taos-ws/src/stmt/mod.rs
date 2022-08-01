@@ -62,7 +62,7 @@ impl Drop for WsAsyncStmt {
         self.fetches.remove(&self.args.stmt_id);
         let args = self.args;
         let ws = self.ws.clone();
-        let _ = ws.blocking_send(StmtSend::Close(args).to_msg());
+        let _ = taos_query::block_in_place_or_global(ws.send(StmtSend::Close(args).to_msg()));
     }
 }
 
@@ -396,7 +396,7 @@ mod tests {
     // !Websocket tests should always use `multi_thread`
     #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
     async fn test_client() -> anyhow::Result<()> {
-        
+
         use taos_query::AsyncQueryable;
 
         let taos = TaosBuilder::from_dsn("taos://localhost:6041")?.build()?;
@@ -405,7 +405,7 @@ mod tests {
         taos.exec("create table stmt.ctb (ts timestamp, v int)")
             .await?;
 
-        
+
         std::env::set_var("RUST_LOG", "debug");
         pretty_env_logger::init();
         let client = WsStmtClient::from_dsn("taos+ws://localhost:6041/stmt").await?;
