@@ -3929,6 +3929,26 @@ static EConditionType classifyCondition(SNode* pNode) {
                                                      : (cxt.hasTagIndexCol ? COND_TYPE_TAG_INDEX : COND_TYPE_TAG)));
 }
 
+static bool isCondColumnsFromMultiTable(SNode* pCond) {
+  SNodeList* pCondCols = nodesMakeList();
+  int32_t code = nodesCollectColumnsFromNode(pCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
+  if (code == TSDB_CODE_SUCCESS) {
+    if (LIST_LENGTH(pCondCols) >= 2) {
+      SColumnNode* pFirstCol = (SColumnNode*)nodesListGetNode(pCondCols, 0);
+      SNode* pColNode = NULL;
+      FOREACH(pColNode, pCondCols) {
+        if (strcmp(((SColumnNode*)pColNode)->dbName, pFirstCol->dbName) != 0 ||
+            strcmp(((SColumnNode*)pColNode)->tableAlias, pFirstCol->tableAlias) != 0) {
+          nodesDestroyList(pCondCols);
+          return true;
+        }
+      }
+    }
+    nodesDestroyList(pCondCols);
+  }
+  return false;
+}
+
 static int32_t partitionLogicCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** pTagIndexCond, SNode** pTagCond,
                                   SNode** pOtherCond) {
   SLogicConditionNode* pLogicCond = (SLogicConditionNode*)(*pCondition);
@@ -3941,31 +3961,37 @@ static int32_t partitionLogicCond(SNode** pCondition, SNode** pPrimaryKeyCond, S
   SNodeList* pOtherConds = NULL;
   SNode*     pCond = NULL;
   FOREACH(pCond, pLogicCond->pParameterList) {
-    switch (classifyCondition(pCond)) {
-      case COND_TYPE_PRIMARY_KEY:
-        if (NULL != pPrimaryKeyCond) {
-          code = nodesListMakeAppend(&pPrimaryKeyConds, nodesCloneNode(pCond));
-        }
-        break;
-      case COND_TYPE_TAG_INDEX:
-        if (NULL != pTagIndexCond) {
-          code = nodesListMakeAppend(&pTagIndexConds, nodesCloneNode(pCond));
-        }
-        if (NULL != pTagCond) {
-          code = nodesListMakeAppend(&pTagConds, nodesCloneNode(pCond));
-        }
-        break;
-      case COND_TYPE_TAG:
-        if (NULL != pTagCond) {
-          code = nodesListMakeAppend(&pTagConds, nodesCloneNode(pCond));
-        }
-        break;
-      case COND_TYPE_NORMAL:
-      default:
-        if (NULL != pOtherCond) {
-          code = nodesListMakeAppend(&pOtherConds, nodesCloneNode(pCond));
-        }
-        break;
+    if (isCondColumnsFromMultiTable(pCond)) {
+      if (NULL != pOtherCond) {
+        code = nodesListMakeAppend(&pOtherConds, nodesCloneNode(pCond));
+      }
+    } else {
+      switch (classifyCondition(pCond)) {
+        case COND_TYPE_PRIMARY_KEY:
+          if (NULL != pPrimaryKeyCond) {
+            code = nodesListMakeAppend(&pPrimaryKeyConds, nodesCloneNode(pCond));
+          }
+          break;
+        case COND_TYPE_TAG_INDEX:
+          if (NULL != pTagIndexCond) {
+            code = nodesListMakeAppend(&pTagIndexConds, nodesCloneNode(pCond));
+          }
+          if (NULL != pTagCond) {
+            code = nodesListMakeAppend(&pTagConds, nodesCloneNode(pCond));
+          }
+          break;
+        case COND_TYPE_TAG:
+          if (NULL != pTagCond) {
+            code = nodesListMakeAppend(&pTagConds, nodesCloneNode(pCond));
+          }
+          break;
+        case COND_TYPE_NORMAL:
+        default:
+          if (NULL != pOtherCond) {
+            code = nodesListMakeAppend(&pOtherConds, nodesCloneNode(pCond));
+          }
+          break;
+      }
     }
     if (TSDB_CODE_SUCCESS != code) {
       break;
@@ -4026,43 +4052,50 @@ int32_t filterPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode**
   }
 
   bool needOutput = false;
-  switch (classifyCondition(*pCondition)) {
-    case COND_TYPE_PRIMARY_KEY:
-      if (NULL != pPrimaryKeyCond) {
-        *pPrimaryKeyCond = *pCondition;
-        needOutput = true;
-      }
-      break;
-    case COND_TYPE_TAG_INDEX:
-      if (NULL != pTagIndexCond) {
-        *pTagIndexCond = *pCondition;
-        needOutput = true;
-      }
-      if (NULL != pTagCond) {
-        SNode* pTempCond = *pCondition;
-        if (NULL != pTagIndexCond) {
-          pTempCond = nodesCloneNode(*pCondition);
-          if (NULL == pTempCond) {
-            return TSDB_CODE_OUT_OF_MEMORY;
-          }
+  if (isCondColumnsFromMultiTable(*pCondition)) {
+    if (NULL != pOtherCond) {
+      *pOtherCond = *pCondition;
+      needOutput = true;
+    }
+  } else {
+    switch (classifyCondition(*pCondition)) {
+      case COND_TYPE_PRIMARY_KEY:
+        if (NULL != pPrimaryKeyCond) {
+          *pPrimaryKeyCond = *pCondition;
+          needOutput = true;
         }
-        *pTagCond = pTempCond;
-        needOutput = true;
-      }
-      break;
-    case COND_TYPE_TAG:
-      if (NULL != pTagCond) {
-        *pTagCond = *pCondition;
-        needOutput = true;
-      }
-      break;
-    case COND_TYPE_NORMAL:
-    default:
-      if (NULL != pOtherCond) {
-        *pOtherCond = *pCondition;
-        needOutput = true;
-      }
-      break;
+        break;
+      case COND_TYPE_TAG_INDEX:
+        if (NULL != pTagIndexCond) {
+          *pTagIndexCond = *pCondition;
+          needOutput = true;
+        }
+        if (NULL != pTagCond) {
+          SNode *pTempCond = *pCondition;
+          if (NULL != pTagIndexCond) {
+            pTempCond = nodesCloneNode(*pCondition);
+            if (NULL == pTempCond) {
+              return TSDB_CODE_OUT_OF_MEMORY;
+            }
+          }
+          *pTagCond = pTempCond;
+          needOutput = true;
+        }
+        break;
+      case COND_TYPE_TAG:
+        if (NULL != pTagCond) {
+          *pTagCond = *pCondition;
+          needOutput = true;
+        }
+        break;
+      case COND_TYPE_NORMAL:
+      default:
+        if (NULL != pOtherCond) {
+          *pOtherCond = *pCondition;
+          needOutput = true;
+        }
+        break;
+    }
   }
   if (needOutput) {
     *pCondition = NULL;
