@@ -825,6 +825,8 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pAgg->mergeDataBlock = (GROUP_ACTION_KEEP == pAggLogicNode->node.groupAction ? false : true);
+
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pGroupKeys = NULL;
   SNodeList* pAggFuncs = NULL;
@@ -1091,6 +1093,7 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   pWindow->igExpired = pWindowLogicNode->igExpired;
   pWindow->inputTsOrder = pWindowLogicNode->inputTsOrder;
   pWindow->outputTsOrder = pWindowLogicNode->outputTsOrder;
+  pWindow->mergeDataBlock = (GROUP_ACTION_KEEP == pWindowLogicNode->node.groupAction ? false : true);
 
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pFuncs = NULL;
