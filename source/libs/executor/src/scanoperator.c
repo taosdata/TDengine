@@ -412,7 +412,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int
         colDataAppendNItems(pColInfoData, 0, data, pBlock->info.rows);
       } else { // todo opt for json tag
         for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-          colDataAppend(pColInfoData, i, data, false));
+          colDataAppend(pColInfoData, i, data, false);
         }
       }
 
