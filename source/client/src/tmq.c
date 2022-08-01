@@ -1733,7 +1733,7 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
       int32_t consumerEpoch = atomic_load_32(&tmq->epoch);
       if (pollRspWrapper->dataRsp.head.epoch == consumerEpoch) {
         SMqClientVg* pVg = pollRspWrapper->vgHandle;
-        /*printf("vgId:%d offset %" PRId64 " up to %" PRId64 "\n", pVg->vgId, pVg->currentOffset,
+        /*printf("vgId:%d, offset %" PRId64 " up to %" PRId64 "\n", pVg->vgId, pVg->currentOffset,
          * rspMsg->msg.rspOffset);*/
         pVg->currentOffsetNew = pollRspWrapper->dataRsp.rspOffset;
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
@@ -1756,7 +1756,7 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
       int32_t            consumerEpoch = atomic_load_32(&tmq->epoch);
       if (pollRspWrapper->metaRsp.head.epoch == consumerEpoch) {
         SMqClientVg* pVg = pollRspWrapper->vgHandle;
-        /*printf("vgId:%d offset %" PRId64 " up to %" PRId64 "\n", pVg->vgId, pVg->currentOffset,
+        /*printf("vgId:%d, offset %" PRId64 " up to %" PRId64 "\n", pVg->vgId, pVg->currentOffset,
          * rspMsg->msg.rspOffset);*/
         pVg->currentOffsetNew.version = pollRspWrapper->metaRsp.rspOffset;
         pVg->currentOffsetNew.type = TMQ_OFFSET__LOG;

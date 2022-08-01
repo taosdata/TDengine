@@ -374,7 +374,7 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   p = taosArrayInsert(pMemTable->aTbData, idx, &pTbData);
   taosWUnLockLatch(&pMemTable->latch);
 
-  tsdbDebug("vgId:%d add table data %p at idx:%d", TD_VID(pMemTable->pTsdb->pVnode), pTbData, idx);
+  tsdbDebug("vgId:%d, add table data %p at idx:%d", TD_VID(pMemTable->pTsdb->pVnode), pTbData, idx);
 
   if (p == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;

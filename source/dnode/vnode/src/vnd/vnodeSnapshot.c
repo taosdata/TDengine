@@ -45,12 +45,12 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapRe
   pReader->sver = sver;
   pReader->ever = ever;
 
-  vInfo("vgId:%d vnode snapshot reader opened, sver:%" PRId64 " ever:%" PRId64, TD_VID(pVnode), sver, ever);
+  vInfo("vgId:%d, vnode snapshot reader opened, sver:%" PRId64 " ever:%" PRId64, TD_VID(pVnode), sver, ever);
   *ppReader = pReader;
   return code;
 
 _err:
-  vError("vgId:%d vnode snapshot reader open failed since %s", TD_VID(pVnode), tstrerror(code));
+  vError("vgId:%d, vnode snapshot reader open failed since %s", TD_VID(pVnode), tstrerror(code));
   *ppReader = NULL;
   return code;
 }
@@ -70,7 +70,7 @@ int32_t vnodeSnapReaderClose(SVSnapReader *pReader) {
     metaSnapReaderClose(&pReader->pMetaReader);
   }
 
-  vInfo("vgId:%d vnode snapshot reader closed", TD_VID(pReader->pVnode));
+  vInfo("vgId:%d, vnode snapshot reader closed", TD_VID(pReader->pVnode));
   taosMemoryFree(pReader);
   return code;
 }
@@ -154,10 +154,10 @@ _exit:
     pReader->index++;
     *nData = sizeof(SSnapDataHdr) + pHdr->size;
     pHdr->index = pReader->index;
-    vInfo("vgId:%d vnode snapshot read data,index:%" PRId64 " type:%d nData:%d ", TD_VID(pReader->pVnode),
+    vInfo("vgId:%d, vnode snapshot read data,index:%" PRId64 " type:%d nData:%d ", TD_VID(pReader->pVnode),
           pReader->index, pHdr->type, *nData);
   } else {
-    vInfo("vgId:%d vnode snapshot read data end, index:%" PRId64, TD_VID(pReader->pVnode), pReader->index);
+    vInfo("vgId:%d, vnode snapshot read data end, index:%" PRId64, TD_VID(pReader->pVnode), pReader->index);
   }
   return code;
 
@@ -203,13 +203,13 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWr
   pVnode->state.commitID++;
   pWriter->commitID = pVnode->state.commitID;
 
-  vInfo("vgId:%d vnode snapshot writer opened, sver:%" PRId64 " ever:%" PRId64 " commit id:%" PRId64, TD_VID(pVnode),
+  vInfo("vgId:%d, vnode snapshot writer opened, sver:%" PRId64 " ever:%" PRId64 " commit id:%" PRId64, TD_VID(pVnode),
         sver, ever, pWriter->commitID);
   *ppWriter = pWriter;
   return code;
 
 _err:
-  vError("vgId:%d vnode snapshot writer open failed since %s", TD_VID(pVnode), tstrerror(code));
+  vError("vgId:%d, vnode snapshot writer open failed since %s", TD_VID(pVnode), tstrerror(code));
   *ppWriter = NULL;
   return code;
 }
@@ -259,12 +259,12 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
   }
 
 _exit:
-  vInfo("vgId:%d vnode snapshot writer closed, rollback:%d", TD_VID(pVnode), rollback);
+  vInfo("vgId:%d, vnode snapshot writer closed, rollback:%d", TD_VID(pVnode), rollback);
   taosMemoryFree(pWriter);
   return code;
 
 _err:
-  vError("vgId:%d vnode snapshot writer close failed since %s", TD_VID(pWriter->pVnode), tstrerror(code));
+  vError("vgId:%d, vnode snapshot writer close failed since %s", TD_VID(pWriter->pVnode), tstrerror(code));
   return code;
 }
 
@@ -277,7 +277,7 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
   ASSERT(pHdr->index == pWriter->index + 1);
   pWriter->index = pHdr->index;
 
-  vInfo("vgId:%d vnode snapshot write data, index:%" PRId64 " type:%d nData:%d", TD_VID(pVnode), pHdr->index,
+  vInfo("vgId:%d, vnode snapshot write data, index:%" PRId64 " type:%d nData:%d", TD_VID(pVnode), pHdr->index,
         pHdr->type, nData);
 
   switch (pHdr->type) {
@@ -329,7 +329,7 @@ _exit:
   return code;
 
 _err:
-  vError("vgId:%d vnode snapshot write failed since %s, index:%" PRId64 " type:%d nData:%d", TD_VID(pVnode),
+  vError("vgId:%d, vnode snapshot write failed since %s, index:%" PRId64 " type:%d nData:%d", TD_VID(pVnode),
          tstrerror(code), pHdr->index, pHdr->type, nData);
   return code;
 }

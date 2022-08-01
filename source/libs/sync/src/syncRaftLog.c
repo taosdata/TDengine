@@ -244,7 +244,7 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
 
   SyncIndex writeIndex = raftLogWriteIndex(pLogStore);
   if (pEntry->index != writeIndex) {
-    sError("vgId:%d wal write index error, entry-index:%" PRId64 " update to %" PRId64, pData->pSyncNode->vgId,
+    sError("vgId:%d, wal write index error, entry-index:%" PRId64 " update to %" PRId64, pData->pSyncNode->vgId,
            pEntry->index, writeIndex);
     pEntry->index = writeIndex;
   }
@@ -359,7 +359,7 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
     const char* errStr = tstrerror(err);
     int32_t     sysErr = errno;
     const char* sysErrStr = strerror(errno);
-    sError("vgId:%d wal truncate error, from-index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+    sError("vgId:%d, wal truncate error, from-index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
            pData->pSyncNode->vgId, fromIndex, err, err, errStr, sysErr, sysErrStr);
 
     ASSERT(0);
@@ -544,7 +544,7 @@ int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
     const char* errStr = tstrerror(err);
     int32_t     sysErr = errno;
     const char* sysErrStr = strerror(errno);
-    sError("vgId:%d wal truncate error, from-index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+    sError("vgId:%d, wal truncate error, from-index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
            pData->pSyncNode->vgId, fromIndex, err, err, errStr, sysErr, sysErrStr);
 
     ASSERT(0);
@@ -587,7 +587,7 @@ int32_t logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
     const char* errStr = tstrerror(err);
     int32_t     sysErr = errno;
     const char* sysErrStr = strerror(errno);
-    sError("vgId:%d wal update commit index error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+    sError("vgId:%d, wal update commit index error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
            pData->pSyncNode->vgId, index, err, err, errStr, sysErr, sysErrStr);
 
     ASSERT(0);
