@@ -22,3 +22,6 @@
 [submodule "src/connector/php-tdengine-restful-connector"]
 	path = src/connector/php-tdengine-restful-connector
 	url = https://github.com/Yurunsoft/tdengine-restful-connector.git
+[submodule "src/plugins/taosws-rs"]
+	path = src/plugins/taosws-rs
+	url = https://github.com/taosdata/taosws-rs

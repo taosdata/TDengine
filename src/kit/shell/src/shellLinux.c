@@ -52,8 +52,11 @@ static struct argp_option options[] = {
   {"pktlen",     'l', "PKTLEN",     0,                   "Packet length used for net test, default is 1000 bytes."},
   {"pktnum",     'N', "PKTNUM",     0,                   "Packet numbers used for net test, default is 100."},
   {"pkttype",    'S', "PKTTYPE",    0,                   "Choose packet type used for net test, default is TCP. Only speed test could be either TCP or UDP."},
+#ifdef WEBSOCKET
   {"restful", 'R', 0, 0, "Connect and interact with TDengine use restful."},
-  {0, 'E', "DSN", 0, "The DSN to use when connecting TDengine's cloud services."},
+  {"cloudDsn", 'E', "DSN", 0, "The DSN to use when connecting TDengine's cloud services."},
+  {"timeout", 't', "SECONDS", 0, "The timeout seconds for websocket to interact."},
+#endif
   {0}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
@@ -65,7 +68,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
   switch (key) {
     case 'h':
         if (arg) {
+#ifdef WEBSOCKET
           args.cloud = false;
+#endif
           args.host = arg;
         } else {
           fprintf(stderr, "Invalid host\n");
@@ -76,7 +81,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       break;
     case 'P':
       if (arg) {
+#ifdef WEBSOCKET
         args.cloud = false;
+#endif
         tsDnodeShellPort = atoi(arg);
         args.port = atoi(arg);
       } else {
@@ -104,7 +111,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         wordfree(&full_path);
         return -1;
       }
+#ifdef WEBSOCKET
       args.cloud = false;
+#endif
       tstrncpy(configDir, full_path.we_wordv[0], TSDB_FILENAME_LEN);
       wordfree(&full_path);
       break;
@@ -172,18 +181,27 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case OPT_ABORT:
       arguments->abort = 1;
       break;
+#ifdef WEBSOCKET
     case 'R':
       arguments->restful = true;
       arguments->cloud = false;
       break;
     case 'E':
       if (arg) {
-         arguments->cloudDsn = arg;
+         arguments->dsn = arg;
        } else {
          fprintf(stderr, "Invalid -E option\n");
          return -1;
        }
       break;
+    case 't':
+      if (arg) {
+        arguments->timeout = atoi(arg);
+      } else {
+        fprintf(stderr, "Invalid -t option\n");
+      }
+      break;
+#endif
     default:
       return ARGP_ERR_UNKNOWN;
   }
@@ -237,16 +255,18 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
 
   argp_parse(&argp, argc, argv, 0, 0, arguments);
 
-  if (args.cloudDsn == NULL) {
+#ifdef WEBSOCKET
+  if (args.dsn == NULL) {
     if (args.cloud) {
-      args.cloudDsn = getenv("TDENGINE_CLOUD_DSN");
-        if (args.cloudDsn == NULL) {
+      args.dsn = getenv("TDENGINE_CLOUD_DSN");
+        if (args.dsn == NULL) {
           args.cloud = false;
         }
     }
   } else {
     args.cloud = true;
   }
+#endif
 
   if (arguments->abort) {
     #ifndef _ALPINE
@@ -606,38 +626,4 @@ void exitShell() {
   /*int32_t ret =*/ tcsetattr(STDIN_FILENO, TCSANOW, &oldtio);
   taos_cleanup();
   exit(EXIT_SUCCESS);
-}
-
-int tcpConnect(char* host, int port) {
-    struct sockaddr_in serv_addr;
-    if (port == 0) {
-        port = 6041;
-        args.port = 6041;
-    }
-    if (NULL == host) {
-        host = "localhost";
-        args.host = "localhost";
-    }
-
-    struct hostent *server = gethostbyname(host);
-    if ((server == NULL) || (server->h_addr == NULL)) {
-        fprintf(stderr, "no such host: %s\n", host);
-        return -1;
-    }
-    memset(&serv_addr, 0, sizeof(struct sockaddr_in));
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(port);
-    memcpy(&(serv_addr.sin_addr.s_addr), server->h_addr, server->h_length);
-    args.socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (args.socket < 0) {
-        fprintf(stderr, "failed to create socket\n");
-        return -1;
-    }
-    int retConn = connect(args.socket, (struct sockaddr *)&serv_addr, sizeof(struct sockaddr));
-    if (retConn < 0) {
-        fprintf(stderr, "failed to connect\n");
-        close(args.socket);
-        return -1;
-    }
-    return 0;
 }

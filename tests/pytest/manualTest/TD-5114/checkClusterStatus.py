@@ -53,7 +53,7 @@ class TwoClients:
 
         tdSql.query("show mnodes") 
         tdSql.checkRows(3)
-        roles = "master slave"
+        roles = "leader follower"
         for i in range(tdSql.queryRows):
             if (tdSql.queryResult[i][2] in roles ):
                 ep = tdSql.queryResult[i][1]

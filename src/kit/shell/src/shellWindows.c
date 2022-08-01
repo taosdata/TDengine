@@ -62,10 +62,14 @@ void printHelp() {
   printf("%s%s%s\n", indent, indent, "Packet length used for net test, default is 1000 bytes.");
   printf("%s%s\n", indent, "-N");
   printf("%s%s%s\n", indent, indent, "Packet numbers used for net test, default is 100.");
+#ifdef WEBSOCKET
   printf("%s%s\n", indent, "-R");
   printf("%s%s%s\n", indent, indent, "Connect and interact with TDengine use restful.");
   printf("%s%s\n", indent, "-E");
   printf("%s%s%s\n", indent, indent, "The DSN to use when connecting TDengine's cloud services.");
+  printf("%s%s\n", indent, "-t");
+  printf("%s%s%s\n", indent, indent, "The timeout seconds for websocekt to interact.");
+#endif
   printf("%s%s\n", indent, "-S");
   printf("%s%s%s\n", indent, indent, "Packet type used for net test, default is TCP.");
   printf("%s%s\n", indent, "-V");
@@ -80,7 +84,9 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // for host
     if (strcmp(argv[i], "-h") == 0) {
       if (i < argc - 1) {
+#ifdef WEBSOCKET
           arguments->cloud = false;
+#endif
           arguments->host = argv[++i];
       } else {
         fprintf(stderr, "option -h requires an argument\n");
@@ -112,7 +118,9 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // for management port
     else if (strcmp(argv[i], "-P") == 0) {
       if (i < argc - 1) {
+#ifdef WEBSOCKET
         arguments->cloud = false;
+#endif
         arguments->port = atoi(argv[++i]);
       } else {
         fprintf(stderr, "option -P requires an argument\n");
@@ -136,7 +144,9 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       }
     } else if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {
+#ifdef WEBSOCKET
         arguments->cloud = false;
+#endif
         char *tmp = argv[++i];
         if (strlen(tmp) >= TSDB_FILENAME_LEN) {
           fprintf(stderr, "config file path: %s overflow max len %d\n", tmp, TSDB_FILENAME_LEN - 1);
@@ -218,6 +228,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
+#ifdef WEBSOCKET
 
     else if (strcmp(argv[i], "-R") == 0) {
         arguments->cloud = false;
@@ -226,12 +237,22 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
 
     else if (strcmp(argv[i], "-E") == 0) {
         if (i < argc - 1) {
-            arguments->cloudDsn = argv[++i];
+            arguments->dsn = argv[++i];
         } else {
             fprintf(stderr, "options -E requires an argument\n");
             exit(EXIT_FAILURE);
         }
     }
+
+    else if (strcmp(argv[i], "-t") == 0) {
+      if (i < argc - 1) {
+        arguments->timeout = atoi(argv[++i]);
+      } else {
+        fprintf(stderr, "option -t requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+#endif
 
     else if (strcmp(argv[i], "-V") == 0) {
       printVersion();
@@ -247,22 +268,24 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       exit(EXIT_FAILURE);
     }
   }
-  if (args.cloudDsn == NULL) {
+#ifdef WEBSOCKET
+  if (args.dsn == NULL) {
       if (args.cloud) {
-          args.cloudDsn = getenv("TDENGINE_CLOUD_DSN");
-          if (args.cloudDsn[strlen(args.cloudDsn) - 1] == '\"') {
-              args.cloudDsn[strlen(args.cloudDsn) - 1] = '\0';
+          args.dsn = getenv("TDENGINE_CLOUD_DSN");
+          if (args.dsn[strlen(args.dsn) - 1] == '\"') {
+              args.dsn[strlen(args.dsn) - 1] = '\0';
           }
-          if (args.cloudDsn[0] == '\"') {
-              args.cloudDsn += 1;
+          if (args.dsn[0] == '\"') {
+              args.dsn += 1;
           }
-          if (args.cloudDsn == NULL) {
+          if (args.dsn == NULL) {
               args.cloud = false;
           }
       }
   } else {
       args.cloud = true;
   }
+#endif
 }
 
 void shellPrintContinuePrompt() { printf("%s", CONTINUE_PROMPT); }
@@ -374,64 +397,3 @@ void get_history_path(char *history) {
 }
 
 void exitShell() { exit(EXIT_SUCCESS); }
-
-int tcpConnect(char* host, int iport) {
-    int iResult;
-    WSADATA wsaData;
-    struct addrinfo *aResult = NULL,
-            *ptr = NULL,
-            hints;
-    if (iport == 0) {
-        iport = 6041;
-        args.port = 6041;
-    }
-    if (NULL == host) {
-        host = "localhost";
-        args.host = "localhost";
-    }
-    char port[10] = {0};
-
-    sprintf_s(port, 10, "%d", iport);
-
-    iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
-    if (iResult != 0) {
-        printf("WSAStartup failed with error: %d\n", iResult);
-        return 1;
-    }
-    memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_protocol = IPPROTO_TCP;
-    iResult = getaddrinfo(host, port, &hints, &aResult);
-    if ( iResult != 0 ) {
-        printf("getaddrinfo failed with error: %d\n", iResult);
-        WSACleanup();
-        return 1;
-    }
-
-    for(ptr=aResult; ptr != NULL ; ptr=ptr->ai_next) {
-        // Create a SOCKET for connecting to server
-        args.socket = socket(ptr->ai_family, ptr->ai_socktype,
-                               ptr->ai_protocol);
-        if (args.socket == INVALID_SOCKET) {
-            printf("socket failed with error: %ld\n", WSAGetLastError());
-            WSACleanup();
-            return 1;
-        }
-
-        // Connect to server.
-        iResult = connect( args.socket, ptr->ai_addr, (int)ptr->ai_addrlen);
-        if (iResult == SOCKET_ERROR) {
-            closesocket(args.socket);
-            args.socket = INVALID_SOCKET;
-            continue;
-        }
-        break;
-    }
-    if (args.socket == INVALID_SOCKET) {
-        printf("Unable to connect to server!\n");
-        WSACleanup();
-        return 1;
-    }
-    return 0;
-}

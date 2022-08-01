@@ -3,6 +3,51 @@ PROJECT(TDengine)
 
 ADD_SUBDIRECTORY(monitor)
 
+IF (TD_WEBSOCKET)
+    MESSAGE("${Green} use libtaos-ws${ColourReset}")
+    IF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs/target/release/libtaosws.so" OR
+            "${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs/target/release/libtaosws.so" IS_NEWER_THAN "${CMAKE_SOURCE_DIR}/.git/modules/src/plugins/taosws-rs/FETCH_HEAD")
+        MESSAGE("target is newer than fetch head")
+        include(ExternalProject)
+        ExternalProject_Add(taosws-rs
+            PREFIX        "taosws-rs"
+            SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
+            BUILD_ALWAYS         off
+            DEPENDS             taos
+            BUILD_IN_SOURCE     1
+            CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
+            PATCH_COMMAND
+            COMMAND     git clean -f -d
+            BUILD_COMMAND
+            COMMAND cargo build --release -p taos-ws-sys
+            COMMAND ./taos-ws-sys/ci/package.sh
+            INSTALL_COMMAND
+            COMMAND cmake -E copy target/libtaosws/libtaosws.so ${CMAKE_BINARY_DIR}/build/lib
+            COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
+            COMMAND cmake -E copy target/libtaosws/taosws.h ${CMAKE_BINARY_DIR}/build/include
+            )
+    ELSE ()
+        include(ExternalProject)
+        ExternalProject_Add(taosws-rs
+            PREFIX        "taosws-rs"
+            SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
+            BUILD_ALWAYS        on
+            DEPENDS             taos
+            BUILD_IN_SOURCE     1
+            CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
+            PATCH_COMMAND
+            COMMAND     git clean -f -d
+            BUILD_COMMAND
+            COMMAND cargo build --release -p taos-ws-sys
+            COMMAND ./taos-ws-sys/ci/package.sh
+            INSTALL_COMMAND
+            COMMAND cmake -E copy target/libtaosws/libtaosws.so ${CMAKE_BINARY_DIR}/build/lib
+            COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
+            COMMAND cmake -E copy target/libtaosws/taosws.h ${CMAKE_BINARY_DIR}/build/include
+            )
+    ENDIF()
+ENDIF ()
+
 IF (TD_BUILD_HTTP)
   MESSAGE("")
   MESSAGE("${Yellow} use original embedded httpd ${ColourReset}")
@@ -63,7 +108,7 @@ ELSE ()
           COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../inc CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -ldflags "-s -w -X github.com/taosdata/taosadapter/version.Version=${taos_version} -X github.com/taosdata/taosadapter/version.CommitID=${taosadapter_commit_sha1}"
           COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../inc CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -o taosadapter-debug -ldflags "-X github.com/taosdata/taosadapter/version.Version=${taos_version} -X github.com/taosdata/taosadapter/version.CommitID=${taosadapter_commit_sha1}"
           INSTALL_COMMAND
-          COMMAND curl -sL https://github.com/upx/upx/releases/download/v3.96/upx-3.96-${PLATFORM_ARCH_STR}_linux.tar.xz -o upx.tar.xz && tar -xvJf upx.tar.xz -C ${CMAKE_BINARY_DIR} --strip-components 1 > /dev/null && ${CMAKE_BINARY_DIR}/upx taosadapter || :
+          COMMAND wget -c https://github.com/upx/upx/releases/download/v3.96/upx-3.96-${PLATFORM_ARCH_STR}_linux.tar.xz -O $ENV{HOME}/upx.tar.xz && tar -xvJf $ENV{HOME}/upx.tar.xz -C $ENV{HOME} --strip-components 1 > /dev/null && $ENV{HOME}/upx taosadapter || :
           COMMAND cmake -E copy taosadapter ${CMAKE_BINARY_DIR}/build/bin
           COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
           COMMAND cmake -E copy ./example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/

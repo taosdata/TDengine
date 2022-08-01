@@ -96,7 +96,10 @@ else
 fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
+wslib_files="${build_dir}/lib/libtaosws.so"
+
 header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
+wsheader_files="${build_dir}/include/taosws.h"
 
 if [ "$dbName" != "taos" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
@@ -115,6 +118,9 @@ init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
+
+[ -f ${wsheader_files} ] && cp ${wsheader_files} ${install_dir}/inc || :
+
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${configFile}
 
 # !!! do not change the taosadapter here!!!
@@ -165,6 +171,10 @@ if [ -n "${taostools_bin_files}" ]; then
   mkdir -p ${taostools_install_dir}/bin &&
     cp ${taostools_bin_files} ${taostools_install_dir}/bin &&
     chmod a+x ${taostools_install_dir}/bin/* || :
+  if [ -f ${wslib_files} ]; then
+    mkdir -p ${taostools_install_dir}/driver &&
+    cp ${wslib_files} ${taostools_install_dir}/driver ||:
+  fi
 
   if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/install-${toolsName}.sh ]; then
     cp ${top_dir}/src/kit/taos-tools/packaging/tools/install-${toolsName}.sh \
@@ -298,18 +308,17 @@ fi
 
 # Copy driver
 mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo "${versionComp}" >${install_dir}/driver/vercomp.txt
+[ -f ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver || :
 
 # Copy connector
 if [ "$verMode" == "cluster" ]; then
     connector_dir="${code_dir}/connector"
     mkdir -p ${install_dir}/connector
     if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-        cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
-        if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
-            cp -r ${connector_dir}/go ${install_dir}/connector
-        else
-            echo "WARNING: go connector not found, please check if want to use it!"
-        fi
+        [ -f ${build_dir}/lib/*.jar ] && cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
+
+        git clone --depth 1 https://github.com/taosdata/driver-go ${install_dir}/connector/go
+        rm -rf ${install_dir}/connector/go/.git ||:
         git clone --depth 1 https://github.com/taosdata/taos-connector-python ${install_dir}/connector/python
         rm -rf ${install_dir}/connector/python/.git ||:
 

@@ -42,12 +42,12 @@ TDengine can be widely applied to Internet of Things (IoT), Connected Vehicles, 
 
 # Documentation
 
-For user manual, system design and architecture, engineering blogs, refer to [TDengine Documentation](https://www.taosdata.com/en/documentation/)(中文版请点击[这里](https://www.taosdata.com/cn/documentation20/))
+For user manual, system design and architecture, engineering blogs, refer to [TDengine Documentation](https://docs.tdengine.com/)(中文版请点击[这里](https://docs.taosdata.com/))
 for details. The documentation from our website can also be downloaded locally from _documentation/tdenginedocs-en_ or _documentation/tdenginedocs-cn_.
 
 # Building
 
-At the moment, TDengine server only supports running on Linux systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or build it from the source code. This quick guide is for installation from the source only.
+At the moment, TDengine server only supports running on Linux systems. You can choose to [install from packages](https://docs.tdengine.com/get-started/) or build it from the source code. This quick guide is for installation from the source only.
 
 To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in the project directory.
 
@@ -56,7 +56,7 @@ To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in t
 ### Ubuntu 16.04 and above or Debian
 
 ```bash
-sudo apt-get install -y gcc cmake build-essential git
+sudo apt-get install -y gcc cmake build-essential git libssl-dev
 ```
 
 ### Ubuntu 14.04
@@ -88,15 +88,15 @@ By default, TDengine compiling does not include taosTools. You can use 'cmake ..
 To build the [taosTools](https://github.com/taosdata/taos-tools) on Ubuntu/Debian, the following packages need to be installed.
 
 ```bash
-sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
+sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config libssl-dev
 ```
 
-### CentOS 7
+### CentOS 7/RHEL
 
 ```bash
 sudo yum install epel-release
 sudo yum update
-sudo yum install -y gcc gcc-c++ make cmake3 git
+sudo yum install -y gcc gcc-c++ make cmake3 git openssl-devel
 sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
@@ -112,10 +112,10 @@ To install Apache Maven:
 sudo yum install -y maven
 ```
 
-### CentOS 8 & Fedora
+### CentOS 8/Fedora/Rocky Linux
 
 ```bash
-sudo dnf install -y gcc gcc-c++ make cmake epel-release git
+sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
 ```
 
 To install openjdk-8:
@@ -135,7 +135,7 @@ sudo dnf install -y maven
 To build the [taosTools](https://github.com/taosdata/taos-tools) on CentOS, the following packages need to be installed.
 
 ```bash
-sudo yum install zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static
+sudo yum install zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
 ```
 
 Note: Since snappy lacks pkg-config support (refer to [link](https://github.com/google/snappy/pull/86)), it lead a cmake prompt libsnappy not found. But snappy will works well.
@@ -150,6 +150,10 @@ Please use version 1.14+. For the user in China, we recommend using a proxy to a
 go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
 ```
+
+### Setup rust environment
+
+TDengine includees few compoments developed by Rust language. Please refer to rust-lang.org official documentation for rust environment setup.
 
 ## Get the source codes
 
@@ -286,8 +290,8 @@ After building successfully, TDengine can be installed by
 sudo make install
 ```
 
-Users can find more information about directories installed on the system in the [directory and files](https://www.taosdata.com/en/documentation/administrator/#Directory-and-Files) section. Since version 2.0, installing from source code will also configure service management for TDengine.
-Users can also choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) for it.
+Users can find more information about directories installed on the system in the [directory and files](https://docs.tdengine.com/operation/pkg-install/#installation-directory) section. Since version 2.0, installing from source code will also configure service management for TDengine.
+Users can also choose to [install from packages](https://docs.tdengine.com/get-started/) for it.
 
 To start the service after installation, in a terminal, use:
 
@@ -295,7 +299,7 @@ To start the service after installation, in a terminal, use:
 sudo systemctl start taosd
 ```
 
-Then users can use the [TDengine shell](https://www.taosdata.com/en/getting-started/#TDengine-Shell) to connect the TDengine server. In a terminal, use:
+Then users can use the [TDengine shell](https://docs.tdengine.com/develop/connect/#verify) to connect the TDengine server. In a terminal, use:
 
 ```bash
 taos
@@ -390,13 +394,13 @@ Query OK, 2 row(s) in set (0.001700s)
 
 TDengine provides abundant developing tools for users to develop on TDengine. Follow the links below to find your desired connectors and relevant documentation.
 
-- [Java](https://www.taosdata.com/en/documentation/connector/java)
-- [C/C++](https://www.taosdata.com/en/documentation/connector#c-cpp)
-- [Python](https://www.taosdata.com/en/documentation/connector#python)
-- [Go](https://www.taosdata.com/en/documentation/connector#go)
-- [RESTful API](https://www.taosdata.com/en/documentation/connector#restful)
-- [Node.js](https://www.taosdata.com/en/documentation/connector#nodejs)
-- [Rust](https://www.taosdata.com/en/documentation/connector/rust)
+- [Java](https://docs.tdengine.com/reference/connector/java)
+- [C/C++](https://docs.tdengine.com/reference/connector/cpp)
+- [Python](https://docs.tdengine.com/reference/connector/python)
+- [Go](https://docs.tdengine.com/reference/connector/go)
+- [RESTful API](https://docs.tdengine.com/reference/rest-api/)
+- [Node.js](https://docs.tdengine.com/reference/connector/node)
+- [Rust](https://docs.tdengine.com/reference/connector/rust)
 
 ## Third Party Connectors
 
