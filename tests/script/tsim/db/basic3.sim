@@ -1,69 +1,51 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c debugflag -v 131
-system sh/exec.sh -n dnode1 -s start -v
+system sh/exec.sh -n dnode1 -s start
 sql connect
 
-print =============== step1: create drop show dnodes
-$x = 0
-step1:
-	$x = $x + 1
-	sleep 1000
-	if $x == 10 then
-	  print ---> dnode not ready!
-		return -1
-	endi
-sql show dnodes
-print ---> $data00 $data01 $data02 $data03 $data04 $data05
-if $rows != 1 then
+print =============== create database d1
+sql create database d1
+sql create table d1.t1 (ts timestamp, i int);
+sql create table d1.t2 (ts timestamp, i int);
+sql create table d1.t3 (ts timestamp, i int);
+sql create table d1.t4 (ts timestamp, i int);
+
+sql show databases
+if $rows != 3 then
   return -1
 endi
-if $data(1)[4] != ready then
-  goto step1
+
+if $data20 != d1 then
+  return -1
 endi
 
-$tbPrefix = tb
-$tbNum = 5
-$rowNum = 10
+if $data22 != 2 then
+  return -1
+endi
 
-print =============== step2: prepare data
-sql create database db vgroups 2
-sql use db
-sql create table if not exists stb (ts timestamp, tbcol int, tbcol2 float, tbcol3 double, tbcol4 binary(30), tbcol5 binary(30)) tags (tgcol int unsigned)
+#if $data03 != 4 then 
+#  return -1
+#endi
 
-$i = 0
-while $i < $tbNum
-  $tb = $tbPrefix . $i
-  sql create table $tb using stb tags( $i )
-  $x = 0
-  while $x < $rowNum
-    $cc = $x * 60000
-    $ms = 1601481600000 + $cc
-    sql insert into $tb values ($ms , $x , $x , $x , "abcd1234=-+*" , "123456 0" ) 
-    $x = $x + 1
-  endw 
+sql show d1.tables
+if $rows != 4 then 
+  return -1
+endi
 
-  $cc = $x * 60000
-  $ms = 1601481600000 + $cc
-  sql insert into $tb values ($ms , NULL , NULL , NULL , NULL , NULL ) 
-  $i = $i + 1
-endw 
+print =============== create database d2
+sql create database d2
+sql create table d2.t1 (ts timestamp, i int);
+sql create table d2.t2 (ts timestamp, i int);
+sql create table d2.t3 (ts timestamp, i int);
 
-print =============== step3: tb
-sql select tbcol5 - tbcol tbcol from tb1 
-sql select tbcol2 - tbcol tbcol from tb1 
+sql show databases
+if $rows != 4 then
+  return -1
+endi
 
-_OVER:
+sql show d2.tables
+if $rows != 3 then 
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-print =============== check
-$null=
-
-system_content sh/checkValgrind.sh -n dnode1 
-print cmd return result ----> [ $system_content ]
-if $system_content > 0 then
-  return -1
-endi 
-
-if $system_content == $null then
-  return -1
-endi 
