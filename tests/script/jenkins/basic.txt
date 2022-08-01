@@ -133,7 +133,7 @@
 ./test.sh -f tsim/parser/join_manyblocks.sim
 # TD-18018 ./test.sh -f tsim/parser/join_multitables.sim
 ./test.sh -f tsim/parser/join_multivnode.sim
-# TD-17707 ./test.sh -f tsim/parser/join.sim
+./test.sh -f tsim/parser/join.sim
 ./test.sh -f tsim/parser/last_cache.sim
 ./test.sh -f tsim/parser/last_groupby.sim
 ./test.sh -f tsim/parser/lastrow.sim
