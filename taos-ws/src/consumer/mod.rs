@@ -762,6 +762,7 @@ mod tests {
 
         let taos = TaosBuilder::from_dsn("taos://localhost:6041")?.build()?;
         taos.exec_many([
+            "drop topic if exists ws_abc1",
             "drop database if exists ws_abc1",
             "create database ws_abc1",
             "create topic ws_abc1 with meta as database ws_abc1",
@@ -893,8 +894,12 @@ mod tests {
 
         tokio::time::sleep(Duration::from_secs(2)).await;
 
-        taos.exec_many(["drop database db2", "drop database ws_abc1"])
-            .await?;
+        taos.exec_many([
+            "drop database db2",
+            "drop topic ws_abc1",
+            "drop database ws_abc1",
+        ])
+        .await?;
         Ok(())
     }
 
@@ -907,6 +912,7 @@ mod tests {
 
         let taos = TaosBuilder::from_dsn("taos://localhost:6041")?.build()?;
         taos.exec_many([
+            "drop topic if exists ws_abc1",
             "drop database if exists ws_abc1",
             "create database ws_abc1",
             "create topic ws_abc1 with meta as database ws_abc1",
@@ -1032,8 +1038,15 @@ mod tests {
             }
             consumer.commit(offset)?;
         }
+        consumer.unsubscribe();
 
-        taos.exec_many(["drop database db2", "drop database ws_abc1"])?;
+        std::thread::sleep(Duration::from_secs(2));
+
+        taos.exec_many([
+            "drop database db2",
+            "drop topic ws_abc1",
+            "drop database ws_abc1",
+        ])?;
         Ok(())
     }
 }

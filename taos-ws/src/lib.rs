@@ -475,7 +475,7 @@ mod tests {
         let dsn = std::env::var("TEST_DSN").unwrap_or("taos:///".to_string());
 
         let client = TaosBuilder::from_dsn(dsn)?.build()?;
-        let mut rs = client.query("select groupid from test.d0")?;
+        let mut rs = client.query("show databases")?;
         let values = rs.to_rows_vec()?;
 
         dbg!(values);
