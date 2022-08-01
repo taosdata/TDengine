@@ -4,10 +4,7 @@ PROJECT(TDengine)
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/client/inc)
 
 IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
-  ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
-  SET(LINK_JEMALLOC "-L${CMAKE_BINARY_DIR}/build/lib -ljemalloc")
-ELSE ()
-  SET(LINK_JEMALLOC "")
+    add_dependencies(perfMonitor jemalloc)
 ENDIF ()
 
 IF (TD_LINUX)
@@ -15,9 +12,9 @@ IF (TD_LINUX)
   ADD_EXECUTABLE(perfMonitor ${SRC})
 
   IF (TD_SOMODE_STATIC)
-      TARGET_LINK_LIBRARIES(perfMonitor taos_static cJson lua ${LINK_JEMALLOC})
+      TARGET_LINK_LIBRARIES(perfMonitor taos_static cJson lua)
   ELSE ()
-      TARGET_LINK_LIBRARIES(perfMonitor taos cJson ${LINK_JEMALLOC})
+      TARGET_LINK_LIBRARIES(perfMonitor taos cJson)
   ENDIF ()
 ENDIF ()
 

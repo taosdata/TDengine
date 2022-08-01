@@ -52,6 +52,8 @@
 #define GRANT_ACCT_LIMITS          4102416000
 #define GRANT_DNODE_LIMITS         4102416000
 #define GRANT_CPU_LIMITS           4102416000
+#define GRANT_STABLE_LIMITS        4102416000
+#define GRANT_TABLE_LIMITS         4102416000
 
 typedef struct {
   char     machine[GRANT_MACHINE_KEY_LEN + 1];
