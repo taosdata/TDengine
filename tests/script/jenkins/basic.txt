@@ -401,7 +401,7 @@
 ./test.sh -f tsim/field/tinyint.sim
 ./test.sh -f tsim/field/unsigined_bigint.sim
 
-# ---- vector
+# ---- vector ----
 ./test.sh -f tsim/vector/metrics_field.sim
 ./test.sh -f tsim/vector/metrics_mix.sim
 ./test.sh -f tsim/vector/metrics_query.sim
@@ -414,10 +414,10 @@
 ./test.sh -f tsim/vector/table_query.sim
 ./test.sh -f tsim/vector/table_time.sim
 
-# ---- wal
+# ---- wal ----
 ./test.sh -f tsim/wal/kill.sim
 
-# ---- tag
+# ---- tag ----
 ./test.sh -f tsim/tag/3.sim
 ./test.sh -f tsim/tag/4.sim
 ./test.sh -f tsim/tag/5.sim

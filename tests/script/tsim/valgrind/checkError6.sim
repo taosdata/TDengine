@@ -123,6 +123,12 @@ print =============== step6: in cast
 sql select 1+1n;
 sql select cast(1 as timestamp)+1n;
 sql select cast(1 as timestamp)+1y;
+sql select * from tb1 where ts in ('2018-07-10 16:31:01', '2022-07-10 16:31:03', 1657441865000);
+sql select * from tb1 where tbcol2 in (257);
+sql select * from tb1 where tbcol3 in (2, 257);
+sql select * from stb where ts in ('2018-07-10 16:31:01', '2022-07-10 16:31:03', 1657441865000);
+sql select * from stb where tbcol2 in (257);
+sql select * from stb where tbcol3 in (2, 257);
 
 print =============== check
 $null=
