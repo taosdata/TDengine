@@ -113,6 +113,9 @@ int32_t tPutBlock(uint8_t *p, void *ph);
 int32_t tGetBlock(uint8_t *p, void *ph);
 int32_t tBlockCmprFn(const void *p1, const void *p2);
 bool    tBlockHasSma(SBlock *pBlock);
+// SBlockL
+int32_t tPutBlockL(uint8_t *p, void *ph);
+int32_t tGetBlockL(uint8_t *p, void *ph);
 // SBlockIdx
 int32_t tPutBlockIdx(uint8_t *p, void *ph);
 int32_t tGetBlockIdx(uint8_t *p, void *ph);
@@ -225,6 +228,7 @@ int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync);
 int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter);
 int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx, uint8_t **ppBuf);
 int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf, SBlockIdx *pBlockIdx);
+int32_t tsdbWriteBlockL(SDataFWriter *pWriter, SArray *aBlockL, uint8_t **ppBuf);
 int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_t **ppBuf1, uint8_t **ppBuf2,
                            SBlockIdx *pBlockIdx, SBlock *pBlock, int8_t cmprAlg);
 
@@ -233,6 +237,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo);
 int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet);
 int32_t tsdbDataFReaderClose(SDataFReader **ppReader);
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx, uint8_t **ppBuf);
+int32_t tsdbReadBlockL(SDataFReader *pReader, SArray *aBlockL, uint8_t **ppBuf);
 int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMapData, uint8_t **ppBuf);
 int32_t tsdbReadColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBlock, int16_t *aColId, int32_t nCol,
                         SBlockData *pBlockData, uint8_t **ppBuf1, uint8_t **ppBuf2);
@@ -416,6 +421,7 @@ struct SBlock {
 };
 
 struct SBlockL {
+  int64_t suid;
   struct {
     int64_t uid;
     int64_t version;
@@ -452,6 +458,7 @@ struct SColData {
 
 struct SBlockData {
   int32_t  nRow;
+  int64_t *aUid;
   int64_t *aVersion;
   TSKEY   *aTSKEY;
   SArray  *aIdx;      // SArray<int32_t>
@@ -513,6 +520,7 @@ struct SHeadFile {
   int64_t commitID;
   int64_t size;
   int64_t offset;
+  int64_t loffset;
 };
 
 struct SDataFile {

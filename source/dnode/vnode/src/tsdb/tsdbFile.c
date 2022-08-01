@@ -21,6 +21,7 @@ int32_t tPutHeadFile(uint8_t *p, SHeadFile *pHeadFile) {
   n += tPutI64v(p ? p + n : p, pHeadFile->commitID);
   n += tPutI64v(p ? p + n : p, pHeadFile->size);
   n += tPutI64v(p ? p + n : p, pHeadFile->offset);
+  n += tPutI64v(p ? p + n : p, pHeadFile->loffset);
 
   return n;
 }
@@ -31,6 +32,7 @@ static int32_t tGetHeadFile(uint8_t *p, SHeadFile *pHeadFile) {
   n += tGetI64v(p + n, &pHeadFile->commitID);
   n += tGetI64v(p + n, &pHeadFile->size);
   n += tGetI64v(p + n, &pHeadFile->offset);
+  n += tGetI64v(p + n, &pHeadFile->loffset);
 
   return n;
 }

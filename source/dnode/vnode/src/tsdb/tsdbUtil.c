@@ -295,6 +295,56 @@ bool tBlockHasSma(SBlock *pBlock) {
 
   return pBlock->aSubBlock[0].nSma > 0;
 }
+// SBlockL ======================================================
+int32_t tPutBlockL(uint8_t *p, void *ph) {
+  int32_t  n = 0;
+  SBlockL *pBlockL = (SBlockL *)ph;
+
+  n += tPutI64(p ? p + n : p, pBlockL->suid);
+  n += tPutI64(p ? p + n : p, pBlockL->minKey.uid);
+  n += tPutI64v(p ? p + n : p, pBlockL->minKey.version);
+  n += tPutI64(p ? p + n : p, pBlockL->minKey.ts);
+  n += tPutI64(p ? p + n : p, pBlockL->maxKey.uid);
+  n += tPutI64v(p ? p + n : p, pBlockL->maxKey.version);
+  n += tPutI64(p ? p + n : p, pBlockL->maxKey.ts);
+  n += tPutI64v(p ? p + n : p, pBlockL->minVer);
+  n += tPutI64v(p ? p + n : p, pBlockL->maxVer);
+  n += tPutI32v(p ? p + n : p, pBlockL->nRow);
+  n += tPutI8(p ? p + n : p, pBlockL->cmprAlg);
+  n += tPutI64v(p ? p + n : p, pBlockL->offset);
+  n += tPutI32v(p ? p + n : p, pBlockL->szBlock);
+  n += tPutI32v(p ? p + n : p, pBlockL->szBlockCol);
+  n += tPutI32v(p ? p + n : p, pBlockL->szUid);
+  n += tPutI32v(p ? p + n : p, pBlockL->szVer);
+  n += tPutI32v(p ? p + n : p, pBlockL->szTSKEY);
+
+  return n;
+}
+
+int32_t tGetBlockL(uint8_t *p, void *ph) {
+  int32_t  n = 0;
+  SBlockL *pBlockL = (SBlockL *)ph;
+
+  n += tGetI64(p + n, &pBlockL->suid);
+  n += tGetI64(p + n, &pBlockL->minKey.uid);
+  n += tGetI64v(p + n, &pBlockL->minKey.version);
+  n += tGetI64(p + n, &pBlockL->minKey.ts);
+  n += tGetI64(p + n, &pBlockL->maxKey.uid);
+  n += tGetI64v(p + n, &pBlockL->maxKey.version);
+  n += tGetI64(p + n, &pBlockL->maxKey.ts);
+  n += tGetI64v(p + n, &pBlockL->minVer);
+  n += tGetI64v(p + n, &pBlockL->maxVer);
+  n += tGetI32v(p + n, &pBlockL->nRow);
+  n += tGetI8(p + n, &pBlockL->cmprAlg);
+  n += tGetI64v(p + n, &pBlockL->offset);
+  n += tGetI32v(p + n, &pBlockL->szBlock);
+  n += tGetI32v(p + n, &pBlockL->szBlockCol);
+  n += tGetI32v(p + n, &pBlockL->szUid);
+  n += tGetI32v(p + n, &pBlockL->szVer);
+  n += tGetI32v(p + n, &pBlockL->szTSKEY);
+
+  return n;
+}
 
 // SBlockCol ======================================================
 int32_t tPutBlockCol(uint8_t *p, void *ph) {

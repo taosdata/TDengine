@@ -911,14 +911,14 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
     if (pSet) {
       wSet.diskId = pSet->diskId;
       wSet.fid = fid;
-      fHead = (SHeadFile){.commitID = pWriter->commitID, .offset = 0, .size = 0};
+      fHead = (SHeadFile){.commitID = pWriter->commitID, .offset = 0, .size = 0, .loffset = 0};
       fData = *pSet->pDataF;
       fLast = (SLastFile){.commitID = pWriter->commitID, .size = 0};
       fSma = *pSet->pSmaF;
     } else {
       wSet.diskId = (SDiskID){.level = 0, .id = 0};
       wSet.fid = fid;
-      fHead = (SHeadFile){.commitID = pWriter->commitID, .offset = 0, .size = 0};
+      fHead = (SHeadFile){.commitID = pWriter->commitID, .offset = 0, .size = 0, .loffset = 0};
       fData = (SDataFile){.commitID = pWriter->commitID, .size = 0};
       fLast = (SLastFile){.commitID = pWriter->commitID, .size = 0};
       fSma = (SSmaFile){.commitID = pWriter->commitID, .size = 0};
