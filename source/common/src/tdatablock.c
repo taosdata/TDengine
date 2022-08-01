@@ -140,6 +140,54 @@ int32_t colDataReserve(SColumnInfoData* pColumnInfoData, size_t newSize) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t currentRow, const char* pData, int32_t itemLen, int32_t numOfRows) {
+  ASSERT(pColumnInfoData->info.bytes >= itemLen);
+  size_t start = 1;
+
+  // the first item
+  memcpy(pColumnInfoData->pData, pData, itemLen);
+
+  int32_t t = 0;
+  int32_t count = log(numOfRows)/log(2);
+  while(t < count) {
+    int32_t xlen = 1 << t;
+    memcpy(pColumnInfoData->pData + start * itemLen + pColumnInfoData->varmeta.length, pColumnInfoData->pData, xlen * itemLen);
+    t += 1;
+    start += xlen;
+  }
+
+  // the tail part
+  if (numOfRows > start) {
+    memcpy(pColumnInfoData->pData + start * itemLen + currentRow * itemLen, pColumnInfoData->pData, (numOfRows - start) * itemLen);
+  }
+
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    for(int32_t i = 0; i < numOfRows; ++i) {
+      pColumnInfoData->varmeta.offset[i + currentRow] = pColumnInfoData->varmeta.length + i * itemLen;
+    }
+
+    pColumnInfoData->varmeta.length += numOfRows * itemLen;
+  }
+}
+
+int32_t colDataAppendNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, uint32_t numOfRows) {
+  ASSERT(pData != NULL && pColumnInfoData != NULL);
+
+  int32_t len = pColumnInfoData->info.bytes;
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    len = varDataTLen(pData);
+    if (pColumnInfoData->varmeta.allocLen < (numOfRows + currentRow) * len) {
+      int32_t code = colDataReserve(pColumnInfoData, (numOfRows + currentRow) * len);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+  }
+
+  doCopyNItems(pColumnInfoData, currentRow, pData, len, numOfRows);
+  return TSDB_CODE_SUCCESS;
+}
+
 static void doBitmapMerge(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, const SColumnInfoData* pSource,
                           int32_t numOfRow2) {
   if (numOfRow2 <= 0) return;

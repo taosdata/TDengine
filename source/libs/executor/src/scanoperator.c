@@ -399,22 +399,17 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int
       const char* p = metaGetTableTagVal(&mr.me, pColInfoData->info.type, &tagVal);
 
       char* data = NULL;
-      int32_t len = 0;
       if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON && p != NULL) {
         data = tTagValToData((const STagVal*)p, false);
-        len = varDataTLen(data);
-        code = colDataReserve(pColInfoData, len * pBlock->info.rows);
-        if (code != TSDB_CODE_SUCCESS) {
-          terrno = code;
-          return code;
-        }
       } else {
         data = (char*)p;
       }
 
-      for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-        colDataAppend(pColInfoData, i, data,
-                      (data == NULL) || (pColInfoData->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data)));
+      bool isNullVal = (data == NULL) || (pColInfoData->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data));
+      if (isNullVal) {
+        colDataAppendNNULL(pColInfoData, 0, pBlock->info.rows);
+      } else {
+        colDataAppendNItems(pColInfoData, 0, data, pBlock->info.rows);
       }
 
       if (data && (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) && p != NULL &&
