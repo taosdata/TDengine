@@ -118,6 +118,28 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
   return 0;
 }
 
+int32_t colDataReserve(SColumnInfoData* pColumnInfoData, size_t newSize) {
+  if (!IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pColumnInfoData->varmeta.allocLen >= newSize) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pColumnInfoData->varmeta.allocLen < newSize) {
+    char* buf = taosMemoryRealloc(pColumnInfoData->pData, newSize);
+    if (buf == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    pColumnInfoData->pData = buf;
+    pColumnInfoData->varmeta.allocLen = newSize;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static void doBitmapMerge(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, const SColumnInfoData* pSource,
                           int32_t numOfRow2) {
   if (numOfRow2 <= 0) return;

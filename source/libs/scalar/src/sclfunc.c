@@ -1728,6 +1728,7 @@ int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
   char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   metaGetTableNameByUid(pInput->param, uid, str);
 
+  colDataReserve(pOutput->columnData, varDataTLen(str) * (pInput->numOfRows + pOutput->numOfRows));
   for(int32_t i = 0; i < pInput->numOfRows; ++i) {
     colDataAppend(pOutput->columnData, pOutput->numOfRows + i, str, false);
   }
