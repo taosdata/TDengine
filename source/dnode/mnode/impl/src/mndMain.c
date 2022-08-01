@@ -416,7 +416,7 @@ int32_t mndStart(SMnode *pMnode) {
     }
     mndSetRestore(pMnode, true);
   }
-  
+
   grantReset(pMnode, TSDB_GRANT_ALL, 0);
 
   return mndInitTimer(pMnode);
@@ -445,20 +445,6 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }
-
-  do {
-    char          *syncNodeStr = sync2SimpleStr(pMgmt->sync);
-    static int64_t mndTick = 0;
-    if (++mndTick % 10 == 1) {
-      mTrace("vgId:%d, sync trace msg:%s, %s", syncGetVgId(pMgmt->sync), TMSG_INFO(pMsg->msgType), syncNodeStr);
-    }
-    if (gRaftDetailLog) {
-      char logBuf[512] = {0};
-      snprintf(logBuf, sizeof(logBuf), "==mndProcessSyncMsg== msgType:%d, syncNode: %s", pMsg->msgType, syncNodeStr);
-      syncRpcMsgLog2(logBuf, pMsg);
-    }
-    taosMemoryFree(syncNodeStr);
-  } while (0);
 
   // ToDo: ugly! use function pointer
   if (syncNodeStrategy(pSyncNode) == SYNC_STRATEGY_STANDARD_SNAPSHOT) {
