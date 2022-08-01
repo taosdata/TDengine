@@ -1,0 +1,2 @@
+#####
+taostest --setup=cluster/cluster_3_dnodes.yaml --containers --case=stability/insert/insert_test_pro.py --keep --case-param="\"--insert-tmpl-file=cases/stability/insert/meters3.json --insert-cfg-file=cases/stability/insert/write_1.cfg --key CHILDTABLECOUNT=100 --key INSERTROWS=100000 --key DROPENABLE=no --key THREADCOUNT=10 --key BATCHSIZE=100 --query-tmpl-file=cases/stability/insert/query.json --query-sql-file=cases/stability/insert/pey.sql --query-key QUERYCONCURRENCY=10 --query-key QUERYTIMES=1 --pre-create-db\""
