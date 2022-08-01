@@ -65,6 +65,7 @@ int32_t grantCheck(EGrantType grant);
 }
 #define GRANT_CFG_ADD
 #define GRANT_CFG_SET
+#define GRANT_CFG_GET
 #define GRANT_CFG_CHECK
 #define GRANT_CFG_SKIP
 #define GRANT_CFG_DECLARE
