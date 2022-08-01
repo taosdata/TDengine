@@ -2662,19 +2662,11 @@ int32_t apercentilePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   char*   res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
 
   if (pInfo->algo == APERCT_ALGO_TDIGEST) {
-    if (pInfo->pTDigest->size > 0) {
-      memcpy(varDataVal(res), pInfo, resultBytes);
-      varDataSetLen(res, resultBytes);
-    } else {
-      return TSDB_CODE_SUCCESS;
-    }
+    memcpy(varDataVal(res), pInfo, resultBytes);
+    varDataSetLen(res, resultBytes);
   } else {
-    if (pInfo->pHisto->numOfElems > 0) {
-      memcpy(varDataVal(res), pInfo, resultBytes);
-      varDataSetLen(res, resultBytes);
-    } else {
-      return TSDB_CODE_SUCCESS;
-    }
+    memcpy(varDataVal(res), pInfo, resultBytes);
+    varDataSetLen(res, resultBytes);
   }
 
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
