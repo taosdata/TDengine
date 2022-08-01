@@ -2502,6 +2502,10 @@ void* tsdbGetIvtIdx(SMeta* pMeta) {
   return metaGetIvtIdx(pMeta);
 }
 
+uint64_t getReaderMaxVersion(STsdbReader *pReader) {
+  return pReader->verRange.maxVer;
+}
+
 /**
  * @brief Get all suids since suid
  *
