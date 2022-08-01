@@ -92,7 +92,7 @@ int32_t tsdbBegin(STsdb *pTsdb) {
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb begin failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb begin failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -175,11 +175,11 @@ static int32_t tsdbCommitDelStart(SCommitter *pCommitter) {
   if (code) goto _err;
 
 _exit:
-  tsdbDebug("vgId:%d commit del start", TD_VID(pTsdb->pVnode));
+  tsdbDebug("vgId:%d, commit del start", TD_VID(pTsdb->pVnode));
   return code;
 
 _err:
-  tsdbError("vgId:%d commit del start failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, commit del start failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -235,7 +235,7 @@ _exit:
   return code;
 
 _err:
-  tsdbError("vgId:%d commit table del failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, commit table del failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -267,7 +267,7 @@ static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
   return code;
 
 _err:
-  tsdbError("vgId:%d commit del end failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, commit del end failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -331,7 +331,7 @@ _exit:
   return code;
 
 _err:
-  tsdbError("vgId:%d commit file data start failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, commit file data start failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -509,7 +509,7 @@ static int32_t tsdbMergeTableData(SCommitter *pCommitter, STbDataIter *pIter, SB
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb merge block and mem failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb merge block and mem failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -571,7 +571,7 @@ static int32_t tsdbCommitTableMemData(SCommitter *pCommitter, STbDataIter *pIter
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb commit table mem data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb commit table mem data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -594,7 +594,7 @@ static int32_t tsdbCommitTableDiskData(SCommitter *pCommitter, SBlock *pBlock, S
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb commit table disk data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb commit table disk data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -614,7 +614,7 @@ static int32_t tsdbCommitTableDataEnd(SCommitter *pCommitter, int64_t suid, int6
   return code;
 
 _err:
-  tsdbError("vgId:%d commit table data end failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, commit table data end failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -689,7 +689,7 @@ static int32_t tsdbMergeAsSubBlock(SCommitter *pCommitter, STbDataIter *pIter, S
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb merge as subblock failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb merge as subblock failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -854,7 +854,7 @@ _exit:
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb commit table data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb commit table data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -886,7 +886,7 @@ _exit:
   return code;
 
 _err:
-  tsdbError("vgId:%d commit file data end failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, commit file data end failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -962,7 +962,7 @@ static int32_t tsdbCommitFileData(SCommitter *pCommitter) {
   return code;
 
 _err:
-  tsdbError("vgId:%d commit file data failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, commit file data failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   tsdbDataFReaderClose(&pCommitter->dReader.pReader);
   tsdbDataFWriterClose(&pCommitter->dWriter.pWriter, 0);
   return code;
@@ -994,7 +994,7 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb start commit failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb start commit failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -1060,12 +1060,12 @@ static int32_t tsdbCommitData(SCommitter *pCommitter) {
   tsdbCommitDataEnd(pCommitter);
 
 _exit:
-  tsdbDebug("vgId:%d commit data done, nRow:%" PRId64, TD_VID(pTsdb->pVnode), pMemTable->nRow);
+  tsdbDebug("vgId:%d, commit data done, nRow:%" PRId64, TD_VID(pTsdb->pVnode), pMemTable->nRow);
   return code;
 
 _err:
   tsdbCommitDataEnd(pCommitter);
-  tsdbError("vgId:%d commit data failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, commit data failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -1149,11 +1149,11 @@ static int32_t tsdbCommitDel(SCommitter *pCommitter) {
   }
 
 _exit:
-  tsdbDebug("vgId:%d commit del done, nDel:%" PRId64, TD_VID(pTsdb->pVnode), pMemTable->nDel);
+  tsdbDebug("vgId:%d, commit del done, nDel:%" PRId64, TD_VID(pTsdb->pVnode), pMemTable->nDel);
   return code;
 
 _err:
-  tsdbError("vgId:%d commit del failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, commit del failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -1185,10 +1185,10 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
   tsdbUnrefMemTable(pMemTable);
   tsdbFSDestroy(&pCommitter->fs);
 
-  tsdbInfo("vgId:%d tsdb end commit", TD_VID(pTsdb->pVnode));
+  tsdbInfo("vgId:%d, tsdb end commit", TD_VID(pTsdb->pVnode));
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb end commit failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb end commit failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
