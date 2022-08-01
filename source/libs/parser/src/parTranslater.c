@@ -398,6 +398,7 @@ static void destroyTranslateContext(STranslateContext* pCxt) {
 
   taosHashCleanup(pCxt->pDbs);
   taosHashCleanup(pCxt->pTables);
+  taosHashCleanup(pCxt->pTargetTables);
 }
 
 static bool isSelectStmt(SNode* pCurrStmt) {
