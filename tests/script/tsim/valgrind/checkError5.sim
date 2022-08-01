@@ -100,11 +100,13 @@ sql select * from db.stb
 sql select * from db.stb
 sql_error create table db.ctb2 using db.stb tags(101, "102")
 sql create table db.ctb2 using db.stb tags(101, 102, "103", 104)
-sql insert into db.ctb2 values(now, 1, 2, 3)
+sql insert into db.ctb2 values(now, 1, 2, 3) 
 
 print =============== step6: query data
 sql select * from db.stb where tbname = 'ctb2';
-
+sql alter table ctb2 set tag t1=1;
+sql alter table ctb2 set tag t3='3';
+sql select * from db.stb where t1 = 1;
 
 print =============== step7: normal table
 sql create database d1 replica 1 duration 7 keep 50 
