@@ -98,9 +98,9 @@ tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name) {
   return uid;
 }
 
-int metaGetTableNameByUid(void* meta, uint64_t uid, char* tbName) {
+int metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName) {
   SMetaReader mr = {0};
-  metaReaderInit(&mr, (SMeta*)meta, 0);
+  metaReaderInit(&mr, (SMeta *)meta, 0);
   metaGetTableEntryByUid(&mr, uid);
 
   STR_TO_VARSTR(tbName, mr.me.name);

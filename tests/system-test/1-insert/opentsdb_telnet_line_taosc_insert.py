@@ -25,19 +25,19 @@ import threading
 import platform
 import io
 if platform.system().lower() == 'windows':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf8') 
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf8')
 
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        self._conn = conn 
+        self._conn = conn
         self.smlChildTableName_value = "id"
 
     def createDb(self, name="test", db_update_tag=0, protocol=None):
         if protocol == "telnet-tcp":
             name = "opentsdb_telnet"
-            
+
         if db_update_tag == 0:
             tdSql.execute(f"drop database if exists {name}")
             tdSql.execute(f"create database if not exists {name} precision 'us' schemaless 1")
@@ -66,7 +66,7 @@ class TDTestCase:
         td_ts = time.strftime("%Y-%m-%d %H:%M:%S.{}".format(ulsec), time.localtime(ts))
         return td_ts
         #return repr(datetime.datetime.strptime(td_ts, "%Y-%m-%d %H:%M:%S.%f"))
-    
+
     def dateToTs(self, datetime_input):
         return int(time.mktime(time.strptime(datetime_input, "%Y-%m-%d %H:%M:%S.%f")))
 
@@ -191,7 +191,7 @@ class TDTestCase:
                     tb_name = ""
                     td_tag_value_list.append(self.getTdTypeValue(elm.split("=")[1], "tag")[1])
                     td_tag_type_list.append(self.getTdTypeValue(elm.split("=")[1], "tag")[0])
-        
+
         col_name_list.append('_value')
         col_value_list.append(stb_col_value)
 
@@ -218,7 +218,7 @@ class TDTestCase:
                         t4="9223372036854775807i64", t5="11.12345f32", t6="22.123456789f64", t7="\"binaryTagValue\"",
                         t8="L\"ncharTagValue\"", ts="1626006833641",
                         id_noexist_tag=None, id_change_tag=None, id_upper_tag=None, id_mixul_tag=None, id_double_tag=None,
-                        t_add_tag=None, t_mul_tag=None, c_multi_tag=None, c_blank_tag=None, t_blank_tag=None, 
+                        t_add_tag=None, t_mul_tag=None, c_multi_tag=None, c_blank_tag=None, t_blank_tag=None,
                         chinese_tag=None, multi_field_tag=None, point_trans_tag=None, protocol=None, tcp_keyword_tag=None):
         if stb_name == "":
             stb_name = tdCom.getLongName(len=6, mode="letters")
@@ -268,7 +268,7 @@ class TDTestCase:
         if protocol == "telnet-tcp":
             sql_seq = 'put ' + sql_seq + '\n'
         return sql_seq, stb_name
-    
+
     def genMulTagColStr(self, genType, count=1):
         """
             genType must be tag/col
@@ -365,10 +365,10 @@ class TDTestCase:
         for t_type in full_type_list:
             input_sql, stb_name = self.genFullTypeSql(t0=t_type, protocol=protocol)
             self.resCmp(input_sql, stb_name, protocol=protocol)
-        
+
     def symbolsCheckCase(self, protocol=None):
         """
-            check symbols = `~!@#$%^&*()_-+={[}]\|:;'\",<.>/? 
+            check symbols = `~!@#$%^&*()_-+={[}]\|:;'\",<.>/?
         """
         '''
             please test :
@@ -424,7 +424,7 @@ class TDTestCase:
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
-    
+
     def idSeqCheckCase(self, protocol=None):
         """
             check id.index in tags
@@ -434,7 +434,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(id_change_tag=True, protocol=protocol)
         self.resCmp(input_sql, stb_name, protocol=protocol)
-    
+
     def idLetterCheckCase(self, protocol=None):
         """
             check id param
@@ -527,7 +527,7 @@ class TDTestCase:
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
-    
+
     def illegalTsCheckCase(self):
         """
             check ts format like 16260068336390us19
@@ -592,7 +592,7 @@ class TDTestCase:
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
-            tdSql.checkNotEqual(err.errno, 0)   
+            tdSql.checkNotEqual(err.errno, 0)
 
     def tagValueLengthCheckCase(self):
         """
@@ -673,7 +673,7 @@ class TDTestCase:
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-        # f32       
+        # f32
         tdCom.cleanTb()
         for value in [f"{-3.4028234663852885981170418348451692544*(10**38)}f32", f"{3.4028234663852885981170418348451692544*(10**38)}f32"]:
             input_sql, stb_name = self.genFullTypeSql(value=value)
@@ -703,12 +703,12 @@ class TDTestCase:
         #     except SchemalessError as err:
         #         tdSql.checkNotEqual(err.errno, 0)
 
-        # # # binary 
+        # # # binary
         # tdCom.cleanTb()
         # stb_name = tdCom.getLongName(7, "letters")
         # input_sql = f'{stb_name} 1626006833640 "{tdCom.getLongName(16374, "letters")}" t0=t'
         # self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
-        
+
         # tdCom.cleanTb()
         # input_sql = f'{stb_name} 1626006833640 "{tdCom.getLongName(16375, "letters")}" t0=t'
         # try:
@@ -748,12 +748,12 @@ class TDTestCase:
 
         # i8 i16 i32 i64 f32 f64
         for input_sql in [
-                self.genFullTypeSql(value="1s2i8")[0], 
+                self.genFullTypeSql(value="1s2i8")[0],
                 self.genFullTypeSql(value="1s2i16")[0],
                 self.genFullTypeSql(value="1s2i32")[0],
                 self.genFullTypeSql(value="1s2i64")[0],
                 self.genFullTypeSql(value="11.1s45f32")[0],
-                self.genFullTypeSql(value="11.1s45f64")[0], 
+                self.genFullTypeSql(value="11.1s45f64")[0],
             ]:
             try:
                 self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
@@ -761,14 +761,14 @@ class TDTestCase:
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-        # check accepted binary and nchar symbols 
+        # check accepted binary and nchar symbols
         # # * ~!@#$¥%^&*()-+={}|[]、「」:;
         for symbol in list('~!@#$¥%^&*()-+={}|[]、「」:;'):
             input_sql1 = f'{tdCom.getLongName(7, "letters")} 1626006833640 "abc{symbol}aaa" t0=t'
             input_sql2 = f'{tdCom.getLongName(7, "letters")} 1626006833640 t t0=t t1="abc{symbol}aaa"'
             self._conn.schemaless_insert([input_sql1], TDSmlProtocolType.TELNET.value, None)
             # self._conn.schemaless_insert([input_sql2], TDSmlProtocolType.TELNET.value, None)
-    
+
     def blankCheckCase(self):
         '''
             check blank case
@@ -853,7 +853,7 @@ class TDTestCase:
             check tag count add, stb and tb duplicate
             * tag: alter table ...
             * col: when update==0 and ts is same, unchange
-            * so this case tag&&value will be added, 
+            * so this case tag&&value will be added,
             * col is added without value when update==0
             * col is added with value when update==1
         """
@@ -869,14 +869,14 @@ class TDTestCase:
             if db_update_tag == 1 :
                 self.resCmp(input_sql, stb_name, condition=f'where tbname like "{tb_name}"', none_check_tag=True)
                 tdSql.query(f'select * from {stb_name} where tbname like "{tb_name}"')
-                tdSql.checkData(0, 11, None)  
-                tdSql.checkData(0, 12, None)  
+                tdSql.checkData(0, 11, None)
+                tdSql.checkData(0, 12, None)
             else:
                 self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                 tdSql.query(f'select * from {stb_name} where tbname like "{tb_name}"')
-                tdSql.checkData(0, 1, True)  
-                tdSql.checkData(0, 11, None)  
-                tdSql.checkData(0, 12, None)  
+                tdSql.checkData(0, 1, True)
+                tdSql.checkData(0, 11, None)
+                tdSql.checkData(0, 12, None)
             self.createDb()
 
     @tdCom.smlPass
@@ -952,7 +952,7 @@ class TDTestCase:
         tdCom.cleanTb()
         stb_name = tdCom.getLongName(8, "letters")
         tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
-        
+
         lines = ["st123456 1626006833640 1i64 t1=3i64 t2=4f64 t3=\"t3\"",
                 "st123456 1626006833641 2i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64",
                 f'{stb_name} 1626006833642 3i64 t2=5f64 t3=L\"ste\"',
@@ -970,7 +970,7 @@ class TDTestCase:
         tdSql.checkRows(6)
         tdSql.query('select * from st123456')
         tdSql.checkRows(5)
-    
+
     def multiInsertCheckCase(self, count):
         """
             test multi insert
@@ -1014,7 +1014,7 @@ class TDTestCase:
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
-    
+
     def blankColInsertCheckCase(self):
         """
             test blank col insert
@@ -1040,7 +1040,7 @@ class TDTestCase:
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
-    
+
     def chineseCheckCase(self):
         """
             check nchar ---> chinese
@@ -1210,7 +1210,7 @@ class TDTestCase:
         self.multiThreadRun(self.genMultiThreadSeq(input_sql))
         tdSql.query(f"show tables;")
         tdSql.checkRows(5)
-    
+
     def sStbStbDdataInsertMultiThreadCheckCase(self):
         """
             thread input same stb tb, different data, result keep first data
@@ -1248,7 +1248,7 @@ class TDTestCase:
             tdSql.checkEqual(tb_name, expected_tb_name)
         tdSql.query(f"select * from {stb_name};")
         tdSql.checkRows(1) if self.smlChildTableName_value == "ID" else tdSql.checkRows(6)
-    
+
     def sStbStbDdataMtInsertMultiThreadCheckCase(self):
         """
             thread input same stb tb, different data, minus columes and tags,  result keep first data
@@ -1466,7 +1466,7 @@ class TDTestCase:
 
     def run(self):
         print("running {}".format(__file__))
-        
+
         try:
             self.createDb()
             self.runAll()

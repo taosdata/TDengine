@@ -63,11 +63,9 @@ print ===> rows $rows last $data01
 if $rows >= 80 then
 	return -1
 endi
-if $rows <= 50 then
+if $rows <= 45 then
 	return -1
 endi
-
-return
 
 print ======== step5 stop dnode
 system sh/exec.sh -n dnode2 -s stop -x SIGKILL
@@ -78,7 +76,7 @@ print ===> rows $rows last $data01
 if $rows >= 80 then
 	return -1
 endi
-if $rows <= 50 then
+if $rows <= 45 then
 	return -1
 endi
 
@@ -109,8 +107,8 @@ print ======== step8 insert data
 $x = 81
 while $x < 121
   $time = $x . d
-  sql insert into tb values (now - $time , $x ) -x step4
-  step4:
+  sql insert into tb values (now - $time , $x ) -x step8
+  step8:
   $x = $x + 1
 endw 
 

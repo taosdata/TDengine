@@ -168,20 +168,20 @@ int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, v
   return TSDB_CODE_SUCCESS;
 }
 
-// Note: no more task error processing, handled in function internal
 int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode) {
   if (TSDB_CODE_SCH_IGNORE_ERROR == errCode) {
     return TSDB_CODE_SCH_IGNORE_ERROR;
   }
 
-  int8_t status = 0;
-  if (schJobNeedToStop(pJob, &status)) {
-    SCH_TASK_DLOG("no more task failure processing cause of job status %s", jobTaskStatusStr(status));
+  int8_t jobStatus = 0;
+  if (schJobNeedToStop(pJob, &jobStatus)) {
+    SCH_TASK_DLOG("no more task failure processing cause of job status %s", jobTaskStatusStr(jobStatus));
     SCH_ERR_RET(TSDB_CODE_SCH_IGNORE_ERROR);
   }
 
-  if (SCH_GET_TASK_STATUS(pTask) != JOB_TASK_STATUS_EXEC) {
-    SCH_TASK_ELOG("task already not in EXEC status, status:%s", SCH_GET_TASK_STATUS_STR(pTask));
+  int8_t taskStatus = SCH_GET_TASK_STATUS(pTask);
+  if (taskStatus == JOB_TASK_STATUS_FAIL || taskStatus == JOB_TASK_STATUS_SUCC) {
+    SCH_TASK_ELOG("task already done, status:%s", jobTaskStatusStr(taskStatus));
     SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
@@ -424,9 +424,14 @@ int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32
     }
   }
 
-  SCH_RET(schDoTaskRedirect(pJob, pTask, pData, rspCode));
+  code = schDoTaskRedirect(pJob, pTask, pData, rspCode);
+  taosMemoryFree(pData->pData);
+
+  SCH_RET(code);
 
 _return:
+
+  taosMemoryFree(pData->pData);
 
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 }

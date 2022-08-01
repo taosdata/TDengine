@@ -43,6 +43,7 @@ typedef struct STbDataIter   STbDataIter;
 typedef struct SMapData      SMapData;
 typedef struct SBlockIdx     SBlockIdx;
 typedef struct SBlock        SBlock;
+typedef struct SBlockL       SBlockL;
 typedef struct SColData      SColData;
 typedef struct SBlockDataHdr SBlockDataHdr;
 typedef struct SBlockData    SBlockData;
@@ -90,6 +91,9 @@ int32_t tsdbRowCmprFn(const void *p1, const void *p2);
 void     tRowIterInit(SRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
 SColVal *tRowIterNext(SRowIter *pIter);
 // SRowMerger
+int32_t tRowMergerInit2(SRowMerger *pMerger, STSchema *pResTSchema, TSDBROW *pRow, STSchema *pTSchema);
+int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
+
 int32_t tRowMergerInit(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
 void    tRowMergerClear(SRowMerger *pMerger);
 int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow);
@@ -97,7 +101,6 @@ int32_t tRowMergerGetRow(SRowMerger *pMerger, STSRow **ppRow);
 // TABLEID
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 // TSDBKEY
-int32_t tsdbKeyCmprFn(const void *p1, const void *p2);
 #define MIN_TSDBKEY(KEY1, KEY2) ((tsdbKeyCmprFn(&(KEY1), &(KEY2)) < 0) ? (KEY1) : (KEY2))
 #define MAX_TSDBKEY(KEY1, KEY2) ((tsdbKeyCmprFn(&(KEY1), &(KEY2)) > 0) ? (KEY1) : (KEY2))
 // SBlockCol
@@ -412,6 +415,29 @@ struct SBlock {
   SSubBlock aSubBlock[TSDB_MAX_SUBBLOCKS];
 };
 
+struct SBlockL {
+  struct {
+    int64_t uid;
+    int64_t version;
+    TSKEY   ts;
+  } minKey;
+  struct {
+    int64_t uid;
+    int64_t version;
+    TSKEY   ts;
+  } maxKey;
+  int64_t minVer;
+  int64_t maxVer;
+  int32_t nRow;
+  int8_t  cmprAlg;
+  int64_t offset;
+  int32_t szBlock;
+  int32_t szBlockCol;
+  int32_t szUid;
+  int32_t szVer;
+  int32_t szTSKEY;
+};
+
 struct SColData {
   int16_t  cid;
   int8_t   type;
@@ -557,6 +583,26 @@ struct STsdbReadSnap {
   SMemTable *pIMem;
   STsdbFS    fs;
 };
+
+// ========== inline functions ==========
+static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
+  TSDBKEY *pKey1 = (TSDBKEY *)p1;
+  TSDBKEY *pKey2 = (TSDBKEY *)p2;
+
+  if (pKey1->ts < pKey2->ts) {
+    return -1;
+  } else if (pKey1->ts > pKey2->ts) {
+    return 1;
+  }
+
+  if (pKey1->version < pKey2->version) {
+    return -1;
+  } else if (pKey1->version > pKey2->version) {
+    return 1;
+  }
+
+  return 0;
+}
 
 #ifdef __cplusplus
 }

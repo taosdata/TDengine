@@ -2662,19 +2662,11 @@ int32_t apercentilePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   char*   res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
 
   if (pInfo->algo == APERCT_ALGO_TDIGEST) {
-    if (pInfo->pTDigest->size > 0) {
-      memcpy(varDataVal(res), pInfo, resultBytes);
-      varDataSetLen(res, resultBytes);
-    } else {
-      return TSDB_CODE_SUCCESS;
-    }
+    memcpy(varDataVal(res), pInfo, resultBytes);
+    varDataSetLen(res, resultBytes);
   } else {
-    if (pInfo->pHisto->numOfElems > 0) {
-      memcpy(varDataVal(res), pInfo, resultBytes);
-      varDataSetLen(res, resultBytes);
-    } else {
-      return TSDB_CODE_SUCCESS;
-    }
+    memcpy(varDataVal(res), pInfo, resultBytes);
+    varDataSetLen(res, resultBytes);
   }
 
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
@@ -2698,6 +2690,22 @@ int32_t apercentileCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx)
   apercentileTransferInfo(pSBuf, pDBuf);
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   return TSDB_CODE_SUCCESS;
+}
+
+EFuncDataRequired lastDynDataReq(void* pRes, STimeWindow* pTimeWindow) {
+  SResultRowEntryInfo* pEntry = (SResultRowEntryInfo*) pRes;
+
+  // not initialized yet, data is required
+  if (pEntry == NULL) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+
+  SFirstLastRes* pResult = GET_ROWCELL_INTERBUF(pEntry);
+  if (pResult->hasResult && pResult->ts >= pTimeWindow->ekey) {
+    return FUNC_DATA_REQUIRED_NOT_LOAD;
+  } else {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
 }
 
 int32_t getFirstLastInfoSize(int32_t resBytes) { return sizeof(SFirstLastRes) + resBytes; }
@@ -4635,10 +4643,15 @@ int32_t stateCountFunction(SqlFunctionCtx* pCtx) {
     numOfElems++;
     if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
       colDataAppendNULL(pOutput, i);
+      // handle selectivity
+      if (pCtx->subsidiaries.num > 0) {
+        appendSelectivityValue(pCtx, i, i);
+      }
       continue;
     }
 
-    bool    ret = checkStateOp(op, pInputCol, i, pCtx->param[2].param);
+    bool ret = checkStateOp(op, pInputCol, i, pCtx->param[2].param);
+
     int64_t output = -1;
     if (ret) {
       output = ++pInfo->count;
@@ -4646,6 +4659,11 @@ int32_t stateCountFunction(SqlFunctionCtx* pCtx) {
       pInfo->count = 0;
     }
     colDataAppend(pOutput, i, (char*)&output, false);
+
+    // handle selectivity
+    if (pCtx->subsidiaries.num > 0) {
+      appendSelectivityValue(pCtx, i, i);
+    }
   }
 
   return numOfElems;
@@ -4678,6 +4696,10 @@ int32_t stateDurationFunction(SqlFunctionCtx* pCtx) {
     numOfElems++;
     if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
       colDataAppendNULL(pOutput, i);
+      // handle selectivity
+      if (pCtx->subsidiaries.num > 0) {
+        appendSelectivityValue(pCtx, i, i);
+      }
       continue;
     }
 
@@ -4694,6 +4716,11 @@ int32_t stateDurationFunction(SqlFunctionCtx* pCtx) {
       pInfo->durationStart = 0;
     }
     colDataAppend(pOutput, i, (char*)&output, false);
+
+    // handle selectivity
+    if (pCtx->subsidiaries.num > 0) {
+      appendSelectivityValue(pCtx, i, i);
+    }
   }
 
   return numOfElems;
@@ -4744,6 +4771,11 @@ int32_t csumFunction(SqlFunctionCtx* pCtx) {
       } else {
         colDataAppend(pOutput, pos, (char*)&pSumRes->dsum, false);
       }
+    }
+
+    // handle selectivity
+    if (pCtx->subsidiaries.num > 0) {
+      appendSelectivityValue(pCtx, i, pos);
     }
 
     numOfElems++;
@@ -4816,6 +4848,11 @@ int32_t mavgFunction(SqlFunctionCtx* pCtx) {
         colDataAppendNULL(pOutput, pos);
       } else {
         colDataAppend(pOutput, pos, (char*)&result, false);
+      }
+
+      // handle selectivity
+      if (pCtx->subsidiaries.num > 0) {
+        appendSelectivityValue(pCtx, i, pos);
       }
 
       numOfElems++;

@@ -28,7 +28,8 @@ struct SVSnapReader {
   int8_t           tsdbDone;
   STsdbSnapReader *pTsdbReader;
   // rsma
-  int8_t rsmaDone[TSDB_RETENTION_L2];
+  int8_t           rsmaDone;
+  SRsmaSnapReader *pRsmaReader;
 };
 
 int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapReader **ppReader) {
@@ -56,6 +57,10 @@ _err:
 
 int32_t vnodeSnapReaderClose(SVSnapReader *pReader) {
   int32_t code = 0;
+
+  if (pReader->pRsmaReader) {
+    rsmaSnapReaderClose(&pReader->pRsmaReader);
+  }
 
   if (pReader->pTsdbReader) {
     tsdbSnapReaderClose(&pReader->pTsdbReader);
@@ -99,7 +104,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   if (!pReader->tsdbDone) {
     // open if not
     if (pReader->pTsdbReader == NULL) {
-      code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, &pReader->pTsdbReader);
+      code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, SNAP_DATA_TSDB, &pReader->pTsdbReader);
       if (code) goto _err;
     }
 
@@ -118,40 +123,26 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   }
 
   // RSMA ==============
-#if 0
-  if (VND_IS_RSMA(pReader->pVnode)) {
-    // RSMA1/RSMA2
-    for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
-      if (!pReader->rsmaDone[i]) {
-        if (!pReader->pVnode->pSma->pRSmaTsdb[i]) {
-          // no valid tsdb 
-          pReader->rsmaDone[i] = 1;
-          continue;
-        }
-        if (pReader->pTsdbReader == NULL) {
-          code = tsdbSnapReaderOpen(pReader->pVnode->pSma->pRSmaTsdb[i], pReader->sver, pReader->ever,
-                                    &pReader->pTsdbReader);
-          if (code) goto _err;
-        }
+  if (VND_IS_RSMA(pReader->pVnode) && !pReader->rsmaDone) {
+    // open if not
+    if (pReader->pRsmaReader == NULL) {
+      code = rsmaSnapReaderOpen(pReader->pVnode->pSma, pReader->sver, pReader->ever, &pReader->pRsmaReader);
+      if (code) goto _err;
+    }
 
-        code = tsdbSnapRead(pReader->pTsdbReader, ppData);
-        if (code) {
-          goto _err;
-        } else {
-          if (*ppData) {
-            goto _exit;
-          } else {
-            pReader->tsdbDone = 1;
-            code = tsdbSnapReaderClose(&pReader->pTsdbReader);
-            if (code) goto _err;
-          }
-        }
+    code = rsmaSnapRead(pReader->pRsmaReader, ppData);
+    if (code) {
+      goto _err;
+    } else {
+      if (*ppData) {
+        goto _exit;
+      } else {
+        pReader->tsdbDone = 1;
+        code = rsmaSnapReaderClose(&pReader->pRsmaReader);
+        if (code) goto _err;
       }
     }
-    // QTaskInfoFile
-    // TODO ...
   }
-#endif
 
   *ppData = NULL;
   *nData = 0;
@@ -180,11 +171,14 @@ struct SVSnapWriter {
   SVnode *pVnode;
   int64_t sver;
   int64_t ever;
+  int64_t commitID;
   int64_t index;
   // meta
   SMetaSnapWriter *pMetaSnapWriter;
   // tsdb
   STsdbSnapWriter *pTsdbSnapWriter;
+  // rsma
+  SRsmaSnapWriter *pRsmaSnapWriter;
 };
 
 int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter) {
@@ -201,7 +195,16 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWr
   pWriter->sver = sver;
   pWriter->ever = ever;
 
-  vInfo("vgId:%d vnode snapshot writer opened", TD_VID(pVnode));
+  // commit it
+  code = vnodeCommit(pVnode);
+  if (code) goto _err;
+
+  // inc commit ID
+  pVnode->state.commitID++;
+  pWriter->commitID = pVnode->state.commitID;
+
+  vInfo("vgId:%d vnode snapshot writer opened, sver:%" PRId64 " ever:%" PRId64 " commit id:%" PRId64, TD_VID(pVnode),
+        sver, ever, pWriter->commitID);
   *ppWriter = pWriter;
   return code;
 
@@ -225,6 +228,11 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     if (code) goto _err;
   }
 
+  if (pWriter->pRsmaSnapWriter) {
+    code = rsmaSnapWriterClose(&pWriter->pRsmaSnapWriter, rollback);
+    if (code) goto _err;
+  }
+
   if (!rollback) {
     SVnodeInfo info = {0};
     char       dir[TSDB_FILENAME_LEN];
@@ -244,6 +252,8 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
 
     code = vnodeCommitInfo(dir, &info);
     if (code) goto _err;
+
+    vnodeBegin(pVnode);
   } else {
     ASSERT(0);
   }
@@ -270,28 +280,51 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
   vInfo("vgId:%d vnode snapshot write data, index:%" PRId64 " type:%d nData:%d", TD_VID(pVnode), pHdr->index,
         pHdr->type, nData);
 
-  if (pHdr->type == 0) {
-    // meta
+  switch (pHdr->type) {
+    case SNAP_DATA_META: {
+      // meta
+      if (pWriter->pMetaSnapWriter == NULL) {
+        code = metaSnapWriterOpen(pVnode->pMeta, pWriter->sver, pWriter->ever, &pWriter->pMetaSnapWriter);
+        if (code) goto _err;
+      }
 
-    if (pWriter->pMetaSnapWriter == NULL) {
-      code = metaSnapWriterOpen(pVnode->pMeta, pWriter->sver, pWriter->ever, &pWriter->pMetaSnapWriter);
+      code = metaSnapWrite(pWriter->pMetaSnapWriter, pData, nData);
       if (code) goto _err;
-    }
+    } break;
+    case SNAP_DATA_TSDB: {
+      // tsdb
+      if (pWriter->pTsdbSnapWriter == NULL) {
+        code = tsdbSnapWriterOpen(pVnode->pTsdb, pWriter->sver, pWriter->ever, &pWriter->pTsdbSnapWriter);
+        if (code) goto _err;
+      }
 
-    code = metaSnapWrite(pWriter->pMetaSnapWriter, pData, nData);
-    if (code) goto _err;
-  } else {
-    // tsdb
-
-    if (pWriter->pTsdbSnapWriter == NULL) {
-      code = tsdbSnapWriterOpen(pVnode->pTsdb, pWriter->sver, pWriter->ever, &pWriter->pTsdbSnapWriter);
+      code = tsdbSnapWrite(pWriter->pTsdbSnapWriter, pData, nData);
       if (code) goto _err;
-    }
+    } break;
+    case SNAP_DATA_RSMA1:
+    case SNAP_DATA_RSMA2: {
+      // rsma1/rsma2
+      if (pWriter->pRsmaSnapWriter == NULL) {
+        code = rsmaSnapWriterOpen(pVnode->pSma, pWriter->sver, pWriter->ever, &pWriter->pRsmaSnapWriter);
+        if (code) goto _err;
+      }
 
-    code = tsdbSnapWrite(pWriter->pTsdbSnapWriter, pData, nData);
-    if (code) goto _err;
+      code = rsmaSnapWrite(pWriter->pRsmaSnapWriter, pData, nData);
+      if (code) goto _err;
+    } break;
+    case SNAP_DATA_QTASK: {
+      // qtask for rsma
+      if (pWriter->pRsmaSnapWriter == NULL) {
+        code = rsmaSnapWriterOpen(pVnode->pSma, pWriter->sver, pWriter->ever, &pWriter->pRsmaSnapWriter);
+        if (code) goto _err;
+      }
+
+      code = rsmaSnapWrite(pWriter->pRsmaSnapWriter, pData, nData);
+      if (code) goto _err;
+    } break;
+    default:
+      break;
   }
-
 _exit:
   return code;
 

@@ -111,7 +111,7 @@ class TAdapter:
                 self.taosadapter_cfg_dict[key] = value
 
     def check_adapter(self):
-        if getPath(tool="taosadapter"):
+        if get_path(tool="taosadapter"):
             return False
         else:
             return True

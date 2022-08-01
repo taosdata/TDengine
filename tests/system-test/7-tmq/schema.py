@@ -56,12 +56,12 @@ class TDTestCase:
         print(cur)
         return cur
 
-    def initConsumerTable(self,cdbName='cdb'):        
+    def initConsumerTable(self,cdbName='cdb'):
         tdLog.info("create consume database, and consume info table, and consume result table")
         tdSql.query("drop database if exists %s "%(cdbName))
         tdSql.query("create database %s vgroups 1"%(cdbName))
         tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
-        tdSql.query("drop table if exists %s.consumeresult "%(cdbName))        
+        tdSql.query("drop table if exists %s.consumeresult "%(cdbName))
 
         tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"%cdbName)
         tdSql.query("create table %s.consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)"%cdbName)
@@ -75,7 +75,7 @@ class TDTestCase:
         tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
         tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"%cdbName)
 
-    def insertConsumerInfo(self,consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifmanualcommit,cdbName='cdb'):    
+    def insertConsumerInfo(self,consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifmanualcommit,cdbName='cdb'):
         sql = "insert into %s.consumeinfo values "%cdbName
         sql += "(now, %d, '%s', '%s', %d, %d, %d)"%(consumerId, topicList, keyList, expectrowcnt, ifcheckdata, ifmanualcommit)
         tdLog.info("consume info sql: %s"%sql)
@@ -90,11 +90,11 @@ class TDTestCase:
                 break
             else:
                 time.sleep(5)
-        
+
         for i in range(expectRows):
             tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
             resultList.append(tdSql.getData(i , 3))
-        
+
         return resultList
 
     def startTmqSimProcess(self,buildPath,cfgPath,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0):
@@ -103,9 +103,9 @@ class TDTestCase:
             logFile = cfgPath + '/../log/valgrind-tmq.log'
             shellCmd = 'nohup valgrind --log-file=' + logFile
             shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
-        
+
         shellCmd += buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName) 
+        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName)
         shellCmd += "> /dev/null 2>&1 &"
         tdLog.info(shellCmd)
         os.system(shellCmd)
@@ -135,7 +135,7 @@ class TDTestCase:
                 sql = pre_create
         if sql != pre_create:
             tsql.execute(sql)
-        
+
         tdLog.debug("complete to create %d child tables in %s.%s" %(ctbNum, dbName, stbName))
         return
 
@@ -154,7 +154,7 @@ class TDTestCase:
             ctbDict[i] = 0
 
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
-        rowsOfCtb = 0        
+        rowsOfCtb = 0
         while rowsOfCtb < rowsPerTbl:
             for i in range(ctbNum):
                 sql += " %s.%s_%d values "%(dbName,ctbPrefix,i)
@@ -181,7 +181,7 @@ class TDTestCase:
             startTs = int(round(t * 1000))
 
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
-        rowsOfSql = 0        
+        rowsOfSql = 0
         for i in range(ctbNum):
             sql += " %s_%d values "%(ctbPrefix,i)
             for j in range(rowsPerTbl):
@@ -212,7 +212,7 @@ class TDTestCase:
             startTs = int(round(t * 1000))
 
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
-        rowsOfSql = 0        
+        rowsOfSql = 0
         for i in range(ctbNum):
             sql += " %s.%s_%d using %s.%s tags (%d) values "%(dbName,ctbPrefix,i,dbName,stbName,i)
             for j in range(rowsPerTbl):
@@ -231,8 +231,8 @@ class TDTestCase:
             tsql.execute(sql)
         tdLog.debug("insert data ............ [OK]")
         return
-        
-    def prepareEnv(self, **parameterDict):            
+
+    def prepareEnv(self, **parameterDict):
         # create new connector for my thread
         tsql=self.newcur(parameterDict['cfg'], 'localhost', 6030)
 
@@ -265,7 +265,7 @@ class TDTestCase:
                          'batchNum':   23,       \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
-        
+
         tdLog.info("create database, super table, child table, normal table")
         ntbName = 'ntb1'
         self.create_database(tdSql, parameterDict["dbName"])
@@ -278,10 +278,10 @@ class TDTestCase:
         tdLog.info("create topics from super table and normal table")
         columnTopicFromStb = 'column_topic_from_stb1'
         columnTopicFromNtb = 'column_topic_from_ntb1'
-        
+
         tdSql.execute("create topic %s as select ts, c1, c2, t1, t2 from %s.%s" %(columnTopicFromStb, parameterDict['dbName'], parameterDict['stbName']))
         tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s" %(columnTopicFromNtb, parameterDict['dbName'], ntbName))
-        
+
         tdLog.info("======== super table test:")
         # alter actions prohibited: drop column/tag, modify column/tag type, rename column/tag included in topic
         tdSql.error("alter table %s.%s drop column c1"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -341,12 +341,12 @@ class TDTestCase:
         tdLog.info("======== child table test:")
         parameterDict['stbName'] = 'stb12'
         ctbName = 'stb12_0'
-        tdSql.query("create table %s.%s (ts timestamp, c1 int, c2 binary(32), c3 double, c4 binary(32), c5 nchar(10)) tags (t1 int, t2 binary(32), t3  double, t4 binary(32), t5 nchar(10))"%(parameterDict["dbName"],parameterDict['stbName']))        
+        tdSql.query("create table %s.%s (ts timestamp, c1 int, c2 binary(32), c3 double, c4 binary(32), c5 nchar(10)) tags (t1 int, t2 binary(32), t3  double, t4 binary(32), t5 nchar(10))"%(parameterDict["dbName"],parameterDict['stbName']))
         tdSql.query("create table %s.%s using %s.%s tags (1, '2', 3, '4', '5')"%(parameterDict["dbName"],ctbName,parameterDict["dbName"],parameterDict['stbName']))
 
         tdLog.info("create topics from child table")
         columnTopicFromCtb = 'column_topic_from_ctb1'
-        
+
         tdSql.execute("create topic %s as select ts, c1, c2, t1, t2 from %s.%s" %(columnTopicFromCtb,parameterDict['dbName'],ctbName))
 
         # alter actions prohibited: drop column/tag, modify column/tag type, rename column/tag included in topic
@@ -388,7 +388,7 @@ class TDTestCase:
         tdSql.query("alter table %s.%s add column c4 float"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s add tag t3 int"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s add tag t4 float"%(parameterDict['dbName'], parameterDict['stbName']))
-        
+
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def tmqCase2(self, cfgPath, buildPath):
@@ -406,7 +406,7 @@ class TDTestCase:
                          'batchNum':   23,       \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
-        
+
         tdLog.info("create database, super table, child table, normal table")
         self.create_database(tdSql, parameterDict["dbName"])
         ntbName = 'ntb2'
@@ -416,18 +416,18 @@ class TDTestCase:
         tdLog.info("create topics from super table and normal table")
         columnTopicFromStb = 'column_topic_from_stb2'
         columnTopicFromNtb = 'column_topic_from_ntb2'
-        
+
         tdSql.execute("create topic %s as select ts, c1, c2, t1, t2 from %s.%s where c3 > 3 and c4 like 'abc' and t3 = 5 and t4 = 'beijing'" %(columnTopicFromStb, parameterDict['dbName'], parameterDict['stbName']))
         tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s where c3 > 3 and c4 like 'abc'" %(columnTopicFromNtb, parameterDict['dbName'], ntbName))
-        
+
         tdLog.info("======== super table test:")
         # alter actions prohibited: drop column/tag, modify column/tag type, rename column/tag included in topic
         tdSql.error("alter table %s.%s drop column c1"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop column c2"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop column c3"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s drop column c4"%(parameterDict['dbName'], parameterDict['stbName']))        
+        tdSql.error("alter table %s.%s drop column c4"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop tag t1"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s drop tag t2"%(parameterDict['dbName'], parameterDict['stbName']))        
+        tdSql.error("alter table %s.%s drop tag t2"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop tag t3"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop tag t4"%(parameterDict['dbName'], parameterDict['stbName']))
 
@@ -485,12 +485,12 @@ class TDTestCase:
         tdLog.info("======== child table test:")
         parameterDict['stbName'] = 'stb21'
         ctbName = 'stb21_0'
-        tdSql.query("create table %s.%s (ts timestamp, c1 int, c2 binary(32), c3 double, c4 binary(32), c5 nchar(10)) tags (t1 int, t2 binary(32), t3  double, t4 binary(32), t5 nchar(10))"%(parameterDict["dbName"],parameterDict['stbName']))        
+        tdSql.query("create table %s.%s (ts timestamp, c1 int, c2 binary(32), c3 double, c4 binary(32), c5 nchar(10)) tags (t1 int, t2 binary(32), t3  double, t4 binary(32), t5 nchar(10))"%(parameterDict["dbName"],parameterDict['stbName']))
         tdSql.query("create table %s.%s using %s.%s tags (1, '2', 3, '4', '5')"%(parameterDict["dbName"],ctbName,parameterDict["dbName"],parameterDict['stbName']))
 
         tdLog.info("create topics from child table")
         columnTopicFromCtb = 'column_topic_from_ctb2'
-        
+
         tdSql.execute("create topic %s as select ts, c1, c2, t1, t2 from %s.%s where c3 > 3 and c4 like 'abc' and t3 = 5 and t4 = 'beijing'" %(columnTopicFromCtb,parameterDict['dbName'],ctbName))
 
         # alter actions prohibited: drop column/tag, modify column/tag type, rename column/tag included in topic
@@ -536,11 +536,11 @@ class TDTestCase:
 
         tdSql.query("alter table %s.%s add column c5 float"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s add tag t5 float"%(parameterDict['dbName'], parameterDict['stbName']))
-        
+
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def tmqCase3(self, cfgPath, buildPath):
-        tdLog.printNoPrefix("======== test case 3: ")    
+        tdLog.printNoPrefix("======== test case 3: ")
         parameterDict = {'cfg':        '',       \
                          'actionType': 0,        \
                          'dbName':     'db3',    \
@@ -554,7 +554,7 @@ class TDTestCase:
                          'batchNum':   23,       \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
-        
+
         tdLog.info("create database, super table, child table, normal table")
         self.create_database(tdSql, parameterDict["dbName"])
         ntbName = 'ntb3'
@@ -564,19 +564,19 @@ class TDTestCase:
         tdLog.info("create topics from super table and normal table")
         columnTopicFromStb = 'star_topic_from_stb3'
         columnTopicFromNtb = 'star_topic_from_ntb3'
-        
+
         tdSql.execute("create topic %s as select * from %s.%s" %(columnTopicFromStb, parameterDict['dbName'], parameterDict['stbName']))
         tdSql.execute("create topic %s as select * from %s.%s " %(columnTopicFromNtb, parameterDict['dbName'], ntbName))
-        
+
         tdLog.info("======== super table test:")
         # alter actions prohibited: drop column/tag, modify column/tag type, rename column/tag included in topic
         tdSql.error("alter table %s.%s drop column c1"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop column c2"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop column c3"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s drop column c4"%(parameterDict['dbName'], parameterDict['stbName']))    
-        tdSql.error("alter table %s.%s drop column c5"%(parameterDict['dbName'], parameterDict['stbName']))       
+        tdSql.error("alter table %s.%s drop column c4"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.error("alter table %s.%s drop column c5"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop tag t1"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s drop tag t2"%(parameterDict['dbName'], parameterDict['stbName']))        
+        tdSql.error("alter table %s.%s drop tag t2"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop tag t3"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop tag t4"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop tag t5"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -627,12 +627,12 @@ class TDTestCase:
         tdLog.info("======== child table test:")
         parameterDict['stbName'] = 'stb31'
         ctbName = 'stb31_0'
-        tdSql.query("create table %s.%s (ts timestamp, c1 int, c2 binary(32), c3 double, c4 binary(32), c5 nchar(10)) tags (t1 int, t2 binary(32), t3  double, t4 binary(32), t5 nchar(10))"%(parameterDict["dbName"],parameterDict['stbName']))        
+        tdSql.query("create table %s.%s (ts timestamp, c1 int, c2 binary(32), c3 double, c4 binary(32), c5 nchar(10)) tags (t1 int, t2 binary(32), t3  double, t4 binary(32), t5 nchar(10))"%(parameterDict["dbName"],parameterDict['stbName']))
         tdSql.query("create table %s.%s using %s.%s tags (10, '10', 10, '10', '10')"%(parameterDict["dbName"],ctbName,parameterDict["dbName"],parameterDict['stbName']))
 
         tdLog.info("create topics from child table")
         columnTopicFromCtb = 'column_topic_from_ctb3'
-        
+
         tdSql.execute("create topic %s as select * from %s.%s " %(columnTopicFromCtb,parameterDict['dbName'],ctbName))
 
         tdSql.error("alter table %s.%s modify column c2 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -647,7 +647,7 @@ class TDTestCase:
         tdSql.query("alter table %s.%s set tag t3=20"%(parameterDict['dbName'], ctbName))
         tdSql.query("alter table %s.%s set tag t4='20'"%(parameterDict['dbName'], ctbName))
         tdSql.query("alter table %s.%s set tag t5='20'"%(parameterDict['dbName'], ctbName))
-        
+
         tdSql.error("alter table %s.%s rename column c1 c1new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s rename column c3 c3new"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -662,7 +662,7 @@ class TDTestCase:
         # alter actions allowed: drop column/tag, modify column/tag type, rename column/tag not included in topic
         tdSql.query("alter table %s.%s add column c6 float"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s add tag t6 float"%(parameterDict['dbName'], parameterDict['stbName']))
-        
+
         # alter actions prohibited: drop column/tag, modify column/tag type, rename column/tag included in topic
         tdSql.error("alter table %s.%s drop column c1"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop column c2"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -679,7 +679,7 @@ class TDTestCase:
         tdLog.printNoPrefix("======== test case 3 end ...... ")
 
     def tmqCase4(self, cfgPath, buildPath):
-        tdLog.printNoPrefix("======== test case 4: ")    
+        tdLog.printNoPrefix("======== test case 4: ")
         parameterDict = {'cfg':        '',       \
                          'actionType': 0,        \
                          'dbName':     'db4',    \
@@ -695,7 +695,7 @@ class TDTestCase:
         parameterDict['cfg'] = cfgPath
 
         ctbName = 'stb4_0'
-        
+
         tdLog.info("create database, super table, child table, normal table")
         self.create_database(tdSql, parameterDict["dbName"])
         tdSql.query("create table %s.%s (ts timestamp, c1 int, c2 binary(32), c3 double, c4 binary(32), c5 nchar(10)) tags (t1 int, t2 binary(32), t3  double, t4 binary(32), t5 nchar(10))"%(parameterDict["dbName"],parameterDict["stbName"]))
@@ -703,7 +703,7 @@ class TDTestCase:
 
         tdLog.info("create topics from super table")
         columnTopicFromStb = 'star_topic_from_stb4'
-        
+
         tdSql.execute("create topic %s as stable %s.%s" %(columnTopicFromStb, parameterDict['dbName'], parameterDict['stbName']))
 
         tdLog.info("======== child table test:")
@@ -739,10 +739,10 @@ class TDTestCase:
         tdSql.query("alter table %s.%s drop column c1"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop column c2"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop column c3"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c4"%(parameterDict['dbName'], parameterDict['stbName']))    
-        tdSql.query("alter table %s.%s drop column c5"%(parameterDict['dbName'], parameterDict['stbName']))       
+        tdSql.query("alter table %s.%s drop column c4"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c5"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t1new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop tag t2new"%(parameterDict['dbName'], parameterDict['stbName']))        
+        tdSql.query("alter table %s.%s drop tag t2new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t3new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t4new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t5new"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -750,7 +750,7 @@ class TDTestCase:
         tdLog.printNoPrefix("======== test case 4 end ...... ")
 
     def tmqCase5(self, cfgPath, buildPath):
-        tdLog.printNoPrefix("======== test case 5: ")    
+        tdLog.printNoPrefix("======== test case 5: ")
         parameterDict = {'cfg':        '',       \
                          'actionType': 0,        \
                          'dbName':     'db5',    \
@@ -766,7 +766,7 @@ class TDTestCase:
         parameterDict['cfg'] = cfgPath
 
         ctbName = 'stb5_0'
-        
+
         tdLog.info("create database, super table, child table, normal table")
         self.create_database(tdSql, parameterDict["dbName"])
         tdSql.query("create table %s.%s (ts timestamp, c1 int, c2 binary(32), c3 double, c4 binary(32), c5 nchar(10)) tags (t1 int, t2 binary(32), t3  double, t4 binary(32), t5 nchar(10))"%(parameterDict["dbName"],parameterDict["stbName"]))
@@ -774,7 +774,7 @@ class TDTestCase:
 
         tdLog.info("create topics from super table")
         columnTopicFromStb = 'star_topic_from_db5'
-        
+
         tdSql.execute("create topic %s as database %s" %(columnTopicFromStb, parameterDict['dbName']))
 
         tdLog.info("======== child table test:")
@@ -810,10 +810,10 @@ class TDTestCase:
         tdSql.query("alter table %s.%s drop column c1"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop column c2"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop column c3"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c4"%(parameterDict['dbName'], parameterDict['stbName']))    
-        tdSql.query("alter table %s.%s drop column c5"%(parameterDict['dbName'], parameterDict['stbName']))       
+        tdSql.query("alter table %s.%s drop column c4"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c5"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t1new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop tag t2new"%(parameterDict['dbName'], parameterDict['stbName']))        
+        tdSql.query("alter table %s.%s drop tag t2new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t3new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t4new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t5new"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -821,7 +821,7 @@ class TDTestCase:
         tdLog.printNoPrefix("======== test case 5 end ...... ")
 
     def tmqCase6(self, cfgPath, buildPath):
-        tdLog.printNoPrefix("======== test case 6: ")    
+        tdLog.printNoPrefix("======== test case 6: ")
         parameterDict = {'cfg':        '',       \
                          'actionType': 0,        \
                          'dbName':     'db6',    \
@@ -835,18 +835,18 @@ class TDTestCase:
                          'batchNum':   23,       \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
-        
+
         tdLog.info("create database, super table, child table, normal table")
         self.create_database(tdSql, parameterDict["dbName"])
         tdLog.info("======== child table test:")
         parameterDict['stbName'] = 'stb6'
         ctbName = 'stb6_0'
-        tdSql.query("create table %s.%s (ts timestamp, c1 int, c2 binary(32), c3 double, c4 binary(32), c5 nchar(10)) tags (t1 int, t2 binary(32), t3  double, t4 binary(32), t5 nchar(10))"%(parameterDict["dbName"],parameterDict['stbName']))        
+        tdSql.query("create table %s.%s (ts timestamp, c1 int, c2 binary(32), c3 double, c4 binary(32), c5 nchar(10)) tags (t1 int, t2 binary(32), t3  double, t4 binary(32), t5 nchar(10))"%(parameterDict["dbName"],parameterDict['stbName']))
         tdSql.query("create table %s.%s using %s.%s tags (10, '10', 10, '10', '10')"%(parameterDict["dbName"],ctbName,parameterDict["dbName"],parameterDict['stbName']))
 
         tdLog.info("create topics from child table")
         columnTopicFromCtb = 'column_topic_from_ctb6'
-        
+
         tdSql.execute("create topic %s as select c1, c2, c3 from %s.%s where t1 > 10 and t2 = 'beijign' and sin(t3) < 0" %(columnTopicFromCtb,parameterDict['dbName'],ctbName))
 
         tdSql.error("alter table %s.%s modify column c1 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -861,7 +861,7 @@ class TDTestCase:
         tdSql.error("alter table %s.%s set tag t3=20"%(parameterDict['dbName'], ctbName))
         tdSql.query("alter table %s.%s set tag t4='20'"%(parameterDict['dbName'], ctbName))
         tdSql.query("alter table %s.%s set tag t5='20'"%(parameterDict['dbName'], ctbName))
-        
+
         tdSql.error("alter table %s.%s rename column c1 c1new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s rename column c3 c3new"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -876,7 +876,7 @@ class TDTestCase:
         # alter actions allowed: drop column/tag, modify column/tag type, rename column/tag not included in topic
         tdSql.query("alter table %s.%s add column c6 float"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s add tag t6 float"%(parameterDict['dbName'], parameterDict['stbName']))
-        
+
         # alter actions prohibited: drop column/tag, modify column/tag type, rename column/tag included in topic
         tdSql.error("alter table %s.%s drop column c1"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop column c2"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -903,7 +903,7 @@ class TDTestCase:
         tdLog.info("cfgPath: %s" % cfgPath)
 
         self.tmqCase1(cfgPath, buildPath)
-        self.tmqCase2(cfgPath, buildPath) 
+        self.tmqCase2(cfgPath, buildPath)
         self.tmqCase3(cfgPath, buildPath)
         self.tmqCase4(cfgPath, buildPath)
         self.tmqCase5(cfgPath, buildPath)

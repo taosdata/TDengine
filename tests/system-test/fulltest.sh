@@ -31,6 +31,7 @@ python3 ./test.py -f 1-insert/time_range_wise.py
 python3 ./test.py -f 1-insert/block_wise.py
 python3 ./test.py -f 1-insert/create_retentions.py
 python3 ./test.py -f 1-insert/table_param_ttl.py
+python3 ./test.py -f 1-insert/mutil_stage.py
 
 python3 ./test.py -f 1-insert/update_data_muti_rows.py
 
@@ -146,7 +147,7 @@ python3 ./test.py -f 2-query/query_cols_tags_and_or.py
 
 python3 ./test.py -f 2-query/elapsed.py
 python3 ./test.py -f 2-query/csum.py
-python3 ./test.py -f 2-query/mavg.py
+#python3 ./test.py -f 2-query/mavg.py
 python3 ./test.py -f 2-query/sample.py
 python3 ./test.py -f 2-query/function_diff.py
 python3 ./test.py -f 2-query/unique.py
@@ -189,9 +190,33 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 6 -M 3 -C 5
 # python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
 # python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
 
-python3 ./test.py -f 6-cluster/5dnode3mnodeRecreateMnode.py  -N 5 -M 3 
-python3 ./test.py -f 6-cluster/5dnode3mnodeStopFollowerLeader.py  -N 5 -M 3 
-python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py  -N 5 -M 3 
+python3 ./test.py -f 6-cluster/5dnode3mnodeRecreateMnode.py  -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeStopFollowerLeader.py  -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py  -N 5 -M 3
+
+# vnode case 
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_createDb_replica1.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica1_insertdatas.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica1_insertdatas_querys.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_force_stop_all_dnodes.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_querys_loop_restart_all_vnode.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_querys_loop_restart_follower.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_querys_loop_restart_leader.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_querys.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_stop_all_dnodes.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_stop_follower_sync.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_stop_follower_unsync_force_stop.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_stop_follower_unsync.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_stop_leader_forece_stop.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_stop_leader.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_mnode3_insertdatas_querys.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_querydatas_stop_follower_force_stop.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_querydatas_stop_follower.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_querydatas_stop_leader_force_stop.py -N 4 -M 1 
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_querydatas_stop_leader.py -N 4 -M 1 
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_vgroups.py  -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_vgroups_stopOne.py -N 4 -M 1
 
 
 python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3
@@ -316,7 +341,7 @@ python3 ./test.py -f 2-query/query_cols_tags_and_or.py  -Q 2
 python3 ./test.py -f 2-query/avg.py   -Q 2
 # python3 ./test.py -f 2-query/elapsed.py  -Q 2
 python3 ./test.py -f 2-query/csum.py  -Q 2
-python3 ./test.py -f 2-query/mavg.py  -Q 2
+#python3 ./test.py -f 2-query/mavg.py  -Q 2
 python3 ./test.py -f 2-query/sample.py  -Q 2
 python3 ./test.py -f 2-query/function_diff.py  -Q 2
 python3 ./test.py -f 2-query/unique.py  -Q 2
@@ -403,7 +428,7 @@ python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q  3
 # python3 ./test.py -f 2-query/avg.py -Q  3
 # python3 ./test.py -f 2-query/elapsed.py -Q  3
 python3 ./test.py -f 2-query/csum.py -Q  3
-python3 ./test.py -f 2-query/mavg.py -Q  3
+#python3 ./test.py -f 2-query/mavg.py -Q  3
 python3 ./test.py -f 2-query/sample.py -Q  3
 python3 ./test.py -f 2-query/function_diff.py -Q  3
 python3 ./test.py -f 2-query/unique.py -Q  3
@@ -427,3 +452,4 @@ python3 ./test.py -f 2-query/count_partition.py -Q 3
 python3 ./test.py -f 2-query/max_partition.py -Q 3
 python3 ./test.py -f 2-query/last_row.py -Q 3
 python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
+python3 ./test.py -f 2-query/sml.py -Q 3

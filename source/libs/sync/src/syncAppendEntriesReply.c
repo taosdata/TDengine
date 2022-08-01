@@ -104,6 +104,16 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
 // only start once
 static void syncNodeStartSnapshotOnce(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, SyncTerm lastApplyTerm,
                                       SyncAppendEntriesReply* pMsg) {
+  if (beginIndex > endIndex) {
+    do {
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "snapshot param error, start:%ld, end:%ld", beginIndex, endIndex);
+      syncNodeErrorLog(ths, logBuf);
+    } while (0);
+
+    return;
+  }
+
   // get sender
   SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(pMsg->srcId));
   ASSERT(pSender != NULL);
@@ -213,6 +223,11 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
     if (nextIndex > SYNC_INDEX_BEGIN) {
       --nextIndex;
 
+      // speed up
+      if (nextIndex > pMsg->matchIndex + 1) {
+        nextIndex = pMsg->matchIndex + 1;
+      }
+
       bool needStartSnapshot = false;
       if (nextIndex >= SYNC_INDEX_BEGIN && !ths->pLogStore->syncLogExist(ths->pLogStore, nextIndex)) {
         needStartSnapshot = true;
@@ -320,10 +335,6 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
     // nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.mmatchIndex + 1]
     syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), pMsg->matchIndex + 1);
 
-    if (gRaftDetailLog) {
-      sTrace("update next match, index:%" PRId64 ", success:%d", pMsg->matchIndex + 1, pMsg->success);
-    }
-
     // matchIndex' = [matchIndex EXCEPT ![i][j] = m.mmatchIndex]
     syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
 
@@ -334,9 +345,6 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
 
   } else {
     SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
-    if (gRaftDetailLog) {
-      sTrace("update next index not match, begin, index:%" PRId64 ", success:%d", nextIndex, pMsg->success);
-    }
 
     // notice! int64, uint64
     if (nextIndex > SYNC_INDEX_BEGIN) {
@@ -378,9 +386,6 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
     }
 
     syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), nextIndex);
-    if (gRaftDetailLog) {
-      sTrace("update next index not match, end, index:%" PRId64 ", success:%d", nextIndex, pMsg->success);
-    }
   }
 
   SyncIndex afterNextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));

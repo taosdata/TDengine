@@ -36,7 +36,7 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
-        
+
     def tmqCase1(self):
         tdLog.printNoPrefix("======== test case 1: topic: select * from stb, while consume, add column int-A/bianry-B/float-C, and then modify B, drop C")
         tdLog.printNoPrefix("add tag int-A/bianry-B/float-C, and then rename A, modify B, drop C, set t2")
@@ -61,7 +61,7 @@ class TDTestCase:
 
         topicNameList = ['topic1']
         expectRowsList = []
-        queryStringList = []   
+        queryStringList = []
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=4,replica=1)
         tdLog.info("create stb")
@@ -71,15 +71,15 @@ class TDTestCase:
         # tdLog.info("async insert data")
         # pThread = tmqCom.asyncInsertData(paraDict)
         tmqCom.insert_data_2(tdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"],paraDict["ctbStartIdx"])
-        
+
         tdLog.info("create topics from stb with filter")
         queryStringList.append("select * from %s.%s" %(paraDict['dbName'], paraDict['stbName']))
         sqlString = "create topic %s as %s" %(topicNameList[0], queryStringList[0])
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        tdSql.query(queryStringList[0])        
-        expectRowsList.append(tdSql.getRows())        
-                
+        tdSql.query(queryStringList[0])
+        expectRowsList.append(tdSql.getRows())
+
         # init consume info, and start tmq_sim, then check consume result
         tdLog.info("insert consume info to consume processor")
         consumerId   = 0
@@ -91,14 +91,14 @@ class TDTestCase:
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         dstFile = tmqCom.getResultFileByTaosShell(consumerId, queryStringList[0])
-        
+
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'])
 
         tdLog.info("wait the notify info of start consume, then alter schema")
         tmqCom.getStartConsumeNotifyFromTmqsim()
-                
-        # add column double-A/bianry-B/double-C, and then modify B, drop C    
+
+        # add column double-A/bianry-B/double-C, and then modify B, drop C
         sqlString = "alter table %s.%s add column newc1 double"%(paraDict["dbName"],paraDict['stbName'])
         tdSql.execute(sqlString)
         sqlString = "alter table %s.%s add column newc2 binary(16)"%(paraDict["dbName"],paraDict['stbName'])
@@ -108,8 +108,8 @@ class TDTestCase:
         sqlString = "alter table %s.%s modify column newc2 binary(32)"%(paraDict["dbName"],paraDict['stbName'])
         tdSql.execute(sqlString)
         sqlString = "alter table %s.%s drop column newc3"%(paraDict["dbName"],paraDict['stbName'])
-        tdSql.execute(sqlString)        
-        # add tag double-A/bianry-B/double-C, and then rename A, modify B, drop C, set t1    
+        tdSql.execute(sqlString)
+        # add tag double-A/bianry-B/double-C, and then rename A, modify B, drop C, set t1
         sqlString = "alter table %s.%s add tag newt1 double"%(paraDict["dbName"],paraDict['stbName'])
         tdSql.execute(sqlString)
         sqlString = "alter table %s.%s add tag newt2 binary(16)"%(paraDict["dbName"],paraDict['stbName'])
@@ -125,27 +125,27 @@ class TDTestCase:
         sqlString = "alter table %s.%s0 set tag newt2='new tag'"%(paraDict["dbName"],paraDict['ctbPrefix'])
         tdSql.execute(sqlString)
 
-        tdLog.info("check the consume result") 
-        tdSql.query(queryStringList[0])        
+        tdLog.info("check the consume result")
+        tdSql.query(queryStringList[0])
         expectRowsList.append(tdSql.getRows())
 
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
-        
+
         tdLog.info("expect consume rows: %d"%(expectRowsList[0]))
         tdLog.info("act consume rows: %d"%(resultList[0]))
-        
+
         if expectRowsList[0] != resultList[0]:
             tdLog.exit("0 tmq consume rows error!")
 
         tmqCom.checkTmqConsumeFileContent(consumerId, dstFile)
-        
+
         time.sleep(10)
         for i in range(len(topicNameList)):
             tdSql.query("drop topic %s"%topicNameList[i])
 
         tdLog.printNoPrefix("======== test case 1 end ...... ")
-        
+
     def tmqCase2(self):
         tdLog.printNoPrefix("======== test case 2: topic: select * from ntb, while consume, add column int-A/bianry-B/float-C, and then rename A, modify B, drop C")
         paraDict = {'dbName':     'db1',
@@ -166,12 +166,12 @@ class TDTestCase:
                     'pollDelay':  10,
                     'showMsg':    1,
                     'showRow':    1}
-        
-        ntbName = 'ntb'        
+
+        ntbName = 'ntb'
 
         topicNameList = ['topic1']
         expectRowsList = []
-        queryStringList = []   
+        queryStringList = []
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=4,replica=1)
         tdLog.info("create stb")
@@ -182,15 +182,15 @@ class TDTestCase:
         # pThread = tmqCom.asyncInsertData(paraDict)
         tdCom.insert_rows(tdSql, dbname=paraDict["dbName"], tbname=ntbName, column_ele_list=paraDict['colSchema'], start_ts_value=paraDict["startTs"], count=paraDict["rowsPerTbl"])
         tdLog.info("insert data end")
-        
+
         tdLog.info("create topics from ntb with filter")
         queryStringList.append("select * from %s.%s" %(paraDict['dbName'], ntbName))
         sqlString = "create topic %s as %s" %(topicNameList[0], queryStringList[0])
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        tdSql.query(queryStringList[0])        
-        expectRowsList.append(tdSql.getRows())        
-                
+        tdSql.query(queryStringList[0])
+        expectRowsList.append(tdSql.getRows())
+
         # init consume info, and start tmq_sim, then check consume result
         tdLog.info("insert consume info to consume processor")
         consumerId   = 0
@@ -202,13 +202,13 @@ class TDTestCase:
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         dstFile = tmqCom.getResultFileByTaosShell(consumerId, queryStringList[0])
-        
+
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'])
 
         tdLog.info("wait the notify info of start consume, then alter schema")
         tmqCom.getStartConsumeNotifyFromTmqsim()
-                
+
         # add column double-A/bianry-B/double-C, and then rename A, modify B, drop C
         sqlString = "alter table %s.%s add column newc1 double"%(paraDict["dbName"],ntbName)
         tdSql.execute(sqlString)
@@ -223,21 +223,21 @@ class TDTestCase:
         sqlString = "alter table %s.%s drop column newc3"%(paraDict["dbName"],ntbName)
         tdSql.execute(sqlString)
 
-        tdLog.info("check the consume result") 
-        tdSql.query(queryStringList[0])        
+        tdLog.info("check the consume result")
+        tdSql.query(queryStringList[0])
         expectRowsList.append(tdSql.getRows())
 
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
-        
+
         tdLog.info("expect consume rows: %d"%(expectRowsList[0]))
         tdLog.info("act consume rows: %d"%(resultList[0]))
-        
+
         if expectRowsList[0] != resultList[0]:
             tdLog.exit("0 tmq consume rows error!")
 
         tmqCom.checkTmqConsumeFileContent(consumerId, dstFile)
-        
+
         time.sleep(10)
         for i in range(len(topicNameList)):
             tdSql.query("drop topic %s"%topicNameList[i])

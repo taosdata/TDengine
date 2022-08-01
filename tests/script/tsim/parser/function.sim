@@ -500,11 +500,12 @@ if $rows != 2 then
   return -1
 endi
 
-sql select stddev(k), stddev(b), stddev(c),tbname, a from m1  group by tbname,a
+sql select stddev(k), stddev(b), stddev(c),tbname, a from m1  group by tbname,a order by a asc
 if $rows != 2 then
   return -1
 endi
 if $data00 != 1.414213562 then
+  print expect 1.414213562, actual: $data00
   return -1
 endi
 if $data01 != 14.142135624 then
@@ -732,6 +733,7 @@ if $rows != 1 then
   return -1
 endi
 if $data00 != 0.005633334 then
+  print expect 0.005633334, actual: $data00
   return -1
 endi
 

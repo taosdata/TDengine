@@ -141,7 +141,7 @@ int32_t streamPipelineExec(SStreamTask* pTask, int32_t batchNum) {
 
     if (pTask->dispatchType != TASK_DISPATCH__NONE) {
       ASSERT(pTask->sinkType == TASK_SINK__NONE);
-      streamDispatch(pTask, pTask->pMsgCb);
+      streamDispatch(pTask);
     }
   }
 
@@ -229,7 +229,7 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
 }
 
 // TODO: handle version
-int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb) {
+int32_t streamExec(SStreamTask* pTask) {
   SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
   if (pRes == NULL) return -1;
   while (1) {

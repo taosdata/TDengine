@@ -72,56 +72,6 @@ const char *mndTopicGetShowName(const char topic[TSDB_TOPIC_FNAME_LEN]) {
   return strchr(topic, '.') + 1;
 }
 
-int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char* stbname, int64_t suid, col_id_t colId) {
-  SSdb *pSdb = pMnode->pSdb;
-  void *pIter = NULL;
-  while (1) {
-    SMqTopicObj *pTopic = NULL;
-    pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic);
-    if (pIter == NULL) break;
-
-    mDebug("topic:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d, subType:%d sql:%s", 
-          pTopic->name, stbname, suid, colId, pTopic->subType, pTopic->sql);
-    if (pTopic->subType != TOPIC_SUB_TYPE__COLUMN) {
-      sdbRelease(pSdb, pTopic);
-      continue;
-    }
-
-    SNode *pAst = NULL;
-    if (nodesStringToNode(pTopic->ast, &pAst) != 0) {
-      ASSERT(0);
-      return -1;
-    }
-
-    SNodeList *pNodeList = NULL;
-    nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList);
-    SNode *pNode = NULL;
-    FOREACH(pNode, pNodeList) {
-      SColumnNode *pCol = (SColumnNode *)pNode;
-      mDebug("topic:%s, check colId:%d tableId:%" PRId64 " ctbStbUid:%" PRId64, pTopic->name, pCol->colId, pCol->tableId, pTopic->ctbStbUid);
-   
-      if (pCol->tableId != suid && pTopic->ctbStbUid != suid) {
-        mDebug("topic:%s, check colId:%d passed", pTopic->name, pCol->colId);
-        goto NEXT;
-      }
-      if (pCol->colId > 0 && pCol->colId == colId) {
-        sdbRelease(pSdb, pTopic);
-        nodesDestroyNode(pAst);
-        terrno = TSDB_CODE_MND_FIELD_CONFLICT_WITH_TOPIC;
-        mError("topic:%s, check colId:%d conflicted", pTopic->name, pCol->colId);
-        return -1;
-      }
-      mDebug("topic:%s, check colId:%d passed", pTopic->name, pCol->colId);
-    }
-
-  NEXT:
-    sdbRelease(pSdb, pTopic);
-    nodesDestroyNode(pAst);
-  }
-
-  return 0;
-}
-
 SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 

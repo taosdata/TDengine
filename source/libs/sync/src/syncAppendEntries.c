@@ -790,65 +790,6 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     }
   } while (0);
 
-#if 0
-  // fake match
-  //
-  // condition1:
-  // I have snapshot, no log, preIndex > myLastIndex
-  //
-  // condition2:
-  // I have snapshot, have log, log <= snapshot, preIndex > myLastIndex
-  //
-  // condition3:
-  // I have snapshot, preIndex < snapshot.lastApplyIndex
-  //
-  // condition4:
-  // I have snapshot, preIndex == snapshot.lastApplyIndex, no data
-  //
-  // operation:
-  // match snapshot.lastApplyIndex - 1;
-  // no operation on log
-  do {
-    SyncIndex myLastIndex = syncNodeGetLastIndex(ths);
-    SSnapshot snapshot;
-    ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
-
-    bool condition0 = (pMsg->term == ths->pRaftStore->currentTerm) && (ths->state == TAOS_SYNC_STATE_FOLLOWER) &&
-                      syncNodeHasSnapshot(ths);
-    bool condition1 =
-        condition0 && (ths->pLogStore->syncLogEntryCount(ths->pLogStore) == 0) && (pMsg->prevLogIndex > myLastIndex);   // donot use syncLogEntryCount!!! use isEmpty
-    bool condition2 = condition0 && (ths->pLogStore->syncLogLastIndex(ths->pLogStore) <= snapshot.lastApplyIndex) &&
-                      (pMsg->prevLogIndex > myLastIndex);
-    bool condition3 = condition0 && (pMsg->prevLogIndex < snapshot.lastApplyIndex);
-    bool condition4 = condition0 && (pMsg->prevLogIndex == snapshot.lastApplyIndex) && (pMsg->dataLen == 0);
-    bool condition = condition1 || condition2 || condition3 || condition4;
-
-    if (condition) {
-      char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, fake match, pre-index:%" PRId64 ", pre-term:%" PRIu64,
-               pMsg->prevLogIndex, pMsg->prevLogTerm);
-      syncNodeEventLog(ths, logBuf);
-
-      // prepare response msg
-      SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
-      pReply->srcId = ths->myRaftId;
-      pReply->destId = pMsg->srcId;
-      pReply->term = ths->pRaftStore->currentTerm;
-      pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
-      pReply->success = true;
-      pReply->matchIndex = snapshot.lastApplyIndex;
-
-      // send response
-      SRpcMsg rpcMsg;
-      syncAppendEntriesReply2RpcMsg(pReply, &rpcMsg);
-      syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
-      syncAppendEntriesReplyDestroy(pReply);
-
-      return ret;
-    }
-  } while (0);
-#endif
-
   // fake match
   //
   // condition1:

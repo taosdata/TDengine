@@ -48,7 +48,6 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     pOperator->status = OP_NOT_OPENED;
 
     SStreamScanInfo* pInfo = pOperator->info;
-    /*pInfo->assignBlockUid = assignUid;*/
 
     // TODO: if a block was set but not consumed,
     // prevent setting a different type of block
@@ -242,9 +241,11 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
     }
 
     // todo refactor STableList
+    bool assignUid = false;
     size_t bufLen = (pScanInfo->pGroupTags != NULL) ? getTableTagsBufLen(pScanInfo->pGroupTags) : 0;
     char*  keyBuf = NULL;
     if (bufLen > 0) {
+      assignUid = groupbyTbname(pScanInfo->pGroupTags);
       keyBuf = taosMemoryMalloc(bufLen);
       if (keyBuf == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
@@ -256,14 +257,24 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
       STableKeyInfo keyInfo = {.uid = *uid, .groupId = 0};
 
       if (bufLen > 0) {
-        code = getGroupIdFromTagsVal(pScanInfo->readHandle.meta, keyInfo.uid, pScanInfo->pGroupTags, keyBuf,
-                                     &keyInfo.groupId);
-        if (code != TSDB_CODE_SUCCESS) {
-          return code;
+        if (assignUid) {
+          keyInfo.groupId = keyInfo.uid;
+        } else {
+          code = getGroupIdFromTagsVal(pScanInfo->readHandle.meta, keyInfo.uid, pScanInfo->pGroupTags, keyBuf,
+                                       &keyInfo.groupId);
+          if (code != TSDB_CODE_SUCCESS) {
+            return code;
+          }
         }
       }
 
       taosArrayPush(pTaskInfo->tableqinfoList.pTableList, &keyInfo);
+      if (pTaskInfo->tableqinfoList.map == NULL) {
+        pTaskInfo->tableqinfoList.map =
+            taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+      }
+
+      taosHashPut(pTaskInfo->tableqinfoList.map, uid, sizeof(uid), &keyInfo.groupId, sizeof(keyInfo.groupId));
     }
 
     if (keyBuf != NULL) {
@@ -484,11 +495,9 @@ void qDestroyTask(qTaskInfo_t qTaskHandle) {
   doDestroyTask(pTaskInfo);
 }
 
-int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, int32_t* resNum, SExplainExecInfo** pRes) {
+int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, SArray* pExecInfoList) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  int32_t        capacity = 0;
-
-  return getOperatorExplainExecInfo(pTaskInfo->pRoot, pRes, &capacity, resNum);
+  return getOperatorExplainExecInfo(pTaskInfo->pRoot, pExecInfoList);
 }
 
 int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len) {

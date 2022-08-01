@@ -1,8 +1,6 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c udf -v 1
-
-print ========= start dnode1 as leader
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
@@ -149,4 +147,18 @@ if $rows != 0 then
   return -1
 endi
 
-system sh/exec.sh -n dnode1 -s stop -x SIGTERM
+_OVER:
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+print =============== check
+$null=
+
+system_content sh/checkValgrind.sh -n dnode1 
+print cmd return result ----> [ $system_content ]
+if $system_content > 0 then
+  return -1
+endi 
+
+if $system_content == $null then
+  return -1
+endi 
+

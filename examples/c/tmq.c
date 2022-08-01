@@ -29,7 +29,7 @@ static void msg_process(TAOS_RES* msg) {
   printf("vg: %d\n", tmq_get_vgroup_id(msg));
   if (tmq_get_res_type(msg) == TMQ_RES_TABLE_META) {
     tmq_raw_data raw = {0};
-    int32_t code = tmq_get_raw(msg, &raw);
+    int32_t      code = tmq_get_raw(msg, &raw);
     if (code == 0) {
       TAOS* pConn = taos_connect("192.168.1.86", "root", "taosdata", NULL, 0);
       if (pConn == NULL) {
@@ -302,7 +302,7 @@ int32_t create_topic() {
   }
   taos_free_result(pRes);
 
-//  pRes = taos_query(pConn, "create topic topic_ctb_column with meta as database abc1");
+  //  pRes = taos_query(pConn, "create topic topic_ctb_column with meta as database abc1");
   pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from st1");
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic topic_ctb_column, reason:%s\n", taos_errstr(pRes));

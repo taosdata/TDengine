@@ -831,16 +831,10 @@ sql alter table $mt add tag tgcol4 int
 sql alter table $mt add tag tgcol5 bigint
 sql alter table $mt add tag tgcol6 bigint
 
-return
-sql alter table $mt add tag tgcol7 bigint -x step141
-  return -1
-step141:
-sql reset query cache
+ sql reset query cache
 sql alter table $mt drop tag tgcol6
 sql alter table $mt add tag tgcol7 bigint
-sql alter table $mt add tag tgcol8 bigint -x step142
-  return -1
-step142:
+sql alter table $mt add tag tgcol8 bigint 
 
 print =============== clear
 sql drop database $db

@@ -293,7 +293,10 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, &pMeta->txn);
   ret = tdbTbcMoveTo(pUidIdxc, &pReq->suid, sizeof(tb_uid_t), &c);
   if (ret < 0 || c) {
-    ASSERT(0);
+    tdbTbcClose(pUidIdxc);
+
+    terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
+    // ASSERT(0);
     return -1;
   }
 
@@ -790,9 +793,6 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
     goto _err;
   }
 
-  if (iCol == 0) {
-    // TODO : need to update tag index
-  }
   ctbEntry.version = version;
   if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
     ctbEntry.ctbEntry.pTags = taosMemoryMalloc(pAlterTbReq->nTagVal);
@@ -845,6 +845,10 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
 
   // save to uid.idx
   tdbTbUpsert(pMeta->pUidIdx, &ctbEntry.uid, sizeof(tb_uid_t), &version, sizeof(version), &pMeta->txn);
+
+  if (iCol == 0) {
+    metaUpdateTagIdx(pMeta, &ctbEntry);
+  }
 
   tDecoderClear(&dc1);
   tDecoderClear(&dc2);
@@ -980,6 +984,9 @@ static int metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME) {
   tbDbKey.version = pME->version;
   tbDbKey.uid = pME->uid;
 
+  metaDebug("vgId:%d, start to save table version:%" PRId64 "uid: %" PRId64, TD_VID(pMeta->pVnode), pME->version,
+            pME->uid);
+
   pKey = &tbDbKey;
   kLen = sizeof(tbDbKey);
 
@@ -1012,6 +1019,9 @@ static int metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME) {
   return 0;
 
 _err:
+  metaError("vgId:%d, failed to save table version:%" PRId64 "uid: %" PRId64 " %s", TD_VID(pMeta->pVnode), pME->version,
+            pME->uid, tstrerror(terrno));
+
   taosMemoryFree(pVal);
   return -1;
 }
@@ -1122,7 +1132,7 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
                           pCtbEntry->uid, &pTagIdxKey, &nTagIdxKey) < 0) {
     return -1;
   }
-  tdbTbInsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, &pMeta->txn);
+  tdbTbUpsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, &pMeta->txn);
   metaDestroyTagIdxKey(pTagIdxKey);
   tDecoderClear(&dc);
   tdbFree(pData);

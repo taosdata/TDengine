@@ -175,6 +175,16 @@ TEST_F(PlanBasicTest, pseudoColumn) {
       "WHERE ts BETWEEN '2017-7-14 18:00:00' AND '2017-7-14 19:00:00' INTERVAL(10S)");
 }
 
+TEST_F(PlanBasicTest, indefiniteRowsFunc) {
+  useDb("root", "test");
+
+  run("SELECT DIFF(c1) FROM t1");
+
+  run("SELECT DIFF(c1), c2 FROM t1");
+
+  run("SELECT DIFF(c1), DIFF(c3), ts FROM t1");
+}
+
 TEST_F(PlanBasicTest, withoutFrom) {
   useDb("root", "test");
 

@@ -278,7 +278,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
   }
 
   SHashObj *planToTask = taosHashInit(
-      SCHEDULE_DEFAULT_MAX_TASK_NUM,
+      pDag->numOfSubplans,
       taosGetDefaultHashFunction(POINTER_BYTES == sizeof(int64_t) ? TSDB_DATA_TYPE_BIGINT : TSDB_DATA_TYPE_INT), false,
       HASH_NO_LOCK);
   if (NULL == planToTask) {
@@ -916,7 +916,7 @@ int32_t schProcessOnOpBegin(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq
         qDebug("job not initialized or not executable job, refId:0x%" PRIx64, pJob->refId);
         SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
       }
-      break;
+      return TSDB_CODE_SUCCESS;
     default:
       SCH_JOB_ELOG("unknown operation type %d", type);
       SCH_ERR_RET(TSDB_CODE_TSC_APP_ERROR);

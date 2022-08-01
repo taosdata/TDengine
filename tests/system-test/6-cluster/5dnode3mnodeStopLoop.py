@@ -2,7 +2,7 @@ from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
 import taos
 import sys
 import time
-import os 
+import os
 
 from util.log import *
 from util.sql import *
@@ -15,13 +15,13 @@ from test import tdDnodes
 sys.path.append("./6-cluster")
 
 from clusterCommonCreate import *
-from clusterCommonCheck import * 
+from clusterCommonCheck import *
 import time
 import socket
 import subprocess
 from multiprocessing import Process
 
-        
+
 class TDTestCase:
 
     def init(self,conn ,logSql):
@@ -69,7 +69,7 @@ class TDTestCase:
         dnodenumbers=int(dnodenumbers)
         mnodeNums=int(mnodeNums)
         dbNumbers = int(dnodenumbers * restartNumber)
-        
+
         tdLog.info("first check dnode and mnode")
         tdSql.query("show dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
@@ -84,7 +84,7 @@ class TDTestCase:
         tdSql.execute("create mnode on dnode 3")
         clusterComCheck.checkMnodeStatus(3)
 
-        # add some error operations and 
+        # add some error operations and
         tdLog.info("Confirm the status of the dnode again")
         tdSql.error("create mnode on dnode 2")
         tdSql.query("show dnodes;")
@@ -93,10 +93,10 @@ class TDTestCase:
         # restart all taosd
         tdDnodes=cluster.dnodes
 
-        tdLog.info("Take turns stopping all dnodes ") 
+        tdLog.info("Take turns stopping all dnodes ")
         # seperate vnode and mnode in different dnodes.
         # create database and stable
-        stopcount =0 
+        stopcount =0
         while stopcount <= 2:
             tdLog.info(" restart loop: %d"%stopcount )
             for i in range(dnodenumbers):
@@ -106,10 +106,10 @@ class TDTestCase:
         clusterComCheck.checkDnodes(dnodenumbers)
         clusterComCheck.checkMnodeStatus(3)
 
-    def run(self): 
+    def run(self):
         # print(self.master_dnode.cfgDict)
         self.fiveDnodeThreeMnode(5,3,1)
- 
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")

@@ -401,7 +401,7 @@ SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
 
 **返回结果类型**：CAST 中指定的类型（type_name)。
 
-**适用数据类型**：输入参数 expression 的类型可以是BLOB、MEDIUMBLOB和JSON外的所有类型。
+**适用数据类型**：输入参数 expression 的类型可以是除JSON外的所有类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -410,10 +410,10 @@ SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
 **使用说明**：
 
 - 对于不能支持的类型转换会直接报错。
-- 对于类型支持但某些值无法正确转换的情况对应的转换后的值以转换函数输出为准。目前可能遇到的几种情况：
+- 对于类型支持但某些值无法正确转换的情况，对应的转换后的值以转换函数输出为准。目前可能遇到的几种情况：
         1）字符串类型转换数值类型时可能出现的无效字符情况，例如"a"可能转为0，但不会报错。
         2）转换到数值类型时，数值大于type_name可表示的范围时，则会溢出，但不会报错。
-        3）转换到字符串类型时，如果转换后长度超过type_name的长度，则会截断，但不会报错。
+        3）转换到字符串类型时，如果转换后长度超过type_name中指定的长度，则会截断，但不会报错。
 
 #### TO_ISO8601
 
@@ -421,7 +421,7 @@ SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
 SELECT TO_ISO8601(ts[, timezone]) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**功能说明**：将 UNIX 时间戳转换成为 ISO8601 标准的日期时间格式，并附加时区信息。timezone 参数允许用户为输出结果指定附带任意时区信息。如果 timezone 参数省略，输出结果附带当前客户端的系统时区信息。
+**功能说明**：将 UNIX 时间戳转换成为 ISO8601 标准的日期时间格式，并附加时区信息。timezone 参数允许用户为输出结果指定附带任意时区信息。如果 timezone 参数省略，输出结果则附带当前客户端的系统时区信息。
 
 **返回结果数据类型**：VARCHAR 类型。
 
@@ -435,7 +435,7 @@ SELECT TO_ISO8601(ts[, timezone]) FROM { tb_name | stb_name } [WHERE clause];
 
 - timezone 参数允许输入的时区格式为: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]。例如，TO_ISO8601(1, "+00:00")。
 - 如果输入是表示 UNIX 时间戳的整形，返回格式精度由时间戳的位数决定; 
-- 如果输入是 TIMSTAMP 类型的列，返回格式的时间戳精度与当前 DATABASE 设置的时间精度一致。
+- 如果输入是 TIMESTAMP 类型的列，返回格式的时间戳精度与当前 DATABASE 设置的时间精度一致。
 
 
 #### TO_JSON
@@ -516,7 +516,7 @@ SELECT TIMEDIFF(ts | datetime_string1, ts | datetime_string2 [, time_unit]) FROM
 
 **功能说明**：计算两个时间戳之间的差值，并近似到时间单位 time_unit 指定的精度。
 
-**返回结果数据类型**：BIGINT。输入包含不符合时间日期格式字符串则返回 NULL。
+**返回结果数据类型**：BIGINT。
 
 **应用字段**：表示 UNIX 时间戳的 BIGINT, TIMESTAMP 类型，或符合日期时间格式的 VARCHAR, NCHAR 类型。
 
@@ -528,6 +528,7 @@ SELECT TIMEDIFF(ts | datetime_string1, ts | datetime_string2 [, time_unit]) FROM
 - 支持的时间单位 time_unit 如下：
           1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。
 - 如果时间单位 time_unit 未指定， 返回的时间差值精度与当前 DATABASE 设置的时间精度一致。
+- 输入包含不符合时间日期格式的字符串则返回 NULL。
 
 
 #### TIMETRUNCATE
@@ -548,6 +549,7 @@ SELECT TIMETRUNCATE(ts | datetime_string , time_unit) FROM { tb_name | stb_name 
 - 支持的时间单位 time_unit 如下：
           1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+- 输入包含不符合时间日期格式的字符串则返回 NULL。
 
 
 #### TIMEZONE
@@ -593,6 +595,24 @@ INSERT INTO tb_name VALUES (TODAY(), ...);
 聚合函数为查询结果集的每一个分组返回单个结果行。可以由 GROUP BY 或窗口切分子句指定分组，如果没有，则整个查询结果集视为一个分组。
 
 TDengine 支持针对数据的聚合查询。提供如下聚合函数。
+
+### APERCENTILE
+
+```sql
+SELECT APERCENTILE(field_name, P[, algo_type]) FROM { tb_name | stb_name } [WHERE clause]
+```
+
+**功能说明**：统计表/超级表中指定列的值的近似百分比分位数，与 PERCENTILE 函数相似，但是返回近似结果。
+
+**返回数据类型**： DOUBLE。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**说明**：
+- P值范围是[0,100]，当为0时等同于MIN，为100时等同于MAX。
+- algo_type 取值为 "default" 或 "t-digest"。 输入为 "default" 时函数使用基于直方图算法进行计算。输入为 "t-digest" 时使用t-digest算法计算分位数的近似结果。如果不指定 algo_type 则使用 "default" 算法。
 
 ### AVG
 
@@ -641,8 +661,6 @@ SELECT ELAPSED(ts_primary_key [, time_unit]) FROM { tb_name | stb_name } [WHERE 
 
 **适用数据类型**：TIMESTAMP。
 
-**支持的版本**：2.6.0.0 及以后的版本。
-
 **适用于**: 表，超级表，嵌套查询的外层查询
 
 **说明**：
@@ -655,6 +673,7 @@ SELECT ELAPSED(ts_primary_key [, time_unit]) FROM { tb_name | stb_name } [WHERE 
 - 对于普通表，不支持和group by子句组合使用。
 - 对于嵌套查询，仅当内层查询会输出隐式时间戳列时有效。例如select elapsed(ts) from (select diff(value) from sub1)语句，diff函数会让内层查询输出隐式时间戳列，此为主键列，可以用于elapsed函数的第一个参数。相反，例如select elapsed(ts) from (select * from sub1) 语句，ts列输出到外层时已经没有了主键列的含义，无法使用elapsed函数。此外，elapsed函数作为一个与时间线强依赖的函数，形如select elapsed(ts) from (select diff(value) from st group by tbname)尽管会返回一条计算结果，但并无实际意义，这种用法后续也将被限制。
 - 不支持与leastsquares、diff、derivative、top、bottom、last_row、interp等函数混合使用。
+
 
 ### LEASTSQUARES
 
@@ -669,21 +688,6 @@ SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause]
 **适用数据类型**：field_name 必须是数值类型。
 
 **适用于**：表。
-
-
-### MODE
-
-```sql
-SELECT MODE(field_name) FROM tb_name [WHERE clause];
-```
-
-**功能说明**：返回出现频率最高的值，若存在多个频率相同的最高值，输出NULL。
-
-**返回数据类型**：与输入数据类型一致。
-
-**适用数据类型**：全部类型字段。
-
-**适用于**：表和超级表。
 
 
 ### SPREAD
@@ -763,43 +767,41 @@ SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_nam
 **适用于**: 表和超级表。
 
 **详细说明**：
-1. bin_type 用户指定的分桶类型, 有效输入类型为"user_input“, ”linear_bin", "log_bin"。
-2. bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式(均为 JSON 格式字符串)：       
+- bin_type 用户指定的分桶类型, 有效输入类型为"user_input“, ”linear_bin", "log_bin"。
+- bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式(均为 JSON 格式字符串)：       
     - "user_input": "[1, 3, 5, 7]" 
        用户指定 bin 的具体数值。
        
     - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
-       "start" 表示数据起始点，"width" 表示每次 bin 偏移量, "count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点跟终点，
+       "start" 表示数据起始点，"width" 表示每次 bin 偏移量, "count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
        生成区间为[-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf]。
  
     - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
-       "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点跟终点，
+       "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
        生成区间为[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf]。
-3. normalized 是否将返回结果归一化到 0~1 之间 。有效输入为 0 和 1。
+- normalized 是否将返回结果归一化到 0~1 之间 。有效输入为 0 和 1。
+
+
+### PERCENTILE
+
+```sql
+SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
+```
+
+**功能说明**：统计表中某列的值百分比分位数。
+
+**返回数据类型**： DOUBLE。
+
+**应用字段**：数值类型。
+
+**适用于**：表。
+
+**使用说明**：*P*值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX。
 
 
 ## 选择函数
 
 选择函数根据语义在查询结果集中选择一行或多行结果返回。用户可以同时指定输出 ts 列或其他列（包括 tbname 和标签列），这样就可以方便地知道被选出的值是源于哪个数据行的。
-
-### APERCENTILE
-
-```sql
-SELECT APERCENTILE(field_name, P[, algo_type])
-FROM { tb_name | stb_name } [WHERE clause]
-```
-
-**功能说明**：统计表/超级表中指定列的值的近似百分比分位数，与 PERCENTILE 函数相似，但是返回近似结果。
-
-**返回数据类型**： DOUBLE。
-
-**适用数据类型**：数值类型。
-
-**适用于**：表和超级表。
-
-**说明**：
-- P值范围是[0,100]，当为0时等同于MIN，为100时等同于MAX。
-- algo_type 取值为 "default" 或 "t-digest"。 输入为 "default" 时函数使用基于直方图算法进行计算。输入为 "t-digest" 时使用t-digest算法计算分位数的近似结果。如果不指定 algo_type 则使用 "default" 算法。
 
 ### BOTTOM
 
@@ -935,21 +937,41 @@ SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
 **适用于**：表和超级表。
 
 
-### PERCENTILE
+### MODE
 
 ```sql
-SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
+SELECT MODE(field_name) FROM tb_name [WHERE clause];
 ```
 
-**功能说明**：统计表中某列的值百分比分位数。
+**功能说明**：返回出现频率最高的值，若存在多个频率相同的最高值，输出NULL。
 
-**返回数据类型**： DOUBLE。
+**返回数据类型**：与输入数据类型一致。
 
-**应用字段**：数值类型。
+**适用数据类型**：全部类型字段。
 
-**适用于**：表。
+**适用于**：表和超级表。
 
-**使用说明**：*P*值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX。
+
+### SAMPLE
+
+```sql
+SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+```
+
+**功能说明**： 获取数据的 k 个采样值。参数 k 的合法输入范围是 1≤ k ≤ 1000。
+
+**返回结果类型**： 同原始数据类型， 返回结果中带有该行记录的时间戳。
+
+**适用数据类型**： 在超级表查询中使用时，不能应用在标签之上。
+
+**嵌套子查询支持**： 适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**： 
+
+- 不能参与表达式计算；该函数可以应用在普通表和超级表上；
+- 使用在超级表上的时候，需要搭配 PARTITION by tbname 使用，将结果强制规约到单个时间线。
 
 
 ### TAIL
@@ -1016,7 +1038,7 @@ SELECT CSUM(field_name) FROM { tb_name | stb_name } [WHERE clause]
 
 **功能说明**：累加和（Cumulative sum），输出行与输入行数相同。
 
-**返回结果类型**： 输入列如果是整数类型返回值为长整型 （int64_t），浮点数返回值为双精度浮点数（Double）。无符号整数类型返回值为无符号长整型（uint64_t）。 返回结果中同时带有每行记录对应的时间戳。
+**返回结果类型**： 输入列如果是整数类型返回值为长整型 （int64_t），浮点数返回值为双精度浮点数（Double）。无符号整数类型返回值为无符号长整型（uint64_t）。
 
 **适用数据类型**：数值类型。
 
@@ -1026,9 +1048,9 @@ SELECT CSUM(field_name) FROM { tb_name | stb_name } [WHERE clause]
 
 **使用说明**： 
   
-  - 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
-  - 只能与聚合（Aggregation）函数一起使用。 该函数可以应用在普通表和超级表上。 
-  - 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
+- 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
+- 只能与聚合（Aggregation）函数一起使用。 该函数可以应用在普通表和超级表上。 
+- 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
 
 
 ### DERIVATIVE
@@ -1045,8 +1067,10 @@ SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHER
 
 **适用于**：表和超级表。
 
-**使用说明**: DERIVATIVE 函数可以在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）。
-
+**使用说明**: 
+  
+- DERIVATIVE 函数可以在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）。
+- 可以与选择相关联的列一起使用。 例如: select \_rowts, DERIVATIVE() from。
 
 ### DIFF
 
@@ -1062,7 +1086,10 @@ SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHER
 
 **适用于**：表和超级表。
 
-**使用说明**: 输出结果行数是范围内总行数减一，第一行没有结果输出。
+**使用说明**: 
+
+- 输出结果行数是范围内总行数减一，第一行没有结果输出。
+- 可以与选择相关联的列一起使用。 例如: select \_rowts, DIFF() from。
 
 
 ### IRATE
@@ -1086,42 +1113,22 @@ SELECT IRATE(field_name) FROM tb_name WHERE clause;
 SELECT MAVG(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-  **功能说明**： 计算连续 k 个值的移动平均数（moving average）。如果输入行数小于 k，则无结果输出。参数 k 的合法输入范围是 1≤ k ≤ 1000。
+**功能说明**： 计算连续 k 个值的移动平均数（moving average）。如果输入行数小于 k，则无结果输出。参数 k 的合法输入范围是 1≤ k ≤ 1000。
 
-  **返回结果类型**： DOUBLE。
+**返回结果类型**： DOUBLE。
 
-  **适用数据类型**： 数值类型。
+**适用数据类型**： 数值类型。
 
-  **嵌套子查询支持**： 适用于内层查询和外层查询。
+**嵌套子查询支持**： 适用于内层查询和外层查询。
 
-  **适用于**：表和超级表。
+**适用于**：表和超级表。
 
-  **使用说明**： 
+**使用说明**： 
   
-  - 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1); 
-  - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
-  - 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
+- 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1); 
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
+- 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
 
-### SAMPLE
-
-```sql
-SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
-```
-
-  **功能说明**： 获取数据的 k 个采样值。参数 k 的合法输入范围是 1≤ k ≤ 1000。
-
-  **返回结果类型**： 同原始数据类型， 返回结果中带有该行记录的时间戳。
-
-  **适用数据类型**： 在超级表查询中使用时，不能应用在标签之上。
-
-  **嵌套子查询支持**： 适用于内层查询和外层查询。
-
-  **适用于**：表和超级表。
-
-  **使用说明**： 
-  
-  - 不能参与表达式计算；该函数可以应用在普通表和超级表上；
-  - 使用在超级表上的时候，需要搭配 PARTITION by tbname 使用，将结果强制规约到单个时间线。
 
 ### STATECOUNT
 
@@ -1162,7 +1169,7 @@ SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [W
 
 - oper : "LT" (小于)、"GT"（大于）、"LE"（小于等于）、"GE"（大于等于）、"NE"（不等于）、"EQ"（等于），不区分大小写。
 - val : 数值型
-- unit : 时间长度的单位，范围[1s、1m、1h ]，不足一个单位舍去。默认为 1s。
+- unit : 时间长度的单位，可取值时间单位： 1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。如果省略，默认为当前数据库精度。
 
 **返回结果类型**：INTEGER。
 

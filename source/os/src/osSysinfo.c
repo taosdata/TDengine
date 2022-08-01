@@ -91,6 +91,7 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
 
   return EXCEPTION_CONTINUE_SEARCH;
 }
+LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception);
 
 #elif defined(_TD_DARWIN_64)
 
@@ -841,7 +842,8 @@ char *taosGetCmdlineByPID(int pid) {
 
 void taosSetCoreDump(bool enable) {
 #ifdef WINDOWS
-  SetUnhandledExceptionFilter(&FlCrashDump);
+  // SetUnhandledExceptionFilter(exceptionHandler);
+  // SetUnhandledExceptionFilter(&FlCrashDump);
 #elif defined(_TD_DARWIN_64)
 #else
   if (!enable) return;

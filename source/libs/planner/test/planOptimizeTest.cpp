@@ -30,6 +30,11 @@ TEST_F(PlanOptimizeTest, scanPath) {
   run("SELECT COUNT(CAST(c1 AS BIGINT)) FROM t1");
 
   run("SELECT PERCENTILE(c1, 40), COUNT(*) FROM t1");
+
+  run("SELECT LAST(c1) FROM t1");
+
+  run("SELECT LAST(c1) FROM t1 WHERE ts BETWEEN '2022-7-29 11:10:10' AND '2022-7-30 11:10:10' INTERVAL(10S) "
+      "FILL(LINEAR)");
 }
 
 TEST_F(PlanOptimizeTest, pushDownCondition) {
@@ -57,7 +62,15 @@ TEST_F(PlanOptimizeTest, sortPrimaryKey) {
 
   run("SELECT c1 FROM t1 ORDER BY ts DESC");
 
+  run("SELECT c1 FROM st1 ORDER BY ts DESC");
+
   run("SELECT COUNT(*) FROM t1 INTERVAL(10S) ORDER BY _WSTART DESC");
+
+  run("SELECT FIRST(c1) FROM t1 WHERE ts BETWEEN '2022-7-29 11:10:10' AND '2022-7-30 11:10:10' INTERVAL(10S) "
+      "FILL(LINEAR) ORDER BY _WSTART DESC");
+
+  run("SELECT LAST(c1) FROM t1 WHERE ts BETWEEN '2022-7-29 11:10:10' AND '2022-7-30 11:10:10' INTERVAL(10S) "
+      "FILL(LINEAR) ORDER BY _WSTART");
 }
 
 TEST_F(PlanOptimizeTest, PartitionTags) {

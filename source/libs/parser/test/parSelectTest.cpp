@@ -70,6 +70,8 @@ TEST_F(ParserSelectTest, condition) {
   run("SELECT c1 FROM t1 WHERE NOT ts in (true, false)");
 
   run("SELECT * FROM t1 WHERE c1 > 10 and c1 is not null");
+
+  run("SELECT * FROM t1 WHERE TBNAME like 'fda%' or TS > '2021-05-05 18:19:01.000'");
 }
 
 TEST_F(ParserSelectTest, pseudoColumn) {
@@ -341,11 +343,12 @@ TEST_F(ParserSelectTest, semanticCheck) {
 
   run("SELECT t1.c1, t1.cc1 FROM t1", TSDB_CODE_PAR_INVALID_COLUMN);
 
+  // TSDB_CODE_PAR_GET_META_ERROR
+  run("SELECT * FROM t10", TSDB_CODE_PAR_GET_META_ERROR);
+
+  run("SELECT * FROM test.t10", TSDB_CODE_PAR_GET_META_ERROR);
+
   // TSDB_CODE_PAR_TABLE_NOT_EXIST
-  run("SELECT * FROM t10", TSDB_CODE_PAR_TABLE_NOT_EXIST);
-
-  run("SELECT * FROM test.t10", TSDB_CODE_PAR_TABLE_NOT_EXIST);
-
   run("SELECT t2.c1 FROM t1", TSDB_CODE_PAR_TABLE_NOT_EXIST);
 
   // TSDB_CODE_PAR_AMBIGUOUS_COLUMN
