@@ -50,6 +50,8 @@
 #if 1
 extern void *tsMnodeTmr;
 #endif
+
+#ifdef CFG_GRANTS
 typedef struct {
   bool     updateForced;
   uint64_t limitTimeSeries;
@@ -78,7 +80,6 @@ SCloudGrantStatus cloudGrantStatus = {0,
                                       0,
                                       GRANT_TABLE_LIMITS};
 
-#ifdef CFG_GRANTS
 GRANT_CFG_EXTERN;
 typedef SCloudGrantStatus GrantStatus;
 typedef SCloudGrantMsg    GrantMsg;
@@ -666,6 +667,42 @@ void grantRestore(EGrantType grant, uint64_t value) {
   }
 }
 
+#ifdef CFG_GRANTS
+static int32_t cloudGrantCheckTimeSeries() {
+  if (cloudGrantStatus.limitTimeSeries == GRANT_TIME_SERIES_LIMITS || cloudGrantStatus.curTimeSeries < cloudGrantStatus.limitTimeSeries) {
+    return TSDB_CODE_SUCCESS;
+  } else {
+    uError("grant failed to create table, exist:%" PRIu64 ", reason:grant timeseries limited", cloudGrantStatus.curTimeSeries);
+    return TSDB_CODE_GRANT_TIMESERIES_LIMITED;
+  }
+}
+static int32_t cloudGrantCheckDatabases() {
+  if (cloudGrantStatus.limitDbs == GRANT_DATABASE_LIMITS || cloudGrantStatus.curDbs < cloudGrantStatus.limitDbs) {
+    return TSDB_CODE_SUCCESS;
+  } else {
+    uError("grant failed to create db, exist:%" PRIu32 ", reason:grant database limited", cloudGrantStatus.curDbs);
+    return TSDB_CODE_GRANT_DB_LIMITED;
+  }
+}
+static int32_t cloudGrantCheckSTables() {
+  if (cloudGrantStatus.limitSTables == GRANT_STABLE_LIMITS || cloudGrantStatus.curSTables < cloudGrantStatus.limitSTables) {
+    return TSDB_CODE_SUCCESS;
+  } else {
+    uError("grant failed to create stable, exist:%" PRIu32 ", reason:grant stable limited", cloudGrantStatus.curSTables);
+    return TSDB_CODE_GRANT_STABLE_LIMITED;
+  }
+}
+static int32_t cloudGrantCheckTables() {
+  if (cloudGrantStatus.limitTables == GRANT_TABLE_LIMITS || cloudGrantStatus.curTables < cloudGrantStatus.limitTables) {
+    return TSDB_CODE_SUCCESS;
+  } else {
+    uError("grant failed to create table, exist:%" PRIu32 ", reason:grant table limited", cloudGrantStatus.curTables);
+    return TSDB_CODE_GRANT_TABLE_LIMITED;
+  }
+}
+
+#else
+
 static int32_t grantCheckExpired() {
   if (grantStatus.expired) {
     return TSDB_CODE_GRANT_EXPIRED;
@@ -741,38 +778,7 @@ static int32_t grantCheckConns() { return TSDB_CODE_SUCCESS; }
 static int32_t grantCheckStreams() { return TSDB_CODE_SUCCESS; }
 static int32_t grantCheckCpuCores() { return TSDB_CODE_SUCCESS; }
 
-static int32_t cloudGrantCheckTimeSeries() {
-  if (cloudGrantStatus.limitTimeSeries == GRANT_TIME_SERIES_LIMITS || cloudGrantStatus.curTimeSeries < cloudGrantStatus.limitTimeSeries) {
-    return TSDB_CODE_SUCCESS;
-  } else {
-    uError("grant failed to create table, exist:%" PRIu64 ", reason:grant timeseries limited", cloudGrantStatus.curTimeSeries);
-    return TSDB_CODE_GRANT_TIMESERIES_LIMITED;
-  }
-}
-static int32_t cloudGrantCheckDatabases() {
-  if (cloudGrantStatus.limitDbs == GRANT_DATABASE_LIMITS || cloudGrantStatus.curDbs < cloudGrantStatus.limitDbs) {
-    return TSDB_CODE_SUCCESS;
-  } else {
-    uError("grant failed to create db, exist:%" PRIu32 ", reason:grant database limited", cloudGrantStatus.curDbs);
-    return TSDB_CODE_GRANT_DB_LIMITED;
-  }
-}
-static int32_t cloudGrantCheckSTables() {
-  if (cloudGrantStatus.limitSTables == GRANT_STABLE_LIMITS || cloudGrantStatus.curSTables < cloudGrantStatus.limitSTables) {
-    return TSDB_CODE_SUCCESS;
-  } else {
-    uError("grant failed to create stable, exist:%" PRIu64 ", reason:grant stable limited", cloudGrantStatus.curSTables);
-    return TSDB_CODE_GRANT_STABLE_LIMITED;
-  }
-}
-static int32_t cloudGrantCheckTables() {
-  if (cloudGrantStatus.limitTables == GRANT_TABLE_LIMITS || cloudGrantStatus.curTables < cloudGrantStatus.limitTables) {
-    return TSDB_CODE_SUCCESS;
-  } else {
-    uError("grant failed to create table, exist:%" PRIu64 ", reason:grant table limited", cloudGrantStatus.curTables);
-    return TSDB_CODE_GRANT_TABLE_LIMITED;
-  }
-}
+#endif
 
 int32_t grantCheck(EGrantType grant) {
 #ifdef CFG_GRANTS
