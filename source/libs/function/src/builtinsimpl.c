@@ -4858,6 +4858,11 @@ int32_t mavgFunction(SqlFunctionCtx* pCtx) {
         colDataAppend(pOutput, pos, (char*)&result, false);
       }
 
+      // handle selectivity
+      if (pCtx->subsidiaries.num > 0) {
+        appendSelectivityValue(pCtx, i, pos);
+      }
+
       numOfElems++;
     }
 
