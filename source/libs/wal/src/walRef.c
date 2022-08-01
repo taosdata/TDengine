@@ -62,6 +62,11 @@ int32_t walRefVer(SWalRef *pRef, int64_t ver) {
   return 0;
 }
 
+int32_t walPreRefVer(SWalRef *pRef, int64_t ver) {
+  pRef->refVer = ver;
+  return 0;
+}
+
 void walUnrefVer(SWalRef *pRef) {
   pRef->refId = -1;
   pRef->refFile = -1;

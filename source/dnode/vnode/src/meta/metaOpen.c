@@ -131,7 +131,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
     goto _err;
   }
 
-  ret = tdbTbOpen("stream.task.db", sizeof(int64_t), -1, taskIdxKeyCmpr, pMeta->pEnv, &pMeta->pTaskIdx);
+  ret = tdbTbOpen("stream.task.db", sizeof(int64_t), -1, taskIdxKeyCmpr, pMeta->pEnv, &pMeta->pStreamDb);
   if (ret < 0) {
     metaError("vgId: %d, failed to open meta stream task index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
@@ -150,7 +150,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
 
 _err:
   if (pMeta->pIdx) metaCloseIdx(pMeta);
-  if (pMeta->pTaskIdx) tdbTbClose(pMeta->pTaskIdx);
+  if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
   if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
   if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
   if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
@@ -170,7 +170,7 @@ _err:
 int metaClose(SMeta *pMeta) {
   if (pMeta) {
     if (pMeta->pIdx) metaCloseIdx(pMeta);
-    if (pMeta->pTaskIdx) tdbTbClose(pMeta->pTaskIdx);
+    if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
     if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
     if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
     if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);

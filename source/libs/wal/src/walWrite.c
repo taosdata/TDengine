@@ -26,7 +26,7 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
     pIter = taosHashIterate(pWal->pRefHash, pIter);
     if (pIter == NULL) break;
     SWalRef *pRef = (SWalRef *)pIter;
-    if (pRef->refVer != -1) {
+    if (pRef->refVer != -1 && pRef->refVer <= ver) {
       taosHashCancelIterate(pWal->pRefHash, pIter);
       return -1;
     }

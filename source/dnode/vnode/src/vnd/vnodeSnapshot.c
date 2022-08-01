@@ -27,6 +27,16 @@ struct SVSnapReader {
   // tsdb
   int8_t           tsdbDone;
   STsdbSnapReader *pTsdbReader;
+  // tq
+  int8_t           tqHandleDone;
+  STqSnapReader   *pTqSnapReader;
+  int8_t           tqOffsetDone;
+  STqOffsetReader *pTqOffsetReader;
+  // stream
+  int8_t              streamTaskDone;
+  SStreamTaskReader  *pStreamTaskReader;
+  int8_t              streamStateDone;
+  SStreamStateReader *pStreamStateReader;
   // rsma
   int8_t           rsmaDone;
   SRsmaSnapReader *pRsmaReader;
@@ -104,7 +114,8 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   if (!pReader->tsdbDone) {
     // open if not
     if (pReader->pTsdbReader == NULL) {
-      code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, SNAP_DATA_TSDB, &pReader->pTsdbReader);
+      code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, SNAP_DATA_TSDB,
+                                &pReader->pTsdbReader);
       if (code) goto _err;
     }
 
@@ -120,6 +131,52 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
         if (code) goto _err;
       }
     }
+  }
+
+  // TQ ================
+  if (!pReader->tqHandleDone) {
+    if (pReader->pTqSnapReader == NULL) {
+      code = tqSnapReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->ever, &pReader->pTqSnapReader);
+      if (code < 0) goto _err;
+    }
+
+    code = tqSnapRead(pReader->pTqSnapReader, ppData);
+    if (code) {
+      goto _err;
+    } else {
+      if (*ppData) {
+        goto _exit;
+      } else {
+        pReader->tqHandleDone = 1;
+        code = tqSnapReaderClose(&pReader->pTqSnapReader);
+        if (code) goto _err;
+      }
+    }
+  }
+  if (!pReader->tqOffsetDone) {
+    if (pReader->pTqOffsetReader == NULL) {
+      code = tqOffsetReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->ever, &pReader->pTqOffsetReader);
+      if (code < 0) goto _err;
+    }
+
+    code = tqOffsetSnapRead(pReader->pTqOffsetReader, ppData);
+    if (code) {
+      goto _err;
+    } else {
+      if (*ppData) {
+        goto _exit;
+      } else {
+        pReader->tqHandleDone = 1;
+        code = tqOffsetReaderClose(&pReader->pTqOffsetReader);
+        if (code) goto _err;
+      }
+    }
+  }
+
+  // STREAM ============
+  if (!pReader->streamTaskDone) {
+  }
+  if (!pReader->streamStateDone) {
   }
 
   // RSMA ==============
@@ -177,6 +234,12 @@ struct SVSnapWriter {
   SMetaSnapWriter *pMetaSnapWriter;
   // tsdb
   STsdbSnapWriter *pTsdbSnapWriter;
+  // tq
+  STqSnapWriter   *pTqSnapWriter;
+  STqOffsetWriter *pTqOffsetWriter;
+  // stream
+  SStreamTaskWriter  *pStreamTaskWriter;
+  SStreamStateWriter *pStreamStateWriter;
   // rsma
   SRsmaSnapWriter *pRsmaSnapWriter;
 };
@@ -300,6 +363,14 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
 
       code = tsdbSnapWrite(pWriter->pTsdbSnapWriter, pData, nData);
       if (code) goto _err;
+    } break;
+    case SNAP_DATA_TQ_HANDLE: {
+    } break;
+    case SNAP_DATA_TQ_OFFSET: {
+    } break;
+    case SNAP_DATA_STREAM_TASK: {
+    } break;
+    case SNAP_DATA_STREAM_STATE: {
     } break;
     case SNAP_DATA_RSMA1:
     case SNAP_DATA_RSMA2: {
