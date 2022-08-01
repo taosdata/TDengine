@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	_ "github.com/taosdata/driver-go/v2/taosRestful"
+	_ "github.com/taosdata/driver-go/v3/taosRestful"
 )
 
 func createStable(taos *sql.DB) {
