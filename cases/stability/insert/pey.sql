@@ -1,0 +1,10 @@
+select * from db.stb0 where  c0 >= -2147483647 and  t0 is not null and  c3 nmatch 'varcharnchar' and (c4 is not null) ; 
+select ts, _c0, _C0, _rowts, c1, c2, c3, c4, t0, t1 from db.stb0 where  c0 >= -2147483647 and  t0 is not null and  c3 nmatch 'varcharnchar' and (c4 is not null) ; 
+select c4, ts from db.stb0 where  c0 >= -2147483647 and  t0 is not null and  c3 nmatch 'varcharnchar' and (c4 is not null) ; 
+select c4, c2, _rowts, _c0, _C0, t0, c3, t1, ts, c1 from db.stb0 where  c0 >= -2147483647 and  t0 is not null and  c3 nmatch 'varcharnchar' and (c4 is not null) partition by ts, t0, c3, _rowts, c4, _c0, c1, c2 ; 
+select _rowts, _C0, t1, c4, c1, t0 from (select * from db.stb0 where  c0 >= -2147483647 and  t0 is not null and  c3 nmatch 'varcharnchar' and (c4 is not null)) ; 
+select * from db.stb0 where  c0 >= -2147483647 and  t0 >= -127 and  c3 nmatch 'varcharnchar' and (c4 is not null) ; 
+select ts, _c0, _C0, _rowts, c1, c2, c3, c4, t0, t1 from db.stb0 where  c0 >= -2147483647 and  t0 >= -127 and  c3 nmatch 'varcharnchar' and (c4 is not null) ; 
+select c3, ts, c2, t0, _rowts, c1, _C0 from db.stb0 where  c0 >= -2147483647 and  t0 >= -127 and  c3 nmatch 'varcharnchar' and (c4 is not null) ; 
+select t0, ts, t1, c4, _rowts, _C0, c1, c3, _c0, c2 from db.stb0 where  c0 >= -2147483647 and  t0 >= -127 and  c3 nmatch 'varcharnchar' and (c4 is not null) partition by ts, t0, c3, _rowts, c4, _c0, c1, c2 ; 
+select c1, c2, c3, _C0 from (select * from db.stb0 where  c0 >= -2147483647 and  t0 >= -127 and  c3 nmatch 'varcharnchar' and (c4 is not null)) ; 
