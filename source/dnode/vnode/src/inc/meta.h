@@ -78,7 +78,10 @@ struct SMeta {
   TTB*  pTagIdx;
   TTB*  pTtlIdx;
 
-  TTB*      pSmaIdx;
+  TTB* pSmaIdx;
+
+  TTB* pTaskIdx;
+
   SMetaIdx* pIdx;
 };
 

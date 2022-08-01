@@ -779,8 +779,10 @@ static SNode* stbSplCreateColumnNode(SExprNode* pExpr) {
     strcpy(pCol->dbName, ((SColumnNode*)pExpr)->dbName);
     strcpy(pCol->tableName, ((SColumnNode*)pExpr)->tableName);
     strcpy(pCol->tableAlias, ((SColumnNode*)pExpr)->tableAlias);
+    strcpy(pCol->colName, ((SColumnNode*)pExpr)->colName);
+  } else {
+    strcpy(pCol->colName, pExpr->aliasName);
   }
-  strcpy(pCol->colName, pExpr->aliasName);
   strcpy(pCol->node.aliasName, pExpr->aliasName);
   pCol->node.resType = pExpr->resType;
   return (SNode*)pCol;

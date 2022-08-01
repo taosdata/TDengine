@@ -64,6 +64,12 @@ TEST_F(PlanSubqeuryTest, innerFill) {
       "WHERE ts > '2022-04-06 00:00:00'");
 }
 
+TEST_F(PlanSubqeuryTest, innerOrderBy) {
+  useDb("root", "test");
+
+  run("SELECT c2 FROM (SELECT c2 FROM st1 ORDER BY c1, _rowts)");
+}
+
 TEST_F(PlanSubqeuryTest, outerInterval) {
   useDb("root", "test");
 

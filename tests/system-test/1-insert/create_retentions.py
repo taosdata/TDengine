@@ -253,34 +253,34 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2.1.1 : alter stb schemaL drop column")
         tdSql.query(f"select {BINT_COL} from {DB3}.{STBNAME}")
-        tdSql.execute(f"alter stable {DB3}.stb1 drop column {BINT_COL}")
-        # TODO not support alter stable schema anymore
-        # tdSql.error(f"alter stable {DB3}.stb1 drop column {BINT_COL}")
-        tdSql.error(f"select {BINT_COL} from {DB3}.{STBNAME}")
+        #tdSql.execute(f"alter stable {DB3}.stb1 drop column {BINT_COL}")
+        # not support alter stable schema anymore
+        tdSql.error(f"alter stable {DB3}.stb1 drop column {BINT_COL}")
+        #tdSql.error(f"select {BINT_COL} from {DB3}.{STBNAME}")
 
 
         tdLog.printNoPrefix("==========step2.1.2 : alter stb schemaL add num_column")
-        # TODO not support alter stable schema anymore
-        # tdSql.error(f"alter stable {DB3}.stb1 add column {INT_COL}_1 int")
+        # not support alter stable schema anymore
+        tdSql.error(f"alter stable {DB3}.stb1 add column {INT_COL}_1 int")
         tdSql.error(f"select {INT_COL}_1 from {DB3}.{STBNAME}")
-        tdSql.execute(f"alter stable {DB3}.stb1 add column {INT_COL}_1 int")
-        tdSql.query(f"select count({INT_COL}_1) from {DB3}.{STBNAME} where _c0 > now-5m")
-        tdSql.checkData(0, 0, 0)
-        tdSql.execute(f"insert into {DB3}.{CTBNAME} ({PRIMARY_COL}, {INT_COL}, {INT_COL}_1) values({NOW}+20s, 111, 112)")
-        time.sleep(7)
-        tdSql.query(f"select _rowts, {INT_COL}, {INT_COL}_1 from {DB3}.{CTBNAME} where _c0 > now()-1h and _c0>{NOW}")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 111)
-        tdSql.checkData(0, 2, 112)
-
-        tdSql.query(f"select _rowts, {INT_COL}, {INT_COL}_1 from {DB3}.{CTBNAME} where _c0 > now()-2d and _c0>{NOW}")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 111)
-        tdSql.checkData(0, 2, 112)
-        tdSql.query(f"select _rowts, {INT_COL}, {INT_COL}_1 from {DB3}.{CTBNAME} where _c0 > now()-7d and _c0>{NOW}")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 111)
-        tdSql.checkData(0, 2, 112)
+        #tdSql.execute(f"alter stable {DB3}.stb1 add column {INT_COL}_1 int")
+        #tdSql.query(f"select count({INT_COL}_1) from {DB3}.{STBNAME} where _c0 > now-5m")
+        #tdSql.checkData(0, 0, 0)
+        #tdSql.execute(f"insert into {DB3}.{CTBNAME} ({PRIMARY_COL}, {INT_COL}, {INT_COL}_1) values({NOW}+20s, 111, 112)")
+        #time.sleep(7)
+        #tdSql.query(f"select _rowts, {INT_COL}, {INT_COL}_1 from {DB3}.{CTBNAME} where _c0 > now()-1h and _c0>{NOW}")
+        #tdSql.checkRows(1)
+        #tdSql.checkData(0, 1, 111)
+        #tdSql.checkData(0, 2, 112)
+#
+        #tdSql.query(f"select _rowts, {INT_COL}, {INT_COL}_1 from {DB3}.{CTBNAME} where _c0 > now()-2d and _c0>{NOW}")
+        #tdSql.checkRows(1)
+        #tdSql.checkData(0, 1, 111)
+        #tdSql.checkData(0, 2, 112)
+        #tdSql.query(f"select _rowts, {INT_COL}, {INT_COL}_1 from {DB3}.{CTBNAME} where _c0 > now()-7d and _c0>{NOW}")
+        #tdSql.checkRows(1)
+        #tdSql.checkData(0, 1, 111)
+        #tdSql.checkData(0, 2, 112)
         tdLog.printNoPrefix("==========step2.1.3 : drop child-table")
         tdSql.execute(f"drop table {DB3}.{CTBNAME} ")
 
