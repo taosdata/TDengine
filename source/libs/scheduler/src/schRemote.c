@@ -92,7 +92,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
   switch (msgType) {
     case TDMT_VND_COMMIT_RSP: {
       SCH_ERR_JRET(rspCode);
-      SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
+      SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
       break;
     }
     case TDMT_VND_CREATE_TABLE_RSP: {
@@ -118,7 +118,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
       SCH_ERR_JRET(rspCode);
       taosMemoryFreeClear(msg);
 
-      SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
+      SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
       break;
     }
     case TDMT_VND_DROP_TABLE_RSP: {
@@ -144,7 +144,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
       SCH_ERR_JRET(rspCode);
       taosMemoryFreeClear(msg);
 
-      SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
+      SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
       break;
     }
     case TDMT_VND_ALTER_TABLE_RSP: {
@@ -169,7 +169,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
 
       taosMemoryFreeClear(msg);
 
-      SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
+      SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
       break;
     }
     case TDMT_VND_SUBMIT_RSP: {
@@ -218,7 +218,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
 
       taosMemoryFreeClear(msg);
 
-      SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
+      SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
 
       break;
     }
@@ -238,7 +238,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
 
       taosMemoryFreeClear(msg);
 
-      SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
+      SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
 
       break;
     }
@@ -263,7 +263,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
 
       taosMemoryFreeClear(msg);
 
-      SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
+      SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
 
       break;
     }
@@ -379,12 +379,14 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
   qDebug("begin to handle rsp msg, type:%s, handle:%p, code:%s", TMSG_INFO(pMsg->msgType), pMsg->handle,
          tstrerror(rspCode));
 
-  SCH_ERR_RET(schProcessOnCbBegin(&pJob, &pTask, pParam->queryId, pParam->refId, pParam->taskId));
+  SCH_ERR_JRET(schProcessOnCbBegin(&pJob, &pTask, pParam->queryId, pParam->refId, pParam->taskId));
 
   code = schHandleResponseMsg(pJob, pTask, pParam->execId, pMsg, rspCode);
   pMsg->pData = NULL;
 
   schProcessOnCbEnd(pJob, pTask, code);
+
+_return:
 
   taosMemoryFreeClear(pMsg->pData);
 
@@ -398,6 +400,9 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
   qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " drop task rsp received, code:0x%x", pParam->queryId, pParam->taskId,
          code);
+  if (pMsg) {
+    taosMemoryFree(pMsg->pData);       
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -408,6 +413,8 @@ int32_t schHandleLinkBrokenCallback(void *param, SDataBuf *pMsg, int32_t code) {
   qDebug("handle %p is broken", pMsg->handle);
 
   if (head->isHbParam) {
+    taosMemoryFree(pMsg->pData);
+    
     SSchHbCallbackParam *hbParam = (SSchHbCallbackParam *)param;
     SSchTrans            trans = {.pTrans = hbParam->pTrans, .pHandle = NULL};
     SCH_ERR_RET(schUpdateHbConnection(&hbParam->nodeEpId, &trans));

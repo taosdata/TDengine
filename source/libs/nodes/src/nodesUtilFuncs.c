@@ -745,6 +745,7 @@ void nodesDestroyNode(SNode* pNode) {
       }
       taosArrayDestroy(pQuery->pDbList);
       taosArrayDestroy(pQuery->pTableList);
+      taosArrayDestroy(pQuery->pTargetTableList);
       taosArrayDestroy(pQuery->pPlaceholderValues);
       nodesDestroyNode(pQuery->pPrepareRoot);
       break;
