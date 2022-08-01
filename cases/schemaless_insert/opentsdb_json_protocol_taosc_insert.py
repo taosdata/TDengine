@@ -147,9 +147,9 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         mix "`~!@#$¥%^&*()-+{}|[]、「」【】:;《》<>?"
         """
         self.tdCom.cleanTb()
-        rstr = list("`~!@#$¥%^&*()-+={}|[]、「」【】\:;《》<>?")
+        rstr = list("~!@#$¥%^&*()-+={}|[]、「」【】\:;《》<>?")
         for i in rstr:
-            input_json = self.tdCom.gen_full_type_json(stb_name=f'`aa{i}bb`', value_type=value_type)[0]
+            input_json = self.tdCom.gen_full_type_json(stb_name=f'aa{i}bb', value_type=value_type)[0]
             try:
                 self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             except SchemalessError as err:
@@ -950,6 +950,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         tb_name = self.tdCom.get_long_name()
         input_json, stb_name = self.tdCom.gen_full_type_json(tb_name=tb_name, col_value=self.tdCom.gen_ts_col_value(value="ncharTagValue", t_type="nchar"))
         self.tdCom.check_res(input_json, stb_name)
+        print(input_json)
         s_stb_s_tb_d_ts_m_tag_list = [({'metric': stb_name, 'timestamp': {'value': 1626006833639001000, 'type': 'ns'}, 'value': 'pjndapjb', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'tuzsfrom', 'type': 'binary'}, 'id': tb_name}}, 'punftb'),
                                     ({'metric': stb_name, 'timestamp': {'value': 1626006833639002000, 'type': 'ns'}, 'value': 'llqzvgvw', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'tuzsfrom', 'type': 'binary'}, 'id': tb_name}}, 'punftb'),
                                     ({'metric': stb_name, 'timestamp': {'value': 1626006833639006000, 'type': 'ns'}, 'value': 'tclbosqc', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'tuzsfrom', 'type': 'binary'}, 'id': tb_name}}, 'punftb'),
@@ -1014,8 +1015,12 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def test(self):
-        self.ts_check()
-
+        for i in range(5):
+            for value_type in ["obj", "default"]:
+                self.init_check(value_type)
+                self.symbols_check(value_type)
+                self.ts_check()
+        # self.chinese_check()
     def run(self):
         # self.test()
         # return 
@@ -1023,6 +1028,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
             if self.taospy_setting["spec"]["config"]["smlChildTableName"].upper() == "ID":
                 self.table_id_check()
         else:
+            
             for value_type in ["obj", "default"]:
                 self.init_check(value_type)
                 self.symbols_check(value_type)
@@ -1037,7 +1043,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
                 self.tag_col_binary_nchar_length_increase_check(value_type)
                 # self.tag_col_binary_max_length_check(value_type)
                 # self.tag_col_nchar_max_length_check(value_type)
-                self.batch_insert_check(value_type)
+                # self.batch_insert_check(value_type)
                 self.multi_insert_check(100, value_type)
                 self.multi_cols_insert_check(value_type)
                 self.blank_col_insert_check(value_type)
