@@ -4781,6 +4781,11 @@ int32_t csumFunction(SqlFunctionCtx* pCtx) {
       }
     }
 
+    // handle selectivity
+    if (pCtx->subsidiaries.num > 0) {
+      appendSelectivityValue(pCtx, i, pos);
+    }
+
     numOfElems++;
   }
 
