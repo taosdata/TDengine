@@ -672,7 +672,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
 
         numOfRows = pfCtx->fpSet.process(pfCtx);
       } else if (fmIsAggFunc(pfCtx->functionId)) {
-        // diff/derivative selective value should be set during function execution
+        // selective value output should be set during corresponding function execution
         if (fmIsSelectValueFunc(pfCtx->functionId)) {
           continue;
         }

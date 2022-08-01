@@ -58,6 +58,8 @@ target_sources(
     "src/tq/tqPush.c"
     "src/tq/tqSink.c"
     "src/tq/tqCommit.c"
+    "src/tq/tqSnapshot.c"
+    "src/tq/tqOffsetSnapshot.c"
 )
 target_include_directories(
     vnode

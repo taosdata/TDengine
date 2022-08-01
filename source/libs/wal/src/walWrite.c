@@ -26,7 +26,7 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
     pIter = taosHashIterate(pWal->pRefHash, pIter);
     if (pIter == NULL) break;
     SWalRef *pRef = (SWalRef *)pIter;
-    if (pRef->refVer != -1) {
+    if (pRef->refVer != -1 && pRef->refVer <= ver) {
       taosHashCancelIterate(pWal->pRefHash, pIter);
       return -1;
     }
@@ -116,15 +116,15 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   }
 
   walBuildIdxName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
-  TdFilePtr pIdxTFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
+  TdFilePtr pIdxFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
 
-  if (pIdxTFile == NULL) {
+  if (pIdxFile == NULL) {
     ASSERT(0);
     taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
   int64_t idxOff = walGetVerIdxOffset(pWal, ver);
-  code = taosLSeekFile(pIdxTFile, idxOff, SEEK_SET);
+  code = taosLSeekFile(pIdxFile, idxOff, SEEK_SET);
   if (code < 0) {
     ASSERT(0);
     taosThreadMutexUnlock(&pWal->mutex);
@@ -132,7 +132,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   }
   // read idx file and get log file pos
   SWalIdxEntry entry;
-  if (taosReadFile(pIdxTFile, &entry, sizeof(SWalIdxEntry)) != sizeof(SWalIdxEntry)) {
+  if (taosReadFile(pIdxFile, &entry, sizeof(SWalIdxEntry)) != sizeof(SWalIdxEntry)) {
     ASSERT(0);
     taosThreadMutexUnlock(&pWal->mutex);
     return -1;
@@ -140,24 +140,24 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   ASSERT(entry.ver == ver);
 
   walBuildLogName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
-  TdFilePtr pLogTFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
-  if (pLogTFile == NULL) {
-    ASSERT(0);
+  TdFilePtr pLogFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
+  if (pLogFile == NULL) {
     // TODO
+    terrno = TAOS_SYSTEM_ERROR(errno);
     taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
-  code = taosLSeekFile(pLogTFile, entry.offset, SEEK_SET);
+  code = taosLSeekFile(pLogFile, entry.offset, SEEK_SET);
   if (code < 0) {
-    ASSERT(0);
     // TODO
+    terrno = TAOS_SYSTEM_ERROR(errno);
     taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
   // validate offset
   SWalCkHead head;
-  ASSERT(taosValidFile(pLogTFile));
-  int64_t size = taosReadFile(pLogTFile, &head, sizeof(SWalCkHead));
+  ASSERT(taosValidFile(pLogFile));
+  int64_t size = taosReadFile(pLogFile, &head, sizeof(SWalCkHead));
   if (size != sizeof(SWalCkHead)) {
     ASSERT(0);
     taosThreadMutexUnlock(&pWal->mutex);
@@ -180,14 +180,14 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   }
 
   // truncate old files
-  code = taosFtruncateFile(pLogTFile, entry.offset);
+  code = taosFtruncateFile(pLogFile, entry.offset);
   if (code < 0) {
     ASSERT(0);
     terrno = TAOS_SYSTEM_ERROR(errno);
     taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
-  code = taosFtruncateFile(pIdxTFile, idxOff);
+  code = taosFtruncateFile(pIdxFile, idxOff);
   if (code < 0) {
     ASSERT(0);
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -205,8 +205,10 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
     ASSERT(((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->fileSize == 0);
     ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->firstVer = -1;
   }
-  taosCloseFile(&pIdxTFile);
-  taosCloseFile(&pLogTFile);
+  taosCloseFile(&pIdxFile);
+  taosCloseFile(&pLogFile);
+
+  walSaveMeta(pWal);
 
   // unlock
   taosThreadMutexUnlock(&pWal->mutex);
