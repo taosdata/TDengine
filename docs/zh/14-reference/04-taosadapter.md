@@ -151,7 +151,7 @@ AllowWebSockets
 
 关于 CORS 协议细节请参考：[https://www.w3.org/wiki/CORS_Enabled](https://www.w3.org/wiki/CORS_Enabled) 或 [https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS](https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS)。
 
-示例配置文件参见 [example/config/taosadapter.toml](./example/config/taosadapter.toml)。
+示例配置文件参见 [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/blob/3.0/example/config/taosadapter.toml)。
 
 ## 功能列表
 
