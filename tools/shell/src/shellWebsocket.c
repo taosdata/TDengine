@@ -214,7 +214,6 @@ void shellRunSingleCommandWebsocketImp(char *command) {
   st = taosGetTimestampUs();
 
   WS_RES* res = ws_query_timeout(shell.ws_conn, command, shell.args.timeout);
-  double execute_time = ws_take_timing(res)/1E6;
   int code = ws_errno(res);
   if (code != 0) {
 	et = taosGetTimestampUs();
@@ -228,6 +227,8 @@ void shellRunSingleCommandWebsocketImp(char *command) {
 	ws_free_result(res);
 	return;
   }
+
+  double execute_time = ws_take_timing(res)/1E6;
 
   if (shellRegexMatch(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
     fprintf(stdout, "Database changed.\r\n\r\n");
