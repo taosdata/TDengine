@@ -66,6 +66,10 @@ int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list);
 void   *vnodeGetIdx(SVnode *pVnode);
 void   *vnodeGetIvtIdx(SVnode *pVnode);
 
+int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num);
+int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num);
+int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num);
+
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int32_t vnodeValidateTableHash(SVnode *pVnode, char *tableFName);
 
@@ -211,26 +215,37 @@ struct STsdbCfg {
   SRetention retentions[TSDB_RETENTION_MAX];
 };
 
+typedef struct {
+  int64_t numOfSTables;
+  int64_t numOfCTables;
+  int64_t numOfNTables;
+  int64_t numOfTimeSeries;
+  int64_t pointsWritten;
+  int64_t totalStorage;
+  int64_t compStorage;
+} SVnodeStats;
+
 struct SVnodeCfg {
-  int32_t  vgId;
-  char     dbname[TSDB_DB_FNAME_LEN];
-  uint64_t dbId;
-  int32_t  cacheLastSize;
-  int32_t  szPage;
-  int32_t  szCache;
-  uint64_t szBuf;
-  bool     isHeap;
-  bool     isWeak;
-  int8_t   cacheLast;
-  int8_t   isTsma;
-  int8_t   isRsma;
-  int8_t   hashMethod;
-  int8_t   standby;
-  STsdbCfg tsdbCfg;
-  SWalCfg  walCfg;
-  SSyncCfg syncCfg;
-  uint32_t hashBegin;
-  uint32_t hashEnd;
+  int32_t     vgId;
+  char        dbname[TSDB_DB_FNAME_LEN];
+  uint64_t    dbId;
+  int32_t     cacheLastSize;
+  int32_t     szPage;
+  int32_t     szCache;
+  uint64_t    szBuf;
+  bool        isHeap;
+  bool        isWeak;
+  int8_t      cacheLast;
+  int8_t      isTsma;
+  int8_t      isRsma;
+  int8_t      hashMethod;
+  int8_t      standby;
+  STsdbCfg    tsdbCfg;
+  SWalCfg     walCfg;
+  SSyncCfg    syncCfg;
+  SVnodeStats vndStats;
+  uint32_t    hashBegin;
+  uint32_t    hashEnd;
 };
 
 typedef struct {

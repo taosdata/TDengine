@@ -476,14 +476,22 @@ _err:
 
 // N.B. Called by statusReq per second
 int64_t metaGetTbNum(SMeta *pMeta) {
-  // TODO
-  return 0;
+  // num of child tables (excluding normal tables , stables and others)
+
+  /* int64_t num = 0; */
+  /* vnodeGetAllCtbNum(pMeta->pVnode, &num); */
+
+  return pMeta->pVnode->config.vndStats.numOfCTables;
 }
 
 // N.B. Called by statusReq per second
 int64_t metaGetTimeSeriesNum(SMeta *pMeta) {
-  // TODO
-  return 400;
+  // sum of (number of columns of stable -  1) * number of ctables (excluding timestamp column)
+  int64_t num = 0;
+  vnodeGetTimeSeriesNum(pMeta->pVnode, &num);
+  pMeta->pVnode->config.vndStats.numOfTimeSeries = num;
+
+  return pMeta->pVnode->config.vndStats.numOfTimeSeries;
 }
 
 typedef struct {

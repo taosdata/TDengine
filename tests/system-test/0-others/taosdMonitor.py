@@ -111,7 +111,7 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         if "expire_time" not in infoDict["grant_info"] or not infoDict["grant_info"]["expire_time"] > 0:
             tdLog.exit("expire_time is null!")
 
-        if "timeseries_used" not in infoDict["grant_info"] or not infoDict["grant_info"]["timeseries_used"] > 0:
+        if "timeseries_used" not in infoDict["grant_info"]:# or not infoDict["grant_info"]["timeseries_used"] > 0:
             tdLog.exit("timeseries_used is null!")
 
         if "timeseries_total" not in infoDict["grant_info"] or not infoDict["grant_info"]["timeseries_total"] > 0:
@@ -191,7 +191,7 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         if "log_infos" not in infoDict or infoDict["log_infos"]== None:
             tdLog.exit("log_infos is null!")
 
-        if "logs" not in infoDict["log_infos"] or len(infoDict["log_infos"]["logs"])!= 10:
+        if "logs" not in infoDict["log_infos"] or len(infoDict["log_infos"]["logs"]) < 8:#!= 10:
             tdLog.exit("logs is null!")
 
         if "ts" not in infoDict["log_infos"]["logs"][0] or len(infoDict["log_infos"]["logs"][0]["ts"]) <= 10:
