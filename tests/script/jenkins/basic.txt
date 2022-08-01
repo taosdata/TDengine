@@ -339,7 +339,7 @@
 # --- catalog ----
 ./test.sh -f tsim/catalog/alterInCurrent.sim
 
-# --- scalar
+# --- scalar ----
 ./test.sh -f tsim/scalar/in.sim
 ./test.sh -f tsim/scalar/scalar.sim
 
@@ -384,7 +384,7 @@
 ./test.sh -f tsim/compute/sum.sim
 ./test.sh -f tsim/compute/top.sim
 
-# ---- field
+# ---- field ----
 ./test.sh -f tsim/field/2.sim
 ./test.sh -f tsim/field/3.sim
 ./test.sh -f tsim/field/4.sim
