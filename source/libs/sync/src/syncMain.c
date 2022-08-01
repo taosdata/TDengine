@@ -88,10 +88,6 @@ int64_t syncOpen(const SSyncInfo* pSyncInfo) {
   SSyncNode* pSyncNode = syncNodeOpen(pSyncInfo);
   ASSERT(pSyncNode != NULL);
 
-  if (gRaftDetailLog) {
-    syncNodeLog2("syncNodeOpen open success", pSyncNode);
-  }
-
   pSyncNode->rid = taosAddRef(tsNodeRefId, pSyncNode);
   if (pSyncNode->rid < 0) {
     syncFreeNode(pSyncNode);
@@ -245,11 +241,7 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg) {
     return -1;
   }
 
-  char* newconfig = syncCfg2Str((SSyncCfg*)pNewCfg);
-  if (gRaftDetailLog) {
-    sInfo("==syncReconfig== newconfig:%s", newconfig);
-  }
-
+  char*   newconfig = syncCfg2Str((SSyncCfg*)pNewCfg);
   int32_t ret = 0;
 
   SRpcMsg rpcMsg = {0};
@@ -912,12 +904,6 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
     ASSERT(pSyncNode->pRaftCfg != NULL);
     pSyncInfo->syncCfg = pSyncNode->pRaftCfg->cfg;
 
-    if (gRaftDetailLog) {
-      char* seralized = raftCfg2Str(pSyncNode->pRaftCfg);
-      sInfo("syncNodeOpen update config :%s", seralized);
-      taosMemoryFree(seralized);
-    }
-
     raftCfgClose(pSyncNode->pRaftCfg);
   }
 
@@ -1312,6 +1298,17 @@ int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
   return ret;
 }
 
+int32_t syncNodeStartNowHeartbeatTimer(SSyncNode* pSyncNode) {
+  int32_t ret = 0;
+  if (syncEnvIsStart()) {
+    taosTmrReset(pSyncNode->FpHeartbeatTimerCB, 1, pSyncNode, gSyncEnv->pTimerManager, &pSyncNode->pHeartbeatTimer);
+    atomic_store_64(&pSyncNode->heartbeatTimerLogicClock, pSyncNode->heartbeatTimerLogicClockUser);
+  } else {
+    sError("vgId:%d, start heartbeat timer error, sync env is stop", pSyncNode->vgId);
+  }
+  return ret;
+}
+
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
   int32_t ret = 0;
   atomic_add_fetch_64(&pSyncNode->heartbeatTimerLogicClockUser, 1);
@@ -1326,18 +1323,17 @@ int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode) {
   return 0;
 }
 
+int32_t syncNodeRestartNowHeartbeatTimer(SSyncNode* pSyncNode) {
+  syncNodeStopHeartbeatTimer(pSyncNode);
+  syncNodeStartNowHeartbeatTimer(pSyncNode);
+  return 0;
+}
+
 // utils --------------
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
   SEpSet epSet;
   syncUtilraftId2EpSet(destRaftId, &epSet);
   if (pSyncNode->FpSendMsg != NULL) {
-    if (gRaftDetailLog) {
-      char* JsonStr = syncRpcMsg2Str(pMsg);
-      syncUtilJson2Line(JsonStr);
-      sTrace("sync send msg, vgId:%d, type:%d, msg:%s", pSyncNode->vgId, pMsg->msgType, JsonStr);
-      taosMemoryFree(JsonStr);
-    }
-
     // htonl
     syncUtilMsgHtoN(pMsg->pCont);
 

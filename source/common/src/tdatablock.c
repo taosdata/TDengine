@@ -1298,9 +1298,7 @@ int32_t copyDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
     colDataAssign(pDst, pSrc, src->info.rows, &src->info);
   }
 
-  dst->info.rows = src->info.rows;
-  dst->info.window = src->info.window;
-  dst->info.type = src->info.type;
+  dst->info = src->info;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1724,8 +1722,9 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
     size_t       numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
 
     int32_t rows = pDataBlock->info.rows;
-    printf("%s |block type %d |child id %d|group id %" PRIu64 "\n", flag, (int32_t)pDataBlock->info.type,
-           pDataBlock->info.childId, pDataBlock->info.groupId);
+    printf("%s |block ver %" PRIi64 " |block type %d |child id %d|group id %" PRIu64 "\n", flag,
+           pDataBlock->info.version, (int32_t)pDataBlock->info.type, pDataBlock->info.childId,
+           pDataBlock->info.groupId);
     for (int32_t j = 0; j < rows; j++) {
       printf("%s |", flag);
       for (int32_t k = 0; k < numOfCols; k++) {
@@ -1774,9 +1773,9 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
   int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
   int32_t rows = pDataBlock->info.rows;
   int32_t len = 0;
-  len += snprintf(dumpBuf + len, size - len, "===stream===%s |block type %d|child id %d|group id:%" PRIu64 "|uid:%ld|rows:%d\n", flag,
+  len += snprintf(dumpBuf + len, size - len, "===stream===%s|block type %d|child id %d|group id:%" PRIu64 "|uid:%ld|rows:%d|version:%" PRIu64 "\n", flag,
                   (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.groupId,
-                  pDataBlock->info.uid, pDataBlock->info.rows);
+                  pDataBlock->info.uid, pDataBlock->info.rows, pDataBlock->info.version);
   if (len >= size - 1) return dumpBuf;
 
   for (int32_t j = 0; j < rows; j++) {

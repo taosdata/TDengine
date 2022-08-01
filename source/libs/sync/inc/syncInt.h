@@ -191,8 +191,10 @@ int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeResetElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
+int32_t syncNodeStartNowHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode);
+int32_t syncNodeRestartNowHeartbeatTimer(SSyncNode* pSyncNode);
 
 // utils --------------
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);

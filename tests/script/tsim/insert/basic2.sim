@@ -26,8 +26,8 @@ endi
 
 print =============== step3-1 insert records into ct1
 sql insert into ct1 values('2022-05-03 16:59:00.010', 10, 20, 'n','n',30);
-sql insert into ct1 values('2022-05-03 16:59:00.011', 'N', 'n', 'N',"N",30);
-sql insert into ct1 values('2022-05-03 16:59:00.012', 'Nu', 'nul', 'Nul','NUL',30);
+sql insert into ct1 values('2022-05-03 16:59:00.011', 'null', 'null', 'N',"N",30);
+sql insert into ct1 values('2022-05-03 16:59:00.012', 'null', 'null', 'Nul','NUL',30);
 sql insert into ct1 values('2022-05-03 16:59:00.013', NULL, 'null', 'Null',null,30);
 sql insert into ct1 values('2022-05-03 16:59:00.014', NULL, 'NuLL', 'Null',NULL,30);
 

@@ -27,7 +27,7 @@
 ./test.sh -f tsim/db/delete_writing2.sim
 # unsupport ./test.sh -f tsim/db/dropdnodes.sim
 ./test.sh -f tsim/db/error1.sim
-# TD-17592 ./test.sh -f tsim/db/keep.sim
+./test.sh -f tsim/db/keep.sim
 ./test.sh -f tsim/db/len.sim
 ./test.sh -f tsim/db/repeat.sim
 ./test.sh -f tsim/db/show_create_db.sim
@@ -89,7 +89,7 @@
 ./test.sh -f tsim/parser/alter_column.sim
 ./test.sh -f tsim/parser/alter_stable.sim
 ./test.sh -f tsim/parser/alter.sim
-# TD-17959 ./test.sh -f tsim/parser/alter1.sim
+./test.sh -f tsim/parser/alter1.sim
 ./test.sh -f tsim/parser/auto_create_tb_drop_tb.sim
 ./test.sh -f tsim/parser/auto_create_tb.sim
 ./test.sh -f tsim/parser/between_and.sim
@@ -131,9 +131,9 @@
 ./test.sh -f tsim/parser/insert_tb.sim
 # TD-17038 ./test.sh -f tsim/parser/interp.sim
 ./test.sh -f tsim/parser/join_manyblocks.sim
-# TD-17713 ./test.sh -f tsim/parser/join_multitables.sim
-# TD-17713 ./test.sh -f tsim/parser/join_multivnode.sim
-# TD-17707 ./test.sh -f tsim/parser/join.sim
+# TD-18018 ./test.sh -f tsim/parser/join_multitables.sim
+./test.sh -f tsim/parser/join_multivnode.sim
+./test.sh -f tsim/parser/join.sim
 ./test.sh -f tsim/parser/last_cache.sim
 ./test.sh -f tsim/parser/last_groupby.sim
 ./test.sh -f tsim/parser/lastrow.sim
@@ -144,7 +144,7 @@
 # TD-17623 ./test.sh -f tsim/parser/limit2.sim
 ./test.sh -f tsim/parser/mixed_blocks.sim
 ./test.sh -f tsim/parser/nchar.sim
-# TD-17703 ./test.sh -f tsim/parser/nestquery.sim
+./test.sh -f tsim/parser/nestquery.sim
 ./test.sh -f tsim/parser/null_char.sim
 ./test.sh -f tsim/parser/precision_ns.sim
 ./test.sh -f tsim/parser/projection_limit_offset.sim
@@ -179,7 +179,6 @@
 ./test.sh -f tsim/query/scalarFunction.sim
 ./test.sh -f tsim/query/scalarNull.sim
 ./test.sh -f tsim/query/session.sim
-./test.sh -f tsim/query/udf.sim
 
 # ---- qnode
 ./test.sh -f tsim/qnode/basic1.sim
@@ -316,6 +315,7 @@
 ./test.sh -f tsim/valgrind/checkError5.sim
 ./test.sh -f tsim/valgrind/checkError6.sim
 ./test.sh -f tsim/valgrind/checkError7.sim
+./test.sh -f tsim/valgrind/checkUdf.sim
 
 # --- vnode
 # unsupport ./test.sh -f tsim/vnode/replica3_basic.sim
@@ -339,7 +339,7 @@
 # --- catalog ----
 ./test.sh -f tsim/catalog/alterInCurrent.sim
 
-# --- scalar
+# --- scalar ----
 ./test.sh -f tsim/scalar/in.sim
 ./test.sh -f tsim/scalar/scalar.sim
 
@@ -384,7 +384,7 @@
 ./test.sh -f tsim/compute/sum.sim
 ./test.sh -f tsim/compute/top.sim
 
-# ---- field
+# ---- field ----
 ./test.sh -f tsim/field/2.sim
 ./test.sh -f tsim/field/3.sim
 ./test.sh -f tsim/field/4.sim
@@ -401,7 +401,7 @@
 ./test.sh -f tsim/field/tinyint.sim
 ./test.sh -f tsim/field/unsigined_bigint.sim
 
-# ---- vector
+# ---- vector ----
 ./test.sh -f tsim/vector/metrics_field.sim
 ./test.sh -f tsim/vector/metrics_mix.sim
 ./test.sh -f tsim/vector/metrics_query.sim
@@ -414,14 +414,14 @@
 ./test.sh -f tsim/vector/table_query.sim
 ./test.sh -f tsim/vector/table_time.sim
 
-# ---- wal
+# ---- wal ----
 ./test.sh -f tsim/wal/kill.sim
 
-# ---- tag
+# ---- tag ----
 ./test.sh -f tsim/tag/3.sim
 ./test.sh -f tsim/tag/4.sim
 ./test.sh -f tsim/tag/5.sim
-# TD-17382 ./test.sh -f tsim/tag/6.sim
+./test.sh -f tsim/tag/6.sim
 ./test.sh -f tsim/tag/add.sim
 ./test.sh -f tsim/tag/bigint.sim
 ./test.sh -f tsim/tag/binary_binary.sim
@@ -429,18 +429,18 @@
 ./test.sh -f tsim/tag/bool_binary.sim
 ./test.sh -f tsim/tag/bool_int.sim
 ./test.sh -f tsim/tag/bool.sim
-# TD-17407 ./test.sh -f tsim/tag/change.sim
+./test.sh -f tsim/tag/change.sim
 ./test.sh -f tsim/tag/column.sim
 ./test.sh -f tsim/tag/commit.sim
-# TD-17407 ./test.sh -f tsim/tag/create.sim
-# TD-17407 ./test.sh -f tsim/tag/delete.sim
-# TD-17407 ./test.sh -f tsim/tag/double.sim
+./test.sh -f tsim/tag/create.sim
+./test.sh -f tsim/tag/delete.sim
+./test.sh -f tsim/tag/double.sim
 ./test.sh -f tsim/tag/filter.sim
-# TD-17407 ./test.sh -f tsim/tag/float.sim
+./test.sh -f tsim/tag/float.sim
 ./test.sh -f tsim/tag/int_binary.sim
 ./test.sh -f tsim/tag/int_float.sim
 ./test.sh -f tsim/tag/int.sim
-# TD-17959 ./test.sh -f tsim/tag/set.sim
+./test.sh -f tsim/tag/set.sim
 ./test.sh -f tsim/tag/smallint.sim
 ./test.sh -f tsim/tag/tinyint.sim
 

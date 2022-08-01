@@ -140,13 +140,23 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
       SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
 
+    colDataDestroy(out.columnData);
+    taosMemoryFreeClear(out.columnData);
+    out.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+
     cell = cell->pNext;
   }
 
   *data = pObj;
+
+  colDataDestroy(out.columnData);
+  taosMemoryFreeClear(out.columnData);
   return TSDB_CODE_SUCCESS;
 
 _return:
+
+  colDataDestroy(out.columnData);
+  taosMemoryFreeClear(out.columnData);
   taosHashCleanup(pObj);
   SCL_RET(code);
 }

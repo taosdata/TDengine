@@ -162,10 +162,7 @@ int32_t tNameGetDbName(const SName* name, char* dst) {
   return 0;
 }
 
-const char* tNameGetDbNameP(const SName* name) {
-  return &name->dbname[0];
-}
-
+const char* tNameGetDbNameP(const SName* name) { return &name->dbname[0]; }
 
 int32_t tNameGetFullDbName(const SName* name, char* dst) {
   assert(name != NULL && dst != NULL);
@@ -211,7 +208,6 @@ int32_t tNameAddTbName(SName* dst, const char* tbName, size_t nameLen) {
   tstrncpy(dst->tname, tbName, nameLen + 1);
   return 0;
 }
-
 
 int32_t tNameSetAcctId(SName* dst, int32_t acctId) {
   assert(dst != NULL);
@@ -340,7 +336,7 @@ void buildChildTableName(RandTableName* rName) {
   char temp[8] = {0};
   rName->childTableName[0] = 't';
   rName->childTableName[1] = '_';
-  for(int i = 0; i < 16; i++){
+  for (int i = 0; i < 16; i++) {
     sprintf(temp, "%02x", context.digest[i]);
     strcat(rName->childTableName, temp);
   }

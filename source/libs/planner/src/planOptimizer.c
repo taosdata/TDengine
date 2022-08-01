@@ -436,7 +436,7 @@ static int32_t pushDownCondOptDealScan(SOptimizeContext* pCxt, SScanLogicNode* p
 
   SNode*  pPrimaryKeyCond = NULL;
   SNode*  pOtherCond = NULL;
-  int32_t code = nodesPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pScan->pTagIndexCond, &pScan->pTagCond,
+  int32_t code = filterPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pScan->pTagIndexCond, &pScan->pTagCond,
                                     &pOtherCond);
   if (TSDB_CODE_SUCCESS == code && NULL != pScan->pTagCond) {
     code = pushDownCondOptRebuildTbanme(&pScan->pTagCond);
@@ -2427,5 +2427,8 @@ static int32_t applyOptimizeRule(SPlanContext* pCxt, SLogicSubplan* pLogicSubpla
 }
 
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  if (SUBPLAN_TYPE_MODIFY == pLogicSubplan->subplanType && NULL == pLogicSubplan->pNode->pChildren) {
+    return TSDB_CODE_SUCCESS;
+  }
   return applyOptimizeRule(pCxt, pLogicSubplan);
 }

@@ -248,12 +248,25 @@ static bool stbSplNeedSplitWindow(bool streamQuery, SLogicNode* pNode) {
   return false;
 }
 
+static bool stbSplNeedSplitJoin(bool streamQuery, SJoinLogicNode* pJoin) {
+  if (pJoin->isSingleTableJoin) {
+    return false;
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pJoin->node.pChildren) {
+    if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild) && QUERY_NODE_LOGIC_PLAN_JOIN != nodeType(pChild)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static bool stbSplNeedSplit(bool streamQuery, SLogicNode* pNode) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return stbSplIsMultiTbScan(streamQuery, (SScanLogicNode*)pNode);
     case QUERY_NODE_LOGIC_PLAN_JOIN:
-      return !(((SJoinLogicNode*)pNode)->isSingleTableJoin);
+      return stbSplNeedSplitJoin(streamQuery, (SJoinLogicNode*)pNode);
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
       return stbSplIsMultiTbScanChild(streamQuery, pNode);
     case QUERY_NODE_LOGIC_PLAN_AGG:
@@ -763,9 +776,13 @@ static SNode* stbSplCreateColumnNode(SExprNode* pExpr) {
     return NULL;
   }
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+    strcpy(pCol->dbName, ((SColumnNode*)pExpr)->dbName);
+    strcpy(pCol->tableName, ((SColumnNode*)pExpr)->tableName);
     strcpy(pCol->tableAlias, ((SColumnNode*)pExpr)->tableAlias);
+    strcpy(pCol->colName, ((SColumnNode*)pExpr)->colName);
+  } else {
+    strcpy(pCol->colName, pExpr->aliasName);
   }
-  strcpy(pCol->colName, pExpr->aliasName);
   strcpy(pCol->node.aliasName, pExpr->aliasName);
   pCol->node.resType = pExpr->resType;
   return (SNode*)pCol;

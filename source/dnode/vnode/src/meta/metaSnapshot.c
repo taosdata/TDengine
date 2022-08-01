@@ -109,7 +109,7 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
   }
 
   SSnapDataHdr* pHdr = (SSnapDataHdr*)(*ppData);
-  pHdr->type = 0;  // TODO: use macro
+  pHdr->type = SNAP_DATA_META;
   pHdr->size = nData;
   memcpy(pHdr->data, pData, nData);
 

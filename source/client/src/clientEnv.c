@@ -316,6 +316,7 @@ void doDestroyRequest(void *p) {
 
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->dbList);
+  taosArrayDestroy(pRequest->targetTableList);
 
   destroyQueryExecRes(&pRequest->body.resInfo.execRes);
 
@@ -361,6 +362,8 @@ void taos_init_imp(void) {
 
   initQueryModuleMsgHandle();
 
+  taosConvInit();
+  
   rpcInit();
 
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};

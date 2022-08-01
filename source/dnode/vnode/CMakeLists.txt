@@ -31,6 +31,7 @@ target_sources(
     "src/sma/smaOpen.c"
     "src/sma/smaCommit.c"
     "src/sma/smaRollup.c"
+    "src/sma/smaSnapshot.c"
     "src/sma/smaTimeRange.c"
 
     # tsdb
@@ -57,6 +58,8 @@ target_sources(
     "src/tq/tqPush.c"
     "src/tq/tqSink.c"
     "src/tq/tqCommit.c"
+    "src/tq/tqSnapshot.c"
+    "src/tq/tqOffsetSnapshot.c"
 )
 target_include_directories(
     vnode

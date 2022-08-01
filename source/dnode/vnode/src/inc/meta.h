@@ -78,7 +78,11 @@ struct SMeta {
   TTB*  pTagIdx;
   TTB*  pTtlIdx;
 
-  TTB*      pSmaIdx;
+  TTB* pSmaIdx;
+
+  // stream
+  TTB* pStreamDb;
+
   SMetaIdx* pIdx;
 };
 

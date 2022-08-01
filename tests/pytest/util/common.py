@@ -78,8 +78,8 @@ class DataSet:
             self.float_data.append( float(i * float_step % FLOAT_MAX ))
             self.double_data.append( float(i * double_step % DOUBLE_MAX ))
             self.bool_data.append( bool((i + bool_start) % 2 ))
-            self.vchar_data.append( f"{vchar_prefix}_{i * vchar_step}" )
-            self.nchar_data.append( f"{nchar_prefix}_{i * nchar_step}")
+            self.vchar_data.append( f"{vchar_prefix}{i * vchar_step}" )
+            self.nchar_data.append( f"{nchar_prefix}{i * nchar_step}")
             self.ts_data.append( int(datetime.timestamp(datetime.now()) * 1000 - i * ts_step))
 
     def get_disorder_set(self, rows, **kwargs):

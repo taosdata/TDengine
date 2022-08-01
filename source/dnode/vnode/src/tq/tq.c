@@ -548,6 +548,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
     SWalRef* pRef = walRefCommittedVer(pTq->pVnode->pWal);
     if (pRef == NULL) {
       ASSERT(0);
+      return -1;
     }
     int64_t ver = pRef->refVer;
     pHandle->pRef = pRef;
@@ -684,6 +685,9 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen) {
 
   taosHashPut(pTq->pStreamTasks, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void*));
 
+  /*SMeta* pMeta = pTq->pVnode->pMeta;*/
+  /*tdbTbUpsert(pMeta->pTaskIdx, &pTask->taskId, sizeof(int32_t), msg, msgLen, &pMeta->txn);*/
+
   return 0;
 FAIL:
   if (pTask->inputQueue) streamQueueClose(pTask->inputQueue);
@@ -692,7 +696,7 @@ FAIL:
   return -1;
 }
 
-int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* pReq) {
+int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* pReq, int64_t ver) {
   void*              pIter = NULL;
   bool               failed = false;
   SStreamDataSubmit* pSubmit = NULL;
@@ -710,7 +714,7 @@ int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* pReq) {
     SStreamTask* pTask = *(SStreamTask**)pIter;
     if (!pTask->isDataScan) continue;
 
-    qDebug("data submit enqueue stream task: %d", pTask->taskId);
+    qDebug("data submit enqueue stream task: %d, ver: %ld", pTask->taskId, ver);
 
     if (!failed) {
       if (streamTaskInput(pTask, (SStreamQueueItem*)pSubmit) < 0) {

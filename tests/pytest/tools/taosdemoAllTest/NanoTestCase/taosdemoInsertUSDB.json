@@ -18,19 +18,19 @@
             "name": "testdb2",
             "drop": "yes",
             "replica": 1,
-            "days": 10,
+
             "cache": 50,
-            "blocks": 8,
+
             "precision": "us",
             "keep": 3600,
             "minRows": 100,
             "maxRows": 4096,
-            "comp":2,
-            "walLevel":1,
-            "cachelast":0,
-            "quorum":1,
-            "fsync":3000,
-            "update": 0
+            "comp":2
+
+
+
+
+
         },
         "super_tables": [{
             "name": "stb0",
