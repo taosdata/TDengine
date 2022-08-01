@@ -830,7 +830,6 @@ static void destroyConn(SSvrConn* conn, bool clear) {
     return;
   }
 
-  transDestroyBuffer(&conn->readBuf);
   if (clear) {
     if (!uv_is_closing((uv_handle_t*)conn->pTcp)) {
       tTrace("conn %p to be destroyed", conn);
@@ -881,6 +880,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
   QUEUE_REMOVE(&conn->queue);
   taosMemoryFree(conn->pTcp);
   destroyConnRegArg(conn);
+  transDestroyBuffer(&conn->readBuf);
   taosMemoryFree(conn);
 
   if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {
