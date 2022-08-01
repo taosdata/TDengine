@@ -33,10 +33,11 @@ int shell_conn_ws_server(bool first) {
 	return 0;
 }
 
-static int horizontalPrintWebsocket(WS_RES* wres) {
+static int horizontalPrintWebsocket(WS_RES* wres, double* execute_time) {
   const void* data = NULL;
   int rows;
   ws_fetch_block(wres, &data, &rows);
+  *execute_time += (double)(ws_take_timing(wres)/1E6);
   if (!rows) {
 	return 0;
   }
@@ -72,10 +73,11 @@ static int horizontalPrintWebsocket(WS_RES* wres) {
   return numOfRows;
 }
 
-static int verticalPrintWebsocket(WS_RES* wres) {
+static int verticalPrintWebsocket(WS_RES* wres, double* pexecute_time) {
   int rows = 0;
   const void* data = NULL;
   ws_fetch_block(wres, &data, &rows);
+  *pexecute_time += (double)(ws_take_timing(wres)/1E6);
   if (!rows) {
 	return 0;
   }
@@ -112,7 +114,7 @@ static int verticalPrintWebsocket(WS_RES* wres) {
   return numOfRows;
 }
 
-static int dumpWebsocketToFile(const char* fname, WS_RES* wres) {
+static int dumpWebsocketToFile(const char* fname, WS_RES* wres, double* pexecute_time) {
   char fullname[PATH_MAX] = {0};
   if (taosExpandDir(fname, fullname, PATH_MAX) != 0) {
     tstrncpy(fullname, fname, PATH_MAX);
@@ -127,6 +129,7 @@ static int dumpWebsocketToFile(const char* fname, WS_RES* wres) {
   int rows = 0;
   const void* data = NULL;
   ws_fetch_block(wres, &data, &rows);
+  *pexecute_time += (double)(ws_take_timing(wres)/1E6);
   if (!rows) {
     taosCloseFile(&pFile);
 	return 0;
@@ -162,14 +165,14 @@ static int dumpWebsocketToFile(const char* fname, WS_RES* wres) {
   return numOfRows;
 }
 
-static int shellDumpWebsocket(WS_RES *wres, char *fname, int *error_no, bool vertical) {
+static int shellDumpWebsocket(WS_RES *wres, char *fname, int *error_no, bool vertical, double* pexecute_time) {
   int numOfRows = 0;
   if (fname != NULL) {
-    numOfRows = dumpWebsocketToFile(fname, wres);
+    numOfRows = dumpWebsocketToFile(fname, wres, pexecute_time);
   } else if (vertical) {
-    numOfRows = verticalPrintWebsocket(wres);
+    numOfRows = verticalPrintWebsocket(wres, pexecute_time);
   } else {
-    numOfRows = horizontalPrintWebsocket(wres);
+    numOfRows = horizontalPrintWebsocket(wres, pexecute_time);
   }
   *error_no = ws_errno(wres);
   return numOfRows;
@@ -211,6 +214,7 @@ void shellRunSingleCommandWebsocketImp(char *command) {
   st = taosGetTimestampUs();
 
   WS_RES* res = ws_query_timeout(shell.ws_conn, command, shell.args.timeout);
+  double execute_time = ws_take_timing(res)/1E6;
   int code = ws_errno(res);
   if (code != 0) {
 	et = taosGetTimestampUs();
@@ -236,22 +240,27 @@ void shellRunSingleCommandWebsocketImp(char *command) {
   if (ws_is_update_query(res)) {
 	numOfRows = ws_affected_rows(res);
 	et = taosGetTimestampUs();
-	printf("Query Ok, %d of %d row(s) in database (%.6fs)\n", numOfRows, numOfRows,
-			(et - st)/1E6);
+    double total_time = (et - st)/1E3;
+    double net_time = total_time - (double)execute_time;
+	printf("Query Ok, %d of %d row(s) in database\n", numOfRows, numOfRows);
+    printf("Execute: %.2f ms Network: %.2f ms Total: %.2f ms\n", execute_time, net_time, total_time);
   } else {
 	int error_no = 0;
-	numOfRows  = shellDumpWebsocket(res, fname, &error_no, printMode);
+	numOfRows  = shellDumpWebsocket(res, fname, &error_no, printMode, &execute_time);
 	if (numOfRows < 0) {
 		ws_free_result(res);
 		return;
 	}
 	et = taosGetTimestampUs();
+    double total_time = (et - st) / 1E3;
+    double net_time = total_time - execute_time;
 	if (error_no == 0 && !shell.stop_query) {
-		printf("Query OK, %d row(s) in set (%.6fs)\n", numOfRows,
-				(et - st)/1E6);
+		printf("Query OK, %d row(s) in set\n", numOfRows);
+        printf("Execute: %.2f ms Network: %.2f ms Total: %.2f ms\n", execute_time, net_time, total_time);
 	} else {
 		printf("Query interrupted, %d row(s) in set (%.6fs)\n", numOfRows,
 				(et - st)/1E6);
+        printf("Execute: %.2f ms Network: %.2f ms Total: %.2f ms\n", execute_time, net_time, total_time);
 	}
   }
   printf("\n");
