@@ -21,6 +21,7 @@
 #include "tenv.h"
 #include "cJSON.h"
 #include "tjson.h"
+#include "tgrant.h"
 
 #define CFG_NAME_PRINT_LEN 24
 #define CFG_SRC_PRINT_LEN  12
@@ -301,6 +302,7 @@ static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value,
 }
 
 int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype) {
+  GRANT_CFG_SET;
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (pItem == NULL) {
     return -1;

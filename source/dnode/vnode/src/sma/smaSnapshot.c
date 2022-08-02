@@ -57,10 +57,10 @@ int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapRead
     }
   }
   *ppReader = pReader;
-  smaInfo("vgId:%d vnode snapshot rsma reader opened succeed", SMA_VID(pSma));
+  smaInfo("vgId:%d, vnode snapshot rsma reader opened succeed", SMA_VID(pSma));
   return TSDB_CODE_SUCCESS;
 _err:
-  smaError("vgId:%d vnode snapshot rsma reader opened failed since %s", SMA_VID(pSma), tstrerror(code)); 
+  smaError("vgId:%d, vnode snapshot rsma reader opened failed since %s", SMA_VID(pSma), tstrerror(code)); 
   return TSDB_CODE_FAILED;
 }
 
@@ -69,11 +69,11 @@ static int32_t rsmaSnapReadQTaskInfo(SRsmaSnapReader* pReader, uint8_t** ppData)
   SSma*   pSma = pReader->pSma;
 
 _exit:
-  smaInfo("vgId:%d vnode snapshot rsma read qtaskinfo succeed", SMA_VID(pSma));
+  smaInfo("vgId:%d, vnode snapshot rsma read qtaskinfo succeed", SMA_VID(pSma));
   return code;
 
 _err:
-  smaError("vgId:%d vnode snapshot rsma read qtaskinfo failed since %s", SMA_VID(pSma), tstrerror(code));
+  smaError("vgId:%d, vnode snapshot rsma read qtaskinfo failed since %s", SMA_VID(pSma), tstrerror(code));
   return code;
 }
 
@@ -82,7 +82,7 @@ int32_t rsmaSnapRead(SRsmaSnapReader* pReader, uint8_t** ppData) {
 
   *ppData = NULL;
 
-  smaInfo("vgId:%d vnode snapshot rsma read entry", SMA_VID(pReader->pSma));
+  smaInfo("vgId:%d, vnode snapshot rsma read entry", SMA_VID(pReader->pSma));
   // read rsma1/rsma2 file
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     STsdbSnapReader* pTsdbSnapReader = pReader->pDataReader[i];
@@ -90,7 +90,7 @@ int32_t rsmaSnapRead(SRsmaSnapReader* pReader, uint8_t** ppData) {
       continue;
     }
     if (!pReader->rsmaDataDone[i]) {
-      smaInfo("vgId:%d vnode snapshot rsma read level %d not done", SMA_VID(pReader->pSma), i);
+      smaInfo("vgId:%d, vnode snapshot rsma read level %d not done", SMA_VID(pReader->pSma), i);
       code = tsdbSnapRead(pTsdbSnapReader, ppData);
       if (code) {
         goto _err;
@@ -102,7 +102,7 @@ int32_t rsmaSnapRead(SRsmaSnapReader* pReader, uint8_t** ppData) {
         }
       }
     } else {
-      smaInfo("vgId:%d vnode snapshot rsma read level %d is done", SMA_VID(pReader->pSma), i);
+      smaInfo("vgId:%d, vnode snapshot rsma read level %d is done", SMA_VID(pReader->pSma), i);
     }
   }
 
@@ -121,11 +121,11 @@ int32_t rsmaSnapRead(SRsmaSnapReader* pReader, uint8_t** ppData) {
   }
 
 _exit:
-  smaInfo("vgId:%d vnode snapshot rsma read succeed", SMA_VID(pReader->pSma));
+  smaInfo("vgId:%d, vnode snapshot rsma read succeed", SMA_VID(pReader->pSma));
   return code;
 
 _err:
-  smaError("vgId:%d vnode snapshot rsma read failed since %s", SMA_VID(pReader->pSma), tstrerror(code));
+  smaError("vgId:%d, vnode snapshot rsma read failed since %s", SMA_VID(pReader->pSma), tstrerror(code));
   return code;
 }
 
@@ -141,11 +141,11 @@ int32_t rsmaSnapReaderClose(SRsmaSnapReader** ppReader) {
 
   if (pReader->pQTaskFReader) {
     // TODO: close for qtaskinfo
-    smaInfo("vgId:%d vnode snapshot rsma reader closed for qTaskInfo", SMA_VID(pReader->pSma));
+    smaInfo("vgId:%d, vnode snapshot rsma reader closed for qTaskInfo", SMA_VID(pReader->pSma));
   }
 
 
-  smaInfo("vgId:%d vnode snapshot rsma reader closed", SMA_VID(pReader->pSma));
+  smaInfo("vgId:%d, vnode snapshot rsma reader closed", SMA_VID(pReader->pSma));
 
   taosMemoryFreeClear(*ppReader);
   return code;
@@ -196,11 +196,11 @@ int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapWrit
 
   *ppWriter = pWriter;
 
-  smaInfo("vgId:%d rsma snapshot writer open succeed", TD_VID(pSma->pVnode));
+  smaInfo("vgId:%d, rsma snapshot writer open succeed", TD_VID(pSma->pVnode));
   return code;
 
 _err:
-  smaError("vgId:%d rsma snapshot writer open failed since %s", TD_VID(pSma->pVnode), tstrerror(code));
+  smaError("vgId:%d, rsma snapshot writer open failed since %s", TD_VID(pSma->pVnode), tstrerror(code));
   *ppWriter = NULL;
   return code;
 }
@@ -222,13 +222,13 @@ int32_t rsmaSnapWriterClose(SRsmaSnapWriter** ppWriter, int8_t rollback) {
     }
   }
 
-  smaInfo("vgId:%d vnode snapshot rsma writer close succeed", SMA_VID(pWriter->pSma));
+  smaInfo("vgId:%d, vnode snapshot rsma writer close succeed", SMA_VID(pWriter->pSma));
   taosMemoryFree(pWriter);
   *ppWriter = NULL;
   return code;
 
 _err:
-  smaError("vgId:%d vnode snapshot rsma writer close failed since %s", SMA_VID(pWriter->pSma), tstrerror(code));
+  smaError("vgId:%d, vnode snapshot rsma writer close failed since %s", SMA_VID(pWriter->pSma), tstrerror(code));
   return code;
 }
 
@@ -251,11 +251,11 @@ int32_t rsmaSnapWrite(SRsmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   if (code < 0) goto _err;
 
 _exit:
-  smaInfo("vgId:%d rsma snapshot write for data type %" PRIi8 " succeed", SMA_VID(pWriter->pSma), pHdr->type);
+  smaInfo("vgId:%d, rsma snapshot write for data type %" PRIi8 " succeed", SMA_VID(pWriter->pSma), pHdr->type);
   return code;
 
 _err:
-  smaError("vgId:%d rsma snapshot write for data type %" PRIi8 " failed since %s", SMA_VID(pWriter->pSma), pHdr->type,
+  smaError("vgId:%d, rsma snapshot write for data type %" PRIi8 " failed since %s", SMA_VID(pWriter->pSma), pHdr->type,
            tstrerror(code));
   return code;
 }
@@ -280,11 +280,11 @@ static int32_t rsmaSnapWriteQTaskInfo(SRsmaSnapWriter* pWriter, uint8_t* pData, 
     // code = tsdbDelFWriterOpen(&pWriter->pDelFWriter, &delFile, pTsdb);
     // if (code) goto _err;
   }
-  smaInfo("vgId:%d vnode snapshot rsma write qtaskinfo succeed", SMA_VID(pWriter->pSma));
+  smaInfo("vgId:%d, vnode snapshot rsma write qtaskinfo succeed", SMA_VID(pWriter->pSma));
 _exit:
   return code;
 
 _err:
-  smaError("vgId:%d vnode snapshot rsma write qtaskinfo failed since %s", SMA_VID(pWriter->pSma), tstrerror(code));
+  smaError("vgId:%d, vnode snapshot rsma write qtaskinfo failed since %s", SMA_VID(pWriter->pSma), tstrerror(code));
   return code;
 }
