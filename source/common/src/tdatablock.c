@@ -1739,6 +1739,9 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
             formatTimestamp(pBuf, *(uint64_t*)var, TSDB_TIME_PRECISION_MILLI);
             printf(" %25s |", pBuf);
             break;
+          case TSDB_DATA_TYPE_BOOL:
+            printf(" %15d |", *(int32_t*)var);
+            break;
           case TSDB_DATA_TYPE_INT:
             printf(" %15d |", *(int32_t*)var);
             break;
@@ -1756,6 +1759,22 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
             break;
           case TSDB_DATA_TYPE_DOUBLE:
             printf(" %15lf |", *(double*)var);
+            break;
+          case TSDB_DATA_TYPE_VARCHAR: {
+            char*   pData = colDataGetVarData(pColInfoData, j);
+            int32_t dataSize = TMIN(sizeof(pBuf) - 1, varDataLen(pData));
+            memset(pBuf, 0, dataSize + 1);
+            strncpy(pBuf, varDataVal(pData), dataSize);
+            printf(" %15s |", pBuf);
+          } break;
+          case TSDB_DATA_TYPE_NCHAR: {
+            char*   pData = colDataGetVarData(pColInfoData, j);
+            int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData));
+            memset(pBuf, 0, dataSize);
+            taosUcs4ToMbs((TdUcs4*)varDataVal(pData), dataSize, pBuf);
+            printf(" %15s |", pBuf);
+          } break;
+          default:
             break;
         }
       }
@@ -1931,12 +1950,14 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
             }
             break;
           case TSDB_DATA_TYPE_NCHAR: {
-            tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_NCHAR, TD_VTYPE_NORM, var, true,
+            void* data = colDataGetData(pColInfoData, j);
+            tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_NCHAR, TD_VTYPE_NORM, data, true,
                                 offset, k);
             break;
           }
           case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
-            tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_VARCHAR, TD_VTYPE_NORM, var, true,
+            void* data = colDataGetData(pColInfoData, j);
+            tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_VARCHAR, TD_VTYPE_NORM, data, true,
                                 offset, k);
             break;
           }

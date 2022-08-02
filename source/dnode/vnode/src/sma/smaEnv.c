@@ -295,6 +295,9 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
         nLoops = 0;
       }
     }
+
+    // step 4: free pStat
+    taosMemoryFreeClear(pStat);
   }
 }
 
@@ -321,12 +324,13 @@ int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
       tdDestroyTSmaStat(SMA_TSMA_STAT(pSmaStat));
     } else if (smaType == TSDB_SMA_TYPE_ROLLUP) {
       SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pSmaStat);
+      int32_t    vid = SMA_VID(pRSmaStat->pSma);
+      int64_t    refId = RSMA_REF_ID(pRSmaStat);
       if (taosRemoveRef(smaMgmt.rsetId, RSMA_REF_ID(pRSmaStat)) < 0) {
-        smaError("vgId:%d, remove refId:%" PRIi64 " from rsmaRef:%" PRIi32 " failed since %s", SMA_VID(pRSmaStat->pSma),
-                 RSMA_REF_ID(pRSmaStat), smaMgmt.rsetId, terrstr());
+        smaError("vgId:%d, remove refId:%" PRIi64 " from rsmaRef:%" PRIi32 " failed since %s", vid, refId,
+                 smaMgmt.rsetId, terrstr());
       } else {
-        smaDebug("vgId:%d, remove refId:%" PRIi64 " from rsmaRef:%" PRIi32 " succeed", SMA_VID(pRSmaStat->pSma),
-                 RSMA_REF_ID(pRSmaStat), smaMgmt.rsetId);
+        smaDebug("vgId:%d, remove refId:%" PRIi64 " from rsmaRef:%" PRIi32 " succeed", vid, refId, smaMgmt.rsetId);
       }
     } else {
       ASSERT(0);
