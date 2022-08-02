@@ -3992,7 +3992,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         int32_t sz = taosArrayGetSize(pTableListInfo->pTableList);
         for (int32_t i = 0; i < sz; i++) {
           STableKeyInfo* pKeyInfo = taosArrayGet(pTableListInfo->pTableList, i);
-          qDebug("creating stream task: add table %ld", pKeyInfo->uid);
+          qDebug("creating stream task: add table %" PRId64, pKeyInfo->uid);
         }
       }
 #endif
