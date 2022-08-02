@@ -984,6 +984,10 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
     return NULL;
   } 
 
+  if (pHead->msgType == TSDB_MSG_TYPE_PROBE_CONN || pHead->msgType == TSDB_MSG_TYPE_PROBE_CONN_RSP) {
+    return pConn;
+  }
+
   rpcLockConn(pConn);
 
   if (rpcIsReq(pHead->msgType)) {
@@ -1107,6 +1111,7 @@ static void rpcProcessProbeMsg(SRecvInfo *pRecv, SRpcConn *pConn) {
 
     bool ret = rpcSendMsgToPeer(pConn, pRspHead, sizeof(SRpcHead));
     tInfo("PROBE 0x%" PRIx64 " recv probe msg and do response. ret=%d", ahandle, ret);
+
     rpcUnlockConn(pConn);
     rpcFreeMsg(pRecv->msg);
   } else if (pHead->msgType == TSDB_MSG_TYPE_PROBE_CONN_RSP) {

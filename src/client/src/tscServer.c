@@ -336,7 +336,8 @@ void checkBrokenQueries(STscObj *pTscObj) {
 
     bool kill = false;
     int32_t numOfSub = pSql->subState.numOfSub;
-    tscInfo("PROBE 0x%" PRIx64 " start checking sql connection alive, numOfSub=%d sql=%s", pSql->self, numOfSub, pSql->sqlstr == NULL ? "" : pSql->sqlstr);
+    tscInfo("PROBE 0x%" PRIx64 " start checking sql alive, numOfSub=%d sql=%s stime=%" PRId64 " alive=%" PRId64 " rpcRid=0x%" PRIx64 \
+                      ,pSql->self, numOfSub, pSql->sqlstr == NULL ? "" : pSql->sqlstr, pSql->stime, pSql->lastAlive, pSql->rpcRid);
     if (numOfSub == 0) {
       // no sub sql
       if(!sendProbeConnMsg(pSql, pSql->stime)) {
