@@ -19,6 +19,7 @@
 #include "scheduler.h"
 #include "tdatablock.h"
 #include "tglobal.h"
+#include "tgrant.h"
 
 extern SConfig* tsCfg;
 
@@ -563,7 +564,7 @@ int32_t setLocalVariablesResultIntoDataBlock(SSDataBlock* pBlock) {
 
   for (int32_t i = 0, c = 0; i < numOfCfg; ++i, c = 0) {
     SConfigItem* pItem = taosArrayGet(tsCfg->array, i);
-
+    GRANT_CFG_SKIP;
     char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, c++);

@@ -78,7 +78,7 @@ int32_t walNextValidMsg(SWalReader *pReader) {
   int64_t endVer = pReader->cond.scanUncommited ? lastVer : committedVer;
   endVer = TMIN(appliedVer, endVer);
 
-  wDebug("vgId:%d wal start to fetch, ver %ld, last ver %ld commit ver %ld, applied ver %ld, end ver %ld",
+  wDebug("vgId:%d, wal start to fetch, ver %ld, last ver %ld commit ver %ld, applied ver %ld, end ver %ld",
          pReader->pWal->cfg.vgId, fetchVer, lastVer, committedVer, appliedVer, endVer);
   pReader->curStopped = 0;
   while (fetchVer <= endVer) {
@@ -190,7 +190,8 @@ int32_t walReadSeekVerImpl(SWalReader *pReader, int64_t ver) {
     return -1;
   }
 
-  wDebug("wal version reset from %ld(invalid: %d) to %ld", pReader->curVersion, pReader->curInvalid, ver);
+  wDebug("vgId:%d, wal version reset from %" PRId64 "(invalid: %d) to %" PRId64, pReader->pWal->cfg.vgId,
+         pReader->curVersion, pReader->curInvalid, ver);
 
   pReader->curVersion = ver;
   return 0;
@@ -199,7 +200,7 @@ int32_t walReadSeekVerImpl(SWalReader *pReader, int64_t ver) {
 int32_t walReadSeekVer(SWalReader *pReader, int64_t ver) {
   SWal *pWal = pReader->pWal;
   if (!pReader->curInvalid && ver == pReader->curVersion) {
-    wDebug("wal version %ld match, no need to reset", ver);
+    wDebug("vgId:%d, wal version %" PRId64 " match, no need to reset", pReader->pWal->cfg.vgId, ver);
     return 0;
   }
 
@@ -311,7 +312,7 @@ static int32_t walFetchBodyNew(SWalReader *pRead) {
     return -1;
   }
 
-  wDebug("version %ld is fetched, cursor advance", ver);
+  wDebug("vgId:%d, version %" PRId64 " is fetched, cursor advance", pRead->pWal->cfg.vgId, ver);
   pRead->curVersion = ver + 1;
   return 0;
 }
@@ -331,7 +332,7 @@ static int32_t walSkipFetchBodyNew(SWalReader *pRead) {
   }
 
   pRead->curVersion++;
-  wDebug("version advance to %ld, skip fetch", pRead->curVersion);
+  wDebug("vgId:%d, version advance to %" PRId64 ", skip fetch", pRead->pWal->cfg.vgId, pRead->curVersion);
 
   return 0;
 }
@@ -424,7 +425,7 @@ int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead) {
 }
 
 int32_t walReadVer(SWalReader *pReader, int64_t ver) {
-  wDebug("vgId:%d wal start to read ver %ld", pReader->pWal->cfg.vgId, ver);
+  wDebug("vgId:%d, wal start to read ver %ld", pReader->pWal->cfg.vgId, ver);
   int64_t contLen;
   int32_t code;
   bool    seeked = false;
