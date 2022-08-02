@@ -34,7 +34,7 @@ class Testfsync(TDCase):
         """
         test_param = self.cfg["create_name"]
         dbname = self.tdCom.get_long_name()
-        self.tdCom.createDb(dbname, wal=2)
+        self.tdCom.createDb(dbname, wal_level=2)
         self.tdRest.request('show databases')
         db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         # default
