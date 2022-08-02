@@ -89,7 +89,7 @@ void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t type, STagVal *tagVal);
-int         metaGetTableNameByUid(void* meta, uint64_t uid, char* tbName);
+int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
 
 typedef struct SMetaFltParam {
   tb_uid_t suid;
@@ -182,6 +182,8 @@ int32_t tqReaderSetDataMsg(STqReader *pReader, SSubmitReq *pMsg, int64_t ver);
 bool    tqNextDataBlock(STqReader *pReader);
 bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReader *pReader);
+
+void vnodeEnqueueStreamMsg(SVnode *pVnode, SRpcMsg *pMsg);
 
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);

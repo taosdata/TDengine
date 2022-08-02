@@ -16,7 +16,12 @@
 #include "executor.h"
 #include "sndInt.h"
 #include "tuuid.h"
+SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) { return NULL; }
+void    sndClose(SSnode *pSnode) {}
+int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) { return 0; }
+int32_t sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg) { return 0; }
 
+#if 0
 SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   SSnode *pSnode = taosMemoryCalloc(1, sizeof(SSnode));
   if (pSnode == NULL) {
@@ -151,7 +156,7 @@ static int32_t sndProcessTaskDispatchReq(SSnode *pNode, SRpcMsg *pMsg) {
            .info = pMsg->info,
            .code = 0,
   };
-  streamProcessDispatchReq(pTask, &req, &rsp);
+  streamProcessDispatchReq(pTask, &req, &rsp, true);
   return 0;
 }
 
@@ -263,3 +268,4 @@ int32_t sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   }
   return 0;
 }
+#endif

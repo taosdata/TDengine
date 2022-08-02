@@ -297,8 +297,8 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("message in fetch queue is processing");
-  if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META ||
-       pMsg->msgType == TDMT_VND_TABLE_CFG || pMsg->msgType == TDMT_VND_BATCH_META) &&
+  if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
+       pMsg->msgType == TDMT_VND_BATCH_META) &&
       !vnodeIsLeader(pVnode)) {
     vnodeRedirectRpcMsg(pVnode, pMsg);
     return 0;
@@ -330,7 +330,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     case TDMT_STREAM_TASK_RUN:
       return tqProcessTaskRunReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_DISPATCH:
-      return tqProcessTaskDispatchReq(pVnode->pTq, pMsg);
+      return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, true);
     case TDMT_STREAM_TASK_RECOVER:
       return tqProcessTaskRecoverReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_RETRIEVE:
@@ -485,7 +485,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pR
       rcode = -1;
       goto _exit;
     }
-    
+
     // validate hash
     sprintf(tbName, "%s.%s", pVnode->config.dbname, pCreateReq->name);
     if (vnodeValidateTableHash(pVnode, tbName) < 0) {
@@ -1021,10 +1021,10 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t version, void *pReq
   taosArrayDestroy(pRes->uidList);
 
   SVDeleteRsp rsp = {.affectedRows = pRes->affectedRows};
-  int32_t       ret = 0;
+  int32_t     ret = 0;
   tEncodeSize(tEncodeSVDeleteRsp, &rsp, pRsp->contLen, ret);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);
-  SEncoder      ec = {0};
+  SEncoder ec = {0};
   tEncoderInit(&ec, pRsp->pCont, pRsp->contLen);
   tEncodeSVDeleteRsp(&ec, &rsp);
   tEncoderClear(&ec);

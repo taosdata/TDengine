@@ -165,7 +165,11 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
       break;
     case STREAM_QUEUE:
       dGTrace("vgId:%d, msg:%p put into vnode-stream queue", pVnode->vgId, pMsg);
-      taosWriteQitem(pVnode->pStreamQ, pMsg);
+      if (pMsg->msgType == TDMT_STREAM_TASK_DISPATCH) {
+        vnodeEnqueueStreamMsg(pVnode->pImpl, pMsg);
+      } else {
+        taosWriteQitem(pVnode->pStreamQ, pMsg);
+      }
       break;
     case FETCH_QUEUE:
       dGTrace("vgId:%d, msg:%p put into vnode-fetch queue", pVnode->vgId, pMsg);
