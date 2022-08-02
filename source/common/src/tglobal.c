@@ -19,6 +19,9 @@
 #include "tconfig.h"
 #include "tdatablock.h"
 #include "tlog.h"
+#include "tgrant.h"
+
+GRANT_CFG_DECLARE;
 
 SConfig *tsCfg = NULL;
 
@@ -441,6 +444,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "ttlPushInterval", tsTtlPushInterval, 1, 100000, 1) != 0) return -1;
 
   if (cfgAddBool(pCfg, "udf", tsStartUdfd, 0) != 0) return -1;
+  GRANT_CFG_ADD;
   return 0;
 }
 
@@ -590,7 +594,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
-
+  GRANT_CFG_GET;
   return 0;
 }
 
@@ -603,6 +607,7 @@ void taosLocalCfgForbiddenToChange(char* name, bool* forbidden) {
     *forbidden = true;
     return;
   }
+  GRANT_CFG_CHECK;
 
   *forbidden = false;
 }

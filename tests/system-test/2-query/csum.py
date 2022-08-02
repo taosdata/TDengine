@@ -279,14 +279,14 @@ class TDTestCase:
         tdSql.error(self.csum_query_form(alias=", diff(c1)"))   # mix with calculation function  2
         # tdSql.error(self.csum_query_form(alias=" + 2"))         # mix with arithmetic 1
         tdSql.error(self.csum_query_form(alias=" + avg(c1)"))   # mix with arithmetic 2
-        tdSql.error(self.csum_query_form(alias=", c2"))         # mix with other 1
+        # tdSql.error(self.csum_query_form(alias=", c2"))         # mix with other 1
         # tdSql.error(self.csum_query_form(table_expr="stb1"))    # select stb directly
-        stb_join = {
-            "col": "stb1.c1",
-            "table_expr": "stb1, stb2",
-            "condition": "where stb1.ts=stb2.ts and stb1.st1=stb2.st2 order by stb1.ts"
-        }
-        tdSql.error(self.csum_query_form(**stb_join))           # stb join
+        #stb_join = {
+        #    "col": "stb1.c1",
+        #    "table_expr": "stb1, stb2",
+        #    "condition": "where stb1.ts=stb2.ts and stb1.st1=stb2.st2 order by stb1.ts"
+        #}
+        #tdSql.error(self.csum_query_form(**stb_join))           # stb join
         interval_sql = {
             "condition": "where ts>0 and ts < now interval(1h) fill(next)"
         }
@@ -421,6 +421,19 @@ class TDTestCase:
         tdSql.query("select csum(abs(c1))+2 from db.t1 ")
         tdSql.checkRows(4)
 
+        # support selectivity
+        tdSql.query("select ts, c1, csum(1) from db.t1")
+        tdSql.checkRows(7)
+
+        tdSql.query("select csum(1), ts, c1 from db.t1")
+        tdSql.checkRows(7)
+
+        tdSql.query("select ts, c1, c2, c3, csum(1), ts, c4, c5, c6 from db.t1")
+        tdSql.checkRows(7)
+
+        tdSql.query("select ts, c1, csum(1), c4, c5, csum(1), c6 from db.t1")
+        tdSql.checkRows(7)
+
     def csum_support_stable(self):
         tdSql.query(" select csum(1) from db.stb1 ")
         tdSql.checkRows(70)
@@ -472,6 +485,7 @@ class TDTestCase:
         # tdSql.checkRows(4)
         # tdSql.query("select csum(c1) from db.stb1 partition by st1 slimit 1")
         # tdSql.checkRows(4)
+
 
 
     def run(self):

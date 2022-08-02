@@ -262,21 +262,11 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
     char* start = (char*)((p == NULL) ? str : (p + 1));
 
     int32_t len = 0;
-    if (TS_ESCAPE_CHAR == *start) {
-      ++start;
-      char* end = start;
-      while ('`' != *end) {
-        ++end;
-      }
-      len = end - start;
-      p = ++end;
+    p = strstr(start, TS_PATH_DELIMITER);
+    if (p == NULL) {
+      len = (int32_t)strlen(start);
     } else {
-      p = strstr(start, TS_PATH_DELIMITER);
-      if (p == NULL) {
-        len = (int32_t)strlen(start);
-      } else {
-        len = (int32_t)(p - start);
-      }
+      len = (int32_t)(p - start);
     }
 
     // too long account id or too long db name
@@ -294,10 +284,6 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
 
     // too long account id or too long db name
     int32_t len = (int32_t)strlen(start);
-    if (TS_ESCAPE_CHAR == *start) {
-      len -= 2;
-      ++start;
-    }
     if ((len >= tListLen(dst->tname)) || (len <= 0)) {
       return -1;
     }

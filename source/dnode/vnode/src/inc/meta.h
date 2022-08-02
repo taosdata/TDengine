@@ -80,7 +80,8 @@ struct SMeta {
 
   TTB* pSmaIdx;
 
-  TTB* pTaskIdx;
+  // stream
+  TTB* pStreamDb;
 
   SMetaIdx* pIdx;
 };

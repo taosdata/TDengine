@@ -61,16 +61,42 @@ static bool beforeHaving(ESqlClause clause) { return clause < SQL_CLAUSE_HAVING;
 
 static bool afterHaving(ESqlClause clause) { return clause > SQL_CLAUSE_HAVING; }
 
+static bool hasSameTableAlias(SArray* pTables) {
+  if (taosArrayGetSize(pTables) < 2) {
+    return false;
+  }
+  STableNode* pTable0 = taosArrayGetP(pTables, 0);
+  for (int32_t i = 1; i < taosArrayGetSize(pTables); ++i) {
+    STableNode* pTable = taosArrayGetP(pTables, i);
+    if (0 == strcmp(pTable0->tableAlias, pTable->tableAlias)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static int32_t addNamespace(STranslateContext* pCxt, void* pTable) {
   size_t currTotalLevel = taosArrayGetSize(pCxt->pNsLevel);
   if (currTotalLevel > pCxt->currLevel) {
     SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
     taosArrayPush(pTables, &pTable);
+    if (hasSameTableAlias(pTables)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf,
+                              TSDB_CODE_PAR_NOT_UNIQUE_TABLE_ALIAS,
+                              "Not unique table/alias: '%s'",
+                              ((STableNode*)pTable)->tableAlias);
+    }
   } else {
     do {
       SArray* pTables = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
       if (pCxt->currLevel == currTotalLevel) {
         taosArrayPush(pTables, &pTable);
+        if (hasSameTableAlias(pTables)) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf,
+                                  TSDB_CODE_PAR_NOT_UNIQUE_TABLE_ALIAS,
+                                  "Not unique table/alias: '%s'",
+                                  ((STableNode*)pTable)->tableAlias);
+        }
       }
       taosArrayPush(pCxt->pNsLevel, &pTables);
       ++currTotalLevel;
@@ -3344,6 +3370,10 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
 }
 
 static int32_t checkCreateDatabase(STranslateContext* pCxt, SCreateDatabaseStmt* pStmt) {
+  if (NULL != strchr(pStmt->dbName, '.')) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,
+                                   "The database name cannot contain '.'");
+  }
   return checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions);
 }
 

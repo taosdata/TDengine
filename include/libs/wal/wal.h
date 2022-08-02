@@ -203,6 +203,7 @@ SWalRef *walRefCommittedVer(SWal *);
 SWalRef *walOpenRef(SWal *);
 void     walCloseRef(SWal *pWal, int64_t refId);
 int32_t  walRefVer(SWalRef *, int64_t ver);
+int32_t  walPreRefVer(SWalRef *pRef, int64_t ver);
 void     walUnrefVer(SWalRef *);
 
 // helper function for raft
