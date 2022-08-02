@@ -778,7 +778,7 @@ void shellReadHistory() {
     taosFsyncFile(pFile);
     taosCloseFile(&pFile);
   }
-  pHistory->hend = pHistory->hstart;
+  pHistory->hstart = pHistory->hend;
 }
 
 void shellWriteHistory() {
