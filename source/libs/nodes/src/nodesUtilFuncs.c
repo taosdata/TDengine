@@ -1818,3 +1818,19 @@ int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+const char* dataOrderStr(EDataOrderLevel order) {
+  switch (order) {
+    case DATA_ORDER_LEVEL_NONE:
+      return "no order required";
+    case DATA_ORDER_LEVEL_IN_BLOCK:
+      return "in-datablock order";
+    case DATA_ORDER_LEVEL_IN_GROUP:
+      return "in-group order";
+    case DATA_ORDER_LEVEL_GLOBAL:
+      return "global order";
+    default:
+      break;
+  }
+  return "unknown";
+}
