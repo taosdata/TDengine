@@ -180,41 +180,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'         
                            
         # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
-        # for i in (32,):
-        #     func = tdFunction.func_stable_special(i)
-        #     try:
-        #         self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
-        #         cur1.execute('use %s;' %self.db)                
-
-        #         self.logger.info("\n\n\n=======hanshu num = %d======error case========case1======\n\n\n" %i)
-                
-        #         stable_where = tdWhere.stable_where()
-        #         sql1 = 'select %s from %s;'  % (func,self.table)
-                
-        #         for i in range(2,len(stable_where[2])+1):
-        #             qt_where = list(combinations(stable_where[2],i))
-        #             for qt_where in qt_where:
-        #                 qt_where = str(qt_where).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
-        #                 qt_like_match = stable_where[3]
-        #                 qt_in_where = stable_where[4]
-
-        #                 sql2 = "select %s from %s where  %s %s %s" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-        #                 #self.tdSql.error(sql2)
-        #                 sql= sql + sql2
-
-        #                 sql2 = "select * from (select %s from %s where %s %s %s)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-        #                 #self.tdSql.error(sql2)
-        #                 sql= sql + sql2
-
-        #                 # csum 可以用在普通表查询，因此特殊处理一下 
-        #                 sql2 = "select %s from (select * from %s) where %s %s %s" %(func.replace("CSUM","TWA"),self.table,qt_where,qt_like_match,qt_in_where)
-        #                 self.tdSql.error(sql2)
-        #                 sql= sql + sql2
-
-        #     except Exception as e:
-        #         raise e   
-            
-        for i in (31,):#33
+        for i in (32,31,):
             func = tdFunction.func_stable_special(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -252,8 +218,47 @@ class TDTestQuery(TDCase):
 
             except Exception as e:
                 raise e   
+            
+        for i in (33,):
+            func = tdFunction.func_stable_special(i)
+            try:
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                
+
+                self.logger.info("\n\n\n=======hanshu num = %d======error case========case1======\n\n\n" %i)
+                
+                stable_where = tdWhere.stable_where()
+                sql1 = 'select %s from %s;'  % (func,self.table)
+                
+                for i in range(2,len(stable_where[2])+1):
+                    qt_where = list(combinations(stable_where[2],i))
+                    for qt_where in qt_where:
+                        qt_where = str(qt_where).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
+                        qt_like_match = stable_where[3]
+                        qt_in_where = stable_where[4]
+
+                        sql2 = "select %s from %s where  %s %s %s" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+
+                        sql2 = "select * from (select %s from %s where %s %s %s)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+
+                        sql2 = "select %s from (select * from %s) where %s %s %s" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+
+            except Exception as e:
+                raise e   
                         
-        for i in (31,32,33,):#33,
+        for i in (31,32,):
             func = tdFunction.func_stable_special(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -270,7 +275,46 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]         
                         
-                        list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,]
+                        list_intervals = [11,12,13,14,15,16,17,18,19,20,]
+                        list_interval = random.sample(list_intervals,5) 
+                        for i in list_interval:                       
+                            time_window_new = tdWhere.time_window_new(i)
+                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
+                            sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)
+
+                            sql2 = "select %s from %s where  %s %s %s;" %(func,self.table,qt_like_match,qt_in_where,time_window_new)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select * from (select %s from %s where %s %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select %s from (select * from %s) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
+
+            except Exception as e:
+                raise e  
+                                                                
+        for i in (33,):
+            func = tdFunction.func_stable_special(i)
+            try:
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                
+                    
+                self.logger.info("\n\n\n=======hanshu num = %d======error case_interval========case1======\n\n\n" %i)
+                
+                stable_where = tdWhere.stable_where()
+                
+                for i in range(2,len(stable_where[2])+1):
+                    qt_where = list(combinations(stable_where[2],i))
+                    for qt_where in qt_where:
+                        qt_where = str(qt_where).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
+                        qt_like_match = stable_where[3]
+                        qt_in_where = stable_where[4]         
+                        
+                        list_intervals = [11,13,14,15,16,17,18,19,20,]
                         list_interval = random.sample(list_intervals,5) 
                         for i in list_interval:                       
                             time_window_new = tdWhere.time_window_new(i)
@@ -2718,7 +2762,7 @@ class TDTestQuery(TDCase):
         self.logger.info("total time3 %ds" % (endTime3 - startTime3))     
 
         endTime = time.time()
-        #self.rm_sql()
+        self.rm_sql()
         self.logger.info("total time %ds" % (endTime - startTime))
 
 
