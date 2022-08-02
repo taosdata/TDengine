@@ -133,7 +133,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
 
   ret = tdbTbOpen("stream.task.db", sizeof(int64_t), -1, taskIdxKeyCmpr, pMeta->pEnv, &pMeta->pStreamDb);
   if (ret < 0) {
-    metaError("vgId: %d, failed to open meta stream task index since %s", TD_VID(pVnode), tstrerror(terrno));
+    metaError("vgIdd, failed to open meta stream task index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 

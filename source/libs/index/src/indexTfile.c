@@ -141,7 +141,7 @@ void tfileCacheDestroy(TFileCache* tcache) {
   TFileReader** reader = taosHashIterate(tcache->tableCache, NULL);
   while (reader) {
     TFileReader* p = *reader;
-    indexInfo("drop table cache suid: %" PRIu64 ", colName: %s, colType: %d", p->header.suid, p->header.colName,
+    indexInfo("drop table cache suid:%" PRIu64 ", colName: %s, colType: %d", p->header.suid, p->header.colName,
               p->header.colType);
     tfileReaderUnRef(p);
     reader = taosHashIterate(tcache->tableCache, reader);
@@ -185,20 +185,20 @@ TFileReader* tfileReaderCreate(IFileCtx* ctx) {
   reader->ctx = ctx;
 
   if (0 != tfileReaderVerify(reader)) {
-    indexError("invalid tfile, suid: %" PRIu64 ", colName: %s", reader->header.suid, reader->header.colName);
+    indexError("invalid tfile, suid:%" PRIu64 ", colName: %s", reader->header.suid, reader->header.colName);
     tfileReaderDestroy(reader);
     return NULL;
   }
   // T_REF_INC(reader);
   if (0 != tfileReaderLoadHeader(reader)) {
-    indexError("failed to load index header, suid: %" PRIu64 ", colName: %s", reader->header.suid,
+    indexError("failed to load index header, suid:%" PRIu64 ", colName: %s", reader->header.suid,
                reader->header.colName);
     tfileReaderDestroy(reader);
     return NULL;
   }
 
   if (0 != tfileReaderLoadFst(reader)) {
-    indexError("failed to load index fst, suid: %" PRIu64 ", colName: %s, errno: %d", reader->header.suid,
+    indexError("failed to load index fst, suid:%" PRIu64 ", colName: %s, errno: %d", reader->header.suid,
                reader->header.colName, errno);
     tfileReaderDestroy(reader);
     return NULL;
