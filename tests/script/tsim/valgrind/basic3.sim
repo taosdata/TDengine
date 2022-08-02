@@ -55,25 +55,6 @@ sql select tbcol5 - tbcol3 from tb1
 print =============== step4: stb
 sql select tbcol5 - tbcol3 from stb
 
-print =============== check
-$null=
-
-system_content sh/checkValgrind.sh -n dnode1 
-print cmd return result ----> [ $system_content ]
-if $system_content > 0 then
-  return -1
-endi 
-
-if $system_content == $null then
-  return -1
-endi 
-
-print =============== restart
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
-system sh/exec.sh -n dnode1 -s start -v
-sql select last_row(tbcol), stddev(tbcol) from stb where tbcol > 5 and tbcol < 20 group by tgcol
-
-_OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 print =============== check
 $null=
