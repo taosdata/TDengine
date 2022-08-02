@@ -436,7 +436,7 @@ static int32_t pushDownCondOptDealScan(SOptimizeContext* pCxt, SScanLogicNode* p
 
   SNode*  pPrimaryKeyCond = NULL;
   SNode*  pOtherCond = NULL;
-  int32_t code = nodesPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pScan->pTagIndexCond, &pScan->pTagCond,
+  int32_t code = filterPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pScan->pTagIndexCond, &pScan->pTagCond,
                                     &pOtherCond);
   if (TSDB_CODE_SUCCESS == code && NULL != pScan->pTagCond) {
     code = pushDownCondOptRebuildTbanme(&pScan->pTagCond);
@@ -1693,22 +1693,30 @@ static EDealRes eliminateProjOptCanUseNewChildTargetsImpl(SNode* pNode, void* pC
     CheckNewChildTargetsCxt* pCxt = pContext;
     SNode*                   pTarget = NULL;
     FOREACH(pTarget, pCxt->pNewChildTargets) {
-      if (!nodesEqualNode(pTarget, pNode)) {
-        pCxt->canUse = false;
-        return DEAL_RES_END;
+      if (nodesEqualNode(pTarget, pNode)) {
+        pCxt->canUse = true;
+        return DEAL_RES_CONTINUE;
       }
     }
+    pCxt->canUse = false;
+    return DEAL_RES_END;
   }
   return DEAL_RES_CONTINUE;
 }
 
-static bool eliminateProjOptCanUseNewChildTargets(SLogicNode* pChild, SNodeList* pNewChildTargets) {
-  if (NULL == pChild->pConditions) {
-    return true;
+static bool eliminateProjOptCanChildConditionUseChildTargets(SLogicNode* pChild, SNodeList* pNewChildTargets) {
+  if (NULL != pChild->pConditions) {
+    CheckNewChildTargetsCxt cxt = {.pNewChildTargets = pNewChildTargets, .canUse = false};
+    nodesWalkExpr(pChild->pConditions, eliminateProjOptCanUseNewChildTargetsImpl, &cxt);
+    if (!cxt.canUse) return false;
   }
-  CheckNewChildTargetsCxt cxt = {.pNewChildTargets = pNewChildTargets, .canUse = true};
-  nodesWalkExpr(pChild->pConditions, eliminateProjOptCanUseNewChildTargetsImpl, &cxt);
-  return cxt.canUse;
+  if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pChild) && NULL != ((SJoinLogicNode*)pChild)->pOnConditions) {
+    SJoinLogicNode* pJoinLogicNode = (SJoinLogicNode*)pChild;
+    CheckNewChildTargetsCxt cxt = {.pNewChildTargets = pNewChildTargets, .canUse = false};
+    nodesWalkExpr(pJoinLogicNode->pOnConditions, eliminateProjOptCanUseNewChildTargetsImpl, &cxt);
+    if (!cxt.canUse) return false;
+  }
+  return true;
 }
 
 static void alignProjectionWithTarget(SLogicNode* pNode) {
@@ -1748,7 +1756,7 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
       }
     }
   }
-  if (eliminateProjOptCanUseNewChildTargets(pChild, pNewChildTargets)) {
+  if (eliminateProjOptCanChildConditionUseChildTargets(pChild, pNewChildTargets)) {
     nodesDestroyList(pChild->pTargets);
     pChild->pTargets = pNewChildTargets;
   } else {
@@ -1760,6 +1768,7 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   if (TSDB_CODE_SUCCESS == code) {
     NODES_CLEAR_LIST(pProjectNode->node.pChildren);
     nodesDestroyNode((SNode*)pProjectNode);
+    //if pChild is a project logic node, remove its projection which is not reference by its target.
     alignProjectionWithTarget(pChild);
   }
   pCxt->optimized = true;
@@ -2427,5 +2436,8 @@ static int32_t applyOptimizeRule(SPlanContext* pCxt, SLogicSubplan* pLogicSubpla
 }
 
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  if (SUBPLAN_TYPE_MODIFY == pLogicSubplan->subplanType && NULL == pLogicSubplan->pNode->pChildren) {
+    return TSDB_CODE_SUCCESS;
+  }
   return applyOptimizeRule(pCxt, pLogicSubplan);
 }

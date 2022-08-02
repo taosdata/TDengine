@@ -19,6 +19,9 @@
 #include "tconfig.h"
 #include "tdatablock.h"
 #include "tlog.h"
+#include "tgrant.h"
+
+GRANT_CFG_DECLARE;
 
 SConfig *tsCfg = NULL;
 
@@ -49,7 +52,7 @@ int32_t tsNumOfShmThreads = 1;
 // queue & threads
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfCommitThreads = 2;
-int32_t tsNumOfTaskQueueThreads = 1;
+int32_t tsNumOfTaskQueueThreads = 4;
 int32_t tsNumOfMnodeQueryThreads = 4;
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
@@ -317,9 +320,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
 
-  tsNumOfTaskQueueThreads = tsNumOfCores / 4;
-  tsNumOfTaskQueueThreads = TRANGE(tsNumOfTaskQueueThreads, 1, 2);
-  if (cfgAddInt32(pCfg, "numOfTaskQueueThreads", tsNumOfTaskQueueThreads, 1, 1024, 0) != 0) return -1;
+  tsNumOfTaskQueueThreads = tsNumOfCores / 2;
+  tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
+  if (cfgAddInt32(pCfg, "numOfTaskQueueThreads", tsNumOfTaskQueueThreads, 4, 1024, 0) != 0) return -1;
 
   return 0;
 }
@@ -441,6 +444,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "ttlPushInterval", tsTtlPushInterval, 1, 100000, 1) != 0) return -1;
 
   if (cfgAddBool(pCfg, "udf", tsStartUdfd, 0) != 0) return -1;
+  GRANT_CFG_ADD;
   return 0;
 }
 
@@ -590,9 +594,24 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
-
+  GRANT_CFG_GET;
   return 0;
 }
+
+void taosLocalCfgForbiddenToChange(char* name, bool* forbidden) {
+  int32_t len = strlen(name);
+  char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
+  strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
+
+  if (strcasecmp("charset", name) == 0) {
+    *forbidden = true;
+    return;
+  }
+  GRANT_CFG_CHECK;
+
+  *forbidden = false;
+}
+
 
 int32_t taosSetCfg(SConfig *pCfg, char *name) {
   int32_t len = strlen(name);

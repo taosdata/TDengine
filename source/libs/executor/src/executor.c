@@ -495,11 +495,9 @@ void qDestroyTask(qTaskInfo_t qTaskHandle) {
   doDestroyTask(pTaskInfo);
 }
 
-int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, int32_t* resNum, SExplainExecInfo** pRes) {
+int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, SArray* pExecInfoList) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  int32_t        capacity = 0;
-
-  return getOperatorExplainExecInfo(pTaskInfo->pRoot, pRes, &capacity, resNum);
+  return getOperatorExplainExecInfo(pTaskInfo->pRoot, pExecInfoList);
 }
 
 int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len) {
@@ -607,7 +605,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
 #if 0
           if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.lastStatus) &&
               pInfo->tqReader->pWalReader->curVersion != pOffset->version) {
-            qError("prepare scan ver %ld actual ver %ld, last %ld", pOffset->version,
+            qError("prepare scan ver %" PRId64 " actual ver %" PRId64 ", last %" PRId64, pOffset->version,
                    pInfo->tqReader->pWalReader->curVersion, pTaskInfo->streamInfo.lastStatus.version);
             ASSERT(0);
           }
@@ -638,8 +636,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
 
 #ifndef NDEBUG
 
-        qDebug("switch to next table %ld (cursor %d), %ld rows returned", uid, pTableScanInfo->currentTable,
-               pInfo->pTableScanOp->resultInfo.totalRows);
+        qDebug("switch to next table %" PRId64 " (cursor %d), %" PRId64 " rows returned", uid,
+               pTableScanInfo->currentTable, pInfo->pTableScanOp->resultInfo.totalRows);
         pInfo->pTableScanOp->resultInfo.totalRows = 0;
 #endif
 
@@ -671,8 +669,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
         pTableScanInfo->cond.twindows.skey = oldSkey;
         pTableScanInfo->scanTimes = 0;
 
-        qDebug("tsdb reader offset seek to uid %ld ts %ld, table cur set to %d , all table num %d", uid, ts,
-               pTableScanInfo->currentTable, tableSz);
+        qDebug("tsdb reader offset seek to uid %" PRId64 " ts %" PRId64 ", table cur set to %d , all table num %d", uid,
+               ts, pTableScanInfo->currentTable, tableSz);
         /*}*/
 
       } else {

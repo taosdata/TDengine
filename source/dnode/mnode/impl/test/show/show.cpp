@@ -73,11 +73,11 @@ TEST_F(MndTestShow, 03_ShowMsg_Conn) {
   ASSERT_NE(pRsp, nullptr);
   ASSERT_EQ(pRsp->code, 0);
 
-  test.SendShowReq(TSDB_MGMT_TABLE_CONNS, "connections", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_CONNS, "perf_connections", "");
   // EXPECT_EQ(test.GetShowRows(), 1);
 }
 
 TEST_F(MndTestShow, 04_ShowMsg_Cluster) {
-  test.SendShowReq(TSDB_MGMT_TABLE_CLUSTER, "cluster", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_CLUSTER, "ins_cluster", "");
   EXPECT_EQ(test.GetShowRows(), 1);
 }

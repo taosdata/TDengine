@@ -30,12 +30,20 @@ void ctgFreeMsgSendParam(void* param) {
   taosMemoryFree(param);
 }
 
+void ctgFreeBatchMsg(void* msg) {
+  if (NULL == msg) {
+    return;
+  }
+  SBatchMsg* pMsg = (SBatchMsg*)msg;
+  taosMemoryFree(pMsg->msg);
+}
+
 void ctgFreeBatch(SCtgBatch *pBatch) {
   if (NULL == pBatch) {
     return;
   }
   
-  taosArrayDestroy(pBatch->pMsgs);
+  taosArrayDestroyEx(pBatch->pMsgs, ctgFreeBatchMsg);
   taosArrayDestroy(pBatch->pTaskIds);
 }
 

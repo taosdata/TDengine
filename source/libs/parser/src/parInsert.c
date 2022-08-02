@@ -21,6 +21,7 @@
 #include "tglobal.h"
 #include "ttime.h"
 #include "ttypes.h"
+#include "query.h"
 
 #define NEXT_TOKEN(pSql, sToken)                \
   do {                                          \
@@ -434,7 +435,7 @@ static FORCE_INLINE int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf,
 }
 
 static bool isNullStr(SToken* pToken) {
-  return ((pToken->type == TK_NK_STRING) && (pToken->n != 0) &&
+  return ((pToken->type == TK_NK_STRING) && (strlen(TSDB_DATA_NULL_STR_L) == pToken->n) &&
           (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0));
 }
 
@@ -1175,11 +1176,6 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
     getSTSRowAppendInfo(pBuilder->rowType, spd, i, &param.toffset, &param.colIdx);
     CHECK_CODE(parseValueToken(&pCxt->pSql, &sToken, pSchema, timePrec, tmpTokenBuf, MemRowAppend, &param, &pCxt->msg));
 
-    if (PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
-      TSKEY tsKey = TD_ROW_KEY(row);
-      checkTimestamp(pDataBlocks, (const char*)&tsKey);
-    }
-
     if (i < spd->numOfBound - 1) {
       NEXT_VALID_TOKEN(pCxt->pSql, sToken);
       if (TK_NK_COMMA != sToken.type) {
@@ -1187,6 +1183,9 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
       }
     }
   }
+
+  TSKEY tsKey = TD_ROW_KEY(row);
+  checkTimestamp(pDataBlocks, (const char*)&tsKey);
 
   if (!isParseBindParam) {
     // set the null value for the columns that do not assign values
@@ -1489,6 +1488,8 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
 
     return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is expected", sToken.z);
   }
+
+  qDebug("0x%" PRIx64 " insert input rows: %d", pCxt->pComCxt->requestId, pCxt->totalNum);
 
   if (TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT)) {
     SParsedDataColInfo* tags = taosMemoryMalloc(sizeof(pCxt->tags));
@@ -2410,9 +2411,9 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
       } else {
         int32_t colLen = kv->length;
         if (pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
-          //          uError("SML:data before:%ld, precision:%d", kv->i, pTableMeta->tableInfo.precision);
+          //          uError("SML:data before:%" PRId64 ", precision:%d", kv->i, pTableMeta->tableInfo.precision);
           kv->i = convertTimePrecision(kv->i, TSDB_TIME_PRECISION_NANO, pTableMeta->tableInfo.precision);
-          //          uError("SML:data after:%ld, precision:%d", kv->i, pTableMeta->tableInfo.precision);
+          //          uError("SML:data after:%" PRId64 ", precision:%d", kv->i, pTableMeta->tableInfo.precision);
         }
 
         if (IS_VAR_DATA_TYPE(kv->type)) {

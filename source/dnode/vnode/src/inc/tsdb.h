@@ -43,6 +43,7 @@ typedef struct STbDataIter   STbDataIter;
 typedef struct SMapData      SMapData;
 typedef struct SBlockIdx     SBlockIdx;
 typedef struct SBlock        SBlock;
+typedef struct SBlockL       SBlockL;
 typedef struct SColData      SColData;
 typedef struct SBlockDataHdr SBlockDataHdr;
 typedef struct SBlockData    SBlockData;
@@ -90,6 +91,9 @@ int32_t tsdbRowCmprFn(const void *p1, const void *p2);
 void     tRowIterInit(SRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
 SColVal *tRowIterNext(SRowIter *pIter);
 // SRowMerger
+int32_t tRowMergerInit2(SRowMerger *pMerger, STSchema *pResTSchema, TSDBROW *pRow, STSchema *pTSchema);
+int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
+
 int32_t tRowMergerInit(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
 void    tRowMergerClear(SRowMerger *pMerger);
 int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow);
@@ -409,6 +413,29 @@ struct SBlock {
   int8_t    hasDup;
   int8_t    nSubBlock;
   SSubBlock aSubBlock[TSDB_MAX_SUBBLOCKS];
+};
+
+struct SBlockL {
+  struct {
+    int64_t uid;
+    int64_t version;
+    TSKEY   ts;
+  } minKey;
+  struct {
+    int64_t uid;
+    int64_t version;
+    TSKEY   ts;
+  } maxKey;
+  int64_t minVer;
+  int64_t maxVer;
+  int32_t nRow;
+  int8_t  cmprAlg;
+  int64_t offset;
+  int32_t szBlock;
+  int32_t szBlockCol;
+  int32_t szUid;
+  int32_t szVer;
+  int32_t szTSKEY;
 };
 
 struct SColData {

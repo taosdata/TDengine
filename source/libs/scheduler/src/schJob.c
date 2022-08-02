@@ -278,7 +278,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
   }
 
   SHashObj *planToTask = taosHashInit(
-      SCHEDULE_DEFAULT_MAX_TASK_NUM,
+      pDag->numOfSubplans,
       taosGetDefaultHashFunction(POINTER_BYTES == sizeof(int64_t) ? TSDB_DATA_TYPE_BIGINT : TSDB_DATA_TYPE_INT), false,
       HASH_NO_LOCK);
   if (NULL == planToTask) {
@@ -380,6 +380,7 @@ int32_t schDumpJobExecRes(SSchJob* pJob, SExecResult* pRes) {
   pRes->numOfRows = pJob->resNumOfRows;
   pRes->res = pJob->execRes.res;
   pRes->msgType = pJob->execRes.msgType;
+  pRes->numOfBytes = pJob->execRes.numOfBytes;
   pJob->execRes.res = NULL;
 
   SCH_JOB_DLOG("execRes dumped, code: %s", tstrerror(pRes->code));

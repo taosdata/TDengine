@@ -2414,7 +2414,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "hyperloglog",
     .type = FUNCTION_TYPE_HYPERLOGLOG,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC,
     .translateFunc = translateHLL,
     .getEnvFunc   = getHLLFuncEnv,
     .initFunc     = functionSetup,
@@ -2428,7 +2428,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   },
   {
     .name = "_hyperloglog_partial",
-    .type = FUNCTION_TYPE_HYPERLOGLOG_PARTIAL,
+    .type = FUNCTION_TYPE_HYPERLOGLOG_PARTIAL | FUNC_MGT_TIMELINE_FUNC,
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateHLLPartial,
     .getEnvFunc   = getHLLFuncEnv,
@@ -2440,7 +2440,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   },
   {
     .name = "_hyperloglog_merge",
-    .type = FUNCTION_TYPE_HYPERLOGLOG_MERGE,
+    .type = FUNCTION_TYPE_HYPERLOGLOG_MERGE | FUNC_MGT_TIMELINE_FUNC,
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateHLLMerge,
     .getEnvFunc   = getHLLFuncEnv,
@@ -2465,7 +2465,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "statecount",
     .type = FUNCTION_TYPE_STATE_COUNT,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateStateCount,
     .getEnvFunc   = getStateFuncEnv,
     .initFunc     = functionSetup,
@@ -2476,7 +2476,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "stateduration",
     .type = FUNCTION_TYPE_STATE_DURATION,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateStateDuration,
     .getEnvFunc   = getStateFuncEnv,
     .initFunc     = functionSetup,
@@ -2487,7 +2487,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "csum",
     .type = FUNCTION_TYPE_CSUM,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_CUMULATIVE_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_CUMULATIVE_FUNC,
     .translateFunc = translateCsum,
     .getEnvFunc   = getCsumFuncEnv,
     .initFunc     = functionSetup,
@@ -2499,7 +2499,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "mavg",
     .type = FUNCTION_TYPE_MAVG,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateMavg,
     .getEnvFunc   = getMavgFuncEnv,
     .initFunc     = mavgFunctionSetup,

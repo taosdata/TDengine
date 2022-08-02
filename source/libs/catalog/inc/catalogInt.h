@@ -416,6 +416,7 @@ typedef struct SCtgCacheOperation {
   bool     syncOp;
   tsem_t   rspSem;  
   bool     stopQueue;
+  bool     unLocked;
 } SCtgCacheOperation;
 
 typedef struct SCtgQNode {
@@ -679,6 +680,8 @@ void    ctgClearSubTaskRes(SCtgSubRes *pRes);
 void    ctgFreeQNode(SCtgQNode *node);
 void    ctgClearHandle(SCatalog* pCtg);
 void    ctgFreeTbCacheImpl(SCtgTbCache *pCache);
+int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName);
+int32_t ctgGetTbHashVgroup(SCatalog *pCtg, SRequestConnInfo *pConn, const SName *pTableName, SVgroupInfo *pVgroup);
 
 
 extern SCatalogMgmt gCtgMgmt;

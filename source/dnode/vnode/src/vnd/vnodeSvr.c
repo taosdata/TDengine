@@ -262,7 +262,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   return 0;
 
 _err:
-  vError("vgId:%d, process %s request failed since %s, version: %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
+  vError("vgId:%d, process %s request failed since %s, version:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
          tstrerror(terrno), version);
   return -1;
 }
@@ -296,7 +296,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 }
 
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
-  vTrace("message in fetch queue is processing");
+  vTrace("vgId:%d, msg:%p in fetch queue is processing", pVnode->config.vgId, pMsg);
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
        pMsg->msgType == TDMT_VND_BATCH_META) &&
       !vnodeIsLeader(pVnode)) {
@@ -378,6 +378,9 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, 
   code = tsdbDoRetention(pVnode->pTsdb, trimReq.timestamp);
   if (code) goto _exit;
 
+  code = smaDoRetention(pVnode->pSma, trimReq.timestamp);
+  if (code) goto _exit;
+
 _exit:
   return code;
 }
@@ -447,6 +450,7 @@ _err:
 
 static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SDecoder           decoder = {0};
+  SEncoder           encoder = {0};
   int32_t            rcode = 0;
   SVCreateTbBatchReq req = {0};
   SVCreateTbReq     *pCreateReq;
@@ -515,8 +519,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pR
   tdUidStoreFree(pStore);
 
   // prepare rsp
-  SEncoder encoder = {0};
-  int32_t  ret = 0;
+  int32_t ret = 0;
   tEncodeSize(tEncodeSVCreateTbBatchRsp, &rsp, pRsp->contLen, ret);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);
   if (pRsp->pCont == NULL) {
@@ -901,14 +904,13 @@ _exit:
     tdProcessRSmaSubmit(pVnode->pSma, pReq, STREAM_INPUT__DATA_SUBMIT);
   }
 
-  vDebug("successful submit in vg %d version %ld", pVnode->config.vgId, version);
-
+  vDebug("vgId:%d, submit success, index:%" PRId64, pVnode->config.vgId, version);
   return 0;
 }
 
 static int32_t vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SVCreateTSmaReq req = {0};
-  SDecoder        coder;
+  SDecoder        coder = {0};
 
   if (pRsp) {
     pRsp->msgType = TDMT_VND_CREATE_SMA_RSP;
@@ -977,6 +979,9 @@ static int32_t vnodeProcessAlterHashRangeReq(SVnode *pVnode, int64_t version, vo
 
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SAlterVnodeReq alterReq = {0};
+  bool           walChanged = false;
+  bool           tsdbChanged = false;
+
   if (tDeserializeSAlterVnodeReq(pReq, len, &alterReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return TSDB_CODE_INVALID_MSG;
@@ -986,9 +991,54 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
         alterReq.cacheLastSize);
   if (pVnode->config.cacheLastSize != alterReq.cacheLastSize) {
     pVnode->config.cacheLastSize = alterReq.cacheLastSize;
-    // TODO: save config
     tsdbCacheSetCapacity(pVnode, (size_t)pVnode->config.cacheLastSize * 1024 * 1024);
   }
+
+  if (pVnode->config.cacheLast != alterReq.cacheLast) {
+    pVnode->config.cacheLast = alterReq.cacheLast;
+  }
+
+  if (pVnode->config.walCfg.fsyncPeriod != alterReq.walFsyncPeriod) {
+    pVnode->config.walCfg.fsyncPeriod = alterReq.walFsyncPeriod;
+
+    walChanged = true;
+  }
+
+  if (pVnode->config.walCfg.level != alterReq.walLevel) {
+    pVnode->config.walCfg.level = alterReq.walLevel;
+
+    walChanged = true;
+  }
+
+  if (pVnode->config.tsdbCfg.keep0 != alterReq.daysToKeep0) {
+    pVnode->config.tsdbCfg.keep0 = alterReq.daysToKeep0;
+    if (!VND_IS_RSMA(pVnode)) {
+      tsdbChanged = true;
+    }
+  }
+
+  if (pVnode->config.tsdbCfg.keep1 != alterReq.daysToKeep1) {
+    pVnode->config.tsdbCfg.keep1 = alterReq.daysToKeep1;
+    if (!VND_IS_RSMA(pVnode)) {
+      tsdbChanged = true;
+    }
+  }
+
+  if (pVnode->config.tsdbCfg.keep2 != alterReq.daysToKeep2) {
+    pVnode->config.tsdbCfg.keep2 = alterReq.daysToKeep2;
+    if (!VND_IS_RSMA(pVnode)) {
+      tsdbChanged = true;
+    }
+  }
+
+  if (walChanged) {
+    walAlter(pVnode->pWal, &pVnode->config.walCfg);
+  }
+
+  if (tsdbChanged) {
+    tsdbSetKeepCfg(pVnode->pTsdb, &pVnode->config.tsdbCfg);
+  }
+
   return 0;
 }
 

@@ -194,6 +194,14 @@ class TDSql:
             args = (caller.filename, caller.lineno, self.sql, self.queryRows, expectRows)
             tdLog.exit("%s(%d) failed: sql:%s, queryRows:%d != expect:%d" % args)
 
+    def checkRows_range(self, excepte_row_list):
+        if self.queryRows in excepte_row_list:
+            tdLog.info(f"sql:{self.sql}, queryRows:{self.queryRows} in expect:{excepte_row_list}")
+            return True
+        else:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{self.sql}, queryRows:{self.queryRows} not in expect:{excepte_row_list}")
+
     def checkCols(self, expectCols):
         if self.queryCols == expectCols:
             tdLog.info("sql:%s, queryCols:%d == expect:%d" % (self.sql, self.queryCols, expectCols))

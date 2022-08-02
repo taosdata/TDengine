@@ -33,6 +33,8 @@
     } else {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INCOMPLETE_SQL);
     }
+  } else if (TSDB_CODE_PAR_DB_NOT_SPECIFIED == pCxt->errCode && TK_NK_FLOAT == TOKEN.type) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, TOKEN.z);
   }
 }
 
@@ -422,9 +424,7 @@ from_db_opt(A) ::= FROM db_name(B).                                             
 
 /************************************************ create index ********************************************************/
 cmd ::= CREATE SMA INDEX not_exists_opt(D) 
-  index_name(A) ON table_name(B) index_options(C).                                { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, D, &A, &B, NULL, C); }
-//cmd ::= CREATE FULLTEXT INDEX not_exists_opt(D)
-//  index_name(A) ON table_name(B) NK_LP col_name_list(C) NK_RP.                    { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_FULLTEXT, D, &A, &B, C, NULL); }
+  index_name(A) ON full_table_name(B) index_options(C).                           { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, D, &A, B, NULL, C); }
 cmd ::= DROP INDEX exists_opt(B) index_name(A).                                   { pCxt->pRootNode = createDropIndexStmt(pCxt, B, &A); }
 
 index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL 

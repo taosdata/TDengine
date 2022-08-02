@@ -136,10 +136,11 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
       SyncIndex newNextIndex = nextIndex + 1;
       syncIndexMgrSetIndex(pSyncNode->pNextIndex, pDestId, newNextIndex);
       syncIndexMgrSetIndex(pSyncNode->pMatchIndex, pDestId, SYNC_INDEX_INVALID);
-      sError("vgId:%d sync get pre term error, nextIndex:%" PRId64 ", update next-index:%" PRId64
+      sError("vgId:%d, sync get pre term error, nextIndex:%" PRId64 ", update next-index:%" PRId64
              ", match-index:%d, raftid:%" PRId64,
              pSyncNode->vgId, nextIndex, newNextIndex, SYNC_INDEX_INVALID, pDestId->addr);
 
+      syncNodeRestartNowHeartbeatTimer(pSyncNode);
       return -1;
     }
 
@@ -227,7 +228,7 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
       SyncIndex newNextIndex = nextIndex + 1;
       syncIndexMgrSetIndex(pSyncNode->pNextIndex, pDestId, newNextIndex);
       syncIndexMgrSetIndex(pSyncNode->pMatchIndex, pDestId, SYNC_INDEX_INVALID);
-      sError("vgId:%d sync get pre term error, nextIndex:%" PRId64 ", update next-index:%" PRId64
+      sError("vgId:%d, sync get pre term error, nextIndex:%" PRId64 ", update next-index:%" PRId64
              ", match-index:%d, raftid:%" PRId64,
              pSyncNode->vgId, nextIndex, newNextIndex, SYNC_INDEX_INVALID, pDestId->addr);
 

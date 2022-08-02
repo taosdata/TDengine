@@ -91,6 +91,12 @@ ELSE ()
 ENDIF ()
 
 option(
+    RUST_BINDINGS
+    "If build with rust-bindings"
+    ON
+    )
+
+option(
     JEMALLOC_ENABLED
     "If build with jemalloc"
     OFF
@@ -155,18 +161,6 @@ option(
     BUILD_WITH_UV_TRANS
     "If build with libuv_trans " 
     ON 
-)
-
-option(
-    BUILD_WITH_CRAFT
-    "If build with canonical-raft"
-    OFF
-)
-
-option(
-    BUILD_WITH_TRAFT
-    "If build with traft"
-    OFF
 )
 
 IF(${TD_LINUX} MATCHES TRUE)

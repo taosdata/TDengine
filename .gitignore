@@ -50,6 +50,10 @@ pysim/
 tests/script/api/batchprepare
 taosadapter
 taosadapter-debug
+tools/taos-tools/*
+tools/taosws-rs/*
+tools/taosadapter/*
+tools/upx*
 
 # Doxygen Generated files
 html/

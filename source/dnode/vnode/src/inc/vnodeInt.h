@@ -143,6 +143,7 @@ int32_t     tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitMsgIter* p
 int32_t     tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 STsdbReader tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
                                 void* pMemRef);
+int32_t     tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
 
 // tq
 int     tqInit();
@@ -185,6 +186,7 @@ int32_t smaSyncPostCommit(SSma* pSma);
 int32_t smaAsyncPreCommit(SSma* pSma);
 int32_t smaAsyncCommit(SSma* pSma);
 int32_t smaAsyncPostCommit(SSma* pSma);
+int32_t smaDoRetention(SSma* pSma, int64_t now);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
@@ -353,16 +355,16 @@ struct SSma {
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
 
 enum {
-  SNAP_DATA_META = 0,
-  SNAP_DATA_TSDB = 1,
-  SNAP_DATA_DEL = 2,
-  SNAP_DATA_RSMA1 = 3,
-  SNAP_DATA_RSMA2 = 4,
-  SNAP_DATA_QTASK = 5,
-  SNAP_DATA_TQ_HANDLE = 6,
-  SNAP_DATA_TQ_OFFSET = 7,
-  SNAP_DATA_STREAM_TASK = 8,
-  SNAP_DATA_STREAM_STATE = 9,
+  SNAP_DATA_META = 1,
+  SNAP_DATA_TSDB = 2,
+  SNAP_DATA_DEL = 3,
+  SNAP_DATA_RSMA1 = 4,
+  SNAP_DATA_RSMA2 = 5,
+  SNAP_DATA_QTASK = 6,
+  SNAP_DATA_TQ_HANDLE = 7,
+  SNAP_DATA_TQ_OFFSET = 8,
+  SNAP_DATA_STREAM_TASK = 9,
+  SNAP_DATA_STREAM_STATE = 10,
 };
 
 struct SSnapDataHdr {

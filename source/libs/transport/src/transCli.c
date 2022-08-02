@@ -381,8 +381,8 @@ void cliHandleResp(SCliConn* conn) {
 
   STraceId* trace = &transMsg.info.traceId;
 
-  tGTrace("%s conn %p %s received from %s, local info:%s, msg size:%d, code:0x%x", CONN_GET_INST_LABEL(conn), conn,
-          TMSG_INFO(pHead->msgType), conn->dst, conn->src, transMsg.contLen, transMsg.code);
+  tGTrace("%s conn %p %s received from %s, local info:%s, len:%d, code str:%s", CONN_GET_INST_LABEL(conn), conn,
+          TMSG_INFO(pHead->msgType), conn->dst, conn->src, transMsg.contLen, tstrerror(transMsg.code));
 
   if (pCtx == NULL && CONN_NO_PERSIST_BY_APP(conn)) {
     tDebug("%s except, conn %p read while cli ignore it", CONN_GET_INST_LABEL(conn), conn);
@@ -549,6 +549,8 @@ static void addConnToPool(void* pool, SCliConn* conn) {
     CONN_CONSTRUCT_HASH_KEY(key, conn->ip, conn->port);
     tTrace("%s conn %p added to conn pool, read buf cap:%d", CONN_GET_INST_LABEL(conn), conn, conn->readBuf.cap);
     conn->list = taosHashGet((SHashObj*)pool, key, strlen(key));
+  } else {
+    tTrace("%s conn %p added to conn pool, read buf cap:%d", CONN_GET_INST_LABEL(conn), conn, conn->readBuf.cap);
   }
   assert(conn->list != NULL);
   QUEUE_INIT(&conn->q);
@@ -656,7 +658,6 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   QUEUE_REMOVE(&conn->q);
   QUEUE_INIT(&conn->q);
   transRemoveExHandle(transGetRefMgt(), conn->refId);
-  transDestroyBuffer(&conn->readBuf);
 
   conn->refId = -1;
   if (conn->task != NULL) transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
@@ -683,7 +684,7 @@ static void cliDestroy(uv_handle_t* handle) {
   transQueueDestroy(&conn->cliMsgs);
   tTrace("%s conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
   transReqQueueClear(&conn->wreqQueue);
-
+  transDestroyBuffer(&conn->readBuf);
   taosMemoryFree(conn);
 }
 static bool cliHandleNoResp(SCliConn* conn) {
@@ -756,8 +757,8 @@ void cliSend(SCliConn* pConn) {
   uv_buf_t wb = uv_buf_init((char*)pHead, msgLen);
 
   STraceId* trace = &pMsg->info.traceId;
-  tGTrace("%s conn %p %s is sent to %s, local info %s", CONN_GET_INST_LABEL(pConn), pConn, TMSG_INFO(pHead->msgType),
-          pConn->dst, pConn->src);
+  tGTrace("%s conn %p %s is sent to %s, local info %s, len:%d", CONN_GET_INST_LABEL(pConn), pConn,
+          TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, pMsg->contLen);
 
   if (pHead->persist == 1) {
     CONN_SET_PERSIST_BY_APP(pConn);

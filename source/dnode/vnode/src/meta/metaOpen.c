@@ -133,7 +133,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
 
   ret = tdbTbOpen("stream.task.db", sizeof(int64_t), -1, taskIdxKeyCmpr, pMeta->pEnv, &pMeta->pStreamDb);
   if (ret < 0) {
-    metaError("vgId: %d, failed to open meta stream task index since %s", TD_VID(pVnode), tstrerror(terrno));
+    metaError("vgId:%d, failed to open meta stream task index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
@@ -324,7 +324,8 @@ static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
     return 1;
   } else if (!pTagIdxKey1->isNull && !pTagIdxKey2->isNull) {
     // all not NULL, compr tag vals
-    c = doCompare(pTagIdxKey1->data, pTagIdxKey2->data, pTagIdxKey1->type, 0);
+    __compar_fn_t func = getComparFunc(pTagIdxKey1->type, 0);
+    c = func(pTagIdxKey1->data, pTagIdxKey2->data);
     if (c) return c;
   }
 

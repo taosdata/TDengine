@@ -77,6 +77,8 @@ sql select length("abcd1234"), char_length("abcd1234=-+*") from tb1
 sql select tbcol4, length(tbcol4), lower(tbcol4), upper(tbcol4), ltrim(tbcol4), rtrim(tbcol4), concat(tbcol4, tbcol5), concat_ws('_', tbcol4, tbcol5), substr(tbcol4, 1, 4)  from tb1
 sql select * from tb1 where tbcol not in (1,2,3,null);
 sql select * from tb1 where tbcol + 3 <> null;
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from tb1 where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
+#sql select tbcol5 - tbcol3 from tb1
 
 print =============== step4: stb
 sql select avg(tbcol) as c from stb
@@ -104,9 +106,34 @@ sql select length("abcd1234"), char_length("abcd1234=-+*") from stb
 sql select tbcol4, length(tbcol4), lower(tbcol4), upper(tbcol4), ltrim(tbcol4), rtrim(tbcol4), concat(tbcol4, tbcol5), concat_ws('_', tbcol4, tbcol5), substr(tbcol4, 1, 4)  from stb
 sql select * from stb where tbcol not in (1,2,3,null);
 sql select * from stb where tbcol + 3 <> null;
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from stb where tbcol = 1 and tbcol2 = 1 and tbcol3 = 1 partition by tgcol interval(1d)
+sql select _wstart, count(*) from tb1 session(ts, 1m)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from stb where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
+#sql select tbcol5 - tbcol3 from stb
 
 print =============== step5: explain
+sql explain analyze select ts from stb where -2;
+sql explain analyze select ts from tb1;
+sql explain analyze select ts from stb order by ts;
+sql explain analyze select * from information_schema.ins_stables;
+sql explain analyze select count(*),sum(tbcol) from tb1;
+sql explain analyze select count(*),sum(tbcol) from stb;
+sql explain analyze select count(*),sum(tbcol) from stb group by tbcol;
+sql explain analyze select * from information_schema.ins_stables;
+sql explain analyze verbose true select * from information_schema.ins_stables where db_name='db2';
+sql explain analyze verbose true select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from stb where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
+sql explain select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from stb where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
 
+print =============== step6: in cast
+sql select 1+1n;
+sql select cast(1 as timestamp)+1n;
+sql select cast(1 as timestamp)+1y;
+sql select * from tb1 where ts in ('2018-07-10 16:31:01', '2022-07-10 16:31:03', 1657441865000);
+sql select * from tb1 where tbcol2 in (257);
+sql select * from tb1 where tbcol3 in (2, 257);
+sql select * from stb where ts in ('2018-07-10 16:31:01', '2022-07-10 16:31:03', 1657441865000);
+sql select * from stb where tbcol2 in (257);
+sql select * from stb where tbcol3 in (2, 257);
 
 print =============== check
 $null=

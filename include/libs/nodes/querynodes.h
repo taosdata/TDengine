@@ -418,8 +418,6 @@ void    nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 
 char*   nodesGetFillModeString(EFillMode mode);
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);
-int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** pTagIndexCond, SNode** pTagCond,
-                           SNode** pOtherCond);
 
 #ifdef __cplusplus
 }

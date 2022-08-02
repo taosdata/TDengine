@@ -4,9 +4,7 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 
 print ======================== dnode1 start
-
 $db = testdb
-
 sql create database $db
 sql use $db
 
@@ -200,7 +198,6 @@ sql insert into tb3_5 values('2021-03-03 05:00:00.000', 9935,9935.0,'35');
 sql insert into tb3_5 values('2021-03-04 05:00:00.000', 9935,9935.0,'35');
 sql insert into tb3_5 values('2021-03-05 05:00:00.000', 9935,9935.0,'35');
 
- 
 sql insert into tb4_1 values('2021-03-01 01:00:00.000', 9941,9941.0,'41');
 sql insert into tb4_1 values('2021-03-02 01:00:00.000', 9941,9941.0,'41');
 sql insert into tb4_1 values('2021-03-03 01:00:00.000', 9941,9941.0,'41');
@@ -409,13 +406,10 @@ sql insert into tbb_5 values('2021-03-03 05:00:00.000', 99115,99115.0,'b5');
 sql insert into tbb_5 values('2021-03-04 05:00:00.000', 99115,99115.0,'b5');
 sql insert into tbb_5 values('2021-03-05 05:00:00.000', 99115,99115.0,'b5');
 
-
 sql select * from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1;
-
 if $rows != 25 then
   return -1
 endi
-
 if $data00 != @21-03-01 01:00:00.000@ then 
   return -1
 endi
@@ -447,112 +441,11 @@ endi
 if $data09 != @21-03-01 01:00:00.000@ then 
   return -1
 endi
-
-if $data10 != @21-03-02 01:00:00.000@ then 
-  return -1
-endi
-if $data11 != 9901 then 
-  return -1
-endi
-if $data12 != 9901.000000000 then 
-  return -1
-endi
-if $data13 != 01 then 
-  return -1
-endi
-if $data14 != 0 then 
-  return -1
-endi
-if $data15 != 1 then 
-  return -1
-endi
-if $data16 != 2.000000000 then 
-  return -1
-endi
-if $data17 != 1 then 
-  return -1
-endi
-if $data18 != 3 then 
-  return -1
-endi
-if $data19 != @21-03-02 01:00:00.000@ then 
-  return -1
-endi
-
-
-
-if $data20 != @21-03-03 01:00:00.000@ then 
-  return -1
-endi
-if $data21 != 9901 then 
-  return -1
-endi
-if $data22 != 9901.000000000 then 
-  return -1
-endi
-if $data23 != 01 then 
-  return -1
-endi
-if $data24 != 0 then 
-  return -1
-endi
-if $data25 != 1 then 
-  return -1
-endi
-if $data26 != 2.000000000 then 
-  return -1
-endi
-if $data27 != 1 then 
-  return -1
-endi
-if $data28 != 3 then 
-  return -1
-endi
-if $data29 != @21-03-03 01:00:00.000@ then 
-  return -1
-endi
-
-
-if $data30 != @21-03-04 01:00:00.000@ then 
-  return -1
-endi
-if $data31 != 9901 then 
-  return -1
-endi
-if $data32 != 9901.000000000 then 
-  return -1
-endi
-if $data33 != 01 then 
-  return -1
-endi
-if $data34 != 0 then 
-  return -1
-endi
-if $data35 != 1 then 
-  return -1
-endi
-if $data36 != 2.000000000 then 
-  return -1
-endi
-if $data37 != 1 then 
-  return -1
-endi
-if $data38 != 3 then 
-  return -1
-endi
-if $data39 != @21-03-04 01:00:00.000@ then 
-  return -1
-endi
-
-
-
 
 sql select * from st0, st1 where st0.ts=st1.ts and st0.id2=st1.id2;
-
 if $rows != 25 then
   return -1
 endi
-
 if $data00 != @21-03-01 01:00:00.000@ then 
   return -1
 endi
@@ -584,112 +477,11 @@ endi
 if $data09 != @21-03-01 01:00:00.000@ then 
   return -1
 endi
-
-if $data10 != @21-03-02 01:00:00.000@ then 
-  return -1
-endi
-if $data11 != 9901 then 
-  return -1
-endi
-if $data12 != 9901.000000000 then 
-  return -1
-endi
-if $data13 != 01 then 
-  return -1
-endi
-if $data14 != 0 then 
-  return -1
-endi
-if $data15 != 1 then 
-  return -1
-endi
-if $data16 != 2.000000000 then 
-  return -1
-endi
-if $data17 != 1 then 
-  return -1
-endi
-if $data18 != 3 then 
-  return -1
-endi
-if $data19 != @21-03-02 01:00:00.000@ then 
-  return -1
-endi
-
-
-
-if $data20 != @21-03-03 01:00:00.000@ then 
-  return -1
-endi
-if $data21 != 9901 then 
-  return -1
-endi
-if $data22 != 9901.000000000 then 
-  return -1
-endi
-if $data23 != 01 then 
-  return -1
-endi
-if $data24 != 0 then 
-  return -1
-endi
-if $data25 != 1 then 
-  return -1
-endi
-if $data26 != 2.000000000 then 
-  return -1
-endi
-if $data27 != 1 then 
-  return -1
-endi
-if $data28 != 3 then 
-  return -1
-endi
-if $data29 != @21-03-03 01:00:00.000@ then 
-  return -1
-endi
-
-
-if $data30 != @21-03-04 01:00:00.000@ then 
-  return -1
-endi
-if $data31 != 9901 then 
-  return -1
-endi
-if $data32 != 9901.000000000 then 
-  return -1
-endi
-if $data33 != 01 then 
-  return -1
-endi
-if $data34 != 0 then 
-  return -1
-endi
-if $data35 != 1 then 
-  return -1
-endi
-if $data36 != 2.000000000 then 
-  return -1
-endi
-if $data37 != 1 then 
-  return -1
-endi
-if $data38 != 3 then 
-  return -1
-endi
-if $data39 != @21-03-04 01:00:00.000@ then 
-  return -1
-endi
-
-
-
 
 sql select * from st0, st1 where st0.id3=st1.id3 and st1.ts=st0.ts;
-
 if $rows != 25 then
   return -1
 endi
-
 if $data00 != @21-03-01 01:00:00.000@ then 
   return -1
 endi
@@ -721,113 +513,11 @@ endi
 if $data09 != @21-03-01 01:00:00.000@ then 
   return -1
 endi
-
-if $data10 != @21-03-02 01:00:00.000@ then 
-  return -1
-endi
-if $data11 != 9901 then 
-  return -1
-endi
-if $data12 != 9901.000000000 then 
-  return -1
-endi
-if $data13 != 01 then 
-  return -1
-endi
-if $data14 != 0 then 
-  return -1
-endi
-if $data15 != 1 then 
-  return -1
-endi
-if $data16 != 2.000000000 then 
-  return -1
-endi
-if $data17 != 1 then 
-  return -1
-endi
-if $data18 != 3 then 
-  return -1
-endi
-if $data19 != @21-03-02 01:00:00.000@ then 
-  return -1
-endi
-
-
-
-if $data20 != @21-03-03 01:00:00.000@ then 
-  return -1
-endi
-if $data21 != 9901 then 
-  return -1
-endi
-if $data22 != 9901.000000000 then 
-  return -1
-endi
-if $data23 != 01 then 
-  return -1
-endi
-if $data24 != 0 then 
-  return -1
-endi
-if $data25 != 1 then 
-  return -1
-endi
-if $data26 != 2.000000000 then 
-  return -1
-endi
-if $data27 != 1 then 
-  return -1
-endi
-if $data28 != 3 then 
-  return -1
-endi
-if $data29 != @21-03-03 01:00:00.000@ then 
-  return -1
-endi
-
-
-if $data30 != @21-03-04 01:00:00.000@ then 
-  return -1
-endi
-if $data31 != 9901 then 
-  return -1
-endi
-if $data32 != 9901.000000000 then 
-  return -1
-endi
-if $data33 != 01 then 
-  return -1
-endi
-if $data34 != 0 then 
-  return -1
-endi
-if $data35 != 1 then 
-  return -1
-endi
-if $data36 != 2.000000000 then 
-  return -1
-endi
-if $data37 != 1 then 
-  return -1
-endi
-if $data38 != 3 then 
-  return -1
-endi
-if $data39 != @21-03-04 01:00:00.000@ then 
-  return -1
-endi
-
-
-
-
 
 sql select * from st0, st1 where st1.id5=st0.id5 and st0.ts=st1.ts;
-
 if $rows != 25 then
   return -1
 endi
-
 if $data00 != @21-03-01 01:00:00.000@ then 
   return -1
 endi
@@ -860,111 +550,10 @@ if $data09 != @21-03-01 01:00:00.000@ then
   return -1
 endi
 
-if $data10 != @21-03-02 01:00:00.000@ then 
-  return -1
-endi
-if $data11 != 9901 then 
-  return -1
-endi
-if $data12 != 9901.000000000 then 
-  return -1
-endi
-if $data13 != 01 then 
-  return -1
-endi
-if $data14 != 0 then 
-  return -1
-endi
-if $data15 != 1 then 
-  return -1
-endi
-if $data16 != 2.000000000 then 
-  return -1
-endi
-if $data17 != 1 then 
-  return -1
-endi
-if $data18 != 3 then 
-  return -1
-endi
-if $data19 != @21-03-02 01:00:00.000@ then 
-  return -1
-endi
-
-
-
-if $data20 != @21-03-03 01:00:00.000@ then 
-  return -1
-endi
-if $data21 != 9901 then 
-  return -1
-endi
-if $data22 != 9901.000000000 then 
-  return -1
-endi
-if $data23 != 01 then 
-  return -1
-endi
-if $data24 != 0 then 
-  return -1
-endi
-if $data25 != 1 then 
-  return -1
-endi
-if $data26 != 2.000000000 then 
-  return -1
-endi
-if $data27 != 1 then 
-  return -1
-endi
-if $data28 != 3 then 
-  return -1
-endi
-if $data29 != @21-03-03 01:00:00.000@ then 
-  return -1
-endi
-
-
-if $data30 != @21-03-04 01:00:00.000@ then 
-  return -1
-endi
-if $data31 != 9901 then 
-  return -1
-endi
-if $data32 != 9901.000000000 then 
-  return -1
-endi
-if $data33 != 01 then 
-  return -1
-endi
-if $data34 != 0 then 
-  return -1
-endi
-if $data35 != 1 then 
-  return -1
-endi
-if $data36 != 2.000000000 then 
-  return -1
-endi
-if $data37 != 1 then 
-  return -1
-endi
-if $data38 != 3 then 
-  return -1
-endi
-if $data39 != @21-03-04 01:00:00.000@ then 
-  return -1
-endi
-
-
-
-
 sql select st0.* from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1;
-
 if $rows != 25 then
   return -1
 endi
-
 if $data00 != @21-03-01 01:00:00.000@ then 
   return -1
 endi
@@ -993,103 +582,11 @@ endi
 if $data08 != 3 then 
   return -1
 endi
-
-if $data10 != @21-03-02 01:00:00.000@ then 
-  return -1
-endi
-if $data11 != 9901 then 
-  return -1
-endi
-if $data12 != 9901.000000000 then 
-  return -1
-endi
-if $data13 != 01 then 
-  return -1
-endi
-if $data14 != 0 then 
-  return -1
-endi
-if $data15 != 1 then 
-  return -1
-endi
-if $data16 != 2.000000000 then 
-  return -1
-endi
-if $data17 != 1 then 
-  return -1
-endi
-if $data18 != 3 then 
-  return -1
-endi
-
-
-
-if $data20 != @21-03-03 01:00:00.000@ then 
-  return -1
-endi
-if $data21 != 9901 then 
-  return -1
-endi
-if $data22 != 9901.000000000 then 
-  return -1
-endi
-if $data23 != 01 then 
-  return -1
-endi
-if $data24 != 0 then 
-  return -1
-endi
-if $data25 != 1 then 
-  return -1
-endi
-if $data26 != 2.000000000 then 
-  return -1
-endi
-if $data27 != 1 then 
-  return -1
-endi
-if $data28 != 3 then 
-  return -1
-endi
-
-
-if $data30 != @21-03-04 01:00:00.000@ then 
-  return -1
-endi
-if $data31 != 9901 then 
-  return -1
-endi
-if $data32 != 9901.000000000 then 
-  return -1
-endi
-if $data33 != 01 then 
-  return -1
-endi
-if $data34 != 0 then 
-  return -1
-endi
-if $data35 != 1 then 
-  return -1
-endi
-if $data36 != 2.000000000 then 
-  return -1
-endi
-if $data37 != 1 then 
-  return -1
-endi
-if $data38 != 3 then 
-  return -1
-endi
-
-
-
 
 sql select st0.* from st0, st1 where st0.ts=st1.ts and st1.id2=st0.id2;
-
 if $rows != 25 then
   return -1
 endi
-
 if $data00 != @21-03-01 01:00:00.000@ then 
   return -1
 endi
@@ -1118,104 +615,11 @@ endi
 if $data08 != 3 then 
   return -1
 endi
-
-if $data10 != @21-03-02 01:00:00.000@ then 
-  return -1
-endi
-if $data11 != 9901 then 
-  return -1
-endi
-if $data12 != 9901.000000000 then 
-  return -1
-endi
-if $data13 != 01 then 
-  return -1
-endi
-if $data14 != 0 then 
-  return -1
-endi
-if $data15 != 1 then 
-  return -1
-endi
-if $data16 != 2.000000000 then 
-  return -1
-endi
-if $data17 != 1 then 
-  return -1
-endi
-if $data18 != 3 then 
-  return -1
-endi
-
-
-
-if $data20 != @21-03-03 01:00:00.000@ then 
-  return -1
-endi
-if $data21 != 9901 then 
-  return -1
-endi
-if $data22 != 9901.000000000 then 
-  return -1
-endi
-if $data23 != 01 then 
-  return -1
-endi
-if $data24 != 0 then 
-  return -1
-endi
-if $data25 != 1 then 
-  return -1
-endi
-if $data26 != 2.000000000 then 
-  return -1
-endi
-if $data27 != 1 then 
-  return -1
-endi
-if $data28 != 3 then 
-  return -1
-endi
-
-
-if $data30 != @21-03-04 01:00:00.000@ then 
-  return -1
-endi
-if $data31 != 9901 then 
-  return -1
-endi
-if $data32 != 9901.000000000 then 
-  return -1
-endi
-if $data33 != 01 then 
-  return -1
-endi
-if $data34 != 0 then 
-  return -1
-endi
-if $data35 != 1 then 
-  return -1
-endi
-if $data36 != 2.000000000 then 
-  return -1
-endi
-if $data37 != 1 then 
-  return -1
-endi
-if $data38 != 3 then 
-  return -1
-endi
-
-
-
-
 
 sql select st0.* from st0, st1 where st0.id3=st1.id3 and st1.ts=st0.ts;
-
 if $rows != 25 then
   return -1
 endi
-
 if $data00 != @21-03-01 01:00:00.000@ then 
   return -1
 endi
@@ -1245,102 +649,10 @@ if $data08 != 3 then
   return -1
 endi
 
-if $data10 != @21-03-02 01:00:00.000@ then 
-  return -1
-endi
-if $data11 != 9901 then 
-  return -1
-endi
-if $data12 != 9901.000000000 then 
-  return -1
-endi
-if $data13 != 01 then 
-  return -1
-endi
-if $data14 != 0 then 
-  return -1
-endi
-if $data15 != 1 then 
-  return -1
-endi
-if $data16 != 2.000000000 then 
-  return -1
-endi
-if $data17 != 1 then 
-  return -1
-endi
-if $data18 != 3 then 
-  return -1
-endi
-
-
-
-if $data20 != @21-03-03 01:00:00.000@ then 
-  return -1
-endi
-if $data21 != 9901 then 
-  return -1
-endi
-if $data22 != 9901.000000000 then 
-  return -1
-endi
-if $data23 != 01 then 
-  return -1
-endi
-if $data24 != 0 then 
-  return -1
-endi
-if $data25 != 1 then 
-  return -1
-endi
-if $data26 != 2.000000000 then 
-  return -1
-endi
-if $data27 != 1 then 
-  return -1
-endi
-if $data28 != 3 then 
-  return -1
-endi
-
-
-if $data30 != @21-03-04 01:00:00.000@ then 
-  return -1
-endi
-if $data31 != 9901 then 
-  return -1
-endi
-if $data32 != 9901.000000000 then 
-  return -1
-endi
-if $data33 != 01 then 
-  return -1
-endi
-if $data34 != 0 then 
-  return -1
-endi
-if $data35 != 1 then 
-  return -1
-endi
-if $data36 != 2.000000000 then 
-  return -1
-endi
-if $data37 != 1 then 
-  return -1
-endi
-if $data38 != 3 then 
-  return -1
-endi
-
-
-
-
 sql select st1.* from st0, st1 where st1.id5=st0.id5 and st0.ts=st1.ts;
-
 if $rows != 25 then
   return -1
 endi
-
 if $data00 != @21-03-01 01:00:00.000@ then 
   return -1
 endi
@@ -1370,100 +682,10 @@ if $data08 != 3 then
   return -1
 endi
 
-if $data10 != @21-03-02 01:00:00.000@ then 
-  return -1
-endi
-if $data11 != 9911 then 
-  return -1
-endi
-if $data12 != 9911.000000000 then 
-  return -1
-endi
-if $data13 != 11 then 
-  return -1
-endi
-if $data14 != 0 then 
-  return -1
-endi
-if $data15 != 1 then 
-  return -1
-endi
-if $data16 != 2.000000000 then 
-  return -1
-endi
-if $data17 != 1 then 
-  return -1
-endi
-if $data18 != 3 then 
-  return -1
-endi
-
-
-
-if $data20 != @21-03-03 01:00:00.000@ then 
-  return -1
-endi
-if $data21 != 9911 then 
-  return -1
-endi
-if $data22 != 9911.000000000 then 
-  return -1
-endi
-if $data23 != 11 then 
-  return -1
-endi
-if $data24 != 0 then 
-  return -1
-endi
-if $data25 != 1 then 
-  return -1
-endi
-if $data26 != 2.000000000 then 
-  return -1
-endi
-if $data27 != 1 then 
-  return -1
-endi
-if $data28 != 3 then 
-  return -1
-endi
-
-
-if $data30 != @21-03-04 01:00:00.000@ then 
-  return -1
-endi
-if $data31 != 9911 then 
-  return -1
-endi
-if $data32 != 9911.000000000 then 
-  return -1
-endi
-if $data33 != 11 then 
-  return -1
-endi
-if $data34 != 0 then 
-  return -1
-endi
-if $data35 != 1 then 
-  return -1
-endi
-if $data36 != 2.000000000 then 
-  return -1
-endi
-if $data37 != 1 then 
-  return -1
-endi
-if $data38 != 3 then 
-  return -1
-endi
-
-
-sql select st0.f1,st1.f1 from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1;
-
+sql select st0.f1,st1.f1 from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 order by st0.f1;
 if $rows != 25 then
   return -1
 endi
-
 if $data00 != 9901 then 
   return -1
 endi
@@ -1489,50 +711,27 @@ if $data31 != 9911 then
   return -1
 endi
 
-
-
-
 sql select st0.ts,st1.ts from st0, st1 where st0.ts=st1.ts and st1.id2=st0.id2;
-
-
 if $rows != 25 then
   return -1
 endi
-
 if $data00 != @21-03-01 01:00:00.000@ then 
   return -1
 endi
 if $data01 != @21-03-01 01:00:00.000@ then 
   return -1
 endi
-if $data10 != @21-03-02 01:00:00.000@ then 
+if $data50 != @21-03-02 01:00:00.000@ then 
   return -1
 endi
-if $data11 != @21-03-02 01:00:00.000@ then 
+if $data51 != @21-03-02 01:00:00.000@ then 
   return -1
 endi
-if $data20 != @21-03-03 01:00:00.000@ then 
-  return -1
-endi
-if $data21 != @21-03-03 01:00:00.000@ then 
-  return -1
-endi
-if $data30 != @21-03-04 01:00:00.000@ then 
-  return -1
-endi
-if $data31 != @21-03-04 01:00:00.000@ then 
-  return -1
-endi
-
-
 
 sql select st1.ts,st0.ts,st0.id3,st1.id3,st0.f3,st1.f3 from st0, st1 where st0.id3=st1.id3 and st1.ts=st0.ts;
-
-
 if $rows != 25 then
   return -1
 endi
-
 if $data00 != @21-03-01 01:00:00.000@ then 
   return -1
 endi
@@ -1551,27 +750,6 @@ endi
 if $data05 != 11 then 
   return -1
 endi
-
-if $data10 != @21-03-02 01:00:00.000@ then 
-  return -1
-endi
-if $data11 != @21-03-02 01:00:00.000@ then 
-  return -1
-endi
-if $data02 != 2.000000000 then 
-  return -1
-endi
-if $data03 != 2.000000000 then 
-  return -1
-endi
-if $data04 != 01 then 
-  return -1
-endi
-if $data05 != 11 then 
-  return -1
-endi
-
-
 
 sql select st0.ts,st0.f2,st1.f3,st1.f2,st0.f3 from st0, st1 where st1.id5=st0.id5 and st0.ts=st1.ts;
 if $rows != 25 then
@@ -1592,26 +770,23 @@ endi
 if $data04 != 01 then 
   return -1
 endi
-if $data10 != @21-03-02 01:00:00.000@ then 
+if $data50 != @21-03-02 01:00:00.000@ then 
   return -1
 endi
-if $data11 != 9901.000000000 then 
+if $data51 != 9901.000000000 then 
   return -1
 endi
-if $data12 != 11 then 
+if $data52 != 11 then 
   return -1
 endi
-if $data13 != 9911.000000000 then 
+if $data53 != 9911.000000000 then 
   return -1
 endi
-if $data14 != 01 then 
+if $data54 != 01 then 
   return -1
 endi
 
-
-
-
-sql select last(*) from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 interval(10a);
+sql select _wstart, last(*) from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 interval(10a);
 if $rows != 25 then
   return -1
 endi
@@ -1642,37 +817,8 @@ endi
 if $data08 != 11 then 
   return -1
 endi
-if $data10 != @21-03-01 02:00:00.000@ then 
-  return -1
-endi
-if $data11 != @21-03-01 02:00:00.000@ then 
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data12 != 9902 then 
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data13 != 9902.000000000 then                                                                                                                                                              
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data14 != 02 then                                                                                                                                                                          
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data15 != @21-03-01 02:00:00.000@ then                                                                                                                                                     
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data16 != 9912 then 
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data17 != 9912.000000000 then                                                                                                                                                              
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data18 != 12 then 
-  return -1
-endi
 
-
-
-sql select last(*) from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 interval(1d) sliding(1d);
+sql select _wstart, last(*) from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 interval(1d) sliding(1d);
 if $rows != 5 then
   return -1
 endi
@@ -1703,35 +849,6 @@ endi
 if $data08 != 15 then 
   return -1
 endi
-if $data10 != @21-03-02 00:00:00.000@ then 
-  return -1
-endi
-if $data11 != @21-03-02 05:00:00.000@ then                                                                                                                                                     
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data12 != 9905 then 
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data13 != 9905.000000000 then                                                                                                                                                              
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data14 != 05 then                                                                                                                                                                          
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data15 != @21-03-02 05:00:00.000@ then                                                                                                                                                     
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data16 != 9915 then 
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data17 != 9915.000000000 then                                                                                                                                                              
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data18 != 15 then 
-  return -1
-endi
-
-
 
 sql select st0.*,st1.* from st0, st1 where st1.id1=st0.id1 and st0.ts=st1.ts and st1.ts=st0.ts and st0.id1=st1.id1;
 if $rows != 25 then
@@ -1769,11 +886,7 @@ if $data09 != @21-03-01 01:00:00.000@ then
 endi
 
 
-
-
-
 sql select st0.ts,* from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 order by st0.ts;
-
 if $rows != 25 then
   return -1
 endi
@@ -1812,7 +925,7 @@ sql select st0.*,st1.* from st0, st1 where st1.id1=st0.id1 and st0.ts=st1.ts and
 if $rows != 5 then
   return -1
 endi
-if $data00 != @21-03-01 01:00:00.000@ then 
+if $data00 != @21-03-02 01:00:00.000@ then 
   print $data00
   return -1
 endi
@@ -1840,52 +953,31 @@ endi
 if $data08 != 3 then                                                                                                                                                                           
   return -1                                                                                                                                                                                    
 endi                   
-if $data09 != @21-03-01 01:00:00.000@ then 
+if $data09 != @21-03-02 01:00:00.000@ then 
   return -1                                                                                                                                                                                    
 endi                   
-
-
 
 sql select top(st1.f1, 5) from st0, st1 where st1.id1=st0.id1 and st0.ts=st1.ts and st1.ts=st0.ts and st0.id1=st1.id1;
 if $rows != 5 then
   return -1                                                                                                                                                                                    
 endi                                                                                                                                                                                           
-if $data00 != @21-03-01 05:00:00.000@ then 
-  return -1
-endi
-if $data01 != 9915 then 
+if $data00 != 9915 then 
   return -1                                                                                                                                                                                    
 endi                                                                                                                                                                                           
-if $data10 != @21-03-02 05:00:00.000@ then 
-  return -1
-endi
-if $data11 != 9915 then 
+if $data10 != 9915 then 
   return -1                                                                                                                                                                                    
 endi                                                                                                                                                                                           
-if $data20 != @21-03-03 05:00:00.000@ then 
-  return -1
-endi
-if $data21 != 9915 then 
+if $data20 != 9915 then 
   return -1                                                                                                                                                                                    
 endi                                                                                                                                                                                           
-if $data30 != @21-03-04 05:00:00.000@ then 
-  return -1
-endi
-if $data31 != 9915 then 
+if $data30 != 9915 then 
   return -1                                                                                                                                                                                    
 endi                                                                                                                                                                                           
-if $data40 != @21-03-05 05:00:00.000@ then 
-  return -1
-endi
-if $data41 != 9915 then 
+if $data40 != 9915 then 
   return -1                                                                                                                                                                                    
 endi                                                                                                                                                                                           
 
-
-
-
-
-sql select top(st0.f1,5) from st0, st1 where st1.id1=st0.id1 and st0.ts=st1.ts and st1.ts=st0.ts and st0.id1=st1.id1;
+sql select st0.ts, top(st0.f1,5) from st0, st1 where st1.id1=st0.id1 and st0.ts=st1.ts and st1.ts=st0.ts and st0.id1=st1.id1 order by st0.ts;
 if $rows != 5 then
   return -1                                                                                                                                                                                    
 endi                                                                                                                                                                                           
@@ -1919,7 +1011,6 @@ endi
 if $data41 != 9905 then                                                                                                                                                                        
   return -1                                                                                                                                                                                    
 endi 
-
 
 #sql select st0.*,st1.*,st2.*,st3.* from st3,st2,st1,st0 where st0.id1=st3.id1 and st3.ts=st2.ts and st2.id1=st1.id1 and st1.ts=st0.ts;
 #sql select st0.*,st1.*,st2.*,st3.* from st3,st2,st1,st0 where st0.id1=st3.id1 and st3.ts=st2.ts and st2.id1=st1.id1 and st1.ts=st0.ts and st0.id1=st2.id1 and st1.ts=st2.ts;
@@ -1958,8 +1049,6 @@ endi
 #  return -1                                                                                                                                                                                    
 #endi                                                                                                                                                                                           
 
-
-
 #sql select st0.*,st1.*,st2.*,st3.* from st3,st2,st1,st0 where st0.id1=st1.id1 and st1.ts=st0.ts and st2.id1=st3.id1 and st3.ts=st2.ts;
 #sql select st0.*,st1.*,st2.*,st3.* from st3,st2,st1,st0 where st0.id1=st1.id1 and st1.ts=st0.ts and st2.id1=st3.id1 and st3.ts=st2.ts and st0.id1=st2.id1 and st0.ts=st2.ts;
 #if $rows != 25 then
@@ -1996,8 +1085,6 @@ endi
 #  return -1                                                                                                                                                                                    
 #endi                                                                                                                                                                                           
       
-
-
 sql select st0.*,st1.*,st2.*,st3.*,st4.*,st5.*,st6.*,st7.*,st8.*,st9.* from st0,st1,st2,st3,st4,st5,st6,st7,st8,st9 where st0.ts=st2.ts and st0.ts=st4.ts and st0.ts=st6.ts and st0.ts=st8.ts and st1.ts=st3.ts and st3.ts=st5.ts and st5.ts=st7.ts and st7.ts=st9.ts and st0.ts=st1.ts and st0.id1=st2.id1 and st0.id1=st4.id1 and st0.id1=st6.id1 and st0.id1=st8.id1 and st1.id1=st3.id1 and st3.id1=st5.id1 and st5.id1=st7.id1 and st7.id1=st9.id1 and st0.id1=st1.id1;
 if $rows != 25 then
   return -1                                                                                                                                                                                    
@@ -2032,8 +1119,6 @@ endi
 if $data09 != @21-03-01 01:00:00.000@ then                                                                                                                                                     
   return -1                                                                                                                                                                                    
 endi 
-
-
 
 sql select tb0_1.*, tb1_1.* from tb0_1, tb1_1 where tb0_1.ts=tb1_1.ts;
 if $rows != 5 then
@@ -2088,8 +1173,6 @@ if $data17 != 11 then
   return -1                                                                                                                                                                                    
 endi 
 
-
-
 sql select tb0_1.*, tb1_1.* from tb0_1, tb1_1 where tb0_1.ts=tb1_1.ts and tb0_1.id1=tb1_1.id1;
 if $rows != 5 then
   return -1                                                                                                                                                                                    
@@ -2143,20 +1226,15 @@ if $data17 != 11 then
   return -1                                                                                                                                                                                    
 endi
 
-
 sql select tb0_1.*, tb1_2.*,tb2_3.*,tb3_4.*,tb4_5.* from tb0_1, tb1_2, tb2_3, tb3_4, tb4_5 where tb0_1.ts=tb1_2.ts and tb0_1.ts=tb2_3.ts and tb0_1.ts=tb3_4.ts and tb0_1.ts=tb4_5.ts;
 if $rows != 0 then
   return -1                                                                                                                                                                                    
 endi 
 
-
-
 sql select tb0_1.*, tb1_1.*,tb2_1.*,tb3_1.*,tb4_1.* from tb0_1, tb1_1, tb2_1, tb3_1, tb4_1 where tb0_1.ts=tb1_1.ts and tb0_1.ts=tb2_1.ts and tb0_1.ts=tb3_1.ts and tb0_1.ts=tb4_1.ts;
-
 if $rows != 5 then                                                                                                                                                                             
   return -1                                                                                                                                                                                    
 endi
-
 if $data00 != @21-03-01 01:00:00.000@ then                                                                                                                                                     
   return -1
 endi
@@ -2186,46 +1264,12 @@ if $data08 != @21-03-01 01:00:00.000@ then
 endi                                                                                                                                                                                           
 if $data09 != 9921 then 
   return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data10 != @21-03-02 01:00:00.000@ then                                                                                                                                                     
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data11 != 9901 then 
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data12 != 9901.000000000 then                                                                                                                                                     
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data13 != 01 then                                                                                                                                                                          
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data14 != @21-03-02 01:00:00.000@ then                   
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data15 != 9911 then 
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data16 != 9911.000000000 then                                                                                                                                                                            
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data17 != 11 then                                                                                                                                                                          
-  return -1                                                                                                                                                                                    
-endi
-if $data18 != @21-03-02 01:00:00.000@ then 
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data19 != 9921 then 
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-
-
+endi                                                                                                                                                                                              
 
 sql select tb0_5.*, tb1_5.*,tb2_5.*,tb3_5.*,tb4_5.*,tb5_5.*, tb6_5.*,tb7_5.*,tb8_5.*,tb9_5.* from tb0_5, tb1_5, tb2_5, tb3_5, tb4_5,tb5_5, tb6_5, tb7_5, tb8_5, tb9_5 where tb9_5.ts=tb8_5.ts and tb8_5.ts=tb7_5.ts and tb7_5.ts=tb6_5.ts and tb6_5.ts=tb5_5.ts and tb5_5.ts=tb4_5.ts and tb4_5.ts=tb3_5.ts and tb3_5.ts=tb2_5.ts and tb2_5.ts=tb1_5.ts and tb1_5.ts=tb0_5.ts;
-
 if $rows != 5 then                                                                                                                                                                             
   return -1                                                                                                                                                                                    
 endi
-
 if $data00 != @21-03-01 05:00:00.000@ then                                                                                                                                                     
   return -1
 endi
@@ -2255,58 +1299,28 @@ if $data08 != @21-03-01 05:00:00.000@ then
 endi                                                                                                                                                                                           
 if $data09 != 9925 then 
   return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data10 != @21-03-02 05:00:00.000@ then                                                                                                                                                     
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data11 != 9905 then                                                                                                                                                                        
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data12 != 9905.000000000 then                                                                                                                                                              
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data13 != 05 then                                                                                                                                                                          
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data14 != @21-03-02 05:00:00.000@ then                                                                                                                                                     
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data15 != 9915 then                                                                                                                                                                        
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data16 != 9915.000000000 then                                                                                                                                                                            
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data17 != 15 then                                                                                                                                                                          
-  return -1                                                                                                                                                                                    
-endi                     
-if $data18 != @21-03-02 05:00:00.000@ then 
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data19 != 9925 then 
-  return -1                                                                                                                                                                                    
-endi 
+endi     
 
 sql_error select tb0_1.*, tb1_1.* from tb0_1, tb1_1 where tb0_1.f1=tb1_1.f1;
-sql_error select tb0_1.*, tb1_1.* from tb0_1, tb1_1 where tb0_1.ts=tb1_1.ts and tb0_1.id1=tb1_1.id2;
-sql_error select tb0_5.*, tb1_5.*,tb2_5.*,tb3_5.*,tb4_5.*,tb5_5.*, tb6_5.*,tb7_5.*,tb8_5.*,tb9_5.*,tba_5.* from tb0_5, tb1_5, tb2_5, tb3_5, tb4_5,tb5_5, tb6_5, tb7_5, tb8_5, tb9_5, tba_5 where tb9_5.ts=tb8_5.ts and tb8_5.ts=tb7_5.ts and tb7_5.ts=tb6_5.ts and tb6_5.ts=tb5_5.ts and tb5_5.ts=tb4_5.ts and tb4_5.ts=tb3_5.ts and tb3_5.ts=tb2_5.ts and tb2_5.ts=tb1_5.ts and tb1_5.ts=tb0_5.ts and tb0_5.ts=tba_5.ts;
+sql select tb0_1.*, tb1_1.* from tb0_1, tb1_1 where tb0_1.ts=tb1_1.ts and tb0_1.id1=tb1_1.id2;
+sql select tb0_5.*, tb1_5.*,tb2_5.*,tb3_5.*,tb4_5.*,tb5_5.*, tb6_5.*,tb7_5.*,tb8_5.*,tb9_5.*,tba_5.* from tb0_5, tb1_5, tb2_5, tb3_5, tb4_5,tb5_5, tb6_5, tb7_5, tb8_5, tb9_5, tba_5 where tb9_5.ts=tb8_5.ts and tb8_5.ts=tb7_5.ts and tb7_5.ts=tb6_5.ts and tb6_5.ts=tb5_5.ts and tb5_5.ts=tb4_5.ts and tb4_5.ts=tb3_5.ts and tb3_5.ts=tb2_5.ts and tb2_5.ts=tb1_5.ts and tb1_5.ts=tb0_5.ts and tb0_5.ts=tba_5.ts;
  
-sql_error select * from st0, st1 where st0.ts=st1.ts;
+sql select * from st0, st1 where st0.ts=st1.ts;
 sql_error select * from st0, st1 where st0.id1=st1.id1;
 sql_error select * from st0, st1 where st0.f1=st1.f1 and st0.id1=st1.id1;
-sql_error select * from st0, st1, st2, st3 where st0.id1=st1.id1 and st2.id1=st3.id1 and st0.ts=st1.ts and st1.ts=st2.ts and st2.ts=st3.ts;
+sql select * from st0, st1, st2, st3 where st0.id1=st1.id1 and st2.id1=st3.id1 and st0.ts=st1.ts and st1.ts=st2.ts and st2.ts=st3.ts;
 sql_error select * from st0, st1, st2 where st0.id1=st1.id1;
 sql_error select * from st0, st1 where st0.id1=st1.id1 and st0.id2=st1.id3;
 sql_error select * from st0, st1 where st0.id1=st1.id1 or st0.ts=st1.ts;
 sql_error select * from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 or st0.id2=st1.id2;
 sql_error select * from st0, st1, st2 where st0.ts=st1.ts and st0.id1=st1.id1;
 sql_error select * from st0, st1 where st0.id1=st1.ts and st0.ts=st1.id1;
-sql_error select * from st0, st1 where st0.id1=st1.id2 and st0.ts=st1.ts;
-sql_error select * from st0, st1 where st1.id4=st0.id4 and st1.ts=st0.ts;
-sql_error select * from st0, st1 where st0.id1=st1.id2 and st1.ts=st0.ts;
+sql select * from st0, st1 where st0.id1=st1.id2 and st0.ts=st1.ts;
+sql select * from st0, st1 where st1.id4=st0.id4 and st1.ts=st0.ts;
+sql select * from st0, st1 where st0.id1=st1.id2 and st1.ts=st0.ts;
 sql_error select * from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 interval 10a;
 sql_error select last(*) from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 group by f1;
 sql_error select st0.*,st1.*,st2.*,st3.*,st4.*,st5.*,st6.*,st7.*,st8.*,st9.* from st0,st1,st2,st3,st4,st5,st6,st7,st8,st9 where st0.ts=st2.ts and st0.ts=st4.ts and st0.ts=st6.ts and st0.ts=st8.ts and st1.ts=st3.ts and st3.ts=st5.ts and st5.ts=st7.ts and st7.ts=st9.ts and st0.id1=st2.id1 and st0.id1=st4.id1 and st0.id1=st6.id1 and st0.id1=st8.id1 and st1.id1=st3.id1 and st3.id1=st5.id1 and st5.id1=st7.id1 and st7.id1=st9.id1;
-sql_error select st0.*,st1.*,st2.*,st3.*,st4.*,st5.*,st6.*,st7.*,st8.*,st9.* from st0,st1,st2,st3,st4,st5,st6,st7,st8,st9,sta where st0.ts=st2.ts and st0.ts=st4.ts and st0.ts=st6.ts and st0.ts=st8.ts and st1.ts=st3.ts and st3.ts=st5.ts and st5.ts=st7.ts and st7.ts=st9.ts and st0.ts=st1.ts and st0.id1=st2.id1 and st0.id1=st4.id1 and st0.id1=st6.id1 and st0.id1=st8.id1 and st1.id1=st3.id1 and st3.id1=st5.id1 and st5.id1=st7.id1 and st7.id1=st9.id1 and st0.id1=st1.id1 and st0.id1=sta.id1 and st0.ts=sta.ts;
+sql select st0.*,st1.*,st2.*,st3.*,st4.*,st5.*,st6.*,st7.*,st8.*,st9.* from st0,st1,st2,st3,st4,st5,st6,st7,st8,st9,sta where st0.ts=st2.ts and st0.ts=st4.ts and st0.ts=st6.ts and st0.ts=st8.ts and st1.ts=st3.ts and st3.ts=st5.ts and st5.ts=st7.ts and st7.ts=st9.ts and st0.ts=st1.ts and st0.id1=st2.id1 and st0.id1=st4.id1 and st0.id1=st6.id1 and st0.id1=st8.id1 and st1.id1=st3.id1 and st3.id1=st5.id1 and st5.id1=st7.id1 and st7.id1=st9.id1 and st0.id1=st1.id1 and st0.id1=sta.id1 and st0.ts=sta.ts;
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
