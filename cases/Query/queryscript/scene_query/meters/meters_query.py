@@ -19,6 +19,8 @@ from itertools import combinations
 from faker import Faker
 import subprocess
 from taostest import TDCase
+import threading
+import multiprocessing
 
 class TDTestQuery(TDCase):
     def init(self):
@@ -194,14 +196,14 @@ class TDTestQuery(TDCase):
                         partitonby_filter = where_filters[5] 
                         limit_filter = where_filters[6]                       
 
-                        # sql2 = "select %s from %s where  %s %s %s " %(self.column_select(0),self.table,data_filter,like_match_filter,in_filter)
-                        # self.data_check(sql2)
+                        sql2 = "select %s from %s where  %s %s %s " %(self.column_select(0),self.table,data_filter,like_match_filter,in_filter)
+                        self.data_check(sql2)
 
-                        # sql2 = "select %s from %s where  %s %s %s " %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter)
-                        # self.data_check(sql2)
+                        sql2 = "select %s from %s where  %s %s %s " %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter)
+                        self.data_check(sql2)
                         
-                        # sql2 = "select %s from %s where  %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter)
-                        # self.data_check(sql2)
+                        sql2 = "select %s from %s where  %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter)
+                        self.data_check(sql2)
                         
                         # sql2 = "select %s from %s where  %s %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,orderby_filter)
                         # self.data_check(sql2)
@@ -258,7 +260,7 @@ class TDTestQuery(TDCase):
                         # self.data_check(sql2)
                         
                         # sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s " %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,partitonby_filter,data_filter,like_match_filter,in_filter)
-                        # # self.data_check(sql2)
+                        # self.data_check(sql2)
                         
                         # sql2 = "select %s from (select * from %s  where  %s %s %s ) where  %s %s %s  %s" %(self.column_select(2),self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,limit_filter)
                         # self.data_check(sql2)
@@ -336,13 +338,13 @@ class TDTestQuery(TDCase):
                         in_filter_2 = where_filters_2[2]
                         column_select = self.column_select(2) #针对union多列返回的个数不一样
 
-                        # sql2 = "select %s from %s where  %s %s %s " %(self.column_select(0),self.table,data_filter,like_match_filter,in_filter)
-                        # sql2 += " union select %s from %s where  %s %s %s " %(self.column_select(0),self.table,data_filter_2,like_match_filter_2,in_filter_2)
-                        # self.data_check(sql2)
+                        sql2 = "select %s from %s where  %s %s %s " %(self.column_select(0),self.table,data_filter,like_match_filter,in_filter)
+                        sql2 += " union select %s from %s where  %s %s %s " %(self.column_select(0),self.table,data_filter_2,like_match_filter_2,in_filter_2)
+                        self.data_check(sql2)
 
-                        # sql2 = "select %s from %s where  %s %s %s " %(column_select,self.table,data_filter,like_match_filter,in_filter)
-                        # sql2 += " union all select %s from %s where  %s %s %s " %(column_select,self.table,data_filter_2,like_match_filter_2,in_filter_2)
-                        # self.data_check(sql2)
+                        sql2 = "select %s from %s where  %s %s %s " %(column_select,self.table,data_filter,like_match_filter,in_filter)
+                        sql2 += " union all select %s from %s where  %s %s %s " %(column_select,self.table,data_filter_2,like_match_filter_2,in_filter_2)
+                        self.data_check(sql2)
                                                                         
                         # sql2 = "select %s from %s where  %s %s %s " %(self.column_select(1),self.table,data_filter,like_match_filter,in_filter)
                         # sql2 += " union select %s from %s where  %s %s %s " %(self.column_select(1),self.table,data_filter_2,like_match_filter_2,in_filter_2)
@@ -473,7 +475,8 @@ class TDTestQuery(TDCase):
 
     def base_function_all(self,i):   
         base_function_all = ''
-        columns = ['(*)','(ts)','(_c0)','(_C0)','(_rowts)','(c0)','(c1)','(c2)','(c3)','(c4)','(t0)','(t1)'] 
+        #columns = ['(*)','(ts)','(_c0)','(_C0)','(_rowts)','(c0)','(c1)','(c2)','(c3)','(c4)','(t0)','(t1)'] 
+        columns = ['(c1)','(c2)','(c0)'] 
         column_1 = random.sample(columns,1) 
         if i == 1: 
             func = ['COUNT']
@@ -494,16 +497,367 @@ class TDTestQuery(TDCase):
         elif i == 5:             
             func = ['MIN']
             func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
-            return func_column_process     
+            return func_column_process  
+        elif i == 6: 
+            func = ['FIRST']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process
+        elif i == 7:             
+            func = ['LAST']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process
+        elif i == 8:             
+            func = ['LAST_ROW']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process
+        elif i == 9:             
+            func = ['TOP']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process
+        elif i == 10:             
+            func = ['BOTTOM']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+          
+        #数学函数 Numeric Functions 
+        elif i == 21:             
+            func = ['ABS']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 22:             
+            func = ['ACOS']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 23:             
+            func = ['ASIN']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 24:             
+            func = ['ATAN']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 25:             
+            func = ['CEIL']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 26:             
+            func = ['COS']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 27:             
+            func = ['FLOOR']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 28:             
+            func = ['LOG']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 29:             
+            func = ['POW']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 30:             
+            func = ['ROUND']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 31:             
+            func = ['SIN']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 32:             
+            func = ['SORT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 33:             
+            func = ['TAN']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 34:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 35:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        
+        #时间和日期函数 Datetime Functions
+        elif i == 36:             
+            func = ['NOW']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 37:             
+            func = ['TIMEDIFF']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 38:             
+            func = ['TIMETRUNCATE']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 39:             
+            func = ['TIMEZONE']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 40:             
+            func = ['TODAY']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        
+        # 字符串函数 String Functions
+        elif i == 41:             
+            func = ['CHAR_LENGTH']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 42:             
+            func = ['CONCAT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 43:             
+            func = ['CONCAT_WS']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 44:             
+            func = ['LENGTH']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 45:             
+            func = ['LOWER']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 46:             
+            func = ['LTRIM']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 47:             
+            func = ['RTRIM']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 48:             
+            func = ['SUBSTR']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 49:             
+            func = ['UPPER']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 50:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        
+        # 转换函数 Conversion Functions
+        elif i == 51:             
+            func = ['TO_ISO8601']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 52:             
+            func = ['TO_JSON']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 53:             
+            func = ['TO_UNIXTIMESTAMP']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 54:             
+            func = ['CAST']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 55:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 56:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 57:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 58:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 59:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 60:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        
+        # 聚合函数 Aggregate Functions
+        elif i == 61:             
+            func = ['ELAPSED']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 62:             
+            func = ['LEASTSQUARES']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 63:             
+            func = ['MODE']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 64:             
+            func = ['SPREAD']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 65:             
+            func = ['STDDEV']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 66:             
+            func = ['HYPERLOGLOG']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 67:             
+            func = ['HISTOGRAM']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 68:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 69:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 70:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        
+        # 选择函数 Selector Functions
+        elif i == 71:             
+            func = ['APERCENTILE']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 72:             
+            func = ['INTERP']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 73:             
+            func = ['PERCENTILE']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 74:             
+            func = ['TAIL']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 75:             
+            func = ['UNIQUE']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 76:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 77:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 78:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 79:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 80:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        
+        # 时序数据特有函数 Time-Series Specific Functions
+        elif i == 81:             
+            func = ['CSUM']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 82:             
+            func = ['DERIVATIVE']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 83:             
+            func = ['DIFF']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 84:             
+            func = ['IRATE']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 85:             
+            func = ['MAVG']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 86:             
+            func = ['SAMPLE']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 87:             
+            func = ['STATECOUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 88:             
+            func = ['STATEDURATION']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 89:             
+            func = ['TWA']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 90:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        
+        # 系统信息函数
+        elif i == 91:             
+            func = ['DATABASE']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 92:             
+            func = ['CLIENT_VERSION']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 93:             
+            func = ['SERVER_VERSION']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 94:             
+            func = ['SERVER_STATUS']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 95:             
+            func = ['CURRENT_USER']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 96:             
+            func = ['USER']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 97:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 98:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
+        elif i == 99:             
+            func = ['COUNT']
+            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process 
 
         return base_function_all
 
         
-    def base_function(self,num):
-        self.logger.info("\n==========================base_function==========================\n")
+    def base_function(self,num):#thread_id
+        self.logger.info("\n=============func num = %s==============base_function==========================\n"%num)
         
         #for i in (1,2,3,4,5,):
-        #for i in (4,):
         for i in (num):
             func = self.base_function_all(i)
             try:                
@@ -524,112 +878,151 @@ class TDTestQuery(TDCase):
                         sql2 = "select %s from %s where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter)
                         self.data_check(sql2)
                         
-                        sql2 = "select %s from %s where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from %s where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from %s where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,groupby_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from %s where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,groupby_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from %s where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from %s where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from %s where  %s %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from %s where  %s %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from %s where  %s %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,groupby_filter,limit_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from %s where  %s %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,groupby_filter,limit_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from %s where  %s %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from %s where  %s %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from (select * from %s where  %s %s %s) " %(func,self.table,data_filter,like_match_filter,in_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from (select * from %s where  %s %s %s) " %(func,self.table,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from (select * from %s ) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from (select * from %s ) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from (select * from %s where  %s %s %s %s) " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from (select * from %s where  %s %s %s %s) " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from (select * from %s ) where  %s %s %s  %s" %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from (select * from %s ) where  %s %s %s  %s" %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from (select * from %s %s ) where  %s %s %s " %(func,self.table,orderby_filter,data_filter,like_match_filter,in_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from (select * from %s %s ) where  %s %s %s " %(func,self.table,orderby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
                                                 
-                        sql2 = "select * from (select %s from %s %s ) where  %s %s %s " %(func,self.table,groupby_filter,data_filter,like_match_filter,in_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select * from (select %s from %s %s ) where  %s %s %s " %(func,self.table,groupby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
                                                 
-                        sql2 = "select * from (select %s from %s %s ) where  %s %s %s " %(func,self.table,partitonby_filter,data_filter,like_match_filter,in_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select * from (select %s from %s %s ) where  %s %s %s " %(func,self.table,partitonby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from (select * from %s %s ) where  %s %s %s  %s" %(func,self.table,orderby_filter,data_filter,like_match_filter,in_filter,limit_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from (select * from %s %s ) where  %s %s %s  %s" %(func,self.table,orderby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
                                                 
-                        sql2 = "select * from (select %s from %s %s ) where  %s %s %s  %s" %(func,self.table,groupby_filter,data_filter,like_match_filter,in_filter,limit_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select * from (select %s from %s %s ) where  %s %s %s  %s" %(func,self.table,groupby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
                                                 
-                        sql2 = "select * from (select %s from %s %s ) where  %s %s %s  %s" %(func,self.table,partitonby_filter,data_filter,like_match_filter,in_filter,limit_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select * from (select %s from %s %s ) where  %s %s %s  %s" %(func,self.table,partitonby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from (select * from %s  where  %s %s %s ) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from (select * from %s  where  %s %s %s ) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,data_filter,like_match_filter,in_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,data_filter,like_match_filter,in_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from (select * from %s  where  %s %s %s ) where  %s %s %s  %s" %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,limit_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from (select * from %s  where  %s %s %s ) where  %s %s %s  %s" %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s  %s" %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,data_filter,like_match_filter,in_filter,limit_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s  %s" %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s  %s" %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,data_filter,like_match_filter,in_filter,limit_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s  %s" %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from (select * from %s  where  %s %s %s  %s) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from (select * from %s  where  %s %s %s  %s) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from (select * from %s where %s %s %s  %s %s) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter,data_filter,like_match_filter,in_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from (select * from %s where %s %s %s  %s %s) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from (select * from %s where %s %s %s  %s %s) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter,data_filter,like_match_filter,in_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from (select * from %s where %s %s %s  %s %s) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
                                                 
-                        sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
                                                 
-                        sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,orderby_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,orderby_filter)
+                        # self.data_check(sql2)
                                                 
-                        sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,partitonby_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,partitonby_filter)
+                        # self.data_check(sql2)
                                                 
-                        sql2 = "select * from (select %s from %s  where  %s %s %s  %s ) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s  %s ) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
                                                 
-                        sql2 = "select * from (select %s from %s  where  %s %s %s  %s ) where  %s %s %s  %s " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter,orderby_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s  %s ) where  %s %s %s  %s " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter,orderby_filter)
+                        # self.data_check(sql2)
                                                 
-                        sql2 = "select * from (select %s from %s  where  %s %s %s  %s ) where  %s %s %s  %s " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter,partitonby_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s  %s ) where  %s %s %s  %s " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter,partitonby_filter)
+                        # self.data_check(sql2)
                                                 
-                        sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,limit_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
                                                 
-                        sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter)
+                        # self.data_check(sql2)
                                                 
-                        sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter)
+                        # self.data_check(sql2)
 
             except Exception as e:
                 raise e   
             
+    def base_function_1(self):
+        base_function_1 = self.base_function([1,21,31,41,51,61,71,81,91])     
+        return base_function_1
             
+    def base_function_2(self):
+        base_function_2 = self.base_function([2,22,32,42,52,62,72,82,92])      
+        return base_function_2
+            
+    def base_function_3(self):
+        base_function_3 = self.base_function([3,23,33,43,53,63,73,83,93])      
+        return base_function_3  
+            
+    def base_function_4(self):
+        base_function_4 = self.base_function([4,24,34,44,54,64,74,84,94])     
+        return base_function_4
+            
+    def base_function_5(self):
+        base_function_5 = self.base_function([5,25,35,45,55,65,75,85,95])      
+        return base_function_5
+            
+    def base_function_6(self):
+        base_function_6 = self.base_function([6,26,36,46,56,66,76,86,96])      
+        return base_function_6 
+            
+    def base_function_7(self):
+        base_function_7 = self.base_function([7,27,37,47,57,67,77,87,97])     
+        return base_function_7
+            
+    def base_function_8(self):
+        base_function_8 = self.base_function([8,28,38,48,58,68,78,88,98])      
+        return base_function_8
+            
+    def base_function_9(self):
+        base_function_9 = self.base_function([9,29,39,49,59,69,79,89,99])      
+        return base_function_9   
+            
+    def base_function_10(self):
+        base_function_10 = self.base_function([10,20,30,40,50,60,70,80,90])      
+        return base_function_10       
+           
     def rm_sql(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
         self.tdCreateData.drop_db("%s" % self.db)  
@@ -654,7 +1047,48 @@ class TDTestQuery(TDCase):
          
         # self.select_column()
         # self.select_column_union()
-        self.base_function()
+        #self.base_function([3,4,5]) # multiple
+        #self.base_function([3,]) # sinlge
+        
+        # t1 = threading.Thread(target=self.select_column)
+        # t1.start()       
+        # t2 = threading.Thread(target=self.select_column_union)
+        # t2.start() 
+        
+        t11 = threading.Thread(target=self.base_function_1) 
+        t12 = threading.Thread(target=self.base_function_2) 
+        t13 = threading.Thread(target=self.base_function_3) 
+        t14 = threading.Thread(target=self.base_function_4) 
+        t15 = threading.Thread(target=self.base_function_5) 
+        t16 = threading.Thread(target=self.base_function_6) 
+        t17 = threading.Thread(target=self.base_function_7) 
+        t18 = threading.Thread(target=self.base_function_8) 
+        t19 = threading.Thread(target=self.base_function_9)
+        t20 = threading.Thread(target=self.base_function_10)  
+        t11.start() 
+        t12.start() 
+        t13.start()  
+        t14.start() 
+        t15.start() 
+        t16.start()
+        t17.start() 
+        t18.start() 
+        t19.start()
+        t20.start() 
+                      
+        
+        # t1.join()
+        # t2.join()
+        t11.join()
+        t12.join()
+        t13.join()
+        t14.join()
+        t15.join()
+        t16.join()
+        t17.join()
+        t18.join()
+        t19.join()
+        t20.join()
 
         endTime = time.time()
         
