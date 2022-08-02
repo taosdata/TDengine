@@ -1083,28 +1083,32 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
 // process probe msg , return true is probe msg, false is not probe msg
 static void rpcProcessProbeMsg(SRecvInfo *pRecv, SRpcConn *pConn) {
   SRpcHead  *pHead = (SRpcHead *)pRecv->msg;
+  uint64_t  ahandle = pHead->ahandle;
   if (pHead->msgType == TSDB_MSG_TYPE_PROBE_CONN) {
     // response to
-    SRpcHead rspHead;
-    memset(&rspHead, 0, sizeof(SRpcHead));
+    char       msg[RPC_MSG_OVERHEAD];
+    SRpcHead   *pRspHead;
 
-    rspHead.msgType = TSDB_MSG_TYPE_PROBE_CONN_RSP;
-    rspHead.version = 1;
-    rspHead.ahandle = pHead->ahandle;
-    rspHead.tranId  = pHead->tranId;
-    rspHead.code    = 0;
-    rspHead.spi     = pHead->spi;
-    rspHead.linkUid = pHead->linkUid;
+    // set msg header
+    memset(msg, 0, sizeof(SRpcHead));
+    pRspHead = (SRpcHead *)msg;
+
+    pRspHead->msgType = TSDB_MSG_TYPE_PROBE_CONN_RSP;
+    pRspHead->version = 1;
+    pRspHead->ahandle = pHead->ahandle;
+    pRspHead->tranId  = pHead->tranId;
+    pRspHead->code    = 0;
+    pRspHead->linkUid = pHead->linkUid;
 
     rpcLockConn(pConn);
-    rspHead.sourceId = pConn->ownId;
-    rspHead.destId   = pConn->peerId;
-    memcpy(rspHead.user, pHead->user, tListLen(pHead->user));
+    pRspHead->sourceId = pConn->ownId;
+    pRspHead->destId   = pConn->peerId;
+    memcpy(pRspHead->user, pHead->user, tListLen(pHead->user));
 
-    bool ret = rpcSendMsgToPeer(pConn, &rspHead, sizeof(SRpcHead));
-    tInfo("PROBE 0x%" PRIx64 " recv probe msg and do response. ret=%d", pHead->ahandle, ret);
-    rpcFreeMsg(pRecv->msg);
+    bool ret = rpcSendMsgToPeer(pConn, pRspHead, sizeof(SRpcHead));
+    tInfo("PROBE 0x%" PRIx64 " recv probe msg and do response. ret=%d", ahandle, ret);
     rpcUnlockConn(pConn);
+    rpcFreeMsg(pRecv->msg);
   } else if (pHead->msgType == TSDB_MSG_TYPE_PROBE_CONN_RSP) {
     if(pConn) {
       rpcLockConn(pConn);
@@ -1116,16 +1120,16 @@ static void rpcProcessProbeMsg(SRecvInfo *pRecv, SRpcConn *pConn) {
         rpcProcessIncomingMsg(pConn, pHead, pContext);
         taosReleaseRef(tsRpcRefId, pConn->rid);
       } else {
-        tInfo("PROBE 0x%" PRIx64 " get reqContext by rid return NULL. pConn->rid=0x%" PRIX64, pHead->ahandle, pConn->rid);
+        tInfo("PROBE 0x%" PRIx64 " recv response probe msg but pContext is NULL. pConn->rid=0x%" PRIX64, ahandle, pConn->rid);
+        rpcFreeMsg(pRecv->msg);
       }
   
       rpcUnlockConn(pConn);
-      tInfo("PROBE 0x%" PRIx64 " recv response probe msg and update lastLiveTime. pConn=%p", pHead->ahandle, pConn);
     } else {
-      tInfo("PROBE 0x%" PRIx64 " recv response probe msg but pConn is NULL.", pHead->ahandle);
+      tInfo("PROBE 0x%" PRIx64 " recv response probe msg but pConn is NULL.", ahandle);
+      rpcFreeMsg(pRecv->msg);
     }
   }
-
 }
 
 static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
@@ -1798,7 +1802,7 @@ bool rpcSendProbe(int64_t rpcRid, void* pPrevContext) {
   bool ret = false;
   if(rpcRid < 0) {
     tError("PROBE rpcRid=0x%" PRIx64 " less than zero, invalid.", rpcRid);
-    return false;
+    return true;
   }
 
   // get req content
@@ -1815,22 +1819,25 @@ bool rpcSendProbe(int64_t rpcRid, void* pPrevContext) {
   }
 
   // conn same
-  if (pContext->pConn != pContext->sendInfo.pConn) {
-    tError("PROBE rpcRid=0x%" PRIx64 " connect obj diff. pContext->pConn=%p pPreConn=%p", rpcRid, pContext->pConn, pContext->sendInfo.pConn);
-    ret = pContext->pConn == NULL;
+  if(pContext->pConn == NULL) {
+    tInfo("PROBE rpcRid=0x%" PRIx64 " connect obj is NULL. ", rpcRid);
+    ret = true;
+    goto _END;
+  } else if (pContext->pConn != pContext->sendInfo.pConn) {
+    tInfo("PROBE rpcRid=0x%" PRIx64 " connect obj diff. pContext->pConn=%p pPreConn=%p", rpcRid, pContext->pConn, pContext->sendInfo.pConn);
     goto _END;
   }
 
   // fdObj same
   if (pContext->pConn->chandle != pContext->sendInfo.pFdObj) {
-    tError("PROBE rpcRid=0x%" PRIx64 " connect fdObj diff. pContext->pConn->chandle=%p pPrevFdObj=%p", rpcRid, pContext->pConn->chandle, pContext->sendInfo.pFdObj);
+    tInfo("PROBE rpcRid=0x%" PRIx64 " connect fdObj diff. pContext->pConn->chandle=%p pPrevFdObj=%p", rpcRid, pContext->pConn->chandle, pContext->sendInfo.pFdObj);
     goto _END;
   }
 
   // fd same
   int32_t fd = taosGetFdID(pContext->pConn->chandle);
   if (fd != pContext->sendInfo.fd) {
-    tError("PROBE rpcRid=0x%" PRIx64 " connect fd diff.fd=%d prevFd=%d", rpcRid, fd, pContext->sendInfo.fd);
+    tInfo("PROBE rpcRid=0x%" PRIx64 " connect fd diff.fd=%d prevFd=%d", rpcRid, fd, pContext->sendInfo.fd);
     goto _END;
   }
 

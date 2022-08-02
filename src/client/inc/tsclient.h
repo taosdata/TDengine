@@ -399,7 +399,6 @@ typedef struct SSqlObj {
   int64_t          self;
   
   // connect alive
-  int64_t          lastProbe;    
   int64_t          lastAlive;
   void *           pPrevContext;
 } SSqlObj;

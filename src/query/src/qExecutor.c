@@ -6368,9 +6368,9 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
     publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     // TEST TODU DELETE
-    static int loop = 0;
-    taosMsleep(1*1000);
-    qInfo(" loop=%d pEnv=%p", loop++, pRuntimeEnv);
+    //static int loop = 0;
+    //taosMsleep(1*1000);
+    //qInfo(" loop=%d pEnv=%p", loop++, pRuntimeEnv);
 
 
     if (pBlock == NULL) {

@@ -281,48 +281,16 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   }
 }
 
-// pSql connection link is broken
-bool dealConnBroken(SSqlObj * pSql) {
-  // check valid
-  
-  if (pSql->signature != pSql) {
-    tscInfo("PROBE 0x%" PRIx64 " break link signature is not equal pSql. signature=%p", pSql->self, pSql->signature);
-    return false;
-  }
-
-  // set error
-  pSql->res.code = TSDB_CODE_RPC_CONN_BROKEN;
-
-  // cancel
-  if (pSql->rpcRid > 0) {
-    tscInfo("PROBE 0x%" PRIx64 " break link done. rpcRid=0x%" PRIx64, pSql->self, pSql->rpcRid);
-    rpcCancelRequest(pSql->rpcRid);
-    pSql->rpcRid = -1;
-  } else {
-    tscInfo("PROBE 0x%" PRIx64 " break link rpcRid <=0. rpcRid=0x%" PRIx64, pSql->self, pSql->rpcRid);
-  }
-
-  // error notify
-  tscInfo("PROBE 0x%"PRIx64" call async result error." PRIx64, pSql->self);
-  tscAsyncResultOnError(pSql);
-
-  return true;
-}
-
 // if return true, send probe connection msg to sever ok
-bool sendProbeConnMsg(SSqlObj* pSql) {
-  // TEST TODO DELETE
-  tsProbeSeconds = 1;   // over this value send probe msg
-  tsProbeKillSeconds = 2*60; // over this value query can be killed
-
-  if(pSql->stime == 0) {
+bool sendProbeConnMsg(SSqlObj* pSql, int64_t stime) {
+  if(stime == 0) {
     // not start , no need probe
     tscInfo("PROBE 0x%" PRIx64 " not start, no need probe.", pSql->self);
     return true;
   }
 
-  int64_t stime = MAX(pSql->stime, pSql->lastAlive);
-  int32_t diff = (int32_t)(taosGetTimestampMs() - stime);
+  int64_t start = MAX(stime, pSql->lastAlive);
+  int32_t diff = (int32_t)(taosGetTimestampMs() - start);
   if (diff < tsProbeSeconds * 1000) {
     // exec time short , need not probe alive
     tscInfo("PROBE 0x%" PRIx64 " not arrived probe time. cfg timeout=%ds, no need probe. lastAlive=%" PRId64 " stime=%" PRId64, \
@@ -349,9 +317,6 @@ bool sendProbeConnMsg(SSqlObj* pSql) {
     tscInfo("PROBE 0x%" PRIx64 " rpcRid is -1, response ok. no need probe.", pSql->self);
     return true;
   }
-
-  // It's long time from lastAlive, so need probe
-  pSql->lastProbe = taosGetTimestampMs();
   
   bool ret = rpcSendProbe(pSql->rpcRid, pSql->pPrevContext);
   tscInfo("PROBE 0x%" PRIx64 " send probe msg, ret=%d rpcRid=0x%" PRIx64, pSql->self, ret, pSql->rpcRid);
@@ -363,27 +328,49 @@ void checkBrokenQueries(STscObj *pTscObj) {
   tscDebug("PROBE checkBrokenQueries pTscObj=%p pTscObj->rid=0x%" PRIx64, pTscObj, pTscObj->rid);
   SSqlObj *pSql = pTscObj->sqlList;
   while (pSql) {
-    int32_t numOfSub = pSql->subState.numOfSub;
-    tscInfo("PROBE 0x%" PRIx64 " check sql connection alive, numOfSub=%d sql=%s", pSql->self, numOfSub, pSql->sqlstr == NULL ? "" : pSql->sqlstr);
-    if (numOfSub == 0) {
-      // no sub sql
-      if(!sendProbeConnMsg(pSql)) {
-        // send failed , connect already broken
-        dealConnBroken(pSql);
-      }
-
-      return ;
-    } 
-    
-    // have sub sql
-    for (int i = 0; i < numOfSub; i++) {
-      SSqlObj *pSubSql = pSql->pSubs[i];
-      if(!sendProbeConnMsg(pSubSql)) {
-        // send failed , connect already broken
-        dealConnBroken(pSubSql);
-      }
+    // avoid sqlobj may not be correctly removed from sql list
+    if (pSql->sqlstr == NULL) {
+      pSql = pSql->next;
+      continue;
     }
 
+    bool kill = false;
+    int32_t numOfSub = pSql->subState.numOfSub;
+    tscInfo("PROBE 0x%" PRIx64 " start checking sql connection alive, numOfSub=%d sql=%s", pSql->self, numOfSub, pSql->sqlstr == NULL ? "" : pSql->sqlstr);
+    if (numOfSub == 0) {
+      // no sub sql
+      if(!sendProbeConnMsg(pSql, pSql->stime)) {
+        // need kill
+        tscInfo("PROBE 0x%" PRIx64 " need break link done. rpcRid=0x%" PRIx64, pSql->self, pSql->rpcRid);
+        kill = true;
+      }
+    } else {
+      // lock subs
+      pthread_mutex_lock(&pSql->subState.mutex);
+      if (pSql->pSubs) {
+        // have sub sql
+        for (int i = 0; i < numOfSub; i++) {
+          SSqlObj *pSubSql = pSql->pSubs[i];
+          if(pSubSql) {
+            tscInfo("PROBE 0x%" PRIx64 " sub sql app is 0x%" PRIx64, pSql->self, pSubSql->self);
+            if(!sendProbeConnMsg(pSubSql, pSql->stime)) {
+              // need kill
+              tscInfo("PROBE 0x%" PRIx64 " i=%d sub app=0x%" PRIx64 " need break link done. rpcRid=0x%" PRIx64, pSql->self, i, pSubSql->self, pSubSql->rpcRid);
+              kill = true;
+              break;
+            }
+          }
+        }
+      }
+      // unlock
+      pthread_mutex_unlock(&pSql->subState.mutex);
+    }
+
+    // kill query
+    if(kill) {
+      taos_stop_query(pSql);
+    }
+    
     // move next
     pSql = pSql->next;
   }
@@ -543,11 +530,10 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   // check msgtype
   if(rpcMsg->msgType == TSDB_MSG_TYPE_PROBE_CONN_RSP) {
     pSql->lastAlive = taosGetTimestampMs();
-    tscDebug("PROBE 0x%" PRIx64 " recv probe response msg. rpcRid=0x%" PRIx64, pSql->self, pSql->rpcRid);
+    tscInfo("PROBE 0x%" PRIx64 " recv probe msg response. rpcRid=0x%" PRIx64, pSql->self, pSql->rpcRid);
     rpcFreeCont(rpcMsg->pCont);
     return ;
   }
-
 
   STscObj *pObj = pSql->pTscObj;
   SSqlRes *pRes = &pSql->res;
