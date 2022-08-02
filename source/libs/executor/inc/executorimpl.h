@@ -519,6 +519,7 @@ typedef struct SBlockDistInfo {
 typedef struct SOptrBasicInfo {
   SResultRowInfo  resultRowInfo;
   SSDataBlock*    pRes;
+  bool            mergeResultBlock;
 } SOptrBasicInfo;
 
 typedef struct SIntervalAggOperatorInfo {
@@ -593,7 +594,6 @@ typedef struct SAggOperatorInfo {
   uint64_t           groupId;
   SGroupResInfo      groupResInfo;
   SExprSupp          scalarExprSup;
-
   SNode             *pCondition;
 } SAggOperatorInfo;
 
@@ -891,7 +891,7 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
 SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode *pScanPhyNode, const char* pUser, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SNode* pCondition, SExprInfo* pScalarExprInfo,
-                                           int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo);
+                                           int32_t numOfScalarExpr, bool mergeResult, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode *pNode, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* pProjPhyNode, SExecTaskInfo* pTaskInfo);
