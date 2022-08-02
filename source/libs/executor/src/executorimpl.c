@@ -3596,7 +3596,8 @@ void doDestroyExchangeOperatorInfo(void* param) {
 }
 
 static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t numOfCols, SNodeListNode* pValNode,
-                            STimeWindow win, int32_t capacity, const char* id, SInterval* pInterval, int32_t fillType, int32_t order) {
+                            STimeWindow win, int32_t capacity, const char* id, SInterval* pInterval, int32_t fillType,
+                            int32_t order) {
   SFillColInfo* pColInfo = createFillColInfo(pExpr, numOfCols, pValNode);
 
   STimeWindow w = getAlignQueryTimeWindow(pInterval, pInterval->precision, win.skey);
@@ -3627,13 +3628,13 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
 
   int32_t      num = 0;
   SSDataBlock* pResBlock = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
-  SExprInfo*   pExprInfo = createExprInfo(pPhyFillNode->pTargets, NULL, &num);
+  SExprInfo*   pExprInfo = createExprInfo(pPhyFillNode->pFillExprs, NULL, &num);
   SInterval*   pInterval =
       QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL == downstream->operatorType
             ? &((SMergeAlignedIntervalAggOperatorInfo*)downstream->info)->intervalAggOperatorInfo->interval
             : &((SIntervalAggOperatorInfo*)downstream->info)->interval;
 
-  int32_t order = (pPhyFillNode->inputTsOrder == ORDER_ASC)? TSDB_ORDER_ASC:TSDB_ORDER_DESC;
+  int32_t order = (pPhyFillNode->inputTsOrder == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
   int32_t type = convertFillType(pPhyFillNode->mode);
 
   SResultInfo* pResultInfo = &pOperator->resultInfo;
@@ -3641,7 +3642,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   pInfo->primaryTsCol = ((SColumnNode*)pPhyFillNode->pWStartTs)->slotId;
 
   int32_t numOfOutputCols = 0;
-  SArray* pColMatchColInfo = extractColMatchInfo(pPhyFillNode->pTargets, pPhyFillNode->node.pOutputDataBlockDesc,
+  SArray* pColMatchColInfo = extractColMatchInfo(pPhyFillNode->pFillExprs, pPhyFillNode->node.pOutputDataBlockDesc,
                                                  &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
 
   int32_t code = initFillInfo(pInfo, pExprInfo, num, (SNodeListNode*)pPhyFillNode->pValues, pPhyFillNode->timeRange,
@@ -3835,7 +3836,7 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo, int32_t groupNum) 
   return TDB_CODE_SUCCESS;
 }
 
-bool groupbyTbname(SNodeList* pGroupList)  {
+bool groupbyTbname(SNodeList* pGroupList) {
   bool bytbname = false;
   if (LIST_LENGTH(pGroupList) > 0) {
     SNode* p = nodesListGetNode(pGroupList, 0);
@@ -3877,7 +3878,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
   bool assignUid = groupbyTbname(group);
 
   int32_t groupNum = 0;
-  size_t numOfTables = taosArrayGetSize(pTableListInfo->pTableList);
+  size_t  numOfTables = taosArrayGetSize(pTableListInfo->pTableList);
 
   for (int32_t i = 0; i < numOfTables; i++) {
     STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
@@ -4619,7 +4620,7 @@ void releaseQueryBuf(size_t numOfTables) {
 }
 
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInfoList) {
-  SExplainExecInfo execInfo = {0};
+  SExplainExecInfo  execInfo = {0};
   SExplainExecInfo* pExplainInfo = taosArrayPush(pExecInfoList, &execInfo);
 
   pExplainInfo->numOfRows = operatorInfo->resultInfo.totalRows;
@@ -4629,7 +4630,8 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
   pExplainInfo->verboseInfo = NULL;
 
   if (operatorInfo->fpSet.getExplainFn) {
-    int32_t code = operatorInfo->fpSet.getExplainFn(operatorInfo, &pExplainInfo->verboseInfo, &pExplainInfo->verboseLen);
+    int32_t code =
+        operatorInfo->fpSet.getExplainFn(operatorInfo, &pExplainInfo->verboseInfo, &pExplainInfo->verboseLen);
     if (code) {
       qError("%s operator getExplainFn failed, code:%s", GET_TASKID(operatorInfo->pTaskInfo), tstrerror(code));
       return code;
@@ -4640,7 +4642,7 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
   for (int32_t i = 0; i < operatorInfo->numOfDownstream; ++i) {
     code = getOperatorExplainExecInfo(operatorInfo->pDownstream[i], pExecInfoList);
     if (code != TSDB_CODE_SUCCESS) {
-//      taosMemoryFreeClear(*pRes);
+      //      taosMemoryFreeClear(*pRes);
       return TSDB_CODE_QRY_OUT_OF_MEMORY;
     }
   }

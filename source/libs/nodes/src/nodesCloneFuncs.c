@@ -450,6 +450,8 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
 static int32_t logicFillCopy(const SFillLogicNode* pSrc, SFillLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(mode);
+  CLONE_NODE_LIST_FIELD(pFillExprs);
+  CLONE_NODE_LIST_FIELD(pNotFillExprs);
   CLONE_NODE_FIELD(pWStartTs);
   CLONE_NODE_FIELD(pValues);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));

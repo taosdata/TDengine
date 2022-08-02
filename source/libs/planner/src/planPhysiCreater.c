@@ -311,6 +311,10 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
 
 static int32_t setNodeSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, int16_t rightDataBlockId, SNode* pNode,
                              SNode** pOutput) {
+  if (NULL == pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SNode* pRes = nodesCloneNode(pNode);
   if (NULL == pRes) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -332,6 +336,10 @@ static int32_t setNodeSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, i
 
 static int32_t setListSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, int16_t rightDataBlockId,
                              const SNodeList* pList, SNodeList** pOutput) {
+  if (NULL == pList) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SNodeList* pRes = nodesCloneList(pList);
   if (NULL == pRes) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -1368,9 +1376,15 @@ static int32_t createFillPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   pFill->inputTsOrder = pFillNode->inputTsOrder;
 
   SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
-  int32_t code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFillNode->node.pTargets, &pFill->pTargets);
+  int32_t code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFillNode->pFillExprs, &pFill->pFillExprs);
   if (TSDB_CODE_SUCCESS == code) {
-    code = addDataBlockSlots(pCxt, pFill->pTargets, pFill->node.pOutputDataBlockDesc);
+    code = addDataBlockSlots(pCxt, pFill->pFillExprs, pFill->node.pOutputDataBlockDesc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFillNode->pNotFillExprs, &pFill->pNotFillExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addDataBlockSlots(pCxt, pFill->pNotFillExprs, pFill->node.pOutputDataBlockDesc);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

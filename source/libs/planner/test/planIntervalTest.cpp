@@ -45,8 +45,9 @@ TEST_F(PlanIntervalTest, fill) {
       "WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
       "INTERVAL(10s) FILL(VALUE, 10, 20)");
 
-  run("SELECT COUNT(*) FROM st1 WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
-      "PARTITION BY TBNAME interval(10s) fill(prev)");
+  run("SELECT _WSTART, TBNAME, COUNT(*) FROM st1 "
+      "WHERE ts > '2022-04-01 00:00:00' and ts < '2022-04-30 23:59:59' "
+      "PARTITION BY TBNAME INTERVAL(10s) FILL(PREV)");
 }
 
 TEST_F(PlanIntervalTest, selectFunc) {

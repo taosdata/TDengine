@@ -38,6 +38,27 @@ typedef struct SRewriteExprCxt {
   SNodeList* pExprs;
 } SRewriteExprCxt;
 
+static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol) {
+  switch (pFunc->funcType) {
+    case FUNCTION_TYPE_TBNAME:
+      pCol->colType = COLUMN_TYPE_TBNAME;
+      break;
+    case FUNCTION_TYPE_WSTART:
+    case FUNCTION_TYPE_WEND:
+      pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+      pCol->colType = COLUMN_TYPE_WINDOW_PC;
+      break;
+    case FUNCTION_TYPE_WDURATION:
+      pCol->colType = COLUMN_TYPE_WINDOW_PC;
+      break;
+    case FUNCTION_TYPE_GROUP_KEY:
+      pCol->colType = COLUMN_TYPE_GROUP_KEY;
+      break;
+    default:
+      break;
+  }
+}
+
 static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
   switch (nodeType(*pNode)) {
     case QUERY_NODE_OPERATOR:
@@ -60,11 +81,7 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
           strcpy(pCol->node.aliasName, pToBeRewrittenExpr->aliasName);
           strcpy(pCol->colName, ((SExprNode*)pExpr)->aliasName);
           if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
-            if (FUNCTION_TYPE_WSTART == ((SFunctionNode*)pExpr)->funcType) {
-              pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-            } else if (FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pExpr)->funcType) {
-              pCol->colType = COLUMN_TYPE_TBNAME;
-            }
+            setColumnInfo((SFunctionNode*)pExpr, pCol);
           }
           nodesDestroyNode(*pNode);
           *pNode = (SNode*)pCol;
@@ -746,6 +763,41 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   return TSDB_CODE_FAILED;
 }
 
+static EDealRes needFillValueImpl(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (COLUMN_TYPE_WINDOW_PC != pCol->colType && COLUMN_TYPE_GROUP_KEY != pCol->colType) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool needFillValue(SNode* pNode) {
+  bool hasFillCol = false;
+  nodesWalkExpr(pNode, needFillValueImpl, &hasFillCol);
+  return hasFillCol;
+}
+
+static int32_t partFillExprs(SNodeList* pProjectionList, SNodeList** pFillExprs, SNodeList** pNotFillExprs) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pProject = NULL;
+  FOREACH(pProject, pProjectionList) {
+    if (needFillValue(pProject)) {
+      code = nodesListMakeStrictAppend(pFillExprs, nodesCloneNode(pProject));
+    } else {
+      code = nodesListMakeStrictAppend(pNotFillExprs, nodesCloneNode(pProject));
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      NODES_DESTORY_LIST(*pFillExprs);
+      NODES_DESTORY_LIST(*pNotFillExprs);
+      break;
+    }
+  }
+  return code;
+}
+
 static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (NULL == pSelect->pWindow || QUERY_NODE_INTERVAL_WINDOW != nodeType(pSelect->pWindow) ||
       NULL == ((SIntervalWindowNode*)pSelect->pWindow)->pFill) {
@@ -767,10 +819,18 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pFill->node.resultDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
   pFill->inputTsOrder = ORDER_ASC;
 
-  int32_t code = nodesCollectColumns(pSelect, SQL_CLAUSE_WINDOW, NULL, COLLECT_COL_TYPE_ALL, &pFill->node.pTargets);
-  if (TSDB_CODE_SUCCESS == code && NULL == pFill->node.pTargets) {
-    code = nodesListMakeStrictAppend(&pFill->node.pTargets,
-                                     nodesCloneNode(nodesListGetNode(pCxt->pCurrRoot->pTargets, 0)));
+  int32_t code = partFillExprs(pSelect->pProjectionList, &pFill->pFillExprs, &pFill->pNotFillExprs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteExprsForSelect(pFill->pFillExprs, pSelect, SQL_CLAUSE_FILL);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteExprsForSelect(pFill->pNotFillExprs, pSelect, SQL_CLAUSE_FILL);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createColumnByRewriteExprs(pFill->pFillExprs, &pFill->node.pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createColumnByRewriteExprs(pFill->pNotFillExprs, &pFill->node.pTargets);
   }
 
   pFill->mode = pFillNode->mode;
