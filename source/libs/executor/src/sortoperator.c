@@ -152,7 +152,7 @@ SSDataBlock* loadNextDataBlock(void* param) {
 void applyScalarFunction(SSDataBlock* pBlock, void* param) {
   SOperatorInfo*     pOperator = param;
   SSortOperatorInfo* pSort = pOperator->info;
-  if (pOperator->exprSupp.pExprInfo != NULL) {
+  if (pOperator->exprSupp.pExprInfo != NULL && pOperator->exprSupp.numOfExprs > 0) {
     int32_t code = projectApplyFunctions(pOperator->exprSupp.pExprInfo, pBlock, pBlock, pOperator->exprSupp.pCtx,
                                          pOperator->exprSupp.numOfExprs, NULL);
     if (code != TSDB_CODE_SUCCESS) {
