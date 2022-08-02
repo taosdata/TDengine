@@ -381,7 +381,7 @@ void cliHandleResp(SCliConn* conn) {
 
   STraceId* trace = &transMsg.info.traceId;
 
-  tGTrace("%s conn %p %s received from %s, local info:%s, len:%d, code str:%s", CONN_GET_INST_LABEL(conn), conn,
+  tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, code str:%s", CONN_GET_INST_LABEL(conn), conn,
           TMSG_INFO(pHead->msgType), conn->dst, conn->src, transMsg.contLen, tstrerror(transMsg.code));
 
   if (pCtx == NULL && CONN_NO_PERSIST_BY_APP(conn)) {
@@ -757,7 +757,7 @@ void cliSend(SCliConn* pConn) {
   uv_buf_t wb = uv_buf_init((char*)pHead, msgLen);
 
   STraceId* trace = &pMsg->info.traceId;
-  tGTrace("%s conn %p %s is sent to %s, local info %s, len:%d", CONN_GET_INST_LABEL(pConn), pConn,
+  tGDebug("%s conn %p %s is sent to %s, local info %s, len:%d", CONN_GET_INST_LABEL(pConn), pConn,
           TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, pMsg->contLen);
 
   if (pHead->persist == 1) {
