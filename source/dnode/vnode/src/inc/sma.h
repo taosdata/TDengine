@@ -41,6 +41,9 @@ typedef struct SRSmaStat     SRSmaStat;
 typedef struct SSmaKey       SSmaKey;
 typedef struct SRSmaInfo     SRSmaInfo;
 typedef struct SRSmaInfoItem SRSmaInfoItem;
+typedef struct SQTaskFile    SQTaskFile;
+typedef struct SQTaskFReader SQTaskFReader;
+typedef struct SQTaskFWriter SQTaskFWriter;
 
 struct SSmaEnv {
   SRWLatch  lock;
@@ -64,12 +67,32 @@ struct STSmaStat {
   STSchema *pTSchema;
 };
 
+struct SQTaskFile {
+  volatile int32_t nRef;
+  int64_t          commitID;
+  int64_t          size;
+};
+
+struct SQTaskFReader {
+  SSma      *pSma;
+  SQTaskFile fTask;
+  TdFilePtr  pReadH;
+};
+struct SQTaskFWriter {
+  SSma      *pSma;
+  SQTaskFile fTask;
+  TdFilePtr  pWriteH;
+  char      *fname;
+};
+
 struct SRSmaStat {
   SSma     *pSma;
   int64_t   commitAppliedVer;  // vnode applied version for async commit
   int64_t   refId;             // shared by fetch tasks
+  SRWLatch  lock;              // r/w lock for rsma fs(e.g. qtaskinfo)
   int8_t    triggerStat;       // shared by fetch tasks
   int8_t    commitStat;        // 0 not in committing, 1 in committing
+  SArray   *aTaskFile;         // qTaskFiles committed recently(for recovery/snapshot r/w)
   SHashObj *rsmaInfoHash;      // key: stbUid, value: SRSmaInfo;
   SHashObj *iRsmaInfoHash;     // key: stbUid, value: SRSmaInfo; immutable rsmaInfoHash
 };
@@ -89,6 +112,7 @@ struct SSmaStat {
 #define RSMA_TRIGGER_STAT(r)  (&(r)->triggerStat)
 #define RSMA_COMMIT_STAT(r)   (&(r)->commitStat)
 #define RSMA_REF_ID(r)        ((r)->refId)
+#define RSMA_FS_LOCK(r)       (&(r)->lock)
 
 struct SRSmaInfoItem {
   void   *taskInfo;  // qTaskInfo_t
@@ -192,6 +216,8 @@ static FORCE_INLINE void tdSmaStatSetDropped(STSmaStat *pTStat) {
   }
 }
 
+void           tdRSmaQTaskInfoGetFileName(int32_t vid, int64_t version, char *outputName);
+void           tdRSmaQTaskInfoGetFullName(int32_t vid, int64_t version, const char *path, char *outputName);
 int32_t        tdCloneRSmaInfo(SSma *pSma, SRSmaInfo *pDest, SRSmaInfo *pSrc);
 void           tdFreeQTaskInfo(qTaskInfo_t *taskHandle, int32_t vgId, int32_t level);
 static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
@@ -208,9 +234,6 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg);
 int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
 
 // smaFileUtil ================
-
-typedef struct SQTaskFReader  SQTaskFReader;
-typedef struct SQTaskFWriter  SQTaskFWriter;
 
 #define TD_FILE_HEAD_SIZE 512
 

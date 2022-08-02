@@ -60,6 +60,7 @@ static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
 }
 
 static void deregisterRequest(SRequestObj *pRequest) {
+  const static int64_t SLOW_QUERY_INTERVAL = 3000000L; // todo configurable
   assert(pRequest != NULL);
 
   STscObj            *pTscObj = pRequest->pTscObj;
@@ -72,6 +73,17 @@ static void deregisterRequest(SRequestObj *pRequest) {
   tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ", reqId:0x%" PRIx64 " elapsed:%" PRIu64
            " ms, current:%d, app current:%d",
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000, num, currentInst);
+
+  if (QUERY_NODE_VNODE_MODIF_STMT == pRequest->stmtType) {
+    atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
+  } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
+    atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);           
+  }
+  
+  if (duration >= SLOW_QUERY_INTERVAL) {
+    atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
+  }
+  
   releaseTscObj(pTscObj->id);
 }
 

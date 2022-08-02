@@ -331,7 +331,7 @@ int32_t ctgHandleMsgCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
     SHashObj* pBatchs = taosHashInit(CTG_DEFAULT_BATCH_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
     if (NULL == pBatchs) {
       ctgError("taosHashInit %d batch failed", CTG_DEFAULT_BATCH_NUM);
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }
     pTask->pBatchs = pBatchs;
 #endif

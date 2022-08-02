@@ -66,7 +66,7 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb) {
 
 #ifdef USE_MAINDB
   // open main db
-  ret = tdbTbOpen(TDB_MAINDB_NAME, -1, sizeof(SPgno), NULL, pDb, &pDb->pMainDb);
+  ret = tdbTbOpen(TDB_MAINDB_NAME, -1, sizeof(SBtInfo), NULL, pDb, &pDb->pMainDb);
   if (ret < 0) {
     return -1;
   }
@@ -97,7 +97,7 @@ int tdbClose(TDB *pDb) {
   return 0;
 }
 
-int tdbBegin(TDB *pDb, TXN *pTxn) {
+int32_t tdbBegin(TDB *pDb, TXN *pTxn) {
   SPager *pPager;
   int     ret;
 
@@ -112,12 +112,27 @@ int tdbBegin(TDB *pDb, TXN *pTxn) {
   return 0;
 }
 
-int tdbCommit(TDB *pDb, TXN *pTxn) {
+int32_t tdbCommit(TDB *pDb, TXN *pTxn) {
   SPager *pPager;
   int     ret;
 
   for (pPager = pDb->pgrList; pPager; pPager = pPager->pNext) {
     ret = tdbPagerCommit(pPager, pTxn);
+    if (ret < 0) {
+      ASSERT(0);
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+int32_t tdbAbort(TDB *pDb, TXN *pTxn) {
+  SPager *pPager;
+  int     ret;
+
+  for (pPager = pDb->pgrList; pPager; pPager = pPager->pNext) {
+    ret = tdbPagerAbort(pPager, pTxn);
     if (ret < 0) {
       ASSERT(0);
       return -1;

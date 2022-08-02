@@ -325,16 +325,7 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     return -1;
   }
 
-#if 1
-  do {
-    char          *syncNodeStr = sync2SimpleStr(pVnode->sync);
-    static int64_t vndTick = 0;
-    if (++vndTick % 10 == 1) {
-      vGTrace("vgId:%d, sync trace msg:%s, %s", syncGetVgId(pVnode->sync), TMSG_INFO(pMsg->msgType), syncNodeStr);
-    }
-    taosMemoryFree(syncNodeStr);
-  } while (0);
-#endif
+  vGTrace("vgId:%d, sync msg:%p will be processed, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
 
   if (syncNodeStrategy(pSyncNode) == SYNC_STRATEGY_NO_SNAPSHOT) {
     if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
@@ -458,6 +449,7 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     }
   }
 
+  vTrace("vgId:%d, sync msg:%p is processed, type:%s code:0x%x", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType), code);
   syncNodeRelease(pSyncNode);
   if (code != 0 && terrno == 0) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -518,15 +510,15 @@ static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta c
       rpcMsg.info.conn.applyTerm = cbMeta.term;
 
       vInfo("vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", term:%" PRIu64 ", msg-index:%" PRId64
-            ", isWeak:%d, code:%d, state:%d %s, msgtype:%d %s",
+            ", weak:%d, code:%d, state:%d %s, type:%s",
             syncGetVgId(pVnode->sync), pFsm, cbMeta.index, cbMeta.term, rpcMsg.info.conn.applyIndex, cbMeta.isWeak,
-            cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), pMsg->msgType, TMSG_INFO(pMsg->msgType));
+            cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), TMSG_INFO(pMsg->msgType));
 
       tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, &rpcMsg);
     } else {
       SRpcMsg rsp = {.code = cbMeta.code, .info = pMsg->info};
-      vError("vgId:%d, sync commit error, msgtype:%d,%s, index:%ld, error:0x%X, errmsg:%s", syncGetVgId(pVnode->sync),
-             pMsg->msgType, TMSG_INFO(pMsg->msgType), cbMeta.index, cbMeta.code, tstrerror(cbMeta.code));
+      vError("vgId:%d, commit-cb execute error, type:%s, index:%" PRId64 ", error:0x%x %s", syncGetVgId(pVnode->sync),
+             TMSG_INFO(pMsg->msgType), cbMeta.index, cbMeta.code, tstrerror(cbMeta.code));
       if (rsp.info.handle != NULL) {
         tmsgSendRsp(&rsp);
       }
@@ -537,10 +529,9 @@ static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta c
 static void vnodeSyncPreCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   if (cbMeta.isWeak == 1) {
     SVnode *pVnode = pFsm->data;
-    vTrace("vgId:%d, pre-commit-cb is excuted, fsm:%p, index:%" PRId64
-           ", isWeak:%d, code:%d, state:%d %s, msgtype:%d %s",
+    vTrace("vgId:%d, pre-commit-cb is excuted, fsm:%p, index:%" PRId64 ", weak:%d, code:%d, state:%d %s, type:%s",
            syncGetVgId(pVnode->sync), pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state,
-           syncUtilState2String(cbMeta.state), pMsg->msgType, TMSG_INFO(pMsg->msgType));
+           syncUtilState2String(cbMeta.state), TMSG_INFO(pMsg->msgType));
 
     if (cbMeta.code == 0) {
       SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen};
@@ -552,8 +543,8 @@ static void vnodeSyncPreCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMet
       tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, &rpcMsg);
     } else {
       SRpcMsg rsp = {.code = cbMeta.code, .info = pMsg->info};
-      vError("vgId:%d, sync pre-commit error, msgtype:%d,%s, error:0x%X, errmsg:%s", syncGetVgId(pVnode->sync),
-             pMsg->msgType, TMSG_INFO(pMsg->msgType), cbMeta.code, tstrerror(cbMeta.code));
+      vError("vgId:%d, pre-commit-cb execute error, type:%s, error:0x%x %s", syncGetVgId(pVnode->sync),
+             TMSG_INFO(pMsg->msgType), cbMeta.code, tstrerror(cbMeta.code));
       if (rsp.info.handle != NULL) {
         tmsgSendRsp(&rsp);
       }
@@ -563,9 +554,9 @@ static void vnodeSyncPreCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMet
 
 static void vnodeSyncRollBackMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   SVnode *pVnode = pFsm->data;
-  vTrace("vgId:%d, rollback-cb is excuted, fsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, msgtype:%d %s",
+  vTrace("vgId:%d, rollback-cb is excuted, fsm:%p, index:%" PRId64 ", weak:%d, code:%d, state:%d %s, type:%s",
          syncGetVgId(pVnode->sync), pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state,
-         syncUtilState2String(cbMeta.state), pMsg->msgType, TMSG_INFO(pMsg->msgType));
+         syncUtilState2String(cbMeta.state), TMSG_INFO(pMsg->msgType));
 }
 
 #define USE_TSDB_SNAPSHOT
@@ -695,7 +686,7 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   SSyncInfo syncInfo = {
       .snapshotStrategy = SYNC_STRATEGY_WAL_FIRST,
       //.snapshotStrategy = SYNC_STRATEGY_NO_SNAPSHOT,
-      .batchSize = 10,
+      .batchSize = 1,
       .vgId = pVnode->config.vgId,
       .isStandBy = pVnode->config.standby,
       .syncCfg = pVnode->config.syncCfg,
