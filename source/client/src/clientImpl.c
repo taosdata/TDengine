@@ -874,9 +874,11 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res) {
   int32_t code = 0;
 
-  pRequest->stmtType = pQuery->pRoot->type;
-
-  if (!pRequest->inRetry) {
+  if (pQuery->pRoot) {
+    pRequest->stmtType = pQuery->pRoot->type;
+  }
+  
+  if (pQuery->pRoot && !pRequest->inRetry) {
     STscObj            *pTscObj = pRequest->pTscObj;
     SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
     if (QUERY_NODE_VNODE_MODIF_STMT == pQuery->pRoot->type) {

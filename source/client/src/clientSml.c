@@ -420,7 +420,7 @@ static int32_t  smlSendMetaMsg(SSmlHandle *info, SName *pName, SSmlSTableMeta *s
   }
   tSerializeSMCreateStbReq(pCmdMsg.pMsg, pCmdMsg.msgLen, &pReq);
 
-  SQuery pQuery;
+  SQuery pQuery = {0};
   pQuery.execMode = QUERY_EXEC_MODE_RPC;
   pQuery.pCmdMsg = &pCmdMsg;
   pQuery.msgType = pQuery.pCmdMsg->msgType;
