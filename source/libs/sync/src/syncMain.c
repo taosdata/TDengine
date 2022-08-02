@@ -858,8 +858,8 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
   } else {
     ret = -1;
     terrno = TSDB_CODE_SYN_NOT_LEADER;
-    sError("vgId:%d, sync propose not leader, %s, msgType:%d,%s", pSyncNode->vgId,
-           syncUtilState2String(pSyncNode->state), pMsg->msgType, TMSG_INFO(pMsg->msgType));
+    sError("vgId:%d, sync propose not leader, %s, type:%s", pSyncNode->vgId, syncUtilState2String(pSyncNode->state),
+           TMSG_INFO(pMsg->msgType));
     goto _END;
   }
 

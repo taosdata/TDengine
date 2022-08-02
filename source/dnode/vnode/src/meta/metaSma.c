@@ -62,7 +62,7 @@ int32_t metaCreateTSma(SMeta *pMeta, int64_t version, SSmaCfg *pCfg) {
   return 0;
 
 _err:
-  metaError("vgId:%d, failed to create tsmas uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pCfg->indexName,
+  metaError("vgId:%d, failed to create tsma:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pCfg->indexName,
             pCfg->indexUid, tstrerror(terrno));
   return -1;
 }
