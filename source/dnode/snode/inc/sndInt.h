@@ -30,15 +30,14 @@
 extern "C" {
 #endif
 
+typedef struct SSnode {
+  SMsgCb msgCb;
+} SSnode;
+
 #if 0
 typedef struct {
   SHashObj* pHash;  // taskId -> SStreamTask
 } SStreamMeta;
-
-typedef struct SSnode {
-  SStreamMeta* pMeta;
-  SMsgCb       msgCb;
-} SSnode;
 
 SStreamMeta* sndMetaNew();
 void         sndMetaDelete(SStreamMeta* pMeta);

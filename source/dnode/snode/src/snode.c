@@ -16,33 +16,35 @@
 #include "executor.h"
 #include "sndInt.h"
 #include "tuuid.h"
-SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) { return NULL; }
-void    sndClose(SSnode *pSnode) {}
+/*SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) { return NULL; }*/
+/*void    sndClose(SSnode *pSnode) {}*/
 int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) { return 0; }
 int32_t sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg) { return 0; }
 
-#if 0
 SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   SSnode *pSnode = taosMemoryCalloc(1, sizeof(SSnode));
   if (pSnode == NULL) {
     return NULL;
   }
   pSnode->msgCb = pOption->msgCb;
+#if 0
   pSnode->pMeta = sndMetaNew();
   if (pSnode->pMeta == NULL) {
     taosMemoryFree(pSnode);
     return NULL;
   }
+#endif
   return pSnode;
 }
 
 void sndClose(SSnode *pSnode) {
-  sndMetaDelete(pSnode->pMeta);
+  /*sndMetaDelete(pSnode->pMeta);*/
   taosMemoryFree(pSnode);
 }
 
 int32_t sndGetLoad(SSnode *pSnode, SSnodeLoad *pLoad) { return 0; }
 
+#if 0
 SStreamMeta *sndMetaNew() {
   SStreamMeta *pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
   if (pMeta == NULL) {
