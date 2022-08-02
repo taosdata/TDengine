@@ -342,7 +342,7 @@ class TDTestQuery(TDCase):
                 stable_where = tdWhere.stable_where()
                 n = random.randrange(2,1001) 
                 func_desc = func_desc.replace("num","%d" %n)
-                sql1 = "select %s from (select * from %s where tbname in ('%s_1') order by ts desc);"  % (func_desc,self.table,self.table)
+                sql1 = "select %s from  %s where tbname in ('%s_1') order by ts desc;"  % (func_desc,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
