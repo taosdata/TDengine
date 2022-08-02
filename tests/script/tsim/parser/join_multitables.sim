@@ -682,7 +682,7 @@ if $data08 != 3 then
   return -1
 endi
 
-sql select st0.f1,st1.f1 from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1;
+sql select st0.f1,st1.f1 from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 order by st0.f1;
 if $rows != 25 then
   return -1
 endi
@@ -721,22 +721,10 @@ endi
 if $data01 != @21-03-01 01:00:00.000@ then 
   return -1
 endi
-if $data10 != @21-03-02 01:00:00.000@ then 
+if $data50 != @21-03-02 01:00:00.000@ then 
   return -1
 endi
-if $data11 != @21-03-02 01:00:00.000@ then 
-  return -1
-endi
-if $data20 != @21-03-03 01:00:00.000@ then 
-  return -1
-endi
-if $data21 != @21-03-03 01:00:00.000@ then 
-  return -1
-endi
-if $data30 != @21-03-04 01:00:00.000@ then 
-  return -1
-endi
-if $data31 != @21-03-04 01:00:00.000@ then 
+if $data51 != @21-03-02 01:00:00.000@ then 
   return -1
 endi
 
@@ -782,23 +770,23 @@ endi
 if $data04 != 01 then 
   return -1
 endi
-if $data10 != @21-03-02 01:00:00.000@ then 
+if $data50 != @21-03-02 01:00:00.000@ then 
   return -1
 endi
-if $data11 != 9901.000000000 then 
+if $data51 != 9901.000000000 then 
   return -1
 endi
-if $data12 != 11 then 
+if $data52 != 11 then 
   return -1
 endi
-if $data13 != 9911.000000000 then 
+if $data53 != 9911.000000000 then 
   return -1
 endi
-if $data14 != 01 then 
+if $data54 != 01 then 
   return -1
 endi
 
-sql select last(*) from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 interval(10a);
+sql select _wstart, last(*) from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 interval(10a);
 if $rows != 25 then
   return -1
 endi
@@ -830,7 +818,7 @@ if $data08 != 11 then
   return -1
 endi
 
-sql select last(*) from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 interval(1d) sliding(1d);
+sql select _wstart, last(*) from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 interval(1d) sliding(1d);
 if $rows != 5 then
   return -1
 endi
@@ -937,7 +925,7 @@ sql select st0.*,st1.* from st0, st1 where st1.id1=st0.id1 and st0.ts=st1.ts and
 if $rows != 5 then
   return -1
 endi
-if $data00 != @21-03-01 01:00:00.000@ then 
+if $data00 != @21-03-02 01:00:00.000@ then 
   print $data00
   return -1
 endi
@@ -965,7 +953,7 @@ endi
 if $data08 != 3 then                                                                                                                                                                           
   return -1                                                                                                                                                                                    
 endi                   
-if $data09 != @21-03-01 01:00:00.000@ then 
+if $data09 != @21-03-02 01:00:00.000@ then 
   return -1                                                                                                                                                                                    
 endi                   
 
@@ -973,38 +961,23 @@ sql select top(st1.f1, 5) from st0, st1 where st1.id1=st0.id1 and st0.ts=st1.ts 
 if $rows != 5 then
   return -1                                                                                                                                                                                    
 endi                                                                                                                                                                                           
-if $data00 != @21-03-01 05:00:00.000@ then 
-  return -1
-endi
-if $data01 != 9915 then 
+if $data00 != 9915 then 
   return -1                                                                                                                                                                                    
 endi                                                                                                                                                                                           
-if $data10 != @21-03-02 05:00:00.000@ then 
-  return -1
-endi
-if $data11 != 9915 then 
+if $data10 != 9915 then 
   return -1                                                                                                                                                                                    
 endi                                                                                                                                                                                           
-if $data20 != @21-03-03 05:00:00.000@ then 
-  return -1
-endi
-if $data21 != 9915 then 
+if $data20 != 9915 then 
   return -1                                                                                                                                                                                    
 endi                                                                                                                                                                                           
-if $data30 != @21-03-04 05:00:00.000@ then 
-  return -1
-endi
-if $data31 != 9915 then 
+if $data30 != 9915 then 
   return -1                                                                                                                                                                                    
 endi                                                                                                                                                                                           
-if $data40 != @21-03-05 05:00:00.000@ then 
-  return -1
-endi
-if $data41 != 9915 then 
+if $data40 != 9915 then 
   return -1                                                                                                                                                                                    
 endi                                                                                                                                                                                           
 
-sql select top(st0.f1,5) from st0, st1 where st1.id1=st0.id1 and st0.ts=st1.ts and st1.ts=st0.ts and st0.id1=st1.id1;
+sql select st0.ts, top(st0.f1,5) from st0, st1 where st1.id1=st0.id1 and st0.ts=st1.ts and st1.ts=st0.ts and st0.id1=st1.id1 order by st0.ts;
 if $rows != 5 then
   return -1                                                                                                                                                                                    
 endi                                                                                                                                                                                           
