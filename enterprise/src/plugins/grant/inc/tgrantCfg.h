@@ -32,31 +32,35 @@ extern "C" {
 #define GRANT_CFG_DECLARE uint64_t tsGrantLimitTimeSeries = GRANT_TIME_SERIES_LIMITS;  \
     uint32_t tsGrantLimitDbs = GRANT_DATABASE_LIMITS;                                  \
     uint32_t tsGrantLimitSTables = GRANT_STABLE_LIMITS;                                \
-    uint32_t tsGrantLimitTables = GRANT_TABLE_LIMITS;
+    uint32_t tsGrantLimitTables = GRANT_TABLE_LIMITS;                                  \
+    bool     tsGrantUpdateForced = false;
 
 #define GRANT_CFG_EXTERN extern int64_t tsGrantLimitTimeSeries;  \
     extern int32_t tsGrantLimitDbs;                              \
     extern int32_t tsGrantLimitSTables;                          \
-    extern int32_t tsGrantLimitTables;
+    extern int32_t tsGrantLimitTables;                           \
+    extern bool    tsGrantUpdateForced;
 
 #define GRANT_CFG_ADD                                                                        \
   do {                                                                                       \
     if (cfgAddString(pCfg, "grant", "", false) != 0) return -1;                              \
     SConfigItem *pItemGrant = cfgGetItem(pCfg, "grant");                                     \
-    pItemGrant->array = taosArrayInit(4, sizeof(SConfigGrantItem));                          \
+    pItemGrant->array = taosArrayInit(5, sizeof(SConfigGrantItem));                          \
     if (pItemGrant->array == NULL) {                                                         \
         terrno = TSDB_CODE_OUT_OF_MEMORY;                                                    \
         return -1;                                                                           \
     }                                                                                        \
-    taosArraySetSize(pItemGrant->array, 4);                                                  \
+    taosArraySetSize(pItemGrant->array, 5);                                                  \
     ((SConfigGrantItem*)taosArrayGet(pItemGrant->array, 0))->u64 = GRANT_TIME_SERIES_LIMITS; \
     ((SConfigGrantItem*)taosArrayGet(pItemGrant->array, 1))->u32 = GRANT_DATABASE_LIMITS;    \
     ((SConfigGrantItem*)taosArrayGet(pItemGrant->array, 2))->u32 = GRANT_STABLE_LIMITS;      \
     ((SConfigGrantItem*)taosArrayGet(pItemGrant->array, 3))->u32 = GRANT_TABLE_LIMITS;       \
+    ((SConfigGrantItem*)taosArrayGet(pItemGrant->array, 4))->bval = false;                   \
   } while(0)
 
 typedef struct SConfigGrantItem {
   union {
+    bool     bval;
     uint32_t u32;
     uint64_t u64;
   };
@@ -75,6 +79,7 @@ typedef struct SConfigGrantItem {
             } else {                                                                                                    \
                 pConfigGrantItem->u32 = taosStr2UInt32(value, NULL, 10);                                                \
             }                                                                                                           \
+            ((SConfigGrantItem*)taosArrayGet(pItemGrant->array, 4))->bval = true;                                       \
             return 0;                                                                                                   \
         }                                                                                                               \
     }                                                                                                                   \
@@ -87,6 +92,7 @@ typedef struct SConfigGrantItem {
     tsGrantLimitDbs = ((SConfigGrantItem*)taosArrayGet(pItemGrant->array, 1))->u32;        \
     tsGrantLimitSTables = ((SConfigGrantItem*)taosArrayGet(pItemGrant->array, 2))->u32;    \
     tsGrantLimitTables = ((SConfigGrantItem*)taosArrayGet(pItemGrant->array, 3))->u32;     \
+    tsGrantUpdateForced = ((SConfigGrantItem*)taosArrayGet(pItemGrant->array, 4))->bval;   \
   } while(0)
 
 #define GRANT_CFG_CHECK                    \
