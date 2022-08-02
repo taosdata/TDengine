@@ -1739,6 +1739,9 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
             formatTimestamp(pBuf, *(uint64_t*)var, TSDB_TIME_PRECISION_MILLI);
             printf(" %25s |", pBuf);
             break;
+          case TSDB_DATA_TYPE_BOOL:
+            printf(" %15d |", *(int32_t*)var);
+            break;
           case TSDB_DATA_TYPE_INT:
             printf(" %15d |", *(int32_t*)var);
             break;
@@ -1756,6 +1759,22 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
             break;
           case TSDB_DATA_TYPE_DOUBLE:
             printf(" %15lf |", *(double*)var);
+            break;
+          case TSDB_DATA_TYPE_VARCHAR: {
+            char*   pData = colDataGetVarData(pColInfoData, j);
+            int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData) + 1);
+            memset(pBuf, 0, dataSize);
+            strncpy(pBuf, varDataVal(pData), dataSize);
+            printf(" %15s |", pBuf);
+          } break;
+          case TSDB_DATA_TYPE_NCHAR: {
+            char*   pData = colDataGetVarData(pColInfoData, j);
+            int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData) + 1);
+            memset(pBuf, 0, dataSize);
+            taosUcs4ToMbs((TdUcs4*)varDataVal(pData), dataSize, pBuf);
+            printf(" %15s |", pBuf);
+          } break;
+          default:
             break;
         }
       }
