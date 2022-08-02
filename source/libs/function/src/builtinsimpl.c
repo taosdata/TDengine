@@ -2529,6 +2529,9 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
     qDebug("%s before add %d elements into histogram, total:%d, numOfEntry:%d, pHisto:%p, elems: %p", __FUNCTION__,
            numOfElems, pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries, pInfo->pHisto, pInfo->pHisto->elems);
 
+    // might be a race condition here that pHisto can be overwritten or setup function
+    // has not been called, need to relink the buffer pHisto points to.
+    buildHistogramInfo(pInfo);
     for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
       if (colDataIsNull_f(pCol->nullbitmap, i)) {
         continue;
