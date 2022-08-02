@@ -481,8 +481,10 @@ class TDTestQuery(TDCase):
         column_100_1 = random.sample(columns_100,1) 
         columns_datas = ['(c0)','(c1)','(c2)','(t0)'] 
         columns_data = random.sample(columns_datas,1) 
-        columns_strs = ['(c3)','(c4)','(t1)'] 
+        columns_strs = ['(c3)','(c4)','(t1)','(c3)','(c4)','(t1)'] 
         columns_str = random.sample(columns_strs,1) 
+        columns_strs_5 = ['(c3,5)','(c4,5)','(t1,5)'] 
+        columns_str_5 = random.sample(columns_strs_5,1) 
         columns_nulls = ['()'] 
         columns_null = random.sample(columns_nulls,1) 
         if i == 1: 
@@ -616,12 +618,19 @@ class TDTestQuery(TDCase):
             func_column_process = str(func + columns_str).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 42:             
-            func = ['CONCAT']
-            func_column_process = str(func + columns_str).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func = ['CONCAT']          
+            i = random.randint(2,6)
+            column = str(random.sample(columns_strs,i)).replace("[","").replace("]","").replace("'","").replace("(","").replace(")","")
+            func_column_process = str(str(func)+'('+column+')').replace("[","").replace("]","").replace("'","")
             return func_column_process 
         elif i == 43:             
-            func = ['CONCAT_WS']
-            func_column_process = str(func + columns_str).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func = ['CONCAT_WS']   
+            i = random.randint(2,6)
+            column = str(random.sample(columns_strs,i)).replace("[","").replace("]","").replace("'","").replace("(","").replace(")","")
+            separators = ['',' ','abc','123','!','@','#','$','%','^','&','*','(',')','-','_','+','=','{',
+                      '[','}',']','|',';',':',',','.','<','>','?','/','~','`','taos','涛思']
+            separator = str(random.sample(separators,i)).replace("[","").replace("]","") 
+            func_column_process = str(str(func)+'('+'\"'+separator+'\",'+'\",'+column+')').replace("[","").replace("]","").replace("'","")
             return func_column_process 
         elif i == 44:             
             func = ['LENGTH']
@@ -641,7 +650,7 @@ class TDTestQuery(TDCase):
             return func_column_process 
         elif i == 48:             
             func = ['SUBSTR']
-            func_column_process = str(func + columns_str).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + columns_str_5).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 49:             
             func = ['UPPER']
@@ -1054,7 +1063,7 @@ class TDTestQuery(TDCase):
          
         # self.select_column()
         # self.select_column_union()
-        self.base_function([45,46,47,49,]) # multiple
+        self.base_function([42,43]) # multiple
         #self.base_function([3,]) # sinlge
         
         # t1 = threading.Thread(target=self.select_column)
