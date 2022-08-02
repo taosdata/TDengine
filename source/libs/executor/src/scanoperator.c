@@ -405,9 +405,15 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int
         data = (char*)p;
       }
 
-      for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-        colDataAppend(pColInfoData, i, data,
-                      (data == NULL) || (pColInfoData->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data)));
+      bool isNullVal = (data == NULL) || (pColInfoData->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data));
+      if (isNullVal) {
+        colDataAppendNNULL(pColInfoData, 0, pBlock->info.rows);
+      } else if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) {
+        colDataAppendNItems(pColInfoData, 0, data, pBlock->info.rows);
+      } else { // todo opt for json tag
+        for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+          colDataAppend(pColInfoData, i, data, false);
+        }
       }
 
       if (data && (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) && p != NULL &&

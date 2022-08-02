@@ -118,6 +118,76 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
   return 0;
 }
 
+int32_t colDataReserve(SColumnInfoData* pColumnInfoData, size_t newSize) {
+  if (!IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pColumnInfoData->varmeta.allocLen >= newSize) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pColumnInfoData->varmeta.allocLen < newSize) {
+    char* buf = taosMemoryRealloc(pColumnInfoData->pData, newSize);
+    if (buf == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    pColumnInfoData->pData = buf;
+    pColumnInfoData->varmeta.allocLen = newSize;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t currentRow, const char* pData, int32_t itemLen, int32_t numOfRows) {
+  ASSERT(pColumnInfoData->info.bytes >= itemLen);
+  size_t start = 1;
+
+  // the first item
+  memcpy(pColumnInfoData->pData, pData, itemLen);
+
+  int32_t t = 0;
+  int32_t count = log(numOfRows)/log(2);
+  while(t < count) {
+    int32_t xlen = 1 << t;
+    memcpy(pColumnInfoData->pData + start * itemLen + pColumnInfoData->varmeta.length, pColumnInfoData->pData, xlen * itemLen);
+    t += 1;
+    start += xlen;
+  }
+
+  // the tail part
+  if (numOfRows > start) {
+    memcpy(pColumnInfoData->pData + start * itemLen + currentRow * itemLen, pColumnInfoData->pData, (numOfRows - start) * itemLen);
+  }
+
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    for(int32_t i = 0; i < numOfRows; ++i) {
+      pColumnInfoData->varmeta.offset[i + currentRow] = pColumnInfoData->varmeta.length + i * itemLen;
+    }
+
+    pColumnInfoData->varmeta.length += numOfRows * itemLen;
+  }
+}
+
+int32_t colDataAppendNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, uint32_t numOfRows) {
+  ASSERT(pData != NULL && pColumnInfoData != NULL);
+
+  int32_t len = pColumnInfoData->info.bytes;
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    len = varDataTLen(pData);
+    if (pColumnInfoData->varmeta.allocLen < (numOfRows + currentRow) * len) {
+      int32_t code = colDataReserve(pColumnInfoData, (numOfRows + currentRow) * len);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+  }
+
+  doCopyNItems(pColumnInfoData, currentRow, pData, len, numOfRows);
+  return TSDB_CODE_SUCCESS;
+}
+
 static void doBitmapMerge(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, const SColumnInfoData* pSource,
                           int32_t numOfRow2) {
   if (numOfRow2 <= 0) return;
@@ -1113,15 +1183,12 @@ static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* 
 void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
   if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
     pColumn->varmeta.length = 0;
-    if (pColumn->varmeta.offset > 0) {
+    if (pColumn->varmeta.offset != NULL) {
       memset(pColumn->varmeta.offset, 0, sizeof(int32_t) * numOfRows);
     }
   } else {
     if (pColumn->nullbitmap != NULL) {
       memset(pColumn->nullbitmap, 0, BitmapLen(numOfRows));
-      if (pColumn->pData != NULL) {
-        memset(pColumn->pData, 0, pColumn->info.bytes * numOfRows);
-      }
     }
   }
 }
@@ -1725,6 +1792,7 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
       }
       switch (pColInfoData->info.type) {
         case TSDB_DATA_TYPE_TIMESTAMP:
+          memset(pBuf, 0, sizeof(pBuf));
           formatTimestamp(pBuf, *(uint64_t*)var, TSDB_TIME_PRECISION_MILLI);
           len += snprintf(dumpBuf + len, size - len, " %25s |", pBuf);
           if (len >= size - 1) return dumpBuf;
@@ -1753,6 +1821,26 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
           len += snprintf(dumpBuf + len, size - len, " %15lf |", *(double*)var);
           if (len >= size - 1) return dumpBuf;
           break;
+        case TSDB_DATA_TYPE_BOOL:
+          len += snprintf(dumpBuf + len, size - len, " %15d |", *(bool*)var);
+          if (len >= size - 1) return dumpBuf;
+          break;
+        case TSDB_DATA_TYPE_VARCHAR: {
+          memset(pBuf, 0, sizeof(pBuf));
+          char* pData = colDataGetVarData(pColInfoData, j);
+          int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData));
+          memcpy(pBuf, varDataVal(pData), dataSize);
+          len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
+          if (len >= size - 1) return dumpBuf;
+          } break;
+        case TSDB_DATA_TYPE_NCHAR: {
+          char* pData = colDataGetVarData(pColInfoData, j);
+          int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData));
+          memset(pBuf, 0, sizeof(pBuf));
+          taosUcs4ToMbs((TdUcs4 *)varDataVal(pData), dataSize, pBuf);
+          len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
+          if (len >= size - 1) return dumpBuf;
+          } break;
       }
     }
     len += snprintf(dumpBuf + len, size - len, "\n");
