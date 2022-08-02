@@ -901,8 +901,7 @@ _exit:
     tdProcessRSmaSubmit(pVnode->pSma, pReq, STREAM_INPUT__DATA_SUBMIT);
   }
 
-  vDebug("successful submit in vg %d version %ld", pVnode->config.vgId, version);
-
+  vDebug("vgId:%d, submit success, index:%" PRId64, pVnode->config.vgId, version);
   return 0;
 }
 

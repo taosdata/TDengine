@@ -2238,7 +2238,8 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
 
   do {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "sync node get pre term error, index:%ld, snap-index:%ld, snap-term:%lu", index,
+    snprintf(logBuf, sizeof(logBuf),
+             "sync node get pre term error, index:%" PRId64 ", snap-index:%" PRId64 ", snap-term:%" PRIu64, index,
              snapshot.lastApplyIndex, snapshot.lastApplyTerm);
     syncNodeErrorLog(pSyncNode, logBuf);
   } while (0);
