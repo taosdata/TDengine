@@ -31,6 +31,7 @@ void swapStr(char* j, char* J, int width) {
 }
 #endif
 
+// todo refactor: 1) move away; 2) use merge sort instead; 3) qsort is not a stable sort actually.
 void taosSort(void* arr, int64_t sz, int64_t width, __compar_fn_t compar) {
 #ifdef WINDOWS
   int64_t i, j;
