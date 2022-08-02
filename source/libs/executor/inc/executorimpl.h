@@ -554,8 +554,6 @@ typedef struct SMergeAlignedIntervalAggOperatorInfo {
   uint64_t     groupId;  // current groupId
   int64_t      curTs;    // current ts
   SSDataBlock* prefetchedBlock;
-  bool         inputBlocksFinished;
-
   SNode*       pCondition;
 } SMergeAlignedIntervalAggOperatorInfo;
 
@@ -906,7 +904,7 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
 
 SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                          SExecTaskInfo* pTaskInfo);
+                                          bool mergeResultBlock, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
