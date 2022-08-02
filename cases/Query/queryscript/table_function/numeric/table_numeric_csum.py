@@ -419,7 +419,7 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
                 
                 stable_where = tdWhere.regular_where()
-                sql1 = 'select %s from (select * from %s order by ts desc);'  % (func_desc,self.table)
+                sql1 = 'select %s from %s order by ts desc;'  % (func_desc,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -435,7 +435,7 @@ class TDTestQuery(TDCase):
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                         
-                        sql2 = "select %s from (select * from %s where  %s %s %s order by ts desc);" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where  %s %s %s ) order by ts desc;" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
                         cur1.execute(sql2)
