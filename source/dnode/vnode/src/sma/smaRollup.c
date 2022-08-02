@@ -38,7 +38,6 @@ static SRSmaInfo *tdGetRSmaInfoBySuid(SSma *pSma, int64_t suid);
 static int32_t    tdRSmaFetchAndSubmitResult(SRSmaInfoItem *pItem, STSchema *pTSchema, int64_t suid, SRSmaStat *pStat,
                                              int8_t blkType);
 static void       tdRSmaFetchTrigger(void *param, void *tmrId);
-static void       tdRSmaQTaskInfoGetFName(int32_t vid, int64_t version, char *outputName);
 
 static int32_t tdRSmaQTaskInfoIterInit(SRSmaQTaskInfoIter *pIter, STFile *pTFile);
 static int32_t tdRSmaQTaskInfoIterNextBlock(SRSmaQTaskInfoIter *pIter, bool *isFinish);
@@ -77,8 +76,12 @@ struct SRSmaQTaskInfoIter {
   int32_t nBufPos;
 };
 
-static void tdRSmaQTaskInfoGetFName(int32_t vgId, int64_t version, char *outputName) {
+void tdRSmaQTaskInfoGetFileName(int32_t vgId, int64_t version, char *outputName) {
   tdGetVndFileName(vgId, NULL, VNODE_RSMA_DIR, TD_QTASKINFO_FNAME_PREFIX, version, outputName);
+}
+
+void tdRSmaQTaskInfoGetFullName(int32_t vgId, int64_t version, const char* path, char *outputName) {
+  tdGetVndFileName(vgId, path, VNODE_RSMA_DIR, TD_QTASKINFO_FNAME_PREFIX, version, outputName);
 }
 
 static FORCE_INLINE int32_t tdRSmaQTaskInfoContLen(int32_t lenWithHead) {
@@ -599,8 +602,8 @@ static int32_t tdRSmaFetchAndSubmitResult(SRSmaInfoItem *pItem, STSchema *pTSche
       SSubmitReq *pReq = NULL;
       // TODO: the schema update should be handled
       if (buildSubmitReqFromDataBlock(&pReq, pResult, pTSchema, SMA_VID(pSma), suid) < 0) {
-        smaError("vgId:%d, build submit req for rsma stable %" PRIi64 " level %" PRIi8 " failed since %s", SMA_VID(pSma),
-                 suid, pItem->level, terrstr());
+        smaError("vgId:%d, build submit req for rsma stable %" PRIi64 " level %" PRIi8 " failed since %s",
+                 SMA_VID(pSma), suid, pItem->level, terrstr());
         goto _err;
       }
 
@@ -874,7 +877,7 @@ static int32_t tdRSmaRestoreQTaskInfoReload(SSma *pSma, int64_t *committed) {
   STFile  tFile = {0};
   char    qTaskInfoFName[TSDB_FILENAME_LEN] = {0};
 
-  tdRSmaQTaskInfoGetFName(TD_VID(pVnode), pVnode->state.committed, qTaskInfoFName);
+  tdRSmaQTaskInfoGetFileName(TD_VID(pVnode), pVnode->state.committed, qTaskInfoFName);
   if (tdInitTFile(&tFile, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFName) < 0) {
     goto _err;
   }
@@ -1172,7 +1175,7 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
 #if 0
   if (pRSmaStat->commitAppliedVer > 0) {
     char qTaskInfoFName[TSDB_FILENAME_LEN];
-    tdRSmaQTaskInfoGetFName(vid, pRSmaStat->commitAppliedVer, qTaskInfoFName);
+    tdRSmaQTaskInfoGetFileName(vid, pRSmaStat->commitAppliedVer, qTaskInfoFName);
     if (tdInitTFile(&tFile, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFName) < 0) {
       smaError("vgId:%d, rsma persit, init %s failed since %s", vid, qTaskInfoFName, terrstr());
       goto _err;
@@ -1217,7 +1220,7 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
 
       if (!isFileCreated) {
         char qTaskInfoFName[TSDB_FILENAME_LEN];
-        tdRSmaQTaskInfoGetFName(vid, pRSmaStat->commitAppliedVer, qTaskInfoFName);
+        tdRSmaQTaskInfoGetFileName(vid, pRSmaStat->commitAppliedVer, qTaskInfoFName);
         if (tdInitTFile(&tFile, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFName) < 0) {
           smaError("vgId:%d, rsma persit, init %s failed since %s", vid, qTaskInfoFName, terrstr());
           goto _err;
@@ -1356,4 +1359,21 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
 
 _end:
   tdReleaseSmaRef(smaMgmt.rsetId, pItem->refId, __func__, __LINE__);
+}
+
+int32_t smaDoRetention(SSma *pSma, int64_t now) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (VND_IS_RSMA(pSma->pVnode)) {
+    return code;
+  }
+
+  for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
+    if (pSma->pRSmaTsdb[i]) {
+      code = tsdbDoRetention(pSma->pRSmaTsdb[i], now);
+      if (code) goto _end;
+    }
+  }
+
+_end:
+  return code;
 }

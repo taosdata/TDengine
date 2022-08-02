@@ -131,7 +131,7 @@
 ./test.sh -f tsim/parser/insert_tb.sim
 # TD-17038 ./test.sh -f tsim/parser/interp.sim
 ./test.sh -f tsim/parser/join_manyblocks.sim
-# TD-18018 ./test.sh -f tsim/parser/join_multitables.sim
+./test.sh -f tsim/parser/join_multitables.sim
 ./test.sh -f tsim/parser/join_multivnode.sim
 ./test.sh -f tsim/parser/join.sim
 ./test.sh -f tsim/parser/last_cache.sim
@@ -183,7 +183,7 @@
 # ---- qnode
 ./test.sh -f tsim/qnode/basic1.sim
 
-# ---- snode
+# ---- snode ----
 # unsupport ./test.sh -f tsim/snode/basic1.sim
 
 # ---- bnode
@@ -199,7 +199,7 @@
 # ---- show ----
 ./test.sh -f tsim/show/basic.sim
 
-# ---- table
+# ---- table ----
 ./test.sh -f tsim/table/autocreate.sim
 ./test.sh -f tsim/table/basic1.sim
 ./test.sh -f tsim/table/basic2.sim
@@ -248,7 +248,7 @@
 ./test.sh -f tsim/stream/ignoreExpiredData.sim
 ./test.sh -f tsim/stream/sliding.sim
 
-# ---- transaction
+# ---- transaction ----
 ./test.sh -f tsim/trans/lossdata1.sim
 ./test.sh -f tsim/trans/create_db.sim
 
@@ -307,7 +307,7 @@
 ./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
 ./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
 
-# --- valgrind
+# --- valgrind ----
 ./test.sh -f tsim/valgrind/checkError1.sim
 ./test.sh -f tsim/valgrind/checkError2.sim
 ./test.sh -f tsim/valgrind/checkError3.sim
