@@ -35,6 +35,7 @@ int32_t tdbOpen(const char *dbname, int szPage, int pages, TDB **ppDb);
 int32_t tdbClose(TDB *pDb);
 int32_t tdbBegin(TDB *pDb, TXN *pTxn);
 int32_t tdbCommit(TDB *pDb, TXN *pTxn);
+int32_t tdbAbort(TDB *pDb, TXN *pTxn);
 
 // TTB
 int32_t tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TDB *pEnv, TTB **ppTb);
