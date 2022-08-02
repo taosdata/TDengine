@@ -12,6 +12,7 @@ MESSAGE(STATUS "Community source directory: " ${TD_COMMUNITY_DIR})
 MESSAGE(STATUS "Enterprise source directory: " ${TD_ENTERPRISE_DIR})
 
 set( TD_SOURCE_DIR ${PROJECT_SOURCE_DIR} )
+include(${TD_SOURCE_DIR}/enterprise/cmake/cmake.options)
 add_subdirectory(enterprise/contrib)
 
 set( TD_SOURCE_DIR ${TD_COMMUNITY_DIR} )
@@ -32,6 +33,7 @@ SET(TD_SOMODE_STATIC FALSE)
 SET(TD_POWER FALSE)
 SET(TD_GODLL FALSE)
 SET(TD_PRIVILEGE TRUE)
+SET(JEMALLOC_ENABLED TRUE)
 
 set(TD_SUPPORT_DIR "${TD_SOURCE_DIR}/cmake")
 set(TD_CONTRIB_DIR "${TD_SOURCE_DIR}/contrib")

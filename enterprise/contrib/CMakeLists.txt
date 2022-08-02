@@ -6,6 +6,12 @@ function(cat IN_FILE OUT_FILE)
     file(APPEND ${OUT_FILE} "${CONTENTS}")
 endfunction(cat IN_FILE OUT_FILE)
 
+# cloud
+if(${BUILD_CLOUD})
+        SET(BUILD_WITH_CFG_GRANTS ON CACHE BOOL "cloud build cfg grants" FORCE)
+        SET(GRANT_CFG_INCLUDE_DIR "${TD_SOURCE_DIR}/enterprise/src/plugins/grant/inc" CACHE PATH "cfg grants path" FORCE)
+endif(${BUILD_CLOUD})
+
 set(CONTRIB_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
 configure_file("${TD_SOURCE_DIR}/enterprise/cmake/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
@@ -19,7 +25,7 @@ IF (NOT EXISTS ${TD_SOURCE_DIR}/community/source)
 ENDIF ()
 
 # grant-lib
-IF (NOT EXISTS ${TD_SOURCE_DIR}/enterprise/contrib/grant-lib)
+IF ((NOT BUILD_WITH_CFG_GRANTS) AND (NOT EXISTS ${TD_SOURCE_DIR}/enterprise/contrib/grant-lib))
         cat("${TD_SOURCE_DIR}/enterprise/cmake/grant-lib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 ENDIF ()
 
