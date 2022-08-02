@@ -730,7 +730,7 @@ int32_t syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg** pMsgPArr, bool* pIs
   for (int i = 0; i < arrSize; ++i) {
     do {
       char eventLog[128];
-      snprintf(eventLog, sizeof(eventLog), "propose type:%s, batch:%d", TMSG_INFO(pMsgPArr[i]->msgType), arrSize);
+      snprintf(eventLog, sizeof(eventLog), "propose message, type:%s batch:%d", TMSG_INFO(pMsgPArr[i]->msgType), arrSize);
       syncNodeEventLog(pSyncNode, eventLog);
     } while (0);
 
@@ -790,7 +790,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
 
   do {
     char eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "propose type:%s", TMSG_INFO(pMsg->msgType));
+    snprintf(eventLog, sizeof(eventLog), "propose message, type:%s", TMSG_INFO(pMsg->msgType));
     syncNodeEventLog(pSyncNode, eventLog);
   } while (0);
 
