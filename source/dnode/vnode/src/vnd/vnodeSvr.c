@@ -378,6 +378,9 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, 
   code = tsdbDoRetention(pVnode->pTsdb, trimReq.timestamp);
   if (code) goto _exit;
 
+  code = smaDoRetention(pVnode->pSma, trimReq.timestamp);
+  if (code) goto _exit;
+
 _exit:
   return code;
 }
@@ -908,7 +911,7 @@ _exit:
 
 static int32_t vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SVCreateTSmaReq req = {0};
-  SDecoder        coder;
+  SDecoder        coder = {0};
 
   if (pRsp) {
     pRsp->msgType = TDMT_VND_CREATE_SMA_RSP;
