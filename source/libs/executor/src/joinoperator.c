@@ -29,14 +29,15 @@ static void         destroyMergeJoinOperator(void* param, int32_t numOfOutput);
 static void         extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                          SSortMergeJoinPhysiNode* pJoinNode);
 
-static void extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream, int32_t numOfDownstream, SSortMergeJoinPhysiNode* pJoinNode) {
+static void extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream, int32_t numOfDownstream,
+                                 SSortMergeJoinPhysiNode* pJoinNode) {
   SNode* pMergeCondition = pJoinNode->pMergeCondition;
   if (nodeType(pMergeCondition) == QUERY_NODE_OPERATOR) {
     SOperatorNode* pNode = (SOperatorNode*)pMergeCondition;
-    SColumnNode* col1 = (SColumnNode*)pNode->pLeft;
-    SColumnNode* col2 = (SColumnNode*)pNode->pRight;
-    SColumnNode* leftTsCol = NULL;
-    SColumnNode* rightTsCol = NULL;
+    SColumnNode*   col1 = (SColumnNode*)pNode->pLeft;
+    SColumnNode*   col2 = (SColumnNode*)pNode->pRight;
+    SColumnNode*   leftTsCol = NULL;
+    SColumnNode*   rightTsCol = NULL;
     if (col1->dataBlockId == pDownstream[0]->resultDataBlockId) {
       ASSERT(col2->dataBlockId == pDownstream[1]->resultDataBlockId);
       leftTsCol = col1;
@@ -192,16 +193,16 @@ static int32_t mergeJoinGetBlockRowsEqualTs(SSDataBlock* pBlock, int16_t tsSlotI
   }
 
   SSDataBlock* block = pBlock;
-  bool createdNewBlock = false;
+  bool         createdNewBlock = false;
   if (endPos == numRows) {
-    block = blockDataExtractBlock(pBlock, startPos, endPos-startPos);
+    block = blockDataExtractBlock(pBlock, startPos, endPos - startPos);
     taosArrayPush(createdBlocks, &block);
     createdNewBlock = true;
   }
   SRowLocation location = {0};
   for (int32_t j = startPos; j < endPos; ++j) {
     location.pDataBlock = block;
-    location.pos = ( createdNewBlock ? j - startPos : j);
+    location.pos = (createdNewBlock ? j - startPos : j);
     taosArrayPush(rowLocations, &location);
   }
   return 0;
