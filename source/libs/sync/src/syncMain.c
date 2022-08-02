@@ -1894,7 +1894,9 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
 
       // Raft 3.6.2 Committing entries from previous terms
       syncNodeAppendNoop(pSyncNode);
+#if 0 // simon
       syncNodeReplicate(pSyncNode);
+#endif
       syncMaybeAdvanceCommitIndex(pSyncNode);
 
     } else {
@@ -2070,7 +2072,9 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
 
   // Raft 3.6.2 Committing entries from previous terms
   syncNodeAppendNoop(pSyncNode);
+#if 0  // simon
   syncNodeReplicate(pSyncNode);
+#endif
   syncMaybeAdvanceCommitIndex(pSyncNode);
 }
 
