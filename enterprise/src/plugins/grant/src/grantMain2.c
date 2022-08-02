@@ -35,7 +35,6 @@
 #include "mndUser.h"
 #include "sdb.h"
 #include "mndSync.h"
-#include "tgrantCfg.h"
 
 #define COMPARE_SET_VAL(a, b, _comp_sign_) \
   do {                                     \
@@ -52,6 +51,8 @@ extern void *tsMnodeTmr;
 #endif
 
 #ifdef CFG_GRANTS
+#include "tgrantCfg.h"
+
 typedef struct {
   bool     updateForced;
   uint64_t limitTimeSeries;
