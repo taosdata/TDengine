@@ -224,6 +224,7 @@ typedef struct SOperatorInfo {
   struct SOperatorInfo** pDownstream;      // downstram pointer list
   int32_t                numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
   SOperatorFpSet         fpSet;
+  int16_t                resultDataBlockId;
 } SOperatorInfo;
 
 typedef enum {
