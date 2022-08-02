@@ -81,10 +81,8 @@ static int32_t addNamespace(STranslateContext* pCxt, void* pTable) {
     SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
     taosArrayPush(pTables, &pTable);
     if (hasSameTableAlias(pTables)) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf,
-                              TSDB_CODE_PAR_NOT_UNIQUE_TABLE_ALIAS,
-                              "Not unique table/alias: '%s'",
-                              ((STableNode*)pTable)->tableAlias);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_UNIQUE_TABLE_ALIAS,
+                                     "Not unique table/alias: '%s'", ((STableNode*)pTable)->tableAlias);
     }
   } else {
     do {
@@ -92,10 +90,8 @@ static int32_t addNamespace(STranslateContext* pCxt, void* pTable) {
       if (pCxt->currLevel == currTotalLevel) {
         taosArrayPush(pTables, &pTable);
         if (hasSameTableAlias(pTables)) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf,
-                                  TSDB_CODE_PAR_NOT_UNIQUE_TABLE_ALIAS,
-                                  "Not unique table/alias: '%s'",
-                                  ((STableNode*)pTable)->tableAlias);
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_UNIQUE_TABLE_ALIAS,
+                                         "Not unique table/alias: '%s'", ((STableNode*)pTable)->tableAlias);
         }
       }
       taosArrayPush(pCxt->pNsLevel, &pTables);
@@ -1587,6 +1583,7 @@ static EDealRes rewriteExprToGroupKeyFunc(STranslateContext* pCxt, SNode** pNode
 
   strcpy(pFunc->functionName, "_group_key");
   strcpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName);
+  strcpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias);
   pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     *pNode = (SNode*)pFunc;
@@ -2642,27 +2639,6 @@ static EDealRes appendTsForImplicitTsFuncImpl(SNode* pNode, void* pContext) {
 static int32_t appendTsForImplicitTsFunc(STranslateContext* pCxt, SSelectStmt* pSelect) {
   nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, appendTsForImplicitTsFuncImpl, pCxt);
   return pCxt->errCode;
-}
-
-typedef struct SRwriteUniqueCxt {
-  STranslateContext* pTranslateCxt;
-  SNode*             pExpr;
-} SRwriteUniqueCxt;
-
-static EDealRes rewriteSeletcValueFunc(STranslateContext* pCxt, SNode** pNode) {
-  SFunctionNode* pFirst = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
-  if (NULL == pFirst) {
-    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
-    return DEAL_RES_ERROR;
-  }
-  strcpy(pFirst->functionName, "first");
-  TSWAP(pFirst->pParameterList, ((SFunctionNode*)*pNode)->pParameterList);
-  strcpy(pFirst->node.aliasName, ((SExprNode*)*pNode)->aliasName);
-  nodesDestroyNode(*pNode);
-  *pNode = (SNode*)pFirst;
-  pCxt->errCode = fmGetFuncInfo(pFirst, pCxt->msgBuf.buf, pCxt->msgBuf.len);
-  ((SSelectStmt*)pCxt->pCurrStmt)->hasAggFuncs = true;
-  return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR;
 }
 
 typedef struct SReplaceOrderByAliasCxt {
