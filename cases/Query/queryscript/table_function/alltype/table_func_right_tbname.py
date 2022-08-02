@@ -2081,7 +2081,8 @@ class TDTestQuery(TDCase):
         self.logger.info("sqlnum3_interval_tbname %d" % num3) 
 
     def rm_sql(self):
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
+        self.tdCreateData.drop_db("%s" % self.db)  
                          
     def run(self):
         startTime = time.time() 
@@ -2097,7 +2098,7 @@ class TDTestQuery(TDCase):
         # self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
         # startTime2 = time.time()
-        self.right_case_2()
+        #self.right_case_2() 暂时注掉，等廖确认
         self.right_case_2_2()
         self.right_case_2_tbname()
         # self.right_case_2_interval()
@@ -2106,7 +2107,7 @@ class TDTestQuery(TDCase):
         # self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
         # startTime3 = time.time()
-        self.right_case_3()
+        #self.right_case_3() 暂时注掉，等廖确认
         self.right_case_3_2()
         self.right_case_3_tbname()
         # self.right_case_3_interval()

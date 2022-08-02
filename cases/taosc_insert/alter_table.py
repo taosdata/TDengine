@@ -36,12 +36,12 @@ class TestAlterTag(TDCase):
         tag_unbigint = random.randint(0,2147483647)
         # tag_float = float('%0.1f'%100.1)
         # tag_double = float('%0.1f'%1000.1)
-        tag_binary = self.tdCom.get_long_name(length=10, mode="letters")
-        tag_nchar = self.tdCom.get_long_name(length=10, mode="letters")
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
-        stbname = self.tdCom.get_long_name(length=3, mode="letters")
-        tbname = self.tdCom.get_long_name(length=3, mode="letters")
+        tag_binary = self.tdCom.get_long_name()
+        tag_nchar = self.tdCom.get_long_name()
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
+        stbname = self.tdCom.get_long_name()
+        tbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
                 t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t11 bool,t12 binary(20),t13 nchar(20))')
         self.tdSql.execute(f'create table if not exists {dbname}.{tbname} using {dbname}.{stbname} tags(now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, True,"abc123","涛思数据")')
@@ -95,9 +95,9 @@ class TestAlterTag(TDCase):
         '''
         alter ntb column check
         '''
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
-        tbname = self.tdCom.get_long_name(length=3, mode="letters")
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
+        tbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create table if not exists {dbname}.{tbname} (ts timestamp, c1 tinyint, c2 smallint, c3 int, \
                 c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 bool,c12 binary(20),c13 nchar(20))')
         self.tdSql.execute(f'insert into {dbname}.{tbname} values (now,1,2,3,4,5,6,7,8,9.9,10.1,true,"abcd","涛思数据")')

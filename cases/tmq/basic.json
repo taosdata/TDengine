@@ -1,0 +1,50 @@
+{
+    "filetype": "insert",
+    "cfgdir": "CFGDIR",
+    "host": "HOST",
+    "port": PORT,
+    "rest_port": 6041,
+    "user": "root",
+    "password": "taosdata",
+    "thread_count": THREADCOUNT,
+    "create_table_thread_count": THREADCOUNT_CREATETABLE,
+    "result_file": "insert_res.txt",
+    "confirm_parameter_prompt": "no",
+    "insert_interval": 0,
+    "num_of_records_per_req": BATCHSIZE,
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "dbt",
+                "drop": "no",
+                "vgroups": VGROUPS,
+                "replica": REPLICA 
+            },
+            "super_tables": [
+                {
+                    "name": "stbq",
+                    "child_table_exists": "no",
+                    "childtable_count": CHILDTABLECOUNT,
+                    "childtable_prefix": "CHILDTABLE_PREFIX",
+                    "auto_create_table": "no",
+                    "batch_create_tbl_num": 1000,
+                    "data_source": "rand",
+                    "insert_mode": "INSERTMODE",
+                    "insert_rows": INSERTROWS,
+                    "interlace_rows": INTERLACE_ROWS,
+                    "insert_interval": 0,
+                    "max_sql_len": 10000000,
+                    "disorder_ratio": 0,
+                    "disorder_range": 1000,
+                    "timestamp_step": 1,
+                    "start_timestamp": "START_TIMESTAMP",
+                    "sample_format": "csv",
+                    "use_sample_ts": "no",
+                    "tags_file": "",
+                    "columns": COLUMNS,
+                    "tags": TAGS
+                }
+            ]
+        }
+    ]
+}

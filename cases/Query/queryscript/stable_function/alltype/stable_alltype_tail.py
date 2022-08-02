@@ -97,7 +97,7 @@ class TDTestQuery(TDCase):
                 n1,n2 = random.randrange(2,101) , random.randrange(0,101) 
                 self.logger.info("n1=%d,n2=%d" %(n1,n2))
                 func = func.replace("num1","%d" %n1).replace("num2","%d" %n2)
-                sql1 = 'select %s from %s;'  % (func,self.table)   
+                sql1 = 'select ts,%s from %s;'  % (func,self.table)   
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -106,27 +106,30 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where  %s %s %s ;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select ts,%s from %s where  %s %s %s ;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2) 
                         sql= sql + sql2
 
-                        sql2 = "select * from (select %s from %s where %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select * from (select ts,%s from %s where %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2) 
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s) where %s %s %s; " %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select ts,%s from (select * from %s) where %s %s %s; " %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         # 对于多个子表的结果不好校验，因为同一个时间点，返回的值可能是多个子表中的其中一个，因此后面的加上tbname可以避免该问题
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2) 
                         sql= sql + sql2
 
                 stable_where = tdWhere.stable_where()
                 n1,n2 = random.randrange(2,101) , random.randrange(0,101) 
                 self.logger.info("n1=%d,n2=%d" %(n1,n2))
                 func_tbname = func_tbname.replace("num1","%d" %n1).replace("num2","%d" %n2)
-                sql1 = 'select %s from %s group by tbname;'  % (func_tbname,self.table)   
+                sql1 = 'select ts,%s from %s group by tbname;'  % (func_tbname,self.table)   
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -135,14 +138,12 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where  %s %s %s group by tbname;" %(func_tbname,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
-                        cur1.execute(sql2)
+                        sql2 = "select ts,%s from %s where  %s %s %s group by tbname;" %(func_tbname,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from (select %s from %s where %s %s %s group by tbname);" %(func_tbname,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
-                        cur1.execute(sql2)
+                        sql2 = "select * from (select ts,%s from %s where %s %s %s group by tbname);" %(func_tbname,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where %s %s %s group by tbname;" %(func_tbname,self.table,qt_where,qt_like_match,qt_in_where)
@@ -177,7 +178,7 @@ class TDTestQuery(TDCase):
                 stable_where = tdWhere.stable_where()                
                 n1,n2 = random.randrange(2,101) , random.randrange(0,101) 
                 func = func.replace("num1","%d" %n1).replace("num2","%d" %n2)
-                sql1 = "select %s from %s where tbname in ('%s_1') ;"  % (func,self.table,self.table)
+                sql1 = "select ts,%s from %s where tbname in ('%s_1') ;"  % (func,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -186,14 +187,16 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where tbname in ('%s_1') and %s %s %s ;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select ts,%s from %s where tbname in ('%s_1') and %s %s %s ;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2) 
                         sql= sql + sql2
 
-                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s );" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select * from (select ts,%s from %s where tbname in ('%s_1') and %s %s %s );" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2) 
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and %s %s %s ;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
@@ -212,14 +215,12 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname;" %(func_tbname,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
-                        cur1.execute(sql2)
+                        sql2 = "select ts,%s from %s where tbname in ('%s_1') and %s %s %s group by tbname;" %(func_tbname,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname);" %(func_tbname,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
-                        cur1.execute(sql2)
+                        sql2 = "select * from (select ts,%s from %s where tbname in ('%s_1') and %s %s %s group by tbname);" %(func_tbname,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and %s %s %s group by tbname;" %(func_tbname,self.table,self.table,qt_where,qt_like_match,qt_in_where)
@@ -255,7 +256,6 @@ class TDTestQuery(TDCase):
                 stable_where = tdWhere.stable_where()
                 n1,n2 = random.randrange(2,101) , random.randrange(0,101) 
                 func = func.replace("num1","%d" %n1).replace("num2","%d" %n2)
-                sql1 = 'select %s from %s ;'  % (func,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -263,37 +263,47 @@ class TDTestQuery(TDCase):
                         qt_where = str(qt_where).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
+    
+                        sql1 = 'select ts,%s from %s ;'  % (func,self.table)                    
 
-                        sql2 = "select %s from %s where  %s %s %s order by ts;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
-                        cur1.execute(sql2)
-                        sql= sql + sql2
-
-                        sql2 = "select %s from (select * from %s where  %s %s %s order by ts);" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select ts,%s from (select * from %s where  %s %s %s order by ts);" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         # 对于多个子表的结果不好校验，因为同一个时间点，返回的值可能是多个子表中的其中一个，因此后面的加上tbname可以避免该问题，因此改成第一行校验
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+                            
+                        sql2 = "select * from (select ts,%s from %s where  %s %s %s order by ts);" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+                                            
+                        sql1 = 'select ts,%s from %s order by ts;'  % (func,self.table)
+
+                        sql2 = "select ts,%s from %s where  %s %s %s order by ts;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+                       
+                        sql2 = "select ts,%s from (select * from %s) where  %s %s %s order by ts;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        # orderby column must projected in subquery                        
-                        sql2 = "select * from (select %s from %s where  %s %s %s order by ts);" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select ts,%s from (select * from %s where  %s %s %s ) order by ts;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        # 对于多个子表的结果不好校验，因为同一个时间点，返回的值可能是多个子表中的其中一个，因此后面的加上tbname可以避免该问题，因此改成第一行校验
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s) where  %s %s %s order by ts;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        sql2 = "select ts,%s from (select * from %s where  %s %s %s order by ts ) order by ts;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
                         cur1.execute(sql2)
-                        sql= sql + sql2
-
-                        sql2 = "select %s from (select * from %s where  %s %s %s ) order by ts;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        cur1.execute(sql2)
-                        sql= sql + sql2
-
-                        sql2 = "select %s from (select * from %s where  %s %s %s order by ts ) order by ts;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                 
                 stable_where = tdWhere.stable_where()
@@ -309,18 +319,15 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where  %s %s %s group by tbname order by ts;" %(func_tbname,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s where  %s %s %s group by tbname order by ts);" %(func_tbname,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
-
-                        # orderby column must projected in subquery                        
+                        
                         sql2 = "select * from (select %s from %s where  %s %s %s group by tbname order by ts);" %(func_tbname,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where  %s %s %s group by tbname order by ts;" %(func_tbname,self.table,qt_where,qt_like_match,qt_in_where)
@@ -348,13 +355,11 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where  %s %s %s group by tbname order by ts desc;" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where  %s %s %s group by tbname order by ts desc);" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where  %s %s %s group by tbname order by ts desc;" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
@@ -399,7 +404,7 @@ class TDTestQuery(TDCase):
                 stable_where = tdWhere.stable_where()
                 n1,n2 = random.randrange(2,101) , random.randrange(0,101) 
                 func = func.replace("num1","%d" %n1).replace("num2","%d" %n2)
-                sql1 = "select %s from %s where tbname in ('%s_1');"  % (func,self.table,self.table)
+                sql1 = "select ts,%s from %s where tbname in ('%s_1');"  % (func,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -408,34 +413,38 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s order by ts;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select ts,%s from %s where tbname in ('%s_1') and  %s %s %s order by ts;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s order by ts);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select ts,%s from (select * from %s where tbname in ('%s_1') and  %s %s %s order by ts);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
-
-                        # orderby column must projected in subquery                       
-                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and  %s %s %s order by ts);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                      
+                        sql2 = "select * from (select ts,%s from %s where tbname in ('%s_1') and  %s %s %s order by ts);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and  %s %s %s order by ts;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select ts,%s from (select * from %s) where tbname in ('%s_1') and  %s %s %s order by ts;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s ) order by ts;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select ts,%s from (select * from %s where tbname in ('%s_1') and  %s %s %s ) order by ts;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s order by ts ) order by ts;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select ts,%s from (select * from %s where tbname in ('%s_1') and  %s %s %s order by ts ) order by ts;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                         
                 stable_where = tdWhere.stable_where()
@@ -451,18 +460,15 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts;" %(func_tbname,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts);" %(func_tbname,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
-
-                        # orderby column must projected in subquery                       
+                      
                         sql2 = "select * from (select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts);" %(func_tbname,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and  %s %s %s group by tbname order by ts;" %(func_tbname,self.table,self.table,qt_where,qt_like_match,qt_in_where)
@@ -490,13 +496,11 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts desc;" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts desc);" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and  %s %s %s group by tbname order by ts desc;" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
@@ -539,7 +543,7 @@ class TDTestQuery(TDCase):
                 stable_where = tdWhere.stable_where()
                 n1,n2 = random.randrange(2,101) , random.randrange(0,101) 
                 func = func.replace("num1","%d" %n1).replace("num2","%d" %n2)
-                sql1 = 'select %s from %s ;'  % (func,self.table)
+                sql1 = 'select ts,%s from %s order by ts ;'  % (func,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -548,20 +552,23 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where  %s %s %s order by ts limit 5000;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select ts,%s from %s where  %s %s %s order by ts limit 5000;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from (select %s from %s where  %s %s %s order by ts limit 5000);" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select * from (select ts,%s from %s where  %s %s %s order by ts limit 5000);" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                         
-                        sql2 = "select %s from (select * from %s) where  %s %s %s order by ts limit 5000;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select ts,%s from (select * from %s) where  %s %s %s order by ts limit 5000;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         # 对于多个子表的结果不好校验，因为同一个时间点，返回的值可能是多个子表中的其中一个，因此后面的加上tbname可以避免该问题
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                 stable_where = tdWhere.stable_where()
@@ -577,13 +584,11 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where  %s %s %s group by tbname order by ts limit 5000;" %(func_tbname,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where  %s %s %s group by tbname order by ts limit 5000);" %(func_tbname,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s) where  %s %s %s group by tbname order by ts limit 5000;" %(func_tbname,self.table,qt_where,qt_like_match,qt_in_where)
@@ -620,7 +625,7 @@ class TDTestQuery(TDCase):
                 stable_where = tdWhere.stable_where()
                 n1,n2 = random.randrange(2,101) , random.randrange(0,101) 
                 func = func.replace("num1","%d" %n1).replace("num2","%d" %n2)
-                sql1 = "select %s from %s where tbname in ('%s_1');"  % (func,self.table,self.table)
+                sql1 = "select ts,%s from %s where tbname in ('%s_1');"  % (func,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -629,20 +634,28 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s order by ts limit 5000;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select ts,%s from %s where tbname in ('%s_1') and  %s %s %s order by ts limit 5000;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s order by ts limit 5000);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select * from (select ts,%s from %s where tbname in ('%s_1') and %s %s %s order by ts limit 5000);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
-                        cur1.execute(sql2)                       
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)                       
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and %s %s %s order by ts limit 5000;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select ts,%s from (select * from %s) where tbname in ('%s_1') and %s %s %s order by ts limit 5000;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
+                        sql2 = "select ts,%s from (select * from %s) where loc in ('%s_1') and %s %s %s order by ts limit 5000;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2) 
+                        sql= sql + sql2
+                        
                 stable_where = tdWhere.stable_where()
                 n1,n2 = random.randrange(2,101) , random.randrange(0,101) 
                 func_tbname = func_tbname.replace("num1","%d" %n1).replace("num2","%d" %n2)
@@ -656,13 +669,11 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts limit 5000;" %(func_tbname,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname order by ts limit 5000);" %(func_tbname,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n1),1,2,'%s' %sql2 ,1,int('%d' %n1),1,2)
-                        cur1.execute(sql2)                       
+                        self.tdSql.error(sql2)                       
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and %s %s %s group by tbname order by ts limit 5000;" %(func_tbname,self.table,self.table,qt_where,qt_like_match,qt_in_where)
@@ -678,7 +689,8 @@ class TDTestQuery(TDCase):
         self.logger.info("sqlnum3_tbname %d" % num3)         
 
     def rm_sql(self):
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
+        self.tdCreateData.drop_db("%s" % self.db)   
                  
     def run(self):
         startTime = time.time() 

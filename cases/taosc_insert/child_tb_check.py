@@ -19,19 +19,20 @@ class TestChildTb(TDCase):
     def init(self):
         super().init()
         self.tdCom = TDCom(self.tdSql)
+        self.remove_symbol_list = [" ", "+", ";", "&", "*", "%", "/", "-", "|"]
 
     def child_tbname_length_check(self):
         """
         max length: 192
         """
-        stbname = self.tdCom.get_long_name(length=10, mode="letters")
-        tbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["CHILD_TBNAME_MAX_LENGTH"], mode="letters")
+        stbname = self.tdCom.get_long_name()
+        tbname = self.tdCom.get_long_name(self.tdCom.Boundary.CHILD_TBNAME_MAX_LENGTH)
         self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.execute(f'create table if not exists {tbname} using {stbname} tags (127)')
         self.tdSql.error(f'create table {tbname} using {stbname} tags (127)')
         self.tdSql.query(f'show tables')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname)
-        tbname_exceed = self.tdCom.get_long_name(length=self.tdCom.boundary_config["CHILD_TBNAME_MAX_LENGTH"]+1, mode="letters")
+        tbname_exceed = self.tdCom.get_long_name(self.tdCom.Boundary.CHILD_TBNAME_MAX_LENGTH+1)
         self.tdSql.error(f'create table if not exists {tbname} using {tbname_exceed} tags (127)')
 
     def child_tbname_with_backquote(self):
@@ -39,14 +40,14 @@ class TestChildTb(TDCase):
         backquote supported
         """
         self.tdCom.cleanTb()
-        stbname = self.tdCom.get_long_name(length=10, mode="letters")
-        tbname = '1' + self.tdCom.get_long_name(length=10, mode="letters")
+        stbname = self.tdCom.get_long_name()
+        tbname = '1' + self.tdCom.get_long_name()
         self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.execute(f'create table if not exists `{tbname}` using {stbname} tags (127)')
         self.tdSql.query(f'show tables')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname)
         self.tdSql.execute(f'drop table if exists `{tbname}`')
-        tbname = self.tdCom.get_long_name(length=3, mode="letters")
+        tbname = self.tdCom.get_long_name(3)
         symbol_list = self.tdCom.gen_symbol_list()
         symbol_list.remove('`')
         for insert_str in symbol_list:
@@ -65,8 +66,8 @@ class TestChildTb(TDCase):
         error occured when illegal child tbname without backquote
         """
         self.tdCom.cleanTb()
-        stbname = self.tdCom.get_long_name(length=10, mode="letters")
-        tbname = '1' + self.tdCom.get_long_name(length=10, mode="letters")
+        stbname = self.tdCom.get_long_name()
+        tbname = '1' + self.tdCom.get_long_name()
         self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.execute(f'create table if not exists `{tbname}` using {stbname} tags (127)')
         tbname = self.tdCom.get_long_name(length=3, mode="letters")
@@ -86,15 +87,15 @@ class TestChildTb(TDCase):
         with backquote: keep upper or mixed
         """
         self.tdCom.cleanTb()
-        stbname = self.tdCom.get_long_name(length=10, mode="letters")
+        stbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
-        for tbname in [self.tdCom.get_long_name(length=10, mode="letters_mixed"), self.tdCom.get_long_name(length=10, mode="letters_mixed").upper()]:
+        for tbname in [self.tdCom.get_long_name(10, "letters_mixed"), self.tdCom.get_long_name(10, "letters_mixed").upper()]:
             self.tdSql.execute(f'create table if not exists {tbname} using {stbname} tags (127)')
             self.tdSql.query(f'show tables')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname.lower())
             self.tdSql.execute(f'drop table if exists `{tbname.lower()}`')
 
-        for tbname in [self.tdCom.get_long_name(length=10, mode="letters_mixed"), self.tdCom.get_long_name(length=10, mode="letters_mixed").upper()]:
+        for tbname in [self.tdCom.get_long_name(10, "letters_mixed"), self.tdCom.get_long_name(10, "letters_mixed").upper()]:
             self.tdSql.execute(f'create table if not exists `{tbname}` using {stbname} tags (127)')
             self.tdSql.query(f'show tables')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname)
@@ -104,8 +105,8 @@ class TestChildTb(TDCase):
         """
         check ttl
         """
-        stbname = self.tdCom.get_long_name(length=10, mode="letters")
-        tbname = self.tdCom.get_long_name(length=10, mode="letters")
+        stbname = self.tdCom.get_long_name()
+        tbname = self.tdCom.get_long_name()
         test_ttl = 2
         self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.execute(f'create table if not exists {tbname} using {stbname} tags (127) ttl {test_ttl}')
@@ -117,21 +118,21 @@ class TestChildTb(TDCase):
         """
         check comment
         """
-        stbname = self.tdCom.get_long_name(length=10, mode="letters")
-        tbname = self.tdCom.get_long_name(length=10, mode="letters")
+        stbname = self.tdCom.get_long_name()
+        tbname = self.tdCom.get_long_name()
         comment = "comment_test"
         self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
-        self.tdSql.execute(f'create table if not exists {tbname} using {stbname} tags (127) comment {comment}')
+        self.tdSql.execute(f'create table if not exists {tbname} using {stbname} tags (127) comment "{comment}"')
         self.tdSql.query(f'show tables')
         res = self.tdSql.get_db_field_kv(0, tbname)
-        self.tdSql.checkEqual(int(res["table_comment"]), comment)
+        self.tdSql.checkEqual(res["table_comment"], comment)
 
     def desc_check(self):
         """
         describe table
         """
         self.tdCom.cleanTb()
-        stbname = self.tdCom.get_long_name(length=192, mode="letters")
+        stbname = self.tdCom.get_long_name(192)
         self.tdSql.execute(f'create stable if not exists {stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
                 c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(16), c12 nchar(16), c13 bool) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
                 t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t11 binary(16), t12 nchar(16), t13 bool)')
@@ -148,18 +149,17 @@ class TestChildTb(TDCase):
         mixed invalid symbol
         mixed space
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
-        stbname = self.tdCom.get_long_name(length=3, mode="letters")
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
+        stbname = self.tdCom.get_long_name(3, "letters")
         self.tdSql.execute(f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
                 c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(16), c12 nchar(16), c13 bool) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
                 t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t13 bool)')
         base_sql = f'create table if not exists tb using {stbname} tags (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, True)'
 
         symbol_list = self.tdCom.gen_symbol_list()
-        symbol_list.remove(' ')
-        symbol_list.remove('+')
-        symbol_list.remove(';')
+        for remove_symbol in self.remove_symbol_list:
+            symbol_list.remove(remove_symbol)
         for insert_str in symbol_list:
             d_list = list(base_sql)
             for i in range(len(d_list)+1):
@@ -175,12 +175,10 @@ class TestChildTb(TDCase):
         self.child_tbname_with_backquote()
         self.child_tbname_without_backquote()
         self.upper_lower_child_tbname_check()
-        # # #! bug
-        # # # self.ttl_check()
-        # # # self.comment_check()
-        # self.desc_check()
-        # ! TD-16445
-        # self.illegal_child_tbsql_check()
+        self.ttl_check()
+        self.comment_check()
+        self.desc_check()
+        self.illegal_child_tbsql_check()
 
     def desc(self) -> str:
         case_description = """

@@ -39,7 +39,7 @@ class EMQXTest(TDCase):
         self.remote.cmd(self.target_host, ["cd /tmp/emqxtest", "npm install", "node --unhandled-rejections=strict  mock.js"])
         time.sleep(1)
         self.tdSql.query("select count(*) from test.sensor_data")
-        self.tdSql.checkData(0, 0, 10)
+        assert self.tdSql.query_data[0][0] >= 10
 
     def desc(self) -> str:
         return "Test EMQX"

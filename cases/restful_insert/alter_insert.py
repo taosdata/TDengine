@@ -14,18 +14,17 @@
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.rest import TDRest
-
 class TestAlterInsert(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest(env_setting=self.env_setting)
-
-    def insert_after_alter_column(self):
+        self.api_type = 'restful'
+    def insert_after_alter_stb_schema(self):
         """
-        insert after alter column
+        insert after alter stb schema
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdRest.request(f'create database if not exists {dbname}')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int, c2 int) tags (t1 int, t2 int)')
         self.tdRest.request(f'create table if not exists {dbname}.tb using {dbname}.stb tags (1, 1)')
         self.tdRest.request(f'insert into {dbname}.tb values (now, 1, 1)')
@@ -35,17 +34,133 @@ class TestAlterInsert(TDCase):
         self.tdRest.error(f'insert into {dbname}.tb values (now-1m, 2, 2)')
         self.tdRest.error(f'select t1, t2, c1, c2 from {dbname}.tb')
         self.tdRest.request(f'select t1, t2, c1 from {dbname}.tb where c1 = 2')
-        self.tdSql.checkEqual(self.tdRest.resp["data"][0], [1, 1, 2])
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [1, 1, 2])
 
         # add column
         self.tdRest.request(f'alter stable {dbname}.stb add column c2 int')
-        self.tdRest.request(f'insert into {dbname}.tb values (now-1m, 2, 2)')
-        self.tdRest.request(f'select t1, t2, c1, c2 from {dbname}.tb where c2 = 2')
-        self.tdSql.checkEqual(self.tdRest.resp["data"][0], [1, 1, 2, 2])
+        self.tdRest.request(f'insert into {dbname}.tb values (now-2m, 2, 2)')
+        self.tdRest.query(f'select t1, t2, c1, c2 from {dbname}.tb where c2 = 2')
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [1, 1, 2, 2])
+
+        # add tag
+        self.tdRest.request(f'alter stable {dbname}.stb add tag t3 binary(5)')
+        self.tdRest.request(f'alter table {dbname}.stb add tag t4 nchar(5)')
+        self.tdRest.request(f'insert into {dbname}.tb values (now-2m, 3, 3)')
+        self.tdRest.request(f'select t1, t2, t3, t4, c1, c2 from {dbname}.tb where c2 = 3')
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [1, 1, None, None, 3, 3])
+
+        # set tag
+        self.tdRest.error(f'alter stable {dbname}.tb set tag t3 = "11111"')
+        self.tdRest.request(f'alter table {dbname}.tb set tag t3 = "11111"')
+        self.tdRest.request(f'alter table {dbname}.tb set tag t4 = "11111"')
+        # ! TD-16211
+        self.tdRest.error(f'alter stable {dbname}.tb set tag t3 = "111111"')
+        self.tdRest.error(f'alter table {dbname}.tb set tag t4 = "111111"')
+        self.tdRest.request(f'insert into {dbname}.tb values (now-4m, 4, 4)')
+        self.tdRest.request(f'select t1, t2, t3, t4, c1, c2 from {dbname}.tb where c2 = 4')
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [1, 1, "11111", "11111", 4, 4])
+
+        # modify tag length
+        self.tdRest.request(f'alter stable {dbname}.stb modify tag t3 binary(6)')
+        self.tdRest.request(f'alter table {dbname}.stb modify tag t4 nchar(6)')
+        self.tdRest.error(f'alter stable {dbname}.tb set tag t3 = "111111"')
+        self.tdRest.request(f'alter table {dbname}.tb set tag t3 = "111111"')
+        self.tdRest.request(f'alter table {dbname}.tb set tag t4 = "111111"')
+        # ! TD-16211
+        self.tdRest.error(f'alter stable {dbname}.tb set tag t3 = "1111111"')
+        self.tdRest.error(f'alter table {dbname}.tb set tag t4 = "1111111"')
+        self.tdRest.request(f'insert into {dbname}.tb values (now-5m, 5, 5)')
+        self.tdRest.request(f'select t1, t2, t3, t4, c1, c2 from {dbname}.tb where c2 = 5')
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [1, 1, "111111", "111111", 5, 5])
+
+        # modify column
+        self.tdRest.request(f'alter stable {dbname}.stb add column c3 binary(5)')
+        self.tdRest.request(f'alter table {dbname}.stb add column c4 nchar(5)')
+        self.tdRest.error(f'alter stable {dbname}.tb add column c3 binary(5)')
+        self.tdRest.error(f'alter table {dbname}.tb add column c4 nchar(5)')
+        self.tdRest.request(f'insert into {dbname}.tb values (now-6m, 6, 6, "11111", "11111")')
+        self.tdRest.error(f'insert into {dbname}.tb values (now-6m, 6, 6, "111111", "111111")')
+        self.tdRest.request(f'select t1, t2, t3, t4, c1, c2, c3, c4 from {dbname}.tb where c2 = 6')
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [1, 1, "111111", "111111", 6, 6, "11111", "11111"])
+
+        # modify column length
+        self.tdRest.request(f'alter stable {dbname}.stb modify column c3 binary(6)')
+        self.tdRest.request(f'alter table {dbname}.stb modify column c4 nchar(6)')
+        self.tdRest.error(f'alter table {dbname}.tb modify column c3 binary(6)')
+        self.tdRest.error(f'alter table {dbname}.tb modify column c4 nchar(6)')
+        self.tdRest.request(f'insert into {dbname}.tb values (now-6m, 7, 7, "111111", "111111")')
+        self.tdRest.error(f'insert into {dbname}.tb values (now-7m, 7, 7, "1111111", "1111111")')
+        self.tdRest.request(f'select t1, t2, t3, t4, c1, c2, c3, c4 from {dbname}.tb where c2 = 7')
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [1, 1, "111111", "111111", 7, 7, "111111", "111111"])
+
+         # rename tag
+        self.tdRest.request(f'alter table {dbname}.stb rename tag t1 t11')
+        self.tdRest.request(f'alter stable {dbname}.stb rename tag t2 t22')
+        self.tdRest.error(f'alter table {dbname}.tb rename tag t3 t33')
+        self.tdRest.error(f'alter stable {dbname}.tb rename tag t4 t44')
+        self.tdRest.request(f'insert into {dbname}.tb values (now-8m, 8, 8, "111111", "111111")')
+        self.tdRest.request(f'select t11, t22, t3, t4, c1, c2, c3, c4 from {dbname}.tb where c2 = 8')
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [1, 1, "111111", "111111", 8, 8, "111111", "111111"])
+
+        # rename column
+        self.tdRest.error(f'alter table {dbname}.stb rename column c3 c33')
+        self.tdRest.error(f'alter stable {dbname}.stb rename column c3 c33')
+        self.tdRest.error(f'alter table {dbname}.tb rename column c3 c33')
+        self.tdRest.error(f'alter stable {dbname}.tb rename column c3 c33')
         self.tdRest.request(f'drop database if exists {dbname}')
 
+    def insert_after_alter_tb_schema(self):
+        """
+        insert after alter tb schema
+        """
+        dbname = self.tdCom.get_long_name()
+        self.tdRest.request(f'create database if not exists {dbname}')
+        self.tdRest.request(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 int, c2 int)')
+        self.tdRest.request(f'insert into {dbname}.tb values (now, 1, 1)')
+
+        # add column
+        self.tdRest.request(f'alter table {dbname}.tb add column c3 binary(5)')
+        self.tdRest.request(f'alter table {dbname}.tb add column c4 nchar(5)')
+        self.tdRest.request(f'alter table {dbname}.tb add column c5 nchar(5)')
+        # self.tdRest.error(f'alter stable {dbname}.tb add column c6 nchar(5)')
+        # !TD-16422
+        # self.tdRest.request(f'insert into {dbname}.tb values (now-1m, 2, 2, "11111", "11111", "11111")')
+        # self.tdRest.error(f'insert into {dbname}.tb values (now-1m, 2, 2, "111111", "11111", "11111")')
+        # self.tdRest.error(f'insert into {dbname}.tb values (now-1m, 2, 2, "11111", "111111", "11111")')
+        # self.tdRest.request(f'select c1, c2, c3, c4, c5 from {dbname}.tb where c1 = 2')
+        # self.tdSql.checkEqual(self.tdSql.query_data[0], (1, 1, "11111", "11111", "11111"))
+
+        # drop column
+        self.tdRest.request(f'alter table {dbname}.tb drop column c5')
+        # self.tdRest.error(f'alter stable {dbname}.tb drop column c4')
+        # self.tdRest.request(f'insert into {dbname}.tb values (now-2m, 3, 3, "11111", "11111")')
+        # self.tdRest.error(f'insert into {dbname}.tb values (now-3m, 3, 3, "11111", "11111", "11111")')
+        # self.tdRest.request(f'select c1, c2, c3, c4, c5 from {dbname}.tb where c1 = 3')
+        # self.tdRest.error(f'select c1, c2, c3, c4 from {dbname}.tb where c1 = 3')
+        # self.tdSql.checkEqual(self.tdSql.query_data[0], (1, 1, "11111", "11111"))
+
+        # modify column
+        # self.tdRest.error(f'alter stable {dbname}.tb modify column c3 binary(6)')
+        # self.tdRest.error(f'alter stable {dbname}.tb modify column c4 nchar(6)')
+        self.tdRest.request(f'alter table {dbname}.tb modify column c3 binary(6)')
+        self.tdRest.request(f'alter table {dbname}.tb modify column c4 nchar(6)')
+        self.tdRest.request(f'insert into {dbname}.tb values (now-3m, 4, 4, "111111", "111111")')
+        self.tdRest.error(f'insert into {dbname}.tb values (now-3m, 4, 4, "1111111", "1111111")')
+        self.tdRest.request(f'select c1, c2, c3, c4 from {dbname}.tb where c1 = 4')
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [4, 4, "111111", "111111"])
+
+        # rename column
+        self.tdRest.request(f'alter table {dbname}.tb rename column c3 c33')
+        self.tdRest.request(f'insert into {dbname}.tb values (now-4m, 5, 5, "111111", "111111")')
+        # ! TD-16423
+        # self.tdRest.error(f'select c1, c2, c3, c4 from {dbname}.tb where c1 = 5')
+        self.tdRest.request(f'select c1, c2, c33, c4 from {dbname}.tb where c1 = 5')
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [5, 5, "111111", "111111"])
+
     def run(self) -> bool:
-        self.insert_after_alter_column()
+        self.tdCom.drop_all_db()
+        self.insert_after_alter_stb_schema()
+        self.insert_after_alter_tb_schema()
 
     def cleanup(self):
         pass
@@ -60,5 +175,4 @@ class TestAlterInsert(TDCase):
         return "Jayden"
 
     def tags(self):
-        return T.Write.RestfulSql.Stable.Alter
-
+        return T.Write.TaoscSql.Stable.Alter

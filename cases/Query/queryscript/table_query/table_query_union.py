@@ -251,26 +251,26 @@ class TDTestQuery(TDCase):
 
                         sql2 = "select * from %s where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
                         sql2 += " union all select * from %s where %s %s %s order by ts desc  " %(self.table_null,q_where,q_like_match,q_in_where)
-                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  #TD-16252
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  #TD-16252
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "(select * from %s where %s %s %s order by ts desc) " %(self.table_null,q_where,q_like_match,q_in_where)
                         sql2 += " union all (select * from %s where %s %s %s order by ts desc) " %(self.table,q_where,q_like_match,q_in_where)
-                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  #TD-16252
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  #TD-16252
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -335,26 +335,26 @@ class TDTestQuery(TDCase):
 
                         sql2 = "select * from %s where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
                         sql2 += " union all select * from %s where %s %s %s order by ts desc " %(self.table,q_where_null,q_like_match_null,q_in_where)
-                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  #TD-16252
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  #TD-16252
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "(select * from %s where %s %s %s order by ts desc) " %(self.table,q_where_null,q_like_match_null,q_in_where)
                         sql2 += " union all (select * from %s where %s %s %s order by ts desc) " %(self.table,q_where,q_like_match,q_in_where)
-                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  #TD-16252
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  #TD-16252
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -616,7 +616,8 @@ class TDTestQuery(TDCase):
 
 
     def rm_sql(self):
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
+        self.tdCreateData.drop_db("%s" % self.db)  
                 
     def run(self)-> bool:
         

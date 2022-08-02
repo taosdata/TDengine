@@ -67,7 +67,7 @@ class TDTestQuery(TDCase):
     # 同理，list_intervals是20种interval的组合，在queryutil.where.time_window_new中说明
     list_times = [1,2,3,4,5,6,7,8]
     list_time = random.sample(list_times,2) 
-    list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,22]
+    list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,] #22暂时去掉
     list_interval = random.sample(list_intervals,3) 
     
 
@@ -482,7 +482,8 @@ class TDTestQuery(TDCase):
         self.logger.info("sqlnum3 interval %d" % num3)     
 
     def rm_sql(self):
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
+        self.tdCreateData.drop_db("%s" % self.db)   
                   
     def run(self):
         startTime = time.time() 

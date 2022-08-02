@@ -50,18 +50,40 @@ class TDFunction():
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return all_column
-    def all_column_tbname_1(self):  
+    def all_column_tbname_0(self):  
         # support all table, support all data type  
         # 解决多个子表时，last_row\last\first返回值可能不一样的问题   
-        hanshu = ['COUNT','FIRST']
+        hanshu = ['COUNT']
         column = ['(*)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return all_column
-    def all_column_tbname_2(self):  
-        # last和limit使用时，取的是最后n条记录，不是前面n条记录TD-14978   
+    def all_column_tbname_1(self):  
+        # support all table, support all data type  
+        # 解决多个子表时，last_row\last\first返回值可能不一样的问题   
+        hanshu = ['FIRST']
+        column = ['(*)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return all_column
+    def all_column_tbname_1_1(self):  
+        # support all table, support all data type  
+        # 解决多个子表时，last_row\last\first返回值可能不一样的问题   
+        hanshu = ['FIRST']
+        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return all_column
+    def all_column_tbname_2(self):    
         hanshu = ['LAST']
         column = ['(*)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return all_column
+    def all_column_tbname_2_1(self):  
+        #* 不能和order by 使用   
+        hanshu = ['LAST']
+        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return all_column
@@ -81,18 +103,35 @@ class TDFunction():
         int_cloumn = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return int_cloumn
     
-    def int_cloumn_1(self):  
+    def int_cloumn_0(self):  
         # support all int type \ double type              
-        hanshu = ['AVG','SUM']   
+        hanshu = ['SUM']   
         column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         int_cloumn = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return int_cloumn
     
+    def int_cloumn_1(self):  
+        # support all int type \ double type              
+        hanshu = ['AVG']   
+        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        int_cloumn = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return int_cloumn
+    
+    def int_cloumn_1_tsbs(self):  
+        # support all int type \ double type              
+        hanshu = ['AVG']   
+        column = ['(velocity)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)',
+                  '(q_bigint_null)','(q_smallint_null)','(q_tinyint_null)','(q_int_null)','(q_float_null)','(q_double_null)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        int_cloumn = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return int_cloumn
+                
     def int_cloumn_2(self):  
         # support all int type \ double type              
         hanshu = ['MIN','MAX']   
-        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)'] 
+        column = ['(q_bigint)','(q_smallint)','(q_int)','(q_float)','(q_double)'] #q_tinyint 出现重复的概率较高，忽略
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         int_cloumn = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return int_cloumn
@@ -107,36 +146,46 @@ class TDFunction():
 
     def func_stable_all(self,i):   
         func_stable_all = ''
-        if i == 1:    
+        if i == 1:    #['COUNT']
             func_stable_all = self.all_column()
-        elif i == 2:
+        elif i == 2:  #['AVG','SUM','MIN','MAX'] 
             func_stable_all = self.int_cloumn()
-        elif i == 21:
+        elif i == 21: #['AVG','SUM']
             func_stable_all = self.int_cloumn_1()
-        elif i == 22:
+        elif i == 22: #['MIN','MAX'] 
             func_stable_all = self.int_cloumn_2()
-        elif i == 3:
+        elif i == 3: #['SPREAD'] 
             func_stable_all = self.int_ts_cloumn()      
 
         return func_stable_all
     
     def func_stable_tbname_all(self,i):   
         func_stable_tbname_all = ''
-        if i == 1:    
+        if i == 1:     #['COUNT','FIRST','LAST','LAST_ROW']
             func_stable_tbname_all = self.all_column_tbname()
-        elif i == 11:    
+        elif i == 10:    #['COUNT']
+            func_stable_tbname_all = self.all_column_tbname_0()
+        elif i == 11:    #['FIRST']
             func_stable_tbname_all = self.all_column_tbname_1()
-        elif i == 12:    
-            func_stable_tbname_all = self.all_column_tbname_2()            
-        elif i == 13:    
+        elif i == 111:    #['FIRST']
+            func_stable_tbname_all = self.all_column_tbname_1_1()
+        elif i == 12:    #['LAST']
+            func_stable_tbname_all = self.all_column_tbname_2()    
+        elif i == 121:    #['LAST']
+            func_stable_tbname_all = self.all_column_tbname_2_1()        
+        elif i == 13:    #['LAST_ROW']
             func_stable_tbname_all = self.all_column_tbname_3()
-        elif i == 2:
+        elif i == 2:     #['AVG','SUM','MIN','MAX'] 
             func_stable_tbname_all = self.int_cloumn()
-        elif i == 21:
+        elif i == 20:    #['SUM']
+            func_stable_tbname_all = self.int_cloumn_0()
+        elif i == 21:    #['AVG']
             func_stable_tbname_all = self.int_cloumn_1()
-        elif i == 22:
+        elif i == 211:    #['AVG']
+            func_stable_tbname_all = self.int_cloumn_1_tsbs()
+        elif i == 22:   #['MIN','MAX']
             func_stable_tbname_all = self.int_cloumn_2()
-        elif i == 3:
+        elif i == 3:    #['SPREAD']
             func_stable_tbname_all = self.int_ts_cloumn()      
 
         return func_stable_tbname_all  
@@ -148,7 +197,7 @@ class TDFunction():
     def int_cloumn_n(self):  
         # support all int type \ double type              
         hanshu = ['TOP','BOTTOM']       
-        column = ['(q_bigint,num)','(q_smallint,num)','(q_tinyint,num)','(q_int,num)','(q_float,num)','(q_double,num)'] 
+        column = ['(q_bigint,num)','(q_smallint,num)','(q_int,num)','(q_float,num)','(q_double,num)'] #,'(q_tinyint,num)'避免数据过小而重复
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         int_cloumn = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return int_cloumn
@@ -249,7 +298,7 @@ class TDFunction():
 
     def all_cloumn_unique(self):   
         hanshu = ['UNIQUE']             
-        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_binary)','(q_nchar)','(q_double)','(q_bool)','(q_ts)'] 
+        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_binary)','(q_nchar)','(q_double)','(q_ts)'] #,'(q_bool)'只有一条，不方便对比
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         all_cloumn_unique = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
                     
@@ -257,8 +306,8 @@ class TDFunction():
  
     def all_cloumn_mode(self):   
         hanshu = ['MODE']             
-        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_binary)','(q_nchar)','(q_double)','(q_bool)','(q_ts)',
-        '(q_bigint_null)','(q_smallint_null)','(q_tinyint_null)','(q_int_null)','(q_float_null)','(q_binary_null)','(q_nchar_null)','(q_double_null)','(q_bool_null)','(q_ts_null)']        
+        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_binary)','(q_nchar)','(q_double)','(q_bool)','(q_ts)']
+        #'(q_bigint_null)','(q_smallint_null)','(q_tinyint_null)','(q_int_null)','(q_float_null)','(q_binary_null)','(q_nchar_null)','(q_double_null)','(q_bool_null)','(q_ts_null)']        
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         all_cloumn_mode = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
                     
@@ -315,11 +364,11 @@ class TDFunction():
             func_stable_special = self.only_inter_query()              
         elif i == 3:
             func_stable_special = self.int_cloumn_regular_only()  
-        elif i == 31:
+        elif i == 31: #TWA
             func_stable_special = self.int_cloumn_regular_only_1() 
-        elif i == 32:
+        elif i == 32: #IRATE
             func_stable_special = self.int_cloumn_regular_only_2()    
-        elif i == 33:
+        elif i == 33: #TNTERP
             func_stable_special = self.int_cloumn_regular_only_3() 
         elif i == 4:
             func_stable_special = self.floor_ceil_round()
@@ -715,7 +764,14 @@ class TDFunction():
         time_to_iso8601 = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         
         return time_to_iso8601   
-
+    def time_to_iso8601_1(self):   
+        hanshu = ['TO_ISO8601']      
+        column = ['(now())'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        time_to_iso8601 = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        
+        return time_to_iso8601  
+    
     def time_to_unixtimestamp(self):   
         hanshu = ['TO_UNIXTIMESTAMP']  
         #增加日期时间字符串须符合 ISO8601/RFC3339 标准，无法转换的字符串格式将返回0。
@@ -727,52 +783,100 @@ class TDFunction():
         time_to_unixtimestamp = str(time_to_unixtimestamp).replace("t_to_s","%s" %t_to_s)
         
         return time_to_unixtimestamp  
-    
+    def time_to_unixtimestamp_1(self):   
+        hanshu = ['TO_UNIXTIMESTAMP']  
+        #增加日期时间字符串须符合 ISO8601/RFC3339 标准，无法转换的字符串格式将返回0。
+        t = time.time()  
+        t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t))     
+        column = ['(t_to_s)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        time_to_unixtimestamp = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("\"","").replace("t_to_s","'t_to_s'")
+        time_to_unixtimestamp = str(time_to_unixtimestamp).replace("t_to_s","%s" %t_to_s)
+        
+        return time_to_unixtimestamp  
+        
     def time_truncate(self):  
         #TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) 
         hanshu = ['TIMETRUNCATE'] 
         t = time.time()  
         t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t)) 
         column_select = ['q_ts','ts','_c0','_C0','1600000000000','1600000000000000','1600000000000000000',
-        '%d' %t, '%d * 1000' %t, '%d * 1000000' %t,'t_to_s']    
+        '%d' %t, '%d000' %t, '%d000000' %t,'t_to_s']    
         column_1 = random.sample(column_select,1)
         column = ['(%s,timeutil)'%(column_1)]
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         time_truncate = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("\"","").replace("t_to_s","'t_to_s'")
         
-        timeunits = ['1u' , '1a' ,'1s', '1m' ,'1h', '1d']  
+        timeunits = ['1a' ,'1s', '1m' ,'1h', '1d']  #暂时去掉 1u
+        timeunit = str(random.sample(timeunits,1)).replace("[","").replace("]","").replace("'","") 
+            
+        time_truncate = str(time_truncate).replace("timeutil","%s" %timeunit).replace("t_to_s","%s" %t_to_s) 
+        
+        return time_truncate          
+    def time_truncate_1(self):  
+        #TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) 
+        hanshu = ['TIMETRUNCATE'] 
+        t = time.time()  
+        t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t)) 
+        column_select = ['1600000000000','1600000000000000','1600000000000000000',
+        '%d' %t, '%d000' %t, '%d000000' %t,'t_to_s']    
+        column_1 = random.sample(column_select,1)
+        column = ['(%s,timeutil)'%(column_1)]
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        time_truncate = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("\"","").replace("t_to_s","'t_to_s'")
+        
+        timeunits = ['1a' ,'1s', '1m' ,'1h', '1d']  #暂时去掉 1u
         timeunit = str(random.sample(timeunits,1)).replace("[","").replace("]","").replace("'","") 
             
         time_truncate = str(time_truncate).replace("timeutil","%s" %timeunit).replace("t_to_s","%s" %t_to_s) 
         
         return time_truncate  
-
+    
     def time_diff_1(self):  
         #TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2 | ts_col2 [, time_unit]) 
         hanshu = ['TIMEDIFF'] 
         #增加指定格式的时间 ts_val
         t = time.time()          
         column_select = ['q_ts','ts','_c0','_C0','1600000000000','1600000000000000','1600000000000000000',
-        '%d' %t, '%d * 1000' %t, '%d * 1000000' %t,'t_to_s'] 
+        '%d' %t, '%d000' %t, '%d000000' %t,'t_to_s'] 
         column_1,column_2 = random.sample(column_select,1),random.sample(column_select,1)
         column = ['(%s,%s,timeutil)'%(column_1,column_2)]
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         time_diff = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("\"","").replace("t_to_s","'t_to_s'")
         #增加字符串格式的时间 datetime_string
         t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t)) 
-        timeunits = ['1u' , '1a' ,'1s', '1m' ,'1h', '1d']  
+        timeunits = ['1a' ,'1s', '1m' ,'1h', '1d']   #暂时去掉 1u
         timeunit = str(random.sample(timeunits,1)).replace("[","").replace("]","").replace("'","") 
             
         time_diff_1 = str(time_diff).replace("timeutil","%s" %timeunit).replace("t_to_s","%s" %t_to_s)   
         
         return time_diff_1  
-
+    def time_diff_1_1(self):  
+        #TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2 | ts_col2 [, time_unit]) 
+        hanshu = ['TIMEDIFF'] 
+        #增加指定格式的时间 ts_val
+        t = time.time()          
+        column_select = ['1600000000000','1600000000000000','1600000000000000000',
+        '%d' %t, '%d000' %t, '%d000000' %t,'t_to_s'] 
+        column_1,column_2 = random.sample(column_select,1),random.sample(column_select,1)
+        column = ['(%s,%s,timeutil)'%(column_1,column_2)]
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        time_diff = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("\"","").replace("t_to_s","'t_to_s'")
+        #增加字符串格式的时间 datetime_string
+        t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t)) 
+        timeunits = ['1a' ,'1s', '1m' ,'1h', '1d']   #暂时去掉 1u
+        timeunit = str(random.sample(timeunits,1)).replace("[","").replace("]","").replace("'","") 
+            
+        time_diff_1 = str(time_diff).replace("timeutil","%s" %timeunit).replace("t_to_s","%s" %t_to_s)   
+        
+        return time_diff_1  
+    
     def time_diff_2(self): 
         #TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2 | ts_col2) 
         hanshu = ['TIMEDIFF']  
         t = time.time()  
         column_select = ['q_ts','ts','_c0','_C0','1600000000000','1600000000000000','1600000000000000000',
-        '%d' %t, '%d * 1000' %t, '%d * 1000000' %t,'t_to_s']
+        '%d' %t, '%d000' %t, '%d000000' %t,'t_to_s']
         column_1,column_2 = random.sample(column_select,1),random.sample(column_select,1)
         column = ['(%s,%s)'%(column_1,column_2)]
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
@@ -782,17 +886,35 @@ class TDFunction():
         time_diff_2 = str(time_diff).replace("t_to_s","%s" %t_to_s) 
         
         return time_diff_2  
- 
+    def time_diff_2_1(self): 
+        #TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2 | ts_col2) 
+        hanshu = ['TIMEDIFF']  
+        t = time.time()  
+        column_select = ['1600000000000','1600000000000000','1600000000000000000',
+        '%d' %t, '%d000' %t, '%d000000' %t,'t_to_s']
+        column_1,column_2 = random.sample(column_select,1),random.sample(column_select,1)
+        column = ['(%s,%s)'%(column_1,column_2)]
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        time_diff = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("\"","").replace("t_to_s","'t_to_s'")
+        #增加字符串格式的时间   datetime_string              
+        t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t)) 
+        time_diff_2 = str(time_diff).replace("t_to_s","%s" %t_to_s) 
+        
+        return time_diff_2  
+     
     def time_elapsed(self):   
         #ELAPSED(ts_primary_key [, time_unit])
         hanshu = ['ELAPSED'] 
         column = ['(ts)','(_c0)','(_C0)','(ts,time_unit)','(_c0,time_unit)','(_C0,time_unit)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
           
-        time_units = ['nums','numm','numh','numd','','numa']      
-        time_unit = str(random.sample(time_units,1)).replace("[","").replace("]","").replace("'","")          
-        time_num = random.randint(0, 1000)  
-        time_unit = time_unit.replace("num","%d" %time_num)         
+        # time_units = ['nums','numm','numh','numd','numa']   # ELAPSED function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]   
+        # time_unit = str(random.sample(time_units,1)).replace("[","").replace("]","").replace("'","")          
+        # time_num = random.randint(0, 1000)  
+        # time_unit = time_unit.replace("num","%d" %time_num)      
+        
+        time_units = ['1s','1m','1h','1d','1a']       #暂时去掉 1u
+        time_unit = str(random.sample(time_units,1)).replace("[","").replace("]","").replace("'","")   
         
         time_elapsed = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("time_unit","%s" %time_unit)
         
@@ -807,15 +929,25 @@ class TDFunction():
         elif i == 3:
             func_stable_time = self.time_zone() 
         elif i == 4:
-            func_stable_time = self.time_to_iso8601() 
+            func_stable_time = self.time_to_iso8601()
+        elif i == 41:
+            func_stable_time = self.time_to_iso8601_1()  
         elif i == 5:
-            func_stable_time = self.time_to_unixtimestamp()    
+            func_stable_time = self.time_to_unixtimestamp()  
+        elif i == 51:
+            func_stable_time = self.time_to_unixtimestamp_1()   
         elif i == 6:
             func_stable_time = self.time_truncate()  
+        elif i == 61:
+            func_stable_time = self.time_truncate_1()
         elif i == 7:
             func_stable_time = self.time_diff_1()   
         elif i == 8:
             func_stable_time = self.time_diff_2()   
+        elif i == 71:
+            func_stable_time = self.time_diff_1_1()   
+        elif i == 81:
+            func_stable_time = self.time_diff_2_1()             
         elif i == 9:
             func_stable_time = self.time_elapsed()   
                                                                                         
@@ -864,7 +996,7 @@ class TDFunction():
     def int_cloumn_regular_only_error_0(self):   
         # not support stable, if support should together with groupby tbname.  support all int type \ double type \ 
         # TWA/Diff/Derivative/Irate/CSUM/MAVG/SAMPLE/INTERP/Elapsed are not allowed to apply to super table directly 
-        hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']  
+        hanshu = ['IRATE','INTERP']  #3.0 support ,'DIFF','TWA','CSUM'
         column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         int_cloumn_regular_only = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")

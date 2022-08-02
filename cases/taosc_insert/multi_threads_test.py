@@ -17,20 +17,18 @@ import time
 class TestMultiThreads(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
+        self.thread_count = 5
 
     def multi_threads_create_db(self):
         """
         multi threads create db
         """
         self.tdSql.drop_all_db()
-        sql_list = list()
         db_list = list()
-        for i in range(5):
-            dbname = self.tdCom.get_long_name(length=10, mode="letters")
-            sql = f'create database if not exists {dbname}'
-            sql_list.append(sql)
+        for i in range(self.thread_count):
+            dbname = self.tdCom.get_long_name()
             db_list.append(dbname)
-        tlist = self.tdSql.genMultiThreadSeq(sql_list)
+        tlist = self.tdSql.multiThreadFunction(self.tdCom.createDb, db_list)
         self.tdSql.multiThreadRun(tlist)
         self.tdSql.query(f'show databases')
         for dbname in db_list:
@@ -42,12 +40,12 @@ class TestMultiThreads(TDCase):
         """
         multi threads create stb
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         sql_list = list()
         stb_list = list()
-        for i in range(5):
-            stbname = self.tdCom.get_long_name(length=10, mode="letters")
+        for i in range(self.thread_count):
+            stbname = self.tdCom.get_long_name()
             sql = f'create table {dbname}.{stbname} (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )'
             sql_list.append(sql)
             stb_list.append(stbname)
@@ -62,12 +60,12 @@ class TestMultiThreads(TDCase):
         """
         multi threads create tb
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         sql_list = list()
         tb_list = list()
-        for i in range(5):
-            tbname = self.tdCom.get_long_name(length=10, mode="letters")
+        for i in range(self.thread_count):
+            tbname = self.tdCom.get_long_name()
             sql = f'create table {dbname}.{tbname} (ts timestamp, c11 int, c12 float)'
             sql_list.append(sql)
             tb_list.append(tbname)
@@ -82,44 +80,44 @@ class TestMultiThreads(TDCase):
         """
         multi threads insert
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         self.tdSql.execute(f'create table {dbname}.tb using {dbname}.stb TAGS(1, 1)')
         sql_list = list()
-        for i in range(5):
+        for i in range(self.thread_count):
             sql = f'insert into {dbname}.tb values (now-{i}m, {i}, {i})'
             sql_list.append(sql)
 
         tlist = self.tdSql.genMultiThreadSeq(sql_list)
         self.tdSql.multiThreadRun(tlist)
         self.tdSql.query(f'select count(*) from {dbname}.tb')
-        self.tdSql.checkEqual(self.tdSql.query_data[0][0], 5)
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.thread_count)
         self.tdSql.execute(f'drop database if exists {dbname}')
 
     def multi_threads_create_drop_db_stb_tb(self):
         """
         multi threads create or drop db stb tb
         """
-        db = self.tdCom.get_long_name(length=10, mode="letters")
+        db = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {db}')
         self.tdSql.execute(f'create table {db}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         sql_list = list()
         db_list = list()
         stb_list = list()
         tb_list = list()
-        for i in range(5):
-            dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        for i in range(self.thread_count):
+            dbname = self.tdCom.get_long_name()
             sql = f'create database if not exists {dbname}'
             sql_list.append(sql)
             db_list.append(dbname)
 
-            stbname = self.tdCom.get_long_name(length=10, mode="letters")
+            stbname = self.tdCom.get_long_name()
             sql = f'create table {db}.{stbname} (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )'
             sql_list.append(sql)
             stb_list.append(stbname)
 
-            tbname = self.tdCom.get_long_name(length=10, mode="letters")
+            tbname = self.tdCom.get_long_name()
             sql = f'create table {db}.{tbname} using {db}.stb TAGS({i}, {i})'
             sql_list.append(sql)
             tb_list.append(tbname)
@@ -173,7 +171,7 @@ class TestMultiThreads(TDCase):
         """
         multi threads create db stb tb mixed
         """
-        db = self.tdCom.get_long_name(length=10, mode="letters")
+        db = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {db}')
         self.tdSql.execute(f'create database if not exists {db}_1')
         self.tdSql.execute(f'create table {db}.stb1 (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
@@ -182,8 +180,8 @@ class TestMultiThreads(TDCase):
         self.tdSql.execute(f'create table {db}.tb2 using {db}.stb2 TAGS(2, 2)')
         sql_list = list()
 
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         sql_list.append(f'drop database {db}_1')
         sql_list.append(f'drop table {db}.stb1')
         sql_list.append(f'drop table {db}.tb2')
@@ -207,12 +205,12 @@ class TestMultiThreads(TDCase):
         """
         insert when dropping tb
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         self.tdSql.execute(f'create table {dbname}.tb using {dbname}.stb TAGS(1, 1)')
         sql_list = list()
-        for i in range(5):
+        for i in range(self.thread_count):
             sql = f'insert into {dbname}.tb values (now-{i}m, {i}, {i})'
             sql_list.append(sql)
 
@@ -227,12 +225,12 @@ class TestMultiThreads(TDCase):
         """
         insert when dropping db
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         self.tdSql.execute(f'create table {dbname}.tb using {dbname}.stb TAGS(1, 1)')
         sql_list = list()
-        for i in range(5):
+        for i in range(self.thread_count):
             sql = f'insert into {dbname}.tb values (now-{i}m, {i}, {i})'
             sql_list.append(sql)
 
@@ -247,8 +245,8 @@ class TestMultiThreads(TDCase):
         """
         create table when dropping db
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         sql_list = list()
         sql_list.append(f'drop database {dbname}')
@@ -263,8 +261,8 @@ class TestMultiThreads(TDCase):
         """
         drop table when dropping db
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         self.tdSql.execute(f'create table {dbname}.tb using {dbname}.stb TAGS(1, 1)')
         sql_list = list()
@@ -281,12 +279,12 @@ class TestMultiThreads(TDCase):
         """
         del column when inserting
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         self.tdSql.execute(f'create table {dbname}.tb using {dbname}.stb TAGS(1, 1)')
         sql_list = list()
-        for i in range(5):
+        for i in range(self.thread_count):
             sql = f'insert into {dbname}.tb values (now-{i}m, {i}, {i})'
             sql_list.append(sql)
 
@@ -300,12 +298,12 @@ class TestMultiThreads(TDCase):
         """
         add column when inserting
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         self.tdSql.execute(f'create table {dbname}.tb using {dbname}.stb TAGS(1, 1)')
         sql_list = list()
-        for i in range(5):
+        for i in range(self.thread_count):
             sql = f'insert into {dbname}.tb values (now-{i}m, {i}, {i})'
             sql_list.append(sql)
 
@@ -319,8 +317,8 @@ class TestMultiThreads(TDCase):
         """
         alter column when dropping
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         self.tdSql.execute(f'create table {dbname}.tb using {dbname}.stb TAGS(1, 1)')
         sql_list = list()
@@ -336,22 +334,19 @@ class TestMultiThreads(TDCase):
         self.tdSql.execute(f'drop database if exists {dbname}')
 
     def run(self) -> bool:
-        for i in range(100):
-            # self.multi_threads_create_db()
-            # self.multi_threads_create_stb()
-            # self.multi_threads_create_tb()
-            # self.multi_threads_insert()
-            # self.multi_threads_create_drop_db_stb_tb()
-            # self.multi_threads_create_drop_db_stb_tb_mixed()
-            # self.insert_when_dropping_tb()
-            # # # ! TD-16209	
-            self.insert_when_dropping_db()
-            # # self.create_table_when_dropping_db()
-            # # # ! bug
-            # # # self.drop_table_when_dropping_db()
-            # self.del_column_inserting()
-            # self.add_column_when_inserting()
-            # self.alter_column_when_dropping()
+        self.multi_threads_create_db()
+        self.multi_threads_create_stb()
+        self.multi_threads_create_tb()
+        self.multi_threads_insert()
+        self.multi_threads_create_drop_db_stb_tb()
+        self.multi_threads_create_drop_db_stb_tb_mixed()
+        self.insert_when_dropping_tb()
+        self.insert_when_dropping_db()
+        self.create_table_when_dropping_db()
+        # self.drop_table_when_dropping_db()
+        self.del_column_inserting()
+        self.add_column_when_inserting()
+        self.alter_column_when_dropping()
 
     def cleanup(self):
         pass

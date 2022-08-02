@@ -1,0 +1,720 @@
+settings:
+  - name: taosd
+    fqdn: [dnode_1, dnode_2, dnode_3, dnode_4, dnode_5, dnode_6, dnode_7, dnode_8, dnode_9, dnode_10, dnode_11, dnode_12, dnode_13, dnode_14, dnode_15, dnode_16, dnode_17, dnode_18, dnode_19, dnode_20, dnode_21, dnode_22, dnode_23, dnode_24, dnode_25, dnode_26, dnode_27, dnode_28, dnode_29, dnode_30, dnode_31, dnode_32, dnode_33, dnode_34, dnode_35, dnode_36, dnode_37, dnode_38, dnode_39, dnode_40, dnode_41, dnode_42, dnode_43, dnode_44, dnode_45, dnode_46, dnode_47, dnode_48, dnode_49, dnode_50, dnode_51, dnode_52, dnode_53, dnode_54, dnode_55, dnode_56, dnode_57, dnode_58, dnode_59, dnode_60, dnode_61, dnode_62, dnode_63, dnode_64, dnode_65, dnode_66, dnode_67, dnode_68, dnode_69, dnode_70, dnode_71, dnode_72, dnode_73, dnode_74, dnode_75, dnode_76, dnode_77, dnode_78, dnode_79, dnode_80, dnode_81, dnode_82, dnode_83, dnode_84, dnode_85, dnode_86, dnode_87, dnode_88, dnode_89, dnode_90, dnode_91, dnode_92, dnode_93, dnode_94, dnode_95, dnode_96, dnode_97, dnode_98, dnode_99, dnode_100]
+    labels: [service]
+    spec:
+      version: 3.0.0.100  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: dnode_1:6030
+      dnodes:
+        - endpoint: dnode_1:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_2:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_3:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_4:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_5:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_6:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_7:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_8:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_9:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_10:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_11:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_12:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_13:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_14:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_15:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_16:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_17:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_18:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_19:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_20:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_21:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_22:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_23:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_24:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_25:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_26:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_27:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_28:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_29:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_30:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_31:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_32:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_33:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_34:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_35:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_36:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_37:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_38:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_39:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_40:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_41:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_42:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_43:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_44:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_45:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_46:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_47:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_48:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_49:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_50:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_51:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_52:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_53:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_54:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_55:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_56:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_57:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_58:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_59:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_60:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_61:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_62:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_63:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_64:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_65:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_66:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_67:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_68:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_69:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_70:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_71:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_72:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_73:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_74:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_75:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_76:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_77:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_78:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_79:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_80:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_81:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_82:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_83:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_84:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_85:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_86:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_87:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_88:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_89:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_90:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_91:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_92:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_93:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_94:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_95:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_96:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_97:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_98:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_99:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+        - endpoint: dnode_100:6030
+          config_dir: /data/run/dnode/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
+            supportVnodes: 1024
+            debugFlag: 131
+
+  - name: taospy
+    fqdn: [dnode_1]
+    labels: [client]
+    spec:
+      version: 2.2.1
+      client_version: 3.0.0.100
+      config:
+        firstEP: dnode_1:6030
+        logDir: /data/run/dnode/log
+        debugFlag: 135

@@ -106,13 +106,13 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s )" %(self.table,q_where,q_like_match,q_in_where)
-                        #self.tdCreateData.result_0(sql2) #TD-16240
+                        self.tdCreateData.result_0(sql2) 
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s) where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
-                        #self.tdCreateData.result_0(sql2) #TD-16240
+                        self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -167,13 +167,13 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s) where %s %s %s order by ts" %(self.table,q_where,q_like_match,q_in_where)
-                        #self.tdCreateData.result_0(sql2) #TD-16240
+                        self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s order by ts) where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
-                        #self.tdCreateData.result_0(sql2) #TD-16240
+                        self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -212,13 +212,13 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s) where %s %s %s order by ts desc" %(self.table,q_where,q_like_match,q_in_where)
-                        #self.tdCreateData.result_0(sql2) #TD-16240
+                        self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s order by ts desc ) where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
-                        #self.tdCreateData.result_0(sql2) #TD-16240
+                        self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -267,7 +267,7 @@ class TDTestQuery(TDCase):
                         q_in_where = regular_where_null[4]
 
                         sql2 = "select * from %s where %s %s %s order by ts limit 10" %(self.table,q_where,q_like_match,q_in_where)
-                        #self.tdCreateData.result_0(sql2) #TD-16240
+                        self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -291,19 +291,19 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s) where %s %s %s order by ts limit 10" %(self.table,q_where,q_like_match,q_in_where)
-                        #self.tdCreateData.result_0(sql2) #TD-16240
+                        self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s order by ts limit 10 ) where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
-                        #self.tdCreateData.result_0(sql2) #TD-16240
+                        self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s order by ts limit 10 ) where %s %s %s order by ts limit 10 " %(self.table,q_where,q_like_match,q_in_where)
-                        #self.tdCreateData.result_0(sql2) #TD-16240
+                        self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -376,7 +376,7 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s) where %s %s %s order by ts limit 10 offset 5" %(self.table,q_where,q_like_match,q_in_where)
-                        #self.tdCreateData.result_0(sql2) #TD-16240
+                        self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -468,7 +468,7 @@ class TDTestQuery(TDCase):
 
     def rm_sql(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
-        #taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
+        self.tdCreateData.drop_db("%s" % self.db) 
         
     def run(self)-> bool:
         
@@ -494,5 +494,5 @@ class TDTestQuery(TDCase):
         endTime4 = time.time()
         self.logger.info("total time4 %ds" % (endTime4 - startTime4))
 
-        #self.false_case1()
+        self.false_case1()
         self.rm_sql()

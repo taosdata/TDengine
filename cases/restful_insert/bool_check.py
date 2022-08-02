@@ -14,37 +14,42 @@
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.rest import TDRest
-
 class TestBool(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest(env_setting=self.env_setting)
-
+        self.api_type = 'restful'
     def bool_check(self):
         """
-            True: true/TrUe.... != 0
-            False: false/FalSe... = 0
+        True: true/TrUe.... != 0
+        False: false/FalSe... = 0
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdRest.request(f'create database if not exists {dbname}')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 bool) tags (t1 bool)')
-        for true_generator in [self.tdCom.str_trans("true"), (x for x in [2, -2, "true"])]:
+        self.tdRest.request(f'create table if not exists {dbname}.t1 (col_ts timestamp, c1 bool)')
+        self.tdRest.request(f'create table if not exists {dbname}.t2 (col_ts timestamp, c1 bool)')
+        for true_generator in [self.tdCom.str_trans("true"), (x for x in [2, -2])]:
             for true_value in true_generator:
                 self.tdRest.request(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({true_value})')
                 self.tdRest.request(f'insert into {dbname}.tb1 values (now, {true_value})')
                 self.tdRest.request(f'select t1, c1 from {dbname}.tb1')
-                self.tdSql.checkEqual(self.tdRest.resp["data"][0][0], True)
-                self.tdSql.checkEqual(self.tdRest.resp["data"][0][1], True)
-                self.tdRest.request(f'drop table if exists {dbname}.tb1')
+                self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], True)
+                self.tdSql.checkEqual(self.tdRest.resp['data'][0][1], True)
+                self.tdRest.request(f'insert into {dbname}.t1 values (now, {true_value})')
+                self.tdRest.request(f'select c1 from {dbname}.t1')
+                self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], True)
 
         for false_generator in [self.tdCom.str_trans("false"), (x for x in [0])]:
             for false_value in false_generator:
-                self.tdRest.request(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({false_value})')
-                self.tdRest.request(f'insert into {dbname}.tb1 values (now, {false_value})')
-                self.tdRest.request(f'select t1, c1 from {dbname}.tb1')
-                self.tdSql.checkEqual(self.tdRest.resp["data"][0][0], False)
-                self.tdSql.checkEqual(self.tdRest.resp["data"][0][1], False)
-                self.tdRest.request(f'drop table if exists {dbname}.tb1')
+                self.tdRest.request(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags ({false_value})')
+                self.tdRest.request(f'insert into {dbname}.tb2 values (now, {false_value})')
+                self.tdRest.request(f'select t1, c1 from {dbname}.tb2')
+                self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], False)
+                self.tdSql.checkEqual(self.tdRest.resp['data'][0][1], False)
+                self.tdRest.request(f'insert into {dbname}.t2 values (now, {false_value})')
+                self.tdRest.request(f'select c1 from {dbname}.t2')
+                self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], False)
 
         self.tdRest.request(f'drop database if exists {dbname}')
 
@@ -64,4 +69,4 @@ class TestBool(TDCase):
         return "Jayden"
 
     def tags(self):
-        return T.Write.RestfulSql.Insert.BoundaryTest.Bool
+        return T.Write.TaoscSql.Insert.BoundaryTest.Bool

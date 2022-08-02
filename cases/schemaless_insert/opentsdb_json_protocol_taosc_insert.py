@@ -10,8 +10,8 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdCom = TDCom(self.tdSql)
         self.tdCom.sml_type = "opentsdb_json"
         self.tdCom.drop_all_db()
-        self.dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdCom.createDb(dbname=self.dbname, precision="us", schemaless=1)
+        self.dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname=self.dbname, precision="us")
         self.tdCom.env_setting = self.env_setting
         self.tdCom.set_sml_specified_value()
         self.taospy_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taospy")
@@ -67,9 +67,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         # ! us级时间戳都为0时，数据库中查询显示，但python接口拿到的结果不显示 .000000的情况请确认，目前修改时间处理代码可以通过
         """
         self.tdCom.cleanTb()
-        # TODO commit out
-        ts_list = ["1626006833639000000ns", "1626006833639019us", "1626006833640ms", "1626006834s", "1626006834"]
-        # ts_list = ["1626006833639000000ns", "1626006833639019us", "1626006833640ms", "1626006834s", "1626006834", 0]
+        ts_list = ["1626006833639000000ns", "1626006833639019us", "1626006833640ms", "1626006834s", "1626006834", 0]
         for ts in ts_list:
             if "s" in str(ts):
                 input_json, stb_name = self.tdCom.gen_full_type_json(ts_value=self.tdCom.gen_ts_col_value(value=int(self.tdCom.splitNumLetter(ts)[0]), t_type=self.tdCom.splitNumLetter(ts)[1]))
@@ -96,21 +94,19 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
                     except SchemalessError as err:
                         self.tdSql.checkNotEqual(err.errno, 0)
         # check result
-        #! bug
-        # self.tdSql.execute(f"drop database if exists test_ts")
-        # self.tdSql.execute(f"create database if not exists test_ts precision 'ms' schemaless 1")
-        # self.tdSql.execute("use test_ts")
-        # input_json = [{"metric": "test_ms", "timestamp": {"value": 1626006833640, "type": "ms"}, "value": False, "tags": {"t0": True}},
-        #             {"metric": "test_ms", "timestamp": {"value": 1626006833641, "type": "ms"}, "value": True, "tags": {"t0": True}}]
-        # self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-        # self.tdSql.query('select * from test_ms')
-        # print(self.tdSql.query_data)
-        # self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "2021-07-11 20:33:53.640000")
-        # self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "2021-07-11 20:33:53.641000")
+        self.tdSql.execute(f"drop database if exists test_ts")
+        kv_dict = {"precision": "ms"}
+        self.tdCom.createDb("test_ts", **kv_dict)
+        input_json = [{"metric": "test_ms", "timestamp": {"value": 1626006833640, "type": "ms"}, "value": False, "tags": {"t0": True}},
+                    {"metric": "test_ms", "timestamp": {"value": 1626006833641, "type": "ms"}, "value": True, "tags": {"t0": True}}]
+        self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
+        self.tdSql.query('select * from test_ms')
+        self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "2021-07-11 20:33:53.640000")
+        self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "2021-07-11 20:33:53.641000")
 
         self.tdSql.execute(f"drop database if exists test_ts")
-        self.tdSql.execute(f"create database if not exists test_ts precision 'us' schemaless 1")
-        self.tdSql.execute("use test_ts")
+        kv_dict = {"precision": "us"}
+        self.tdCom.createDb("test_ts", **kv_dict)
         input_json = [{"metric": "test_us", "timestamp": {"value": 1626006833639000, "type": "us"}, "value": True, "tags": {"t0": True}},
                     {"metric": "test_us", "timestamp": {"value": 1626006833639001, "type": "us"}, "value": False, "tags": {"t0": True}}]
         self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -120,15 +116,15 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
 
         # ! bug
         # self.tdSql.execute(f"drop database if exists test_ts")
-        # self.tdSql.execute(f"create database if not exists test_ts precision 'ns' schemaless 1")
-        # self.tdSql.execute("use test_ts")
+        # kv_dict = {"precision": "ns"}
+        # self.tdCom.createDb("test_ts", **kv_dict)
         # input_json = [{"metric": "test_ns", "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": True, "tags": {"t0": True}},
         #             {"metric": "test_ns", "timestamp": {"value": 1626006833639000001, "type": "ns"}, "value": False, "tags": {"t0": True}}]
         # self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         # self.tdSql.query('select * from test_ns')
         # self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "1626006833639000000")
         # self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "1626006833639000001")
-        # self.tdCom.createDb(dbname=self.dbname, precision="us", schemaless=1)
+        # self.tdCom.createDb(dbname=self.dbname, precision="us")
 
 
     def max_col_tag_check(self, value_type="obj"):
@@ -138,12 +134,12 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         for input_json in [self.tdCom.gen_long_json(self.tdCom.boundary_config["MAX_TAG_COUNT"], value_type)[0]]:
             self.tdCom.cleanTb()
             self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-        for input_json in [self.tdCom.gen_long_json(self.tdCom.boundary_config["MAX_TAG_COUNT"]+1, value_type)[0]]:
-            self.tdCom.cleanTb()
-            try:
-                self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-            except SchemalessError as err:
-                self.tdSql.checkNotEqual(err.errno, 0)
+        # for input_json in [self.tdCom.gen_long_json(self.tdCom.boundary_config["MAX_TAG_COUNT"]+1, value_type)[0]]:
+        #     self.tdCom.cleanTb()
+        #     try:
+        #         self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
+        #     except SchemalessError as err:
+        #         self.tdSql.checkNotEqual(err.errno, 0)
 
     def stb_name_check(self, value_type="obj"):
         """
@@ -207,11 +203,11 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         check tag name limit <= 62
         """
         self.tdCom.cleanTb()
-        tag_name = self.tdCom.get_long_name(self.tdCom.boundary_config["TAG_KEY_MAX_LENGTH"]-2, "letters")
-        stb_name = self.tdCom.get_long_name(7, "letters")
+        tag_name = self.tdCom.get_long_name(self.tdCom.boundary_config["TAG_KEY_MAX_LENGTH"]-2)
+        stb_name = self.tdCom.get_long_name()
         input_json = {'metric': stb_name, 'timestamp': {'value': 1626006833639000000, 'type': 'ns'}, 'value': "bcdaaa", 'tags': {tag_name: {'value': False, 'type': 'bool'}}}
         self.tdCom.check_res(input_json, stb_name)
-        input_json = {'metric': stb_name, 'timestamp': {'value': 1626006833639000001, 'type': 'ns'}, 'value': "bcdaaaa", 'tags': {self.tdCom.get_long_name(self.tdCom.boundary_config["TAG_KEY_MAX_LENGTH"]+1, "letters"): {'value': False, 'type': 'bool'}}}
+        input_json = {'metric': stb_name, 'timestamp': {'value': 1626006833639000001, 'type': 'ns'}, 'value': "bcdaaaa", 'tags': {self.tdCom.get_long_name(self.tdCom.boundary_config["TAG_KEY_MAX_LENGTH"]+1): {'value': False, 'type': 'bool'}}}
         try:
             self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             raise Exception("should not reach here")
@@ -225,7 +221,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdCom.cleanTb()
         # nchar
         # * legal nchar could not be larger than 16374/4
-        stb_name = self.tdCom.get_long_name(7, "letters")
+        stb_name = self.tdCom.get_long_name()
         # i8
         for t1 in [-self.tdCom.boundary_config["TINYINT_MAX"], self.tdCom.boundary_config["TINYINT_MAX"]]:
             input_json, stb_name = self.tdCom.gen_full_type_json(tag_value=self.tdCom.gen_tag_value(t1_value=t1, value_type=value_type))
@@ -302,10 +298,10 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
 
         if value_type == "obj":
             # binary
-            stb_name = self.tdCom.get_long_name(7, "letters")
-            input_json = {"metric": stb_name, "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters"), 'type': 'binary'}}}
+            stb_name = self.tdCom.get_long_name()
+            input_json = {"metric": stb_name, "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]), 'type': 'binary'}}}
             self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-            input_json = {"metric": stb_name, "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1, "letters"), 'type': 'binary'}}}
+            input_json = {"metric": stb_name, "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1), 'type': 'binary'}}}
             try:
                 self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
@@ -314,27 +310,27 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
 
             # # nchar
             # # * legal nchar could not be larger than 16374/4
-            stb_name = self.tdCom.get_long_name(7, "letters")
-            input_json = {"metric": stb_name, "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters"), 'type': 'nchar'}}}
+            stb_name = self.tdCom.get_long_name()
+            input_json = {"metric": stb_name, "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]), 'type': 'nchar'}}}
             self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
 
-            input_json = {"metric": stb_name, "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1, "letters"), 'type': 'nchar'}}}
+            input_json = {"metric": stb_name, "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1), 'type': 'nchar'}}}
             try:
                 self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 self.tdSql.checkNotEqual(err.errno, 0)
         elif value_type == "default":
-            stb_name = self.tdCom.get_long_name(7, "letters")
+            stb_name = self.tdCom.get_long_name()
             if self.tdCom.defaultJSONStrType_value == "binary":
-                input_json = {"metric": stb_name, "timestamp": 1626006834, "value": True, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1": self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters")}}
+                input_json = {"metric": stb_name, "timestamp": 1626006834, "value": True, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1": self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}}
             elif self.tdCom.defaultJSONStrType_value == "nchar" or self.tdCom.defaultJSONStrType_value is None:
-                input_json = {"metric": stb_name, "timestamp": 1626006834, "value": True, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1": self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")}}
+                input_json = {"metric": stb_name, "timestamp": 1626006834, "value": True, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1": self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}}
             self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             if self.tdCom.defaultJSONStrType_value == "binary":
-                input_json = {"metric": stb_name, "timestamp": 1626006834, "value": True, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1": self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1, "letters")}}
+                input_json = {"metric": stb_name, "timestamp": 1626006834, "value": True, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1": self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1)}}
             elif self.tdCom.defaultJSONStrType_value == "nchar" or self.tdCom.defaultJSONStrType_value is None:
-                input_json = {"metric": stb_name, "timestamp": 1626006834, "value": True, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1": self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1, "letters")}}
+                input_json = {"metric": stb_name, "timestamp": 1626006834, "value": True, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1": self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1)}}
             try:
                 self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
@@ -433,12 +429,12 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         # if value_type == "obj":
         #     # binary
         #     self.tdCom.cleanTb()
-        #     stb_name = self.tdCom.get_long_name(7, "letters")
-        #     input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters"), 'type': 'binary'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
+        #     stb_name = self.tdCom.get_long_name()
+        #     input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]), 'type': 'binary'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
 
         #     self.tdCom.cleanTb()
-        #     input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1, "letters"), 'type': 'binary'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
+        #     input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1), 'type': 'binary'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     try:
         #         self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         #         raise Exception("should not reach here")
@@ -448,12 +444,12 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         #     # nchar
         #     # * legal nchar could not be larger than 16374/4
         #     self.tdCom.cleanTb()
-        #     stb_name = self.tdCom.get_long_name(7, "letters")
-        #     input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters"), 'type': 'nchar'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
+        #     stb_name = self.tdCom.get_long_name()
+        #     input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]), 'type': 'nchar'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
 
         #     self.tdCom.cleanTb()
-        #     input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1, "letters"), 'type': 'nchar'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
+        #     input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1), 'type': 'nchar'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     try:
         #         self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         #         raise Exception("should not reach here")
@@ -462,17 +458,17 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         # elif value_type == "default":
         #     # binary
         #     self.tdCom.cleanTb()
-        #     stb_name = self.tdCom.get_long_name(7, "letters")
+        #     stb_name = self.tdCom.get_long_name()
         #     if self.tdCom.defaultJSONStrType_value == "binary":
-        #         input_json = {"metric": stb_name, "timestamp": 1626006834, "value": self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters"), "tags": {"t0": {'value': True, 'type': 'bool'}}}
+        #         input_json = {"metric": stb_name, "timestamp": 1626006834, "value": self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]), "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     elif self.tdCom.defaultJSONStrType_value == "nchar" or self.tdCom.defaultJSONStrType_value is None:
-        #         input_json = {"metric": stb_name, "timestamp": 1626006834, "value": self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters"), "tags": {"t0": {'value': True, 'type': 'bool'}}}
+        #         input_json = {"metric": stb_name, "timestamp": 1626006834, "value": self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]), "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         #     self.tdCom.cleanTb()
         #     if self.tdCom.defaultJSONStrType_value == "binary":
-        #         input_json = {"metric": stb_name, "timestamp": 1626006834, "value": self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1, "letters"), "tags": {"t0": {'value': True, 'type': 'bool'}}}
+        #         input_json = {"metric": stb_name, "timestamp": 1626006834, "value": self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1), "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     elif self.tdCom.defaultJSONStrType_value == "nchar" or self.tdCom.defaultJSONStrType_value is None:
-        #         input_json = {"metric": stb_name, "timestamp": 1626006834, "value": self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1, "letters"), "tags": {"t0": {'value': True, 'type': 'bool'}}}
+        #         input_json = {"metric": stb_name, "timestamp": 1626006834, "value": self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1), "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     try:
         #         self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         #         raise Exception("should not reach here")
@@ -546,7 +542,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         input_json, stb_name = self.tdCom.gen_full_type_json(value_type=value_type)
         self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         self.tdCom.check_res(input_json, stb_name)
-        tb_name = self.tdCom.get_long_name(5, "letters")
+        tb_name = self.tdCom.get_long_name()
         input_json, stb_name = self.tdCom.gen_full_type_json(stb_name=stb_name, tb_name=tb_name, tag_value=self.tdCom.gen_tag_value(t7_value="binaryTagValuebinaryTagValue", t8_value="ncharTagValuencharTagValue", value_type=value_type))
         self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         self.tdCom.check_res(input_json, stb_name, condition=f'where t7="binaryTagValuebinaryTagValue"')
@@ -561,7 +557,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
     #     self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
     #     os.system('python3 query/schemalessQueryCrash.py &')
     #     time.sleep(2)
-    #     tb_name = self.tdCom.get_long_name(5, "letters")
+    #     tb_name = self.tdCom.get_long_name()
     #     input_json, stb_name = self.tdCom.gen_full_type_json(stb_name=stb_name, tb_name=tb_name, tag_value=self.tdCom.gen_tag_value(t7_value="binaryTagValuebinaryTagValue", t8_value="ncharTagValuencharTagValue"))
     #     self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
     #     time.sleep(3)
@@ -574,7 +570,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         check nchar length limit
         """
         self.tdCom.cleanTb()
-        stb_name = self.tdCom.get_long_name(7, "letters")
+        stb_name = self.tdCom.get_long_name()
         tag_value = {"t0": {"value": True, "type": "bool"}}
         col_value=self.tdCom.gen_ts_col_value(value=True, t_type="bool", value_type=value_type)
         input_json = {"metric": stb_name, "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": col_value, "tags": tag_value}
@@ -582,25 +578,25 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
 
         # * every binary and nchar must be length+2, so here is two tag, max length could not larger than 16384-2*2
         if value_type == "obj":
-            tag_value["t1"] = {"value": self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters"), "type": "binary"}
-            tag_value["t2"] = {"value": self.tdCom.get_long_name(5, "letters"), "type": "binary"}
+            tag_value["t1"] = {"value": self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]), "type": "binary"}
+            tag_value["t2"] = {"value": self.tdCom.get_long_name(), "type": "binary"}
         elif value_type == "default":
             if self.tdCom.defaultJSONStrType_value == "binary":
-                tag_value["t1"] = self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters")
-                tag_value["t2"] = self.tdCom.get_long_name(5, "letters")
+                tag_value["t1"] = self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])
+                tag_value["t2"] = self.tdCom.get_long_name()
             elif self.tdCom.defaultJSONStrType_value == "nchar" or self.tdCom.defaultJSONStrType_value == None:
-                tag_value["t1"] = self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")
-                tag_value["t2"] = self.tdCom.get_long_name(1, "letters")
+                tag_value["t1"] = self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])
+                tag_value["t2"] = self.tdCom.get_long_name()
         self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
         if value_type == "obj":
-            tag_value["t2"] = {"value": self.tdCom.get_long_name(6, "letters"), "type": "binary"}
+            tag_value["t2"] = {"value": self.tdCom.get_long_name(6), "type": "binary"}
         elif value_type == "default":
             if self.tdCom.defaultJSONStrType_value == "binary":
-                tag_value["t2"] = self.tdCom.get_long_name(6, "letters")
+                tag_value["t2"] = self.tdCom.get_long_name()
             elif self.tdCom.defaultJSONStrType_value == "nchar" or self.tdCom.defaultJSONStrType_value == None:
-                tag_value["t2"] = self.tdCom.get_long_name(2, "letters")
+                tag_value["t2"] = self.tdCom.get_long_name()
         try:
             self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             raise Exception("should not reach here")
@@ -615,7 +611,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         check nchar length limit
         """
         self.tdCom.cleanTb()
-        stb_name = self.tdCom.get_long_name(7, "letters")
+        stb_name = self.tdCom.get_long_name()
         tag_value = {"t0": True}
         col_value= True
         input_json = {"metric": stb_name, "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": col_value, "tags": tag_value}
@@ -623,25 +619,25 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
 
         # * legal nchar could not be larger than 16374/4
         if value_type == "obj":
-            tag_value["t1"] = {"value": self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters"), "type": "nchar"}
-            tag_value["t2"] = {"value": self.tdCom.get_long_name(1, "letters"), "type": "nchar"}
+            tag_value["t1"] = {"value": self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]), "type": "nchar"}
+            tag_value["t2"] = {"value": self.tdCom.get_long_name(1), "type": "nchar"}
         elif value_type == "default":
             if self.tdCom.defaultJSONStrType_value == "binary":
-                tag_value["t1"] = self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters")
-                tag_value["t2"] = self.tdCom.get_long_name(5, "letters")
+                tag_value["t1"] = self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])
+                tag_value["t2"] = self.tdCom.get_long_name(5)
             elif self.tdCom.defaultJSONStrType_value == "nchar" or self.tdCom.defaultJSONStrType_value == None:
-                tag_value["t1"] = self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")
-                tag_value["t2"] = self.tdCom.get_long_name(1, "letters")
+                tag_value["t1"] = self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])
+                tag_value["t2"] = self.tdCom.get_long_name(1)
         self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
         if value_type == "obj":
-            tag_value["t2"] = {"value": self.tdCom.get_long_name(2, "letters"), "type": "binary"}
+            tag_value["t2"] = {"value": self.tdCom.get_long_name(2), "type": "binary"}
         elif value_type == "default":
             if self.tdCom.defaultJSONStrType_value == "binary":
-                tag_value["t2"] = self.tdCom.get_long_name(6, "letters")
+                tag_value["t2"] = self.tdCom.get_long_name(6)
             elif self.tdCom.defaultJSONStrType_value == "nchar" or self.tdCom.defaultJSONStrType_value == None:
-                tag_value["t2"] = self.tdCom.get_long_name(2, "letters")
+                tag_value["t2"] = self.tdCom.get_long_name(2)
         try:
             self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             raise Exception("should not reach here")
@@ -655,9 +651,9 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         test batch insert
         """
         self.tdCom.drop_all_db()
-        self.tdCom.createDb(schemaless=1)
-        # self.tdCom.cleanTb()
-        # self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
+        self.tdCom.createDb()
+        self.tdCom.cleanTb()
+        self.tdSql.execute(f'create stable stb_name(ts timestamp, f int) tags(t1 bigint)')
         input_json = [{"metric": "st123456", "timestamp": {"value": 1626006833639000, "type": "us"}, "value": {"value": 1, "type": "bigint"}, "tags": {"t1": {"value": 3, "type": "bigint"}, "t2": {"value": 4, "type": "double"}, "t3": {"value": "t3", "type": "binary"}}},
                     {"metric": "st123456", "timestamp": {"value": 1626006833739000, "type": "us"}, "value": {"value": 2, "type": "bigint"}, "tags": {"t1": {"value": 4, "type": "bigint"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}},
                     {"metric": "stb_name", "timestamp": {"value": 1626006833639100, "type": "us"}, "value": {"value": 3, "type": "bigint"}, "tags": {"t2": {"value": 5, "type": "double"}, "t3": {"value": "ste", "type": "nchar"}}},
@@ -694,10 +690,10 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         """
         self.tdCom.cleanTb()
         sql_list = list()
-        stb_name = self.tdCom.get_long_name(8, "letters")
+        stb_name = self.tdCom.get_long_name()
         # self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
         for i in range(count):
-            input_json = self.tdCom.gen_full_type_json(stb_name=stb_name, col_value=self.tdCom.gen_ts_col_value(value=self.tdCom.get_long_name(8, "letters"), t_type="binary", value_type=value_type), tag_value=self.tdCom.gen_tag_value(t7_value=self.tdCom.get_long_name(8, "letters"), value_type=value_type), id_noexist_tag=True)[0]
+            input_json = self.tdCom.gen_full_type_json(stb_name=stb_name, col_value=self.tdCom.gen_ts_col_value(value=self.tdCom.get_long_name(), t_type="binary", value_type=value_type), tag_value=self.tdCom.gen_tag_value(t7_value=self.tdCom.get_long_name(), value_type=value_type), id_noexist_tag=True)[0]
             sql_list.append(input_json)
         self.tdSql._conn.schemaless_insert([json.dumps(sql_list)], TDSmlProtocolType.JSON.value, None)
         self.tdSql.query('show tables')
@@ -775,7 +771,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
 
     def spell_check(self):
         self.tdCom.cleanTb()
-        stb_name = self.tdCom.get_long_name(8, "letters")
+        stb_name = self.tdCom.get_long_name()
         # ! TD-15831
         # input_json_list = [{"metric": f'{stb_name}_1', "timestamp": {"value": 1626006833639000000, "type": "Ns"}, "value": {"value": 1, "type": "Bigint"}, "tags": {"t1": {"value": 127, "type": "tinYint"}}},
         #                 {"metric": f'{stb_name}_2', "timestamp": {"value": 1626006833639000001, "type": "nS"}, "value": {"value": 32767, "type": "smallInt"}, "tags": {"t1": {"value": 32767, "type": "smallInt"}}},
@@ -805,13 +801,12 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         """
         metric value "." trans to "_"
         """
-        self.tdSql.execute(f"create database if not exists test_point_trans precision 'ms' schemaless 1")
-        self.tdSql.execute("use test_point_trans")
+        self.tdCom.createDb("test_point_trans")
         input_json = self.tdCom.gen_full_type_json(point_trans_tag=True, value_type=value_type)[0]
         self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         self.tdSql.execute("drop table `.point.trans.test`")
         self.tdSql.execute(f"drop database test_point_trans")
-        self.tdCom.createDb(dbname=self.dbname, precision="us", schemaless=1)
+        self.tdCom.createDb(dbname=self.dbname, precision="us")
 
     def tbname_tags_cols_name_check(self):
         self.tdCom.cleanTb()
@@ -839,7 +834,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         thread input same stb tb, different data, result keep first data
         """
         self.tdCom.cleanTb()
-        tb_name = self.tdCom.get_long_name(7, "letters")
+        tb_name = self.tdCom.get_long_name()
         input_json, stb_name = self.tdCom.gen_full_type_json(tb_name=tb_name, col_value=self.tdCom.gen_ts_col_value(value="binaryTagValue", t_type="binary", value_type=value_type))
         self.tdCom.check_res(input_json, stb_name)
         s_stb_s_tb_list = self.tdCom.gen_json_list(stb_name=stb_name, tb_name=tb_name, value_type=value_type)[1]
@@ -857,7 +852,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         thread input same stb tb, different data, add tags,  result keep first data
         """
         self.tdCom.cleanTb()
-        tb_name = self.tdCom.get_long_name(7, "letters")
+        tb_name = self.tdCom.get_long_name()
         input_json, stb_name = self.tdCom.gen_full_type_json(tb_name=tb_name, col_value=self.tdCom.gen_ts_col_value(value="binaryTagValue", t_type="binary", value_type=value_type))
         self.tdCom.check_res(input_json, stb_name)
         s_stb_s_tb_a_tag_list = self.tdCom.gen_json_list(stb_name=stb_name, tb_name=tb_name, value_type=value_type)[2]
@@ -875,7 +870,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         thread input same stb tb, different data, minus columes and tags,  result keep first data
         """
         self.tdCom.cleanTb()
-        tb_name = self.tdCom.get_long_name(7, "letters")
+        tb_name = self.tdCom.get_long_name()
         input_json, stb_name = self.tdCom.gen_full_type_json(tb_name=tb_name, col_value=self.tdCom.gen_ts_col_value(value="binaryTagValue", t_type="binary", value_type=value_type))
         self.tdCom.check_res(input_json, stb_name)
         s_stb_s_tb_m_tag_list = self.tdCom.gen_json_list(stb_name=stb_name, tb_name=tb_name, value_type=value_type)[3]
@@ -933,7 +928,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         thread input same stb tb, different ts
         """
         self.tdCom.cleanTb()
-        tb_name = self.tdCom.get_long_name(7, "letters")
+        tb_name = self.tdCom.get_long_name()
         input_json, stb_name = self.tdCom.gen_full_type_json(tb_name=tb_name, col_value=self.tdCom.gen_ts_col_value(value="ncharTagValue", t_type="nchar"))
         self.tdCom.check_res(input_json, stb_name)
         s_stb_s_tb_d_ts_list = [({"metric": stb_name, "timestamp": {"value": 1626006833639001000, "type": "ns"}, "value": "hkgjiwdj", "tags": {"id": tb_name, "t0": {"value": False, "type": "bool"}, "t1": {"value": 127, "type": "tinyint"}, "t2": {"value": 32767, "type": "smallint"}, "t3": {"value": 2147483647, "type": "int"}, "t4": {"value": 9223372036854775807, "type": "bigint"}, "t5": {"value": 11.12345, "type": "float"}, "t6": {"value": 22.123456789, "type": "double"}, "t7": {"value": "vozamcts", "type": "binary"}, "t8": {"value": "ncharTagValue", "type": "nchar"}}}, 'yzwswz'),
@@ -952,7 +947,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         thread input same stb tb, different ts, mul tag
         """
         self.tdCom.cleanTb()
-        tb_name = self.tdCom.get_long_name(7, "letters")
+        tb_name = self.tdCom.get_long_name()
         input_json, stb_name = self.tdCom.gen_full_type_json(tb_name=tb_name, col_value=self.tdCom.gen_ts_col_value(value="ncharTagValue", t_type="nchar"))
         self.tdCom.check_res(input_json, stb_name)
         s_stb_s_tb_d_ts_m_tag_list = [({'metric': stb_name, 'timestamp': {'value': 1626006833639001000, 'type': 'ns'}, 'value': 'pjndapjb', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'tuzsfrom', 'type': 'binary'}, 'id': tb_name}}, 'punftb'),
@@ -973,7 +968,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         thread input same stb tb, different ts, add tag
         """
         self.tdCom.cleanTb()
-        tb_name = self.tdCom.get_long_name(7, "letters")
+        tb_name = self.tdCom.get_long_name()
         input_json, stb_name = self.tdCom.gen_full_type_json(tb_name=tb_name, col_value=self.tdCom.gen_ts_col_value(value="ncharTagValue", t_type="nchar"))
         self.tdCom.check_res(input_json, stb_name)
         s_stb_s_tb_d_ts_a_tag_list = [({'metric': stb_name, 'timestamp': {'value': 1626006833639001000, 'type': 'ns'}, 'value': 'pjndapjb', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'tuzsfrom', 'type': 'binary'}, 't8': {'value': 'ncharTagValue', 'type': 'nchar'}, 't11': {'value': 127, 'type': 'tinyint'}, 't10': {'value': 'ncharTagValue', 'type': 'nchar'}, 'id': tb_name}}, 'punftb'), 
@@ -1019,7 +1014,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def test(self):
-        self.table_id_check()
+        self.ts_check()
 
     def run(self):
         # self.test()
@@ -1031,8 +1026,8 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
             for value_type in ["obj", "default"]:
                 self.init_check(value_type)
                 self.symbols_check(value_type)
-            # ! TD-15830  TD-15831   self.ts_check()
-                # self.max_col_tag_check(value_type)
+                self.ts_check()
+                self.max_col_tag_check(value_type)
                 self.now_check(value_type)
                 self.date_format_check(value_type)
                 self.illegal_ts_check(value_type)

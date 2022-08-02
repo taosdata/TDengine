@@ -14,41 +14,59 @@
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.rest import TDRest
-
 class TestBatchInsert(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest(env_setting=self.env_setting)
-
-    def batch_insert(self):
+        self.api_type = 'restful'
+    def stb_batch_insert(self):
         """
         batch_insert
         """
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdRest.request(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned) tags \
             (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, t4 bigint, t5 tinyint unsigned)')
         self.tdRest.request(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now, 1, 2, 3, 4, 5)')
         self.tdRest.request(f'insert into {dbname}.tb values (now, 1, 2, 3, 4, 5), (now+1h, 1, 2, 3, 4, 5), (now+2h, 1, 2, 3, 4, 5);')
         self.tdRest.request(f'select count(*) from {dbname}.stb')
-        self.tdSql.checkEqual(int(self.tdRest.resp["data"][0][0]), 3)
+        self.tdSql.checkEqual(int(self.tdRest.resp['data'][0][0]), 3)
         self.tdRest.request(f'insert into {dbname}.tb (col_ts, c1, c2) values (now-1h, 1, 2),(now-2h, 1, 2),(now-3h, 1, 2)')
         self.tdRest.request(f'select count(*) from {dbname}.stb')
-        self.tdSql.checkEqual(int(self.tdRest.resp["data"][0][0]), 6)
-        self.tdSql.error(f'insert into {dbname}.tb (col_ts, c1, c2, c9) values (now-1h, 1, 2, 1), (now-2h, 1, 2, 1), (now-2h, 1, 2, 1)')
-        self.tdSql.error(f'insert into {dbname}.tb (col_ts, c1, c2) values (now-1h, 1, "binary"), (now-2h, 1, 2), (now-2h, 1, 2)')
-        self.tdSql.error(f'insert into {dbname}.tb (col_ts, c1, c2) values (now-1h, 1, 2)&&(now-2h, 1, 2), (now-2h, 1, 2)')
+        self.tdSql.checkEqual(int(self.tdRest.resp['data'][0][0]), 6)
+        self.tdRest.error(f'insert into {dbname}.tb (col_ts, c1, c2, c9) values (now-1h, 1, 2, 1), (now-2h, 1, 2, 1), (now-2h, 1, 2, 1)')
+        self.tdRest.error(f'insert into {dbname}.tb (col_ts, c1, c2) values (now-1h, 1, "binary"), (now-2h, 1, 2), (now-2h, 1, 2)')
+        self.tdRest.error(f'insert into {dbname}.tb (col_ts, c1, c2) values (now-1h, 1, 2)&&(now-2h, 1, 2), (now-2h, 1, 2)')
+        self.tdRest.request(f'drop database if exists {dbname}')
+
+    def tb_batch_insert(self):
+        """
+        batch_insert
+        """
+        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        self.tdCom.createDb(dbname)
+        self.tdRest.request(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned)')
+        self.tdRest.request(f'insert into {dbname}.tb values (now, 1, 2, 3, 4, 5), (now+1h, 1, 2, 3, 4, 5), (now+2h, 1, 2, 3, 4, 5);')
+        self.tdRest.request(f'select count(*) from {dbname}.tb')
+        self.tdSql.checkEqual(int(self.tdRest.resp['data'][0][0]), 3)
+        self.tdRest.request(f'insert into {dbname}.tb (col_ts, c1, c2) values (now-1h, 1, 2),(now-2h, 1, 2),(now-3h, 1, 2)')
+        self.tdRest.request(f'select count(*) from {dbname}.tb')
+        self.tdSql.checkEqual(int(self.tdRest.resp['data'][0][0]), 6)
+        self.tdRest.error(f'insert into {dbname}.tb (col_ts, c1, c2, c9) values (now-1h, 1, 2, 1), (now-2h, 1, 2, 1), (now-2h, 1, 2, 1)')
+        self.tdRest.error(f'insert into {dbname}.tb (col_ts, c1, c2) values (now-1h, 1, "binary"), (now-2h, 1, 2), (now-2h, 1, 2)')
+        self.tdRest.error(f'insert into {dbname}.tb (col_ts, c1, c2) values (now-1h, 1, 2)&&(now-2h, 1, 2), (now-2h, 1, 2)')
         self.tdRest.request(f'drop database if exists {dbname}')
 
     def run(self):
-        self.batch_insert()
+        self.stb_batch_insert()
+        self.tb_batch_insert()
 
     def cleanup(self):
         pass
 
     def desc(self) -> str:
         case_description = """
-            batch_insert <jayden>: [TD-12748] : batch_insert;
+            batch_insert <jayden>: [TD-13419] : batch_insert;
         """
         return case_description
 
@@ -56,4 +74,4 @@ class TestBatchInsert(TDCase):
         return "Jayden"
 
     def tags(self):
-        return T.Write.RestfulSql.Insert.BatchInsert
+        return T.Write.TaoscSql.Insert.BatchInsert

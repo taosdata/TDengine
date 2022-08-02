@@ -450,9 +450,11 @@ class TDTestQuery(TDCase):
 
 
     def rm_sql(self):
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
+        self.tdCreateData.drop_db("%s" % self.db)  
                 
     def run(self)-> bool:
+        startTime = time.time() 
         
         self.data_create(self.db)
            
@@ -477,4 +479,7 @@ class TDTestQuery(TDCase):
         self.logger.info("total time4 %ds" % (endTime4 - startTime4))
 
         self.false_case1()
+        
+        endTime = time.time()
         self.rm_sql()
+        self.logger.info("total time %ds" % (endTime - startTime))

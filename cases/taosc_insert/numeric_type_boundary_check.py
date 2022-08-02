@@ -34,7 +34,7 @@ class TestNumericBoundary(TDCase):
         """
         for data_type, data_value in self.boundary_dict.items():
             dbname = self.tdCom.get_long_name()
-            self.tdSql.execute(f'create database if not exists {dbname}')
+            self.tdCom.createDb(dbname)
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 {data_type}) tags (t1 {data_type})')
             self.tdSql.execute(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({data_value[1]})')
             self.tdSql.execute(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags ({data_value[0]})')
@@ -46,8 +46,8 @@ class TestNumericBoundary(TDCase):
             self.tdSql.query(f'select t1, c1 from {dbname}.tb2')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], data_value[0])
             self.tdSql.checkEqual(self.tdSql.query_data[0][1], data_value[1])
-            # self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({data_value[1]+1})')
-            # self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({data_value[1]-1})')
+            self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({data_value[1]+1})')
+            self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({data_value[0]-1})')
             self.tdSql.error(f'insert into {dbname}.tb1 values (now-1h, {data_value[1]+1})')
             self.tdSql.error(f'insert into {dbname}.tb2 values (now-1h, {data_value[0]-1})')
 

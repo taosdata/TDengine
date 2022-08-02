@@ -23,12 +23,12 @@ class TestStb(TDCase):
         """
         max length: 192
         """
-        stbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"], mode="letters")
+        stbname = self.tdCom.get_long_name(self.tdCom.Boundary.STBNAME_MAX_LENGTH)
         self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.error(f'create stable {stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.query('show stables')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], stbname)
-        dbname_exceed = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"]+1, mode="letters")
+        dbname_exceed = self.tdCom.get_long_name(self.tdCom.Boundary.STBNAME_MAX_LENGTH+1)
         self.tdSql.error(f'create stable if not exists {dbname_exceed} (ts timestamp, c1 int) tags (t1 int)')
 
     def stbname_with_backquote(self):
@@ -36,12 +36,12 @@ class TestStb(TDCase):
         backquote supported
         """
         self.tdCom.cleanTb()
-        stbname = '1' + self.tdCom.get_long_name(length=10, mode="letters")
+        stbname = '1' + self.tdCom.get_long_name()
         self.tdSql.execute(f'create stable if not exists `{stbname}` (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.query('show stables')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], stbname)
         self.tdSql.execute(f'drop table if exists `{stbname}`')
-        stbname = self.tdCom.get_long_name(length=3, mode="letters")
+        stbname = self.tdCom.get_long_name(3)
         symbol_list = self.tdCom.gen_symbol_list()
         symbol_list.remove('`')
         for insert_str in symbol_list:
@@ -60,9 +60,9 @@ class TestStb(TDCase):
         error occured when illegal stbname without backquote
         """
         self.tdCom.cleanTb()
-        stbname = '1' + self.tdCom.get_long_name(length=10, mode="letters")
+        stbname = '1' + self.tdCom.get_long_name()
         self.tdSql.error(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
-        stbname = self.tdCom.get_long_name(length=3, mode="letters")
+        stbname = self.tdCom.get_long_name(3)
         symbol_list = self.tdCom.gen_symbol_list()
         symbol_list.remove(' ')
         for insert_str in symbol_list:
@@ -78,13 +78,13 @@ class TestStb(TDCase):
         without backquote: case insensitive
         with backquote: keep upper or mixed
         """
-        for stbname in [self.tdCom.get_long_name(length=10, mode="letters_mixed"), self.tdCom.get_long_name(length=10, mode="letters_mixed").upper()]:
+        for stbname in [self.tdCom.get_long_name(10, "letters_mixed"), self.tdCom.get_long_name(10, "letters_mixed").upper()]:
             self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
             self.tdSql.query('show stables')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], stbname.lower())
             self.tdSql.execute(f'drop stable if exists `{stbname.lower()}`')
 
-        for stbname in [self.tdCom.get_long_name(length=10, mode="letters_mixed"), self.tdCom.get_long_name(length=10, mode="letters_mixed").upper()]:
+        for stbname in [self.tdCom.get_long_name(10, "letters_mixed"), self.tdCom.get_long_name(10, "letters_mixed").upper()]:
             self.tdSql.execute(f'create stable if not exists `{stbname}` (ts timestamp, c1 int) tags (t1 int)')
             self.tdSql.query('show stables')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], stbname)
@@ -95,9 +95,9 @@ class TestStb(TDCase):
         mixed invalid symbol
         mixed space
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
-        stbname = self.tdCom.get_long_name(length=3, mode="letters")
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
+        stbname = self.tdCom.get_long_name(3)
         base_sql = f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
                 c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(16), c12 nchar(16), c13 bool) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
                 t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t11 binary(16), t12 nchar(16), t13 bool)'

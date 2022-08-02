@@ -17,7 +17,10 @@ from taostest.util.common import TDCom
 class TestNull(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-
+        self.error_name = 'null'
+        self.type = ['timestamp','tinyint','smallint','int','bigint','tinyint unsigned','smallint unsigned','int unsigned','bigint unsigned',\
+                            'float','double','bool','binary(20)','nchar(20)']
+        self.error_coltype = 'null'
     def null_dbname_check(self):
         """
         dbname = "null"
@@ -29,32 +32,36 @@ class TestNull(TDCase):
         """
         stbname/tag/col = "null"
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         stbname = "null"
+        
         self.tdSql.error(f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
         self.tdSql.error(f'create stable if not exists {dbname}.stb (null timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
         self.tdSql.error(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, null int)')
         self.tdSql.error(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 null) tags (tag_ts timestamp, t1 int)')
         self.tdSql.error(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 null)')
+        for type in self.type:
+            self.tdSql.error(f'create stable if not exists {dbname}.stb (ts timestamp,{self.error_name} {type}) tags(tag_ts timestamp)')
+            self.tdSql.error(f'create stable if not exists {dbname}.stb (ts timestamp,c0 int) tags({self.error_name} {type})')
+        
         self.tdSql.execute(f'drop database if exists {dbname}')
 
     def child_tb_null_check(self):
         """
         tbname/tag/col = "null"
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
         tbname = "null"
         self.tdSql.error(f'create table if not exists {dbname}.{tbname} using {dbname}.stb tags (now, 1)')
-        self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (null, null)')
-        self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now, 1)')
+        self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (null, null)')
         self.tdSql.execute(f'insert into {dbname}.tb values (now, null)')
         self.tdSql.error(f'insert into {dbname}.tb values (null, 1)')
         self.tdSql.query(f'select tag_ts, t1, c1 from {dbname}.stb')
-        # self.tdSql.checkEqual(self.tdSql.query_data[0][0], None)
-        self.tdSql.checkEqual(self.tdSql.query_data[0][1], 1)
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], None)
+        self.tdSql.checkEqual(self.tdSql.query_data[0][1], None)
         self.tdSql.checkEqual(self.tdSql.query_data[0][2], None)
         self.tdSql.execute(f'drop database if exists {dbname}')
 
@@ -62,8 +69,8 @@ class TestNull(TDCase):
         """
         tbname/tag/col = "null"
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table if not exists {dbname}.tb (ts timestamp, c1 int)')
         self.tdSql.execute(f'insert into {dbname}.tb values (now, null)')
         self.tdSql.error(f'insert into {dbname}.tb values (null, 1)')
@@ -75,14 +82,13 @@ class TestNull(TDCase):
         """
         null and normal poll insert
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
                 c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(16), c12 nchar(16), c13 bool) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
                 t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t11 binary(16), t12 nchar(16), t13 bool)')
         self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, "binary", "nchar", True)')
-        # ! TD-16547
-        # self.tdSql.execute(f'create table if not exists {dbname}.tb_null using {dbname}.stb tags (now, null, null, null, null, null, null, null, null, null, null, null, null, null)')
+        self.tdSql.execute(f'create table if not exists {dbname}.tb_null using {dbname}.stb tags (now, null, null, null, null, null, null, null, null, null, null, null, null, null)')
         self.tdSql.execute(f'insert into {dbname}.tb values (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, "binary", "nchar", True)')
         self.tdSql.execute(f'insert into {dbname}.tb values (now-1h, null, null, null, null, null, null, null, null, null, null, null, null, null)')
         self.tdSql.execute(f'insert into {dbname}.tb values (now-2h, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, "binary", "nchar", True)')

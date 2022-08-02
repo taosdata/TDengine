@@ -84,12 +84,8 @@ class TDTestQuery(TDCase):
         for i in (4,):
             func = tdFunction.func_stable_math(i)
             try:
-                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                self.logger.info(conn1)
-                # cur1.execute('use "%s";' %self.db)                 
-                cur1.execute('use %s;' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                 
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
                 
@@ -134,12 +130,8 @@ class TDTestQuery(TDCase):
         for i in (4,):
             func = tdFunction.func_stable_math(i)
             try:
-                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                self.logger.info(conn1)
-                # cur1.execute('use "%s";' %self.db)                 
-                cur1.execute('use %s;' %self.db)              
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)               
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case1======\n\n\n" %i)
                 
@@ -184,8 +176,8 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s) where loc in ('%s_1') and %s %s %s; " %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        # self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
+                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
                         cur1.execute(sql2)   
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -209,11 +201,7 @@ class TDTestQuery(TDCase):
         for i in (4,):
             func = tdFunction.func_stable_math(i)
             try:
-                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                self.logger.info(conn1)
-                # cur1.execute('use "%s";' %self.db)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                 
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
@@ -269,12 +257,8 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_math(i)
             func_desc = func # for desc
             try:
-                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                self.logger.info(conn1)
-                # cur1.execute('use "%s";' %self.db)                 
-                cur1.execute('use %s;' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                 
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
 
@@ -363,11 +347,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_math(i)
             func_desc = func # for desc
             try:
-                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                self.logger.info(conn1)
-                # cur1.execute('use "%s";' %self.db)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case2======\n\n\n" %i)
@@ -433,8 +413,8 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s) where loc in ('%s_1') and  %s %s %s order by ts;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        # self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
+                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
                         cur1.execute(sql2)   
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -510,8 +490,8 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s) where loc in ('%s_1') and  %s %s %s order by ts desc;" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        # self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
+                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
                         cur1.execute(sql2)   
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -550,12 +530,8 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_math(i)
             func_desc = func # for desc
             try:
-                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                self.logger.info(conn1)
-                # cur1.execute('use "%s";' %self.db)                 
-                cur1.execute('use %s;' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                 
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
 
@@ -677,12 +653,8 @@ class TDTestQuery(TDCase):
         for i in (4,):
             func = tdFunction.func_stable_math(i)
             try:
-                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                self.logger.info(conn1)
-                # cur1.execute('use "%s";' %self.db)                 
-                cur1.execute('use %s;' %self.db)              
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)               
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
                 
@@ -729,12 +701,8 @@ class TDTestQuery(TDCase):
         for i in (4,):
             func = tdFunction.func_stable_math(i)
             try:
-                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                self.logger.info(conn1)
-                # cur1.execute('use "%s";' %self.db)                 
-                cur1.execute('use %s;' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                 
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case3======\n\n\n" %i)
                 
@@ -779,8 +747,8 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s) where loc in ('%s_1') and %s %s %s order by ts limit 1000" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        # self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
+                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
                         cur1.execute(sql2)   
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -804,12 +772,8 @@ class TDTestQuery(TDCase):
         for i in (4,):
             func = tdFunction.func_stable_math(i)
             try:
-                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                self.logger.info(conn1)
-                # cur1.execute('use "%s";' %self.db)                 
-                cur1.execute('use %s;' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                 
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
                 
@@ -854,7 +818,8 @@ class TDTestQuery(TDCase):
         self.logger.info("sqlnum3_right %d" % num3) 
 
     def rm_sql(self):
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
+        self.tdCreateData.drop_db("%s" % self.db)   
  
                  
     def run(self):

@@ -89,7 +89,7 @@ class TDTestQuery(TDCase):
         # 4: error : functions not support for super table query   [hanshu = ['PERCENTILE']] 
         # 5: error : not support stable, if support should together with groupby tbname.  support all int type \ double type   [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']] 
         # 6: error : not support stable, support all int type \ double type   [hanshu = ['LEASTSQUARES']] 
-        for i in (1,2,3,4,5,6,):
+        for i in (1,2,3,4,):#5,6,
             func = tdFunction.func_stable_error_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -161,7 +161,7 @@ class TDTestQuery(TDCase):
         # 4: error : functions not support for super table query   [hanshu = ['PERCENTILE']] 
         # 5: error : not support stable, if support should together with groupby tbname.  support all int type \ double type   [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']] 
         # 6: error : not support stable, support all int type \ double type   [hanshu = ['LEASTSQUARES']] 
-        for i in (1,2,3,4,5,6,):
+        for i in (1,2,3,4,):#5,6,
             func = tdFunction.func_stable_error_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -314,7 +314,7 @@ class TDTestQuery(TDCase):
         # 4: error : functions not support for super table query   [hanshu = ['PERCENTILE']] 
         # 5: error : not support stable, if support should together with groupby tbname.  support all int type \ double type   [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']] 
         # 6: error : not support stable, support all int type \ double type   [hanshu = ['LEASTSQUARES']] 
-        for i in (1,2,3,4,5,6,):
+        for i in (1,2,3,4,):#5,6,
             func = tdFunction.func_stable_error_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -386,7 +386,7 @@ class TDTestQuery(TDCase):
         # 4: error : functions not support for super table query   [hanshu = ['PERCENTILE']] 
         # 5: error : not support stable, if support should together with groupby tbname.  support all int type \ double type   [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']] 
         # 6: error : not support stable, support all int type \ double type   [hanshu = ['LEASTSQUARES']] 
-        for i in (1,2,3,4,5,6,):
+        for i in (1,2,3,4,):#5,6,
             func = tdFunction.func_stable_error_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -430,7 +430,8 @@ class TDTestQuery(TDCase):
         self.logger.info("sqlnum4 %d" % num4)  
 
     def rm_sql(self):
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))      
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))   
+        self.tdCreateData.drop_db("%s" % self.db)     
         
     def run(self):
         startTime = time.time() 

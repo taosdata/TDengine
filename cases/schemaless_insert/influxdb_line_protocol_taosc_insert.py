@@ -25,8 +25,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdCom.env_setting = self.env_setting
         self.tdCom.sml_type = "influxdb"
         self.tdCom.drop_all_db()
-        self.dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdCom.createDb(dbname=self.dbname, precision="us", schemaless=1)
+        self.dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname=self.dbname, precision="us")
         self._remote: Remote = Remote(self.logger)
         self.taospy_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taospy")
         if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
@@ -84,8 +84,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         input_sql, stb_name = self.tdCom.gen_full_type_sql(ts=0)
         self.tdCom.check_res(input_sql, stb_name, ts=0)
         self.tdSql.execute(f"drop database if exists test_ts")
-        self.tdSql.execute(f"create database if not exists test_ts precision 'ms' schemaless 1")
-        self.tdSql.execute("use test_ts")
+        kv_dict = {"precision": "ms"}
+        self.tdCom.createDb("test_ts", **kv_dict)
         input_sql = ['test_ms,t0=t c0=t 1626006833640', 'test_ms,t0=t c0=f 1626006833641']
         self.tdSql._conn.schemaless_insert(input_sql, TDSmlProtocolType.LINE.value, TDSmlTimestampType.MILLI_SECOND.value)
         self.tdSql.query('select * from test_ms')
@@ -93,8 +93,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "2021-07-11 20:33:53.641000")
 
         self.tdSql.execute(f"drop database if exists test_ts")
-        self.tdSql.execute(f"create database if not exists test_ts precision 'us' schemaless 1")
-        self.tdSql.execute("use test_ts")
+        kv_dict = {"precision": "us"}
+        self.tdCom.createDb("test_ts", **kv_dict)
         input_sql = ['test_us,t0=t c0=t 1626006833639000', 'test_us,t0=t c0=f 1626006833639001']
         self.tdSql._conn.schemaless_insert(input_sql, TDSmlProtocolType.LINE.value, TDSmlTimestampType.MICRO_SECOND.value)
         self.tdSql.query('select * from test_us')
@@ -102,15 +102,15 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "2021-07-11 20:33:53.639001")
 
         self.tdSql.execute(f"drop database if exists test_ts")
-        self.tdSql.execute(f"create database if not exists test_ts precision 'ns' schemaless 1")
-        self.tdSql.execute("use test_ts")
+        kv_dict = {"precision": "ns"}
+        self.tdCom.createDb("test_ts", **kv_dict)
         input_sql = ['test_ns,t0=t c0=t 1626006833639000000', 'test_ns,t0=t c0=f 1626006833639000001']
         self.tdSql._conn.schemaless_insert(input_sql, TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         self.tdSql.query('select * from test_ns')
         self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "1626006833639000000")
         self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "1626006833639000001")
 
-        self.tdCom.createDb(precision="us", schemaless=1)
+        self.tdCom.createDb(precision="us")
 
     def id_seq_check(self):
         """
@@ -238,12 +238,12 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        stb_name_192 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"], mode="letters")
-        tb_name_192 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"], mode="letters")
+        stb_name_192 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"])
+        tb_name_192 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"])
         input_sql, stb_name = self.tdCom.gen_full_type_sql(stb_name=stb_name_192, tb_name=tb_name_192)
         self.tdCom.check_res(input_sql, stb_name)
         self.tdSql.checkEqual(self.tdSql.query_row, 1)
-        for i in [self.tdCom.gen_full_type_sql(stb_name=self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"]+1, mode="letters"), tb_name=self.tdCom.get_long_name(length=5, mode="letters"))]:
+        for i in [self.tdCom.gen_full_type_sql(stb_name=self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"]+1), tb_name=self.tdCom.get_long_name(length=5))]:
             try:
                 self.tdSql._conn.schemaless_insert([i[0]], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
                 raise Exception("should not reach here")
@@ -262,10 +262,10 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdCom.cleanTb()
         # nchar
         # * legal nchar could not be larger than 16374/4
-        stb_name = self.tdCom.get_long_name(7, "letters")
-        input_sql = f'{stb_name},t0=t,t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")} c0=f 1626006833639000000'
+        stb_name = self.tdCom.get_long_name()
+        input_sql = f'{stb_name},t0=t,t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])} c0=f 1626006833639000000'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-        input_sql = f'{stb_name},t0=t,t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1, "letters")} c0=f 1626006833639000000'
+        input_sql = f'{stb_name},t0=t,t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1)} c0=f 1626006833639000000'
         try:
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
             raise Exception("should not reach here")
@@ -353,10 +353,10 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         #         self.tdSql.checkNotEqual(err.errno, 0)
 
         # # # binary
-        # stb_name = self.tdCom.get_long_name(7, "letters")
-        # input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters")}" 1626006833639000000'
+        # stb_name = self.tdCom.get_long_name()
+        # input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}" 1626006833639000000'
         # self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-        # input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1, "letters")}" 1626006833639000000'
+        # input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1)}" 1626006833639000000'
         # try:
         #     self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         #     raise Exception("should not reach here")
@@ -365,11 +365,11 @@ class TestInfluxdbLineTaoscInsert(TDCase):
 
         # # nchar
         # # * legal nchar could not be larger than 16374/4
-        # stb_name = self.tdCom.get_long_name(7, "letters")
-        # input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")}" 1626006833639000000'
+        # stb_name = self.tdCom.get_long_name()
+        # input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}" 1626006833639000000'
         # self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
-        input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1, "letters")}" 1626006833639000000'
+        input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1)}" 1626006833639000000'
         try:
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
             raise Exception("should not reach here")
@@ -403,7 +403,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
                 self.tdSql.checkNotEqual(err.errno, 0)
 
         # check binary and nchar blank
-        stb_name = self.tdCom.get_long_name(7, "letters")
+        stb_name = self.tdCom.get_long_name()
         input_sql1 = f'{stb_name}_1,t0=t c0=f,c1="abc aaa" 1626006833639000000'
         input_sql2 = f'{stb_name}_2,t0=t c0=f,c1=L"abc aaa" 1626006833639000000'
         input_sql3 = f'{stb_name}_3,t0=t,t1="abc\ aaa" c0=f 1626006833639000000'
@@ -413,8 +413,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
 
         # check accepted binary and nchar symbols
         # # * ~!@#$¥%^&*()-+{}|[]、「」:;
-        stb_name1 = self.tdCom.get_long_name(7, "letters")
-        stb_name2 = self.tdCom.get_long_name(7, "letters")
+        stb_name1 = self.tdCom.get_long_name()
+        stb_name2 = self.tdCom.get_long_name()
         for symbol in list('、「」~!@#$¥%^&*()-+{}|[]:;'):
             input_sql1 = f'{stb_name1},t0=t c0=f,c1="abc{symbol}aaa" 1626006833639000000'
             input_sql2 = f'{stb_name2},t0=t,t1="abc{symbol}aaa" c0=f 1626006833639000000'
@@ -492,7 +492,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql()
         self.tdCom.check_res(input_sql, stb_name)
-        tb_name = self.tdCom.get_long_name(5, "letters")
+        tb_name = self.tdCom.get_long_name()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(stb_name=stb_name, tb_name=tb_name, t7="\"binaryTagValuebinaryTagValue\"", t8="L\"ncharTagValuencharTagValue\"", c7="\"binaryTagValuebinaryTagValue\"", c8="L\"ncharTagValuencharTagValue\"")
         self.tdCom.check_res(input_sql, stb_name, condition=f'where t7 = \'"binaryTagValuebinaryTagValue"\'')
 
@@ -507,15 +507,14 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        tb_name = self.tdCom.get_long_name(7, "letters")
+        tb_name = self.tdCom.get_long_name()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, t0="t", c0="t")
         self.tdCom.check_res(input_sql, stb_name)
         input_sql, stb_name = self.tdCom.gen_full_type_sql(stb_name=stb_name, tb_name=tb_name, t0="t", c0="f", ct_add_tag=True)
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         self.tdSql.query(f'select * from {stb_name} where tbname like "{tb_name}"')
-        self.tdSql.checkData(0, 1, False)
-        #! TD-16348
-        # self.tdSql.checkData(0, 11, None)
+        self.tdSql.checkData(0, 1, True)
+        self.tdSql.checkData(0, 11, None)
         self.tdSql.checkData(0, 12, None)
         self.tdSql.checkData(0, 22, None)
         self.tdSql.checkData(0, 23, None)
@@ -526,10 +525,10 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        tb_name = self.tdCom.get_long_name(7, "letters")
+        tb_name = self.tdCom.get_long_name()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, t0="f", c0="f")
         self.tdCom.check_res(input_sql, stb_name)
-        tb_name_1 = self.tdCom.get_long_name(7, "letters")
+        tb_name_1 = self.tdCom.get_long_name()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(stb_name=stb_name, tb_name=tb_name_1, t0="f", c0="f", ct_add_tag=True)
         self.tdCom.check_res(input_sql, stb_name, condition=f'where tbname like "{tb_name_1}"')
         res_row_list = self.tdCom.res_handle(f'select c10,c11,t10,t11 from {tb_name}', stb_name)[0]
@@ -566,18 +565,18 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        stb_name = self.tdCom.get_long_name(7, "letters")
+        stb_name = self.tdCom.get_long_name()
         tb_name = f'{stb_name}_1'
         input_sql = f'{stb_name},id={tb_name},t0=t c0=f 1626006833639000000'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
         # # * check col，col+ts max in describe ---> 16143
-        input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters")}",c2="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters")}",c3="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters")}",c4="{self.tdCom.get_long_name(12, "letters")}" 1626006833639000000'
+        input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c2="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c3="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c4="{self.tdCom.get_long_name(12)}" 1626006833639000000'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
-        input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters")}",c2="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters")}",c3="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"], "letters")}",c4="{self.tdCom.get_long_name(13, "letters")}" 1626006833639000000'
+        input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c2="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c3="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c4="{self.tdCom.get_long_name(13)}" 1626006833639000000'
         try:
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
             raise Exception("should not reach here")
@@ -593,17 +592,17 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        stb_name = self.tdCom.get_long_name(7, "letters")
+        stb_name = self.tdCom.get_long_name()
         tb_name = f'{stb_name}_1'
-        input_sql = f'{stb_name},id={tb_name},t2={self.tdCom.get_long_name(1, "letters")} c0=f 1626006833639000000'
+        input_sql = f'{stb_name},id={tb_name},t2={self.tdCom.get_long_name(1)} c0=f 1626006833639000000'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
         # * legal nchar could not be larger than 16374/4
-        input_sql = f'{stb_name},t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]-9, "letters")},t2={self.tdCom.get_long_name(1, "letters")} c0=f 1626006833639000000'
+        input_sql = f'{stb_name},t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]-9)},t2={self.tdCom.get_long_name(1)} c0=f 1626006833639000000'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
-        input_sql = f'{stb_name},t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]-1, "letters")},t2={self.tdCom.get_long_name(2, "letters")} c0=f 1626006833639000000'
+        input_sql = f'{stb_name},t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]-1)},t2={self.tdCom.get_long_name(2)} c0=f 1626006833639000000'
         try:
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
             raise Exception("should not reach here")
@@ -612,11 +611,11 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
 
-        input_sql = f'{stb_name},t2={self.tdCom.get_long_name(1, "letters")} c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")}",c2=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")}",c3=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")}",c4=L"{self.tdCom.get_long_name(4, "letters")}" 1626006833639000000'
+        input_sql = f'{stb_name},t2={self.tdCom.get_long_name(1)} c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}",c2=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}",c3=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}",c4=L"{self.tdCom.get_long_name(4)}" 1626006833639000000'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
-        input_sql = f'{stb_name},t2={self.tdCom.get_long_name(1, "letters")} c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")}",c2=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")}",c3=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], "letters")}",c4=L"{self.tdCom.get_long_name(5, "letters")}" 1626006833639000000'
+        input_sql = f'{stb_name},t2={self.tdCom.get_long_name(1)} c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}",c2=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}",c3=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}",c4=L"{self.tdCom.get_long_name(5)}" 1626006833639000000'
         try:
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
             raise Exception("should not reach here")
@@ -631,7 +630,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        stb_name = self.tdCom.get_long_name(8, "letters")
+        stb_name = self.tdCom.get_long_name()
         # self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
         lines = ["st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
                 "st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000000",
@@ -658,11 +657,11 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         sql_list = []
-        stb_name = self.tdCom.get_long_name(8, "letters")
+        stb_name = self.tdCom.get_long_name()
         # TODO commit out
         # self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 nchar(10))')
         for i in range(count):
-            input_sql = self.tdCom.gen_full_type_sql(stb_name=stb_name, t7=f'"{self.tdCom.get_long_name(8, "letters")}"', c7=f'"{self.tdCom.get_long_name(8, "letters")}"', id_noexist_tag=True)[0]
+            input_sql = self.tdCom.gen_full_type_sql(stb_name=stb_name, t7=f'"{self.tdCom.get_long_name()}"', c7=f'"{self.tdCom.get_long_name()}"', id_noexist_tag=True)[0]
             sql_list.append(input_sql)
         self.tdSql._conn.schemaless_insert(sql_list, TDSmlProtocolType.LINE.value, None)
         self.tdSql.query('show tables')
@@ -674,7 +673,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        stb_name = self.tdCom.get_long_name(8, "letters")
+        stb_name = self.tdCom.get_long_name()
         lines = ["st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i 64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
                 f"{stb_name},t2=5f64,t3=L\"ste\" c1=tRue,c2=4i64,c3=\"iam\" 1626056811823316532ns"]
         try:
@@ -695,6 +694,22 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             raise Exception("should not reach here")
         except SchemalessError as err:
             self.tdSql.checkNotEqual(err.errno, 0)
+    
+    def same_ts_batch_insert(self):
+        """
+        test same ts batch insert
+        """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
+        self.tdCom.cleanTb()
+        input_sql = ['ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=false,c1=1i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="xcxvwjvf",c8=L"ncharColValue",c9=7u64 1626006833639000000',
+        'ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=T,c1=2i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="fixrzcuq",c8=L"ncharColValue",c9=7u64 1626006833639000000',
+        'ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=t,c1=3i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="iupzdqub",c8=L"ncharColValue",c9=7u64 1626006833639000000',
+        'ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=t,c1=4i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="yvvtzzof",c8=L"ncharColValue",c9=7u64 1626006833639000000',
+        'ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=t,c1=5i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="vbxpilkj",c8=L"ncharColValue",c9=7u64 1626006833639000000']
+        self.tdSql._conn.schemaless_insert(input_sql, TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+        self.tdSql.query('select * from ubzlsr')
+        self.tdSql.checkEqual(self.tdSql.query_row, 1)
+        self.tdSql.checkEqual(int(self.tdSql.query_data[0][2]), 5)
 
     def multi_tags_insert_check(self):
         """
@@ -744,7 +759,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
 
     def spell_check(self):
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
-        stb_name = self.tdCom.get_long_name(8, "letters")
+        stb_name = self.tdCom.get_long_name()
         self.tdCom.cleanTb()
         input_sql_list = [f'{stb_name}_1,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=22.123456789F64 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=22.123456789F64 1626006833639000000',
                             f'{stb_name}_2,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=22.123456789F64 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=22.123456789F64 1626006833639000000',
@@ -763,7 +778,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
     def default_type_check(self):
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        stb_name = self.tdCom.get_long_name(8, "letters")
+        stb_name = self.tdCom.get_long_name()
         input_sql_list = [f'{stb_name}_1,t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 1626006833639000000',
                             f'{stb_name}_2,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=22.123456789 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=22.123456789 1626006833639000000',
                             f'{stb_name}_3,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=10e5F32 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=10e5F64 1626006833639000000',
@@ -816,7 +831,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        tb_name = self.tdCom.get_long_name(7, "letters")
+        tb_name = self.tdCom.get_long_name()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name)
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_s_tb_list = self.tdCom.gen_sql_list(stb_name=stb_name, tb_name=tb_name)[1]
@@ -832,7 +847,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        tb_name = self.tdCom.get_long_name(7, "letters")
+        tb_name = self.tdCom.get_long_name()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name)
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_s_tb_a_col_a_tag_list = self.tdCom.gen_sql_list(stb_name=stb_name, tb_name=tb_name)[2]
@@ -848,7 +863,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        tb_name = self.tdCom.get_long_name(7, "letters")
+        tb_name = self.tdCom.get_long_name()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name)
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_s_tb_m_col_m_tag_list = self.tdCom.gen_sql_list(stb_name=stb_name, tb_name=tb_name)[3]
@@ -909,7 +924,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        tb_name = self.tdCom.get_long_name(7, "letters")
+        tb_name = self.tdCom.get_long_name()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name)
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_s_tb_d_ts_list = [(f'{stb_name},id={tb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="tgqkvsws",t8=L"ncharTagValue" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="htvnnldm",c8=L"ncharColValue",c9=7u64 1626006833639000000', 'sfzqdz'), \
@@ -930,16 +945,14 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        tb_name = self.tdCom.get_long_name(7, "letters")
+        tb_name = self.tdCom.get_long_name()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name)
-        print(input_sql)
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_s_tb_d_ts_a_col_m_tag_list = [(f'{stb_name},id={tb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="htvnnldm",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=t 1626006833639000000', 'sfzqdz'), \
                                             (f'{stb_name},id={tb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="gybqvhos",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=t 1626006833639001000', 'sfzqdz'), \
                                             (f'{stb_name},id={tb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="zlvxgquy",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=t 1626006833639002000', 'sfzqdz'), \
                                             (f'{stb_name},id={tb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="oaupfgtz",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=t 1626006833639003000', 'sfzqdz'), \
                                             (f'{stb_name},id={tb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="vgzadjsh",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=t 1626006833639004000', 'sfzqdz')]
-        print(s_stb_s_tb_d_ts_a_col_m_tag_list)
         # for input_sql in s_stb_s_tb_d_ts_a_col_m_tag_list:
         #     self.tdSql._conn.schemaless_insert([input_sql[0]], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
@@ -959,7 +972,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        tb_name = self.tdCom.get_long_name(7, "letters")
+        tb_name = self.tdCom.get_long_name()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, t0=False)
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_s_tb_d_ts_a_tag_m_col_list = [(f'{stb_name},id={tb_name},t0=False,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="xsajdfjc",t8=L"ncharTagValue",t11=127i8,t10=L"ncharTagValue" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 1626006833639000000', 'rgqcfb'), \
@@ -1010,7 +1023,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def test(self):
-        self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
+        self.batch_insert_check()
         return
 
     def run(self):
@@ -1033,7 +1046,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.id_seq_check()
             self.id_letter_check()
             self.no_id_check()
-            # ! self.max_col_tag_check()
+            self.max_col_tag_check()
             self.stb_tb_name_check()
             self.id_start_with_num_check()
             self.now_check()
@@ -1048,6 +1061,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             # TODO self.tag_col_binary_max_length_check()
             self.batch_insert_check()
             self.multi_insert_check(100)
+            self.same_ts_batch_insert()
             self.batch_error_insert_check()
             self.multi_cols_insert_check()
             self.multi_tags_insert_check()

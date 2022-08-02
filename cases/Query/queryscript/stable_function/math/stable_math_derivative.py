@@ -132,7 +132,6 @@ class TDTestQuery(TDCase):
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        # not support stddev/percentile in the outer query
                         sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and %s %s %s ;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
@@ -760,7 +759,8 @@ class TDTestQuery(TDCase):
         self.logger.info("sqlnum3_error %d" % num3) 
 
     def rm_sql(self):
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))   
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        self.tdCreateData.drop_db("%s" % self.db)   
                  
     def run(self):
         startTime = time.time() 

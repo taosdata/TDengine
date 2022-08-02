@@ -16,25 +16,27 @@ import re
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
-from taostest.util.get_json import GetJson
 class TestKeep(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self._remote: Remote = Remote(self.logger)
+        self.remote: Remote = Remote(self.logger)
         self.logical_error_list = ["1439m", "525600001m", "23h", "8760001h", "0d", "365001d"]
         self.common_days_value = "1h"
         self.error_value_list = ['3000, 4000, 5000', '3000, 3500, 4000', '3000, 3100, 3200', '20000, 10000, 30000', '30000, 10000, 20000', '10000, 30000, 20000']
         self.cfg = self.tdCom.Boundary.DB_PARAM_KEEP_CONFIG
-        
+        for env_setting in self.env_setting["settings"]:
+            if env_setting["name"].lower() == "taosd":
+                self.taosd_setting = env_setting
+                self.fqdn = self.taosd_setting["fqdn"][0]
+                self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
     def keep_check(self):
         """
         keep check
         """
         test_param = self.cfg["create_name"]
-        get_data = GetJson(self.logger, self.run_log_dir, self.env_setting)
 
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         # default
@@ -42,13 +44,14 @@ class TestKeep(TDCase):
 
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1, dbname)
-        data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+        data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
         self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
         self.tdSql.execute(f'drop database {dbname}')
         # boundary
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
-            self.tdSql.execute(f'create database if not exists {dbname} duration {self.common_days_value} {test_param} {param_value}')
+            kv_dict = {"duration": self.common_days_value, test_param: param_value}
+            self.tdCom.createDb(dbname, **kv_dict)
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             if param_value==1 or param_value ==365000:
@@ -64,7 +67,7 @@ class TestKeep(TDCase):
                 self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{param*60}m,{param*60}m,{param*60}m')
             self.tdSql.query(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-            data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+            data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
             self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
             self.tdSql.execute(f'drop database {dbname}')
         
@@ -77,35 +80,38 @@ class TestKeep(TDCase):
         
         # keep2 >= keep1 >= keep0 >= days (default = 14400)
         # keep2 >= keep1 >= keep0 >= days
-        self.tdSql.execute(f'create database if not exists {dbname} {test_param} 36500,36501,36502')
+        kv_dict = {test_param: "36500,36501,36502"}
+        self.tdCom.createDb(dbname, **kv_dict)
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         self.tdSql.checkEqual(db_field_kv_dict[test_param], "52560000m,52561440m,52562880m")
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-        data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+        data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
         self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
         self.tdSql.execute(f'drop database {dbname}')
         # keep2(default) > keep1 >= keep0 >= days
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname} {test_param} 36500,36501')
+        kv_dict = {test_param: "36500,36501"}
+        self.tdCom.createDb(dbname, **kv_dict)
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         self.tdSql.checkEqual(db_field_kv_dict[test_param], "52560000m,52561440m,52561440m")
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-        data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+        data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
         self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
         self.tdSql.execute(f'drop database {dbname}')
         # keep2 = keep1 = keep0 = days
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname} duration 10 {test_param} 10,10,10')
+        kv_dict = {"duration": 10, test_param: "10,10,10"}
+        self.tdCom.createDb(dbname, **kv_dict)
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         self.tdSql.checkEqual(db_field_kv_dict[test_param], "14400m,14400m,14400m")
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-        data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+        data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
         self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
         self.tdSql.execute(f'drop database {dbname}')
         # error
@@ -125,20 +131,20 @@ class TestKeep(TDCase):
 
     def keep_checkdata(self):
         self.tdSql.execute("drop database if exists db1 ")
-        self.tdSql.execute("create database if not exists db1 duration 1d keep 10d,15d,20d")
-        self.tdSql.execute("use db1")
+        kv_dict = {"duration": "1d", "keep": "10d,10d,10d"}
+        self.tdCom.createDb("db1", **kv_dict)
         self.tdSql.execute("create table ntb (ts timestamp, c0 int)")
         self.tdSql.execute("insert into ntb values(now, 1)")
         self.tdSql.query("select * from ntb")
         self.tdSql.checkRow(1)
-        self.tdSql.error("insert into ntb values('2020-1-1 00:00:00',1)")
+        self.tdSql.error("insert into ntb values(now-11d,1)")
         self.tdSql.error("insert into ntb values(now+2d, 1)")
         self.tdSql.execute("drop database db1")
 
         # bug TD-15499
         self.tdSql.execute("drop database if exists db1")
-        self.tdSql.execute("create database if not exists db1 keep 36500d")
-        self.tdSql.execute("use db1")
+        kv_dict = {"keep": "36500d"}
+        self.tdCom.createDb("db1", **kv_dict)
         self.tdSql.execute("create table ntb (ts timestamp, c0 int)")
         self.tdSql.execute("insert into ntb values(0, 1)")
         self.tdSql.query("select * from ntb")

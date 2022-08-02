@@ -1,0 +1,11 @@
+# production environment
+target_host: 192.168.0.31
+work_dir: /root/work
+env:
+  TDENGINE_CLOUD_TOKEN: "375beff2e1c84ac480bf8c98bdf2aaa0b62a10dd"
+  TDENGINE_CLOUD_URL: "http://gw-aws.cloud.tdengine.com:80"
+  TDENGINE_JDBC_URL: "jdbc:TAOS-RS://gw-aws.cloud.tdengine.com:80?usessl=false&token=375beff2e1c84ac480bf8c98bdf2aaa0b62a10dd"
+  TDENGINE_GO_DSN: "http(gw-aws.cloud.tdengine.com:80)/?token=375beff2e1c84ac480bf8c98bdf2aaa0b62a10dd"
+  TDENGINE_CLOUD_DSN: "http://gw-aws.cloud.tdengine.com:80?token=375beff2e1c84ac480bf8c98bdf2aaa0b62a10dd"
+
+settings: []

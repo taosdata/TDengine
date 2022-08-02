@@ -13,20 +13,20 @@
 
 from taostest import TDCase, T
 from taostest.util.common import TDCom
-
+from taostest.util.rest import TDRest
 class TestStrict(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.cfg = self.tdCom.Boundary.DB_PARAM_STRICT_CONFIG
-
     def strict_check(self):
         """
         strict check
         """
         test_param = self.cfg["create_name"]
         dbname = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         self.tdSql.query('show databases')
+        #TODO
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         # default
         self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
@@ -34,14 +34,17 @@ class TestStrict(TDCase):
         # boundary
         for param, param_value in self.cfg["boundary"].items():
             dbname = self.tdCom.get_long_name()
-            self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
+            kv_dict = {test_param: f'"{param_value}"'}
+            self.tdCom.createDb(dbname, **kv_dict)
+            # self.tdSql.execute(f'create database if not exists {dbname} {test_param} "{param_value}"')
             self.tdSql.query('show databases')
+            #TODO
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param)
             self.tdSql.execute(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name()
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"]["no_strict"] - 1}')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"]["strict"] + 1}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} 1')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} "a"')
 
     def run(self) -> bool:
         self.strict_check()

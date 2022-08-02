@@ -1,0 +1,2 @@
+#####group4 cluster 100 nodes
+taostest --containers --keep --setup=cluster/cluster_100_dnodes.yaml --case=stability/insert/insert_test_pro.py --case-param="\"--insert-tmpl-file=cases/stability/insert/meters.json --insert-cfg-file=cases/stability/insert/write_100.cfg --key DROPENABLE=no --check-result --pre-create-db --enable-second-round\""

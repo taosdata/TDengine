@@ -18,13 +18,13 @@ class TestBinaryBoundary(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest(env_setting=self.env_setting)
-
+        self.api_type = 'restful'
     def binary_length_check(self):
         """
         max length: 16374
         """
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdRest.request(f'create database if not exists {dbname}')
+        self.tdCom.createDb(dbname)
         str_16374 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["BINARY_MAX_LENGTH"], mode="letters")
         str_16375 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1, mode="letters")
         self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 binary({self.tdCom.boundary_config["BINARY_MAX_LENGTH"]})) tags (t1 binary({self.tdCom.boundary_config["BINARY_MAX_LENGTH"]}))')

@@ -26,7 +26,7 @@ class TestIllegalType(TDCase):
         int_type_list = ['tinyint', 'smallint', 'int', 'bigint', 'tinyint unsigned', 'smallint unsigned', 'int unsigned', 'bigint unsigned']
         error_type_value_list = ['a10', '1b0', '10c', '%10', '1$0', '10*', '1 0']
         for test_type in int_type_list:
-            dbname = self.tdCom.get_long_name(length=5, mode="letters")
+            dbname = self.tdCom.get_long_name()
             self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 {test_type}) tags (tag_ts timestamp, t1 {test_type})')
             self.tdSql.execute(f'create table if not exists {dbname}.ctb using {dbname}.stb tags (now, 1)')
@@ -45,7 +45,7 @@ class TestIllegalType(TDCase):
         float_type_list = ['float', 'double']
         error_type_value_list = ['a1.1', '1b.1', '1.1c', '%1.1', '1$.1', '1.1*', '1 .0', '1. 0']
         for test_type in float_type_list:
-            dbname = self.tdCom.get_long_name(length=5, mode="letters")
+            dbname = self.tdCom.get_long_name()
             self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 {test_type}) tags (tag_ts timestamp, t1 {test_type})')
             self.tdSql.execute(f'create table if not exists {dbname}.ctb using {dbname}.stb tags (now, 1.1)')
@@ -64,7 +64,7 @@ class TestIllegalType(TDCase):
         bool_type_list = ['bool']
         error_type_value_list = ['aTrue', 'Fablse', 'Falsec', '1True', 'Fa2lse', 'False3', '*True', 'Fa.lse', 'False%', 'Tru e']
         for test_type in bool_type_list:
-            dbname = self.tdCom.get_long_name(length=5, mode="letters")
+            dbname = self.tdCom.get_long_name()
             self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 {test_type}) tags (tag_ts timestamp, t1 {test_type})')
             self.tdSql.execute(f'create table if not exists {dbname}.ctb using {dbname}.stb tags (now, True)')
@@ -83,7 +83,7 @@ class TestIllegalType(TDCase):
         binary_type_list = ['binary(16)', 'nchar(16)']
         error_type_value_list = ['%hh', 'h$h', 'hh*', 'h h']
         for test_type in binary_type_list:
-            dbname = self.tdCom.get_long_name(length=5, mode="letters")
+            dbname = self.tdCom.get_long_name()
             self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 {test_type}) tags (tag_ts timestamp, t1 {test_type})')
             self.tdSql.execute(f'create table if not exists {dbname}.ctb using {dbname}.stb tags (now, 1.1)')

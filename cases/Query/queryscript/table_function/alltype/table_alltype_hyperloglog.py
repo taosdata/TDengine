@@ -253,7 +253,7 @@ class TDTestQuery(TDCase):
                         interval_fill = ' where ts between 1630000001000 and 1630100001000 '
                         interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
                         
-                        for i in (1,2,3,4,21,):           #21             
+                        for i in (1,2,3,4,21,):                     
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)
@@ -267,31 +267,36 @@ class TDTestQuery(TDCase):
                             sql2 = "select * from (select %s from %s where %s %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                             
                             sql2 = "select %s from (select * from %s) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            #cur1.execute(sql2)
+                            self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                             
-                        for i in (1,2,3,4,6,7,8,9,21,):                #21     
+                        for i in (1,2,3,4,6,7,8,9,21,):                   
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
+                            self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where %s %s %s %s %s);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
+                            self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            #cur1.execute(sql2)
+                            self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                             
                         for i in (22,):                        
@@ -302,16 +307,19 @@ class TDTestQuery(TDCase):
                             sql2 = "select %s from %s where  %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where %s %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                             
                             sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)
@@ -319,16 +327,19 @@ class TDTestQuery(TDCase):
                             sql2 = "select %s from %s where  %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where %s %s %s %s %s);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                                                                                     
                         for i in (11,12,13,14,15,16,17,18,19,20,):                        
@@ -379,48 +390,12 @@ class TDTestQuery(TDCase):
                     for qt_where in qt_where:
                         qt_where = str(qt_where).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
                         qt_like_match = stable_where[3]
-                        qt_in_where = stable_where[4]        
-                        
-                        # interval_fill = ' where ts between 1630000001000 and 1630100001000 '
-                        # interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
-                        
-                        # list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,22]
-                        # list_interval = random.sample(list_intervals,10) 
-                        # for i in list_interval:                         
-                        #     time_window_new = tdWhere.time_window_new(i)
-                        #     self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
-                        #     sql1 = "select %s from %s where tbname in ('%s') %s;"  % (func,self.table,self.table,time_window_new)
-
-                        #     sql2 = "select %s from %s where tbname in ('%s') and %s %s %s %s" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
-
-                        #     sql2 = "select * from (select %s from %s where tbname in ('%s') and %s %s %s %s)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
-
-                        #     sql2 = "select %s from (select * from %s) where tbname in ('%s') and %s %s %s %s" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
-                            
-                        #     sql1 = "select %s from %s where %s tbname in ('%s') %s;"  % (func,self.table,interval_fill_and,self.table,time_window_new)
-
-                        #     sql2 = "select %s from %s where  tbname in ('%s')  and %s %s %s %s %s;" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
-
-                        #     sql2 = "select * from (select %s from %s where tbname in ('%s') and %s %s %s %s %s);" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
-
-                        #     sql2 = "select %s from (select * from %s) where tbname in ('%s') and %s %s %s %s %s;" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
+                        qt_in_where = stable_where[4]    
                             
                         interval_fill = ' where ts between 1630000001000 and 1630100001000 '
                         interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
                         
-                        for i in (1,2,3,4,21,):           #21             
+                        for i in (1,2,3,4,21,):                      
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                             sql1 = "select %s from %s where tbname in ('%s') %s;"  % (func,self.table,self.table,time_window_new)
@@ -428,36 +403,38 @@ class TDTestQuery(TDCase):
                             sql2 = "select %s from %s where  tbname in ('%s') and %s %s %s %s;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where tbname in ('%s') and %s %s %s %s);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                             
                             sql2 = "select %s from (select * from %s) where  tbname in ('%s') and %s %s %s %s;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            #cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
                             
-                        for i in (1,2,3,4,6,7,8,9,21,):                #21     
+                        for i in (1,2,3,4,6,7,8,9,21,):                  
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
-                            sql1 = "select %s from %s where tbname in ('%s') %s;"  % (func,self.table,self.table,time_window_new)
+                            sql1 = "select %s from %s where %s tbname in ('%s') %s;"  % (func,self.table,interval_fill_and,self.table,time_window_new)
 
                             sql2 = "select %s from %s where  tbname in ('%s') and %s %s %s %s %s;" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
+                            self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  tbname in ('%s') and %s %s %s %s %s);" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
+                            self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where tbname in ('%s') and %s %s %s %s %s;" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            #cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
                             
                         for i in (22,):                        
@@ -468,11 +445,13 @@ class TDTestQuery(TDCase):
                             sql2 = "select %s from %s where  tbname in ('%s') and %s %s %s %s;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where tbname in ('%s') and %s %s %s %s);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where tbname in ('%s') and %s %s %s %s;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -484,11 +463,13 @@ class TDTestQuery(TDCase):
                             sql2 = "select %s from %s where  tbname in ('%s') and %s %s %s %s %s;" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where tbname in ('%s') and %s %s %s %s %s);" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal_hyperloglog('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where tbname in ('%s') and %s %s %s %s %s;" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1683,7 +1664,8 @@ class TDTestQuery(TDCase):
         self.logger.info("sqlnum3_tbname_interval %d" % num3)   
         
     def rm_sql(self):
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))   
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        self.tdCreateData.drop_db("%s" % self.db)  
                  
     def run(self):
         startTime = time.time() 
