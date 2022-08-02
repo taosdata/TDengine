@@ -13,22 +13,4 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "planTestUtil.h"
-#include "planner.h"
-
-using namespace std;
-
-class PlanSysTableTest : public PlannerTestBase {};
-
-TEST_F(PlanSysTableTest, show) {
-  useDb("root", "test");
-
-  run("show tables");
-  run("show stables");
-}
-
-TEST_F(PlanSysTableTest, informationSchema) {
-  useDb("root", "information_schema");
-
-  run("SELECT * FROM information_schema.ins_databases WHERE name = 'information_schema'");
-}
+#include "meta.h"

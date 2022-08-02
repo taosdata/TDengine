@@ -2223,6 +2223,7 @@ typedef struct SAppClusterSummary {
   uint64_t insertBytes;  // submit to tsdb since launched.
 
   uint64_t fetchBytes;
+  uint64_t numOfQueryReq;
   uint64_t queryElapsedTime;
   uint64_t numOfSlowQueries;
   uint64_t totalRequests;

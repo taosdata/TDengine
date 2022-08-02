@@ -531,10 +531,10 @@ void syncGetEpSet(int64_t rid, SEpSet* pEpSet) {
     snprintf(pEpSet->eps[i].fqdn, sizeof(pEpSet->eps[i].fqdn), "%s", (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodeFqdn);
     pEpSet->eps[i].port = (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodePort;
     (pEpSet->numOfEps)++;
-    sInfo("vgId:%d sync get epset: index:%d %s:%d", pSyncNode->vgId, i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+    sInfo("vgId:%d, sync get epset: index:%d %s:%d", pSyncNode->vgId, i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
   }
   pEpSet->inUse = pSyncNode->pRaftCfg->cfg.myIndex;
-  sInfo("vgId:%d sync get epset in-use:%d", pSyncNode->vgId, pEpSet->inUse);
+  sInfo("vgId:%d, sync get epset in-use:%d", pSyncNode->vgId, pEpSet->inUse);
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
 }
@@ -836,12 +836,12 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
         rpcFreeCont(rpcMsg.pCont);
         syncRespMgrDel(pSyncNode->pSyncRespMgr, seqNum);
         ret = 1;
-        sDebug("vgId:%d optimized index:%" PRId64 " success, msgtype:%s,%d", pSyncNode->vgId, retIndex,
+        sDebug("vgId:%d, optimized index:%" PRId64 " success, msgtype:%s,%d", pSyncNode->vgId, retIndex,
                TMSG_INFO(pMsg->msgType), pMsg->msgType);
       } else {
         ret = -1;
         terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-        sError("vgId:%d optimized index:%" PRId64 " error, msgtype:%s,%d", pSyncNode->vgId, retIndex,
+        sError("vgId:%d, optimized index:%" PRId64 " error, msgtype:%s,%d", pSyncNode->vgId, retIndex,
                TMSG_INFO(pMsg->msgType), pMsg->msgType);
       }
 

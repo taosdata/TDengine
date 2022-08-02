@@ -373,7 +373,7 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
       }
       break;
     default:
-      smaError("vgId:%d undefined smaType:%", SMA_VID(pSma), smaType);
+      smaError("vgId:%d, undefined smaType:%", SMA_VID(pSma), smaType);
       return TSDB_CODE_FAILED;
   }
 

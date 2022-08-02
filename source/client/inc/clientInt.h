@@ -225,10 +225,12 @@ typedef struct SRequestObj {
   SArray*              targetTableList;
   SQueryExecMetric     metric;
   SRequestSendRecvBody body;
+  int32_t              stmtType;
   bool                 syncQuery;     // todo refactor: async query object
   bool                 stableQuery;   // todo refactor
   bool                 validateOnly;  // todo refactor
   bool                 killed;
+  bool                 inRetry;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
 } SRequestObj;
@@ -326,7 +328,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 STscObj* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
                                uint16_t port, int connType);
 
-SRequestObj* launchQuery(uint64_t connId, const char* sql, int sqlLen, bool validateOnly);
+SRequestObj* launchQuery(uint64_t connId, const char* sql, int sqlLen, bool validateOnly, bool inRetry);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);
 

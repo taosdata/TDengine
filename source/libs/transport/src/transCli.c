@@ -658,7 +658,6 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   QUEUE_REMOVE(&conn->q);
   QUEUE_INIT(&conn->q);
   transRemoveExHandle(transGetRefMgt(), conn->refId);
-  transDestroyBuffer(&conn->readBuf);
 
   conn->refId = -1;
   if (conn->task != NULL) transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
@@ -685,7 +684,7 @@ static void cliDestroy(uv_handle_t* handle) {
   transQueueDestroy(&conn->cliMsgs);
   tTrace("%s conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
   transReqQueueClear(&conn->wreqQueue);
-
+  transDestroyBuffer(&conn->readBuf);
   taosMemoryFree(conn);
 }
 static bool cliHandleNoResp(SCliConn* conn) {
