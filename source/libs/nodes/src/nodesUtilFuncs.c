@@ -713,7 +713,8 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
-      destroyTableCfg((STableCfg*)(((SShowCreateTableStmt*)pNode)->pCfg));
+      taosMemoryFreeClear(((SShowCreateTableStmt*)pNode)->pDbCfg);
+      destroyTableCfg((STableCfg*)(((SShowCreateTableStmt*)pNode)->pTableCfg));
       break;
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:  // no pointer field
     case QUERY_NODE_KILL_CONNECTION_STMT:         // no pointer field

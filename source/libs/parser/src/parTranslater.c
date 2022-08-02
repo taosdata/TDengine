@@ -1751,8 +1751,7 @@ static int32_t dnodeToVgroupsInfo(SArray* pDnodes, SVgroupsInfo** pVgsInfo) {
 
 static bool sysTableFromVnode(const char* pTable) {
   return (0 == strcmp(pTable, TSDB_INS_TABLE_TABLES)) ||
-         (0 == strcmp(pTable, TSDB_INS_TABLE_TABLE_DISTRIBUTED) ||
-          (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS)));
+         (0 == strcmp(pTable, TSDB_INS_TABLE_TABLE_DISTRIBUTED) || (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS)));
 }
 
 static bool sysTableFromDnode(const char* pTable) { return 0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES); }
@@ -3705,6 +3704,11 @@ static int32_t checkTableWatermarkOption(STranslateContext* pCxt, STableOptions*
 }
 
 static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt, bool createStable) {
+  if (NULL != strchr(pStmt->tableName, '.')) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,
+                                   "The table name cannot contain '.'");
+  }
+
   SDbCfgInfo dbCfg = {0};
   int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
   if (TSDB_CODE_SUCCESS == code && !createStable && NULL != dbCfg.pRetensions) {
@@ -4282,9 +4286,10 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
   return buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
 }
 
-static int32_t getSmaIndexDstVgId(STranslateContext* pCxt, char* pTableName, int32_t* pVgId) {
+static int32_t getSmaIndexDstVgId(STranslateContext* pCxt, const char* pDbName, const char* pTableName,
+                                  int32_t* pVgId) {
   SVgroupInfo vg = {0};
-  int32_t     code = getTableHashVgroup(pCxt, pCxt->pParseCxt->db, pTableName, &vg);
+  int32_t     code = getTableHashVgroup(pCxt, pDbName, pTableName, &vg);
   if (TSDB_CODE_SUCCESS == code) {
     *pVgId = vg.vgId;
   }
@@ -4301,7 +4306,7 @@ static int32_t getSmaIndexSql(STranslateContext* pCxt, char** pSql, int32_t* pLe
 }
 
 static int32_t buildSampleAstInfoByIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt, SSampleAstInfo* pInfo) {
-  pInfo->pDbName = pCxt->pParseCxt->db;
+  pInfo->pDbName = pStmt->dbName;
   pInfo->pTableName = pStmt->tableName;
   pInfo->pFuncs = nodesCloneList(pStmt->pOptions->pFuncs);
   pInfo->pInterval = nodesCloneNode(pStmt->pOptions->pInterval);
@@ -4328,7 +4333,7 @@ static int32_t getSmaIndexAst(STranslateContext* pCxt, SCreateIndexStmt* pStmt, 
 
 static int32_t buildCreateSmaReq(STranslateContext* pCxt, SCreateIndexStmt* pStmt, SMCreateSmaReq* pReq) {
   SName name;
-  tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pCxt->pParseCxt->db, pStmt->indexName, &name), pReq->name);
+  tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->indexDbName, pStmt->indexName, &name), pReq->name);
   memset(&name, 0, sizeof(SName));
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name), pReq->stb);
   pReq->igExists = pStmt->ignoreExists;
@@ -4352,7 +4357,7 @@ static int32_t buildCreateSmaReq(STranslateContext* pCxt, SCreateIndexStmt* pStm
     }
   }
 
-  int32_t code = getSmaIndexDstVgId(pCxt, pStmt->tableName, &pReq->dstVgId);
+  int32_t code = getSmaIndexDstVgId(pCxt, pStmt->dbName, pStmt->tableName, &pReq->dstVgId);
   if (TSDB_CODE_SUCCESS == code) {
     code = getSmaIndexSql(pCxt, &pReq->sql, &pReq->sqlLen);
   }
@@ -4365,7 +4370,7 @@ static int32_t buildCreateSmaReq(STranslateContext* pCxt, SCreateIndexStmt* pStm
 
 static int32_t checkCreateSmaIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
   SDbCfgInfo dbCfg = {0};
-  int32_t    code = getDBCfg(pCxt, pCxt->pParseCxt->db, &dbCfg);
+  int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
   if (TSDB_CODE_SUCCESS == code && NULL != dbCfg.pRetensions) {
     code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_SMA_INDEX,
                                    "Tables configured with the 'ROLLUP' option do not support creating sma index");
@@ -4883,10 +4888,17 @@ static int32_t translateShowCreateDatabase(STranslateContext* pCxt, SShowCreateD
 }
 
 static int32_t translateShowCreateTable(STranslateContext* pCxt, SShowCreateTableStmt* pStmt) {
-  SName name;
-  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
-
-  return getTableCfg(pCxt, &name, (STableCfg**)&pStmt->pCfg);
+  pStmt->pDbCfg = taosMemoryCalloc(1, sizeof(SDbCfgInfo));
+  if (NULL == pStmt->pDbCfg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  int32_t code = getDBCfg(pCxt, pStmt->dbName, (SDbCfgInfo*)pStmt->pDbCfg);
+  if (TSDB_CODE_SUCCESS == code) {
+    SName name;
+    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
+    code = getTableCfg(pCxt, &name, (STableCfg**)&pStmt->pTableCfg);
+  }
+  return code;
 }
 
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
@@ -5916,6 +5928,10 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
 static int32_t checkCreateSubTable(STranslateContext* pCxt, SCreateSubTableClause* pStmt) {
   if (0 != strcmp(pStmt->dbName, pStmt->useDbName)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_CORRESPONDING_STABLE_ERR);
+  }
+  if (NULL != strchr(pStmt->tableName, '.')) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,
+                                   "The table name cannot contain '.'");
   }
   return TSDB_CODE_SUCCESS;
 }

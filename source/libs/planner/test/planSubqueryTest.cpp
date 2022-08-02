@@ -85,3 +85,9 @@ TEST_F(PlanSubqeuryTest, outerPartition) {
 
   run("SELECT c1, COUNT(*) FROM (SELECT ts, c1 FROM st1) PARTITION BY c1");
 }
+
+TEST_F(PlanSubqeuryTest, outerApercentile) {
+  useDb("root", "test");
+
+  run("SELECT APERCENTILE(c1, 54) FROM (SELECT SUM(c1) AS c1 FROM t1)");
+}
