@@ -1648,7 +1648,7 @@ class TDTestQuery(TDCase):
         self.logger.info("total time3 %ds" % (endTime3 - startTime3))     
 
         endTime = time.time()
-        #self.rm_sql()
+        self.rm_sql()
         self.logger.info("total time %ds" % (endTime - startTime))
 
 
