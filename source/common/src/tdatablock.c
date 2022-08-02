@@ -1758,14 +1758,22 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
           len += snprintf(dumpBuf + len, size - len, " %15d |", *(bool*)var);
           if (len >= size - 1) return dumpBuf;
           break;
-        case TSDB_DATA_TYPE_VARCHAR:
-        case TSDB_DATA_TYPE_NCHAR:
+        case TSDB_DATA_TYPE_VARCHAR: {
           memset(pBuf, 0, sizeof(pBuf));
           char* pData = colDataGetVarData(pColInfoData, j);
-          memcpy(pBuf, varDataVal(pData), varDataLen(pData));
+          int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData));
+          memcpy(pBuf, varDataVal(pData), dataSize);
           len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
           if (len >= size - 1) return dumpBuf;
-          break;
+          } break;
+        case TSDB_DATA_TYPE_NCHAR: {
+          char* pData = colDataGetVarData(pColInfoData, j);
+          int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData));
+          memset(pBuf, 0, sizeof(pBuf));
+          taosUcs4ToMbs((TdUcs4 *)varDataVal(pData), dataSize, pBuf);
+          len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
+          if (len >= size - 1) return dumpBuf;
+          } break;
       }
     }
     len += snprintf(dumpBuf + len, size - len, "\n");
