@@ -4762,7 +4762,7 @@ static SSDataBlock* mergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
   if (iaInfo->binfo.mergeResultBlock) {
     while(1) {
       if (pOperator->status == OP_EXEC_DONE) {
-        return NULL;
+        break;
       }
 
       if (pRes->info.rows >= pOperator->resultInfo.threshold) {
@@ -4782,7 +4782,7 @@ static SSDataBlock* mergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
 
 SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo,
                                                       int32_t numOfCols, SSDataBlock* pResBlock, SInterval* pInterval,
-                                                      int32_t primaryTsSlotId, SNode* pCondition,
+                                                      int32_t primaryTsSlotId, SNode* pCondition, bool mergeResultBlock,
                                                       SExecTaskInfo* pTaskInfo) {
   SMergeAlignedIntervalAggOperatorInfo* miaInfo = taosMemoryCalloc(1, sizeof(SMergeAlignedIntervalAggOperatorInfo));
   SOperatorInfo*                        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
@@ -4806,6 +4806,7 @@ SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream,
   iaInfo->interval = *pInterval;
   iaInfo->execModel = pTaskInfo->execModel;
   iaInfo->primaryTsIndex = primaryTsSlotId;
+  iaInfo->binfo.mergeResultBlock = mergeResultBlock;
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
