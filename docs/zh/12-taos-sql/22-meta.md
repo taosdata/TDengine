@@ -176,18 +176,6 @@ Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们�
 | 5   |  tag_type   | BINARY(64)    | tag 的类型             |
 | 6   |  tag_value  | BINARY(16384) | tag 的值               |
 
-## USER_STREAMS
-
-提供用户创建的流计算的相关信息。
-
-| #   |  **列名**   | **数据类型** | **说明**                    |
-| --- | :---------: | ------------ | --------------------------- |
-| 1   | stream_name | BINARY(192)  | 流计算名称                  |
-| 2   |  user_name  | BINARY(23)   | 创建流计算的用户            |
-| 3   | dest_table  | BINARY(192)  | 流计算写入的目标表          |
-| 4   | create_time | TIMESTAMP    | 创建时间                    |
-| 5   |     sql     | BLOB         | 创建流计算时提供的 SQL 语句 |
-
 ## INS_USERS
 
 提供系统中创建的用户的相关信息。
@@ -200,27 +188,44 @@ Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们�
 
 ## INS_GRANTS
 
-TODO
+提供企业版授权的相关信息。
+
+| #   |  **列名**   | **数据类型** | **说明**                                           |
+| --- | :---------: | ------------ | -------------------------------------------------- |
+| 1   |   version   | BINARY(9)    | 企业版授权说明：official(官方授权的)/trial(试用的) |
+| 2   |  cpu_cores  | BINARY(9)    | 授权使用的 CPU 核心数量                            |
+| 3   |   dnodes    | BINARY(10)   | 授权使用的 dnode 节点数量                          |
+| 4   |   streams   | BINARY(10)   | 授权创建的流数量                                   |
+| 5   |    users    | BINARY(10)   | 授权创建的用户数量                                 |
+| 6   |  accounts   | BINARY(10)   | 授权创建的帐户数量                                 |
+| 7   |   storage   | BINARY(21)   | 授权使用的存储空间大小                             |
+| 8   | connections | BINARY(21)   | 授权使用的客户端连接数量                           |
+| 9   |  databases  | BINARY(11)   | 授权使用的数据库数量                               |
+| 10  |    speed    | BINARY(9)    | 授权使用的数据点每秒写入数量                       |
+| 11  |  querytime  | BINARY(9)    | 授权使用的查询总时长                               |
+| 12  | timeseries  | BINARY(21)   | 授权使用的测点数量                                 |
+| 13  |   expired   | BINARY(5)    | 是否到期，true：到期，false：未到期                |
+| 14  | expire_time | BINARY(19)   | 试用期到期时间                                     |
 
 ## INS_VGROUPS
 
 系统中所有 vgroups 的信息。
 
-| #   | **列名**  | **数据类型** | **说明**                     |
-| --- | :-------: | ------------ | ---------------------------- |
-| 1   | vgroup_id | INT          | vgroup id                    |
-| 2   |  db_name  | BINARY(32)   | 数据库名                     |
-| 3   |  tables   | INT          | 此 vgroup 内有多少表         |
-| 4   |  status   | BINARY(10)   | 此 vgroup 的状态             |
-| 5   | v1_dnode  | INT          | 第一个成员所在的 dnode 的 id |
-| 6   | v1_status | BINARY(10)   | 第一个成员的状态             |
-| 7   | v2_dnode  | INT          | 第二个成员所在的 dnode 的 id |
-| 8   | v2_status | BINARY(10)   | 第二个成员的状态             |
-| 9   | v3_dnode  | INT          | 第三个成员所在的 dnode 的 id |
-| 10  | v3_status | BINARY(10)   | 第三个成员的状态             |
-| 11  |  nfiles   | INT          | TODO                         |
-| 12  | file_size | INT          | TODO                         |
-| 13  |   tsma    | TINYINT      | TODO                         |
+| #   | **列名**  | **数据类型** | **说明**                                               |
+| --- | :-------: | ------------ | ------------------------------------------------------ |
+| 1   | vgroup_id | INT          | vgroup id                                              |
+| 2   |  db_name  | BINARY(32)   | 数据库名                                               |
+| 3   |  tables   | INT          | 此 vgroup 内有多少表                                   |
+| 4   |  status   | BINARY(10)   | 此 vgroup 的状态                                       |
+| 5   | v1_dnode  | INT          | 第一个成员所在的 dnode 的 id                           |
+| 6   | v1_status | BINARY(10)   | 第一个成员的状态                                       |
+| 7   | v2_dnode  | INT          | 第二个成员所在的 dnode 的 id                           |
+| 8   | v2_status | BINARY(10)   | 第二个成员的状态                                       |
+| 9   | v3_dnode  | INT          | 第三个成员所在的 dnode 的 id                           |
+| 10  | v3_status | BINARY(10)   | 第三个成员的状态                                       |
+| 11  |  nfiles   | INT          | 此 vgroup 中数据/元数据文件的数量                      |
+| 12  | file_size | INT          | 此 vgroup 中数据/元数据文件的大小                      |
+| 13  |   tsma    | TINYINT      | 此 vgroup 是否专用于 Time-range-wise SMA，1: 是, 0: 否 |
 
 ## INS_CONFIGS
 
