@@ -63,13 +63,19 @@ class TDTestCase:
                 tbname1 = list(tbname)
                 tbname1.insert(j,i)
                 new_tbname = ''.join(tbname1)
-                for sql in [f'{dbname}.`{new_tbname}`',f'`{new_tbname}`']:
+                for sql in [f'`{dbname}`.`{new_tbname}`',f'`{new_tbname}`']:
                     tdSql.execute(f'create table {sql} (ts timestamp,c0 int)')
                     tdSql.execute(f'insert into {sql} values(now,1)')
                     tdSql.query(f'select * from {sql}')
                     tdSql.checkRows(1)
                     tdSql.execute(f'drop table {sql}')
-                    
+        for i in range(len(list(tbname))+1):
+            tbname1 = list(tbname)
+            tbname1.insert(i,'.')
+            new_tbname = ''.join(tbname1)
+            for sql in [f'`{dbname}`.`{new_tbname}`',f'`{new_tbname}`']:
+                tdSql.error(f'create table {sql} (ts timestamp,c0 int)')
+        tdSql.execute(f'drop database `{dbname}`')            
     def run(self):
         self.db_name_check()
         self.tb_name_check()
