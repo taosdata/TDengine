@@ -336,7 +336,7 @@ void uvOnSendCb(uv_write_t* req, int status) {
   if (conn == NULL) return;
 
   if (status == 0) {
-    tTrace("conn %p data already was written on stream", conn);
+    tDebug("conn %p data already was written on stream", conn);
     if (!transQueueEmpty(&conn->srvMsgs)) {
       SSvrMsg* msg = transQueuePop(&conn->srvMsgs);
       destroySmsg(msg);
@@ -901,11 +901,6 @@ static void uvPipeListenCb(uv_stream_t* handle, int status) {
   ASSERT(0 == uv_is_closing((uv_handle_t*)pipe));
 
   srv->numOfWorkerReady++;
-
-  // ASSERT(0 == uv_listen((uv_stream_t*)&ctx.send.tcp, 512, uvOnAcceptCb));
-
-  // r = uv_read_start((uv_stream_t*)&ctx.channel, alloc_cb, read_cb);
-  // ASSERT(r == 0);
 }
 
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) {
@@ -1137,7 +1132,7 @@ int transSendResponse(const STransMsg* msg) {
   m->type = Normal;
 
   STraceId* trace = (STraceId*)&msg->info.traceId;
-  tGTrace("conn %p start to send resp (1/2)", exh->handle);
+  tDebug("conn %p start to send resp (1/2)", exh->handle);
   transAsyncSend(pThrd->asyncPool, &m->q);
   transReleaseExHandle(transGetRefMgt(), refId);
   return 0;
