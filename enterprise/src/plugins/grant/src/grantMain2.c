@@ -50,7 +50,7 @@
 extern void *tsMnodeTmr;
 #endif
 
-#ifdef CFG_GRANTS
+#ifdef GRANTS_CFG
 #include "tgrantCfg.h"
 
 typedef struct {
@@ -135,7 +135,7 @@ SGrantStatus grantStatus = {false,
                             GRANT_CPU_LIMITS};
 
 // extern SSysTableMeta infosMeta[];
-#ifdef CFG_GRANTS
+#ifdef GRANTS_CFG
 #define status cloudGrantStatus
 #else
 #define status grantStatus
@@ -177,7 +177,7 @@ int32_t dmProcessGrantReq(SRpcMsg *pMsg) {
   }
 
   // step 2: set local dnode grant status
-#ifdef CFG_GRANTS
+#ifdef GRANTS_CFG
   cloudGrantStatus.curTimeSeries = grantStatusReq.curTimeSeries;
   cloudGrantStatus.curDbs = grantStatusReq.curDbs;
   cloudGrantStatus.curSTables = grantStatusReq.curSTables;
@@ -223,7 +223,7 @@ static void dmRefreshGrantCfg() {
 }
 
 static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus) {
-#ifdef CFG_GRANTS
+#ifdef GRANTS_CFG
     pGrantMsg->updateForced = tsGrantUpdateForced;
     tsGrantUpdateForced = false;
     if (pGrantMsg->updateForced) {
@@ -615,7 +615,7 @@ static uint32_t grantGetClusterCurTables(SMnode *pMnode) {
  * @param pMnode
  */
 static void grantRetrieveGrantInfo(SMnode *pMnode) {
-#ifdef CFG_GRANTS
+#ifdef GRANTS_CFG
   cloudGrantStatus.curTimeSeries = grantGetClusterCurTimeSeries(pMnode);
   cloudGrantStatus.curDbs = grantGetClusterCurDbs(pMnode);
   cloudGrantStatus.curSTables = grantGetClusterCurSTables(pMnode);
@@ -639,7 +639,7 @@ static void grantRetrieveGrantInfo(SMnode *pMnode) {
  */
 static void grantResetMaster(SMnode *pMnode) {
   grantRetrieveGrantInfo(pMnode);
-#ifndef CFG_GRANTS
+#ifndef GRANTS_CFG
   uint32_t clusterCreateTime = grantGetClusterCreateTime(pMnode);
 
   grantStatus.expireTimeSec = clusterCreateTime + GRANT_DEFAULT;
@@ -706,7 +706,7 @@ void grantRestore(EGrantType grant, uint64_t value) {
   }
 }
 
-#ifdef CFG_GRANTS
+#ifdef GRANTS_CFG
 static int32_t cloudGrantCheckTimeSeries() {
   if (cloudGrantStatus.limitTimeSeries == GRANT_TIME_SERIES_LIMITS || cloudGrantStatus.curTimeSeries < cloudGrantStatus.limitTimeSeries) {
     return TSDB_CODE_SUCCESS;
@@ -820,7 +820,7 @@ static int32_t grantCheckCpuCores() { return TSDB_CODE_SUCCESS; }
 #endif
 
 int32_t grantCheck(EGrantType grant) {
-#ifdef CFG_GRANTS
+#ifdef GRANTS_CFG
   switch (grant) {
     case TSDB_GRANT_DB:
       return cloudGrantCheckDatabases();
@@ -867,7 +867,7 @@ int32_t grantCheck(EGrantType grant) {
 }
 
 static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, GrantMsg *pGrantMsg, GrantStatus *pGrantStatus) {
-#ifdef CFG_GRANTS
+#ifdef GRANTS_CFG
   if (pGrantMsg->updateForced) {
     pGrantStatus->limitTimeSeries = pGrantMsg->limitTimeSeries;
     pGrantStatus->limitDbs = pGrantMsg->limitDbs;
@@ -955,7 +955,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   char    tmp1[42] = {0};
 
   if (pShow->numOfRows < 1) {
-  #ifdef CFG_GRANTS
+  #ifdef GRANTS_CFG
     const char *src;
     SColumnInfoData *pColInfo;
 
@@ -1153,7 +1153,7 @@ int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus) {
 
   if (tStartEncode(&encoder) < 0) return -1;
 
-#ifdef CFG_GRANTS
+#ifdef GRANTS_CFG
   // grant status
   if (tEncodeU64(&encoder, pStatus->limitTimeSeries) < 0) return -1;
   if (tEncodeU32(&encoder, pStatus->limitDbs) < 0) return -1;
@@ -1202,7 +1202,7 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus)
 
   if (tStartDecode(&decoder) < 0) return -1;
 
-#ifdef CFG_GRANTS
+#ifdef GRANTS_CFG
   // grant status
   if (tDecodeU64(&decoder, &pStatus->limitTimeSeries) < 0) return -1;
   if (tDecodeU32(&decoder, &pStatus->limitDbs) < 0) return -1;
@@ -1249,7 +1249,7 @@ int32_t tSerializeGrantMsg(void *buf, int32_t bufLen, GrantMsg *pMsg) {
 
   if (tStartEncode(&encoder) < 0) return -1;
 
-#ifdef CFG_GRANTS
+#ifdef GRANTS_CFG
   // grant msg
   if (tEncodeI8(&encoder, pMsg->updateForced ? 1 : 0) < 0) return -1;
   if (tEncodeU64(&encoder, pMsg->limitTimeSeries) < 0) return -1;
@@ -1290,7 +1290,7 @@ int32_t tDeserializeGrantMsg(void *buf, int32_t bufLen, GrantMsg *pMsg) {
 
   if (tStartDecode(&decoder) < 0) return -1;
 
-#ifdef CFG_GRANTS
+#ifdef GRANTS_CFG
   // grant msg
   if (tDecodeI8(&decoder, (int8_t *)&pMsg->updateForced) < 0) return -1;
   if (tDecodeU64(&decoder, &pMsg->limitTimeSeries) < 0) return -1;
