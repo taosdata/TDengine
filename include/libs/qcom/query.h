@@ -71,6 +71,7 @@ typedef struct SIndexMeta {
 typedef struct SExecResult {
   int32_t         code;
   uint64_t        numOfRows;
+  uint64_t        numOfBytes;
   int32_t         msgType;
   void*           res;
 } SExecResult;

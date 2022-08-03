@@ -313,7 +313,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   }
 
   {
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -394,7 +394,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   test.Restart();
 
   {
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -412,7 +412,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   }
 
   {
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 0);
   }
 
@@ -474,7 +474,7 @@ TEST_F(MndTestStb, 02_Alter_Stb_AddTag) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
   }
 
   {
@@ -514,7 +514,7 @@ TEST_F(MndTestStb, 03_Alter_Stb_DropTag) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -578,7 +578,7 @@ TEST_F(MndTestStb, 04_Alter_Stb_AlterTagName) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -630,7 +630,7 @@ TEST_F(MndTestStb, 05_Alter_Stb_AlterTagBytes) {
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -691,7 +691,7 @@ TEST_F(MndTestStb, 06_Alter_Stb_AddColumn) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -751,7 +751,7 @@ TEST_F(MndTestStb, 07_Alter_Stb_DropColumn) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -809,7 +809,7 @@ TEST_F(MndTestStb, 08_Alter_Stb_AlterTagBytes) {
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -818,7 +818,7 @@ TEST_F(MndTestStb, 08_Alter_Stb_AlterTagBytes) {
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_COLUMN_NOT_EXIST);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 

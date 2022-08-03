@@ -159,8 +159,8 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
       return -1;
     }
 
-    qDebug("task %d(child %d) send retrieve req to task %d at node %d, reqId %ld", pTask->taskId, pTask->selfChildId,
-           pEpInfo->taskId, pEpInfo->nodeId, req.reqId);
+    qDebug("task %d(child %d) send retrieve req to task %d at node %d, reqId %" PRId64, pTask->taskId,
+           pTask->selfChildId, pEpInfo->taskId, pEpInfo->nodeId, req.reqId);
   }
   return 0;
 FAIL:

@@ -1750,9 +1750,9 @@ static int32_t dnodeToVgroupsInfo(SArray* pDnodes, SVgroupsInfo** pVgsInfo) {
 }
 
 static bool sysTableFromVnode(const char* pTable) {
-  return (0 == strcmp(pTable, TSDB_INS_TABLE_USER_TABLES)) ||
-         (0 == strcmp(pTable, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED) ||
-          (0 == strcmp(pTable, TSDB_INS_TABLE_USER_TAGS)));
+  return (0 == strcmp(pTable, TSDB_INS_TABLE_TABLES)) ||
+         (0 == strcmp(pTable, TSDB_INS_TABLE_TABLE_DISTRIBUTED) ||
+          (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS)));
 }
 
 static bool sysTableFromDnode(const char* pTable) { return 0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES); }
@@ -1768,7 +1768,7 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
     code = getDBVgInfoImpl(pCxt, pName, &vgroupList);
   }
 
-  if (TSDB_CODE_SUCCESS == code && 0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLES)) {
+  if (TSDB_CODE_SUCCESS == code && 0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES)) {
     code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &vgroupList);
   }
 
@@ -1856,9 +1856,9 @@ static bool joinTableIsSingleTable(SJoinTableNode* pJoinTable) {
 static bool isSingleTable(SRealTableNode* pRealTable) {
   int8_t tableType = pRealTable->pMeta->tableType;
   if (TSDB_SYSTEM_TABLE == tableType) {
-    return 0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLES) &&
-           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED) &&
-           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TAGS);
+    return 0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) &&
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLE_DISTRIBUTED) &&
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TAGS);
   }
   return (TSDB_CHILD_TABLE == tableType || TSDB_NORMAL_TABLE == tableType);
 }
@@ -5244,15 +5244,15 @@ static const char* getSysDbName(ENodeType type) {
 static const char* getSysTableName(ENodeType type) {
   switch (type) {
     case QUERY_NODE_SHOW_DATABASES_STMT:
-      return TSDB_INS_TABLE_USER_DATABASES;
+      return TSDB_INS_TABLE_DATABASES;
     case QUERY_NODE_SHOW_TABLES_STMT:
-      return TSDB_INS_TABLE_USER_TABLES;
+      return TSDB_INS_TABLE_TABLES;
     case QUERY_NODE_SHOW_TAGS_STMT:
-      return TSDB_INS_TABLE_USER_TAGS;
+      return TSDB_INS_TABLE_TAGS;
     case QUERY_NODE_SHOW_STABLES_STMT:
-      return TSDB_INS_TABLE_USER_STABLES;
+      return TSDB_INS_TABLE_STABLES;
     case QUERY_NODE_SHOW_USERS_STMT:
-      return TSDB_INS_TABLE_USER_USERS;
+      return TSDB_INS_TABLE_USERS;
     case QUERY_NODE_SHOW_DNODES_STMT:
       return TSDB_INS_TABLE_DNODES;
     case QUERY_NODE_SHOW_VGROUPS_STMT:
@@ -5264,9 +5264,9 @@ static const char* getSysTableName(ENodeType type) {
     case QUERY_NODE_SHOW_QNODES_STMT:
       return TSDB_INS_TABLE_QNODES;
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
-      return TSDB_INS_TABLE_USER_FUNCTIONS;
+      return TSDB_INS_TABLE_FUNCTIONS;
     case QUERY_NODE_SHOW_INDEXES_STMT:
-      return TSDB_INS_TABLE_USER_INDEXES;
+      return TSDB_INS_TABLE_INDEXES;
     case QUERY_NODE_SHOW_STREAMS_STMT:
       return TSDB_PERFS_TABLE_STREAMS;
     case QUERY_NODE_SHOW_BNODES_STMT:

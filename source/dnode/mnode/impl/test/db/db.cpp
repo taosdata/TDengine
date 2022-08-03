@@ -26,7 +26,7 @@ class MndTestDb : public ::testing::Test {
 Testbase MndTestDb::test;
 
 TEST_F(MndTestDb, 01_ShowDb) {
-  test.SendShowReq(TSDB_MGMT_TABLE_DB, "user_databases", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_DB, "ins_databases", "");
   EXPECT_EQ(test.GetShowRows(), 2);
 }
 
@@ -64,10 +64,10 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
     ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowReq(TSDB_MGMT_TABLE_DB, "user_databases", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_DB, "ins_databases", "");
   EXPECT_EQ(test.GetShowRows(), 3);
 
-  test.SendShowReq(TSDB_MGMT_TABLE_VGROUP, "vgroups", "1.d1");
+  test.SendShowReq(TSDB_MGMT_TABLE_VGROUP, "ins_vgroups", "1.d1");
   EXPECT_EQ(test.GetShowRows(), 2);
 
   {
@@ -96,13 +96,13 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
     ASSERT_EQ(pRsp->code, TSDB_CODE_OPS_NOT_SUPPORT);
   }
 
-  test.SendShowReq(TSDB_MGMT_TABLE_DB, "user_databases", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_DB, "ins_databases", "");
   EXPECT_EQ(test.GetShowRows(), 3);
 
   // restart
   test.Restart();
 
-  test.SendShowReq(TSDB_MGMT_TABLE_DB, "user_databases", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_DB, "ins_databases", "");
   EXPECT_EQ(test.GetShowRows(), 3);
 
   {
@@ -122,7 +122,7 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
     EXPECT_STREQ(dropdbRsp.db, "1.d1");
   }
 
-  test.SendShowReq(TSDB_MGMT_TABLE_DB, "user_databases", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_DB, "ins_databases", "");
   EXPECT_EQ(test.GetShowRows(), 2);
 }
 
@@ -160,7 +160,7 @@ TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
     ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowReq(TSDB_MGMT_TABLE_DB, "user_databases", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_DB, "ins_databases", "");
   EXPECT_EQ(test.GetShowRows(), 3);
 
   uint64_t d2_uid = 0;
