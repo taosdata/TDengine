@@ -131,7 +131,7 @@
 ./test.sh -f tsim/parser/insert_tb.sim
 # TD-17038 ./test.sh -f tsim/parser/interp.sim
 ./test.sh -f tsim/parser/join_manyblocks.sim
-# TD-18018 ./test.sh -f tsim/parser/join_multitables.sim
+./test.sh -f tsim/parser/join_multitables.sim
 ./test.sh -f tsim/parser/join_multivnode.sim
 ./test.sh -f tsim/parser/join.sim
 ./test.sh -f tsim/parser/last_cache.sim
@@ -331,7 +331,7 @@
 ./test.sh -f tsim/vnode/stable_replica3_vnode3.sim
 
 # --- sync
-./test.sh -f tsim/sync/3Replica1VgElect.sim
+#./test.sh -f tsim/sync/3Replica1VgElect.sim
 #./test.sh -f tsim/sync/3Replica5VgElect.sim
 ./test.sh -f tsim/sync/oneReplica1VgElect.sim
 ./test.sh -f tsim/sync/oneReplica5VgElect.sim

@@ -137,7 +137,7 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
         ret->offset.type = TMQ_OFFSET__LOG;
         ret->offset.version = pReader->ver;
         ret->fetchType = FETCH_TYPE__NONE;
-        tqDebug("return offset %ld, no more valid", ret->offset.version);
+        tqDebug("return offset %" PRId64 ", no more valid", ret->offset.version);
         ASSERT(ret->offset.version >= 0);
         return -1;
       }
@@ -169,7 +169,7 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
       ret->offset.version = pReader->ver;
       ASSERT(pReader->ver >= 0);
       ret->fetchType = FETCH_TYPE__NONE;
-      tqDebug("return offset %ld, processed finish", ret->offset.version);
+      tqDebug("return offset %" PRId64 ", processed finish", ret->offset.version);
       return 0;
     }
   }

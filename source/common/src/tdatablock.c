@@ -1739,6 +1739,9 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
             formatTimestamp(pBuf, *(uint64_t*)var, TSDB_TIME_PRECISION_MILLI);
             printf(" %25s |", pBuf);
             break;
+          case TSDB_DATA_TYPE_BOOL:
+            printf(" %15d |", *(int32_t*)var);
+            break;
           case TSDB_DATA_TYPE_INT:
             printf(" %15d |", *(int32_t*)var);
             break;
@@ -1757,6 +1760,22 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
           case TSDB_DATA_TYPE_DOUBLE:
             printf(" %15lf |", *(double*)var);
             break;
+          case TSDB_DATA_TYPE_VARCHAR: {
+            char*   pData = colDataGetVarData(pColInfoData, j);
+            int32_t dataSize = TMIN(sizeof(pBuf) - 1, varDataLen(pData));
+            memset(pBuf, 0, dataSize + 1);
+            strncpy(pBuf, varDataVal(pData), dataSize);
+            printf(" %15s |", pBuf);
+          } break;
+          case TSDB_DATA_TYPE_NCHAR: {
+            char*   pData = colDataGetVarData(pColInfoData, j);
+            int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData));
+            memset(pBuf, 0, dataSize);
+            taosUcs4ToMbs((TdUcs4*)varDataVal(pData), dataSize, pBuf);
+            printf(" %15s |", pBuf);
+          } break;
+          default:
+            break;
         }
       }
       printf("\n");
@@ -1773,8 +1792,10 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
   int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
   int32_t rows = pDataBlock->info.rows;
   int32_t len = 0;
-  len += snprintf(dumpBuf + len, size - len, "===stream===%s|block type %d|child id %d|group id:%" PRIu64 "|uid:%ld|rows:%d|version:%" PRIu64 "\n", flag,
-                  (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.groupId,
+  len += snprintf(dumpBuf + len, size - len,
+                  "===stream===%s|block type %d|child id %d|group id:%" PRIu64 "|uid:%" PRId64
+                  "|rows:%d|version:%" PRIu64 "\n",
+                  flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.groupId,
                   pDataBlock->info.uid, pDataBlock->info.rows, pDataBlock->info.version);
   if (len >= size - 1) return dumpBuf;
 
@@ -1929,12 +1950,14 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
             }
             break;
           case TSDB_DATA_TYPE_NCHAR: {
-            tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_NCHAR, TD_VTYPE_NORM, var, true,
+            void* data = colDataGetData(pColInfoData, j);
+            tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_NCHAR, TD_VTYPE_NORM, data, true,
                                 offset, k);
             break;
           }
           case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
-            tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_VARCHAR, TD_VTYPE_NORM, var, true,
+            void* data = colDataGetData(pColInfoData, j);
+            tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_VARCHAR, TD_VTYPE_NORM, data, true,
                                 offset, k);
             break;
           }
