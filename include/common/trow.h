@@ -290,7 +290,12 @@ int32_t tdSRowSetTpInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t flen);
 int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen,
                               int32_t allNullLen, int32_t boundNullLen);
 int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf);
-int32_t tdSRowEnd(SRowBuilder *pBuilder);
+static FORCE_INLINE void tdSRowEnd(SRowBuilder *pBuilder) {
+  STSRow *pRow = (STSRow *)pBuilder->pBuf;
+  if (pBuilder->nNone || pBuilder->nNull) {
+    pRow->statis = 1;
+  }
+}
 int32_t tdSRowGetBuf(SRowBuilder *pBuilder, void *pBuf);
 void    tdSRowReset(SRowBuilder *pBuilder);
 int32_t tdAppendColValToTpRow(SRowBuilder *pBuilder, TDRowValT valType, const void *val, bool isCopyVarData,

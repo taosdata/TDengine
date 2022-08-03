@@ -1094,14 +1094,6 @@ int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBou
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tdSRowEnd(SRowBuilder *pBuilder) {
-  STSRow *pRow = (STSRow *)pBuilder->pBuf;
-  if (pBuilder->nNone || pBuilder->nNull) {
-    pRow->statis = 1;
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
   pBuilder->pBuf = (STSRow *)pBuf;
   if (!pBuilder->pBuf) {
