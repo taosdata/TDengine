@@ -729,6 +729,21 @@ _err:
   return code;
 }
 
+int32_t tsdbReadDataBlock(SDataFReader *pReader, SBlock *pBlock, SBlockData *pBlockData, uint8_t **ppBuf1,
+                          uint8_t **ppBuf2) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbReadLastBlock(SDataFReader *pReader, SBlockL *pBlockL, SBlockData *pBlockData, uint8_t **ppBuf1,
+                          uint8_t **ppBuf2) {
+  int32_t code = 0;
+  ASSERT(0);
+  // TODO
+  return code;
+}
+
 static int32_t tsdbReadBlockDataKey(SBlockData *pBlockData, SSubBlock *pSubBlock, uint8_t *pBuf, uint8_t **ppBuf) {
   int32_t code = 0;
   int64_t size = pSubBlock->szVersion + pSubBlock->szTSKEY + sizeof(TSCKSUM);
@@ -2095,6 +2110,20 @@ _err:
   tFree(pBuf1);
   tFree(pBuf2);
   taosArrayDestroy(aBlockCol);
+  return code;
+}
+
+int32_t tsdbWriteDataBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock *pBlock, uint8_t **ppBuf1,
+                           uint8_t **ppBuf2, int8_t cmprAlg) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbWriteLastBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockL *pBlockL, uint8_t **ppBuf1,
+                           uint8_t **ppBuf2, int8_t cmprAlg) {
+  int32_t code = 0;
+  // TODO
   return code;
 }
 
