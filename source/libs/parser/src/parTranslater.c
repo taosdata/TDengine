@@ -1171,6 +1171,44 @@ static int32_t translateMultiRowsFunc(STranslateContext* pCxt, SFunctionNode* pF
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateInterpFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  if (!fmIsInterpFunc(pFunc->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!isSelectStmt(pCxt->pCurrStmt) || SQL_CLAUSE_SELECT != pCxt->currClause) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  }
+  SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+  if (pSelect->hasAggFuncs || pSelect->hasMultiRowsFunc || pSelect->hasIndefiniteRowsFunc) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  }
+  if (NULL != pSelect->pWindow || NULL != pSelect->pGroupByList) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "%s function is not supported in window query or group query", pFunc->functionName);
+  }
+  if (hasInvalidFuncNesting(pFunc->pParameterList)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AGG_FUNC_NESTING);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateTimelineFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  if (!fmIsTimelineFunc(pFunc->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!isSelectStmt(pCxt->pCurrStmt)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "%s function must be used in select statements", pFunc->functionName);
+  }
+  SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+  if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
+      !isTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "%s function requires valid time series input", pFunc->functionName);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static bool hasFillClause(SNode* pCurrStmt) {
   if (!isSelectStmt(pCurrStmt)) {
     return false;
@@ -1291,6 +1329,7 @@ static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
     pSelect->hasInterpFunc = pSelect->hasInterpFunc ? true : (FUNCTION_TYPE_INTERP == pFunc->funcType);
     pSelect->hasLastRowFunc = pSelect->hasLastRowFunc ? true : (FUNCTION_TYPE_LAST_ROW == pFunc->funcType);
     pSelect->hasTimeLineFunc = pSelect->hasTimeLineFunc ? true : fmIsTimelineFunc(pFunc->funcId);
+    pSelect->onlyHasKeepOrderFunc = pSelect->onlyHasKeepOrderFunc ? fmIsKeepOrderFunc(pFunc->funcId) : false;
   }
 }
 
@@ -1408,6 +1447,12 @@ static int32_t translateNoramlFunction(STranslateContext* pCxt, SFunctionNode* p
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateMultiRowsFunc(pCxt, pFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateInterpFunc(pCxt, pFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateTimelineFunc(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
     setFuncClassification(pCxt->pCurrStmt, pFunc);
@@ -1684,6 +1729,9 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   if (NULL != pSelect->pGroupByList || NULL != pSelect->pWindow ||
       (!pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc && !pSelect->hasInterpFunc)) {
     return TSDB_CODE_SUCCESS;
+  }
+  if (!pSelect->onlyHasKeepOrderFunc) {
+    pSelect->isTimeLineResult = false;
   }
   CheckAggColCoexistCxt cxt = {.pTranslateCxt = pCxt, .existCol = false};
   nodesRewriteExprs(pSelect->pProjectionList, doCheckAggColCoexist, &cxt);
@@ -2181,9 +2229,9 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
     }
     pCxt->currClause = SQL_CLAUSE_ORDER_BY;
     code = translateExprList(pCxt, pSelect->pOrderByList);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
-    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
   }
   return code;
 }
@@ -2264,15 +2312,15 @@ static int32_t translateHaving(STranslateContext* pCxt, SSelectStmt* pSelect) {
 }
 
 static int32_t translateGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (NULL != pSelect->pGroupByList && NULL != pSelect->pWindow) {
+  if (NULL == pSelect->pGroupByList) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL != pSelect->pWindow) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GROUPBY_WINDOW_COEXIST);
   }
-  if (NULL != pSelect->pGroupByList) {
-    pCxt->currClause = SQL_CLAUSE_GROUP_BY;
-    pSelect->isTimeLineResult = false;
-    return translateExprList(pCxt, pSelect->pGroupByList);
-  }
-  return TSDB_CODE_SUCCESS;
+  pCxt->currClause = SQL_CLAUSE_GROUP_BY;
+  pSelect->isTimeLineResult = false;
+  return translateExprList(pCxt, pSelect->pGroupByList);
 }
 
 static int32_t getTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bool* pIsStrict) {
@@ -2561,12 +2609,13 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return code;
 }
 
-static int32_t translatePartitionBy(STranslateContext* pCxt, SNodeList* pPartitionByList) {
-  if (NULL == pPartitionByList) {
+static int32_t translatePartitionBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (NULL == pSelect->pPartitionByList) {
     return TSDB_CODE_SUCCESS;
   }
+  pSelect->isTimeLineResult = false;
   pCxt->currClause = SQL_CLAUSE_PARTITION_BY;
-  return translateExprList(pCxt, pPartitionByList);
+  return translateExprList(pCxt, pSelect->pPartitionByList);
 }
 
 static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -2669,9 +2718,34 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
 }
 
 static int32_t replaceOrderByAlias(STranslateContext* pCxt, SNodeList* pProjectionList, SNodeList* pOrderByList) {
+  if (NULL == pOrderByList) {
+    return TSDB_CODE_SUCCESS;
+  }
   SReplaceOrderByAliasCxt cxt = {.pTranslateCxt = pCxt, .pProjectionList = pProjectionList};
   nodesRewriteExprsPostOrder(pOrderByList, replaceOrderByAliasImpl, &cxt);
   return pCxt->errCode;
+}
+
+static void resetResultTimeline(SSelectStmt* pSelect) {
+  if (NULL == pSelect->pOrderByList) {
+    return;
+  }
+  SNode* pOrder = ((SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, 0))->pExpr;
+  if ((QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
+       isPrimaryKey((STempTableNode*)pSelect->pFromTable, pOrder)) ||
+      (QUERY_NODE_TEMP_TABLE != nodeType(pSelect->pFromTable) && isPrimaryKeyImpl(pOrder))) {
+    pSelect->isTimeLineResult = true;
+  } else {
+    pSelect->isTimeLineResult = false;
+  }
+}
+
+static int32_t replaceOrderByAliasForSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  int32_t code = replaceOrderByAlias(pCxt, pSelect->pProjectionList, pSelect->pOrderByList);
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    resetResultTimeline(pSelect);
+  }
+  return code;
 }
 
 static int32_t translateSelectWithoutFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -2688,7 +2762,7 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateWhere(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = translatePartitionBy(pCxt, pSelect->pPartitionByList);
+    code = translatePartitionBy(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateWindow(pCxt, pSelect);
@@ -2721,7 +2795,7 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
     code = appendTsForImplicitTsFunc(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = replaceOrderByAlias(pCxt, pSelect->pProjectionList, pSelect->pOrderByList);
+    code = replaceOrderByAliasForSelect(pCxt, pSelect);
   }
   return code;
 }
