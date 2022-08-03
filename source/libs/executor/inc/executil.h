@@ -90,6 +90,7 @@ struct SResultRowEntryInfo* getResultEntryInfo(const SResultRow* pRow, int32_t i
 
 static FORCE_INLINE SResultRow* getResultRowByPos(SDiskbasedBuf* pBuf, SResultRowPosition* pos) {
   SFilePage*  bufPage = (SFilePage*)getBufPage(pBuf, pos->pageId);
+  setBufPageDirty(bufPage, true);
   SResultRow* pRow = (SResultRow*)((char*)bufPage + pos->offset);
   return pRow;
 }
