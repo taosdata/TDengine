@@ -49,8 +49,26 @@ static int32_t dmInitMonitor() {
   return 0;
 }
 
+static bool dmCheckDiskSpace() {
+  osUpdate();
+  if (osDataSpaceAvailable()) {
+    dError("free disk size: %f GB, too little, quit", tsDataSpace.size.avail);
+    return false;
+  }
+  if (osLogSpaceAvailable()) {
+    dError("free disk size: %f GB, too little, quit", tsLogSpace.size.avail);
+    return false;
+  }
+  if (osTempSpaceAvailable()) {
+    dError("free disk size: %f GB, too little, quit", tsTempSpace.size.avail);
+    return false;
+  }
+  return true;
+}
+
 int32_t dmInit(int8_t rtype) {
   dInfo("start to init dnode env");
+  if (!dmCheckDiskSpace()) return -1;
   if (dmCheckRepeatInit(dmInstance()) != 0) return -1;
   if (dmInitSystem() != 0) return -1;
   if (dmInitMonitor() != 0) return -1;
