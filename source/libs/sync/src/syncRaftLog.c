@@ -206,7 +206,7 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   SWal*              pWal = pData->pWal;
 
   SyncIndex    index = 0;
-  SWalSyncInfo syncMeta;
+  SWalSyncInfo syncMeta = {0};
   syncMeta.isWeek = pEntry->isWeak;
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
@@ -444,7 +444,7 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   SWal*              pWal = pData->pWal;
 
   SyncIndex    index = 0;
-  SWalSyncInfo syncMeta;
+  SWalSyncInfo syncMeta = {0};
   syncMeta.isWeek = pEntry->isWeak;
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
