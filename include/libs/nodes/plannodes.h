@@ -552,6 +552,8 @@ typedef struct SQueryPlan {
 
 void nodesWalkPhysiPlan(SNode* pNode, FNodeWalker walker, void* pContext);
 
+const char* dataOrderStr(EDataOrderLevel order);
+
 #ifdef __cplusplus
 }
 #endif
