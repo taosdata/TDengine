@@ -49,29 +49,11 @@ class TDTestCase:
         tdSql.execute(f"insert into {dbname}.ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
         tdSql.execute(f"insert into {dbname}.ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
 
-        # tdSql.execute(
-        #     f'''insert into t1 values
-        #     ( '2020-04-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-        #     ( '2020-10-21 01:01:01.000', 1, 11111, 111, 11, 1.11, 11.11, 1, "binary1", "nchar1", now()+1a )
-        #     ( '2020-12-31 01:01:01.000', 2, 22222, 222, 22, 2.22, 22.22, 0, "binary2", "nchar2", now()+2a )
-        #     ( '2021-01-01 01:01:06.000', 3, 33333, 333, 33, 3.33, 33.33, 0, "binary3", "nchar3", now()+3a )
-        #     ( '2021-05-07 01:01:10.000', 4, 44444, 444, 44, 4.44, 44.44, 1, "binary4", "nchar4", now()+4a )
-        #     ( '2021-07-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-        #     ( '2021-09-30 01:01:16.000', 5, 55555, 555, 55, 5.55, 55.55, 0, "binary5", "nchar5", now()+5a )
-        #     ( '2022-02-01 01:01:20.000', 6, 66666, 666, 66, 6.66, 66.66, 1, "binary6", "nchar6", now()+6a )
-        #     ( '2022-10-28 01:01:26.000', 7, 00000, 000, 00, 0.00, 00.00, 1, "binary7", "nchar7", "1970-01-01 08:00:00.000" )
-        #     ( '2022-12-01 01:01:30.000', 8, -88888, -888, -88, -8.88, -88.88, 0, "binary8", "nchar8", "1969-01-01 01:00:00.000" )
-        #     ( '2022-12-31 01:01:36.000', 9, -99999999999999999, -999, -99, -9.99, -999999999999999999999.99, 1, "binary9", "nchar9", "1900-01-01 00:00:00.000" )
-        #     ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-        #     '''
-        # )
-
-
     def restart_taosd_query_sum(self, dbname="db"):
 
         for i in range(5):
-            tdLog.info("  this is %d_th restart taosd " %i)
-            os.system(f"taos -s ' use db ;select c6 from {dbname}.stb1 ; '")
+            tdLog.notice("  this is %d_th restart taosd " %i)
+            # os.system(f"taos -s ' use db ;select c6 from {dbname}.stb1 ; '")
             tdSql.execute(f"use {dbname} ")
             tdSql.query(f"select count(*) from {dbname}.stb1")
             tdSql.checkRows(1)
@@ -85,6 +67,25 @@ class TDTestCase:
             tdDnodes.stop(1)
             tdDnodes.start(1)
             time.sleep(2)
+            tdSql.query("show databases")
+
+            status = False
+            while status==False:
+                tdSql.query("show databases")
+                for db_info in tdSql.queryResult:
+                    if db_info[0]==dbname :
+                        if db_info[15]=="ready":
+                            status = True
+                            tdLog.notice(" ==== database {} status is ready  ==== ".format(dbname))
+                            break
+                        else:
+                            status = False
+                    else:
+                        continue
+
+
+
+
 
 
 
@@ -96,7 +97,7 @@ class TDTestCase:
 
         self.prepare_datas()
 
-        os.system(f"taos -s ' select c6 from {dbname}.stb1 ; '")
+        # os.system(f"taos -s ' select c6 from {dbname}.stb1 ; '")
         self.restart_taosd_query_sum()
 
     def stop(self):

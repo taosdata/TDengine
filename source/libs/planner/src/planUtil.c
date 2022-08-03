@@ -146,19 +146,13 @@ static int32_t adjustJoinDataRequirement(SJoinLogicNode* pJoin, EDataOrderLevel 
   return TSDB_CODE_SUCCESS;
 }
 
-static bool isKeepOrderAggFunc(SNodeList* pFuncs) {
-  SNode* pFunc = NULL;
-  FOREACH(pFunc, pFuncs) {
-    if (!fmIsKeepOrderFunc(((SFunctionNode*)pFunc)->funcId)) {
-      return false;
-    }
-  }
-  return true;
-}
-
 static int32_t adjustAggDataRequirement(SAggLogicNode* pAgg, EDataOrderLevel requirement) {
   // The sort level of agg with group by output data can only be DATA_ORDER_LEVEL_NONE
-  if (requirement > DATA_ORDER_LEVEL_NONE && (NULL != pAgg->pGroupKeys || !isKeepOrderAggFunc(pAgg->pAggFuncs))) {
+  if (requirement > DATA_ORDER_LEVEL_NONE && (NULL != pAgg->pGroupKeys || !pAgg->onlyHasKeepOrderFunc)) {
+    planError(
+        "The output of aggregate cannot meet the requirements(%s) of the upper operator. "
+        "Illegal statement, should be intercepted in parser",
+        dataOrderStr(requirement));
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
   pAgg->node.resultDataOrder = requirement;
@@ -231,6 +225,10 @@ static int32_t adjustSortDataRequirement(SSortLogicNode* pSort, EDataOrderLevel 
 
 static int32_t adjustPartitionDataRequirement(SPartitionLogicNode* pPart, EDataOrderLevel requirement) {
   if (DATA_ORDER_LEVEL_GLOBAL == requirement) {
+    planError(
+        "The output of partition cannot meet the requirements(%s) of the upper operator. "
+        "Illegal statement, should be intercepted in parser",
+        dataOrderStr(requirement));
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
   pPart->node.resultDataOrder = requirement;

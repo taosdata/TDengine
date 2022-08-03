@@ -72,7 +72,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
       continue;
     }
 
-    qDebug("task %d(child %d) executed and get block");
+    qDebug("task %d(child %d) executed and get block", pTask->taskId, pTask->selfChildId);
 
     SSDataBlock block = {0};
     assignOneDataBlock(&block, output);
@@ -241,6 +241,8 @@ int32_t streamExec(SStreamTask* pTask) {
       pRes = streamExecForQall(pTask, pRes);
       if (pRes == NULL) goto FAIL;
 
+// temporarily disable status closing, since it runs out of threads
+#if 0
       // set status closing
       atomic_store_8(&pTask->execStatus, TASK_EXEC_STATUS__CLOSING);
 
@@ -248,6 +250,7 @@ int32_t streamExec(SStreamTask* pTask) {
       qDebug("stream exec, enter closing status");
       pRes = streamExecForQall(pTask, pRes);
       if (pRes == NULL) goto FAIL;
+#endif
 
       taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
       atomic_store_8(&pTask->execStatus, TASK_EXEC_STATUS__IDLE);

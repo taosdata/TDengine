@@ -54,7 +54,8 @@ TEST_F(ParserShowToUseTest, showCreateSTable) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SHOW_CREATE_STABLE_STMT);
     ASSERT_EQ(pQuery->execMode, QUERY_EXEC_MODE_LOCAL);
     ASSERT_TRUE(pQuery->haveResultSet);
-    ASSERT_NE(((SShowCreateTableStmt*)pQuery->pRoot)->pCfg, nullptr);
+    ASSERT_NE(((SShowCreateTableStmt*)pQuery->pRoot)->pDbCfg, nullptr);
+    ASSERT_NE(((SShowCreateTableStmt*)pQuery->pRoot)->pTableCfg, nullptr);
   });
 
   run("SHOW CREATE STABLE st1");
@@ -67,7 +68,8 @@ TEST_F(ParserShowToUseTest, showCreateTable) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SHOW_CREATE_TABLE_STMT);
     ASSERT_EQ(pQuery->execMode, QUERY_EXEC_MODE_LOCAL);
     ASSERT_TRUE(pQuery->haveResultSet);
-    ASSERT_NE(((SShowCreateTableStmt*)pQuery->pRoot)->pCfg, nullptr);
+    ASSERT_NE(((SShowCreateTableStmt*)pQuery->pRoot)->pDbCfg, nullptr);
+    ASSERT_NE(((SShowCreateTableStmt*)pQuery->pRoot)->pTableCfg, nullptr);
   });
 
   run("SHOW CREATE TABLE t1");

@@ -542,6 +542,8 @@ if $data[3][4] != ready then
   goto check_dnode_ready_2
 endi
 
+print ====> final test: create child table ctb2* and table ntb2*
+
 sql use db;
 $ctbPrefix = ctb2
 $ntbPrefix = ntb2
