@@ -882,6 +882,7 @@ int32_t tdGetKvRowValOfCol(SCellVal *output, STSRow *pRow, void *pBitmap, int32_
 int32_t tdGetTpRowValOfCol(SCellVal *output, STSRow *pRow, void *pBitmap, int8_t colType, int32_t offset,
                            int16_t colIdx) {
   if (pRow->statis == 0) {
+    output->valType = TD_VTYPE_NORM;
     if (IS_VAR_DATA_TYPE(colType)) {
       output->val = POINTER_SHIFT(pRow, *(VarDataOffsetT *)POINTER_SHIFT(TD_ROW_DATA(pRow), offset));
     } else {
@@ -893,6 +894,14 @@ int32_t tdGetTpRowValOfCol(SCellVal *output, STSRow *pRow, void *pBitmap, int8_t
   if (tdGetBitmapValType(pBitmap, colIdx, &output->valType, 0) != TSDB_CODE_SUCCESS) {
     output->valType = TD_VTYPE_NONE;
     return terrno;
+  }
+
+  if (tdValTypeIsNorm(output->valType)) {
+    if (IS_VAR_DATA_TYPE(colType)) {
+      output->val = POINTER_SHIFT(pRow, *(VarDataOffsetT *)POINTER_SHIFT(TD_ROW_DATA(pRow), offset));
+    } else {
+      output->val = POINTER_SHIFT(TD_ROW_DATA(pRow), offset);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
