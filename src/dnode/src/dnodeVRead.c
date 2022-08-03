@@ -136,11 +136,7 @@ static void *dnodeProcessReadQueue(void *wparam) {
 
     int32_t code = vnodeProcessRead(pVnode, pRead);
 
-    if(code == 9999) {
-      dInfo(" ******* doNotRsp Test **** msg:%p, app:%p type:%s will be processed in vquery queue, qtype:%d", pRead, pRead->rpcAhandle,taosMsg[pRead->msgType], qtype);
-      printf(" ******* doNotRsp Test **** msg:%p, app:%p type:%s will be processed in vquery queue, qtype:%d", pRead, pRead->rpcAhandle,taosMsg[pRead->msgType], qtype);
-
-    } else if (qtype == TAOS_QTYPE_RPC && code != TSDB_CODE_QRY_NOT_READY) {
+    if (qtype == TAOS_QTYPE_RPC && code != TSDB_CODE_QRY_NOT_READY) {
       dnodeSendRpcVReadRsp(pVnode, pRead, code);
     } else {
       if (code == TSDB_CODE_QRY_HAS_RSP) {
