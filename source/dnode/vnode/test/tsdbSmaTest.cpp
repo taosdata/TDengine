@@ -397,7 +397,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
     pBlk->sversion = htonl(schemaVer);
     pBlk->padding = htonl(0);
     pBlk->schemaLen = htonl(0);
-    pBlk->numOfRows = htons(mockRowNum);
+    pBlk->numOfRows = htonl(mockRowNum);
     pBlk->dataLen = htonl(mockRowNum * mockRowLen);
     for (uint32_t r = 0; r < mockRowNum; ++r) {
       pRow = (STSRow *)POINTER_SHIFT(pBlk, sizeof(SSubmitBlk) + r * mockRowLen);

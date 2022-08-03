@@ -3144,10 +3144,9 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
 
   blk->uid = htobe64(uid);
   blk->suid = htobe64(suid);
-  blk->padding = htonl(blk->padding);
   blk->sversion = htonl(pTableMeta->sversion);
   blk->schemaLen = htonl(schemaLen);
-  blk->numOfRows = htons(rows);
+  blk->numOfRows = htonl(rows);
   blk->dataLen = htonl(dataLen);
   subReq->length = sizeof(SSubmitReq) + sizeof(SSubmitBlk) + schemaLen + dataLen;
   subReq->numOfBlocks = 1;
@@ -3373,10 +3372,9 @@ static int32_t tmqWriteRaw(TAOS* taos, void* data, int32_t dataLen) {
 
     blk->uid = htobe64(uid);
     blk->suid = htobe64(suid);
-    blk->padding = htonl(blk->padding);
     blk->sversion = htonl(pSW->version);
     blk->schemaLen = htonl(schemaLen);
-    blk->numOfRows = htons(rows);
+    blk->numOfRows = htonl(rows);
     blk->dataLen = htonl(dataLen);
     subReq->length += sizeof(SSubmitBlk) + schemaLen + dataLen;
     subReq->numOfBlocks++;
