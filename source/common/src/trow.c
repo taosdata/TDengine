@@ -896,7 +896,7 @@ int32_t tdGetTpRowValOfCol(SCellVal *output, STSRow *pRow, void *pBitmap, int8_t
     return terrno;
   }
 
-  if (tdValTypeIsNorm(output->valType)) {
+  if (output->valType == TD_VTYPE_NORM) {
     if (IS_VAR_DATA_TYPE(colType)) {
       output->val = POINTER_SHIFT(pRow, *(VarDataOffsetT *)POINTER_SHIFT(TD_ROW_DATA(pRow), offset));
     } else {
