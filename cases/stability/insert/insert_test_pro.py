@@ -422,7 +422,7 @@ class TestInsertPro(TDCase):
                         self.logger.debug("childtable_count: {}".format(childtable_count))
                         self.logger.debug("insert_rows: {}".format(insert_rows))
                         if childtable_count > 0:
-                            self.tdSql.query("select count(*) from information_schema.user_tables where db_name = '{}' and stable_name = '{}';".format(db_name, stb_name))
+                            self.tdSql.query("select count(*) from information_schema.ins_tables where db_name = '{}' and stable_name = '{}';".format(db_name, stb_name))
                             self.tdSql.checkData(0, 0, childtable_count)
                         if childtable_count * insert_rows > 0:
                             self.tdSql.query("select count(*) from {}.{};".format(db_name, stb_name))
