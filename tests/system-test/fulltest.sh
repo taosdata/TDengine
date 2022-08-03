@@ -60,8 +60,8 @@ python3 ./test.py -f 2-query/ceil.py
 python3 ./test.py -f 2-query/ceil.py -R
 python3 ./test.py -f 2-query/char_length.py
 python3 ./test.py -f 2-query/char_length.py -R
-# python3 ./test.py -f 2-query/check_tsdb.py
-# python3 ./test.py -f 2-query/check_tsdb.py -R
+python3 ./test.py -f 2-query/check_tsdb.py
+python3 ./test.py -f 2-query/check_tsdb.py -R
 python3 ./test.py -f 2-query/concat.py
 python3 ./test.py -f 2-query/concat.py -R
 python3 ./test.py -f 2-query/concat_ws.py
