@@ -59,7 +59,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
         block.info.childId = pTask->selfChildId;
         taosArrayPush(pRes, &block);
 
-        qDebug("task %d(child %d) processed retrieve, reqId %ld", pTask->taskId, pTask->selfChildId,
+        qDebug("task %d(child %d) processed retrieve, reqId %" PRId64, pTask->taskId, pTask->selfChildId,
                pRetrieveBlock->reqId);
       }
       break;

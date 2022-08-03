@@ -253,7 +253,70 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
   // sync the db file
   tdbOsFSync(pPager->fd);
 
-  // remote the journal file
+  // remove the journal file
+  tdbOsClose(pPager->jfd);
+  tdbOsRemove(pPager->jFileName);
+  pPager->inTran = 0;
+
+  return 0;
+}
+
+// recovery dirty pages
+int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
+  SPage *pPage;
+  int    pgIdx;
+  SPgno  journalSize = 0;
+  int    ret;
+
+  // 0, sync the journal file
+  ret = tdbOsFSync(pPager->jfd);
+  if (ret < 0) {
+    // TODO
+    ASSERT(0);
+    return 0;
+  }
+
+  tdb_fd_t jfd = tdbOsOpen(pPager->jFileName, TDB_O_RDWR, 0755);
+  if (jfd == NULL) {
+    return 0;
+  }
+
+  ret = tdbGetFileSize(jfd, pPager->pageSize, &journalSize);
+  if (ret < 0) {
+    return -1;
+  }
+
+  // 1, read pages from jounal file
+  // 2, write original pages to buffered ones
+
+  /* TODO: reset the buffered pages instead of releasing them
+  // loop to reset the dirty pages from file
+  for (pgIdx = 0, pPage = pPager->pDirty; pPage != NULL && pgIndex < journalSize; pPage = pPage->pDirtyNext, ++pgIdx) {
+    // read pgno & the page from journal
+    SPgno pgno;
+
+    int ret = tdbOsRead(jfd, &pgno, sizeof(pgno));
+    if (ret < 0) {
+      return -1;
+    }
+
+    ret = tdbOsRead(jfd, pageBuf, pPager->pageSize);
+    if (ret < 0) {
+      return -1;
+    }
+  }
+  */
+  // 3, release the dirty pages
+  for (pPage = pPager->pDirty; pPage; pPage = pPager->pDirty) {
+    pPager->pDirty = pPage->pDirtyNext;
+    pPage->pDirtyNext = NULL;
+
+    pPage->isDirty = 0;
+
+    tdbPCacheRelease(pPager->pCache, pPage, pTxn);
+  }
+
+  // 4, remove the journal file
   tdbOsClose(pPager->jfd);
   tdbOsRemove(pPager->jFileName);
   pPager->inTran = 0;
@@ -475,8 +538,7 @@ int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
 
   for (int pgIndex = 0; pgIndex < journalSize; ++pgIndex) {
     // read pgno & the page from journal
-    SPgno  pgno;
-    SPage *pPage;
+    SPgno pgno;
 
     int ret = tdbOsRead(jfd, &pgno, sizeof(pgno));
     if (ret < 0) {

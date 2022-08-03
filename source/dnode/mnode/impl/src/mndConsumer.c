@@ -878,14 +878,14 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
     pShow->pIter = sdbFetch(pSdb, SDB_CONSUMER, pShow->pIter, (void **)&pConsumer);
     if (pShow->pIter == NULL) break;
     if (taosArrayGetSize(pConsumer->assignedTopics) == 0) {
-      mDebug("showing consumer %ld no assigned topic, skip", pConsumer->consumerId);
+      mDebug("showing consumer %" PRId64 " no assigned topic, skip", pConsumer->consumerId);
       sdbRelease(pSdb, pConsumer);
       continue;
     }
 
     taosRLockLatch(&pConsumer->lock);
 
-    mDebug("showing consumer %ld", pConsumer->consumerId);
+    mDebug("showing consumer %" PRId64, pConsumer->consumerId);
 
     int32_t topicSz = taosArrayGetSize(pConsumer->assignedTopics);
     bool    hasTopic = true;

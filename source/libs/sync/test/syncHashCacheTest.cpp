@@ -194,13 +194,13 @@ SSyncRaftEntry* getLogEntry2(SSkipList* pSkipList, SyncIndex index) {
   }
   taosArrayDestroy(entryPArray);
 
-  sTrace("get index2: %ld, arraySize:%d -------------", index, arraySize);
+  sTrace("get index2: %" PRId64 ", arraySize:%d -------------", index, arraySize);
   syncEntryLog2((char*)"getLogEntry2", pEntry);
   return pEntry;
 }
 
 SSyncRaftEntry* getLogEntry(SSkipList* pSkipList, SyncIndex index) {
-  sTrace("get index: %ld -------------", index);
+  sTrace("get index: %" PRId64 " -------------", index);
   SyncIndex          index2 = index;
   SSyncRaftEntry*    pEntry = NULL;
   SSkipListIterator* pIter =

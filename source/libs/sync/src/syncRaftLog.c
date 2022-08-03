@@ -229,8 +229,8 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
 
   do {
     char eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "write index:%" PRId64 ", type:%s,%d, type2:%s,%d", pEntry->index,
-             TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType);
+    snprintf(eventLog, sizeof(eventLog), "write index:%" PRId64 ", type:%s, origin type:%s", pEntry->index,
+             TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType));
     syncNodeEventLog(pData->pSyncNode, eventLog);
   } while (0);
 
@@ -468,8 +468,8 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
 
   do {
     char eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "write2 index:%" PRId64 ", type:%s,%d, type2:%s,%d", pEntry->index,
-             TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType);
+    snprintf(eventLog, sizeof(eventLog), "write2 index:%" PRId64 ", type:%s, origin type:%s", pEntry->index,
+             TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType));
     syncNodeEventLog(pData->pSyncNode, eventLog);
   } while (0);
 

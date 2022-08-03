@@ -26,7 +26,7 @@ class MndTestUser : public ::testing::Test {
 Testbase MndTestUser::test;
 
 TEST_F(MndTestUser, 01_Show_User) {
-  test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_USER, "ins_users", "");
   EXPECT_EQ(test.GetShowRows(), 1);
 }
 
@@ -94,7 +94,7 @@ TEST_F(MndTestUser, 02_Create_User) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
+    test.SendShowReq(TSDB_MGMT_TABLE_USER, "ins_users", "");
     EXPECT_EQ(test.GetShowRows(), 2);
   }
 
@@ -110,7 +110,7 @@ TEST_F(MndTestUser, 02_Create_User) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
+    test.SendShowReq(TSDB_MGMT_TABLE_USER, "ins_users", "");
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -130,7 +130,7 @@ TEST_F(MndTestUser, 02_Create_User) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
+    test.SendShowReq(TSDB_MGMT_TABLE_USER, "ins_users", "");
     EXPECT_EQ(test.GetShowRows(), 2);
   }
 
@@ -146,7 +146,7 @@ TEST_F(MndTestUser, 02_Create_User) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
+    test.SendShowReq(TSDB_MGMT_TABLE_USER, "ins_users", "");
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 }
@@ -168,7 +168,7 @@ TEST_F(MndTestUser, 03_Alter_User) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
+    test.SendShowReq(TSDB_MGMT_TABLE_USER, "ins_users", "");
     EXPECT_EQ(test.GetShowRows(), 2);
   }
 
@@ -414,7 +414,7 @@ TEST_F(MndTestUser, 03_Alter_User) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
+    test.SendShowReq(TSDB_MGMT_TABLE_USER, "ins_users", "");
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 }
@@ -475,7 +475,7 @@ TEST_F(MndTestUser, 05_Drop_User) {
     ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_USER, "ins_users", "");
   EXPECT_EQ(test.GetShowRows(), 1);
 }
 
@@ -512,7 +512,7 @@ TEST_F(MndTestUser, 06_Create_Drop_Alter_User) {
     ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_USER, "ins_users", "");
   EXPECT_EQ(test.GetShowRows(), 3);
 
   {
@@ -530,7 +530,7 @@ TEST_F(MndTestUser, 06_Create_Drop_Alter_User) {
     ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_USER, "ins_users", "");
   EXPECT_EQ(test.GetShowRows(), 3);
   {
     SDropUserReq dropReq = {0};
@@ -545,13 +545,13 @@ TEST_F(MndTestUser, 06_Create_Drop_Alter_User) {
     ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_USER, "ins_users", "");
   EXPECT_EQ(test.GetShowRows(), 2);
 
   // restart
   test.Restart();
 
   taosMsleep(1000);
-  test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_USER, "ins_users", "");
   EXPECT_EQ(test.GetShowRows(), 2);
 }
