@@ -150,8 +150,8 @@ typedef struct {
   void    *pBitmap;
   void    *pOffset;
   int32_t  extendedRowSize;
-  int16_t  nNone;
-  int16_t  nNull;
+  bool     hasNone;
+  bool     hasNull;
 } SRowBuilder;
 
 #define TD_ROW_HEAD_LEN  (sizeof(STSRow))
@@ -292,7 +292,7 @@ int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBou
 int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf);
 static FORCE_INLINE void tdSRowEnd(SRowBuilder *pBuilder) {
   STSRow *pRow = (STSRow *)pBuilder->pBuf;
-  if (pBuilder->nNone || pBuilder->nNull) {
+  if (pBuilder->hasNull || pBuilder->hasNone) {
     pRow->statis = 1;
   }
 }

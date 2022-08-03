@@ -925,10 +925,10 @@ int32_t tdAppendColValToRow(SRowBuilder *pBuilder, col_id_t colId, int8_t colTyp
     case TD_VTYPE_NORM:
       break;
     case TD_VTYPE_NULL:
-      ++pBuilder->nNull;
+      if (!pBuilder->hasNull) pBuilder->hasNull = true;
       break;
     case TD_VTYPE_NONE:
-      ++pBuilder->nNone;
+      if (!pBuilder->hasNone) pBuilder->hasNone = true;
       break;
     default:
       ASSERT(0);
@@ -1102,10 +1102,9 @@ int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
     return terrno;
   }
 
-  if (pBuilder->nNone) pBuilder->nNone = 0;
-  if (pBuilder->nNull) pBuilder->nNull = 0;
+  if (pBuilder->hasNone) pBuilder->hasNone = false;
+  if (pBuilder->hasNull) pBuilder->hasNull = false;
 
-  pBuilder->nNull = 0;
   TD_ROW_SET_INFO(pBuilder->pBuf, 0);
   TD_ROW_SET_TYPE(pBuilder->pBuf, pBuilder->rowType);
 
