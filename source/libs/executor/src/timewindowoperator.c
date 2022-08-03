@@ -2375,6 +2375,8 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   pOperator->fpSet =
       createOperatorFpSet(operatorDummyOpenFn, doTimeslice, NULL, NULL, destroyBasicOperatorInfo, NULL, NULL, NULL);
 
+  blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
+
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
 
