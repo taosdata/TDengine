@@ -1205,6 +1205,26 @@ static int32_t buildDataBlockFromBuf(STsdbReader* pReader, STableBlockScanInfo* 
   return code;
 }
 
+static bool tryCopyDistinctRowFromFileBlock(STsdbReader* pReader, SBlockData* pBlockData, int64_t key, SFileBlockDumpInfo* pDumpInfo) {
+
+  // opt version
+  // 1. it is not a border point
+  // 2. the direct next point is not an duplicated timestamp
+  if ((pDumpInfo->rowIndex < pDumpInfo->totalRows - 1 && pReader->order == TSDB_ORDER_ASC) ||
+      (pDumpInfo->rowIndex > 0 && pReader->order == TSDB_ORDER_DESC)) {
+    int32_t step = pReader->order == TSDB_ORDER_ASC? 1:-1;
+
+    int64_t nextKey = pBlockData->aTSKEY[pDumpInfo->rowIndex + step];
+    if (nextKey != key) { // merge is not needed
+      doAppendRowFromBlock(pReader->pResBlock, pReader, pBlockData, pDumpInfo->rowIndex);
+      pDumpInfo->rowIndex += step;
+      return true;
+    }
+  }
+
+  return false;
+}
+
 static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* pBlockScanInfo, TSDBROW* pRow,
                                      SIterInfo* pIter, int64_t key) {
   SRowMerger          merge = {0};
@@ -1219,10 +1239,14 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
   // ascending order traverse
   if (ASCENDING_TRAVERSE(pReader->order)) {
     if (key < k.ts) {
-      tRowMergerInit(&merge, &fRow, pReader->pSchema);
-
-      doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
-      tRowMergerGetRow(&merge, &pTSRow);
+      // imem & mem are all empty, only file exist
+      if (tryCopyDistinctRowFromFileBlock(pReader, pBlockData, key, pDumpInfo)) {
+        return TSDB_CODE_SUCCESS;
+      } else {
+        tRowMergerInit(&merge, &fRow, pReader->pSchema);
+        doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
+        tRowMergerGetRow(&merge, &pTSRow);
+      }
     } else if (k.ts < key) {  // k.ts < key
       doMergeMultiRows(pRow, pBlockScanInfo->uid, pIter, pDelList, &pTSRow, pReader);
     } else {  // k.ts == key, ascending order: file block ----> imem rows -----> mem rows
@@ -1238,10 +1262,13 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
     if (key < k.ts) {
       doMergeMultiRows(pRow, pBlockScanInfo->uid, pIter, pDelList, &pTSRow, pReader);
     } else if (k.ts < key) {
-      tRowMergerInit(&merge, &fRow, pReader->pSchema);
-
-      doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
-      tRowMergerGetRow(&merge, &pTSRow);
+      if (tryCopyDistinctRowFromFileBlock(pReader, pBlockData, key, pDumpInfo)) {
+        return TSDB_CODE_SUCCESS;
+      } else {
+        tRowMergerInit(&merge, &fRow, pReader->pSchema);
+        doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
+        tRowMergerGetRow(&merge, &pTSRow);
+      }
     } else {  // descending order: mem rows -----> imem rows ------> file block
       updateSchema(pRow, pBlockScanInfo->uid, pReader);
 
@@ -1438,34 +1465,23 @@ static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanI
     }
 
     // imem & mem are all empty, only file exist
+    if (tryCopyDistinctRowFromFileBlock(pReader, pBlockData, key, pDumpInfo)) {
+      return TSDB_CODE_SUCCESS;
+    } else {
+      TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
 
-    // opt version
-    // 1. it is not a border point
-    // 2. the direct next point is not an duplicated timestamp
-    if ((pDumpInfo->rowIndex < pDumpInfo->totalRows - 1 && pReader->order == TSDB_ORDER_ASC) ||
-        (pDumpInfo->rowIndex > 0 && pReader->order == TSDB_ORDER_DESC)) {
-      int32_t step = pReader->order == TSDB_ORDER_ASC? 1:-1;
-      int64_t nextKey = pBlockData->aTSKEY[pDumpInfo->rowIndex + step];
-      if (nextKey != key) { // merge is not needed
-        doAppendRowFromBlock(pReader->pResBlock, pReader, pBlockData, pDumpInfo->rowIndex);
-        pDumpInfo->rowIndex += step;
-        return TSDB_CODE_SUCCESS;
-      }
+      STSRow*    pTSRow = NULL;
+      SRowMerger merge = {0};
+
+      tRowMergerInit(&merge, &fRow, pReader->pSchema);
+      doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
+      tRowMergerGetRow(&merge, &pTSRow);
+      doAppendRowFromTSRow(pReader->pResBlock, pReader, pTSRow);
+
+      taosMemoryFree(pTSRow);
+      tRowMergerClear(&merge);
+      return TSDB_CODE_SUCCESS;
     }
-
-    TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
-
-    STSRow*    pTSRow = NULL;
-    SRowMerger merge = {0};
-
-    tRowMergerInit(&merge, &fRow, pReader->pSchema);
-    doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
-    tRowMergerGetRow(&merge, &pTSRow);
-    doAppendRowFromTSRow(pReader->pResBlock, pReader, pTSRow);
-
-    taosMemoryFree(pTSRow);
-    tRowMergerClear(&merge);
-    return TSDB_CODE_SUCCESS;
   }
 }
 
