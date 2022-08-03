@@ -38,7 +38,7 @@ typedef struct {
       uint16_t type : 2;
       uint16_t del : 1;
       uint16_t endian : 1;
-      uint16_t normal : 1;  // all norm
+      uint16_t statis : 1;  // 0 all normal, 1 has null or none
       uint16_t reserve : 11;
       uint16_t sver;
     };

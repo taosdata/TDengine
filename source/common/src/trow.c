@@ -881,7 +881,7 @@ int32_t tdGetKvRowValOfCol(SCellVal *output, STSRow *pRow, void *pBitmap, int32_
 
 int32_t tdGetTpRowValOfCol(SCellVal *output, STSRow *pRow, void *pBitmap, int8_t colType, int32_t offset,
                            int16_t colIdx) {
-  if (pRow->normal) {
+  if (pRow->statis == 0) {
     if (IS_VAR_DATA_TYPE(colType)) {
       output->val = POINTER_SHIFT(pRow, *(VarDataOffsetT *)POINTER_SHIFT(TD_ROW_DATA(pRow), offset));
     } else {
@@ -1097,7 +1097,7 @@ int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBou
 int32_t tdSRowEnd(SRowBuilder *pBuilder) {
   STSRow *pRow = (STSRow *)pBuilder->pBuf;
   if (pBuilder->nNone || pBuilder->nNull) {
-    pRow->normal = 1;
+    pRow->statis = 1;
   }
   return TSDB_CODE_SUCCESS;
 }
