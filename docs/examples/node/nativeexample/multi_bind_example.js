@@ -1,4 +1,4 @@
-const taos = require("td2.0-connector");
+const taos = require("@tdengine/client");
 
 const conn = taos.connect({
   host: "localhost",
@@ -24,10 +24,10 @@ function insertData() {
   );
 
   // bind table name and tags
-  let tagBind = new taos.TaosBind(2);
-  tagBind.bindBinary("California.SanFrancisco");
-  tagBind.bindInt(2);
-  cursor.stmtSetTbnameTags("d1001", tagBind.getBind());
+  let tagBind = new taos.TaosMultiBindArr(2);
+  tagBind.multiBindBinary(["California.SanFrancisco"]);
+  tagBind.multiBindInt([2]);
+  cursor.stmtSetTbnameTags("d1001", tagBind.getMultiBindArr());
 
   // bind values
   let valueBind = new taos.TaosMultiBindArr(4);

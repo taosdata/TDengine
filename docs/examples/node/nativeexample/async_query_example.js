@@ -1,4 +1,4 @@
-const taos = require("td2.0-connector");
+const taos = require("@tdengine/client");
 const conn = taos.connect({ host: "localhost", database: "power" });
 const cursor = conn.cursor();
 
@@ -18,4 +18,3 @@ try {
     conn.close();
   }, 2000);
 }
-// bug here: jira 14506
