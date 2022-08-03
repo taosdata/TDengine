@@ -369,7 +369,8 @@ void checkBrokenQueries(STscObj *pTscObj) {
 
     // kill query
     if(kill) {
-      taos_stop_query(pSql);
+      //taos_stop_query(pSql);
+      tscInfo("PROBE do not kill.");
     }
     
     // move next
