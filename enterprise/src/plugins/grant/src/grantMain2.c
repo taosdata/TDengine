@@ -142,7 +142,6 @@ SGrantStatus grantStatus = {false,
 #endif
 int32_t mndInitGrant(SMnode *pMnode) {
   tsGrantHBInterval = GRANT_CHECK_INTERVAL;
-  // fprintf(stdout,"%s(%d) %s %08" PRId64 " sizeof(infosMeta)=%d infosMeta=%p\n", __FILE__, __LINE__,__func__,taosGetSelfPthreadId(),sizeof(infosMeta),infosMeta);fflush(stdout);
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_HB_TIMER, mndProcessGrantHB);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndCancelGetNextGrant);
@@ -225,21 +224,39 @@ static void dmRefreshGrantCfg() {
 
 static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus) {
 #ifdef CFG_GRANTS
-    pGrantMsg->updateForced = false;
-    if (cloudGrantStatus.limitTimeSeries != tsGrantLimitTimeSeries) pGrantMsg->updateForced = true;
-    if (cloudGrantStatus.limitDbs != tsGrantLimitDbs) pGrantMsg->updateForced = true;
-    if (cloudGrantStatus.limitSTables != tsGrantLimitSTables) pGrantMsg->updateForced = true;
-    if (cloudGrantStatus.limitTables != tsGrantLimitTables) pGrantMsg->updateForced = true;
+    pGrantMsg->updateForced = tsGrantUpdateForced;
+    tsGrantUpdateForced = false;
     if (pGrantMsg->updateForced) {
       cloudGrantStatus.limitTimeSeries = tsGrantLimitTimeSeries;
       cloudGrantStatus.limitDbs = tsGrantLimitDbs;
       cloudGrantStatus.limitSTables = tsGrantLimitSTables;
       cloudGrantStatus.limitTables = tsGrantLimitTables;
     } else {
-      COMPARE_SET_VAL(cloudGrantStatus.limitTimeSeries, pGrantStatus->limitTimeSeries, <);
-      COMPARE_SET_VAL(cloudGrantStatus.limitDbs, pGrantStatus->limitDbs, <);
-      COMPARE_SET_VAL(cloudGrantStatus.limitSTables, pGrantStatus->limitSTables, <);
-      COMPARE_SET_VAL(cloudGrantStatus.limitTables, pGrantStatus->limitTables, <);
+      if (cloudGrantStatus.limitTimeSeries == GRANT_TIME_SERIES_LIMITS) {
+        cloudGrantStatus.limitTimeSeries = pGrantStatus->limitTimeSeries;
+      } else {
+        COMPARE_SET_VAL(cloudGrantStatus.limitTimeSeries, pGrantStatus->limitTimeSeries, <);
+      }
+      if (cloudGrantStatus.limitDbs == GRANT_DATABASE_LIMITS) {
+        cloudGrantStatus.limitDbs = pGrantStatus->limitDbs;
+      } else {
+        COMPARE_SET_VAL(cloudGrantStatus.limitDbs, pGrantStatus->limitDbs, <);
+      }
+      if (cloudGrantStatus.limitSTables == GRANT_STABLE_LIMITS) {
+        cloudGrantStatus.limitSTables = pGrantStatus->limitSTables;
+      } else {
+        COMPARE_SET_VAL(cloudGrantStatus.limitSTables, pGrantStatus->limitSTables, <);
+      }
+      if (cloudGrantStatus.limitTables == GRANT_TABLE_LIMITS) {
+        cloudGrantStatus.limitTables = pGrantStatus->limitTables;
+      } else {
+        COMPARE_SET_VAL(cloudGrantStatus.limitTables, pGrantStatus->limitTables, <);
+      }
+      
+      tsGrantLimitTimeSeries = cloudGrantStatus.limitTimeSeries;
+      tsGrantLimitDbs = cloudGrantStatus.limitDbs;
+      tsGrantLimitSTables = cloudGrantStatus.limitSTables;
+      tsGrantLimitTables = cloudGrantStatus.limitTables;
     }
     
     uInfo("dnode send grant message,timeseries:%" PRIu64 ", database:%u, stable:%u, table:%u, set to grant state",
@@ -569,7 +586,25 @@ static uint32_t grantGetClusterCurDnodes(SMnode *pMnode) { return (uint32_t)mndG
 
 static uint32_t grantGetClusterCurSTables(SMnode *pMnode) { return 0; }
 
-static uint32_t grantGetClusterCurTables(SMnode *pMnode) { return 0; }
+static uint32_t grantGetClusterCurTables(SMnode *pMnode) {
+  uint64_t numOfPoints = 0;
+  SSdb    *pSdb = pMnode->pSdb;
+  SVgObj  *pVgroup = NULL;
+  void    *pIter = NULL;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    if (!pVgroup->isTsma) {
+      numOfPoints += pVgroup->numOfTables;
+    }
+
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  return numOfPoints;
+}
 
 /**
  * @brief retrieve the statis info
@@ -581,7 +616,7 @@ static void grantRetrieveGrantInfo(SMnode *pMnode) {
   cloudGrantStatus.curTimeSeries = grantGetClusterCurTimeSeries(pMnode);
   cloudGrantStatus.curDbs = grantGetClusterCurDbs(pMnode);
   cloudGrantStatus.curSTables = grantGetClusterCurSTables(pMnode);
-  cloudGrantStatus.curTables = grantGetClusterCurSTables(pMnode);
+  cloudGrantStatus.curTables = grantGetClusterCurTables(pMnode);
 #else
   grantStatus.curStorage = grantGetClusterCurStorage(pMnode);
   grantStatus.curSpeed = grantGetClusterCurSpeed();
@@ -1110,7 +1145,7 @@ int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus) {
   if (tEncodeU32(&encoder, pStatus->limitTables) < 0) return -1;
   // current value
   if (tEncodeU64(&encoder, pStatus->curTimeSeries) < 0) return -1;
-  if (tEncodeU64(&encoder, pStatus->curDbs) < 0) return -1;
+  if (tEncodeU32(&encoder, pStatus->curDbs) < 0) return -1;
   if (tEncodeU32(&encoder, pStatus->curSTables) < 0) return -1;
   if (tEncodeU32(&encoder, pStatus->curTables) < 0) return -1;
 #else
