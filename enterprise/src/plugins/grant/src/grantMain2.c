@@ -584,7 +584,10 @@ static uint32_t grantGetClusterCurAccts(SMnode *pMnode) {
 
 static uint32_t grantGetClusterCurDnodes(SMnode *pMnode) { return (uint32_t)mndGetDnodeSize(pMnode); }
 
-static uint32_t grantGetClusterCurSTables(SMnode *pMnode) { return 0; }
+static uint32_t grantGetClusterCurSTables(SMnode *pMnode) { 
+  SSdb *pSdb = pMnode->pSdb;
+  return (uint32_t)sdbGetSize(pSdb, SDB_STB);
+ }
 
 static uint32_t grantGetClusterCurTables(SMnode *pMnode) {
   uint64_t numOfPoints = 0;
@@ -953,9 +956,22 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
   if (pShow->numOfRows < 1) {
   #ifdef CFG_GRANTS
+    const char *src;
+    SColumnInfoData *pColInfo;
+
     cols = 0;
-    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    const char      *src;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    src = "clould";
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);
+    
+    ++cols;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    src = "unlimited";
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);
+
+    ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     if (cloudGrantStatus.limitTimeSeries != GRANT_TIME_SERIES_LIMITS) {
       sprintf(tmp1, "%" PRIu64 "/%" PRIu64, cloudGrantStatus.curTimeSeries, cloudGrantStatus.limitTimeSeries);

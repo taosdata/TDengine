@@ -23,6 +23,8 @@ extern "C" {
 #include <machine.h>
 
 #define GRANTS_SCHEMA static const SSysDbTableSchema grantsSchema[] = {                          \
+    {.name = "version", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},        \
+    {.name = "expire_time", .bytes = 11 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},   \
     {.name = "timeseries", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},    \
     {.name = "databases", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},     \
     {.name = "stables", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},       \
