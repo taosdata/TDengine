@@ -6,7 +6,7 @@ import inspect
 from util.log import *
 from util.sql import *
 from util.cases import *
-import random
+import random ,math
 
 
 class TDTestCase:
@@ -41,8 +41,8 @@ class TDTestCase:
                 c2 = random.randint(0,100000)
                 c3 = random.randint(0,125)
                 c4 = random.randint(0,125)
-                c5 = random.random()/1.0
-                c6 = random.random()/1.0
+                c5 = random.randint(0,10000)/1000
+                c6 = random.randint(0,10000)/1000
                 c7 = "'true'"
                 c8 = "'binary_val'"
                 c9 = "'nchar_val'"
@@ -72,7 +72,7 @@ class TDTestCase:
                         comput_irate_value = origin_result[1][0]*1000/( origin_result[1][-1] - origin_result[0][-1])
                     else:
                         comput_irate_value = (origin_result[1][0] - origin_result[0][0])*1000/( origin_result[1][-1] - origin_result[0][-1])
-                    if comput_irate_value ==irate_value:
+                    if abs(comput_irate_value - irate_value) <= 0.0000001:
                         tdLog.info(" irate work as expected , sql is %s "% irate_sql)
                     else:
                         tdLog.exit(" irate work not as expected , sql is %s "% irate_sql)
