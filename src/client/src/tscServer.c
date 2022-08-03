@@ -369,8 +369,7 @@ void checkBrokenQueries(STscObj *pTscObj) {
 
     // kill query
     if(kill) {
-      //taos_stop_query(pSql);
-      tscInfo("PROBE do not kill.");
+      taos_stop_query(pSql);
     }
     
     // move next
@@ -401,7 +400,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
     // call check if have query doing
     if(pObj->sqlList) {
       // have queries executing
-      //checkBrokenQueries(pObj);
+      checkBrokenQueries(pObj);
     }
   }
 
