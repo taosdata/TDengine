@@ -151,6 +151,11 @@ enum {
   RSMA_ROLE_ITERATE = 4,
 };
 
+enum {
+  RSMA_RESTORE_REBOOT = 1,
+  RSMA_RESTORE_SYNC = 2,
+};
+
 void  tdDestroySmaEnv(SSmaEnv *pSmaEnv);
 void *tdFreeSmaEnv(SSmaEnv *pSmaEnv);
 
@@ -227,7 +232,8 @@ void           tdRemoveRSmaInfoBySuid(SSma *pSma, int64_t suid);
 int32_t        tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
 
 int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
-int32_t tdProcessRSmaRestoreImpl(SSma *pSma);
+int32_t tdProcessRSmaRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer);
+int32_t tdRsmaRestore(SSma *pSma, int8_t type, int64_t committedVer);
 
 int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg);
 int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg);

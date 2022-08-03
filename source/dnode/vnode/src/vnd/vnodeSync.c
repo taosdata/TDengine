@@ -19,9 +19,8 @@
 #define BATCH_DISABLE 1
 
 static inline bool vnodeIsMsgBlock(tmsg_t type) {
-  return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_CREATE_TABLE) ||
-         (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) || (type == TDMT_VND_UPDATE_TAG_VAL) ||
-         (type == TDMT_VND_ALTER_REPLICA);
+  return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
+         (type == TDMT_VND_UPDATE_TAG_VAL) || (type == TDMT_VND_ALTER_REPLICA);
 }
 
 static inline bool vnodeIsMsgWeak(tmsg_t type) { return false; }
@@ -611,10 +610,10 @@ static int32_t vnodeSnapshotStartWrite(struct SSyncFSM *pFsm, void *pParam, void
   do {
     int32_t itemSize = tmsgGetQueueSize(&pVnode->msgCb, pVnode->config.vgId, APPLY_QUEUE);
     if (itemSize == 0) {
-      vDebug("vgId:%d, apply queue is empty, start write snapshot", pVnode->config.vgId);
+      vInfo("vgId:%d, start write vnode snapshot since apply queue is empty", pVnode->config.vgId);
       break;
     } else {
-      vDebug("vgId:%d, %d items in apply queue, write snapshot later", pVnode->config.vgId);
+      vInfo("vgId:%d, write vnode snapshot later since %d items in apply queue", pVnode->config.vgId);
       taosMsleep(10);
     }
   } while (true);
@@ -630,10 +629,11 @@ static int32_t vnodeSnapshotStartWrite(struct SSyncFSM *pFsm, void *pParam, void
 static int32_t vnodeSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool isApply, SSnapshot *pSnapshot) {
 #ifdef USE_TSDB_SNAPSHOT
   SVnode *pVnode = pFsm->data;
-  vDebug("vgId:%d, stop write snapshot, isApply:%d", pVnode->config.vgId, isApply);
+  vInfo("vgId:%d, stop write vnode snapshot, apply:%d, index:%" PRId64 " term:%" PRIu64 " config:%" PRId64, pVnode->config.vgId, isApply,
+        pSnapshot->lastApplyIndex, pSnapshot->lastApplyTerm, pSnapshot->lastApplyIndex);
 
   int32_t code = vnodeSnapWriterClose(pWriter, !isApply, pSnapshot);
-  vDebug("vgId:%d, apply snapshot to vnode, code:0x%x", pVnode->config.vgId, code);
+  vInfo("vgId:%d, apply vnode snapshot finished, code:0x%x", pVnode->config.vgId, code);
   return code;
 #else
   taosMemoryFree(pWriter);
@@ -644,8 +644,9 @@ static int32_t vnodeSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool
 static int32_t vnodeSnapshotDoWrite(struct SSyncFSM *pFsm, void *pWriter, void *pBuf, int32_t len) {
 #ifdef USE_TSDB_SNAPSHOT
   SVnode *pVnode = pFsm->data;
+  vDebug("vgId:%d, continue write vnode snapshot, len:%d", pVnode->config.vgId, len);
   int32_t code = vnodeSnapWrite(pWriter, pBuf, len);
-  vTrace("vgId:%d, write snapshot, len:%d", pVnode->config.vgId, len);
+  vDebug("vgId:%d, continue write vnode snapshot finished, len:%d", pVnode->config.vgId, len);
   return code;
 #else
   return 0;

@@ -3328,17 +3328,19 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
   return fillResult;
 }
 
-static void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
-  for (int32_t i = 0; i < numOfExprs; ++i) {
-    SExprInfo* pExprInfo = &pExpr[i];
-    for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
-      if (pExprInfo->base.pParam[j].type == FUNC_PARAM_TYPE_COLUMN) {
-        taosMemoryFreeClear(pExprInfo->base.pParam[j].pCol);
+void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
+  if (pExpr) {
+    for (int32_t i = 0; i < numOfExprs; ++i) {
+      SExprInfo* pExprInfo = &pExpr[i];
+      for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
+        if (pExprInfo->base.pParam[j].type == FUNC_PARAM_TYPE_COLUMN) {
+          taosMemoryFreeClear(pExprInfo->base.pParam[j].pCol);
+        }
       }
-    }
 
-    taosMemoryFree(pExprInfo->base.pParam);
-    taosMemoryFree(pExprInfo->pExpr);
+      taosMemoryFree(pExprInfo->base.pParam);
+      taosMemoryFree(pExprInfo->pExpr);
+    }
   }
 }
 
@@ -3768,11 +3770,7 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
 
 static void cleanupTableSchemaInfo(SSchemaInfo* pSchemaInfo) {
   taosMemoryFreeClear(pSchemaInfo->dbname);
-  if (pSchemaInfo->sw == NULL) {
-    return;
-  }
-
-  taosMemoryFree(pSchemaInfo->tablename);
+  taosMemoryFreeClear(pSchemaInfo->tablename);
   tDeleteSSchemaWrapper(pSchemaInfo->sw);
   tDeleteSSchemaWrapper(pSchemaInfo->qsw);
 }
