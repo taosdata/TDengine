@@ -50,8 +50,8 @@ int64_t syncRespMgrAdd(SSyncRespMgr *pObj, SRespStub *pStub) {
 
   SSyncNode *pSyncNode = pObj->data;
   char       eventLog[128];
-  snprintf(eventLog, sizeof(eventLog), "save response handle, type:%s, seq:%" PRIu64 ", handle:%p, ahandle:%p",
-           TMSG_INFO(pStub->rpcMsg.msgType), keyCode, pStub->rpcMsg.info.handle, pStub->rpcMsg.info.ahandle);
+  snprintf(eventLog, sizeof(eventLog), "save message handle, type:%s seq:%" PRIu64 " handle:%p",
+           TMSG_INFO(pStub->rpcMsg.msgType), keyCode, pStub->rpcMsg.info.handle);
   syncNodeEventLog(pSyncNode, eventLog);
 
   taosThreadMutexUnlock(&(pObj->mutex));
@@ -76,8 +76,8 @@ int32_t syncRespMgrGet(SSyncRespMgr *pObj, uint64_t index, SRespStub *pStub) {
 
     SSyncNode *pSyncNode = pObj->data;
     char       eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "get response handle, type:%s, seq:%" PRIu64 ", handle:%p, ahandle:%p",
-             TMSG_INFO(pStub->rpcMsg.msgType), index, pStub->rpcMsg.info.handle, pStub->rpcMsg.info.ahandle);
+    snprintf(eventLog, sizeof(eventLog), "get message handle, type:%s seq:%" PRIu64 " handle:%p",
+             TMSG_INFO(pStub->rpcMsg.msgType), index, pStub->rpcMsg.info.handle);
     syncNodeEventLog(pSyncNode, eventLog);
 
     taosThreadMutexUnlock(&(pObj->mutex));
@@ -96,8 +96,8 @@ int32_t syncRespMgrGetAndDel(SSyncRespMgr *pObj, uint64_t index, SRespStub *pStu
 
     SSyncNode *pSyncNode = pObj->data;
     char       eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "get-and-del response handle, type:%s, seq:%" PRIu64 ", handle:%p, ahandle:%p",
-             TMSG_INFO(pStub->rpcMsg.msgType), index, pStub->rpcMsg.info.handle, pStub->rpcMsg.info.ahandle);
+    snprintf(eventLog, sizeof(eventLog), "get-and-del message handle, type:%s seq:%" PRIu64 " handle:%p",
+             TMSG_INFO(pStub->rpcMsg.msgType), index, pStub->rpcMsg.info.handle);
     syncNodeEventLog(pSyncNode, eventLog);
 
     taosHashRemove(pObj->pRespHash, &index, sizeof(index));

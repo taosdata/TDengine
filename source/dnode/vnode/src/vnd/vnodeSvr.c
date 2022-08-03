@@ -330,7 +330,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     case TDMT_STREAM_TASK_RUN:
       return tqProcessTaskRunReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_DISPATCH:
-      return tqProcessTaskDispatchReq(pVnode->pTq, pMsg);
+      return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, true);
     case TDMT_STREAM_TASK_RECOVER:
       return tqProcessTaskRecoverReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_RETRIEVE:
@@ -486,6 +486,11 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pR
     pCreateReq = req.pReqs + iReq;
 
     if ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) < 0) {
+      rcode = -1;
+      goto _exit;
+    }
+
+    if ((terrno = grantCheck(TSDB_GRANT_TABLE)) < 0) {
       rcode = -1;
       goto _exit;
     }
@@ -834,6 +839,13 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
       }
 
       if ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) < 0) {
+        pRsp->code = terrno;
+        tDecoderClear(&decoder);
+        taosArrayDestroy(createTbReq.ctb.tagName);
+        goto _exit;
+      }
+
+      if ((terrno = grantCheck(TSDB_GRANT_TABLE)) < 0) {
         pRsp->code = terrno;
         tDecoderClear(&decoder);
         taosArrayDestroy(createTbReq.ctb.tagName);

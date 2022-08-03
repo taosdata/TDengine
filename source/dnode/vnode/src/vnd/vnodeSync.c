@@ -325,16 +325,7 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     return -1;
   }
 
-#if 1
-  do {
-    char          *syncNodeStr = sync2SimpleStr(pVnode->sync);
-    static int64_t vndTick = 0;
-    if (++vndTick % 10 == 1) {
-      vGTrace("vgId:%d, sync trace msg:%s, %s", syncGetVgId(pVnode->sync), TMSG_INFO(pMsg->msgType), syncNodeStr);
-    }
-    taosMemoryFree(syncNodeStr);
-  } while (0);
-#endif
+  vGTrace("vgId:%d, sync msg:%p will be processed, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
 
   if (syncNodeStrategy(pSyncNode) == SYNC_STRATEGY_NO_SNAPSHOT) {
     if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
@@ -458,6 +449,7 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     }
   }
 
+  vTrace("vgId:%d, sync msg:%p is processed, type:%s code:0x%x", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType), code);
   syncNodeRelease(pSyncNode);
   if (code != 0 && terrno == 0) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;

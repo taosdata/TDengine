@@ -175,40 +175,21 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
   return status == TASK_INPUT_STATUS__NORMAL ? 0 : -1;
 }
 
-int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
+int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp, bool exec) {
   qDebug("task %d receive dispatch req from node %d task %d", pTask->taskId, pReq->upstreamNodeId,
          pReq->upstreamTaskId);
 
-  // 1. handle input
   streamTaskEnqueue(pTask, pReq, pRsp);
 
-  // 2. try exec
-  // 2.1. idle: exec
-  // 2.2. executing: return
-  // 2.3. closing: keep trying
-#if 0
-  if (pTask->execType != TASK_EXEC__NONE) {
-#endif
-  streamExec(pTask);
-#if 0
-  } else {
-    ASSERT(pTask->sinkType != TASK_SINK__NONE);
-    while (1) {
-      void* data = streamQueueNextItem(pTask->inputQueue);
-      if (data == NULL) return 0;
-      if (streamTaskOutput(pTask, data) < 0) {
-        ASSERT(0);
-      }
-    }
-  }
-#endif
+  if (exec) {
+    streamExec(pTask);
 
-  // 3. handle output
-  // 3.1 check and set status
-  // 3.2 dispatch / sink
-  if (pTask->dispatchType != TASK_DISPATCH__NONE) {
-    ASSERT(pTask->sinkType == TASK_SINK__NONE);
-    streamDispatch(pTask);
+    if (pTask->dispatchType != TASK_DISPATCH__NONE) {
+      ASSERT(pTask->sinkType == TASK_SINK__NONE);
+      streamDispatch(pTask);
+    }
+  } else {
+    streamLaunchByWrite(pTask, pTask->nodeId);
   }
 
   return 0;

@@ -410,6 +410,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_SPEED_LIMITED,          "Write speed limited b
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_STORAGE_LIMITED,        "Storage capacity limited by license")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_QUERYTIME_LIMITED,      "Query time limited by license")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CPU_LIMITED,            "CPU cores limited by license")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_STABLE_LIMITED,         "STable creation limited by license")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TABLE_LIMITED,          "Table creation limited by license")
 
 // sync
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TIMEOUT,                  "Sync timeout")
