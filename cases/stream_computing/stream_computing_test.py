@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
+from copy import deepcopy
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
@@ -18,20 +19,32 @@ import time
 import sys
 import os
 import random
+from taostest.components import TaosD
 
 class StreamComputingTest(TDCase):
     def init(self):
         self.stream_case_env_root = os.path.join(os.environ["TEST_ROOT"], "cases/stream_computing")
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
+        self.taosd = TaosD(self._remote)
+
         self.taospy_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taospy")
         self._fqdn = self.taospy_setting["fqdn"][0]
+        
+        self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
+        self.fqdn = self.taosd_setting["fqdn"][0]
+        self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
+        self.endpoint = self.taosd_setting["spec"]["config"]["firstEP"]
+
+        self.cfg = self.tdCom.Boundary.DB_PARAM_VGROUPS_CONFIG
+
         self.case_name = None
         self.tbname = None
         self.precision = "ms"
         self.offset = 1000
         
         self.case_name = str()
+        self.dbname = "stream_test"
         self.stb_name = str()
         self.ctb_name = str()
         self.tb_name = str()
@@ -203,12 +216,13 @@ class StreamComputingTest(TDCase):
         self.date_time = self.tdCom.genTs(precision=self.precision)[0]
         self.tdCom.stream_latency_log = self.run_log_dir + "/latency.log"
         
-        self.tdCom.createDb(vgroups=self.vgroups, precision=self.precision)
-        self.tdCom.create_stable(stbname=self.stb_name)
-        self.tdCom.create_ctable(stbname=self.stb_name, ctbname=self.ctb_name)
-        self.tdCom.create_table(tbname=self.tb_name)
+        self.tdCom.createDb(dbname=self.dbname, vgroups=self.vgroups, precision=self.precision)
+        self.tdCom.create_stable(dbname=self.dbname, stbname=self.stb_name)
+        self.tdCom.create_ctable(dbname=self.dbname, stbname=self.stb_name, ctbname=self.ctb_name)
+        self.tdCom.create_table(dbname=self.dbname, tbname=self.tb_name)
 
-    def data_filter(self):
+    def data_filter(self, need_return=False):
+        self.update = False
         self.case_name = sys._getframe().f_code.co_name
 
         self.prepare_data()
@@ -247,6 +261,8 @@ class StreamComputingTest(TDCase):
             self.tdCom.check_stream(f'select {self.stb_filter_des_select_elm} from {self.stb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.stb_name} where {self.stb_data_filter_sql};', count-1)
             self.tdCom.check_stream(f'select {self.tb_filter_des_select_elm} from {self.ctb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.ctb_name} where {self.stb_data_filter_sql};', count-1)
             self.tdCom.check_stream(f'select {self.tb_filter_des_select_elm} from {self.tb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.tb_name} where {self.tb_data_filter_sql};', count-1)
+        if need_return:
+            return count
 
     def life_cycle(self, long_duration="14400m"):
         self.case_name = sys._getframe().f_code.co_name
@@ -316,6 +332,109 @@ class StreamComputingTest(TDCase):
                 select_elm = self.tb_filter_des_select_elm
             self.tdSql.query(f'select {select_elm} from {tbname};')
             self.tdSql.checkEqual(self.tdSql.query_row, new_expected_res)
+
+    def stream_tandem(self):
+        self.case_name = sys._getframe().f_code.co_name
+        source_tandem_db = "source_tandem_db"
+        target_tandem_db = "target_tandem_db"
+
+        source_tandem_stb = "source_tandem_stb"
+        source_tandem_ctb = "source_tandem_ctb"
+        source_tandem_tb = "source_tandem_tb"
+        target_tandem_stb = "target_tandem_stb"
+        target_tandem_ctb = "target_tandem_ctb"
+        target_tandem_tb = "target_tandem_tb"
+
+        source_stb_stream_name = "source_stb_tandem_stream"
+        source_ctb_stream_name = "source_ctb_tandem_stream"
+        source_tb_stream_name = "source_tb_tandem_stream"
+        target_stb_stream_name = "target_stb_tandem_stream"
+        target_ctb_stream_name = "target_ctb_tandem_stream"
+        target_tb_stream_name = "target_tb_tandem_stream"
+
+        source_stb_stream_target_tbname = f'{source_tandem_db}.output_tandem_stb'
+        source_ctb_stream_target_tbname = f'{source_tandem_db}.output_tandem_ctb'
+        source_tb_stream_target_tbname = f'{source_tandem_db}.output_tandem_tb'
+        target_stb_stream_target_tbname = f'{target_tandem_db}.output_tandem_stb'
+        target_ctb_stream_target_tbname = f'{target_tandem_db}.output_tandem_ctb'
+        target_tb_stream_target_tbname = f'{target_tandem_db}.output_tandem_tb'
+
+
+        source_stb_source_sql = f'select * from {source_tandem_db}.{source_tandem_stb}'
+        source_ctb_source_sql = f'select * from {source_tandem_db}.{source_tandem_ctb}'
+        source_tb_source_sql = f'select * from {source_tandem_db}.{source_tandem_tb}'
+        target_stb_source_sql = f'select * from {source_stb_stream_target_tbname}'
+        target_ctb_source_sql = f'select * from {source_ctb_stream_target_tbname}'
+        target_tb_source_sql = f'select * from {source_tb_stream_target_tbname}'
+
+        self.prepare_data()
+        self.tdCom.createDb(dbname=source_tandem_db, vgroups=self.vgroups)
+        self.tdCom.createDb(dbname=target_tandem_db, vgroups=self.vgroups)
+
+        self.tdCom.create_stable(dbname=source_tandem_db, stbname=source_tandem_stb)
+        self.tdCom.create_ctable(dbname=source_tandem_db, stbname=source_tandem_stb, ctbname=source_tandem_ctb)
+        self.tdCom.create_table(dbname=source_tandem_db, tbname=source_tandem_tb)
+        self.tdCom.create_stable(dbname=target_tandem_db, stbname=target_tandem_stb)
+        self.tdCom.create_ctable(dbname=target_tandem_db, stbname=target_tandem_stb, ctbname=target_tandem_ctb)
+        self.tdCom.create_table(dbname=target_tandem_db, tbname=target_tandem_tb)
+
+        self.tdCom.create_stream(stream_name=source_stb_stream_name, des_table=source_stb_stream_target_tbname, source_sql=source_stb_source_sql)
+        self.tdCom.create_stream(stream_name=source_ctb_stream_name, des_table=source_ctb_stream_target_tbname, source_sql=source_ctb_source_sql)
+        self.tdCom.create_stream(stream_name=source_tb_stream_name, des_table=source_tb_stream_target_tbname, source_sql=source_tb_source_sql)
+        self.tdCom.create_stream(stream_name=target_stb_stream_name, des_table=target_stb_stream_target_tbname, source_sql=target_stb_source_sql)
+        self.tdCom.create_stream(stream_name=target_ctb_stream_name, des_table=target_ctb_stream_target_tbname, source_sql=target_ctb_source_sql)
+        self.tdCom.create_stream(stream_name=target_tb_stream_name, des_table=target_tb_stream_target_tbname, source_sql=target_tb_source_sql)
+        count = 0
+        for i in range(self.range_count):
+            self.tdCom.insert_rows(dbname=source_tandem_db, tbname=source_tandem_ctb, ts_value=self.date_time+i, need_null=True)
+            self.tdCom.insert_rows(dbname=source_tandem_db, tbname=source_tandem_tb, ts_value=self.date_time+i, need_null=True)
+            count += 1
+        for tbname in [target_stb_stream_target_tbname, target_ctb_stream_target_tbname, target_tb_stream_target_tbname]:
+            if tbname == target_stb_stream_target_tbname:
+                select_elm = self.stb_filter_des_select_elm
+                source_tb = source_stb_stream_target_tbname
+            elif tbname == target_ctb_stream_target_tbname:
+                select_elm = self.tb_filter_des_select_elm
+                source_tb = source_ctb_stream_target_tbname
+            else:
+                select_elm = self.tb_filter_des_select_elm
+                source_tb = source_tb_stream_target_tbname
+            self.tdCom.check_stream(f'select {select_elm} from {tbname};', f'select {select_elm} from {source_tb};', count)
+
+    def udf_interval_order(self, interval, udf_size=8):
+        self.case_name = sys._getframe().f_code.co_name
+        self.prepare_data(interval=interval)
+        self.tdCom.drop_all_udfs()
+        self.tdCom.write_latency(self.case_name)
+        udf1 = "udf1"
+        udf2 = "udf2"
+        self.build_udf_so()
+        self.tdCom.create_udf(udf1, self.udf1, udf_size)
+        # create stb/ctb/tb stream
+        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS start, {self.udf_stb_source_select_str}  from {self.stb_name} interval({self.dataDict["interval"]}s)')
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS start, {self.udf_stb_source_select_str}  from {self.ctb_name} interval({self.dataDict["interval"]}s)')
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS start, {self.udf_tb_source_select_str}  from {self.tb_name} interval({self.dataDict["interval"]}s)')
+
+        # insert data
+        count = 1
+        step_count = 1
+        for i in range(1, self.range_count):
+            ctb_name = self.tdCom.get_long_name()
+            self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
+            if i % 2 == 0:
+                step_count += i
+                for j in range(count, step_count):
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{j}s')
+                count += i
+            else:
+                step_count += 1
+                for i in range(2):
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{count}s')
+                count += 1
+            # check result
+            self.tdCom.check_query_data(f'select start, {self.udf_stb_output_select_str} from {self.stb_name}{self.des_table_suffix}', f'select _wstart AS start, {self.udf_stb_source_select_str}  from {self.stb_name} partition by tbname interval({self.dataDict["interval"]}s)')
+            self.tdCom.check_query_data(f'select start, {self.udf_stb_output_select_str} from {self.ctb_name}{self.des_table_suffix}', f'select _wstart AS start, {self.udf_stb_source_select_str}  from {self.ctb_name} partition by tbname interval({self.dataDict["interval"]}s)')
+            self.tdCom.check_query_data(f'select start, {self.udf_tb_output_select_str} from {self.tb_name}{self.des_table_suffix}', f'select _wstart AS start, {self.udf_tb_source_select_str}  from {self.tb_name} partition by tbname interval({self.dataDict["interval"]}s)')
 
     def at_once_interval(self, interval):
         self.case_name = sys._getframe().f_code.co_name
@@ -921,19 +1040,7 @@ class StreamComputingTest(TDCase):
     
 
 
-    def stream_tandem(self):
-        self.case_name = sys._getframe().f_code.co_name
-        self.prepare_data()
-        self.tdSql.execute('create table if not exists tandem_stb1 (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20)) tags (t1 int);')
-        self.tdSql.execute('create table tandem_ct1 using tandem_stb1 tags(1);')
-        self.tdSql.execute('create table if not exists tandem_stb2 (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20)) tags (t1 int);')
-        self.tdSql.execute('create table tandem_ct2 using tandem_stb2 tags(1);')
-        self.tdCom.write_latency(self.case_name)
-        self.tdSql.execute(f'create stream tandem_stream1 trigger at_once into output_tandem_stream_stb1 as select ts, concat(c3, c4) c3, concat(c3, c5) c4 , concat(c4, c5) c5 from tandem_stb1;')
-        self.tdSql.execute(f'create stream tandem_stream2 trigger at_once into output_tandem_stream_stb2 as select ts, char_length(c3) c3, char_length(c4) c4, char_length(c5) c5 from output_tandem_stream_stb1;')
-        self.tdSql.execute(f'insert into tandem_ct1 values ({self.date_time}, 100, 100.1, "beijing", "taos", "Taos");')
-        self.tdSql.execute(f'insert into tandem_ct1 values ({self.date_time}+1s, -50, -50.1, "tianjin", "taosdata", "Taosdata");')
-        self.tdSql.execute(f'insert into tandem_ct1 values ({self.date_time}+2s, 0, Null, "hebei", "TDengine", Null);')
+    
 
     def disorder_data(self):
         self.case_name = sys._getframe().f_code.co_name
@@ -977,44 +1084,11 @@ class StreamComputingTest(TDCase):
             self.tdCom.check_stream('select count(*) from output_disorder_data_tb;', 'select count(*) from disorder_data_tb;', 1)
 
 
-    def udf_interval_order(self, interval, precision=None, vgroups=1, udf_size=8):
-        self.case_name = sys._getframe().f_code.co_name
-        self.prepare_data(interval=interval, precision=precision, vgroups=vgroups)
-        self.tdCom.drop_all_udfs()
-        self.tdCom.write_latency(self.case_name)
-        udf1 = "udf1"
-        udf2 = "udf2"
-        self.build_udf_so()
-        self.tdCom.create_udf(udf1, self.udf1, udf_size)
-        # create stb/ctb/tb stream
-        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS start, {self.udf_stb_source_select_str}  from {self.stb_name} interval({self.dataDict["interval"]}s)')
-        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS start, {self.udf_stb_source_select_str}  from {self.ctb_name} interval({self.dataDict["interval"]}s)')
-        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS start, {self.udf_tb_source_select_str}  from {self.tb_name} interval({self.dataDict["interval"]}s)')
+    
 
-        # insert data
-        count = 1
-        step_count = 1
-        for i in range(1, self.range_count):
-            ctb_name = self.tdCom.get_long_name()
-            self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
-            if i % 2 == 0:
-                step_count += i
-                for j in range(count, step_count):
-                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{j}s')
-                count += i
-            else:
-                step_count += 1
-                for i in range(2):
-                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{count}s')
-                count += 1
-            # check result
-            self.tdCom.check_query_data(f'select start, {self.udf_stb_output_select_str} from {self.stb_name}{self.des_table_suffix}', f'select _wstart AS start, {self.udf_stb_source_select_str}  from {self.stb_name} partition by tbname interval({self.dataDict["interval"]}s)')
-            self.tdCom.check_query_data(f'select start, {self.udf_stb_output_select_str} from {self.ctb_name}{self.des_table_suffix}', f'select _wstart AS start, {self.udf_stb_source_select_str}  from {self.ctb_name} partition by tbname interval({self.dataDict["interval"]}s)')
-            self.tdCom.check_query_data(f'select start, {self.udf_tb_output_select_str} from {self.tb_name}{self.des_table_suffix}', f'select _wstart AS start, {self.udf_tb_source_select_str}  from {self.tb_name} partition by tbname interval({self.dataDict["interval"]}s)')
-
-    def partitionby_interval_order(self, interval, precision=None, vgroups=1):
+    def partitionby_interval_order(self, interval):
         self.case_name = sys._getframe().f_code.co_name
-        self.prepare_data(interval=interval, precision=precision, vgroups=vgroups)
+        self.prepare_data(interval=interval)
         self.tdCom.write_latency(self.case_name)
         ctb_name_list = list()
         for i in range(1, self.range_count):
@@ -1092,12 +1166,143 @@ class StreamComputingTest(TDCase):
                 else:
                     self.tdCom.check_stream(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s) limit {i+1}', i+1)
 
+    def create_none_db_stream(self):
+        self.case_name = sys._getframe().f_code.co_name
+        self.prepare_data()
+        self.tdCom.write_latency(self.case_name)
+        stream_name = self.tdCom.get_long_name()
+        dbname2 = self.tdCom.get_long_name()
+        self.tdSql.error(f'create stream if not exists {stream_name} into {dbname2}.stb as select * from {self.dbname}.{self.case_name}_stb')
+    
+    def create_none_source_tb_stream(self):
+        self.case_name = sys._getframe().f_code.co_name
+        self.prepare_data()
+        self.tdCom.write_latency(self.case_name)
+        stream_name = self.tdCom.get_long_name()
+        dbname2 = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname2)
+        for tbname in ["stb", "ct1", "tb1"]:
+            self.tdSql.execute(f'drop table if exists {self.dbname}.{self.case_name}_{tbname}')
+            # ! TD-18109
+            self.tdSql.error(f'create stream if not exists {stream_name}_{tbname} into {dbname2}.{tbname} as select * from {self.dbname}.{self.case_name}_stb')
+    
+    def create_none_source_tb_tag_stream(self):
+        self.case_name = sys._getframe().f_code.co_name
+        self.prepare_data()
+        self.tdCom.write_latency(self.case_name)
+        stream_name = self.tdCom.get_long_name()
+        dbname2 = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname2)
+        for tbname in ["stb"]:
+            self.tdSql.error(f'create stream if not exists {stream_name} into {dbname2}.{tbname} as select ts,t100 from {self.dbname}.{self.case_name}_{tbname}')
+    
+    def create_none_source_tb_col_stream(self):
+        self.case_name = sys._getframe().f_code.co_name
+        self.prepare_data()
+        self.tdCom.write_latency(self.case_name)
+        stream_name = self.tdCom.get_long_name()
+        dbname2 = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname2)
+        for tbname in ["ct1", "tb1"]:
+            self.tdSql.error(f'create stream if not exists {stream_name} into {dbname2}.{tbname} as select ts,c100 from {self.dbname}.{self.case_name}_{tbname}')
+    
+    def create_error_source_sql_stream(self):
+        self.case_name = sys._getframe().f_code.co_name
+        self.prepare_data()
+        self.tdCom.write_latency(self.case_name)
+        stream_name = self.tdCom.get_long_name()
+        dbname2 = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname2)
+        error_sql_list = [f'select ts,c10%,^ from {self.dbname}.{self.case_name}_stb',
+                        f'select ts,c10 from {self.dbname}*.{self.case_name}_stb',
+                        f'select ts,t10 from {self.dbname}.{self.case_name}_tb1',
+                        ]
+        for error_sql in error_sql_list:
+            self.tdSql.error(f'create stream if not exists {stream_name} into {dbname2}.target_tb as {error_sql}')
     
 
+    def insert_after_restart(self):
+        self.data_filter()
+        self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1]}, self.endpoint, True)
+         # insert data
+        count = self.range_count
+        step_count = self.range_count
+        for i in range(self.range_count, self.range_count*2):
+            if i % 2 == 0:
+                step_count += i
+                for j in range(count, step_count):
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{j}s')
+                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=f'{self.date_time}+{j}s')
+                    if self.update:
+                        self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{j}s')
+                        self.tdCom.insert_rows(tbname=self.tb_name, ts_value=f'{self.date_time}+{j}s')
+                count += i
+            else:
+                ts_value = str(self.date_time)+f'+{count}s'
+                ts_cast_delete_value = self.tdCom.time_cast(ts_value)
+                step_count += 1
+                for i in range(2):
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
+                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
+                    if self.delete:
+                        self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=ts_cast_delete_value)
+                        self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
+                count += 1
+            # check result
+        self.tdCom.check_stream(f'select {self.stb_filter_des_select_elm} from {self.stb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.stb_name} where {self.stb_data_filter_sql};', count-1)
+        self.tdCom.check_stream(f'select {self.tb_filter_des_select_elm} from {self.ctb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.ctb_name} where {self.stb_data_filter_sql};', count-1)
+        self.tdCom.check_stream(f'select {self.tb_filter_des_select_elm} from {self.tb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.tb_name} where {self.tb_data_filter_sql};', count-1)
+
+
+    def insert_after_recreate_source_table(self):
+        count = self.data_filter(True)
+        new_count = deepcopy(count)
+        for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+            self.tdSql.execute(f'drop table if exists {tbname}')
+        self.tdCom.create_stable(dbname=self.dbname, stbname=self.stb_name)
+        self.tdCom.create_ctable(dbname=self.dbname, stbname=self.stb_name, ctbname=self.ctb_name)
+        self.tdCom.create_table(dbname=self.dbname, tbname=self.tb_name)
+        for i in range(new_count, self.range_count+new_count):
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{i}s')
+            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=f'{self.date_time}+{i}s')
+            if self.update:
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{i}s')
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=f'{self.date_time}+{i}s')
+            new_count += 1
+            # check result
+        self.tdCom.check_stream(f'select {self.stb_filter_des_select_elm} from {self.stb_stream_des_table} limit {self.range_count}  offset {new_count-1-count};', f'select {self.filter_source_select_elm} from {self.stb_name} where {self.stb_data_filter_sql};', self.range_count)
+        self.tdCom.check_stream(f'select {self.tb_filter_des_select_elm} from {self.ctb_stream_des_table} limit {self.range_count} offset {new_count-1-count};', f'select {self.filter_source_select_elm} from {self.ctb_name} where {self.stb_data_filter_sql};', self.range_count)
+        self.tdCom.check_stream(f'select {self.tb_filter_des_select_elm} from {self.tb_stream_des_table} limit {self.range_count} offset {new_count-1-count};', f'select {self.filter_source_select_elm} from {self.tb_name} where {self.tb_data_filter_sql};', self.range_count)
+
+    # TODO refactor
+    def query_after_drop_stream_db(self):
+        self.case_name = sys._getframe().f_code.co_name
+        self.stream_tandem()
+        self.tdSql.error(f'drop database if exists target_tandem_db;')
+        # self.prepare_data()
+        # self.tdCom.write_latency(self.case_name)
+        # stream_name = self.tdCom.get_long_name()
+        # dbname2 = self.tdCom.get_long_name()
+        # self.tdCom.createDb(dbname2)
+        # for tbname in ["ct1", "tb1"]:
+        #     self.tdSql.error(f'create stream if not exists {stream_name} into {dbname2}.{tbname} as select ts,c100 from {self.dbname}.{self.case_name}_{tbname}')
     
 
     def run(self):
-        # # ! TD-16915
+        # self.create_none_db_stream()
+        # # ! TD-18109
+        # # self.create_none_source_tb_stream()
+        # self.create_none_source_tb_tag_stream()
+        # # TODO TD-18111
+        # # self.create_none_source_tb_col_stream()
+        # self.create_error_source_sql_stream()
+        # ! TD-18120
+        # self.insert_after_restart()
+        # ! TD-18123
+        # self.insert_after_recreate_source_table()
+        self.query_after_drop_stream_db()
+
+
         # self.range_count = 10
         # self.update = True
         
@@ -1107,7 +1312,9 @@ class StreamComputingTest(TDCase):
         # # print(interval, watermark)
         # self.data_filter()
         # self.life_cycle()
-        self.scalar_function()
+        # self.scalar_function()
+        # self.stream_tandem()
+        # self.udf_interval_order(interval=10)
         # self.at_once_interval(interval=random.randint(10, 15))
         # # self.alter_source_table(interval=random.randint(10, 15))
         # self.at_once_state_window(state_window="c1")
@@ -1117,22 +1324,20 @@ class StreamComputingTest(TDCase):
         # self.window_close_state_window(state_window="c1")
         # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s")
         # self.watermark_max_delay_interval(interval=10, watermark=15, max_delay=f"{random.randint(1, 3)}s")
-        # # ! case bug not stable
-        # # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s")
+        # # # ! case bug not stable
+        # # # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s")
 
         # self.watermark_window_close_session(session=random.randint(10, 15), watermark=None)
         # self.watermark_window_close_session(session=random.randint(10, 15), watermark=random.randint(20, 30))
         # self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s")
         # self.watermark_max_delay_session(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s")
+        # self.partitionby_interval_order(interval=10)
 
 
         
         
-        # self.stream_tandem()
         # # self.disorder_data()
         # TODO unfinished
-        # self.udf_interval_order(interval=10)
-        # self.partitionby_interval_order(interval=10)
     def cleanup(self):
         pass
 
