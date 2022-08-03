@@ -476,14 +476,22 @@ _err:
 
 // N.B. Called by statusReq per second
 int64_t metaGetTbNum(SMeta *pMeta) {
-  // TODO
-  return 0;
+  // num of child tables (excluding normal tables , stables and others)
+
+  /* int64_t num = 0; */
+  /* vnodeGetAllCtbNum(pMeta->pVnode, &num); */
+
+  return pMeta->pVnode->config.vndStats.numOfCTables;
 }
 
 // N.B. Called by statusReq per second
 int64_t metaGetTimeSeriesNum(SMeta *pMeta) {
-  // TODO
-  return 400;
+  // sum of (number of columns of stable -  1) * number of ctables (excluding timestamp column)
+  int64_t num = 0;
+  vnodeGetTimeSeriesNum(pMeta->pVnode, &num);
+  pMeta->pVnode->config.vndStats.numOfTimeSeries = num;
+
+  return pMeta->pVnode->config.vndStats.numOfTimeSeries;
 }
 
 typedef struct {
@@ -591,7 +599,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid, bool deepCopy) {
   for (int i = 0; i < pSW->number; ++i) {
     smaId = *(tb_uid_t *)taosArrayGet(pSmaIds, i);
     if (metaGetTableEntryByUid(&mr, smaId) < 0) {
-      metaWarn("vgId:%d, no entry for tbId: %" PRIi64 ", smaId: %" PRIi64, TD_VID(pMeta->pVnode), uid, smaId);
+      metaWarn("vgId:%d, no entry for tbId:%" PRIi64 ", smaId:%" PRIi64, TD_VID(pMeta->pVnode), uid, smaId);
       continue;
     }
     pTSma = pSW->tSma + smaIdx;
@@ -639,7 +647,7 @@ STSma *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, pMeta, 0);
   if (metaGetTableEntryByUid(&mr, indexUid) < 0) {
-    metaWarn("vgId:%d, failed to get table entry for smaId: %" PRIi64, TD_VID(pMeta->pVnode), indexUid);
+    metaWarn("vgId:%d, failed to get table entry for smaId:%" PRIi64, TD_VID(pMeta->pVnode), indexUid);
     metaReaderClear(&mr);
     return NULL;
   }

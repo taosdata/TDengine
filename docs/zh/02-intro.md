@@ -3,7 +3,7 @@ title: 产品简介
 toc_max_heading_level: 2
 ---
 
-TDengine 是一款高性能、分布式、支持 SQL 的时序数据库 (Database)，其核心代码，包括集群功能全部开源（开源协议，AGPL v3.0）。TDengine 能被广泛运用于物联网、工业互联网、车联网、IT 运维、金融等领域。除核心的时序数据库 (Database) 功能外，TDengine 还提供[缓存](/develop/cache/)、[数据订阅](/develop/subscribe)、[流式计算](/develop/continuous-query)等大数据平台所需要的系列功能，最大程度减少研发和运维的复杂度。
+TDengine 是一款开源、高性能、云原生的时序数据库 (Time-Series Database, TSDB)。TDengine 能被广泛运用于物联网、工业互联网、车联网、IT 运维、金融等领域。除核心的时序数据库功能外，TDengine 还提供[缓存](/develop/cache/)、[数据订阅](/develop/subscribe)、[流式计算](/develop/continuous-query)等功能，是一极简的时序数据处理平台，最大程度的减小系统设计的复杂度，降低研发和运营成本。
 
 本章节介绍TDengine的主要功能、竞争优势、适用场景、与其他数据库的对比测试等等，让大家对TDengine有个整体的了解。
 
@@ -16,7 +16,7 @@ TDengine的主要功能如下：
 3. 支持[各种查询](/develop/query-data),包括聚合查询、嵌套查询、降采样查询、插值等
 4. 支持[用户自定义函数](/develop/udf)
 5. 支持[缓存](/develop/cache)，将每张表的最后一条记录缓存起来，这样无需 Redis
-6. 支持[连续查询](/develop/continuous-query)(Continuous Query)
+6. 支持[流式计算](/develop/continuous-query)(Stream Processing)
 7. 支持[数据订阅](/develop/subscribe)，而且可以指定过滤条件
 8. 支持[集群](/cluster/)，可以通过多节点进行水平扩展，并通过多副本实现高可靠
 9. 提供[命令行程序](/reference/taos-shell)，便于管理集群，检查系统状态，做即席查询
@@ -33,28 +33,24 @@ TDengine的主要功能如下：
 
 由于 TDengine 充分利用了[时序数据特点](https://www.taosdata.com/blog/2019/07/09/105.html)，比如结构化、无需事务、很少删除或更新、写多读少等等，设计了全新的针对时序数据的存储引擎和计算引擎，因此与其他时序数据库相比，TDengine 有以下特点：
 
-- **[高性能](https://www.taosdata.com/fast)**：通过创新的存储引擎设计，无论是数据写入还是查询，TDengine 的性能比通用数据库快 10 倍以上，也远超其他时序数据库，而且存储空间也大为节省。
+- **高性能**：通过创新的存储引擎设计，无论是数据写入还是查询，TDengine 的性能比通用数据库快 10 倍以上，也远超其他时序数据库，存储空间不及通用数据库的1/10。
 
-- **[分布式](https://www.taosdata.com/scalable)**：通过原生分布式的设计，TDengine 提供了水平扩展的能力，只需要增加节点就能获得更强的数据处理能力，同时通过多副本机制保证了系统的高可用。
+- **云原生**：通过原生分布式的设计，充分利用云平台的优势，TDengine 提供了水平扩展能力，具备弹性、韧性和可观测性，支持k8s部署，可运行在公有云、私有云和混合云上。
 
-- **[支持 SQL](https://www.taosdata.com/sql-support)**：TDengine 采用 SQL 作为数据查询语言，减少学习和迁移成本，同时提供 SQL 扩展来处理时序数据特有的分析，而且支持方便灵活的 schemaless 数据写入。
+- **极简时序数据平台**：TDengine 内建消息队列、缓存、流式计算等功能，应用无需再集成 Kafka/Redis/HBase/Spark 等软件，大幅降低系统的复杂度，降低应用开发和运营成本。
 
-- **All in One**：将数据库、消息队列、缓存、流式计算等功能融合一起，应用无需再集成 Kafka/Redis/HBase/Spark 等软件，大幅降低应用开发和维护成本。
+- **分析能力**：支持 SQL，同时为时序数据特有的分析提供SQL扩展。通过超级表、存储计算分离、分区分片、预计算、自定义函数等技术，TDengine 具备强大的分析能力。
 
-- **零管理**：安装、集群几秒搞定，无任何依赖，不用分库分表，系统运行状态监测能与 Grafana 或其他运维工具无缝集成。
+- **简单易用**：无任何依赖，安装、集群几秒搞定；提供REST以及各种语言连接器，与众多第三方工具无缝集成；提供命令行程序，便于管理和即席查询；提供各种运维工具。
 
-- **零学习成本**：采用 SQL 查询语言，支持 C/C++、Python、Java、Go、Rust、Node.js、C#、Lua（社区贡献）、PHP（社区贡献） 等多种编程语言,与 MySQL 相似，零学习成本。
-
-- **无缝集成**：不用一行代码，即可与 Telegraf、Grafana、Prometheus、EMQX、HiveMQ、StatsD、collectd、icinga、TCollector、Matlab、R 等第三方工具无缝集成。
-
-- **互动 Console**: 通过命令行 console，不用编程，执行 SQL 语句就能做即席查询、各种数据库的操作、管理以及集群的维护.
+- **核心开源**：TDengine 的核心代码包括集群功能全部开源，截止到2022年8月1日，全球超过 135.9k 个运行实例，GitHub Star 18.7k，Fork 4.4k，社区活跃。 
 
 采用 TDengine，可将典型的物联网、车联网、工业互联网大数据平台的总拥有成本大幅降低。表现在几个方面：
 
 1. 由于其超强性能，它能将系统需要的计算资源和存储资源大幅降低
-2. 因为采用 SQL 接口，能与众多第三方软件无缝集成，学习迁移成本大幅下降
-3. 因为其 All In One 的特性，系统复杂度降低，能降研发成本
-4. 因为运维维护简单，运营维护成本能大幅降低
+2. 因为支持 SQL，能与众多第三方软件无缝集成，学习迁移成本大幅下降
+3. 因为是一极简的时序数据平台，系统复杂度、研发和运营成本大幅降低
+4. 因为维护简单，运营维护成本能大幅降低
 
 ## 技术生态
 

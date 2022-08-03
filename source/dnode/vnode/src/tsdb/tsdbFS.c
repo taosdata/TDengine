@@ -78,7 +78,7 @@ static int32_t tsdbGnrtCurrent(STsdb *pTsdb, STsdbFS *pFS, char *fname) {
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb gnrt current failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb gnrt current failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   if (pData) taosMemoryFree(pData);
   return code;
 }
@@ -152,7 +152,7 @@ _err:
 //   return code;
 
 // _err:
-//   tsdbError("vgId:%d tsdb apply disk file set change failed since %s", TD_VID(pFS->pTsdb->pVnode), tstrerror(code));
+//   tsdbError("vgId:%d, tsdb apply disk file set change failed since %s", TD_VID(pFS->pTsdb->pVnode), tstrerror(code));
 //   return code;
 // }
 
@@ -181,7 +181,7 @@ _err:
 //   return code;
 
 // _err:
-//   tsdbError("vgId:%d tsdb apply del file change failed since %s", TD_VID(pFS->pTsdb->pVnode), tstrerror(code));
+//   tsdbError("vgId:%d, tsdb apply del file change failed since %s", TD_VID(pFS->pTsdb->pVnode), tstrerror(code));
 //   return code;
 // }
 
@@ -241,7 +241,7 @@ _err:
 //   return code;
 
 // _err:
-//   tsdbError("vgId:%d tsdb fs apply disk change failed sicne %s", TD_VID(pFS->pTsdb->pVnode), tstrerror(code));
+//   tsdbError("vgId:%d, tsdb fs apply disk change failed sicne %s", TD_VID(pFS->pTsdb->pVnode), tstrerror(code));
 //   return code;
 // }
 
@@ -342,7 +342,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb scan and try fix fs failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb scan and try fix fs failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -509,7 +509,7 @@ int32_t tsdbFSOpen(STsdb *pTsdb) {
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb fs open failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb fs open failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -734,7 +734,7 @@ int32_t tsdbFSCommit1(STsdb *pTsdb, STsdbFS *pFSNew) {
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb fs commit phase 1 failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb fs commit phase 1 failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -980,7 +980,7 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFSNew) {
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb fs commit phase 2 failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb fs commit phase 2 failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 

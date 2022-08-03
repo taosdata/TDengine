@@ -93,7 +93,8 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
   SyncIndex afterMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
   do {
     char logBuf[256];
-    snprintf(logBuf, sizeof(logBuf), "before next:%ld, match:%ld, after next:%ld, match:%ld", beforeNextIndex,
+    snprintf(logBuf, sizeof(logBuf),
+             "before next:%" PRId64 ", match:%" PRId64 ", after next:%" PRId64 ", match:%" PRId64, beforeNextIndex,
              beforeMatchIndex, afterNextIndex, afterMatchIndex);
     syncLogRecvAppendEntriesReply(ths, pMsg, logBuf);
   } while (0);
@@ -107,7 +108,7 @@ static void syncNodeStartSnapshotOnce(SSyncNode* ths, SyncIndex beginIndex, Sync
   if (beginIndex > endIndex) {
     do {
       char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "snapshot param error, start:%ld, end:%ld", beginIndex, endIndex);
+      snprintf(logBuf, sizeof(logBuf), "snapshot param error, start:%" PRId64 ", end:%" PRId64, beginIndex, endIndex);
       syncNodeErrorLog(ths, logBuf);
     } while (0);
 
@@ -293,7 +294,8 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
   SyncIndex afterMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
   do {
     char logBuf[256];
-    snprintf(logBuf, sizeof(logBuf), "before next:%ld, match:%ld, after next:%ld, match:%ld", beforeNextIndex,
+    snprintf(logBuf, sizeof(logBuf),
+             "before next:%" PRId64 ", match:%" PRId64 ", after next:%" PRId64 ", match:%" PRId64, beforeNextIndex,
              beforeMatchIndex, afterNextIndex, afterMatchIndex);
     syncLogRecvAppendEntriesReply(ths, pMsg, logBuf);
   } while (0);
@@ -392,7 +394,8 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
   SyncIndex afterMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
   do {
     char logBuf[256];
-    snprintf(logBuf, sizeof(logBuf), "before next:%ld, match:%ld, after next:%ld, match:%ld", beforeNextIndex,
+    snprintf(logBuf, sizeof(logBuf),
+             "before next:%" PRId64 ", match:%" PRId64 ", after next:%" PRId64 ", match:%" PRId64, beforeNextIndex,
              beforeMatchIndex, afterNextIndex, afterMatchIndex);
     syncLogRecvAppendEntriesReply(ths, pMsg, logBuf);
   } while (0);

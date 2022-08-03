@@ -93,7 +93,7 @@ int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
   // // We specified a non-zero wait. Time must advance.
   // if (ft_before.dwLowDateTime == ft_after.dwLowDateTime && ft_before.dwHighDateTime == ft_after.dwHighDateTime)
   //   {
-  //     printf("nanoseconds: %d, rc: %d, errno: %d. before filetime: %d, %d; after filetime: %d, %d\n",
+  //     printf("nanoseconds: %d, rc: %d, code:0x%x. before filetime: %d, %d; after filetime: %d, %d\n",
   //         nanosecs, rc, errno,
   //         (int)ft_before.dwLowDateTime, (int)ft_before.dwHighDateTime,
   //         (int)ft_after.dwLowDateTime, (int)ft_after.dwHighDateTime);

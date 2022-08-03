@@ -23,13 +23,13 @@ extern "C" {
 #include "planner.h"
 #include "taoserror.h"
 
-#define planFatal(param, ...)  qFatal("PLAN: " param, __VA_ARGS__)
-#define planError(param, ...)  qError("PLAN: " param, __VA_ARGS__)
-#define planWarn(param, ...)   qWarn("PLAN: " param, __VA_ARGS__)
-#define planInfo(param, ...)   qInfo("PLAN: " param, __VA_ARGS__)
-#define planDebug(param, ...)  qDebug("PLAN: " param, __VA_ARGS__)
-#define planDebugL(param, ...) qDebugL("PLAN: " param, __VA_ARGS__)
-#define planTrace(param, ...)  qTrace("PLAN: " param, __VA_ARGS__)
+#define planFatal(param, ...)  qFatal("PLAN: " param, ##__VA_ARGS__)
+#define planError(param, ...)  qError("PLAN: " param, ##__VA_ARGS__)
+#define planWarn(param, ...)   qWarn("PLAN: " param, ##__VA_ARGS__)
+#define planInfo(param, ...)   qInfo("PLAN: " param, ##__VA_ARGS__)
+#define planDebug(param, ...)  qDebug("PLAN: " param, ##__VA_ARGS__)
+#define planDebugL(param, ...) qDebugL("PLAN: " param, ##__VA_ARGS__)
+#define planTrace(param, ...)  qTrace("PLAN: " param, ##__VA_ARGS__)
 
 int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...);
 int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList);

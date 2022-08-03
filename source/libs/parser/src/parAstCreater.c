@@ -1402,19 +1402,18 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
   return (SNode*)pStmt;
 }
 
-SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool ignoreExists, SToken* pIndexName,
+SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool ignoreExists, SNode* pIndexName,
                              SNode* pRealTable, SNodeList* pCols, SNode* pOptions) {
   CHECK_PARSER_STATUS(pCxt);
-  if (!checkIndexName(pCxt, pIndexName)) {
-    return NULL;
-  }
   SCreateIndexStmt* pStmt = (SCreateIndexStmt*)nodesMakeNode(QUERY_NODE_CREATE_INDEX_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->indexType = type;
   pStmt->ignoreExists = ignoreExists;
-  COPY_STRING_FORM_ID_TOKEN(pStmt->indexName, pIndexName);
+  strcpy(pStmt->indexDbName, ((SRealTableNode*)pIndexName)->table.dbName);
+  strcpy(pStmt->indexName, ((SRealTableNode*)pIndexName)->table.tableName);
   strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
   strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  nodesDestroyNode(pIndexName);
   nodesDestroyNode(pRealTable);
   pStmt->pCols = pCols;
   pStmt->pOptions = (SIndexOptions*)pOptions;
@@ -1434,15 +1433,14 @@ SNode* createIndexOption(SAstCreateContext* pCxt, SNodeList* pFuncs, SNode* pInt
   return (SNode*)pOptions;
 }
 
-SNode* createDropIndexStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pIndexName) {
+SNode* createDropIndexStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pIndexName) {
   CHECK_PARSER_STATUS(pCxt);
-  if (!checkDbName(pCxt, NULL, true) || !checkIndexName(pCxt, pIndexName)) {
-    return NULL;
-  }
   SDropIndexStmt* pStmt = (SDropIndexStmt*)nodesMakeNode(QUERY_NODE_DROP_INDEX_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->ignoreNotExists = ignoreNotExists;
-  COPY_STRING_FORM_ID_TOKEN(pStmt->indexName, pIndexName);
+  strcpy(pStmt->indexDbName, ((SRealTableNode*)pIndexName)->table.dbName);
+  strcpy(pStmt->indexName, ((SRealTableNode*)pIndexName)->table.tableName);
+  nodesDestroyNode(pIndexName);
   return (SNode*)pStmt;
 }
 

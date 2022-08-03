@@ -162,6 +162,26 @@ _err:
 #endif
 }
 
+TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions) {
+  TdFilePtr fp = taosOpenFile(path, tdFileOptions);
+  if (!fp) {
+    if (errno == ENOENT) {
+      // Try to create directory recursively
+      char *s = strdup(path);
+      if (taosMulMkDir(taosDirName(s)) != 0) {
+        taosMemoryFree(s);
+        return NULL;
+      }
+      taosMemoryFree(s);
+      fp = taosOpenFile(path, tdFileOptions);
+      if (!fp) {
+        return NULL;
+      }
+    }
+  }
+  return fp;
+}
+
 int32_t taosRemoveFile(const char *path) { return remove(path); }
 
 int32_t taosRenameFile(const char *oldName, const char *newName) {

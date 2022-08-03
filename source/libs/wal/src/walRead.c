@@ -78,7 +78,8 @@ int32_t walNextValidMsg(SWalReader *pReader) {
   int64_t endVer = pReader->cond.scanUncommited ? lastVer : committedVer;
   endVer = TMIN(appliedVer, endVer);
 
-  wDebug("vgId:%d wal start to fetch, ver %ld, last ver %ld commit ver %ld, applied ver %ld, end ver %ld",
+  wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64
+         ", applied index:%" PRId64 ", end index:%" PRId64,
          pReader->pWal->cfg.vgId, fetchVer, lastVer, committedVer, appliedVer, endVer);
   pReader->curStopped = 0;
   while (fetchVer <= endVer) {
@@ -190,7 +191,8 @@ int32_t walReadSeekVerImpl(SWalReader *pReader, int64_t ver) {
     return -1;
   }
 
-  wDebug("wal version reset from %ld(invalid: %d) to %ld", pReader->curVersion, pReader->curInvalid, ver);
+  wDebug("vgId:%d, wal version reset from index:%" PRId64 "(invalid:%d) to index:%" PRId64, pReader->pWal->cfg.vgId,
+         pReader->curVersion, pReader->curInvalid, ver);
 
   pReader->curVersion = ver;
   return 0;
@@ -199,7 +201,7 @@ int32_t walReadSeekVerImpl(SWalReader *pReader, int64_t ver) {
 int32_t walReadSeekVer(SWalReader *pReader, int64_t ver) {
   SWal *pWal = pReader->pWal;
   if (!pReader->curInvalid && ver == pReader->curVersion) {
-    wDebug("wal version %ld match, no need to reset", ver);
+    wDebug("vgId:%d, wal index:%" PRId64 " match, no need to reset", pReader->pWal->cfg.vgId, ver);
     return 0;
   }
 
@@ -228,7 +230,7 @@ static int32_t walFetchHeadNew(SWalReader *pRead, int64_t fetchVer) {
   int64_t contLen;
   bool    seeked = false;
 
-  wDebug("vgId:%d, wal starts to fetch head %d", pRead->pWal->cfg.vgId, fetchVer);
+  wDebug("vgId:%d, wal starts to fetch head, index:%" PRId64, pRead->pWal->cfg.vgId, fetchVer);
 
   if (pRead->curInvalid || pRead->curVersion != fetchVer) {
     if (walReadSeekVer(pRead, fetchVer) < 0) {
@@ -266,7 +268,7 @@ static int32_t walFetchBodyNew(SWalReader *pRead) {
   SWalCont *pReadHead = &pRead->pHead->head;
   int64_t   ver = pReadHead->version;
 
-  wDebug("vgId:%d, wal starts to fetch body %ld", pRead->pWal->cfg.vgId, ver);
+  wDebug("vgId:%d, wal starts to fetch body, index:%" PRId64, pRead->pWal->cfg.vgId, ver);
 
   if (pRead->capacity < pReadHead->bodyLen) {
     void *ptr = taosMemoryRealloc(pRead->pHead, sizeof(SWalCkHead) + pReadHead->bodyLen);
@@ -311,7 +313,7 @@ static int32_t walFetchBodyNew(SWalReader *pRead) {
     return -1;
   }
 
-  wDebug("version %ld is fetched, cursor advance", ver);
+  wDebug("vgId:%d, index:%" PRId64 " is fetched, cursor advance", pRead->pWal->cfg.vgId, ver);
   pRead->curVersion = ver + 1;
   return 0;
 }
@@ -331,7 +333,7 @@ static int32_t walSkipFetchBodyNew(SWalReader *pRead) {
   }
 
   pRead->curVersion++;
-  wDebug("version advance to %ld, skip fetch", pRead->curVersion);
+  wDebug("vgId:%d, version advance to %" PRId64 ", skip fetch", pRead->pWal->cfg.vgId, pRead->curVersion);
 
   return 0;
 }
@@ -405,7 +407,7 @@ int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead) {
   }
 
   if (pReadHead->version != ver) {
-    wError("vgId:%d, wal fetch body error:%" PRId64 ", read request index:%" PRId64, pRead->pWal->cfg.vgId,
+    wError("vgId:%d, wal fetch body error, index:%" PRId64 ", read request index:%" PRId64, pRead->pWal->cfg.vgId,
            pRead->pHead->head.version, ver);
     pRead->curInvalid = 1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
@@ -413,7 +415,7 @@ int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead) {
   }
 
   if (walValidBodyCksum(*ppHead) != 0) {
-    wError("vgId:%d, wal fetch body error:%" PRId64 ", since body checksum not passed", pRead->pWal->cfg.vgId, ver);
+    wError("vgId:%d, wal fetch body error, index:%" PRId64 ", since body checksum not passed", pRead->pWal->cfg.vgId, ver);
     pRead->curInvalid = 1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
@@ -424,7 +426,7 @@ int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead) {
 }
 
 int32_t walReadVer(SWalReader *pReader, int64_t ver) {
-  wDebug("vgId:%d wal start to read ver %ld", pReader->pWal->cfg.vgId, ver);
+  wDebug("vgId:%d, wal start to read index:%" PRId64, pReader->pWal->cfg.vgId, ver);
   int64_t contLen;
   int32_t code;
   bool    seeked = false;
@@ -520,7 +522,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
            ver);
     uint32_t readCkSum = walCalcBodyCksum(pReader->pHead->head.body, pReader->pHead->head.bodyLen);
     uint32_t logCkSum = pReader->pHead->cksumBody;
-    wError("checksum written into log: %u, checksum calculated: %u", logCkSum, readCkSum);
+    wError("checksum written into log:%u, checksum calculated:%u", logCkSum, readCkSum);
     pReader->curInvalid = 1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     ASSERT(0);

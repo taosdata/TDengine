@@ -17,6 +17,7 @@
 #include "taos.h"
 #include "tdef.h"
 #include "types.h"
+#include "tgrant.h"
 
 #define SYSTABLE_SCH_TABLE_NAME_LEN ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_DB_NAME_LEN    ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
@@ -188,22 +189,7 @@ static const SSysDbTableSchema userUsersSchema[] = {
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
 
-static const SSysDbTableSchema grantsSchema[] = {
-    {.name = "version", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "expire time", .bytes = 19 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "expired", .bytes = 5 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "storage(GB)", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "timeseries", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "databases", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "users", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "accounts", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "dnodes", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "connections", .bytes = 11 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "streams", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "cpu cores", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "speed(PPS)", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "querytime", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-};
+GRANTS_SCHEMA;
 
 static const SSysDbTableSchema vgroupsSchema[] = {
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
@@ -260,14 +246,14 @@ static const SSysTableMeta infosMeta[] = {
 //    {TSDB_INS_TABLE_SNODES, snodesSchema, tListLen(snodesSchema)},
 //    {TSDB_INS_TABLE_BNODES, bnodesSchema, tListLen(bnodesSchema)},
     {TSDB_INS_TABLE_CLUSTER, clusterSchema, tListLen(clusterSchema)},
-    {TSDB_INS_TABLE_USER_DATABASES, userDBSchema, tListLen(userDBSchema)},
-    {TSDB_INS_TABLE_USER_FUNCTIONS, userFuncSchema, tListLen(userFuncSchema)},
-    {TSDB_INS_TABLE_USER_INDEXES, userIdxSchema, tListLen(userIdxSchema)},
-    {TSDB_INS_TABLE_USER_STABLES, userStbsSchema, tListLen(userStbsSchema)},
-    {TSDB_INS_TABLE_USER_TABLES, userTblsSchema, tListLen(userTblsSchema)},
-    {TSDB_INS_TABLE_USER_TAGS, userTagsSchema, tListLen(userTagsSchema)},
-    // {TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED, userTblDistSchema, tListLen(userTblDistSchema)},
-    {TSDB_INS_TABLE_USER_USERS, userUsersSchema, tListLen(userUsersSchema)},
+    {TSDB_INS_TABLE_DATABASES, userDBSchema, tListLen(userDBSchema)},
+    {TSDB_INS_TABLE_FUNCTIONS, userFuncSchema, tListLen(userFuncSchema)},
+    {TSDB_INS_TABLE_INDEXES, userIdxSchema, tListLen(userIdxSchema)},
+    {TSDB_INS_TABLE_STABLES, userStbsSchema, tListLen(userStbsSchema)},
+    {TSDB_INS_TABLE_TABLES, userTblsSchema, tListLen(userTblsSchema)},
+    {TSDB_INS_TABLE_TAGS, userTagsSchema, tListLen(userTagsSchema)},
+    // {TSDB_INS_TABLE_TABLE_DISTRIBUTED, userTblDistSchema, tListLen(userTblDistSchema)},
+    {TSDB_INS_TABLE_USERS, userUsersSchema, tListLen(userUsersSchema)},
     {TSDB_INS_TABLE_LICENCES, grantsSchema, tListLen(grantsSchema)},
     {TSDB_INS_TABLE_VGROUPS, vgroupsSchema, tListLen(vgroupsSchema)},
     {TSDB_INS_TABLE_CONFIGS, configSchema, tListLen(configSchema)},
@@ -349,7 +335,7 @@ static const SSysDbTableSchema appSchema[] = {
     {.name = "insert_bytes", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
     {.name = "fetch_bytes", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
     {.name = "query_time", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
-    {.name = "show_query", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "slow_query", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
     {.name = "total_req", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
     {.name = "current_req", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
     {.name = "last_access", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},

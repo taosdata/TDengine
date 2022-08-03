@@ -30,6 +30,8 @@ struct SBTree {
   int           minLocal;
   int           maxLeaf;
   int           minLeaf;
+  SBtInfo       info;
+  char         *tbname;
   void         *pBuf;
 };
 
@@ -123,7 +125,12 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPg
     }
 
     if (strcmp(TDB_MAINDB_NAME, tbname)) {
-      ret = tdbTbInsert(pPager->pEnv->pMainDb, tbname, strlen(tbname) + 1, &pgno, sizeof(SPgno), &txn);
+      pBt->info.root = pgno;
+      pBt->info.nLevel = 1;
+      pBt->info.nData = 0;
+      pBt->tbname = (char *)tbname;
+      // ret = tdbTbInsert(pPager->pEnv->pMainDb, tbname, strlen(tbname) + 1, &pgno, sizeof(SPgno), &txn);
+      ret = tdbTbInsert(pPager->pEnv->pMainDb, tbname, strlen(tbname) + 1, &pBt->info, sizeof(pBt->info), &txn);
       if (ret < 0) {
         return -1;
       }
