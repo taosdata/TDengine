@@ -133,7 +133,6 @@ typedef struct SRpcConn {
   int64_t   lockedBy;   // lock for connection
   SRpcReqContext *pContext; // request context
   int64_t   rid;       // probe msg use rid get pContext
-  int64_t   lastLiveTime; // last alive time with ms
 } SRpcConn;
 
 int tsRpcMaxUdpSize = 15000;  // bytes
@@ -1123,7 +1122,6 @@ static void rpcProcessProbeMsg(SRecvInfo *pRecv, SRpcConn *pConn) {
   } else if (pHead->msgType == TSDB_MSG_TYPE_PROBE_CONN_RSP) {
     if(pConn) {
       rpcLockConn(pConn);
-      pConn->lastLiveTime = taosGetTimestampMs();
       // get req content
       SRpcReqContext *pContext = taosAcquireRef(tsRpcRefId, pConn->rid);
       
@@ -1802,7 +1800,6 @@ bool doRpcSendProbe(SRpcConn *pConn) {
   pHead->code = htonl(code);
 
   bool ret = rpcSendMsgToPeer(pConn, msg, sizeof(SRpcHead) + sizeof(int32_t));
-  pConn->lastLiveTime = taosGetTimestampMs();
 
   return ret;
 }
