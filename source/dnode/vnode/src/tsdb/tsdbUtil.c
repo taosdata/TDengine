@@ -1122,6 +1122,7 @@ int32_t tBlockDataInit(SBlockData *pBlockData) {
   int32_t code = 0;
 
   pBlockData->nRow = 0;
+  pBlockData->aUid = NULL;
   pBlockData->aVersion = NULL;
   pBlockData->aTSKEY = NULL;
   pBlockData->aIdx = taosArrayInit(0, sizeof(int32_t));
@@ -1146,6 +1147,7 @@ void tBlockDataReset(SBlockData *pBlockData) {
 }
 
 void tBlockDataClear(SBlockData *pBlockData, int8_t deepClear) {
+  tFree((uint8_t *)pBlockData->aUid);
   tFree((uint8_t *)pBlockData->aVersion);
   tFree((uint8_t *)pBlockData->aTSKEY);
   taosArrayDestroy(pBlockData->aIdx);
