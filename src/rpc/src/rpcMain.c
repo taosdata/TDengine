@@ -1159,6 +1159,12 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   terrno = 0;
   SRpcReqContext *pContext;
   pConn = rpcProcessMsgHead(pRpc, pRecv, &pContext);
+  
+  // deal probe msg
+  if (pHead->msgType == TSDB_MSG_TYPE_PROBE_CONN || pHead->msgType == TSDB_MSG_TYPE_PROBE_CONN_RSP) {
+    rpcProcessProbeMsg(pRecv, pConn);
+    return pConn;
+  }
 
   if (pHead->msgType >= 1 && pHead->msgType < TSDB_MSG_TYPE_MAX) {
     tDebug("%s %p %p, %s received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
@@ -1375,7 +1381,7 @@ static bool rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   if (pConn == NULL) {
     pContext->code = terrno;
     taosTmrStart(rpcProcessConnError, 1, pContext, pRpc->tmrCtrl);
-    return;
+    return false;
   }
 
   pContext->pConn = pConn;
