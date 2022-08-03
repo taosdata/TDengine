@@ -360,7 +360,7 @@ class TDTestQuery(TDCase):
                 stable_where = tdWhere.stable_where()
                 n = random.randrange(2,400) 
                 func_desc = func_desc.replace("num","%d" %n)
-                sql1 = "select %s from (select * from  %s where tbname in ('%s_1') order by ts desc);"  % (func_desc,self.table,self.table)
+                sql1 = "select %s from %s where tbname in ('%s_1') order by ts desc;"  % (func_desc,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -383,7 +383,7 @@ class TDTestQuery(TDCase):
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s order by ts desc)" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where loc in ('%s_1') and  %s %s %s ) order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,1,'%s' %sql2 ,1,int('%d' %n),1,1)
                         cur1.execute(sql2)
@@ -408,7 +408,7 @@ class TDTestQuery(TDCase):
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %sorder by ts desc ) order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %sorder by ts ) order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,1,'%s' %sql2 ,1,int('%d' %n),1,1)
                         cur1.execute(sql2)

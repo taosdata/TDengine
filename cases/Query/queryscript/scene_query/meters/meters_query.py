@@ -627,10 +627,11 @@ class TDTestQuery(TDCase):
             func = ['CONCAT_WS']   
             i = random.randint(2,6)
             column = str(random.sample(columns_strs,i)).replace("[","").replace("]","").replace("'","").replace("(","").replace(")","")
-            separators = ['',' ','abc','123','!','@','#','$','%','^','&','*','(',')','-','_','+','=','{',
-                      '[','}',']','|',';',':',',','.','<','>','?','/','~','`','taos','涛思']
-            separator = str(random.sample(separators,i)).replace("[","").replace("]","") 
-            func_column_process = str(str(func)+'('+'\"'+separator+'\",'+'\",'+column+')').replace("[","").replace("]","").replace("'","")
+            separators = ['',' ','abc','123','!','@','#','$','%','^','&','*','(',')','-','_','+','=','{','[','}',']','|',';',':',',','.','<','>','?','/','~','`','taos','涛思']
+            separator = str(random.sample(separators,1)).replace("[","").replace("]","") 
+            print(separator)
+            func_column_process = str(str(func)+'('+'\"'+separator+'\",'+column+')').replace("[","").replace("]","").replace("'","")
+            print(func_column_process)
             return func_column_process 
         elif i == 44:             
             func = ['LENGTH']
@@ -894,23 +895,23 @@ class TDTestQuery(TDCase):
                         sql2 = "select %s from %s where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter)
                         self.data_check(sql2)
                         
-                        sql2 = "select %s from %s where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from %s where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from %s where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,groupby_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from %s where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,groupby_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from %s where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from %s where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from %s where  %s %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from %s where  %s %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from %s where  %s %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,groupby_filter,limit_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from %s where  %s %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,groupby_filter,limit_filter)
+                        # self.data_check(sql2)
                         
-                        sql2 = "select %s from %s where  %s %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter)
-                        self.data_check(sql2)
+                        # sql2 = "select %s from %s where  %s %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter)
+                        # self.data_check(sql2)
                         
                         # sql2 = "select %s from (select * from %s where  %s %s %s) " %(func,self.table,data_filter,like_match_filter,in_filter)
                         # self.data_check(sql2)
@@ -1063,7 +1064,7 @@ class TDTestQuery(TDCase):
          
         # self.select_column()
         # self.select_column_union()
-        self.base_function([42,43]) # multiple
+        self.base_function([43]) # multiple
         #self.base_function([3,]) # sinlge
         
         # t1 = threading.Thread(target=self.select_column)
