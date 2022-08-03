@@ -86,8 +86,8 @@ typedef struct {
   SRpcMsg  *pRsp;       // for synchronous API
   tsem_t   *pSem;       // for synchronous API
   SRpcEpSet *pSet;      // for synchronous API 
-  char      msg[0];     // RpcHead starts from here
   SSendInfo sendInfo; // save last send information
+  char      msg[0];     // RpcHead starts from here
 } SRpcReqContext;
 
 typedef struct SRpcConn {
@@ -1840,7 +1840,7 @@ bool rpcSendProbe(int64_t rpcRid, void* pPrevContext) {
   }
 
   // fd same
-  int32_t fd = taosGetFdID(pContext->pConn->chandle);
+  SOCKET fd = taosGetFdID(pContext->pConn->chandle);
   if (fd != pContext->sendInfo.fd) {
     tInfo("PROBE rpcRid=0x%" PRIx64 " connect fd diff.fd=%d prevFd=%d", rpcRid, fd, pContext->sendInfo.fd);
     goto _END;

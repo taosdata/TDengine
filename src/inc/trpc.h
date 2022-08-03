@@ -82,7 +82,7 @@ typedef struct SSendInfo {
   void *pContext;
   void *pConn;
   void *pFdObj;
-  int32_t fd; 
+  SOCKET fd;
 } SSendInfo;
 
 int32_t rpcInit();

@@ -675,7 +675,7 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
   tfree(pFdObj);
 }
 
-int32_t taosGetFdID(void *chandle) {
+SOCKET taosGetFdID(void *chandle) {
   SFdObj * pFdObj = chandle;
   if(pFdObj == NULL)
     return -1;
