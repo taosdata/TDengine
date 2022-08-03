@@ -477,14 +477,28 @@ class TDTestQuery(TDCase):
         base_function_all = ''
         columns = ['(*)','(ts)','(_c0)','(_C0)','(_rowts)','(c0)','(c1)','(c2)','(c3)','(c4)','(t0)','(t1)'] 
         column_1 = random.sample(columns,1) 
+        columns_10 = ['(c0,1)','(c1,1)','(c2,1)','(t0,1)','(c0,0)','(c1,0)','(c2,0)','(t0,0)','(c0)','(c1)','(c2)','(t0)'] 
+        column_10_1 = random.sample(columns_10,1) 
         columns_100 = ['(c0,100)','(c1,100)','(c2,100)','(t0,100)'] 
         column_100_1 = random.sample(columns_100,1) 
+        columns_100_10 = ['(ts,100)','(_c0,100)','(_C0,100)','(_rowts,100)','(c0,100)','(c1,100)','(c2,100)','(c3,100)','(c4,100)','(t0,100)','(t1,100)','(ts,100,10)','(_c0,100,10)','(_C0,100,10)','(_rowts,100,10)','(c0,100,10)','(c1,100,10)','(c2,100,10)','(c3,100,10)','(c4,100,10)','(t0,100,10)','(t1,100,10)'] 
+        column_100_10_1 = random.sample(columns_100_10,1) 
+        columns_1000 = ['(ts,1000)','(_c0,1000)','(_C0,1000)','(_rowts,1000)','(c0,1000)','(c1,1000)','(c2,1000)','(c3,1000)','(c4,1000)','(t0,1000)','(t1,1000)'] 
+        column_1000_1 = random.sample(columns_1000,1) 
         columns_datas = ['(c0)','(c1)','(c2)','(t0)'] 
-        columns_data = random.sample(columns_datas,1) 
+        columns_data = random.sample(columns_datas,1)
+        columns_1_10_datas = ['(c0,1,10)','(c1,1,10)','(c2,1,10)','(t0,1,10)'] 
+        columns_1_10_data = random.sample(columns_1_10_datas,1)  
+        columns_ts_datas = ['(ts)','(_c0)','(_C0)','(_rowts)','(c0)','(c1)','(c2)','(t0)'] 
+        columns_ts_data = random.sample(columns_ts_datas,1) 
         columns_strs = ['(c3)','(c4)','(t1)','(c3)','(c4)','(t1)'] 
         columns_str = random.sample(columns_strs,1) 
         columns_strs_5 = ['(c3,5)','(c4,5)','(t1,5)'] 
         columns_str_5 = random.sample(columns_strs_5,1) 
+        columns_tss = ['(ts)','(_c0)','(_C0)','(_rowts)','(ts,1a)','(_c0,1a)','(_C0,1a)','(_rowts,1a)','(ts,1s)','(_c0,1s)','(_C0,1s)','(_rowts,1s)','(ts,1m)','(_c0,1m)','(_C0,1m)','(_rowts,1m)','(ts,1h)','(_c0,1h)','(_C0,1h)','(_rowts,1h)','(ts,1d)','(_c0,1d)','(_C0,1d)','(_rowts,1d)'] 
+        column_ts_1 = random.sample(columns_tss,1) 
+        columns_ts_tss = ['(ts,_c0)','(_c0,_rowts)','(_C0,_C0)','(_rowts,ts)','(ts,_rowts,1a)','(_c0,_c0,1a)','(_C0,_rowts,1a)','(_rowts,_C0,1a)','(ts,_c0,1s)','(_c0,_rowts,1s)','(_C0,_rowts,1s)','(_rowts,_c0,1s)','(ts,_C0,1m)','(_c0,_rowts,1m)','(_C0,_c0,1m)','(_rowts,_rowts,1m)','(ts,_C0,1h)','(_c0,_rowts,1h)','(_C0,_c0,1h)','(_rowts,_C0,1h)','(ts,_rowts,1d)','(_c0,_rowts,1d)','(_C0,_rowts,1d)','(_rowts,_rowts,1d)'] 
+        column_ts_ts_1 = random.sample(columns_ts_tss,1) 
         columns_nulls = ['()'] 
         columns_null = random.sample(columns_nulls,1) 
         if i == 1: 
@@ -590,18 +604,18 @@ class TDTestQuery(TDCase):
             func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         
-        #时间和日期函数 Datetime Functions#not ok
+        #时间和日期函数 Datetime Functions
         elif i == 36:             
             func = ['NOW']
             func_column_process = str(func + columns_null).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 37:             
             func = ['TIMEDIFF']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + column_ts_ts_1).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 38:             
             func = ['TIMETRUNCATE']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + column_ts_1).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 39:             
             func = ['TIMEZONE']
@@ -629,9 +643,7 @@ class TDTestQuery(TDCase):
             column = str(random.sample(columns_strs,i)).replace("[","").replace("]","").replace("'","").replace("(","").replace(")","")
             separators = ['',' ','abc','123','!','@','#','$','%','^','&','*','(',')','-','_','+','=','{','[','}',']','|',';',':',',','.','<','>','?','/','~','`','taos','涛思']
             separator = str(random.sample(separators,1)).replace("[","").replace("]","") 
-            print(separator)
             func_column_process = str(str(func)+'('+'\"'+separator+'\",'+column+')').replace("[","").replace("]","").replace("'","")
-            print(func_column_process)
             return func_column_process 
         elif i == 44:             
             func = ['LENGTH']
@@ -662,7 +674,7 @@ class TDTestQuery(TDCase):
             func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         
-        # 转换函数 Conversion Functions
+        # 转换函数 Conversion Functions#not ok
         elif i == 51:             
             func = ['TO_ISO8601']
             func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
@@ -707,23 +719,23 @@ class TDTestQuery(TDCase):
         # 聚合函数 Aggregate Functions
         elif i == 61:             
             func = ['ELAPSED']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + column_ts_1).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 62:             
             func = ['LEASTSQUARES']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + columns_1_10_data).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 63:             
             func = ['MODE']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + columns_data).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 64:             
             func = ['SPREAD']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + columns_ts_data).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 65:             
             func = ['STDDEV']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + columns_data).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 66:             
             func = ['HYPERLOGLOG']
@@ -753,15 +765,15 @@ class TDTestQuery(TDCase):
             return func_column_process 
         elif i == 72:             
             func = ['INTERP']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + columns_data).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 73:             
             func = ['PERCENTILE']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + column_100_1).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 74:             
             func = ['TAIL']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + column_100_10_1).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 75:             
             func = ['UNIQUE']
@@ -791,27 +803,27 @@ class TDTestQuery(TDCase):
         # 时序数据特有函数 Time-Series Specific Functions
         elif i == 81:             
             func = ['CSUM']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + columns_data).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 82:             
             func = ['DERIVATIVE']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + columns_data).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 83:             
             func = ['DIFF']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + column_10_1).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 84:             
             func = ['IRATE']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + columns_data).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 85:             
             func = ['MAVG']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + column_100_1).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 86:             
             func = ['SAMPLE']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + column_1000_1).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 87:             
             func = ['STATECOUNT']
@@ -823,7 +835,7 @@ class TDTestQuery(TDCase):
             return func_column_process 
         elif i == 89:             
             func = ['TWA']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + columns_data).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 90:             
             func = ['COUNT']
@@ -833,27 +845,27 @@ class TDTestQuery(TDCase):
         # 系统信息函数
         elif i == 91:             
             func = ['DATABASE']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + columns_null).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 92:             
             func = ['CLIENT_VERSION']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + columns_null).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 93:             
             func = ['SERVER_VERSION']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + columns_null).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 94:             
             func = ['SERVER_STATUS']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + columns_null).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 95:             
             func = ['CURRENT_USER']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + columns_null).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 96:             
             func = ['USER']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + columns_null).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 97:             
             func = ['COUNT']
@@ -892,6 +904,9 @@ class TDTestQuery(TDCase):
                         partitonby_filter = where_filters[5] 
                         limit_filter = where_filters[6]                       
 
+                        sql2 = "select %s " %(func)
+                        self.data_check(sql2)
+                        
                         sql2 = "select %s from %s where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter)
                         self.data_check(sql2)
                         
@@ -1064,7 +1079,7 @@ class TDTestQuery(TDCase):
          
         # self.select_column()
         # self.select_column_union()
-        self.base_function([43]) # multiple
+        self.base_function([72,]) # multiple
         #self.base_function([3,]) # sinlge
         
         # t1 = threading.Thread(target=self.select_column)
