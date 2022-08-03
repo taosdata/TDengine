@@ -58,9 +58,7 @@ class TDTestCase:
         tdSql.execute(f'create database if not exists `{dbname}`')
         tdSql.execute(f'use `{dbname}`')
         tbname = tdCom.getLongName(5)
-        special_name = self.special_name
-        special_name.append('.')
-        for i in special_name:
+        for i in self.special_name:
             for j in range(len(list(tbname))+1):
                 tbname1 = list(tbname)
                 tbname1.insert(j,i)
