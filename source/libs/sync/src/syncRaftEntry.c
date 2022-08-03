@@ -204,14 +204,14 @@ void syncEntryLog2(char* s, const SSyncRaftEntry* pObj) {
 SRaftEntryHashCache* raftCacheCreate(SSyncNode* pSyncNode, int32_t maxCount) {
   SRaftEntryHashCache* pCache = taosMemoryMalloc(sizeof(SRaftEntryHashCache));
   if (pCache == NULL) {
-    sError("vgId:%d raft cache create error", pSyncNode->vgId);
+    sError("vgId:%d, raft cache create error", pSyncNode->vgId);
     return NULL;
   }
 
   pCache->pEntryHash =
       taosHashInit(sizeof(SyncIndex), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pCache->pEntryHash == NULL) {
-    sError("vgId:%d raft cache create hash error", pSyncNode->vgId);
+    sError("vgId:%d, raft cache create hash error", pSyncNode->vgId);
     return NULL;
   }
 
@@ -460,14 +460,14 @@ static void freeRaftEntry(void* param) {
 SRaftEntryCache* raftEntryCacheCreate(SSyncNode* pSyncNode, int32_t maxCount) {
   SRaftEntryCache* pCache = taosMemoryMalloc(sizeof(SRaftEntryCache));
   if (pCache == NULL) {
-    sError("vgId:%d raft cache create error", pSyncNode->vgId);
+    sError("vgId:%d, raft cache create error", pSyncNode->vgId);
     return NULL;
   }
 
   pCache->pSkipList =
       tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_BINARY, sizeof(SyncIndex), cmpFn, SL_ALLOW_DUP_KEY, keyFn);
   if (pCache->pSkipList == NULL) {
-    sError("vgId:%d raft cache create hash error", pSyncNode->vgId);
+    sError("vgId:%d, raft cache create hash error", pSyncNode->vgId);
     return NULL;
   }
 

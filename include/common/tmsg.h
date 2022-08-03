@@ -337,8 +337,10 @@ static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* p
 }
 
 static FORCE_INLINE void tDeleteSSchemaWrapper(SSchemaWrapper* pSchemaWrapper) {
-  taosMemoryFree(pSchemaWrapper->pSchema);
-  taosMemoryFree(pSchemaWrapper);
+  if (pSchemaWrapper) {
+    taosMemoryFree(pSchemaWrapper->pSchema);
+    taosMemoryFree(pSchemaWrapper);
+  }
 }
 
 static FORCE_INLINE int32_t taosEncodeSSchema(void** buf, const SSchema* pSchema) {
@@ -2223,6 +2225,7 @@ typedef struct SAppClusterSummary {
   uint64_t insertBytes;  // submit to tsdb since launched.
 
   uint64_t fetchBytes;
+  uint64_t numOfQueryReq;
   uint64_t queryElapsedTime;
   uint64_t numOfSlowQueries;
   uint64_t totalRequests;

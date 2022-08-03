@@ -1,3 +1,4 @@
+# from asyncio.windows_events import NULL
 import taos
 import sys
 import datetime
@@ -21,38 +22,99 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), True)
 
-    def prepareData(self):
-        database="db_tsbs"
-        ts=1451606400000
-        tdSql.execute(f"create database {database};")
-        tdSql.execute(f"use {database} ")
-        tdSql.execute('''
-        create table readings (ts timestamp,latitude double,longitude double,elevation double,velocity double,heading double,grade double,fuel_consumption double,load_capacity double,fuel_capacity double,nominal_fuel_consumption double) tags (name binary(30),fleet binary(30),driver binary(30),model binary(30),device_version binary(30));
-        ''')
-        tdSql.execute('''
-        create table diagnostics (ts timestamp,fuel_state double,current_load double,status bigint,load_capacity double,fuel_capacity double,nominal_fuel_consumption double) tags (name binary(30),fleet binary(30),driver binary(30),model binary(30),device_version binary(30)) ;
-        ''')
+    def create_ctable(self,tsql=None, dbName='db',stbName='stb',ctbPrefix='ctb',ctbNum=1):
+            tsql.execute("use %s" %dbName)
+            pre_create = "create table"
+            sql = pre_create
+            #tdLog.debug("doing create one  stable %s and %d  child table in %s  ..." %(stbname, count ,dbname))
+            for i in range(ctbNum):
+                tagValue = 'beijing'
+                if (i % 10 == 0):
+                    sql += " %s%d using %s (name,fleet,driver,device_version)  tags('truck_%d', 'South%d','Trish%d','v2.%d')"%(ctbPrefix,i,stbName,i,i,i,i)
+                else:
+                    model = 'H-%d'%i
+                    sql += " %s%d using %s tags('truck_%d', 'South%d','Trish%d','%s','v2.%d')"%(ctbPrefix,i,stbName,i,i,i,model,i)
+                if (i > 0) and (i%1000 == 0):
+                    tsql.execute(sql)
+                    sql = pre_create
+            if sql != pre_create:
+                tsql.execute(sql)
+            
+            tdLog.debug("complete to create %d child tables in %s.%s" %(ctbNum, dbName, stbName))
+            return
 
-        for i in range(10):
-            if i == 1 or i == 2 :
-                tdLog.debug(f"create table rct{i} using readings (name,fleet,driver,model,device_version) tags ('truck_{i}','South{i}','Trish{i}', NULL,'v2.3')")
-                tdSql.execute(f"create table rct{i} using readings (name,fleet,driver,model,device_version) tags ('truck_{i}','South{i}','Trish{i}', NULL,'v2.3')")
-            else :
-                tdSql.execute(f"create table rct{i} using readings (name,fleet,driver,model,device_version) tags ('truck_{i}','South{i}','Trish{i}','H-{i}','v2.3')")
-            if i == 1 or i == 2 :
-                tdSql.execute(f"create table dct{i} using diagnostics (name,fleet,driver,model,device_version) tags ('truck_{i}','South{i}','Trish{i}',NULL ,'v2.3')")
-            else:
-                tdSql.execute(f"create table dct{i} using diagnostics (name,fleet,driver,model,device_version) tags ('truck_{i}','South{i}','Trish{i}','H-{i}','v2.3')")
-        for j in range(10): 
-            for i in range(100):
-                tdSql.execute(
-                    f"insert into rct{j} values ( {ts+i*60000}, {80+i}, {90+i}, {85+i}, {30+i*10}, {1.2*i}, {221+i*2}, {20+i*0.2}, {1500+i*20}, {150+i*2},{5+i} )"
-                )
-                status= random.randint(0,1)
-                tdSql.execute(
-                    f"insert into dct{j} values ( {ts+i*60000}, {1+i*0.1},{1400+i*15},  {status},{1500+i*20}, {150+i*2},{5+i} )"
-                )
-        tdSql.execute("insert into dct9 (ts,fuel_state) values('2021-07-13 14:06:33.123Z',1.2) ;")
+    def insertData(self,startTs,tsql=None, dbName='db',stbName='stb',ctbPrefix='ctb',ctbNum=1,rowsPerTbl=100,batchNum=1000):
+            tsql.execute("use %s" %dbName)
+            pre_insert = "insert into "
+            sql = pre_insert
+            if startTs is None:
+                t = time.time()
+                startTs = int(round(t * 1000))
+
+            for i in range(ctbNum):
+                sql += " %s%d values "%(ctbPrefix,i)
+                for j in range(rowsPerTbl):
+                    if(ctbPrefix=="rct"):
+                        sql += f"({startTs+j*60000}, {80+j}, {90+j}, {85+j}, {30+j*10}, {1.2*j}, {221+j*2}, {20+j*0.2}, {1500+j*20}, {150+j*2},{5+j}) "
+                    elif ( ctbPrefix=="dct"):
+                        status= random.randint(0,1)
+                        sql += f"( {startTs+j*60000}, {1+j*0.1},{1400+j*15},  {status},{1500+j*20}, {150+j*2},{5+j} ) "   
+                    # tdLog.debug("1insert sql:%s"%sql)
+                    if (j > 0) and ((j%batchNum == 0) or (j == rowsPerTbl - 1)):
+                        # tdLog.debug("2insert sql:%s"%sql)
+                        tsql.execute(sql)
+                        if j < rowsPerTbl - 1:
+                            sql = "insert into %s%d values " %(ctbPrefix,i)
+                        else:
+                            sql = "insert into "
+            if sql != pre_insert:
+                # tdLog.debug("3insert sql:%s"%sql)
+                tsql.execute(sql) 
+            tdLog.debug("insert data ............ [OK]")
+            return
+
+    def prepareData(self):
+        dbname="db_tsbs"
+        stabname1="readings"
+        stabname2="diagnostics"
+        ctbnamePre1="rct"        
+        ctbnamePre2="dct"
+        ctbNums=40
+        self.ctbNums=ctbNums
+        rowNUms=200
+        ts=1451606400000
+        tdSql.execute(f"create database {dbname};")
+        tdSql.execute(f"use {dbname} ")
+        tdSql.execute(f'''
+        create table {stabname1} (ts timestamp,latitude double,longitude double,elevation double,velocity double,heading double,grade double,fuel_consumption double,load_capacity double,fuel_capacity double,nominal_fuel_consumption double) tags (name binary(30),fleet binary(30),driver binary(30),model binary(30),device_version binary(30));
+        ''')
+        tdSql.execute(f'''
+        create table {stabname2} (ts timestamp,fuel_state double,current_load double,status bigint,load_capacity double,fuel_capacity double,nominal_fuel_consumption double) tags (name binary(30),fleet binary(30),driver binary(30),model binary(30),device_version binary(30)) ;
+        ''')
+        self.create_ctable(tsql=tdSql,dbName=dbname,stbName=stabname1,ctbPrefix=ctbnamePre1,ctbNum=ctbNums)
+        self.create_ctable(tsql=tdSql,dbName=dbname,stbName=stabname2,ctbPrefix=ctbnamePre2,ctbNum=ctbNums)
+        self.insertData(tsql=tdSql,dbName=dbname,stbName=stabname1,ctbPrefix=ctbnamePre1,ctbNum=ctbNums,rowsPerTbl=rowNUms,startTs=ts,batchNum=1000)
+        self.insertData(tsql=tdSql,dbName=dbname,stbName=stabname2,ctbPrefix=ctbnamePre2,ctbNum=ctbNums,rowsPerTbl=rowNUms,startTs=ts,batchNum=1000)
+        # for i in range(ctbNum):
+        #     if i %10 == 0 :
+        #         # tdLog.debug(f"create table rct{i} using readings (name,fleet,driver,model,device_version) tags ('truck_{i}','South{i}','Trish{i}', NULL,'v2.3')")
+        #         tdSql.execute(f"create table rct{i} using readings (name,fleet,driver,model,device_version) tags ('truck_{i}','South{i}','Trish{i}', NULL,'v2.3')")
+        #     else :
+        #         tdSql.execute(f"create table rct{i} using readings (name,fleet,driver,model,device_version) tags ('truck_{i}','South{i}','Trish{i}','H-{i}','v2.3')")
+        #     if i %10 == 0 :
+        #         tdSql.execute(f"create table dct{i} using diagnostics (name,fleet,driver,model,device_version) tags ('truck_{i}','South{i}','Trish{i}',NULL ,'v2.3')")
+        #     else:
+        #         tdSql.execute(f"create table dct{i} using diagnostics (name,fleet,driver,model,device_version) tags ('truck_{i}','South{i}','Trish{i}','H-{i}','v2.3')")
+        # for j in range(ctbNums): 
+        #     for i in range(rowNUms):
+        #         tdSql.execute(
+        #             f"insert into rct{j} values ( {ts+i*60000}, {80+i}, {90+i}, {85+i}, {30+i*10}, {1.2*i}, {221+i*2}, {20+i*0.2}, {1500+i*20}, {150+i*2},{5+i} )"
+        #         )
+        #         status= random.randint(0,1)
+        #         tdSql.execute(
+        #             f"insert into dct{j} values ( {ts+i*60000}, {1+i*0.1},{1400+i*15},  {status},{1500+i*20}, {150+i*2},{5+i} )"
+        #         )
+        # tdSql.execute("insert into dct9 (ts,fuel_state) values('2021-07-13 14:06:33.123Z',1.2) ;")
     # def check_avg(self ,origin_query , check_query):
     #     avg_result = tdSql.getResult(origin_query)
     #     origin_result = tdSql.getResult(check_query)
@@ -75,7 +137,6 @@ class TDTestCase:
         
         # test interval and partition
         tdSql.query(" SELECT avg(velocity) as mean_velocity ,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet; ")
-        print(tdSql.queryResult)
         parRows=tdSql.queryRows
         tdSql.query(" SELECT avg(velocity) as mean_velocity ,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet interval(10m); ")
         tdSql.checkRows(parRows)
@@ -94,7 +155,7 @@ class TDTestCase:
 
         # test partition interval limit  (PRcore-TD-17410)
         tdSql.query("select name,driver from (SELECT name,driver,fleet ,avg(velocity) as mean_velocity FROM readings partition BY name,driver,fleet interval (10m) limit 1);")
-        tdSql.checkRows(10)
+        tdSql.checkRows(self.ctbNums)
 
         # test partition interval Pseudo time-column
         tdSql.query("SELECT count(ms1)/144  FROM (SELECT _wstart as ts1,model, fleet,avg(status) AS ms1 FROM diagnostics WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'  partition by model, fleet interval(10m)) WHERE ts1 >= '2016-01-01T00:00:00Z' AND ts1 < '2016-01-05T00:00:01Z' AND ms1<1;")
@@ -136,17 +197,27 @@ class TDTestCase:
 
         tdSql.query("SELECT _wstart,model,fleet,count(ms1)/144  FROM (SELECT _wstart as ts1,model, fleet,avg(status) AS ms1 FROM diagnostics WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'  partition by model, fleet interval(10m) fill(value,0)) WHERE ts1 >= '2016-01-01T00:00:00Z' AND ts1 < '2016-01-05T00:00:01Z'  AND ms1<1 partition by model, fleet interval(1d) ;")
 
-        tdSql.query("SELECT _wstart,model,fleet,count(ms1)/144  FROM (SELECT _wstart as ts1,model, fleet,avg(status) AS ms1 FROM diagnostics WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'  partition by model, fleet interval(10m) ) WHERE ts1 >= '2016-01-01T00:00:00Z' AND ts1 < '2016-01-05T00:00:01Z'  AND ms1<1 partition by model, fleet interval(1d) ;")
+        tdSql.query("SELECT _wstart as ts,model,fleet,count(ms1)/144  FROM (SELECT _wstart as ts1,model, fleet,avg(status) AS ms1 FROM diagnostics WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'  partition by model, fleet interval(10m) ) WHERE ts1 >= '2016-01-01T00:00:00Z' AND ts1 < '2016-01-05T00:00:01Z'  AND ms1<1 partition by model, fleet interval(1d) ;")
 
 
         # 9. breakdown-frequency
         # NULL ---count(NULL)=0 expect count(NULL)= 100
         tdSql.query("SELECT model,state_changed,count(state_changed)  FROM (SELECT model,diff(broken_down) AS state_changed   FROM (SELECT _wstart,model,cast(cast(floor(2*(sum(nzs)/count(nzs))) as bool) as int) AS broken_down FROM (SELECT ts,model, cast(cast(status as bool) as int) AS nzs FROM diagnostics WHERE  ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z' ) WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition BY model interval(10m)) partition BY model) where model is null  partition BY model,state_changed ")
         parRows=tdSql.queryRows
-        assert parRows != 0 , "query result is wrong"
+        assert parRows != 0 , "query result is wrong, query rows %d but expect > 0 " %parRows
 
 
         tdSql.query(" SELECT model,state_changed,count(state_changed)  FROM (SELECT model,diff(broken_down) AS state_changed   FROM (SELECT _wstart,model,cast(cast(floor(2*(sum(nzs)/count(nzs))) as bool) as int) AS broken_down FROM (SELECT ts,model, cast(cast(status as bool) as int) AS nzs FROM diagnostics WHERE  ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z' ) WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition BY model interval(10m)) partition BY model) where state_changed =1 partition BY model,state_changed ;")
+        sql="select  model,ctc from (SELECT model,count(state_changed) as ctc FROM (SELECT model,diff(broken_down) AS state_changed FROM (SELECT model,cast(cast(floor(2*(sum(nzs)/count(nzs))) as bool) as int) AS broken_down FROM (SELECT ts,model, cast(cast(status as bool) as int) AS nzs FROM diagnostics WHERE ts >= 1451606400000 AND ts < 1451952001000 ) WHERE ts >= 1451606400000 AND ts < 1451952001000 partition BY model interval(10m)) partition BY model) WHERE state_changed = 1 partition BY model )where model is null;"
+
+        # for i in range(2):
+        #     tdSql.query("%s"%sql)
+        #     quertR1=tdSql.queryResult  
+        #     for j in  range(50):
+        #         tdSql.query("%s"%sql)
+        #         quertR2=tdSql.queryResult
+        #         assert quertR1 == quertR2 , "%s != %s ,The results of multiple queries are different" %(quertR1,quertR2)            
+
         
         #it's already supported:
         # last-loc

@@ -49,22 +49,30 @@
 extern "C" {
 #endif
 
-typedef struct SVnodeInfo      SVnodeInfo;
-typedef struct SMeta           SMeta;
-typedef struct SSma            SSma;
-typedef struct STsdb           STsdb;
-typedef struct STQ             STQ;
-typedef struct SVState         SVState;
-typedef struct SVBufPool       SVBufPool;
-typedef struct SQWorker        SQHandle;
-typedef struct STsdbKeepCfg    STsdbKeepCfg;
-typedef struct SMetaSnapReader SMetaSnapReader;
-typedef struct SMetaSnapWriter SMetaSnapWriter;
-typedef struct STsdbSnapReader STsdbSnapReader;
-typedef struct STsdbSnapWriter STsdbSnapWriter;
-typedef struct SRsmaSnapReader SRsmaSnapReader;
-typedef struct SRsmaSnapWriter SRsmaSnapWriter;
-typedef struct SSnapDataHdr    SSnapDataHdr;
+typedef struct SVnodeInfo         SVnodeInfo;
+typedef struct SMeta              SMeta;
+typedef struct SSma               SSma;
+typedef struct STsdb              STsdb;
+typedef struct STQ                STQ;
+typedef struct SVState            SVState;
+typedef struct SVBufPool          SVBufPool;
+typedef struct SQWorker           SQHandle;
+typedef struct STsdbKeepCfg       STsdbKeepCfg;
+typedef struct SMetaSnapReader    SMetaSnapReader;
+typedef struct SMetaSnapWriter    SMetaSnapWriter;
+typedef struct STsdbSnapReader    STsdbSnapReader;
+typedef struct STsdbSnapWriter    STsdbSnapWriter;
+typedef struct STqSnapReader      STqSnapReader;
+typedef struct STqSnapWriter      STqSnapWriter;
+typedef struct STqOffsetReader    STqOffsetReader;
+typedef struct STqOffsetWriter    STqOffsetWriter;
+typedef struct SStreamTaskReader  SStreamTaskReader;
+typedef struct SStreamTaskWriter  SStreamTaskWriter;
+typedef struct SStreamStateReader SStreamStateReader;
+typedef struct SStreamStateWriter SStreamStateWriter;
+typedef struct SRsmaSnapReader    SRsmaSnapReader;
+typedef struct SRsmaSnapWriter    SRsmaSnapWriter;
+typedef struct SSnapDataHdr       SSnapDataHdr;
 
 #define VNODE_META_DIR  "meta"
 #define VNODE_TSDB_DIR  "tsdb"
@@ -155,7 +163,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* data, int64_t ver);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec);
 int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
@@ -178,6 +186,7 @@ int32_t smaSyncPostCommit(SSma* pSma);
 int32_t smaAsyncPreCommit(SSma* pSma);
 int32_t smaAsyncCommit(SSma* pSma);
 int32_t smaAsyncPostCommit(SSma* pSma);
+int32_t smaDoRetention(SSma* pSma, int64_t now);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
@@ -206,6 +215,26 @@ int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData);
 int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWriter** ppWriter);
 int32_t tsdbSnapWrite(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
 int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback);
+// STqSnapshotReader ==
+int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapReader** ppReader);
+int32_t tqSnapReaderClose(STqSnapReader** ppReader);
+int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData);
+// STqSnapshotWriter ======================================
+int32_t tqSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapWriter** ppWriter);
+int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback);
+int32_t tqSnapWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+// STqOffsetReader ========================================
+int32_t tqOffsetReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqOffsetReader** ppReader);
+int32_t tqOffsetReaderClose(STqOffsetReader** ppReader);
+int32_t tqOffsetSnapRead(STqOffsetReader* pReader, uint8_t** ppData);
+// STqOffsetWriter ========================================
+int32_t tqOffsetWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqOffsetWriter** ppWriter);
+int32_t tqOffsetWriterClose(STqOffsetWriter** ppWriter, int8_t rollback);
+int32_t tqOffsetSnapWrite(STqOffsetWriter* pWriter, uint8_t* pData, uint32_t nData);
+// SStreamTaskWriter ======================================
+// SStreamTaskReader ======================================
+// SStreamStateWriter =====================================
+// SStreamStateReader =====================================
 // SRsmaSnapReader ========================================
 int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapReader** ppReader);
 int32_t rsmaSnapReaderClose(SRsmaSnapReader** ppReader);
@@ -326,12 +355,16 @@ struct SSma {
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
 
 enum {
-  SNAP_DATA_META = 0,
-  SNAP_DATA_TSDB = 1,
-  SNAP_DATA_DEL = 2,
-  SNAP_DATA_RSMA1 = 3,
-  SNAP_DATA_RSMA2 = 4,
-  SNAP_DATA_QTASK = 5,
+  SNAP_DATA_META = 1,
+  SNAP_DATA_TSDB = 2,
+  SNAP_DATA_DEL = 3,
+  SNAP_DATA_RSMA1 = 4,
+  SNAP_DATA_RSMA2 = 5,
+  SNAP_DATA_QTASK = 6,
+  SNAP_DATA_TQ_HANDLE = 7,
+  SNAP_DATA_TQ_OFFSET = 8,
+  SNAP_DATA_STREAM_TASK = 9,
+  SNAP_DATA_STREAM_STATE = 10,
 };
 
 struct SSnapDataHdr {
