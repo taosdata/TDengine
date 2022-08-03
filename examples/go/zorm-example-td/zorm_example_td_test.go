@@ -22,7 +22,7 @@ import (
  *	  所以我们把Sql语句进行处理,
  *	  issues地址:https://github.com/taosdata/TDengine/issues/15393
  *
- *	@ Official website: www.zorm.cn(图标暂时很丑 希望以后有更多人加入可以帮帮我们)
+ *	@ Official website: www.zorm.cn(logo暂时很丑 希望以后有更多人加入可以帮帮我们)
  *	@ Project address:  https://gitee.com/chunanyong/zorm
  *
  */
@@ -91,6 +91,7 @@ func init() {
 		DisableTransaction: true, // 禁用全局事务
 	}
 	dbDao, _ = zorm.NewDBDao(&dbDaoConfig)
+
 }
 
 // Test_Create Create DB and table.
