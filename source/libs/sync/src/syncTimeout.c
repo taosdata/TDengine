@@ -41,18 +41,21 @@ int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
       // syncNodePingAll(ths);
       // syncNodePingPeers(ths);
 
+      sTrace("vgId:%d, sync timeout, type:ping count:%d", ths->vgId, ths->pingTimerCounter);
       syncNodeTimerRoutine(ths);
     }
 
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_ELECTION) {
     if (atomic_load_64(&ths->electTimerLogicClockUser) <= pMsg->logicClock) {
       ++(ths->electTimerCounter);
+      sInfo("vgId:%d, sync timeout, type:election count:%d", ths->vgId, ths->electTimerCounter);
       syncNodeElect(ths);
     }
 
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_HEARTBEAT) {
     if (atomic_load_64(&ths->heartbeatTimerLogicClockUser) <= pMsg->logicClock) {
       ++(ths->heartbeatTimerCounter);
+      sInfo("vgId:%d, sync timeout, type:replicate count:%d", ths->vgId, ths->heartbeatTimerCounter);
       syncNodeReplicate(ths);
     }
   } else {
