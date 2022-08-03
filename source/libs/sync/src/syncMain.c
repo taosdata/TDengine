@@ -484,7 +484,7 @@ SyncIndex syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapsho
       lastIndex = (pSyncNode->pRaftCfg->configIndexArr)[i];
     }
   }
-  sTrace("vgId:%d, sync get snapshot last config index, index:%" PRId64 " lcindex:%" PRId64, pSyncNode->vgId,
+  sTrace("vgId:%d, sync get last config index, index:%" PRId64 " lcindex:%" PRId64, pSyncNode->vgId,
          snapshotLastApplyIndex, lastIndex);
 
   return lastIndex;
@@ -730,7 +730,7 @@ int32_t syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg** pMsgPArr, bool* pIs
   for (int i = 0; i < arrSize; ++i) {
     do {
       char eventLog[128];
-      snprintf(eventLog, sizeof(eventLog), "propose type:%s, batch:%d", TMSG_INFO(pMsgPArr[i]->msgType), arrSize);
+      snprintf(eventLog, sizeof(eventLog), "propose message, type:%s batch:%d", TMSG_INFO(pMsgPArr[i]->msgType), arrSize);
       syncNodeEventLog(pSyncNode, eventLog);
     } while (0);
 
@@ -790,7 +790,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
 
   do {
     char eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "propose type:%s", TMSG_INFO(pMsg->msgType));
+    snprintf(eventLog, sizeof(eventLog), "propose message, type:%s", TMSG_INFO(pMsg->msgType));
     syncNodeEventLog(pSyncNode, eventLog);
   } while (0);
 
@@ -1894,7 +1894,9 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
 
       // Raft 3.6.2 Committing entries from previous terms
       syncNodeAppendNoop(pSyncNode);
+#if 0 // simon
       syncNodeReplicate(pSyncNode);
+#endif
       syncMaybeAdvanceCommitIndex(pSyncNode);
 
     } else {
@@ -2070,7 +2072,9 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
 
   // Raft 3.6.2 Committing entries from previous terms
   syncNodeAppendNoop(pSyncNode);
+#if 0  // simon
   syncNodeReplicate(pSyncNode);
+#endif
   syncMaybeAdvanceCommitIndex(pSyncNode);
 }
 

@@ -1791,6 +1791,7 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
     goto _error;
   }
 
+  pOperator->pTaskInfo = pTaskInfo;
   pInfo->win = pTaskInfo->window;
   pInfo->inputOrder = (pPhyNode->window.inputTsOrder == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
   pInfo->resultTsOrder = (pPhyNode->window.outputTsOrder == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
@@ -1846,7 +1847,6 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
   pOperator->blocking = true;
   pOperator->status = OP_NOT_OPENED;
   pOperator->exprSupp.pExprInfo = pExprInfo;
-  pOperator->pTaskInfo = pTaskInfo;
   pOperator->exprSupp.numOfExprs = numOfCols;
   pOperator->info = pInfo;
 
@@ -1881,6 +1881,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SExpr
     goto _error;
   }
 
+  pOperator->pTaskInfo = pTaskInfo;
   pInfo->inputOrder = TSDB_ORDER_ASC;
   pInfo->interval = *pInterval;
   pInfo->execModel = OPTR_EXEC_MODEL_STREAM;
@@ -1907,7 +1908,6 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SExpr
   pOperator->blocking = true;
   pOperator->status = OP_NOT_OPENED;
   pOperator->exprSupp.pExprInfo = pExprInfo;
-  pOperator->pTaskInfo = pTaskInfo;
   pOperator->exprSupp.numOfExprs = numOfCols;
   pOperator->info = pInfo;
 
@@ -3028,6 +3028,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
     goto _error;
   }
 
+  pOperator->pTaskInfo = pTaskInfo;
   pInfo->order = TSDB_ORDER_ASC;
   pInfo->interval = (SInterval){.interval = pIntervalPhyNode->interval,
                                 .sliding = pIntervalPhyNode->sliding,
@@ -3114,7 +3115,6 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pOperator->blocking = true;
   pOperator->status = OP_NOT_OPENED;
   pOperator->exprSupp.pExprInfo = pExprInfo;
-  pOperator->pTaskInfo = pTaskInfo;
   pOperator->exprSupp.numOfExprs = numOfCols;
   pOperator->info = pInfo;
 
@@ -3246,6 +3246,8 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
     goto _error;
   }
 
+  pOperator->pTaskInfo = pTaskInfo;
+
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   if (pSessionNode->window.pExprs != NULL) {
     int32_t    numOfScalar = 0;
@@ -3308,7 +3310,6 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   pOperator->fpSet =
       createOperatorFpSet(operatorDummyOpenFn, doStreamSessionAgg, NULL, NULL, destroyStreamSessionAggOperatorInfo,
                           aggEncodeResultRow, aggDecodeResultRow, NULL);
-  pOperator->pTaskInfo = pTaskInfo;
   if (downstream) {
     initDownStream(downstream, &pInfo->streamAggSup, pInfo->gap, pInfo->twAggSup.waterMark, pOperator->operatorType);
     code = appendDownstream(pOperator, &downstream, 1);

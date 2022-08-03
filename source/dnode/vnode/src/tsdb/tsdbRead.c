@@ -408,6 +408,10 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
     goto _end;
   }
 
+  if (VND_IS_TSMA(pVnode)) {
+    tsdbDebug("vgId:%d, tsma is selected to query", TD_VID(pVnode));
+  }
+
   initReaderStatus(&pReader->status);
 
   pReader->pTsdb = getTsdbByRetentions(pVnode, pCond->twindows.skey, pVnode->config.tsdbCfg.retentions, idstr, &level);
@@ -1906,20 +1910,19 @@ static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* ret
       ++level;
     }
 
-    int32_t     vgId = TD_VID(pVnode);
     const char* str = (idStr != NULL) ? idStr : "";
 
     if (level == TSDB_RETENTION_L0) {
       *pLevel = TSDB_RETENTION_L0;
-      tsdbDebug("vgId:%d, rsma level %d is selected to query %s", vgId, TSDB_RETENTION_L0, str);
+      tsdbDebug("vgId:%d, rsma level %d is selected to query %s", TD_VID(pVnode), TSDB_RETENTION_L0, str);
       return VND_RSMA0(pVnode);
     } else if (level == TSDB_RETENTION_L1) {
       *pLevel = TSDB_RETENTION_L1;
-      tsdbDebug("vgId:%d, rsma level %d is selected to query %s", vgId, TSDB_RETENTION_L1, str);
+      tsdbDebug("vgId:%d, rsma level %d is selected to query %s", TD_VID(pVnode), TSDB_RETENTION_L1, str);
       return VND_RSMA1(pVnode);
     } else {
       *pLevel = TSDB_RETENTION_L2;
-      tsdbDebug("vgId:%d, rsma level %d is selected to query %s", vgId, TSDB_RETENTION_L2, str);
+      tsdbDebug("vgId:%d, rsma level %d is selected to query %s", TD_VID(pVnode), TSDB_RETENTION_L2, str);
       return VND_RSMA2(pVnode);
     }
   }

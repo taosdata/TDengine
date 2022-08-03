@@ -26,9 +26,9 @@ class TDTestCase:
 
         self.ts = 1601481600000
         self.numberOfTables = 1
-        self.numberOfRecords = 15000
+        self.numberOfRecords = 150
 
-    def getBuildPath(self):
+    def getPath(self, tool="taosdump"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -36,15 +36,24 @@ class TDTestCase:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        paths = []
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
+                    paths.append(os.path.join(root, tool))
                     break
-        return buildPath
+        if (len(paths) == 0):
+            return ""
+        return paths[0]
 
     def run(self):
+        if not os.path.exists("./taosdumptest/tmp"):
+            os.makedirs("./taosdumptest/tmp")
+        else:
+            os.system("rm -rf ./taosdumptest/tmp")
+            os.makedirs("./taosdumptest/tmp")
+
         tdSql.prepare()
 
         tdSql.execute("create table st(ts timestamp, c1 timestamp, c2 int, c3 bigint, c4 float, c5 double, c6 binary(8), c7 smallint, c8 tinyint, c9 bool, c10 nchar(8)) tags(t1 int)")
@@ -60,27 +69,26 @@ class TDTestCase:
                     break
             tdSql.execute(sql)
 
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
+        binPath = self.getPath()
+        if (binPath == ""):
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % buildPath)
-        binPath = buildPath + "/build/bin/"
+            tdLog.info("taosdump found in %s" % binPath)
 
-        os.system("rm /tmp/*.sql")
+        os.system("rm ./taosdumptest/tmp/*.sql")
         os.system(
-            "%staosdump --databases db -o /tmp -B 32766 -L 1048576" %
+            "%s --databases db -o ./taosdumptest/tmp -B 32766 -L 1048576" %
             binPath)
 
         tdSql.execute("drop database db")
         tdSql.query("show databases")
-        tdSql.checkRows(0)
+        tdSql.checkRows(2)
 
-        os.system("%staosdump -i /tmp" % binPath)
+        os.system("%s -i ./taosdumptest/tmp" % binPath)
 
         tdSql.query("show databases")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 'db')
+        tdSql.checkRows(3)
+        tdSql.checkData(2, 0, 'db')
 
         tdSql.execute("use db")
         tdSql.query("show stables")
@@ -89,6 +97,38 @@ class TDTestCase:
 
         tdSql.query("select count(*) from t1")
         tdSql.checkData(0, 0, self.numberOfRecords)
+
+        # test case for TS-1225
+        tdSql.execute("create database test")
+        tdSql.execute("use test")
+        tdSql.execute(
+            "create table stb(ts timestamp, c1 binary(16374), c2 binary(16374), c3 binary(16374)) tags(t1 nchar(256))")
+        tdSql.execute(
+            "insert into t1 using stb tags('t1') values(now, '%s', '%s', '%s')" %
+            ("16374",
+             "16374",
+             "16374"))
+
+#        sys.exit(0)
+        os.system("rm ./taosdumptest/tmp/*.sql")
+        os.system("rm ./taosdumptest/tmp/*.avro*")
+        os.system("%s -D test -o ./taosdumptest/tmp -y" % binPath)
+
+        tdSql.execute("drop database test")
+        tdSql.query("show databases")
+        tdSql.checkRows(3)
+
+        os.system("%s -i ./taosdumptest/tmp -y" % binPath)
+
+        tdSql.execute("use test")
+        tdSql.error("show vnodes '' ")
+        tdSql.query("show stables")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'stb')
+
+        tdSql.query("select * from stb")
+        tdSql.checkRows(1)
+        os.system("rm -rf dump_result.txt")
 
     def stop(self):
         tdSql.close()

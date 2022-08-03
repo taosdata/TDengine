@@ -491,6 +491,11 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pR
       goto _exit;
     }
 
+    if ((terrno = grantCheck(TSDB_GRANT_TABLE)) < 0) {
+      rcode = -1;
+      goto _exit;
+    }
+
     // validate hash
     sprintf(tbName, "%s.%s", pVnode->config.dbname, pCreateReq->name);
     if (vnodeValidateTableHash(pVnode, tbName) < 0) {
@@ -835,6 +840,13 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
       }
 
       if ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) < 0) {
+        pRsp->code = terrno;
+        tDecoderClear(&decoder);
+        taosArrayDestroy(createTbReq.ctb.tagName);
+        goto _exit;
+      }
+
+      if ((terrno = grantCheck(TSDB_GRANT_TABLE)) < 0) {
         pRsp->code = terrno;
         tDecoderClear(&decoder);
         taosArrayDestroy(createTbReq.ctb.tagName);
