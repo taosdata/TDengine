@@ -912,7 +912,7 @@ int32_t tdAppendColValToRow(SRowBuilder *pBuilder, col_id_t colId, int8_t colTyp
   STSRow *pRow = pBuilder->pBuf;
   if (!val) {
 #ifdef TD_SUPPORT_BITMAP
-    if (tdValTypeIsNorm(valType)) {
+    if (valType == TD_VTYPE_NORM) {
       terrno = TSDB_CODE_INVALID_PTR;
       return terrno;
     }
@@ -970,7 +970,7 @@ int32_t tdAppendColValToKvRow(SRowBuilder *pBuilder, TDRowValT valType, const vo
 
   STSRow *row = pBuilder->pBuf;
   // No need to store None/Null values.
-  if (tdValIsNorm(valType, val, colType)) {
+  if (valType == TD_VTYPE_NORM) {
     // ts key stored in STSRow.ts
     SKvRowIdx *pColIdx = (SKvRowIdx *)POINTER_SHIFT(TD_ROW_COL_IDX(row), offset);
     char      *ptr = (char *)POINTER_SHIFT(row, TD_ROW_LEN(row));
@@ -1031,7 +1031,7 @@ int32_t tdAppendColValToTpRow(SRowBuilder *pBuilder, TDRowValT valType, const vo
   // 1. No need to set flen part for Null/None, just use bitmap. When upsert for the same primary TS key, the bitmap
   // should be updated simultaneously if Norm val overwrite Null/None cols.
   // 2. When consume STSRow in memory by taos client/tq, the output of Null/None cols should both be Null.
-  if (tdValIsNorm(valType, val, colType)) {
+  if (valType == TD_VTYPE_NORM) {
     // TODO: The layout of new data types imported since 3.0 like blob/medium blob is the same with binary/nchar.
     if (IS_VAR_DATA_TYPE(colType)) {
       // ts key stored in STSRow.ts
