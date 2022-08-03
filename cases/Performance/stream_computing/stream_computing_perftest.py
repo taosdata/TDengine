@@ -110,6 +110,7 @@ class StreamComputingPerfTest(TDCase):
                     target_tb = cfg[cases][json_file]["stream_info"]["stream_stb"]
                     query_sql = cfg[cases][json_file]["stream_info"]["source_sql"]
                     target_db = target_tb.split(".")[0]
+                    # self.tdSql.execute(f'create database if not exists {target_db} minrows 1 vgroups 1')
                     self.tdSql.execute(f'create database if not exists {target_db} minrows 1 vgroups {cfg[cases][json_file]["db_info"]["vgroups"]}')
                     # self.tdSql.execute(f'create database if not exists perf_db2 minrows 1 vgroups 1')
                     # interval=cfg[cases][json_file]["stream_info"]["interval"]
@@ -293,6 +294,15 @@ class StreamComputingPerfTest(TDCase):
                 self.tdSql.query(f'select count(*) from {cfg[cases][json_file]["stream_info"]["stream_stb"]};')
                 if len(self.tdSql.query_data) > 0:
                     f.write(str(self.tdSql.query_data[0][0]))
+                else:
+                    f.write(str(0))
+                f.write(f'\n\n')
+
+                f.write(f'--------{cases}---- final result \t--------\n')
+                self.tdSql.query(f'select avg(sp),max(sp),min(sp) from (select start,spread(cha) as sp from ((select _wstart as start  ,max(cast(c4 as bigint)) as cha from {cfg[cases][json_file]["stb_info"]["stb_name"]} interval(1s)) \
+                union all (select start, cast(`now` as bigint)  from {cfg[cases][json_file]["stream_info"]["stream_stb"]}) order by start) partition by start order by start ) where sp>0;')
+                if len(self.tdSql.query_data) > 0:
+                    f.write(str([round(x, 1) for x in self.tdSql.query_data[0]]))
                 else:
                     f.write(str(0))
                 f.write(f'\n\n')
