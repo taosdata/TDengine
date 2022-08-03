@@ -1011,6 +1011,11 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  if ((terrno = grantCheck(TSDB_GRANT_STABLE)) < 0) {
+    code = -1;
+    goto _OVER;
+  }
+
   if (isAlter) {
     bool    needRsp = false;
     SStbObj pDst = {0};
