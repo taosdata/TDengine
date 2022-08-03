@@ -159,7 +159,7 @@ class TDTestCase:
         tdLog.info("check dnode number:")
         clusterComCheck.checkDnodes(dnodeNumbers)
         tdSql.query("show databases")
-        tdLog.debug("we find %d databases but exepect to create %d  databases "%(tdSql.queryRows-2,allDbNumbers-2))
+        tdLog.debug("we find %d databases but exepect to create %d  databases "%(tdSql.queryRows-2,allDbNumbers))
 
         # tdLog.info("check DB Rows:")
         # clusterComCheck.checkDbRows(allDbNumbers)
@@ -170,7 +170,7 @@ class TDTestCase:
 
     def run(self):
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=2,stopRole='mnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=3,stopRole='mnode')
 
     def stop(self):
         tdSql.close()
