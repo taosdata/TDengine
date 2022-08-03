@@ -3319,17 +3319,19 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
   return fillResult;
 }
 
-static void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
-  for (int32_t i = 0; i < numOfExprs; ++i) {
-    SExprInfo* pExprInfo = &pExpr[i];
-    for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
-      if (pExprInfo->base.pParam[j].type == FUNC_PARAM_TYPE_COLUMN) {
-        taosMemoryFreeClear(pExprInfo->base.pParam[j].pCol);
+void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
+  if (pExpr) {
+    for (int32_t i = 0; i < numOfExprs; ++i) {
+      SExprInfo* pExprInfo = &pExpr[i];
+      for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
+        if (pExprInfo->base.pParam[j].type == FUNC_PARAM_TYPE_COLUMN) {
+          taosMemoryFreeClear(pExprInfo->base.pParam[j].pCol);
+        }
       }
-    }
 
-    taosMemoryFree(pExprInfo->base.pParam);
-    taosMemoryFree(pExprInfo->pExpr);
+      taosMemoryFree(pExprInfo->base.pParam);
+      taosMemoryFree(pExprInfo->pExpr);
+    }
   }
 }
 
@@ -3759,11 +3761,7 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
 
 static void cleanupTableSchemaInfo(SSchemaInfo* pSchemaInfo) {
   taosMemoryFreeClear(pSchemaInfo->dbname);
-  if (pSchemaInfo->sw == NULL) {
-    return;
-  }
-
-  taosMemoryFree(pSchemaInfo->tablename);
+  taosMemoryFreeClear(pSchemaInfo->tablename);
   tDeleteSSchemaWrapper(pSchemaInfo->sw);
   tDeleteSSchemaWrapper(pSchemaInfo->qsw);
 }
@@ -3925,6 +3923,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
   int32_t type = nodeType(pPhyNode);
 
   if (pPhyNode->pChildren == NULL || LIST_LENGTH(pPhyNode->pChildren) == 0) {
+    SOperatorInfo* pOperator = NULL;
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == type) {
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
 
@@ -3942,11 +3941,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      SOperatorInfo*  pOperator = createTableScanOperatorInfo(pTableScanNode, pHandle, pTaskInfo);
+      pOperator = createTableScanOperatorInfo(pTableScanNode, pHandle, pTaskInfo);
       STableScanInfo* pScanInfo = pOperator->info;
       pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
-      return pOperator;
-
     } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == type) {
       STableMergeScanPhysiNode* pTableScanNode = (STableMergeScanPhysiNode*)pPhyNode;
       int32_t                   code =
@@ -3963,14 +3960,12 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      SOperatorInfo* pOperator = createTableMergeScanOperatorInfo(pTableScanNode, pTableListInfo, pHandle, pTaskInfo);
+      pOperator = createTableMergeScanOperatorInfo(pTableScanNode, pTableListInfo, pHandle, pTaskInfo);
 
       STableScanInfo* pScanInfo = pOperator->info;
       pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
-      return pOperator;
-
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == type) {
-      return createExchangeOperatorInfo(pHandle->pMsgCb->clientRpc, (SExchangePhysiNode*)pPhyNode, pTaskInfo);
+      pOperator = createExchangeOperatorInfo(pHandle->pMsgCb->clientRpc, (SExchangePhysiNode*)pPhyNode, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
       if (pHandle->vnode) {
@@ -3986,18 +3981,16 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         int32_t sz = taosArrayGetSize(pTableListInfo->pTableList);
         for (int32_t i = 0; i < sz; i++) {
           STableKeyInfo* pKeyInfo = taosArrayGet(pTableListInfo->pTableList, i);
-          qDebug("creating stream task: add table %ld", pKeyInfo->uid);
+          qDebug("creating stream task: add table %" PRId64, pKeyInfo->uid);
         }
       }
 #endif
 
       pTaskInfo->schemaInfo.qsw = extractQueriedColumnSchema(&pTableScanNode->scan);
-      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle, pTableScanNode, pTagCond, pTaskInfo);
-      return pOperator;
-
+      pOperator = createStreamScanOperatorInfo(pHandle, pTableScanNode, pTagCond, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
       SSystemTableScanPhysiNode* pSysScanPhyNode = (SSystemTableScanPhysiNode*)pPhyNode;
-      return createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, pUser, pTaskInfo);
+      pOperator = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, pUser, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN == type) {
       STagScanPhysiNode* pScanPhyNode = (STagScanPhysiNode*)pPhyNode;
       int32_t code = getTableList(pHandle->meta, pHandle->vnode, pScanPhyNode, pTagCond, pTagIndexCond, pTableListInfo);
@@ -4006,7 +3999,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      return createTagScanOperatorInfo(pHandle, pScanPhyNode, pTableListInfo, pTaskInfo);
+      pOperator = createTagScanOperatorInfo(pHandle, pScanPhyNode, pTableListInfo, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN == type) {
       SBlockDistScanPhysiNode* pBlockNode = (SBlockDistScanPhysiNode*)pPhyNode;
       pTableListInfo->pTableList = taosArrayInit(4, sizeof(STableKeyInfo));
@@ -4032,7 +4025,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       tsdbReaderOpen(pHandle->vnode, &cond, pTableListInfo->pTableList, &pReader, "");
       cleanupQueryTableDataCond(&cond);
 
-      return createDataBlockInfoScanOperator(pReader, pHandle, cond.suid, pBlockNode, pTaskInfo);
+      pOperator = createDataBlockInfoScanOperator(pReader, pHandle, cond.suid, pBlockNode, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN == type) {
       SLastRowScanPhysiNode* pScanNode = (SLastRowScanPhysiNode*)pPhyNode;
 
@@ -4049,12 +4042,14 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      return createLastrowScanOperator(pScanNode, pHandle, pTaskInfo);
+      pOperator = createLastrowScanOperator(pScanNode, pHandle, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_PROJECT == type) {
-      return createProjectOperatorInfo(NULL, (SProjectPhysiNode*)pPhyNode, pTaskInfo);
+      pOperator = createProjectOperatorInfo(NULL, (SProjectPhysiNode*)pPhyNode, pTaskInfo);
     } else {
       ASSERT(0);
     }
+    pOperator->resultDataBlockId = pPhyNode->pOutputDataBlockDesc->dataBlockId;
+    return pOperator;
   }
 
   int32_t num = 0;
@@ -4066,6 +4061,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     ops[i] = createOperatorTree(pChildNode, pTaskInfo, pHandle, pTableListInfo, pTagCond, pTagIndexCond, pUser);
     if (ops[i] == NULL) {
       return NULL;
+    } else {
+      ops[i]->resultDataBlockId = pChildNode->pOutputDataBlockDesc->dataBlockId;
     }
   }
 
@@ -4162,16 +4159,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     pOptr = createMultiwayMergeOperatorInfo(ops, size, pMergePhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION == type) {
     SSessionWinodwPhysiNode* pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
-
-    STimeWindowAggSupp as = {.waterMark = pSessionNode->window.watermark,
-                             .calTrigger = pSessionNode->window.triggerType};
-
-    SExprInfo*   pExprInfo = createExprInfo(pSessionNode->window.pFuncs, NULL, &num);
-    SSDataBlock* pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
-    int32_t      tsSlotId = ((SColumnNode*)pSessionNode->window.pTspk)->slotId;
-
-    pOptr = createSessionAggOperatorInfo(ops[0], pExprInfo, num, pResBlock, pSessionNode->gap, tsSlotId, &as,
-                                         pPhyNode->pConditions, pTaskInfo);
+    pOptr = createSessionAggOperatorInfo(ops[0], pSessionNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION == type) {
     pOptr = createStreamSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION == type) {
@@ -4208,8 +4196,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
   } else {
     ASSERT(0);
   }
-
   taosMemoryFree(ops);
+
+  pOptr->resultDataBlockId = pPhyNode->pOutputDataBlockDesc->dataBlockId;
   return pOptr;
 }
 

@@ -18,8 +18,8 @@
 #include "tcompare.h"
 #include "tconfig.h"
 #include "tdatablock.h"
-#include "tlog.h"
 #include "tgrant.h"
+#include "tlog.h"
 
 GRANT_CFG_DECLARE;
 
@@ -389,7 +389,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 4);
   if (cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 4, 1024, 0) != 0) return -1;
 
-  tsNumOfVnodeStreamThreads = tsNumOfCores / 4;
+  tsNumOfVnodeStreamThreads = tsNumOfCores;
   tsNumOfVnodeStreamThreads = TMAX(tsNumOfVnodeStreamThreads, 4);
   if (cfgAddInt32(pCfg, "numOfVnodeStreamThreads", tsNumOfVnodeStreamThreads, 4, 1024, 0) != 0) return -1;
 
@@ -598,7 +598,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   return 0;
 }
 
-void taosLocalCfgForbiddenToChange(char* name, bool* forbidden) {
+void taosLocalCfgForbiddenToChange(char *name, bool *forbidden) {
   int32_t len = strlen(name);
   char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
   strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
@@ -611,7 +611,6 @@ void taosLocalCfgForbiddenToChange(char* name, bool* forbidden) {
 
   *forbidden = false;
 }
-
 
 int32_t taosSetCfg(SConfig *pCfg, char *name) {
   int32_t len = strlen(name);
@@ -1114,12 +1113,12 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
   const char *options[] = {
       "dDebugFlag",   "vDebugFlag",  "mDebugFlag",   "wDebugFlag",   "sDebugFlag",   "tsdbDebugFlag",
       "tqDebugFlag",  "fsDebugFlag", "udfDebugFlag", "smaDebugFlag", "idxDebugFlag", "tdbDebugFlag",
-      "tmrDebugFlag", "uDebugFlag",  "smaDebugFlag", "rpcDebugFlag", "qDebugFlag", "metaDebugFlag",
+      "tmrDebugFlag", "uDebugFlag",  "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",   "metaDebugFlag",
   };
   int32_t *optionVars[] = {
       &dDebugFlag,   &vDebugFlag,  &mDebugFlag,   &wDebugFlag,   &sDebugFlag,   &tsdbDebugFlag,
       &tqDebugFlag,  &fsDebugFlag, &udfDebugFlag, &smaDebugFlag, &idxDebugFlag, &tdbDebugFlag,
-      &tmrDebugFlag, &uDebugFlag,  &smaDebugFlag, &rpcDebugFlag, &qDebugFlag, &metaDebugFlag,
+      &tmrDebugFlag, &uDebugFlag,  &smaDebugFlag, &rpcDebugFlag, &qDebugFlag,   &metaDebugFlag,
   };
 
   int32_t optionSize = tListLen(options);

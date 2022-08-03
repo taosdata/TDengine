@@ -26,7 +26,34 @@
 static void         setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode);
 static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator);
 static void         destroyMergeJoinOperator(void* param, int32_t numOfOutput);
-static void         extractTimeCondition(SJoinOperatorInfo* Info, SLogicConditionNode* pLogicConditionNode);
+static void         extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream, int32_t numOfDownstream,
+                                         SSortMergeJoinPhysiNode* pJoinNode);
+
+static void extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream, int32_t numOfDownstream,
+                                 SSortMergeJoinPhysiNode* pJoinNode) {
+  SNode* pMergeCondition = pJoinNode->pMergeCondition;
+  if (nodeType(pMergeCondition) == QUERY_NODE_OPERATOR) {
+    SOperatorNode* pNode = (SOperatorNode*)pMergeCondition;
+    SColumnNode*   col1 = (SColumnNode*)pNode->pLeft;
+    SColumnNode*   col2 = (SColumnNode*)pNode->pRight;
+    SColumnNode*   leftTsCol = NULL;
+    SColumnNode*   rightTsCol = NULL;
+    if (col1->dataBlockId == pDownstream[0]->resultDataBlockId) {
+      ASSERT(col2->dataBlockId == pDownstream[1]->resultDataBlockId);
+      leftTsCol = col1;
+      rightTsCol = col2;
+    } else {
+      ASSERT(col1->dataBlockId == pDownstream[1]->resultDataBlockId);
+      ASSERT(col2->dataBlockId == pDownstream[0]->resultDataBlockId);
+      leftTsCol = col2;
+      rightTsCol = col1;
+    }
+    setJoinColumnInfo(&pInfo->leftCol, leftTsCol);
+    setJoinColumnInfo(&pInfo->rightCol, rightTsCol);
+  } else {
+    ASSERT(false);
+  }
+}
 
 SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                            SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo) {
@@ -53,14 +80,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
 
-  SNode* pMergeCondition = pJoinNode->pMergeCondition;
-  if (nodeType(pMergeCondition) == QUERY_NODE_OPERATOR) {
-    SOperatorNode* pNode = (SOperatorNode*)pMergeCondition;
-    setJoinColumnInfo(&pInfo->leftCol, (SColumnNode*)pNode->pLeft);
-    setJoinColumnInfo(&pInfo->rightCol, (SColumnNode*)pNode->pRight);
-  } else {
-    ASSERT(false);
-  }
+  extractTimeCondition(pInfo, pDownstream, numOfDownstream, pJoinNode);
 
   if (pJoinNode->pOnConditions != NULL && pJoinNode->node.pConditions != NULL) {
     pInfo->pCondAfterMerge = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
@@ -173,16 +193,16 @@ static int32_t mergeJoinGetBlockRowsEqualTs(SSDataBlock* pBlock, int16_t tsSlotI
   }
 
   SSDataBlock* block = pBlock;
-  bool createdNewBlock = false;
+  bool         createdNewBlock = false;
   if (endPos == numRows) {
-    block = blockDataExtractBlock(pBlock, startPos, endPos-startPos);
+    block = blockDataExtractBlock(pBlock, startPos, endPos - startPos);
     taosArrayPush(createdBlocks, &block);
     createdNewBlock = true;
   }
   SRowLocation location = {0};
   for (int32_t j = startPos; j < endPos; ++j) {
     location.pDataBlock = block;
-    location.pos = ( createdNewBlock ? j - startPos : j);
+    location.pos = (createdNewBlock ? j - startPos : j);
     taosArrayPush(rowLocations, &location);
   }
   return 0;
@@ -366,18 +386,4 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
     }
   }
   return (pRes->info.rows > 0) ? pRes : NULL;
-}
-
-static void extractTimeCondition(SJoinOperatorInfo* pInfo, SLogicConditionNode* pLogicConditionNode) {
-  int32_t len = LIST_LENGTH(pLogicConditionNode->pParameterList);
-
-  for (int32_t i = 0; i < len; ++i) {
-    SNode* pNode = nodesListGetNode(pLogicConditionNode->pParameterList, i);
-    if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
-      SOperatorNode* pn1 = (SOperatorNode*)pNode;
-      setJoinColumnInfo(&pInfo->leftCol, (SColumnNode*)pn1->pLeft);
-      setJoinColumnInfo(&pInfo->rightCol, (SColumnNode*)pn1->pRight);
-      break;
-    }
-  }
 }

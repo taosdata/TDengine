@@ -40,7 +40,7 @@ int vnodeOpenBufPool(SVnode *pVnode, int64_t size) {
     pVnode->pPool = pPool;
   }
 
-  vDebug("vgId:%d, vnode buffer pool is opened, pool size: %" PRId64, TD_VID(pVnode), size);
+  vDebug("vgId:%d, vnode buffer pool is opened, size:%" PRId64, TD_VID(pVnode), size);
 
   return 0;
 }
