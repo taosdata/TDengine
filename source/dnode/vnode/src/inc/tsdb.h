@@ -469,7 +469,8 @@ struct SColData {
 };
 
 struct SBlockData {
-  int64_t  suid;
+  int64_t  suid;  // 0 means normal table data block
+  int64_t  uid;   // 0 means block data in .last file, others in .data file
   int32_t  nRow;
   int64_t *aUid;
   int64_t *aVersion;

@@ -537,7 +537,7 @@ _err:
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx, uint8_t **ppBuf) {
   int32_t   code = 0;
   int64_t   offset = pReader->pSet->pHeadF->offset;
-  int64_t   size = pReader->pSet->pHeadF->size - offset;
+  int64_t   size = pReader->pSet->pHeadF->loffset - offset;
   uint8_t  *pBuf = NULL;
   int64_t   n;
   uint32_t  delimiter;
@@ -604,7 +604,7 @@ _err:
 int32_t tsdbReadBlockL(SDataFReader *pReader, SArray *aBlockL, uint8_t **ppBuf) {
   int32_t  code = 0;
   int64_t  offset = pReader->pSet->pHeadF->loffset;
-  int64_t  size = pReader->pSet->pHeadF->offset - offset;
+  int64_t  size = pReader->pSet->pHeadF->size - offset;
   int64_t  n;
   uint32_t delimiter;
   uint8_t *pBuf = NULL;
