@@ -157,6 +157,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
           tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, data, true, pColumn->offset, k);
         }
       }
+      tdSRowEnd(&rb);
       int32_t rowLen = TD_ROW_LEN(rowData);
       rowData = POINTER_SHIFT(rowData, rowLen);
       dataLen += rowLen;

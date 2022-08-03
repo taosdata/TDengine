@@ -3129,6 +3129,7 @@ int taos_write_raw_block(TAOS *taos, int rows, char *pData, const char* tbname){
 
       offset += TYPE_BYTES[pColumn->type];
     }
+    tdSRowEnd(&rb);
     int32_t rowLen = TD_ROW_LEN(rowData);
     rowData = POINTER_SHIFT(rowData, rowLen);
     dataLen += rowLen;
@@ -3360,6 +3361,7 @@ static int32_t tmqWriteRaw(TAOS *taos, void* data, int32_t dataLen){
         }
         offset += TYPE_BYTES[pColumn->type];
       }
+      tdSRowEnd(&rb);
       int32_t rowLen = TD_ROW_LEN(rowData);
       rowData = POINTER_SHIFT(rowData, rowLen);
       dataLen += rowLen;

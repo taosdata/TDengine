@@ -1206,6 +1206,7 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
   }
 
   // *len = pBuilder->extendedRowSize;
+  tdSRowEnd(pBuilder);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1973,6 +1974,7 @@ int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, in
         }
       }
     }
+    tdSRowEnd(pBuilder);
 #ifdef TD_DEBUG_PRINT_ROW
     STSchema* pSTSchema = tdGetSTSChemaFromSSChema(pSchema, spd->numOfCols, 1);
     tdSRowPrint(row, pSTSchema, __func__);
@@ -2056,7 +2058,9 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
         }
       }
     }
-
+    if(rowEnd) {
+      tdSRowEnd(pBuilder);
+    }
 #ifdef TD_DEBUG_PRINT_ROW
     if (rowEnd) {
       STSchema* pSTSchema = tdGetSTSChemaFromSSChema(pSchema, spd->numOfCols, 1);
@@ -2436,6 +2440,7 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
       }
     }
 
+    tdSRowEnd(pBuilder);
     pDataBlock->size += extendedRowSize;
   }
 

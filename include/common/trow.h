@@ -38,7 +38,8 @@ typedef struct {
       uint16_t type : 2;
       uint16_t del : 1;
       uint16_t endian : 1;
-      uint16_t reserve : 12;
+      uint16_t normal : 1;  // all norm
+      uint16_t reserve : 11;
       uint16_t sver;
     };
   };
@@ -149,6 +150,8 @@ typedef struct {
   void    *pBitmap;
   void    *pOffset;
   int32_t  extendedRowSize;
+  int16_t  nNone;
+  int16_t  nNull;
 } SRowBuilder;
 
 #define TD_ROW_HEAD_LEN  (sizeof(STSRow))
@@ -287,9 +290,8 @@ int32_t tdSRowSetTpInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t flen);
 int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen,
                               int32_t allNullLen, int32_t boundNullLen);
 int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf);
+int32_t tdSRowEnd(SRowBuilder *pBuilder);
 int32_t tdSRowGetBuf(SRowBuilder *pBuilder, void *pBuf);
-int32_t tdSRowInitEx(SRowBuilder *pBuilder, void *pBuf, uint32_t allNullLen, uint32_t boundNullLen, int32_t nCols,
-                     int32_t nBoundCols, int32_t flen);
 void    tdSRowReset(SRowBuilder *pBuilder);
 int32_t tdAppendColValToTpRow(SRowBuilder *pBuilder, TDRowValT valType, const void *val, bool isCopyVarData,
                               int8_t colType, int16_t colIdx, int32_t offset);

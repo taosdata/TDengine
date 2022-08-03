@@ -659,6 +659,7 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SB
         toffset += TYPE_BYTES[colType];
         p += pSchema[j].bytes;
       }
+      tdSRowEnd(&builder);
       int32_t rowLen = TD_ROW_LEN((STSRow*)pDataBlock);
       pDataBlock = (char*)pDataBlock + rowLen;
       pBlock->dataLen += rowLen;
