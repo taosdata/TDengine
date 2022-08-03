@@ -1773,7 +1773,6 @@ bool doRpcSendProbe(SRpcConn *pConn) {
   pHead->code = htonl(code);
 
   bool ret = rpcSendMsgToPeer(pConn, msg, sizeof(SRpcHead) + sizeof(int32_t));
-  pConn->lastLiveTime = taosGetTimestampMs();
 
   return ret;
 }
