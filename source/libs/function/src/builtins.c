@@ -2276,6 +2276,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = lastRowFunction,
     .sprocessFunc = firstLastScalarFunction,
+    .pPartialFunc = "_last_row_partial",
+    .pMergeFunc   = "_last_row_merge",
     .finalizeFunc = firstLastFinalize
   },
   {
@@ -2287,6 +2289,27 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = cachedLastRowFunction,
     .finalizeFunc = firstLastFinalize
+  },
+  {
+    .name = "_last_row_partial",
+    .type = FUNCTION_TYPE_LAST_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .translateFunc = translateFirstLastPartial,
+    .dynDataRequiredFunc = lastDynDataReq,
+    .getEnvFunc   = getFirstLastFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = lastRowFunction,
+    .finalizeFunc = firstLastPartialFinalize,
+  },
+  {
+    .name = "_last_row_merge",
+    .type = FUNCTION_TYPE_LAST_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .translateFunc = translateFirstLastMerge,
+    .getEnvFunc   = getFirstLastFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = lastFunctionMerge,
+    .finalizeFunc = firstLastFinalize,
   },
   {
     .name = "first",
