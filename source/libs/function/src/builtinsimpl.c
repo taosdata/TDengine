@@ -2953,25 +2953,24 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 
 static void firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst) {
   SInputColumnInfoData* pColInfo = &pCtx->input;
-  int32_t               start = pColInfo->startRowIndex;
 
-  pOutput->bytes = pInput->bytes;
-  TSKEY* tsIn = &pInput->ts;
-  TSKEY* tsOut = &pOutput->ts;
-
+  int32_t start = pColInfo->startRowIndex;
   if (pOutput->hasResult) {
     if (isFirst) {
-      if (*tsIn > *tsOut) {
+      if (pInput->ts > pOutput->ts) {
         return;
       }
     } else {
-      if (*tsIn < *tsOut) {
+      if (pInput->ts < pOutput->ts) {
         return;
       }
     }
   }
 
-  *tsOut = *tsIn;
+  pOutput->isNull = pInput->isNull;
+  pOutput->ts = pInput->ts;
+  pOutput->bytes = pInput->bytes;
+
   memcpy(pOutput->buf, pInput->buf, pOutput->bytes);
   saveTupleData(pCtx->pSrcBlock, start, pCtx, pOutput);
 
@@ -2998,7 +2997,6 @@ static int32_t firstLastFunctionMergeImpl(SqlFunctionCtx* pCtx, bool isFirstQuer
   }
 
   SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3099,9 +3097,9 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
   TSKEY startKey = getRowPTs(pInput->pPTS, 0);
   TSKEY endKey = getRowPTs(pInput->pPTS, pInput->totalRows - 1);
 
+#if 0
   int32_t blockDataOrder = (startKey <= endKey) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
 
-#if 0
   // the optimized version only function if all tuples in one block are monotonious increasing or descreasing.
   // this is NOT always works if project operator exists in downstream.
   if (blockDataOrder == TSDB_ORDER_ASC) {
@@ -3141,6 +3139,7 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
   }
 
 #endif
+
   SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }
