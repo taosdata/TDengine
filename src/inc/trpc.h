@@ -78,13 +78,6 @@ typedef struct SRpcInit {
   int  (*afp)(char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
 } SRpcInit;
 
-typedef struct SSendInfo {
-  void *pContext;
-  void *pConn;
-  void *pFdObj;
-  SOCKET fd;
-} SSendInfo;
-
 int32_t rpcInit();
 void  rpcCleanup();
 void *rpcOpen(const SRpcInit *pRpc);

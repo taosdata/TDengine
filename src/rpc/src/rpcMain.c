@@ -69,6 +69,13 @@ typedef struct {
   struct SRpcConn *connList;  // connection list
 } SRpcInfo;
 
+typedef struct SSendInfo {
+  void *pContext;
+  void *pConn;
+  void *pFdObj;
+  SOCKET fd;
+} SSendInfo;
+
 typedef struct {
   SRpcInfo *pRpc;       // associated SRpcInfo
   SRpcEpSet epSet;      // ip list provided by app
@@ -127,7 +134,6 @@ typedef struct SRpcConn {
   SRpcReqContext *pContext; // request context
   int64_t   rid;       // probe msg use rid get pContext
   int64_t   lastLiveTime; // last alive time with ms
-  
 } SRpcConn;
 
 int tsRpcMaxUdpSize = 15000;  // bytes
