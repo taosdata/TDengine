@@ -3053,6 +3053,7 @@ int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
 int32_t tDecodeDeleteRes(SDecoder* pCoder, SDeleteRes* pRes);
 
 typedef struct {
+  int32_t msgIdx;
   int32_t msgType;
   int32_t msgLen;
   void*   msg;
@@ -3066,6 +3067,7 @@ typedef struct {
 
 typedef struct {
   int32_t reqType;
+  int32_t msgIdx;
   int32_t msgLen;
   int32_t rspCode;
   void*   msg;

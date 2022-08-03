@@ -2152,6 +2152,60 @@ int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMet
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMetaBCtx* ctx, SArray** pTbMetas) {
+  int32_t tbNum = taosArrayGetSize(ctx->pNames);
+  SName* fName = taosArrayGet(ctx->pNames, 0);
+  int32_t fIdx = 0;
+  
+  for (int32_t i = 0; i < tbNum; ++i) {
+    SName* pName = taosArrayGet(ctx->pNames, i);
+    SCtgTbMetaCtx nctx = {0};
+    nctx.flag = CTG_FLAG_UNKNOWN_STB;
+    nctx.pName = pName;
+    
+    if (IS_SYS_DBNAME(pName->dbname)) {
+      CTG_FLAG_SET_SYS_DB(nctx.flag);
+    }
+
+    STableMeta *pTableMeta = NULL;
+    CTG_ERR_RET(ctgReadTbMetaFromCache(pCtg, &nctx, &pTableMeta));
+    SMetaRes res = {0};
+    
+    if (pTableMeta) {
+      if (CTG_FLAG_MATCH_STB(nctx.flag, pTableMeta->tableType) &&
+          ((!CTG_FLAG_IS_FORCE_UPDATE(nctx.flag)) || (CTG_FLAG_IS_SYS_DB(nctx.flag)))) {
+        res.pRes = pTableMeta;
+      } else {
+        taosMemoryFreeClear(pTableMeta);
+      }
+    }
+
+    if (NULL == res.pRes) {
+      if (NULL == ctx->pFetchs) {
+        ctx->pFetchs = taosArrayInit(tbNum, sizeof(SCtgFetch));
+      }
+      
+      if (CTG_FLAG_IS_UNKNOWN_STB(nctx.flag)) {
+        CTG_FLAG_SET_STB(nctx.flag, nctx.tbInfo.tbType);
+      }
+
+      SCtgFetch fetch = {0};
+      fetch.reqIdx = i;
+      fetch.fetchIdx = fIdx++;
+      fetch.flag = nctx.flag;
+
+      taosArrayPush(ctx->pFetchs, &fetch);
+    }
+    
+    taosArrayPush(ctx->pTbMetas, &res);
+  }
+
+  if (NULL == ctx->pFetchs) {
+    TSWAP(*pTbMetas, ctx->pTbMetas);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq) {
   int32_t       code = 0;

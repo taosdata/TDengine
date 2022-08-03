@@ -80,6 +80,7 @@ typedef enum {
   CTG_TASK_GET_UDF,
   CTG_TASK_GET_USER,
   CTG_TASK_GET_SVR_VER,
+  CTG_TASK_GET_TB_META_BATCH,
 } CTG_TASK_TYPE;
 
 typedef enum {
@@ -109,6 +110,22 @@ typedef struct SCtgTbMetaCtx {
   SName* pName;
   int32_t flag;
 } SCtgTbMetaCtx;
+
+typedef struct SCtgFetch {
+  int32_t reqIdx;
+  int32_t fetchIdx;
+  int32_t flag;
+  SCtgTbCacheInfo tbInfo;
+  int32_t vgId;
+} SCtgFetch;
+
+typedef struct SCtgTbMetaBCtx {
+  int32_t fetchNum;
+  SArray* pNames;
+  SArray* pTbMetas;
+  SArray* pFetchs;
+} SCtgTbMetaBCtx;
+
 
 typedef struct SCtgTbIndexCtx {
   SName* pName;
@@ -218,6 +235,7 @@ typedef struct SCtgJob {
   int32_t           batchId;
   SHashObj*         pBatchs;
   SArray*           pTasks;
+  int32_t           subTaskNum;
   int32_t           taskDone;
   SMetaData         jobRes;
   int32_t           jobResCode;
@@ -276,6 +294,7 @@ typedef struct SCtgTask {
   int32_t         taskId;
   SCtgJob*        pJob;
   void*           taskCtx;
+  SArray*         msgCtxs;
   SCtgMsgCtx      msgCtx;
   int32_t         code;
   void*           res;
@@ -284,6 +303,7 @@ typedef struct SCtgTask {
   SArray*         pParents;
   SCtgSubRes      subRes;
   SHashObj*       pBatchs;
+  int32_t         msgIdx;
 } SCtgTask;
 
 typedef int32_t (*ctgInitTaskFp)(SCtgJob*, int32_t, void*);
@@ -487,6 +507,8 @@ typedef struct SCtgOperation {
 #define CTG_FLAG_MAKE_STB(_isStb) (((_isStb) == 1) ? CTG_FLAG_STB : ((_isStb) == 0 ? CTG_FLAG_NOT_STB : CTG_FLAG_UNKNOWN_STB))
 #define CTG_FLAG_MATCH_STB(_flag, tbType) (CTG_FLAG_IS_UNKNOWN_STB(_flag) || (CTG_FLAG_IS_STB(_flag) && (tbType) == TSDB_SUPER_TABLE) || (CTG_FLAG_IS_NOT_STB(_flag) && (tbType) != TSDB_SUPER_TABLE))
 
+#define CTG_GET_TASK_MSGCTX(_task) ((CTG_TASK_GET_TB_META_BATCH == (_task)->type) ? taosArrayGet((_task)->msgCtxs, (_task)->msgIdx) : &(_task)->msgCtx)
+
 #define CTG_META_SIZE(pMeta) (sizeof(STableMeta) + ((pMeta)->tableInfo.numOfTags + (pMeta)->tableInfo.numOfColumns) * sizeof(SSchema))
 
 #define CTG_TABLE_NOT_EXIST(code) (code == CTG_ERR_CODE_TABLE_NOT_EXIST) 
@@ -586,6 +608,7 @@ int32_t ctgdShowCacheInfo(void);
 
 int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq);
 int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
+int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMetaBCtx* ctx, SArray** pTbMetas);
 
 int32_t ctgOpUpdateVgroup(SCtgCacheOperation *action);
 int32_t ctgOpUpdateTbMeta(SCtgCacheOperation *action);
@@ -672,6 +695,7 @@ int32_t ctgStbVersionSearchCompare(const void* key1, const void* key2);
 int32_t ctgDbVgVersionSearchCompare(const void* key1, const void* key2);
 void    ctgFreeSTableMetaOutput(STableMetaOutput* pOutput);
 int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* target);
+int32_t ctgAddMsgCtx(SArray* pCtxs, int32_t reqType, void* out, char* target);
 char *  ctgTaskTypeStr(CTG_TASK_TYPE type);
 int32_t ctgUpdateSendTargetInfo(SMsgSendInfo *pMsgSendInfo, int32_t msgType, char* dbFName, int32_t vgId);
 int32_t ctgCloneTableIndex(SArray* pIndex, SArray** pRes);
