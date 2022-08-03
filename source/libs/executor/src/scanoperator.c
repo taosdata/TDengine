@@ -521,7 +521,7 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
     if (pTableScanInfo->scanTimes < pTableScanInfo->scanInfo.numOfAsc) {
       setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
       pTableScanInfo->scanFlag = REPEAT_SCAN;
-      qDebug("%s start to repeat ascending order scan data blocks due to query func required", GET_TASKID(pTaskInfo));
+      qDebug("%s start to repeat ascending order scan data SELECT last_row(*),hostname from cpu group by hostname;blocks due to query func required", GET_TASKID(pTaskInfo));
 
       // do prepare for the next round table scan operation
       tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond);
@@ -533,9 +533,8 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
     if (pTableScanInfo->cond.order == TSDB_ORDER_ASC) {
       prepareForDescendingScan(pTableScanInfo, pOperator->exprSupp.pCtx, 0);
       tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond);
+      qDebug("%s start to descending order scan data blocks due to query func required", GET_TASKID(pTaskInfo));
     }
-
-    qDebug("%s start to descending order scan data blocks due to query func required", GET_TASKID(pTaskInfo));
 
     while (pTableScanInfo->scanTimes < total) {
       SSDataBlock* p = doTableScanImpl(pOperator);
