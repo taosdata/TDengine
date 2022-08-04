@@ -1,11 +1,9 @@
 mod _priv {
     pub use crate::common::{BorrowedValue, Field, Precision, RawBlock, RawMeta, Ty, Value};
     pub use crate::util::{Inlinable, InlinableRead, InlinableWrite};
-    #[cfg(feature = "r2d2")]
-    pub use crate::Pool;
-    #[cfg(feature = "r2d2")]
-    pub use crate::PoolBuilder;
     pub use crate::TBuilder;
+    #[cfg(feature = "r2d2")]
+    pub use crate::{Manager, Pool, PoolBuilder};
     pub use itertools::Itertools;
     pub use mdsn::{Dsn, DsnError, IntoDsn};
     pub use taos_error::{Code, Error as RawError};
@@ -13,7 +11,7 @@ mod _priv {
     pub use crate::tmq::{IsOffset, MessageSet, Timeout};
 }
 
-pub use crate::tmq::{AsAsyncConsumer, IsAsyncMeta, IsAsyncData};
+pub use crate::tmq::{AsAsyncConsumer, IsAsyncData, IsAsyncMeta};
 pub use _priv::*;
 pub use futures::stream::{Stream, StreamExt, TryStreamExt};
 // pub use r#async::{AsyncBindable, AsyncFetchable, AsyncQueryable, AsyncInlinable};
@@ -466,7 +464,7 @@ mod r#async {
 
         async fn exec<T: AsRef<str> + Send + Sync>(&self, sql: T) -> Result<usize, Self::Error> {
             let sql = sql.as_ref();
-            log::trace!("exec sql: {sql}");
+            log::debug!("exec sql: {sql}");
             self.query(sql).await.map(|res| res.affected_rows() as _)
         }
 
@@ -508,6 +506,7 @@ mod r#async {
             sql: T,
         ) -> Result<Option<O>, Self::Error> {
             use futures::StreamExt;
+            log::debug!("query one with sql: {}", sql.as_ref());
             self.query(sql)
                 .await?
                 .deserialize_stream::<O>()
@@ -537,7 +536,7 @@ mod r#async {
             db: impl std::fmt::Display + Send + 'async_trait,
         ) -> Result<(), Self::Error> {
             let name = name.as_ref();
-            let query = format!("create topic if not exists {name} as database {db}");
+            let query = format!("CREATE TOPIC IF NOT EXISTS {name} WITH META AS DATABASE {db}");
 
             self.exec(&query).await?;
             Ok(())
@@ -559,6 +558,7 @@ mod r#async {
         ///
         /// This is a 3.x-only API.
         async fn topics(&self) -> Result<Vec<Topic>, Self::Error> {
+            log::debug!("query one with sql: show topics");
             Ok(self
                 .query("show topics")
                 .await?
@@ -576,6 +576,16 @@ mod r#async {
                     .try_collect()
                     .await?,
             ))
+        }
+
+        /// Check if database exists
+        async fn database_exists(&self, name: &str) -> Result<bool, Self::Error> {
+            Ok(self
+                .query_one::<_, String>(format!(
+                    "select name from information_schema.ins_databases where name='{name}'"
+                ))
+                .await?
+                .is_some())
         }
 
         /// Sync version of `exec`.

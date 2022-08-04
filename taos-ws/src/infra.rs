@@ -100,6 +100,7 @@ pub struct WsQueryResp {
     pub fields_types: Option<Vec<Ty>>,
     pub fields_lengths: Option<Vec<u32>>,
     pub precision: Precision,
+    #[serde(default)]
     #[serde_as(as = "serde_with::DurationNanoSeconds")]
     pub timing: Duration,
 }
@@ -111,6 +112,7 @@ pub struct WsFetchResp {
     pub completed: bool,
     pub lengths: Option<Vec<u32>>,
     pub rows: usize,
+    #[serde(default)]
     #[serde_as(as = "serde_with::DurationNanoSeconds")]
     pub timing: Duration,
 }
@@ -134,6 +136,7 @@ pub enum WsRecvData {
     Query(WsQueryResp),
     Fetch(WsFetchResp),
     Block {
+        #[serde(default)]
         #[serde_as(as = "serde_with::DurationNanoSeconds")]
         timing: Duration,
         block: Vec<u32>,

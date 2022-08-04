@@ -1,248 +1,417 @@
-use std::sync::Once;
-
-pub use impls::Error;
-pub use taos_error::{Code, Error as TaosError};
-
-pub use taos_query as query;
-use taos_sys::*;
-
-macro_rules! err {
-    (custom $err:expr) => {
-        <crate::Error as ::serde::de::Error>::custom($err)
-    };
-    ('str $err:expr) => {
-        <crate::Error as ::serde::de::Error>::custom($err)
-    };
-}
-
-// pub mod timestamp;
-
-mod options;
-
-pub use options::TaosOptions;
-
-mod util;
-use util::*;
-
-// deprecated method.
-mod async_query;
-
-pub mod helpers;
-
-pub mod stream;
+pub use taos_query::prelude::*;
+pub use taos_query::Manager;
 
 pub mod tmq;
+pub use tmq::{TmqBuilder, Consumer, MessageSet};
 
-mod schemaless;
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error(transparent)]
+    Dsn(#[from] DsnError),
+    #[error(transparent)]
+    Raw(#[from] RawError),
+    #[error(transparent)]
+    Native(#[from] taos_sys::Error),
+    #[error(transparent)]
+    Ws(#[from] taos_ws::Error),
+    #[error(transparent)]
+    WsQueryError(#[from] taos_ws::asyn::Error),
+    #[error(transparent)]
+    WsTmqError(#[from] taos_ws::consumer::Error),
+    #[error(transparent)]
+    Any(#[from] anyhow::Error),
+}
 
-mod impls;
+enum TaosBuilderInner {
+    Native(taos_sys::TaosBuilder),
+    Ws(taos_ws::TaosBuilder),
+}
+enum TaosInner {
+    Native(taos_sys::Taos),
+    Ws(taos_ws::Taos),
+}
 
-pub type Result<T> = std::result::Result<T, crate::impls::Error>;
+enum ResultSetInner {
+    Native(taos_sys::ResultSet),
+    Ws(taos_ws::ResultSet),
+}
 
-#[derive(Debug)]
-pub struct Taos(RawTaos);
+pub struct TaosBuilder(TaosBuilderInner);
+pub struct Taos(TaosInner);
+pub struct ResultSet(ResultSetInner);
 
-unsafe impl Send for Taos {}
-unsafe impl Sync for Taos {}
+impl TBuilder for TaosBuilder {
+    type Target = Taos;
 
-impl Taos {
-    fn new<'a>(
-        host: impl Into<NullableCStr<'a>>,
-        user: impl Into<NullableCStr<'a>>,
-        pass: impl Into<NullableCStr<'a>>,
-        db: impl Into<NullableCStr<'a>>,
-        port: u16,
-    ) -> Result<Self> {
-        Ok(Self(RawTaos::connect(
-            host.into().as_ptr(),
-            user.into().as_ptr(),
-            pass.into().as_ptr(),
-            db.into().as_ptr(),
-            port,
-        )?))
+    type Error = Error;
+
+    fn available_params() -> &'static [&'static str] {
+        &[]
     }
 
-    pub(crate) fn as_raw(&self) -> *mut taos_sys::ffi::TAOS {
-        self.0.as_ptr()
+    fn from_dsn<D: IntoDsn>(dsn: D) -> Result<Self, Self::Error> {
+        let dsn = dsn.into_dsn()?;
+        // dbg!(&dsn);
+        match (
+            dsn.driver.as_str(),
+            dsn.protocol.as_ref().map(|s| s.as_str()),
+        ) {
+            ("ws" | "wss" | "http" | "https", _) => Ok(Self(TaosBuilderInner::Ws(
+                taos_ws::TaosBuilder::from_dsn(dsn)?,
+            ))),
+            ("taos" | "tmq", None) => Ok(Self(TaosBuilderInner::Native(
+                taos_sys::TaosBuilder::from_dsn(dsn)?,
+            ))),
+            ("taos" | "tmq", Some("ws" | "wss" | "http" | "https")) => Ok(Self(
+                TaosBuilderInner::Ws(taos_ws::TaosBuilder::from_dsn(dsn)?),
+            )),
+            (driver, _) => Err(DsnError::InvalidDriver(driver.to_string()).into()),
+        }
+    }
+
+    fn client_version() -> &'static str {
+        ""
+    }
+
+    fn ping(&self, conn: &mut Self::Target) -> Result<(), Self::Error> {
+        match &self.0 {
+            TaosBuilderInner::Native(b) => match &mut conn.0 {
+                TaosInner::Native(taos) => Ok(b.ping(taos)?),
+                _ => unreachable!(),
+            },
+            TaosBuilderInner::Ws(b) => match &mut conn.0 {
+                TaosInner::Ws(taos) => Ok(b.ping(taos)?),
+                _ => unreachable!(),
+            },
+        }
+    }
+
+    fn ready(&self) -> bool {
+        match &self.0 {
+            TaosBuilderInner::Native(b) => b.ready(),
+            TaosBuilderInner::Ws(b) => b.ready(),
+        }
+    }
+
+    fn build(&self) -> Result<Self::Target, Self::Error> {
+        match &self.0 {
+            TaosBuilderInner::Native(b) => Ok(Taos(TaosInner::Native(b.build()?))),
+            TaosBuilderInner::Ws(b) => Ok(Taos(TaosInner::Ws(b.build()?))),
+        }
+    }
+}
+
+impl AsyncFetchable for ResultSet {
+    type Error = Error;
+
+    fn affected_rows(&self) -> i32 {
+        match &self.0 {
+            ResultSetInner::Native(rs) => {
+                <taos_sys::ResultSet as AsyncFetchable>::affected_rows(rs)
+            }
+            ResultSetInner::Ws(rs) => <taos_ws::ResultSet as AsyncFetchable>::affected_rows(rs),
+        }
+    }
+
+    fn precision(&self) -> Precision {
+        match &self.0 {
+            ResultSetInner::Native(rs) => <taos_sys::ResultSet as AsyncFetchable>::precision(rs),
+            ResultSetInner::Ws(rs) => <taos_ws::ResultSet as AsyncFetchable>::precision(rs),
+        }
+    }
+
+    fn fields(&self) -> &[Field] {
+        match &self.0 {
+            ResultSetInner::Native(rs) => <taos_sys::ResultSet as AsyncFetchable>::fields(rs),
+            ResultSetInner::Ws(rs) => <taos_ws::ResultSet as AsyncFetchable>::fields(rs),
+        }
+    }
+
+    fn summary(&self) -> (usize, usize) {
+        match &self.0 {
+            ResultSetInner::Native(rs) => <taos_sys::ResultSet as AsyncFetchable>::summary(rs),
+            ResultSetInner::Ws(rs) => <taos_ws::ResultSet as AsyncFetchable>::summary(rs),
+        }
+    }
+
+    fn update_summary(&mut self, nrows: usize) {
+        match &mut self.0 {
+            ResultSetInner::Native(rs) => {
+                <taos_sys::ResultSet as AsyncFetchable>::update_summary(rs, nrows)
+            }
+            ResultSetInner::Ws(rs) => {
+                <taos_ws::ResultSet as AsyncFetchable>::update_summary(rs, nrows)
+            }
+        }
+    }
+
+    fn fetch_raw_block(
+        self: &mut Self,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<Option<RawBlock>, Self::Error>> {
+        match &mut self.0 {
+            ResultSetInner::Native(rs) => {
+                <taos_sys::ResultSet as AsyncFetchable>::fetch_raw_block(rs, cx).map_err(Into::into)
+            }
+            ResultSetInner::Ws(rs) => {
+                <taos_ws::ResultSet as AsyncFetchable>::fetch_raw_block(rs, cx).map_err(Into::into)
+            }
+        }
     }
 }
 
-pub mod block;
+impl taos_query::Fetchable for ResultSet {
+    type Error = Error;
 
-pub fn client_info() -> &'static str {
-    static ONCE: Once = Once::new();
-    static mut VERSION: &str = "";
-    ONCE.call_once(|| unsafe {
-        VERSION = RawTaos::version()
-            .to_str()
-            .expect("get client info should always be ok");
-    });
-    unsafe { VERSION }
-}
-pub mod stmt;
+    fn affected_rows(&self) -> i32 {
+        match &self.0 {
+            ResultSetInner::Native(rs) => {
+                <taos_sys::ResultSet as AsyncFetchable>::affected_rows(rs)
+            }
+            ResultSetInner::Ws(rs) => <taos_ws::ResultSet as AsyncFetchable>::affected_rows(rs),
+        }
+    }
 
-#[cfg(feature = "r2d2")]
-pub mod r2d2;
+    fn precision(&self) -> Precision {
+        match &self.0 {
+            ResultSetInner::Native(rs) => <taos_sys::ResultSet as AsyncFetchable>::precision(rs),
+            ResultSetInner::Ws(rs) => <taos_ws::ResultSet as AsyncFetchable>::precision(rs),
+        }
+    }
 
-pub mod prelude {
-    //! Preludes for async/await queries.
-    //!
-    //! ```rust
-    //! use taos::prelude::*;
-    //! use tokio;
-    //!
-    //! #[tokio::main]
-    //! async fn main() -> anyhow::Result<()> {
-    //!     let taos = TaosOptions::default().build()?;
-    //!     taos.exec("drop database if exists test_prelude").await?;
-    //!     taos.exec("create database test_prelude precision 'us'").await?;
-    //!     taos.exec("use test_prelude").await?;
-    //!     taos.exec("create stable meters (ts timestamp, current float, voltage int, phase float) \
-    //!                tags(gid int, location binary(16))").await?;
-    //!     let count: u32 = taos.query_one("select count(*) from meters").await?.unwrap_or(0);
-    //!     assert!(count == 0);
-    //!
-    //!     let results = taos.query("select * from meters").await?;
-    //!     assert!(results.precision() == "us");
-    //!     assert_eq!(results.num_of_fields(), 6);
-    //!     Ok(())
-    //! }
-    //! ```
-    pub use crate::impls::Error;
-    pub use crate::impls::ResultSet;
-    // pub use crate::impls::SyncBlock;
-    pub use crate::options::TaosOptions;
-    pub use crate::query::FromDsn;
-    pub use crate::schemaless::{SchemalessPrecision, SchemalessProtocol};
-    pub use crate::stmt::{TaosBind, TaosMultiBind};
-    pub use crate::Taos;
-    pub use taos_query::common::{Precision, RawBlock, Timestamp, Ty, Value};
-    pub use taos_query::{common, AsyncFetchable, AsyncQueryable, BlockCodec, BlockExt};
+    fn fields(&self) -> &[Field] {
+        match &self.0 {
+            ResultSetInner::Native(rs) => <taos_sys::ResultSet as AsyncFetchable>::fields(rs),
+            ResultSetInner::Ws(rs) => <taos_ws::ResultSet as AsyncFetchable>::fields(rs),
+        }
+    }
 
-    #[cfg(feature = "r2d2")]
-    pub use crate::r2d2::TaosPool;
+    fn summary(&self) -> (usize, usize) {
+        match &self.0 {
+            ResultSetInner::Native(rs) => <taos_sys::ResultSet as AsyncFetchable>::summary(rs),
+            ResultSetInner::Ws(rs) => <taos_ws::ResultSet as AsyncFetchable>::summary(rs),
+        }
+    }
 
-    pub type Manager = taos_query::Manager<Taos>;
+    fn update_summary(&mut self, nrows: usize) {
+        match &mut self.0 {
+            ResultSetInner::Native(rs) => {
+                <taos_sys::ResultSet as AsyncFetchable>::update_summary(rs, nrows)
+            }
+            ResultSetInner::Ws(rs) => {
+                <taos_ws::ResultSet as AsyncFetchable>::update_summary(rs, nrows)
+            }
+        }
+    }
 
-    #[cfg(feature = "r2d2")]
-    pub type Pool = taos_query::Pool<Taos>;
-
-    pub mod sync {
-
-        pub use crate::impls::Error;
-        pub use crate::impls::ResultSet;
-        // pub use crate::impls::SyncBlock;
-        pub use crate::options::TaosOptions;
-        pub use crate::query::FromDsn;
-        pub use crate::schemaless::{SchemalessPrecision, SchemalessProtocol};
-        pub use crate::stmt::{TaosBind, TaosMultiBind};
-        pub use crate::Taos;
-        // pub use mdsn::{Dsn, IntoDsn};
-
-        pub use taos_query::common::{Precision, RawBlock, Timestamp, Ty, Value};
-        pub use taos_query::{common, BlockCodec, BlockExt, Fetchable, Queryable};
-
-        #[cfg(feature = "r2d2")]
-        pub use crate::r2d2::TaosPool;
-
-        pub type Manager = taos_query::Manager<Taos>;
-
-        #[cfg(feature = "r2d2")]
-        pub type Pool = taos_query::Pool<Taos>;
+    fn fetch_raw_block(&mut self) -> Result<Option<RawBlock>, Self::Error> {
+        match &mut self.0 {
+            ResultSetInner::Native(rs) => {
+                <taos_sys::ResultSet as taos_query::Fetchable>::fetch_raw_block(rs)
+                    .map_err(Into::into)
+            }
+            ResultSetInner::Ws(rs) => {
+                <taos_ws::ResultSet as taos_query::Fetchable>::fetch_raw_block(rs)
+                    .map_err(Into::into)
+            }
+        }
     }
 }
-#[cfg(feature = "test")]
-pub use taos_macros::test;
 
-// pub use taos_query::BlockExt;
+#[async_trait::async_trait]
+impl AsyncQueryable for Taos {
+    type Error = Error;
+
+    type AsyncResultSet = ResultSet;
+
+    async fn query<T: AsRef<str> + Send + Sync>(
+        &self,
+        sql: T,
+    ) -> Result<Self::AsyncResultSet, Self::Error> {
+        match &self.0 {
+            TaosInner::Native(taos) => taos
+                .query(sql)
+                .await
+                .map(ResultSetInner::Native)
+                .map(ResultSet)
+                .map_err(Into::into),
+            TaosInner::Ws(taos) => taos
+                .query(sql)
+                .await
+                .map(ResultSetInner::Ws)
+                .map(ResultSet)
+                .map_err(Into::into),
+        }
+    }
+
+    async fn write_raw_meta(&self, meta: RawMeta) -> Result<(), Self::Error> {
+        match &self.0 {
+            TaosInner::Native(taos) => taos.write_raw_meta(meta).await.map_err(Into::into),
+            TaosInner::Ws(taos) => taos.write_raw_meta(meta).await.map_err(Into::into),
+        }
+    }
+
+    async fn write_raw_block(&self, block: &RawBlock) -> Result<(), Self::Error> {
+        match &self.0 {
+            TaosInner::Native(taos) => taos.write_raw_block(block).await.map_err(Into::into),
+            TaosInner::Ws(taos) => taos.write_raw_block(block).await.map_err(Into::into),
+        }
+    }
+}
+
+impl taos_query::Queryable for Taos {
+    type Error = Error;
+
+    type ResultSet = ResultSet;
+
+    fn query<T: AsRef<str>>(&self, sql: T) -> Result<Self::ResultSet, Self::Error> {
+        match &self.0 {
+            TaosInner::Native(taos) => <taos_sys::Taos as taos_query::Queryable>::query(taos, sql)
+                .map(ResultSetInner::Native)
+                .map(ResultSet)
+                .map_err(Into::into),
+            TaosInner::Ws(taos) => <taos_ws::Taos as taos_query::Queryable>::query(taos, sql)
+                .map(ResultSetInner::Ws)
+                .map(ResultSet)
+                .map_err(Into::into),
+        }
+    }
+
+    fn write_meta(&self, meta: RawMeta) -> Result<(), Self::Error> {
+        match &self.0 {
+            TaosInner::Native(taos) => {
+                <taos_sys::Taos as taos_query::Queryable>::write_meta(taos, meta)
+                    .map_err(Into::into)
+            }
+            TaosInner::Ws(taos) => {
+                <taos_ws::Taos as taos_query::Queryable>::write_meta(taos, meta).map_err(Into::into)
+            }
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
-    use super::{client_info, Taos, TaosOptions};
-    use taos_macros::test;
+    use super::{ResultSet, Taos, TaosBuilder};
 
-    use crate::prelude::*;
-    use anyhow::Result;
-
-    #[test]
-    fn test_invalid_database() {
-        let res = TaosOptions::default().database("invalid_database").build();
-        assert!(res.is_err());
-
-        let err = res.unwrap_err();
-        dbg!(err);
-    }
-
-    #[test(log_level = "trace")]
-    async fn test_information_schema(taos: &Taos) -> Result<()> {
-        let info: Vec<Value> = taos
-            .query_one("select * from information_schema.user_databases where name like 'infor%'")
-            .await?
-            .unwrap();
-        dbg!(info);
-        Ok(())
+    #[tokio::test(flavor = "multi_thread")]
+    async fn sync_json_test_native() -> anyhow::Result<()> {
+        sync_json_test("taos:///")
     }
     #[test]
-    async fn test_describe(taos: &Taos) -> Result<()> {
-        let desc = taos.describe("log.logs").await?;
-        dbg!(desc);
-        Ok(())
-    }
-    #[tokio::test]
-    async fn test_databases() -> Result<()> {
-        let taos = TaosOptions::new().build()?;
-        let desc = taos.databases().await?;
-        println!("done");
-        dbg!(desc);
-        Ok(())
-    }
-    #[test(crate)]
-    fn test_client_info() {
-        let version = client_info();
-        dbg!(format!("{version}"));
+    fn sync_json_test_ws() -> anyhow::Result<()> {
+        sync_json_test("ws://localhost:6041/")
     }
 
-    #[test(crate)]
-    fn test_err() {
-        fn err_with_res() -> Result<()> {
-            let taos = Taos::new(
-                "localhost",
-                std::ptr::null() as *const i8,
-                "taosdata",
-                std::ptr::null() as *const i8,
-                0,
-            )?;
-            taos.query_sync("select * from unknown-db.abc")?;
-            Ok(())
+    fn sync_json_test(dsn: &str) -> anyhow::Result<()> {
+        use taos_query::prelude::sync::*;
+
+        std::env::set_var("RUST_LOG", "debug");
+        // pretty_env_logger::init();
+        use taos_query::{Fetchable, Queryable};
+        let client = TaosBuilder::from_dsn(dsn)?.build()?;
+        let db = "ws_sync_json";
+        assert_eq!(client.exec(format!("drop database if exists {db}"))?, 0);
+        assert_eq!(client.exec(format!("create database {db} keep 36500"))?, 0);
+        assert_eq!(
+            client.exec(
+                format!("create table {db}.stb1(ts timestamp,\
+                    b1 bool, c8i1 tinyint, c16i1 smallint, c32i1 int, c64i1 bigint,\
+                    c8u1 tinyint unsigned, c16u1 smallint unsigned, c32u1 int unsigned, c64u1 bigint unsigned,\
+                    cb1 binary(100), cn1 nchar(10),
+
+                    b2 bool, c8i2 tinyint, c16i2 smallint, c32i2 int, c64i2 bigint,\
+                    c8u2 tinyint unsigned, c16u2 smallint unsigned, c32u2 int unsigned, c64u2 bigint unsigned,\
+                    cb2 binary(10), cn2 nchar(16)) tags (jt json)")
+            )?,
+            0
+        );
+        assert_eq!(
+            client.exec(format!(
+                r#"insert into {db}.tb1 using {db}.stb1 tags('{{"key":"数据"}}')
+                   values(0,    true, -1,  -2,  -3,  -4,   1,   2,   3,   4,   'abc', '涛思',
+                                false,-5,  -6,  -7,  -8,   5,   6,   7,   8,   'def', '数据')
+                         (65535,NULL, NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL, NULL,  NULL,
+                                NULL, NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL, NULL,  NULL)"#
+            ))?,
+            2
+        );
+        assert_eq!(
+            client.exec(format!(
+                r#"insert into {db}.tb2 using {db}.stb1 tags(NULL)
+                   values(1,    true, -1,  -2,  -3,  -4,   1,   2,   3,   4,   'abc', '涛思',
+                                false,-5,  -6,  -7,  -8,   5,   6,   7,   8,   'def', '数据')
+                         (65536,NULL, NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL, NULL,  NULL,
+                                NULL, NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL, NULL,  NULL)"#
+            ))?,
+            2
+        );
+
+        // let mut rs = client.s_query("select * from wsabc.tb1").unwrap().unwrap();
+        let mut rs = client.query(format!("select * from {db}.tb1 order by ts limit 1"))?;
+
+        #[derive(Debug, serde::Deserialize, PartialEq, Eq)]
+        #[allow(dead_code)]
+        struct A {
+            ts: String,
+            b1: bool,
+            c8i1: i8,
+            c16i1: i16,
+            c32i1: i32,
+            c64i1: i64,
+            c8u1: u8,
+            c16u1: u16,
+            c32u1: u32,
+            c64u1: u64,
+
+            c8i2: i8,
+            c16i2: i16,
+            c32i2: i32,
+            c64i2: i64,
+            c8u2: u8,
+            c16u2: u16,
+            c32u2: u32,
+            c64u2: u64,
+
+            cb1: String,
+            cb2: String,
+            cn1: String,
+            cn2: String,
         }
-        err_with_res().expect_err("");
-    }
-    #[test(crate)]
-    fn query_async_await_future_test() {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(async {
-                let taos = Taos::new("localhost", "root", "taosdata", "log", 0).unwrap();
-                let mut res = taos.query("show databases").await.unwrap();
-                let stream = res.block_stream();
 
-                use futures::stream::StreamExt;
-                let lengths = stream
-                    .enumerate()
-                    .map(|(bi, partial)| {
-                        partial
-                            .iter_rows()
-                            .enumerate()
-                            .map(|(ri, values)| {
-                                println!("block {bi}, row {ri}: {values:?}");
-                                return 1;
-                            })
-                            .sum::<usize>()
-                    })
-                    .fold(0, |acc, n| futures::future::ready(acc + n))
-                    .await;
-                println!("lengths is {lengths}");
-            });
+        use itertools::Itertools;
+        let values: Vec<A> = rs.deserialize::<A>().try_collect()?;
+
+        dbg!(&values);
+
+        assert_eq!(
+            values[0],
+            A {
+                ts: "1970-01-01T00:00:00".to_string(),
+                b1: true,
+                c8i1: -1,
+                c16i1: -2,
+                c32i1: -3,
+                c64i1: -4,
+                c8u1: 1,
+                c16u1: 2,
+                c32u1: 3,
+                c64u1: 4,
+                c8i2: -5,
+                c16i2: -6,
+                c32i2: -7,
+                c64i2: -8,
+                c8u2: 5,
+                c16u2: 6,
+                c32u2: 7,
+                c64u2: 8,
+                cb1: "abc".to_string(),
+                cb2: "def".to_string(),
+                cn1: "涛思".to_string(),
+                cn2: "数据".to_string(),
+            }
+        );
+
+        assert_eq!(client.exec(format!("drop database {db}"))?, 0);
+        Ok(())
     }
 }

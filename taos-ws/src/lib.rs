@@ -8,7 +8,10 @@ use once_cell::sync::OnceCell;
 use asyn::WsTaos;
 use sync::WsClient;
 
-use taos_query::{common::RawMeta, DsnError, IntoDsn, Queryable, TBuilder};
+use taos_query::{
+    block_in_place_or_global, common::RawMeta, AsyncQueryable, DsnError, IntoDsn, Queryable,
+    TBuilder,
+};
 
 mod infra;
 
@@ -94,8 +97,8 @@ impl TaosBuilder {
         ) {
             ("ws" | "http", _) => "ws",
             ("wss" | "https", _) => "wss",
-            ("taos", Some("ws" | "http") | None) => "ws",
-            ("taos", Some("wss" | "https")) => "wss",
+            ("taos" | "tmq", Some("ws" | "http") | None) => "ws",
+            ("taos" | "tmq", Some("wss" | "https")) => "wss",
             _ => Err(DsnError::InvalidDriver(dsn.to_string()))?,
         };
         let token = dsn.params.remove("token");
@@ -177,43 +180,45 @@ pub struct Taos {
 unsafe impl Send for Taos {}
 unsafe impl Sync for Taos {}
 
-impl Queryable for Taos {
-    type Error = sync::Error;
+// impl Queryable for Taos {
+//     type Error = sync::Error;
 
-    type ResultSet = sync::ResultSet;
+//     type ResultSet = sync::ResultSet;
 
-    fn query<T: AsRef<str>>(&self, sql: T) -> std::result::Result<Self::ResultSet, Self::Error> {
-        if let Some(ws) = self.sync_client.get() {
-            ws.s_query(sql.as_ref())
-        } else {
-            let sync_client = WsClient::from_wsinfo(&self.dsn)?;
-            self.sync_client
-                .get_or_init(|| sync_client)
-                .s_query(sql.as_ref())
-        }
-    }
+//     fn query<T: AsRef<str>>(&self, sql: T) -> std::result::Result<Self::ResultSet, Self::Error> {
+//         if let Some(ws) = self.sync_client.get() {
+//             ws.s_query(sql.as_ref())
+//         } else {
+//             let sync_client = WsClient::from_wsinfo(&self.dsn)?;
+//             self.sync_client
+//                 .get_or_init(|| sync_client)
+//                 .s_query(sql.as_ref())
+//         }
+//     }
 
-    fn exec<T: AsRef<str>>(&self, sql: T) -> std::result::Result<usize, Self::Error> {
-        log::info!("execute sql: {}", sql.as_ref());
-        if let Some(ws) = self.sync_client.get() {
-            ws.s_exec(sql.as_ref())
-        } else {
-            let sync_client = WsClient::from_wsinfo(&self.dsn)?;
-            self.sync_client
-                .get_or_init(|| sync_client)
-                .s_exec(sql.as_ref())
-        }
-    }
+//     fn exec<T: AsRef<str>>(&self, sql: T) -> std::result::Result<usize, Self::Error> {
+//         log::info!("execute sql: {}", sql.as_ref());
+//         if let Some(ws) = self.sync_client.get() {
+//             ws.s_exec(sql.as_ref())
+//         } else {
+//             let sync_client = WsClient::from_wsinfo(&self.dsn)?;
+//             self.sync_client
+//                 .get_or_init(|| sync_client)
+//                 .s_exec(sql.as_ref())
+//         }
+//     }
 
-    fn write_meta(&self, raw: RawMeta) -> Result<(), Self::Error> {
-        if let Some(ws) = self.sync_client.get() {
-            ws.write_meta(raw)
-        } else {
-            let sync_client = WsClient::from_wsinfo(&self.dsn)?;
-            self.sync_client.get_or_init(|| sync_client).write_meta(raw)
-        }
-    }
-}
+//     fn write_meta(&self, raw: RawMeta) -> Result<(), Self::Error> {
+//         if let Some(ws) = self.sync_client.get() {
+//             ws.write_meta(raw)
+//         } else {
+//             let sync_client = WsClient::from_wsinfo(&self.dsn)?;
+//             self.sync_client.get_or_init(|| sync_client).write_meta(raw)
+//         }
+//     }
+// }
+
+pub use asyn::ResultSet;
 
 #[cfg(feature = "async")]
 #[async_trait::async_trait]
@@ -250,7 +255,30 @@ impl taos_query::AsyncQueryable for Taos {
     }
 
     async fn write_raw_block(&self, block: &taos_query::RawBlock) -> Result<(), Self::Error> {
-        todo!()
+        if let Some(ws) = self.async_client.get() {
+            ws.write_raw_block(block).await
+        } else {
+            let async_client = WsTaos::from_wsinfo(&self.dsn).await?;
+            self.async_client
+                .get_or_init(|| async_client)
+                .write_raw_block(block)
+                .await
+        }
+    }
+}
+
+impl taos_query::Queryable for Taos {
+    type Error = asyn::Error;
+
+    type ResultSet = asyn::ResultSet;
+
+    fn query<T: AsRef<str>>(&self, sql: T) -> Result<Self::ResultSet, Self::Error> {
+        let sql = sql.as_ref();
+        block_in_place_or_global(<Self as AsyncQueryable>::query(self, sql))
+    }
+
+    fn write_meta(&self, meta: RawMeta) -> Result<(), Self::Error> {
+        block_in_place_or_global(<Self as AsyncQueryable>::write_raw_meta(self, meta))
     }
 }
 
@@ -260,7 +288,6 @@ mod tests {
     use taos_query::TBuilder;
 
     use crate::TaosBuilder;
-
 
     #[test]
     fn ws_sync_json() -> anyhow::Result<()> {

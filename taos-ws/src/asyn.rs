@@ -5,7 +5,9 @@ use scc::HashMap;
 // use std::sync::Mutex;
 use taos_query::common::{Field, Precision, RawBlock, RawMeta, Ty};
 use taos_query::util::InlinableWrite;
-use taos_query::{AsyncFetchable, AsyncQueryable, DeError, DsnError, IntoDsn};
+use taos_query::{
+    block_in_place_or_global, AsyncFetchable, AsyncQueryable, DeError, DsnError, IntoDsn,
+};
 use thiserror::Error;
 
 use tokio::sync::{oneshot, watch};
@@ -77,7 +79,7 @@ impl Drop for ResultSet {
             self.fetches.remove(&self.args.id);
             let args = self.args;
             let ws = self.ws.clone();
-            tokio::spawn(async move {
+            block_in_place_or_global(async move {
                 let _ = ws.send(WsSend::Close(args).to_msg()).await;
             });
         }
@@ -158,7 +160,7 @@ impl WsTaos {
         Self::from_wsinfo(&info).await
     }
     pub(crate) async fn from_wsinfo(info: &TaosBuilder) -> Result<Self> {
-        let (ws, _) = connect_async(dbg!(info.to_query_url())).await?;
+        let (ws, _) = connect_async(info.to_query_url()).await?;
         let req_id = 0;
         let (mut sender, mut reader) = ws.split();
 
@@ -183,6 +185,7 @@ impl WsTaos {
             },
             _ => "2.x".to_string(),
         };
+        let is_v3 = version.starts_with("3");
 
         let login = WsSend::Conn {
             req_id,
@@ -255,7 +258,7 @@ impl WsTaos {
                         match message {
                             Ok(message) => match message {
                                 Message::Text(text) => {
-                                    dbg!(&text);
+                                    // dbg!(&text);
                                     let v: WsRecv = serde_json::from_str(&text).unwrap();
                                     let (req_id, data, ok) = v.ok();
                                     match data {
@@ -305,16 +308,23 @@ impl WsTaos {
                                     // dbg!(block.len());
                                     let mut slice = block.as_slice();
                                     use taos_query::util::InlinableRead;
-                                    let timing = slice.read_u64().unwrap();
-                                    let timing = Duration::from_nanos(timing as _);
+                                    let offset = if is_v3 { 16 } else { 8 };
+
+                                    let timing = if is_v3 {
+                                        let timing = slice.read_u64().unwrap();
+                                        Duration::from_nanos(timing as _)
+                                    } else {
+                                        Duration::ZERO
+                                    };
+
                                     let res_id = slice.read_u64().unwrap();
-                                    let len = (&block[16..20]).read_u32().unwrap();
-                                    if block.len() == len as usize + 16 {
+                                    let len = (&block[offset..offset + 4]).read_u32().unwrap();
+                                    if is_v3 {
                                         // v3
                                         if let Some(_) = fetches_sender.read(&res_id, |_, v| {
                                             log::info!("send data to fetches with id {}", res_id);
                                             // let raw = slice.read_inlinable::<RawBlock>().unwrap();
-                                            v.send(Ok(WsFetchData::Block(timing, block[16..].to_vec()).clone())).unwrap();
+                                            v.send(Ok(WsFetchData::Block(timing, block[offset..].to_vec()).clone())).unwrap();
                                         }) {
                                             log::error!("result not found: {res_id}");
                                         }
@@ -323,7 +333,7 @@ impl WsTaos {
                                         log::warn!("the block is in format v2");
                                         if let Some(_) = fetches_sender.read(&res_id, |_, v| {
                                             log::info!("send data to fetches with id {}", res_id);
-                                            v.send(Ok(WsFetchData::BlockV2(timing, block[16..].to_vec()))).unwrap();
+                                            v.send(Ok(WsFetchData::BlockV2(timing, block[offset..].to_vec()))).unwrap();
                                         }) {
                                             log::error!("result not found: {res_id}");
                                         }
@@ -557,7 +567,7 @@ impl ResultSet {
             log::info!("send done");
             // unlock mutex when out of scope.
         }
-        println!("wait for fetch message");
+        log::debug!("wait for fetch message");
         let fetch_resp = match self.receiver.as_mut().unwrap().recv()?? {
             WsFetchData::Fetch(fetch) => fetch,
             data => panic!("unexpected result {data:?}"),
@@ -588,13 +598,13 @@ impl ResultSet {
                     self.precision,
                 );
 
-                for row in 0..raw.nrows() {
-                    for col in 0..raw.ncols() {
-                        log::debug!("at ({}, {})", row, col);
-                        let v = unsafe { raw.get_ref_unchecked(row, col) };
-                        println!("({}, {}): {:?}", row, col, v);
-                    }
-                }
+                // for row in 0..raw.nrows() {
+                //     for col in 0..raw.ncols() {
+                //         log::debug!("at ({}, {})", row, col);
+                //         let v = unsafe { raw.get_ref_unchecked(row, col) };
+                //         println!("({}, {}): {:?}", row, col, v);
+                //     }
+                // }
                 raw.with_field_names(self.fields.as_ref().unwrap().iter().map(Field::name));
                 Ok(Some(raw))
             }
@@ -623,6 +633,8 @@ impl ResultSet {
 }
 
 impl AsyncFetchable for ResultSet {
+    type Error = Error;
+
     fn affected_rows(&self) -> i32 {
         self.affected_rows as i32
     }
@@ -639,8 +651,6 @@ impl AsyncFetchable for ResultSet {
         self.summary
     }
 
-    type Error = Error;
-
     fn update_summary(&mut self, nrows: usize) {
         self.summary.0 += 1;
         self.summary.1 += nrows;
@@ -651,6 +661,35 @@ impl AsyncFetchable for ResultSet {
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<StdResult<Option<RawBlock>, Self::Error>> {
         self.fetch().boxed().poll_unpin(cx)
+    }
+}
+
+impl taos_query::Fetchable for ResultSet {
+    type Error = Error;
+
+    fn affected_rows(&self) -> i32 {
+        self.affected_rows as i32
+    }
+
+    fn precision(&self) -> taos_query::common::Precision {
+        self.precision
+    }
+
+    fn fields(&self) -> &[Field] {
+        self.fields.as_ref().unwrap()
+    }
+
+    fn summary(&self) -> (usize, usize) {
+        self.summary
+    }
+
+    fn update_summary(&mut self, nrows: usize) {
+        self.summary.0 += 1;
+        self.summary.1 += nrows;
+    }
+
+    fn fetch_raw_block(&mut self) -> StdResult<Option<RawBlock>, Self::Error> {
+        block_in_place_or_global(self.fetch())
     }
 }
 
@@ -748,7 +787,6 @@ async fn test_client_cloud() -> anyhow::Result<()> {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
 async fn ws_show_databases() -> anyhow::Result<()> {
-    use taos_query::Queryable;
     let dsn = std::env::var("TDENGINE_ClOUD_DSN").unwrap_or("http://localhost:6041".to_string());
     let client = WsTaos::from_dsn(dsn).await?;
     let mut rs = client.query("show databases").await?;
@@ -775,20 +813,20 @@ async fn ws_write_raw_block() -> anyhow::Result<()> {
 
     use futures::TryStreamExt;
     std::env::set_var("RUST_LOG", "debug");
-    let dsn = std::env::var("TDENGINE_ClOUD_DSN")
-        .unwrap_or("http://localhost:6041".to_string());
+    let dsn = std::env::var("TDENGINE_ClOUD_DSN").unwrap_or("http://localhost:6041".to_string());
     // pretty_env_logger::init();
 
     let client = WsTaos::from_dsn(dsn).await?;
 
     let _version = client.version();
 
-    client.exec_many([
-        "create database write_raw_block_test keep 36500",
-        "use write_raw_block_test",
-        "create table if not exists tb1(ts timestamp, v bool)"
-
-    ]).await?;
+    client
+        .exec_many([
+            "create database write_raw_block_test keep 36500",
+            "use write_raw_block_test",
+            "create table if not exists tb1(ts timestamp, v bool)",
+        ])
+        .await?;
 
     client.write_raw_block(&raw).await?;
 

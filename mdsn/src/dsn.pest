@@ -21,16 +21,14 @@ path = { "%" ~ (char | "%" | "+" )+ }
 address = { path | host ~ (":" ~ port?)? | ":" ~ port | ":" }
 addresses = { address? ~ ("," ~ address)* }
 paths = { path | ("," ~ path)}
-// frag_char = { char | "." }
-// frag_front = { "./" | "/" }
-// frag_path = { (frag_char | "/") + }
+
 fchar = { char | ":" }
 fragment = { "./" ~ fchar+  ~ ("/" ~ fchar+)? | ("/" ~ fchar+) ~ ("/" ~ fchar+)+ }
 
 protocol_with_addresses = { protocol ~ "(" ~ addresses ~ ")" | addresses }
 
 name = { char+ }
-varchar = { ASCII_ALPHANUMERIC | "." | "_" | "-" | "%" | "," }
+varchar = { ASCII_ALPHANUMERIC | "." | "_" | "-" | "%" | "," | " " | "*" }
 value = { varchar* }
 param = { name ~ "=" ~ value }
 
@@ -39,8 +37,8 @@ database = { database_char+ }
 
 dsn = {
   SOI ~
-  scheme ~ SCHEME_IDENT ~
-      username_with_password* ~ protocol_with_addresses ~ (fragment | "/" ~ database?)?
+  scheme ~ (SCHEME_IDENT ~
+      username_with_password* ~ protocol_with_addresses ~ (fragment | "/" ~ database?)? | ":" ~ fragment)
      ~ ("?" ~ param ~ ("&" ~ param)*)? ~
   EOI
 }

@@ -245,9 +245,7 @@ pub trait AsAsyncConsumer: Sized + Send + Sync {
     type Meta: IsAsyncMeta;
     type Data: IsAsyncData;
 
-    fn default_timeout(&self) -> Timeout {
-        Timeout::Never
-    }
+    fn default_timeout(&self) -> Timeout;
 
     async fn subscribe<T: Into<String>, I: IntoIterator<Item = T> + Send>(
         &mut self,
@@ -266,6 +264,7 @@ pub trait AsAsyncConsumer: Sized + Send + Sync {
     ) -> Pin<
         Box<
             dyn '_
+                + Send
                 + futures::Stream<
                     Item = Result<(Self::Offset, MessageSet<Self::Meta, Self::Data>), Self::Error>,
                 >,
@@ -282,6 +281,7 @@ pub trait AsAsyncConsumer: Sized + Send + Sync {
     ) -> Pin<
         Box<
             dyn '_
+                + Send
                 + futures::Stream<
                     Item = Result<(Self::Offset, MessageSet<Self::Meta, Self::Data>), Self::Error>,
                 >,

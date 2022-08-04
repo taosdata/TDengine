@@ -72,7 +72,6 @@ pub unsafe extern "C" fn ws_stmt_set_tbname(stmt: *mut WS_STMT, name: *const c_c
     match (stmt as *mut WsMaybeError<WsSyncStmt>).as_mut() {
         Some(stmt) => {
             let name = CStr::from_ptr(name).to_str().unwrap();
-            dbg!(name);
 
             if let Err(e) = stmt.set_tbname(name) {
                 let errno = e.errno();
@@ -279,9 +278,9 @@ impl TaosMultiBind {
                                     .offset(self.buffer_length as isize * i as isize);
                                 let len = *self.length.offset(i as isize) as usize;
                                 let bytes = std::slice::from_raw_parts(ptr, len);
-                                dbg!(Some(
+                                Some(
                                     serde_json::from_slice::<serde_json::Value>(bytes).unwrap()
-                                ))
+                                )
                             }
                         })
                         .collect::<Vec<_>>();
