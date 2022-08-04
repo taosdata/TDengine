@@ -4076,6 +4076,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
     ops[i] = createOperatorTree(pChildNode, pTaskInfo, pHandle, pTableListInfo, pTagCond, pTagIndexCond, pUser);
     if (ops[i] == NULL) {
+      taosMemoryFree(ops);
       return NULL;
     } else {
       ops[i]->resultDataBlockId = pChildNode->pOutputDataBlockDesc->dataBlockId;
@@ -4517,7 +4518,7 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   return code;
 
 _complete:
-  taosMemoryFreeClear(*pTaskInfo);
+  doDestroyTask(*pTaskInfo);
   terrno = code;
   return code;
 }
