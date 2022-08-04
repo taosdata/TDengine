@@ -38,6 +38,11 @@ typedef struct SMsgBuf {
   char*   buf;
 } SMsgBuf;
 
+typedef struct SParseTablesMetaReq {
+  char      dbFName[TSDB_DB_FNAME_LEN];
+  SHashObj* pTables;
+} SParseTablesMetaReq;
+
 typedef struct SParseMetaCache {
   SHashObj* pTableMeta;    // key is tbFName, element is STableMeta*
   SHashObj* pDbVgroup;     // key is dbFName, element is SArray<SVgroupInfo>*
@@ -94,7 +99,7 @@ int32_t getUdfInfoFromCache(SParseMetaCache* pMetaCache, const char* pFunc, SFun
 int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pIndexes);
 int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableCfg** pOutput);
 int32_t getDnodeListFromCache(SParseMetaCache* pMetaCache, SArray** pDnodes);
-void    destoryParseMetaCache(SParseMetaCache* pMetaCache);
+void    destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request);
 
 #ifdef __cplusplus
 }
