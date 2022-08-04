@@ -51,16 +51,16 @@ static int32_t dmInitMonitor() {
 
 static bool dmCheckDiskSpace() {
   osUpdate();
-  if (osDataSpaceAvailable()) {
-    dError("free disk size: %f GB, too little, quit", tsDataSpace.size.avail);
+  if (!osDataSpaceAvailable()) {
+    dError("free disk size: %f GB, too little, require %f GB at least at least , quit", (double)tsDataSpace.size.avail / 1024.0 / 1024.0 / 1024.0, (double)tsDataSpace.reserved / 1024.0 / 1024.0 / 1024.0);
     return false;
   }
-  if (osLogSpaceAvailable()) {
-    dError("free disk size: %f GB, too little, quit", tsLogSpace.size.avail);
+  if (!osLogSpaceAvailable()) {
+    dError("free disk size: %f GB, too little, require %f GB at least at least, quit", (double)tsLogSpace.size.avail / 1024.0 / 1024.0 / 1024.0, (double)tsLogSpace.reserved / 1024.0 / 1024.0 / 1024.0);
     return false;
   }
-  if (osTempSpaceAvailable()) {
-    dError("free disk size: %f GB, too little, quit", tsTempSpace.size.avail);
+  if (!osTempSpaceAvailable()) {
+    dError("free disk size: %f GB, too little, require %f GB at least at least, quit", (double)tsTempSpace.size.avail / 1024.0 / 1024.0 / 1024.0, (double)tsTempSpace.reserved / 1024.0 / 1024.0 / 1024.0);
     return false;
   }
   return true;
