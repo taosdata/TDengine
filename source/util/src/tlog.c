@@ -698,8 +698,6 @@ static void *taosAsyncOutputLog(void *param) {
     if (count > 1000) {
       osUpdate();
       count = 0;
-      uError("Write log file failed, since log disk spase is not enough.\n %f GB, too little, require %f GB at least at least.", (double)tsLogSpace.size.avail / 1024.0 / 1024.0 / 1024.0, (double)tsLogSpace.reserved / 1024.0 / 1024.0 / 1024.0);
-      if (!osLogSpaceAvailable()) pLogBuf->stop = 1;
     }
 
     // Polling the buffer
