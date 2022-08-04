@@ -1058,7 +1058,18 @@ _return:
     ctgReleaseVgInfoToCache(pCtg, dbCache);
   }
 
-  if (pTask->res || code) {
+#if CTG_BATCH_FETCH
+  if (code) {
+    SMetaRes* pRes = taosArrayGet(ctx->pTbMetas, pFetch->reqIdx);
+    pRes->code = code;
+    pRes->pRes = NULL;
+    if (0 == atomic_sub_fetch_32(&ctx->fetchNum, 1)) {
+      TSWAP(pTask->res, ctx->pTbMetas);
+    }
+  }
+#endif
+
+  if (pTask->res) {
     ctgHandleTaskEnd(pTask, code);
   }
   
