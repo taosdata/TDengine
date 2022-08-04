@@ -296,22 +296,28 @@ static int32_t tsdbCommitterNextLastRow(SCommitter *pCommitter) {
   ASSERT(pCommitter->dReader.pReader);
   ASSERT(pCommitter->dReader.pRowInfo);
 
+  SBlockData *pBlockDatal = &pCommitter->dReader.bDatal;
   pCommitter->dReader.iRow++;
-  if (pCommitter->dReader.iRow < pCommitter->dReader.bDatal.nRow) {
-    pCommitter->dReader.pRowInfo->uid = pCommitter->dReader.bData.aUid[pCommitter->dReader.iRow];
-    pCommitter->dReader.pRowInfo->row = tsdbRowFromBlockData(&pCommitter->dReader.bDatal, pCommitter->dReader.iRow);
+  if (pCommitter->dReader.iRow < pBlockDatal->nRow) {
+    if (pBlockDatal->uid == 0) {
+      pCommitter->dReader.pRowInfo->uid = pBlockDatal->aUid[pCommitter->dReader.iRow];
+    }
+    pCommitter->dReader.pRowInfo->row = tsdbRowFromBlockData(pBlockDatal, pCommitter->dReader.iRow);
   } else {
     pCommitter->dReader.iBlockL++;
     if (pCommitter->dReader.iBlockL < taosArrayGetSize(pCommitter->dReader.aBlockL)) {
       pCommitter->dReader.pBlockL = (SBlockL *)taosArrayGet(pCommitter->dReader.aBlockL, pCommitter->dReader.iBlockL);
-      code = tsdbReadLastBlock(pCommitter->dReader.pReader, pCommitter->dReader.pBlockL, &pCommitter->dReader.bDatal,
-                               NULL, NULL);
+      code = tsdbReadLastBlock(pCommitter->dReader.pReader, pCommitter->dReader.pBlockL, pBlockDatal, NULL, NULL);
       if (code) goto _exit;
 
       pCommitter->dReader.iRow = 0;
-      pCommitter->dReader.pRowInfo->suid = pCommitter->dReader.pBlockL->suid;
-      pCommitter->dReader.pRowInfo->uid = pCommitter->dReader.bData.aUid[pCommitter->dReader.iRow];
-      pCommitter->dReader.pRowInfo->row = tsdbRowFromBlockData(&pCommitter->dReader.bDatal, pCommitter->dReader.iRow);
+      pCommitter->dReader.pRowInfo->suid = pBlockDatal->suid;
+      if (pBlockDatal->uid) {
+        pCommitter->dReader.pRowInfo->uid = pBlockDatal->uid;
+      } else {
+        pCommitter->dReader.pRowInfo->uid = pBlockDatal->aUid[0];
+      }
+      pCommitter->dReader.pRowInfo->row = tsdbRowFromBlockData(pBlockDatal, pCommitter->dReader.iRow);
     } else {
       pCommitter->dReader.pRowInfo = NULL;
     }
@@ -354,15 +360,16 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
     } else {
       pCommitter->dReader.pBlockIdx = NULL;
     }
+    tBlockDataReset(&pCommitter->dReader.bData);
 
     // last
     code = tsdbReadBlockL(pCommitter->dReader.pReader, pCommitter->dReader.aBlockL, NULL);
     if (code) goto _err;
 
     pCommitter->dReader.iBlockL = -1;
-    pCommitter->dReader.bDatal.nRow = 0;
     pCommitter->dReader.iRow = -1;
     pCommitter->dReader.pRowInfo = &pCommitter->dReader.rowInfo;
+    tBlockDataReset(&pCommitter->dReader.bDatal);
     code = tsdbCommitterNextLastRow(pCommitter);
     if (code) goto _err;
   } else {

@@ -591,8 +591,8 @@ int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx, uint8_t **ppB
 
   ASSERT(n + sizeof(TSCKSUM) == size);
 
-_exit:
   tFree(pBuf);
+_exit:
   return code;
 
 _err:
@@ -658,8 +658,8 @@ int32_t tsdbReadBlockL(SDataFReader *pReader, SArray *aBlockL, uint8_t **ppBuf) 
 
   ASSERT(n + sizeof(TSCKSUM) == size);
 
-_exit:
   tFree(pBuf);
+_exit:
   return code;
 
 _err:

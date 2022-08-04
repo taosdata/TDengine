@@ -134,14 +134,15 @@ int32_t tGetColData(uint8_t *p, SColData *pColData);
 #define tBlockDataLastRow(PBLOCKDATA)  tsdbRowFromBlockData(PBLOCKDATA, (PBLOCKDATA)->nRow - 1)
 #define tBlockDataFirstKey(PBLOCKDATA) TSDBROW_KEY(&tBlockDataFirstRow(PBLOCKDATA))
 #define tBlockDataLastKey(PBLOCKDATA)  TSDBROW_KEY(&tBlockDataLastRow(PBLOCKDATA))
-int32_t   tBlockDataInit(SBlockData *pBlockData);
-void      tBlockDataReset(SBlockData *pBlockData);
-int32_t   tBlockDataSetSchema(SBlockData *pBlockData, STSchema *pTSchema);
+int32_t tBlockDataInit(SBlockData *pBlockData);
+void    tBlockDataClear(SBlockData *pBlockData, int8_t deepClear);
+void    tBlockDataReset(SBlockData *pBlockData);
+int32_t tBlockDataSetSchema(SBlockData *pBlockData, STSchema *pTSchema, int64_t suid, int64_t uid);
+int32_t tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);
+int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid);
+
 int32_t   tBlockDataCorrectSchema(SBlockData *pBlockData, SBlockData *pBlockDataFrom);
 void      tBlockDataClearData(SBlockData *pBlockData);
-void      tBlockDataClear(SBlockData *pBlockData, int8_t deepClear);
-int32_t   tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);
-int32_t   tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema);
 int32_t   tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData);
 int32_t   tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest);
 SColData *tBlockDataGetColDataByIdx(SBlockData *pBlockData, int32_t idx);
@@ -468,13 +469,17 @@ struct SColData {
   uint8_t *pData;
 };
 
+// (SBlockData){.suid = 0, .uid = 0}: block data not initialized
+// (SBlockData){.suid = suid, .uid = uid}: block data for ONE child table int .data file
+// (SBlockData){.suid = suid, .uid = 0}: block data for N child tables int .last file
+// (SBlockData){.suid = 0, .uid = uid}: block data for 1 normal table int .last/.data file
 struct SBlockData {
-  int64_t  suid;  // 0 means normal table data block
-  int64_t  uid;   // 0 means block data in .last file, others in .data file
-  int32_t  nRow;
-  int64_t *aUid;
-  int64_t *aVersion;
-  TSKEY   *aTSKEY;
+  int64_t  suid;      // 0 means normal table block data, otherwise child table block data
+  int64_t  uid;       // 0 means block data in .last file, otherwise in .data file
+  int32_t  nRow;      // number of rows
+  int64_t *aUid;      // uids of each row, only exist in block data in .last file (uid == 0)
+  int64_t *aVersion;  // versions of each row
+  TSKEY   *aTSKEY;    // timestamp of each row
   SArray  *aIdx;      // SArray<int32_t>
   SArray  *aColData;  // SArray<SColData>
 };
