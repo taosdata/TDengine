@@ -140,9 +140,9 @@ void    tBlockDataReset(SBlockData *pBlockData);
 int32_t tBlockDataSetSchema(SBlockData *pBlockData, STSchema *pTSchema, int64_t suid, int64_t uid);
 int32_t tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);
 int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid);
+void    tBlockDataClearData(SBlockData *pBlockData);
 
 int32_t   tBlockDataCorrectSchema(SBlockData *pBlockData, SBlockData *pBlockDataFrom);
-void      tBlockDataClearData(SBlockData *pBlockData);
 int32_t   tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData);
 int32_t   tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest);
 SColData *tBlockDataGetColDataByIdx(SBlockData *pBlockData, int32_t idx);
