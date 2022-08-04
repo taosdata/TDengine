@@ -216,9 +216,11 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen) {
 
   if (offset.val.type == TMQ_OFFSET__LOG) {
     STqHandle* pHandle = taosHashGet(pTq->handles, offset.subKey, strlen(offset.subKey));
-    if (walRefVer(pHandle->pRef, offset.val.version) < 0) {
-      ASSERT(0);
-      return -1;
+    if (pHandle) {
+      if (walRefVer(pHandle->pRef, offset.val.version) < 0) {
+        ASSERT(0);
+        return -1;
+      }
     }
   }
 
@@ -515,7 +517,10 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
   // todo lock
   STqHandle* pHandle = taosHashGet(pTq->handles, req.subKey, strlen(req.subKey));
   if (pHandle == NULL) {
-    ASSERT(req.oldConsumerId == -1);
+    if (req.oldConsumerId != -1) {
+      tqError("vgId:%d, build new consumer handle %s for consumer %d, but old consumerId is %ld", req.vgId, req.subKey,
+              req.newConsumerId, req.oldConsumerId);
+    }
     ASSERT(req.newConsumerId != -1);
     STqHandle tqHandle = {0};
     pHandle = &tqHandle;
