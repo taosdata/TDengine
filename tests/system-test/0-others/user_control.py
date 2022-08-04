@@ -649,9 +649,16 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step5: enable info")
         taos1_conn = taos.connect(user=self.__user_list[1], password=f"new{self.__passwd_list[1]}")
         taos2_conn = taos.connect(user=self.__user_list[2], password=f"new{self.__passwd_list[2]}")
-        tdSql.execute()
-
-
+        tdSql.execute(f"alter user {self.__user_list[1]} enable 0")
+        taos1_except = True
+        try:
+            taos1_conn.query("show databases")
+        except BaseException:
+            taos1_except = False
+        if taos1_except:
+            tdLog.exit("taos 1 connect except error not occured,  when enable == 0, should not r/w ")
+        else:
+            tdLog.info("taos 1 connect except error occured,  enable == 0")
 
 
         # root删除用户测试
