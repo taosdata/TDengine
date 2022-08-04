@@ -295,10 +295,11 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, S
   streamTaskEnqueueRetrieve(pTask, pReq, pRsp);
 
   ASSERT(pTask->execType != TASK_EXEC__NONE);
-  streamTryExec(pTask);
+  streamSchedExec(pTask);
+  /*streamTryExec(pTask);*/
 
-  ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);
-  streamDispatch(pTask);
+  /*ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);*/
+  /*streamDispatch(pTask);*/
 
   return 0;
 }

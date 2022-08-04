@@ -162,10 +162,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
         data = qItem;
         streamQueueProcessSuccess(pTask->inputQueue);
         if (pTask->execType == TASK_EXEC__NONE) {
-          ASSERT(((SStreamQueueItem*)data)->type == STREAM_INPUT__DATA_BLOCK);
-          streamTaskOutput(pTask, data);
-          data = NULL;
-          continue;
+          break;
         }
       } else {
         void* newRet;
@@ -187,7 +184,13 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     }
 
     if (data == NULL) {
-      return 0;
+      break;
+    }
+
+    if (pTask->execType == TASK_EXEC__NONE) {
+      ASSERT(((SStreamQueueItem*)data)->type == STREAM_INPUT__DATA_BLOCK);
+      streamTaskOutput(pTask, data);
+      continue;
     }
 
     SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
