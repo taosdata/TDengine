@@ -676,8 +676,8 @@ class TDTestCase:
         taos3_conn = taos.connect(user=self.__user_list[3], password=f"new{self.__passwd_list[3]}")
         taos3_conn.query(f"show dnodes")
         taos3_conn.query(f"show {DBNAME}.vgroups")
-        tdSql.execute(f"alter user {self.__user_list[1]} sysinfo 0")
-        tdSql.execute(f"alter user {self.__user_list[2]} sysinfo 0")
+        tdSql.execute(f"alter user {self.__user_list[3]} sysinfo 0")
+        tdSql.execute(f"alter user {self.__user_list[4]} sysinfo 0")
         taos3_except = True
         try:
             taos3_conn.query(f"show dnodes")
@@ -694,7 +694,7 @@ class TDTestCase:
         try:
             taos4_conn.query(f"show mnodes")
             taos4_conn.query(f"show {DBNAME}.vgroups")
-        except ConnectionError:
+        except :
             taos4_except = False
         if taos4_except:
             tdLog.exit("taos 4 query except error not occured,  when sysinfo == 0, when enable == 0, should not show info:dnode/monde/qnode")
