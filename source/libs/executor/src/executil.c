@@ -632,7 +632,7 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
               tListLen(pExp->pExpr->_function.functionName));
 #if 1
       // todo refactor: add the parameter for tbname function
-      if (strcmp(pExp->pExpr->_function.functionName, "tbname") == 0) {
+      if (!pFuncNode->pParameterList && (strcmp(pExp->pExpr->_function.functionName, "tbname") == 0)) {
         pFuncNode->pParameterList = nodesMakeList();
         ASSERT(LIST_LENGTH(pFuncNode->pParameterList) == 0);
         SValueNode* res = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);

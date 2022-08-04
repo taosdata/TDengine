@@ -104,7 +104,7 @@ int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numO
 
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
-  int32_t code = doSetStreamBlock(pTaskInfo->pRoot, (void**)pBlocks, numOfBlocks, type, GET_TASKID(pTaskInfo));
+  int32_t code = doSetStreamBlock(pTaskInfo->pRoot, (void*)pBlocks, numOfBlocks, type, GET_TASKID(pTaskInfo));
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed to set the stream block data", GET_TASKID(pTaskInfo));
   } else {

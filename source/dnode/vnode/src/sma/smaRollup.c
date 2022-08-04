@@ -92,7 +92,7 @@ static FORCE_INLINE void tdRSmaQTaskInfoIterDestroy(SRSmaQTaskInfoIter *pIter) {
 
 void tdFreeQTaskInfo(qTaskInfo_t *taskHandle, int32_t vgId, int32_t level) {
   // Note: free/kill may in RC
-  if (!taskHandle) return;
+  if (!taskHandle || !(*taskHandle)) return;
   qTaskInfo_t otaskHandle = atomic_load_ptr(taskHandle);
   if (otaskHandle && atomic_val_compare_exchange_ptr(taskHandle, otaskHandle, NULL)) {
     smaDebug("vgId:%d, free qTaskInfo_t %p of level %d", vgId, otaskHandle, level);

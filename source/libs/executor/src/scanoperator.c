@@ -1493,6 +1493,9 @@ static void destroyStreamScanOperatorInfo(void* param, int32_t numOfOutput) {
   if (pStreamScan->pColMatchInfo) {
     taosArrayDestroy(pStreamScan->pColMatchInfo);
   }
+  destroyExprInfo(pStreamScan->pPseudoExpr, pStreamScan->numOfPseudoExpr);
+  taosMemoryFreeClear(pStreamScan->pPseudoExpr);
+
   updateInfoDestroy(pStreamScan->pUpdateInfo);
   blockDataDestroy(pStreamScan->pRes);
   blockDataDestroy(pStreamScan->pUpdateRes);

@@ -3483,9 +3483,8 @@ void cleanupExprSupp(SExprSupp* pSupp) {
   destroySqlFunctionCtx(pSupp->pCtx, pSupp->numOfExprs);
   if (pSupp->pExprInfo != NULL) {
     destroyExprInfo(pSupp->pExprInfo, pSupp->numOfExprs);
+    taosMemoryFreeClear(pSupp->pExprInfo);
   }
-
-  taosMemoryFreeClear(pSupp->pExprInfo);
   taosMemoryFree(pSupp->rowEntryInfoOffset);
 }
 
