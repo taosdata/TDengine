@@ -672,6 +672,34 @@ class TDTestCase:
         else:
             tdLog.info("taos 2 connect except error occured,  enable == 0, can not login")
 
+        tdLog.printNoPrefix("==========step6: sysinfo info")
+        taos3_conn = taos.connect(user=self.__user_list[3], password=f"new{self.__passwd_list[3]}")
+        taos3_conn.query(f"show dnodes")
+        taos3_conn.query(f"show {DBNAME}.vgroups")
+        tdSql.execute(f"alter user {self.__user_list[1]} sysinfo 0")
+        tdSql.execute(f"alter user {self.__user_list[2]} sysinfo 0")
+        taos3_except = True
+        try:
+            taos3_conn.query(f"show dnodes")
+            taos3_conn.query(f"show {DBNAME}.vgroups")
+        except BaseException:
+            taos3_except = False
+        if taos3_except:
+            tdLog.exit("taos 3 query except error not occured,  when sysinfo == 0, should not show info:dnode/monde/qnode ")
+        else:
+            tdLog.info("taos 3 query except error occured,  sysinfo == 0, can not show dnode/vgroups")
+
+        taos4_conn = taos.connect(user=self.__user_list[4], password=f"new{self.__passwd_list[4]}")
+        taos4_except = True
+        try:
+            taos4_conn.query(f"show mnodes")
+            taos4_conn.query(f"show {DBNAME}.vgroups")
+        except ConnectionError:
+            taos4_except = False
+        if taos4_except:
+            tdLog.exit("taos 4 query except error not occured,  when sysinfo == 0, when enable == 0, should not show info:dnode/monde/qnode")
+        else:
+            tdLog.info("taos 4 query except error occured,  sysinfo == 0, can not show dnode/vgroups")
 
         # root删除用户测试
         tdLog.printNoPrefix("==========step10: super user drop normal user")
