@@ -412,22 +412,31 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     udf->outputLen = pFuncInfo->outputLen;
     udf->bufSize = pFuncInfo->bufSize;
 
+    if (!osTempSpaceAvailable()) {
+      terrno = TSDB_CODE_NO_AVAIL_DISK;
+      msgInfo->code = terrno;
+      fnError("udfd create shared library failed since %s", terrstr(terrno));
+      goto _return;
+    }
+
     char path[PATH_MAX] = {0};
 #ifdef WINDOWS
-    snprintf(path, sizeof(path), "%s%s.dll", TD_TMP_DIR_PATH, pFuncInfo->name);
+    snprintf(path, sizeof(path), "%s%s.dll", tsTempDir, pFuncInfo->name);
 #else
-    snprintf(path, sizeof(path), "%s/lib%s.so", TD_TMP_DIR_PATH, pFuncInfo->name);
+    snprintf(path, sizeof(path), "%s/lib%s.so", tsTempDir, pFuncInfo->name);
 #endif
     TdFilePtr file =
         taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
     if (file == NULL) {
       fnError("udfd write udf shared library: %s failed, error: %d %s", path, errno, strerror(errno));
       msgInfo->code = TSDB_CODE_FILE_CORRUPTED;
+      goto _return;
     }
     int64_t count = taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
     if (count != pFuncInfo->codeSize) {
       fnError("udfd write udf shared library failed");
       msgInfo->code = TSDB_CODE_FILE_CORRUPTED;
+      goto _return;
     }
     taosCloseFile(&file);
     strncpy(udf->path, path, strlen(path));
