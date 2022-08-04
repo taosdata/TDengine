@@ -218,11 +218,6 @@ extern int32_t  debugFlag;
 
 extern int8_t tsClientMerge;
 
-// probe alive connection
-extern int32_t tsProbeSeconds;
-extern int32_t tsProbeKillSeconds;
-extern int32_t tsProbeInterval;
-
 #ifdef TD_TSZ
 // lossy
 extern char     lossyColumns[];

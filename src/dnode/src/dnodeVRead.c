@@ -152,13 +152,3 @@ static void *dnodeProcessReadQueue(void *wparam) {
 
   return NULL;
 }
-
-// reponse probe connection msg 
-void dnodeResponseProbeMsg(SRpcMsg *pMsg) {
-  // check probe conn msg
-  if(pMsg->msgType == TSDB_MSG_TYPE_PROBE_CONN) {
-    SRpcMsg rpcRsp = {.handle = pMsg->handle, .code = 0, .msgType = TSDB_MSG_TYPE_PROBE_CONN_RSP};
-    rpcSendResponse(&rpcRsp);
-    return ;
-  }
-}
