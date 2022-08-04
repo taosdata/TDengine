@@ -2175,6 +2175,10 @@ int tdbBtcClose(SBTC *pBtc) {
     pBtc->idx = pBtc->idxStack[pBtc->iPage];
   }
 
+  if (TDB_CELLDECODER_FREE_VAL(&pBtc->coder)) {
+    tdbFree(pBtc->coder.pVal);
+  }
+
   return 0;
 }
 
