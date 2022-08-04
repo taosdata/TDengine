@@ -49,6 +49,7 @@ class TestDB(TDCase):
         symbol_list = self.tdCom.gen_symbol_list()
         symbol_list.remove('`')
         symbol_list.remove('\\')
+        symbol_list.remove('.')
         for insert_str in symbol_list:
             d_list = list(dbname)
             for i in range(len(d_list)+1):
