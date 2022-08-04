@@ -30,6 +30,7 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
     goto _error;
   }
 
+  pOperator->pTaskInfo = pTaskInfo;
   SDataBlockDescNode* pDescNode = pSortNode->node.pOutputDataBlockDesc;
 
   int32_t      numOfCols = 0;
@@ -45,7 +46,7 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   initResultSizeInfo(&pOperator->resultInfo, 1024);
 
   pInfo->binfo.pRes = pResBlock;
-  pInfo->pSortInfo  = createSortInfo(pSortNode->pSortKeys);
+  pInfo->pSortInfo = createSortInfo(pSortNode->pSortKeys);
   pInfo->pCondition = pSortNode->node.pConditions;
   pInfo->pColMatchInfo = pColMatchColInfo;
   initLimitInfo(pSortNode->node.pLimit, pSortNode->node.pSlimit, &pInfo->limitInfo);
@@ -57,7 +58,6 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   pOperator->info = pInfo;
   pOperator->exprSupp.pExprInfo = pExprInfo;
   pOperator->exprSupp.numOfExprs = numOfCols;
-  pOperator->pTaskInfo = pTaskInfo;
 
   // lazy evaluation for the following parameter since the input datablock is not known till now.
   //  pInfo->bufPageSize  = rowSize < 1024 ? 1024 * 2 : rowSize * 2;
@@ -222,7 +222,7 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
     }
 
     // todo add the limit/offset info
-    if (pInfo->limitInfo.remainOffset > 0)  {
+    if (pInfo->limitInfo.remainOffset > 0) {
       if (pInfo->limitInfo.remainOffset >= blockDataGetNumOfRows(pBlock)) {
         pInfo->limitInfo.remainOffset -= pBlock->info.rows;
         continue;
@@ -247,7 +247,7 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
     }
   }
 
-  return blockDataGetNumOfRows(pBlock) > 0? pBlock:NULL;
+  return blockDataGetNumOfRows(pBlock) > 0 ? pBlock : NULL;
 }
 
 void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
@@ -474,7 +474,7 @@ void destroyGroupSortOperatorInfo(void* param, int32_t numOfOutput) {
 
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->pColMatchInfo);
-  
+
   taosMemoryFreeClear(param);
 }
 
@@ -609,8 +609,7 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
         pInfo->groupId = tsortGetGroupId(pTupleHandle);
         pInfo->prefetchedTuple = NULL;
       }
-    }
-    else {
+    } else {
       pTupleHandle = tsortNextTuple(pHandle);
       pInfo->groupId = 0;
     }
@@ -694,7 +693,7 @@ void destroyMultiwayMergeOperatorInfo(void* param, int32_t numOfOutput) {
   tsortDestroySortHandle(pInfo->pSortHandle);
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->pColMatchInfo);
-  
+
   taosMemoryFreeClear(param);
 }
 
@@ -711,7 +710,7 @@ int32_t getMultiwayMergeExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplai
 }
 
 SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numStreams,
-                                                SMergePhysiNode* pMergePhyNode, SExecTaskInfo* pTaskInfo) {
+                                               SMergePhysiNode* pMergePhyNode, SExecTaskInfo* pTaskInfo) {
   SPhysiNode* pPhyNode = (SPhysiNode*)pMergePhyNode;
 
   SMultiwayMergeOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SMultiwayMergeOperatorInfo));

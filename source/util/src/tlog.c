@@ -691,9 +691,14 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
 static void *taosAsyncOutputLog(void *param) {
   SLogBuff *pLogBuf = (SLogBuff *)param;
   setThreadName("log");
-
+  int32_t count = 0;
   while (1) {
+    count += tsWriteInterval;
     taosMsleep(tsWriteInterval);
+    if (count > 1000) {
+      osUpdate();
+      count = 0;
+    }
 
     // Polling the buffer
     taosWriteLog(pLogBuf);

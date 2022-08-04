@@ -68,7 +68,7 @@ class TDTestCase:
     def fiveDnodeThreeMnode(self,dnodeNumbers,mnodeNums,restartNumbers,stopRole):
         tdLog.printNoPrefix("======== test case 1: ")
         paraDict = {'dbName':     'db',
-                    'dbNumbers':   8,
+                    'dbNumbers':   6,
                     'dropFlag':   1,
                     'event':      '',
                     'vgroups':    2,
@@ -98,10 +98,10 @@ class TDTestCase:
 
         # fisr add three mnodes;
         tdLog.info("fisr add three mnodes and check mnode status")
-        tdSql.info("create mnode on dnode 2")
+        tdLog.info("create mnode on dnode 2")
         tdSql.execute("create mnode on dnode 2")
         clusterComCheck.checkMnodeStatus(2)
-        tdSql.info("create mnode on dnode 3")
+        tdLog.info("create mnode on dnode 3")
         tdSql.execute("create mnode on dnode 3")
         clusterComCheck.checkMnodeStatus(3)
 
@@ -161,7 +161,7 @@ class TDTestCase:
         tdLog.info("check dnode number:")
         clusterComCheck.checkDnodes(dnodeNumbers)
         tdSql.query("show databases")
-        tdLog.debug("we find %d databases but exepect to create %d  databases "%(tdSql.queryRows-2,allDbNumbers-2))
+        tdLog.debug("we find %d databases but exepect to create %d  databases "%(tdSql.queryRows-2,allDbNumbers))
 
         # tdLog.info("check DB Rows:")
         # clusterComCheck.checkDbRows(allDbNumbers)
@@ -172,7 +172,7 @@ class TDTestCase:
 
     def run(self):
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=10,stopRole='mnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=5,stopRole='mnode')
 
     def stop(self):
         tdSql.close()

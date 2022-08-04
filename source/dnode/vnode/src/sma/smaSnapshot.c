@@ -35,6 +35,7 @@ struct SRsmaSnapReader {
 
 int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapReader** ppReader) {
   int32_t          code = 0;
+  SVnode*          pVnode = pSma->pVnode;
   SRsmaSnapReader* pReader = NULL;
 
   // alloc
@@ -47,6 +48,7 @@ int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapRead
   pReader->sver = sver;
   pReader->ever = ever;
 
+  // rsma1/rsma2
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pSma->pRSmaTsdb[i]) {
       code = tsdbSnapReaderOpen(pSma->pRSmaTsdb[i], sver, ever, i == 0 ? SNAP_DATA_RSMA1 : SNAP_DATA_RSMA2,
@@ -56,23 +58,98 @@ int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapRead
       }
     }
   }
+
+  // qtaskinfo
+  // 1. add ref to qtaskinfo.v${ever} if exists and then start to replicate
+  char qTaskInfoFullName[TSDB_FILENAME_LEN];
+  tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), ever, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFullName);
+
+  if (!taosCheckExistFile(qTaskInfoFullName)) {
+    smaInfo("vgId:%d, vnode snapshot rsma reader for qtaskinfo not need as %s not exists", TD_VID(pVnode),
+            qTaskInfoFullName);
+  } else {
+    pReader->pQTaskFReader = taosMemoryCalloc(1, sizeof(SQTaskFReader));
+    if (!pReader->pQTaskFReader) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+
+    TdFilePtr qTaskF = taosOpenFile(qTaskInfoFullName, TD_FILE_READ);
+    if (!qTaskF) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+    pReader->pQTaskFReader->pReadH = qTaskF;
+#if 0
+    SQTaskFile* pQTaskF = &pReader->pQTaskFReader->fTask;
+    pQTaskF->nRef = 1;
+#endif
+  }
+
   *ppReader = pReader;
-  smaInfo("vgId:%d, vnode snapshot rsma reader opened succeed", SMA_VID(pSma));
+  smaInfo("vgId:%d, vnode snapshot rsma reader opened %s succeed", TD_VID(pVnode), qTaskInfoFullName);
   return TSDB_CODE_SUCCESS;
 _err:
-  smaError("vgId:%d, vnode snapshot rsma reader opened failed since %s", SMA_VID(pSma), tstrerror(code)); 
+  smaError("vgId:%d, vnode snapshot rsma reader opened failed since %s", TD_VID(pVnode), tstrerror(code));
   return TSDB_CODE_FAILED;
 }
 
-static int32_t rsmaSnapReadQTaskInfo(SRsmaSnapReader* pReader, uint8_t** ppData) {
-  int32_t code = 0;
-  SSma*   pSma = pReader->pSma;
+static int32_t rsmaSnapReadQTaskInfo(SRsmaSnapReader* pReader, uint8_t** ppBuf) {
+  int32_t        code = 0;
+  SSma*          pSma = pReader->pSma;
+  int64_t        n = 0;
+  uint8_t*       pBuf = NULL;
+  SQTaskFReader* qReader = pReader->pQTaskFReader;
+
+  if (!qReader->pReadH) {
+    *ppBuf = NULL;
+    smaInfo("vgId:%d, vnode snapshot rsma reader qtaskinfo, readh is empty", SMA_VID(pSma));
+    return 0;
+  }
+
+  int64_t size = 0;
+  if (taosFStatFile(qReader->pReadH, &size, NULL) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // seek
+  if (taosLSeekFile(qReader->pReadH, 0, SEEK_SET) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  ASSERT(!(*ppBuf));
+  // alloc
+  *ppBuf = taosMemoryCalloc(1, sizeof(SSnapDataHdr) + size);
+  if (!(*ppBuf)) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  // read
+  n = taosReadFile(qReader->pReadH, POINTER_SHIFT(*ppBuf, sizeof(SSnapDataHdr)), size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  } else if (n != size) {
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _err;
+  }
+
+  smaInfo("vgId:%d, vnode snapshot rsma read qtaskinfo, size:%" PRIi64, SMA_VID(pSma), size);
+
+
+  SSnapDataHdr* pHdr = (SSnapDataHdr*)(*ppBuf);
+  pHdr->type = SNAP_DATA_QTASK;
+  pHdr->size = size;
 
 _exit:
   smaInfo("vgId:%d, vnode snapshot rsma read qtaskinfo succeed", SMA_VID(pSma));
   return code;
 
 _err:
+  *ppBuf = NULL;
   smaError("vgId:%d, vnode snapshot rsma read qtaskinfo failed since %s", SMA_VID(pSma), tstrerror(code));
   return code;
 }
@@ -108,14 +185,14 @@ int32_t rsmaSnapRead(SRsmaSnapReader* pReader, uint8_t** ppData) {
 
   // read qtaskinfo file
   if (!pReader->qTaskDone) {
+    smaInfo("vgId:%d, vnode snapshot rsma qtaskinfo not done", SMA_VID(pReader->pSma));
     code = rsmaSnapReadQTaskInfo(pReader, ppData);
     if (code) {
       goto _err;
     } else {
+      pReader->qTaskDone = 1;
       if (*ppData) {
         goto _exit;
-      } else {
-        pReader->qTaskDone = 1;
       }
     }
   }
@@ -140,10 +217,10 @@ int32_t rsmaSnapReaderClose(SRsmaSnapReader** ppReader) {
   }
 
   if (pReader->pQTaskFReader) {
-    // TODO: close for qtaskinfo
+    taosCloseFile(&pReader->pQTaskFReader->pReadH);
+    taosMemoryFreeClear(pReader->pQTaskFReader);
     smaInfo("vgId:%d, vnode snapshot rsma reader closed for qTaskInfo", SMA_VID(pReader->pSma));
   }
-
 
   smaInfo("vgId:%d, vnode snapshot rsma reader closed", SMA_VID(pReader->pSma));
 
@@ -171,6 +248,7 @@ struct SRsmaSnapWriter {
 int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapWriter** ppWriter) {
   int32_t          code = 0;
   SRsmaSnapWriter* pWriter = NULL;
+  SVnode*          pVnode = pSma->pVnode;
 
   // alloc
   pWriter = (SRsmaSnapWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
@@ -182,6 +260,7 @@ int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapWrit
   pWriter->sver = sver;
   pWriter->ever = ever;
 
+  // rsma1/rsma2
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pSma->pRSmaTsdb[i]) {
       code = tsdbSnapWriterOpen(pSma->pRSmaTsdb[i], sver, ever, &pWriter->pDataWriter[i]);
@@ -192,8 +271,25 @@ int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapWrit
   }
 
   // qtaskinfo
-  // TODO
+  SQTaskFWriter* qWriter = (SQTaskFWriter*)taosMemoryCalloc(1, sizeof(SQTaskFWriter));
+  qWriter->pSma = pSma;
 
+  char qTaskInfoFullName[TSDB_FILENAME_LEN];
+  tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), 0, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFullName);
+  TdFilePtr qTaskF = taosCreateFile(qTaskInfoFullName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (!qTaskF) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    smaError("vgId:%d, rsma snapshot writer open %s failed since %s", TD_VID(pSma->pVnode), qTaskInfoFullName, tstrerror(code));
+    goto _err;
+  }
+  qWriter->pWriteH = qTaskF;
+  int32_t fnameLen = strlen(qTaskInfoFullName) + 1;
+  qWriter->fname = taosMemoryCalloc(1, fnameLen);
+  strncpy(qWriter->fname, qTaskInfoFullName, fnameLen);
+  pWriter->pQTaskFWriter = qWriter;
+  smaDebug("vgId:%d, rsma snapshot writer open succeed for %s", TD_VID(pSma->pVnode), qTaskInfoFullName);
+
+  // snapWriter
   *ppWriter = pWriter;
 
   smaInfo("vgId:%d, rsma snapshot writer open succeed", TD_VID(pSma->pVnode));
@@ -208,17 +304,38 @@ _err:
 int32_t rsmaSnapWriterClose(SRsmaSnapWriter** ppWriter, int8_t rollback) {
   int32_t          code = 0;
   SRsmaSnapWriter* pWriter = *ppWriter;
+  SVnode*          pVnode = pWriter->pSma->pVnode;
 
   if (rollback) {
-    ASSERT(0);
-    // code = tsdbFSRollback(pWriter->pTsdb->pFS);
-    // if (code) goto _err;
+    // TODO: rsma1/rsma2
+    // qtaskinfo
+    if(pWriter->pQTaskFWriter) {
+      taosRemoveFile(pWriter->pQTaskFWriter->fname);
+    }
   } else {
+    // rsma1/rsma2
     for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
       if (pWriter->pDataWriter[i]) {
         code = tsdbSnapWriterClose(&pWriter->pDataWriter[i], rollback);
         if (code) goto _err;
       }
+    }
+    // qtaskinfo
+    if (pWriter->pQTaskFWriter) {
+      char qTaskInfoFullName[TSDB_FILENAME_LEN];
+      tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pWriter->ever, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFullName);
+      if (taosRenameFile(pWriter->pQTaskFWriter->fname, qTaskInfoFullName) < 0) {
+        code = TAOS_SYSTEM_ERROR(errno);
+        goto _err;
+      }
+      smaInfo("vgId:%d, vnode snapshot rsma writer rename %s to %s", SMA_VID(pWriter->pSma),
+              pWriter->pQTaskFWriter->fname, qTaskInfoFullName);
+
+      // rsma restore
+      if ((code = tdRsmaRestore(pWriter->pSma, RSMA_RESTORE_SYNC, pWriter->ever)) < 0) {
+        goto _err;
+      }
+      smaInfo("vgId:%d, vnode snapshot rsma writer restore from %s succeed", SMA_VID(pWriter->pSma), qTaskInfoFullName);
     }
   }
 
@@ -261,26 +378,23 @@ _err:
 }
 
 static int32_t rsmaSnapWriteQTaskInfo(SRsmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
-  int32_t code = 0;
+  int32_t        code = 0;
+  SQTaskFWriter* qWriter = pWriter->pQTaskFWriter;
 
-  if (pWriter->pQTaskFWriter == NULL) {
-    // SDelFile* pDelFile = pWriter->fs.pDelFile;
-
-    // // reader
-    // if (pDelFile) {
-    //   code = tsdbDelFReaderOpen(&pWriter->pDelFReader, pDelFile, pTsdb, NULL);
-    //   if (code) goto _err;
-
-    //   code = tsdbReadDelIdx(pWriter->pDelFReader, pWriter->aDelIdxR, NULL);
-    //   if (code) goto _err;
-    // }
-
-    // // writer
-    // SDelFile delFile = {.commitID = pWriter->commitID, .offset = 0, .size = 0};
-    // code = tsdbDelFWriterOpen(&pWriter->pDelFWriter, &delFile, pTsdb);
-    // if (code) goto _err;
+  if (qWriter && qWriter->pWriteH) {
+    SSnapDataHdr* pHdr = (SSnapDataHdr*)pData;
+    int64_t       size = pHdr->size;
+    ASSERT(size == (nData - sizeof(SSnapDataHdr)));
+    int64_t contLen = taosWriteFile(qWriter->pWriteH, pHdr->data, size);
+    if (contLen != size) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+  } else {
+    smaInfo("vgId:%d, vnode snapshot rsma write qtaskinfo is not needed", SMA_VID(pWriter->pSma));
   }
-  smaInfo("vgId:%d, vnode snapshot rsma write qtaskinfo succeed", SMA_VID(pWriter->pSma));
+
+  smaInfo("vgId:%d, vnode snapshot rsma write qtaskinfo %s succeed", SMA_VID(pWriter->pSma), qWriter->fname);
 _exit:
   return code;
 

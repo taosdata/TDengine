@@ -92,7 +92,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
       handle.execHandle.execDb.pFilterOutTbUid =
           taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     }
-    tqDebug("tq restore %s consumer %ld vgId:%d", handle.subKey, handle.consumerId, TD_VID(pTq->pVnode));
+    tqDebug("tq restore %s consumer %" PRId64 " vgId:%d", handle.subKey, handle.consumerId, TD_VID(pTq->pVnode));
     taosHashPut(pTq->handles, pKey, kLen, &handle, sizeof(STqHandle));
   }
 
@@ -132,7 +132,7 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
   tEncodeSize(tEncodeSTqHandle, pHandle, vlen, code);
   ASSERT(code == 0);
 
-  tqDebug("tq save %s(%d) consumer %ld vgId:%d", pHandle->subKey, strlen(pHandle->subKey), pHandle->consumerId,
+  tqDebug("tq save %s(%d) consumer %" PRId64 " vgId:%d", pHandle->subKey, strlen(pHandle->subKey), pHandle->consumerId,
           TD_VID(pTq->pVnode));
 
   void* buf = taosMemoryCalloc(1, vlen);

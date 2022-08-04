@@ -87,7 +87,7 @@ TEST_F(MndTestProfile, 02_ConnectMsg_InvalidDB) {
 }
 
 TEST_F(MndTestProfile, 03_ConnectMsg_Show) {
-  test.SendShowReq(TSDB_MGMT_TABLE_CONNS, "connections", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_CONNS, "perf_connections", "");
   EXPECT_EQ(test.GetShowRows(), 1);
 }
 
@@ -307,6 +307,6 @@ TEST_F(MndTestProfile, 08_KillQueryMsg_InvalidConn) {
 }
 
 TEST_F(MndTestProfile, 09_KillQueryMsg) {
-  test.SendShowReq(TSDB_MGMT_TABLE_QUERIES, "queries", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_QUERIES, "perf_queries", "");
   EXPECT_EQ(test.GetShowRows(), 0);
 }

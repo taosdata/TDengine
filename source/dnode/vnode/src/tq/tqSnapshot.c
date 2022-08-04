@@ -52,13 +52,13 @@ int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapReader** p
     goto _err;
   }
 
-  tqInfo("vgId:%d vnode snapshot tq reader opened", TD_VID(pTq->pVnode));
+  tqInfo("vgId:%d, vnode snapshot tq reader opened", TD_VID(pTq->pVnode));
 
   *ppReader = pReader;
   return code;
 
 _err:
-  tqError("vgId:%d vnode snapshot tq reader open failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
+  tqError("vgId:%d, vnode snapshot tq reader open failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
   *ppReader = NULL;
   return code;
 }
@@ -113,14 +113,14 @@ int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData) {
   pHdr->size = vLen;
   memcpy(pHdr->data, pVal, vLen);
 
-  tqInfo("vgId:%d vnode snapshot tq read data, version:%" PRId64 " subKey: %s vLen:%d", TD_VID(pReader->pTq->pVnode),
+  tqInfo("vgId:%d, vnode snapshot tq read data, version:%" PRId64 " subKey: %s vLen:%d", TD_VID(pReader->pTq->pVnode),
          handle.snapshotVer, handle.subKey, vLen);
 
 _exit:
   return code;
 
 _err:
-  tqError("vgId:%d vnode snapshot tq read data failed since %s", TD_VID(pReader->pTq->pVnode), tstrerror(code));
+  tqError("vgId:%d, vnode snapshot tq read data failed since %s", TD_VID(pReader->pTq->pVnode), tstrerror(code));
   return code;
 }
 
@@ -154,7 +154,7 @@ int32_t tqSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapWriter** p
   return code;
 
 _err:
-  tqError("vgId:%d tq snapshot writer open failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
+  tqError("vgId:%d, tq snapshot writer open failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
   *ppWriter = NULL;
   return code;
 }
@@ -182,7 +182,7 @@ int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback) {
   return code;
 
 _err:
-  tqError("vgId:%d tq snapshot writer close failed since %s", TD_VID(pWriter->pTq->pVnode), tstrerror(code));
+  tqError("vgId:%d, tq snapshot writer close failed since %s", TD_VID(pWriter->pTq->pVnode), tstrerror(code));
   return code;
 }
 
@@ -204,6 +204,6 @@ int32_t tqSnapWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
 
 _err:
   tDecoderClear(pDecoder);
-  tqError("vgId:%d vnode snapshot tq write failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
+  tqError("vgId:%d, vnode snapshot tq write failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
   return code;
 }
