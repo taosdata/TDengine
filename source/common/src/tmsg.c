@@ -76,7 +76,7 @@ int32_t tGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
     pIter->sversion = htonl((*pPBlock)->sversion);
     pIter->dataLen = htonl((*pPBlock)->dataLen);
     pIter->schemaLen = htonl((*pPBlock)->schemaLen);
-    pIter->numOfRows = htons((*pPBlock)->numOfRows);
+    pIter->numOfRows = htonl((*pPBlock)->numOfRows);
   }
   return 0;
 }
