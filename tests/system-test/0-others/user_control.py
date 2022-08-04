@@ -665,7 +665,7 @@ class TDTestCase:
         taos2_except = True
         try:
             taos.connect(user=self.__user_list[2], password=f"new{self.__passwd_list[2]}")
-        except ConnectionError:
+        except BaseException:
             taos2_except = False
         if taos2_except:
             tdLog.exit("taos 2 connect except error not occured,  when enable == 0, should not connect")
@@ -694,7 +694,7 @@ class TDTestCase:
         try:
             taos4_conn.query(f"show mnodes")
             taos4_conn.query(f"show {DBNAME}.vgroups")
-        except :
+        except BaseException:
             taos4_except = False
         if taos4_except:
             tdLog.exit("taos 4 query except error not occured,  when sysinfo == 0, when enable == 0, should not show info:dnode/monde/qnode")
