@@ -227,8 +227,7 @@ typedef struct SSubmitBlk {
   int32_t sversion;   // data schema version
   int32_t dataLen;    // data part length, not including the SSubmitBlk head
   int32_t schemaLen;  // schema length, if length is 0, no schema exists
-  int16_t numOfRows;  // total number of rows in current submit block
-  int16_t padding;    // TODO just for padding here
+  int32_t numOfRows;  // total number of rows in current submit block
   char    data[];
 } SSubmitBlk;
 
@@ -256,7 +255,7 @@ typedef struct {
   int32_t sversion;   // data schema version
   int32_t dataLen;    // data part length, not including the SSubmitBlk head
   int32_t schemaLen;  // schema length, if length is 0, no schema exists
-  int16_t numOfRows;  // total number of rows in current submit block
+  int32_t numOfRows;  // total number of rows in current submit block
   // head of SSubmitBlk
   int32_t     numOfBlocks;
   const void* pMsg;
