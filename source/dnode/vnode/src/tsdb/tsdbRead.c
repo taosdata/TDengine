@@ -2113,7 +2113,7 @@ TSDBROW* getValidRow(SIterInfo* pIter, const SArray* pDelList, STsdbReader* pRea
   }
 
   TSDBROW* pRow = tsdbTbDataIterGet(pIter->iter);
-  TSDBKEY  key = TSDBROW_KEY(pRow);
+  TSDBKEY key = {.ts = pRow->pTSRow->ts, .version = pRow->version};
   if (outOfTimeWindow(key.ts, &pReader->window)) {
     pIter->hasVal = false;
     return NULL;
