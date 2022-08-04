@@ -88,9 +88,11 @@ bool isResultRowClosed(SResultRow* pResultRow);
 
 struct SResultRowEntryInfo* getResultEntryInfo(const SResultRow* pRow, int32_t index, const int32_t* offset);
 
-static FORCE_INLINE SResultRow* getResultRowByPos(SDiskbasedBuf* pBuf, SResultRowPosition* pos) {
+static FORCE_INLINE SResultRow* getResultRowByPos(SDiskbasedBuf* pBuf, SResultRowPosition* pos, bool forUpdate) {
   SFilePage*  bufPage = (SFilePage*)getBufPage(pBuf, pos->pageId);
-  setBufPageDirty(bufPage, true);
+  if (forUpdate) {
+    setBufPageDirty(bufPage, true);
+  }
   SResultRow* pRow = (SResultRow*)((char*)bufPage + pos->offset);
   return pRow;
 }
