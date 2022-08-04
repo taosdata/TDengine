@@ -395,7 +395,6 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
     pBlk->uid = htobe64(tbUid);
     pBlk->suid = htobe64(tbUid);
     pBlk->sversion = htonl(schemaVer);
-    pBlk->padding = htonl(0);
     pBlk->schemaLen = htonl(0);
     pBlk->numOfRows = htonl(mockRowNum);
     pBlk->dataLen = htonl(mockRowNum * mockRowLen);
