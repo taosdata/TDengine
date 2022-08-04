@@ -1336,6 +1336,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
       SSDataBlock dataBlock = {.info.type = STREAM_GET_ALL};
       qSetMultiStreamInput(pItem->taskInfo, &dataBlock, 1, STREAM_INPUT__DATA_BLOCK);
       tdRSmaFetchAndSubmitResult(pItem, pRSmaInfo->pTSchema, pRSmaInfo->suid, pStat, STREAM_INPUT__DATA_BLOCK);
+      tdCleanupStreamInputDataBlock(pItem->taskInfo);
 
       tdUnRefRSmaInfo(pSma, pRSmaInfo);
       // atomic_store_8(&pItem->triggerStat, TASK_TRIGGER_STAT_ACTIVE);

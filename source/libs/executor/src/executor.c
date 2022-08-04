@@ -83,6 +83,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         taosArrayClear(p->pDataBlock);
         taosArrayAddAll(p->pDataBlock, pDataBlock->pDataBlock);
         taosArrayPush(pInfo->pBlockLists, &p);
+        
       }
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
     } else {
@@ -90,6 +91,29 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     }
 
     return TSDB_CODE_SUCCESS;
+  }
+}
+
+void tdCleanupStreamInputDataBlock(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  if (!pTaskInfo || !pTaskInfo->pRoot || pTaskInfo->pRoot->numOfDownstream <= 0) {
+    return;
+  }
+  SOperatorInfo* pOptrInfo = pTaskInfo->pRoot->pDownstream[0];
+
+  if (pOptrInfo->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    SStreamScanInfo* pInfo = pOptrInfo->info;
+    if (pInfo->blockType = STREAM_INPUT__DATA_BLOCK) {
+      for (int32_t i = 0; i < taosArrayGetSize(pInfo->pBlockLists); ++i) {
+        SSDataBlock* p = *(SSDataBlock**)taosArrayGet(pInfo->pBlockLists, i);
+        taosArrayDestroy(p->pDataBlock);
+        taosMemoryFreeClear(p);
+      }
+    } else {
+      ASSERT(0);
+    }
+  } else {
+    ASSERT(0);
   }
 }
 
