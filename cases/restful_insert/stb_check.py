@@ -120,12 +120,13 @@ class TestStb(TDCase):
         self.tdRest.request(f'drop stable if exists `{dbname}.{stbname}`')
 
     def run(self):
+        self.tdCom.createDb(self.dbname)
         self.stbname_length_check()
         self.stbname_with_backquote()
         self.stbname_without_backquote()
         self.upper_lower_stbname_check()
         self.illegal_stbsql_check()
-
+        self.tdSql.execute(f'drop database {self.dbname}')
     def desc(self) -> str:
         case_description = """
             stbname_length_check <jayden>: [TD-13419] : stb name length check (max 192);\n
