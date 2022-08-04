@@ -32,6 +32,8 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uin
 void taosCloseTcpConnection(void *chandle);
 int  taosSendTcpData(uint32_t ip, uint16_t port, void *data, int len, void *chandle);
 
+SOCKET taosGetFdID(void *chandle);
+
 #ifdef __cplusplus
 }
 #endif
