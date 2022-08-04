@@ -2151,7 +2151,7 @@ int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMet
 }
 
 #if 0
-int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMetaBCtx* ctx, SArray** pTbMetas) {
+int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMetaBCtx* ctx, SArray** pResList) {
   int32_t tbNum = taosArrayGetSize(ctx->pNames);
   SName* fName = taosArrayGet(ctx->pNames, 0);
   int32_t fIdx = 0;
@@ -2196,21 +2196,21 @@ int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMe
       taosArrayPush(ctx->pFetchs, &fetch);
     }
     
-    taosArrayPush(ctx->pTbMetas, &res);
+    taosArrayPush(ctx->pResList, &res);
   }
 
   if (NULL == ctx->pFetchs) {
-    TSWAP(*pTbMetas, ctx->pTbMetas);
+    TSWAP(*pResList, ctx->pResList);
   }
 
   return TSDB_CODE_SUCCESS;
 }
 #endif
 
-int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMetaBCtx* ctx, SArray** pTbMetas) {
-  int32_t tbNum = taosArrayGetSize(ctx->pNames);
+int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMetaBCtx* ctx, SArray* pList) {
+  int32_t tbNum = taosArrayGetSize(pList);
   int32_t fIdx = 0;
-  SName* pName = taosArrayGet(ctx->pNames, 0);
+  SName* pName = taosArrayGet(pList, 0);
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
   int32_t flag = CTG_FLAG_UNKNOWN_STB;
   uint64_t lastSuid = 0;
@@ -2241,14 +2241,14 @@ int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMe
       fetch.flag = flag;
   
       taosArrayPush(ctx->pFetchs, &fetch);
-      taosArrayPush(ctx->pTbMetas, &res);
+      taosArrayPush(ctx->pResList, &res);
     }
 
     return TSDB_CODE_SUCCESS;
   }
 
   for (int32_t i = 0; i < tbNum; ++i) {
-    SName* pName = taosArrayGet(ctx->pNames, i);
+    SName* pName = taosArrayGet(pList, i);
     SMetaRes res = {0};
 
     pCache = taosHashAcquire(dbCache->tbCache, pName->tname, strlen(pName->tname));
@@ -2264,7 +2264,7 @@ int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMe
       fetch.flag = flag;
     
       taosArrayPush(ctx->pFetchs, &fetch);
-      taosArrayPush(ctx->pTbMetas, &res);
+      taosArrayPush(ctx->pResList, &res);
       
       continue;
     }
@@ -2282,7 +2282,7 @@ int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMe
       fetch.flag = flag;
     
       taosArrayPush(ctx->pFetchs, &fetch);
-      taosArrayPush(ctx->pTbMetas, &res);
+      taosArrayPush(ctx->pResList, &res);
       
       continue;
     }
@@ -2315,7 +2315,7 @@ int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMe
       ctgDebug("Got tb %s meta from cache, type:%d, dbFName:%s", pName->tname, tbMeta->tableType, dbFName);
       
       res.pRes = pTableMeta;
-      taosArrayPush(ctx->pTbMetas, &res);
+      taosArrayPush(ctx->pResList, &res);
 
       continue;
     }
@@ -2324,6 +2324,7 @@ int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
     if (lastSuid && tbMeta->suid == lastSuid && lastTableMeta) {
       cloneTableMeta(lastTableMeta, &pTableMeta);
+      memcpy(pTableMeta, tbMeta, sizeof(SCTableMeta));
 
       if (pCache) {
         CTG_UNLOCK(CTG_READ, &pCache->metaLock);
@@ -2333,7 +2334,7 @@ int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMe
       ctgDebug("Got tb %s meta from cache, type:%d, dbFName:%s", pName->tname, tbMeta->tableType, dbFName);
       
       res.pRes = pTableMeta;
-      taosArrayPush(ctx->pTbMetas, &res);
+      taosArrayPush(ctx->pResList, &res);
       
       continue;
     }
@@ -2367,7 +2368,7 @@ int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMe
       fetch.flag = flag;
     
       taosArrayPush(ctx->pFetchs, &fetch);
-      taosArrayPush(ctx->pTbMetas, &res);
+      taosArrayPush(ctx->pResList, &res);
 
       taosMemoryFreeClear(pTableMeta);
       continue;
@@ -2388,7 +2389,7 @@ int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMe
       fetch.flag = flag;
       
       taosArrayPush(ctx->pFetchs, &fetch);
-      taosArrayPush(ctx->pTbMetas, &res);
+      taosArrayPush(ctx->pResList, &res);
 
       taosMemoryFreeClear(pTableMeta);      
       continue;
@@ -2414,7 +2415,7 @@ int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMe
       fetch.flag = flag;
       
       taosArrayPush(ctx->pFetchs, &fetch);
-      taosArrayPush(ctx->pTbMetas, &res);
+      taosArrayPush(ctx->pResList, &res);
 
       taosMemoryFreeClear(pTableMeta);
 
@@ -2440,7 +2441,7 @@ int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMe
       fetch.flag = flag;
       
       taosArrayPush(ctx->pFetchs, &fetch);
-      taosArrayPush(ctx->pTbMetas, &res);
+      taosArrayPush(ctx->pResList, &res);
 
       taosMemoryFreeClear(pTableMeta);
 
@@ -2462,14 +2463,10 @@ int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMe
     }
     
     res.pRes = pTableMeta;
-    taosArrayPush(ctx->pTbMetas, &res);
+    taosArrayPush(ctx->pResList, &res);
 
     lastSuid = pTableMeta->suid;
     lastTableMeta = pTableMeta;
-  }
-
-  if (NULL == ctx->pFetchs) {
-    TSWAP(*pTbMetas, ctx->pTbMetas);
   }
 
   return TSDB_CODE_SUCCESS;

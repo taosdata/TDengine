@@ -90,6 +90,8 @@ char *ctgTaskTypeStr(CTG_TASK_TYPE type) {
       return "[get svr ver]";
     case CTG_TASK_GET_TB_META_BATCH:
       return "[bget table meta]";
+    case CTG_TASK_GET_TB_HASH_BATCH:
+      return "[bget table hash]";
     default:
       return "unknown";
   }
@@ -471,6 +473,16 @@ void ctgFreeBatchMeta(void* meta) {
   taosMemoryFreeClear(pRes->pRes);
 }
 
+void ctgFreeBatchHash(void* hash) {
+  if (NULL == hash) {
+    return;
+  }
+  
+  SMetaRes* pRes = (SMetaRes*)hash;
+  taosMemoryFreeClear(pRes->pRes);
+}
+
+
 void ctgFreeTaskRes(CTG_TASK_TYPE type, void **pRes) {
   switch (type) {
     case CTG_TASK_GET_QNODE:
@@ -520,6 +532,15 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void **pRes) {
       *pRes = NULL; // no need to free it
       break;
     }
+    case CTG_TASK_GET_TB_HASH_BATCH: {
+      SArray* pArray = (SArray*)*pRes;
+      int32_t num = taosArrayGetSize(pArray);
+      for (int32_t i = 0; i < num; ++i) {
+        ctgFreeBatchHash(taosArrayGet(pArray, i));
+      }
+      *pRes = NULL; // no need to free it
+      break;
+    }    
     default:
       qError("invalid task type %d", type);
       break;
@@ -579,6 +600,11 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void **pRes) {
       *pRes = NULL;
       break;
     }
+    case CTG_TASK_GET_TB_HASH_BATCH: {
+      taosArrayDestroyEx(*pRes, ctgFreeBatchHash);
+      *pRes = NULL;
+      break;
+    }
     default:
       qError("invalid task type %d", type);
       break;
@@ -610,7 +636,7 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
     }
     case CTG_TASK_GET_TB_META_BATCH: {
       SCtgTbMetaBCtx* taskCtx = (SCtgTbMetaBCtx*)pTask->taskCtx;
-      taosArrayDestroyEx(taskCtx->pTbMetas, ctgFreeBatchMeta);
+      taosArrayDestroyEx(taskCtx->pResList, ctgFreeBatchMeta);
       taosArrayDestroy(taskCtx->pFetchs);
       // NO NEED TO FREE pNames
 
@@ -629,6 +655,17 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       taosMemoryFreeClear(pTask->taskCtx);      
       break;
     }
+    case CTG_TASK_GET_TB_HASH_BATCH: {
+      SCtgTbHashBCtx* taskCtx = (SCtgTbHashBCtx*)pTask->taskCtx;
+      taosArrayDestroyEx(taskCtx->pResList, ctgFreeBatchHash);
+      taosArrayDestroy(taskCtx->pFetchs);
+      // NO NEED TO FREE pNames
+
+      taosArrayDestroyEx(pTask->msgCtxs, (FDelete)ctgFreeMsgCtx);
+      
+      taosMemoryFreeClear(pTask->taskCtx);
+      break;
+    }    
     case CTG_TASK_GET_TB_INDEX: {
       SCtgTbIndexCtx* taskCtx = (SCtgTbIndexCtx*)pTask->taskCtx;
       taosMemoryFreeClear(taskCtx->pName);
@@ -836,6 +873,103 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog *pCtg, SDBVgInfo *dbInfo, const SName
 
   CTG_RET(code);
 }
+
+int32_t ctgGetVgInfoBFromHashValue(SCatalog *pCtg, SCtgTask* pTask, SDBVgInfo *dbInfo, SCtgTbHashBCtx *pCtx, char* dbFName, bool update) {
+  int32_t code = 0;
+  SMetaRes res = {0};
+  int32_t vgNum = taosHashGetSize(dbInfo->vgHash);
+  if (vgNum <= 0) {
+    ctgError("db vgroup cache invalid, db:%s, vgroup number:%d", dbFName, vgNum);
+    CTG_ERR_RET(TSDB_CODE_TSC_DB_NOT_SELECTED);
+  }
+
+  tableNameHashFp fp = NULL;
+  SVgroupInfo *vgInfo = NULL;
+
+  CTG_ERR_RET(ctgGetHashFunction(dbInfo->hashMethod, &fp));
+
+  int32_t tbNum = taosArrayGetSize(pCtx->pNames);
+
+  if (1 == vgNum) {
+    void *pIter = taosHashIterate(dbInfo->vgHash, NULL);
+    for (int32_t i = 0; i < tbNum; ++i) {
+      vgInfo = taosMemoryMalloc(sizeof(SVgroupInfo));
+      if (NULL == vgInfo) {
+        CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+
+      *vgInfo = *(SVgroupInfo*)pIter;
+
+      ctgDebug("Got tb hash vgroup, vgId:%d, epNum %d, current %s port %d", vgInfo->vgId, vgInfo->epSet.numOfEps,
+        vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn, vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
+
+      if (update) {
+        SCtgFetch* pFetch = taosArrayGet(pCtx->pFetchs, pTask->msgIdx);
+        SMetaRes *pRes = taosArrayGet(pCtx->pResList, pFetch->resIdx + i);
+        pRes->pRes = vgInfo;
+      } else {
+        res.pRes = vgInfo;
+        taosArrayPush(pCtx->pResList, &res);
+      }
+    }
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char tbFullName[TSDB_TABLE_FNAME_LEN];
+  sprintf(tbFullName, "%s.", dbFName);
+  int32_t offset = strlen(tbFullName);
+  SName* pName = NULL;
+  int32_t tbNameLen = 0;
+  
+  for (int32_t i = 0; i < tbNum; ++i) {
+    pName = taosArrayGet(pCtx->pNames, i);
+
+    tbNameLen = offset + strlen(pName->tname);
+    strcpy(tbFullName + offset, pName->tname);
+
+    uint32_t hashValue = (*fp)(tbFullName, (uint32_t)tbNameLen);
+
+    void *pIter = taosHashIterate(dbInfo->vgHash, NULL);
+    while (pIter) {
+      vgInfo = pIter;
+      if (hashValue >= vgInfo->hashBegin && hashValue <= vgInfo->hashEnd) {
+        taosHashCancelIterate(dbInfo->vgHash, pIter);
+        break;
+      }
+      
+      pIter = taosHashIterate(dbInfo->vgHash, pIter);
+      vgInfo = NULL;
+    }
+
+    if (NULL == vgInfo) {
+      ctgError("no hash range found for hash value [%u], db:%s, numOfVgId:%d", hashValue, dbFName, taosHashGetSize(dbInfo->vgHash));
+      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    }
+
+    SVgroupInfo* pNewVg = taosMemoryMalloc(sizeof(SVgroupInfo));
+    if (NULL == pNewVg) {
+      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+
+    *pNewVg = *vgInfo;
+
+    ctgDebug("Got tb %s hash vgroup, vgId:%d, epNum %d, current %s port %d", tbFullName, vgInfo->vgId, vgInfo->epSet.numOfEps,
+             vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn, vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
+
+    if (update) {
+      SCtgFetch* pFetch = taosArrayGet(pCtx->pFetchs, pTask->msgIdx);
+      SMetaRes *pRes = taosArrayGet(pCtx->pResList, pFetch->resIdx + i);
+      pRes->pRes = pNewVg;
+    } else {
+      res.pRes = pNewVg;
+      taosArrayPush(pCtx->pResList, &res);
+    }    
+  }
+
+  CTG_RET(code);
+}
+
 
 int32_t ctgStbVersionSearchCompare(const void* key1, const void* key2) {
   if (*(uint64_t *)key1 < ((SSTableVersion*)key2)->suid) {
