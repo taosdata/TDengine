@@ -462,3 +462,5 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+
