@@ -34,7 +34,7 @@ python3 ./test.py -f 1-insert/table_param_ttl.py
 python3 ./test.py -f 1-insert/mutil_stage.py
 
 python3 ./test.py -f 1-insert/update_data_muti_rows.py
-
+python3 ./test.py -f 1-insert/db_tb_name_check.py
 
 python3 ./test.py -f 2-query/abs.py
 python3 ./test.py -f 2-query/abs.py -R
@@ -60,8 +60,8 @@ python3 ./test.py -f 2-query/ceil.py
 python3 ./test.py -f 2-query/ceil.py -R
 python3 ./test.py -f 2-query/char_length.py
 python3 ./test.py -f 2-query/char_length.py -R
-# python3 ./test.py -f 2-query/check_tsdb.py
-# python3 ./test.py -f 2-query/check_tsdb.py -R
+python3 ./test.py -f 2-query/check_tsdb.py
+python3 ./test.py -f 2-query/check_tsdb.py -R
 python3 ./test.py -f 2-query/concat.py
 python3 ./test.py -f 2-query/concat.py -R
 python3 ./test.py -f 2-query/concat_ws.py
@@ -173,8 +173,9 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 5 -M 3
-# python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDbRep3.py -N 5 -M 3
 
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py  -N 5 -M 3

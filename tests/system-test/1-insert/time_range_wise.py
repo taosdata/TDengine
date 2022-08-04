@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 import time
 
 from dataclasses import dataclass
@@ -8,6 +8,7 @@ from util.sql import *
 from util.cases import *
 from util.dnodes import *
 from util.constant import *
+from util.common import *
 
 PRIMARY_COL = "ts"
 
@@ -38,47 +39,13 @@ TAG_COL = [INT_TAG]
 
 # insert data args：
 TIME_STEP = 10000
-NOW = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
+NOW = int(datetime.timestamp(datetime.now()) * 1000)
 
 # init db/table
 DBNAME  = "db"
 STBNAME = "stb1"
 CTBNAME = "ct1"
 NTBNAME = "nt1"
-
-
-@dataclass
-class DataSet:
-    ts_data     : List[int]     = None
-    int_data    : List[int]     = None
-    bint_data   : List[int]     = None
-    sint_data   : List[int]     = None
-    tint_data   : List[int]     = None
-    int_un_data : List[int]     = None
-    bint_un_data: List[int]     = None
-    sint_un_data: List[int]     = None
-    tint_un_data: List[int]     = None
-    float_data  : List[float]   = None
-    double_data : List[float]   = None
-    bool_data   : List[int]     = None
-    binary_data : List[str]     = None
-    nchar_data  : List[str]     = None
-
-    def __post_init__(self):
-        self.ts_data        = []
-        self.int_data       = []
-        self.bint_data      = []
-        self.sint_data      = []
-        self.tint_data      = []
-        self.int_un_data    = []
-        self.bint_un_data   = []
-        self.sint_un_data   = []
-        self.tint_un_data   = []
-        self.float_data     = []
-        self.double_data    = []
-        self.bool_data      = []
-        self.binary_data    = []
-        self.nchar_data     = []
 
 
 @dataclass
@@ -163,10 +130,6 @@ class SMAschema:
                     self.rollup_db = v
                     del self.other[k]
 
-
-
-# from ...pytest.util.sql import *
-# from ...pytest.util.constant import *
 
 class TDTestCase:
     updatecfgDict = {"querySmaOptimize": 1}
@@ -469,13 +432,11 @@ class TDTestCase:
         err_sqls.append( SMAschema(index_flag="SMA INDEX ,", tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
         err_sqls.append( SMAschema(index_name="tbname", tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
 
-
         # current_set
 
         cur_sqls.append( SMAschema(max_delay="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
         cur_sqls.append( SMAschema(watermark="",index_name="sma_index_2",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
         cur_sqls.append( SMAschema(sliding="",index_name='sma_index_3',tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-
 
         return err_sqls, cur_sqls
 
@@ -512,102 +473,48 @@ class TDTestCase:
         self.test_create_sma()
         self.test_drop_sma()
 
-        pass
-
-    def __create_tb(self):
+    def __create_tb(self, stb=STBNAME, ctb_num=20, ntbnum=1, dbname=DBNAME):
         tdLog.printNoPrefix("==========step: create table")
-        create_stb_sql = f'''create table {STBNAME}(
-                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+        create_stb_sql = f'''create table {dbname}.{stb}(
+                {PRIMARY_COL} timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
                 {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
                 {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
             ) tags ({INT_TAG} int)
             '''
-        create_ntb_sql = f'''create table {NTBNAME}(
-                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
-                {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
-                {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
-                {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
-                {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
-            )
-            '''
         tdSql.execute(create_stb_sql)
-        tdSql.execute(create_ntb_sql)
 
-        for i in range(4):
-            tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
+        for i in range(ntbnum):
+            create_ntb_sql = f'''create table {dbname}.nt{i+1}(
+                    {PRIMARY_COL} timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+                    {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                    {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
+                    {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
+                    {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
+                )
+                '''
+            tdSql.execute(create_ntb_sql)
 
-    def __data_set(self, rows):
-        data_set = DataSet()
+        for i in range(ctb_num):
+            tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.{stb} tags ( {i+1} )')
+
+    def __insert_data(self, rows, ctb_num=20, dbname=DBNAME, star_time=NOW):
+        tdLog.printNoPrefix("==========step: start inser data into tables now.....")
+        # from ...pytest.util.common import DataSet
+        data = DataSet()
+        data.get_order_set(rows, bint_step=2)
 
         for i in range(rows):
-            data_set.ts_data.append(NOW + 1 * (rows - i))
-            data_set.int_data.append(rows - i)
-            data_set.bint_data.append(11111 * (rows - i))
-            data_set.sint_data.append(111 * (rows - i) % 32767)
-            data_set.tint_data.append(11 * (rows - i) % 127)
-            data_set.int_un_data.append(rows - i)
-            data_set.bint_un_data.append(11111 * (rows - i))
-            data_set.sint_un_data.append(111 * (rows - i) % 32767)
-            data_set.tint_un_data.append(11 * (rows - i) % 127)
-            data_set.float_data.append(1.11 * (rows - i))
-            data_set.double_data.append(1100.0011 * (rows - i))
-            data_set.bool_data.append((rows - i) % 2)
-            data_set.binary_data.append(f'binary{(rows - i)}')
-            data_set.nchar_data.append(f'nchar_测试_{(rows - i)}')
-
-        return data_set
-
-    def __insert_data(self):
-        tdLog.printNoPrefix("==========step: start inser data into tables now.....")
-        data = self.__data_set(rows=self.rows)
-
-        # now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
-        null_data = '''null, null, null, null, null, null, null, null, null, null, null, null, null, null'''
-        zero_data = "0, 0, 0, 0, 0, 0, 0, 'binary_0', 'nchar_0', 0, 0, 0, 0, 0"
-
-        for i in range(self.rows):
             row_data = f'''
                 {data.int_data[i]}, {data.bint_data[i]}, {data.sint_data[i]}, {data.tint_data[i]}, {data.float_data[i]}, {data.double_data[i]},
-                {data.bool_data[i]}, '{data.binary_data[i]}', '{data.nchar_data[i]}', {data.ts_data[i]}, {data.tint_un_data[i]},
-                {data.sint_un_data[i]}, {data.int_un_data[i]}, {data.bint_un_data[i]}
+                {data.bool_data[i]}, '{data.vchar_data[i]}', '{data.nchar_data[i]}', {data.ts_data[i]}, {data.utint_data[i]},
+                {data.usint_data[i]}, {data.uint_data[i]}, {data.ubint_data[i]}
             '''
-            neg_row_data = f'''
-                {-1 * data.int_data[i]}, {-1 * data.bint_data[i]}, {-1 * data.sint_data[i]}, {-1 * data.tint_data[i]}, {-1 * data.float_data[i]}, {-1 * data.double_data[i]},
-                {data.bool_data[i]}, '{data.binary_data[i]}', '{data.nchar_data[i]}', {data.ts_data[i]}, {1 * data.tint_un_data[i]},
-                {1 * data.sint_un_data[i]}, {1 * data.int_un_data[i]}, {1 * data.bint_un_data[i]}
-            '''
+            tdSql.execute( f"insert into {dbname}.{NTBNAME} values ( {star_time - i * int(TIME_STEP * 1.2)}, {row_data} )" )
 
-            tdSql.execute(
-                f"insert into ct1 values ( {NOW - i * TIME_STEP}, {row_data} )")
-            tdSql.execute(
-                f"insert into ct2 values ( {NOW - i * int(TIME_STEP * 0.6)}, {neg_row_data} )")
-            tdSql.execute(
-                f"insert into ct4 values ( {NOW - i * int(TIME_STEP * 0.8) }, {row_data} )")
-            tdSql.execute(
-                f"insert into {NTBNAME} values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )")
-
-        tdSql.execute(
-            f"insert into ct2 values ( {NOW + int(TIME_STEP * 0.6)}, {null_data} )")
-        tdSql.execute(
-            f"insert into ct2 values ( {NOW - (self.rows + 1) * int(TIME_STEP * 0.6)}, {null_data} )")
-        tdSql.execute(
-            f"insert into ct2 values ( {NOW - self.rows * int(TIME_STEP * 0.29) }, {null_data} )")
-
-        tdSql.execute(
-            f"insert into ct4 values ( {NOW + int(TIME_STEP * 0.8)}, {null_data} )")
-        tdSql.execute(
-            f"insert into ct4 values ( {NOW - (self.rows + 1) * int(TIME_STEP * 0.8)}, {null_data} )")
-        tdSql.execute(
-            f"insert into ct4 values ( {NOW - self.rows * int(TIME_STEP * 0.39)}, {null_data} )")
-
-        tdSql.execute(
-            f"insert into {NTBNAME} values ( {NOW + int(TIME_STEP * 1.2)}, {null_data} )")
-        tdSql.execute(
-            f"insert into {NTBNAME} values ( {NOW - (self.rows + 1) * int(TIME_STEP * 1.2)}, {null_data} )")
-        tdSql.execute(
-            f"insert into {NTBNAME} values ( {NOW - self.rows * int(TIME_STEP * 0.59)}, {null_data} )")
+            for j in range(ctb_num):
+                tdSql.execute( f"insert into {dbname}.ct{j+1} values ( {star_time - j * i * TIME_STEP}, {row_data} )" )
 
     def run(self):
         self.rows = 10
@@ -616,14 +523,60 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step1:create table in normal database")
         tdSql.prepare()
-        self.__create_tb()
-        self.__insert_data()
+        self.__create_tb(dbname=DBNAME)
+        self.__insert_data(rows=self.rows)
         self.all_test()
+
+        # # from ...pytest.util.sql import *
 
         # drop databases, create same name db、stb and sma index
         tdSql.prepare()
-        self.__create_tb()
-        self.__insert_data()
+        self.__create_tb(dbname=DBNAME)
+        self.__insert_data(rows=self.rows,star_time=NOW + self.rows * 2 * TIME_STEP)
+        tdLog.printNoPrefix("==========step1.1 : create a tsma index and checkdata")
+        tdSql.execute(f"create sma index {DBNAME}.sma_index_name1 on {DBNAME}.{STBNAME} function(max({INT_COL}),max({BINT_COL}),min({INT_COL})) interval(6m,10s) sliding(6m)")
+        self.__insert_data(rows=self.rows)
+        tdSql.query(f"select max({INT_COL}), max({BINT_COL}), min({INT_COL}) from {DBNAME}.{STBNAME} interval(6m,10s) sliding(6m)")
+        tdSql.checkData(0, 0, self.rows - 1)
+        tdSql.checkData(0, 1, (self.rows - 1) * 2 )
+        tdSql.checkData(tdSql.queryRows - 1, 2, 0)
+        # tdSql.checkData(0, 2, 0)
+
+        tdLog.printNoPrefix("==========step1.2 : alter table schema, drop col without index")
+        tdSql.execute(f"alter stable {DBNAME}.{STBNAME} drop column {BINARY_COL}")
+        tdSql.query(f"select max({INT_COL}), max({BINT_COL}), min({INT_COL}) from {DBNAME}.{STBNAME} interval(6m,10s) sliding(6m)")
+        tdSql.checkData(0, 0, self.rows - 1)
+        tdSql.checkData(0, 1, (self.rows - 1) * 2 )
+        tdSql.checkData(tdSql.queryRows - 1, 2, 0)
+
+        tdLog.printNoPrefix("==========step1.3 : alter table schema, drop col with index")
+        # TODO: TD-18047, can not drop col,  when col in tsma-index and tsma-index is not dropped.
+        tdSql.error(f"alter stable {DBNAME}.stb1 drop column {BINT_COL}")
+
+        tdLog.printNoPrefix("==========step1.4 : alter table schema, add col")
+        tdSql.execute(f"alter stable {DBNAME}.{STBNAME} add column {BINT_COL}_1 bigint")
+        tdSql.execute(f"insert into {DBNAME}.{CTBNAME} ({PRIMARY_COL}, {BINT_COL}_1) values(now(), 111)")
+        tdSql.query(f"select max({INT_COL}), max({BINT_COL}), min({INT_COL}) from {DBNAME}.{STBNAME} interval(6m,10s) sliding(6m)")
+        tdSql.checkData(0, 0, self.rows - 1)
+        tdSql.checkData(0, 1, (self.rows - 1) * 2 )
+        tdSql.checkData(tdSql.queryRows - 1, 2, 0)
+        # tdSql.checkData(0, 2, 0)
+        tdSql.query(f"select max({BINT_COL}_1) from {DBNAME}.{STBNAME} ")
+        tdSql.checkData(0, 0 , 111)
+
+        tdSql.execute(f"flush database {DBNAME}")
+
+        tdLog.printNoPrefix("==========step1.5 : drop child table")
+        tdSql.execute(f"drop table {CTBNAME}")
+        tdSql.query(f"select max({INT_COL}), max({BINT_COL}), min({INT_COL}) from {DBNAME}.{STBNAME} interval(6m,10s) sliding(6m)")
+        tdSql.checkData(0, 0, self.rows - 1)
+        tdSql.checkData(0, 1, (self.rows - 1) * 2 )
+        tdSql.checkData(tdSql.queryRows - 1, 2, 0)
+
+        tdLog.printNoPrefix("==========step1.6 : drop stable")
+        tdSql.execute(f"drop table {STBNAME}")
+        tdSql.error(f"select * from {DBNAME}.{STBNAME}")
+
         self.all_test()
 
         tdLog.printNoPrefix("==========step2:create table in rollup database")
@@ -639,7 +592,6 @@ class TDTestCase:
         # tdDnodes.start(1)
 
         tdSql.execute("flush database db ")
-
 
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()

@@ -440,13 +440,13 @@ FAIL:
 
 int32_t streamDispatch(SStreamTask* pTask) {
   ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);
-#if 1
+  ASSERT(pTask->sinkType == TASK_SINK__NONE);
+
   int8_t old =
       atomic_val_compare_exchange_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL, TASK_OUTPUT_STATUS__WAIT);
   if (old != TASK_OUTPUT_STATUS__NORMAL) {
     return 0;
   }
-#endif
 
   SStreamDataBlock* pBlock = streamQueueNextItem(pTask->outputQueue);
   if (pBlock == NULL) {
@@ -466,22 +466,8 @@ int32_t streamDispatch(SStreamTask* pTask) {
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
     goto FREE;
   }
-  /*atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);*/
 FREE:
   taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
   taosFreeQitem(pBlock);
-#if 0
-  SRpcMsg dispatchMsg = {0};
-  SEpSet* pEpSet = NULL;
-  if (streamBuildDispatchMsg(pTask, pBlock, &dispatchMsg, &pEpSet) < 0) {
-    ASSERT(0);
-    atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
-    return -1;
-  }
-  taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
-  taosFreeQitem(pBlock);
-
-  tmsgSendReq(pEpSet, &dispatchMsg);
-#endif
   return code;
 }
