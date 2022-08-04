@@ -400,7 +400,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
     // call check if have query doing
     if(pObj->sqlList) {
       // have queries executing
-      //checkBrokenQueries(pObj);
+      checkBrokenQueries(pObj);
     }
   }
 
@@ -449,12 +449,12 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 
 
   if(rpcSendRequest(pObj->pRpcObj->pDnodeConn, &pSql->epSet, &rpcMsg, &pSql->rpcRid)) {
-    if(pSql->cmd.command != TSDB_SQL_HB)
+    if(pSql->cmd.command < TSDB_SQL_HB)
       rpcSaveSendInfo(pSql->rpcRid, &pSql->pPrevContext);
     return TSDB_CODE_SUCCESS;
   }
 
-  return TSDB_CODE_FAILED;
+  return TSDB_CODE_SUCCESS;
 }
 
 // handle three situation
