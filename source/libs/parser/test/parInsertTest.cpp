@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <functional>
+
 #include <gtest/gtest.h>
 
 #include "mockCatalogService.h"
@@ -20,6 +22,7 @@
 #include "parInt.h"
 
 using namespace std;
+using namespace std::placeholders;
 using namespace testing;
 
 namespace {
@@ -63,7 +66,9 @@ class InsertTest : public Test {
 
   int32_t runAsync() {
     cxt_.async = true;
-    unique_ptr<SParseMetaCache, void (*)(SParseMetaCache*)> metaCache(new SParseMetaCache(), _destoryParseMetaCache);
+    bool                                                           request = true;
+    unique_ptr<SParseMetaCache, function<void(SParseMetaCache*)> > metaCache(
+        new SParseMetaCache(), std::bind(_destoryParseMetaCache, _1, cref(request)));
     code_ = parseInsertSyntax(&cxt_, &res_, metaCache.get());
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "parseInsertSyntax code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
@@ -81,6 +86,8 @@ class InsertTest : public Test {
     unique_ptr<SMetaData, void (*)(SMetaData*)> metaData(new SMetaData(), MockCatalogService::destoryMetaData);
     g_mockCatalogService->catalogGetAllMeta(catalogReq.get(), metaData.get());
 
+    metaCache.reset(new SParseMetaCache());
+    request = false;
     code_ = putMetaDataToCache(catalogReq.get(), metaData.get(), metaCache.get());
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "putMetaDataToCache code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
@@ -144,8 +151,8 @@ class InsertTest : public Test {
   static const int max_err_len = 1024;
   static const int max_sql_len = 1024 * 1024;
 
-  static void _destoryParseMetaCache(SParseMetaCache* pMetaCache) {
-    destoryParseMetaCache(pMetaCache);
+  static void _destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request) {
+    destoryParseMetaCache(pMetaCache, request);
     delete pMetaCache;
   }
 

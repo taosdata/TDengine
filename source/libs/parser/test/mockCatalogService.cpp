@@ -472,12 +472,16 @@ class MockCatalogServiceImpl {
 
   int32_t getAllTableMeta(SArray* pTableMetaReq, SArray** pTableMetaData) const {
     if (NULL != pTableMetaReq) {
-      int32_t ntables = taosArrayGetSize(pTableMetaReq);
-      *pTableMetaData = taosArrayInit(ntables, sizeof(SMetaRes));
-      for (int32_t i = 0; i < ntables; ++i) {
-        SMetaRes res = {0};
-        res.code = catalogGetTableMeta((const SName*)taosArrayGet(pTableMetaReq, i), (STableMeta**)&res.pRes);
-        taosArrayPush(*pTableMetaData, &res);
+      int32_t ndbs = taosArrayGetSize(pTableMetaReq);
+      *pTableMetaData = taosArrayInit(ndbs, sizeof(SMetaRes));
+      for (int32_t i = 0; i < ndbs; ++i) {
+        STablesReq* pReq = (STablesReq*)taosArrayGet(pTableMetaReq, i);
+        int32_t     ntables = taosArrayGetSize(pReq->pTables);
+        for (int32_t j = 0; j < ntables; ++j) {
+          SMetaRes res = {0};
+          res.code = catalogGetTableMeta((const SName*)taosArrayGet(pReq->pTables, j), (STableMeta**)&res.pRes);
+          taosArrayPush(*pTableMetaData, &res);
+        }
       }
     }
     return TSDB_CODE_SUCCESS;
@@ -485,13 +489,17 @@ class MockCatalogServiceImpl {
 
   int32_t getAllTableVgroup(SArray* pTableVgroupReq, SArray** pTableVgroupData) const {
     if (NULL != pTableVgroupReq) {
-      int32_t ntables = taosArrayGetSize(pTableVgroupReq);
-      *pTableVgroupData = taosArrayInit(ntables, sizeof(SMetaRes));
-      for (int32_t i = 0; i < ntables; ++i) {
-        SMetaRes res = {0};
-        res.pRes = taosMemoryCalloc(1, sizeof(SVgroupInfo));
-        res.code = catalogGetTableHashVgroup((const SName*)taosArrayGet(pTableVgroupReq, i), (SVgroupInfo*)res.pRes);
-        taosArrayPush(*pTableVgroupData, &res);
+      int32_t ndbs = taosArrayGetSize(pTableVgroupReq);
+      *pTableVgroupData = taosArrayInit(ndbs, sizeof(SMetaRes));
+      for (int32_t i = 0; i < ndbs; ++i) {
+        STablesReq* pReq = (STablesReq*)taosArrayGet(pTableVgroupReq, i);
+        int32_t     ntables = taosArrayGetSize(pReq->pTables);
+        for (int32_t j = 0; j < ntables; ++j) {
+          SMetaRes res = {0};
+          res.pRes = taosMemoryCalloc(1, sizeof(SVgroupInfo));
+          res.code = catalogGetTableHashVgroup((const SName*)taosArrayGet(pReq->pTables, j), (SVgroupInfo*)res.pRes);
+          taosArrayPush(*pTableVgroupData, &res);
+        }
       }
     }
     return TSDB_CODE_SUCCESS;
@@ -677,12 +685,17 @@ int32_t MockCatalogService::catalogGetAllMeta(const SCatalogReq* pCatalogReq, SM
   return impl_->catalogGetAllMeta(pCatalogReq, pMetaData);
 }
 
+void MockCatalogService::destoryTablesReq(void* p) {
+  STablesReq* pRes = (STablesReq*)p;
+  taosArrayDestroy(pRes->pTables);
+}
+
 void MockCatalogService::destoryCatalogReq(SCatalogReq* pReq) {
   taosArrayDestroy(pReq->pDbVgroup);
   taosArrayDestroy(pReq->pDbCfg);
   taosArrayDestroy(pReq->pDbInfo);
-  taosArrayDestroy(pReq->pTableMeta);
-  taosArrayDestroy(pReq->pTableHash);
+  taosArrayDestroyEx(pReq->pTableMeta, destoryTablesReq);
+  taosArrayDestroyEx(pReq->pTableHash, destoryTablesReq);
   taosArrayDestroy(pReq->pUdf);
   taosArrayDestroy(pReq->pIndex);
   taosArrayDestroy(pReq->pUser);
