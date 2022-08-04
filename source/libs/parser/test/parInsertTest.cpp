@@ -118,7 +118,7 @@ class InsertTest : public Test {
     }
   }
 
-  void checkReslut(int32_t numOfTables, int16_t numOfRows1, int16_t numOfRows2 = -1) {
+  void checkReslut(int32_t numOfTables, int32_t numOfRows1, int32_t numOfRows2 = -1) {
     SVnodeModifOpStmt* pStmt = getVnodeModifStmt(res_);
     ASSERT_EQ(pStmt->payloadType, PAYLOAD_TYPE_KV);
     ASSERT_EQ(pStmt->insertType, TSDB_QUERY_TYPE_INSERT);
