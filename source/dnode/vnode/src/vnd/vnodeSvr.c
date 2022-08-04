@@ -437,14 +437,10 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *p
     goto _err;
   }
 
-  // taosMemoryFree(req.schemaRow.pSchema);
-  // taosMemoryFree(req.schemaTag.pSchema);
   tDecoderClear(&coder);
   return 0;
 
 _err:
-  taosMemoryFree(req.schemaRow.pSchema);
-  taosMemoryFree(req.schemaTag.pSchema);
   tDecoderClear(&coder);
   return -1;
 }

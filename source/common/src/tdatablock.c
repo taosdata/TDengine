@@ -2029,11 +2029,10 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
       int32_t dataLen = blk->dataLen;
       blk->uid = htobe64(blk->uid);
       blk->suid = htobe64(blk->suid);
-      blk->padding = htonl(blk->padding);
       blk->sversion = htonl(blk->sversion);
       blk->dataLen = htonl(blk->dataLen);
       blk->schemaLen = htonl(blk->schemaLen);
-      blk->numOfRows = htons(blk->numOfRows);
+      blk->numOfRows = htonl(blk->numOfRows);
       blk = (SSubmitBlk*)(blk->data + dataLen);
     }
   } else {

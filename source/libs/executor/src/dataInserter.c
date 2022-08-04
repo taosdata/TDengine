@@ -226,7 +226,7 @@ int32_t dataBlockToSubmit(SDataInserterHandle* pInserter, SSubmitReq** pReq) {
     }
     
     blkHead->dataLen = htonl(dataLen);
-    blkHead->numOfRows = htons(rows);
+    blkHead->numOfRows = htonl(rows);
 
     ret->length += sizeof(SSubmitBlk) + dataLen;
     blkHead = POINTER_SHIFT(blkHead, sizeof(SSubmitBlk) + dataLen);

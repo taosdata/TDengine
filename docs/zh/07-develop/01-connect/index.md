@@ -74,7 +74,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>2.0.38</version>
+  <version>3.0.0</version>
 </dependency>
 ```
 
@@ -103,7 +103,7 @@ module goexample
 
 go 1.17
 
-require github.com/taosdata/driver-go/v2 develop
+require github.com/taosdata/driver-go/v3 latest
 ```
 
 :::note
@@ -138,7 +138,7 @@ Node.js 连接器通过不同的包提供不同的连接方式。
 1. 安装 Node.js 原生连接器
 
   ```
-  npm i td2.0-connector
+  npm install @tdengine/client
   ```
 
 :::note
@@ -148,7 +148,7 @@ Node.js 连接器通过不同的包提供不同的连接方式。
 2. 安装 Node.js REST 连接器
 
   ```
-  npm i td2.0-rest-connector
+  npm install @tdengine/rest
   ```
 
 </TabItem>
@@ -168,7 +168,7 @@ Node.js 连接器通过不同的包提供不同的连接方式。
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="TDengine.Connector" Version="1.0.6" />
+    <PackageReference Include="TDengine.Connector" Version="3.0.0" />
   </ItemGroup>
 
 </Project>
@@ -188,7 +188,7 @@ dotnet add package TDengine.Connector
 </TabItem>
 <TabItem label="R" value="r">
 
-1. 下载 [taos-jdbcdriver-version-dist.jar](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/2.0.38/)。
+1. 下载 [taos-jdbcdriver-version-dist.jar](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.0.0/)。
 2. 安装 R 的依赖包`RJDBC`：
 
 ```R

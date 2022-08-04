@@ -764,7 +764,13 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
   uint32_t defaultBufsz = 0;
   getBufferPgSize(pResBlock->info.rowSize, &defaultPgsz, &defaultBufsz);
 
-  int32_t code = createDiskbasedBuf(&pInfo->pBuf, defaultPgsz, defaultBufsz, pTaskInfo->id.str, TD_TMP_DIR_PATH);
+  if (!osTempSpaceAvailable()) {
+    terrno = TSDB_CODE_NO_AVAIL_DISK;
+    pTaskInfo->code = terrno;
+    qError("Create partition operator info failed since %s", terrstr(terrno));
+    goto _error;
+  }
+  int32_t code = createDiskbasedBuf(&pInfo->pBuf, defaultPgsz, defaultBufsz, pTaskInfo->id.str, tsTempDir);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }

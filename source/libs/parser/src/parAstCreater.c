@@ -767,6 +767,7 @@ SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pPr
   select->pFromTable = pTable;
   sprintf(select->stmtName, "%p", select);
   select->isTimeLineResult = true;
+  select->onlyHasKeepOrderFunc = true;
   select->timeRange = TSWINDOW_INITIALIZER;
   return (SNode*)select;
 }

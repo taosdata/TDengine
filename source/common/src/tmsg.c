@@ -76,7 +76,7 @@ int32_t tGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
     pIter->sversion = htonl((*pPBlock)->sversion);
     pIter->dataLen = htonl((*pPBlock)->dataLen);
     pIter->schemaLen = htonl((*pPBlock)->schemaLen);
-    pIter->numOfRows = htons((*pPBlock)->numOfRows);
+    pIter->numOfRows = htonl((*pPBlock)->numOfRows);
   }
   return 0;
 }
@@ -4908,7 +4908,6 @@ int32_t tDecodeSRSmaParam(SDecoder *pCoder, SRSmaParam *pRSmaParam) {
     if (tDecodeI64v(pCoder, &pRSmaParam->watermark[i]) < 0) return -1;
     if (tDecodeI32v(pCoder, &pRSmaParam->qmsgLen[i]) < 0) return -1;
     if (pRSmaParam->qmsgLen[i] > 0) {
-      tDecoderMalloc(pCoder, pRSmaParam->qmsgLen[i]);
       if (tDecodeBinary(pCoder, (uint8_t **)&pRSmaParam->qmsg[i], NULL) < 0) return -1;  // qmsgLen contains len of '\0'
     } else {
       pRSmaParam->qmsg[i] = NULL;

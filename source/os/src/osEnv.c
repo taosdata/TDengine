@@ -105,6 +105,10 @@ void osCleanup() {}
 
 bool osLogSpaceAvailable() { return tsLogSpace.reserved <= tsLogSpace.size.avail; }
 
+bool osDataSpaceAvailable() { return tsDataSpace.reserved <= tsDataSpace.size.avail; }
+
+bool osTempSpaceAvailable() { return tsTempSpace.reserved <= tsTempSpace.size.avail; }
+
 void osSetTimezone(const char *timezone) { taosSetSystemTimezone(timezone, tsTimezoneStr, &tsDaylight, &tsTimezone); }
 
 void osSetSystemLocale(const char *inLocale, const char *inCharSet) {
