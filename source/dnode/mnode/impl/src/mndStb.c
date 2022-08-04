@@ -531,7 +531,7 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
   }
 
   if (pCreate->numOfColumns < TSDB_MIN_COLUMNS || pCreate->numOfColumns > TSDB_MAX_COLUMNS) {
-    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
+    terrno = TSDB_CODE_PAR_INVALID_COLUMNS_NUM;
     return -1;
   }
 
@@ -542,7 +542,7 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
 
   SField *pField = taosArrayGet(pCreate->pColumns, 0);
   if (pField->type != TSDB_DATA_TYPE_TIMESTAMP) {
-    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
+    terrno = TSDB_CODE_PAR_INVALID_FIRST_COLUMN;
     return -1;
   }
 
