@@ -13,7 +13,7 @@ import (
  *	@ Test environment
  *	  TDengine Version：2.4.0.7
  *    Drive Version: github.com/taosdata/driver-go/v2 v2.0.4
- *	  ZORM Version: 1.5.8
+ *	  ZORM Version: 1.5.9
  *    use go module
  *
  *	@ Illustrate：
@@ -86,8 +86,7 @@ func init() {
 		MaxIdleConns: 10,
 		//ConnMaxLifetimeSecond 连接存活秒时间. 默认600(10分钟)后连接被销毁重建.避免数据库主动断开连接,造成死连接.MySQL默认wait_timeout 28800秒(8小时)
 		ConnMaxLifetimeSecond: 600,
-		//PrintSQL 打印SQL.会使用FuncPrintSQL记录SQL
-		PrintSQL:           true,
+
 		DisableTransaction: true, // 禁用全局事务
 	}
 	dbDao, _ = zorm.NewDBDao(&dbDaoConfig)
