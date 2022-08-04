@@ -16,6 +16,7 @@ The following preparations are required for EMQX to add TDengine data sources co
 
 Depending on the current operating system, users can download the installation package from the [EMQX official website](https://www.emqx.io/downloads) and execute the installation. After installation, use `sudo emqx start` or `sudo systemctl start emqx` to start the EMQX service.
 
+Note: this chapter is based on EMQX v4.4.5. Other version of EMQX probably change its user interface, configuration methods or functions.
 
 ## Create Database and Table
 
@@ -31,7 +32,7 @@ Note: The table schema is based on the blog [(In Chinese) Data Transfer, Storage
 
 ## Configuring EMQX Rules
 
-Since the configuration interface of EMQX differs from version to version, here is v4.4.3 as an example. For other versions, please refer to the corresponding official documentation.
+Since the configuration interface of EMQX differs from version to version, here is v4.4.5 as an example. For other versions, please refer to the corresponding official documentation.
 
 ### Login EMQX Dashboard
 
