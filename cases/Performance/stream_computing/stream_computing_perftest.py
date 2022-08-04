@@ -47,7 +47,6 @@ class StreamComputingPerfTest(TDCase):
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
         self.fqdn = self.taosd_setting["fqdn"][0]
         self.firstEp = self.taosd_setting["spec"]["config"]["firstEP"]
-        print(self.taosd_setting)
         self.data_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"]
         self.log_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["logDir"]
         
@@ -191,7 +190,6 @@ class StreamComputingPerfTest(TDCase):
                 jfile.genBenchmarkJson(self.run_log_dir, file_name[i], json_info)
                 i += 1
             # put the file to target
-            print(taosBenchmark_iplist)
             Insert_file.put_file(taosBenchmark_iplist, json_data, file_name)
             result_file_name = self.run_log_dir + '/perf_report.txt'
             f = open(result_file_name, 'a')
@@ -299,8 +297,18 @@ class StreamComputingPerfTest(TDCase):
                 f.write(f'\n\n')
 
                 f.write(f'--------{cases}---- final result \t--------\n')
-                self.tdSql.query(f'select avg(sp),max(sp),min(sp) from (select start,spread(cha) as sp from ((select _wstart as start  ,max(cast(c4 as bigint)) as cha from {cfg[cases][json_file]["stb_info"]["stb_name"]} interval(1s)) \
-                union all (select start, cast(`now` as bigint)  from {cfg[cases][json_file]["stream_info"]["stream_stb"]}) order by start) partition by start order by start ) where sp>0;')
+                
+                if "stream_info" in cfg[cases][json_file]:
+                    if "partition by" in cfg[cases][json_file]["stream_info"]["source_sql"]:
+                        if cfg[cases][json_file]["stream_info"]["trigger_mode"] == "at_once":
+                            self.tdSql.query(f'select avg(sp),max(sp),min(sp),apercentile(sp, 50) from (select start,spread(cha) as sp, `tbname` from ((select _wstart as start  , tbname, max(cast(c4 as bigint)) as cha from {cfg[cases][json_file]["stb_info"]["stb_name"]} partition by tbname interval(1s)) \
+                                union all (select start, `tbname`, cast(`now` as bigint)  from {cfg[cases][json_file]["stream_info"]["stream_stb"]}) order by start, `tbname`) partition by start,`tbname` order by start ) where sp>=0;')
+                        else:
+                            self.tdSql.query(f'select avg(sp),max(sp),min(sp),apercentile(sp, 50) from (select start,spread(cha) as sp, `tbname` from ((select _wstart as start  ,tbname, max(cast(c4 as bigint)) as cha from {cfg[cases][json_file]["stb_info"]["stb_name"]} partition by tbname interval(1s)) \
+                                union all (select start, `tbname`, cast(`now` as bigint)  from {cfg[cases][json_file]["stream_info"]["stream_stb"]}) order by start, `tbname`) partition by start,`tbname` order by start ) where sp>0;')
+                    else:
+                        self.tdSql.query(f'select avg(sp),max(sp),min(sp),apercentile(sp, 50) from (select start,spread(cha) as sp from ((select _wstart as start  ,max(cast(c4 as bigint)) as cha from {cfg[cases][json_file]["stb_info"]["stb_name"]} interval(1s)) \
+                    union all (select start, cast(`now` as bigint)  from {cfg[cases][json_file]["stream_info"]["stream_stb"]}) order by start) partition by start order by start ) where sp>0;')
                 if len(self.tdSql.query_data) > 0:
                     f.write(str([round(x, 1) for x in self.tdSql.query_data[0]]))
                 else:
