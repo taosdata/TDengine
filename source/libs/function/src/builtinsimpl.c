@@ -3170,6 +3170,8 @@ bool diffFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
 static void doSetPrevVal(SDiffInfo* pDiffInfo, int32_t type, const char* pv) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
+      pDiffInfo->prev.i64 = *(bool*)pv? 1:0;
+      break;
     case TSDB_DATA_TYPE_TINYINT:
       pDiffInfo->prev.i64 = *(int8_t*)pv;
       break;
@@ -3179,6 +3181,7 @@ static void doSetPrevVal(SDiffInfo* pDiffInfo, int32_t type, const char* pv) {
     case TSDB_DATA_TYPE_SMALLINT:
       pDiffInfo->prev.i64 = *(int16_t*)pv;
       break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_BIGINT:
       pDiffInfo->prev.i64 = *(int64_t*)pv;
       break;
@@ -3232,6 +3235,7 @@ static void doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SCo
       pDiffInfo->prev.i64 = v;
       break;
     }
+    case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t v = *(int64_t*)pv;
       int64_t delta = factor * (v - pDiffInfo->prev.i64);  // direct previous may be null

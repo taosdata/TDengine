@@ -1523,7 +1523,7 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   }
 
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  if (!IS_SIGNED_NUMERIC_TYPE(colType) && !IS_FLOAT_TYPE(colType) && TSDB_DATA_TYPE_BOOL != colType) {
+  if (!IS_SIGNED_NUMERIC_TYPE(colType) && !IS_FLOAT_TYPE(colType) && TSDB_DATA_TYPE_BOOL != colType && TSDB_DATA_TYPE_TIMESTAMP != colType) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -2204,8 +2204,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = elapsedFinalize,
     .invertFunc   = NULL,
     .combineFunc  = elapsedCombine,
-    //.pPartialFunc = "_elapsed_partial",
-    //.pMergeFunc   = "_elapsed_merge"
   },
   {
     .name = "_elapsed_partial",
