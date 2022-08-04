@@ -33,7 +33,7 @@ CREATE TABLE sensor_data (ts TIMESTAMP, temperature FLOAT, humidity FLOAT, volum
 
 ## 配置 EMQX 规则
 
-由于 EMQX 不同版本配置界面所有不同，这里仅以 v4.4.3 为例，其他版本请参考相应官网文档。
+由于 EMQX 不同版本配置界面所有不同，这里仅以 v4.4.5 为例，其他版本请参考相应官网文档。
 
 ### 登录 EMQX Dashboard
 
