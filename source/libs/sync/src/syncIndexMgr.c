@@ -68,7 +68,7 @@ void syncIndexMgrSetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, 
   char     host[128];
   uint16_t port;
   syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d index mgr set for %s:%d, index:%" PRId64 " error", pSyncIndexMgr->pSyncNode->vgId, host, port, index);
+  sError("vgId:%d, index mgr set for %s:%d, index:%" PRId64 " error", pSyncIndexMgr->pSyncNode->vgId, host, port, index);
 }
 
 SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId) {
@@ -125,7 +125,7 @@ cJSON *syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr) {
 
 char *syncIndexMgr2Str(SSyncIndexMgr *pSyncIndexMgr) {
   cJSON *pJson = syncIndexMgr2Json(pSyncIndexMgr);
-  char  *serialized = cJSON_Print(pJson);
+  char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -172,7 +172,7 @@ void syncIndexMgrSetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, S
   char     host[128];
   uint16_t port;
   syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d index mgr set for %s:%d, term:%" PRIu64 " error", pSyncIndexMgr->pSyncNode->vgId, host, port, term);
+  sError("vgId:%d, index mgr set for %s:%d, term:%" PRIu64 " error", pSyncIndexMgr->pSyncNode->vgId, host, port, term);
 }
 
 SyncTerm syncIndexMgrGetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId) {

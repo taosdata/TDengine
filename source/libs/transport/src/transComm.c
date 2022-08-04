@@ -16,6 +16,8 @@
 
 #include "transComm.h"
 
+#define BUFFER_CAP 4096
+
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
 static int32_t refMgt;
@@ -102,14 +104,68 @@ void transFreeMsg(void* msg) {
   }
   taosMemoryFree((char*)msg - sizeof(STransMsgHead));
 }
+int transGetSockDebugInfo(struct sockaddr* sockname, char* dst) {
+  struct sockaddr_in addr = *(struct sockaddr_in*)sockname;
 
+  char buf[20] = {0};
+  int  r = uv_ip4_name(&addr, (char*)buf, sizeof(buf));
+  sprintf(dst, "%s:%d", buf, ntohs(addr.sin_port));
+  return r;
+}
 int transInitBuffer(SConnBuffer* buf) {
-  transClearBuffer(buf);
+  buf->cap = BUFFER_CAP;
+  buf->buf = taosMemoryCalloc(1, BUFFER_CAP);
+  buf->left = -1;
+  buf->len = 0;
+  buf->total = 0;
   return 0;
 }
+int transDestroyBuffer(SConnBuffer* p) {
+  taosMemoryFree(p->buf);
+  p->buf = NULL;
+  return 0;
+}
+
 int transClearBuffer(SConnBuffer* buf) {
-  memset(buf, 0, sizeof(*buf));
-  buf->total = -1;
+  SConnBuffer* p = buf;
+  if (p->cap > BUFFER_CAP) {
+    p->cap = BUFFER_CAP;
+    p->buf = taosMemoryRealloc(p->buf, BUFFER_CAP);
+  }
+  p->left = -1;
+  p->len = 0;
+  p->total = 0;
+  return 0;
+}
+
+int transDumpFromBuffer(SConnBuffer* connBuf, char** buf) {
+  SConnBuffer* p = connBuf;
+  if (p->left != 0) {
+    return -1;
+  }
+  int total = connBuf->total;
+  *buf = taosMemoryCalloc(1, total);
+  memcpy(*buf, p->buf, total);
+
+  transResetBuffer(connBuf);
+  return total;
+}
+
+int transResetBuffer(SConnBuffer* connBuf) {
+  SConnBuffer* p = connBuf;
+  if (p->total < p->len) {
+    int left = p->len - p->total;
+    memmove(p->buf, p->buf + p->total, left);
+    p->left = -1;
+    p->total = 0;
+    p->len = left;
+  } else if (p->total == p->len) {
+    p->left = -1;
+    p->total = 0;
+    p->len = 0;
+  } else {
+    assert(0);
+  }
   return 0;
 }
 int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
@@ -119,54 +175,39 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
    * |<------STransMsgHead------->|<-------------------userdata--------------->|<-----auth data----->|<----user
    * info--->|
    */
-  static const int CAPACITY = sizeof(STransMsgHead);
-
   SConnBuffer* p = connBuf;
-  if (p->cap == 0) {
-    p->buf = (char*)taosMemoryCalloc(CAPACITY, sizeof(char));
-    tTrace("internal malloc mem:%p, size:%d", p->buf, CAPACITY);
-    p->len = 0;
-    p->cap = CAPACITY;
-    p->total = -1;
 
-    uvBuf->base = p->buf;
-    uvBuf->len = CAPACITY;
-  } else if (p->total == -1 && p->len < CAPACITY) {
-    uvBuf->base = p->buf + p->len;
-    uvBuf->len = CAPACITY - p->len;
-  } else {
-    p->cap = p->total;
-    p->buf = taosMemoryRealloc(p->buf, p->cap);
-    tTrace("internal realloc mem:%p, size:%d", p->buf, p->cap);
-
-    uvBuf->base = p->buf + p->len;
+  uvBuf->base = p->buf + p->len;
+  if (p->left == -1) {
     uvBuf->len = p->cap - p->len;
+  } else {
+    if (p->left < p->cap - p->len) {
+      uvBuf->len = p->left;
+    } else {
+      p->buf = taosMemoryRealloc(p->buf, p->left + p->len);
+      uvBuf->base = p->buf + p->len;
+      uvBuf->len = p->left;
+    }
   }
   return 0;
 }
 // check whether already read complete
 bool transReadComplete(SConnBuffer* connBuf) {
-  if (connBuf->total == -1 && connBuf->len >= sizeof(STransMsgHead)) {
-    STransMsgHead head;
-    memcpy((char*)&head, connBuf->buf, sizeof(head));
-    int32_t msgLen = (int32_t)htonl(head.msgLen);
-    connBuf->total = msgLen;
+  SConnBuffer* p = connBuf;
+  if (p->len >= sizeof(STransMsgHead)) {
+    if (p->left == -1) {
+      STransMsgHead head;
+      memcpy((char*)&head, connBuf->buf, sizeof(head));
+      int32_t msgLen = (int32_t)htonl(head.msgLen);
+      p->total = msgLen;
+    }
+    if (p->total >= p->len) {
+      p->left = p->total - p->len;
+    } else {
+      p->left = 0;
+    }
   }
-  if (connBuf->len == connBuf->cap && connBuf->total == connBuf->cap) {
-    return true;
-  }
-  return false;
-}
-int transPackMsg(STransMsgHead* msgHead, bool sercured, bool auth) { return 0; }
-
-int transUnpackMsg(STransMsgHead* msgHead) { return 0; }
-int transDestroyBuffer(SConnBuffer* buf) {
-  if (buf->cap > 0) {
-    taosMemoryFreeClear(buf->buf);
-  }
-  transClearBuffer(buf);
-
-  return 0;
+  return p->left == 0 ? true : false;
 }
 
 int transSetConnOption(uv_tcp_t* stream) {
@@ -480,7 +521,7 @@ void transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg)) {
     SDelayTask* task = container_of(minNode, SDelayTask, node);
 
     STaskArg* arg = task->arg;
-    freeFunc(arg->param1);
+    if (freeFunc) freeFunc(arg->param1);
     taosMemoryFree(arg);
 
     taosMemoryFree(task);
@@ -491,8 +532,15 @@ void transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg)) {
 void transDQCancel(SDelayQueue* queue, SDelayTask* task) {
   uv_timer_stop(queue->timer);
 
-  if (heapSize(queue->heap) <= 0) return;
+  if (heapSize(queue->heap) <= 0) {
+    taosMemoryFree(task->arg);
+    taosMemoryFree(task);
+    return;
+  }
   heapRemove(queue->heap, &task->node);
+
+  taosMemoryFree(task->arg);
+  taosMemoryFree(task);
 
   if (heapSize(queue->heap) != 0) {
     HeapNode* minNode = heapMin(queue->heap);

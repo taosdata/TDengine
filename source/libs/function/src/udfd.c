@@ -412,22 +412,31 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     udf->outputLen = pFuncInfo->outputLen;
     udf->bufSize = pFuncInfo->bufSize;
 
+    if (!osTempSpaceAvailable()) {
+      terrno = TSDB_CODE_NO_AVAIL_DISK;
+      msgInfo->code = terrno;
+      fnError("udfd create shared library failed since %s", terrstr(terrno));
+      goto _return;
+    }
+
     char path[PATH_MAX] = {0};
 #ifdef WINDOWS
-    snprintf(path, sizeof(path), "%s%s.dll", TD_TMP_DIR_PATH, pFuncInfo->name);
+    snprintf(path, sizeof(path), "%s%s.dll", tsTempDir, pFuncInfo->name);
 #else
-    snprintf(path, sizeof(path), "%s/lib%s.so", TD_TMP_DIR_PATH, pFuncInfo->name);
+    snprintf(path, sizeof(path), "%s/lib%s.so", tsTempDir, pFuncInfo->name);
 #endif
     TdFilePtr file =
         taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
     if (file == NULL) {
       fnError("udfd write udf shared library: %s failed, error: %d %s", path, errno, strerror(errno));
       msgInfo->code = TSDB_CODE_FILE_CORRUPTED;
+      goto _return;
     }
     int64_t count = taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
     if (count != pFuncInfo->codeSize) {
       fnError("udfd write udf shared library failed");
       msgInfo->code = TSDB_CODE_FILE_CORRUPTED;
+      goto _return;
     }
     taosCloseFile(&file);
     strncpy(udf->path, path, strlen(path));
@@ -671,6 +680,9 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
       fnError("udfd can not allocate enough memory") buf->base = NULL;
       buf->len = 0;
     }
+  } else if (ctx->inputTotal == -1 && ctx->inputLen < msgHeadSize) {
+      buf->base = ctx->inputBuf + ctx->inputLen;
+      buf->len = msgHeadSize - ctx->inputLen;
   } else {
     ctx->inputCap = ctx->inputTotal > ctx->inputCap ? ctx->inputTotal : ctx->inputCap;
     void *inputBuf = taosMemoryRealloc(ctx->inputBuf, ctx->inputCap);
@@ -683,7 +695,6 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
       buf->len = 0;
     }
   }
-  fnDebug("allocate buf. input buf cap - len - total : %d - %d - %d", ctx->inputCap, ctx->inputLen, ctx->inputTotal);
 }
 
 bool isUdfdUvMsgComplete(SUdfdUvConn *pipe) {

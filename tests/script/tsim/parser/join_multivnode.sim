@@ -98,6 +98,11 @@ while $i < $tbNum
 endw
 
 print ===============multivnode projection join.sim
+sql select join_mt0.ts,join_mt0.ts,join_mt0.t1 from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts;
+print ===> rows $row
+if $row != 9000 then
+  print expect 9000, actual: $row
+endi
 sql select join_mt0.ts,join_mt0.ts,join_mt0.t1 from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t1=join_mt1.t1;
 print ===> rows $row
 if $row != 3000 then

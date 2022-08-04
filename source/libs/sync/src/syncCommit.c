@@ -67,11 +67,6 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   for (SyncIndex index = syncNodeGetLastIndex(pSyncNode); index > pSyncNode->commitIndex; --index) {
     bool agree = syncAgree(pSyncNode, index);
 
-    if (gRaftDetailLog) {
-      sTrace("syncMaybeAdvanceCommitIndex syncAgree:%d, index:%" PRId64 ", pSyncNode->commitIndex:%" PRId64, agree,
-             index, pSyncNode->commitIndex);
-    }
-
     if (agree) {
       // term
       SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, index);
@@ -82,20 +77,15 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
         // update commit index
         newCommitIndex = index;
 
-        if (gRaftDetailLog) {
-          sTrace("syncMaybeAdvanceCommitIndex maybe to update, newCommitIndex:%" PRId64
-                 " commit, pSyncNode->commitIndex:%" PRId64,
-                 newCommitIndex, pSyncNode->commitIndex);
-        }
-
         syncEntryDestory(pEntry);
         break;
       } else {
-        if (gRaftDetailLog) {
-          sTrace("syncMaybeAdvanceCommitIndex can not commit due to term not equal, pEntry->term:%" PRIu64
-                 ", pSyncNode->pRaftStore->currentTerm:%" PRIu64,
-                 pEntry->term, pSyncNode->pRaftStore->currentTerm);
-        }
+        do {
+          char logBuf[128];
+          snprintf(logBuf, sizeof(logBuf), "can not commit due to term not equal, index:%" PRId64 ", term:%" PRIu64,
+                   pEntry->index, pEntry->term);
+          syncNodeEventLog(pSyncNode, logBuf);
+        } while (0);
       }
 
       syncEntryDestory(pEntry);
@@ -106,10 +96,6 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   if (newCommitIndex > pSyncNode->commitIndex) {
     SyncIndex beginIndex = pSyncNode->commitIndex + 1;
     SyncIndex endIndex = newCommitIndex;
-
-    if (gRaftDetailLog) {
-      sTrace("syncMaybeAdvanceCommitIndex sync commit %" PRId64, newCommitIndex);
-    }
 
     // update commit index
     pSyncNode->commitIndex = newCommitIndex;

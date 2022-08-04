@@ -287,7 +287,7 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return makeNode(type, sizeof(SProjectPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
-      return makeNode(type, sizeof(SJoinPhysiNode));
+      return makeNode(type, sizeof(SSortMergeJoinPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
       return makeNode(type, sizeof(SAggPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
@@ -713,7 +713,8 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
-      destroyTableCfg((STableCfg*)(((SShowCreateTableStmt*)pNode)->pCfg));
+      taosMemoryFreeClear(((SShowCreateTableStmt*)pNode)->pDbCfg);
+      destroyTableCfg((STableCfg*)(((SShowCreateTableStmt*)pNode)->pTableCfg));
       break;
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:  // no pointer field
     case QUERY_NODE_KILL_CONNECTION_STMT:         // no pointer field
@@ -745,6 +746,7 @@ void nodesDestroyNode(SNode* pNode) {
       }
       taosArrayDestroy(pQuery->pDbList);
       taosArrayDestroy(pQuery->pTableList);
+      taosArrayDestroy(pQuery->pTargetTableList);
       taosArrayDestroy(pQuery->pPlaceholderValues);
       nodesDestroyNode(pQuery->pPrepareRoot);
       break;
@@ -883,7 +885,7 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN: {
-      SJoinPhysiNode* pPhyNode = (SJoinPhysiNode*)pNode;
+      SSortMergeJoinPhysiNode* pPhyNode = (SSortMergeJoinPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pMergeCondition);
       nodesDestroyNode(pPhyNode->pOnConditions);
@@ -1502,7 +1504,7 @@ static EDealRes collectColumns(SNode* pNode, void* pContext) {
   SCollectColumnsCxt* pCxt = (SCollectColumnsCxt*)pContext;
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    if (isCollectType(pCxt->collectType, pCol->colType) &&
+    if (isCollectType(pCxt->collectType, pCol->colType) && 0 != strcmp(pCol->colName, "*") &&
         (NULL == pCxt->pTableAlias || 0 == strcmp(pCxt->pTableAlias, pCol->tableAlias))) {
       return doCollect(pCxt, pCol, pNode);
     }
@@ -1817,186 +1819,18 @@ int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc) {
   return TSDB_CODE_SUCCESS;
 }
 
-typedef struct SClassifyConditionCxt {
-  bool hasPrimaryKey;
-  bool hasTagIndexCol;
-  bool hasTagCol;
-  bool hasOtherCol;
-} SClassifyConditionCxt;
-
-static EDealRes classifyConditionImpl(SNode* pNode, void* pContext) {
-  SClassifyConditionCxt* pCxt = (SClassifyConditionCxt*)pContext;
-  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    SColumnNode* pCol = (SColumnNode*)pNode;
-    if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId && TSDB_SYSTEM_TABLE != pCol->tableType) {
-      pCxt->hasPrimaryKey = true;
-    } else if (pCol->hasIndex) {
-      pCxt->hasTagIndexCol = true;
-      pCxt->hasTagCol = true;
-    } else if (COLUMN_TYPE_TAG == pCol->colType || COLUMN_TYPE_TBNAME == pCol->colType) {
-      pCxt->hasTagCol = true;
-    } else {
-      pCxt->hasOtherCol = true;
-    }
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-typedef enum EConditionType {
-  COND_TYPE_PRIMARY_KEY = 1,
-  COND_TYPE_TAG_INDEX,
-  COND_TYPE_TAG,
-  COND_TYPE_NORMAL
-} EConditionType;
-
-static EConditionType classifyCondition(SNode* pNode) {
-  SClassifyConditionCxt cxt = {.hasPrimaryKey = false, .hasTagIndexCol = false, .hasOtherCol = false};
-  nodesWalkExpr(pNode, classifyConditionImpl, &cxt);
-  return cxt.hasOtherCol ? COND_TYPE_NORMAL
-                         : (cxt.hasPrimaryKey && cxt.hasTagCol
-                                ? COND_TYPE_NORMAL
-                                : (cxt.hasPrimaryKey ? COND_TYPE_PRIMARY_KEY
-                                                     : (cxt.hasTagIndexCol ? COND_TYPE_TAG_INDEX : COND_TYPE_TAG)));
-}
-
-static int32_t partitionLogicCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** pTagIndexCond, SNode** pTagCond,
-                                  SNode** pOtherCond) {
-  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)(*pCondition);
-
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  SNodeList* pPrimaryKeyConds = NULL;
-  SNodeList* pTagIndexConds = NULL;
-  SNodeList* pTagConds = NULL;
-  SNodeList* pOtherConds = NULL;
-  SNode*     pCond = NULL;
-  FOREACH(pCond, pLogicCond->pParameterList) {
-    switch (classifyCondition(pCond)) {
-      case COND_TYPE_PRIMARY_KEY:
-        if (NULL != pPrimaryKeyCond) {
-          code = nodesListMakeAppend(&pPrimaryKeyConds, nodesCloneNode(pCond));
-        }
-        break;
-      case COND_TYPE_TAG_INDEX:
-        if (NULL != pTagIndexCond) {
-          code = nodesListMakeAppend(&pTagIndexConds, nodesCloneNode(pCond));
-        }
-        if (NULL != pTagCond) {
-          code = nodesListMakeAppend(&pTagConds, nodesCloneNode(pCond));
-        }
-        break;
-      case COND_TYPE_TAG:
-        if (NULL != pTagCond) {
-          code = nodesListMakeAppend(&pTagConds, nodesCloneNode(pCond));
-        }
-        break;
-      case COND_TYPE_NORMAL:
-      default:
-        if (NULL != pOtherCond) {
-          code = nodesListMakeAppend(&pOtherConds, nodesCloneNode(pCond));
-        }
-        break;
-    }
-    if (TSDB_CODE_SUCCESS != code) {
-      break;
-    }
-  }
-
-  SNode* pTempPrimaryKeyCond = NULL;
-  SNode* pTempTagIndexCond = NULL;
-  SNode* pTempTagCond = NULL;
-  SNode* pTempOtherCond = NULL;
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodesMergeConds(&pTempPrimaryKeyCond, &pPrimaryKeyConds);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodesMergeConds(&pTempTagIndexCond, &pTagIndexConds);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodesMergeConds(&pTempTagCond, &pTagConds);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodesMergeConds(&pTempOtherCond, &pOtherConds);
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    if (NULL != pPrimaryKeyCond) {
-      *pPrimaryKeyCond = pTempPrimaryKeyCond;
-    }
-    if (NULL != pTagIndexCond) {
-      *pTagIndexCond = pTempTagIndexCond;
-    }
-    if (NULL != pTagCond) {
-      *pTagCond = pTempTagCond;
-    }
-    if (NULL != pOtherCond) {
-      *pOtherCond = pTempOtherCond;
-    }
-    nodesDestroyNode(*pCondition);
-    *pCondition = NULL;
-  } else {
-    nodesDestroyList(pPrimaryKeyConds);
-    nodesDestroyList(pTagIndexConds);
-    nodesDestroyList(pTagConds);
-    nodesDestroyList(pOtherConds);
-    nodesDestroyNode(pTempPrimaryKeyCond);
-    nodesDestroyNode(pTempTagIndexCond);
-    nodesDestroyNode(pTempTagCond);
-    nodesDestroyNode(pTempOtherCond);
-  }
-
-  return code;
-}
-
-int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** pTagIndexCond, SNode** pTagCond,
-                           SNode** pOtherCond) {
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*pCondition) &&
-      LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)*pCondition)->condType) {
-    return partitionLogicCond(pCondition, pPrimaryKeyCond, pTagIndexCond, pTagCond, pOtherCond);
-  }
-
-  bool needOutput = false;
-  switch (classifyCondition(*pCondition)) {
-    case COND_TYPE_PRIMARY_KEY:
-      if (NULL != pPrimaryKeyCond) {
-        *pPrimaryKeyCond = *pCondition;
-        needOutput = true;
-      }
-      break;
-    case COND_TYPE_TAG_INDEX:
-      if (NULL != pTagIndexCond) {
-        *pTagIndexCond = *pCondition;
-        needOutput = true;
-      }
-      if (NULL != pTagCond) {
-        SNode* pTempCond = *pCondition;
-        if (NULL != pTagIndexCond) {
-          pTempCond = nodesCloneNode(*pCondition);
-          if (NULL == pTempCond) {
-            return TSDB_CODE_OUT_OF_MEMORY;
-          }
-        }
-        *pTagCond = pTempCond;
-        needOutput = true;
-      }
-      break;
-    case COND_TYPE_TAG:
-      if (NULL != pTagCond) {
-        *pTagCond = *pCondition;
-        needOutput = true;
-      }
-      break;
-    case COND_TYPE_NORMAL:
+const char* dataOrderStr(EDataOrderLevel order) {
+  switch (order) {
+    case DATA_ORDER_LEVEL_NONE:
+      return "no order required";
+    case DATA_ORDER_LEVEL_IN_BLOCK:
+      return "in-datablock order";
+    case DATA_ORDER_LEVEL_IN_GROUP:
+      return "in-group order";
+    case DATA_ORDER_LEVEL_GLOBAL:
+      return "global order";
     default:
-      if (NULL != pOtherCond) {
-        *pOtherCond = *pCondition;
-        needOutput = true;
-      }
       break;
   }
-  if (needOutput) {
-    *pCondition = NULL;
-  }
-
-  return TSDB_CODE_SUCCESS;
+  return "unknown";
 }

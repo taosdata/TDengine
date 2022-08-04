@@ -110,7 +110,6 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
   // TODO
   ret = rpcMallocCont(cap);
   ret->header.vgId = vgId;
-  ret->version = htonl(1);
   ret->length = sizeof(SSubmitReq);
   ret->numOfBlocks = htonl(sz);
 
@@ -118,7 +117,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
   for (int32_t i = 0; i < sz; i++) {
     SSDataBlock* pDataBlock = taosArrayGet(pBlocks, i);
 
-    blkHead->numOfRows = htons(pDataBlock->info.rows);
+    blkHead->numOfRows = htonl(pDataBlock->info.rows);
     blkHead->sversion = htonl(pTSchema->version);
     // TODO
     blkHead->suid = htobe64(suid);

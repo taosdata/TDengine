@@ -95,19 +95,19 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // save info to a vnode_tmp.json
   pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    vError("failed to open info file: %s for write: %s", fname, terrstr());
+    vError("failed to open info file:%s for write:%s", fname, terrstr());
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
   if (taosWriteFile(pFile, data, strlen(data)) < 0) {
-    vError("failed to write info file: %s data: %s", fname, terrstr());
+    vError("failed to write info file:%s data:%s", fname, terrstr());
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
   if (taosFsyncFile(pFile) < 0) {
-    vError("failed to fsync info file: %s error: %s", fname, terrstr());
+    vError("failed to fsync info file:%s error:%s", fname, terrstr());
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
@@ -117,7 +117,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // free info binary
   taosMemoryFree(data);
 
-  vInfo("vgId:%d, vnode info is saved, fname: %s", pInfo->config.vgId, fname);
+  vInfo("vgId:%d, vnode info is saved, fname:%s", pInfo->config.vgId, fname);
 
   return 0;
 
@@ -288,7 +288,7 @@ int vnodeCommit(SVnode *pVnode) {
   // apply the commit (TODO)
   walEndSnapshot(pVnode->pWal);
 
-  vInfo("vgId:%d, commit over", TD_VID(pVnode));
+  vInfo("vgId:%d, commit end", TD_VID(pVnode));
 
   return 0;
 }

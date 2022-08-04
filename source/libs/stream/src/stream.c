@@ -143,7 +143,7 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
 
   // enqueue
   if (pData != NULL) {
-    qDebug("task %d(child %d) recv retrieve req from task %d, reqId %ld", pTask->taskId, pTask->selfChildId,
+    qDebug("task %d(child %d) recv retrieve req from task %d, reqId %" PRId64, pTask->taskId, pTask->selfChildId,
            pReq->srcTaskId, pReq->reqId);
 
     pData->type = STREAM_INPUT__DATA_RETRIEVE;
@@ -175,40 +175,21 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
   return status == TASK_INPUT_STATUS__NORMAL ? 0 : -1;
 }
 
-int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
+int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp, bool exec) {
   qDebug("task %d receive dispatch req from node %d task %d", pTask->taskId, pReq->upstreamNodeId,
          pReq->upstreamTaskId);
 
-  // 1. handle input
   streamTaskEnqueue(pTask, pReq, pRsp);
 
-  // 2. try exec
-  // 2.1. idle: exec
-  // 2.2. executing: return
-  // 2.3. closing: keep trying
-#if 0
-  if (pTask->execType != TASK_EXEC__NONE) {
-#endif
-  streamExec(pTask, pTask->pMsgCb);
-#if 0
-  } else {
-    ASSERT(pTask->sinkType != TASK_SINK__NONE);
-    while (1) {
-      void* data = streamQueueNextItem(pTask->inputQueue);
-      if (data == NULL) return 0;
-      if (streamTaskOutput(pTask, data) < 0) {
-        ASSERT(0);
-      }
-    }
-  }
-#endif
+  if (exec) {
+    streamExec(pTask);
 
-  // 3. handle output
-  // 3.1 check and set status
-  // 3.2 dispatch / sink
-  if (pTask->dispatchType != TASK_DISPATCH__NONE) {
-    ASSERT(pTask->sinkType == TASK_SINK__NONE);
-    streamDispatch(pTask, pTask->pMsgCb);
+    if (pTask->dispatchType != TASK_DISPATCH__NONE) {
+      ASSERT(pTask->sinkType == TASK_SINK__NONE);
+      streamDispatch(pTask);
+    }
+  } else {
+    streamLaunchByWrite(pTask, pTask->nodeId);
   }
 
   return 0;
@@ -219,6 +200,12 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp) {
 
   qDebug("task %d receive dispatch rsp", pTask->taskId);
 
+  if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
+    int32_t leftRsp = atomic_sub_fetch_32(&pTask->shuffleDispatcher.waitingRspCnt, 1);
+    qDebug("task %d is shuffle, left waiting rsp %d", pTask->taskId, leftRsp);
+    if (leftRsp > 0) return 0;
+  }
+
   int8_t old = atomic_exchange_8(&pTask->outputStatus, pRsp->inputStatus);
   ASSERT(old == TASK_OUTPUT_STATUS__WAIT);
   if (pRsp->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
@@ -227,26 +214,55 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp) {
     return 0;
   }
   // continue dispatch
-  streamDispatch(pTask, pTask->pMsgCb);
+  streamDispatch(pTask);
   return 0;
 }
 
 int32_t streamProcessRunReq(SStreamTask* pTask) {
-  streamExec(pTask, pTask->pMsgCb);
+  streamExec(pTask);
 
   if (pTask->dispatchType != TASK_DISPATCH__NONE) {
-    streamDispatch(pTask, pTask->pMsgCb);
+    streamDispatch(pTask);
   }
   return 0;
 }
 
-int32_t streamProcessRecoverReq(SStreamTask* pTask, SStreamTaskRecoverReq* pReq, SRpcMsg* pMsg) {
-  //
+int32_t streamProcessRecoverReq(SStreamTask* pTask, SStreamTaskRecoverReq* pReq, SRpcMsg* pRsp) {
+  void* buf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamTaskRecoverRsp));
+  ((SMsgHead*)buf)->vgId = htonl(pReq->upstreamNodeId);
+
+  SStreamTaskRecoverRsp* pCont = POINTER_SHIFT(buf, sizeof(SMsgHead));
+  pCont->inputStatus = pTask->inputStatus;
+  pCont->streamId = pTask->streamId;
+  pCont->reqTaskId = pTask->taskId;
+  pCont->rspTaskId = pReq->upstreamTaskId;
+
+  pRsp->pCont = buf;
+  pRsp->contLen = sizeof(SMsgHead) + sizeof(SStreamTaskRecoverRsp);
+  tmsgSendRsp(pRsp);
   return 0;
 }
 
 int32_t streamProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp) {
-  //
+  if (pRsp->inputStatus == TASK_INPUT_STATUS__NORMAL) {
+    pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
+
+    streamProcessRunReq(pTask);
+
+    if (pTask->isDataScan) {
+      // scan data to recover
+      pTask->inputStatus = TASK_INPUT_STATUS__RECOVER;
+      pTask->taskStatus = TASK_STATUS__RECOVERING;
+      qStreamPrepareRecover(pTask->exec.executor, pTask->startVer, pTask->recoverSnapVer);
+      if (streamPipelineExec(pTask, 100) < 0) {
+        return -1;
+      }
+    } else {
+      pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
+      pTask->taskStatus = TASK_STATUS__NORMAL;
+    }
+  }
+
   return 0;
 }
 
@@ -256,10 +272,10 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, S
   streamTaskEnqueueRetrieve(pTask, pReq, pRsp);
 
   ASSERT(pTask->execType != TASK_EXEC__NONE);
-  streamExec(pTask, pTask->pMsgCb);
+  streamExec(pTask);
 
   ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);
-  streamDispatch(pTask, pTask->pMsgCb);
+  streamDispatch(pTask);
 
   return 0;
 }

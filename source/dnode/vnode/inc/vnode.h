@@ -27,8 +27,8 @@
 #include "wal.h"
 
 #include "tcommon.h"
-#include "tgrant.h"
 #include "tfs.h"
+#include "tgrant.h"
 #include "tmsg.h"
 #include "trow.h"
 
@@ -66,6 +66,10 @@ int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list);
 void   *vnodeGetIdx(SVnode *pVnode);
 void   *vnodeGetIvtIdx(SVnode *pVnode);
 
+int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num);
+int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num);
+int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num);
+
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int32_t vnodeValidateTableHash(SVnode *pVnode, char *tableFName);
 
@@ -89,18 +93,19 @@ void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t type, STagVal *tagVal);
+int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
 
 typedef struct SMetaFltParam {
   tb_uid_t suid;
   int16_t  cid;
   int16_t  type;
-  char    *val;
+  void    *val;
   bool     reverse;
   int (*filterFunc)(void *a, void *b, int16_t type);
 
 } SMetaFltParam;
 
-int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *results);
+int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *results);
 
 #if 1  // refact APIs below (TODO)
 typedef SVCreateTbReq   STbCfg;
@@ -117,11 +122,10 @@ int32_t     metaTbCursorNext(SMTbCursor *pTbCur);
 // typedef struct STsdb STsdb;
 typedef struct STsdbReader STsdbReader;
 
-#define BLOCK_LOAD_OFFSET_ORDER 1
-#define BLOCK_LOAD_TABLESEQ_ORDER 2
-#define BLOCK_LOAD_EXTERN_ORDER 3
+#define TIMEWINDOW_RANGE_CONTAINED 1
+#define TIMEWINDOW_RANGE_EXTERNAL  2
 
-#define LASTROW_RETRIEVE_TYPE_ALL 0x1
+#define LASTROW_RETRIEVE_TYPE_ALL    0x1
 #define LASTROW_RETRIEVE_TYPE_SINGLE 0x2
 
 int32_t tsdbSetTableId(STsdbReader *pReader, int64_t uid);
@@ -137,6 +141,7 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTa
 int64_t tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
 void   *tsdbGetIdx(SMeta *pMeta);
 void   *tsdbGetIvtIdx(SMeta *pMeta);
+uint64_t getReaderMaxVersion(STsdbReader *pReader);
 
 int32_t tsdbLastRowReaderOpen(void *pVnode, int32_t type, SArray *pTableIdList, int32_t numOfCols, void **pReader);
 int32_t tsdbRetrieveLastRow(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, SArray *pTableUids);
@@ -183,6 +188,8 @@ bool    tqNextDataBlock(STqReader *pReader);
 bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReader *pReader);
 
+void vnodeEnqueueStreamMsg(SVnode *pVnode, SRpcMsg *pMsg);
+
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
 
@@ -210,26 +217,37 @@ struct STsdbCfg {
   SRetention retentions[TSDB_RETENTION_MAX];
 };
 
+typedef struct {
+  int64_t numOfSTables;
+  int64_t numOfCTables;
+  int64_t numOfNTables;
+  int64_t numOfTimeSeries;
+  int64_t pointsWritten;
+  int64_t totalStorage;
+  int64_t compStorage;
+} SVnodeStats;
+
 struct SVnodeCfg {
-  int32_t  vgId;
-  char     dbname[TSDB_DB_FNAME_LEN];
-  uint64_t dbId;
-  int32_t  cacheLastSize;
-  int32_t  szPage;
-  int32_t  szCache;
-  uint64_t szBuf;
-  bool     isHeap;
-  bool     isWeak;
-  int8_t   cacheLast;
-  int8_t   isTsma;
-  int8_t   isRsma;
-  int8_t   hashMethod;
-  int8_t   standby;
-  STsdbCfg tsdbCfg;
-  SWalCfg  walCfg;
-  SSyncCfg syncCfg;
-  uint32_t hashBegin;
-  uint32_t hashEnd;
+  int32_t     vgId;
+  char        dbname[TSDB_DB_FNAME_LEN];
+  uint64_t    dbId;
+  int32_t     cacheLastSize;
+  int32_t     szPage;
+  int32_t     szCache;
+  uint64_t    szBuf;
+  bool        isHeap;
+  bool        isWeak;
+  int8_t      cacheLast;
+  int8_t      isTsma;
+  int8_t      isRsma;
+  int8_t      hashMethod;
+  int8_t      standby;
+  STsdbCfg    tsdbCfg;
+  SWalCfg     walCfg;
+  SSyncCfg    syncCfg;
+  SVnodeStats vndStats;
+  uint32_t    hashBegin;
+  uint32_t    hashEnd;
 };
 
 typedef struct {
@@ -237,8 +255,8 @@ typedef struct {
   uint64_t groupId;
 } STableKeyInfo;
 
-#define TABLE_ROLLUP_ON ((int8_t)0x1)
-#define TABLE_IS_ROLLUP(FLG) (((FLG) & (TABLE_ROLLUP_ON)) != 0)
+#define TABLE_ROLLUP_ON       ((int8_t)0x1)
+#define TABLE_IS_ROLLUP(FLG)  (((FLG) & (TABLE_ROLLUP_ON)) != 0)
 #define TABLE_SET_ROLLUP(FLG) ((FLG) |= TABLE_ROLLUP_ON)
 struct SMetaEntry {
   int64_t  version;

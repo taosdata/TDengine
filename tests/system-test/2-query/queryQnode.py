@@ -318,7 +318,6 @@ class TDTestCase:
         os.system(cmd)
         # tdDnodes.stop(1)
         # tdDnodes.start(1)
-        tdSql.execute("reset query cache")
         tdSql.execute('alter local  "queryPolicy" "%d"'%queryPolicy)
         tdSql.query("show local variables;")
         for i in range(tdSql.queryRows):

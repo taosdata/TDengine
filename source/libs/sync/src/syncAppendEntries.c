@@ -244,22 +244,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
         ths->pLogStore->appendEntry(ths->pLogStore, pAppendEntry);
 
         // pre commit
-        SRpcMsg rpcMsg;
-        syncEntry2OriginalRpc(pAppendEntry, &rpcMsg);
-        if (ths->pFsm != NULL) {
-          // if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->originalRpcType != TDMT_SYNC_NOOP) {
-          if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pAppendEntry->originalRpcType)) {
-            SFsmCbMeta cbMeta = {0};
-            cbMeta.index = pAppendEntry->index;
-            cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
-            cbMeta.isWeak = pAppendEntry->isWeak;
-            cbMeta.code = 2;
-            cbMeta.state = ths->state;
-            cbMeta.seqNum = pAppendEntry->seqNum;
-            ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, cbMeta);
-          }
-        }
-        rpcFreeCont(rpcMsg.pCont);
+        syncNodePreCommit(ths, pAppendEntry, 0);
       }
 
       // free memory
@@ -280,22 +265,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
       ths->pLogStore->appendEntry(ths->pLogStore, pAppendEntry);
 
       // pre commit
-      SRpcMsg rpcMsg;
-      syncEntry2OriginalRpc(pAppendEntry, &rpcMsg);
-      if (ths->pFsm != NULL) {
-        // if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->originalRpcType != TDMT_SYNC_NOOP) {
-        if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pAppendEntry->originalRpcType)) {
-          SFsmCbMeta cbMeta = {0};
-          cbMeta.index = pAppendEntry->index;
-          cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
-          cbMeta.isWeak = pAppendEntry->isWeak;
-          cbMeta.code = 3;
-          cbMeta.state = ths->state;
-          cbMeta.seqNum = pAppendEntry->seqNum;
-          ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, cbMeta);
-        }
-      }
-      rpcFreeCont(rpcMsg.pCont);
+      syncNodePreCommit(ths, pAppendEntry, 0);
 
       // free memory
       syncEntryDestory(pAppendEntry);
@@ -440,7 +410,7 @@ static int32_t syncNodeDoMakeLogSame(SSyncNode* ths, SyncIndex FromIndex) {
   return code;
 }
 
-static int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry) {
+int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry, int32_t code) {
   SRpcMsg rpcMsg;
   syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
@@ -456,7 +426,7 @@ static int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry) {
       cbMeta.index = pEntry->index;
       cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
       cbMeta.isWeak = pEntry->isWeak;
-      cbMeta.code = 2;
+      cbMeta.code = code;
       cbMeta.state = ths->state;
       cbMeta.seqNum = pEntry->seqNum;
       ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, cbMeta);
@@ -594,7 +564,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
             return -1;
           }
 
-          code = syncNodePreCommit(ths, pAppendEntry);
+          code = syncNodePreCommit(ths, pAppendEntry, 0);
           ASSERT(code == 0);
 
           // syncEntryDestory(pAppendEntry);
@@ -603,7 +573,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
         // fsync once
         SSyncLogStoreData* pData = ths->pLogStore->data;
         SWal*              pWal = pData->pWal;
-        walFsync(pWal, true);
+        walFsync(pWal, false);
 
         // update match index
         matchIndex = pMsg->prevLogIndex + pMsg->dataCount;
@@ -715,7 +685,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
             return -1;
           }
 
-          code = syncNodePreCommit(ths, pAppendEntry);
+          code = syncNodePreCommit(ths, pAppendEntry, 0);
           ASSERT(code == 0);
 
           // syncEntryDestory(pAppendEntry);
@@ -724,7 +694,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
         // fsync once
         SSyncLogStoreData* pData = ths->pLogStore->data;
         SWal*              pWal = pData->pWal;
-        walFsync(pWal, true);
+        walFsync(pWal, false);
       }
 
       // prepare response msg
@@ -820,65 +790,6 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     }
   } while (0);
 
-#if 0
-  // fake match
-  //
-  // condition1:
-  // I have snapshot, no log, preIndex > myLastIndex
-  //
-  // condition2:
-  // I have snapshot, have log, log <= snapshot, preIndex > myLastIndex
-  //
-  // condition3:
-  // I have snapshot, preIndex < snapshot.lastApplyIndex
-  //
-  // condition4:
-  // I have snapshot, preIndex == snapshot.lastApplyIndex, no data
-  //
-  // operation:
-  // match snapshot.lastApplyIndex - 1;
-  // no operation on log
-  do {
-    SyncIndex myLastIndex = syncNodeGetLastIndex(ths);
-    SSnapshot snapshot;
-    ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
-
-    bool condition0 = (pMsg->term == ths->pRaftStore->currentTerm) && (ths->state == TAOS_SYNC_STATE_FOLLOWER) &&
-                      syncNodeHasSnapshot(ths);
-    bool condition1 =
-        condition0 && (ths->pLogStore->syncLogEntryCount(ths->pLogStore) == 0) && (pMsg->prevLogIndex > myLastIndex);   // donot use syncLogEntryCount!!! use isEmpty
-    bool condition2 = condition0 && (ths->pLogStore->syncLogLastIndex(ths->pLogStore) <= snapshot.lastApplyIndex) &&
-                      (pMsg->prevLogIndex > myLastIndex);
-    bool condition3 = condition0 && (pMsg->prevLogIndex < snapshot.lastApplyIndex);
-    bool condition4 = condition0 && (pMsg->prevLogIndex == snapshot.lastApplyIndex) && (pMsg->dataLen == 0);
-    bool condition = condition1 || condition2 || condition3 || condition4;
-
-    if (condition) {
-      char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, fake match, pre-index:%" PRId64 ", pre-term:%" PRIu64,
-               pMsg->prevLogIndex, pMsg->prevLogTerm);
-      syncNodeEventLog(ths, logBuf);
-
-      // prepare response msg
-      SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
-      pReply->srcId = ths->myRaftId;
-      pReply->destId = pMsg->srcId;
-      pReply->term = ths->pRaftStore->currentTerm;
-      pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
-      pReply->success = true;
-      pReply->matchIndex = snapshot.lastApplyIndex;
-
-      // send response
-      SRpcMsg rpcMsg;
-      syncAppendEntriesReply2RpcMsg(pReply, &rpcMsg);
-      syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
-      syncAppendEntriesReplyDestroy(pReply);
-
-      return ret;
-    }
-  } while (0);
-#endif
-
   // fake match
   //
   // condition1:
@@ -919,7 +830,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
         }
 
         // pre commit
-        code = syncNodePreCommit(ths, pAppendEntry);
+        code = syncNodePreCommit(ths, pAppendEntry, 0);
         ASSERT(code == 0);
 
         // update match index
@@ -1032,7 +943,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
         }
 
         // pre commit
-        code = syncNodePreCommit(ths, pAppendEntry);
+        code = syncNodePreCommit(ths, pAppendEntry, 0);
         ASSERT(code == 0);
 
         syncEntryDestory(pAppendEntry);

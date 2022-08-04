@@ -75,6 +75,8 @@ void taos_cleanup(void) {
 
   cleanupTaskQueue();
 
+  taosConvDestroy();
+
   tscInfo("all local resources released");
   taosCleanupCfg();
   taosCloseLog();
@@ -677,6 +679,9 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
   if (code == TSDB_CODE_SUCCESS) {
     code = qAnalyseSqlSemantic(pWrapper->pCtx, &pWrapper->catalogReq, pResultMeta, pQuery);
     pRequest->stableQuery = pQuery->stableQuery;
+    if (pQuery->pRoot) {
+      pRequest->stmtType = pQuery->pRoot->type;
+    }
   }
 
   if (code == TSDB_CODE_SUCCESS) {
@@ -687,6 +692,7 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
 
     TSWAP(pRequest->dbList, (pQuery)->pDbList);
     TSWAP(pRequest->tableList, (pQuery)->pTableList);
+    TSWAP(pRequest->targetTableList, (pQuery)->pTargetTableList);
 
     destorySqlParseWrapper(pWrapper);
 
@@ -775,6 +781,16 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     goto _error;
   }
 
+  if (!updateMetaForce) {
+    STscObj            *pTscObj = pRequest->pTscObj;
+    SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
+    if (NULL == pQuery->pRoot) {
+      atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1);
+    } else if (QUERY_NODE_SELECT_STMT == pQuery->pRoot->type) {
+      atomic_add_fetch_64((int64_t *)&pActivity->numOfQueryReq, 1);
+    }
+  }
+
   SqlParseWrapper *pWrapper = taosMemoryCalloc(1, sizeof(SqlParseWrapper));
   if (pWrapper == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -793,6 +809,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 
   code = catalogAsyncGetAllMeta(pCxt->pCatalog, &conn, &catalogReq, retrieveMetaCallback, pWrapper,
                                 &pRequest->body.queryJob);
+  pCxt = NULL;
   if (code == TSDB_CODE_SUCCESS) {
     return;
   }
@@ -800,6 +817,8 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 _error:
   tscError("0x%" PRIx64 " error happens, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code, tstrerror(code),
            pRequest->requestId);
+  taosMemoryFree(pCxt);
+
   terrno = code;
   pRequest->code = code;
   pRequest->body.queryFp(pRequest->body.param, pRequest, code);
@@ -838,6 +857,10 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
     tscDebug("0x%" PRIx64 " fetch results, numOfRows:%d total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
              pRequest->self, pResultInfo->numOfRows, pResultInfo->totalRows, pResultInfo->completed,
              pRequest->requestId);
+
+    STscObj            *pTscObj = pRequest->pTscObj;
+    SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
+    atomic_add_fetch_64((int64_t *)&pActivity->fetchBytes, pRequest->body.resInfo.payloadLen);
   }
 
   pRequest->body.fetchFp(pRequest->body.param, pRequest, pResultInfo->numOfRows);
@@ -973,7 +996,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   conn.mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
-  code = catalogAsyncGetAllMeta(pCtg, &conn, &catalogReq, syncCatalogFn, NULL, NULL);
+  code = catalogAsyncGetAllMeta(pCtg, &conn, &catalogReq, syncCatalogFn, pRequest->body.param, NULL);
   if (code) {
     goto _return;
   }

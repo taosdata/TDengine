@@ -18,18 +18,18 @@
             "name": "db",
             "drop": "yes",
             "replica": 1,
-            "days": 10,
-            "cache": 16,    
-            "blocks": 8,
+
+
+
             "precision": "ms",
             "keep": 365,
             "minRows": 100,
             "maxRows": 4096,
-            "comp":2,
-            "walLevel":1,
-            "cachelast":0,
-            "quorum":1,
-            "fsync":3000,
+            "comp":2
+
+
+
+
             "update": 1
         },
         "super_tables": [{

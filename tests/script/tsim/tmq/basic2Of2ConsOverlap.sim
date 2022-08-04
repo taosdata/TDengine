@@ -89,7 +89,7 @@ $topicList = $topicList . ,
 $topicList = $topicList . topic_stb_function
 $topicList = $topicList . '
 $consumerId    = 1
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
+sql insert into consumeinfo values (now +1s , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from stb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -w $dbName -s start
@@ -197,7 +197,7 @@ $topicList = $topicList . ,
 $topicList = $topicList . topic_ctb_all
 $topicList = $topicList . '
 $consumerId    = 1
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
+sql insert into consumeinfo values (now +1s, $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from ctb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -w $cdbName -s start
@@ -289,7 +289,7 @@ $topicList = $topicList . ,
 $topicList = $topicList . topic_ntb_all
 $topicList = $topicList . '
 $consumerId    = 1
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
+sql insert into consumeinfo values (now+1s , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from ntb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -s start
@@ -342,12 +342,12 @@ endi
 return -1
 check_ok_3:
 
-sql select * from performance_schema.`consumers`
+sql select * from performance_schema.perf_consumers
 if $rows != 0 then
   return -1
 endi 
 
-#sql select * from performance_schema.`subscriptions`
+#sql select * from performance_schema.perf_subscriptions
 #if $rows != 0 then
 #  return -1
 #endi 

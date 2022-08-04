@@ -167,12 +167,13 @@ void streamFreeQitem(SStreamQueueItem* data) {
     SStreamMergedSubmit* pMerge = (SStreamMergedSubmit*)data;
     int32_t              sz = taosArrayGetSize(pMerge->reqs);
     for (int32_t i = 0; i < sz; i++) {
-      int32_t* ref = taosArrayGetP(pMerge->dataRefs, i);
-      (*ref)--;
-      if (*ref == 0) {
+      int32_t* pRef = taosArrayGetP(pMerge->dataRefs, i);
+      int32_t  ref = atomic_sub_fetch_32(pRef, 1);
+      ASSERT(ref >= 0);
+      if (ref == 0) {
         void* data = taosArrayGetP(pMerge->reqs, i);
         taosMemoryFree(data);
-        taosMemoryFree(ref);
+        taosMemoryFree(pRef);
       }
     }
     taosArrayDestroy(pMerge->reqs);

@@ -280,17 +280,17 @@ class TDTestCase:
         tdSql.error(self.diff_query_form(alias=", min(c1)"))    # mix with select function 1
         tdSql.error(self.diff_query_form(alias=", top(c1, 5)")) # mix with select function 2
         tdSql.error(self.diff_query_form(alias=", spread(c1)")) # mix with calculation function  1
-        tdSql.error(self.diff_query_form(alias=", diff(c1)"))   # mix with calculation function  2
+        tdSql.query(self.diff_query_form(alias=", diff(c1)"))   # mix with calculation function  2
         # tdSql.error(self.diff_query_form(alias=" + 2"))         # mix with arithmetic 1
         tdSql.error(self.diff_query_form(alias=" + avg(c1)"))   # mix with arithmetic 2
-        tdSql.error(self.diff_query_form(alias=", c2"))         # mix with other 1
+        tdSql.query(self.diff_query_form(alias=", c2"))         # mix with other 1
         # tdSql.error(self.diff_query_form(table_expr="stb1"))    # select stb directly
         stb_join = {
             "col": "stb1.c1",
             "table_expr": "stb1, stb2",
             "condition": "where stb1.ts=stb2.ts and stb1.st1=stb2.st2 order by stb1.ts"
         }
-        tdSql.error(self.diff_query_form(**stb_join))           # stb join
+        tdSql.query(self.diff_query_form(**stb_join))           # stb join
         interval_sql = {
             "condition": "where ts>0 and ts < now interval(1h) fill(next)"
         }

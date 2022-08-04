@@ -3,6 +3,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 system sh/deploy.sh -n dnode4 -i 4
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 0
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
@@ -43,6 +44,8 @@ endi
 if $data(4)[4] != ready then
   goto step1
 endi
+
+return
 
 print =============== step2: create database
 sql create database db vgroups 1 replica 3

@@ -22,22 +22,22 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
   SStreamQueueItem* pItem = (SStreamQueueItem*)data;
   if (pItem->type == STREAM_INPUT__GET_RES) {
     SStreamTrigger* pTrigger = (SStreamTrigger*)data;
-    qSetMultiStreamInput(exec, pTrigger->pBlock, 1, STREAM_INPUT__DATA_BLOCK, false);
+    qSetMultiStreamInput(exec, pTrigger->pBlock, 1, STREAM_INPUT__DATA_BLOCK);
   } else if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     ASSERT(pTask->isDataScan);
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)data;
-    qDebug("task %d %p set submit input %p %p %d", pTask->taskId, pTask, pSubmit, pSubmit->data, *pSubmit->dataRef);
-    qSetStreamInput(exec, pSubmit->data, STREAM_INPUT__DATA_SUBMIT, false);
+    qDebug("task %d %p set submit input %p %p %d 1", pTask->taskId, pTask, pSubmit, pSubmit->data, *pSubmit->dataRef);
+    qSetMultiStreamInput(exec, pSubmit->data, 1, STREAM_INPUT__DATA_SUBMIT);
   } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)data;
     SArray*           blocks = pBlock->blocks;
     qDebug("task %d %p set ssdata input", pTask->taskId, pTask);
-    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_INPUT__DATA_BLOCK, false);
+    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_INPUT__DATA_BLOCK);
   } else if (pItem->type == STREAM_INPUT__MERGED_SUBMIT) {
     SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)data;
     SArray*              blocks = pMerged->reqs;
     qDebug("task %d %p set submit input (merged), batch num: %d", pTask->taskId, pTask, (int32_t)blocks->size);
-    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_INPUT__MERGED_SUBMIT, false);
+    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_INPUT__MERGED_SUBMIT);
   } else {
     ASSERT(0);
   }
@@ -59,7 +59,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
         block.info.childId = pTask->selfChildId;
         taosArrayPush(pRes, &block);
 
-        qDebug("task %d(child %d) processed retrieve, reqId %ld", pTask->taskId, pTask->selfChildId,
+        qDebug("task %d(child %d) processed retrieve, reqId %" PRId64, pTask->taskId, pTask->selfChildId,
                pRetrieveBlock->reqId);
       }
       break;
@@ -71,6 +71,8 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
       }
       continue;
     }
+
+    qDebug("task %d(child %d) executed and get block", pTask->taskId, pTask->selfChildId);
 
     SSDataBlock block = {0};
     assignOneDataBlock(&block, output);
@@ -139,7 +141,7 @@ int32_t streamPipelineExec(SStreamTask* pTask, int32_t batchNum) {
 
     if (pTask->dispatchType != TASK_DISPATCH__NONE) {
       ASSERT(pTask->sinkType == TASK_SINK__NONE);
-      streamDispatch(pTask, pTask->pMsgCb);
+      streamDispatch(pTask);
     }
   }
 
@@ -188,7 +190,7 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
     if (pTask->execType == TASK_EXEC__NONE) {
       ASSERT(((SStreamQueueItem*)data)->type == STREAM_INPUT__DATA_BLOCK);
       streamTaskOutput(pTask, data);
-      return pRes;
+      continue;
     }
 
     qDebug("stream task %d exec begin, msg batch: %d", pTask->taskId, cnt);
@@ -227,7 +229,7 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
 }
 
 // TODO: handle version
-int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb) {
+int32_t streamExec(SStreamTask* pTask) {
   SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
   if (pRes == NULL) return -1;
   while (1) {
@@ -239,6 +241,8 @@ int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb) {
       pRes = streamExecForQall(pTask, pRes);
       if (pRes == NULL) goto FAIL;
 
+// temporarily disable status closing, since it runs out of threads
+#if 0
       // set status closing
       atomic_store_8(&pTask->execStatus, TASK_EXEC_STATUS__CLOSING);
 
@@ -246,6 +250,7 @@ int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb) {
       qDebug("stream exec, enter closing status");
       pRes = streamExecForQall(pTask, pRes);
       if (pRes == NULL) goto FAIL;
+#endif
 
       taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
       atomic_store_8(&pTask->execStatus, TASK_EXEC_STATUS__IDLE);

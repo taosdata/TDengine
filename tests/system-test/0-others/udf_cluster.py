@@ -1,7 +1,7 @@
 import taos
 import sys
 import time
-import os 
+import os
 
 from util.log import *
 from util.sql import *
@@ -16,7 +16,7 @@ class MyDnodes(TDDnodes):
         super(MyDnodes,self).__init__()
         self.dnodes = dnodes_lists  # dnode must be TDDnode instance
         self.simDeployed = False
-        
+
 class TDTestCase:
 
     def init(self,conn ,logSql):
@@ -26,7 +26,7 @@ class TDTestCase:
         self.master_dnode = self.TDDnodes.dnodes[0]
         conn1 = taos.connect(self.master_dnode.cfgDict["fqdn"] , config=self.master_dnode.cfgDir)
         tdSql.init(conn1.cursor())
-        
+
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -43,7 +43,7 @@ class TDTestCase:
                     buildPath = root[:len(root) - len("/build/bin")]
                     break
         return buildPath
-    
+
     def prepare_udf_so(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
@@ -61,7 +61,7 @@ class TDTestCase:
 
 
     def prepare_data(self):
-    
+
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database if not exists db replica 1 duration 300")
         tdSql.execute("use db")
@@ -71,7 +71,7 @@ class TDTestCase:
         tags (t1 int)
         '''
         )
-        
+
         tdSql.execute(
             '''
             create table t1
@@ -142,7 +142,7 @@ class TDTestCase:
             # create aggregate functions
 
             tdSql.execute("create aggregate function udf2 as '/tmp/udf/libudf2.so' outputtype double bufSize 8;")
-            
+
             # functions = tdSql.getResult("show functions")
             # function_nums = len(functions)
             # if function_nums == 2:
@@ -167,14 +167,14 @@ class TDTestCase:
         # create aggregate functions
 
         tdSql.execute("create aggregate function udf2 as '/tmp/udf/libudf2.so' outputtype double bufSize 8;")
-        
+
         functions = tdSql.getResult("show functions")
         function_nums = len(functions)
         if function_nums == 2:
             tdLog.info("create two udf functions success ")
-       
+
     def basic_udf_query(self , dnode):
-        
+
         mytdSql = self.getConnection(dnode)
         # scalar functions
 
@@ -229,7 +229,7 @@ class TDTestCase:
         else:
             tdLog.info(" UDF query check failed at :dnode_index %s" %dnode.index)
             tdLog.exit("query check failed at :dnode_index %s" %dnode.index )
-        
+
 
     def check_UDF_query(self):
 
@@ -238,10 +238,10 @@ class TDTestCase:
                 self.basic_udf_query(dnode)
 
 
-    def depoly_cluster(self ,dnodes_nums): 
+    def depoly_cluster(self ,dnodes_nums):
 
         testCluster = False
-        valgrind = 0  
+        valgrind = 0
         hostname = socket.gethostname()
         dnodes = []
         start_port = 6030
@@ -253,7 +253,7 @@ class TDTestCase:
             dnode.addExtraCfg("monitorFqdn", hostname)
             dnode.addExtraCfg("monitorPort", 7043)
             dnodes.append(dnode)
-        
+
         self.TDDnodes = MyDnodes(dnodes)
         self.TDDnodes.init("")
         self.TDDnodes.setTestCluster(testCluster)
@@ -261,11 +261,11 @@ class TDTestCase:
         self.TDDnodes.stopAll()
         for dnode in self.TDDnodes.dnodes:
             self.TDDnodes.deploy(dnode.index,{})
-            
+
         for dnode in self.TDDnodes.dnodes:
             self.TDDnodes.start(dnode.index)
 
-        # create cluster 
+        # create cluster
 
         for dnode in self.TDDnodes.dnodes:
             print(dnode.cfgDict)
@@ -275,12 +275,12 @@ class TDTestCase:
             cmd = f" taos -h {dnode_first_host} -P {dnode_first_port} -s ' create dnode \"{dnode_id} \" ' ;"
             print(cmd)
             os.system(cmd)
-        
+
         time.sleep(2)
         tdLog.info(" create cluster done! ")
-        
 
-        
+
+
     def getConnection(self, dnode):
         host = dnode.cfgDict["fqdn"]
         port = dnode.cfgDict["serverPort"]
@@ -288,23 +288,23 @@ class TDTestCase:
         return taos.connect(host=host, port=int(port), config=config_dir)
 
     def restart_udfd(self, dnode):
-        
+
         buildPath = self.getBuildPath()
 
         if (buildPath == ""):
             tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % buildPath)
-        
+
         cfgPath = dnode.cfgDir
-        
+
         udfdPath = buildPath +'/build/bin/udfd'
 
         for i in range(5):
 
             tdLog.info(" loop restart udfd  %d_th  at dnode_index : %s" % (i ,dnode.index))
             self.basic_udf_query(dnode)
-            # stop udfd cmds 
+            # stop udfd cmds
             get_processID = "ps -ef | grep -w udfd | grep %s | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}'"%cfgPath
             processID = subprocess.check_output(get_processID, shell=True).decode("utf-8")
             stop_udfd = " kill -9 %s" % processID
@@ -327,8 +327,8 @@ class TDTestCase:
         # self.check_UDF_query()
         self.restart_udfd(self.master_dnode)
         # self.test_restart_udfd_All_dnodes()
-        
-        
+
+
 
     def stop(self):
         tdSql.close()

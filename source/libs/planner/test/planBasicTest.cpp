@@ -24,9 +24,10 @@ TEST_F(PlanBasicTest, selectClause) {
   useDb("root", "test");
 
   run("SELECT * FROM t1");
-  run("SELECT 1 FROM t1");
-  run("SELECT * FROM st1");
-  run("SELECT 1 FROM st1");
+
+  run("SELECT MAX(c1) c2, c2 FROM t1");
+
+  run("SELECT MAX(c1) c2, c2 FROM st1");
 }
 
 TEST_F(PlanBasicTest, whereClause) {
@@ -172,6 +173,16 @@ TEST_F(PlanBasicTest, pseudoColumn) {
 
   run("SELECT _QSTART, _QEND, _QDURATION, _WSTART, _WEND, _WDURATION, COUNT(*) FROM t1 "
       "WHERE ts BETWEEN '2017-7-14 18:00:00' AND '2017-7-14 19:00:00' INTERVAL(10S)");
+}
+
+TEST_F(PlanBasicTest, indefiniteRowsFunc) {
+  useDb("root", "test");
+
+  run("SELECT DIFF(c1) FROM t1");
+
+  run("SELECT DIFF(c1), c2 FROM t1");
+
+  run("SELECT DIFF(c1), DIFF(c3), ts FROM t1");
 }
 
 TEST_F(PlanBasicTest, withoutFrom) {

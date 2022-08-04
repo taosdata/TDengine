@@ -65,12 +65,14 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVa
   qTaskInfo_t          task = pExec->execCol.task;
 
   if (qStreamPrepareScan(task, pOffset) < 0) {
+    tqDebug("prepare scan failed, return");
     if (pOffset->type == TMQ_OFFSET__LOG) {
       pRsp->rspOffset = *pOffset;
       return 0;
     } else {
       tqOffsetResetToLog(pOffset, pHandle->snapshotVer);
       if (qStreamPrepareScan(task, pOffset) < 0) {
+        tqDebug("prepare scan failed, return");
         pRsp->rspOffset = *pOffset;
         return 0;
       }
@@ -109,7 +111,8 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVa
     }
 
     if (pRsp->blockNum == 0 && pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
-      tqDebug("vgId: %d, tsdb consume over, switch to wal, ver %ld", TD_VID(pTq->pVnode), pHandle->snapshotVer + 1);
+      tqDebug("vgId: %d, tsdb consume over, switch to wal, ver %" PRId64, TD_VID(pTq->pVnode),
+              pHandle->snapshotVer + 1);
       tqOffsetResetToLog(pOffset, pHandle->snapshotVer);
       qStreamPrepareScan(task, pOffset);
       continue;
@@ -126,9 +129,16 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVa
 
     ASSERT(pRsp->rspOffset.type != 0);
 
+#if 0
     if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
-      ASSERT(pRsp->rspOffset.version + 1 >= pRsp->reqOffset.version);
+      if (pRsp->blockNum > 0) {
+        ASSERT(pRsp->rspOffset.version > pRsp->reqOffset.version);
+      } else {
+        ASSERT(pRsp->rspOffset.version >= pRsp->reqOffset.version);
+      }
     }
+#endif
+
     tqDebug("task exec exited");
     break;
   }
@@ -201,10 +211,12 @@ int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataR
       if (pRsp->withTbName) {
         int64_t uid = pExec->pExecReader->msgIter.uid;
         if (tqAddTbNameToRsp(pTq, uid, pRsp) < 0) {
+          blockDataFreeRes(&block);
           continue;
         }
       }
       tqAddBlockDataToRsp(&block, pRsp, taosArrayGetSize(block.pDataBlock));
+      blockDataFreeRes(&block);
       tqAddBlockSchemaToRsp(pExec, pRsp);
       pRsp->blockNum++;
     }
@@ -220,10 +232,12 @@ int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataR
       if (pRsp->withTbName) {
         int64_t uid = pExec->pExecReader->msgIter.uid;
         if (tqAddTbNameToRsp(pTq, uid, pRsp) < 0) {
+          blockDataFreeRes(&block);
           continue;
         }
       }
       tqAddBlockDataToRsp(&block, pRsp, taosArrayGetSize(block.pDataBlock));
+      blockDataFreeRes(&block);
       tqAddBlockSchemaToRsp(pExec, pRsp);
       pRsp->blockNum++;
     }

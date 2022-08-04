@@ -33,6 +33,8 @@
     } else {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INCOMPLETE_SQL);
     }
+  } else if (TSDB_CODE_PAR_DB_NOT_SPECIFIED == pCxt->errCode && TK_NK_FLOAT == TOKEN.type) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, TOKEN.z);
   }
 }
 
@@ -176,7 +178,6 @@ db_options(A) ::= db_options(B) CACHESIZE NK_INTEGER(C).                        
 db_options(A) ::= db_options(B) COMP NK_INTEGER(C).                               { A = setDatabaseOption(pCxt, B, DB_OPTION_COMP, &C); }
 db_options(A) ::= db_options(B) DURATION NK_INTEGER(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_DAYS, &C); }
 db_options(A) ::= db_options(B) DURATION NK_VARIABLE(C).                          { A = setDatabaseOption(pCxt, B, DB_OPTION_DAYS, &C); }
-db_options(A) ::= db_options(B) FSYNC NK_INTEGER(C).                              { A = setDatabaseOption(pCxt, B, DB_OPTION_FSYNC, &C); }
 db_options(A) ::= db_options(B) MAXROWS NK_INTEGER(C).                            { A = setDatabaseOption(pCxt, B, DB_OPTION_MAXROWS, &C); }
 db_options(A) ::= db_options(B) MINROWS NK_INTEGER(C).                            { A = setDatabaseOption(pCxt, B, DB_OPTION_MINROWS, &C); }
 db_options(A) ::= db_options(B) KEEP integer_list(C).                             { A = setDatabaseOption(pCxt, B, DB_OPTION_KEEP, C); }
@@ -186,11 +187,26 @@ db_options(A) ::= db_options(B) PAGESIZE NK_INTEGER(C).                         
 db_options(A) ::= db_options(B) PRECISION NK_STRING(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_PRECISION, &C); }
 db_options(A) ::= db_options(B) REPLICA NK_INTEGER(C).                            { A = setDatabaseOption(pCxt, B, DB_OPTION_REPLICA, &C); }
 db_options(A) ::= db_options(B) STRICT NK_STRING(C).                              { A = setDatabaseOption(pCxt, B, DB_OPTION_STRICT, &C); }
-db_options(A) ::= db_options(B) WAL NK_INTEGER(C).                                { A = setDatabaseOption(pCxt, B, DB_OPTION_WAL, &C); }
 db_options(A) ::= db_options(B) VGROUPS NK_INTEGER(C).                            { A = setDatabaseOption(pCxt, B, DB_OPTION_VGROUPS, &C); }
 db_options(A) ::= db_options(B) SINGLE_STABLE NK_INTEGER(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_SINGLE_STABLE, &C); }
 db_options(A) ::= db_options(B) RETENTIONS retention_list(C).                     { A = setDatabaseOption(pCxt, B, DB_OPTION_RETENTIONS, C); }
 db_options(A) ::= db_options(B) SCHEMALESS NK_INTEGER(C).                         { A = setDatabaseOption(pCxt, B, DB_OPTION_SCHEMALESS, &C); }
+db_options(A) ::= db_options(B) WAL_LEVEL NK_INTEGER(C).                          { A = setDatabaseOption(pCxt, B, DB_OPTION_WAL, &C); }
+db_options(A) ::= db_options(B) WAL_FSYNC_PERIOD NK_INTEGER(C).                   { A = setDatabaseOption(pCxt, B, DB_OPTION_FSYNC, &C); }
+db_options(A) ::= db_options(B) WAL_RETENTION_PERIOD NK_INTEGER(C).               { A = setDatabaseOption(pCxt, B, DB_OPTION_WAL_RETENTION_PERIOD, &C); }
+db_options(A) ::= db_options(B) WAL_RETENTION_PERIOD NK_MINUS(D) NK_INTEGER(C).   { 
+                                                                                    SToken t = D;
+                                                                                    t.n = (C.z + C.n) - D.z;
+                                                                                    A = setDatabaseOption(pCxt, B, DB_OPTION_WAL_RETENTION_PERIOD, &t);
+                                                                                  }
+db_options(A) ::= db_options(B) WAL_RETENTION_SIZE NK_INTEGER(C).                 { A = setDatabaseOption(pCxt, B, DB_OPTION_WAL_RETENTION_SIZE, &C); }
+db_options(A) ::= db_options(B) WAL_RETENTION_SIZE NK_MINUS(D) NK_INTEGER(C).     { 
+                                                                                    SToken t = D;
+                                                                                    t.n = (C.z + C.n) - D.z;
+                                                                                    A = setDatabaseOption(pCxt, B, DB_OPTION_WAL_RETENTION_SIZE, &t);
+                                                                                  }
+db_options(A) ::= db_options(B) WAL_ROLL_PERIOD NK_INTEGER(C).                    { A = setDatabaseOption(pCxt, B, DB_OPTION_WAL_ROLL_PERIOD, &C); }
+db_options(A) ::= db_options(B) WAL_SEGMENT_SIZE NK_INTEGER(C).                   { A = setDatabaseOption(pCxt, B, DB_OPTION_WAL_SEGMENT_SIZE, &C); }
 
 alter_db_options(A) ::= alter_db_option(B).                                       { A = createAlterDatabaseOptions(pCxt); A = setAlterDatabaseOption(pCxt, A, &B); }
 alter_db_options(A) ::= alter_db_options(B) alter_db_option(C).                   { A = setAlterDatabaseOption(pCxt, B, &C); }
@@ -200,13 +216,13 @@ alter_db_options(A) ::= alter_db_options(B) alter_db_option(C).                 
 //alter_db_option(A) ::= BUFFER NK_INTEGER(B).                                      { A.type = DB_OPTION_BUFFER; A.val = B; }
 alter_db_option(A) ::= CACHEMODEL NK_STRING(B).                                   { A.type = DB_OPTION_CACHEMODEL; A.val = B; }
 alter_db_option(A) ::= CACHESIZE NK_INTEGER(B).                                   { A.type = DB_OPTION_CACHESIZE; A.val = B; }
-alter_db_option(A) ::= FSYNC NK_INTEGER(B).                                       { A.type = DB_OPTION_FSYNC; A.val = B; }
+alter_db_option(A) ::= WAL_FSYNC_PERIOD NK_INTEGER(B).                            { A.type = DB_OPTION_FSYNC; A.val = B; }
 alter_db_option(A) ::= KEEP integer_list(B).                                      { A.type = DB_OPTION_KEEP; A.pList = B; }
 alter_db_option(A) ::= KEEP variable_list(B).                                     { A.type = DB_OPTION_KEEP; A.pList = B; }
 //alter_db_option(A) ::= PAGES NK_INTEGER(B).                                       { A.type = DB_OPTION_PAGES; A.val = B; }
 //alter_db_option(A) ::= REPLICA NK_INTEGER(B).                                     { A.type = DB_OPTION_REPLICA; A.val = B; }
 //alter_db_option(A) ::= STRICT NK_STRING(B).                                       { A.type = DB_OPTION_STRICT; A.val = B; }
-alter_db_option(A) ::= WAL NK_INTEGER(B).                                         { A.type = DB_OPTION_WAL; A.val = B; }
+alter_db_option(A) ::= WAL_LEVEL NK_INTEGER(B).                                   { A.type = DB_OPTION_WAL; A.val = B; }
 
 %type integer_list                                                                { SNodeList* }
 %destructor integer_list                                                          { nodesDestroyList($$); }
@@ -408,10 +424,8 @@ from_db_opt(A) ::= FROM db_name(B).                                             
 
 /************************************************ create index ********************************************************/
 cmd ::= CREATE SMA INDEX not_exists_opt(D) 
-  index_name(A) ON table_name(B) index_options(C).                                { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, D, &A, &B, NULL, C); }
-//cmd ::= CREATE FULLTEXT INDEX not_exists_opt(D)
-//  index_name(A) ON table_name(B) NK_LP col_name_list(C) NK_RP.                    { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_FULLTEXT, D, &A, &B, C, NULL); }
-cmd ::= DROP INDEX exists_opt(B) index_name(A).                                   { pCxt->pRootNode = createDropIndexStmt(pCxt, B, &A); }
+  full_table_name(A) ON full_table_name(B) index_options(C).                      { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, D, A, B, NULL, C); }
+cmd ::= DROP INDEX exists_opt(B) full_table_name(A).                              { pCxt->pRootNode = createDropIndexStmt(pCxt, B, A); }
 
 index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL 
   NK_LP duration_literal(C) NK_RP sliding_opt(D) sma_stream_opt(E).               { A = createIndexOption(pCxt, B, releaseRawExprNode(pCxt, C), NULL, D, E); }
@@ -462,7 +476,7 @@ explain_options(A) ::= explain_options(B) VERBOSE NK_BOOL(C).                   
 explain_options(A) ::= explain_options(B) RATIO NK_FLOAT(C).                      { A = setExplainRatio(pCxt, B, &C); }
 
 /************************************************ compact *************************************************************/
-cmd ::= COMPACT VNODES IN NK_LP integer_list NK_RP.                               { pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
+//cmd ::= COMPACT VNODES IN NK_LP integer_list NK_RP.                               { pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
 
 /************************************************ create/drop function ************************************************/
 cmd ::= CREATE agg_func_opt(A) FUNCTION not_exists_opt(F) function_name(B) 
@@ -511,7 +525,7 @@ dnode_list(A) ::= DNODE NK_INTEGER(B).                                          
 dnode_list(A) ::= dnode_list(B) DNODE NK_INTEGER(C).                              { A = addNodeToList(pCxt, B, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &C)); }
 
 /************************************************ syncdb **************************************************************/
-cmd ::= SYNCDB db_name(A) REPLICA.                                                { pCxt->pRootNode = createSyncdbStmt(pCxt, &A); }
+//cmd ::= SYNCDB db_name(A) REPLICA.                                                { pCxt->pRootNode = createSyncdbStmt(pCxt, &A); }
 
 /************************************************ syncdb **************************************************************/
 cmd ::= DELETE FROM full_table_name(A) where_clause_opt(B).                       { pCxt->pRootNode = createDeleteStmt(pCxt, A, B); }
@@ -593,10 +607,6 @@ column_alias(A) ::= NK_ID(B).                                                   
 %type user_name                                                                   { SToken }
 %destructor user_name                                                             { }
 user_name(A) ::= NK_ID(B).                                                        { A = B; }
-
-%type index_name                                                                  { SToken }
-%destructor index_name                                                            { }
-index_name(A) ::= NK_ID(B).                                                       { A = B; }
 
 %type topic_name                                                                  { SToken }
 %destructor topic_name                                                            { }

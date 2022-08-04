@@ -22,6 +22,7 @@ static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
 static int ttlIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int uidIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int smaIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+static int taskIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
 static int32_t metaInitLock(SMeta *pMeta) { return taosThreadRwlockInit(&pMeta->lock, NULL); }
 static int32_t metaDestroyLock(SMeta *pMeta) { return taosThreadRwlockDestroy(&pMeta->lock); }
@@ -130,6 +131,12 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
     goto _err;
   }
 
+  ret = tdbTbOpen("stream.task.db", sizeof(int64_t), -1, taskIdxKeyCmpr, pMeta->pEnv, &pMeta->pStreamDb);
+  if (ret < 0) {
+    metaError("vgId:%d, failed to open meta stream task index since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
   // open index
   if (metaOpenIdx(pMeta) < 0) {
     metaError("vgId:%d, failed to open meta index since %s", TD_VID(pVnode), tstrerror(terrno));
@@ -143,6 +150,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
 
 _err:
   if (pMeta->pIdx) metaCloseIdx(pMeta);
+  if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
   if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
   if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
   if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
@@ -162,6 +170,7 @@ _err:
 int metaClose(SMeta *pMeta) {
   if (pMeta) {
     if (pMeta->pIdx) metaCloseIdx(pMeta);
+    if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
     if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
     if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
     if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
@@ -180,11 +189,41 @@ int metaClose(SMeta *pMeta) {
   return 0;
 }
 
-int32_t metaRLock(SMeta *pMeta) { return taosThreadRwlockRdlock(&pMeta->lock); }
+int32_t metaRLock(SMeta *pMeta) {
+  int32_t ret = 0;
 
-int32_t metaWLock(SMeta *pMeta) { return taosThreadRwlockWrlock(&pMeta->lock); }
+  metaTrace("meta rlock %p B", &pMeta->lock);
 
-int32_t metaULock(SMeta *pMeta) { return taosThreadRwlockUnlock(&pMeta->lock); }
+  ret = taosThreadRwlockRdlock(&pMeta->lock);
+
+  metaTrace("meta rlock %p E", &pMeta->lock);
+
+  return ret;
+}
+
+int32_t metaWLock(SMeta *pMeta) {
+  int32_t ret = 0;
+
+  metaTrace("meta wlock %p B", &pMeta->lock);
+
+  ret = taosThreadRwlockWrlock(&pMeta->lock);
+
+  metaTrace("meta wlock %p E", &pMeta->lock);
+
+  return ret;
+}
+
+int32_t metaULock(SMeta *pMeta) {
+  int32_t ret = 0;
+
+  metaTrace("meta ulock %p B", &pMeta->lock);
+
+  ret = taosThreadRwlockUnlock(&pMeta->lock);
+
+  metaTrace("meta ulock %p E", &pMeta->lock);
+
+  return ret;
+}
 
 static int tbDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   STbDbKey *pTbDbKey1 = (STbDbKey *)pKey1;
@@ -259,7 +298,7 @@ static int ctbIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
 static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   STagIdxKey *pTagIdxKey1 = (STagIdxKey *)pKey1;
   STagIdxKey *pTagIdxKey2 = (STagIdxKey *)pKey2;
-  tb_uid_t    uid1, uid2;
+  tb_uid_t    uid1 = 0, uid2 = 0;
   int         c;
 
   // compare suid
@@ -285,16 +324,18 @@ static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
     return 1;
   } else if (!pTagIdxKey1->isNull && !pTagIdxKey2->isNull) {
     // all not NULL, compr tag vals
-    c = doCompare(pTagIdxKey1->data, pTagIdxKey2->data, pTagIdxKey1->type, 0);
+    __compar_fn_t func = getComparFunc(pTagIdxKey1->type, 0);
+    c = func(pTagIdxKey1->data, pTagIdxKey2->data);
     if (c) return c;
+  }
 
-    if (IS_VAR_DATA_TYPE(pTagIdxKey1->type)) {
-      uid1 = *(tb_uid_t *)(pTagIdxKey1->data + varDataTLen(pTagIdxKey1->data));
-      uid2 = *(tb_uid_t *)(pTagIdxKey2->data + varDataTLen(pTagIdxKey2->data));
-    } else {
-      uid1 = *(tb_uid_t *)(pTagIdxKey1->data + tDataTypes[pTagIdxKey1->type].bytes);
-      uid2 = *(tb_uid_t *)(pTagIdxKey2->data + tDataTypes[pTagIdxKey2->type].bytes);
-    }
+  // both null or tag values are equal, then continue to compare uids
+  if (IS_VAR_DATA_TYPE(pTagIdxKey1->type)) {
+    uid1 = *(tb_uid_t *)(pTagIdxKey1->data + varDataTLen(pTagIdxKey1->data));
+    uid2 = *(tb_uid_t *)(pTagIdxKey2->data + varDataTLen(pTagIdxKey2->data));
+  } else {
+    uid1 = *(tb_uid_t *)(pTagIdxKey1->data + tDataTypes[pTagIdxKey1->type].bytes);
+    uid2 = *(tb_uid_t *)(pTagIdxKey2->data + tDataTypes[pTagIdxKey2->type].bytes);
   }
 
   // compare uid
@@ -341,6 +382,19 @@ static int smaIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
   if (pSmaIdxKey1->smaUid > pSmaIdxKey2->smaUid) {
     return 1;
   } else if (pSmaIdxKey1->smaUid < pSmaIdxKey2->smaUid) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int taskIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
+  int32_t uid1 = *(int32_t *)pKey1;
+  int32_t uid2 = *(int32_t *)pKey2;
+
+  if (uid1 > uid2) {
+    return 1;
+  } else if (uid1 < uid2) {
     return -1;
   }
 

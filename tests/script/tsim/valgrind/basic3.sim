@@ -1,5 +1,6 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c debugflag -v 131
 system sh/exec.sh -n dnode1 -s start -v
 sql connect
 
@@ -28,7 +29,7 @@ $rowNum = 10
 print =============== step2: prepare data
 sql create database db vgroups 2
 sql use db
-sql create table if not exists stb (ts timestamp, tbcol int, tbcol2 float, tbcol3 double) tags (tgcol int unsigned)
+sql create table if not exists stb (ts timestamp, tbcol int, tbcol2 float, tbcol3 double, tbcol4 binary(30), tbcol5 binary(30)) tags (tgcol int unsigned)
 
 $i = 0
 while $i < $tbNum
@@ -38,28 +39,22 @@ while $i < $tbNum
   while $x < $rowNum
     $cc = $x * 60000
     $ms = 1601481600000 + $cc
-    sql insert into $tb values ($ms , $x , $x , $x ) 
+    sql insert into $tb values ($ms , $x , $x , $x , "abcd1234=-+*" , "123456 0" ) 
     $x = $x + 1
   endw 
+
+  $cc = $x * 60000
+  $ms = 1601481600000 + $cc
+  sql insert into $tb values ($ms , NULL , NULL , NULL , NULL , NULL ) 
   $i = $i + 1
 endw 
 
-print =============== step3: avg
-sql select avg(tbcol) from tb1
-sql select avg(tbcol) from tb1 where ts <= 1601481840000
-sql select avg(tbcol) as b from tb1
-sql select avg(tbcol) as b from tb1 interval(1d)
-sql select avg(tbcol) as b from tb1 where ts <= 1601481840000s interval(1m)
-sql select avg(tbcol) as c from stb
-sql select avg(tbcol) as c from stb where ts <= 1601481840000
-sql select avg(tbcol) as c from stb where tgcol < 5 and ts <= 1601481840000
-sql select avg(tbcol) as c from stb interval(1m)
-sql select avg(tbcol) as c from stb interval(1d)
-sql select avg(tbcol) as b from stb where ts <= 1601481840000s interval(1m)
-sql select avg(tbcol) as c from stb group by tgcol
-sql select avg(tbcol) as b from stb where ts <= 1601481840000s partition by tgcol interval(1m)
+print =============== step3: tb
+sql select tbcol5 - tbcol3 from tb1
 
-_OVER:
+print =============== step4: stb
+sql select tbcol5 - tbcol3 from stb
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 print =============== check
 $null=

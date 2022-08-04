@@ -23,13 +23,13 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
 
   // check config
   if (vnodeCheckCfg(pCfg) < 0) {
-    vError("vgId:%d, failed to create vnode since: %s", pCfg->vgId, tstrerror(terrno));
+    vError("vgId:%d, failed to create vnode since:%s", pCfg->vgId, tstrerror(terrno));
     return -1;
   }
 
   // create vnode env
   if (tfsMkdirAt(pTfs, path, (SDiskID){0}) < 0) {
-    vError("vgId:%d, failed to create vnode since: %s", pCfg->vgId, tstrerror(terrno));
+    vError("vgId:%d, failed to create vnode since:%s", pCfg->vgId, tstrerror(terrno));
     return -1;
   }
 
@@ -135,7 +135,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   // open tq
   sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
   taosRealPath(tdir, NULL, sizeof(tdir));
-  pVnode->pTq = tqOpen(tdir, pVnode, pVnode->pWal);
+  pVnode->pTq = tqOpen(tdir, pVnode);
   if (pVnode->pTq == NULL) {
     vError("vgId:%d, failed to open vnode tq since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;

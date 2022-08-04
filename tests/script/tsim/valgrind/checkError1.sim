@@ -84,37 +84,37 @@ if $rows != 1 then
 endi
 
 print =============== run select * from information_schema.xxxx
-sql select * from information_schema.`dnodes`
+sql select * from information_schema.ins_dnodes
 if $rows != 2 then 
   return -1
 endi
 
-sql select * from information_schema.`mnodes`
+sql select * from information_schema.ins_mnodes
 if $rows != 1 then 
   return -1
 endi
 
-sql select * from information_schema.user_databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
 
-sql select * from information_schema.user_stables
+sql select * from information_schema.ins_stables
 if $rows != 1 then 
   return -1
 endi
 
-sql select * from information_schema.user_tables
-if $rows != 31 then
+sql select * from information_schema.ins_tables
+if $rows <= 0 then
   return -1
 endi
 
-sql select * from information_schema.user_users
+sql select * from information_schema.ins_users
 if $rows != 1 then 
   return -1
 endi
 
-sql select * from information_schema.`vgroups`
+sql select * from information_schema.ins_vgroups
 if $rows != 3 then 
   return -1
 endi

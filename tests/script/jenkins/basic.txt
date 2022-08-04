@@ -1,7 +1,7 @@
 
 #======================b1-start===============
 
-# ---- user
+# ---- user ----
 ./test.sh -f tsim/user/basic.sim
 ./test.sh -f tsim/user/password.sim
 ./test.sh -f tsim/user/privilege_db.sim
@@ -27,7 +27,7 @@
 ./test.sh -f tsim/db/delete_writing2.sim
 # unsupport ./test.sh -f tsim/db/dropdnodes.sim
 ./test.sh -f tsim/db/error1.sim
-# TD-17592 ./test.sh -f tsim/db/keep.sim
+./test.sh -f tsim/db/keep.sim
 ./test.sh -f tsim/db/len.sim
 ./test.sh -f tsim/db/repeat.sim
 ./test.sh -f tsim/db/show_create_db.sim
@@ -58,13 +58,13 @@
 # unsupport ./test.sh -f tsim/dnode/vnode_clean.sim
 ./test.sh -f tsim/dnode/use_dropped_dnode.sim 
 
-# ---- import
+# ---- import ----
 ./test.sh -f tsim/import/basic.sim
 ./test.sh -f tsim/import/commit.sim
 ./test.sh -f tsim/import/large.sim
 ./test.sh -f tsim/import/replica1.sim
 
-# ---- insert
+# ---- insert ----
 ./test.sh -f tsim/insert/backquote.sim
 ./test.sh -f tsim/insert/basic.sim
 ./test.sh -f tsim/insert/basic0.sim
@@ -89,19 +89,26 @@
 ./test.sh -f tsim/parser/alter_column.sim
 ./test.sh -f tsim/parser/alter_stable.sim
 ./test.sh -f tsim/parser/alter.sim
-# ./test.sh -f tsim/parser/alter1.sim
+./test.sh -f tsim/parser/alter1.sim
 ./test.sh -f tsim/parser/auto_create_tb_drop_tb.sim
 ./test.sh -f tsim/parser/auto_create_tb.sim
 ./test.sh -f tsim/parser/between_and.sim
 ./test.sh -f tsim/parser/binary_escapeCharacter.sim
-# ./test.sh -f tsim/parser/col_arithmetic_operation.sim     
-# ./test.sh -f tsim/parser/columnValue.sim
+./test.sh -f tsim/parser/col_arithmetic_operation.sim     
+./test.sh -f tsim/parser/columnValue_bigint.sim
+./test.sh -f tsim/parser/columnValue_bool.sim
+./test.sh -f tsim/parser/columnValue_double.sim
+./test.sh -f tsim/parser/columnValue_float.sim
+./test.sh -f tsim/parser/columnValue_int.sim
+./test.sh -f tsim/parser/columnValue_smallint.sim
+./test.sh -f tsim/parser/columnValue_tinyint.sim
+./test.sh -f tsim/parser/columnValue_unsign.sim
 ./test.sh -f tsim/parser/commit.sim
-# TD-17661 ./test.sh -f tsim/parser/condition.sim
+./test.sh -f tsim/parser/condition.sim
 ./test.sh -f tsim/parser/constCol.sim
-./test.sh -f tsim/parser/create_db.sim
+#./test.sh -f tsim/parser/create_db.sim
 ./test.sh -f tsim/parser/create_mt.sim
-# TD-17653 ./test.sh -f tsim/parser/create_tb_with_tag_name.sim
+./test.sh -f tsim/parser/create_tb_with_tag_name.sim
 ./test.sh -f tsim/parser/create_tb.sim
 ./test.sh -f tsim/parser/dbtbnameValidate.sim
 ./test.sh -f tsim/parser/distinct.sim
@@ -110,11 +117,11 @@
 ./test.sh -f tsim/parser/fill.sim
 ./test.sh -f tsim/parser/first_last.sim
 ./test.sh -f tsim/parser/fourArithmetic-basic.sim
-# TD-17659 ./test.sh -f tsim/parser/function.sim
+./test.sh -f tsim/parser/function.sim
 ./test.sh -f tsim/parser/groupby-basic.sim
-# ./test.sh -f tsim/parser/groupby.sim
-# TD-17622 ./test.sh -f tsim/parser/having_child.sim
-# ./test.sh -f tsim/parser/having.sim
+./test.sh -f tsim/parser/groupby.sim
+./test.sh -f tsim/parser/having_child.sim
+./test.sh -f tsim/parser/having.sim
 ./test.sh -f tsim/parser/import_commit1.sim
 ./test.sh -f tsim/parser/import_commit2.sim
 ./test.sh -f tsim/parser/import_commit3.sim
@@ -122,64 +129,61 @@
 ./test.sh -f tsim/parser/import.sim
 ./test.sh -f tsim/parser/insert_multiTbl.sim
 ./test.sh -f tsim/parser/insert_tb.sim
-# ./test.sh -f tsim/parser/interp.sim
+# TD-17038 ./test.sh -f tsim/parser/interp.sim
 ./test.sh -f tsim/parser/join_manyblocks.sim
-# ./test.sh -f tsim/parser/join_multitables.sim
-# TD-17713 ./test.sh -f tsim/parser/join_multivnode.sim
-# TD-17707 ./test.sh -f tsim/parser/join.sim
+./test.sh -f tsim/parser/join_multitables.sim
+./test.sh -f tsim/parser/join_multivnode.sim
+./test.sh -f tsim/parser/join.sim
 ./test.sh -f tsim/parser/last_cache.sim
 ./test.sh -f tsim/parser/last_groupby.sim
-# TD-17675 ./test.sh -f tsim/parser/lastrow.sim
+./test.sh -f tsim/parser/lastrow.sim
+./test.sh -f tsim/parser/lastrow2.sim
 ./test.sh -f tsim/parser/like.sim
-# ./test.sh -f tsim/parser/limit.sim
-# ./test.sh -f tsim/parser/limit1.sim
-# ./test.sh -f tsim/parser/limit2.sim
+./test.sh -f tsim/parser/limit.sim
+./test.sh -f tsim/parser/limit1.sim
+# TD-17623 ./test.sh -f tsim/parser/limit2.sim
 ./test.sh -f tsim/parser/mixed_blocks.sim
 ./test.sh -f tsim/parser/nchar.sim
-# TD-17703 ./test.sh -f tsim/parser/nestquery.sim
-# ./test.sh -f tsim/parser/null_char.sim
+./test.sh -f tsim/parser/nestquery.sim
+./test.sh -f tsim/parser/null_char.sim
 ./test.sh -f tsim/parser/precision_ns.sim
 ./test.sh -f tsim/parser/projection_limit_offset.sim
 ./test.sh -f tsim/parser/regex.sim
 ./test.sh -f tsim/parser/select_across_vnodes.sim
 ./test.sh -f tsim/parser/select_distinct_tag.sim
 ./test.sh -f tsim/parser/select_from_cache_disk.sim
-# ./test.sh -f tsim/parser/select_with_tags.sim
+./test.sh -f tsim/parser/select_with_tags.sim
 ./test.sh -f tsim/parser/selectResNum.sim
-# TD-17685 ./test.sh -f tsim/parser/set_tag_vals.sim
+./test.sh -f tsim/parser/set_tag_vals.sim
 ./test.sh -f tsim/parser/single_row_in_tb.sim
-# TD-17684 ./test.sh -f tsim/parser/sliding.sim
-# ./test.sh -f tsim/parser/slimit_alter_tags.sim
-# ./test.sh -f tsim/parser/slimit.sim
-# ./test.sh -f tsim/parser/slimit1.sim
+./test.sh -f tsim/parser/sliding.sim
+./test.sh -f tsim/parser/slimit_alter_tags.sim
+./test.sh -f tsim/parser/slimit.sim
+./test.sh -f tsim/parser/slimit1.sim
 ./test.sh -f tsim/parser/stableOp.sim
-# ./test.sh -f tsim/parser/tags_dynamically_specifiy.sim
-# ./test.sh -f tsim/parser/tags_filter.sim
+./test.sh -f tsim/parser/tags_dynamically_specifiy.sim
+./test.sh -f tsim/parser/tags_filter.sim
 ./test.sh -f tsim/parser/tbnameIn.sim
 ./test.sh -f tsim/parser/timestamp.sim
 ./test.sh -f tsim/parser/top_groupby.sim
 ./test.sh -f tsim/parser/topbot.sim
-# ./test.sh -f tsim/parser/udf_dll_stable.sim
-# ./test.sh -f tsim/parser/udf_dll.sim
-# ./test.sh -f tsim/parser/udf.sim
 ./test.sh -f tsim/parser/union.sim
-# TD-17704 ./test.sh -f tsim/parser/union_sysinfo.sim
-# ./test.sh -f tsim/parser/where.sim
+./test.sh -f tsim/parser/union_sysinfo.sim
+./test.sh -f tsim/parser/where.sim
 
-# ---- query
-./test.sh -f tsim/query/interval.sim
-./test.sh -f tsim/query/interval-offset.sim
-./test.sh -f tsim/query/scalarFunction.sim
+# ---- query ----
 ./test.sh -f tsim/query/charScalarFunction.sim
 ./test.sh -f tsim/query/explain.sim
-./test.sh -f tsim/query/session.sim
+./test.sh -f tsim/query/interval-offset.sim
+./test.sh -f tsim/query/interval.sim
+./test.sh -f tsim/query/scalarFunction.sim
 ./test.sh -f tsim/query/scalarNull.sim
-./test.sh -f tsim/query/udf.sim
+./test.sh -f tsim/query/session.sim
 
 # ---- qnode
 ./test.sh -f tsim/qnode/basic1.sim
 
-# ---- snode
+# ---- snode ----
 # unsupport ./test.sh -f tsim/snode/basic1.sim
 
 # ---- bnode
@@ -189,13 +193,13 @@
 ./test.sh -f tsim/mnode/basic1.sim
 ./test.sh -f tsim/mnode/basic2.sim
 ./test.sh -f tsim/mnode/basic3.sim
-./test.sh -f tsim/mnode/basic4.sim
+# TD-17919 ./test.sh -f tsim/mnode/basic4.sim
 ./test.sh -f tsim/mnode/basic5.sim
 
-# ---- show
+# ---- show ----
 ./test.sh -f tsim/show/basic.sim
 
-# ---- table
+# ---- table ----
 ./test.sh -f tsim/table/autocreate.sim
 ./test.sh -f tsim/table/basic1.sim
 ./test.sh -f tsim/table/basic2.sim
@@ -244,7 +248,7 @@
 ./test.sh -f tsim/stream/ignoreExpiredData.sim
 ./test.sh -f tsim/stream/sliding.sim
 
-# ---- transaction
+# ---- transaction ----
 ./test.sh -f tsim/trans/lossdata1.sim
 ./test.sh -f tsim/trans/create_db.sim
 
@@ -262,7 +266,7 @@
 ./test.sh -f tsim/tmq/snapshot.sim
 ./test.sh -f tsim/tmq/snapshot1.sim
 
-# --- stable
+# --- stable ----
 ./test.sh -f tsim/stable/alter_comment.sim
 ./test.sh -f tsim/stable/alter_count.sim
 ./test.sh -f tsim/stable/alter_import.sim
@@ -276,7 +280,6 @@
 ./test.sh -f tsim/stable/dnode3.sim
 ./test.sh -f tsim/stable/metrics.sim
 ./test.sh -f tsim/stable/refcount.sim
-./test.sh -f tsim/stable/show.sim
 ./test.sh -f tsim/stable/tag_add.sim
 ./test.sh -f tsim/stable/tag_drop.sim
 ./test.sh -f tsim/stable/tag_filter.sim
@@ -300,16 +303,19 @@
 # --- sma
 ./test.sh -f tsim/sma/drop_sma.sim
 ./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
+# temp disable
 ./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
 ./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
 
-# --- valgrind
+# --- valgrind ----
 ./test.sh -f tsim/valgrind/checkError1.sim
 ./test.sh -f tsim/valgrind/checkError2.sim
 ./test.sh -f tsim/valgrind/checkError3.sim
 ./test.sh -f tsim/valgrind/checkError4.sim
 ./test.sh -f tsim/valgrind/checkError5.sim
 ./test.sh -f tsim/valgrind/checkError6.sim
+./test.sh -f tsim/valgrind/checkError7.sim
+./test.sh -f tsim/valgrind/checkUdf.sim
 
 # --- vnode
 # unsupport ./test.sh -f tsim/vnode/replica3_basic.sim
@@ -325,40 +331,40 @@
 ./test.sh -f tsim/vnode/stable_replica3_vnode3.sim
 
 # --- sync
-# ./test.sh -f tsim/sync/3Replica1VgElect.sim
-./test.sh -f tsim/sync/3Replica5VgElect.sim
+#./test.sh -f tsim/sync/3Replica1VgElect.sim
+#./test.sh -f tsim/sync/3Replica5VgElect.sim
 ./test.sh -f tsim/sync/oneReplica1VgElect.sim
 ./test.sh -f tsim/sync/oneReplica5VgElect.sim
 
-# --- catalog
+# --- catalog ----
 ./test.sh -f tsim/catalog/alterInCurrent.sim
 
-# --- scalar
+# --- scalar ----
 ./test.sh -f tsim/scalar/in.sim
 ./test.sh -f tsim/scalar/scalar.sim
 
-# ---- alter
+# ---- alter ----
 ./test.sh -f tsim/alter/cached_schema_after_alter.sim
 ./test.sh -f tsim/alter/dnode.sim
 ./test.sh -f tsim/alter/table.sim
 
-# ---- cache
+# ---- cache ----
 ./test.sh -f tsim/cache/new_metrics.sim
 ./test.sh -f tsim/cache/restart_table.sim
 ./test.sh -f tsim/cache/restart_metrics.sim
 
-# ---- column
+# ---- column ----
 ./test.sh -f tsim/column/commit.sim
 ./test.sh -f tsim/column/metrics.sim
 ./test.sh -f tsim/column/table.sim
 
-# ---- compress
+# ---- compress ----
 ./test.sh -f tsim/compress/commitlog.sim
 ./test.sh -f tsim/compress/compress2.sim
 ./test.sh -f tsim/compress/compress.sim
 ./test.sh -f tsim/compress/uncompress.sim
 
-# ---- compute
+# ---- compute ----
 ./test.sh -f tsim/compute/avg.sim
 ./test.sh -f tsim/compute/block_dist.sim
 ./test.sh -f tsim/compute/bottom.sim
@@ -378,7 +384,7 @@
 ./test.sh -f tsim/compute/sum.sim
 ./test.sh -f tsim/compute/top.sim
 
-# ---- field
+# ---- field ----
 ./test.sh -f tsim/field/2.sim
 ./test.sh -f tsim/field/3.sim
 ./test.sh -f tsim/field/4.sim
@@ -395,7 +401,7 @@
 ./test.sh -f tsim/field/tinyint.sim
 ./test.sh -f tsim/field/unsigined_bigint.sim
 
-# ---- vector
+# ---- vector ----
 ./test.sh -f tsim/vector/metrics_field.sim
 ./test.sh -f tsim/vector/metrics_mix.sim
 ./test.sh -f tsim/vector/metrics_query.sim
@@ -408,14 +414,14 @@
 ./test.sh -f tsim/vector/table_query.sim
 ./test.sh -f tsim/vector/table_time.sim
 
-# ---- wal
+# ---- wal ----
 ./test.sh -f tsim/wal/kill.sim
 
-# ---- tag
+# ---- tag ----
 ./test.sh -f tsim/tag/3.sim
 ./test.sh -f tsim/tag/4.sim
 ./test.sh -f tsim/tag/5.sim
-# TD-17382 ./test.sh -f tsim/tag/6.sim
+./test.sh -f tsim/tag/6.sim
 ./test.sh -f tsim/tag/add.sim
 ./test.sh -f tsim/tag/bigint.sim
 ./test.sh -f tsim/tag/binary_binary.sim
@@ -423,18 +429,18 @@
 ./test.sh -f tsim/tag/bool_binary.sim
 ./test.sh -f tsim/tag/bool_int.sim
 ./test.sh -f tsim/tag/bool.sim
-# ./test.sh -f tsim/tag/change.sim
-# ./test.sh -f tsim/tag/column.sim
-# ./test.sh -f tsim/tag/commit.sim
-# ./test.sh -f tsim/tag/create.sim
-# /test.sh -f tsim/tag/delete.sim
-# ./test.sh -f tsim/tag/double.sim
-# ./test.sh -f tsim/tag/filter.sim
-# TD-17407 ./test.sh -f tsim/tag/float.sim
+./test.sh -f tsim/tag/change.sim
+./test.sh -f tsim/tag/column.sim
+./test.sh -f tsim/tag/commit.sim
+./test.sh -f tsim/tag/create.sim
+./test.sh -f tsim/tag/delete.sim
+./test.sh -f tsim/tag/double.sim
+./test.sh -f tsim/tag/filter.sim
+./test.sh -f tsim/tag/float.sim
 ./test.sh -f tsim/tag/int_binary.sim
 ./test.sh -f tsim/tag/int_float.sim
 ./test.sh -f tsim/tag/int.sim
-# ./test.sh -f tsim/tag/set.sim
+./test.sh -f tsim/tag/set.sim
 ./test.sh -f tsim/tag/smallint.sim
 ./test.sh -f tsim/tag/tinyint.sim
 

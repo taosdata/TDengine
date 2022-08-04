@@ -170,7 +170,7 @@ void       syncNodeStart(SSyncNode* pSyncNode);
 void       syncNodeStartStandBy(SSyncNode* pSyncNode);
 void       syncNodeClose(SSyncNode* pSyncNode);
 int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak);
-int32_t    syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg* pMsgArr, bool* pIsWeakArr, int32_t arrSize);
+int32_t    syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg** pMsgPArr, bool* pIsWeakArr, int32_t arrSize);
 
 // option
 bool          syncNodeSnapshotEnable(SSyncNode* pSyncNode);
@@ -191,8 +191,10 @@ int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeResetElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
+int32_t syncNodeStartNowHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode);
+int32_t syncNodeRestartNowHeartbeatTimer(SSyncNode* pSyncNode);
 
 // utils --------------
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
@@ -238,6 +240,7 @@ int32_t   syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncInd
 
 bool    syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg);
 int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag);
+int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry, int32_t code);
 
 int32_t syncNodeUpdateNewConfigIndex(SSyncNode* ths, SSyncCfg* pNewCfg);
 

@@ -18,7 +18,7 @@ from util.dnodes import *
 def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key1='', value1=''):
     if len(key) == 0:
         tdLog.exit("taos test key is null!")
-    
+
     if platform.system().lower() == 'windows':
         taosCmd = buildPath + '\\build\\bin\\taos.exe '
         taosCmd = taosCmd.replace('\\','\\\\')
@@ -214,7 +214,7 @@ class TDTestCase:
         retCode, retVal = taos_command(buildPath, "p", keyDict['p'], "taos>", keyDict['c'], '', "A", '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -A fail")
-                
+
         sqlString = 'create database ' + newDbName + ';'
         retCode = taos_command(buildPath, "u", keyDict['u'], "taos>", keyDict['c'], sqlString, 'a', retVal)
         if retCode != "TAOS_OK":
@@ -237,7 +237,7 @@ class TDTestCase:
             tdLog.exit("taos -s fail")
 
         print ("========== check new db ==========")
-        tdSql.query("show databases")        
+        tdSql.query("show databases")
         for i in range(tdSql.queryRows):
             if tdSql.getData(i, 0) == newDbName:
                 break
@@ -259,24 +259,24 @@ class TDTestCase:
         if retCode != "TAOS_OK":
             tdLog.exit("taos -s insert data fail")
 
-        sqlString = "select * from " + newDbName + ".ctb0"    
+        sqlString = "select * from " + newDbName + ".ctb0"
         tdSql.query(sqlString)
         tdSql.checkData(0, 0, '2021-04-01 08:00:00.000')
         tdSql.checkData(0, 1, 10)
         tdSql.checkData(1, 0, '2021-04-01 08:00:01.000')
         tdSql.checkData(1, 1, 20)
-        sqlString = "select * from " + newDbName + ".ctb1"    
+        sqlString = "select * from " + newDbName + ".ctb1"
         tdSql.query(sqlString)
         tdSql.checkData(0, 0, '2021-04-01 08:00:00.000')
         tdSql.checkData(0, 1, 11)
         tdSql.checkData(1, 0, '2021-04-01 08:00:01.000')
         tdSql.checkData(1, 1, 21)
-        
+
         keyDict['s'] = "\"select * from " + newDbName + ".ctb0\""
         retCode = taos_command(buildPath, "s", keyDict['s'], "2021-04-01 08:00:01.000", keyDict['c'], '', '', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -r show fail")
-        
+
         tdLog.printNoPrefix("================================ parameter: -r")
         keyDict['s'] = "\"select * from " + newDbName + ".ctb0\""
         retCode = taos_command(buildPath, "s", keyDict['s'], "1617235200000", keyDict['c'], '', 'r', '')
@@ -287,9 +287,9 @@ class TDTestCase:
         retCode = taos_command(buildPath, "s", keyDict['s'], "1617235201000", keyDict['c'], '', 'r', '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -r show fail")
-        
+
         tdSql.query('drop database %s'%newDbName)
- 
+
         tdLog.printNoPrefix("================================ parameter: -f")
         pwd=os.getcwd()
         newDbName="dbf"
@@ -298,15 +298,15 @@ class TDTestCase:
         sql2 = "echo use " + newDbName + " >> " + sqlFile
         if platform.system().lower() == 'windows':
             sql3 = "echo create table ntbf (ts timestamp, c binary(40)) >> " + sqlFile
-            sql4 = "echo insert into ntbf values (\"2021-04-01 08:00:00.000\", \"test taos -f1\")(\"2021-04-01 08:00:01.000\", \"test taos -f2\") >> " + sqlFile 
+            sql4 = "echo insert into ntbf values (\"2021-04-01 08:00:00.000\", \"test taos -f1\")(\"2021-04-01 08:00:01.000\", \"test taos -f2\") >> " + sqlFile
         else:
             sql3 = "echo 'create table ntbf (ts timestamp, c binary(40))' >> " + sqlFile
-            sql4 = "echo 'insert into ntbf values (\"2021-04-01 08:00:00.000\", \"test taos -f1\")(\"2021-04-01 08:00:01.000\", \"test taos -f2\")' >> " + sqlFile 
-        sql5 = "echo show databases >> " + sqlFile       
-        os.system(sql1)       
-        os.system(sql2)       
-        os.system(sql3)       
-        os.system(sql4)      
+            sql4 = "echo 'insert into ntbf values (\"2021-04-01 08:00:00.000\", \"test taos -f1\")(\"2021-04-01 08:00:01.000\", \"test taos -f2\")' >> " + sqlFile
+        sql5 = "echo show databases >> " + sqlFile
+        os.system(sql1)
+        os.system(sql2)
+        os.system(sql3)
+        os.system(sql4)
         os.system(sql5)
 
         keyDict['f'] = pwd + "/0-others/sql.txt"
@@ -316,7 +316,7 @@ class TDTestCase:
             tdLog.exit("taos -f fail")
 
         print ("========== check new db ==========")
-        tdSql.query("show databases")        
+        tdSql.query("show databases")
         for i in range(tdSql.queryRows):
             #print ("dbseq: %d, dbname: %s"%(i, tdSql.getData(i, 0)))
             if tdSql.getData(i, 0) == newDbName:
@@ -324,13 +324,13 @@ class TDTestCase:
         else:
             tdLog.exit("create db fail after taos -f fail")
 
-        sqlString = "select * from " + newDbName + ".ntbf"    
+        sqlString = "select * from " + newDbName + ".ntbf"
         tdSql.query(sqlString)
         tdSql.checkData(0, 0, '2021-04-01 08:00:00.000')
         tdSql.checkData(0, 1, 'test taos -f1')
         tdSql.checkData(1, 0, '2021-04-01 08:00:01.000')
         tdSql.checkData(1, 1, 'test taos -f2')
-        
+
         shellCmd = "rm -f " + sqlFile
         os.system(shellCmd)
         tdSql.query('drop database %s'%newDbName)
@@ -345,9 +345,9 @@ class TDTestCase:
         #print ("-C return content:\n ", retVal)
         totalCfgItem = {"firstEp":['', '', ''], }
         for line in retVal.splitlines():
-            strList = line.split() 
+            strList = line.split()
             if (len(strList) > 2):
-                totalCfgItem[strList[1]] = strList 
+                totalCfgItem[strList[1]] = strList
 
         #print ("dict content:\n ", totalCfgItem)
         firstEp = keyDict["h"] + ':' + keyDict['P']
@@ -356,8 +356,8 @@ class TDTestCase:
 
         if (totalCfgItem["rpcDebugFlag"][2] != self.rpcDebugFlagVal) and (totalCfgItem["rpcDebugFlag"][0] != 'cfg_file'):
             tdLog.exit("taos -C return rpcDebugFlag error!")
-                
-        count = os.cpu_count()        
+
+        count = os.cpu_count()
         if (totalCfgItem["numOfCores"][2] != count) and (totalCfgItem["numOfCores"][0] != 'default'):
             tdLog.exit("taos -C return numOfCores error!")
 

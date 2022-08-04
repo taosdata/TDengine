@@ -339,6 +339,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   pJoin->joinType = pJoinTable->joinType;
   pJoin->isSingleTableJoin = pJoinTable->table.singleTable;
+  pJoin->inputTsOrder = ORDER_ASC;
   pJoin->node.groupAction = GROUP_ACTION_CLEAR;
   pJoin->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
   pJoin->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
@@ -479,6 +480,7 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
 
   pAgg->hasLastRow = pSelect->hasLastRowFunc;
   pAgg->hasTimeLineFunc = pSelect->hasTimeLineFunc;
+  pAgg->onlyHasKeepOrderFunc = pSelect->onlyHasKeepOrderFunc;
   pAgg->node.groupAction = GROUP_ACTION_SET;
   pAgg->node.requireDataOrder = pAgg->hasTimeLineFunc ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_NONE;
   pAgg->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
@@ -625,14 +627,15 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
 
 static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow,
                                              SLogicNode** pLogicNode) {
-  int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, fmIsWindowClauseFunc, &pWindow->pFuncs);
-
   if (pCxt->pPlanCxt->streamQuery) {
     pWindow->triggerType = pCxt->pPlanCxt->triggerType;
     pWindow->watermark = pCxt->pPlanCxt->watermark;
     pWindow->igExpired = pCxt->pPlanCxt->igExpired;
   }
+  pWindow->inputTsOrder = ORDER_ASC;
+  pWindow->outputTsOrder = ORDER_ASC;
 
+  int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, fmIsWindowClauseFunc, &pWindow->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW);
   }
@@ -713,7 +716,7 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
       (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
   pWindow->windowAlgo = pCxt->pPlanCxt->streamQuery ? INTERVAL_ALGO_STREAM_SINGLE : INTERVAL_ALGO_HASH;
   pWindow->node.groupAction = GROUP_ACTION_KEEP;
-  pWindow->node.requireDataOrder = DATA_ORDER_LEVEL_IN_BLOCK;
+  pWindow->node.requireDataOrder = pSelect->hasTimeLineFunc ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_IN_BLOCK;
   pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
 
   pWindow->pTspk = nodesCloneNode(pInterval->pCol);
@@ -763,6 +766,7 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pFill->node.groupAction = GROUP_ACTION_KEEP;
   pFill->node.requireDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
   pFill->node.resultDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
+  pFill->inputTsOrder = ORDER_ASC;
 
   int32_t code = nodesCollectColumns(pSelect, SQL_CLAUSE_WINDOW, NULL, COLLECT_COL_TYPE_ALL, &pFill->node.pTargets);
   if (TSDB_CODE_SUCCESS == code && NULL == pFill->node.pTargets) {
@@ -787,6 +791,14 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   return code;
 }
 
+static bool isPrimaryKeySort(SNodeList* pOrderByList) {
+  SNode* pExpr = ((SOrderByExprNode*)nodesListGetNode(pOrderByList, 0))->pExpr;
+  if (QUERY_NODE_COLUMN != nodeType(pExpr)) {
+    return false;
+  }
+  return PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pExpr)->colId;
+}
+
 static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (NULL == pSelect->pOrderByList) {
     return TSDB_CODE_SUCCESS;
@@ -800,7 +812,9 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pSort->groupSort = pSelect->groupSort;
   pSort->node.groupAction = pSort->groupSort ? GROUP_ACTION_KEEP : GROUP_ACTION_CLEAR;
   pSort->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
-  pSort->node.resultDataOrder = pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL;
+  pSort->node.resultDataOrder = isPrimaryKeySort(pSelect->pOrderByList)
+                                    ? (pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
+                                    : DATA_ORDER_LEVEL_NONE;
 
   int32_t code = nodesCollectColumns(pSelect, SQL_CLAUSE_ORDER_BY, NULL, COLLECT_COL_TYPE_ALL, &pSort->node.pTargets);
   if (TSDB_CODE_SUCCESS == code && NULL == pSort->node.pTargets) {
@@ -851,7 +865,8 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
 
   TSWAP(pProject->node.pLimit, pSelect->pLimit);
   TSWAP(pProject->node.pSlimit, pSelect->pSlimit);
-  pProject->node.groupAction = GROUP_ACTION_CLEAR;
+  pProject->node.groupAction =
+      (!pSelect->isSubquery && pCxt->pPlanCxt->streamQuery) ? GROUP_ACTION_KEEP : GROUP_ACTION_CLEAR;
   pProject->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
   pProject->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
 
@@ -1217,6 +1232,7 @@ static int32_t createDeleteScanLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* p
   // set columns to scan
   if (TSDB_CODE_SUCCESS == code) {
     pScan->scanType = SCAN_TYPE_TABLE;
+    pScan->scanRange = pDelete->timeRange;
     pScan->pScanCols = nodesCloneList(((SFunctionNode*)pDelete->pCountFunc)->pParameterList);
     if (NULL == pScan->pScanCols) {
       code = TSDB_CODE_OUT_OF_MEMORY;
@@ -1280,8 +1296,8 @@ static int32_t createVnodeModifLogicNodeByDelete(SLogicPlanContext* pCxt, SDelet
   pModify->modifyType = MODIFY_TABLE_TYPE_DELETE;
   pModify->tableId = pRealTable->pMeta->uid;
   pModify->tableType = pRealTable->pMeta->tableType;
-  snprintf(pModify->tableFName, sizeof(pModify->tableFName), "%d.%s.%s", pCxt->pPlanCxt->acctId,
-           pRealTable->table.dbName, pRealTable->table.tableName);
+  snprintf(pModify->tableName, sizeof(pModify->tableName), "%s", pRealTable->table.tableName);
+  strcpy(pModify->tsColName, pRealTable->pMeta->schema->name);
   pModify->deleteTimeRange = pDelete->timeRange;
   pModify->pAffectedRows = nodesCloneNode(pDelete->pCountFunc);
   if (NULL == pModify->pAffectedRows) {
@@ -1330,8 +1346,7 @@ static int32_t createVnodeModifLogicNodeByInsert(SLogicPlanContext* pCxt, SInser
   pModify->tableId = pRealTable->pMeta->uid;
   pModify->stableId = pRealTable->pMeta->suid;
   pModify->tableType = pRealTable->pMeta->tableType;
-  snprintf(pModify->tableFName, sizeof(pModify->tableFName), "%d.%s.%s", pCxt->pPlanCxt->acctId,
-           pRealTable->table.dbName, pRealTable->table.tableName);
+  snprintf(pModify->tableName, sizeof(pModify->tableName), "%s", pRealTable->table.tableName);
   TSWAP(pModify->pVgroupList, pRealTable->pVgroupList);
   pModify->pInsertCols = nodesCloneList(pInsert->pCols);
   if (NULL == pModify->pInsertCols) {

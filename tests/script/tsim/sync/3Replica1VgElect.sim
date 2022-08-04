@@ -65,7 +65,7 @@ print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4] $data[2][5] $d
 if $rows != 3 then
   return -1
 endi
-if $data[2][19] != ready then
+if $data[2][15] != ready then
   goto check_db_ready
 endi
 
@@ -139,6 +139,8 @@ print ====> expect $totalTblNum and infinsert $rows  in fact
 if $rows != $totalTblNum then 
   return -1
 endi
+
+print ====> start_switch_leader:
 
 start_switch_leader:
 
@@ -299,7 +301,7 @@ print ===> $rows $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $da
 print ===> $rows $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] $data[1][5] $data[1][6]
 print ===> $rows $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4] $data[2][5] $data[2][6]
 print ===> $rows $data[3][0] $data[3][1] $data[3][2] $data[3][3] $data[3][4] $data[3][5] $data[3][6]
-print ===> $rows $data[4][0] $data[3][1] $data[3][2] $data[3][3] $data[3][4] $data[3][5] $data[3][6]
+print ===> $rows $data[4][0] $data[4][1] $data[4][2] $data[4][3] $data[4][4] $data[4][5] $data[4][6]
 
 if $rows != 5 then
   return -1
@@ -341,6 +343,8 @@ print ===> $rows $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $da
 print ===> $rows $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] $data[1][5] $data[1][6]
 print ===> $rows $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4] $data[2][5] $data[2][6]
 print ===> $rows $data[3][0] $data[3][1] $data[3][2] $data[3][3] $data[3][4] $data[3][5] $data[3][6]
+print ===> $rows $data[4][0] $data[4][1] $data[4][2] $data[4][3] $data[4][4] $data[4][5] $data[4][6]
+
 if $data[0][0] != 1 then
   return -1
 endi
@@ -357,6 +361,8 @@ endi
 if $data[3][4] != ready then
   goto check_dnode_ready_2
 endi
+
+print ====> final test: create child table ctb2* and table ntb2*
 
 sql use db;
 $ctbPrefix = ctb2
@@ -406,7 +412,7 @@ print $data(db1)[0] $data(db1)[1] $data(db1)[2] $data(db1)[3] $data(db1)[4] $dat
 if $rows != 4 then
   return -1
 endi
-if $data(db1)[19] != ready then
+if $data(db1)[15] != ready then
   goto check_db_ready1
 endi
 

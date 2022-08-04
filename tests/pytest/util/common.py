@@ -18,7 +18,7 @@ import time
 import socket
 import json
 import toml
-from .boundary import DataBoundary
+from util.boundary import DataBoundary
 import taos
 from util.log import *
 from util.sql import *
@@ -78,25 +78,20 @@ class DataSet:
             self.float_data.append( float(i * float_step % FLOAT_MAX ))
             self.double_data.append( float(i * double_step % DOUBLE_MAX ))
             self.bool_data.append( bool((i + bool_start) % 2 ))
-            self.vchar_data.append( f"{vchar_prefix}_{i * vchar_step}" )
-            self.nchar_data.append( f"{nchar_prefix}_{i * nchar_step}")
-            self.ts_data.append( int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000 - i * ts_step))
+            self.vchar_data.append( f"{vchar_prefix}{i * vchar_step}" )
+            self.nchar_data.append( f"{nchar_prefix}{i * nchar_step}")
+            self.ts_data.append( int(datetime.timestamp(datetime.now()) * 1000 - i * ts_step))
 
-    def get_disorder_set(self,
-        rows,
-        int_low     :int    = INT_MIN,
-        int_up      :int    = INT_MAX,
-        bint_low    :int    = BIGINT_MIN,
-        bint_up     :int    = BIGINT_MAX,
-        sint_low    :int    = SMALLINT_MIN,
-        sint_up     :int    = SMALLINT_MAX,
-        tint_low    :int    = TINYINT_MIN,
-        tint_up     :int    = TINYINT_MAX,
-        ubint_low   :int    = BIGINT_UN_MIN,
-        ubint_up    :int    = BIGINT_UN_MAX,
-
-
-    ):
+    def get_disorder_set(self, rows, **kwargs):
+        for k, v in kwargs.items():
+            int_low = v if k == "int_low" else INT_MIN
+            int_up = v if k == "int_up" else INT_MAX
+            bint_low = v if k == "bint_low" else BIGINT_MIN
+            bint_up = v if k == "bint_up" else BIGINT_MAX
+            sint_low = v if k == "sint_low" else SMALLINT_MIN
+            sint_up = v if k == "sint_up" else SMALLINT_MAX
+            tint_low = v if k == "tint_low" else TINYINT_MIN
+            tint_up = v if k == "tint_up" else TINYINT_MAX
         pass
 
 
@@ -457,14 +452,14 @@ class TDCom:
 
     def newcon(self,host='localhost',port=6030,user='root',password='taosdata'):
         con=taos.connect(host=host, user=user, password=password, port=port)
-        print(con)
+        # print(con)
         return con
 
     def newcur(self,host='localhost',port=6030,user='root',password='taosdata'):
         cfgPath = self.getClientCfgPath()
         con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port)
         cur=con.cursor()
-        print(cur)
+        # print(cur)
         return cur
 
     def newTdSql(self, host='localhost',port=6030,user='root',password='taosdata'):

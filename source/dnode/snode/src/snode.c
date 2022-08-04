@@ -16,6 +16,10 @@
 #include "executor.h"
 #include "sndInt.h"
 #include "tuuid.h"
+/*SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) { return NULL; }*/
+/*void    sndClose(SSnode *pSnode) {}*/
+int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) { return 0; }
+int32_t sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg) { return 0; }
 
 SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   SSnode *pSnode = taosMemoryCalloc(1, sizeof(SSnode));
@@ -23,21 +27,24 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
     return NULL;
   }
   pSnode->msgCb = pOption->msgCb;
+#if 0
   pSnode->pMeta = sndMetaNew();
   if (pSnode->pMeta == NULL) {
     taosMemoryFree(pSnode);
     return NULL;
   }
+#endif
   return pSnode;
 }
 
 void sndClose(SSnode *pSnode) {
-  sndMetaDelete(pSnode->pMeta);
+  /*sndMetaDelete(pSnode->pMeta);*/
   taosMemoryFree(pSnode);
 }
 
 int32_t sndGetLoad(SSnode *pSnode, SSnodeLoad *pLoad) { return 0; }
 
+#if 0
 SStreamMeta *sndMetaNew() {
   SStreamMeta *pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
   if (pMeta == NULL) {
@@ -151,7 +158,7 @@ static int32_t sndProcessTaskDispatchReq(SSnode *pNode, SRpcMsg *pMsg) {
            .info = pMsg->info,
            .code = 0,
   };
-  streamProcessDispatchReq(pTask, &req, &rsp);
+  streamProcessDispatchReq(pTask, &req, &rsp, true);
   return 0;
 }
 
@@ -179,7 +186,7 @@ static int32_t sndProcessTaskRecoverRsp(SSnode *pNode, SRpcMsg *pMsg) {
   SStreamMeta *pMeta = pNode->pMeta;
 
   SStreamTaskRecoverRsp *pRsp = pMsg->pCont;
-  int32_t                taskId = pRsp->taskId;
+  int32_t                taskId = pRsp->rspTaskId;
   SStreamTask           *pTask = *(SStreamTask **)taosHashGet(pMeta->pHash, &taskId, sizeof(int32_t));
   streamProcessRecoverRsp(pTask, pRsp);
   return 0;
@@ -263,3 +270,4 @@ int32_t sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   }
   return 0;
 }
+#endif

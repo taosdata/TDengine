@@ -265,6 +265,7 @@ static void dmWatchNodes(SDnode *pDnode) {
 }
 
 int32_t dmRunDnode(SDnode *pDnode) {
+  int count = 0;
   if (dmOpenNodes(pDnode) != 0) {
     dError("failed to open nodes since %s", terrstr());
     return -1;
@@ -274,7 +275,6 @@ int32_t dmRunDnode(SDnode *pDnode) {
     dError("failed to start nodes since %s", terrstr());
     return -1;
   }
-
   while (1) {
     if (pDnode->stop) {
       dInfo("TDengine is about to stop");
@@ -285,6 +285,9 @@ int32_t dmRunDnode(SDnode *pDnode) {
     }
 
     dmWatchNodes(pDnode);
+    if (count == 0) osUpdate();
+    count %= 10;
+    count++;
     taosMsleep(100);
   }
 }

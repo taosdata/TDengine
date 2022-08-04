@@ -41,6 +41,9 @@ typedef struct SRSmaStat     SRSmaStat;
 typedef struct SSmaKey       SSmaKey;
 typedef struct SRSmaInfo     SRSmaInfo;
 typedef struct SRSmaInfoItem SRSmaInfoItem;
+typedef struct SQTaskFile    SQTaskFile;
+typedef struct SQTaskFReader SQTaskFReader;
+typedef struct SQTaskFWriter SQTaskFWriter;
 
 struct SSmaEnv {
   SRWLatch  lock;
@@ -64,14 +67,32 @@ struct STSmaStat {
   STSchema *pTSchema;
 };
 
+struct SQTaskFile {
+  volatile int32_t nRef;
+  int64_t          commitID;
+  int64_t          size;
+};
+
+struct SQTaskFReader {
+  SSma      *pSma;
+  SQTaskFile fTask;
+  TdFilePtr  pReadH;
+};
+struct SQTaskFWriter {
+  SSma      *pSma;
+  SQTaskFile fTask;
+  TdFilePtr  pWriteH;
+  char      *fname;
+};
+
 struct SRSmaStat {
   SSma     *pSma;
   int64_t   commitAppliedVer;  // vnode applied version for async commit
-  int64_t   commitSubmitVer;   // rsma submit version for async commit
-  int64_t   submitVer;         // latest submit version
   int64_t   refId;             // shared by fetch tasks
+  SRWLatch  lock;              // r/w lock for rsma fs(e.g. qtaskinfo)
   int8_t    triggerStat;       // shared by fetch tasks
   int8_t    commitStat;        // 0 not in committing, 1 in committing
+  SArray   *aTaskFile;         // qTaskFiles committed recently(for recovery/snapshot r/w)
   SHashObj *rsmaInfoHash;      // key: stbUid, value: SRSmaInfo;
   SHashObj *iRsmaInfoHash;     // key: stbUid, value: SRSmaInfo; immutable rsmaInfoHash
 };
@@ -91,7 +112,7 @@ struct SSmaStat {
 #define RSMA_TRIGGER_STAT(r)  (&(r)->triggerStat)
 #define RSMA_COMMIT_STAT(r)   (&(r)->commitStat)
 #define RSMA_REF_ID(r)        ((r)->refId)
-#define RSMA_SUBMIT_VER(r)    ((r)->submitVer)
+#define RSMA_FS_LOCK(r)       (&(r)->lock)
 
 struct SRSmaInfoItem {
   void   *taskInfo;  // qTaskInfo_t
@@ -128,6 +149,11 @@ enum {
   RSMA_ROLE_SUBMIT = 2,
   RSMA_ROLE_FETCH = 3,
   RSMA_ROLE_ITERATE = 4,
+};
+
+enum {
+  RSMA_RESTORE_REBOOT = 1,
+  RSMA_RESTORE_SYNC = 2,
 };
 
 void  tdDestroySmaEnv(SSmaEnv *pSmaEnv);
@@ -195,6 +221,8 @@ static FORCE_INLINE void tdSmaStatSetDropped(STSmaStat *pTStat) {
   }
 }
 
+void           tdRSmaQTaskInfoGetFileName(int32_t vid, int64_t version, char *outputName);
+void           tdRSmaQTaskInfoGetFullName(int32_t vid, int64_t version, const char *path, char *outputName);
 int32_t        tdCloneRSmaInfo(SSma *pSma, SRSmaInfo *pDest, SRSmaInfo *pSrc);
 void           tdFreeQTaskInfo(qTaskInfo_t *taskHandle, int32_t vgId, int32_t level);
 static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
@@ -204,7 +232,8 @@ void           tdRemoveRSmaInfoBySuid(SSma *pSma, int64_t suid);
 int32_t        tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
 
 int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
-int32_t tdProcessRSmaRestoreImpl(SSma *pSma);
+int32_t tdProcessRSmaRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer);
+int32_t tdRsmaRestore(SSma *pSma, int8_t type, int64_t committedVer);
 
 int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg);
 int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg);
@@ -223,13 +252,6 @@ struct STFInfo {
   uint32_t ftype;
   uint32_t fver;
   int64_t  fsize;
-
-  // specific fields
-  union {
-    struct {
-      int64_t submitVer;
-    } qTaskInfo;
-  };
 };
 
 enum {

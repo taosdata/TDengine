@@ -19,6 +19,7 @@
 #include "querynodes.h"
 #include "scalar.h"
 #include "taoserror.h"
+#include "ttime.h"
 
 static int32_t buildFuncErrMsg(char* pErrBuf, int32_t len, int32_t errCode, const char* pFormat, ...) {
   va_list vArgList;
@@ -557,11 +558,13 @@ static int32_t translateApercentileImpl(SFunctionNode* pFunc, char* pErrBuf, int
     pFunc->node.resType =
         (SDataType){.bytes = getApercentileMaxSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   } else {
-    if (1 != numOfParams) {
+    // original percent param is reserved
+    if (2 != numOfParams) {
       return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
     }
     uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-    if (TSDB_DATA_TYPE_BINARY != para1Type) {
+    uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+    if (TSDB_DATA_TYPE_BINARY != para1Type || !IS_INTEGER_TYPE(para2Type)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
 
@@ -621,12 +624,20 @@ static int32_t translateTopBot(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t topBotCreateMergePara(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters) {
+static int32_t reserveFirstMergeParam(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters) {
   int32_t code = nodesListMakeAppend(pParameters, pPartialRes);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListStrictAppend(*pParameters, nodesCloneNode(nodesListGetNode(pRawParameters, 1)));
   }
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t topBotCreateMergeParam(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters) {
+  return reserveFirstMergeParam(pRawParameters, pPartialRes, pParameters);
+}
+
+int32_t apercentileCreateMergeParam(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters) {
+  return reserveFirstMergeParam(pRawParameters, pPartialRes, pParameters);
 }
 
 static int32_t translateSpread(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -1267,6 +1278,8 @@ static int32_t translateCsum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
+static EFuncReturnRows csumEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
+
 static int32_t translateMavg(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (2 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -1406,6 +1419,11 @@ static int32_t translateDerivative(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
+static EFuncReturnRows derivativeEstReturnRows(SFunctionNode* pFunc) {
+  return 1 == ((SValueNode*)nodesListGetNode(pFunc->pParameterList, 2))->datum.i ? FUNC_RETURN_ROWS_INDEFINITE
+                                                                                 : FUNC_RETURN_ROWS_N_MINUS_1;
+}
+
 static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -1422,6 +1440,58 @@ static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
   addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateInterp(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  uint8_t dbPrec = pFunc->node.resType.precision;
+
+  if (1 != numOfParams && 3 != numOfParams && 4 != numOfParams) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (3 <= numOfParams) {
+    int64_t timeVal[2] = {0};
+    for (int32_t i = 1; i < 3; ++i) {
+      uint8_t nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, i));
+      uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, i))->resType.type;
+      if (!IS_VAR_DATA_TYPE(paraType) || QUERY_NODE_VALUE != nodeType) {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+      }
+
+      SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, i);
+      int32_t ret = convertStringToTimestamp(paraType, pValue->datum.p, dbPrec, &timeVal[i - 1]);
+      if (ret != TSDB_CODE_SUCCESS) {
+        return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+      }
+    }
+
+    if (timeVal[0] > timeVal[1]) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "INTERP function invalid time range");
+    }
+  }
+
+  if (4 == numOfParams) {
+    uint8_t nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, 3));
+    uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type;
+    if (!IS_INTEGER_TYPE(paraType) || QUERY_NODE_VALUE != nodeType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 3));
+    if (ret == TIME_UNIT_TOO_SMALL) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "INTERP function time interval parameter should be greater than db precision");
+    } else if (ret == TIME_UNIT_INVALID) {
+      return buildFuncErrMsg(
+          pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+          "INTERP function time interval parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+    }
+  }
+
+  pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1532,13 +1602,21 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   }
 
   uint8_t resType;
-  if (IS_SIGNED_NUMERIC_TYPE(colType) || TSDB_DATA_TYPE_BOOL == colType) {
+  if (IS_SIGNED_NUMERIC_TYPE(colType) || TSDB_DATA_TYPE_BOOL == colType || TSDB_DATA_TYPE_TIMESTAMP == colType) {
     resType = TSDB_DATA_TYPE_BIGINT;
   } else {
     resType = TSDB_DATA_TYPE_DOUBLE;
   }
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[resType].bytes, .type = resType};
   return TSDB_CODE_SUCCESS;
+}
+
+static EFuncReturnRows diffEstReturnRows(SFunctionNode* pFunc) {
+  if (1 == LIST_LENGTH(pFunc->pParameterList)) {
+    return FUNC_RETURN_ROWS_N_MINUS_1;
+  }
+  return 1 == ((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i ? FUNC_RETURN_ROWS_INDEFINITE
+                                                                                 : FUNC_RETURN_ROWS_N_MINUS_1;
 }
 
 static int32_t translateLength(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -2058,7 +2136,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "apercentile",
     .type = FUNCTION_TYPE_APERCENTILE,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC,
     .translateFunc = translateApercentile,
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = apercentileFunctionSetup,
@@ -2068,11 +2146,12 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .invertFunc   = NULL,
     .combineFunc  = apercentileCombine,
     .pPartialFunc = "_apercentile_partial",
-    .pMergeFunc   = "_apercentile_merge"
+    .pMergeFunc   = "_apercentile_merge",
+    .createMergeParaFuc = apercentileCreateMergeParam
   },
   {
     .name = "_apercentile_partial",
-    .type = FUNCTION_TYPE_APERCENTILE_PARTIAL,
+    .type = FUNCTION_TYPE_APERCENTILE_PARTIAL | FUNC_MGT_TIMELINE_FUNC,
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateApercentilePartial,
     .getEnvFunc   = getApercentileFuncEnv,
@@ -2085,7 +2164,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_apercentile_merge",
     .type = FUNCTION_TYPE_APERCENTILE_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC,
     .translateFunc = translateApercentileMerge,
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = apercentileFunctionSetup,
@@ -2107,7 +2186,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .combineFunc  = topCombine,
     .pPartialFunc = "top",
     .pMergeFunc   = "top",
-    .createMergeParaFuc = topBotCreateMergePara
+    .createMergeParaFuc = topBotCreateMergeParam
   },
   {
     .name = "bottom",
@@ -2122,7 +2201,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .combineFunc  = bottomCombine,
     .pPartialFunc = "bottom",
     .pMergeFunc   = "bottom",
-    .createMergeParaFuc = topBotCreateMergePara
+    .createMergeParaFuc = topBotCreateMergeParam
   },
   {
     .name = "spread",
@@ -2210,8 +2289,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "interp",
     .type = FUNCTION_TYPE_INTERP,
-    .classification = FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
-    .translateFunc = translateFirstLast,
+    .classification = FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .translateFunc = translateInterp,
     .getEnvFunc    = getSelectivityFuncEnv,
     .initFunc      = functionSetup,
     .processFunc   = NULL,
@@ -2220,13 +2299,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "derivative",
     .type = FUNCTION_TYPE_DERIVATIVE,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | 
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateDerivative,
     .getEnvFunc   = getDerivativeFuncEnv,
     .initFunc     = derivativeFuncSetup,
     .processFunc  = derivativeFunction,
     .sprocessFunc = derivativeScalarFunction,
-    .finalizeFunc = functionFinalize
+    .finalizeFunc = functionFinalize,
+    .estimateReturnRowsFunc = derivativeEstReturnRows
   },
   {
     .name = "irate",
@@ -2253,7 +2334,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_cache_last_row",
     .type = FUNCTION_TYPE_CACHE_LAST_ROW,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateFirstLast,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -2301,6 +2382,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_LAST,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
     .translateFunc = translateFirstLast,
+    .dynDataRequiredFunc = lastDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = lastFunction,
@@ -2347,7 +2429,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "histogram",
     .type = FUNCTION_TYPE_HISTOGRAM,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_FORBID_FILL_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateHistogram,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
@@ -2362,7 +2444,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_histogram_partial",
     .type = FUNCTION_TYPE_HISTOGRAM_PARTIAL,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateHistogramPartial,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
@@ -2374,7 +2456,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_histogram_merge",
     .type = FUNCTION_TYPE_HISTOGRAM_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateHistogramMerge,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = functionSetup,
@@ -2386,7 +2468,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "hyperloglog",
     .type = FUNCTION_TYPE_HYPERLOGLOG,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC,
     .translateFunc = translateHLL,
     .getEnvFunc   = getHLLFuncEnv,
     .initFunc     = functionSetup,
@@ -2400,7 +2482,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   },
   {
     .name = "_hyperloglog_partial",
-    .type = FUNCTION_TYPE_HYPERLOGLOG_PARTIAL,
+    .type = FUNCTION_TYPE_HYPERLOGLOG_PARTIAL | FUNC_MGT_TIMELINE_FUNC,
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateHLLPartial,
     .getEnvFunc   = getHLLFuncEnv,
@@ -2412,7 +2494,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   },
   {
     .name = "_hyperloglog_merge",
-    .type = FUNCTION_TYPE_HYPERLOGLOG_MERGE,
+    .type = FUNCTION_TYPE_HYPERLOGLOG_MERGE | FUNC_MGT_TIMELINE_FUNC,
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateHLLMerge,
     .getEnvFunc   = getHLLFuncEnv,
@@ -2425,18 +2507,20 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "diff",
     .type = FUNCTION_TYPE_DIFF,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | 
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_CUMULATIVE_FUNC,
     .translateFunc = translateDiff,
     .getEnvFunc   = getDiffFuncEnv,
     .initFunc     = diffFunctionSetup,
     .processFunc  = diffFunction,
     .sprocessFunc = diffScalarFunction,
-    .finalizeFunc = functionFinalize
+    .finalizeFunc = functionFinalize,
+    .estimateReturnRowsFunc = diffEstReturnRows,
   },
   {
     .name = "statecount",
     .type = FUNCTION_TYPE_STATE_COUNT,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateStateCount,
     .getEnvFunc   = getStateFuncEnv,
     .initFunc     = functionSetup,
@@ -2447,7 +2531,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "stateduration",
     .type = FUNCTION_TYPE_STATE_DURATION,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateStateDuration,
     .getEnvFunc   = getStateFuncEnv,
     .initFunc     = functionSetup,
@@ -2458,18 +2542,20 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "csum",
     .type = FUNCTION_TYPE_CSUM,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | 
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateCsum,
     .getEnvFunc   = getCsumFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = csumFunction,
     .sprocessFunc = csumScalarFunction,
-    .finalizeFunc = NULL
+    .finalizeFunc = NULL,
+    .estimateReturnRowsFunc = csumEstReturnRows,
   },
   {
     .name = "mavg",
     .type = FUNCTION_TYPE_MAVG,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateMavg,
     .getEnvFunc   = getMavgFuncEnv,
     .initFunc     = mavgFunctionSetup,
@@ -2491,8 +2577,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "tail",
     .type = FUNCTION_TYPE_TAIL,
-    .classification = FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC |
-                      FUNC_MGT_IMPLICIT_TS_FUNC,
+    .classification = FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC |
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
     .translateFunc = translateTail,
     .getEnvFunc   = getTailFuncEnv,
     .initFunc     = tailFunctionSetup,
@@ -2826,7 +2912,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "tbname",
     .type = FUNCTION_TYPE_TBNAME,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateTbnameColumn,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
@@ -2866,7 +2952,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_wstart",
     .type = FUNCTION_TYPE_WSTART,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
@@ -2876,7 +2962,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_wend",
     .type = FUNCTION_TYPE_WEND,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
@@ -2886,7 +2972,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_wduration",
     .type = FUNCTION_TYPE_WDURATION,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateWduration,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
@@ -2934,7 +3020,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_group_key",
     .type = FUNCTION_TYPE_GROUP_KEY,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateGroupKey,
     .getEnvFunc   = getGroupKeyFuncEnv,
     .initFunc     = functionSetup,

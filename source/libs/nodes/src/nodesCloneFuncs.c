@@ -375,6 +375,7 @@ static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   CLONE_NODE_FIELD(pMergeCondition);
   CLONE_NODE_FIELD(pOnConditions);
   COPY_SCALAR_FIELD(isSingleTableJoin);
+  COPY_SCALAR_FIELD(inputTsOrder);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -400,7 +401,8 @@ static int32_t logicVnodeModifCopy(const SVnodeModifyLogicNode* pSrc, SVnodeModi
   COPY_SCALAR_FIELD(tableId);
   COPY_SCALAR_FIELD(stableId);
   COPY_SCALAR_FIELD(tableType);
-  COPY_CHAR_ARRAY_FIELD(tableFName);
+  COPY_CHAR_ARRAY_FIELD(tableName);
+  COPY_CHAR_ARRAY_FIELD(tsColName);
   COPY_OBJECT_FIELD(deleteTimeRange, sizeof(STimeWindow));
   CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
   CLONE_NODE_LIST_FIELD(pInsertCols);
@@ -440,6 +442,8 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(igExpired);
   COPY_SCALAR_FIELD(windowAlgo);
+  COPY_SCALAR_FIELD(inputTsOrder);
+  COPY_SCALAR_FIELD(outputTsOrder);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -449,6 +453,7 @@ static int32_t logicFillCopy(const SFillLogicNode* pSrc, SFillLogicNode* pDst) {
   CLONE_NODE_FIELD(pWStartTs);
   CLONE_NODE_FIELD(pValues);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  COPY_SCALAR_FIELD(inputTsOrder);
   return TSDB_CODE_SUCCESS;
 }
 

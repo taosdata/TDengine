@@ -31,14 +31,21 @@ static int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity
 static int32_t  setGroupResultOutputBuf(SOperatorInfo* pOperator, SOptrBasicInfo* binfo, int32_t numOfCols, char* pData, int16_t bytes,
                                         uint64_t groupId, SDiskbasedBuf* pBuf, SAggSupporter* pAggSup);
 
+static void freeGroupKey(void* param) {
+  SGroupKeys* pKey = (SGroupKeys*) param;
+  taosMemoryFree(pKey->pData);
+}
+
 static void destroyGroupOperatorInfo(void* param, int32_t numOfOutput) {
   SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   taosMemoryFreeClear(pInfo->keyBuf);
   taosArrayDestroy(pInfo->pGroupCols);
-  taosArrayDestroy(pInfo->pGroupColVals);
+  taosArrayDestroyEx(pInfo->pGroupColVals, freeGroupKey);
   cleanupExprSupp(&pInfo->scalarSup);
-  
+
+  cleanupGroupResInfo(&pInfo->groupResInfo);
+  cleanupAggSup(&pInfo->aggSup);
   taosMemoryFreeClear(param);
 }
 
@@ -299,10 +306,9 @@ static SSDataBlock* buildGroupResultDataBlock(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = pInfo->binfo.pRes;
   while(1) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    doFilter(pInfo->pCondition, pRes);
+    doFilter(pInfo->pCondition, pRes, NULL);
 
-    bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
-    if (!hasRemain) {
+    if (!hasRemainResults(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
       break;
     }
@@ -415,8 +421,6 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
   pOperator->blocking     = true;
   pOperator->status       = OP_NOT_OPENED;
   // pOperator->operatorType = OP_Groupby;
-  pOperator->exprSupp.pExprInfo    = pExprInfo;
-  pOperator->exprSupp.numOfExprs   = numOfCols;
   pOperator->info         = pInfo;
   pOperator->pTaskInfo    = pTaskInfo;
 
@@ -503,6 +507,7 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
           colDataSetNull_f(bitmap, (*rows));
         } else {
           memcpy(data + (*columnLen), colDataGetData(pColInfoData, j), bytes);
+          ASSERT((data + (*columnLen) + bytes - (char*)pPage) <= getBufPageSize(pInfo->pBuf));
         }
         contentLen = bytes;
       }
@@ -759,7 +764,13 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
   uint32_t defaultBufsz = 0;
   getBufferPgSize(pResBlock->info.rowSize, &defaultPgsz, &defaultBufsz);
 
-  int32_t code = createDiskbasedBuf(&pInfo->pBuf, defaultPgsz, defaultBufsz, pTaskInfo->id.str, TD_TMP_DIR_PATH);
+  if (!osTempSpaceAvailable()) {
+    terrno = TSDB_CODE_NO_AVAIL_DISK;
+    pTaskInfo->code = terrno;
+    qError("Create partition operator info failed since %s", terrstr(terrno));
+    goto _error;
+  }
+  int32_t code = createDiskbasedBuf(&pInfo->pBuf, defaultPgsz, defaultBufsz, pTaskInfo->id.str, tsTempDir);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tdataformat.h"
 #include "tsdb.h"
 
 // SMapData =======================================================================
@@ -24,6 +25,8 @@ void tMapDataReset(SMapData *pMapData) {
 void tMapDataClear(SMapData *pMapData) {
   tFree((uint8_t *)pMapData->aOffset);
   tFree(pMapData->pData);
+  pMapData->pData = NULL;
+  pMapData->aOffset = NULL;
 }
 
 int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *)) {
@@ -143,26 +146,6 @@ int32_t tTABLEIDCmprFn(const void *p1, const void *p2) {
   if (pId1->uid < pId2->uid) {
     return -1;
   } else if (pId1->uid > pId2->uid) {
-    return 1;
-  }
-
-  return 0;
-}
-
-// TSDBKEY =======================================================================
-int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
-  TSDBKEY *pKey1 = (TSDBKEY *)p1;
-  TSDBKEY *pKey2 = (TSDBKEY *)p2;
-
-  if (pKey1->ts < pKey2->ts) {
-    return -1;
-  } else if (pKey1->ts > pKey2->ts) {
-    return 1;
-  }
-
-  if (pKey1->version < pKey2->version) {
-    return -1;
-  } else if (pKey1->version > pKey2->version) {
     return 1;
   }
 
@@ -566,6 +549,103 @@ SColVal *tRowIterNext(SRowIter *pIter) {
 }
 
 // SRowMerger ======================================================
+
+int32_t tRowMergerInit2(SRowMerger *pMerger, STSchema *pResTSchema, TSDBROW *pRow, STSchema *pTSchema) {
+  int32_t   code = 0;
+  TSDBKEY   key = TSDBROW_KEY(pRow);
+  SColVal  *pColVal = &(SColVal){0};
+  STColumn *pTColumn;
+  int32_t   iCol, jCol = 0;
+
+  pMerger->pTSchema = pResTSchema;
+  pMerger->version = key.version;
+
+  pMerger->pArray = taosArrayInit(pResTSchema->numOfCols, sizeof(SColVal));
+  if (pMerger->pArray == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  // ts
+  pTColumn = &pTSchema->columns[jCol++];
+
+  ASSERT(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
+
+  *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.ts = key.ts});
+  if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  // other
+  for (iCol = 1; jCol < pTSchema->numOfCols && iCol < pResTSchema->numOfCols; ++iCol) {
+    pTColumn = &pResTSchema->columns[iCol];
+    if (pTSchema->columns[jCol].colId < pTColumn->colId) {
+      ++jCol;
+      --iCol;
+      continue;
+    } else if (pTSchema->columns[jCol].colId > pTColumn->colId) {
+      taosArrayPush(pMerger->pArray, &COL_VAL_NONE(pTColumn->colId, pTColumn->type));
+      continue;
+    }
+
+    tsdbRowGetColVal(pRow, pTSchema, jCol++, pColVal);
+    if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+  }
+
+  for (; iCol < pResTSchema->numOfCols; ++iCol) {
+    pTColumn = &pResTSchema->columns[iCol];
+    taosArrayPush(pMerger->pArray, &COL_VAL_NONE(pTColumn->colId, pTColumn->type));
+  }
+
+_exit:
+  return code;
+}
+
+int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
+  int32_t   code = 0;
+  TSDBKEY   key = TSDBROW_KEY(pRow);
+  SColVal  *pColVal = &(SColVal){0};
+  STColumn *pTColumn;
+  int32_t   iCol, jCol = 1;
+
+  ASSERT(((SColVal *)pMerger->pArray->pData)->value.ts == key.ts);
+
+  for (iCol = 1; iCol < pMerger->pTSchema->numOfCols && jCol < pTSchema->numOfCols; ++iCol) {
+    pTColumn = &pMerger->pTSchema->columns[iCol];
+    if (pTSchema->columns[jCol].colId < pTColumn->colId) {
+      ++jCol;
+      --iCol;
+      continue;
+    } else if (pTSchema->columns[jCol].colId > pTColumn->colId) {
+      continue;
+    }
+
+    tsdbRowGetColVal(pRow, pTSchema, jCol++, pColVal);
+
+    if (key.version > pMerger->version) {
+      if (!pColVal->isNone) {
+        taosArraySet(pMerger->pArray, iCol, pColVal);
+      }
+    } else if (key.version < pMerger->version) {
+      SColVal *tColVal = (SColVal *)taosArrayGet(pMerger->pArray, iCol);
+      if (tColVal->isNone && !pColVal->isNone) {
+        taosArraySet(pMerger->pArray, iCol, pColVal);
+      }
+    } else {
+      ASSERT(0);
+    }
+  }
+
+  pMerger->version = key.version;
+
+_exit:
+  return code;
+}
+
 int32_t tRowMergerInit(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
   int32_t   code = 0;
   TSDBKEY   key = TSDBROW_KEY(pRow);
@@ -1020,6 +1100,10 @@ void tBlockDataClear(SBlockData *pBlockData, int8_t deepClear) {
   tFree((uint8_t *)pBlockData->aTSKEY);
   taosArrayDestroy(pBlockData->aIdx);
   taosArrayDestroyEx(pBlockData->aColData, deepClear ? tColDataClear : NULL);
+  pBlockData->aColData = NULL;
+  pBlockData->aIdx = NULL;
+  pBlockData->aTSKEY = NULL;
+  pBlockData->aVersion = NULL;
 }
 
 int32_t tBlockDataSetSchema(SBlockData *pBlockData, STSchema *pTSchema) {
@@ -1395,10 +1479,26 @@ void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
           break;
         case TSDB_DATA_TYPE_BOOL:
           break;
-        case TSDB_DATA_TYPE_TINYINT:
+        case TSDB_DATA_TYPE_TINYINT: {
+          pColAgg->sum += colVal.value.i8;
+          if (pColAgg->min > colVal.value.i8) {
+            pColAgg->min = colVal.value.i8;
+          }
+          if (pColAgg->max < colVal.value.i8) {
+            pColAgg->max = colVal.value.i8;
+          }
           break;
-        case TSDB_DATA_TYPE_SMALLINT:
+        }
+        case TSDB_DATA_TYPE_SMALLINT: {
+          pColAgg->sum += colVal.value.i16;
+          if (pColAgg->min > colVal.value.i16) {
+            pColAgg->min = colVal.value.i16;
+          }
+          if (pColAgg->max < colVal.value.i16) {
+            pColAgg->max = colVal.value.i16;
+          }
           break;
+        }
         case TSDB_DATA_TYPE_INT: {
           pColAgg->sum += colVal.value.i32;
           if (pColAgg->min > colVal.value.i32) {
@@ -1419,24 +1519,79 @@ void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
           }
           break;
         }
-        case TSDB_DATA_TYPE_FLOAT:
+        case TSDB_DATA_TYPE_FLOAT: {
+          pColAgg->sum += colVal.value.f;
+          if (pColAgg->min > colVal.value.f) {
+            pColAgg->min = colVal.value.f;
+          }
+          if (pColAgg->max < colVal.value.f) {
+            pColAgg->max = colVal.value.f;
+          }
           break;
-        case TSDB_DATA_TYPE_DOUBLE:
+        }
+        case TSDB_DATA_TYPE_DOUBLE: {
+          pColAgg->sum += colVal.value.d;
+          if (pColAgg->min > colVal.value.d) {
+            pColAgg->min = colVal.value.d;
+          }
+          if (pColAgg->max < colVal.value.d) {
+            pColAgg->max = colVal.value.d;
+          }
           break;
+        }
         case TSDB_DATA_TYPE_VARCHAR:
           break;
-        case TSDB_DATA_TYPE_TIMESTAMP:
+        case TSDB_DATA_TYPE_TIMESTAMP: {
+          if (pColAgg->min > colVal.value.i64) {
+            pColAgg->min = colVal.value.i64;
+          }
+          if (pColAgg->max < colVal.value.i64) {
+            pColAgg->max = colVal.value.i64;
+          }
           break;
+        }
         case TSDB_DATA_TYPE_NCHAR:
           break;
-        case TSDB_DATA_TYPE_UTINYINT:
+        case TSDB_DATA_TYPE_UTINYINT: {
+          pColAgg->sum += colVal.value.u8;
+          if (pColAgg->min > colVal.value.u8) {
+            pColAgg->min = colVal.value.u8;
+          }
+          if (pColAgg->max < colVal.value.u8) {
+            pColAgg->max = colVal.value.u8;
+          }
           break;
-        case TSDB_DATA_TYPE_USMALLINT:
+        }
+        case TSDB_DATA_TYPE_USMALLINT: {
+          pColAgg->sum += colVal.value.u16;
+          if (pColAgg->min > colVal.value.u16) {
+            pColAgg->min = colVal.value.u16;
+          }
+          if (pColAgg->max < colVal.value.u16) {
+            pColAgg->max = colVal.value.u16;
+          }
           break;
-        case TSDB_DATA_TYPE_UINT:
+        }
+        case TSDB_DATA_TYPE_UINT: {
+          pColAgg->sum += colVal.value.u32;
+          if (pColAgg->min > colVal.value.u32) {
+            pColAgg->min = colVal.value.u32;
+          }
+          if (pColAgg->max < colVal.value.u32) {
+            pColAgg->max = colVal.value.u32;
+          }
           break;
-        case TSDB_DATA_TYPE_UBIGINT:
+        }
+        case TSDB_DATA_TYPE_UBIGINT: {
+          pColAgg->sum += colVal.value.u64;
+          if (pColAgg->min > colVal.value.u64) {
+            pColAgg->min = colVal.value.u64;
+          }
+          if (pColAgg->max < colVal.value.u64) {
+            pColAgg->max = colVal.value.u64;
+          }
           break;
+        }
         case TSDB_DATA_TYPE_JSON:
           break;
         case TSDB_DATA_TYPE_VARBINARY:

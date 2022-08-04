@@ -253,6 +253,9 @@ class TDTestCase:
         tdSql.execute(f'alter table {self.stbname}_{tb_no} set tag {tag} = {values}')
         tdSql.query(f'select {tag} from {self.stbname}_{tb_no}')
         tdSql.checkData(0,0,values)
+        tdSql.execute(f'alter table {self.stbname}_{tb_no} set tag {tag} = null')
+        tdSql.query(f'select {tag} from {self.stbname}_{tb_no}')
+        tdSql.checkData(0,0,None)
     def alter_check_stb(self):
         tdSql.prepare()
         tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))

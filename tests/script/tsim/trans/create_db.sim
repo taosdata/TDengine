@@ -32,7 +32,7 @@ if $data(2)[4] != ready then
 endi
 
 print =============== kill dnode2
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGKILL
 
 print =============== create database
 sql show transactions
@@ -88,7 +88,7 @@ endi
 
 sql show transactions
 if $rows != 0 then
-  return -1
+  goto step2
 endi
 
 sql_error create database d1 vgroups 2;
@@ -128,8 +128,8 @@ if $system_content != Windows_NT then
   if $rows != 4 then
     return -1
   endi
-  print d2 ==> $data(d2)[19]
-  if $data(d2)[19] != creating then
+  print d2 ==> $data(d2)[15]
+  if $data(d2)[15] != creating then
     return -1
   endi
 

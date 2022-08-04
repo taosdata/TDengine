@@ -104,8 +104,6 @@ class TDTestCase:
             "select stateduration(c1 ,'GT',1,1s) , min(c1) from t1",
             "select stateduration(c1 ,'GT',1,1s) , spread(c1) from t1",
             "select stateduration(c1 ,'GT',1,1s) , diff(c1) from t1",
-            "select stateduration(c1 ,'GT',1,1s) , abs(c1) from t1",
-            "select stateduration(c1 ,'GT',1,1s) , c1 from t1",
         ]
         for error_sql in error_sql_lists:
             tdSql.error(error_sql)
@@ -226,18 +224,24 @@ class TDTestCase:
         tdSql.query("select stateduration(c6,'GT',1,1s) from ct4")
         tdSql.checkRows(12)
 
-        tdSql.error("select stateduration(c6,'GT',1,1s),tbname from ct1")
-        tdSql.error("select stateduration(c6,'GT',1,1s),t1 from ct1")
+        tdSql.query("select stateduration(c6,'GT',1,1s),tbname from ct1")
+        tdSql.checkRows(13)
+        tdSql.query("select stateduration(c6,'GT',1,1s),t1 from ct1")
+        tdSql.checkRows(13)
 
         # unique with common col
-        tdSql.error("select stateduration(c6,'GT',1,1s) ,ts  from ct1")
-        tdSql.error("select stateduration(c6,'GT',1,1s) ,c1  from ct1")
+        tdSql.query("select stateduration(c6,'GT',1,1s) ,ts  from ct1")
+        tdSql.checkRows(13)
+        tdSql.query("select stateduration(c6,'GT',1,1s) ,c1  from ct1")
+        tdSql.checkRows(13)
 
         # unique with scalar function
-        tdSql.error("select stateduration(c6,'GT',1,1s) ,abs(c1)  from ct1")
-        tdSql.error("select stateduration(c6,'GT',1,1s) , unique(c2) from ct1")
-        tdSql.error("select stateduration(c6,'GT',1,1s) , abs(c2)+2 from ct1")
+        tdSql.query("select stateduration(c6,'GT',1,1s) , abs(c1)  from ct1")
+        tdSql.checkRows(13)
+        tdSql.query("select stateduration(c6,'GT',1,1s) , abs(c2)+2 from ct1")
+        tdSql.checkRows(13)
 
+        tdSql.error("select stateduration(c6,'GT',1,1s) , unique(c2) from ct1")
 
         # unique with aggregate function
         tdSql.error("select stateduration(c6,'GT',1,1s) ,sum(c1)  from ct1")

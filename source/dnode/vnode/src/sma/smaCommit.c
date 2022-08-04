@@ -146,7 +146,6 @@ static int32_t tdProcessRSmaSyncPreCommitImpl(SSma *pSma) {
 
   // step 3: perform persist task for qTaskInfo
   pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
-  pRSmaStat->commitSubmitVer = pRSmaStat->submitVer;
   tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat));
 
   smaDebug("vgId:%d, rsma pre commit success", SMA_VID(pSma));
@@ -242,6 +241,41 @@ static int32_t tdCleanupQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat) {
   return TSDB_CODE_SUCCESS;
 }
 
+// SQTaskFile ======================================================
+// int32_t tCmprQTaskFile(void const *lhs, void const *rhs) {
+//   int64_t    *lCommitted = *(int64_t *)lhs;
+//   SQTaskFile *rQTaskF = (SQTaskFile *)rhs;
+
+//   if (lCommitted < rQTaskF->commitID) {
+//     return -1;
+//   } else if (lCommitted > rQTaskF->commitID) {
+//     return 1;
+//   }
+
+//   return 0;
+// }
+
+#if 0
+/**
+ * @brief At most time, there is only one qtaskinfo file committed latest in aTaskFile. Sometimes, there would be
+ * multiple qtaskinfo files supporting snapshot replication.
+ *
+ * @param pSma
+ * @param pRSmaStat
+ * @return int32_t
+ */
+static int32_t tdCleanupQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat) {
+  SVnode *pVnode = pSma->pVnode;
+  int64_t committed = pRSmaStat->commitAppliedVer;
+  SArray *aTaskFile = pRSmaStat->aTaskFile;
+
+  void *qTaskFile = taosArraySearch(aTaskFile, committed, tCmprQTaskFile, TD_LE);
+  
+
+  return TSDB_CODE_SUCCESS;
+}
+#endif
+
 /**
  * @brief post-commit for rollup sma
  *  1) clean up the outdated qtaskinfo files
@@ -317,7 +351,6 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
 
   // step 4: others
   pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
-  pRSmaStat->commitSubmitVer = pRSmaStat->submitVer;
 
   return TSDB_CODE_SUCCESS;
 }

@@ -55,7 +55,6 @@ enum {
   TASK_INPUT_STATUS__NORMAL = 1,
   TASK_INPUT_STATUS__BLOCKED,
   TASK_INPUT_STATUS__RECOVER,
-  TASK_INPUT_STATUS__PROCESSING,
   TASK_INPUT_STATUS__STOP,
   TASK_INPUT_STATUS__FAILED,
 };
@@ -171,8 +170,8 @@ typedef struct {
 } STaskDispatcherFixedEp;
 
 typedef struct {
-  // int8_t  hashMethod;
   char      stbFullName[TSDB_TABLE_FNAME_LEN];
+  int32_t   waitingRspCnt;
   SUseDbRsp dbInfo;
 } STaskDispatcherShuffle;
 
@@ -270,7 +269,7 @@ typedef struct SStreamTask {
   int64_t startVer;
   int64_t checkpointVer;
   int64_t processedVer;
-  int32_t numOfVgroups;
+  // int32_t numOfVgroups;
 
   // children info
   SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>
@@ -320,17 +319,6 @@ int32_t      tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeSStreamTask(SStreamTask* pTask);
 
 static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem* pItem) {
-#if 0
-  while (1) {
-    int8_t inputStatus =
-        atomic_val_compare_exchange_8(&pTask->inputStatus, TASK_INPUT_STATUS__NORMAL, TASK_INPUT_STATUS__PROCESSING);
-    if (inputStatus == TASK_INPUT_STATUS__NORMAL) {
-      break;
-    }
-    ASSERT(0);
-  }
-#endif
-
   if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit*)pItem);
     if (pSubmitClone == NULL) {
@@ -443,13 +431,14 @@ typedef struct {
 typedef struct {
   int64_t streamId;
   int32_t taskId;
-  int32_t sourceTaskId;
-  int32_t sourceVg;
+  int32_t upstreamTaskId;
+  int32_t upstreamNodeId;
 } SStreamTaskRecoverReq;
 
 typedef struct {
   int64_t streamId;
-  int32_t taskId;
+  int32_t rspTaskId;
+  int32_t reqTaskId;
   int8_t  inputStatus;
 } SStreamTaskRecoverRsp;
 
@@ -490,13 +479,25 @@ int32_t streamLaunchByWrite(SStreamTask* pTask, int32_t vgId);
 int32_t streamSetupTrigger(SStreamTask* pTask);
 
 int32_t streamProcessRunReq(SStreamTask* pTask);
-int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
+int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg, bool exec);
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp);
 int32_t streamProcessRecoverReq(SStreamTask* pTask, SStreamTaskRecoverReq* pReq, SRpcMsg* pMsg);
 int32_t streamProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp);
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
 int32_t streamProcessRetrieveRsp(SStreamTask* pTask, SStreamRetrieveRsp* pRsp);
+
+typedef struct SStreamMeta SStreamMeta;
+
+SStreamMeta* streamMetaOpen();
+void         streamMetaClose(SStreamMeta* streamMeta);
+
+int32_t streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask);
+int32_t streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
+
+int32_t streamMetaBegin(SStreamMeta* pMeta);
+int32_t streamMetaCommit(SStreamMeta* pMeta);
+int32_t streamMetaRollBack(SStreamMeta* pMeta);
 
 #ifdef __cplusplus
 }

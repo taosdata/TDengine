@@ -41,23 +41,23 @@ class TMQCom:
         tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def initConsumerTable(self,cdbName='cdb'):        
+    def initConsumerTable(self,cdbName='cdb'):
         tdLog.info("create consume database, and consume info table, and consume result table")
         tdSql.query("create database if not exists %s vgroups 1"%(cdbName))
         tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
         tdSql.query("drop table if exists %s.consumeresult "%(cdbName))
-        tdSql.query("drop table if exists %s.notifyinfo "%(cdbName))      
+        tdSql.query("drop table if exists %s.notifyinfo "%(cdbName))
 
         tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"%cdbName)
         tdSql.query("create table %s.consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)"%cdbName)
         tdSql.query("create table %s.notifyinfo (ts timestamp, cmdid int, consumerid int)"%cdbName)
 
-    def initConsumerInfoTable(self,cdbName='cdb'):        
+    def initConsumerInfoTable(self,cdbName='cdb'):
         tdLog.info("drop consumeinfo table")
         tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
         tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"%cdbName)
 
-    def insertConsumerInfo(self,consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifmanualcommit,cdbName='cdb'):    
+    def insertConsumerInfo(self,consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifmanualcommit,cdbName='cdb'):
         sql = "insert into %s.consumeinfo values "%cdbName
         sql += "(now, %d, '%s', '%s', %d, %d, %d)"%(consumerId, topicList, keyList, expectrowcnt, ifcheckdata, ifmanualcommit)
         tdLog.info("consume info sql: %s"%sql)
@@ -72,13 +72,13 @@ class TMQCom:
                 break
             else:
                 time.sleep(5)
-        
+
         for i in range(expectRows):
             tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
             resultList.append(tdSql.getData(i , 3))
-        
+
         return resultList
-    
+
     def selectConsumeMsgResult(self,expectRows,cdbName='cdb'):
         resultList=[]
         while 1:
@@ -88,11 +88,11 @@ class TMQCom:
                 break
             else:
                 time.sleep(5)
-        
+
         for i in range(expectRows):
             tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
             resultList.append(tdSql.getData(i , 2))
-        
+
         return resultList
 
     def startTmqSimProcess(self,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0,alias=0,snapshot=0):
@@ -102,7 +102,7 @@ class TMQCom:
             logFile = cfgPath + '/../log/valgrind-tmq.log'
             shellCmd = 'nohup valgrind --log-file=' + logFile
             shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
-        
+
         if (platform.system().lower() == 'windows'):
             processorName = buildPath + '\\build\\bin\\tmq_sim.exe'
             if alias != 0:
@@ -111,8 +111,8 @@ class TMQCom:
                 os.system(shellCmd)
                 processorName = processorNameNew
             shellCmd = 'mintty -h never ' + processorName + ' -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s -e %d "%(pollDelay, dbName, showMsg, showRow, cdbName, snapshot) 
-            shellCmd += "> nul 2>&1 &"   
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s -e %d "%(pollDelay, dbName, showMsg, showRow, cdbName, snapshot)
+            shellCmd += "> nul 2>&1 &"
         else:
             processorName = buildPath + '/build/bin/tmq_sim'
             if alias != 0:
@@ -121,17 +121,20 @@ class TMQCom:
                 os.system(shellCmd)
                 processorName = processorNameNew
             shellCmd = 'nohup ' + processorName + ' -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s -e %d "%(pollDelay, dbName, showMsg, showRow, cdbName, snapshot) 
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s -e %d "%(pollDelay, dbName, showMsg, showRow, cdbName, snapshot)
             shellCmd += "> /dev/null 2>&1 &"
         tdLog.info(shellCmd)
-        os.system(shellCmd) 
+        os.system(shellCmd)
 
     def stopTmqSimProcess(self, processorName):
         psCmd = "ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+        onlyKillOnceWindows = 0
         while(processID):
-            killCmd = "kill -INT %s > /dev/null 2>&1" % processID
-            os.system(killCmd)
+            if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
+                killCmd = "kill -INT %s > /dev/null 2>&1" % processID
+                os.system(killCmd)
+                onlyKillOnceWindows = 1
             time.sleep(0.2)
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         tdLog.debug("%s is stopped by kill -INT" % (processorName))
@@ -146,7 +149,7 @@ class TMQCom:
                 for i in range(actRows):
                     if tdSql.getData(i, 1) == 0:
                         loopFlag = 0
-                        break            
+                        break
             time.sleep(0.1)
         return
 
@@ -160,7 +163,7 @@ class TMQCom:
                 for i in range(actRows):
                     if tdSql.getData(i, 1) == 1:
                         loopFlag = 0
-                        break            
+                        break
             time.sleep(0.1)
         return
 
@@ -193,7 +196,7 @@ class TMQCom:
                 tagBinaryValue = 'shanghai'
             elif (i % 3 == 0):
                 tagBinaryValue = 'changsha'
-            
+
             sql += " %s.%s%d using %s.%s tags(%d, %d, %d, '%s', '%s')"%(dbName,ctbPrefix,i+ctbStartIdx,dbName,stbName,i+ctbStartIdx,i+ctbStartIdx,i+ctbStartIdx,tagBinaryValue,tagBinaryValue)
             tblBatched += 1
             if (i == ctbNum-1 ) or (tblBatched == batchNum):
@@ -203,9 +206,9 @@ class TMQCom:
 
         if sql != pre_create:
             tsql.execute(sql)
-        
+
         tdLog.debug("complete to create %d child tables by %s.%s" %(ctbNum, dbName, stbName))
-        return    
+        return
 
     def drop_ctable(self, tsql, dbname=None, count=1, default_ctbname_prefix="ctb",ctbStartIdx=0):
         for _ in range(count):
@@ -243,7 +246,7 @@ class TMQCom:
             #print("insert sql:%s"%sql)
             tsql.execute(sql)
         tdLog.debug("insert data ............ [OK]")
-        return        
+        return
 
     # schema: (ts timestamp, c1 int, c2 int, c3 binary(16))
     def insert_data_1(self,tsql,dbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs):
@@ -370,16 +373,16 @@ class TMQCom:
         if startTs == 0:
             t = time.time()
             startTs = int(round(t * 1000))
-            
+
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
-        rowsBatched = 0        
+        rowsBatched = 0
         for i in range(ctbNum):
             tagBinaryValue = 'beijing'
             if (i % 2 == 0):
                 tagBinaryValue = 'shanghai'
             elif (i % 3 == 0):
                 tagBinaryValue = 'changsha'
-                
+
             sql += " %s.%s%d using %s.%s tags (%d, %d, %d, '%s', '%s') values "%(dbName,ctbPrefix,i+ctbStartIdx,dbName,stbName,i+ctbStartIdx,i+ctbStartIdx,i+ctbStartIdx,tagBinaryValue,tagBinaryValue)
             for j in range(rowsPerTbl):
                 sql += "(%d, %d, %d, %d, 'binary_%d', 'nchar_%d', now) "%(startTs+j, j,j, j,i+ctbStartIdx,rowsBatched)
@@ -410,7 +413,7 @@ class TMQCom:
         for i in range(ctbNum):
             tbName = '%s%s'%(ctbPrefix,i)
             tdCom.insert_rows(tsql,dbname=paraDict["dbName"],tbname=tbName,start_ts_value=paraDict['startTs'],count=paraDict['rowsPerTbl'])
-        return 
+        return
 
     def threadFunction(self, **paraDict):
         # create new connector for new tdSql instance in my thread
@@ -444,20 +447,20 @@ class TMQCom:
         cmdStr = '%s/build/bin/taos -c %s -s "%s >> %s"'%(buildPath, cfgPath, queryString, dstFile)
         tdLog.info(cmdStr)
         os.system(cmdStr)
-        
+
         consumeRowsFile = '%s/../log/consumerid_%d.txt'%(cfgPath, consumerId)
         tdLog.info("rows file: %s, %s"%(consumeRowsFile, dstFile))
 
         consumeFile = open(consumeRowsFile, mode='r')
         queryFile = open(dstFile, mode='r')
-        
+
         # skip first line for it is schema
         queryFile.readline()
-        
+
         # skip offset for consumer
         for i in range(0,skipRowsOfCons):
-            consumeFile.readline()            
-        
+            consumeFile.readline()
+
         lines = 0
         while True:
             dst = queryFile.readline()
@@ -470,7 +473,7 @@ class TMQCom:
                     tdLog.exit("consumerId %d consume rows[%d] is not match the rows by direct query"%(consumerId, lines))
             else:
                 break
-        return 
+        return
 
     def getResultFileByTaosShell(self, consumerId, queryString):
         buildPath = tdCom.getBuildPath()
@@ -480,15 +483,15 @@ class TMQCom:
         tdLog.info(cmdStr)
         os.system(cmdStr)
         return dstFile
-    
-    def checkTmqConsumeFileContent(self, consumerId, dstFile):   
-        cfgPath = tdCom.getClientCfgPath()     
+
+    def checkTmqConsumeFileContent(self, consumerId, dstFile):
+        cfgPath = tdCom.getClientCfgPath()
         consumeRowsFile = '%s/../log/consumerid_%d.txt'%(cfgPath, consumerId)
         tdLog.info("rows file: %s, %s"%(consumeRowsFile, dstFile))
 
         consumeFile = open(consumeRowsFile, mode='r')
         queryFile = open(dstFile, mode='r')
-        
+
         # skip first line for it is schema
         queryFile.readline()
         lines = 0
@@ -503,7 +506,7 @@ class TMQCom:
                     tdLog.exit("consumerId %d consume rows[%d] is not match the rows by direct query"%(consumerId, lines))
             else:
                 break
-        return 
+        return
 
     def create_ntable(self, tsql, dbname=None, tbname_prefix="ntb", tbname_index_start_num = 1, column_elm_list=None, colPrefix='c', tblNum=1, **kwargs):
         tb_params = ""
@@ -535,17 +538,31 @@ class TMQCom:
                 column_value_str = column_value_str.rstrip()[:-1]
                 insert_sql = f'insert into {dbname}.{tbname_prefix}{tblIdx+tbname_index_start_num} values ({column_value_str});'
                 tsql.execute(insert_sql)
-        
-    def waitSubscriptionExit(self, tsql, max_wait_count=20):
+
+    def waitSubscriptionExit(self, tsql, topicName):
         wait_cnt = 0
-        while (wait_cnt < max_wait_count):
+        while True:
+            exit_flag = 1
             tsql.query("show subscriptions")
-            if tsql.getRows() == 0:
+            rows = tsql.getRows()
+            for idx in range (rows):
+                if tsql.getData(idx, 0) != topicName:
+                    continue
+
+                if tsql.getData(idx, 3) == None:
+                    continue
+                else:
+                    time.sleep(0.5)
+                    wait_cnt += 1
+                    exit_flag = 0
+                    break
+
+            if exit_flag == 1:
                 break
-            else:
-                time.sleep(2)
-                wait_cnt += 1
-                
+
+        tsql.query("show subscriptions")
+        tdLog.info("show subscriptions:")
+        tdLog.info(tsql.queryResult)
         tdLog.info("wait subscriptions exit for %d s"%wait_cnt)
 
     def close(self):

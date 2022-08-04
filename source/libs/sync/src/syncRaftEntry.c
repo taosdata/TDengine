@@ -23,6 +23,7 @@ SSyncRaftEntry* syncEntryBuild(uint32_t dataLen) {
   memset(pEntry, 0, bytes);
   pEntry->bytes = bytes;
   pEntry->dataLen = dataLen;
+  pEntry->rid = -1;
   return pEntry;
 }
 
@@ -137,6 +138,8 @@ cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry) {
     cJSON_AddStringToObject(pRoot, "term", u64buf);
     snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pEntry->index);
     cJSON_AddStringToObject(pRoot, "index", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pEntry->rid);
+    cJSON_AddStringToObject(pRoot, "rid", u64buf);
     cJSON_AddNumberToObject(pRoot, "dataLen", pEntry->dataLen);
 
     char* s;
@@ -201,14 +204,14 @@ void syncEntryLog2(char* s, const SSyncRaftEntry* pObj) {
 SRaftEntryHashCache* raftCacheCreate(SSyncNode* pSyncNode, int32_t maxCount) {
   SRaftEntryHashCache* pCache = taosMemoryMalloc(sizeof(SRaftEntryHashCache));
   if (pCache == NULL) {
-    sError("vgId:%d raft cache create error", pSyncNode->vgId);
+    sError("vgId:%d, raft cache create error", pSyncNode->vgId);
     return NULL;
   }
 
   pCache->pEntryHash =
       taosHashInit(sizeof(SyncIndex), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pCache->pEntryHash == NULL) {
-    sError("vgId:%d raft cache create hash error", pSyncNode->vgId);
+    sError("vgId:%d, raft cache create hash error", pSyncNode->vgId);
     return NULL;
   }
 
@@ -449,21 +452,27 @@ static char* keyFn(const void* pData) {
 
 static int cmpFn(const void* p1, const void* p2) { return memcmp(p1, p2, sizeof(SyncIndex)); }
 
+static void freeRaftEntry(void* param) {
+  SSyncRaftEntry* pEntry = (SSyncRaftEntry*)param;
+  syncEntryDestory(pEntry);
+}
+
 SRaftEntryCache* raftEntryCacheCreate(SSyncNode* pSyncNode, int32_t maxCount) {
   SRaftEntryCache* pCache = taosMemoryMalloc(sizeof(SRaftEntryCache));
   if (pCache == NULL) {
-    sError("vgId:%d raft cache create error", pSyncNode->vgId);
+    sError("vgId:%d, raft cache create error", pSyncNode->vgId);
     return NULL;
   }
 
   pCache->pSkipList =
       tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_BINARY, sizeof(SyncIndex), cmpFn, SL_ALLOW_DUP_KEY, keyFn);
   if (pCache->pSkipList == NULL) {
-    sError("vgId:%d raft cache create hash error", pSyncNode->vgId);
+    sError("vgId:%d, raft cache create hash error", pSyncNode->vgId);
     return NULL;
   }
 
   taosThreadMutexInit(&(pCache->mutex), NULL);
+  pCache->refMgr = taosOpenRef(10, freeRaftEntry);
   pCache->maxCount = maxCount;
   pCache->currentCount = 0;
   pCache->pSyncNode = pSyncNode;
@@ -475,6 +484,10 @@ void raftEntryCacheDestroy(SRaftEntryCache* pCache) {
   if (pCache != NULL) {
     taosThreadMutexLock(&(pCache->mutex));
     tSkipListDestroy(pCache->pSkipList);
+    if (pCache->refMgr != -1) {
+      taosCloseRef(pCache->refMgr);
+      pCache->refMgr = -1;
+    }
     taosThreadMutexUnlock(&(pCache->mutex));
     taosThreadMutexDestroy(&(pCache->mutex));
     taosMemoryFree(pCache);
@@ -495,6 +508,9 @@ int32_t raftEntryCachePutEntry(struct SRaftEntryCache* pCache, SSyncRaftEntry* p
   SSkipListNode* pSkipListNode = tSkipListPut(pCache->pSkipList, pEntry);
   ASSERT(pSkipListNode != NULL);
   ++(pCache->currentCount);
+
+  pEntry->rid = taosAddRef(pCache->refMgr, pEntry);
+  ASSERT(pEntry->rid >= 0);
 
   do {
     char eventLog[128];
@@ -518,6 +534,7 @@ int32_t raftEntryCacheGetEntry(struct SRaftEntryCache* pCache, SyncIndex index, 
   if (code == 1) {
     *ppEntry = taosMemoryMalloc(pEntry->bytes);
     memcpy(*ppEntry, pEntry, pEntry->bytes);
+    (*ppEntry)->rid = -1;
   } else {
     *ppEntry = NULL;
   }
@@ -539,6 +556,7 @@ int32_t raftEntryCacheGetEntryP(struct SRaftEntryCache* pCache, SyncIndex index,
     SSkipListNode** ppNode = (SSkipListNode**)taosArrayGet(entryPArray, 0);
     ASSERT(*ppNode != NULL);
     *ppEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(*ppNode);
+    taosAcquireRef(pCache->refMgr, (*ppEntry)->rid);
     code = 1;
 
   } else if (arraySize == 0) {
@@ -598,7 +616,9 @@ int32_t raftEntryCacheClear(struct SRaftEntryCache* pCache, int32_t count) {
       taosArrayPush(delNodeArray, &pNode);
       ++returnCnt;
       SSyncRaftEntry* pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(pNode);
-      syncEntryDestory(pEntry);
+
+      // syncEntryDestory(pEntry);
+      taosRemoveRef(pCache->refMgr, pEntry->rid);
     }
     tSkipListDestroyIter(pIter);
 

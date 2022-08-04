@@ -235,6 +235,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
   if (TSDB_CODE_SUCCESS == code || NEED_CLIENT_HANDLE_ERROR(code)) {
     TSWAP(pRequest->dbList, (*pQuery)->pDbList);
     TSWAP(pRequest->tableList, (*pQuery)->pTableList);
+    TSWAP(pRequest->targetTableList, (*pQuery)->pTargetTableList);
   }
 
   return code;
@@ -590,7 +591,7 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
   return code;
 }
 
-void freeVgList(void *list) {
+void freeVgList(void* list) {
   SArray* pList = *(SArray**)list;
   taosArrayDestroy(pList);
 }
@@ -687,7 +688,12 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_DELETE == pRequest->type ||
       TDMT_VND_CREATE_TABLE == pRequest->type) {
     pRequest->body.resInfo.numOfRows = res.numOfRows;
-
+    if (TDMT_VND_SUBMIT == pRequest->type) {
+      STscObj            *pTscObj = pRequest->pTscObj;
+      SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
+      atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertRows, res.numOfRows);           
+    }
+    
     schedulerFreeJob(&pRequest->body.queryJob, 0);
   }
 
@@ -794,6 +800,8 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
       break;
     }
     case TDMT_VND_SUBMIT: {
+      atomic_add_fetch_64((int64_t *)&pAppInfo->summary.insertBytes, pRes->numOfBytes);
+      
       code = handleSubmitExecRes(pRequest, pRes->res, pCatalog, &epset);
       break;
     }
@@ -823,6 +831,11 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
       TDMT_VND_CREATE_TABLE == pRequest->type) {
     if (pResult) {
       pRequest->body.resInfo.numOfRows = pResult->numOfRows;
+      if (TDMT_VND_SUBMIT == pRequest->type) {
+        STscObj            *pTscObj = pRequest->pTscObj;
+        SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
+        atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertRows, pResult->numOfRows);           
+      }
     }
 
     schedulerFreeJob(&pRequest->body.queryJob, 0);
@@ -834,7 +847,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
            tstrerror(code), pRequest->requestId);
 
   STscObj* pTscObj = pRequest->pTscObj;
-  if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code)) {
+  if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code) && pRequest->sqlstr != NULL) {
     tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
              pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
     pRequest->prevCode = code;
@@ -851,7 +864,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
 
   tscDebug("schedulerExecCb request type %s", TMSG_INFO(pRequest->type));
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
-    removeMeta(pTscObj, pRequest->tableList);
+    removeMeta(pTscObj, pRequest->targetTableList);
   }
 
   // return to client
@@ -860,6 +873,20 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
 
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res) {
   int32_t code = 0;
+
+  if (pQuery->pRoot) {
+    pRequest->stmtType = pQuery->pRoot->type;
+  }
+  
+  if (pQuery->pRoot && !pRequest->inRetry) {
+    STscObj            *pTscObj = pRequest->pTscObj;
+    SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
+    if (QUERY_NODE_VNODE_MODIF_STMT == pQuery->pRoot->type) {
+      atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1);
+    } else if (QUERY_NODE_SELECT_STMT == pQuery->pRoot->type) {
+      atomic_add_fetch_64((int64_t *)&pActivity->numOfQueryReq, 1);           
+    }
+  }
 
   switch (pQuery->execMode) {
     case QUERY_EXEC_MODE_LOCAL:
@@ -914,7 +941,7 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
   return pRequest;
 }
 
-SRequestObj* launchQuery(uint64_t connId, const char* sql, int sqlLen, bool validateOnly) {
+SRequestObj* launchQuery(uint64_t connId, const char* sql, int sqlLen, bool validateOnly, bool inRetry) {
   SRequestObj* pRequest = NULL;
   SQuery*      pQuery = NULL;
 
@@ -930,6 +957,7 @@ SRequestObj* launchQuery(uint64_t connId, const char* sql, int sqlLen, bool vali
     return pRequest;
   }
 
+  pRequest->inRetry = inRetry;
   pRequest->stableQuery = pQuery->stableQuery;
 
   return launchQueryImpl(pRequest, pQuery, false, NULL);
@@ -1078,10 +1106,11 @@ SRequestObj* execQuery(uint64_t connId, const char* sql, int sqlLen, bool valida
   SRequestObj* pRequest = NULL;
   int32_t      retryNum = 0;
   int32_t      code = 0;
+  bool         inRetry = false;
 
   do {
     destroyRequest(pRequest);
-    pRequest = launchQuery(connId, sql, sqlLen, validateOnly);
+    pRequest = launchQuery(connId, sql, sqlLen, validateOnly, inRetry);
     if (pRequest == NULL || TSDB_CODE_SUCCESS == pRequest->code || !NEED_CLIENT_HANDLE_ERROR(pRequest->code)) {
       break;
     }
@@ -1091,10 +1120,12 @@ SRequestObj* execQuery(uint64_t connId, const char* sql, int sqlLen, bool valida
       pRequest->code = code;
       break;
     }
+
+    inRetry = true;
   } while (retryNum++ < REQUEST_TOTAL_EXEC_TIMES);
 
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
-    removeMeta(pRequest->pTscObj, pRequest->tableList);
+    removeMeta(pRequest->pTscObj, pRequest->targetTableList);
   }
 
   return pRequest;
@@ -1277,8 +1308,8 @@ int32_t doProcessMsgFromServer(void* param) {
   char      tbuf[40] = {0};
   TRACE_TO_STR(trace, tbuf);
 
-  tscDebug("processMsgFromServer handle %p, message: %s, code: %s, gtid: %s", pMsg->info.handle, TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code),
-           tbuf);
+  tscDebug("processMsgFromServer handle %p, message: %s, code: %s, gtid: %s", pMsg->info.handle,
+           TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code), tbuf);
 
   if (pSendInfo->requestObjRefId != 0) {
     SRequestObj* pRequest = (SRequestObj*)taosAcquireRef(clientReqRefPool, pSendInfo->requestObjRefId);
@@ -1435,6 +1466,10 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
 
     tscDebug("0x%" PRIx64 " fetch results, numOfRows:%d total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
              pRequest->self, pResInfo->numOfRows, pResInfo->totalRows, pResInfo->completed, pRequest->requestId);
+
+    STscObj            *pTscObj = pRequest->pTscObj;
+    SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
+    atomic_add_fetch_64((int64_t *)&pActivity->fetchBytes, pRequest->body.resInfo.payloadLen);           
 
     if (pResultInfo->numOfRows == 0) {
       return NULL;
@@ -1750,7 +1785,10 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   char* pStart = p;
   for (int32_t i = 0; i < numOfCols; ++i) {
     colLength[i] = htonl(colLength[i]);
-    ASSERT(colLength[i] < dataLen);
+    if (colLength[i] >= dataLen) {
+      tscError("invalid colLength %d, dataLen %d", colLength[i], dataLen);
+      ASSERT(0);
+    }
 
     if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
       pResultInfo->pCol[i].offset = (int32_t*)pStart;
@@ -2016,7 +2054,7 @@ int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, 
     }
 
     if (('a' <= *(tbList + i) && 'z' >= *(tbList + i)) || ('A' <= *(tbList + i) && 'Z' >= *(tbList + i)) ||
-        ('0' <= *(tbList + i) && '9' >= *(tbList + i))) {
+        ('0' <= *(tbList + i) && '9' >= *(tbList + i)) || ('_' == *(tbList + i))) {
       if (vLen[vIdx] > 0) {
         goto _return;
       }
@@ -2110,7 +2148,7 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
     return NULL;
   }
 
-  TAOS_RES* pRes = execQuery(connId, sql, sqlLen, validateOnly);
+  TAOS_RES* pRes = execQuery(*(int64_t*)taos, sql, sqlLen, validateOnly);
   return pRes;
 #endif
 }

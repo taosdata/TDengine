@@ -74,6 +74,10 @@ typedef struct SDatabaseOptions {
   int8_t      singleStable;
   SNodeList*  pRetentions;
   int8_t      schemaless;
+  int32_t     walRetentionPeriod;
+  int32_t     walRetentionSize;
+  int32_t     walRollPeriod;
+  int32_t     walSegmentSize;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -249,7 +253,8 @@ typedef struct SShowCreateTableStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
   char      tableName[TSDB_TABLE_NAME_LEN];
-  void*     pCfg;  // STableCfg
+  void*     pDbCfg;     // SDbCfgInfo
+  void*     pTableCfg;  // STableCfg
 } SShowCreateTableStmt;
 
 typedef struct SShowTableDistributedStmt {
@@ -278,7 +283,9 @@ typedef struct SCreateIndexStmt {
   ENodeType      type;
   EIndexType     indexType;
   bool           ignoreExists;
+  char           indexDbName[TSDB_DB_NAME_LEN];
   char           indexName[TSDB_INDEX_NAME_LEN];
+  char           dbName[TSDB_DB_NAME_LEN];
   char           tableName[TSDB_TABLE_NAME_LEN];
   SNodeList*     pCols;
   SIndexOptions* pOptions;
@@ -287,6 +294,7 @@ typedef struct SCreateIndexStmt {
 typedef struct SDropIndexStmt {
   ENodeType type;
   bool      ignoreNotExists;
+  char      indexDbName[TSDB_DB_NAME_LEN];
   char      indexName[TSDB_INDEX_NAME_LEN];
 } SDropIndexStmt;
 

@@ -7,8 +7,7 @@
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
+ * FITNESS FOR A PARTICULAR PURPOSE.  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
@@ -211,6 +210,7 @@ typedef struct SConnBuffer {
   char* buf;
   int   len;
   int   cap;
+  int   left;
   int   total;
 } SConnBuffer;
 
@@ -282,6 +282,8 @@ int  transClearBuffer(SConnBuffer* buf);
 int  transDestroyBuffer(SConnBuffer* buf);
 int  transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 bool transReadComplete(SConnBuffer* connBuf);
+int  transResetBuffer(SConnBuffer* connBuf);
+int  transDumpFromBuffer(SConnBuffer* connBuf, char** buf);
 
 int transSetConnOption(uv_tcp_t* stream);
 
@@ -299,6 +301,8 @@ int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMs
 int transSendResponse(const STransMsg* msg);
 int transRegisterMsg(const STransMsg* msg);
 int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
+
+int transGetSockDebugInfo(struct sockaddr* sockname, char* dst);
 
 int64_t transAllocHandle();
 
@@ -396,6 +400,7 @@ typedef struct SDelayQueue {
 int         transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
 void        transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg));
 SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
+void        transDQCancel(SDelayQueue* queue, SDelayTask* task);
 
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
 /*

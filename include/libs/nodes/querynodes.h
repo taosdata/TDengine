@@ -253,8 +253,10 @@ typedef struct SSelectStmt {
   char        stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t     precision;
   int32_t     selectFuncNum;
+  int32_t     returnRows;  // EFuncReturnRows
   bool        isEmptyResult;
   bool        isTimeLineResult;
+  bool        isSubquery;
   bool        hasAggFuncs;
   bool        hasRepeatScanFuncs;
   bool        hasIndefiniteRowsFunc;
@@ -267,6 +269,7 @@ typedef struct SSelectStmt {
   bool        hasInterpFunc;
   bool        hasLastRowFunc;
   bool        hasTimeLineFunc;
+  bool        onlyHasKeepOrderFunc;
   bool        groupSort;
 } SSelectStmt;
 
@@ -374,6 +377,7 @@ typedef struct SQuery {
   int8_t         precision;
   SCmdMsgInfo*   pCmdMsg;
   int32_t        msgType;
+  SArray*        pTargetTableList;
   SArray*        pTableList;
   SArray*        pDbList;
   bool           showRewrite;
@@ -415,8 +419,6 @@ void    nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 
 char*   nodesGetFillModeString(EFillMode mode);
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);
-int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** pTagIndexCond, SNode** pTagCond,
-                           SNode** pOtherCond);
 
 #ifdef __cplusplus
 }

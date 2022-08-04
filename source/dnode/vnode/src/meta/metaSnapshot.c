@@ -51,13 +51,13 @@ int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapRe
     goto _err;
   }
 
-  metaInfo("vgId:%d vnode snapshot meta reader opened", TD_VID(pMeta->pVnode));
+  metaInfo("vgId:%d, vnode snapshot meta reader opened", TD_VID(pMeta->pVnode));
 
   *ppReader = pReader;
   return code;
 
 _err:
-  metaError("vgId:%d vnode snapshot meta reader open failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
+  metaError("vgId:%d, vnode snapshot meta reader open failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
   *ppReader = NULL;
   return code;
 }
@@ -109,18 +109,18 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
   }
 
   SSnapDataHdr* pHdr = (SSnapDataHdr*)(*ppData);
-  pHdr->type = 0;  // TODO: use macro
+  pHdr->type = SNAP_DATA_META;
   pHdr->size = nData;
   memcpy(pHdr->data, pData, nData);
 
-  metaInfo("vgId:%d vnode snapshot meta read data, version:%" PRId64 " uid:%" PRId64 " nData:%d",
+  metaInfo("vgId:%d, vnode snapshot meta read data, version:%" PRId64 " uid:%" PRId64 " nData:%d",
            TD_VID(pReader->pMeta->pVnode), key.version, key.uid, nData);
 
 _exit:
   return code;
 
 _err:
-  metaError("vgId:%d vnode snapshot meta read data failed since %s", TD_VID(pReader->pMeta->pVnode), tstrerror(code));
+  metaError("vgId:%d, vnode snapshot meta read data failed since %s", TD_VID(pReader->pMeta->pVnode), tstrerror(code));
   return code;
 }
 
@@ -145,11 +145,13 @@ int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWr
   pWriter->sver = sver;
   pWriter->ever = ever;
 
+  metaBegin(pMeta);
+
   *ppWriter = pWriter;
   return code;
 
 _err:
-  metaError("vgId:%d meta snapshot writer open failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
+  metaError("vgId:%d, meta snapshot writer open failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
   *ppWriter = NULL;
   return code;
 }
@@ -170,7 +172,7 @@ int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback) {
   return code;
 
 _err:
-  metaError("vgId:%d meta snapshot writer close failed since %s", TD_VID(pWriter->pMeta->pVnode), tstrerror(code));
+  metaError("vgId:%d, meta snapshot writer close failed since %s", TD_VID(pWriter->pMeta->pVnode), tstrerror(code));
   return code;
 }
 
@@ -190,6 +192,6 @@ int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   return code;
 
 _err:
-  metaError("vgId:%d vnode snapshot meta write failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
+  metaError("vgId:%d, vnode snapshot meta write failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
   return code;
 }

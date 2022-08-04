@@ -1,0 +1,13 @@
+
+# taos-tools
+ExternalProject_Add(taos-tools
+        GIT_REPOSITORY https://github.com/taosdata/taos-tools.git
+        GIT_TAG 8157e3b
+        SOURCE_DIR "${TD_SOURCE_DIR}/tools/taos-tools"
+        BINARY_DIR ""
+        #BUILD_IN_SOURCE TRUE
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+)

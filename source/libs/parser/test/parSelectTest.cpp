@@ -70,6 +70,8 @@ TEST_F(ParserSelectTest, condition) {
   run("SELECT c1 FROM t1 WHERE NOT ts in (true, false)");
 
   run("SELECT * FROM t1 WHERE c1 > 10 and c1 is not null");
+
+  run("SELECT * FROM t1 WHERE TBNAME like 'fda%' or TS > '2021-05-05 18:19:01.000'");
 }
 
 TEST_F(ParserSelectTest, pseudoColumn) {
@@ -144,9 +146,9 @@ TEST_F(ParserSelectTest, IndefiniteRowsFunc) {
 TEST_F(ParserSelectTest, IndefiniteRowsFuncSemanticCheck) {
   useDb("root", "test");
 
-  run("SELECT DIFF(c1), c2 FROM t1", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  run("SELECT DIFF(c1), c2 FROM t1");
 
-  run("SELECT DIFF(c1), tbname FROM t1", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  run("SELECT DIFF(c1), tbname FROM t1");
 
   run("SELECT DIFF(c1), count(*) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
@@ -314,7 +316,8 @@ TEST_F(ParserSelectTest, subquery) {
 
   run("SELECT SUM(a) FROM (SELECT MAX(c1) a, ts FROM st1s1 PARTITION BY TBNAME INTERVAL(1m)) INTERVAL(1n)");
 
-  run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstart FROM st1s1 PARTITION BY TBNAME INTERVAL(1m)) INTERVAL(1n)");
+  run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstart FROM st1s1 PARTITION BY TBNAME INTERVAL(1m) ORDER BY _WSTART) "
+      "INTERVAL(1n)");
 
   run("SELECT _C0 FROM (SELECT _ROWTS, ts FROM st1s1)");
 
@@ -341,11 +344,12 @@ TEST_F(ParserSelectTest, semanticCheck) {
 
   run("SELECT t1.c1, t1.cc1 FROM t1", TSDB_CODE_PAR_INVALID_COLUMN);
 
+  // TSDB_CODE_PAR_GET_META_ERROR
+  run("SELECT * FROM t10", TSDB_CODE_PAR_GET_META_ERROR);
+
+  run("SELECT * FROM test.t10", TSDB_CODE_PAR_GET_META_ERROR);
+
   // TSDB_CODE_PAR_TABLE_NOT_EXIST
-  run("SELECT * FROM t10", TSDB_CODE_PAR_TABLE_NOT_EXIST);
-
-  run("SELECT * FROM test.t10", TSDB_CODE_PAR_TABLE_NOT_EXIST);
-
   run("SELECT t2.c1 FROM t1", TSDB_CODE_PAR_TABLE_NOT_EXIST);
 
   // TSDB_CODE_PAR_AMBIGUOUS_COLUMN
@@ -423,7 +427,7 @@ TEST_F(ParserSelectTest, setOperatorSemanticCheck) {
 TEST_F(ParserSelectTest, informationSchema) {
   useDb("root", "test");
 
-  run("SELECT * FROM information_schema.user_databases WHERE name = 'information_schema'");
+  run("SELECT * FROM information_schema.ins_databases WHERE name = 'information_schema'");
 }
 
 TEST_F(ParserSelectTest, withoutFrom) {

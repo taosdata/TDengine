@@ -40,6 +40,7 @@ def pre_test(){
         git reset --hard
         cd ${WKC}
         git reset --hard
+        git clean -fxd
     '''
     script {
         if (env.CHANGE_TARGET == 'master') {
@@ -113,6 +114,13 @@ def pre_test(){
             echo "unmatched reposiotry ${CHANGE_URL}"
         '''
     }
+    sh '''
+        cd ${WKC}
+        git rm --cached tools/taos-tools 2>/dev/null || :
+        git rm --cached tools/taosadapter 2>/dev/null || :
+        git rm --cached tools/taosws-rs 2>/dev/null || :
+        git rm --cached examples/rust 2>/dev/null || :
+    '''
     sh '''
         cd ${WKC}
         git submodule update --init --recursive
@@ -257,6 +265,14 @@ def pre_test_win(){
         cd %WIN_COMMUNITY_ROOT%
         git branch
         git log -5
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git rm --cached tools/taos-tools 2>nul
+        git rm --cached tools/taosadapter 2>nul
+        git rm --cached tools/taosws-rs 2>nul
+        git rm --cached examples/rust 2>nul
+        exit 0
     '''
     bat '''
         cd %WIN_COMMUNITY_ROOT%
@@ -430,7 +446,7 @@ pipeline {
                                 }
                             }
                         }
-                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                        /*catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                             timeout(time: 15, unit: 'MINUTES'){
                                 script {
                                     sh '''
@@ -442,7 +458,7 @@ pipeline {
                                     '''
                                 }
                             }
-                        }
+                        }*/
                     }
                 }
             }

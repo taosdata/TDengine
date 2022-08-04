@@ -90,7 +90,6 @@ endi
 if $data01 != 2 then 
   return -1
 endi
-return
 sql drop database $db
 sql show databases
 if $rows != 2 then 

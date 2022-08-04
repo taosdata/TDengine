@@ -1,0 +1,1133 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include "taos.h"
+#include "types.h"
+
+int smlProcess_influx_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 "
+      "load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation="
+      "124,velocity=0,heading=221,grade=0 1451606401000000000",
+      "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 "
+      "load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation="
+      "124,velocity=0,heading=221,grade=0,fuel_consumption=25 1451607402000000000",
+      "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 "
+      "load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation="
+      "124,heading=221,grade=0,fuel_consumption=25 1451608403000000000",
+      "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 "
+      "fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,"
+      "heading=221,grade=0,fuel_consumption=25 1451609404000000000",
+      "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 fuel_consumption=25,grade=0 "
+      "1451619405000000000",
+      "readings,name=truck_1,fleet=South,driver=Albert,model=F-150,device_version=v1.5 "
+      "load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=72.45258,longitude=68.83761,elevation="
+      "255,velocity=0,heading=181,grade=0,fuel_consumption=25 1451606406000000000",
+      "readings,name=truck_2,driver=Derek,model=F-150,device_version=v1.5 "
+      "load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=24.5208,longitude=28.09377,elevation="
+      "428,velocity=0,heading=304,grade=0,fuel_consumption=25 1451606407000000000",
+      "readings,name=truck_2,fleet=North,driver=Derek,model=F-150 "
+      "load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=24.5208,longitude=28.09377,elevation="
+      "428,velocity=0,heading=304,grade=0,fuel_consumption=25 1451609408000000000",
+      "readings,fleet=South,name=truck_0,driver=Trish,model=H-2,device_version=v2.3 fuel_consumption=25,grade=0 "
+      "1451629409000000000",
+      "stable,t1=t1,t2=t2,t3=t3 c1=1,c2=2,c3=\"kk\",c4=4 1451629501000000000",
+      "stable,t2=t2,t1=t1,t3=t3 c1=1,c3=\"\",c4=4 1451629602000000000",
+  };
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  return code;
+}
+
+int smlProcess_telnet_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  const char *sql[] = {"sys.if.bytes.out  1479496100 1.3E0 host=web01 interface=eth0",
+                       "sys.if.bytes.out  1479496101 1.3E1 interface=eth0    host=web01   ",
+                       "sys.if.bytes.out  1479496102 1.3E3 network=tcp",
+                       " sys.procs.running   1479496100 42 host=web01   "};
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_TELNET_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  return code;
+}
+
+int smlProcess_json1_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "["
+      "    {"
+      "        \"metric\": \"sys.cpu.nice\","
+      "        \"timestamp\": 0,"
+      "        \"value\": 18,"
+      "        \"tags\": {"
+      "           \"host\": \"web01\","
+      "           \"id\": \"t1\","
+      "           \"dc\": \"lga\""
+      "        }"
+      "    },"
+      "    {"
+      "        \"metric\": \"sys.cpu.nice\","
+      "        \"timestamp\": 1346846400,"
+      "        \"value\": 9,"
+      "        \"tags\": {"
+      "           \"host\": \"web02\","
+      "           \"dc\": \"lga\""
+      "        }"
+      "    }"
+      "]"};
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  return code;
+}
+
+int smlProcess_json2_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "{"
+      "    \"metric\": \"meter_current0\","
+      "    \"timestamp\": {"
+      "        \"value\"  : 1346846400,"
+      "        \"type\"   : \"s\""
+      "    },"
+      "    \"value\": {"
+      "         \"value\" : 10.3,"
+      "         \"type\"  : \"i64\""
+      "    },"
+      "    \"tags\": {"
+      "       \"groupid\": { "
+      "           \"value\" : 2,"
+      "           \"type\"  : \"bigint\""
+      "       },"
+      "       \"location\": { "
+      "           \"value\" : \"北京\","
+      "           \"type\"  : \"binary\""
+      "       },"
+      "       \"id\": \"d1001\""
+      "    }"
+      "}"};
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  return code;
+}
+
+int smlProcess_json3_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "{"
+      "    \"metric\": \"meter_current1\","
+      "    \"timestamp\": {"
+      "        \"value\"  : 1346846400,"
+      "        \"type\"   : \"s\""
+      "    },"
+      "    \"value\": {"
+      "         \"value\" : 10.3,"
+      "         \"type\"  : \"i64\""
+      "    },"
+      "    \"tags\": {"
+      "       \"t1\": { "
+      "           \"value\" : 2,"
+      "           \"type\"  : \"bigint\""
+      "       },"
+      "       \"t2\": { "
+      "           \"value\" : 2,"
+      "           \"type\"  : \"int\""
+      "       },"
+      "       \"t3\": { "
+      "           \"value\" : 2,"
+      "           \"type\"  : \"i16\""
+      "       },"
+      "       \"t4\": { "
+      "           \"value\" : 2,"
+      "           \"type\"  : \"i8\""
+      "       },"
+      "       \"t5\": { "
+      "           \"value\" : 2,"
+      "           \"type\"  : \"f32\""
+      "       },"
+      "       \"t6\": { "
+      "           \"value\" : 2,"
+      "           \"type\"  : \"double\""
+      "       },"
+      "       \"t7\": { "
+      "           \"value\" : \"8323\","
+      "           \"type\"  : \"binary\""
+      "       },"
+      "       \"t8\": { "
+      "           \"value\" : \"北京\","
+      "           \"type\"  : \"nchar\""
+      "       },"
+      "       \"t9\": { "
+      "           \"value\" : true,"
+      "           \"type\"  : \"bool\""
+      "       },"
+      "       \"id\": \"d1001\""
+      "    }"
+      "}"};
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  return code;
+}
+
+int smlProcess_json4_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "{"
+      "    \"metric\": \"meter_current2\","
+      "    \"timestamp\": {"
+      "        \"value\"  : 1346846500000,"
+      "        \"type\"   : \"ms\""
+      "    },"
+      "    \"value\": \"ni\","
+      "    \"tags\": {"
+      "       \"t1\": { "
+      "           \"value\" : 20,"
+      "           \"type\"  : \"i64\""
+      "       },"
+      "       \"t2\": { "
+      "           \"value\" : 25,"
+      "           \"type\"  : \"i32\""
+      "       },"
+      "       \"t3\": { "
+      "           \"value\" : 2,"
+      "           \"type\"  : \"smallint\""
+      "       },"
+      "       \"t4\": { "
+      "           \"value\" : 2,"
+      "           \"type\"  : \"tinyint\""
+      "       },"
+      "       \"t5\": { "
+      "           \"value\" : 2,"
+      "           \"type\"  : \"float\""
+      "       },"
+      "       \"t6\": { "
+      "           \"value\" : 0.2,"
+      "           \"type\"  : \"f64\""
+      "       },"
+      "       \"t7\": \"nsj\","
+      "       \"t8\": { "
+      "           \"value\" : \"北京\","
+      "           \"type\"  : \"nchar\""
+      "       },"
+      "       \"t9\": false,"
+      "       \"id\": \"d1001\""
+      "    }"
+      "}"};
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  return code;
+}
+
+int sml_TD15662_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db precision 'ns' schemaless 1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "hetrey c0=f,c1=127i8 1626006833639",
+      "hetrey,t1=r c0=f,c1=127i8 1626006833640",
+  };
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  return code;
+}
+
+int sml_TD15742_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "test_ms,t0=t c0=f 1626006833641",
+  };
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  return code;
+}
+
+int sml_16384_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "qelhxo,id=pnnqhsa,t0=t,t1=127i8 c0=t,c1=127i8 1626006833639000000",
+  };
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, 1, TSDB_SML_LINE_PROTOCOL, 0);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  if(code) return code;
+
+  const char *sql1[] = {
+      "qelhxo,id=pnnqhsa,t0=t,t1=127i8 c0=f,c1=127i8,c11=L\"ncharColValue\",c10=t 1626006833639000000",
+  };
+  pRes = taos_schemaless_insert(taos, (char **)sql1, 1, TSDB_SML_LINE_PROTOCOL, 0);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  code = taos_errno(pRes);
+  taos_free_result(pRes);
+  return code;
+}
+
+int sml_oom_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      //"test_ms,t0=t c0=f 1626006833641",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"pgxbrbga\",t8=L\"ncharTagValue\" "
+      "c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"gviggpmi\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"cexkarjn\",t8=L\"ncharTagValue\" "
+      "c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"rzwwuoxu\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"xphrlkey\",t8=L\"ncharTagValue\" "
+      "c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"llsawebj\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"jwpkipff\",t8=L\"ncharTagValue\" "
+      "c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"euzzhcvu\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"jumhnsvw\",t8=L\"ncharTagValue\" "
+      "c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"fnetgdhj\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"vrmmpgqe\",t8=L\"ncharTagValue\" "
+      "c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"lnpfjapr\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"gvbhmsfr\",t8=L\"ncharTagValue\" "
+      "c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"kydxrxwc\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"pfyarryq\",t8=L\"ncharTagValue\" "
+      "c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"uxptotap\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"prolhudh\",t8=L\"ncharTagValue\" "
+      "c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"ttxaxnac\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"dfgvmjmz\",t8=L\"ncharTagValue\" "
+      "c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"bloextkn\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"dvjxwzsi\",t8=L\"ncharTagValue\" "
+      "c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"aigjomaf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"refbidtf\",t8=L\"ncharTagValue\" "
+      "c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"vuanlfpz\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"nbpajxkx\",t8=L\"ncharTagValue\" "
+      "c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"ktzzauxh\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"prcwdjct\",t8=L\"ncharTagValue\" "
+      "c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"vmbhvjtp\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"liuddtuz\",t8=L\"ncharTagValue\" "
+      "c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"pddsktow\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"algldlvl\",t8=L\"ncharTagValue\" "
+      "c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"mlmnjgdl\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"oiynpcog\",t8=L\"ncharTagValue\" "
+      "c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"wmynbagb\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"asvyulrm\",t8=L\"ncharTagValue\" "
+      "c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"ohaacrkp\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"ytyejhiq\",t8=L\"ncharTagValue\" "
+      "c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"bbznuerb\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"lpebcibw\",t8=L\"ncharTagValue\" "
+      "c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"xmqrbafv\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"lnmwpdne\",t8=L\"ncharTagValue\" "
+      "c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"jpcsjqun\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"mmxqmavz\",t8=L\"ncharTagValue\" "
+      "c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"hhsbgaow\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"uwogyuud\",t8=L\"ncharTagValue\" "
+      "c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"ytxpaxnk\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"wouwdvtt\",t8=L\"ncharTagValue\" "
+      "c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"iitwikkh\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"lgyzuyaq\",t8=L\"ncharTagValue\" "
+      "c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"bdtiigxi\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"qpnsvdhw\",t8=L\"ncharTagValue\" "
+      "c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"pjxihgvu\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"ksxkfetn\",t8=L\"ncharTagValue\" "
+      "c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"ocukufqs\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"qzerxmpe\",t8=L\"ncharTagValue\" "
+      "c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"qwcfdyxs\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"jldrpmmd\",t8=L\"ncharTagValue\" "
+      "c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"lucxlfzc\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"rcewrvya\",t8=L\"ncharTagValue\" "
+      "c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"dknvaphs\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"nxtxgzdr\",t8=L\"ncharTagValue\" "
+      "c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"mbvuugwz\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"uikakffu\",t8=L\"ncharTagValue\" "
+      "c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"mwmtqsma\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"bfcxrrpa\",t8=L\"ncharTagValue\" "
+      "c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"ksajygdj\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"vmhhszyv\",t8=L\"ncharTagValue\" "
+      "c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"urwjgvut\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"jrvytcxy\",t8=L\"ncharTagValue\" "
+      "c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"evqkzygh\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"zitdznhg\",t8=L\"ncharTagValue\" "
+      "c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"tpqekrxa\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"yrrbgjtk\",t8=L\"ncharTagValue\" "
+      "c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"bnphiuyq\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"huknehjn\",t8=L\"ncharTagValue\" "
+      "c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"iudbxfke\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"fjmolwbn\",t8=L\"ncharTagValue\" "
+      "c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"gukzgcjs\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"bjvdtlgq\",t8=L\"ncharTagValue\" "
+      "c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"phxnesxh\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"qgpgckvc\",t8=L\"ncharTagValue\" "
+      "c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"yechqtfa\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"pbouxywy\",t8=L\"ncharTagValue\" "
+      "c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"kxtuojyo\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"txaniwlj\",t8=L\"ncharTagValue\" "
+      "c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"fixgufrj\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"okzvalwq\",t8=L\"ncharTagValue\" "
+      "c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"iitawgbn\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"gayvmird\",t8=L\"ncharTagValue\" "
+      "c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"dprkfjph\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"kmuccshq\",t8=L\"ncharTagValue\" "
+      "c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"vkslsdsd\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"dukccdqk\",t8=L\"ncharTagValue\" "
+      "c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"leztxmqf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"kltixbwz\",t8=L\"ncharTagValue\" "
+      "c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"xqhkweef\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"idxsimvz\",t8=L\"ncharTagValue\" "
+      "c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"vbruvcpk\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"uxandqkd\",t8=L\"ncharTagValue\" "
+      "c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"dsiosysh\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"kxuyanpp\",t8=L\"ncharTagValue\" "
+      "c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"wkrktags\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"yvizzpiv\",t8=L\"ncharTagValue\" "
+      "c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"ddnefben\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"novmfmbc\",t8=L\"ncharTagValue\" "
+      "c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"fnusxsfu\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"ouerfjap\",t8=L\"ncharTagValue\" "
+      "c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"sigognkf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"slvzhede\",t8=L\"ncharTagValue\" "
+      "c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"bknerect\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"tmhcdfjb\",t8=L\"ncharTagValue\" "
+      "c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"hpnoanpp\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"okmhelnc\",t8=L\"ncharTagValue\" "
+      "c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"xcernjin\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"jdmiismg\",t8=L\"ncharTagValue\" "
+      "c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"tmnqozrf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"zgwrftkx\",t8=L\"ncharTagValue\" "
+      "c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"zyamlwwh\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"nuedqcro\",t8=L\"ncharTagValue\" "
+      "c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"lpsvyqaa\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"mneitsul\",t8=L\"ncharTagValue\" "
+      "c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"vpleinwb\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"njxuaedy\",t8=L\"ncharTagValue\" "
+      "c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"sdgxpqmu\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"yjirrebp\",t8=L\"ncharTagValue\" "
+      "c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"ikqndzfj\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"ghnfdxhr\",t8=L\"ncharTagValue\" "
+      "c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"hrwczpvo\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"nattumpb\",t8=L\"ncharTagValue\" "
+      "c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"zoyfzazn\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"rdwemofy\",t8=L\"ncharTagValue\" "
+      "c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"phkgsjeg\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"pyhvvjrt\",t8=L\"ncharTagValue\" "
+      "c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"zfslyton\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"bxwjzeri\",t8=L\"ncharTagValue\" "
+      "c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"uovzzgjv\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"cfjmacvr\",t8=L\"ncharTagValue\" "
+      "c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"jefqgzqx\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"njrksxmr\",t8=L\"ncharTagValue\" "
+      "c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"mhvabvgn\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"kfekjltr\",t8=L\"ncharTagValue\" "
+      "c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"lexfaaby\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"zbblsmwq\",t8=L\"ncharTagValue\" "
+      "c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"oqcombkx\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"rcdmhzyw\",t8=L\"ncharTagValue\" "
+      "c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"otksuean\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"itbdvowq\",t8=L\"ncharTagValue\" "
+      "c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"tswtmhex\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"xoukkzid\",t8=L\"ncharTagValue\" "
+      "c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"guangmpq\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"rayxzuky\",t8=L\"ncharTagValue\" "
+      "c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"lspwucrv\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"pdprzzkf\",t8=L\"ncharTagValue\" "
+      "c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"sddqrtza\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"kabndgkx\",t8=L\"ncharTagValue\" "
+      "c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"aglnqqxs\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"fiwpzmdr\",t8=L\"ncharTagValue\" "
+      "c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"hxctooen\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"pckjpwyh\",t8=L\"ncharTagValue\" "
+      "c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"ivmvsbai\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"eljdclst\",t8=L\"ncharTagValue\" "
+      "c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"rwgdctie\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"zlnthxoz\",t8=L\"ncharTagValue\" "
+      "c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"ljtxelle\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"llfggdpy\",t8=L\"ncharTagValue\" "
+      "c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"tvnridze\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"hxjpgube\",t8=L\"ncharTagValue\" "
+      "c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"zmldmquq\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"bggqwcoj\",t8=L\"ncharTagValue\" "
+      "c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"drksfofm\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"jcsixens\",t8=L\"ncharTagValue\" "
+      "c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"cdwnwhaf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"nngpumuq\",t8=L\"ncharTagValue\" "
+      "c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"hylgooci\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"cozeyjys\",t8=L\"ncharTagValue\" "
+      "c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"lcgpfcsa\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"qdtzhtyd\",t8=L\"ncharTagValue\" "
+      "c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"txpubynb\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"gbslzbtu\",t8=L\"ncharTagValue\" "
+      "c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"buihcpcl\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"ayqezaiq\",t8=L\"ncharTagValue\" "
+      "c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"zgkgtilj\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"bcjopqif\",t8=L\"ncharTagValue\" "
+      "c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"mfzxiaqt\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"xmnlqxoj\",t8=L\"ncharTagValue\" "
+      "c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"reyiklyf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"xssuomhk\",t8=L\"ncharTagValue\" "
+      "c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"liazkjll\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"nigjlblo\",t8=L\"ncharTagValue\" "
+      "c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"vmojyznk\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"dotkbvrz\",t8=L\"ncharTagValue\" "
+      "c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"kuwdyydw\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"slsfqydw\",t8=L\"ncharTagValue\" "
+      "c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"zyironhd\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"pktwfhzi\",t8=L\"ncharTagValue\" "
+      "c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"xybavsvh\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"pyrxemvx\",t8=L\"ncharTagValue\" "
+      "c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"tlfihwjs\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,"
+      "t7=\"neumakmg\",t8=L\"ncharTagValue\" "
+      "c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="
+      "\"wxqingoa\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+  };
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  return code;
+}
+
+int sml_16368_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "[{\"metric\": \"st123456\", \"timestamp\": {\"value\": 1626006833639000, \"type\": \"us\"}, \"value\": 1, "
+      "\"tags\": {\"t1\": 3, \"t2\": {\"value\": 4, \"type\": \"double\"}, \"t3\": {\"value\": \"t3\", \"type\": "
+      "\"binary\"}}},"
+      "{\"metric\": \"st123456\", \"timestamp\": {\"value\": 1626006833739000, \"type\": \"us\"}, \"value\": 2, "
+      "\"tags\": {\"t1\": {\"value\": 4, \"type\": \"double\"}, \"t3\": {\"value\": \"t4\", \"type\": \"binary\"}, "
+      "\"t2\": {\"value\": 5, \"type\": \"double\"}, \"t4\": {\"value\": 5, \"type\": \"double\"}}},"
+      "{\"metric\": \"stb_name\", \"timestamp\": {\"value\": 1626006833639100, \"type\": \"us\"}, \"value\": 3, "
+      "\"tags\": {\"t2\": {\"value\": 5, \"type\": \"double\"}, \"t3\": {\"value\": \"ste\", \"type\": \"nchar\"}}},"
+      "{\"metric\": \"stf567890\", \"timestamp\": {\"value\": 1626006833639200, \"type\": \"us\"}, \"value\": 4, "
+      "\"tags\": {\"t1\": {\"value\": 4, \"type\": \"bigint\"}, \"t3\": {\"value\": \"t4\", \"type\": \"binary\"}, "
+      "\"t2\": {\"value\": 5, \"type\": \"double\"}, \"t4\": {\"value\": 5, \"type\": \"double\"}}},"
+      "{\"metric\": \"st123456\", \"timestamp\": {\"value\": 1626006833639300, \"type\": \"us\"}, \"value\": "
+      "{\"value\": 5, \"type\": \"double\"}, \"tags\": {\"t1\": {\"value\": 4, \"type\": \"double\"}, \"t2\": 5.0, "
+      "\"t3\": {\"value\": \"t4\", \"type\": \"binary\"}}},"
+      "{\"metric\": \"stb_name\", \"timestamp\": {\"value\": 1626006833639400, \"type\": \"us\"}, \"value\": "
+      "{\"value\": 6, \"type\": \"double\"}, \"tags\": {\"t2\": 5.0, \"t3\": {\"value\": \"ste2\", \"type\": "
+      "\"nchar\"}}},"
+      "{\"metric\": \"stb_name\", \"timestamp\": {\"value\": 1626006834639400, \"type\": \"us\"}, \"value\": "
+      "{\"value\": 7, \"type\": \"double\"}, \"tags\": {\"t2\": {\"value\": 5.0, \"type\": \"double\"}, \"t3\": "
+      "{\"value\": \"ste2\", \"type\": \"nchar\"}}},"
+      "{\"metric\": \"st123456\", \"timestamp\": {\"value\": 1626006833839006, \"type\": \"us\"}, \"value\": "
+      "{\"value\": 8, \"type\": \"double\"}, \"tags\": {\"t1\": {\"value\": 4, \"type\": \"double\"}, \"t3\": "
+      "{\"value\": \"t4\", \"type\": \"binary\"}, \"t2\": {\"value\": 5, \"type\": \"double\"}, \"t4\": {\"value\": 5, "
+      "\"type\": \"double\"}}},"
+      "{\"metric\": \"st123456\", \"timestamp\": {\"value\": 1626006833939007, \"type\": \"us\"}, \"value\": "
+      "{\"value\": 9, \"type\": \"double\"}, \"tags\": {\"t1\": 4, \"t3\": {\"value\": \"t4\", \"type\": \"binary\"}, "
+      "\"t2\": {\"value\": 5, \"type\": \"double\"}, \"t4\": {\"value\": 5, \"type\": \"double\"}}}]"};
+  pRes = taos_schemaless_insert(taos, (char **)sql, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_MICRO_SECONDS);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  return code;
+}
+
+int sml_dup_time_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  taos_free_result(pRes);
+
+  const char *sql[] = {//"test_ms,t0=t c0=f 1626006833641",
+                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
+                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
+                       "c0=false,c1=1i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
+                       "123456789f64,c7=\"xcxvwjvf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
+                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
+                       "c0=T,c1=2i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
+                       "123456789f64,c7=\"fixrzcuq\",c8=L\"ncharColValue\",c9=7u64 1626006834639000000",
+                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
+                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
+                       "c0=t,c1=3i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
+                       "123456789f64,c7=\"iupzdqub\",c8=L\"ncharColValue\",c9=7u64 1626006835639000000",
+                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
+                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
+                       "c0=t,c1=4i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
+                       "123456789f64,c7=\"yvvtzzof\",c8=L\"ncharColValue\",c9=7u64 1626006836639000000",
+                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
+                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
+                       "c0=t,c1=5i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
+                       "123456789f64,c7=\"vbxpilkj\",c8=L\"ncharColValue\",c9=7u64 1626006837639000000"};
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  return code;
+}
+
+int sml_16960_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "["
+      "{"
+      "\"timestamp\":"
+      ""
+      "{ \"value\": 1349020800000, \"type\": \"ms\" }"
+      ","
+      "\"value\":"
+      ""
+      "{ \"value\": 830525384, \"type\": \"int\" }"
+      ","
+      "\"tags\": {"
+      "\"id\": \"stb00_0\","
+      "\"t0\":"
+      ""
+      "{ \"value\": 83972721, \"type\": \"int\" }"
+      ","
+      "\"t1\":"
+      ""
+      "{ \"value\": 539147525, \"type\": \"int\" }"
+      ","
+      "\"t2\":"
+      ""
+      "{ \"value\": 618258572, \"type\": \"int\" }"
+      ","
+      "\"t3\":"
+      ""
+      "{ \"value\": -10536201, \"type\": \"int\" }"
+      ","
+      "\"t4\":"
+      ""
+      "{ \"value\": 349227409, \"type\": \"int\" }"
+      ","
+      "\"t5\":"
+      ""
+      "{ \"value\": 249347042, \"type\": \"int\" }"
+      "},"
+      "\"metric\": \"stb0\""
+      "},"
+      "{"
+      "\"timestamp\":"
+      ""
+      "{ \"value\": 1349020800001, \"type\": \"ms\" }"
+      ","
+      "\"value\":"
+      ""
+      "{ \"value\": -588348364, \"type\": \"int\" }"
+      ","
+      "\"tags\": {"
+      "\"id\": \"stb00_0\","
+      "\"t0\":"
+      ""
+      "{ \"value\": 83972721, \"type\": \"int\" }"
+      ","
+      "\"t1\":"
+      ""
+      "{ \"value\": 539147525, \"type\": \"int\" }"
+      ","
+      "\"t2\":"
+      ""
+      "{ \"value\": 618258572, \"type\": \"int\" }"
+      ","
+      "\"t3\":"
+      ""
+      "{ \"value\": -10536201, \"type\": \"int\" }"
+      ","
+      "\"t4\":"
+      ""
+      "{ \"value\": 349227409, \"type\": \"int\" }"
+      ","
+      "\"t5\":"
+      ""
+      "{ \"value\": 249347042, \"type\": \"int\" }"
+      "},"
+      "\"metric\": \"stb0\""
+      "},"
+      "{"
+      "\"timestamp\":"
+      ""
+      "{ \"value\": 1349020800002, \"type\": \"ms\" }"
+      ","
+      "\"value\":"
+      ""
+      "{ \"value\": -370310823, \"type\": \"int\" }"
+      ","
+      "\"tags\": {"
+      "\"id\": \"stb00_0\","
+      "\"t0\":"
+      ""
+      "{ \"value\": 83972721, \"type\": \"int\" }"
+      ","
+      "\"t1\":"
+      ""
+      "{ \"value\": 539147525, \"type\": \"int\" }"
+      ","
+      "\"t2\":"
+      ""
+      "{ \"value\": 618258572, \"type\": \"int\" }"
+      ","
+      "\"t3\":"
+      ""
+      "{ \"value\": -10536201, \"type\": \"int\" }"
+      ","
+      "\"t4\":"
+      ""
+      "{ \"value\": 349227409, \"type\": \"int\" }"
+      ","
+      "\"t5\":"
+      ""
+      "{ \"value\": 249347042, \"type\": \"int\" }"
+      "},"
+      "\"metric\": \"stb0\""
+      "},"
+      "{"
+      "\"timestamp\":"
+      ""
+      "{ \"value\": 1349020800003, \"type\": \"ms\" }"
+      ","
+      "\"value\":"
+      ""
+      "{ \"value\": -811250191, \"type\": \"int\" }"
+      ","
+      "\"tags\": {"
+      "\"id\": \"stb00_0\","
+      "\"t0\":"
+      ""
+      "{ \"value\": 83972721, \"type\": \"int\" }"
+      ","
+      "\"t1\":"
+      ""
+      "{ \"value\": 539147525, \"type\": \"int\" }"
+      ","
+      "\"t2\":"
+      ""
+      "{ \"value\": 618258572, \"type\": \"int\" }"
+      ","
+      "\"t3\":"
+      ""
+      "{ \"value\": -10536201, \"type\": \"int\" }"
+      ","
+      "\"t4\":"
+      ""
+      "{ \"value\": 349227409, \"type\": \"int\" }"
+      ","
+      "\"t5\":"
+      ""
+      "{ \"value\": 249347042, \"type\": \"int\" }"
+      "},"
+      "\"metric\": \"stb0\""
+      "},"
+      "{"
+      "\"timestamp\":"
+      ""
+      "{ \"value\": 1349020800004, \"type\": \"ms\" }"
+      ","
+      "\"value\":"
+      ""
+      "{ \"value\": -330340558, \"type\": \"int\" }"
+      ","
+      "\"tags\": {"
+      "\"id\": \"stb00_0\","
+      "\"t0\":"
+      ""
+      "{ \"value\": 83972721, \"type\": \"int\" }"
+      ","
+      "\"t1\":"
+      ""
+      "{ \"value\": 539147525, \"type\": \"int\" }"
+      ","
+      "\"t2\":"
+      ""
+      "{ \"value\": 618258572, \"type\": \"int\" }"
+      ","
+      "\"t3\":"
+      ""
+      "{ \"value\": -10536201, \"type\": \"int\" }"
+      ","
+      "\"t4\":"
+      ""
+      "{ \"value\": 349227409, \"type\": \"int\" }"
+      ","
+      "\"t5\":"
+      ""
+      "{ \"value\": 249347042, \"type\": \"int\" }"
+      "},"
+      "\"metric\": \"stb0\""
+      "}"
+      "]"};
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  return code;
+}
+
+int sml_add_tag_col_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+    "macylr,t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000"
+  };
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  if (code) return code;
+
+  const char *sql1[] = {
+      "macylr,id=macylr_17875_1804,t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\",t11=127i8,t10=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64,c11=L\"ncharColValue\",c10=f 1626006833639000000"
+  };
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_LINE_PROTOCOL, 0);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  code = taos_errno(pRes);
+  taos_free_result(pRes);
+
+  return code;
+}
+
+int main(int argc, char *argv[]) {
+  int ret = 0;
+  ret = smlProcess_influx_Test();
+  if(ret) return ret;
+  ret = smlProcess_telnet_Test();
+  if(ret) return ret;
+  ret = smlProcess_json1_Test();
+  if(ret) return ret;
+  ret = smlProcess_json2_Test();
+  if(ret) return ret;
+  ret = smlProcess_json3_Test();
+  if(ret) return ret;
+  ret = smlProcess_json4_Test();
+  if(ret) return ret;
+  ret = sml_TD15662_Test();
+  if(ret) return ret;
+  ret = sml_TD15742_Test();
+  if(ret) return ret;
+  ret = sml_16384_Test();
+  if(ret) return ret;
+  ret = sml_oom_Test();
+  if(ret) return ret;
+  ret = sml_16368_Test();
+  if(ret) return ret;
+  ret = sml_dup_time_Test();
+  if(ret) return ret;
+  ret = sml_16960_Test();
+  if(ret) return ret;
+  ret = sml_add_tag_col_Test();
+  return ret;
+}
