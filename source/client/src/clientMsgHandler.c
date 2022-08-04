@@ -30,6 +30,10 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   setErrno(pRequest, code);
 
+  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
+    removeMeta(pRequest->pTscObj, pRequest->targetTableList);
+  }
+
   taosMemoryFree(pMsg->pData);
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);

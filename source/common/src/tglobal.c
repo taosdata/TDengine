@@ -452,7 +452,7 @@ static void taosSetClientLogCfg(SConfig *pCfg) {
   SConfigItem *pItem = cfgGetItem(pCfg, "logDir");
   tstrncpy(tsLogDir, cfgGetItem(pCfg, "logDir")->str, PATH_MAX);
   taosExpandDir(tsLogDir, tsLogDir, PATH_MAX);
-  tsLogSpace.reserved = cfgGetItem(pCfg, "minimalLogDirGB")->fval;
+  tsLogSpace.reserved = (int64_t)(((double)cfgGetItem(pCfg, "minimalLogDirGB")->fval) * 1024 * 1024 * 1024);
   tsNumOfLogLines = cfgGetItem(pCfg, "numOfLogLines")->i32;
   tsAsyncLog = cfgGetItem(pCfg, "asyncLog")->bval;
   tsLogKeepDays = cfgGetItem(pCfg, "logKeepDays")->i32;
@@ -502,7 +502,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   tstrncpy(tsTempDir, cfgGetItem(pCfg, "tempDir")->str, PATH_MAX);
   taosExpandDir(tsTempDir, tsTempDir, PATH_MAX);
-  tsTempSpace.reserved = cfgGetItem(pCfg, "minimalTmpDirGB")->fval;
+  tsTempSpace.reserved = (int64_t)(((double)cfgGetItem(pCfg, "minimalTmpDirGB")->fval) * 1024 * 1024 * 1024);
   if (taosMulMkDir(tsTempDir) != 0) {
     uError("failed to create tempDir:%s since %s", tsTempDir, terrstr());
     return -1;
@@ -540,7 +540,7 @@ static void taosSetSystemCfg(SConfig *pCfg) {
 }
 
 static int32_t taosSetServerCfg(SConfig *pCfg) {
-  tsDataSpace.reserved = cfgGetItem(pCfg, "minimalDataDirGB")->fval;
+  tsDataSpace.reserved = (int64_t)(((double)cfgGetItem(pCfg, "minimalDataDirGB")->fval) * 1024 * 1024 * 1024);
   tsNumOfSupportVnodes = cfgGetItem(pCfg, "supportVnodes")->i32;
   tsMaxShellConns = cfgGetItem(pCfg, "maxShellConns")->i32;
   tsStatusInterval = cfgGetItem(pCfg, "statusInterval")->i32;
@@ -739,15 +739,15 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         }
         case 'i': {
           if (strcasecmp("minimalTmpDirGB", name) == 0) {
-            tsTempSpace.reserved = cfgGetItem(pCfg, "minimalTmpDirGB")->fval;
+            tsTempSpace.reserved = (int64_t)(((double)cfgGetItem(pCfg, "minimalTmpDirGB")->fval) * 1024 * 1024 * 1024);
           } else if (strcasecmp("minimalDataDirGB", name) == 0) {
-            tsDataSpace.reserved = cfgGetItem(pCfg, "minimalDataDirGB")->fval;
+            tsDataSpace.reserved = (int64_t)(((double)cfgGetItem(pCfg, "minimalDataDirGB")->fval) * 1024 * 1024 * 1024);
           } else if (strcasecmp("minSlidingTime", name) == 0) {
             tsMinSlidingTime = cfgGetItem(pCfg, "minSlidingTime")->i32;
           } else if (strcasecmp("minIntervalTime", name) == 0) {
             tsMinIntervalTime = cfgGetItem(pCfg, "minIntervalTime")->i32;
           } else if (strcasecmp("minimalLogDirGB", name) == 0) {
-            tsLogSpace.reserved = cfgGetItem(pCfg, "minimalLogDirGB")->fval;
+            tsLogSpace.reserved = (int64_t)(((double)cfgGetItem(pCfg, "minimalLogDirGB")->fval) * 1024 * 1024 * 1024);
           }
           break;
         }
