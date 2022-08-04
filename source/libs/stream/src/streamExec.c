@@ -147,24 +147,26 @@ int32_t streamPipelineExec(SStreamTask* pTask, int32_t batchNum) {
 
   return 0;
 }
-
-static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
+// TODO: handle version
+int32_t streamExecForAll(SStreamTask* pTask) {
   while (1) {
     int32_t cnt = 1;
     void*   data = NULL;
     while (1) {
       SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputQueue);
       if (qItem == NULL) {
-        qDebug("stream exec over, queue empty");
+        qDebug("stream task exec over, queue empty, task: %d", pTask->taskId);
         break;
       }
       if (data == NULL) {
         data = qItem;
         streamQueueProcessSuccess(pTask->inputQueue);
-        if (pTask->execType == TASK_EXEC__NONE) break;
-        /*if (qItem->type == STREAM_INPUT__DATA_BLOCK) {*/
-        /*streamUpdateVer(pTask, (SStreamDataBlock*)qItem);*/
-        /*}*/
+        if (pTask->execType == TASK_EXEC__NONE) {
+          ASSERT(((SStreamQueueItem*)data)->type == STREAM_INPUT__DATA_BLOCK);
+          streamTaskOutput(pTask, data);
+          data = NULL;
+          continue;
+        }
       } else {
         void* newRet;
         if ((newRet = streamAppendQueueItem(data, qItem)) == NULL) {
@@ -181,17 +183,14 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
 
     if (pTask->taskStatus == TASK_STATUS__DROPPING) {
       if (data) streamFreeQitem(data);
-      taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
-      return NULL;
+      return 0;
     }
 
-    if (data == NULL) break;
-
-    if (pTask->execType == TASK_EXEC__NONE) {
-      ASSERT(((SStreamQueueItem*)data)->type == STREAM_INPUT__DATA_BLOCK);
-      streamTaskOutput(pTask, data);
-      continue;
+    if (data == NULL) {
+      return 0;
     }
+
+    SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
 
     qDebug("stream task %d exec begin, msg batch: %d", pTask->taskId, cnt);
     streamTaskExecImpl(pTask, data, pRes);
@@ -203,76 +202,44 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
         // TODO log failed ver
         streamQueueProcessFail(pTask->inputQueue);
         taosArrayDestroy(pRes);
-        return NULL;
+        return -1;
       }
       qRes->type = STREAM_INPUT__DATA_BLOCK;
       qRes->blocks = pRes;
-      if (streamTaskOutput(pTask, qRes) < 0) {
-        // TODO log failed ver
-        /*streamQueueProcessFail(pTask->inputQueue);*/
-        taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
-        taosFreeQitem(qRes);
-        return NULL;
-      }
+
       if (((SStreamQueueItem*)data)->type == STREAM_INPUT__DATA_SUBMIT) {
         SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)data;
         qRes->childId = pTask->selfChildId;
         qRes->sourceVer = pSubmit->ver;
       }
-      /*streamQueueProcessSuccess(pTask->inputQueue);*/
-      pRes = taosArrayInit(0, sizeof(SSDataBlock));
-    }
 
-    streamFreeQitem(data);
+      if (streamTaskOutput(pTask, qRes) < 0) {
+        // TODO save failed ver
+        /*streamQueueProcessFail(pTask->inputQueue);*/
+        taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
+        taosFreeQitem(qRes);
+        return -1;
+      }
+      /*streamQueueProcessSuccess(pTask->inputQueue);*/
+    }
   }
-  return pRes;
+  return 0;
 }
 
-// TODO: handle version
-int32_t streamExec(SStreamTask* pTask) {
-  SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
-  if (pRes == NULL) return -1;
-  while (1) {
-    int8_t execStatus =
-        atomic_val_compare_exchange_8(&pTask->execStatus, TASK_EXEC_STATUS__IDLE, TASK_EXEC_STATUS__EXECUTING);
-    if (execStatus == TASK_EXEC_STATUS__IDLE) {
-      // first run
-      qDebug("stream exec, enter exec status");
-      pRes = streamExecForQall(pTask, pRes);
-      if (pRes == NULL) goto FAIL;
+int32_t streamTryExec(SStreamTask* pTask) {
+  int8_t schedStatus =
+      atomic_val_compare_exchange_8(&pTask->schedStatus, TASK_SCHED_STATUS__WAITING, TASK_SCHED_STATUS__ACTIVE);
+  if (schedStatus == TASK_SCHED_STATUS__WAITING) {
+    int32_t code = streamExecForAll(pTask);
+    if (code < 0) {
+      atomic_store_8(&pTask->schedStatus, TASK_SCHED_STATUS__FAILED);
+      return -1;
+    }
+    atomic_store_8(&pTask->schedStatus, TASK_SCHED_STATUS__INACTIVE);
 
-// temporarily disable status closing, since it runs out of threads
-#if 0
-      // set status closing
-      atomic_store_8(&pTask->execStatus, TASK_EXEC_STATUS__CLOSING);
-
-      // second run, make sure inputQ and qall are cleared
-      qDebug("stream exec, enter closing status");
-      pRes = streamExecForQall(pTask, pRes);
-      if (pRes == NULL) goto FAIL;
-#endif
-
-      taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
-      atomic_store_8(&pTask->execStatus, TASK_EXEC_STATUS__IDLE);
-      qDebug("stream exec, return result");
-      return 0;
-    } else if (execStatus == TASK_EXEC_STATUS__CLOSING) {
-      continue;
-    } else if (execStatus == TASK_EXEC_STATUS__EXECUTING) {
-      ASSERT(taosArrayGetSize(pRes) == 0);
-      taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
-      return 0;
-    } else {
-      ASSERT(0);
+    if (!taosQueueEmpty(pTask->inputQueue->queue)) {
+      streamSchedExec(pTask);
     }
   }
-FAIL:
-  if (pRes) taosArrayDestroy(pRes);
-  if (pTask->taskStatus == TASK_STATUS__DROPPING) {
-    tFreeSStreamTask(pTask);
-    return 0;
-  } else {
-    atomic_store_8(&pTask->execStatus, TASK_EXEC_STATUS__IDLE);
-    return -1;
-  }
+  return 0;
 }

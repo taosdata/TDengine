@@ -83,13 +83,35 @@ int32_t streamSetupTrigger(SStreamTask* pTask) {
 }
 
 int32_t streamLaunchByWrite(SStreamTask* pTask, int32_t vgId) {
-  int8_t execStatus = atomic_load_8(&pTask->execStatus);
-  if (execStatus == TASK_EXEC_STATUS__IDLE || execStatus == TASK_EXEC_STATUS__CLOSING) {
+  int8_t schedStatus = atomic_load_8(&pTask->schedStatus);
+  if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
     SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
     if (pRunReq == NULL) return -1;
 
     // TODO: do we need htonl?
     pRunReq->head.vgId = vgId;
+    pRunReq->streamId = pTask->streamId;
+    pRunReq->taskId = pTask->taskId;
+    SRpcMsg msg = {
+        .msgType = TDMT_STREAM_TASK_RUN,
+        .pCont = pRunReq,
+        .contLen = sizeof(SStreamTaskRunReq),
+    };
+    tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &msg);
+  }
+  return 0;
+}
+
+int32_t streamSchedExec(SStreamTask* pTask) {
+  int8_t schedStatus =
+      atomic_val_compare_exchange_8(&pTask->schedStatus, TASK_SCHED_STATUS__INACTIVE, TASK_SCHED_STATUS__WAITING);
+  if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
+    SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
+    if (pRunReq == NULL) {
+      atomic_store_8(&pTask->schedStatus, TASK_SCHED_STATUS__INACTIVE);
+      return -1;
+    }
+    pRunReq->head.vgId = pTask->nodeId;
     pRunReq->streamId = pTask->streamId;
     pRunReq->taskId = pTask->taskId;
     SRpcMsg msg = {
@@ -182,14 +204,13 @@ int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   streamTaskEnqueue(pTask, pReq, pRsp);
 
   if (exec) {
-    streamExec(pTask);
+    streamTryExec(pTask);
 
     if (pTask->dispatchType != TASK_DISPATCH__NONE) {
-      ASSERT(pTask->sinkType == TASK_SINK__NONE);
       streamDispatch(pTask);
     }
   } else {
-    streamLaunchByWrite(pTask, pTask->nodeId);
+    streamSchedExec(pTask);
   }
 
   return 0;
@@ -219,7 +240,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp) {
 }
 
 int32_t streamProcessRunReq(SStreamTask* pTask) {
-  streamExec(pTask);
+  streamTryExec(pTask);
 
   if (pTask->dispatchType != TASK_DISPATCH__NONE) {
     streamDispatch(pTask);
@@ -272,7 +293,7 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, S
   streamTaskEnqueueRetrieve(pTask, pReq, pRsp);
 
   ASSERT(pTask->execType != TASK_EXEC__NONE);
-  streamExec(pTask);
+  streamTryExec(pTask);
 
   ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);
   streamDispatch(pTask);

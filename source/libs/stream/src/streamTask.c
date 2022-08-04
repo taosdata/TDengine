@@ -23,7 +23,7 @@ SStreamTask* tNewSStreamTask(int64_t streamId) {
   }
   pTask->taskId = tGenIdPI32();
   pTask->streamId = streamId;
-  pTask->execStatus = TASK_EXEC_STATUS__IDLE;
+  pTask->schedStatus = TASK_SCHED_STATUS__INACTIVE;
   pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
   pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
 
@@ -59,7 +59,7 @@ int32_t tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   if (tEncodeI16(pEncoder, pTask->dispatchMsgType) < 0) return -1;
 
   if (tEncodeI8(pEncoder, pTask->taskStatus) < 0) return -1;
-  if (tEncodeI8(pEncoder, pTask->execStatus) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->schedStatus) < 0) return -1;
 
   if (tEncodeI32(pEncoder, pTask->selfChildId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->nodeId) < 0) return -1;
@@ -114,7 +114,7 @@ int32_t tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tDecodeI16(pDecoder, &pTask->dispatchMsgType) < 0) return -1;
 
   if (tDecodeI8(pDecoder, &pTask->taskStatus) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pTask->execStatus) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->schedStatus) < 0) return -1;
 
   if (tDecodeI32(pDecoder, &pTask->selfChildId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->nodeId) < 0) return -1;

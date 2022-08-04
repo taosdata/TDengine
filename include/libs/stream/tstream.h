@@ -46,9 +46,10 @@ enum {
 };
 
 enum {
-  TASK_EXEC_STATUS__IDLE = 1,
-  TASK_EXEC_STATUS__EXECUTING,
-  TASK_EXEC_STATUS__CLOSING,
+  TASK_SCHED_STATUS__INACTIVE = 1,
+  TASK_SCHED_STATUS__WAITING,
+  TASK_SCHED_STATUS__ACTIVE,
+  TASK_SCHED_STATUS__FAILED,
 };
 
 enum {
@@ -204,13 +205,11 @@ typedef struct {
 enum {
   TASK_SOURCE__SCAN = 1,
   TASK_SOURCE__PIPE,
-  TASK_SOURCE__MERGE,
 };
 
 enum {
   TASK_EXEC__NONE = 1,
   TASK_EXEC__PIPE,
-  TASK_EXEC__MERGE,
 };
 
 enum {
@@ -256,7 +255,7 @@ typedef struct SStreamTask {
   int16_t dispatchMsgType;
 
   int8_t taskStatus;
-  int8_t execStatus;
+  int8_t schedStatus;
 
   // node info
   int32_t selfChildId;
@@ -486,6 +485,9 @@ int32_t streamProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp)
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
 int32_t streamProcessRetrieveRsp(SStreamTask* pTask, SStreamRetrieveRsp* pRsp);
+
+int32_t streamTryExec(SStreamTask* pTask);
+int32_t streamSchedExec(SStreamTask* pTask);
 
 typedef struct SStreamMeta SStreamMeta;
 

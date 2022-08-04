@@ -35,9 +35,10 @@ FAIL:
 void streamQueueClose(SStreamQueue* queue) {
   while (1) {
     void* qItem = streamQueueNextItem(queue);
-    if (qItem)
+    if (qItem) {
       taosFreeQitem(qItem);
-    else
+    } else {
       return;
+    }
   }
 }
