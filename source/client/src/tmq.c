@@ -1210,7 +1210,10 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     memcpy(&pRspWrapper->dataRsp, pMsg->pData, sizeof(SMqRspHead));
   } else {
     ASSERT(rspType == TMQ_MSG_TYPE__POLL_META_RSP);
-    tDecodeSMqMetaRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pRspWrapper->metaRsp);
+    SDecoder decoder;
+    tDecoderInit(&decoder, POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), pMsg->len - sizeof(SMqRspHead));
+    tDecodeSMqMetaRsp(&decoder, &pRspWrapper->metaRsp);
+    tDecoderClear(&decoder);
     memcpy(&pRspWrapper->metaRsp, pMsg->pData, sizeof(SMqRspHead));
   }
 
@@ -1758,8 +1761,7 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
         SMqClientVg* pVg = pollRspWrapper->vgHandle;
         /*printf("vgId:%d, offset %" PRId64 " up to %" PRId64 "\n", pVg->vgId, pVg->currentOffset,
          * rspMsg->msg.rspOffset);*/
-        pVg->currentOffsetNew.version = pollRspWrapper->metaRsp.rspOffset;
-        pVg->currentOffsetNew.type = TMQ_OFFSET__LOG;
+        pVg->currentOffsetNew = pollRspWrapper->metaRsp.rspOffset;
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
         // build rsp
         SMqMetaRspObj* pRsp = tmqBuildMetaRspFromWrapper(pollRspWrapper);

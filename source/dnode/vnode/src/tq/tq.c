@@ -100,7 +100,13 @@ void tqClose(STQ* pTq) {
 }
 
 int32_t tqSendMetaPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqMetaRsp* pRsp) {
-  int32_t tlen = sizeof(SMqRspHead) + tEncodeSMqMetaRsp(NULL, pRsp);
+  int32_t len = 0;
+  int32_t code = 0;
+  tEncodeSize(tEncodeSMqMetaRsp, pRsp, len, code);
+  if (code < 0) {
+    return -1;
+  }
+  int32_t tlen = sizeof(SMqRspHead) + len;
   void*   buf = rpcMallocCont(tlen);
   if (buf == NULL) {
     return -1;
@@ -111,7 +117,11 @@ int32_t tqSendMetaPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq,
   ((SMqRspHead*)buf)->consumerId = pReq->consumerId;
 
   void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
-  tEncodeSMqMetaRsp(&abuf, pRsp);
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, abuf, len);
+  tEncodeSMqMetaRsp(&encoder, pRsp);
+  tEncoderClear(&encoder);
 
   SRpcMsg resp = {
       .info = pMsg->info,
@@ -121,9 +131,8 @@ int32_t tqSendMetaPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq,
   };
   tmsgSendRsp(&resp);
 
-  tqDebug("vgId:%d, from consumer:%" PRId64 ", (epoch %d) send rsp, res msg type %d, reqOffset:%" PRId64
-          ", rspOffset:%" PRId64,
-          TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->resMsgType, pRsp->reqOffset, pRsp->rspOffset);
+  tqDebug("vgId:%d, from consumer:%" PRId64 ", (epoch %d) send rsp, res msg type %d, offset type:%d",
+          TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->resMsgType, pRsp->rspOffset.type);
 
   return 0;
 }
@@ -336,12 +345,11 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
               TD_VID(pTq->pVnode), formatBuf);
     } else {
       if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEAST) {
-        if (pReq->useSnapshot && pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-          if (!pHandle->fetchMeta) {
-            tqOffsetResetToData(&fetchOffsetNew, 0, 0);
+        if (pReq->useSnapshot){
+          if (pHandle->fetchMeta){
+            tqOffsetResetToMeta(&fetchOffsetNew, 0, 0);
           } else {
-            // reset to meta
-            ASSERT(0);
+            tqOffsetResetToData(&fetchOffsetNew, 0, 0);
           }
         } else {
           tqOffsetResetToLog(&fetchOffsetNew, walGetFirstVer(pTq->pVnode->pWal));
@@ -385,7 +393,56 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     goto OVER;
   }
 
-  if (pHandle->execHandle.subType != TOPIC_SUB_TYPE__COLUMN) {
+  if (pHandle->execHandle.subType != TOPIC_SUB_TYPE__COLUMN && (fetchOffsetNew.type == TMQ_OFFSET__SNAPSHOT_DATA)) {
+    if (tqScan(pTq, pHandle, &dataRsp, &fetchOffsetNew) < 0) {
+      ASSERT(0);
+    }
+    if (dataRsp.blockNum == 0) {
+      // TODO add to async task pool
+    }
+    if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
+      code = -1;
+    }
+    goto OVER;
+  }
+  if (pHandle->execHandle.subType != TOPIC_SUB_TYPE__COLUMN && (fetchOffsetNew.type == TMQ_OFFSET__SNAPSHOT_META)) {
+    SSnapContext* sContext = pHandle->sContext;
+    if(setMetaForSnapShot(sContext, fetchOffsetNew.muid, fetchOffsetNew.mversion) != 0) {
+      qError("setMetaForSnapShot error. uid:%"PRIi64" ,version:%"PRIi64, fetchOffsetNew.muid, fetchOffsetNew.mversion);
+      code = -1;
+      goto OVER;
+    }
+    void*   data = NULL;
+    int32_t dataLen = 0;
+    int16_t type = 0;
+    if(getMetafromSnapShot(sContext, &data, &dataLen, &type) < 0){
+      qError("getMetafromSnapShot error");
+      taosMemoryFreeClear(data);
+      code = -1;
+      goto OVER;
+    }
+
+    if(!sContext->queryMetaOrData){   // change to get data next poll request
+      fetchOffsetNew.type = TMQ_OFFSET__SNAPSHOT_DATA;
+      fetchOffsetNew.uid = 0;
+      fetchOffsetNew.ts = 0;
+    }
+    SMqMetaRsp metaRsp = {0};
+    metaRsp.rspOffset = fetchOffsetNew;
+    metaRsp.resMsgType = type;
+    metaRsp.metaRspLen = dataLen;
+    metaRsp.metaRsp = data;
+    if (tqSendMetaPollRsp(pTq, pMsg, pReq, &metaRsp) < 0) {
+      taosMemoryFreeClear(data);
+      code = -1;
+      goto OVER;
+    }
+    taosMemoryFreeClear(data);
+    code = 0;
+    goto OVER;
+  }
+
+  if (pHandle->execHandle.subType != TOPIC_SUB_TYPE__COLUMN && (fetchOffsetNew.type == TMQ_OFFSET__LOG)) {
     int64_t fetchVer = fetchOffsetNew.version + 1;
     pCkHead = taosMemoryMalloc(sizeof(SWalCkHead) + 2048);
     if (pCkHead == NULL) {
@@ -445,11 +502,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         ASSERT(IS_META_MSG(pHead->msgType));
         tqDebug("fetch meta msg, ver:%" PRId64 ", type:%d", pHead->version, pHead->msgType);
         SMqMetaRsp metaRsp = {0};
-        /*metaRsp.reqOffset = pReq->reqOffset.version;*/
-        metaRsp.rspOffset = fetchVer;
-        /*metaRsp.rspOffsetNew.version = fetchVer;*/
-        tqOffsetResetToLog(&metaRsp.reqOffsetNew, pReq->reqOffset.version);
-        tqOffsetResetToLog(&metaRsp.rspOffsetNew, fetchVer);
+        tqOffsetResetToLog(&metaRsp.rspOffset, fetchVer);
         metaRsp.resMsgType = pHead->msgType;
         metaRsp.metaRspLen = pHead->bodyLen;
         metaRsp.metaRsp = pHead->body;
@@ -461,22 +514,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         goto OVER;
       }
     }
-
-    taosMemoryFree(pCkHead);
-#if 0
-  } else if (fetchOffsetNew.type == TMQ_OFFSET__SNAPSHOT_DATA) {
-    tqInfo("retrieve using snapshot actual offset: uid %" PRId64 " ts %" PRId64, fetchOffsetNew.uid, fetchOffsetNew.ts);
-    if (tqScanSnapshot(pTq, &pHandle->execHandle, &dataRsp, fetchOffsetNew, workerId) < 0) {
-      ASSERT(0);
-    }
-
-    // 4. send rsp
-    if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
-      code = -1;
-    }
-#endif
-  } else if (fetchOffsetNew.type == TMQ_OFFSET__SNAPSHOT_META) {
-    ASSERT(0);
   }
 
 OVER:
@@ -553,23 +590,25 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
     int64_t ver = pRef->refVer;
     pHandle->pRef = pRef;
 
+    SReadHandle handle = {
+        .meta = pTq->pVnode->pMeta,
+        .vnode = pTq->pVnode,
+        .initTableReader = true,
+        .initTqReader = true,
+        .version = ver,
+    };
+
     if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       pHandle->execHandle.execCol.qmsg = req.qmsg;
       pHandle->snapshotVer = ver;
       req.qmsg = NULL;
-      SReadHandle handle = {
-          .meta = pTq->pVnode->pMeta,
-          .vnode = pTq->pVnode,
-          .initTableReader = true,
-          .initTqReader = true,
-          .version = ver,
-      };
-      pHandle->execHandle.execCol.task =
+
+      pHandle->execHandle.task =
           qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, &pHandle->execHandle.numOfCols,
                                    &pHandle->execHandle.pSchemaWrapper);
-      ASSERT(pHandle->execHandle.execCol.task);
+      ASSERT(pHandle->execHandle.task);
       void* scanner = NULL;
-      qExtractStreamScanner(pHandle->execHandle.execCol.task, &scanner);
+      qExtractStreamScanner(pHandle->execHandle.task, &scanner);
       ASSERT(scanner);
       pHandle->execHandle.pExecReader = qExtractReaderFromStreamScanner(scanner);
       ASSERT(pHandle->execHandle.pExecReader);
@@ -579,10 +618,20 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
       pHandle->execHandle.pExecReader = tqOpenReader(pTq->pVnode);
       pHandle->execHandle.execDb.pFilterOutTbUid =
           taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+      buildSnapContext(handle.meta, handle.version, 0, pHandle->execHandle.subType, pHandle->fetchMeta, handle.sContext);
+      pHandle->sContext = handle.sContext;
+
+      pHandle->execHandle.task =
+          qCreateQueueExecTaskInfo(NULL, &handle, NULL, NULL);
     } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
       pHandle->pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
 
+      buildSnapContext(handle.meta, handle.version, 0, pHandle->execHandle.subType, pHandle->fetchMeta, handle.sContext);
+      pHandle->sContext = handle.sContext;
+
       pHandle->execHandle.execTb.suid = req.suid;
+      pHandle->execHandle.task =
+          qCreateQueueExecTaskInfo(NULL, &handle, NULL, NULL);
       SArray* tbUidList = taosArrayInit(0, sizeof(int64_t));
       vnodeGetCtbIdList(pTq->pVnode, req.suid, tbUidList);
       tqDebug("vgId:%d, tq try to get all ctb, suid:%" PRId64, pTq->pVnode->config.vgId, req.suid);

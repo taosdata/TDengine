@@ -79,11 +79,11 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
           .version = handle.snapshotVer,
       };
 
-      handle.execHandle.execCol.task = qCreateQueueExecTaskInfo(
+      handle.execHandle.task = qCreateQueueExecTaskInfo(
           handle.execHandle.execCol.qmsg, &reader, &handle.execHandle.numOfCols, &handle.execHandle.pSchemaWrapper);
-      ASSERT(handle.execHandle.execCol.task);
+      ASSERT(handle.execHandle.task);
       void* scanner = NULL;
-      qExtractStreamScanner(handle.execHandle.execCol.task, &scanner);
+      qExtractStreamScanner(handle.execHandle.task, &scanner);
       ASSERT(scanner);
       handle.execHandle.pExecReader = qExtractReaderFromStreamScanner(scanner);
       ASSERT(handle.execHandle.pExecReader);

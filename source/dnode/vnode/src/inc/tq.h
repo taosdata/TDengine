@@ -68,21 +68,21 @@ typedef struct {
 
 typedef struct {
   char*       qmsg;
-  qTaskInfo_t task;
 } STqExecCol;
 
 typedef struct {
-  int64_t suid;
+  int64_t     suid;
 } STqExecTb;
 
 typedef struct {
-  SHashObj* pFilterOutTbUid;
+  SHashObj*   pFilterOutTbUid;
 } STqExecDb;
 
 typedef struct {
   int8_t subType;
 
   STqReader* pExecReader;
+  qTaskInfo_t task;
   union {
     STqExecCol execCol;
     STqExecTb  execTb;
@@ -101,6 +101,7 @@ typedef struct {
 
   int64_t snapshotVer;
 
+  SSnapContext*   sContext;
   // TODO remove
   SWalReader* pWalReader;
 
@@ -173,6 +174,12 @@ static FORCE_INLINE void tqOffsetResetToData(STqOffsetVal* pOffsetVal, int64_t u
   pOffsetVal->type = TMQ_OFFSET__SNAPSHOT_DATA;
   pOffsetVal->uid = uid;
   pOffsetVal->ts = ts;
+}
+
+static FORCE_INLINE void tqOffsetResetToMeta(STqOffsetVal* pOffsetVal, int64_t uid, int64_t version) {
+  pOffsetVal->type = TMQ_OFFSET__SNAPSHOT_META;
+  pOffsetVal->muid = uid;
+  pOffsetVal->mversion = version;
 }
 
 static FORCE_INLINE void tqOffsetResetToLog(STqOffsetVal* pOffsetVal, int64_t ver) {

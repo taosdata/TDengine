@@ -398,7 +398,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
     if (pIter == NULL) break;
     STqHandle* pExec = (STqHandle*)pIter;
     if (pExec->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-      int32_t code = qUpdateQualifiedTableId(pExec->execHandle.execCol.task, tbUidList, isAdd);
+      int32_t code = qUpdateQualifiedTableId(pExec->execHandle.task, tbUidList, isAdd);
       ASSERT(code == 0);
     } else if (pExec->execHandle.subType == TOPIC_SUB_TYPE__DB) {
       if (!isAdd) {

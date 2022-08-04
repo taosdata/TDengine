@@ -1234,9 +1234,9 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         }
       } else if (ret.fetchType == FETCH_TYPE__META) {
         ASSERT(0);
-        pTaskInfo->streamInfo.lastStatus = ret.offset;
-        pTaskInfo->streamInfo.metaBlk = ret.meta;
-        return NULL;
+//        pTaskInfo->streamInfo.lastStatus = ret.offset;
+//        pTaskInfo->streamInfo.metaBlk = ret.meta;
+//        return NULL;
       } else if (ret.fetchType == FETCH_TYPE__NONE) {
         pTaskInfo->streamInfo.lastStatus = ret.offset;
         ASSERT(pTaskInfo->streamInfo.lastStatus.version >= pTaskInfo->streamInfo.prepareStatus.version);
@@ -1256,10 +1256,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       return pResult;
     }
     qDebug("stream scan tsdb return null");
-    return NULL;
-  } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_META) {
-    // TODO scan meta
-    ASSERT(0);
     return NULL;
   }
 
@@ -1444,11 +1440,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   }
 }
 
-static SSDataBlock* doRawScan(SOperatorInfo* pInfo) {
-  //
-  return NULL;
-}
-
 static SArray* extractTableIdList(const STableListInfo* pTableGroupInfo) {
   SArray* tableIdList = taosArrayInit(4, sizeof(uint64_t));
 
@@ -1461,17 +1452,76 @@ static SArray* extractTableIdList(const STableListInfo* pTableGroupInfo) {
   return tableIdList;
 }
 
+static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
+// NOTE: this operator does never check if current status is done or not
+  SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
+  SStreamRawScanInfo* pInfo = pOperator->info;
+
+  qDebug("stream scan called");
+  ASSERT(pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA);
+
+  SSDataBlock* pBlock = &pInfo->pRes;
+
+  while (tsdbNextDataBlock(pInfo->dataReader)) {
+    if (isTaskKilled(pTaskInfo)) {
+      longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
+    }
+
+    SDataBlockInfo binfo = pBlock->info;
+    tsdbRetrieveDataBlockInfo(pInfo->dataReader, &binfo);
+
+    pBlock->info = binfo;
+
+    SArray* pCols = tsdbRetrieveDataBlock(pInfo->dataReader, NULL);
+    if (pCols == NULL) {
+      return NULL;
+    }
+
+//    size_t numOfSrcCols = taosArrayGetSize(pCols);
+//    for (int i = 0; i < taosArrayGetSize(pCols); i++) {
+//        SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, pmInfo->targetSlotId);
+//        colDataAssign(pDst, p, pBlock->info.rows, &pBlock->info);
+//    }
+
+    pBlock->pDataBlock = pCols;
+
+    pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__SNAPSHOT_DATA;
+    pTaskInfo->streamInfo.lastStatus.uid = pBlock->info.uid;
+    pTaskInfo->streamInfo.lastStatus.ts = pBlock->info.window.ekey;
+
+    return pBlock;
+  }
+  qDebug("stream scan tsdb return null");
+  return NULL;
+}
+
 // for subscribing db or stb (not including column),
 // if this scan is used, meta data can be return
 // and schemas are decided when scanning
-SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode,
-                                         SExecTaskInfo* pTaskInfo, STimeWindowAggSupp* pTwSup) {
+SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pTaskInfo) {
   // create operator
   // create tb reader
   // create meta reader
   // create tq reader
 
-  return NULL;
+  SStreamRawScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamRawScanInfo));
+  SOperatorInfo*   pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  if (pInfo == NULL || pOperator == NULL) {
+    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pInfo->readHandle = pHandle;
+  pInfo->sContext = pHandle->sContext;
+  pOperator->name = "RawStreamScanOperator";
+//  pOperator->blocking = false;
+//  pOperator->status = OP_NOT_OPENED;
+  pOperator->info = pInfo;
+  pOperator->pTaskInfo = pTaskInfo;
+
+  pOperator->fpSet = createOperatorFpSet(NULL, doRawScan, NULL, NULL, NULL,
+                                         NULL, NULL, NULL);
+  return pOperator;
 }
 
 static void destroyStreamScanOperatorInfo(void* param, int32_t numOfOutput) {

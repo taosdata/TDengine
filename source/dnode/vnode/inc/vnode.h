@@ -152,6 +152,23 @@ void   tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
 size_t tsdbCacheGetCapacity(SVnode *pVnode);
 
 // tq
+typedef struct SMetaTableInfo{
+  int64_t         suid;
+  int64_t         uid;
+  SSchemaWrapper *schema;
+}SMetaTableInfo;
+
+typedef struct SSnapContext {
+
+  SMeta    *pMeta;
+  int64_t   snapVersion;
+  TBC      *pCur;
+  int64_t   suid;
+  int8_t    subType;
+  SHashObj *idVersion;
+  SHashObj *suidInfo;
+  bool      queryMetaOrData;    // true-get meta, false-get data
+}SSnapContext;
 
 typedef struct STqReader {
   int64_t           ver;
@@ -199,6 +216,12 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData);
 int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter);
 int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *pSnapshot);
 int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData);
+
+int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t subType, bool withMeta, SSnapContext* ctx);
+int32_t getMetafromSnapShot(SSnapContext* ctx, void **pBuf, int32_t *contLen, int16_t *type);
+SMetaTableInfo getUidfromSnapShot(SSnapContext* ctx);
+int32_t setMetaForSnapShot(SSnapContext* ctx, int64_t uid, int64_t ver);
+int32_t setDataForSnapShot(SSnapContext* ctx, int64_t uid);
 
 // structs
 struct STsdbCfg {

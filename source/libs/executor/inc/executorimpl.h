@@ -490,6 +490,21 @@ typedef struct SStreamScanInfo {
   SNode*                 pTagIndexCond;
 } SStreamScanInfo;
 
+typedef struct SStreamRawScanInfo{
+//  int8_t    subType;
+//  bool      withMeta;
+//  int64_t   suid;
+//  int64_t   snapVersion;
+//  void     *metaInfo;
+//  void     *dataInfo;
+
+  SReadHandle *   readHandle;
+  SSDataBlock     pRes;         // result SSDataBlock
+  uint64_t        groupId;
+  STsdbReader*    dataReader;
+  SSnapContext*   sContext;
+}SStreamRawScanInfo;
+
 typedef struct SSysTableScanInfo {
   SRetrieveMetaTableRsp* pRsp;
   SRetrieveTableReq      req;
@@ -928,6 +943,8 @@ SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* re
 
 SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
                                             SExecTaskInfo* pTaskInfo);
+
+SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode, SExecTaskInfo* pTaskInfo);
 

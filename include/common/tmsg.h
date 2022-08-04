@@ -2589,6 +2589,11 @@ enum {
 typedef struct {
   int8_t type;
   union {
+    // snapshot meta
+    struct {
+      int64_t muid;
+      int64_t mversion;
+    };
     // snapshot data
     struct {
       int64_t uid;
@@ -2913,33 +2918,14 @@ static FORCE_INLINE void tDeleteSMqSubTopicEp(SMqSubTopicEp* pSubTopicEp) {
 
 typedef struct {
   SMqRspHead   head;
-  int64_t      reqOffset;
-  int64_t      rspOffset;
-  STqOffsetVal reqOffsetNew;
-  STqOffsetVal rspOffsetNew;
+  STqOffsetVal rspOffset;
   int16_t      resMsgType;
   int32_t      metaRspLen;
   void*        metaRsp;
 } SMqMetaRsp;
 
-static FORCE_INLINE int32_t tEncodeSMqMetaRsp(void** buf, const SMqMetaRsp* pRsp) {
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pRsp->reqOffset);
-  tlen += taosEncodeFixedI64(buf, pRsp->rspOffset);
-  tlen += taosEncodeFixedI16(buf, pRsp->resMsgType);
-  tlen += taosEncodeFixedI32(buf, pRsp->metaRspLen);
-  tlen += taosEncodeBinary(buf, pRsp->metaRsp, pRsp->metaRspLen);
-  return tlen;
-}
-
-static FORCE_INLINE void* tDecodeSMqMetaRsp(const void* buf, SMqMetaRsp* pRsp) {
-  buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
-  buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
-  buf = taosDecodeFixedI16(buf, &pRsp->resMsgType);
-  buf = taosDecodeFixedI32(buf, &pRsp->metaRspLen);
-  buf = taosDecodeBinary(buf, &pRsp->metaRsp, pRsp->metaRspLen);
-  return (void*)buf;
-}
+int32_t tEncodeSMqMetaRsp(SEncoder* pEncoder, const SMqMetaRsp* pRsp);
+int32_t tDecodeSMqMetaRsp(SDecoder* pDecoder, SMqMetaRsp* pRsp);
 
 typedef struct {
   SMqRspHead   head;

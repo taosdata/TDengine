@@ -62,16 +62,16 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, SMqDataRsp* pRsp) {
 
 int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset) {
   const STqExecHandle* pExec = &pHandle->execHandle;
-  qTaskInfo_t          task = pExec->execCol.task;
+  qTaskInfo_t          task = pExec->task;
 
-  if (qStreamPrepareScan(task, pOffset) < 0) {
+  if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
     tqDebug("prepare scan failed, return");
     if (pOffset->type == TMQ_OFFSET__LOG) {
       pRsp->rspOffset = *pOffset;
       return 0;
     } else {
       tqOffsetResetToLog(pOffset, pHandle->snapshotVer);
-      if (qStreamPrepareScan(task, pOffset) < 0) {
+      if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
         tqDebug("prepare scan failed, return");
         pRsp->rspOffset = *pOffset;
         return 0;
@@ -108,12 +108,23 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVa
         rowCnt += pDataBlock->info.rows;
         if (rowCnt <= 4096) continue;
       }
+    } else {
+      if(pHandle->execHandle.subType != TOPIC_SUB_TYPE__COLUMN && pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA){
+        SMetaTableInfo mtInfo = getUidfromSnapShot(pHandle->sContext);
+        if (mtInfo.uid == 0){  //read snapshot done, change to get data from wal
+
+        }else{
+          pOffset->uid = mtInfo.uid;
+          qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType);
+          continue;
+        }
+      }
     }
 
     if (pRsp->blockNum == 0 && pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
       tqDebug("vgId: %d, tsdb consume over, switch to wal, ver %ld", TD_VID(pTq->pVnode), pHandle->snapshotVer + 1);
       tqOffsetResetToLog(pOffset, pHandle->snapshotVer);
-      qStreamPrepareScan(task, pOffset);
+      qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType);
       continue;
     }
 
