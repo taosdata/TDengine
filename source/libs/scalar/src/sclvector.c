@@ -1094,6 +1094,7 @@ static SColumnInfoData* doVectorConvert(SScalarParam* pInput, int32_t* doConvert
 static void doReleaseVec(SColumnInfoData* pCol, int32_t type) {
   if (type == VECTOR_DO_CONVERT) {
     colDataDestroy(pCol);
+    taosMemoryFree(pCol);
   }
 }
 
