@@ -735,7 +735,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     int               szCell;
     SBtreeInitPageArg iarg;
     int               iNew, nNewCells;
-    SCellDecoder      cd;
+    SCellDecoder      cd = {0};
 
     iarg.pBt = pBt;
     iarg.flags = TDB_BTREE_PAGE_GET_FLAGS(pOlds[0]);
@@ -1716,7 +1716,7 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
 int tdbBtreePrev(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
   SCell       *pCell;
-  SCellDecoder cd;
+  SCellDecoder cd = {0};
   void        *pKey, *pVal;
   int          ret;
 
