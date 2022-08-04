@@ -287,7 +287,8 @@ class TDTestCase:
                 use.query(f"insert into {DBNAME}.{CTBNAME} (ts) values (now())")
             elif check_priv is None:
                 use.error(f"use {DBNAME}")
-                use.error(f"show {DBNAME}.tables")
+                # use.error(f"show {DBNAME}.tables")
+                use.error(f"show tables")
                 use.error(f"select * from {DBNAME}.{CTBNAME}")
                 use.error(f"insert into {DBNAME}.{CTBNAME} (ts) values (now())")
 
@@ -648,7 +649,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step5: enable info")
         taos1_conn = taos.connect(user=self.__user_list[1], password=f"new{self.__passwd_list[1]}")
-        taos2_conn = taos.connect(user=self.__user_list[2], password=f"new{self.__passwd_list[2]}")
+        taos1_conn.query(f"show databases")
         tdSql.execute(f"alter user {self.__user_list[1]} enable 0")
         taos1_except = True
         try:
@@ -659,6 +660,16 @@ class TDTestCase:
             tdLog.exit("taos 1 connect except error not occured,  when enable == 0, should not r/w ")
         else:
             tdLog.info("taos 1 connect except error occured,  enable == 0")
+
+        taos2_except = True
+        try:
+            taos.connect(user=self.__user_list[2], password=f"new{self.__passwd_list[2]}")
+        except ConnectionError:
+            taos2_except = False
+        if taos2_except:
+            tdLog.exit("taos 2 connect except error not occured,  when enable == 0, should not connect")
+        else:
+            tdLog.info("taos 2 connect except error occured,  enable == 0, can not login")
 
 
         # root删除用户测试
