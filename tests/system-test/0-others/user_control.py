@@ -651,6 +651,7 @@ class TDTestCase:
         taos1_conn = taos.connect(user=self.__user_list[1], password=f"new{self.__passwd_list[1]}")
         taos1_conn.query(f"show databases")
         tdSql.execute(f"alter user {self.__user_list[1]} enable 0")
+        tdSql.execute(f"alter user {self.__user_list[2]} enable 0")
         taos1_except = True
         try:
             taos1_conn.query("show databases")
