@@ -56,6 +56,8 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
     goto _error;
   }
 
+  pOperator->pTaskInfo = pTaskInfo;
+
   int32_t    numOfCols = 0;
   SExprInfo* pExprInfo = createExprInfo(pProjPhyNode->pProjections, NULL, &numOfCols);
 
@@ -63,7 +65,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   initLimitInfo(pProjPhyNode->node.pLimit, pProjPhyNode->node.pSlimit, &pInfo->limitInfo);
 
   pInfo->binfo.pRes = pResBlock;
-  pInfo->pFinalRes  = createOneDataBlock(pResBlock, false);
+  pInfo->pFinalRes = createOneDataBlock(pResBlock, false);
   pInfo->pFilterNode = pProjPhyNode->node.pConditions;
   pInfo->mergeDataBlocks = pProjPhyNode->mergeDataBlock;
 
@@ -72,7 +74,6 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
     pInfo->mergeDataBlocks = false;
   }
-
 
   int32_t numOfRows = 4096;
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
@@ -89,12 +90,11 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfCols);
 
   pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pOperator->exprSupp.pCtx, numOfCols);
-  pOperator->name         = "ProjectOperator";
+  pOperator->name = "ProjectOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PROJECT;
-  pOperator->blocking     = false;
-  pOperator->status       = OP_NOT_OPENED;
-  pOperator->info         = pInfo;
-  pOperator->pTaskInfo    = pTaskInfo;
+  pOperator->blocking = false;
+  pOperator->status = OP_NOT_OPENED;
+  pOperator->info = pInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doProjectOperation, NULL, NULL,
                                          destroyProjectOperatorInfo, NULL, NULL, NULL);
@@ -106,7 +106,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
 
   return pOperator;
 
-  _error:
+_error:
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
   return NULL;
 }
@@ -156,7 +156,8 @@ static int32_t setInfoForNewGroup(SSDataBlock* pBlock, SLimitInfo* pLimitInfo, S
   return PROJECT_RETRIEVE_DONE;
 }
 
-static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SSDataBlock* pBlock, SOperatorInfo* pOperator) {
+static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SSDataBlock* pBlock,
+                                    SOperatorInfo* pOperator) {
   // set current group id
   pLimitInfo->currentGroupId = groupId;
 
@@ -170,8 +171,7 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
   }
 
   // check for the limitation in each group
-  if (pLimitInfo->limit.limit >= 0 &&
-      pLimitInfo->numOfOutputRows + pBlock->info.rows >= pLimitInfo->limit.limit) {
+  if (pLimitInfo->limit.limit >= 0 && pLimitInfo->numOfOutputRows + pBlock->info.rows >= pLimitInfo->limit.limit) {
     int32_t keepRows = (int32_t)(pLimitInfo->limit.limit - pLimitInfo->numOfOutputRows);
     blockDataKeepFirstNRows(pBlock, keepRows);
     if (pLimitInfo->slimit.limit > 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups) {
@@ -222,7 +222,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   }
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
-  SLimitInfo* pLimitInfo = &pProjectInfo->limitInfo;
+  SLimitInfo*    pLimitInfo = &pProjectInfo->limitInfo;
 
   if (downstream == NULL) {
     return doGenerateSourceData(pOperator);
@@ -317,7 +317,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   if (pOperator->cost.openCost == 0) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
-  
+
   // printDataBlock1(p, "project");
   return (p->info.rows > 0) ? p : NULL;
 }
@@ -329,6 +329,8 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   if (pInfo == NULL || pOperator == NULL) {
     goto _error;
   }
+
+  pOperator->pTaskInfo = pTaskInfo;
 
   SExprSupp* pSup = &pOperator->exprSupp;
 
@@ -373,7 +375,6 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doApplyIndefinitFunction, NULL, NULL,
                                          destroyIndefinitOperatorInfo, NULL, NULL, NULL);
@@ -385,7 +386,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
 
   return pOperator;
 
-  _error:
+_error:
   taosMemoryFree(pInfo);
   taosMemoryFree(pOperator);
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
@@ -593,7 +594,7 @@ SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator) {
   pRes->info.rows = 1;
   doFilter(pProjectInfo->pFilterNode, pRes, NULL);
 
-  /*int32_t status = */doIngroupLimitOffset(&pProjectInfo->limitInfo, 0, pRes, pOperator);
+  /*int32_t status = */ doIngroupLimitOffset(&pProjectInfo->limitInfo, 0, pRes, pOperator);
 
   pOperator->resultInfo.totalRows += pRes->info.rows;
 

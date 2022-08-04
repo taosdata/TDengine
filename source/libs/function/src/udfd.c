@@ -686,7 +686,6 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
       buf->len = 0;
     }
   }
-  fnDebug("allocate buf. input buf cap - len - total : %d - %d - %d", ctx->inputCap, ctx->inputLen, ctx->inputTotal);
 }
 
 bool isUdfdUvMsgComplete(SUdfdUvConn *pipe) {
