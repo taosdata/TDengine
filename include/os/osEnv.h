@@ -49,6 +49,8 @@ void osDefaultInit();
 void osUpdate();
 void osCleanup();
 bool osLogSpaceAvailable();
+bool osDataSpaceAvailable();
+bool osTempSpaceAvailable();
 void osSetTimezone(const char *timezone);
 void osSetSystemLocale(const char *inLocale, const char *inCharSet);
 
