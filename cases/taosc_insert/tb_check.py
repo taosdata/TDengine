@@ -17,7 +17,6 @@ import copy
 
 class TestTb(TDCase):
     def init(self):
-        super().init()
         self.tdCom = TDCom(self.tdSql)
         self.test_ttl = 2
         self.comment = "stb_param_test"

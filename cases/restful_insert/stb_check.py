@@ -18,11 +18,10 @@ from taostest.util.rest import TDRest
 
 class TestStb(TDCase):
     def init(self):
-        super().init()
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest(env_setting=self.env_setting)
         self.api_type = 'restful'
-        self.dbname = self.get_default_database()
+        self.dbname = self.tdCom.get_long_name()
     def stbname_length_check(self):
         """
         max length: 192
@@ -48,6 +47,8 @@ class TestStb(TDCase):
         stbname = self.tdCom.get_long_name(3)
         symbol_list = self.tdCom.gen_symbol_list()
         symbol_list.remove('`')
+        symbol_list.remove('.')
+
         for insert_str in symbol_list:
             d_list = list(stbname)
             for i in range(len(d_list)+1):
@@ -117,7 +118,7 @@ class TestStb(TDCase):
                 d_list_new.insert(i, insert_str)
                 sql_new = ''.join(d_list_new)
                 self.tdRest.error(sql_new)
-        self.tdRest.request(f'drop stable if exists `{dbname}.{stbname}`')
+        self.tdRest.request(f'drop stable if exists {dbname}.`{stbname}`')
 
     def run(self):
         self.tdCom.createDb(self.dbname)
