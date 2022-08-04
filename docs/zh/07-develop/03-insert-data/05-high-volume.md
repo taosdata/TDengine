@@ -42,7 +42,7 @@ import TabItem from "@theme/TabItem";
 
 如果无论怎么调节客户端程序，taosd 进程的 CPU 使用率都很低，那很可能需要增加 vgroup 的数量。比如：数据库总表数是 1000 且 minTablesPerVnode 设置的也是 1000，那么这个数据至多有一个 vgroup。此时如果将 minTablesPerVnode 和 tablelncStepPerVnode 都设置成 100， 则这个数据库可能用到 10 个 vgroup。
 
-更多调优参数，请参考[性能优化](../../operation/optimize)和[配置参考](../../reference/config)部分。
+更多调优参数，请参考[性能优化](../../../operation/optimize)和[配置参考](../../../reference/config)部分。
 
 ## 高效写入示例 {#sample-code}
 
