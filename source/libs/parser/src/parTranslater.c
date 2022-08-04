@@ -5845,11 +5845,16 @@ static int32_t createTagValFromExpr(STranslateContext* pCxt, SDataType targetDt,
 }
 
 static int32_t createTagValFromVal(STranslateContext* pCxt, SDataType targetDt, SNode* pNode, SValueNode** pVal) {
-  *pVal = (SValueNode*)nodesCloneNode(pNode);
-  if (NULL == *pVal) {
+  SValueNode* pTempVal = (SValueNode*)nodesCloneNode(pNode);
+  if (NULL == pTempVal) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  return DEAL_RES_ERROR == translateValueImpl(pCxt, *pVal, targetDt, true) ? pCxt->errCode : TSDB_CODE_SUCCESS;
+  if (DEAL_RES_ERROR == translateValueImpl(pCxt, pTempVal, targetDt, true)) {
+    nodesDestroyNode((SNode*)pTempVal);
+    return pCxt->errCode;
+  }
+  *pVal = pTempVal;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t createTagVal(STranslateContext* pCxt, uint8_t precision, SSchema* pSchema, SNode* pNode,
