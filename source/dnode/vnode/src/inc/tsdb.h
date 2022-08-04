@@ -230,16 +230,12 @@ int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter);
 int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx, uint8_t **ppBuf);
 int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf, SBlockIdx *pBlockIdx);
 int32_t tsdbWriteBlockL(SDataFWriter *pWriter, SArray *aBlockL, uint8_t **ppBuf);
-int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_t **ppBuf1, uint8_t **ppBuf2,
-                           SBlockIdx *pBlockIdx, SBlock *pBlock, int8_t cmprAlg);
-
-int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo);
-
-/* new */
 int32_t tsdbWriteDataBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock *pBlock, uint8_t **ppBuf1,
                            uint8_t **ppBuf2, int8_t cmprAlg);
 int32_t tsdbWriteLastBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockL *pBlockL, uint8_t **ppBuf1,
                            uint8_t **ppBuf2, int8_t cmprAlg);
+
+int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo);
 // SDataFReader
 int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet);
 int32_t tsdbDataFReaderClose(SDataFReader **ppReader);
@@ -251,8 +247,6 @@ int32_t tsdbReadColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBl
 int32_t tsdbReadBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBlock, SBlockData *pBlockData,
                           uint8_t **ppBuf1, uint8_t **ppBuf2);
 int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnDataAgg, uint8_t **ppBuf);
-
-/* new */
 int32_t tsdbReadDataBlock(SDataFReader *pReader, SBlock *pBlock, SBlockData *pBlockData, uint8_t **ppBuf1,
                           uint8_t **ppBuf2);
 int32_t tsdbReadLastBlock(SDataFReader *pReader, SBlockL *pBlockL, SBlockData *pBlockData, uint8_t **ppBuf1,
@@ -401,12 +395,12 @@ typedef struct {
   int16_t cid;
   int8_t  type;
   int8_t  smaOn;
-  int8_t  flag;  // HAS_NONE|HAS_NULL|HAS_VALUE
-  int32_t offset;
+  int8_t  flag;      // HAS_NONE|HAS_NULL|HAS_VALUE
+  int32_t szOrigin;  // original column value size (only save for variant data type)
   int32_t szBitmap;  // bitmap size
   int32_t szOffset;  // size of offset, only for variant-length data type
   int32_t szValue;   // compressed column value size
-  int32_t szOrigin;  // original column value size (only save for variant data type)
+  int32_t offset;
 } SBlockCol;
 
 typedef struct {
@@ -427,7 +421,6 @@ struct SBlock {
   int64_t   minVersion;
   int64_t   maxVersion;
   int32_t   nRow;
-  int8_t    last;
   int8_t    hasDup;
   int8_t    nSubBlock;
   SSubBlock aSubBlock[TSDB_MAX_SUBBLOCKS];
@@ -435,26 +428,18 @@ struct SBlock {
 
 struct SBlockL {
   int64_t suid;
-  struct {
-    int64_t uid;
-    int64_t version;
-    TSKEY   ts;
-  } minKey;
-  struct {
-    int64_t uid;
-    int64_t version;
-    TSKEY   ts;
-  } maxKey;
+  int64_t minUid;
+  int64_t maxUid;
   int64_t minVer;
   int64_t maxVer;
   int32_t nRow;
-  int8_t  cmprAlg;
   int64_t offset;
-  int32_t szBlock;
+  int8_t  cmprAlg;
   int32_t szBlockCol;
   int32_t szUid;
   int32_t szVer;
   int32_t szTSKEY;
+  int32_t szBlock;
 };
 
 struct SColData {
