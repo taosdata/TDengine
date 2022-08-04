@@ -1364,6 +1364,7 @@ typedef struct {
   int8_t  compressed;
   int8_t  streamBlockType;
   int32_t compLen;
+  int32_t numOfBlocks;
   int32_t numOfRows;
   int32_t numOfCols;
   int64_t skey;
