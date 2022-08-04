@@ -68,7 +68,7 @@ void streamTriggerByTimer(void* param, void* tmrId) {
     atomic_store_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__IN_ACTIVE);
 
     streamTaskInput(pTask, (SStreamQueueItem*)trigger);
-    streamLaunchByWrite(pTask, pTask->nodeId);
+    streamSchedExec(pTask);
   }
 
   taosTmrReset(streamTriggerByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer, &pTask->timer);
@@ -82,6 +82,7 @@ int32_t streamSetupTrigger(SStreamTask* pTask) {
   return 0;
 }
 
+#if 0
 int32_t streamLaunchByWrite(SStreamTask* pTask, int32_t vgId) {
   int8_t schedStatus = atomic_load_8(&pTask->schedStatus);
   if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
@@ -101,6 +102,7 @@ int32_t streamLaunchByWrite(SStreamTask* pTask, int32_t vgId) {
   }
   return 0;
 }
+#endif
 
 int32_t streamSchedExec(SStreamTask* pTask) {
   int8_t schedStatus =
