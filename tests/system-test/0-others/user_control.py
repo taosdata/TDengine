@@ -702,7 +702,7 @@ class TDTestCase:
             tdLog.info("taos 4 query except error occured,  sysinfo == 0, can not show dnode/vgroups")
 
         # root删除用户测试
-        tdLog.printNoPrefix("==========step10: super user drop normal user")
+        tdLog.printNoPrefix("==========step7: super user drop normal user")
         self.test_drop_user()
 
         tdSql.query("show users")
