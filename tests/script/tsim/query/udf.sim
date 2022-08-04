@@ -55,7 +55,7 @@ endi
 
 sql create table t2 (ts timestamp, f1 int, f2 int);
 sql insert into t2 values(now, 0, 0)(now+1s, 1, 1);
-sql select bit_add(f1, f2) from t2;
+sql select bit_and(f1, f2) from t2;
 if $rows != 2 then
   return -1
 endi
@@ -75,7 +75,7 @@ if $data00 != 1.414213562 then
 endi
 
 sql insert into t2 values(now+2s, 1, null)(now+3s, null, 2);
-sql select bit_add(f1, f2) from t2;
+sql select bit_and(f1, f2) from t2;
 print $rows , $data00 , $data10 , $data20 , $data30
 if $rows != 4 then
   return -1
@@ -117,7 +117,7 @@ if $data01 != 18.547236991 then
   return -1
 endi
 
-sql select sqr_sum(bit_and(f2-f1, f2-f1)), sqr_sum(bit_and(f2/f1, f1/f2)) from t2;
+sql select sqr_sum(bit_and(f2, f1)), sqr_sum(bit_and(f1, f2)) from t2;
 print $rows , $data00 , $data01
 if $rows != 1 then
   return -1
