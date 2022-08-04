@@ -400,7 +400,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
     // call check if have query doing
     if(pObj->sqlList) {
       // have queries executing
-      checkBrokenQueries(pObj);
+      //checkBrokenQueries(pObj);
     }
   }
 
