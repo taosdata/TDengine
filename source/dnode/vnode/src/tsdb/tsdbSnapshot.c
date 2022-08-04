@@ -41,6 +41,7 @@ struct STsdbSnapReader {
   SArray*      aDelData;  // SArray<SDelData>
 };
 
+#if 0
 static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
   int32_t code = 0;
   STsdb*  pTsdb = pReader->pTsdb;
@@ -245,9 +246,11 @@ _err:
             tstrerror(code));
   return code;
 }
+#endif
 
 int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, int8_t type, STsdbSnapReader** ppReader) {
-  int32_t          code = 0;
+  int32_t code = 0;
+#if 0
   STsdbSnapReader* pReader = NULL;
 
   // alloc
@@ -310,11 +313,13 @@ _err:
   tsdbError("vgId:%d, vnode snapshot tsdb reader open for %s failed since %s", TD_VID(pTsdb->pVnode), pTsdb->path,
             tstrerror(code));
   *ppReader = NULL;
+#endif
   return code;
 }
 
 int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
-  int32_t          code = 0;
+  int32_t code = 0;
+#if 0
   STsdbSnapReader* pReader = *ppReader;
 
   if (pReader->pDataFReader) {
@@ -337,11 +342,13 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
 
   taosMemoryFree(pReader);
   *ppReader = NULL;
+#endif
   return code;
 }
 
 int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData) {
   int32_t code = 0;
+#if 0
 
   *ppData = NULL;
 
@@ -380,6 +387,7 @@ _exit:
 _err:
   tsdbError("vgId:%d, vnode snapshot tsdb read for %s failed since %s", TD_VID(pReader->pTsdb->pVnode),
             pReader->pTsdb->path, tstrerror(code));
+#endif
   return code;
 }
 
@@ -430,6 +438,7 @@ struct STsdbSnapWriter {
   SArray*      aDelIdxW;
 };
 
+#if 0
 static int32_t tsdbSnapWriteAppendData(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t     code = 0;
   int32_t     iRow = 0;           // todo
@@ -808,7 +817,8 @@ static int32_t tsdbSnapWriteTableData(STsdbSnapWriter* pWriter, TABLEID id) {
   if (code) goto _err;
 
 _exit:
-  tsdbDebug("vgId:%d, vnode snapshot tsdb write data impl for %s", TD_VID(pWriter->pTsdb->pVnode), pWriter->pTsdb->path);
+  tsdbDebug("vgId:%d, vnode snapshot tsdb write data impl for %s", TD_VID(pWriter->pTsdb->pVnode),
+            pWriter->pTsdb->path);
   return code;
 
 _err:
@@ -1036,7 +1046,9 @@ _err:
             tstrerror(code));
   return code;
 }
+#endif
 
+#if 0
 static int32_t tsdbSnapWriteDelEnd(STsdbSnapWriter* pWriter) {
   int32_t code = 0;
   STsdb*  pTsdb = pWriter->pTsdb;
@@ -1082,9 +1094,11 @@ _err:
             tstrerror(code));
   return code;
 }
+#endif
 
 int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWriter** ppWriter) {
-  int32_t          code = 0;
+  int32_t code = 0;
+#if 0
   STsdbSnapWriter* pWriter = NULL;
 
   // alloc
@@ -1153,11 +1167,13 @@ _err:
   tsdbError("vgId:%d, tsdb snapshot writer open for %s failed since %s", TD_VID(pTsdb->pVnode), pTsdb->path,
             tstrerror(code));
   *ppWriter = NULL;
+#endif
   return code;
 }
 
 int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
-  int32_t          code = 0;
+  int32_t code = 0;
+#if 0
   STsdbSnapWriter* pWriter = *ppWriter;
 
   if (rollback) {
@@ -1188,11 +1204,13 @@ _err:
             pWriter->pTsdb->path, tstrerror(code));
   taosMemoryFree(pWriter);
   *ppWriter = NULL;
+#endif
   return code;
 }
 
 int32_t tsdbSnapWrite(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
-  int32_t       code = 0;
+  int32_t code = 0;
+#if 0
   SSnapDataHdr* pHdr = (SSnapDataHdr*)pData;
 
   // ts data
@@ -1216,10 +1234,12 @@ int32_t tsdbSnapWrite(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
 
 _exit:
   tsdbDebug("vgId:%d, tsdb snapshot write for %s succeed", TD_VID(pWriter->pTsdb->pVnode), pWriter->pTsdb->path);
+
   return code;
 
 _err:
   tsdbError("vgId:%d, tsdb snapshot write for %s failed since %s", TD_VID(pWriter->pTsdb->pVnode), pWriter->pTsdb->path,
             tstrerror(code));
+#endif
   return code;
 }
