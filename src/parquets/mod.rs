@@ -1,42 +1,19 @@
-use std::{str::FromStr, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Result;
+
 use arrow::{
     array::{Array, ArrayRef},
     datatypes::{Schema, TimeUnit},
     record_batch::RecordBatch,
 };
 use futures::TryStreamExt;
-use std::io::prelude::*;
 use taos::{
     AsyncFetchable, AsyncQueryable, ColumnView, Dsn, Field, Itertools, Precision, TBuilder, Taos,
     TaosBuilder, Ty,
 };
 
-use parquet::{
-    file::{properties::WriterProperties, writer::SerializedFileWriter},
-    schema::parser::parse_message_type,
-};
-
-fn fields_to_schema(fields: &[Field]) -> String {
-    format!(
-        "message schema {{ {} }}",
-        fields
-            .into_iter()
-            .map(|f| match f.ty() {
-                Ty::Bool => format!("optional bool {};", f.name()),
-                Ty::TinyInt | Ty::SmallInt | Ty::Int | Ty::UTinyInt | Ty::USmallInt =>
-                    format!("optional int32 {};", f.name()),
-                Ty::BigInt | Ty::UInt | Ty::UBigInt => format!("optional int64 {};", f.name()),
-                Ty::Float | Ty::Double => format!("optional double {};", f.name()),
-                Ty::Timestamp => format!("optional int64 {};", f.name()),
-                Ty::VarChar | Ty::NChar | Ty::Json => format!("optional int64 {};", f.name()),
-                _ => todo!(),
-            })
-            .join("")
-    )
-}
-
+use parquet::{arrow::arrow_writer::ArrowWriter, file::properties::WriterProperties};
 fn precision_to_arrow(precision: Precision) -> TimeUnit {
     match precision {
         Precision::Millisecond => TimeUnit::Millisecond,
@@ -59,21 +36,14 @@ fn fields_to_arrow(fields: &[Field], precision: Precision) -> Schema {
                 Ty::BigInt => arrow::datatypes::Field::new(f.name(), DataType::Int64, true),
                 Ty::Float => arrow::datatypes::Field::new(f.name(), DataType::Float32, true),
                 Ty::Double => arrow::datatypes::Field::new(f.name(), DataType::Float64, true),
-                Ty::VarChar => arrow::datatypes::Field::new(
-                    f.name(),
-                    DataType::FixedSizeBinary(f.bytes() as _),
-                    true,
-                ),
+                Ty::VarChar => arrow::datatypes::Field::new(f.name(), DataType::Binary, true),
                 Ty::Timestamp => arrow::datatypes::Field::new(
                     f.name(),
                     DataType::Timestamp(precision_to_arrow(precision), None),
+                    // DataType::Int64,
                     true,
                 ),
-                Ty::NChar => arrow::datatypes::Field::new(
-                    f.name(),
-                    DataType::FixedSizeBinary(f.bytes() as i32 * 4),
-                    true,
-                ),
+                Ty::NChar => arrow::datatypes::Field::new(f.name(), DataType::Utf8, true),
                 Ty::UTinyInt => arrow::datatypes::Field::new(f.name(), DataType::UInt8, true),
                 Ty::USmallInt => arrow::datatypes::Field::new(f.name(), DataType::UInt16, true),
                 Ty::UInt => arrow::datatypes::Field::new(f.name(), DataType::UInt32, true),
@@ -92,49 +62,60 @@ fn fields_to_arrow(fields: &[Field], precision: Precision) -> Schema {
 fn column_to_arrow(column: &ColumnView) -> ArrayRef {
     match column {
         ColumnView::Bool(v) => {
-            ArrayRef::from(arrow::array::BooleanArray::from(v.to_vec()).into_data())
+            ArrayRef::from(arrow::array::BooleanArray::from_iter(v.iter()).into_data())
         }
         ColumnView::TinyInt(v) => {
-            ArrayRef::from(arrow::array::Int8Array::from(v.to_vec()).into_data())
+            ArrayRef::from(arrow::array::Int8Array::from_iter(v.iter()).into_data())
         }
         ColumnView::SmallInt(v) => {
-            ArrayRef::from(arrow::array::Int16Array::from(v.to_vec()).into_data())
+            ArrayRef::from(arrow::array::Int16Array::from_iter(v.iter()).into_data())
         }
         ColumnView::Int(v) => {
-            ArrayRef::from(arrow::array::Int32Array::from(v.to_vec()).into_data())
+            ArrayRef::from(arrow::array::Int32Array::from_iter(v.iter()).into_data())
         }
         ColumnView::BigInt(v) => {
-            ArrayRef::from(arrow::array::Int64Array::from(v.to_vec()).into_data())
+            ArrayRef::from(arrow::array::Int64Array::from_iter(v.iter()).into_data())
         }
         ColumnView::Float(v) => {
-            ArrayRef::from(arrow::array::Float32Array::from(v.to_vec()).into_data())
+            ArrayRef::from(arrow::array::Float32Array::from_iter(v.iter()).into_data())
         }
         ColumnView::Double(v) => {
-            ArrayRef::from(arrow::array::Float64Array::from(v.to_vec()).into_data())
+            ArrayRef::from(arrow::array::Float64Array::from_iter(v.iter()).into_data())
         }
         ColumnView::VarChar(v) => {
-            ArrayRef::from(arrow::array::StringArray::from_iter(v.to_vec().iter()).into_data())
+            ArrayRef::from(arrow::array::BinaryArray::from_iter(v.iter_as_bytes()).into_data())
         }
-        ColumnView::Timestamp(v) => ArrayRef::from(
-            arrow::array::Int64Array::from_iter(
-                v.to_vec().iter().map(|ts| ts.map(|ts| ts.as_raw_i64())),
-            )
-            .into_data(),
-        ),
+        ColumnView::Timestamp(v) => {
+            let iter = v
+                .to_vec()
+                .into_iter()
+                .map(|ts| ts.map(|ts| ts.as_raw_i64()));
+            match v.precision() {
+                Precision::Millisecond => ArrayRef::from(
+                    arrow::array::TimestampMillisecondArray::from_iter(iter).into_data(),
+                ),
+                Precision::Microsecond => ArrayRef::from(
+                    arrow::array::TimestampMicrosecondArray::from_iter(iter).into_data(),
+                ),
+                Precision::Nanosecond => ArrayRef::from(
+                    arrow::array::TimestampNanosecondArray::from_iter(iter).into_data(),
+                ),
+            }
+        }
         ColumnView::NChar(v) => {
             ArrayRef::from(arrow::array::StringArray::from_iter(v.to_vec().iter()).into_data())
         }
         ColumnView::UTinyInt(v) => {
-            ArrayRef::from(arrow::array::UInt8Array::from(v.to_vec()).into_data())
+            ArrayRef::from(arrow::array::UInt8Array::from_iter(v.iter()).into_data())
         }
         ColumnView::USmallInt(v) => {
-            ArrayRef::from(arrow::array::UInt16Array::from(v.to_vec()).into_data())
+            ArrayRef::from(arrow::array::UInt16Array::from_iter(v.iter()).into_data())
         }
         ColumnView::UInt(v) => {
-            ArrayRef::from(arrow::array::UInt32Array::from(v.to_vec()).into_data())
+            ArrayRef::from(arrow::array::UInt32Array::from_iter(v.iter()).into_data())
         }
         ColumnView::UBigInt(v) => {
-            ArrayRef::from(arrow::array::UInt64Array::from(v.to_vec()).into_data())
+            ArrayRef::from(arrow::array::UInt64Array::from_iter(v.iter()).into_data())
         }
         ColumnView::Json(v) => {
             ArrayRef::from(arrow::array::StringArray::from_iter(v.to_vec().iter()).into_data())
@@ -147,25 +128,26 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn) -> Result<()> {
     let taos = TaosBuilder::from_dsn(from)?.build()?;
     let mut rs = taos.query(&sql).await?;
 
-    let names = rs
-        .filed_names()
-        .into_iter()
-        .map(|s| s.to_string())
-        .collect_vec();
     log::info!("sql: {sql}, fields: {}", rs.num_of_fields());
 
     let file = to.fragment.expect("csv file not found");
     let schema = Arc::new(fields_to_arrow(rs.fields(), rs.precision()));
-    let props = WriterProperties::builder().build();
+    log::debug!("schema: {}", &schema);
+    let schema_ref = schema.clone();
+    let props = WriterProperties::builder()
+        .set_compression(parquet::basic::Compression::ZSTD)
+        .build();
     let file = std::fs::File::create(&file).unwrap();
-    use parquet::arrow::arrow_writer::ArrowWriter;
     let mut writer = ArrowWriter::try_new(file, schema, Some(props)).unwrap();
 
     let mut rows = rs.blocks();
 
     while let Some(row) = rows.try_next().await? {
         let columns = row.columns();
-        let batch = RecordBatch::try_from_iter(names.iter().zip(columns.map(column_to_arrow)))?;
+        let batch = RecordBatch::try_new(
+            schema_ref.clone(),
+            columns.map(column_to_arrow).collect_vec(),
+        )?;
         writer.write(&batch)?;
     }
     writer.close().unwrap();
@@ -175,9 +157,63 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn) -> Result<()> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test() -> Result<()> {
-    let from = Dsn::from_str("taos:///test?query=select * from test.d0")?;
+    use std::str::FromStr;
+    let from = Dsn::from_str("taos:///?query=select * from test.stb1")?;
     let to = Dsn::from_str("local:./test.parquet")?;
 
-    query_to_parquet(from, to).await?;
+    let client = TaosBuilder::from_dsn(&from)?.build()?;
+
+    let db = "test";
+    assert_eq!(
+        client.exec(format!("drop database if exists {db}")).await?,
+        0
+    );
+    assert_eq!(
+        client
+            .exec(format!("create database {db} keep 36500"))
+            .await?,
+        0
+    );
+    assert_eq!(
+            client.exec(
+                format!("create table {db}.stb1(ts timestamp,\
+                    b1 bool, c8i1 tinyint, c16i1 smallint, c32i1 int, c64i1 bigint,\
+                    c8u1 tinyint unsigned, c16u1 smallint unsigned, c32u1 int unsigned, c64u1 bigint unsigned,\
+                    cb1 binary(100), cn1 nchar(10),
+
+                    b2 bool, c8i2 tinyint, c16i2 smallint, c32i2 int, c64i2 bigint,\
+                    c8u2 tinyint unsigned, c16u2 smallint unsigned, c32u2 int unsigned, c64u2 bigint unsigned,\
+                    cb2 binary(10), cn2 nchar(16)) tags (jt json)")
+            ).await?,
+            0
+        );
+    assert_eq!(
+        client
+            .exec(format!(
+                r#"insert into {db}.tb1 using {db}.stb1 tags('{{"key":"数据"}}')
+                   values(0,    true, -1,  -2,  -3,  -4,   1,   2,   3,   4,   'abc', '涛思',
+                                false,-5,  -6,  -7,  -8,   5,   6,   7,   8,   'def', '数据')
+                         (65535,NULL, NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL, NULL,  NULL,
+                                NULL, NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL, NULL,  NULL)"#
+            ))
+            .await?,
+        2
+    );
+    assert_eq!(
+        client
+            .exec(format!(
+                r#"insert into {db}.tb2 using {db}.stb1 tags(NULL)
+                   values(1,    true, -1,  -2,  -3,  -4,   1,   2,   3,   4,   'abc', '涛思',
+                                false,-5,  -6,  -7,  -8,   5,   6,   7,   8,   'def', '数据')
+                         (65536,NULL, NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL, NULL,  NULL,
+                                NULL, NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL, NULL,  NULL)"#
+            ))
+            .await?,
+        2
+    );
+
+    query_to_parquet(from, to.clone()).await?;
+
+    std::fs::remove_file(&to.fragment.unwrap())?;
     Ok(())
 }

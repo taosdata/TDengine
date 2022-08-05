@@ -654,7 +654,19 @@ mod tests {
     #[test]
     fn stmt_tiny_int_null() {
         use crate::*;
-        init_env();
+        // init_env();
+        std::env::set_var("RUST_LOG", "debug");
+        pretty_env_logger::formatted_timed_builder().init();
+        // pretty_env_logger::formatted_timed_builder()
+        //         .format_timestamp_nanos()
+        //         .init();
+        // unsafe { ws_enable_log() };
+        // static ONCE_INIT: std::sync::Once = std::sync::Once::new();
+        // ONCE_INIT.call_once(|| {
+        //     pretty_env_logger::formatted_timed_builder()
+        //         .format_timestamp_nanos()
+        //         .init();
+        // });
         unsafe {
             let taos = ws_connect_with_dsn(b"ws://localhost:6041\0" as *const u8 as _);
             if taos.is_null() {
@@ -701,8 +713,8 @@ mod tests {
                     panic!()
                 }
                 let params = vec![
-                    TaosMultiBind::from_raw_timestamps(vec![false, false, false], &[0, 1, 2]),
-                    TaosMultiBind::from_primitives(vec![true, false, true], &[0u8, 255u8, 0u8]),
+                    TaosMultiBind::from_raw_timestamps(vec![false], &[0]),
+                    TaosMultiBind::from_primitives(vec![true], &[0u8]),
                 ];
                 let code = ws_stmt_bind_param_batch(stmt, params.as_ptr(), params.len() as _);
                 if code != 0 {
@@ -713,7 +725,7 @@ mod tests {
                 ws_stmt_add_batch(stmt);
                 let mut rows = 0;
                 ws_stmt_execute(stmt, &mut rows);
-                assert_eq!(rows, 3);
+                assert_eq!(rows, 1);
 
                 let sql = format!("select * from st where tbname = '{tbname}'\0");
                 let rs = ws_query(taos, sql.as_bytes().as_ptr() as _);
