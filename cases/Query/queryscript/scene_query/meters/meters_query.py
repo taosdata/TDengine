@@ -88,16 +88,16 @@ class TDTestQuery(TDCase):
         data_filters = ['c1 >= -127 and ' , 'c1 <= 127 and ' , 'c0 <= 2147483647 and ' , 'c0 >= -2147483647 and ',  'c2 >= -1.7E308 and ','c2 <= 1.7E308 and ', 't0 >= -127 and ' , 't0 <= 127 and ' ,
                     'c0 between -2147483647 and 2147483647 and ','c1 between -127 and 127  and ','c2 between -1.7E308 and 1.7E308 and ' ,'t0 between -127 and 127  and ',
                     'c0 is not null and ', 'c1 is not null and ' ,'c2 is not null and ' ,'t0 is not null and ' ,
-                    'c3 is not null and ' , 'c4 is not null and', 't0 is not null and'
-                    'ts is not null and' ,'_c0 is not null and ' ,'_C0 is not null and' ,'_rowts is not null and' ,
+                    'c3 is not null and ' , 'c4 is not null and ', 't0 is not null and '
+                    'ts is not null and ' ,'_c0 is not null and ' ,'_C0 is not null and ' ,'_rowts is not null and ' ,
                     'ts <= now and ' , 'ts >= 1651334400000 and ' ,' ts between 1651330000000 and now +1h  and ', 
                     '_c0 <= now +100h and ' , '_c0 >= 1651334400000 and ' , ' _c0 between 1651330000000 and now +1h  and ' ,
                     '_C0 <= now +1h and ' ,  '_C0 >= 1651330000000 and ' ,' _C0 between 1651330000000 and now +1h  and ',
                     '_rowts <= now +1h and ' ,'_rowts >= 1651330000000 and ' ,' _rowts between 1651330000000 and now +1h  and ']        
         data_filter = random.sample(data_filters,6)
 
-        like_filters = ['c3 like \'varchar%\' and','(c3 like \'varchar%\'  or c3 = \'0\'  or c3 = \'varchar_\' or c3 is not null ) and','c4 like \'nchar%\' and','(c4 like \'nchar%\' or c4 = \'0\'  or c4 = \'nchar_\' or c4 is not null  ) and','t1 like \'varchar%\' and','(t1 like \'varchar%\' or t1 = \'0\'  or t1 = \'varchar_\'  or t1 is not null ) and',]
-        match_filters = ['c3 match \'va\' and','c4 nmatch \'varcharnchar\' and','c4 match \'nc\' and','c3 nmatch \'varcharnchar\' and','t1 match \'va\' and','t1 nmatch \'ncharvarchar\' and',]
+        like_filters = ['c3 like \'varchar%\' and ','(c3 like \'varchar%\'  or c3 = \'0\'  or c3 = \'varchar_\' or c3 is not null ) and ','c4 like \'nchar%\' and ','(c4 like \'nchar%\' or c4 = \'0\'  or c4 = \'nchar_\' or c4 is not null  ) and ','t1 like \'varchar%\' and ','(t1 like \'varchar%\' or t1 = \'0\'  or t1 = \'varchar_\'  or t1 is not null ) and ',]
+        match_filters = ['c3 match \'va\' and ','c4 nmatch \'varcharnchar\' and ','c4 match \'nc\' and ','c3 nmatch \'varcharnchar\' and ','t1 match \'va\' and ','t1 nmatch \'ncharvarchar\' and ',]
         like_match_filters = random.sample(random.sample(like_filters,1) + random.sample(match_filters,1),1)
         like_match_filter = str(like_match_filters).replace("[","").replace("]","").replace("\"","")
 
@@ -105,9 +105,9 @@ class TDTestQuery(TDCase):
         for i in range(-100,100):
             q_tinyint_list.append(i)
             t_tinyint_list.append(i)
-        q_tinyint_list = "c1 in (" + str(q_tinyint_list).replace("[","").replace("]","") + ")" + " and ts >=1651334400000 and ts <=1651338000000"
-        t_tinyint_list = "t0 in (" + str(t_tinyint_list).replace("[","").replace("]","") + ")" + " and ts >=1651334400000 and ts <=1651338000000"       
-        in_filters = [q_tinyint_list , t_tinyint_list, "ts >=1651334400000 and ts <=1651338000000",]        
+        q_tinyint_list = "c1 in (" + str(q_tinyint_list).replace("[","").replace("]","") + ")" + " and ts >=1651334400000 and ts <=1651338000000 "
+        t_tinyint_list = "t0 in (" + str(t_tinyint_list).replace("[","").replace("]","") + ")" + " and ts >=1651334400000 and ts <=1651338000000 "       
+        in_filters = [q_tinyint_list , t_tinyint_list, "ts >=1651334400000 and ts <=1651338000000 ",]        
         in_filter = str(random.sample(in_filters,1)).replace("[","").replace("]","").replace("'","")
         
         orderby_filters = ['ts','_c0','_C0','_rowts','c1','c2','c3','c4','t0','t1']
@@ -482,32 +482,58 @@ class TDTestQuery(TDCase):
 
     def base_function_all(self,i):   
         base_function_all = ''
+        
         columns = ['(*)','(ts)','(_c0)','(_C0)','(_rowts)','(c0)','(c1)','(c2)','(c3)','(c4)','(t0)','(t1)'] 
         column_1 = random.sample(columns,1) 
+        
         columns_10 = ['(c0,1)','(c1,1)','(c2,1)','(t0,1)','(c0,0)','(c1,0)','(c2,0)','(t0,0)','(c0)','(c1)','(c2)','(t0)'] 
         column_10_1 = random.sample(columns_10,1) 
+        
         columns_100 = ['(c0,100)','(c1,100)','(c2,100)','(t0,100)'] 
         column_100_1 = random.sample(columns_100,1) 
+        
         columns_100_10 = ['(ts,100)','(_c0,100)','(_C0,100)','(_rowts,100)','(c0,100)','(c1,100)','(c2,100)','(c3,100)','(c4,100)','(t0,100)','(t1,100)','(ts,100,10)','(_c0,100,10)','(_C0,100,10)','(_rowts,100,10)','(c0,100,10)','(c1,100,10)','(c2,100,10)','(c3,100,10)','(c4,100,10)','(t0,100,10)','(t1,100,10)'] 
         column_100_10_1 = random.sample(columns_100_10,1) 
+        
         columns_1000 = ['(ts,1000)','(_c0,1000)','(_C0,1000)','(_rowts,1000)','(c0,1000)','(c1,1000)','(c2,1000)','(c3,1000)','(c4,1000)','(t0,1000)','(t1,1000)'] 
         column_1000_1 = random.sample(columns_1000,1) 
+        
         columns_datas = ['(c0)','(c1)','(c2)','(t0)'] 
         columns_data = random.sample(columns_datas,1)
+        
+        columns_der_datas = ['(c0,time_interval,ignore_negative)','(c1,time_interval,ignore_negative)','(c2,time_interval,ignore_negative)','(t0,time_interval,ignore_negative)'] 
+        columns_der_data = random.sample(columns_der_datas,1)
+        
+        columns_state_datas = ['(c0,oper,num,time)','(c1,oper,num,time)','(c2,oper,num,time)','(t0,oper,num,time)'] 
+        columns_state_data = random.sample(columns_state_datas,1)
+        
         columns_1_10_datas = ['(c0,1,10)','(c1,1,10)','(c2,1,10)','(t0,1,10)'] 
         columns_1_10_data = random.sample(columns_1_10_datas,1)  
+        
         columns_ts_datas = ['(ts)','(_c0)','(_C0)','(_rowts)','(c0)','(c1)','(c2)','(t0)'] 
         columns_ts_data = random.sample(columns_ts_datas,1) 
+        
         columns_strs = ['(c3)','(c4)','(t1)','(c3)','(c4)','(t1)'] 
         columns_str = random.sample(columns_strs,1) 
+        
         columns_strs_5 = ['(c3,5)','(c4,5)','(t1,5)'] 
         columns_str_5 = random.sample(columns_strs_5,1) 
-        columns_tss = ['(ts)','(_c0)','(_C0)','(_rowts)','(ts,1a)','(_c0,1a)','(_C0,1a)','(_rowts,1a)','(ts,1s)','(_c0,1s)','(_C0,1s)','(_rowts,1s)','(ts,1m)','(_c0,1m)','(_C0,1m)','(_rowts,1m)','(ts,1h)','(_c0,1h)','(_C0,1h)','(_rowts,1h)','(ts,1d)','(_c0,1d)','(_C0,1d)','(_rowts,1d)'] 
+        
+        columns_tss = ['(ts)','(_c0)','(_C0)','(_rowts)','(1600000000000)','(1600000000000000)','(1600000000000000000)','(ts,1a)','(_c0,1a)','(_C0,1a)','(_rowts,1a)','(ts,1s)','(_c0,1s)','(_C0,1s)','(_rowts,1s)','(ts,1m)','(_c0,1m)','(_C0,1m)','(_rowts,1m)','(ts,1h)','(_c0,1h)','(_C0,1h)','(_rowts,1h)','(ts,1d)','(_c0,1d)','(_C0,1d)','(_rowts,1d)'] 
         column_ts_1 = random.sample(columns_tss,1) 
+        
+        columns_ts_zones = ['(ts)','(_c0)','(_C0)','(_rowts)','(1600000000000)','(1600000000000000)','(1600000000000000000)','(ts,"+00:00")','(_c0,"+08:00")','(_C0,"-00:00")','(_rowts,"-00:00")','(ts,"+08")','(_c0,"-08")','(_C0,"+0800")','(_rowts,"-0800")','(ts,"+0530")','(_c0,"+0530")','(_C0,"+0530")','(_rowts,"+0530")','(ts,"-0800")','(_c0,"-0800")','(_C0,"-0800")','(_rowts,"-08")','(ts,"-08")','(_c0,"+0800")','(_C0,"+0800")','(_rowts,"+0800")'] 
+        column_ts_zone_1 = random.sample(columns_ts_zones,1) 
+        
         columns_ts_tss = ['(ts,_c0)','(_c0,_rowts)','(_C0,_C0)','(_rowts,ts)','(ts,_rowts,1a)','(_c0,_c0,1a)','(_C0,_rowts,1a)','(_rowts,_C0,1a)','(ts,_c0,1s)','(_c0,_rowts,1s)','(_C0,_rowts,1s)','(_rowts,_c0,1s)','(ts,_C0,1m)','(_c0,_rowts,1m)','(_C0,_c0,1m)','(_rowts,_rowts,1m)','(ts,_C0,1h)','(_c0,_rowts,1h)','(_C0,_c0,1h)','(_rowts,_C0,1h)','(ts,_rowts,1d)','(_c0,_rowts,1d)','(_C0,_rowts,1d)','(_rowts,_rowts,1d)'] 
         column_ts_ts_1 = random.sample(columns_ts_tss,1) 
+        
+        columns_jsons = ['(\"{}\")','(\"{c0:}\")','(\"{c0:123}\")','(\"{c0:abc}\")','(\"{c0:true}\")','(\"{c0:null}\")','(\"{\'c0\':123}\")'] 
+        columns_json = random.sample(columns_jsons,1) 
+        
         columns_nulls = ['()'] 
         columns_null = random.sample(columns_nulls,1) 
+        
         if i == 1: 
             func = ['COUNT']
             func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
@@ -684,35 +710,64 @@ class TDTestQuery(TDCase):
         # 转换函数 Conversion Functions#not ok
         elif i == 51:             
             func = ['TO_ISO8601']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + column_ts_zone_1).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 52:             
             func = ['TO_JSON']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func_column_process = str(func + columns_json).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 53:             
             func = ['TO_UNIXTIMESTAMP']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            t = time.time()  
+            t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t))     
+            column = ['(c3)','(c4)','(t1)','(t_to_s)'] 
+            func_column = random.sample(func,1)+random.sample(column,1)
+            time_to_unixtimestamp = str(func_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("\"","").replace("t_to_s","'t_to_s'")
+            func_column_process = str(time_to_unixtimestamp).replace("t_to_s","%s" %t_to_s)
             return func_column_process 
         elif i == 54:             
             func = ['CAST']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            type_names = ['BIGINT','BINARY(300)','TIMESTAMP','NCHAR(300)','BINARY(300)','VARCHAR(300)','BIGINT UNSIGNED']
+            type_name = str(random.sample(type_names,1)).replace("[","").replace("]","").replace("'","")
+            func_column = str(func)+'('+str(random.sample(column_1,1))+' AS '+type_name+')'
+            func_column_process = str(func_column).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 55:             
-            func = ['COUNT']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
-            return func_column_process 
+            func = ['CAST']
+            type_names = ['BIGINT','BINARY(300)','TIMESTAMP','NCHAR(300)','BINARY(300)','VARCHAR(300)','BIGINT UNSIGNED']
+            type_name = str(random.sample(type_names,1)).replace("[","").replace("]","").replace("'","")
+            func_column = str(func)+'('+str(random.sample(column_1,1))+' AS '+type_name+')'
+            func_column_process = str(func_column).replace("[","").replace("]","").replace("'","").replace(", ","")    
+            type_name_1 = str(random.sample(type_names,1)).replace("[","").replace("]","").replace("'","")        
+            func_column_1 = str(func)+'('+ func_column_process +' AS '+type_name_1+')'
+            func_column_process_1 = str(func_column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process_1 
         elif i == 56:             
-            func = ['COUNT']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func = ['CAST']
+            type_names = ['BIGINT','BINARY(300)','TIMESTAMP','NCHAR(300)','BINARY(300)','VARCHAR(300)','BIGINT UNSIGNED']
+            type_name = str(random.sample(type_names,1)).replace("[","").replace("]","").replace("'","")
+            func_column = str(func)+'('+str(random.sample(column_1,1))+' AS '+type_name+')'
+            func_column_process = str(func_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+            type_name_1 = str(random.sample(type_names,1)).replace("[","").replace("]","").replace("'","")            
+            func_column_1 = str(func)+'('+ func_column_process +' AS '+type_name_1+')'
+            func_column_process_1 = str(func_column_1).replace("[","").replace("]","").replace("'","").replace(", ","")   
+            type_name_2 = str(random.sample(type_names,1)).replace("[","").replace("]","").replace("'","")   
+            func_column_2 = str(func)+'('+ func_column_process_1 +' AS '+type_name_2+')'
+            func_column_process_2 = str(func_column_2).replace("[","").replace("]","").replace("'","").replace(", ","")
+            return func_column_process_2 
+        elif i == 57:                                 
+            func = ['CAST']
+            type_names = ['BIGINT','BINARY(300)','TIMESTAMP','NCHAR(300)','BINARY(300)','VARCHAR(300)','BIGINT UNSIGNED']
+            type_name = str(random.sample(type_names,1)).replace("[","").replace("]","").replace("'","")
+            func_column = str(func)+'('+str(random.sample(column_1,1))+' AS '+type_name+')'
+            func_column_process = str(func_column).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
-        elif i == 57:             
-            func = ['COUNT']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
-            return func_column_process 
-        elif i == 58:             
-            func = ['COUNT']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+        elif i == 58:        
+            func = ['CAST']
+            type_names = ['BIGINT','BINARY(300)','TIMESTAMP','NCHAR(300)','BINARY(300)','VARCHAR(300)','BIGINT UNSIGNED']
+            type_name = str(random.sample(type_names,1)).replace("[","").replace("]","").replace("'","")
+            func_column = str(func)+'('+str(random.sample(column_1,1))+' AS '+type_name+')'
+            func_column_process = str(func_column).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 59:             
             func = ['COUNT']
@@ -749,8 +804,32 @@ class TDTestQuery(TDCase):
             func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
             return func_column_process 
         elif i == 67:             
-            func = ['HISTOGRAM']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func = ['HISTOGRAM'] 
+            columns = ['(c0','(c1','(c2','(t0'] 
+            column = random.sample(columns,1)
+            func_column_process = []
+            normalized = random.randint(0, 1)
+            for i in range(4):
+                if i == 1:
+                    bin_type = 'user_input'                
+                    bin_description = {-11111119395555977777}  
+                    hanshu_column = [func , column, ',',"'%s'" %bin_type, ',',"'%s'" % bin_description, ',', "%d" %normalized,')']
+                    func_column_process = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("{","[").replace("}","]").replace("9",",")
+                    
+                elif i == 2:
+                    bin_type = 'linear_bin'   
+                    true_false = random.randint(10, 11)             
+                    bin_description = {"ZstartZ": -333339, "ZwidthZ":559, "ZcountZ":59, "ZinfinityZ":'%d' %true_false}  #Z一会转译成" ，9一会转译成 ，
+                    hanshu_column = [func , column, ',',"'%s'" %bin_type, ',','%s' % bin_description, ',', "%d" %normalized,')']
+                    func_column_process = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("9",",").replace("Z","\"").replace("10","false").replace("11","true").replace("\"{","'{").replace("}\"","}'")
+                    
+                elif i == 3:
+                    bin_type = 'log_bin'   
+                    true_false = random.randint(10, 11)             
+                    bin_description = {"ZstartZ": -333339, "ZfactorZ":559, "ZcountZ":59, "ZinfinityZ":'%d' %true_false}  #Z一会转译成" ，9一会转译成 ，
+                    hanshu_column = [func , column, ',',"'%s'" %bin_type, ',','%s' % bin_description, ',', "%d" %normalized,')']
+                    func_column_process = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("9",",").replace("Z","\"").replace("10","false").replace("11","true").replace("\"{","'{").replace("}\"","}'")                
+        
             return func_column_process 
         elif i == 68:             
             func = ['COUNT']
@@ -767,8 +846,10 @@ class TDTestQuery(TDCase):
         
         # 选择函数 Selector Functions
         elif i == 71:             
-            func = ['APERCENTILE']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            func = ['APERCENTILE']        
+            time_interval = random.randint(0, 100)  
+            ignore_negative = random.choice(['\"default\"', '\"t-digest\"']) 
+            func_column_process = str(func + columns_der_data).replace("[","").replace("]","").replace("'","").replace(", ","").replace("time_interval","%d" %time_interval).replace("ignore_negative","%s" %ignore_negative)  
             return func_column_process 
         elif i == 72:             
             func = ['INTERP']
@@ -814,7 +895,11 @@ class TDTestQuery(TDCase):
             return func_column_process 
         elif i == 82:             
             func = ['DERIVATIVE']
-            func_column_process = str(func + columns_data).replace("[","").replace("]","").replace("'","").replace(", ","")
+            time_units = ['nums','numm','numh','numd']      
+            time_interval = str(random.sample(time_units,1)).replace("[","").replace("]","").replace("'","")          
+            time_num = random.randint(0, 1000)  
+            ignore_negative = random.randint(0, 1) 
+            func_column_process = str(func + columns_der_data).replace("[","").replace("]","").replace("'","").replace(", ","").replace("time_interval","%s" %time_interval).replace("num","%d" %time_num).replace("ignore_negative","%d" %ignore_negative)  
             return func_column_process 
         elif i == 83:             
             func = ['DIFF']
@@ -834,11 +919,19 @@ class TDTestQuery(TDCase):
             return func_column_process 
         elif i == 87:             
             func = ['STATECOUNT']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            operator = ['LT' , 'GT' ,'GE','NE','EQ']  
+            oper = str(random.sample(operator,1)).replace("[","").replace("]","")
+            num = random.randrange(1,1000) 
+            func_column_process = str(func + columns_state_data).replace("[","").replace("]","").replace("'","").replace(", ","").replace("num","%d" %num).replace("oper","%s" %oper).replace(",time","")
             return func_column_process 
         elif i == 88:             
             func = ['STATEDURATION']
-            func_column_process = str(func + column_1).replace("[","").replace("]","").replace("'","").replace(", ","")
+            operator = ['LT' , 'GT' ,'GE','NE','EQ']  
+            oper = str(random.sample(operator,1)).replace("[","").replace("]","")
+            num = random.randrange(1,1000) 
+            timeunit = ['1s' , '1m' ,'1h']  
+            time = str(random.sample(timeunit,1)).replace("[","").replace("]","").replace("'","") 
+            func_column_process = str(func + columns_state_data).replace("[","").replace("]","").replace("'","").replace(", ","").replace("num","%d" %num).replace("oper","%s" %oper).replace("time","%s" %time) 
             return func_column_process 
         elif i == 89:             
             func = ['TWA']
@@ -1087,7 +1180,7 @@ class TDTestQuery(TDCase):
         # self.select_column()
         # self.select_column_union()
         #self.base_function([72,]) # multiple
-        #self.base_function([3,]) # sinlge
+        #self.base_function([67]) # sinlge
         
         t1 = threading.Thread(target=self.select_column)
         t1.start()       
