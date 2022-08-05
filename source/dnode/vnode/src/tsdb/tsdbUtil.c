@@ -348,11 +348,11 @@ int32_t tPutBlockCol(uint8_t *p, void *ph) {
   n += tPutI8(p ? p + n : p, pBlockCol->flag);
 
   if (pBlockCol->flag != HAS_NULL) {
-    n += tPutI32v(p ? p + n : p, pBlockCol->offset);
+    n += tPutI32v(p ? p + n : p, pBlockCol->szOrigin);
     n += tPutI32v(p ? p + n : p, pBlockCol->szBitmap);
     n += tPutI32v(p ? p + n : p, pBlockCol->szOffset);
     n += tPutI32v(p ? p + n : p, pBlockCol->szValue);
-    n += tPutI32v(p ? p + n : p, pBlockCol->szOrigin);
+    n += tPutI32v(p ? p + n : p, pBlockCol->offset);
   }
 
   return n;
@@ -370,11 +370,11 @@ int32_t tGetBlockCol(uint8_t *p, void *ph) {
   ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
 
   if (pBlockCol->flag != HAS_NULL) {
-    n += tGetI32v(p + n, &pBlockCol->offset);
+    n += tGetI32v(p + n, &pBlockCol->szOrigin);
     n += tGetI32v(p + n, &pBlockCol->szBitmap);
     n += tGetI32v(p + n, &pBlockCol->szOffset);
     n += tGetI32v(p + n, &pBlockCol->szValue);
-    n += tGetI32v(p + n, &pBlockCol->szOrigin);
+    n += tGetI32v(p + n, &pBlockCol->offset);
   }
 
   return n;
