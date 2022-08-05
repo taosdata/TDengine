@@ -22,7 +22,7 @@ import CSAsyncQuery from "../../07-develop/04-query-data/_cs_async.mdx"
 
 本文介绍如何在 Linux 或 Windows 环境中安装 `TDengine.Connector`，并通过 `TDengine.Connector` 连接 TDengine 集群，进行数据写入、查询等基本操作。
 
-注意：`TDengine.Connector` 3.x 不兼容 TDengine 2.x，如果需要使用 2.x 版本的 TDengine 则需要使用 1.x的 `TDengine.Connector`。
+注意：`TDengine.Connector` 3.x 不兼容 TDengine 2.x，如果在运行 TDengine 2.x 版本的环境下需要使用 C# 连接器请使用 TDengine.Connector 的 1.x 版本 。
 
 `TDengine.Connector` 的源码托管在 [GitHub](https://github.com/taosdata/taos-connector-dotnet/tree/3.0)。
 
@@ -65,7 +65,7 @@ dotnet add package TDengine.Connector
 </TabItem>
 <TabItem value="source" label="使用源码获取 C# 驱动">
 
-也可以下载源码，直接引用最新版本的 TDengine.Connector 库
+也可以[下载源码](https://github.com/taosdata/taos-connector-dotnet/tree/3.0)，直接引用最新版本的 TDengine.Connector 库
 
 ```bash
 git clone -b 3.0 https://github.com/taosdata/taos-connector-dotnet.git
