@@ -176,7 +176,6 @@ impl Layout {
         self
     }
 
-
     pub fn schema_changed(&self) -> bool {
         self.contains(Self::SCHEMA_CHANGED)
     }

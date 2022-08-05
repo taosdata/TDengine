@@ -52,7 +52,7 @@ pub(super) mod tmq {
                 resp: tmq_resp_err_t,
                 param: *mut c_void,
             ) {
-                log::info!("commit {resp:?}");
+                log::trace!("commit {resp:?}");
                 let cons = RawTmq(_tmq);
                 let cb = Box::from_raw(param as *mut Box<fn(RawTmq, Result<(), RawError>)>);
                 cb(cons, resp.ok_or("commit failed"));
@@ -80,12 +80,12 @@ pub(super) mod tmq {
                 let offsets = resp.ok_or("commit failed").map(|_| ());
                 let sender = param as *mut Sender<_>;
                 let sender = Box::from_raw(sender);
-                log::error!("commit async callback");
+                log::trace!("commit async callback");
                 sender.send(offsets).unwrap();
             }
 
             unsafe {
-                log::error!("commit async with {:p}", msg.0);
+                log::trace!("commit async with {:p}", msg.0);
                 tmq_commit_async(
                     self.0,
                     msg.0,
@@ -103,7 +103,7 @@ pub(super) mod tmq {
         }
 
         pub fn poll_timeout(&self, timeout: i64) -> Option<RawRes> {
-            log::info!("poll next message with timeout {}", timeout);
+            log::trace!("poll next message with timeout {}", timeout);
             let res = unsafe { tmq_consumer_poll(self.0, timeout) };
             if res.is_null() {
                 None
@@ -146,7 +146,10 @@ pub(super) mod conf {
             self.0
         }
         pub(crate) fn new() -> Self {
-            Self(unsafe { tmq_conf_new() }).disable_auto_commit().with_table_name()
+            Self(unsafe { tmq_conf_new() })
+                .disable_auto_commit()
+                .enable_heartbeat_background()
+                .with_table_name()
         }
 
         pub(crate) fn from_dsn(dsn: &Dsn) -> Result<Self> {
@@ -168,6 +171,15 @@ pub(super) mod conf {
             _set_opt!(username, "user");
             _set_opt!(password, "pass");
             _set_opt!(database, "db");
+
+            if let Some(addr) = dsn.addresses.first() {
+                if let Some(host) = addr.host.as_ref() {
+                    conf.set("td.connect.host", host)?;
+                }
+                if let Some(port) = addr.port.as_ref() {
+                    conf.set("td.connect.port", format!("{port}"))?;
+                }
+            }
 
             // todo: do explicitly param name filter.
             conf.with(dsn.params.iter().filter(|(k, _)| k.contains(".")))
@@ -202,6 +214,7 @@ pub(super) mod conf {
         }
 
         pub fn with_table_name(mut self) -> Self {
+            log::debug!("set msg.with.table.name as true");
             self.set("msg.with.table.name", "true")
                 .expect("set group.id should always be ok");
             self

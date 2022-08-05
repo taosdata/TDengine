@@ -1,7 +1,8 @@
 use std::{
     cell::{RefCell, UnsafeCell},
     ffi::c_void,
-    fmt::Debug, sync::Arc,
+    fmt::Debug,
+    sync::Arc,
 };
 
 use super::{Offsets, Version};
@@ -23,7 +24,6 @@ pub struct NCharView {
     pub(crate) version: Version,
     /// Layout should set as NCHAR_DECODED when raw data decoded.
     pub(crate) layout: Arc<RefCell<Layout>>,
-
 }
 
 impl NCharView {

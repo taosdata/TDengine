@@ -144,11 +144,11 @@ impl TBuilder for TmqBuilder {
     }
 
     fn from_dsn<D: IntoDsn>(dsn: D) -> Result<Self, Self::Error> {
-        let dsn = dsn
+        let mut dsn = dsn
             .into_dsn()
             .map_err(|e| Error::from_string(format!("Parse dsn error: {}", e)))?;
         let conf = Conf::from_dsn(&dsn)?;
-        let timeout = if let Some(timeout) = dsn.params.get("timeout") {
+        let timeout = if let Some(timeout) = dsn.params.remove("timeout") {
             Timeout::from_str(&timeout).map_err(Error::from_any)?
         } else {
             Timeout::from_millis(500)

@@ -2,61 +2,24 @@
 name = "taos"
 version = "0.1.0"
 edition = "2021"
-homepage = "https://taosdata.com"
-license = "MIT"
-description = "resered namespace for TDengine"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# bitsvec = "0.1.1"
-anyhow = "1.0"
-bitvec_simd = { version = "0.20.3", features = ["use_serde"] }
-bstr = { version = "*", features = ["serde1"] }
-chrono = { version = "0.4", features = ["serde"] }
-derive_builder = "0.11.1"
-futures = "0.3.21"
-itertools = "0.10"
-log = "0.4"
-mdsn = { path = "../mdsn" }
-nom = "7.1.1"
-num_enum = "0.5"
-once_cell = "1.10.0"
-oneshot = "0.1.3"
-paste = "1"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-taos-error = { path = "../taos-error" }
-taos-macros = { path = "../taos-macros" }
+anyhow = "*"
+async-trait = "*"
 taos-query = { path = "../taos-query" }
-taos-sys = { path = "../taos-sys", features = ["serde1"] }
-thiserror = "1.0"
-tokio = { version = "1", features = ["full"] }
-url = "2"
-
-# r2d2 pool
-r2d2 = { version = "0.8.9", optional = true }
-
-# for #[test] macro
-faker_rand = { version = "0.1.1", optional = true }
-pretty_env_logger = { version = "0.4.0", optional = true }
-rand = { version = "0.8.5", optional = true }
-uuid = { version = "1.0.0", features = ["v4", "v1"], optional = true }
-
-async-trait = "0.1.53"
+taos-sys = { path = "../taos-sys", optional = true }
+taos-ws = { path = "../taos-ws", optional = true }
+thiserror = "*"
 
 [dev-dependencies]
-criterion = "0.3"
-faker_rand = "0.1.1"
-pretty_env_logger = "0.4.0"
-rand = "0.8.5"
-simple_logger = "2.1.0"
-# taos-test = { path = "../taos-test" }
-uuid = { version = "1.0.0", features = ["v4", "v1"] }
+itertools = "0.10.3"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
 
 [features]
-default = ["r2d2", "test", "taos-query/r2d2"]
-test = ["faker_rand", "pretty_env_logger", "rand", "uuid"]
-
-[[bench]]
-name = "async_query"
-harness = false
+default = ["ws", "native"]
+ws = ["taos-ws"]
+native = ["taos-sys"]
+test = []

@@ -1,22 +1,20 @@
-use tokio::runtime::Runtime;
+use taos_query::block_in_place_or_global;
 
 pub use super::*;
 
 pub struct WsSyncStmtClient {
-    rt: Arc<Runtime>,
     client: WsStmtClient,
 }
 
 impl WsSyncStmtClient {
-    pub(crate) fn new(info: &TaosBuilder, rt: Arc<Runtime>) -> Result<Self> {
-        let client = rt.block_on(WsStmtClient::from_wsinfo(info))?;
-        Ok(Self { rt, client })
+    pub(crate) fn new(info: &TaosBuilder) -> Result<Self> {
+        let client = block_in_place_or_global(WsStmtClient::from_wsinfo(info))?;
+        Ok(Self { client })
     }
 
     pub fn stmt_init(&self) -> Result<WsSyncStmt> {
-        let stmt = self.rt.block_on(self.client.stmt_init())?;
+        let stmt = block_in_place_or_global(self.client.stmt_init())?;
         Ok(WsSyncStmt {
-            rt: self.rt.clone(),
             stmt,
             affected_rows: 0,
         })
@@ -24,7 +22,6 @@ impl WsSyncStmtClient {
 }
 
 pub struct WsSyncStmt {
-    rt: Arc<Runtime>,
     stmt: WsAsyncStmt,
     affected_rows: usize,
 }
@@ -32,7 +29,7 @@ pub struct WsSyncStmt {
 impl WsSyncStmt {
     pub fn prepare(&mut self, sql: &str) -> Result<()> {
         self.affected_rows = 0;
-        self.rt.block_on(self.stmt.prepare(sql))
+        block_in_place_or_global(self.stmt.prepare(sql))
     }
 
     pub fn set_timeout(&mut self, timeout: Duration) -> &mut Self {
@@ -40,23 +37,23 @@ impl WsSyncStmt {
         self
     }
     pub fn add_batch(&mut self) -> Result<()> {
-        self.rt.block_on(self.stmt.add_batch())
+        block_in_place_or_global(self.stmt.add_batch())
     }
     pub fn bind(&mut self, columns: Vec<serde_json::Value>) -> Result<()> {
-        self.rt.block_on(self.stmt.bind(columns))
+        block_in_place_or_global(self.stmt.bind(columns))
     }
 
     /// Call bind and add batch.
     pub fn bind_all(&mut self, columns: Vec<serde_json::Value>) -> Result<()> {
-        self.rt.block_on(self.stmt.bind_all(columns))
+        block_in_place_or_global(self.stmt.bind_all(columns))
     }
 
     pub fn set_tbname(&mut self, name: &str) -> Result<()> {
-        self.rt.block_on(self.stmt.set_tbname(name))
+        block_in_place_or_global(self.stmt.set_tbname(name))
     }
 
     pub fn set_tags(&mut self, tags: Vec<serde_json::Value>) -> Result<()> {
-        self.rt.block_on(self.stmt.set_tags(tags))
+        block_in_place_or_global(self.stmt.set_tags(tags))
     }
 
     pub fn set_tbname_tags(&mut self, name: &str, tags: Vec<serde_json::Value>) -> Result<()> {
@@ -65,7 +62,7 @@ impl WsSyncStmt {
     }
 
     pub fn exec(&mut self) -> Result<usize> {
-        let rows = self.rt.block_on(self.stmt.exec())?;
+        let rows = block_in_place_or_global(self.stmt.exec())?;
         self.affected_rows += rows;
         Ok(rows)
     }
@@ -80,10 +77,8 @@ mod tests {
     use serde_json::json;
     use taos_query::{Dsn, TBuilder};
 
-    
     #[test]
     fn test_stmt_stable() -> anyhow::Result<()> {
-        
         use taos_query::Queryable;
 
         let dsn = Dsn::try_from("taos://localhost:6041")?;
@@ -124,7 +119,6 @@ mod tests {
 
     #[test]
     fn test_stmt_table() -> anyhow::Result<()> {
-        
         use taos_query::Queryable;
 
         let dsn = Dsn::try_from("taos://localhost:6041")?;

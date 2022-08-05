@@ -325,7 +325,8 @@ impl WsClient {
                                 log::debug!("fetch block with {} bytes.", block.len());
                                 let mut slice = block.as_slice();
                                 use taos_query::util::InlinableRead;
-                                let timing = slice.read_u64().unwrap();
+                                let timing = if is_v3 { slice.read_u64().unwrap() } else { 0 };
+                                let block_offset = if is_v3 { 16 } else { 8 };
                                 let timing = Duration::from_nanos(timing as _);
                                 let res_id = slice.read_u64().unwrap();
                                 if is_v3 {
@@ -336,7 +337,7 @@ impl WsClient {
                                         log::debug!("send data to fetches with id {}", res_id);
                                         v.send(Ok(WsFetchData::Block(
                                             timing,
-                                            block[16..].to_vec(),
+                                            block[block_offset..].to_vec(),
                                         )
                                         .clone()))
                                             .unwrap();
@@ -349,7 +350,7 @@ impl WsClient {
                                         log::debug!("send data to fetches with id {}", res_id);
                                         v.send(Ok(WsFetchData::BlockV2(
                                             timing,
-                                            block[16..].to_vec(),
+                                            block[block_offset..].to_vec(),
                                         )))
                                         .unwrap();
                                     }
@@ -550,7 +551,7 @@ impl WsClient {
         // let rt = rt.clone();
         let client = self
             .stmt
-            .get_or_try_init(|| WsSyncStmtClient::new(&self.info, self.rt.clone()))?;
+            .get_or_try_init(|| WsSyncStmtClient::new(&self.info))?;
         Ok(client.stmt_init()?)
     }
 

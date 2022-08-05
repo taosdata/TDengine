@@ -34,7 +34,7 @@ use ffi::taos_options;
 pub mod schemaless;
 // pub use schemaless::*;
 
-mod tmq;
+pub mod tmq;
 pub use tmq::{Consumer, TmqBuilder};
 
 mod conn;

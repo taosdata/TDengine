@@ -59,7 +59,7 @@ pub(crate) use lengths::*;
 
 use crate::common::{BorrowedValue, Column, Ty};
 
-use std::{ffi::c_void, fmt::Debug, iter::FusedIterator, io::Write};
+use std::{ffi::c_void, fmt::Debug, io::Write, iter::FusedIterator};
 
 /// Compatible version for var char.
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -2,16 +2,12 @@ use chrono::NaiveDateTime;
 
 use serde::{Deserialize, Serialize};
 
-
-
-use crate::common::{Timestamp};
-
 /// Information for `show topics` record.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Topic {
     topic_name: String,
     db_name: String,
-    create_time: Timestamp,
+    create_time: NaiveDateTime,
     sql: String,
 }
 
@@ -28,7 +24,7 @@ impl Topic {
 
     /// Created time of the topic
     pub fn create_time(&self) -> NaiveDateTime {
-        self.create_time.to_naive_datetime()
+        self.create_time
     }
 
     /// The create sql for the topic

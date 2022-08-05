@@ -249,7 +249,7 @@ impl IsAsyncData for Data {
     }
 
     async fn fetch_raw_block(&self) -> StdResult<Option<RawBlock>, Self::Error> {
-        todo!()
+        self.fetch_block().await
     }
 }
 
@@ -423,6 +423,10 @@ impl AsAsyncConsumer for Consumer {
         let _ = self.sender.send_recv(action).await?;
         Ok(())
     }
+
+    fn default_timeout(&self) -> Timeout {
+        Timeout::from_secs(5)
+    }
 }
 
 impl AsConsumer for Consumer {
@@ -504,21 +508,18 @@ impl TmqBuilder {
                         log::trace!("Check websocket message sender alive");
                     }
                     Some(msg) = msg_recv.recv() => {
-                        dbg!(&msg);
                         if msg.is_close() {
                             sender.send(msg).await.unwrap();
                             sender.close().await.unwrap();
                             break;
                         }
                         sender.send(msg).await.unwrap();
-
-                        // sender.close().await;
-                        log::info!("send done");
+                        log::trace!("send done");
                     }
                     _ = rx.changed() => {
                         let _= sender.send(Message::Close(None)).await;
                         sender.close().await.unwrap();
-                        log::info!("close tmq sender");
+                        log::debug!("close tmq sender");
                         break;
                     }
                 }
@@ -532,12 +533,12 @@ impl TmqBuilder {
                         match message {
                             Ok(message) => match message {
                                 Message::Text(text) => {
-                                    log::info!("json response: {}", text);
+                                    log::debug!("json response: {}", text);
                                     let v: TmqRecv = serde_json::from_str(&text).unwrap();
                                     let (req_id, recv, ok) = v.ok();
                                     match &recv {
                                         TmqRecvData::Subscribe => {
-                                            log::info!("subscribe with: {:?}", req_id);
+                                            log::debug!("subscribe with: {:?}", req_id);
 
                                             if let Some((_, sender)) = queries_sender.remove(&req_id)
                                             {
@@ -547,7 +548,6 @@ impl TmqBuilder {
                                             }
                                         },
                                         TmqRecvData::Poll(poll) => {
-                                            dbg!(poll);
                                             if let Some((_, sender)) = queries_sender.remove(&req_id)
                                             {
                                                 sender.send(ok.map(|_|recv)).unwrap();
@@ -556,7 +556,7 @@ impl TmqBuilder {
                                             }
                                         },
                                         TmqRecvData::FetchJsonMeta { data }=> {
-                                               log::info!("fetch json meta data: {:?}", data);
+                                            log::debug!("fetch json meta data: {:?}", data);
                                             if let Some((_, sender)) = queries_sender.remove(&req_id)
                                             {
                                                 sender.send(ok.map(|_|recv)).unwrap();
@@ -573,7 +573,7 @@ impl TmqBuilder {
                                             }
                                         }
                                         TmqRecvData::Commit=> {
-                                               log::info!("commit done: {:?}", recv);
+                                            log::debug!("commit done: {:?}", recv);
                                             if let Some((_, sender)) = queries_sender.remove(&req_id)
                                             {
                                                 sender.send(ok.map(|_|recv)).unwrap();
@@ -582,7 +582,7 @@ impl TmqBuilder {
                                             }
                                         }
                                         TmqRecvData::Fetch(fetch)=> {
-                                               log::info!("fetch done: {:?}", fetch);
+                                            log::debug!("fetch done: {:?}", fetch);
                                             if let Some((_, sender)) = queries_sender.remove(&req_id)
                                             {
                                                 sender.send(ok.map(|_|recv)).unwrap();
@@ -678,7 +678,7 @@ pub struct Consumer {
 
 impl Drop for Consumer {
     fn drop(&mut self) {
-        self.close_signal.send(true).unwrap();
+        let _ = self.close_signal.send(true);
     }
 }
 

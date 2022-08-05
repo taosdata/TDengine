@@ -118,7 +118,6 @@ impl SmallIntView {
         wtr.write_all(&self.data)?;
         Ok(nulls.len() + self.data.len())
     }
-
 }
 
 pub struct SmallIntViewIter<'a> {

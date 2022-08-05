@@ -1,7 +1,3 @@
-
-
-
-
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_with::serde_as;
@@ -227,8 +223,6 @@ impl StmtRecv {
 #[cfg(test)]
 mod tests {
     use anyhow::Ok;
-
-    
 
     #[test]
     fn stmt() -> anyhow::Result<()> {

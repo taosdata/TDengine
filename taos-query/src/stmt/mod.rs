@@ -1,7 +1,4 @@
-use crate::{
-    common::{Value},
-    AsyncQueryable, Queryable,
-};
+use crate::{common::Value, AsyncQueryable, Queryable};
 
 mod column;
 pub use column::*;

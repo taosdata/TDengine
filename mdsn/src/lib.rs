@@ -288,6 +288,13 @@ impl Dsn {
     pub fn parse(dsn: impl AsRef<str>) -> Result<Self, DsnError> {
         dsn.as_ref().parse()
     }
+
+    #[inline]
+    pub fn split_params(mut self) -> (Dsn, BTreeMap<String, String>) {
+        let params = self.params;
+        self.params = BTreeMap::new();
+        (self, params)
+    }
 }
 
 impl TryFrom<&str> for Dsn {
@@ -806,4 +813,10 @@ fn params() {
 fn parse_taos_tmq() {
     let s = "taos://root:taosdata@localhost/aa23d04011eca42cf7d8c1dd05a37985?topics=aa23d04011eca42cf7d8c1dd05a37985&group.id=tg2";
     let _ = Dsn::from_str(&s).unwrap();
+}
+
+#[test]
+fn tmq_ws_driver() {
+    let dsn = Dsn::from_str("tmq+ws:///abc1?group.id=abc3&timeout=50ms").unwrap();
+    assert_eq!(dsn.driver, "tmq");
 }
