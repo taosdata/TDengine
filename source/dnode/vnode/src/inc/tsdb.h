@@ -45,7 +45,7 @@ typedef struct SBlockIdx     SBlockIdx;
 typedef struct SBlock        SBlock;
 typedef struct SBlockL       SBlockL;
 typedef struct SColData      SColData;
-typedef struct SBlockDataHdr SBlockDataHdr;
+typedef struct SDiskDataHdr  SDiskDataHdr;
 typedef struct SBlockData    SBlockData;
 typedef struct SDiskData     SDiskData;
 typedef struct SDelFile      SDelFile;
@@ -155,6 +155,9 @@ int32_t tDiskDataInit(SDiskData *pDiskData);
 void    tDiskDataClear(SDiskData *pDiskData);
 int32_t tBlockToDiskData(SBlockData *pBlockData, SDiskData *pDiskData, int8_t cmprAlg);
 int32_t tDiskToBlockData(SDiskData *pDiskData, SBlockData *pBlockData);
+// SDiskDataHdr
+int32_t tPutDiskDataHdr(uint8_t *p, void *ph);
+int32_t tGetDiskDataHdr(uint8_t *p, void *ph);
 // SDelIdx
 int32_t tPutDelIdx(uint8_t *p, void *ph);
 int32_t tGetDelIdx(uint8_t *p, void *ph);
@@ -236,10 +239,8 @@ int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter);
 int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx, uint8_t **ppBuf);
 int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf, SBlockIdx *pBlockIdx);
 int32_t tsdbWriteBlockL(SDataFWriter *pWriter, SArray *aBlockL, uint8_t **ppBuf);
-int32_t tsdbWriteDataBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock *pBlock, uint8_t **ppBuf1,
-                           uint8_t **ppBuf2, int8_t cmprAlg);
-int32_t tsdbWriteLastBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockL *pBlockL, uint8_t **ppBuf1,
-                           uint8_t **ppBuf2, int8_t cmprAlg);
+int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo,
+                           int8_t cmprAlg, int8_t toLast, uint8_t **ppBuf);
 
 int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo);
 // SDataFReader
@@ -403,9 +404,9 @@ typedef struct {
   int8_t    smaOn;
   int8_t    flag;      // HAS_NONE|HAS_NULL|HAS_VALUE
   int32_t   szOrigin;  // original column value size (only save for variant data type)
-  int32_t   szBitmap;  // bitmap size
-  int32_t   szOffset;  // size of offset, only for variant-length data type
-  int32_t   szValue;   // compressed column value size
+  int32_t   szBitmap;  // bitmap size, 0 only for flag == HAS_VAL
+  int32_t   szOffset;  // offset size, 0 only for non-variant-length type
+  int32_t   szValue;   // value size, 0 when flag == (HAS_NULL | HAS_NONE)
   int32_t   offset;
   uint8_t **ppData;
 } SBlockCol;
@@ -414,28 +415,33 @@ typedef struct {
   int64_t offset;  // block data offset
   int32_t szBlock;
   int32_t szKey;
-} SSubBlock;
+} SBlockInfo;
+
+typedef struct {
+  int64_t offset;
+  int32_t size;
+} SSmaInfo;
 
 struct SBlock {
-  TSDBKEY   minKey;
-  TSDBKEY   maxKey;
-  int64_t   minVer;
-  int64_t   maxVer;
-  int32_t   nRow;
-  int8_t    hasDup;
-  int8_t    nSubBlock;
-  SSubBlock aSubBlock[TSDB_MAX_SUBBLOCKS];
-  int64_t   sOffset;  // sma offset
-  int32_t   nSma;     // sma size
+  TSDBKEY    minKey;
+  TSDBKEY    maxKey;
+  int64_t    minVer;
+  int64_t    maxVer;
+  int32_t    nRow;
+  int8_t     hasDup;
+  int8_t     nSubBlock;
+  SBlockInfo aSubBlock[TSDB_MAX_SUBBLOCKS];
+  SSmaInfo   smaInfo;
 };
 
 struct SBlockL {
-  int64_t suid;
-  int64_t minUid;
-  int64_t maxUid;
-  int64_t minVer;
-  int64_t maxVer;
-  int32_t nRow;
+  int64_t    suid;
+  int64_t    minUid;
+  int64_t    maxUid;
+  int64_t    minVer;
+  int64_t    maxVer;
+  int32_t    nRow;
+  SBlockInfo bInfo;
 };
 
 struct SColData {
@@ -498,15 +504,15 @@ struct SDelIdx {
   int64_t  size;
 };
 
-struct SBlockDataHdr {
+struct SDiskDataHdr {
   uint32_t delimiter;
-  int32_t  nRow;
   int64_t  suid;
   int64_t  uid;
   int32_t  szUid;
   int32_t  szVer;
   int32_t  szKey;
   int32_t  szBlkCol;
+  int32_t  nRow;
   int8_t   cmprAlg;
 };
 
@@ -575,6 +581,14 @@ struct SDelFWriter {
   TdFilePtr pWriteH;
 };
 
+struct SDiskData {
+  SDiskDataHdr hdr;
+  uint8_t    **ppKey;
+  SArray      *aBlockCol;  // SArray<SBlockCol>
+  int32_t      nBuf;
+  SArray      *aBuf;  // SArray<uint8_t*>
+};
+
 struct SDataFWriter {
   STsdb    *pTsdb;
   SDFileSet wSet;
@@ -588,30 +602,14 @@ struct SDataFWriter {
   SDataFile fData;
   SLastFile fLast;
   SSmaFile  fSma;
+
+  SDiskData dData;
 };
 
 struct STsdbReadSnap {
   SMemTable *pMem;
   SMemTable *pIMem;
   STsdbFS    fs;
-};
-
-struct SDiskData {
-  int8_t  cmprAlg;
-  int32_t nRow;
-  int64_t suid;
-  int64_t uid;
-  int32_t szUid;
-  int32_t szVer;
-  int32_t szKey;
-
-  uint8_t *pUid;
-  uint8_t *pVer;
-  uint8_t *pKey;
-  SArray  *aBlockCol;  // SArray<SBlockCol>
-  int32_t  nBuf;
-  SArray  *aBuf;  // SArray<uint8_t*>
-  uint8_t *pBuf;
 };
 
 // ========== inline functions ==========

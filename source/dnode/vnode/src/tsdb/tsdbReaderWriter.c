@@ -85,11 +85,11 @@ _err:
 }
 
 int32_t tsdbWriteDelData(SDelFWriter *pWriter, SArray *aDelData, uint8_t **ppBuf, SDelIdx *pDelIdx) {
-  int32_t       code = 0;
-  uint8_t      *pBuf = NULL;
-  int64_t       size;
-  int64_t       n;
-  SBlockDataHdr hdr = {.delimiter = TSDB_FILE_DLMT, .suid = pDelIdx->suid, .uid = pDelIdx->uid};
+  int32_t      code = 0;
+  uint8_t     *pBuf = NULL;
+  int64_t      size;
+  int64_t      n;
+  SDiskDataHdr hdr = {.delimiter = TSDB_FILE_DLMT, .suid = pDelIdx->suid, .uid = pDelIdx->uid};
 
   if (!ppBuf) ppBuf = &pBuf;
 
@@ -106,7 +106,7 @@ int32_t tsdbWriteDelData(SDelFWriter *pWriter, SArray *aDelData, uint8_t **ppBuf
 
   // build
   n = 0;
-  *(SBlockDataHdr *)(*ppBuf) = hdr;
+  *(SDiskDataHdr *)(*ppBuf) = hdr;
   n += sizeof(hdr);
   for (int32_t iDelData = 0; iDelData < taosArrayGetSize(aDelData); iDelData++) {
     n += tPutDelData(*ppBuf + n, taosArrayGet(aDelData, iDelData));
@@ -306,13 +306,13 @@ _exit:
 }
 
 int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData, uint8_t **ppBuf) {
-  int32_t        code = 0;
-  int64_t        offset = pDelIdx->offset;
-  int64_t        size = pDelIdx->size;
-  int64_t        n;
-  uint8_t       *pBuf = NULL;
-  SBlockDataHdr *pHdr;
-  SDelData      *pDelData = &(SDelData){0};
+  int32_t       code = 0;
+  int64_t       offset = pDelIdx->offset;
+  int64_t       size = pDelIdx->size;
+  int64_t       n;
+  uint8_t      *pBuf = NULL;
+  SDiskDataHdr *pHdr;
+  SDelData     *pDelData = &(SDelData){0};
 
   if (!ppBuf) ppBuf = &pBuf;
 
@@ -344,7 +344,7 @@ int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData
 
   // // decode
   n = 0;
-  pHdr = (SBlockDataHdr *)(*ppBuf + n);
+  pHdr = (SDiskDataHdr *)(*ppBuf + n);
   ASSERT(pHdr->delimiter == TSDB_FILE_DLMT);
   ASSERT(pHdr->suid == pDelIdx->suid);
   ASSERT(pHdr->uid == pDelIdx->uid);
@@ -669,13 +669,13 @@ _err:
 }
 
 int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *mBlock, uint8_t **ppBuf) {
-  int32_t       code = 0;
-  int64_t       offset = pBlockIdx->offset;
-  int64_t       size = pBlockIdx->size;
-  uint8_t      *pBuf = NULL;
-  int64_t       n;
-  int64_t       tn;
-  SBlockDataHdr hdr;
+  int32_t      code = 0;
+  int64_t      offset = pBlockIdx->offset;
+  int64_t      size = pBlockIdx->size;
+  uint8_t     *pBuf = NULL;
+  int64_t      n;
+  int64_t      tn;
+  SDiskDataHdr hdr;
 
   if (!ppBuf) ppBuf = &pBuf;
 
@@ -706,7 +706,7 @@ int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *mBl
   }
 
   // decode
-  hdr = *(SBlockDataHdr *)(*ppBuf);
+  hdr = *(SDiskDataHdr *)(*ppBuf);
   ASSERT(hdr.delimiter == TSDB_FILE_DLMT);
   ASSERT(hdr.suid == pBlockIdx->suid);
   ASSERT(hdr.uid == pBlockIdx->uid);
@@ -729,7 +729,7 @@ _err:
   return code;
 }
 
-static int32_t tsdbReadBlockDataKey(SBlockData *pBlockData, SSubBlock *pSubBlock, uint8_t *pBuf, uint8_t **ppBuf) {
+static int32_t tsdbReadBlockDataKey(SBlockData *pBlockData, SBlockInfo *pSubBlock, uint8_t *pBuf, uint8_t **ppBuf) {
   int32_t code = 0;
   int64_t size = pSubBlock->szVersion + pSubBlock->szTSKEY + sizeof(TSCKSUM);
   int64_t n;
@@ -784,7 +784,7 @@ _err:
   return code;
 }
 
-static int32_t tsdbReadColDataImpl(SSubBlock *pSubBlock, SBlockCol *pBlockCol, SColData *pColData, uint8_t *pBuf,
+static int32_t tsdbReadColDataImpl(SBlockInfo *pSubBlock, SBlockCol *pBlockCol, SColData *pColData, uint8_t *pBuf,
                                    uint8_t **ppBuf) {
   int32_t code = 0;
   int64_t size;
@@ -877,7 +877,7 @@ _err:
   return code;
 }
 
-static int32_t tsdbReadBlockCol(uint8_t *pBuf, int32_t szBlockCol, SBlockDataHdr *pHdr, SArray *aBlockCol) {
+static int32_t tsdbReadBlockCol(uint8_t *pBuf, int32_t szBlockCol, SDiskDataHdr *pHdr, SArray *aBlockCol) {
   int32_t    code = 0;
   int32_t    n = 0;
   SBlockCol  blockCol;
@@ -890,8 +890,8 @@ static int32_t tsdbReadBlockCol(uint8_t *pBuf, int32_t szBlockCol, SBlockDataHdr
   }
 
   // hdr
-  *pHdr = *(SBlockDataHdr *)pBuf;
-  n += sizeof(SBlockDataHdr);
+  *pHdr = *(SDiskDataHdr *)pBuf;
+  n += sizeof(SDiskDataHdr);
 
   // aBlockCol
   while (n < szBlockCol) {
@@ -952,13 +952,13 @@ _exit:
 static int32_t tsdbReadSubColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBlock, int32_t iSubBlock,
                                   int16_t *aColId, int32_t nCol, SBlockData *pBlockData, uint8_t **ppBuf1,
                                   uint8_t **ppBuf2) {
-  TdFilePtr  pFD = pReader->pDataFD;
-  SSubBlock *pSubBlock = &pBlock->aSubBlock[iSubBlock];
-  SArray    *aBlockCol = NULL;
-  int32_t    code = 0;
-  int64_t    offset;
-  int64_t    size;
-  int64_t    n;
+  TdFilePtr   pFD = pReader->pDataFD;
+  SBlockInfo *pSubBlock = &pBlock->aSubBlock[iSubBlock];
+  SArray     *aBlockCol = NULL;
+  int32_t     code = 0;
+  int64_t     offset;
+  int64_t     size;
+  int64_t     n;
 
   tBlockDataReset(pBlockData);
   pBlockData->nRow = pSubBlock->nRow;
@@ -1123,13 +1123,13 @@ _err:
 
 static int32_t tsdbReadSubBlockData(SDataFReader *pReader, SBlock *pBlock, int32_t iSubBlock, SBlockData *pBlockData,
                                     uint8_t **ppBuf1, uint8_t **ppBuf2) {
-  int32_t    code = 0;
-  uint8_t   *p;
-  int64_t    size;
-  int64_t    n;
-  TdFilePtr  pFD = pReader->pDataFD;
-  SSubBlock *pSubBlock = &pBlock->aSubBlock[iSubBlock];
-  SArray    *aBlockCol = NULL;
+  int32_t     code = 0;
+  uint8_t    *p;
+  int64_t     size;
+  int64_t     n;
+  TdFilePtr   pFD = pReader->pDataFD;
+  SBlockInfo *pSubBlock = &pBlock->aSubBlock[iSubBlock];
+  SArray     *aBlockCol = NULL;
 
   tBlockDataReset(pBlockData);
 
@@ -1300,9 +1300,9 @@ int32_t tsdbReadLastBlock(SDataFReader *pReader, SBlockL *pBlockL, SBlockData *p
   }
 
   // decode block col
-  SBlockDataHdr hdr;
-  SArray       *aBlockCol = taosArrayInit(0, sizeof(SBlockCol));
-  uint8_t      *p = *ppBuf1;
+  SDiskDataHdr hdr;
+  SArray      *aBlockCol = taosArrayInit(0, sizeof(SBlockCol));
+  uint8_t     *p = *ppBuf1;
   if (aBlockCol == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -1461,6 +1461,8 @@ int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pS
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
+  code = tDiskDataInit(&pWriter->dData);
+  if (code) goto _err;
   pWriter->pTsdb = pTsdb;
   pWriter->wSet = (SDFileSet){.diskId = pSet->diskId,
                               .fid = pSet->fid,
@@ -1639,6 +1641,7 @@ int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync) {
     goto _err;
   }
 
+  tDiskDataClear(&(*ppWriter)->dData);
   taosMemoryFree(*ppWriter);
 _exit:
   *ppWriter = NULL;
@@ -1786,17 +1789,17 @@ _err:
 }
 
 int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *mBlock, uint8_t **ppBuf, SBlockIdx *pBlockIdx) {
-  int32_t       code = 0;
-  SHeadFile    *pHeadFile = &pWriter->fHead;
-  SBlockDataHdr hdr = {.delimiter = TSDB_FILE_DLMT, .suid = pBlockIdx->suid, .uid = pBlockIdx->uid};
-  uint8_t      *pBuf = NULL;
-  int64_t       size;
-  int64_t       n;
+  int32_t      code = 0;
+  SHeadFile   *pHeadFile = &pWriter->fHead;
+  SDiskDataHdr hdr = {.delimiter = TSDB_FILE_DLMT, .suid = pBlockIdx->suid, .uid = pBlockIdx->uid};
+  uint8_t     *pBuf = NULL;
+  int64_t      size;
+  int64_t      n;
 
   ASSERT(mBlock->nItem > 0);
 
   // prepare
-  size = sizeof(SBlockDataHdr) + tPutMapData(NULL, mBlock) + sizeof(TSCKSUM);
+  size = sizeof(SDiskDataHdr) + tPutMapData(NULL, mBlock) + sizeof(TSCKSUM);
 
   // alloc
   if (!ppBuf) ppBuf = &pBuf;
@@ -1805,7 +1808,7 @@ int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *mBlock, uint8_t **ppBuf,
 
   // build
   n = 0;
-  *(SBlockDataHdr *)(*ppBuf) = hdr;
+  *(SDiskDataHdr *)(*ppBuf) = hdr;
   n += sizeof(hdr);
   n += tPutMapData(*ppBuf + n, mBlock);
   taosCalcChecksumAppend(0, *ppBuf, size);
@@ -1915,141 +1918,7 @@ static void tsdbUpdateBlockInfo(SBlockData *pBlockData, SBlock *pBlock) {
   pBlock->nRow += pBlockData->nRow;
 }
 
-static int32_t tsdbWriteDataArray(uint8_t *aData, int32_t nEle, int8_t type, int8_t cmprAlg, int32_t *rSize,
-                                  uint8_t **ppBuf1, int64_t nBuf1, uint8_t **ppBuf2) {
-  int32_t code = 0;
-  int32_t size;
-
-  if (IS_VAR_DATA_TYPE(type)) {
-    size = nEle;
-  } else {
-    size = tDataTypes[type].bytes * nEle;
-  }
-
-  if (cmprAlg == NO_COMPRESSION) {
-    code = tRealloc(ppBuf1, nBuf1 + size);
-    if (code) goto _exit;
-
-    memcpy(*ppBuf1 + nBuf1, aData, size);
-    *rSize = size;
-  } else {
-    code = tRealloc(ppBuf1, size + COMP_OVERFLOW_BYTES);
-    if (code) goto _exit;
-
-    if (cmprAlg == TWO_STAGE_COMP) {
-      code = tRealloc(ppBuf2, size + COMP_OVERFLOW_BYTES);
-      if (code) goto _exit;
-    }
-
-    int32_t n = tDataTypes[type].compFunc(aData, tDataTypes[type].bytes * nEle, nEle, *ppBuf1 + nBuf1,
-                                          size + COMP_OVERFLOW_BYTES, cmprAlg, *ppBuf2, size + COMP_OVERFLOW_BYTES);
-    if (n <= 0) {
-      code = TSDB_CODE_COMPRESS_ERROR;
-      goto _exit;
-    }
-    *rSize = n;
-  }
-
-_exit:
-  return code;
-}
-
-static int32_t tsdbWriteColData(SColData *pColData, SBlockCol *pBlockCol, int8_t cmprAlg, uint8_t **ppBuf1,
-                                int64_t nBuf1, uint8_t **ppBuf2) {
-  int32_t code = 0;
-  int64_t size;
-  int64_t n = 0;
-
-  // BITMAP
-  if (pColData->flag != HAS_VALUE) {
-    code = tsdbWriteDataArray(pColData->pBitMap, BIT2_SIZE(pColData->nVal), TSDB_DATA_TYPE_TINYINT, cmprAlg,
-                              &pBlockCol->szBitmap, ppBuf1, nBuf1 + n, ppBuf2);
-    if (code) goto _err;
-  } else {
-    pBlockCol->szBitmap = 0;
-  }
-  n += pBlockCol->szBitmap;
-
-  // OFFSET
-  if (IS_VAR_DATA_TYPE(pColData->type)) {
-    code = tsdbWriteDataArray((uint8_t *)pColData->aOffset, pColData->nVal, TSDB_DATA_TYPE_INT, cmprAlg,
-                              &pBlockCol->szOffset, ppBuf1, nBuf1 + n, ppBuf2);
-    if (code) goto _err;
-  } else {
-    pBlockCol->szOffset = 0;
-  }
-  n += pBlockCol->szOffset;
-
-  // VALUE
-  if (pColData->flag != (HAS_NULL | HAS_NONE)) {
-    ASSERT(pColData->nData);
-    code = tsdbWriteDataArray(pColData->pData, pColData->nData, pColData->type, cmprAlg, &pBlockCol->szValue, ppBuf1,
-                              nBuf1 + n, ppBuf2);
-    if (code) goto _err;
-  } else {
-    ASSERT(pColData->nData == 0);
-    pBlockCol->szValue = 0;
-  }
-  n += pBlockCol->szValue;
-
-  // checksum
-  n += sizeof(TSCKSUM);
-  code = tRealloc(ppBuf1, nBuf1 + n);
-  if (code) goto _err;
-  taosCalcChecksumAppend(0, *ppBuf1 + nBuf1, n);
-
-  return code;
-
-_err:
-  return code;
-}
-
-static int32_t tsdbWriteBlockDataImpl(TdFilePtr pFD, SBlockDataHdr hdr, SArray *aBlockCol, uint8_t *pData,
-                                      int64_t nData, uint8_t **ppBuf, int32_t *szBlockCol) {
-  int32_t code = 0;
-  int32_t nBlockCol = taosArrayGetSize(aBlockCol);
-  int64_t size;
-  int64_t n;
-
-  // HDR + SArray<SBlockCol>
-  *szBlockCol = sizeof(hdr);
-  for (int32_t iBlockCol = 0; iBlockCol < nBlockCol; iBlockCol++) {
-    (*szBlockCol) += tPutBlockCol(NULL, taosArrayGet(aBlockCol, iBlockCol));
-  }
-
-  code = tRealloc(ppBuf, *szBlockCol + sizeof(TSCKSUM));
-  if (code) goto _err;
-
-  n = 0;
-  memcpy(*ppBuf, &hdr, sizeof(hdr));
-  n += sizeof(hdr);
-  for (int32_t iBlockCol = 0; iBlockCol < nBlockCol; iBlockCol++) {
-    n += tPutBlockCol(*ppBuf + n, taosArrayGet(aBlockCol, iBlockCol));
-  }
-  taosCalcChecksumAppend(0, *ppBuf, *szBlockCol + sizeof(TSCKSUM));
-
-  ASSERT(n == *szBlockCol);
-
-  n = taosWriteFile(pFD, *ppBuf, *szBlockCol + sizeof(TSCKSUM));
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  // SBlockData
-  n = taosWriteFile(pFD, pData, nData);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  return code;
-
-_err:
-  return code;
-}
-
-static int32_t tsdbWriteBlockSma(TdFilePtr pFD, SBlockData *pBlockData, SSubBlock *pSubBlock, uint8_t **ppBuf) {
+static int32_t tsdbWriteBlockSma(TdFilePtr pFD, SBlockData *pBlockData, SBlockInfo *pSubBlock, uint8_t **ppBuf) {
   int32_t   code = 0;
   int64_t   n;
   SColData *pColData;
@@ -2093,230 +1962,93 @@ _err:
   return code;
 }
 
-int32_t tsdbWriteDataBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock *pBlock, uint8_t **ppBuf1,
-                           uint8_t **ppBuf2, int8_t cmprAlg) {
-  int32_t code = 0;
+int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo,
+                           int8_t cmprAlg, int8_t toLast, uint8_t **ppBuf) {
+  int32_t    code = 0;
+  TdFilePtr  pFD = toLast ? pWriter->pLastFD : pWriter->pDataFD;
+  SDiskData *pDiskData = &pWriter->dData;
+  uint8_t   *pBuf = NULL;
 
-  ASSERT((pBlockData->suid && pBlockData->uid) || (!pBlockData->suid && pBlockData->uid));
+  if (!ppBuf) ppBuf = &pBuf;
 
-  uint8_t *pBuf1 = NULL;
-  uint8_t *pBuf2 = NULL;
-
-  if (!ppBuf1) ppBuf1 = &pBuf1;
-  if (!ppBuf2) ppBuf2 = &pBuf2;
-
-  tsdbUpdateBlockInfo(pBlockData, pBlock);
-
-  SSubBlock *pSubBlock = &pBlock->aSubBlock[pBlock->nSubBlock++];
-
-  pSubBlock->nRow = pBlockData->nRow;
-  pSubBlock->cmprAlg = cmprAlg;
-  pSubBlock->offset = pWriter->fData.size;
-
-  // ======================= BLOCK DATA =======================
-  int64_t nBuf1 = 0;
-
-  // VERSION
-  code = tsdbWriteDataArray((uint8_t *)pBlockData->aVersion, pBlockData->nRow, TSDB_DATA_TYPE_BIGINT, cmprAlg,
-                            &pSubBlock->szVersion, ppBuf1, nBuf1, ppBuf2);
+  // convert
+  code = tBlockToDiskData(pBlockData, pDiskData, cmprAlg);
   if (code) goto _err;
-  nBuf1 += pSubBlock->szVersion;
 
-  // TSKEY
-  code = tsdbWriteDataArray((uint8_t *)pBlockData->aTSKEY, pBlockData->nRow, TSDB_DATA_TYPE_TIMESTAMP, cmprAlg,
-                            &pSubBlock->szTSKEY, ppBuf1, nBuf1, ppBuf2);
+  // write the block
+  if (toLast) {
+    pBlkInfo->offset = pWriter->fLast.size;
+  } else {
+    pBlkInfo->offset = pWriter->fData.size;
+  }
+
+  // HDR and KEY
+  int32_t size = tPutDiskDataHdr(NULL, &pDiskData->hdr);
+  code = tRealloc(ppBuf, size);
   if (code) goto _err;
-  nBuf1 += pSubBlock->szTSKEY;
 
-  // checksum
-  nBuf1 += sizeof(TSCKSUM);
-  code = tRealloc(ppBuf1, nBuf1);
-  if (code) goto _err;
-  taosCalcChecksumAppend(0, *ppBuf1, nBuf1);
+  tPutDiskDataHdr(*ppBuf, &pDiskData->hdr);
 
-  // COLUMNS
-  SArray *aBlockCol = taosArrayInit(taosArrayGetSize(pBlockData->aIdx), sizeof(SBlockCol));
-  if (aBlockCol == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+  TSCKSUM cksm = taosCalcChecksum(0, *ppBuf, size);
+
+  int64_t n = taosWriteFile(pFD, *ppBuf, size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-  int32_t offset = 0;
-  for (int32_t iCol = 0; iCol < taosArrayGetSize(pBlockData->aIdx); iCol++) {
-    SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iCol);
-    SBlockCol blockCol = {0};
 
-    ASSERT(pColData->flag);
-
-    if (pColData->flag == HAS_NONE) continue;
-
-    blockCol.cid = pColData->cid;
-    blockCol.type = pColData->type;
-    blockCol.smaOn = pColData->smaOn;
-    blockCol.flag = pColData->flag;
-    blockCol.szOrigin = pColData->nData;
-
-    if (pColData->flag != HAS_NULL) {
-      code = tsdbWriteColData(pColData, &blockCol, cmprAlg, ppBuf1, nBuf1, ppBuf2);
-      if (code) goto _err;
-
-      blockCol.offset = offset;
-      offset = offset + blockCol.szBitmap + blockCol.szOffset + blockCol.szValue + sizeof(TSCKSUM);
-      nBuf1 = nBuf1 + blockCol.szBitmap + blockCol.szOffset + blockCol.szValue + sizeof(TSCKSUM);
-    }
-
-    if (taosArrayPush(aBlockCol, &blockCol) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _err;
-    }
+  cksm = taosCalcChecksum(cksm, *pDiskData->ppKey, pDiskData->hdr.szUid + pDiskData->hdr.szVer + pDiskData->hdr.szKey);
+  n = taosWriteFile(pFD, *pDiskData->ppKey, pDiskData->hdr.szUid + pDiskData->hdr.szVer + pDiskData->hdr.szKey);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
   }
 
-  // write
-  SBlockDataHdr hdr = {.delimiter = TSDB_FILE_DLMT, .suid = pBlockData->suid, .uid = pBlockData->uid};
-  code = tsdbWriteBlockDataImpl(pWriter->pDataFD, hdr, aBlockCol, *ppBuf1, nBuf1, ppBuf2, &pSubBlock->szBlockCol);
-  if (code) goto _err;
-
-  pSubBlock->szBlock = pSubBlock->szBlockCol + sizeof(TSCKSUM) + nBuf1;
-  pWriter->fData.size += pSubBlock->szBlock;
-
-  // ======================= BLOCK SMA =======================
-  pSubBlock->sOffset = 0;
-  pSubBlock->nSma = 0;
-
-  if (pBlock->nSubBlock > 1 || pBlock->hasDup) goto _exit;
-
-  code = tsdbWriteBlockSma(pWriter->pSmaFD, pBlockData, pSubBlock, ppBuf1);
-  if (code) goto _err;
-
-  if (pSubBlock->nSma > 0) {
-    pSubBlock->sOffset = pWriter->fSma.size;
-    pWriter->fSma.size += (sizeof(SColumnDataAgg) * pSubBlock->nSma + sizeof(TSCKSUM));
+  n = taosWriteFile(pFD, &cksm, sizeof(cksm));
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
   }
+
+  pBlkInfo->szKey = size + pDiskData->hdr.szUid + pDiskData->hdr.szVer + pDiskData->hdr.szKey + sizeof(TSCKSUM);
+
+  // SBlockCol
+  if (pDiskData->hdr.szBlkCol == 0) {
+    pBlkInfo->szBlock = pBlkInfo->szKey;
+    goto _write_sma;
+  }
+
+  code = tRealloc(ppBuf, pDiskData->hdr.szBlkCol + sizeof(TSCKSUM));
+  if (code) goto _err;
+
+  n = 0;
+  for (int32_t iBlockCol = 0; iBlockCol < taosArrayGetSize(pDiskData->aBlockCol); iBlockCol++) {
+    n += tPutBlockCol(*ppBuf + n, taosArrayGet(pDiskData->aBlockCol, iBlockCol));
+  }
+  taosCalcChecksumAppend(0, *ppBuf, pDiskData->hdr.szBlkCol + sizeof(TSCKSUM));
+
+  n = taosWriteFile(pFD, *ppBuf, pDiskData->hdr.szBlkCol + sizeof(TSCKSUM));
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  for (int32_t iBlockCol = 0; iBlockCol < taosArrayGetSize(pDiskData->aBlockCol); iBlockCol++) {
+  }
+
+// ================= SMA ====================
+_write_sma:
+  if (toLast) goto _exit;
+  if (pSmaInfo == NULL) goto _exit;
+
+  // TODO
 
 _exit:
-  tFree(pBuf1);
-  tFree(pBuf2);
-  taosArrayDestroy(aBlockCol);
+  tFree(pBuf);
   return code;
 
 _err:
-  tsdbError("vgId:%d, write block data failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
-  tFree(pBuf1);
-  tFree(pBuf2);
-  taosArrayDestroy(aBlockCol);
-  return code;
-}
-
-int32_t tsdbWriteLastBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockL *pBlockL, uint8_t **ppBuf1,
-                           uint8_t **ppBuf2, int8_t cmprAlg) {
-  int32_t code = 0;
-
-  ASSERT((pBlockData->suid && !pBlockData->uid) || (!pBlockData->suid && pBlockData->uid));
-
-  uint8_t *pBuf1 = NULL;
-  uint8_t *pBuf2 = NULL;
-
-  if (!ppBuf1) ppBuf1 = &pBuf1;
-  if (!ppBuf2) ppBuf2 = &pBuf2;
-
-  pBlockL->suid = pBlockData->suid;
-  if (pBlockData->uid) {
-    pBlockL->maxUid = pBlockL->minUid = pBlockData->uid;
-  } else {
-    pBlockL->minUid = pBlockData->aUid[0];
-    pBlockL->maxUid = pBlockData->aUid[pBlockData->nRow - 1];
-  }
-  pBlockL->minVer = VERSION_MAX;
-  pBlockL->maxVer = VERSION_MIN;
-  pBlockL->nRow = pBlockData->nRow;
-  pBlockL->offset = pWriter->fLast.size;
-  pBlockL->cmprAlg = cmprAlg;
-  for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
-    pBlockL->minVer = TMIN(pBlockL->minVer, pBlockData->aVersion[iRow]);
-    pBlockL->maxVer = TMAX(pBlockL->maxVer, pBlockData->aVersion[iRow]);
-  }
-
-  // ======================= BLOCK DATA =======================
-  int64_t nBuf1 = 0;
-
-  // UID
-  if (pBlockData->uid == 0) {
-    code = tsdbWriteDataArray((uint8_t *)pBlockData->aUid, pBlockData->nRow, TSDB_DATA_TYPE_BIGINT, cmprAlg,
-                              &pBlockL->szUid, ppBuf1, nBuf1, ppBuf2);
-    if (code) goto _err;
-  } else {
-    pBlockL->szUid = 0;
-  }
-  nBuf1 += pBlockL->szUid;
-
-  // VERSION
-  code = tsdbWriteDataArray((uint8_t *)pBlockData->aVersion, pBlockData->nRow, TSDB_DATA_TYPE_BIGINT, cmprAlg,
-                            &pBlockL->szVer, ppBuf1, nBuf1, ppBuf2);
-  if (code) goto _err;
-  nBuf1 += pBlockL->szVer;
-
-  // TSKEY
-  code = tsdbWriteDataArray((uint8_t *)pBlockData->aTSKEY, pBlockData->nRow, TSDB_DATA_TYPE_TIMESTAMP, cmprAlg,
-                            &pBlockL->szTSKEY, ppBuf1, nBuf1, ppBuf2);
-  if (code) goto _err;
-  nBuf1 += pBlockL->szTSKEY;
-
-  // checksum
-  nBuf1 += sizeof(TSCKSUM);
-  code = tRealloc(ppBuf1, nBuf1);
-  if (code) goto _err;
-  taosCalcChecksumAppend(0, *ppBuf1, nBuf1);
-
-  // COLUMNS
-  SArray *aBlockCol = taosArrayInit(taosArrayGetSize(pBlockData->aIdx), sizeof(SBlockCol));
-  if (aBlockCol == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
-  int32_t offset = 0;
-  for (int32_t iCol = 0; iCol < taosArrayGetSize(pBlockData->aIdx); iCol++) {
-    SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iCol);
-    SBlockCol blockCol = {0};
-
-    ASSERT(pColData->flag);
-
-    if (pColData->flag == HAS_NONE) continue;
-
-    blockCol.cid = pColData->cid;
-    blockCol.type = pColData->type;
-    blockCol.smaOn = pColData->smaOn;
-    blockCol.flag = pColData->flag;
-    blockCol.szOrigin = pColData->nData;
-
-    if (pColData->flag != HAS_NULL) {
-      code = tsdbWriteColData(pColData, &blockCol, cmprAlg, ppBuf1, nBuf1, ppBuf2);
-      if (code) goto _err;
-
-      blockCol.offset = offset;
-      offset = offset + blockCol.szBitmap + blockCol.szOffset + blockCol.szValue + sizeof(TSCKSUM);
-      nBuf1 = nBuf1 + blockCol.szBitmap + blockCol.szOffset + blockCol.szValue + sizeof(TSCKSUM);
-    }
-
-    if (taosArrayPush(aBlockCol, &blockCol) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _err;
-    }
-  }
-
-  // write
-  SBlockDataHdr hdr = {.delimiter = TSDB_FILE_DLMT, .suid = pBlockData->suid, .uid = pBlockData->uid};
-  code = tsdbWriteBlockDataImpl(pWriter->pLastFD, hdr, aBlockCol, *ppBuf1, nBuf1, ppBuf2, &pBlockL->szBlockCol);
-  if (code) goto _err;
-
-  pBlockL->szBlock = pBlockL->szBlockCol + sizeof(TSCKSUM) + nBuf1;
-  pWriter->fLast.size += pBlockL->szBlock;
-
-  tFree(pBuf1);
-  tFree(pBuf2);
-  return code;
-
-_err:
-  tFree(pBuf1);
-  tFree(pBuf2);
+  tFree(pBuf);
   return code;
 }
 

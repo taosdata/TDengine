@@ -494,10 +494,11 @@ _exit:
 }
 
 static int32_t tsdbCommitDataBlock(SCommitter *pCommitter, SBlock *pBlock) {
-  int32_t code = 0;
-  SBlock  block;
+  int32_t     code = 0;
+  SBlockData *pBlockData = &pCommitter->dWriter.bData;
+  SBlock      block;
 
-  ASSERT(pCommitter->dWriter.bData.nRow > 0);
+  ASSERT(pBlockData->nRow > 0);
 
   if (pBlock) {
     block = *pBlock;  // as a subblock
@@ -505,37 +506,84 @@ static int32_t tsdbCommitDataBlock(SCommitter *pCommitter, SBlock *pBlock) {
     tBlockReset(&block);  // as a new block
   }
 
-  code = tsdbWriteDataBlock(pCommitter->dWriter.pWriter, &pCommitter->dWriter.bData, &block, NULL, NULL,
-                            pCommitter->cmprAlg);
-  if (code) goto _exit;
+  // statistic
+  block.nRow += pBlockData->nRow;
+  for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
+    TSDBKEY key = {.ts = pBlockData->aTSKEY[iRow], .version = pBlockData->aVersion[iRow]};
 
+    if (iRow == 0) {
+      if (tsdbKeyCmprFn(&block.minKey, &key) > 0) {
+        block.minKey = key;
+      }
+    } else {
+      if (pBlockData->aTSKEY[iRow] == pBlockData->aTSKEY[iRow - 1]) {
+        block.hasDup = 1;
+      }
+    }
+
+    if (iRow == pBlockData->nRow - 1 && tsdbKeyCmprFn(&block.maxKey, &key) < 0) {
+      block.maxKey = key;
+    }
+
+    block.minVer = TMIN(block.minVer, key.version);
+    block.maxVer = TMAX(block.maxVer, key.version);
+  }
+
+  // write
+  code = tsdbWriteBlockData(pCommitter->dWriter.pWriter, pBlockData, &block.aSubBlock[block.nSubBlock++],
+                            &block.smaInfo, pCommitter->cmprAlg, 0, NULL);
+  if (code) goto _err;
+
+  // put SBlock
   code = tMapDataPutItem(&pCommitter->dWriter.mBlock, &block, tPutBlock);
-  if (code) goto _exit;
+  if (code) goto _err;
 
-  tBlockDataClearData(&pCommitter->dWriter.bData);
+  // clear
+  tBlockDataClearData(pBlockData);
 
-_exit:
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb commit data block failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
 static int32_t tsdbCommitLastBlock(SCommitter *pCommitter) {
-  int32_t code = 0;
-  SBlockL blockL;
+  int32_t     code = 0;
+  SBlockL     blockL;
+  SBlockData *pBlockData = &pCommitter->dWriter.bDatal;
 
-  ASSERT(pCommitter->dWriter.bDatal.nRow > 0);
+  ASSERT(pBlockData->nRow > 0);
 
-  code = tsdbWriteLastBlock(pCommitter->dWriter.pWriter, &pCommitter->dWriter.bDatal, &blockL, NULL, NULL,
-                            pCommitter->cmprAlg);
-  if (code) goto _exit;
+  // statistic
+  blockL.suid = pBlockData->suid;
+  blockL.nRow = pBlockData->nRow;
+  blockL.minVer = VERSION_MAX;
+  blockL.maxVer = VERSION_MIN;
+  for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
+    blockL.minVer = TMIN(blockL.minVer, pBlockData->aVersion[iRow]);
+    blockL.maxVer = TMIN(blockL.maxVer, pBlockData->aVersion[iRow]);
+  }
+  blockL.minUid = pBlockData->uid ? pBlockData->uid : pBlockData->aUid[0];
+  blockL.maxUid = pBlockData->uid ? pBlockData->uid : pBlockData->aUid[pBlockData->nRow - 1];
 
+  // write
+  code = tsdbWriteBlockData(pCommitter->dWriter.pWriter, pBlockData, &blockL.bInfo, NULL, pCommitter->cmprAlg, 1, NULL);
+  if (code) goto _err;
+
+  // push SBlockL
   if (taosArrayPush(pCommitter->dWriter.aBlockL, &blockL) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
+    goto _err;
   }
 
-  tBlockDataClearData(&pCommitter->dWriter.bDatal);
+  // clear
+  tBlockDataClearData(pBlockData);
 
-_exit:
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb commit last block failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
