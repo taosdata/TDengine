@@ -1,5 +1,5 @@
 mod _priv {
-    pub use crate::common::{BorrowedValue, Field, Precision, RawBlock, RawMeta, Ty, Value};
+    pub use crate::common::{BorrowedValue, Field, Precision, RawBlock, RawMeta, Ty, Value, ColumnView};
     pub use crate::util::{Inlinable, InlinableRead, InlinableWrite};
     pub use crate::TBuilder;
     #[cfg(feature = "r2d2")]
@@ -401,6 +401,10 @@ mod r#async {
         fn precision(&self) -> Precision;
 
         fn fields(&self) -> &[Field];
+
+        fn filed_names(&self) -> Vec<&str> {
+            self.fields().into_iter().map(|f| f.name()).collect_vec()
+        }
 
         fn num_of_fields(&self) -> usize {
             self.fields().len()

@@ -23,3 +23,9 @@ pub use tmq_to_local::tmq_to_local;
 
 mod local_to_taos;
 pub use local_to_taos::local_to_taos;
+
+mod csv;
+pub use csv::*;
+
+mod parquets;
+pub use parquets::*;

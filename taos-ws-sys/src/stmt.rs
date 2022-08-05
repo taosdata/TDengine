@@ -650,6 +650,112 @@ mod tests {
             // query!(b"drop database ws_stmt_i\0");
         }
     }
+
+    #[test]
+    fn stmt_tiny_int_null() {
+        use crate::*;
+        init_env();
+        unsafe {
+            let taos = ws_connect_with_dsn(b"ws://localhost:6041\0" as *const u8 as _);
+            if taos.is_null() {
+                let code = ws_errno(taos);
+                assert!(code != 0);
+                let str = ws_errstr(taos);
+                dbg!(CStr::from_ptr(str));
+            }
+            assert!(!taos.is_null());
+
+            macro_rules! query {
+                ($sql:expr) => {
+                    let sql = $sql as *const u8 as _;
+                    let rs = ws_query(taos, sql);
+                    let code = ws_errno(rs);
+                    assert!(code == 0, "{:?}", CStr::from_ptr(ws_errstr(rs)));
+                    ws_free_result(rs);
+                };
+            }
+
+            query!(b"drop database if exists ws_stmt_i\0");
+            query!(b"create database ws_stmt_i keep 36500\0");
+            query!(b"use ws_stmt_i\0");
+            query!(b"create table st(ts timestamp, c1 TINYINT UNSIGNED) tags(utntag TINYINT UNSIGNED)\0");
+            query!(b"create table t1 using st tags(0)\0");
+            query!(b"create table t2 using st tags(255)\0");
+            query!(b"create table t3 using st tags(NULL)\0");
+
+            let stmt = ws_stmt_init(taos);
+
+            let sql = "insert into ? values(?,?)";
+            let code = ws_stmt_prepare(stmt, sql.as_ptr() as _, sql.len() as _);
+            if code != 0 {
+                dbg!(CStr::from_ptr(ws_errstr(stmt)).to_str().unwrap());
+                panic!()
+            }
+
+            for tbname in ["t1", "t2", "t3"] {
+                let name = format!("ws_stmt_i.`{}`\0", tbname);
+                let code = ws_stmt_set_tbname(stmt, name.as_ptr() as _);
+
+                if code != 0 {
+                    dbg!(CStr::from_ptr(ws_errstr(stmt)).to_str().unwrap());
+                    panic!()
+                }
+                let params = vec![
+                    TaosMultiBind::from_raw_timestamps(vec![false, false, false], &[0, 1, 2]),
+                    TaosMultiBind::from_primitives(vec![true, false, true], &[0u8, 255u8, 0u8]),
+                ];
+                let code = ws_stmt_bind_param_batch(stmt, params.as_ptr(), params.len() as _);
+                if code != 0 {
+                    dbg!(CStr::from_ptr(ws_errstr(stmt)).to_str().unwrap());
+                    panic!()
+                }
+
+                ws_stmt_add_batch(stmt);
+                let mut rows = 0;
+                ws_stmt_execute(stmt, &mut rows);
+                assert_eq!(rows, 3);
+
+                let sql = format!("select * from st where tbname = '{tbname}'\0");
+                let rs = ws_query(taos, sql.as_bytes().as_ptr() as _);
+                let code = ws_errno(rs);
+                loop {
+                    let mut ptr = std::ptr::null();
+                    let mut rows = 0;
+                    ws_fetch_block(rs, &mut ptr, &mut rows);
+                    if rows == 0 {
+                        break;
+                    }
+                    for row in 0..rows {
+                        print!("{tbname} row {row}: ");
+                        for col in 0..3 {
+                            let mut ty = Ty::Null;
+                            let mut len = 0;
+                            let v = ws_get_value_in_block(
+                                rs,
+                                row,
+                                col,
+                                &mut ty as *mut _ as _,
+                                &mut len,
+                            );
+                            if v.is_null() {
+                                print!(",NULL");
+                            } else {
+                                match ty {
+                                    Ty::Timestamp => print!("ts: {}", *(v as *const i64)),
+                                    _ => print!(",{}", *(v as *const u8)),
+                                }
+                            }
+                        }
+                        println!("");
+                    }
+                }
+            }
+
+            ws_stmt_close(stmt);
+            // query!(b"drop database ws_stmt_i\0");
+        }
+    }
+
     #[test]
     fn stmt_with_tags() {
         use crate::*;
