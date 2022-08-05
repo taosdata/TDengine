@@ -24,17 +24,15 @@ exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
 [dependencies]
 anyhow = "1"
 async-compression = { version = "*", features = ["all"] }
-async-semaphore = "1.2"
 async-trait = "0.1"
 bitflags = "1"
 chrono = "0.4"
 clap = { version = "3.2", features = ["default", "derive"] }
 clap-verbosity-flag = "1"
 config = "0.13.1"
-flate2 = "1.0.0"
 futures = "0.3"
-log = "*"
-pretty_env_logger = "*"
+log = "0.4"
+pretty_env_logger = "0.4"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
 taos = { path = "./taos" }
