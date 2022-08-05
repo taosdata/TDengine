@@ -16,7 +16,8 @@
 #include "transComm.h"
 
 typedef struct SConnList {
-  queue conn;
+  queue   conn;
+  int32_t size;
 } SConnList;
 
 typedef struct SCliConn {
@@ -518,15 +519,18 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
   if (QUEUE_IS_EMPTY(&plist->conn)) {
     return NULL;
   }
+
+  plist->size -= 1;
   queue*    h = QUEUE_HEAD(&plist->conn);
   SCliConn* conn = QUEUE_DATA(h, SCliConn, q);
   conn->status = ConnNormal;
   QUEUE_REMOVE(&conn->q);
   QUEUE_INIT(&conn->q);
 
-  transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
-  conn->task = NULL;
-
+  if (conn->task != NULL) {
+    transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
+    conn->task = NULL;
+  }
   return conn;
 }
 static void addConnToPool(void* pool, SCliConn* conn) {
@@ -555,13 +559,17 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   assert(conn->list != NULL);
   QUEUE_INIT(&conn->q);
   QUEUE_PUSH(&conn->list->conn, &conn->q);
+  conn->list->size += 1;
 
+  conn->task = NULL;
   assert(!QUEUE_IS_EMPTY(&conn->list->conn));
 
-  STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
-  arg->param1 = conn;
-  arg->param2 = thrd;
-  conn->task = transDQSched(thrd->timeoutQueue, doCloseIdleConn, arg, CONN_PERSIST_TIME(pTransInst->idleTime));
+  if (conn->list->size >= 10) {
+    STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
+    arg->param1 = conn;
+    arg->param2 = thrd;
+    conn->task = transDQSched(thrd->timeoutQueue, doCloseIdleConn, arg, CONN_PERSIST_TIME(pTransInst->idleTime));
+  }
 }
 static int32_t allocConnRef(SCliConn* conn, bool update) {
   if (update) {

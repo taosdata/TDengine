@@ -75,15 +75,14 @@ void processShellMsg() {
 
       void *handle = pRpcMsg->info.handle;
       taosFreeQitem(pRpcMsg);
-
-      {
-        SRpcMsg nRpcMsg = {0};
-        nRpcMsg.pCont = rpcMallocCont(msgSize);
-        nRpcMsg.contLen = msgSize;
-        nRpcMsg.info.handle = handle;
-        nRpcMsg.code = TSDB_CODE_CTG_NOT_READY;
-        rpcSendResponse(&nRpcMsg);
-      }
+      //{
+      //  SRpcMsg nRpcMsg = {0};
+      //  nRpcMsg.pCont = rpcMallocCont(msgSize);
+      //  nRpcMsg.contLen = msgSize;
+      //  nRpcMsg.info.handle = handle;
+      //  nRpcMsg.code = TSDB_CODE_CTG_NOT_READY;
+      //  rpcSendResponse(&nRpcMsg);
+      //}
     }
 
     taosUpdateItemSize(qinfo.queue, numOfMsgs);
