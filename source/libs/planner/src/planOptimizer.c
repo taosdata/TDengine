@@ -2404,7 +2404,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
 static const int32_t optimizeRuleNum = (sizeof(optimizeRuleSet) / sizeof(SOptimizeRule));
 
 static void dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
-  if (0 == qDebugFlag & DEBUG_DEBUG) {
+  if (0 == (qDebugFlag & DEBUG_DEBUG)) {
     return;
   }
   char* pStr = NULL;

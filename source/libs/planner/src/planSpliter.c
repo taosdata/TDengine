@@ -1423,7 +1423,7 @@ static const SSplitRule splitRuleSet[] = {
 static const int32_t splitRuleNum = (sizeof(splitRuleSet) / sizeof(SSplitRule));
 
 static void dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
-  if (0 == qDebugFlag & DEBUG_DEBUG) {
+  if (0 == (qDebugFlag & DEBUG_DEBUG)) {
     return;
   }
   char* pStr = NULL;
