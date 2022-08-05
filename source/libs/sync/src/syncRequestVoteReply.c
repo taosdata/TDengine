@@ -125,6 +125,14 @@ int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteRepl
   // This tallies votes even when the current state is not Candidate,
   // but they won't be looked at, so it doesn't matter.
   if (ths->state == TAOS_SYNC_STATE_CANDIDATE) {
+    if (ths->pVotesRespond->term != pMsg->term) {
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "vote respond error vote-respond-mgr term:%lu, msg term:lu",
+               ths->pVotesRespond->term, pMsg->term);
+      syncNodeErrorLog(ths, logBuf);
+      return -1;
+    }
+
     votesRespondAdd(ths->pVotesRespond, pMsg);
     if (pMsg->voteGranted) {
       // add vote
