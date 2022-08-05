@@ -3391,6 +3391,10 @@ static void doFreeInsertSupporter(SSqlObj* pSqlObj) {
 }
 
 static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows) {
+  if(param == NULL) {
+    tscError("callback multiVnodeInsertFinalize param is NULL. tres=%p numOfRows=%d", tres, numOfRows);
+    return ;
+  }
   SInsertSupporter *pSupporter = (SInsertSupporter *)param;
   SSqlObj* pParentObj = pSupporter->pSql;
 
