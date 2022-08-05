@@ -1,6 +1,4 @@
-//const taos = require('td2.0-connector');
-const taos = require('../../../src/connector/nodejs/');
-
+const taos = require('td2.0-connector');
 
 var host = null;
 var port = 6030;
