@@ -720,11 +720,7 @@ void    ctgClearHandle(SCatalog* pCtg);
 void    ctgFreeTbCacheImpl(SCtgTbCache *pCache);
 int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName);
 int32_t ctgGetTbHashVgroup(SCatalog *pCtg, SRequestConnInfo *pConn, const SName *pTableName, SVgroupInfo *pVgroup);
-
-FORCE_INLINE SName* ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch) {
-  STablesReq* pReq = (STablesReq*)taosArrayGet(pNames, pFetch->dbIdx);
-  return (SName*)taosArrayGet(pReq->pTables, pFetch->tbIdx);
-}
+SName*  ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch);
 
 
 extern SCatalogMgmt gCtgMgmt;

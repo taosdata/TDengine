@@ -1144,5 +1144,9 @@ int32_t ctgAddFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t *fet
   return TSDB_CODE_SUCCESS;
 }
 
+SName* ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch) {
+  STablesReq* pReq = (STablesReq*)taosArrayGet(pNames, pFetch->dbIdx);
+  return (SName*)taosArrayGet(pReq->pTables, pFetch->tbIdx);
+}
 
 
