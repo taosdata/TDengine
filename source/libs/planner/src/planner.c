@@ -19,6 +19,9 @@
 #include "scalar.h"
 
 static void dumpQueryPlan(SQueryPlan* pPlan) {
+  if (0 == qDebugFlag & DEBUG_DEBUG) {
+    return;
+  }
   char* pStr = NULL;
   nodesNodeToString((SNode*)pPlan, false, &pStr, NULL);
   planDebugL("QID:0x%" PRIx64 " Query Plan: %s", pPlan->queryId, pStr);
@@ -41,6 +44,9 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    dumpQueryPlan(*pPlan);
   }
 
   nodesDestroyNode((SNode*)pLogicSubplan);
@@ -79,6 +85,7 @@ static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDown
 }
 
 int32_t qSetSubplanExecutionNode(SSubplan* subplan, int32_t groupId, SDownstreamSourceNode* pSource) {
+  planDebug("QID:0x%" PRIx64 " set subplan execution node, groupId:%d", subplan->id.groupId, groupId);
   return setSubplanExecutionNode(subplan->pNode, groupId, pSource);
 }
 
