@@ -103,7 +103,7 @@ void tdCleanupStreamInputDataBlock(qTaskInfo_t tinfo) {
 
   if (pOptrInfo->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     SStreamScanInfo* pInfo = pOptrInfo->info;
-    if (pInfo->blockType = STREAM_INPUT__DATA_BLOCK) {
+    if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < taosArrayGetSize(pInfo->pBlockLists); ++i) {
         SSDataBlock* p = *(SSDataBlock**)taosArrayGet(pInfo->pBlockLists, i);
         taosArrayDestroy(p->pDataBlock);
