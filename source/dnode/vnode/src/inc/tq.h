@@ -115,15 +115,23 @@ typedef struct {
 } STqHandle;
 
 struct STQ {
-  char*           path;
-  SHashObj*       pushMgr;       // consumerId -> STqHandle*
-  SHashObj*       handles;       // subKey -> STqHandle
-  SHashObj*       pStreamTasks;  // taksId -> SStreamTask
-  SHashObj*       pAlterInfo;    // topic -> SAlterCheckInfo
+  SVnode*   pVnode;
+  char*     path;
+  SHashObj* pushMgr;       // consumerId -> STqHandle*
+  SHashObj* handles;       // subKey -> STqHandle
+  SHashObj* pStreamTasks;  // taksId -> SStreamTask
+  SHashObj* pAlterInfo;    // topic -> SAlterCheckInfo
+
   STqOffsetStore* pOffsetStore;
-  SVnode*         pVnode;
-  TDB*            pMetaStore;
-  TTB*            pExecStore;
+
+  TDB* pMetaStore;
+  TTB* pExecStore;
+
+  TTB* pAlterInfoStore;
+
+  TDB* pStreamStore;
+  TTB* pTaskDb;
+  TTB* pTaskState;
 };
 
 typedef struct {

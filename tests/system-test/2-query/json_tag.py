@@ -506,7 +506,7 @@ class TDTestCase:
 
         #show create table
         tdSql.query("show create table jsons1")
-        tdSql.checkData(0, 1, 'CREATE STABLE `jsons1` (`ts` TIMESTAMP, `dataint` INT, `databool` BOOL, `datastr` NCHAR(50), `datastrbin` VARCHAR(150)) TAGS (`jtag` JSON) WATERMARK 5000a, 5000a')
+        tdSql.checkData(0, 1, 'CREATE STABLE `jsons1` (`ts` TIMESTAMP, `dataint` INT, `databool` BOOL, `datastr` NCHAR(50), `datastrbin` VARCHAR(150)) TAGS (`jtag` JSON)')
 
         #test aggregate function:count/avg/twa/irate/sum/stddev/leastsquares
         tdSql.query("select count(*) from jsons1 where jtag is not null")

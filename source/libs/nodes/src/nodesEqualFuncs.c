@@ -82,7 +82,9 @@ static bool columnNodeEqual(const SColumnNode* a, const SColumnNode* b) {
   COMPARE_STRING_FIELD(dbName);
   COMPARE_STRING_FIELD(tableName);
   COMPARE_STRING_FIELD(colName);
-  COMPARE_STRING_FIELD(tableAlias);
+  if (0 == a->tableId) {
+    COMPARE_STRING_FIELD(tableAlias);
+  }
   return true;
 }
 

@@ -18,6 +18,7 @@
 static FORCE_INLINE void *metaMalloc(void *pPool, size_t size) { return vnodeBufPoolMalloc((SVBufPool *)pPool, size); }
 static FORCE_INLINE void  metaFree(void *pPool, void *p) { vnodeBufPoolFree((SVBufPool *)pPool, p); }
 
+// begin a meta txn
 int metaBegin(SMeta *pMeta) {
   tdbTxnOpen(&pMeta->txn, 0, metaMalloc, metaFree, pMeta->pVnode->inUse, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
 
@@ -28,4 +29,8 @@ int metaBegin(SMeta *pMeta) {
   return 0;
 }
 
+// commit the meta txn
 int metaCommit(SMeta *pMeta) { return tdbCommit(pMeta->pEnv, &pMeta->txn); }
+
+// abort the meta txn
+int metaAbort(SMeta *pMeta) { return tdbAbort(pMeta->pEnv, &pMeta->txn); }

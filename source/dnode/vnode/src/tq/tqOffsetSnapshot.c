@@ -37,7 +37,7 @@ int32_t tqOffsetReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqOffsetReader
   pReader->sver = sver;
   pReader->ever = ever;
 
-  tqInfo("vgId:%d vnode snapshot tq offset reader opened", TD_VID(pTq->pVnode));
+  tqInfo("vgId:%d, vnode snapshot tq offset reader opened", TD_VID(pTq->pVnode));
 
   *ppReader = pReader;
   return 0;
@@ -109,7 +109,7 @@ int32_t tqOffsetWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqOffsetWriter
   return code;
 
 _err:
-  tqError("vgId:%d tq snapshot writer open failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
+  tqError("vgId:%d, tq snapshot writer open failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
   *ppWriter = NULL;
   return code;
 }

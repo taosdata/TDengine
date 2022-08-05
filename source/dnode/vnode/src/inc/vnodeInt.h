@@ -163,7 +163,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* data, int64_t ver);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec);
 int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
@@ -186,6 +186,7 @@ int32_t smaSyncPostCommit(SSma* pSma);
 int32_t smaAsyncPreCommit(SSma* pSma);
 int32_t smaAsyncCommit(SSma* pSma);
 int32_t smaAsyncPostCommit(SSma* pSma);
+int32_t smaDoRetention(SSma* pSma, int64_t now);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
@@ -354,16 +355,16 @@ struct SSma {
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
 
 enum {
-  SNAP_DATA_META = 0,
-  SNAP_DATA_TSDB = 1,
-  SNAP_DATA_DEL = 2,
-  SNAP_DATA_RSMA1 = 3,
-  SNAP_DATA_RSMA2 = 4,
-  SNAP_DATA_QTASK = 5,
-  SNAP_DATA_TQ_HANDLE = 6,
-  SNAP_DATA_TQ_OFFSET = 7,
-  SNAP_DATA_STREAM_TASK = 8,
-  SNAP_DATA_STREAM_STATE = 9,
+  SNAP_DATA_META = 1,
+  SNAP_DATA_TSDB = 2,
+  SNAP_DATA_DEL = 3,
+  SNAP_DATA_RSMA1 = 4,
+  SNAP_DATA_RSMA2 = 5,
+  SNAP_DATA_QTASK = 6,
+  SNAP_DATA_TQ_HANDLE = 7,
+  SNAP_DATA_TQ_OFFSET = 8,
+  SNAP_DATA_STREAM_TASK = 9,
+  SNAP_DATA_STREAM_STATE = 10,
 };
 
 struct SSnapDataHdr {

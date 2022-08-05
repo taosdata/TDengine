@@ -976,8 +976,12 @@ int32_t cleanUpUdfs() {
   }
 
   uv_mutex_lock(&gUdfdProxy.udfStubsMutex);
-  int32_t i = 0;
+  if (gUdfdProxy.udfStubs == NULL ||  taosArrayGetSize(gUdfdProxy.udfStubs) == 0) {
+    uv_mutex_unlock(&gUdfdProxy.udfStubsMutex);
+    return TSDB_CODE_SUCCESS;
+  }
   SArray* udfStubs = taosArrayInit(16, sizeof(SUdfcFuncStub));
+  int32_t i = 0;
   while (i < taosArrayGetSize(gUdfdProxy.udfStubs)) {
     SUdfcFuncStub *stub = taosArrayGet(gUdfdProxy.udfStubs, i);
     if (stub->refCount == 0) {

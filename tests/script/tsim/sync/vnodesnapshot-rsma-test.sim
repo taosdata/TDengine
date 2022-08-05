@@ -167,12 +167,26 @@ system sh/exec.sh -n dnode4 -s start
 
 sleep 3000
 
-print =============== query data 
+
+
+
+print =============== query data of level 1
 sql connect
 sql use db
+
 sql select * from ct1 where ts > now - 1d
-print rows: $rows
+print rows of level 1: $rows
 print $data00 $data01 $data02
 if $rows != 100 then
   return -1
 endi
+
+print =============== query data of level 2
+sql select * from ct1 where ts > now - 10d
+print rows of level 2: $rows
+print $data00 $data01 $data02
+
+print =============== query data of level 3
+sql select * from ct1
+print rows of level 3: $rows
+print $data00 $data01 $data02

@@ -82,8 +82,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
       } else {
         do {
           char logBuf[128];
-          snprintf(logBuf, sizeof(logBuf), "can not commit due to term not equal, index:%ld, term:%lu", pEntry->index,
-                   pEntry->term);
+          snprintf(logBuf, sizeof(logBuf), "can not commit due to term not equal, index:%" PRId64 ", term:%" PRIu64,
+                   pEntry->index, pEntry->term);
           syncNodeEventLog(pSyncNode, logBuf);
         } while (0);
       }

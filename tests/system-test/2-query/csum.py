@@ -162,9 +162,9 @@ class TDTestCase:
         self.checkcsum(**case6)
 
         # case7~8: nested query
-        case7 = {"table_expr": "(select c1 from db.stb1 order by tbname ,ts )"}
+        case7 = {"table_expr": "(select c1 from db.stb1 order by ts, tbname )"}
         self.checkcsum(**case7)
-        case8 = {"table_expr": "(select csum(c1) c1 from db.t1 partition by tbname)"}
+        case8 = {"table_expr": "(select csum(c1) c1 from db.t1)"}
         self.checkcsum(**case8)
 
         # case9~10: mix with tbname/ts/tag/col not support , must partition by alias  ,such as select tbname ,csum(c1) partition by tbname

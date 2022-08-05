@@ -241,6 +241,41 @@ static int32_t tdCleanupQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat) {
   return TSDB_CODE_SUCCESS;
 }
 
+// SQTaskFile ======================================================
+// int32_t tCmprQTaskFile(void const *lhs, void const *rhs) {
+//   int64_t    *lCommitted = *(int64_t *)lhs;
+//   SQTaskFile *rQTaskF = (SQTaskFile *)rhs;
+
+//   if (lCommitted < rQTaskF->commitID) {
+//     return -1;
+//   } else if (lCommitted > rQTaskF->commitID) {
+//     return 1;
+//   }
+
+//   return 0;
+// }
+
+#if 0
+/**
+ * @brief At most time, there is only one qtaskinfo file committed latest in aTaskFile. Sometimes, there would be
+ * multiple qtaskinfo files supporting snapshot replication.
+ *
+ * @param pSma
+ * @param pRSmaStat
+ * @return int32_t
+ */
+static int32_t tdCleanupQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat) {
+  SVnode *pVnode = pSma->pVnode;
+  int64_t committed = pRSmaStat->commitAppliedVer;
+  SArray *aTaskFile = pRSmaStat->aTaskFile;
+
+  void *qTaskFile = taosArraySearch(aTaskFile, committed, tCmprQTaskFile, TD_LE);
+  
+
+  return TSDB_CODE_SUCCESS;
+}
+#endif
+
 /**
  * @brief post-commit for rollup sma
  *  1) clean up the outdated qtaskinfo files

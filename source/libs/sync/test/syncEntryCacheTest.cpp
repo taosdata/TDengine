@@ -82,12 +82,12 @@ void test2() {
 
   code = raftEntryCacheGetEntryP(pCache, index, &pEntry);
   ASSERT(code == 1 && index == pEntry->index);
-  sTrace("get entry:%p for %ld", pEntry, index);
+  sTrace("get entry:%p for %" PRId64, pEntry, index);
   syncEntryLog2((char*)"==test2 get entry pointer 2==", pEntry);
 
   code = raftEntryCacheGetEntry(pCache, index, &pEntry);
   ASSERT(code == 1 && index == pEntry->index);
-  sTrace("get entry:%p for %ld", pEntry, index);
+  sTrace("get entry:%p for %" PRId64, pEntry, index);
   syncEntryLog2((char*)"==test2 get entry 2==", pEntry);
   syncEntryDestory(pEntry);
 
@@ -95,14 +95,14 @@ void test2() {
   index = 8;
   code = raftEntryCacheGetEntry(pCache, index, &pEntry);
   ASSERT(code == 0);
-  sTrace("get entry:%p for %ld", pEntry, index);
+  sTrace("get entry:%p for %" PRId64, pEntry, index);
   sTrace("==test2 get entry 8 not found==");
 
   // not found
   index = 9;
   code = raftEntryCacheGetEntry(pCache, index, &pEntry);
   ASSERT(code == 0);
-  sTrace("get entry:%p for %ld", pEntry, index);
+  sTrace("get entry:%p for %" PRId64, pEntry, index);
   sTrace("==test2 get entry 9 not found==");
 }
 
@@ -135,7 +135,7 @@ void test4() {
   ASSERT(pEntry != NULL);
 
   int64_t rid = taosAddRef(testRefId, pEntry);
-  sTrace("rid: %ld", rid);
+  sTrace("rid: %" PRId64, rid);
 
   do {
     SSyncRaftEntry* pAcquireEntry = (SSyncRaftEntry*)taosAcquireRef(testRefId, rid);
@@ -164,7 +164,7 @@ void test5() {
     ASSERT(pEntry != NULL);
 
     int64_t rid = taosAddRef(testRefId, pEntry);
-    sTrace("rid: %ld", rid);
+    sTrace("rid: %" PRId64, rid);
   }
 
   for (int64_t rid = 2; rid < 101; rid++) {

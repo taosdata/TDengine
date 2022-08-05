@@ -23,13 +23,13 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
 
   // check config
   if (vnodeCheckCfg(pCfg) < 0) {
-    vError("vgId:%d, failed to create vnode since: %s", pCfg->vgId, tstrerror(terrno));
+    vError("vgId:%d, failed to create vnode since:%s", pCfg->vgId, tstrerror(terrno));
     return -1;
   }
 
   // create vnode env
   if (tfsMkdirAt(pTfs, path, (SDiskID){0}) < 0) {
-    vError("vgId:%d, failed to create vnode since: %s", pCfg->vgId, tstrerror(terrno));
+    vError("vgId:%d, failed to create vnode since:%s", pCfg->vgId, tstrerror(terrno));
     return -1;
   }
 
