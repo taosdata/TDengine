@@ -78,7 +78,7 @@ sql select tbcol4, length(tbcol4), lower(tbcol4), upper(tbcol4), ltrim(tbcol4), 
 sql select * from tb1 where tbcol not in (1,2,3,null);
 sql select * from tb1 where tbcol + 3 <> null;
 sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from tb1 where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
-#sql select tbcol5 - tbcol3 from tb1
+sql select tbcol5 - tbcol3 from tb1
 
 print =============== step4: stb
 sql select avg(tbcol) as c from stb
@@ -109,7 +109,7 @@ sql select * from stb where tbcol + 3 <> null;
 sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from stb where tbcol = 1 and tbcol2 = 1 and tbcol3 = 1 partition by tgcol interval(1d)
 sql select _wstart, count(*) from tb1 session(ts, 1m)
 sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from stb where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
-#sql select tbcol5 - tbcol3 from stb
+sql select tbcol5 - tbcol3 from stb
 
 print =============== step5: explain
 sql explain analyze select ts from stb where -2;
