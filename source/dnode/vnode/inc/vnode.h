@@ -159,7 +159,6 @@ typedef struct SMetaTableInfo{
 }SMetaTableInfo;
 
 typedef struct SSnapContext {
-
   SMeta    *pMeta;
   int64_t   snapVersion;
   TBC      *pCur;
@@ -167,6 +166,7 @@ typedef struct SSnapContext {
   int8_t    subType;
   SHashObj *idVersion;
   SHashObj *suidInfo;
+  bool      withMeta;
   bool      queryMetaOrData;    // true-get meta, false-get data
 }SSnapContext;
 
@@ -204,6 +204,8 @@ int32_t tqReaderSetDataMsg(STqReader *pReader, SSubmitReq *pMsg, int64_t ver);
 bool    tqNextDataBlock(STqReader *pReader);
 bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReader *pReader);
+int64_t tqFetchLog(SWalReader *pWalReader, bool fetchMeta, int64_t* fetchOffset, SWalCkHead** ppCkHead);
+SSDataBlock* tqLogScanExec(int8_t subType, STqReader* pReader, SHashObj* pFilterOutTbUid, SSDataBlock* block);
 
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
@@ -217,11 +219,11 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWr
 int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *pSnapshot);
 int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData);
 
-int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t subType, bool withMeta, SSnapContext* ctx);
-int32_t getMetafromSnapShot(SSnapContext* ctx, void **pBuf, int32_t *contLen, int16_t *type);
+int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t subType, bool withMeta, SSnapContext** ctxRet);
+int32_t getMetafromSnapShot(SSnapContext* ctx, void **pBuf, int32_t *contLen, int16_t *type, int64_t *uid);
 SMetaTableInfo getUidfromSnapShot(SSnapContext* ctx);
-int32_t setMetaForSnapShot(SSnapContext* ctx, int64_t uid, int64_t ver);
-int32_t setDataForSnapShot(SSnapContext* ctx, int64_t uid);
+int32_t setForSnapShot(SSnapContext* ctx, int64_t uid);
+int32_t destroySnapContext(SSnapContext* ctx);
 
 // structs
 struct STsdbCfg {

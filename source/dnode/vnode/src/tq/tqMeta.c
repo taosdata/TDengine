@@ -70,25 +70,35 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
     }
     walRefVer(handle.pRef, handle.snapshotVer);
 
+    SReadHandle reader = {
+        .meta = pTq->pVnode->pMeta,
+        .vnode = pTq->pVnode,
+        .initTableReader = true,
+        .initTqReader = true,
+        .version = handle.snapshotVer,
+    };
+
     if (handle.execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-      SReadHandle reader = {
-          .meta = pTq->pVnode->pMeta,
-          .vnode = pTq->pVnode,
-          .initTableReader = true,
-          .initTqReader = true,
-          .version = handle.snapshotVer,
-      };
 
       handle.execHandle.task = qCreateQueueExecTaskInfo(
-          handle.execHandle.execCol.qmsg, &reader, &handle.execHandle.numOfCols, &handle.execHandle.pSchemaWrapper);
+          handle.execHandle.execCol.qmsg, &reader, NULL, &handle.execHandle.pSchemaWrapper);
       ASSERT(handle.execHandle.task);
       void* scanner = NULL;
       qExtractStreamScanner(handle.execHandle.task, &scanner);
       ASSERT(scanner);
       handle.execHandle.pExecReader = qExtractReaderFromStreamScanner(scanner);
       ASSERT(handle.execHandle.pExecReader);
-    } else {
-      handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
+    } else if(handle.execHandle.subType == TOPIC_SUB_TYPE__DB){
+
+      handle.execHandle.pExecReader = tqOpenReader(pTq->pVnode);
+      buildSnapContext(reader.meta, reader.version, 0, handle.execHandle.subType, handle.fetchMeta, (SSnapContext **)(&reader.sContext));
+      reader.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
+      reader.tqReader = handle.execHandle.pExecReader;
+      reader.pFilterOutTbUid = handle.execHandle.execDb.pFilterOutTbUid;
+
+      handle.execHandle.task =
+          qCreateQueueExecTaskInfo(NULL, &reader, NULL, NULL);
+
       handle.execHandle.execDb.pFilterOutTbUid =
           taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     }

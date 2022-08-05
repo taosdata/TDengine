@@ -149,7 +149,7 @@ typedef struct {
   //TODO remove prepareStatus
   STqOffsetVal   prepareStatus; // for tmq
   STqOffsetVal   lastStatus;    // for tmq
-  void*          metaBlk;       // for tmq fetching meta
+  SMqMetaRsp     metaRsp;       // for tmq fetching meta
   SSDataBlock*   pullOverBlk;   // for streaming
   SWalFilterCond cond;
   int64_t        lastScanUid;
@@ -498,7 +498,8 @@ typedef struct SStreamRawScanInfo{
 //  void     *metaInfo;
 //  void     *dataInfo;
 
-  SReadHandle *   readHandle;
+  SWalCkHead*     pCkHead;
+  SReadHandle*    readHandle;
   SSDataBlock     pRes;         // result SSDataBlock
   uint64_t        groupId;
   STsdbReader*    dataReader;

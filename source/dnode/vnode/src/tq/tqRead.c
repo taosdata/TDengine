@@ -15,22 +15,21 @@
 
 #include "tq.h"
 
-int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** ppCkHead) {
+int64_t tqFetchLog(SWalReader *pWalReader, bool fetchMeta, int64_t* fetchOffset, SWalCkHead** ppCkHead) {
   int32_t code = 0;
-  taosThreadMutexLock(&pHandle->pWalReader->mutex);
+  taosThreadMutexLock(&pWalReader->mutex);
   int64_t offset = *fetchOffset;
 
   while (1) {
-    if (walFetchHead(pHandle->pWalReader, offset, *ppCkHead) < 0) {
-      tqDebug("tmq poll: consumer:%" PRId64 ", (epoch %d) vgId:%d offset %" PRId64 ", no more log to return",
-              pHandle->consumerId, pHandle->epoch, TD_VID(pTq->pVnode), offset);
+    if (walFetchHead(pWalReader, offset, *ppCkHead) < 0) {
+      tqDebug("tmq poll no more log to return");
       *fetchOffset = offset - 1;
       code = -1;
       goto END;
     }
 
     if ((*ppCkHead)->head.msgType == TDMT_VND_SUBMIT) {
-      code = walFetchBody(pHandle->pWalReader, ppCkHead);
+      code = walFetchBody(pWalReader, ppCkHead);
 
       if (code < 0) {
         ASSERT(0);
@@ -42,10 +41,10 @@ int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHea
       code = 0;
       goto END;
     } else {
-      if (pHandle->fetchMeta) {
+      if (fetchMeta) {
         SWalCont* pHead = &((*ppCkHead)->head);
         if (IS_META_MSG(pHead->msgType)) {
-          code = walFetchBody(pHandle->pWalReader, ppCkHead);
+          code = walFetchBody(pWalReader, ppCkHead);
 
           if (code < 0) {
             ASSERT(0);
@@ -58,7 +57,7 @@ int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHea
           goto END;
         }
       }
-      code = walSkipFetchBody(pHandle->pWalReader, *ppCkHead);
+      code = walSkipFetchBody(pWalReader, *ppCkHead);
       if (code < 0) {
         ASSERT(0);
         *fetchOffset = offset;
@@ -69,7 +68,7 @@ int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHea
     }
   }
 END:
-  taosThreadMutexUnlock(&pHandle->pWalReader->mutex);
+  taosThreadMutexUnlock(&pWalReader->mutex);
   return code;
 }
 

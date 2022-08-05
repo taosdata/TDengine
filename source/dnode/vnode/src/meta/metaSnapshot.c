@@ -209,12 +209,22 @@ static void destroySTableInfoForChildTable(void* data) {
   tDeleteSSchemaWrapper(pData->schemaRow);
 }
 
-int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t subType, bool withMeta, SSnapContext* ctx){
+static void clearAndMoveToFirst(SSnapContext* ctx){
+  tdbTbcClose(ctx->pCur);
+  tdbTbcOpen(ctx->pMeta->pTbDb, &ctx->pCur, NULL);
+  tdbTbcMoveToFirst(ctx->pCur);
+}
+
+int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t subType, bool withMeta, SSnapContext** ctxRet){
+  SSnapContext* ctx = taosMemoryCalloc(1, sizeof(SSnapContext));
+  if(ctx == NULL) return -1;
+  *ctxRet = ctx;
   ctx->pMeta = pMeta;
   ctx->snapVersion = snapVersion;
   ctx->suid = suid;
   ctx->subType = subType;
   ctx->queryMetaOrData = withMeta;
+  ctx->withMeta = withMeta;
   int32_t ret = tdbTbcOpen(pMeta->pTbDb, &ctx->pCur, NULL);
   if (ret < 0) {
     return -1;
@@ -243,7 +253,7 @@ int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t
     if(tmp->version > ctx->snapVersion) break;
     taosHashPut(ctx->idVersion, &tmp->uid, sizeof(tb_uid_t), &tmp->version, sizeof(int64_t));
   }
-  tdbTbcMoveToFirst(ctx->pCur);
+  clearAndMoveToFirst(ctx);
   return TDB_CODE_SUCCESS;
 }
 
@@ -251,7 +261,7 @@ int32_t destroySnapContext(SSnapContext* ctx){
   tdbTbcClose(ctx->pCur);
   taosHashCleanup(ctx->idVersion);
   taosHashCleanup(ctx->suidInfo);
-
+  taosMemoryFree(ctx);
   return 0;
 }
 
@@ -334,25 +344,15 @@ static void saveSuperTableInfoForChildTable(SMetaEntry *me, SHashObj *suidInfo){
   taosHashPut(suidInfo, &me->uid, sizeof(tb_uid_t), &dataTmp, sizeof(STableInfoForChildTable));
 }
 
-int32_t setMetaForSnapShot(SSnapContext* ctx, int64_t uid, int64_t ver){
+int32_t setForSnapShot(SSnapContext* ctx, int64_t uid){
   int c = 0;
-  ctx->queryMetaOrData = true;  // change to get data
-  if(uid == 0 && ver == 0){
-    tdbTbcMoveToFirst(ctx->pCur);
+
+  if(uid == -1){
     return c;
   }
-  STbDbKey key = {.version = ver, .uid = uid};
-  tdbTbcMoveTo(ctx->pCur, &key, sizeof(key), &c);
-
-  return c;
-}
-
-int32_t setDataForSnapShot(SSnapContext* ctx, int64_t uid){
-  int c = 0;
-  ctx->queryMetaOrData = false;  // change to get data
 
   if(uid == 0){
-    tdbTbcMoveToFirst(ctx->pCur);
+    clearAndMoveToFirst(ctx);
     return c;
   }
 
@@ -367,7 +367,7 @@ int32_t setDataForSnapShot(SSnapContext* ctx, int64_t uid){
   return c;
 }
 
-int32_t getMetafromSnapShot(SSnapContext* ctx, void **pBuf, int32_t *contLen, int16_t *type){
+int32_t getMetafromSnapShot(SSnapContext* ctx, void **pBuf, int32_t *contLen, int16_t *type, int64_t *uid){
   int32_t ret = 0;
   void *pKey = NULL;
   void *pVal = NULL;
@@ -377,13 +377,13 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void **pBuf, int32_t *contLen, in
     ret = tdbTbcNext(ctx->pCur, &pKey, &kLen, &pVal, &vLen);
     if (ret < 0) {
       ctx->queryMetaOrData = false; // change to get data
-      tdbTbcMoveToFirst(ctx->pCur);
+      clearAndMoveToFirst(ctx);
       return 0;
     }
 
     STbDbKey *tmp = (STbDbKey*)pKey;
     if(tmp->version > ctx->snapVersion) {
-      tdbTbcMoveToFirst(ctx->pCur);
+      clearAndMoveToFirst(ctx);
       ctx->queryMetaOrData = false; // change to get data
       return 0;
     }
@@ -394,6 +394,7 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void **pBuf, int32_t *contLen, in
     }
     ASSERT(*ver == tmp->version);
 
+    *uid = tmp->uid;
     SDecoder   dc = {0};
     SMetaEntry me = {0};
     tDecoderInit(&dc, pVal, vLen);

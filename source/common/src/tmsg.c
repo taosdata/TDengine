@@ -5617,7 +5617,7 @@ bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
     } else if (pLeft->type == TMQ_OFFSET__SNAPSHOT_DATA) {
       return pLeft->uid == pRight->uid && pLeft->ts == pRight->ts;
     } else if (pLeft->type == TMQ_OFFSET__SNAPSHOT_META) {
-      return pLeft->muid == pRight->muid && pLeft->mversion == pRight->mversion;
+      return pLeft->uid == pRight->uid;
     } else {
       ASSERT(0);
       /*ASSERT(pLeft->type == TMQ_OFFSET__RESET_NONE || pLeft->type == TMQ_OFFSET__RESET_EARLIEAST ||*/

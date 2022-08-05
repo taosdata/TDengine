@@ -154,13 +154,13 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* n
 
   // extract the number of output columns
   SDataBlockDescNode* pDescNode = pPlan->pNode->pOutputDataBlockDesc;
-  *numOfCols = 0;
+  if(numOfCols) *numOfCols = 0;
 
   SNode* pNode;
   FOREACH(pNode, pDescNode->pSlots) {
     SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
     if (pSlotDesc->output) {
-      ++(*numOfCols);
+      if(numOfCols) ++(*numOfCols);
     }
   }
 
@@ -585,10 +585,10 @@ const SSchemaWrapper* qExtractSchemaFromStreamScanner(void* scanner) {
   return pInfo->tqReader->pSchemaWrapper;
 }
 
-void* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
+SMqMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
-  return pTaskInfo->streamInfo.metaBlk;
+  return &pTaskInfo->streamInfo.metaRsp;
 }
 
 int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {
@@ -613,6 +613,7 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
   pCond->type = TIMEWINDOW_RANGE_CONTAINED;
   pCond->startVersion = -1;
   pCond->endVersion = sContext->snapVersion;
+  pCond->schemaVersion = sContext->snapVersion;
 
   for (int32_t i = 0; i < pCond->numOfCols; ++i) {
     pCond->colList[i].type = mtInfo.schema->pSchema[i].type;
@@ -722,7 +723,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   }else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA){
     SStreamRawScanInfo* pInfo = pOperator->info;
     SSnapContext* sContext = pInfo->sContext;
-    if(setDataForSnapShot(sContext, pOffset->uid) != 0) {
+    if(setForSnapShot(sContext, pOffset->uid) != 0) {
       qError("setDataForSnapShot error. uid:%"PRIi64, pOffset->uid);
       return -1;
     }
@@ -732,6 +733,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     if(pOffset->ts == 0)  pOffset->ts = INT64_MIN;
 
     if (pOffset->uid == 0) {
+      qError("setDataForSnapShot error. uid = 0 ");
       return -1;
     }
 
@@ -746,6 +748,17 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     tsdbReaderOpen(pInfo->readHandle->vnode, &pTaskInfo->streamInfo.tableCond, pTaskInfo->tableqinfoList.pTableList, &pInfo->dataReader, NULL);
 
     qDebug("tsdb reader snapshot change to uid %ld ts %ld", pOffset->uid, pOffset->ts);
+  }else if(pOffset->type == TMQ_OFFSET__SNAPSHOT_META){
+    SStreamRawScanInfo* pInfo = pOperator->info;
+    SSnapContext* sContext = pInfo->sContext;
+    if(setForSnapShot(sContext, pOffset->uid) != 0) {
+      qError("setForSnapShot error. uid:%"PRIi64" ,version:%"PRIi64, pOffset->uid);
+      return -1;
+    }
+  }else if (pOffset->type == TMQ_OFFSET__LOG) {
+    SStreamRawScanInfo* pInfo = pOperator->info;
+    tsdbReaderClose(pInfo->dataReader);
+    pInfo->dataReader = NULL;
   }
   return 0;
 }

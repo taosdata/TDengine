@@ -2589,12 +2589,7 @@ enum {
 typedef struct {
   int8_t type;
   union {
-    // snapshot meta
-    struct {
-      int64_t muid;
-      int64_t mversion;
-    };
-    // snapshot data
+    // snapshot
     struct {
       int64_t uid;
       int64_t ts;

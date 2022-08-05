@@ -847,6 +847,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   pCond->type = TIMEWINDOW_RANGE_CONTAINED;
   pCond->startVersion = -1;
   pCond->endVersion = -1;
+  pCond->schemaVersion = -1;
   //  pCond->type = pTableScanNode->scanFlag;
 
   int32_t j = 0;

@@ -88,7 +88,7 @@ typedef struct {
     STqExecTb  execTb;
     STqExecDb  execDb;
   };
-  int32_t         numOfCols;       // number of out pout column, temporarily used
+//  int32_t         numOfCols;       // number of out pout column, temporarily used
   SSchemaWrapper* pSchemaWrapper;  // columns that are involved in query
 } STqExecHandle;
 
@@ -101,9 +101,6 @@ typedef struct {
 
   int64_t snapshotVer;
 
-  SSnapContext*   sContext;
-  // TODO remove
-  SWalReader* pWalReader;
 
   SWalRef* pRef;
 
@@ -138,11 +135,8 @@ int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);
 int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
 
 // tqRead
-int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* offset);
-int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** pHeadWithCkSum);
+int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqMetaRsp* pMetaRsp, STqOffsetVal* offset);
 
-// tqExec
-int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataRsp* pRsp);
 int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp);
 
 // tqMeta
@@ -176,10 +170,9 @@ static FORCE_INLINE void tqOffsetResetToData(STqOffsetVal* pOffsetVal, int64_t u
   pOffsetVal->ts = ts;
 }
 
-static FORCE_INLINE void tqOffsetResetToMeta(STqOffsetVal* pOffsetVal, int64_t uid, int64_t version) {
+static FORCE_INLINE void tqOffsetResetToMeta(STqOffsetVal* pOffsetVal, int64_t uid) {
   pOffsetVal->type = TMQ_OFFSET__SNAPSHOT_META;
-  pOffsetVal->muid = uid;
-  pOffsetVal->mversion = version;
+  pOffsetVal->uid = uid;
 }
 
 static FORCE_INLINE void tqOffsetResetToLog(STqOffsetVal* pOffsetVal, int64_t ver) {
