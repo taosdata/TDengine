@@ -370,7 +370,7 @@ class TestInsertPro(TDCase):
                         replica = int(os.environ["DATABASE_REPLICAS"])
                     if not db_name in db_names:
                         db_names.append(db_name)
-                        self.tdCommon.createDb(db_name, True, replica=replica)
+                        self.tdCommon.createDb(db_name, True, replica=replica, vgroups=vgroups)
 
         # run benchmark insert data
         self.threads = []
