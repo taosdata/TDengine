@@ -2803,6 +2803,23 @@ bool syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg) {
 }
 
 int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag) {
+  if (beginIndex > endIndex) {
+    return 0;
+  }
+
+  // advance commit index to sanpshot first
+  SSnapshot snapshot = {0};
+  ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
+  if (snapshot.lastApplyIndex >= 0 && snapshot.lastApplyIndex >= beginIndex) {
+    char eventLog[128];
+    snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%" PRId64 " to index:%" PRId64, beginIndex,
+             snapshot.lastApplyIndex);
+    syncNodeEventLog(ths, eventLog);
+
+    // update begin index
+    beginIndex = snapshot.lastApplyIndex + 1;
+  }
+
   int32_t    code = 0;
   ESyncState state = flag;
 
