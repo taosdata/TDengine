@@ -15,7 +15,6 @@ name = "taosx"
 version = "0.0.0"
 edition = "2021"
 homepage = "https://taosdata.com"
-license = "MIT"
 description = "taosX - TDengine data integration tool"
 
 exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
