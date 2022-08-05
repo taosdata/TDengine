@@ -67,7 +67,7 @@ DLL_EXPORT int32_t sqr_sum(SUdfDataBlock* block, SUdfInterBuf *interBuf, SUdfInt
   return 0;
 }
 
-DLL_EXPORT int32_t sqr_finish(SUdfInterBuf* buf, SUdfInterBuf *resultData) {
+DLL_EXPORT int32_t sqr_sum_finish(SUdfInterBuf* buf, SUdfInterBuf *resultData) {
   if (buf->numOfResult == 0) {
     resultData->numOfResult = 0;
     return 0;

@@ -37,6 +37,10 @@ DLL_EXPORT int32_t bit_and(SUdfDataBlock* block, SUdfColumn *resultCol) {
     resultData->numOfRows = block->numOfRows;
 
     for (int32_t i = 0; i < resultData->numOfRows; ++i) {
+        if (udfColDataIsNull(block->udfCols[0], i)) {
+            udfColDataSetNull(resultCol, i);
+            continue;
+        }
         int32_t result = *(int32_t*)udfColDataGetData(block->udfCols[0], i);
         int j = 1;
         for (; j < block->numOfCols; ++j) {
