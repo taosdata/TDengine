@@ -812,12 +812,14 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
     if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
       mError("stream:%s, failed to drop task since %s", pStream->name, terrstr());
       sdbRelease(pMnode->pSdb, pStream);
+      ASSERT(0);
       goto _OVER;
     }
 
     // drop stream
     if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
       sdbRelease(pMnode->pSdb, pStream);
+      ASSERT(0);
       goto _OVER;
     }
   }
@@ -832,6 +834,9 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
   code = 0;
 
 _OVER:
+  if(code != 0) {
+    ASSERT(0);
+  }
   mndTransDrop(pTrans);
   mndReleaseVgroup(pMnode, pVgroup);
   mndReleaseStb(pMnode, pStb);
@@ -930,6 +935,7 @@ static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
       goto _OVER;
     } else {
       terrno = TSDB_CODE_MND_SMA_NOT_EXIST;
+      ASSERT(0);
       goto _OVER;
     }
   }
