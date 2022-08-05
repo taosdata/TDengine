@@ -2312,6 +2312,12 @@ void doMergeMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo* pIter, SArray* pDe
       return;
     } else {  // has next point in mem/imem
       TSDBROW* pNextRow = getValidRow(pIter, pDelList, pReader);
+      if (pNextRow == NULL) {
+        *pTSRow = current.pTSRow;
+        *freeTSRow = false;
+        return;
+      }
+
       if (TSDBROW_KEY(&current).ts != TSDBROW_KEY(pNextRow).ts) {
         *pTSRow = current.pTSRow;
         *freeTSRow = false;
