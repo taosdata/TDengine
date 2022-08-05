@@ -203,11 +203,6 @@ typedef struct {
 } STaskSinkFetch;
 
 enum {
-  TASK_SOURCE__SCAN = 1,
-  TASK_SOURCE__PIPE,
-};
-
-enum {
   TASK_EXEC__NONE = 1,
   TASK_EXEC__PIPE,
 };
@@ -223,11 +218,6 @@ enum {
   TASK_SINK__TABLE,
   TASK_SINK__SMA,
   TASK_SINK__FETCH,
-};
-
-enum {
-  TASK_INPUT_TYPE__SUMBIT_BLOCK = 1,
-  TASK_INPUT_TYPE__DATA_BLOCK,
 };
 
 enum {
