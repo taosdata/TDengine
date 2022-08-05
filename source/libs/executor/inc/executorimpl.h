@@ -266,7 +266,11 @@ typedef struct SExchangeInfo {
   SArray*             pSourceDataInfo;
   tsem_t              ready;
   void*               pTransporter;
-  SSDataBlock*        pResult;
+  // SArray<SSDataBlock*>, result block list, used to keep the multi-block that
+  // passed by downstream operator
+  SArray*             pResultBlockList;
+  int32_t             rspBlockIndex;    // indicate the return block index in pResultBlockList
+  SSDataBlock*        pDummyBlock;  // dummy block, not keep data
   bool                seqLoadData;  // sequential load data or not, false by default
   int32_t             current;
   SLoadRemoteDataInfo loadInfo;
@@ -855,8 +859,7 @@ void    doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWin
                          int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput, int32_t order);
 
 int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows, char* pData,
-                                  int32_t compLen, int32_t numOfOutput, int64_t startTs, uint64_t* total,
-                                  SArray* pColList);
+                                  int32_t compLen, int32_t numOfOutput, uint64_t* total, SArray* pColList, char** pNextStart);
 STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInterval* pInterval, int32_t order);
 
 int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t *order, int32_t* scanFlag);

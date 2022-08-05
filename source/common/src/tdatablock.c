@@ -676,9 +676,9 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
  * @return
  */
 size_t blockDataGetSerialMetaSize(uint32_t numOfCols) {
-  // | total rows/total length | block group id | column schema | each column length |
-  return sizeof(int32_t) + sizeof(uint64_t) + numOfCols * (sizeof(int16_t) + sizeof(int32_t)) +
-         numOfCols * sizeof(int32_t);
+  // | total length | total rows | total columns | has column seg| block group id | column schema | each column length |
+  return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(uint64_t) +
+         numOfCols * (sizeof(int16_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t);
 }
 
 double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
@@ -2077,6 +2077,18 @@ void blockEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_
   int32_t* actualLen = (int32_t*)data;
   data += sizeof(int32_t);
 
+  int32_t* rows = (int32_t*)data;
+  *rows = pBlock->info.rows;
+  data += sizeof(int32_t);
+
+  int32_t* cols = (int32_t*)data;
+  *cols = numOfCols;
+  data += sizeof(int32_t);
+
+  int32_t* hasColumnSegment = (int32_t*)data;
+  *hasColumnSegment = 1;
+  data += sizeof(int32_t);
+
   uint64_t* groupId = (uint64_t*)data;
   data += sizeof(uint64_t);
 
@@ -2130,12 +2142,26 @@ void blockEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_
   *groupId = pBlock->info.groupId;
 }
 
-const char* blockDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t numOfRows, const char* pData) {
+const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
   const char* pStart = pData;
 
+  // total length sizeof(int32_t)
   int32_t dataLen = *(int32_t*)pStart;
   pStart += sizeof(int32_t);
 
+  // total rows sizeof(int32_t)
+  int32_t numOfRows =  *(int32_t*)pStart;
+  pStart += sizeof(int32_t);
+
+  // total columns sizeof(int32_t)
+  int32_t numOfCols = *(int32_t*)pStart;
+  pStart += sizeof(int32_t);
+
+  // has column info segment
+  int32_t hasColumnInfo = *(int32_t*)pStart;
+  pStart += sizeof(int32_t);
+
+  // group id sizeof(uint64_t)
   pBlock->info.groupId = *(uint64_t*)pStart;
   pStart += sizeof(uint64_t);
 

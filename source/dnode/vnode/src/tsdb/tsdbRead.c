@@ -2714,7 +2714,6 @@ void tsdbReaderClose(STsdbReader* pReader) {
   }
 
   SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
-
   tsdbUntakeReadSnap(pReader->pTsdb, pReader->pReadSnap);
 
   taosMemoryFreeClear(pSupInfo->plist);
@@ -2742,10 +2741,8 @@ void tsdbReaderClose(STsdbReader* pReader) {
   SIOCostSummary* pCost = &pReader->cost;
 
   tsdbDebug("%p :io-cost summary: head-file:%" PRIu64 ", head-file time:%.2f ms, SMA:%" PRId64
-            " SMA-time:%.2f ms, "
-            "fileBlocks:%" PRId64
-            ", fileBlocks-time:%.2f ms, build in-memory-block-time:%.2f ms, STableBlockScanInfo "
-            "size:%.2f Kb %s",
+            " SMA-time:%.2f ms, fileBlocks:%" PRId64 ", fileBlocks-time:%.2f ms, "
+            "build in-memory-block-time:%.2f ms, STableBlockScanInfo size:%.2f Kb %s",
             pReader, pCost->headFileLoad, pCost->headFileLoadTime, pCost->smaData, pCost->smaLoadTime,
             pCost->numOfBlocks, pCost->blockLoadTime, pCost->buildmemBlock,
             numOfTables * sizeof(STableBlockScanInfo) / 1000.0, pReader->idStr);

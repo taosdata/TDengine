@@ -2266,9 +2266,11 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
         }
       }
 
+      char* pStart = pRsp->data;
       extractDataBlockFromFetchRsp(pInfo->pRes, &pInfo->loadInfo, pRsp->numOfRows, pRsp->data, pRsp->compLen,
-                                   pOperator->exprSupp.numOfExprs, startTs, NULL, pInfo->scanCols);
+                                   pOperator->exprSupp.numOfExprs, NULL, pInfo->scanCols, &pStart);
 
+      //startTs,
       // todo log the filter info
       doFilterResult(pInfo);
       taosMemoryFree(pRsp);
