@@ -141,7 +141,8 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
              ", match-index:%d, raftid:%" PRId64,
              pSyncNode->vgId, nextIndex, newNextIndex, SYNC_INDEX_INVALID, pDestId->addr);
 
-      syncNodeRestartNowHeartbeatTimer(pSyncNode);
+      // syncNodeRestartNowHeartbeatTimer(pSyncNode);
+      syncNodeStartNowHeartbeatTimer(pSyncNode);
       return -1;
     }
 
