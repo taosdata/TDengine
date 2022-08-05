@@ -238,7 +238,6 @@ SSmaObj *mndAcquireSma(SMnode *pMnode, char *smaName) {
   SSmaObj *pSma = sdbAcquire(pSdb, SDB_SMA, smaName);
   if (pSma == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
     terrno = TSDB_CODE_MND_SMA_NOT_EXIST;
-    ASSERT(0);
   }
   return pSma;
 }
