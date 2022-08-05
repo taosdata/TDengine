@@ -73,7 +73,7 @@ If `maven` is used to manage the projects, what needs to be done is only adding 
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>2.0.38</version>
+  <version>3.0.0</version>
 </dependency>
 ```
 
@@ -102,7 +102,7 @@ module goexample
 
 go 1.17
 
-require github.com/taosdata/driver-go/v2 develop
+require github.com/taosdata/driver-go/v3 latest
 ```
 
 :::note
@@ -137,7 +137,7 @@ Node.js connector provides different ways of establishing connections by providi
 1. Install Node.js Native Connector
 
 ```
-npm i td2.0-connector
+npm install @tdengine/client
 ```
 
 :::note
@@ -147,7 +147,7 @@ It's recommend to use Node whose version is between `node-v12.8.0` and `node-v13
 2. Install Node.js REST Connector
 
 ```
-npm i td2.0-rest-connector
+npm install @tdengine/rest
 ```
 
 </TabItem>
@@ -167,7 +167,7 @@ Just need to add the reference to [TDengine.Connector](https://www.nuget.org/pac
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="TDengine.Connector" Version="1.0.6" />
+    <PackageReference Include="TDengine.Connector" Version="3.0.0" />
   </ItemGroup>
 
 </Project>
@@ -187,7 +187,7 @@ The sample code below are based on dotnet6.0, they may need to be adjusted if yo
 </TabItem>
 <TabItem label="R" value="r">
 
-1. Download [taos-jdbcdriver-version-dist.jar](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/2.0.38/).
+1. Download [taos-jdbcdriver-version-dist.jar](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.0.0/).
 2. Install the dependency package `RJDBC`：
 
 ```R

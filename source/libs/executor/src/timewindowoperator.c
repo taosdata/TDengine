@@ -611,7 +611,7 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
       break;
     }
 
-    SResultRow* pr = getResultRowByPos(pInfo->aggSup.pResultBuf, p1);
+    SResultRow* pr = getResultRowByPos(pInfo->aggSup.pResultBuf, p1, false);
     ASSERT(pr->offset == p1->offset && pr->pageId == p1->pageId);
 
     if (pr->closed) {
@@ -1345,7 +1345,7 @@ static void setInverFunction(SqlFunctionCtx* pCtx, int32_t num, EStreamType type
 }
 
 void doClearWindowImpl(SResultRowPosition* p1, SDiskbasedBuf* pResultBuf, SExprSupp* pSup, int32_t numOfOutput) {
-  SResultRow*     pResult = getResultRowByPos(pResultBuf, p1);
+  SResultRow*     pResult = getResultRowByPos(pResultBuf, p1, false);
   SqlFunctionCtx* pCtx = pSup->pCtx;
   for (int32_t i = 0; i < numOfOutput; ++i) {
     pCtx[i].resultInfo = getResultEntryInfo(pResult, i, pSup->rowEntryInfoOffset);
@@ -3481,7 +3481,7 @@ static int32_t setWindowOutputBuf(SResultWindowInfo* pWinInfo, SResultRow** pRes
     pWinInfo->pos.pageId = (*pResult)->pageId;
     pWinInfo->pos.offset = (*pResult)->offset;
   } else {
-    *pResult = getResultRowByPos(pAggSup->pResultBuf, &pWinInfo->pos);
+    *pResult = getResultRowByPos(pAggSup->pResultBuf, &pWinInfo->pos, true);
     if (!(*pResult)) {
       qError("getResultRowByPos return NULL, TID:%s", GET_TASKID(pTaskInfo));
       return TSDB_CODE_FAILED;

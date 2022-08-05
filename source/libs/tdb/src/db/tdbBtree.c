@@ -176,6 +176,8 @@ int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, in
 
   tdbBtcOpen(&btc, pBt, pTxn);
 
+  tdbTrace("tdb insert, btc: %p, pTxn: %p", &btc, pTxn);
+
   // move to the position to insert
   ret = tdbBtcMoveTo(&btc, pKey, kLen, &c);
   if (ret < 0) {
@@ -214,6 +216,8 @@ int tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn) {
 
   tdbBtcOpen(&btc, pBt, pTxn);
 
+  tdbTrace("tdb delete, btc: %p, pTxn: %p", &btc, pTxn);
+
   // move the cursor
   ret = tdbBtcMoveTo(&btc, pKey, kLen, &c);
   if (ret < 0) {
@@ -243,6 +247,8 @@ int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, i
   int  ret;
 
   tdbBtcOpen(&btc, pBt, pTxn);
+
+  tdbTrace("tdb upsert, btc: %p, pTxn: %p", &btc, pTxn);
 
   // move the cursor
   ret = tdbBtcMoveTo(&btc, pKey, nKey, &c);
@@ -283,9 +289,11 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
   int          ret;
   void        *pTKey = NULL;
   void        *pTVal = NULL;
-  SCellDecoder cd;
+  SCellDecoder cd = {0};
 
   tdbBtcOpen(&btc, pBt, NULL);
+
+  tdbTrace("tdb pget, btc: %p", &btc);
 
   ret = tdbBtcMoveTo(&btc, pKey, kLen, &cret);
   if (ret < 0) {
@@ -295,6 +303,7 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
 
   if (btc.idx < 0 || cret) {
     tdbBtcClose(&btc);
+
     return -1;
   }
 
@@ -330,8 +339,12 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
   }
 
   if (TDB_CELLDECODER_FREE_VAL(&cd)) {
+    tdbDebug("tdb btc/pget/2 decoder: %p pVal free: %p", &cd, cd.pVal);
+
     tdbFree(cd.pVal);
   }
+
+  tdbTrace("tdb pget end, btc decoder: %p/0x%x, local decoder:%p", &btc.coder, btc.coder.freeKV, &cd);
 
   tdbBtcClose(&btc);
 
@@ -722,7 +735,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     int               szCell;
     SBtreeInitPageArg iarg;
     int               iNew, nNewCells;
-    SCellDecoder      cd;
+    SCellDecoder      cd = {0};
 
     iarg.pBt = pBt;
     iarg.flags = TDB_BTREE_PAGE_GET_FLAGS(pOlds[0]);
@@ -1235,6 +1248,8 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
         }
         TDB_CELLDECODER_SET_FREE_VAL(pDecoder);
 
+        tdbDebug("tdb btc decoder: %p/0x%x pVal: %p ", pDecoder, pDecoder->freeKV, pDecoder->pVal);
+
         memcpy(pDecoder->pVal, pCell + nHeader + kLen, nLocal - kLen - sizeof(SPgno));
 
         nLeft -= nLocal - kLen - sizeof(SPgno);
@@ -1376,12 +1391,17 @@ static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pD
   leaf = TDB_BTREE_PAGE_IS_LEAF(pPage);
 
   // Clear the state of decoder
+  if (TDB_CELLDECODER_FREE_VAL(pDecoder)) {
+    tdbFree(pDecoder->pVal);
+  }
   pDecoder->kLen = -1;
   pDecoder->pKey = NULL;
   pDecoder->vLen = -1;
   pDecoder->pVal = NULL;
   pDecoder->pgno = 0;
   TDB_CELLDECODER_SET_FREE_NIL(pDecoder);
+
+  tdbDebug("tdb btc decoder set nil: %p/0x%x ", pDecoder, pDecoder->freeKV);
 
   // 1. Decode header part
   if (!leaf) {
@@ -1650,7 +1670,7 @@ int tdbBtcMoveToLast(SBTC *pBtc) {
 
 int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
   SCell       *pCell;
-  SCellDecoder cd;
+  SCellDecoder cd = {0};
   void        *pKey, *pVal;
   int          ret;
 
@@ -1696,7 +1716,7 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
 int tdbBtreePrev(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
   SCell       *pCell;
-  SCellDecoder cd;
+  SCellDecoder cd = {0};
   void        *pKey, *pVal;
   int          ret;
 
@@ -2037,7 +2057,7 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
   const void *pTKey;
   int         tkLen;
 
-  tdbTrace("ttl moveto, pager:%p, ipage:%d", pPager, pBtc->iPage);
+  tdbTrace("tdb moveto, pager:%p, ipage:%d", pPager, pBtc->iPage);
   if (pBtc->iPage < 0) {
     // move from a clear cursor
     ret = tdbPagerFetchPage(pPager, &pBt->root, &(pBtc->pPage), tdbBtreeInitPage,
@@ -2093,6 +2113,7 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
   }
 
   // search downward to the leaf
+  tdbTrace("tdb search downward, pager:%p, ipage:%d", pPager, pBtc->iPage);
   for (;;) {
     int    lidx, ridx;
     SPage *pPage;
@@ -2127,6 +2148,7 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
     }
 
     // binary search
+    tdbTrace("tdb binary search, pager:%p, ipage:%d", pPager, pBtc->iPage);
     for (;;) {
       if (lidx > ridx) break;
 
@@ -2157,6 +2179,8 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
     }
   }
 
+  tdbTrace("tdb moveto end, pager:%p, ipage:%d", pPager, pBtc->iPage);
+
   return 0;
 }
 
@@ -2173,6 +2197,12 @@ int tdbBtcClose(SBTC *pBtc) {
 
     pBtc->pPage = pBtc->pgStack[pBtc->iPage];
     pBtc->idx = pBtc->idxStack[pBtc->iPage];
+  }
+
+  if (TDB_CELLDECODER_FREE_VAL(&pBtc->coder)) {
+    tdbDebug("tdb btc/close decoder: %p pVal free: %p", &pBtc->coder, pBtc->coder.pVal);
+
+    tdbFree(pBtc->coder.pVal);
   }
 
   return 0;
