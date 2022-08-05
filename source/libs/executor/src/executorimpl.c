@@ -258,7 +258,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
   // in case of repeat scan/reverse scan, no new time window added.
   if (isIntervalQuery) {
     if (masterscan && p1 != NULL) {  // the *p1 may be NULL in case of sliding+offset exists.
-      pResult = getResultRowByPos(pResultBuf, p1);
+      pResult = getResultRowByPos(pResultBuf, p1, true);
       ASSERT(pResult->pageId == p1->pageId && pResult->offset == p1->offset);
     }
   } else {
@@ -266,7 +266,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
     // pResultRowInfo object.
     if (p1 != NULL) {
       // todo
-      pResult = getResultRowByPos(pResultBuf, p1);
+      pResult = getResultRowByPos(pResultBuf, p1, true);
       ASSERT(pResult->pageId == p1->pageId && pResult->offset == p1->offset);
     }
   }
@@ -3330,18 +3330,16 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
 }
 
 void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
-  if (pExpr) {
-    for (int32_t i = 0; i < numOfExprs; ++i) {
-      SExprInfo* pExprInfo = &pExpr[i];
-      for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
-        if (pExprInfo->base.pParam[j].type == FUNC_PARAM_TYPE_COLUMN) {
-          taosMemoryFreeClear(pExprInfo->base.pParam[j].pCol);
-        }
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SExprInfo* pExprInfo = &pExpr[i];
+    for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
+      if (pExprInfo->base.pParam[j].type == FUNC_PARAM_TYPE_COLUMN) {
+        taosMemoryFreeClear(pExprInfo->base.pParam[j].pCol);
       }
-
-      taosMemoryFree(pExprInfo->base.pParam);
-      taosMemoryFree(pExprInfo->pExpr);
     }
+
+    taosMemoryFree(pExprInfo->base.pParam);
+    taosMemoryFree(pExprInfo->pExpr);
   }
 }
 
@@ -3483,9 +3481,8 @@ void cleanupExprSupp(SExprSupp* pSupp) {
   destroySqlFunctionCtx(pSupp->pCtx, pSupp->numOfExprs);
   if (pSupp->pExprInfo != NULL) {
     destroyExprInfo(pSupp->pExprInfo, pSupp->numOfExprs);
+    taosMemoryFreeClear(pSupp->pExprInfo);
   }
-
-  taosMemoryFreeClear(pSupp->pExprInfo);
   taosMemoryFree(pSupp->rowEntryInfoOffset);
 }
 
@@ -4076,6 +4073,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
     ops[i] = createOperatorTree(pChildNode, pTaskInfo, pHandle, pTableListInfo, pTagCond, pTagIndexCond, pUser);
     if (ops[i] == NULL) {
+      taosMemoryFree(ops);
       return NULL;
     } else {
       ops[i]->resultDataBlockId = pChildNode->pOutputDataBlockDesc->dataBlockId;
@@ -4517,7 +4515,7 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   return code;
 
 _complete:
-  taosMemoryFreeClear(*pTaskInfo);
+  doDestroyTask(*pTaskInfo);
   terrno = code;
   return code;
 }
