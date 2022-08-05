@@ -1621,16 +1621,12 @@ int32_t ctgLaunchGetTbHashsTask(SCtgTask *pTask) {
   
   for (int32_t i = 0; i < pCtx->fetchNum; ++i) {
     SCtgFetch* pFetch = taosArrayGet(pCtx->pFetchs, i);
-    SName* pName = ctgGetFetchName(pCtx->pNames, pFetch);
+    STablesReq* pReq = taosArrayGet(pCtx->pNames, pFetch->dbIdx);
 
     pTask->msgIdx = pFetch->fetchIdx;
 
     SBuildUseDBInput input = {0};
-    if (IS_SYS_DBNAME(pName->dbname)) {
-      strcpy(input.db, pName->dbname);
-    } else {
-      tNameGetFullDbName(pName, input.db);
-    }
+    strcpy(input.db, pReq->dbFName);
     
     input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
 
