@@ -227,8 +227,8 @@ int32_t tPutBlock(uint8_t *p, void *ph) {
 
   n += tPutTSDBKEY(p ? p + n : p, &pBlock->minKey);
   n += tPutTSDBKEY(p ? p + n : p, &pBlock->maxKey);
-  n += tPutI64v(p ? p + n : p, pBlock->minVersion);
-  n += tPutI64v(p ? p + n : p, pBlock->maxVersion);
+  n += tPutI64v(p ? p + n : p, pBlock->minVer);
+  n += tPutI64v(p ? p + n : p, pBlock->maxVer);
   n += tPutI32v(p ? p + n : p, pBlock->nRow);
   n += tPutI8(p ? p + n : p, pBlock->hasDup);
   n += tPutI8(p ? p + n : p, pBlock->nSubBlock);
@@ -253,8 +253,8 @@ int32_t tGetBlock(uint8_t *p, void *ph) {
 
   n += tGetTSDBKEY(p + n, &pBlock->minKey);
   n += tGetTSDBKEY(p + n, &pBlock->maxKey);
-  n += tGetI64v(p + n, &pBlock->minVersion);
-  n += tGetI64v(p + n, &pBlock->maxVersion);
+  n += tGetI64v(p + n, &pBlock->minVer);
+  n += tGetI64v(p + n, &pBlock->maxVer);
   n += tGetI32v(p + n, &pBlock->nRow);
   n += tGetI8(p + n, &pBlock->hasDup);
   n += tGetI8(p + n, &pBlock->nSubBlock);
@@ -1508,6 +1508,206 @@ int32_t tGetBlockData(uint8_t *p, SBlockData *pBlockData) {
 
   return n;
 }
+
+// SDiskData ==============================
+static int32_t tsdbCmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, uint8_t **ppOut, int32_t nOut,
+                            int32_t *szOut, uint8_t **ppBuf) {
+  int32_t code = 0;
+
+  ASSERT(szIn > 0 && ppOut);
+
+  if (cmprAlg == NO_COMPRESSION) {
+    code = tRealloc(ppOut, nOut + szIn);
+    if (code) goto _exit;
+
+    memcpy(*ppOut + nOut, pIn, szIn);
+    *szOut = szIn;
+  } else {
+    int32_t size = szIn + COMP_OVERFLOW_BYTES;
+
+    code = tRealloc(ppOut, nOut + size);
+    if (code) goto _exit;
+
+    if (cmprAlg == TWO_STAGE_COMP) {
+      ASSERT(ppBuf);
+      code = tRealloc(ppBuf, size);
+      if (code) goto _exit;
+    }
+
+    *szOut =
+        tDataTypes[type].compFunc(pIn, szIn, szIn / tDataTypes[type].bytes, *ppOut + nOut, size, cmprAlg, *ppBuf, size);
+    if (*szOut <= 0) {
+      code = TSDB_CODE_COMPRESS_ERROR;
+      goto _exit;
+    }
+  }
+
+_exit:
+  return code;
+}
+
+static int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol, uint8_t **ppBuf) {
+  int32_t code = 0;
+
+  int32_t n = 0;
+  // bitmap
+  if (pColData->flag != HAS_VALUE) {
+    code = tsdbCmprData(pColData->pBitMap, BIT2_SIZE(pColData->nVal), TSDB_DATA_TYPE_TINYINT, cmprAlg,
+                        pBlockCol->ppData, n, &pBlockCol->szBitmap, ppBuf);
+    if (code) goto _exit;
+  } else {
+    pBlockCol->szBitmap = 0;
+  }
+  n += pBlockCol->szBitmap;
+
+  // offset
+  if (IS_VAR_DATA_TYPE(pColData->type)) {
+    code = tsdbCmprData((uint8_t *)pColData->aOffset, sizeof(int32_t) * pColData->nVal, TSDB_DATA_TYPE_INT, cmprAlg,
+                        pBlockCol->ppData, n, &pBlockCol->szOffset, ppBuf);
+    if (code) goto _exit;
+  } else {
+    pBlockCol->szOffset = 0;
+  }
+  n += pBlockCol->szOffset;
+
+  // value
+  if (pColData->flag != (HAS_NULL | HAS_NONE)) {
+    code = tsdbCmprData((uint8_t *)pColData->pData, pColData->nData, pColData->type, cmprAlg, pBlockCol->ppData, n,
+                        &pBlockCol->szValue, ppBuf);
+    if (code) goto _exit;
+  } else {
+    pBlockCol->szValue = 0;
+  }
+  n += pBlockCol->szValue;
+
+  // checksum
+  n += sizeof(TSCKSUM);
+  taosCalcChecksumAppend(0, *ppBuf, n);
+
+_exit:
+  return code;
+}
+
+static int32_t tsdbDecmprData() {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tDiskDataInit(SDiskData *pDiskData) {
+  int32_t code = 0;
+
+  pDiskData->aBlockCol = taosArrayInit(0, sizeof(SBlockCol));
+  if (pDiskData->aBlockCol == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  pDiskData->aBuf = taosArrayInit(0, sizeof(uint8_t *));
+  if (pDiskData->aBuf == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+_exit:
+  return code;
+}
+
+void tDiskDataClear(SDiskData *pDiskData) {
+  taosArrayDestroy(pDiskData->aBlockCol);
+  for (int32_t i = 0; i < taosArrayGetSize(pDiskData->aBuf); i++) {
+    tFree((uint8_t *)taosArrayGet(pDiskData->aBuf, i));
+  }
+  taosArrayDestroy(pDiskData->aBuf);
+}
+
+static uint8_t **tDiskDataAllocBuf(SDiskData *pDiskData) {
+  if (pDiskData->nBuf >= taosArrayGetSize(pDiskData->aBuf)) {
+    uint8_t *p = NULL;
+    if (taosArrayPush(pDiskData->aBuf, &p) == NULL) {
+      return NULL;
+    }
+  }
+
+  ASSERT(pDiskData->nBuf < taosArrayGetSize(pDiskData->aBuf));
+  uint8_t **pp = taosArrayGet(pDiskData->aBuf, pDiskData->nBuf);
+  pDiskData->nBuf++;
+  return pp;
+}
+
+int32_t tBlockToDiskData(SBlockData *pBlockData, SDiskData *pDiskData, int8_t cmprAlg) {
+  int32_t code = 0;
+
+  ASSERT(pBlockData->nRow > 0);
+
+  pDiskData->cmprAlg = cmprAlg;
+  pDiskData->nRow = pBlockData->nRow;
+  pDiskData->suid = pBlockData->suid;
+  pDiskData->uid = pBlockData->uid;
+  pDiskData->szUid = 0;
+  pDiskData->szVer = 0;
+  pDiskData->szKey = 0;
+  taosArrayClear(pDiskData->aBlockCol);
+  pDiskData->nBuf = 0;
+
+  // uid
+  if (pDiskData->uid == 0) {
+    code = tsdbCmprData((uint8_t *)pBlockData->aUid, sizeof(int64_t) * pBlockData->nRow, TSDB_DATA_TYPE_BIGINT, cmprAlg,
+                        &pDiskData->pUid, &pDiskData->szUid, &pDiskData->pBuf);
+    if (code) goto _exit;
+  }
+
+  // version
+  code = tsdbCmprData((uint8_t *)pBlockData->aVersion, sizeof(int64_t) * pBlockData->nRow, TSDB_DATA_TYPE_BIGINT,
+                      cmprAlg, &pDiskData->pVer, &pDiskData->szVer, &pDiskData->pBuf);
+  if (code) goto _exit;
+
+  // tskey
+  code = tsdbCmprData((uint8_t *)pBlockData->aTSKEY, sizeof(TSKEY) * pBlockData->nRow, TSDB_DATA_TYPE_TIMESTAMP,
+                      cmprAlg, &pDiskData->pKey, &pDiskData->szKey, &pDiskData->pBuf);
+  if (code) goto _exit;
+
+  // columns
+  int32_t offset = 0;
+  for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aIdx); iColData++) {
+    SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
+
+    if (pColData->flag == HAS_NONE) continue;
+
+    SBlockCol blockCol = {.cid = pColData->cid,
+                          .type = pColData->type,
+                          .smaOn = pColData->smaOn,
+                          .flag = pColData->flag,
+                          .szOrigin = pColData->nData};
+
+    if (pColData->flag != HAS_NULL) {
+      // alloc a buffer
+      blockCol.ppData = tDiskDataAllocBuf(pDiskData);
+      if (blockCol.ppData == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _exit;
+      }
+
+      // compress
+      code = tsdbCmprColData(pColData, cmprAlg, &blockCol);
+      if (code) goto _exit;
+
+      // update offset
+      blockCol.offset = offset;
+      offset = offset + blockCol.szBitmap + blockCol.szOffset + blockCol.szValue;
+    }
+
+    if (taosArrayPush(pDiskData->aBlockCol, &blockCol) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+  }
+
+_exit:
+  return code;
+}
+int32_t tBlockToDiskData(SBlockData *pBlockData, SDiskData *pDiskData, int8_t cmprAlg);
+int32_t tDiskToBlockData(SDiskData *pDiskData, SBlockData *pBlockData);
 
 // ALGORITHM ==============================
 void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {

@@ -1909,8 +1909,8 @@ static void tsdbUpdateBlockInfo(SBlockData *pBlockData, SBlock *pBlock) {
       pBlock->maxKey = key;
     }
 
-    pBlock->minVersion = TMIN(pBlock->minVersion, key.version);
-    pBlock->maxVersion = TMAX(pBlock->maxVersion, key.version);
+    pBlock->minVer = TMIN(pBlock->minVer, key.version);
+    pBlock->maxVer = TMAX(pBlock->maxVer, key.version);
   }
   pBlock->nRow += pBlockData->nRow;
 }
@@ -2310,9 +2310,13 @@ int32_t tsdbWriteLastBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
   pBlockL->szBlock = pBlockL->szBlockCol + sizeof(TSCKSUM) + nBuf1;
   pWriter->fLast.size += pBlockL->szBlock;
 
+  tFree(pBuf1);
+  tFree(pBuf2);
   return code;
 
 _err:
+  tFree(pBuf1);
+  tFree(pBuf2);
   return code;
 }
 

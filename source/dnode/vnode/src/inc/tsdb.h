@@ -47,6 +47,7 @@ typedef struct SBlockL       SBlockL;
 typedef struct SColData      SColData;
 typedef struct SBlockDataHdr SBlockDataHdr;
 typedef struct SBlockData    SBlockData;
+typedef struct SDiskData     SDiskData;
 typedef struct SDelFile      SDelFile;
 typedef struct SHeadFile     SHeadFile;
 typedef struct SDataFile     SDataFile;
@@ -149,6 +150,11 @@ SColData *tBlockDataGetColDataByIdx(SBlockData *pBlockData, int32_t idx);
 void      tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData);
 int32_t   tPutBlockData(uint8_t *p, SBlockData *pBlockData);
 int32_t   tGetBlockData(uint8_t *p, SBlockData *pBlockData);
+// SDiskData
+int32_t tDiskDataInit(SDiskData *pDiskData);
+void    tDiskDataClear(SDiskData *pDiskData);
+int32_t tBlockToDiskData(SBlockData *pBlockData, SDiskData *pDiskData, int8_t cmprAlg);
+int32_t tDiskToBlockData(SDiskData *pDiskData, SBlockData *pBlockData);
 // SDelIdx
 int32_t tPutDelIdx(uint8_t *p, void *ph);
 int32_t tGetDelIdx(uint8_t *p, void *ph);
@@ -392,38 +398,35 @@ struct SMapData {
 };
 
 typedef struct {
-  int16_t cid;
-  int8_t  type;
-  int8_t  smaOn;
-  int8_t  flag;      // HAS_NONE|HAS_NULL|HAS_VALUE
-  int32_t szOrigin;  // original column value size (only save for variant data type)
-  int32_t szBitmap;  // bitmap size
-  int32_t szOffset;  // size of offset, only for variant-length data type
-  int32_t szValue;   // compressed column value size
-  int32_t offset;
+  int16_t   cid;
+  int8_t    type;
+  int8_t    smaOn;
+  int8_t    flag;      // HAS_NONE|HAS_NULL|HAS_VALUE
+  int32_t   szOrigin;  // original column value size (only save for variant data type)
+  int32_t   szBitmap;  // bitmap size
+  int32_t   szOffset;  // size of offset, only for variant-length data type
+  int32_t   szValue;   // compressed column value size
+  int32_t   offset;
+  uint8_t **ppData;
 } SBlockCol;
 
 typedef struct {
-  int32_t nRow;
-  int8_t  cmprAlg;
-  int64_t offset;      // block data offset
-  int32_t szBlockCol;  // SBlockCol size
-  int32_t szVersion;   // VERSION size
-  int32_t szTSKEY;     // TSKEY size
-  int32_t szBlock;     // total block size
-  int64_t sOffset;     // sma offset
-  int32_t nSma;        // sma size
+  int64_t offset;  // block data offset
+  int32_t szBlock;
+  int32_t szKey;
 } SSubBlock;
 
 struct SBlock {
   TSDBKEY   minKey;
   TSDBKEY   maxKey;
-  int64_t   minVersion;
-  int64_t   maxVersion;
+  int64_t   minVer;
+  int64_t   maxVer;
   int32_t   nRow;
   int8_t    hasDup;
   int8_t    nSubBlock;
   SSubBlock aSubBlock[TSDB_MAX_SUBBLOCKS];
+  int64_t   sOffset;  // sma offset
+  int32_t   nSma;     // sma size
 };
 
 struct SBlockL {
@@ -433,13 +436,6 @@ struct SBlockL {
   int64_t minVer;
   int64_t maxVer;
   int32_t nRow;
-  int64_t offset;
-  int8_t  cmprAlg;
-  int32_t szBlockCol;
-  int32_t szUid;
-  int32_t szVer;
-  int32_t szTSKEY;
-  int32_t szBlock;
 };
 
 struct SColData {
@@ -502,13 +498,17 @@ struct SDelIdx {
   int64_t  size;
 };
 
-#pragma pack(push, 1)
 struct SBlockDataHdr {
   uint32_t delimiter;
+  int32_t  nRow;
   int64_t  suid;
   int64_t  uid;
+  int32_t  szUid;
+  int32_t  szVer;
+  int32_t  szKey;
+  int32_t  szBlkCol;
+  int8_t   cmprAlg;
 };
-#pragma pack(pop)
 
 struct SDelFile {
   volatile int32_t nRef;
@@ -594,6 +594,24 @@ struct STsdbReadSnap {
   SMemTable *pMem;
   SMemTable *pIMem;
   STsdbFS    fs;
+};
+
+struct SDiskData {
+  int8_t  cmprAlg;
+  int32_t nRow;
+  int64_t suid;
+  int64_t uid;
+  int32_t szUid;
+  int32_t szVer;
+  int32_t szKey;
+
+  uint8_t *pUid;
+  uint8_t *pVer;
+  uint8_t *pKey;
+  SArray  *aBlockCol;  // SArray<SBlockCol>
+  int32_t  nBuf;
+  SArray  *aBuf;  // SArray<uint8_t*>
+  uint8_t *pBuf;
 };
 
 // ========== inline functions ==========

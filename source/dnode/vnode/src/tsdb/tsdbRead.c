@@ -630,7 +630,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, uint32_
       }
 
       // 2. version range check
-      if (block.minVersion > pReader->verRange.maxVer || block.maxVersion < pReader->verRange.minVer) {
+      if (block.minVer > pReader->verRange.maxVer || block.maxVer < pReader->verRange.minVer) {
         continue;
       }
 
@@ -766,7 +766,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
   tsdbDebug("%p copy file block to sdatablock, global index:%d, table index:%d, brange:%" PRId64 "-%" PRId64
             ", rows:%d, remain:%d, minVer:%" PRId64 ", maxVer:%" PRId64 ", elapsed time:%.2f ms, %s",
             pReader, pBlockIter->index, pFBlock->tbBlockIdx, pBlock->minKey.ts, pBlock->maxKey.ts, remain, unDumpedRows,
-            pBlock->minVersion, pBlock->maxVersion, elapsedTime, pReader->idStr);
+            pBlock->minVer, pBlock->maxVer, elapsedTime, pReader->idStr);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -798,7 +798,7 @@ static int32_t doLoadFileBlockData(STsdbReader* pReader, SDataBlockIter* pBlockI
   tsdbDebug("%p load file block into buffer, global index:%d, table index:%d, brange:%" PRId64 "-%" PRId64
             ", rows:%d, minVer:%" PRId64 ", maxVer:%" PRId64 ", elapsed time:%.2f ms, %s",
             pReader, pBlockIter->index, pFBlock->tbBlockIdx, pBlock->minKey.ts, pBlock->maxKey.ts, pBlock->nRow,
-            pBlock->minVersion, pBlock->maxVersion, elapsedTime, pReader->idStr);
+            pBlock->minVer, pBlock->maxVer, elapsedTime, pReader->idStr);
 
   return TSDB_CODE_SUCCESS;
 
@@ -1011,8 +1011,8 @@ static bool blockIteratorNext(SDataBlockIter* pBlockIter) {
 static int32_t dataBlockPartiallyRequired(STimeWindow* pWindow, SVersionRange* pVerRange, SBlock* pBlock) {
   return (pWindow->ekey < pBlock->maxKey.ts && pWindow->ekey >= pBlock->minKey.ts) ||
          (pWindow->skey > pBlock->minKey.ts && pWindow->skey <= pBlock->maxKey.ts) ||
-         (pVerRange->minVer > pBlock->minVersion && pVerRange->minVer <= pBlock->maxVersion) ||
-         (pVerRange->maxVer < pBlock->maxVersion && pVerRange->maxVer >= pBlock->minVersion);
+         (pVerRange->minVer > pBlock->minVer && pVerRange->minVer <= pBlock->maxVer) ||
+         (pVerRange->maxVer < pBlock->maxVer && pVerRange->maxVer >= pBlock->minVer);
 }
 
 static SBlock* getNeighborBlockOfSameTable(SFileDataBlockInfo* pFBlockInfo, STableBlockScanInfo* pTableBlockScanInfo,
@@ -1092,8 +1092,8 @@ static bool bufferDataInFileBlockGap(int32_t order, TSDBKEY key, SBlock* pBlock)
 }
 
 static bool keyOverlapFileBlock(TSDBKEY key, SBlock* pBlock, SVersionRange* pVerRange) {
-  return (key.ts >= pBlock->minKey.ts && key.ts <= pBlock->maxKey.ts) && (pBlock->maxVersion >= pVerRange->minVer) &&
-         (pBlock->minVersion <= pVerRange->maxVer);
+  return (key.ts >= pBlock->minKey.ts && key.ts <= pBlock->maxKey.ts) && (pBlock->maxVer >= pVerRange->minVer) &&
+         (pBlock->minVer <= pVerRange->maxVer);
 }
 
 static bool doCheckforDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, const SBlock* pBlock) {
@@ -1102,11 +1102,11 @@ static bool doCheckforDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, cons
   for (int32_t i = pBlockScanInfo->fileDelIndex; i < num; i += 1) {
     TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, i);
     if (p->ts >= pBlock->minKey.ts && p->ts <= pBlock->maxKey.ts) {
-      if (p->version >= pBlock->minVersion) {
+      if (p->version >= pBlock->minVer) {
         return true;
       }
     } else if (p->ts < pBlock->minKey.ts) {  // p->ts < pBlock->minKey.ts
-      if (p->version >= pBlock->minVersion) {
+      if (p->version >= pBlock->minVer) {
         if (i < num - 1) {
           TSDBKEY* pnext = taosArrayGet(pBlockScanInfo->delSkyline, i + 1);
           if (i + 1 == num - 1) {  // pnext is the last point
@@ -1114,7 +1114,7 @@ static bool doCheckforDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, cons
               return true;
             }
           } else {
-            if (pnext->ts >= pBlock->minKey.ts && pnext->version >= pBlock->minVersion) {
+            if (pnext->ts >= pBlock->minKey.ts && pnext->version >= pBlock->minVer) {
               return true;
             }
           }
@@ -2512,9 +2512,7 @@ void* tsdbGetIvtIdx(SMeta* pMeta) {
   return metaGetIvtIdx(pMeta);
 }
 
-uint64_t getReaderMaxVersion(STsdbReader *pReader) {
-  return pReader->verRange.maxVer;
-}
+uint64_t getReaderMaxVersion(STsdbReader* pReader) { return pReader->verRange.maxVer; }
 
 /**
  * @brief Get all suids since suid
