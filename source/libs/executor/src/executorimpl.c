@@ -1011,16 +1011,6 @@ static int32_t updateBlockLoadStatus(STaskAttr* pQuery, int32_t status) {
 //  }
 //}
 
-// static FORCE_INLINE bool doFilterByBlockStatistics(STaskRuntimeEnv* pRuntimeEnv, SDataStatis *pDataStatis,
-// SqlFunctionCtx *pCtx, int32_t numOfRows) {
-//   STaskAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
-//
-//   if (pDataStatis == NULL || pQueryAttr->pFilters == NULL) {
-//     return true;
-//   }
-//
-//   return filterRangeExecute(pQueryAttr->pFilters, pDataStatis, pQueryAttr->numOfCols, numOfRows);
-// }
 #if 0
 static bool overlapWithTimeWindow(STaskAttr* pQueryAttr, SDataBlockInfo* pBlockInfo) {
   STimeWindow w = {0};
@@ -1215,7 +1205,7 @@ int32_t loadDataBlockOnDemand(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableSc
     }
 
     // current block has been discard due to filter applied
-//    if (!doFilterByBlockStatistics(pRuntimeEnv, pBlock->pBlockAgg, pTableScanInfo->pCtx, pBlockInfo->rows)) {
+//    if (!doFilterByBlockSMA(pRuntimeEnv, pBlock->pBlockAgg, pTableScanInfo->pCtx, pBlockInfo->rows)) {
 //      pCost->skipBlocks += 1;
 //      qDebug("QInfo:0x%"PRIx64" data block discard, brange:%" PRId64 "-%" PRId64 ", rows:%d", pQInfo->qId, pBlockInfo->window.skey,
 //             pBlockInfo->window.ekey, pBlockInfo->rows);
