@@ -848,6 +848,7 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables) {
                terrstr());
       goto _err;
     }
+    tDecoderClear(&mr.coder);
     ASSERT(mr.me.type == TSDB_SUPER_TABLE);
     ASSERT(mr.me.uid == suid);
     if (TABLE_IS_ROLLUP(mr.me.flags)) {
