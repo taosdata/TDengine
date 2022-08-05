@@ -156,7 +156,8 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
     if (p->left < p->cap - p->len) {
       uvBuf->len = p->left;
     } else {
-      p->buf = taosMemoryRealloc(p->buf, p->left + p->len);
+      p->cap = p->left + p->len;
+      p->buf = taosMemoryRealloc(p->buf, p->cap);
       uvBuf->base = p->buf + p->len;
       uvBuf->len = p->left;
     }

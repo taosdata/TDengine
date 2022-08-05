@@ -80,8 +80,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
   transAcquireExHandle(transGetInstMgt(), refId);
   pRpc->refId = refId;
-  return pRpc;
-  // return (void*)refId;
+  return (void*)refId;
 }
 void rpcClose(void* arg) {
   tInfo("start to close rpc");

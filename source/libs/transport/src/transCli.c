@@ -564,7 +564,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   conn->task = NULL;
   assert(!QUEUE_IS_EMPTY(&conn->list->conn));
 
-  if (conn->list->size >= 10) {
+  if (conn->list->size >= 50) {
     STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
     arg->param1 = conn;
     arg->param2 = thrd;
@@ -1372,7 +1372,7 @@ int transReleaseCliHandle(void* handle) {
   }
 
   STransMsg tmsg = {.info.handle = handle};
-  TRACE_SET_MSGID(&tmsg.info.traceId, tGenIdPI64());
+  // TRACE_SET_MSGID(&tmsg.info.traceId, tGenIdPI64());
 
   SCliMsg* cmsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cmsg->msg = tmsg;
@@ -1388,12 +1388,11 @@ int transReleaseCliHandle(void* handle) {
 }
 
 int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) {
-  // STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
-  // if (pTransInst == NULL) {
-  //   transFreeMsg(pReq->pCont);
-  //   return -1;
-  // }
-  STrans* pTransInst = shandle;
+  STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
+  if (pTransInst == NULL) {
+    transFreeMsg(pReq->pCont);
+    return -1;
+  }
 
   bool      valid = false;
   SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle, &valid);
@@ -1429,23 +1428,22 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
     return -1;
   }
-  // transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
+  transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
   return 0;
 }
 
 int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp) {
-  STrans* pTransInst = shandle;
-  // STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
-  // if (pTransInst == NULL) {
-  //   transFreeMsg(pReq->pCont);
-  //   return -1;
-  // }
+  STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
+  if (pTransInst == NULL) {
+    transFreeMsg(pReq->pCont);
+    return -1;
+  }
 
   bool      valid = false;
   SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle, &valid);
   if (pThrd == NULL && valid == false) {
     transFreeMsg(pReq->pCont);
-    // transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
+    transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
     return -1;
   }
 
@@ -1483,7 +1481,7 @@ int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMs
 _RETURN:
   tsem_destroy(sem);
   taosMemoryFree(sem);
-  // transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
+  transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
   return ret;
 }
 /*
