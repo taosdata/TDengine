@@ -573,7 +573,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
         // fsync once
         SSyncLogStoreData* pData = ths->pLogStore->data;
         SWal*              pWal = pData->pWal;
-        walFsync(pWal, true);
+        walFsync(pWal, false);
 
         // update match index
         matchIndex = pMsg->prevLogIndex + pMsg->dataCount;
@@ -694,7 +694,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
         // fsync once
         SSyncLogStoreData* pData = ths->pLogStore->data;
         SWal*              pWal = pData->pWal;
-        walFsync(pWal, true);
+        walFsync(pWal, false);
       }
 
       // prepare response msg

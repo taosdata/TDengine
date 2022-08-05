@@ -111,7 +111,7 @@ int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
       // pBlock->sversion = htonl(pBlock->sversion);
       // pBlock->dataLen = htonl(pBlock->dataLen);
       // pBlock->schemaLen = htonl(pBlock->schemaLen);
-      // pBlock->numOfRows = htons(pBlock->numOfRows);
+      // pBlock->numOfRows = htonl(pBlock->numOfRows);
 
 #if 0
     if (pBlock->tid <= 0 || pBlock->tid >= pMeta->maxTables) {

@@ -76,7 +76,7 @@ void taos_cleanup(void) {
   cleanupTaskQueue();
 
   taosConvDestroy();
-  
+
   tscInfo("all local resources released");
   taosCleanupCfg();
   taosCloseLog();
@@ -680,7 +680,7 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
     code = qAnalyseSqlSemantic(pWrapper->pCtx, &pWrapper->catalogReq, pResultMeta, pQuery);
     pRequest->stableQuery = pQuery->stableQuery;
     if (pQuery->pRoot) {
-      pRequest->stmtType = pQuery->pRoot->type;  
+      pRequest->stmtType = pQuery->pRoot->type;
     }
   }
 
@@ -785,9 +785,9 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     STscObj            *pTscObj = pRequest->pTscObj;
     SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
     if (NULL == pQuery->pRoot) {
-      atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1);           
+      atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1);
     } else if (QUERY_NODE_SELECT_STMT == pQuery->pRoot->type) {
-      atomic_add_fetch_64((int64_t *)&pActivity->numOfQueryReq, 1);           
+      atomic_add_fetch_64((int64_t *)&pActivity->numOfQueryReq, 1);
     }
   }
 
@@ -809,6 +809,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 
   code = catalogAsyncGetAllMeta(pCxt->pCatalog, &conn, &catalogReq, retrieveMetaCallback, pWrapper,
                                 &pRequest->body.queryJob);
+  pCxt = NULL;
   if (code == TSDB_CODE_SUCCESS) {
     return;
   }
@@ -816,6 +817,8 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 _error:
   tscError("0x%" PRIx64 " error happens, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code, tstrerror(code),
            pRequest->requestId);
+  taosMemoryFree(pCxt);
+
   terrno = code;
   pRequest->code = code;
   pRequest->body.queryFp(pRequest->body.param, pRequest, code);
@@ -857,7 +860,7 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
 
     STscObj            *pTscObj = pRequest->pTscObj;
     SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
-    atomic_add_fetch_64((int64_t *)&pActivity->fetchBytes, pRequest->body.resInfo.payloadLen);           
+    atomic_add_fetch_64((int64_t *)&pActivity->fetchBytes, pRequest->body.resInfo.payloadLen);
   }
 
   pRequest->body.fetchFp(pRequest->body.param, pRequest, pResultInfo->numOfRows);
