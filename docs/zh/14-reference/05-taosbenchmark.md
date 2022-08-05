@@ -227,39 +227,11 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 #### 数据库相关配置参数
 
-创建数据库时的相关参数在 json 配置文件中的 `dbinfo` 中配置，具体参数如下。这些参数与 TDengine 中 `create database` 时所指定的数据库参数相对应。
+创建数据库时的相关参数在 json 配置文件中的 `dbinfo` 中配置，具体参数如下。这些参数与 TDengine 中 `create database` 时所指定的数据库参数相对应，详见[../../taos-sql/database]
 
 - **name** : 数据库名。
 
 - **drop** : 插入前是否删除数据库，默认为 true。
-
-- **replica** : 创建数据库时指定的副本数。
-
-- **days** : 单个数据文件中存储数据的时间跨度，默认值为 10。
-
-- **cache** : 缓存块的大小，单位是 MB，默认值是 16。
-
-- **blocks** : 每个 vnode 中缓存块的数量，默认为 6。
-
-- **precision** : 数据库时间精度，默认值为 "ms"。
-
-- **keep** : 保留数据的天数，默认值为 3650。
-
-- **minRows** : 文件块中的最小记录数，默认值为 100。
-
-- **maxRows** : 文件块中的最大记录数，默认值为 4096。
-
-- **comp** : 文件压缩标志，默认值为 2。
-
-- **walLevel** : WAL 级别，默认为 1。
-
-- **cacheLast** : 是否允许将每个表的最后一条记录保留在内存中，默认值为 0，可选值为 0，1，2，3。
-
-- **quorum** : 多副本模式下的写确认数量，默认值为 1。
-
-- **fsync** : 当 wal 设置为 2 时，fsync 的间隔时间，单位为 ms，默认值为 3000。
-
-- **update** : 是否支持数据更新，默认值为 0， 可选值为 0， 1， 2。
 
 #### 超级表相关配置参数
 
@@ -334,6 +306,8 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **max** : 数据类型的 列/标签 的最大值。
 
 - **values** : nchar/binary 列/标签的值域，将从值中随机选择。
+
+- **sma**: 将该列加入bsma中，值为 "yes" 或者 "no"，默认为 "no"。
 
 #### 插入行为配置参数
 
