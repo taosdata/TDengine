@@ -961,7 +961,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     cols = 0;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = "clould";
+    src = "cloud";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, tmp, false);
     
