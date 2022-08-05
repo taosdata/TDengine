@@ -227,7 +227,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 #### 数据库相关配置参数
 
-创建数据库时的相关参数在 json 配置文件中的 `dbinfo` 中配置，具体参数如下。这些参数与 TDengine 中 `create database` 时所指定的数据库参数相对应，详见[../../taos-sql/database]
+创建数据库时的相关参数在 json 配置文件中的 `dbinfo` 中配置，个别具体参数如下。其余参数均与 TDengine 中 `create database` 时所指定的数据库参数相对应，详见[../../taos-sql/database]
 
 - **name** : 数据库名。
 
