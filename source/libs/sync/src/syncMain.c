@@ -1987,6 +1987,12 @@ void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
   }
 }
 
+void syncNodeUpdateTermWithoutStepDown(SSyncNode* pSyncNode, SyncTerm term) {
+  if (term > pSyncNode->pRaftStore->currentTerm) {
+    raftStoreSetTerm(pSyncNode->pRaftStore, term);
+  }
+}
+
 void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
   // maybe clear leader cache
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
@@ -2614,7 +2620,7 @@ int32_t syncNodeOnClientRequestBatchCb(SSyncNode* ths, SyncClientRequestBatch* p
   // fsync once
   SSyncLogStoreData* pData = ths->pLogStore->data;
   SWal*              pWal = pData->pWal;
-  walFsync(pWal, true);
+  walFsync(pWal, false);
 
   if (ths->replicaNum > 1) {
     // if multi replica, start replicate right now
@@ -2801,7 +2807,7 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
   ESyncState state = flag;
 
   char eventLog[128];
-  snprintf(eventLog, sizeof(eventLog), "commit wal from index:%" PRId64 " to index:%" PRId64, beginIndex, endIndex);
+  snprintf(eventLog, sizeof(eventLog), "commit by wal from index:%" PRId64 " to index:%" PRId64, beginIndex, endIndex);
   syncNodeEventLog(ths, eventLog);
 
   // execute fsm

@@ -55,14 +55,13 @@ int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
                ((pMsg->lastLogTerm == ths->pLogStore->getLastTerm(ths->pLogStore)) &&
                 (pMsg->lastLogIndex >= ths->pLogStore->getLastIndex(ths->pLogStore)));
 
-  // log not ok, do not update term, ignore it
-  if (pMsg->term > ths->pRaftStore->currentTerm && !logOK) {
-    return -1;
-  }
-
   // maybe update term
   if (pMsg->term > ths->pRaftStore->currentTerm) {
-    syncNodeUpdateTerm(ths, pMsg->term);
+    if (logOK) {
+      syncNodeUpdateTerm(ths, pMsg->term);
+    } else {
+      syncNodeUpdateTermWithoutStepDown(ths, pMsg->term);
+    }
   }
   ASSERT(pMsg->term <= ths->pRaftStore->currentTerm);
 
@@ -164,13 +163,18 @@ int32_t syncNodeOnRequestVoteSnapshotCb(SSyncNode* ths, SyncRequestVote* pMsg) {
     return -1;
   }
 
+  bool logOK = syncNodeOnRequestVoteLogOK(ths, pMsg);
+
   // maybe update term
   if (pMsg->term > ths->pRaftStore->currentTerm) {
-    syncNodeUpdateTerm(ths, pMsg->term);
+    if (logOK) {
+      syncNodeUpdateTerm(ths, pMsg->term);
+    } else {
+      syncNodeUpdateTermWithoutStepDown(ths, pMsg->term);
+    }
   }
   ASSERT(pMsg->term <= ths->pRaftStore->currentTerm);
 
-  bool logOK = syncNodeOnRequestVoteLogOK(ths, pMsg);
   bool grant = (pMsg->term == ths->pRaftStore->currentTerm) && logOK &&
                ((!raftStoreHasVoted(ths->pRaftStore)) || (syncUtilSameId(&(ths->pRaftStore->voteFor), &(pMsg->srcId))));
   if (grant) {
