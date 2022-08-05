@@ -1,5 +1,3 @@
-
-
 use derive_more::{Deref, DerefMut, Display, From};
 
 use rust_decimal::prelude::*;

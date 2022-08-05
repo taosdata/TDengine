@@ -2,7 +2,7 @@ pub use taos_query::prelude::*;
 pub use taos_query::Manager;
 
 pub mod tmq;
-pub use tmq::{TmqBuilder, Consumer, MessageSet};
+pub use tmq::{Consumer, MessageSet, TmqBuilder};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

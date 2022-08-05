@@ -2,7 +2,6 @@ pub mod taoz;
 
 mod tmq;
 
-
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum Compression {
     None,
@@ -15,7 +14,6 @@ enum Compression {
     Zlib,
     Zstd,
 }
-
 
 mod tmq_to_td;
 pub use tmq_to_td::tmq_to_td;

@@ -278,9 +278,7 @@ impl TaosMultiBind {
                                     .offset(self.buffer_length as isize * i as isize);
                                 let len = *self.length.offset(i as isize) as usize;
                                 let bytes = std::slice::from_raw_parts(ptr, len);
-                                Some(
-                                    serde_json::from_slice::<serde_json::Value>(bytes).unwrap()
-                                )
+                                Some(serde_json::from_slice::<serde_json::Value>(bytes).unwrap())
                             }
                         })
                         .collect::<Vec<_>>();
