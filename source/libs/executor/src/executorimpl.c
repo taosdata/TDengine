@@ -1959,7 +1959,8 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     pRsp->numOfBlocks = htonl(pRsp->numOfBlocks);
 
     ASSERT(pRsp != NULL);
-    qDebug("%s fetch rsp received, index:%d, rows:%d", pSourceDataInfo->taskId, index, pRsp->numOfRows);
+    qDebug("%s fetch rsp received, index:%d, blocks:%d, rows:%d", pSourceDataInfo->taskId, index, pRsp->numOfBlocks,
+           pRsp->numOfRows);
   } else {
     pSourceDataInfo->code = code;
     qDebug("%s fetch rsp received, index:%d, error:%d", pSourceDataInfo->taskId, index, tstrerror(code));
@@ -2171,16 +2172,17 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
 
       if (pRsp->completed == 1) {
         qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " execId:%d"
-               " index:%d completed, numOfRows:%d, rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64 ", total:%.2f Kb,"
+               " index:%d completed, blocks:%d, numOfRows:%d, rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64 ", total:%.2f Kb,"
                " completed:%d try next %d/%" PRIzu,
-               GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, i, pRsp->numOfRows,
-               pDataInfo->totalRows, pLoadInfo->totalRows, pLoadInfo->totalSize/1024.0, completed + 1, i + 1, totalSources);
+               GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId, i, pRsp->numOfBlocks,
+               pRsp->numOfRows, pDataInfo->totalRows, pLoadInfo->totalRows, pLoadInfo->totalSize / 1024.0,
+               completed + 1, i + 1, totalSources);
         completed += 1;
         pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
       } else {
-        qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " execId:%d numOfRows:%d, totalRows:%" PRIu64
+        qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " execId:%d blocks:%d, numOfRows:%d, totalRows:%" PRIu64
                ", total:%.2f Kb", GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pSource->execId,
-               pRsp->numOfRows, pLoadInfo->totalRows, pLoadInfo->totalSize/1024.0);
+               pRsp->numOfBlocks, pRsp->numOfRows, pLoadInfo->totalRows, pLoadInfo->totalSize/1024.0);
       }
 
       taosMemoryFreeClear(pDataInfo->pRsp);
