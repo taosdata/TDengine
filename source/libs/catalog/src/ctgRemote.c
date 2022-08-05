@@ -466,9 +466,9 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo *pConn, SCtgT
         pName = ctx->pName;
       } else if (TDMT_VND_TABLE_META == msgType) {
         if (CTG_TASK_GET_TB_META_BATCH == pTask->type) {
-          SCtgTbMetaBCtx* ctx = (SCtgTbMetaBCtx*)pTask->taskCtx;
+          SCtgTbMetasCtx* ctx = (SCtgTbMetasCtx*)pTask->taskCtx;
           SCtgFetch* fetch = taosArrayGet(ctx->pFetchs, pTask->msgIdx);
-          pName = taosArrayGet(ctx->pNames, fetch->reqIdx);
+          pName = ctgGetFetchName(ctx->pNames, fetch);
         } else {
           SCtgTbMetaCtx* ctx = (SCtgTbMetaCtx*)pTask->taskCtx;
           pName = ctx->pName;
@@ -512,9 +512,9 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo *pConn, SCtgT
       pName = ctx->pName;
     } else if (TDMT_VND_TABLE_META == msgType) {
       if (CTG_TASK_GET_TB_META_BATCH == pTask->type) {
-        SCtgTbMetaBCtx* ctx = (SCtgTbMetaBCtx*)pTask->taskCtx;
+        SCtgTbMetasCtx* ctx = (SCtgTbMetasCtx*)pTask->taskCtx;
         SCtgFetch* fetch = taosArrayGet(ctx->pFetchs, pTask->msgIdx);
-        pName = taosArrayGet(ctx->pNames, fetch->reqIdx);
+        pName = ctgGetFetchName(ctx->pNames, fetch);
       } else {
         SCtgTbMetaCtx* ctx = (SCtgTbMetaCtx*)pTask->taskCtx;
         pName = ctx->pName;
