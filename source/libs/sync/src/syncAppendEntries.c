@@ -570,7 +570,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
         // append entry batch
         if (pass == 0) {
           // assert! no batch
-          ASSERT(pMsg->dataCount == 1);
+          ASSERT(pMsg->dataCount <= 1);
 
           for (int32_t i = 0; i < pMsg->dataCount; ++i) {
             SSyncRaftEntry* pAppendEntry = (SSyncRaftEntry*)(pMsg->data + metaTableArr[i].offset);
@@ -698,7 +698,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
         // append entry batch
         if (pass == 0) {
           // assert! no batch
-          ASSERT(pMsg->dataCount == 1);
+          ASSERT(pMsg->dataCount <= 1);
 
           // append entry batch
           for (int32_t i = 0; i < pMsg->dataCount; ++i) {
