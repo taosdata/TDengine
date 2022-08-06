@@ -181,10 +181,10 @@ static int32_t tsdbCommitDelStart(SCommitter *pCommitter) {
 
   SDelFile *pDelFileR = pCommitter->fs.pDelFile;
   if (pDelFileR) {
-    code = tsdbDelFReaderOpen(&pCommitter->pDelFReader, pDelFileR, pTsdb, NULL);
+    code = tsdbDelFReaderOpen(&pCommitter->pDelFReader, pDelFileR, pTsdb);
     if (code) goto _err;
 
-    code = tsdbReadDelIdx(pCommitter->pDelFReader, pCommitter->aDelIdx, NULL);
+    code = tsdbReadDelIdx(pCommitter->pDelFReader, pCommitter->aDelIdx);
     if (code) goto _err;
   }
 
@@ -221,7 +221,7 @@ static int32_t tsdbCommitTableDel(SCommitter *pCommitter, STbData *pTbData, SDel
     suid = pDelIdx->suid;
     uid = pDelIdx->uid;
 
-    code = tsdbReadDelData(pCommitter->pDelFReader, pDelIdx, pCommitter->aDelData, NULL);
+    code = tsdbReadDelData(pCommitter->pDelFReader, pDelIdx, pCommitter->aDelData);
     if (code) goto _err;
   } else {
     taosArrayClear(pCommitter->aDelData);
@@ -241,7 +241,7 @@ static int32_t tsdbCommitTableDel(SCommitter *pCommitter, STbData *pTbData, SDel
   }
 
   // write
-  code = tsdbWriteDelData(pCommitter->pDelFWriter, pCommitter->aDelData, NULL, &delIdx);
+  code = tsdbWriteDelData(pCommitter->pDelFWriter, pCommitter->aDelData, &delIdx);
   if (code) goto _err;
 
   // put delIdx
@@ -262,7 +262,7 @@ static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
   int32_t code = 0;
   STsdb  *pTsdb = pCommitter->pTsdb;
 
-  code = tsdbWriteDelIdx(pCommitter->pDelFWriter, pCommitter->aDelIdxN, NULL);
+  code = tsdbWriteDelIdx(pCommitter->pDelFWriter, pCommitter->aDelIdxN);
   if (code) goto _err;
 
   code = tsdbUpdateDelFileHdr(pCommitter->pDelFWriter);

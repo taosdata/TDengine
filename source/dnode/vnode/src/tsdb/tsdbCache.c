@@ -317,7 +317,7 @@ static int32_t getTableDelDataFromDelIdx(SDelFReader *pDelReader, SDelIdx *pDelI
   int32_t code = 0;
 
   if (pDelIdx) {
-    code = tsdbReadDelData(pDelReader, pDelIdx, aDelData, NULL);
+    code = tsdbReadDelData(pDelReader, pDelIdx, aDelData);
   }
 
   return code;
@@ -388,8 +388,7 @@ static int32_t getTableDelIdx(SDelFReader *pDelFReader, tb_uid_t suid, tb_uid_t 
   SDelIdx idx = {.suid = suid, .uid = uid};
 
   // tMapDataReset(&delIdxMap);
-  //  code = tsdbReadDelIdx(pDelFReader, &delIdxMap, NULL);
-  code = tsdbReadDelIdx(pDelFReader, pDelIdxArray, NULL);
+  code = tsdbReadDelIdx(pDelFReader, pDelIdxArray);
   if (code) goto _err;
 
   // code = tMapDataSearch(&delIdxMap, &idx, tGetDelIdx, tCmprDelIdx, pDelIdx);

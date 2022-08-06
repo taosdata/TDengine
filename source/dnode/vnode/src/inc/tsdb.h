@@ -265,14 +265,14 @@ int32_t tsdbReadLastBlock(SDataFReader *pReader, SBlockL *pBlockL, SBlockData *p
 // SDelFWriter
 int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb);
 int32_t tsdbDelFWriterClose(SDelFWriter **ppWriter, int8_t sync);
-int32_t tsdbWriteDelData(SDelFWriter *pWriter, SArray *aDelData, uint8_t **ppBuf, SDelIdx *pDelIdx);
-int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SArray *aDelIdx, uint8_t **ppBuf);
+int32_t tsdbWriteDelData(SDelFWriter *pWriter, SArray *aDelData, SDelIdx *pDelIdx);
+int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SArray *aDelIdx);
 int32_t tsdbUpdateDelFileHdr(SDelFWriter *pWriter);
 // SDelFReader
-int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb, uint8_t **ppBuf);
+int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb);
 int32_t tsdbDelFReaderClose(SDelFReader **ppReader);
-int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData, uint8_t **ppBuf);
-int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx, uint8_t **ppBuf);
+int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData);
+int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx);
 // tsdbRead.c ==============================================================================================
 int32_t tsdbTakeReadSnap(STsdb *pTsdb, STsdbReadSnap **ppSnap);
 void    tsdbUntakeReadSnap(STsdb *pTsdb, STsdbReadSnap *pSnap);
@@ -583,6 +583,8 @@ struct SDelFWriter {
   STsdb    *pTsdb;
   SDelFile  fDel;
   TdFilePtr pWriteH;
+
+  uint8_t *pBuf1;
 };
 
 struct SDiskData {

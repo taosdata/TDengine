@@ -177,7 +177,7 @@ static int32_t tsdbSnapReadDel(STsdbSnapReader* pReader, uint8_t** ppData) {
     if (code) goto _err;
 
     // read index
-    code = tsdbReadDelIdx(pReader->pDelFReader, pReader->aDelIdx, NULL);
+    code = tsdbReadDelIdx(pReader->pDelFReader, pReader->aDelIdx);
     if (code) goto _err;
 
     pReader->iDelIdx = 0;
@@ -193,7 +193,7 @@ static int32_t tsdbSnapReadDel(STsdbSnapReader* pReader, uint8_t** ppData) {
 
     pReader->iDelIdx++;
 
-    code = tsdbReadDelData(pReader->pDelFReader, pDelIdx, pReader->aDelData, NULL);
+    code = tsdbReadDelData(pReader->pDelFReader, pDelIdx, pReader->aDelData);
     if (code) goto _err;
 
     int32_t size = 0;
@@ -968,7 +968,7 @@ static int32_t tsdbSnapWriteDel(STsdbSnapWriter* pWriter, uint8_t* pData, uint32
       code = tsdbDelFReaderOpen(&pWriter->pDelFReader, pDelFile, pTsdb, NULL);
       if (code) goto _err;
 
-      code = tsdbReadDelIdx(pWriter->pDelFReader, pWriter->aDelIdxR, NULL);
+      code = tsdbReadDelIdx(pWriter->pDelFReader, pWriter->aDelIdxR);
       if (code) goto _err;
     }
 
@@ -997,7 +997,7 @@ static int32_t tsdbSnapWriteDel(STsdbSnapWriter* pWriter, uint8_t* pData, uint32
       if (c < 0) {
         goto _new_del;
       } else {
-        code = tsdbReadDelData(pWriter->pDelFReader, pDelIdx, pWriter->aDelData, NULL);
+        code = tsdbReadDelData(pWriter->pDelFReader, pDelIdx, pWriter->aDelData);
         if (code) goto _err;
 
         pWriter->iDelIdx++;
@@ -1027,7 +1027,7 @@ static int32_t tsdbSnapWriteDel(STsdbSnapWriter* pWriter, uint8_t* pData, uint32
     }
 
   _write_del:
-    code = tsdbWriteDelData(pWriter->pDelFWriter, pWriter->aDelData, NULL, &delIdx);
+    code = tsdbWriteDelData(pWriter->pDelFWriter, pWriter->aDelData, &delIdx);
     if (code) goto _err;
 
     if (taosArrayPush(pWriter->aDelIdxW, &delIdx) == NULL) {
@@ -1058,11 +1058,11 @@ static int32_t tsdbSnapWriteDelEnd(STsdbSnapWriter* pWriter) {
   for (; pWriter->iDelIdx < taosArrayGetSize(pWriter->aDelIdxR); pWriter->iDelIdx++) {
     SDelIdx* pDelIdx = (SDelIdx*)taosArrayGet(pWriter->aDelIdxR, pWriter->iDelIdx);
 
-    code = tsdbReadDelData(pWriter->pDelFReader, pDelIdx, pWriter->aDelData, NULL);
+    code = tsdbReadDelData(pWriter->pDelFReader, pDelIdx, pWriter->aDelData);
     if (code) goto _err;
 
     SDelIdx delIdx = (SDelIdx){.suid = pDelIdx->suid, .uid = pDelIdx->uid};
-    code = tsdbWriteDelData(pWriter->pDelFWriter, pWriter->aDelData, NULL, &delIdx);
+    code = tsdbWriteDelData(pWriter->pDelFWriter, pWriter->aDelData, &delIdx);
     if (code) goto _err;
 
     if (taosArrayPush(pWriter->aDelIdxR, &delIdx) == NULL) {
