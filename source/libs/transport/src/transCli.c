@@ -782,7 +782,7 @@ void cliSend(SCliConn* pConn) {
   }
 
   if (pTransInst->startTimer != NULL && pTransInst->startTimer(0, pMsg->msgType)) {
-    uv_timer_t* timer = taosArrayPop(pThrd->timerList);
+    uv_timer_t* timer = taosArrayGetSize(pThrd->timerList) > 0 ? *(uv_timer_t**)taosArrayPop(pThrd->timerList) : NULL;
     if (timer == NULL) {
       tDebug("no avaiable timer, create");
       timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
