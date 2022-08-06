@@ -713,7 +713,8 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
-      destroyTableCfg((STableCfg*)(((SShowCreateTableStmt*)pNode)->pCfg));
+      taosMemoryFreeClear(((SShowCreateTableStmt*)pNode)->pDbCfg);
+      destroyTableCfg((STableCfg*)(((SShowCreateTableStmt*)pNode)->pTableCfg));
       break;
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:  // no pointer field
     case QUERY_NODE_KILL_CONNECTION_STMT:         // no pointer field
@@ -1816,4 +1817,20 @@ int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc) {
   *pSrc = NULL;
 
   return TSDB_CODE_SUCCESS;
+}
+
+const char* dataOrderStr(EDataOrderLevel order) {
+  switch (order) {
+    case DATA_ORDER_LEVEL_NONE:
+      return "no order required";
+    case DATA_ORDER_LEVEL_IN_BLOCK:
+      return "in-datablock order";
+    case DATA_ORDER_LEVEL_IN_GROUP:
+      return "in-group order";
+    case DATA_ORDER_LEVEL_GLOBAL:
+      return "global order";
+    default:
+      break;
+  }
+  return "unknown";
 }

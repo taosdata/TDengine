@@ -421,6 +421,7 @@ static int32_t  smlSendMetaMsg(SSmlHandle *info, SName *pName, SSmlSTableMeta *s
   tSerializeSMCreateStbReq(pCmdMsg.pMsg, pCmdMsg.msgLen, &pReq);
 
   SQuery pQuery;
+  memset(&pQuery, 0, sizeof(pQuery));
   pQuery.execMode = QUERY_EXEC_MODE_RPC;
   pQuery.pCmdMsg = &pCmdMsg;
   pQuery.msgType = pQuery.pCmdMsg->msgType;

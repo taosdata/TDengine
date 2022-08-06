@@ -77,37 +77,37 @@ if $rows != 3 then
 endi
 
 print =============== run select * from information_schema.xxxx
-sql select * from information_schema.`dnodes`
+sql select * from information_schema.ins_dnodes
 if $rows != 2 then 
   return -1
 endi
-sql select * from information_schema.`mnodes`
+sql select * from information_schema.ins_mnodes
 if $rows != 1 then 
   return -1
 endi
-#sql select * from information_schema.`modules`
-#sql select * from information_schema.`qnodes`
-sql select * from information_schema.user_databases
+#sql select * from information_schema.ins_modules
+#sql select * from information_schema.ins_qnodes
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-#sql select * from information_schema.user_functions
-#sql select * from information_schema.user_indexes
-sql select * from information_schema.user_stables
+#sql select * from information_schema.ins_functions
+#sql select * from information_schema.ins_indexes
+sql select * from information_schema.ins_stables
 if $rows != 1 then 
   return -1
 endi
-#sql select * from information_schema.`streams`
-sql select * from information_schema.user_tables
+#sql select * from information_schema.ins_streams
+sql select * from information_schema.ins_tables
 if $rows <= 0 then
   return -1
 endi
-#sql select * from information_schema.user_table_distributed
-sql select * from information_schema.user_users
+#sql select * from information_schema.ins_table_distributed
+sql select * from information_schema.ins_users
 if $rows != 1 then 
   return -1
 endi
-sql select * from information_schema.`vgroups`
+sql select * from information_schema.ins_vgroups
 if $rows != 3 then 
   return -1
 endi
@@ -175,37 +175,37 @@ if $rows != 3 then
 endi
 
 print =============== run select * from information_schema.xxxx
-sql select * from information_schema.`dnodes`
+sql select * from information_schema.ins_dnodes
 if $rows != 2 then 
   return -1
 endi
-sql select * from information_schema.`mnodes`
+sql select * from information_schema.ins_mnodes
 if $rows != 1 then 
   return -1
 endi
-#sql select * from information_schema.`modules`
-#sql select * from information_schema.`qnodes`
-sql select * from information_schema.user_databases
+#sql select * from information_schema.ins_modules
+#sql select * from information_schema.ins_qnodes
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-#sql select * from information_schema.user_functions
-#sql select * from information_schema.user_indexes
-sql select * from information_schema.user_stables
+#sql select * from information_schema.ins_functions
+#sql select * from information_schema.ins_indexes
+sql select * from information_schema.ins_stables
 if $rows != 1 then 
   return -1
 endi
-#sql select * from performance_schema.`streams`
-sql select * from information_schema.user_tables
+#sql select * from performance_schema.perf_streams
+sql select * from information_schema.ins_tables
 if $rows <= 0 then
   return -1
 endi
-#sql select * from information_schema.user_table_distributed
-sql select * from information_schema.user_users
+#sql select * from information_schema.ins_table_distributed
+sql select * from information_schema.ins_users
 if $rows != 1 then 
   return -1
 endi
-sql select * from information_schema.`vgroups`
+sql select * from information_schema.ins_vgroups
 if $rows != 3 then 
   return -1
 endi

@@ -55,7 +55,7 @@ int vnodeInit(int nthreads) {
   vnodeGlobal.threads = taosMemoryCalloc(nthreads, sizeof(TdThread));
   if (vnodeGlobal.threads == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    vError("failed to init vnode module since: %s", tstrerror(terrno));
+    vError("failed to init vnode module since:%s", tstrerror(terrno));
     return -1;
   }
 

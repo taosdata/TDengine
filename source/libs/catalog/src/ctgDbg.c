@@ -19,7 +19,7 @@
 #include "catalogInt.h"
 
 extern SCatalogMgmt gCtgMgmt;
-SCtgDebug gCTGDebug = {0};
+SCtgDebug gCTGDebug = {.lockEnable = true};
 
 void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
   ASSERT(*(int32_t*)param == 1);

@@ -424,8 +424,8 @@ from_db_opt(A) ::= FROM db_name(B).                                             
 
 /************************************************ create index ********************************************************/
 cmd ::= CREATE SMA INDEX not_exists_opt(D) 
-  index_name(A) ON full_table_name(B) index_options(C).                           { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, D, &A, B, NULL, C); }
-cmd ::= DROP INDEX exists_opt(B) index_name(A).                                   { pCxt->pRootNode = createDropIndexStmt(pCxt, B, &A); }
+  full_table_name(A) ON full_table_name(B) index_options(C).                      { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, D, A, B, NULL, C); }
+cmd ::= DROP INDEX exists_opt(B) full_table_name(A).                              { pCxt->pRootNode = createDropIndexStmt(pCxt, B, A); }
 
 index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL 
   NK_LP duration_literal(C) NK_RP sliding_opt(D) sma_stream_opt(E).               { A = createIndexOption(pCxt, B, releaseRawExprNode(pCxt, C), NULL, D, E); }
@@ -607,10 +607,6 @@ column_alias(A) ::= NK_ID(B).                                                   
 %type user_name                                                                   { SToken }
 %destructor user_name                                                             { }
 user_name(A) ::= NK_ID(B).                                                        { A = B; }
-
-%type index_name                                                                  { SToken }
-%destructor index_name                                                            { }
-index_name(A) ::= NK_ID(B).                                                       { A = B; }
 
 %type topic_name                                                                  { SToken }
 %destructor topic_name                                                            { }

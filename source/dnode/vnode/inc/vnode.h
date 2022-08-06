@@ -207,6 +207,8 @@ int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReader *pReader);
 int64_t tqFetchLog(SWalReader *pWalReader, bool fetchMeta, int64_t* fetchOffset, SWalCkHead** ppCkHead);
 SSDataBlock* tqLogScanExec(int8_t subType, STqReader* pReader, SHashObj* pFilterOutTbUid, SSDataBlock* block);
 
+void vnodeEnqueueStreamMsg(SVnode *pVnode, SRpcMsg *pMsg);
+
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
 

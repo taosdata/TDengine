@@ -316,7 +316,8 @@ TEST_F(ParserSelectTest, subquery) {
 
   run("SELECT SUM(a) FROM (SELECT MAX(c1) a, ts FROM st1s1 PARTITION BY TBNAME INTERVAL(1m)) INTERVAL(1n)");
 
-  run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstart FROM st1s1 PARTITION BY TBNAME INTERVAL(1m)) INTERVAL(1n)");
+  run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstart FROM st1s1 PARTITION BY TBNAME INTERVAL(1m) ORDER BY _WSTART) "
+      "INTERVAL(1n)");
 
   run("SELECT _C0 FROM (SELECT _ROWTS, ts FROM st1s1)");
 
@@ -426,7 +427,7 @@ TEST_F(ParserSelectTest, setOperatorSemanticCheck) {
 TEST_F(ParserSelectTest, informationSchema) {
   useDb("root", "test");
 
-  run("SELECT * FROM information_schema.user_databases WHERE name = 'information_schema'");
+  run("SELECT * FROM information_schema.ins_databases WHERE name = 'information_schema'");
 }
 
 TEST_F(ParserSelectTest, withoutFrom) {

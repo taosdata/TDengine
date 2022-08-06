@@ -380,6 +380,7 @@ int32_t schDumpJobExecRes(SSchJob* pJob, SExecResult* pRes) {
   pRes->numOfRows = pJob->resNumOfRows;
   pRes->res = pJob->execRes.res;
   pRes->msgType = pJob->execRes.msgType;
+  pRes->numOfBytes = pJob->execRes.numOfBytes;
   pJob->execRes.res = NULL;
 
   SCH_JOB_DLOG("execRes dumped, code: %s", tstrerror(pRes->code));

@@ -571,6 +571,10 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
   }
 
   *numOfExprs = numOfFuncs + numOfGroupKeys;
+  if (*numOfExprs == 0) {
+    return NULL;
+  }
+
   SExprInfo* pExprs = taosMemoryCalloc(*numOfExprs, sizeof(SExprInfo));
 
   for (int32_t i = 0; i < (*numOfExprs); ++i) {
@@ -628,7 +632,7 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
               tListLen(pExp->pExpr->_function.functionName));
 #if 1
       // todo refactor: add the parameter for tbname function
-      if (strcmp(pExp->pExpr->_function.functionName, "tbname") == 0) {
+      if (!pFuncNode->pParameterList && (strcmp(pExp->pExpr->_function.functionName, "tbname") == 0)) {
         pFuncNode->pParameterList = nodesMakeList();
         ASSERT(LIST_LENGTH(pFuncNode->pParameterList) == 0);
         SValueNode* res = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
@@ -950,7 +954,7 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
     return w;
   }
 
-  w = getResultRowByPos(pBuf, &pResultRowInfo->cur)->win;
+  w = getResultRowByPos(pBuf, &pResultRowInfo->cur, false)->win;
 
   // in case of typical time window, we can calculate time window directly.
   if (w.skey > ts || w.ekey < ts) {

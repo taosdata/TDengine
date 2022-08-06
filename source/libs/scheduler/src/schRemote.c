@@ -213,6 +213,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
           pJob->execRes.res = rsp;
           pJob->execRes.msgType = TDMT_VND_SUBMIT;
         }
+        pJob->execRes.numOfBytes += pTask->msgLen;
         SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
       }
 

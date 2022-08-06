@@ -54,6 +54,7 @@ typedef struct TdFile *TdFilePtr;
 #define TD_FILE_EXCL     0x0080
 #define TD_FILE_STREAM   0x0100  // Only support taosFprintfFile, taosGetLineFile, taosEOFFile
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions);
+TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions);
 
 #define TD_FILE_ACCESS_EXIST_OK 0x1
 #define TD_FILE_ACCESS_READ_OK  0x2

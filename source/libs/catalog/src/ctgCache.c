@@ -674,7 +674,13 @@ int32_t ctgEnqueue(SCatalog* pCtg, SCtgCacheOperation *operation) {
   tsem_post(&gCtgMgmt.queue.reqSem);
 
   if (syncOp) {
+    if (!operation->unLocked) {
+      CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
+    }
     tsem_wait(&operation->rspSem);
+    if (!operation->unLocked) {
+      CTG_LOCK(CTG_READ, &gCtgMgmt.lock);
+    }
     taosMemoryFree(operation);
   }
 
@@ -1011,6 +1017,7 @@ int32_t ctgClearCacheEnqueue(SCatalog* pCtg, bool freeCtg, bool stopQueue, bool 
   op->opId = CTG_OP_CLEAR_CACHE;
   op->syncOp = syncOp;
   op->stopQueue = stopQueue;
+  op->unLocked = true;
   
   SCtgClearCacheMsg *msg = taosMemoryMalloc(sizeof(SCtgClearCacheMsg));
   if (NULL == msg) {

@@ -227,8 +227,7 @@ typedef struct SSubmitBlk {
   int32_t sversion;   // data schema version
   int32_t dataLen;    // data part length, not including the SSubmitBlk head
   int32_t schemaLen;  // schema length, if length is 0, no schema exists
-  int16_t numOfRows;  // total number of rows in current submit block
-  int16_t padding;    // TODO just for padding here
+  int32_t numOfRows;  // total number of rows in current submit block
   char    data[];
 } SSubmitBlk;
 
@@ -256,7 +255,7 @@ typedef struct {
   int32_t sversion;   // data schema version
   int32_t dataLen;    // data part length, not including the SSubmitBlk head
   int32_t schemaLen;  // schema length, if length is 0, no schema exists
-  int16_t numOfRows;  // total number of rows in current submit block
+  int32_t numOfRows;  // total number of rows in current submit block
   // head of SSubmitBlk
   int32_t     numOfBlocks;
   const void* pMsg;
@@ -337,8 +336,10 @@ static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* p
 }
 
 static FORCE_INLINE void tDeleteSSchemaWrapper(SSchemaWrapper* pSchemaWrapper) {
-  taosMemoryFree(pSchemaWrapper->pSchema);
-  taosMemoryFree(pSchemaWrapper);
+  if (pSchemaWrapper) {
+    taosMemoryFree(pSchemaWrapper->pSchema);
+    taosMemoryFree(pSchemaWrapper);
+  }
 }
 
 static FORCE_INLINE int32_t taosEncodeSSchema(void** buf, const SSchema* pSchema) {
@@ -2223,6 +2224,7 @@ typedef struct SAppClusterSummary {
   uint64_t insertBytes;  // submit to tsdb since launched.
 
   uint64_t fetchBytes;
+  uint64_t numOfQueryReq;
   uint64_t queryElapsedTime;
   uint64_t numOfSlowQueries;
   uint64_t totalRequests;
