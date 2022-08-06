@@ -1,6 +1,6 @@
 ---
-sidebar_label: Interval
-title: Aggregate by Time Window
+sidebar_label: Distinguished
+title: Distinguished Query for Time Series Database
 ---
 
 Aggregation by time window is supported in TDengine. For example, in the case where temperature sensors report the temperature every seconds, the average temperature for every 10 minutes can be retrieved by performing a query with a time window.

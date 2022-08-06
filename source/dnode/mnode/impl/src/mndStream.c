@@ -323,8 +323,7 @@ FAIL:
 }
 
 int32_t mndPersistTaskDeployReq(STrans *pTrans, const SStreamTask *pTask) {
-  ASSERT(pTask->isDataScan == 0 || pTask->isDataScan == 1);
-  if (pTask->isDataScan == 0 && pTask->sinkType == TASK_SINK__NONE) {
+  if (pTask->taskLevel == TASK_LEVEL__AGG) {
     ASSERT(taosArrayGetSize(pTask->childEpInfo) != 0);
   }
   SEncoder encoder;
@@ -548,7 +547,7 @@ int32_t mndRecoverStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStrea
       SArray      *pTasks = taosArrayGetP(pStream->tasks, i);
       int32_t      sz = taosArrayGetSize(pTasks);
       SStreamTask *pTask = taosArrayGetP(pTasks, 0);
-      if (!pTask->isDataScan && pTask->execType != TASK_EXEC__NONE) {
+      if (pTask->taskLevel == TASK_LEVEL__AGG) {
         ASSERT(sz == 1);
         if (mndPersistTaskRecoverReq(pTrans, pTask) < 0) {
           return -1;
@@ -564,8 +563,8 @@ int32_t mndRecoverStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStrea
       int32_t sz = taosArrayGetSize(pTasks);
       for (int32_t j = 0; j < sz; j++) {
         SStreamTask *pTask = taosArrayGetP(pTasks, j);
-        if (!pTask->isDataScan) break;
-        ASSERT(pTask->execType != TASK_EXEC__NONE);
+        if (pTask->taskLevel != TASK_LEVEL__SOURCE) break;
+        ASSERT(pTask->taskLevel != TASK_LEVEL__SINK);
         if (mndPersistTaskRecoverReq(pTrans, pTask) < 0) {
           return -1;
         }
