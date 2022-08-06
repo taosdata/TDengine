@@ -284,7 +284,6 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 
   for (int32_t i = 0; i < parentNum; ++i) {
     SSchTask *parent = *(SSchTask **)taosArrayGet(pTask->parents, i);
-    int32_t   readyNum = atomic_add_fetch_32(&parent->childReady, 1);
 
     SCH_LOCK(SCH_WRITE, &parent->planLock);
     SDownstreamSourceNode source = {
@@ -297,6 +296,8 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     };
     qSetSubplanExecutionNode(parent->plan, pTask->plan->id.groupId, &source);
     SCH_UNLOCK(SCH_WRITE, &parent->planLock);
+
+    int32_t readyNum = atomic_add_fetch_32(&parent->childReady, 1);
 
     if (SCH_TASK_READY_FOR_LAUNCH(readyNum, parent)) {
       SCH_TASK_DLOG("all %d children task done, start to launch parent task 0x%" PRIx64, readyNum, parent->taskId);

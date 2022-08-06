@@ -83,7 +83,6 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         taosArrayClear(p->pDataBlock);
         taosArrayAddAll(p->pDataBlock, pDataBlock->pDataBlock);
         taosArrayPush(pInfo->pBlockLists, &p);
-        
       }
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
     } else {
@@ -217,6 +216,8 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
       continue;
     }
 
+    tDecoderClear(&mr.coder);
+
     // TODO handle ntb case
     if (mr.me.type != TSDB_CHILD_TABLE || mr.me.ctbEntry.suid != pScanInfo->tableUid) {
       continue;
@@ -265,7 +266,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
     }
 
     // todo refactor STableList
-    bool assignUid = false;
+    bool   assignUid = false;
     size_t bufLen = (pScanInfo->pGroupTags != NULL) ? getTableTagsBufLen(pScanInfo->pGroupTags) : 0;
     char*  keyBuf = NULL;
     if (bufLen > 0) {

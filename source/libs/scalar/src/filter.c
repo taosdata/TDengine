@@ -3246,6 +3246,10 @@ _return:
 }
 
 bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows) {
+  if (info->scalarMode) {
+    return true;
+  }
+  
   if (FILTER_EMPTY_RES(info)) {
     return false;
   }

@@ -21,7 +21,7 @@ namespace TDengineExample
             CheckStmtRes(res, "failed to prepare stmt");
 
             // 2. bind table name and tags
-            TAOS_BIND[] tags = new TAOS_BIND[2] { TaosBind.BindBinary("California.SanFrancisco"), TaosBind.BindInt(2) };
+            TAOS_MULTI_BIND[] tags = new TAOS_MULTI_BIND[2] { TaosMultiBind.MultiBindBinary(new string[]{"California.SanFrancisco"}), TaosMultiBind.MultiBindInt(new int?[] {2}) };
             res = TDengine.StmtSetTbnameTags(stmt, "d1001", tags);
             CheckStmtRes(res, "failed to bind table name and tags");
 
@@ -44,7 +44,7 @@ namespace TDengineExample
             CheckStmtRes(res, "faild to execute");
 
             // 6. free 
-            TaosBind.FreeTaosBind(tags);
+            TaosMultiBind.FreeTaosBind(tags);
             TaosMultiBind.FreeTaosBind(values);
             TDengine.Close(conn);
             TDengine.Cleanup();

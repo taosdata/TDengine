@@ -604,8 +604,8 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
 
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
   int32_t code = 0;
-  ASSERT(pTask->isDataScan == 0 || pTask->isDataScan == 1);
-  if (pTask->isDataScan == 0 && pTask->sinkType == TASK_SINK__NONE) {
+
+  if (pTask->taskLevel == TASK_LEVEL__AGG) {
     ASSERT(taosArrayGetSize(pTask->childEpInfo) != 0);
   }
 
@@ -624,32 +624,30 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
 
   pTask->pMsgCb = &pTq->pVnode->msgCb;
 
-  // exec
-  if (pTask->execType != TASK_EXEC__NONE) {
-    // expand runners
-    if (pTask->isDataScan) {
-      SReadHandle handle = {
-          .meta = pTq->pVnode->pMeta,
-          .vnode = pTq->pVnode,
-          .initTqReader = 1,
-      };
-      pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
-    } else {
-      SReadHandle mgHandle = {
-          .vnode = NULL,
-          .numOfVgroups = (int32_t)taosArrayGetSize(pTask->childEpInfo),
-      };
-      pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &mgHandle);
-    }
+  // expand executor
+  if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
+    SReadHandle handle = {
+        .meta = pTq->pVnode->pMeta,
+        .vnode = pTq->pVnode,
+        .initTqReader = 1,
+    };
+    pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
+    ASSERT(pTask->exec.executor);
+  } else if (pTask->taskLevel == TASK_LEVEL__AGG) {
+    SReadHandle mgHandle = {
+        .vnode = NULL,
+        .numOfVgroups = (int32_t)taosArrayGetSize(pTask->childEpInfo),
+    };
+    pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &mgHandle);
     ASSERT(pTask->exec.executor);
   }
 
   // sink
   /*pTask->ahandle = pTq->pVnode;*/
-  if (pTask->sinkType == TASK_SINK__SMA) {
+  if (pTask->outputType == TASK_OUTPUT__SMA) {
     pTask->smaSink.vnode = pTq->pVnode;
     pTask->smaSink.smaSink = smaHandleRes;
-  } else if (pTask->sinkType == TASK_SINK__TABLE) {
+  } else if (pTask->outputType == TASK_OUTPUT__TABLE) {
     pTask->tbSink.vnode = pTq->pVnode;
     pTask->tbSink.tbSinkFunc = tqTableSink;
 
@@ -715,7 +713,7 @@ int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* pReq, int64_t ver) {
     pIter = taosHashIterate(pTq->pStreamTasks, pIter);
     if (pIter == NULL) break;
     SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (!pTask->isDataScan) continue;
+    if (pTask->taskLevel != TASK_LEVEL__SOURCE) continue;
 
     qDebug("data submit enqueue stream task: %d, ver: %" PRId64, pTask->taskId, ver);
 
