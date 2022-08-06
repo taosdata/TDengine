@@ -1607,7 +1607,7 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
   SDelFile* pDelFile = pReader->pReadSnap->fs.pDelFile;
   if (pDelFile) {
     SDelFReader* pDelFReader = NULL;
-    code = tsdbDelFReaderOpen(&pDelFReader, pDelFile, pTsdb, NULL);
+    code = tsdbDelFReaderOpen(&pDelFReader, pDelFile, pTsdb);
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
     }
