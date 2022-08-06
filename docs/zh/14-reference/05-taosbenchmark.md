@@ -238,10 +238,15 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 创建流式计算的相关参数在 json 配置文件中的 `stream` 中配置，具体参数如下。
 
 - **stream_name** : 流式计算的名称，必填项。
+
 - **stream_stb** : 流式计算对应的超级表名称，必填项。
+
 - **stream_sql** : 流式计算的sql语句，必填项。
+
 - **trigger_mode** : 流式计算的触发模式，可选项。
+
 - **watermark** : 流式计算的水印，可选项。
+
 - **drop** : 是否创建流式计算，可选项为 "yes" 或者 "no", 为 "no" 时不创建。
 
 #### 超级表相关配置参数
@@ -249,6 +254,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 创建超级表时的相关参数在 json 配置文件中的 `super_tables` 中配置，具体参数如下。
 
 - **name**: 超级表名，必须配置，没有默认值。
+
 - **child_table_exists** : 子表是否已经存在，默认值为 "no"，可选值为 "yes" 或 "no"。
 
 - **child_table_count** : 子表的数量，默认值为 10。
@@ -304,10 +310,15 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 指定tsma的配置参数在 `super_tables` 中的 `tsmas` 中，具体参数如下。
 
 - **name** : 指定 tsma 的名字，必选项。
+
 - **function** : 指定 tsma 的函数，必选项。
+
 - **interval** : 指定 tsma 的时间间隔，必选项。
+
 - **sliding** : 指定 tsma 的窗口时间位移，必选项。
+
 - **custom** : 指定 tsma 的创建语句结尾追加的自定义配置，可选项。
+
 - **start_when_inserted** : 指定当插入多少行时创建 tsma，可选项，默认为 0。
 
 #### 标签列与数据列配置参数
