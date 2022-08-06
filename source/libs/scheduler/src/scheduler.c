@@ -150,7 +150,7 @@ void schedulerFreeJob(int64_t* jobId, int32_t errCode) {
 
   SSchJob *pJob = schAcquireJob(*jobId);
   if (NULL == pJob) {
-    qError("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *jobId);
+    qWarn("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *jobId);
     return;
   }
 

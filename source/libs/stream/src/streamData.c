@@ -35,6 +35,7 @@ int32_t streamDispatchReqToData(const SStreamDispatchReq* pReq, SStreamDataBlock
     pDataBlock->info.window.skey = be64toh(pRetrieve->skey);
     pDataBlock->info.window.ekey = be64toh(pRetrieve->ekey);
     pDataBlock->info.version = be64toh(pRetrieve->version);
+    pDataBlock->info.watermark = be64toh(pRetrieve->watermark);
 
     pDataBlock->info.type = pRetrieve->streamBlockType;
     pDataBlock->info.childId = pReq->upstreamChildId;

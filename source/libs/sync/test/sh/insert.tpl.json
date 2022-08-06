@@ -6,7 +6,7 @@
     "user": "root",
     "password": "taosdata",
     "thread_count": 8,
-    "thread_count_create_tbl": 8,
+    "create_table_thread_count": 8,
     "result_file": "./tpl_insert_result_tpl",
     "confirm_parameter_prompt": "no",
     "insert_interval": 0,

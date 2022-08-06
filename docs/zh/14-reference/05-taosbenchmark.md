@@ -233,11 +233,28 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **drop** : 插入前是否删除数据库，默认为 true。
 
+#### 流式计算相关配置参数
+
+创建流式计算的相关参数在 json 配置文件中的 `stream` 中配置，具体参数如下。
+
+- **stream_name** : 流式计算的名称，必填项。
+
+- **stream_stb** : 流式计算对应的超级表名称，必填项。
+
+- **stream_sql** : 流式计算的sql语句，必填项。
+
+- **trigger_mode** : 流式计算的触发模式，可选项。
+
+- **watermark** : 流式计算的水印，可选项。
+
+- **drop** : 是否创建流式计算，可选项为 "yes" 或者 "no", 为 "no" 时不创建。
+
 #### 超级表相关配置参数
 
-创建超级表时的相关参数在 json 配置文件中的 `super_tables` 中配置，具体参数如下表。
+创建超级表时的相关参数在 json 配置文件中的 `super_tables` 中配置，具体参数如下。
 
 - **name**: 超级表名，必须配置，没有默认值。
+
 - **child_table_exists** : 子表是否已经存在，默认值为 "no"，可选值为 "yes" 或 "no"。
 
 - **child_table_count** : 子表的数量，默认值为 10。
@@ -287,6 +304,22 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **use_sample_ts** : 仅当 data_source 为 sample 时生效，表示 sample_file 指定的 csv 文件内是否包含第一列时间戳，默认为 no。 若设置为 yes， 则使用 csv 文件第一列作为时间戳，由于同一子表时间戳不能重复，生成的数据量取决于 csv 文件内的数据行数相同，此时 insert_rows 失效。
 
 - **tags_file** : 仅当 insert_mode 为 taosc, rest 的模式下生效。 最终的 tag 的数值与 childtable_count 有关，如果 csv 文件内的 tag 数据行小于给定的子表数量，那么会循环读取 csv 文件数据直到生成 childtable_count 指定的子表数量；否则则只会读取 childtable_count 行 tag 数据。也即最终生成的子表数量为二者取小。
+
+#### tsma配置参数
+
+指定tsma的配置参数在 `super_tables` 中的 `tsmas` 中，具体参数如下。
+
+- **name** : 指定 tsma 的名字，必选项。
+
+- **function** : 指定 tsma 的函数，必选项。
+
+- **interval** : 指定 tsma 的时间间隔，必选项。
+
+- **sliding** : 指定 tsma 的窗口时间位移，必选项。
+
+- **custom** : 指定 tsma 的创建语句结尾追加的自定义配置，可选项。
+
+- **start_when_inserted** : 指定当插入多少行时创建 tsma，可选项，默认为 0。
 
 #### 标签列与数据列配置参数
 

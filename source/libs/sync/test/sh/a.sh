@@ -89,7 +89,7 @@ for file in `ls ${logpath}/log.dnode*.vgId*.commit`;do
 	line=`cat ${file} | tail -n1`
 	echo $line | awk '{print $5, $0}' >> ${tmpfile}
 done
-cat ${tmpfile} | sort -k1 > ${logpath}/log.commits
+cat ${tmpfile} | sort -k1 | awk 'BEGIN{vgid=$1}{if($1==vgid){print $0}else{print ""; print $0; vgid=$1;}}END{}' > ${logpath}/log.commits
 
 exit 0
 

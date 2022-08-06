@@ -737,6 +737,9 @@ typedef struct STimeSliceOperatorInfo {
   SInterval      interval;
   int64_t        current;
   SArray*        pPrevRow;      // SArray<SGroupValue>
+  SArray*        pNextRow;      // SArray<SGroupValue>
+  bool           isPrevRowSet;
+  bool           isNextRowSet;
   int32_t        fillType;      // fill type
   SColumn        tsCol;         // primary timestamp column
   SExprSupp      scalarSup;     // scalar calculation

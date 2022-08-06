@@ -64,7 +64,7 @@ _return:
 int32_t schHandleOpBeginEvent(int64_t jobId, SSchJob** job, SCH_OP_TYPE type, SSchedulerReq* pReq) {
   SSchJob *pJob = schAcquireJob(jobId);
   if (NULL == pJob) {
-    qError("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, jobId);
+    qWarn("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, jobId);
     SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
