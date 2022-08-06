@@ -305,10 +305,18 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
   return code;
 }
 
+// truncate semantic
 static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIndex) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  int32_t            code = walRollback(pWal, fromIndex);
+
+  // need not truncate
+  SyncIndex wallastVer = walGetLastVer(pWal);
+  if (fromIndex > wallastVer) {
+    return 0;
+  }
+
+  int32_t code = walRollback(pWal, fromIndex);
   if (code != 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
@@ -323,7 +331,7 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
   // event log
   do {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "wal truncate, from-index:%" PRId64, fromIndex);
+    snprintf(logBuf, sizeof(logBuf), "log truncate, from-index:%" PRId64, fromIndex);
     syncNodeEventLog(pData->pSyncNode, logBuf);
   } while (0);
 
@@ -635,6 +643,12 @@ SyncIndex logStoreFirstIndex(SSyncLogStore* pLogStore) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   return walGetFirstVer(pWal);
+}
+
+SyncIndex logStoreWalCommitVer(SSyncLogStore* pLogStore) {
+  SSyncLogStoreData* pData = pLogStore->data;
+  SWal*              pWal = pData->pWal;
+  return walGetCommittedVer(pWal);
 }
 
 // for debug -----------------
