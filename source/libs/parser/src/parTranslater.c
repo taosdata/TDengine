@@ -612,7 +612,8 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
 }
 
 static bool isInternalPrimaryKey(const SColumnNode* pCol) {
-  return PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId && 0 == strcmp(pCol->colName, PK_TS_COL_INTERNAL_NAME);
+  return PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId &&
+         (0 == strcmp(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME) || 0 == strcmp(pCol->colName, C0_PSEUDO_COLUMN_NAME));
 }
 
 static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, const STableNode* pTable,
@@ -1252,20 +1253,21 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
   if (!fmIsRepeatScanFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
-  if (isSelectStmt(pCxt->pCurrStmt)) {
-    // select percentile() without from clause is also valid
-    if (NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) {
-      return TSDB_CODE_SUCCESS;
-    }
-    SNode* pTable = ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable;
-    if (QUERY_NODE_REAL_TABLE == nodeType(pTable) &&
-        (TSDB_CHILD_TABLE == ((SRealTableNode*)pTable)->pMeta->tableType ||
-         TSDB_NORMAL_TABLE == ((SRealTableNode*)pTable)->pMeta->tableType)) {
-      return TSDB_CODE_SUCCESS;
-    }
+  if (!isSelectStmt(pCxt->pCurrStmt)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
+                                   "%s is only supported in single table query", pFunc->functionName);
   }
-  return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
-                                 "%s is only supported in single table query", pFunc->functionName);
+  SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+  SNode*       pTable = pSelect->pFromTable;
+  // select percentile() without from clause is also valid
+  if ((NULL != pTable && (QUERY_NODE_REAL_TABLE != nodeType(pTable) ||
+                          (TSDB_CHILD_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
+                           TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType))) ||
+      NULL != pSelect->pPartitionByList) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
+                                   "%s is only supported in single table query", pFunc->functionName);
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static bool isStar(SNode* pNode) {
@@ -2508,9 +2510,31 @@ static EDealRes checkStateExpr(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t translateStateWindow(STranslateContext* pCxt, SStateWindowNode* pState) {
+static bool isPartitionByTbname(SNodeList* pPartitionByList) {
+  if (1 != LIST_LENGTH(pPartitionByList)) {
+    return false;
+  }
+  SNode* pPartKey = nodesListGetNode(pPartitionByList, 0);
+  return QUERY_NODE_FUNCTION != nodeType(pPartKey) || FUNCTION_TYPE_TBNAME != ((SFunctionNode*)pPartKey)->funcType;
+}
+
+static int32_t checkStateWindowForStream(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (!pCxt->createStream) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
+      !isPartitionByTbname(pSelect->pPartitionByList)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateStateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  SStateWindowNode* pState = (SStateWindowNode*)pSelect->pWindow;
   nodesWalkExprPostOrder(pState->pExpr, checkStateExpr, pCxt);
-  // todo check for "function not support for state_window"
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pCxt->errCode = checkStateWindowForStream(pCxt, pSelect);
+  }
   return pCxt->errCode;
 }
 
@@ -2521,14 +2545,13 @@ static int32_t translateSessionWindow(STranslateContext* pCxt, SSessionWindowNod
   if (PRIMARYKEY_TIMESTAMP_COL_ID != pSession->pCol->colId) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SESSION_COL);
   }
-  // todo check for "function not support for session"
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   switch (nodeType(pSelect->pWindow)) {
     case QUERY_NODE_STATE_WINDOW:
-      return translateStateWindow(pCxt, (SStateWindowNode*)pSelect->pWindow);
+      return translateStateWindow(pCxt, pSelect);
     case QUERY_NODE_SESSION_WINDOW:
       return translateSessionWindow(pCxt, (SSessionWindowNode*)pSelect->pWindow);
     case QUERY_NODE_INTERVAL_WINDOW:
@@ -2566,7 +2589,7 @@ static int32_t createDefaultFillNode(STranslateContext* pCxt, SNode** pOutput) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-  strcpy(pCol->colName, PK_TS_COL_INTERNAL_NAME);
+  strcpy(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME);
   pFill->pWStartTs = (SNode*)pCol;
 
   *pOutput = (SNode*)pFill;
@@ -2652,7 +2675,7 @@ static int32_t createPrimaryKeyColByTable(STranslateContext* pCxt, STableNode* p
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-  strcpy(pCol->colName, PK_TS_COL_INTERNAL_NAME);
+  strcpy(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME);
   bool    found = false;
   int32_t code = findAndSetColumn(pCxt, &pCol, pTable, &found);
   if (TSDB_CODE_SUCCESS != code || !found) {
@@ -3878,7 +3901,7 @@ static int32_t buildSampleAst(STranslateContext* pCxt, SSampleAstInfo* pInfo, ch
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   ((SColumnNode*)pInterval->pCol)->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-  strcpy(((SColumnNode*)pInterval->pCol)->colName, PK_TS_COL_INTERNAL_NAME);
+  strcpy(((SColumnNode*)pInterval->pCol)->colName, ROWTS_PSEUDO_COLUMN_NAME);
 
   pCxt->createStream = true;
   int32_t code = translateQuery(pCxt, (SNode*)pSelect);
@@ -4707,7 +4730,7 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     }
   }
 
-  return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY);
+  return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
 }
 
 static void getSourceDatabase(SNode* pStmt, int32_t acctId, char* pDbFName) {

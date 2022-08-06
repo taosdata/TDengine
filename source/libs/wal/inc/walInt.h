@@ -151,8 +151,8 @@ int   walMetaDeserialize(SWal* pWal, const char* bytes);
 // meta section end
 
 // seek section
-int walChangeWrite(SWal* pWal, int64_t ver);
-int walInitWriteFile(SWal* pWal);
+int64_t walChangeWrite(SWal* pWal, int64_t ver);
+int     walInitWriteFile(SWal* pWal);
 // seek section end
 
 int64_t walGetSeq();
