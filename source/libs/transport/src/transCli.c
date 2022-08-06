@@ -340,8 +340,8 @@ void cliHandleResp(SCliConn* conn) {
       tDebug("%s conn %p stop timer", CONN_GET_INST_LABEL(conn), conn);
       uv_timer_stop(conn->timer);
     }
-    conn->timer->data = NULL;
     taosArrayPush(pThrd->timerList, &conn->timer);
+    conn->timer->data = NULL;
     conn->timer = NULL;
   }
 
@@ -483,6 +483,7 @@ void cliReadTimeoutCb(uv_timer_t* handle) {
   // set up timeout cb
   SCliConn* conn = handle->data;
   tTrace("%s conn %p timeout, ref:%d", CONN_GET_INST_LABEL(conn), conn, T_REF_VAL_GET(conn));
+  uv_read_stop(conn->stream);
   cliHandleExceptImpl(conn, TSDB_CODE_RPC_TIMEOUT);
 }
 
@@ -541,6 +542,13 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   CONN_HANDLE_THREAD_QUIT(thrd);
 
   allocConnRef(conn, true);
+
+  if (conn->timer != NULL) {
+    uv_timer_stop(conn->timer);
+    taosArrayPush(thrd->timerList, &conn->timer);
+    conn->timer->data = NULL;
+    conn->timer = NULL;
+  }
 
   STrans* pTransInst = thrd->pTransInst;
   cliReleaseUnfinishedMsg(conn);
