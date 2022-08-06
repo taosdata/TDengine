@@ -1270,6 +1270,8 @@ int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode) {
   atomic_add_fetch_64(&pSyncNode->electTimerLogicClockUser, 1);
   taosTmrStop(pSyncNode->pElectTimer);
   pSyncNode->pElectTimer = NULL;
+
+  sTrace("vgId:%d, sync %s stop elect timer", pSyncNode->vgId, syncUtilState2String(pSyncNode->state));
   return ret;
 }
 
@@ -1343,7 +1345,8 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
   atomic_add_fetch_64(&pSyncNode->heartbeatTimerLogicClockUser, 1);
   taosTmrStop(pSyncNode->pHeartbeatTimer);
   pSyncNode->pHeartbeatTimer = NULL;
-  sTrace("vgId:%d, stop heartbeat timer", pSyncNode->vgId);
+
+  sTrace("vgId:%d, sync %s stop heartbeat timer", pSyncNode->vgId, syncUtilState2String(pSyncNode->state));
 
   return ret;
 }
