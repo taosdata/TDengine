@@ -434,6 +434,7 @@ static void doSetInputDataBlockInfo(SOperatorInfo* pOperator, SqlFunctionCtx* pC
     pCtx[i].order = order;
     pCtx[i].input.numOfRows = pBlock->info.rows;
     setBlockStatisInfo(&pCtx[i], &pOperator->exprSupp.pExprInfo[i], pBlock);
+    pCtx[i].pSrcBlock = pBlock;
   }
 }
 
