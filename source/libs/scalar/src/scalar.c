@@ -219,6 +219,18 @@ void sclFreeParamList(SScalarParam *param, int32_t paramNum) {
   taosMemoryFree(param);
 }
 
+void sclDowngradeValueType(SValueNode *valueNode) {
+  switch (valueNode->node.resType.type) {
+    case TSDB_DATA_TYPE_BIGINT: {
+    
+    }
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_DOUBLE:
+    default:
+      break;
+  }
+}
+
 int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t *rowNum) {
   switch (nodeType(node)) {
     case QUERY_NODE_LEFT_VALUE: {
@@ -231,6 +243,10 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
 
       ASSERT(param->columnData == NULL);
       param->numOfRows = 1;
+      if (ctx->compOp && SCL_DOWNGRADE_DATETYPE(valueNode->node.resType.type)) {
+        sclDowngradeValueType(valueNode);
+      }
+      
       /*int32_t code = */sclCreateColumnInfoData(&valueNode->node.resType, 1, param);
       if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type || valueNode->isNull) {
         colDataAppendNULL(param->columnData, 0);
@@ -437,6 +453,7 @@ int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScal
   }
 
   sclSetOperatorValueType(node, ctx);
+  ctx->compOp = SCL_IS_COMPARISON_OPERATOR(node->opType);
 
   SCL_ERR_JRET(sclInitParam(node->pLeft, &paramList[0], ctx, rowNum));
   if (paramNum > 1) {
