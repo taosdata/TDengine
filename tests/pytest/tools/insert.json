@@ -7,7 +7,7 @@
     "password": "taosdata",
     "thread_count": 2,
     "num_of_records_per_req": 10,
-    "thread_count_create_tbl": 4,
+    "create_table_thread_count": 4,
     "databases": [{
         "dbinfo": {
             "name": "db01",
