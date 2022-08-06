@@ -2107,7 +2107,7 @@ static void doKeepNextRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock
 }
 
 static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pBlock,
-                                   int32_t rowIndex, SSDataBlock* pResBlock) {
+                                   SSDataBlock* pResBlock) {
   int32_t rows = pResBlock->info.rows;
 
   // todo set the correct primary timestamp column
@@ -2198,8 +2198,6 @@ static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
           break;
         }
 
-        //char* p = colDataGetData(pSrc, rowIndex);
-        //colDataAppend(pDst, rows, p, colDataIsNull_s(pSrc, rowIndex));
         SGroupKeys* pkey = taosArrayGet(pSliceInfo->pNextRow, srcSlot);
         colDataAppend(pDst, rows, pkey->pData, false);
         pResBlock->info.rows += 1;
@@ -2344,15 +2342,16 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
           break;
         }
       } else if (ts < pSliceInfo->current) {
-        //in case interpolation window starts and ends between two datapoints, fill(prev), fill(next) need to interpolate
+        // in case interpolation window starts and ends between two datapoints, fill(prev) need to interpolate
         doKeepPrevRows(pSliceInfo, pBlock, i);
-        doKeepNextRows(pSliceInfo, pBlock, i + 1);
 
         if (i < pBlock->info.rows - 1) {
+          // in case interpolation window starts and ends between two datapoints, fill(next) need to interpolate
+          doKeepNextRows(pSliceInfo, pBlock, i + 1);
           int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, i + 1);
           if (nextTs > pSliceInfo->current) {
             while (pSliceInfo->current < nextTs && pSliceInfo->current <= pSliceInfo->win.ekey) {
-              genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pBlock, i, pResBlock);
+              genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pBlock, pResBlock);
               pSliceInfo->current =
                   taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
               if (pResBlock->info.rows >= pResBlock->info.capacity) {
@@ -2371,11 +2370,11 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
           doKeepPrevRows(pSliceInfo, pBlock, i);
         }
       } else {  // ts > pSliceInfo->current
-        //in case interpolation window starts and ends between two datapoints, fill(next) need to interpolate
+        // in case interpolation window starts and ends between two datapoints, fill(next) need to interpolate
         doKeepNextRows(pSliceInfo, pBlock, i);
 
         while (pSliceInfo->current < ts && pSliceInfo->current <= pSliceInfo->win.ekey) {
-          genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pBlock, i, pResBlock);
+          genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pBlock, pResBlock);
           pSliceInfo->current =
               taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
           if (pResBlock->info.rows >= pResBlock->info.capacity) {
@@ -2415,9 +2414,10 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
       }
     }
 
-    //check if need to interpolate after ts range
-    while (pSliceInfo->current <= pSliceInfo->win.ekey) {
-      genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pBlock, pBlock->info.rows - 1, pResBlock);
+    // check if need to interpolate after ts range
+    // except for fill(next)
+    while (pSliceInfo->current <= pSliceInfo->win.ekey && pSliceInfo->fillType != TSDB_FILL_NEXT) {
+      genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pBlock, pResBlock);
       pSliceInfo->current =
           taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
       if (pResBlock->info.rows >= pResBlock->info.capacity) {
