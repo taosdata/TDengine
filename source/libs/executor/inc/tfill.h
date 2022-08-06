@@ -44,6 +44,7 @@ typedef struct SFillInfo {
   TSKEY     end;                  // endKey for fill
   TSKEY     currentKey;           // current active timestamp, the value may be changed during the fill procedure.
   int32_t   tsSlotId;             // primary time stamp slot id
+  int32_t   srcTsSlotId;          // timestamp column id in the source data block.
   int32_t   order;                // order [TSDB_ORDER_ASC|TSDB_ORDER_DESC]
   int32_t   type;                 // fill type
   int32_t   numOfRows;            // number of rows in the input data block

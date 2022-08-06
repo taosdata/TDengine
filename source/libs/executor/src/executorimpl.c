@@ -3244,13 +3244,16 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
     SSDataBlock* pBlock = pDownstream->fpSet.getNextFn(pDownstream);
     if (pBlock == NULL) {
       if (pInfo->totalInputRows == 0) {
-        pOperator->status = OP_EXEC_DONE;
+        doSetOperatorCompleted(pOperator);
         return NULL;
       }
 
       taosFillSetStartInfo(pInfo->pFillInfo, 0, pInfo->win.ekey);
     } else {
       blockDataUpdateTsWindow(pBlock, pInfo->primaryTsCol);
+
+      SExprSupp* pSup = &pOperator->exprSupp;
+      projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs, NULL);
 
       if (pInfo->curGroupId == 0 || pInfo->curGroupId == pBlock->info.groupId) {
         pInfo->curGroupId = pBlock->info.groupId;  // the first data block
@@ -3629,10 +3632,9 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
     goto _error;
   }
 
-  int32_t      num = 0, num1 = 0;
   SSDataBlock* pResBlock = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
-  SExprInfo*   pExprInfo = createExprInfo(pPhyFillNode->pFillExprs, NULL, &num);
-  SExprInfo*   pCopyColumnExprInfo = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &num1);
+  SExprInfo*   pExprInfo = createExprInfo(pPhyFillNode->pFillExprs, NULL, &pInfo->numOfExpr);
+  SExprInfo*   pCopyColumnExprInfo = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &pInfo->numOfNotFillExpr);
 
   SInterval*   pInterval =
       QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL == downstream->operatorType
@@ -3645,6 +3647,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   SResultInfo* pResultInfo = &pOperator->resultInfo;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   blockDataEnsureCapacity(pResBlock, pOperator->resultInfo.capacity);
+  initExprSupp(&pOperator->exprSupp, pExprInfo, pInfo->numOfExpr);
 
   pInfo->primaryTsCol = ((SColumnNode*)pPhyFillNode->pWStartTs)->slotId;
 
@@ -3652,9 +3655,9 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   SArray* pColMatchColInfo = extractColMatchInfo(pPhyFillNode->pFillExprs, pPhyFillNode->node.pOutputDataBlockDesc,
                                                  &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
 
-  int32_t code = initFillInfo(pInfo, pExprInfo, num, pCopyColumnExprInfo, num1,
-      (SNodeListNode*)pPhyFillNode->pValues, pPhyFillNode->timeRange,
-                              pResultInfo->capacity, pTaskInfo->id.str, pInterval, type, order);
+  int32_t code =
+      initFillInfo(pInfo, pExprInfo, pInfo->numOfExpr, pCopyColumnExprInfo, pInfo->numOfNotFillExpr, (SNodeListNode*)pPhyFillNode->pValues,
+                   pPhyFillNode->timeRange, pResultInfo->capacity, pTaskInfo->id.str, pInterval, type, order);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -3667,7 +3670,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   pOperator->status = OP_NOT_OPENED;
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_FILL;
   pOperator->exprSupp.pExprInfo = pExprInfo;
-  pOperator->exprSupp.numOfExprs = num;
+  pOperator->exprSupp.numOfExprs = pInfo->numOfExpr;
   pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
 

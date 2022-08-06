@@ -258,7 +258,7 @@ static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SArray
 static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t outputRows) {
   pFillInfo->numOfCurrent = 0;
 
-  SColumnInfoData* pTsCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, pFillInfo->tsSlotId);
+  SColumnInfoData* pTsCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, pFillInfo->srcTsSlotId);
 
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order);
   bool    ascFill = FILL_IS_ASC_FILL(pFillInfo);
@@ -349,10 +349,6 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
     }
 
     if (pFillInfo->index >= pFillInfo->numOfRows || pFillInfo->numOfCurrent >= outputRows) {
-      /* the raw data block is exhausted, next value does not exists */
-      //      if (pFillInfo->index >= pFillInfo->numOfRows) {
-      //        taosMemoryFreeClear(*next);
-      //      }
       pFillInfo->numOfTotal += pFillInfo->numOfCurrent;
       return pFillInfo->numOfCurrent;
     }
@@ -413,7 +409,17 @@ struct SFillInfo* taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t 
   }
 
   pFillInfo->order = order;
-  pFillInfo->tsSlotId = primaryTsSlotId;
+  pFillInfo->srcTsSlotId = primaryTsSlotId;
+
+  for(int32_t i = 0; i < numOfNotFillCols; ++i) {
+    SFillColInfo* p = &pCol[i + numOfFillCols];
+    int32_t srcSlotId = GET_SRC_SLOT_ID(p);
+    if (srcSlotId == primaryTsSlotId) {
+      pFillInfo->tsSlotId = i + numOfFillCols;
+      break;
+    }
+  }
+
   taosResetFillInfo(pFillInfo, skey);
 
   switch (fillType) {
@@ -531,7 +537,7 @@ bool taosFillHasMoreResults(SFillInfo* pFillInfo) {
 }
 
 int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t maxNumOfRows) {
-  SColumnInfoData* pCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, 0);
+  SColumnInfoData* pCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, pFillInfo->srcTsSlotId);
 
   int64_t* tsList = (int64_t*)pCol->pData;
   int32_t  numOfRows = taosNumOfRemainRows(pFillInfo);
@@ -619,9 +625,9 @@ SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprIn
       nodesValueNodeToVariant(pv, &pFillCol[i].fillVal);
     }
 
-    if (pExprInfo->base.numOfParams > 0) {
+//    if (pExprInfo->base.numOfParams > 0) {
 //      pFillCol[i].flag = pExprInfo->base.pParam[0].pCol->flag;  // always be the normal column for table query
-    }
+//    }
   }
 
   for(int32_t i = 0; i < numOfNotFillExpr; ++i) {

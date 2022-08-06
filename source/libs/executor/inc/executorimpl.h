@@ -627,12 +627,15 @@ typedef struct SFillOperatorInfo {
   int64_t           totalInputRows;
   void**            p;
   SSDataBlock*      existNewGroupBlock;
-  bool              multigroupResult;
   STimeWindow       win;
   SNode*            pCondition;
   SArray*           pColMatchColInfo;
   int32_t           primaryTsCol;
   uint64_t          curGroupId;       // current handled group id
+  SExprInfo*        pExprInfo;
+  int32_t           numOfExpr;
+  SExprInfo*        pNotFillExprInfo;
+  int32_t           numOfNotFillExpr;
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {
