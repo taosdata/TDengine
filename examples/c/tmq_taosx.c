@@ -84,7 +84,7 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create database if not exists db_taosx vgroups 4");
+  pRes = taos_query(pConn, "create database if not exists db_taosx vgroups 1");
   if (taos_errno(pRes) != 0) {
     printf("error in create db_taosx, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -98,7 +98,7 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create database if not exists abc1 vgroups 3");
+  pRes = taos_query(pConn, "create database if not exists abc1 vgroups 1");
   if (taos_errno(pRes) != 0) {
     printf("error in create db, reason:%s\n", taos_errstr(pRes));
     return -1;

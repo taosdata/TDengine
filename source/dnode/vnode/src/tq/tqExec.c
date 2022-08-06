@@ -124,6 +124,7 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqMetaRsp*
 
     if (pRsp->blockNum > 0){
       qStreamExtractOffset(task, &pRsp->rspOffset);
+      tqDebug("task exec exited, get data");
       break;
     }
 
@@ -131,11 +132,12 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqMetaRsp*
     if(tmp->rspOffset.type == TMQ_OFFSET__SNAPSHOT_DATA){
       qStreamPrepareScan(task, &tmp->rspOffset, pHandle->execHandle.subType);
       tmp->rspOffset.type = TMQ_OFFSET__SNAPSHOT_META;
+      tqDebug("task exec change to get meta");
       continue;
     }
 
     *pMetaRsp = *tmp;
-    tqDebug("task exec exited");
+    tqDebug("task exec exited, get meta");
     break;
   }
 

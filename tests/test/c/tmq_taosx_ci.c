@@ -501,7 +501,8 @@ int main(int argc, char* argv[]) {
   if(argc == 3 && strcmp(argv[1], "-c") == 0) {
     strcpy(dir, argv[2]);
   }else{
-    strcpy(dir, "../../../sim/psim/cfg");
+//    strcpy(dir, "../../../sim/psim/cfg");
+    strcpy(dir, "/var/log");
   }
 
   printf("env init\n");

@@ -385,11 +385,17 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     if (tqSendMetaPollRsp(pTq, pMsg, pReq, &metaRsp) < 0) {
       code = -1;
     }
+    taosMemoryFree(metaRsp.metaRsp);
     goto OVER;
   }
 
   tqDebug("tmq poll: consumer %ld, subkey %s, vg %d, no data", consumerId, pHandle->subKey,
           TD_VID(pTq->pVnode));
+
+  tqOffsetResetToLog(&dataRsp.rspOffset, metaRsp.rspOffset.version);
+  if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
+    code = -1;
+  }
 OVER:
 
   // TODO wrap in destroy func
@@ -403,8 +409,6 @@ OVER:
   if (dataRsp.withTbName) {
     taosArrayDestroyP(dataRsp.blockTbName, (FDelete)taosMemoryFree);
   }
-
-  taosMemoryFreeClear(metaRsp.metaRsp);
 
   return code;
 }
@@ -497,7 +501,6 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
           taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
       buildSnapContext(handle.meta, handle.version, 0, pHandle->execHandle.subType, pHandle->fetchMeta, (SSnapContext **)(&handle.sContext));
       handle.tqReader = pHandle->execHandle.pExecReader;
-      handle.pWalReader = ((STqReader*)handle.tqReader)->pWalReader;
       handle.pFilterOutTbUid = pHandle->execHandle.execDb.pFilterOutTbUid;
 
       pHandle->execHandle.task =
@@ -516,7 +519,6 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
 
       buildSnapContext(handle.meta, handle.version, req.suid, pHandle->execHandle.subType, pHandle->fetchMeta, (SSnapContext **)(&handle.sContext));
       handle.tqReader = pHandle->execHandle.pExecReader;
-      handle.pWalReader = ((STqReader*)handle.tqReader)->pWalReader;
       pHandle->execHandle.task =
           qCreateQueueExecTaskInfo(NULL, &handle, NULL, NULL);
     }

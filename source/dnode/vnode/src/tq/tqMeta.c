@@ -92,7 +92,6 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
 
       handle.execHandle.pExecReader = tqOpenReader(pTq->pVnode);
       buildSnapContext(reader.meta, reader.version, 0, handle.execHandle.subType, handle.fetchMeta, (SSnapContext **)(&reader.sContext));
-      reader.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
       reader.tqReader = handle.execHandle.pExecReader;
       reader.pFilterOutTbUid = handle.execHandle.execDb.pFilterOutTbUid;
 

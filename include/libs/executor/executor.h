@@ -43,7 +43,6 @@ typedef struct SReadHandle {
   int32_t numOfVgroups;
 
   void*   sContext;      // SSnapContext*
-  void*   pWalReader;
   SHashObj *pFilterOutTbUid;
 
 } SReadHandle;
