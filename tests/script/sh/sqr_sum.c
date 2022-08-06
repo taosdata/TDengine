@@ -5,22 +5,22 @@
 
 #include "taosudf.h"
 
-DLL_EXPORT int32_t squares_sum_init() {
+DLL_EXPORT int32_t sqr_sum_init() {
   return 0;
 }
 
-DLL_EXPORT int32_t squares_sum_destroy() {
+DLL_EXPORT int32_t sqr_sum_destroy() {
   return 0;
 }
 
-DLL_EXPORT int32_t squares_sum_start(SUdfInterBuf *buf) {
+DLL_EXPORT int32_t sqr_sum_start(SUdfInterBuf *buf) {
   *(int64_t*)(buf->buf) = 0;
   buf->bufLen = sizeof(double);
   buf->numOfResult = 0;
   return 0;
 }
 
-DLL_EXPORT int32_t squares_sum(SUdfDataBlock* block, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf) {
+DLL_EXPORT int32_t sqr_sum(SUdfDataBlock* block, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf) {
   double sumSquares = *(double*)interBuf->buf;
   int8_t numNotNull = 0;
   for (int32_t i = 0; i < block->numOfCols; ++i) {
@@ -67,7 +67,7 @@ DLL_EXPORT int32_t squares_sum(SUdfDataBlock* block, SUdfInterBuf *interBuf, SUd
   return 0;
 }
 
-DLL_EXPORT int32_t udf2_finish(SUdfInterBuf* buf, SUdfInterBuf *resultData) {
+DLL_EXPORT int32_t sqr_sum_finish(SUdfInterBuf* buf, SUdfInterBuf *resultData) {
   if (buf->numOfResult == 0) {
     resultData->numOfResult = 0;
     return 0;
