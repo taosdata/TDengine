@@ -530,8 +530,10 @@ static int32_t tsdbCommitDataBlock(SCommitter *pCommitter, SBlock *pBlock) {
   }
 
   // write
-  code = tsdbWriteBlockData(pCommitter->dWriter.pWriter, pBlockData, &block.aSubBlock[block.nSubBlock++],
-                            &block.smaInfo, pCommitter->cmprAlg, 0, NULL);
+  block.nSubBlock++;
+  code = tsdbWriteBlockData(pCommitter->dWriter.pWriter, pBlockData, &block.aSubBlock[block.nSubBlock - 1],
+                            ((block.nSubBlock == 1) && block.hasDup) ? &block.smaInfo : NULL, pCommitter->cmprAlg, 0,
+                            NULL);
   if (code) goto _err;
 
   // put SBlock
@@ -562,7 +564,7 @@ static int32_t tsdbCommitLastBlock(SCommitter *pCommitter) {
   blockL.maxVer = VERSION_MIN;
   for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
     blockL.minVer = TMIN(blockL.minVer, pBlockData->aVersion[iRow]);
-    blockL.maxVer = TMIN(blockL.maxVer, pBlockData->aVersion[iRow]);
+    blockL.maxVer = TMAX(blockL.maxVer, pBlockData->aVersion[iRow]);
   }
   blockL.minUid = pBlockData->uid ? pBlockData->uid : pBlockData->aUid[0];
   blockL.maxUid = pBlockData->uid ? pBlockData->uid : pBlockData->aUid[pBlockData->nRow - 1];
