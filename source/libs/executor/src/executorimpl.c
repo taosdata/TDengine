@@ -3267,8 +3267,6 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
       }
     }
 
-    blockDataEnsureCapacity(pResBlock, pOperator->resultInfo.capacity);
-
     int32_t numOfResultRows = pOperator->resultInfo.capacity - pResBlock->info.rows;
     taosFillResultDataBlock(pInfo->pFillInfo, pResBlock, numOfResultRows);
 
@@ -3595,16 +3593,16 @@ void doDestroyExchangeOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t numOfCols, SNodeListNode* pValNode,
-                            STimeWindow win, int32_t capacity, const char* id, SInterval* pInterval, int32_t fillType,
-                            int32_t order) {
-  SFillColInfo* pColInfo = createFillColInfo(pExpr, numOfCols, pValNode);
+static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t numOfCols, SExprInfo* pNotFillExpr,
+                            int32_t numOfNotFillCols, SNodeListNode* pValNode, STimeWindow win, int32_t capacity,
+                            const char* id, SInterval* pInterval, int32_t fillType, int32_t order) {
+  SFillColInfo* pColInfo = createFillColInfo(pExpr, numOfCols, pNotFillExpr, numOfNotFillCols, pValNode);
 
   STimeWindow w = getAlignQueryTimeWindow(pInterval, pInterval->precision, win.skey);
   w = getFirstQualifiedTimeWindow(win.skey, &w, pInterval, TSDB_ORDER_ASC);
 
   pInfo->pFillInfo =
-      taosCreateFillInfo(w.skey, 0, capacity, numOfCols, pInterval, fillType, pColInfo, pInfo->primaryTsCol, order, id);
+      taosCreateFillInfo(w.skey, numOfCols, numOfNotFillCols, capacity, pInterval, fillType, pColInfo, pInfo->primaryTsCol, order, id);
 
   pInfo->win = win;
   pInfo->p = taosMemoryCalloc(numOfCols, POINTER_BYTES);
@@ -3626,9 +3624,11 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
     goto _error;
   }
 
-  int32_t      num = 0;
+  int32_t      num = 0, num1 = 0;
   SSDataBlock* pResBlock = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
   SExprInfo*   pExprInfo = createExprInfo(pPhyFillNode->pFillExprs, NULL, &num);
+  SExprInfo*   pCopyColumnExprInfo = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &num1);
+
   SInterval*   pInterval =
       QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL == downstream->operatorType
             ? &((SMergeAlignedIntervalAggOperatorInfo*)downstream->info)->intervalAggOperatorInfo->interval
@@ -3639,13 +3639,16 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
 
   SResultInfo* pResultInfo = &pOperator->resultInfo;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
+  blockDataEnsureCapacity(pResBlock, pOperator->resultInfo.capacity);
+
   pInfo->primaryTsCol = ((SColumnNode*)pPhyFillNode->pWStartTs)->slotId;
 
   int32_t numOfOutputCols = 0;
   SArray* pColMatchColInfo = extractColMatchInfo(pPhyFillNode->pFillExprs, pPhyFillNode->node.pOutputDataBlockDesc,
                                                  &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
 
-  int32_t code = initFillInfo(pInfo, pExprInfo, num, (SNodeListNode*)pPhyFillNode->pValues, pPhyFillNode->timeRange,
+  int32_t code = initFillInfo(pInfo, pExprInfo, num, pCopyColumnExprInfo, num1,
+      (SNodeListNode*)pPhyFillNode->pValues, pPhyFillNode->timeRange,
                               pResultInfo->capacity, pTaskInfo->id.str, pInterval, type, order);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;

@@ -28,8 +28,9 @@ struct SSDataBlock;
 
 typedef struct SFillColInfo {
   SExprInfo *pExpr;
-  int16_t    flag;            // column flag: TAG COLUMN|NORMAL COLUMN
-  int16_t    tagIndex;        // index of current tag in SFillTagColInfo array list
+//  int16_t    flag;            // column flag: TAG COLUMN|NORMAL COLUMN
+  bool       notFillCol;      // denote if this column needs fill operation
+//  int16_t    tagIndex;        // index of current tag in SFillTagColInfo array list
   SVariant   fillVal;
 } SFillColInfo;
 
@@ -49,10 +50,7 @@ typedef struct SFillInfo {
   int32_t   index;                // active row index
   int32_t   numOfTotal;           // number of filled rows in one round
   int32_t   numOfCurrent;         // number of filled rows in current results
-
-  int32_t   numOfTags;            // number of tags
   int32_t   numOfCols;            // number of columns, including the tags columns
-  int32_t   rowSize;              // size of each row
   SInterval interval;
 
   SArray   *prev;
@@ -71,10 +69,10 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t 
 void taosFillSetStartInfo(struct SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
 void taosResetFillInfo(struct SFillInfo* pFillInfo, TSKEY startTimestamp);
 void taosFillSetInputDataBlock(struct SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
-struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, const struct SNodeListNode* val);
+struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprInfo* pNotFillExpr, int32_t numOfNotFillCols, const struct SNodeListNode* val);
 bool taosFillHasMoreResults(struct SFillInfo* pFillInfo);
 
-SFillInfo* taosCreateFillInfo(TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
+SFillInfo* taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFillCols, int32_t capacity,
                               SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol, int32_t slotId,
                               int32_t order, const char* id);
 
