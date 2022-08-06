@@ -510,7 +510,7 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
   SHashObj*  pPool = pool;
   SConnList* plist = taosHashGet(pPool, key, strlen(key));
   if (plist == NULL) {
-    SConnList list;
+    SConnList list = {0};
     taosHashPut(pPool, key, strlen(key), (void*)&list, sizeof(list));
     plist = taosHashGet(pPool, key, strlen(key));
     QUEUE_INIT(&plist->conn);
