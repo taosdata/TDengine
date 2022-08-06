@@ -2968,7 +2968,7 @@ bool syncNodeCanChange(SSyncNode* pSyncNode) {
   return true;
 }
 
-inline void syncLogSendRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s) {
+void syncLogSendRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s) {
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
@@ -2979,7 +2979,7 @@ inline void syncLogSendRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* 
   syncNodeEventLog(pSyncNode, logBuf);
 }
 
-inline void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s) {
+void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s) {
   char     logBuf[256];
   char     host[64];
   uint16_t port;
@@ -2990,7 +2990,7 @@ inline void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* 
   syncNodeEventLog(pSyncNode, logBuf);
 }
 
-inline void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s) {
+void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s) {
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
@@ -3000,7 +3000,7 @@ inline void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestV
   syncNodeEventLog(pSyncNode, logBuf);
 }
 
-inline void syncLogRecvRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s) {
+void syncLogRecvRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s) {
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
@@ -3010,7 +3010,7 @@ inline void syncLogRecvRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestV
   syncNodeEventLog(pSyncNode, logBuf);
 }
 
-inline void syncLogSendAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s) {
+void syncLogSendAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s) {
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
@@ -3025,7 +3025,7 @@ inline void syncLogSendAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntri
   syncNodeEventLog(pSyncNode, logBuf);
 }
 
-inline void syncLogRecvAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s) {
+void syncLogRecvAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s) {
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
@@ -3040,7 +3040,7 @@ inline void syncLogRecvAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntri
   syncNodeEventLog(pSyncNode, logBuf);
 }
 
-inline void syncLogSendAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntriesBatch* pMsg, const char* s) {
+void syncLogSendAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntriesBatch* pMsg, const char* s) {
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
@@ -3053,7 +3053,7 @@ inline void syncLogSendAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppend
   syncNodeEventLog(pSyncNode, logBuf);
 }
 
-inline void syncLogRecvAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntriesBatch* pMsg, const char* s) {
+void syncLogRecvAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntriesBatch* pMsg, const char* s) {
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
@@ -3066,7 +3066,7 @@ inline void syncLogRecvAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppend
   syncNodeEventLog(pSyncNode, logBuf);
 }
 
-inline void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s) {
+ void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s) {
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
@@ -3078,7 +3078,7 @@ inline void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppend
   syncNodeEventLog(pSyncNode, logBuf);
 }
 
-inline void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s) {
+void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s) {
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
