@@ -3625,6 +3625,11 @@ int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   // todo assign the tag value and the corresponding row data
   int32_t currentRow = pBlock->info.rows;
+  if (pEntryInfo->numOfRes <= 0) {
+    colDataAppendNULL(pCol, currentRow);
+    setNullSelectivityValue(pCtx, pBlock, currentRow);
+    return pEntryInfo->numOfRes;
+  }
   for (int32_t i = 0; i < pEntryInfo->numOfRes; ++i) {
     STopBotResItem* pItem = &pRes->pItems[i];
     if (type == TSDB_DATA_TYPE_FLOAT) {
@@ -4957,6 +4962,11 @@ int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
   int32_t currentRow = pBlock->info.rows;
+  if (pInfo->numSampled == 0) {
+    colDataAppendNULL(pCol, currentRow);
+    setNullSelectivityValue(pCtx, pBlock, currentRow);
+    return pInfo->numSampled;
+  }
   for (int32_t i = 0; i < pInfo->numSampled; ++i) {
     colDataAppend(pCol, currentRow + i, pInfo->data + i * pInfo->colBytes, false);
     setSelectivityValue(pCtx, pBlock, &pInfo->tuplePos[i], currentRow + i);
