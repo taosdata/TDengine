@@ -89,7 +89,7 @@ bool tsSmlDataFormat =
 
 // query
 int32_t tsQueryPolicy = 1;
-int32_t tsQuerySmaOptimize = 0;
+int32_t tsQuerySmaOptimize = 1;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
