@@ -24,6 +24,7 @@ typedef struct SCliConn {
   uv_connect_t connReq;
   uv_stream_t* stream;
   queue        wreqQueue;
+  uv_timer_t*  timer;
 
   void* hostThrd;
 
@@ -108,6 +109,8 @@ static int sockDebugInfo(struct sockaddr* sockname, char* dst) {
   sprintf(dst, "%s:%d", buf, ntohs(addr.sin_port));
   return r;
 }
+// register timer for read
+static void cliReadTimeoutCb(uv_timer_t* handle);
 // register timer in each thread to clear expire conn
 // static void cliTimeoutCb(uv_timer_t* handle);
 // alloc buf for recv
@@ -330,6 +333,11 @@ void cliHandleResp(SCliConn* conn) {
   SCliThrd* pThrd = conn->hostThrd;
   STrans*   pTransInst = pThrd->pTransInst;
 
+  if (uv_is_active((uv_handle_t*)conn->timer)) {
+    tDebug("%s conn %p stop timer", CONN_GET_INST_LABEL(conn), conn);
+    uv_timer_stop(conn->timer);
+  }
+
   STransMsgHead* pHead = NULL;
   transDumpFromBuffer(&conn->readBuf, (char**)&pHead);
   pHead->code = htonl(pHead->code);
@@ -409,7 +417,7 @@ void cliHandleResp(SCliConn* conn) {
   uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
 }
 
-void cliHandleExcept(SCliConn* pConn) {
+void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
   if (transQueueEmpty(&pConn->cliMsgs)) {
     if (pConn->broken == true && CONN_NO_PERSIST_BY_APP(pConn)) {
       tTrace("%s conn %p handle except, persist:0", CONN_GET_INST_LABEL(pConn), pConn);
@@ -428,7 +436,7 @@ void cliHandleExcept(SCliConn* pConn) {
     STransConnCtx* pCtx = pMsg ? pMsg->ctx : NULL;
 
     STransMsg transMsg = {0};
-    transMsg.code = pConn->broken ? TSDB_CODE_RPC_BROKEN_LINK : TSDB_CODE_RPC_NETWORK_UNAVAIL;
+    transMsg.code = code == -1 ? (pConn->broken ? TSDB_CODE_RPC_BROKEN_LINK : TSDB_CODE_RPC_NETWORK_UNAVAIL) : code;
     transMsg.msgType = pMsg ? pMsg->msg.msgType + 1 : 0;
     transMsg.info.ahandle = NULL;
 
@@ -459,31 +467,17 @@ void cliHandleExcept(SCliConn* pConn) {
   } while (!transQueueEmpty(&pConn->cliMsgs));
   transUnrefCliHandle(pConn);
 }
+void cliHandleExcept(SCliConn* conn) {
+  tTrace("%s conn except ref:%d", CONN_GET_INST_LABEL(conn), conn, T_REF_VAL_GET(conn));
+  cliHandleExceptImpl(conn, -1);
+}
 
-// void cliTimeoutCb(uv_timer_t* handle) {
-//   SCliThrd* pThrd = handle->data;
-//   STrans*   pTransInst = pThrd->pTransInst;
-//   int64_t   currentTime = pThrd->nextTimeout;
-//   tTrace("%s conn timeout, try to remove expire conn from conn pool", pTransInst->label);
-//
-//   SConnList* p = taosHashIterate((SHashObj*)pThrd->pool, NULL);
-//   while (p != NULL) {
-//     while (!QUEUE_IS_EMPTY(&p->conn)) {
-//       queue*    h = QUEUE_HEAD(&p->conn);
-//       SCliConn* c = QUEUE_DATA(h, SCliConn, q);
-//       if (c->expireTime < currentTime) {
-//         QUEUE_REMOVE(h);
-//         transUnrefCliHandle(c);
-//       } else {
-//         break;
-//       }
-//     }
-//     p = taosHashIterate((SHashObj*)pThrd->pool, p);
-//   }
-//
-//   pThrd->nextTimeout = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
-//   uv_timer_start(handle, cliTimeoutCb, CONN_PERSIST_TIME(pTransInst->idleTime) / 2, 0);
-// }
+void cliReadTimeoutCb(uv_timer_t* handle) {
+  // set up timeout cb
+  SCliConn* conn = handle->data;
+  tTrace("%s conn %p timeout, ref:%d", CONN_GET_INST_LABEL(conn), conn, T_REF_VAL_GET(conn));
+  cliHandleExceptImpl(conn, TSDB_CODE_RPC_TIMEOUT);
+}
 
 void* createConnPool(int size) {
   // thread local, no lock
@@ -638,6 +632,11 @@ static SCliConn* cliCreateConn(SCliThrd* pThrd) {
 
   conn->connReq.data = conn;
 
+  // set read timeout
+  conn->timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
+  uv_timer_init(pThrd->loop, conn->timer);
+  conn->timer->data = conn;
+
   transReqQueueInit(&conn->wreqQueue);
 
   transQueueInit(&conn->cliMsgs, NULL);
@@ -660,7 +659,6 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   transRemoveExHandle(transGetRefMgt(), conn->refId);
 
   conn->refId = -1;
-  if (conn->task != NULL) transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
 
   if (clear) {
     if (!uv_is_closing((uv_handle_t*)conn->stream)) {
@@ -675,6 +673,15 @@ static void cliDestroy(uv_handle_t* handle) {
   }
 
   SCliConn* conn = handle->data;
+  if (conn->timer != NULL) {
+    uv_timer_stop(conn->timer);
+    taosMemoryFree(conn->timer);
+    conn->timer = NULL;
+  }
+  if (conn->task != NULL) {
+    transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
+    conn->task = NULL;
+  }
   transRemoveExHandle(transGetRefMgt(), conn->refId);
   taosMemoryFree(conn->ip);
   conn->stream->data = NULL;
@@ -764,6 +771,10 @@ void cliSend(SCliConn* pConn) {
     CONN_SET_PERSIST_BY_APP(pConn);
   }
 
+  if (pTransInst->startTimer != NULL && pTransInst->startTimer(0, pMsg->msgType)) {
+    tGTrace("%s conn %p start timer for msg:%s", CONN_GET_INST_LABEL(pConn), pConn, TMSG_INFO(pMsg->msgType));
+    uv_timer_start((uv_timer_t*)pConn->timer, cliReadTimeoutCb, TRANS_READ_TIMEOUT, 0);
+  }
   uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
   uv_write(req, (uv_stream_t*)pConn->stream, &wb, 1, cliSendCb);
   return;
