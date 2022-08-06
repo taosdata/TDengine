@@ -760,7 +760,7 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
   if (pDelFile) {
     SDelFReader *pDelFReader;
 
-    code = tsdbDelFReaderOpen(&pDelFReader, pDelFile, pTsdb, NULL);
+    code = tsdbDelFReaderOpen(&pDelFReader, pDelFile, pTsdb);
     if (code) goto _err;
 
     code = getTableDelIdx(pDelFReader, suid, uid, &delIdx);

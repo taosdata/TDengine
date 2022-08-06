@@ -679,6 +679,7 @@ _err:
 
 static int32_t tsdbReadBlockDataKey(SBlockData *pBlockData, SBlockInfo *pSubBlock, uint8_t *pBuf, uint8_t **ppBuf) {
   int32_t code = 0;
+#if 0
   int64_t size = pSubBlock->szVersion + pSubBlock->szTSKEY + sizeof(TSCKSUM);
   int64_t n;
 
@@ -729,12 +730,14 @@ static int32_t tsdbReadBlockDataKey(SBlockData *pBlockData, SBlockInfo *pSubBloc
   return code;
 
 _err:
+#endif
   return code;
 }
 
 static int32_t tsdbReadColDataImpl(SBlockInfo *pSubBlock, SBlockCol *pBlockCol, SColData *pColData, uint8_t *pBuf,
                                    uint8_t **ppBuf) {
   int32_t code = 0;
+#if 0
   int64_t size;
   int64_t n;
 
@@ -822,6 +825,7 @@ static int32_t tsdbReadColDataImpl(SBlockInfo *pSubBlock, SBlockCol *pBlockCol, 
   return code;
 
 _err:
+#endif
   return code;
 }
 
@@ -900,10 +904,11 @@ _exit:
 static int32_t tsdbReadSubColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBlock, int32_t iSubBlock,
                                   int16_t *aColId, int32_t nCol, SBlockData *pBlockData, uint8_t **ppBuf1,
                                   uint8_t **ppBuf2) {
+  int32_t code = 0;
+#if 0
   TdFilePtr   pFD = pReader->pDataFD;
   SBlockInfo *pSubBlock = &pBlock->aSubBlock[iSubBlock];
   SArray     *aBlockCol = NULL;
-  int32_t     code = 0;
   int64_t     offset;
   int64_t     size;
   int64_t     n;
@@ -1012,6 +1017,7 @@ _exit:
 
 _err:
   taosArrayDestroy(aBlockCol);
+#endif
   return code;
 }
 
@@ -1071,7 +1077,8 @@ _err:
 
 static int32_t tsdbReadSubBlockData(SDataFReader *pReader, SBlock *pBlock, int32_t iSubBlock, SBlockData *pBlockData,
                                     uint8_t **ppBuf1, uint8_t **ppBuf2) {
-  int32_t     code = 0;
+  int32_t code = 0;
+#if 0
   uint8_t    *p;
   int64_t     size;
   int64_t     n;
@@ -1148,6 +1155,7 @@ static int32_t tsdbReadSubBlockData(SDataFReader *pReader, SBlock *pBlock, int32
 _err:
   tsdbError("vgId:%d, tsdb read sub block data failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
   taosArrayDestroy(aBlockCol);
+#endif
   return code;
 }
 
@@ -1218,6 +1226,7 @@ _err:
 int32_t tsdbReadLastBlock(SDataFReader *pReader, SBlockL *pBlockL, SBlockData *pBlockData, uint8_t **ppBuf1,
                           uint8_t **ppBuf2) {
   int32_t code = 0;
+#if 0
 
   tBlockDataReset(pBlockData);
 
@@ -1336,11 +1345,13 @@ int32_t tsdbReadLastBlock(SDataFReader *pReader, SBlockL *pBlockL, SBlockData *p
 
 _err:
   tsdbError("vgId:%d tsdb read last block failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+#endif
   return code;
 }
 
 int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnDataAgg, uint8_t **ppBuf) {
-  int32_t   code = 0;
+  int32_t code = 0;
+#if 0
   TdFilePtr pFD = pReader->pSmaFD;
   int64_t   offset = pBlock->aSubBlock[0].sOffset;
   int64_t   size = pBlock->aSubBlock[0].nSma * sizeof(SColumnDataAgg) + sizeof(TSCKSUM);
@@ -1391,6 +1402,7 @@ int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnD
 _err:
   tsdbError("vgId:%d, read block sma failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
   tFree(pBuf);
+#endif
   return code;
 }
 
@@ -1899,14 +1911,12 @@ _err:
 }
 
 int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo,
-                           int8_t cmprAlg, int8_t toLast, uint8_t **ppBuf) {
+                           int8_t cmprAlg, int8_t toLast) {
   int32_t    code = 0;
   TdFilePtr  pFD = toLast ? pWriter->pLastFD : pWriter->pDataFD;
   SDiskData *pDiskData = &pWriter->dData;
-  uint8_t   *pBuf = NULL;
 
-  if (!ppBuf) ppBuf = &pBuf;
-
+#if 0
   // convert
   code = tBlockToDiskData(pBlockData, pDiskData, cmprAlg);
   if (code) goto _err;
@@ -1971,6 +1981,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
 
   for (int32_t iBlockCol = 0; iBlockCol < taosArrayGetSize(pDiskData->aBlockCol); iBlockCol++) {
   }
+#endif
 
   // ================= SMA ====================
   if (pSmaInfo) {
@@ -1979,11 +1990,9 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
   }
 
 _exit:
-  tFree(pBuf);
   return code;
 
 _err:
-  tFree(pBuf);
   return code;
 }
 
