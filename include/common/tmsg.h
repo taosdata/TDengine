@@ -1369,6 +1369,7 @@ typedef struct {
   int64_t skey;
   int64_t ekey;
   int64_t version;  // for stream
+  TSKEY   watermark;// for stream
   char    data[];
 } SRetrieveTableRsp;
 
