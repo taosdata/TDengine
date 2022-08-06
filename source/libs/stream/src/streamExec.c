@@ -24,7 +24,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
     SStreamTrigger* pTrigger = (SStreamTrigger*)data;
     qSetMultiStreamInput(exec, pTrigger->pBlock, 1, STREAM_INPUT__DATA_BLOCK);
   } else if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
-    ASSERT(pTask->isDataScan);
+    ASSERT(pTask->taskLevel == TASK_LEVEL__SOURCE);
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)data;
     qDebug("task %d %p set submit input %p %p %d 1", pTask->taskId, pTask, pSubmit, pSubmit->data, *pSubmit->dataRef);
     qSetMultiStreamInput(exec, pSubmit->data, 1, STREAM_INPUT__DATA_SUBMIT);
@@ -92,7 +92,7 @@ static FORCE_INLINE int32_t streamUpdateVer(SStreamTask* pTask, SStreamDataBlock
 }
 
 int32_t streamPipelineExec(SStreamTask* pTask, int32_t batchNum) {
-  ASSERT(pTask->execType != TASK_EXEC__NONE);
+  ASSERT(pTask->taskLevel != TASK_LEVEL__SINK);
 
   void* exec = pTask->exec.executor;
 
@@ -139,8 +139,7 @@ int32_t streamPipelineExec(SStreamTask* pTask, int32_t batchNum) {
       return -1;
     }
 
-    if (pTask->dispatchType != TASK_DISPATCH__NONE) {
-      ASSERT(pTask->sinkType == TASK_SINK__NONE);
+    if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
       streamDispatch(pTask);
     }
   }
@@ -161,7 +160,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       if (data == NULL) {
         data = qItem;
         streamQueueProcessSuccess(pTask->inputQueue);
-        if (pTask->execType == TASK_EXEC__NONE) {
+        if (pTask->taskLevel == TASK_LEVEL__SINK) {
           break;
         }
       } else {
@@ -187,7 +186,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       break;
     }
 
-    if (pTask->execType == TASK_EXEC__NONE) {
+    if (pTask->taskLevel == TASK_LEVEL__SINK) {
       ASSERT(((SStreamQueueItem*)data)->type == STREAM_INPUT__DATA_BLOCK);
       streamTaskOutput(pTask, data);
       continue;

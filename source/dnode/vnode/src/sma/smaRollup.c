@@ -848,6 +848,7 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables) {
                terrstr());
       goto _err;
     }
+    tDecoderClear(&mr.coder);
     ASSERT(mr.me.type == TSDB_SUPER_TABLE);
     ASSERT(mr.me.uid == suid);
     if (TABLE_IS_ROLLUP(mr.me.flags)) {
@@ -1336,7 +1337,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
       SSDataBlock dataBlock = {.info.type = STREAM_GET_ALL};
       qSetMultiStreamInput(pItem->taskInfo, &dataBlock, 1, STREAM_INPUT__DATA_BLOCK);
       tdRSmaFetchAndSubmitResult(pItem, pRSmaInfo->pTSchema, pRSmaInfo->suid, pStat, STREAM_INPUT__DATA_BLOCK);
-      // tdCleanupStreamInputDataBlock(pItem->taskInfo);
+      tdCleanupStreamInputDataBlock(pItem->taskInfo);
 
       tdUnRefRSmaInfo(pSma, pRSmaInfo);
       // atomic_store_8(&pItem->triggerStat, TASK_TRIGGER_STAT_ACTIVE);

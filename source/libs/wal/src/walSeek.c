@@ -74,7 +74,7 @@ int walInitWriteFile(SWal* pWal) {
   return 0;
 }
 
-int walChangeWrite(SWal* pWal, int64_t ver) {
+int64_t walChangeWrite(SWal* pWal, int64_t ver) {
   int       code;
   TdFilePtr pIdxTFile, pLogTFile;
   char      fnameStr[WAL_FILE_LEN];
