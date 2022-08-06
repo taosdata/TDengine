@@ -21,6 +21,7 @@
 #include "tglobal.h"
 #include "ttime.h"
 #include "ttypes.h"
+#include "query.h"
 
 #define NEXT_TOKEN(pSql, sToken)                \
   do {                                          \
@@ -291,11 +292,10 @@ static void buildMsgHeader(STableDataBlocks* src, SVgDataBlocks* blocks) {
     int32_t schemaLen = blk->schemaLen;
     blk->uid = htobe64(blk->uid);
     blk->suid = htobe64(blk->suid);
-    blk->padding = htonl(blk->padding);
     blk->sversion = htonl(blk->sversion);
     blk->dataLen = htonl(blk->dataLen);
     blk->schemaLen = htonl(blk->schemaLen);
-    blk->numOfRows = htons(blk->numOfRows);
+    blk->numOfRows = htonl(blk->numOfRows);
     blk = (SSubmitBlk*)(blk->data + schemaLen + dataLen);
   }
 }
@@ -1266,7 +1266,7 @@ static int32_t parseValuesClause(SInsertParseContext* pCxt, STableDataBlocks* da
 
   SSubmitBlk* pBlocks = (SSubmitBlk*)(dataBuf->pData);
   if (TSDB_CODE_SUCCESS != setBlockInfo(pBlocks, dataBuf, numOfRows)) {
-    return buildInvalidOperationMsg(&pCxt->msg, "too many rows in sql, total number of rows should be less than 32767");
+    return buildInvalidOperationMsg(&pCxt->msg, "too many rows in sql, total number of rows should be less than INT32_MAX");
   }
 
   dataBuf->numOfTables = 1;
@@ -1338,7 +1338,7 @@ static int32_t parseDataFromFile(SInsertParseContext* pCxt, SToken filePath, STa
 
   SSubmitBlk* pBlocks = (SSubmitBlk*)(dataBuf->pData);
   if (TSDB_CODE_SUCCESS != setBlockInfo(pBlocks, dataBuf, numOfRows)) {
-    return buildInvalidOperationMsg(&pCxt->msg, "too many rows in sql, total number of rows should be less than 32767");
+    return buildInvalidOperationMsg(&pCxt->msg, "too many rows in sql, total number of rows should be less than INT32_MAX");
   }
 
   dataBuf->numOfTables = 1;
@@ -1487,6 +1487,8 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
 
     return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is expected", sToken.z);
   }
+
+  qDebug("0x%" PRIx64 " insert input rows: %d", pCxt->pComCxt->requestId, pCxt->totalNum);
 
   if (TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT)) {
     SParsedDataColInfo* tags = taosMemoryMalloc(sizeof(pCxt->tags));
@@ -1983,7 +1985,7 @@ int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, in
 
   SSubmitBlk* pBlocks = (SSubmitBlk*)(pDataBlock->pData);
   if (TSDB_CODE_SUCCESS != setBlockInfo(pBlocks, pDataBlock, bind->num)) {
-    return buildInvalidOperationMsg(&pBuf, "too many rows in sql, total number of rows should be less than 32767");
+    return buildInvalidOperationMsg(&pBuf, "too many rows in sql, total number of rows should be less than INT32_MAX");
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2071,7 +2073,7 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
 
     SSubmitBlk* pBlocks = (SSubmitBlk*)(pDataBlock->pData);
     if (TSDB_CODE_SUCCESS != setBlockInfo(pBlocks, pDataBlock, bind->num)) {
-      return buildInvalidOperationMsg(&pBuf, "too many rows in sql, total number of rows should be less than 32767");
+      return buildInvalidOperationMsg(&pBuf, "too many rows in sql, total number of rows should be less than INT32_MAX");
     }
   }
 
@@ -2408,9 +2410,9 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
       } else {
         int32_t colLen = kv->length;
         if (pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
-          //          uError("SML:data before:%ld, precision:%d", kv->i, pTableMeta->tableInfo.precision);
+          //          uError("SML:data before:%" PRId64 ", precision:%d", kv->i, pTableMeta->tableInfo.precision);
           kv->i = convertTimePrecision(kv->i, TSDB_TIME_PRECISION_NANO, pTableMeta->tableInfo.precision);
-          //          uError("SML:data after:%ld, precision:%d", kv->i, pTableMeta->tableInfo.precision);
+          //          uError("SML:data after:%" PRId64 ", precision:%d", kv->i, pTableMeta->tableInfo.precision);
         }
 
         if (IS_VAR_DATA_TYPE(kv->type)) {
@@ -2441,7 +2443,7 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
 
   SSubmitBlk* pBlocks = (SSubmitBlk*)(pDataBlock->pData);
   if (TSDB_CODE_SUCCESS != setBlockInfo(pBlocks, pDataBlock, rowNum)) {
-    return buildInvalidOperationMsg(&pBuf, "too many rows in sql, total number of rows should be less than 32767");
+    return buildInvalidOperationMsg(&pBuf, "too many rows in sql, total number of rows should be less than INT32_MAX");
   }
 
   return TSDB_CODE_SUCCESS;

@@ -159,8 +159,8 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
       return -1;
     }
 
-    qDebug("task %d(child %d) send retrieve req to task %d at node %d, reqId %ld", pTask->taskId, pTask->selfChildId,
-           pEpInfo->taskId, pEpInfo->nodeId, req.reqId);
+    qDebug("task %d(child %d) send retrieve req to task %d at node %d, reqId %" PRId64, pTask->taskId,
+           pTask->selfChildId, pEpInfo->taskId, pEpInfo->nodeId, req.reqId);
   }
   return 0;
 FAIL:
@@ -242,7 +242,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
   int32_t blockNum = taosArrayGetSize(pData->blocks);
   ASSERT(blockNum != 0);
 
-  if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
+  if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
     SStreamDispatchReq req = {
         .streamId = pTask->streamId,
         .dataSrcVgId = pData->srcVgId,
@@ -282,7 +282,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
     taosArrayDestroy(req.dataLen);
     return code;
 
-  } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
+  } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     int32_t rspCnt = atomic_load_32(&pTask->shuffleDispatcher.waitingRspCnt);
     ASSERT(rspCnt == 0);
 
@@ -393,11 +393,11 @@ int32_t streamBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* data,
   int32_t vgId = 0;
   int32_t downstreamTaskId = 0;
   // find ep
-  if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
+  if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
     vgId = pTask->fixedEpDispatcher.nodeId;
     *ppEpSet = &pTask->fixedEpDispatcher.epSet;
     downstreamTaskId = pTask->fixedEpDispatcher.taskId;
-  } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
+  } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     // TODO get ctbName for each block
     SSDataBlock* pBlock = taosArrayGet(data->blocks, 0);
     char*        ctbName = buildCtbNameByGroupId(pTask->shuffleDispatcher.stbFullName, pBlock->info.groupId);
@@ -439,14 +439,13 @@ FAIL:
 }
 
 int32_t streamDispatch(SStreamTask* pTask) {
-  ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);
-#if 1
+  ASSERT(pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH);
+
   int8_t old =
       atomic_val_compare_exchange_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL, TASK_OUTPUT_STATUS__WAIT);
   if (old != TASK_OUTPUT_STATUS__NORMAL) {
     return 0;
   }
-#endif
 
   SStreamDataBlock* pBlock = streamQueueNextItem(pTask->outputQueue);
   if (pBlock == NULL) {
@@ -466,22 +465,8 @@ int32_t streamDispatch(SStreamTask* pTask) {
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
     goto FREE;
   }
-  /*atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);*/
 FREE:
   taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
   taosFreeQitem(pBlock);
-#if 0
-  SRpcMsg dispatchMsg = {0};
-  SEpSet* pEpSet = NULL;
-  if (streamBuildDispatchMsg(pTask, pBlock, &dispatchMsg, &pEpSet) < 0) {
-    ASSERT(0);
-    atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
-    return -1;
-  }
-  taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
-  taosFreeQitem(pBlock);
-
-  tmsgSendReq(pEpSet, &dispatchMsg);
-#endif
   return code;
 }

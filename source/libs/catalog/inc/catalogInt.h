@@ -416,6 +416,7 @@ typedef struct SCtgCacheOperation {
   bool     syncOp;
   tsem_t   rspSem;  
   bool     stopQueue;
+  bool     unLocked;
 } SCtgCacheOperation;
 
 typedef struct SCtgQNode {

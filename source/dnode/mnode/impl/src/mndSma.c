@@ -795,11 +795,12 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
   pStb = mndAcquireStb(pMnode, pSma->stb);
   if (pStb == NULL) goto _OVER;
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq);
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop sma:%s", pTrans->id, pSma->name);
   mndTransSetDbName(pTrans, pDb->name, NULL);
+  mndTransSetSerial(pTrans);
 
   char streamName[TSDB_TABLE_FNAME_LEN] = {0};
   mndGetStreamNameFromSmaName(streamName, pSma->name);
@@ -812,12 +813,14 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
     if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
       mError("stream:%s, failed to drop task since %s", pStream->name, terrstr());
       sdbRelease(pMnode->pSdb, pStream);
+      ASSERT(0);
       goto _OVER;
     }
 
     // drop stream
     if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
       sdbRelease(pMnode->pSdb, pStream);
+      ASSERT(0);
       goto _OVER;
     }
   }
@@ -850,6 +853,7 @@ int32_t mndDropSmasByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
     if (pIter == NULL) break;
 
     if (pSma->stbUid == pStb->uid) {
+      mndTransSetSerial(pTrans);
       pVgroup = mndAcquireVgroup(pMnode, pSma->dstVgId);
       if (pVgroup == NULL) goto _OVER;
 

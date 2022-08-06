@@ -573,7 +573,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
         // fsync once
         SSyncLogStoreData* pData = ths->pLogStore->data;
         SWal*              pWal = pData->pWal;
-        walFsync(pWal, true);
+        walFsync(pWal, false);
 
         // update match index
         matchIndex = pMsg->prevLogIndex + pMsg->dataCount;
@@ -694,7 +694,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
         // fsync once
         SSyncLogStoreData* pData = ths->pLogStore->data;
         SWal*              pWal = pData->pWal;
-        walFsync(pWal, true);
+        walFsync(pWal, false);
       }
 
       // prepare response msg
@@ -717,24 +717,15 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
 
       // maybe update commit index, leader notice me
       if (pMsg->commitIndex > ths->commitIndex) {
+        SyncIndex lastIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
+
+        SyncIndex beginIndex = 0;
+        SyncIndex endIndex = -1;
+
         // has commit entry in local
-        if (pMsg->commitIndex <= ths->pLogStore->syncLogLastIndex(ths->pLogStore)) {
-          // advance commit index to sanpshot first
-          SSnapshot snapshot;
-          ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
-          if (snapshot.lastApplyIndex >= 0 && snapshot.lastApplyIndex > ths->commitIndex) {
-            SyncIndex commitBegin = ths->commitIndex;
-            SyncIndex commitEnd = snapshot.lastApplyIndex;
-            ths->commitIndex = snapshot.lastApplyIndex;
-
-            char eventLog[128];
-            snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%" PRId64 " to index:%" PRId64,
-                     commitBegin, commitEnd);
-            syncNodeEventLog(ths, eventLog);
-          }
-
-          SyncIndex beginIndex = ths->commitIndex + 1;
-          SyncIndex endIndex = pMsg->commitIndex;
+        if (pMsg->commitIndex <= lastIndex) {
+          beginIndex = ths->commitIndex + 1;
+          endIndex = pMsg->commitIndex;
 
           // update commit index
           ths->commitIndex = pMsg->commitIndex;
@@ -743,10 +734,22 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
           code = ths->pLogStore->updateCommitIndex(ths->pLogStore, ths->commitIndex);
           ASSERT(code == 0);
 
-          code = syncNodeCommit(ths, beginIndex, endIndex, ths->state);
+        } else if (pMsg->commitIndex > lastIndex && ths->commitIndex < lastIndex) {
+          beginIndex = ths->commitIndex + 1;
+          endIndex = lastIndex;
+
+          // update commit index, speed up
+          ths->commitIndex = lastIndex;
+
+          // call back Wal
+          code = ths->pLogStore->updateCommitIndex(ths->pLogStore, ths->commitIndex);
           ASSERT(code == 0);
         }
+
+        code = syncNodeCommit(ths, beginIndex, endIndex, ths->state);
+        ASSERT(code == 0);
       }
+
       return 0;
     }
   } while (0);

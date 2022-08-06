@@ -688,7 +688,12 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_DELETE == pRequest->type ||
       TDMT_VND_CREATE_TABLE == pRequest->type) {
     pRequest->body.resInfo.numOfRows = res.numOfRows;
-
+    if (TDMT_VND_SUBMIT == pRequest->type) {
+      STscObj            *pTscObj = pRequest->pTscObj;
+      SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
+      atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertRows, res.numOfRows);           
+    }
+    
     schedulerFreeJob(&pRequest->body.queryJob, 0);
   }
 
@@ -795,6 +800,8 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
       break;
     }
     case TDMT_VND_SUBMIT: {
+      atomic_add_fetch_64((int64_t *)&pAppInfo->summary.insertBytes, pRes->numOfBytes);
+      
       code = handleSubmitExecRes(pRequest, pRes->res, pCatalog, &epset);
       break;
     }
@@ -824,6 +831,11 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
       TDMT_VND_CREATE_TABLE == pRequest->type) {
     if (pResult) {
       pRequest->body.resInfo.numOfRows = pResult->numOfRows;
+      if (TDMT_VND_SUBMIT == pRequest->type) {
+        STscObj            *pTscObj = pRequest->pTscObj;
+        SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
+        atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertRows, pResult->numOfRows);           
+      }
     }
 
     schedulerFreeJob(&pRequest->body.queryJob, 0);
@@ -861,6 +873,20 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
 
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res) {
   int32_t code = 0;
+
+  if (pQuery->pRoot) {
+    pRequest->stmtType = pQuery->pRoot->type;
+  }
+  
+  if (pQuery->pRoot && !pRequest->inRetry) {
+    STscObj            *pTscObj = pRequest->pTscObj;
+    SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
+    if (QUERY_NODE_VNODE_MODIF_STMT == pQuery->pRoot->type) {
+      atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1);
+    } else if (QUERY_NODE_SELECT_STMT == pQuery->pRoot->type) {
+      atomic_add_fetch_64((int64_t *)&pActivity->numOfQueryReq, 1);           
+    }
+  }
 
   switch (pQuery->execMode) {
     case QUERY_EXEC_MODE_LOCAL:
@@ -915,7 +941,7 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
   return pRequest;
 }
 
-SRequestObj* launchQuery(uint64_t connId, const char* sql, int sqlLen, bool validateOnly) {
+SRequestObj* launchQuery(uint64_t connId, const char* sql, int sqlLen, bool validateOnly, bool inRetry) {
   SRequestObj* pRequest = NULL;
   SQuery*      pQuery = NULL;
 
@@ -931,6 +957,7 @@ SRequestObj* launchQuery(uint64_t connId, const char* sql, int sqlLen, bool vali
     return pRequest;
   }
 
+  pRequest->inRetry = inRetry;
   pRequest->stableQuery = pQuery->stableQuery;
 
   return launchQueryImpl(pRequest, pQuery, false, NULL);
@@ -1079,10 +1106,11 @@ SRequestObj* execQuery(uint64_t connId, const char* sql, int sqlLen, bool valida
   SRequestObj* pRequest = NULL;
   int32_t      retryNum = 0;
   int32_t      code = 0;
+  bool         inRetry = false;
 
   do {
     destroyRequest(pRequest);
-    pRequest = launchQuery(connId, sql, sqlLen, validateOnly);
+    pRequest = launchQuery(connId, sql, sqlLen, validateOnly, inRetry);
     if (pRequest == NULL || TSDB_CODE_SUCCESS == pRequest->code || !NEED_CLIENT_HANDLE_ERROR(pRequest->code)) {
       break;
     }
@@ -1092,6 +1120,8 @@ SRequestObj* execQuery(uint64_t connId, const char* sql, int sqlLen, bool valida
       pRequest->code = code;
       break;
     }
+
+    inRetry = true;
   } while (retryNum++ < REQUEST_TOTAL_EXEC_TIMES);
 
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
@@ -1436,6 +1466,10 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
 
     tscDebug("0x%" PRIx64 " fetch results, numOfRows:%d total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
              pRequest->self, pResInfo->numOfRows, pResInfo->totalRows, pResInfo->completed, pRequest->requestId);
+
+    STscObj            *pTscObj = pRequest->pTscObj;
+    SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
+    atomic_add_fetch_64((int64_t *)&pActivity->fetchBytes, pRequest->body.resInfo.payloadLen);           
 
     if (pResultInfo->numOfRows == 0) {
       return NULL;

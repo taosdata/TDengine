@@ -224,6 +224,7 @@ typedef struct SOperatorInfo {
   struct SOperatorInfo** pDownstream;      // downstram pointer list
   int32_t                numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
   SOperatorFpSet         fpSet;
+  int16_t                resultDataBlockId;
 } SOperatorInfo;
 
 typedef enum {
@@ -843,6 +844,7 @@ void    initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock);
 void    cleanupBasicInfo(SOptrBasicInfo* pInfo);
 int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr);
 void    cleanupExprSupp(SExprSupp* pSup);
+void    destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs);
 int32_t initAggInfo(SExprSupp *pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
                     const char* pkey);
 void    initResultSizeInfo(SResultInfo * pResultInfo, int32_t numOfRows);
@@ -917,9 +919,8 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream,
 SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                                 SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
                                                 STimeWindowAggSupp *pTwAggSupp, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
-                                            SSDataBlock* pResBlock, int64_t gap, int32_t tsSlotId, STimeWindowAggSupp* pTwAggSupp,
-                                            SNode* pCondition, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPhysiNode* pSessionNode,
+                                            SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                        SSDataBlock* pResultBlock, SArray* pGroupColList, SNode* pCondition,
                                        SExprInfo* pScalarExprInfo, int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo);

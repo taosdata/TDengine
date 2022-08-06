@@ -194,7 +194,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       if (*ppData) {
         goto _exit;
       } else {
-        pReader->tsdbDone = 1;
+        pReader->rsmaDone = 1;
         code = rsmaSnapReaderClose(&pReader->pRsmaReader);
         if (code) goto _err;
       }
@@ -373,18 +373,9 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
     case SNAP_DATA_STREAM_STATE: {
     } break;
     case SNAP_DATA_RSMA1:
-    case SNAP_DATA_RSMA2: {
-      // rsma1/rsma2
-      if (pWriter->pRsmaSnapWriter == NULL) {
-        code = rsmaSnapWriterOpen(pVnode->pSma, pWriter->sver, pWriter->ever, &pWriter->pRsmaSnapWriter);
-        if (code) goto _err;
-      }
-
-      code = rsmaSnapWrite(pWriter->pRsmaSnapWriter, pData, nData);
-      if (code) goto _err;
-    } break;
+    case SNAP_DATA_RSMA2:
     case SNAP_DATA_QTASK: {
-      // qtask for rsma
+      // rsma1/rsma2/qtask for rsma
       if (pWriter->pRsmaSnapWriter == NULL) {
         code = rsmaSnapWriterOpen(pVnode->pSma, pWriter->sver, pWriter->ever, &pWriter->pRsmaSnapWriter);
         if (code) goto _err;
