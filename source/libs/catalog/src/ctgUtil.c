@@ -26,6 +26,7 @@ void ctgFreeMsgSendParam(void* param) {
 
   SCtgTaskCallbackParam* pParam = (SCtgTaskCallbackParam*)param;
   taosArrayDestroy(pParam->taskId);
+  taosArrayDestroy(pParam->msgIdx);
 
   taosMemoryFree(param);
 }
@@ -874,8 +875,9 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog *pCtg, SDBVgInfo *dbInfo, const SName
   CTG_RET(code);
 }
 
-int32_t ctgGetVgInfosFromHashValue(SCatalog *pCtg, SCtgTask* pTask, SDBVgInfo *dbInfo, SCtgTbHashsCtx *pCtx, char* dbFName, SArray* pNames, bool update) {
+int32_t ctgGetVgInfosFromHashValue(SCatalog *pCtg, SCtgTaskReq* tReq, SDBVgInfo *dbInfo, SCtgTbHashsCtx *pCtx, char* dbFName, SArray* pNames, bool update) {
   int32_t code = 0;
+  SCtgTask* pTask = tReq->pTask;
   SMetaRes res = {0};
   int32_t vgNum = taosHashGetSize(dbInfo->vgHash);
   if (vgNum <= 0) {
@@ -904,7 +906,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog *pCtg, SCtgTask* pTask, SDBVgInfo *d
         vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn, vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
       if (update) {
-        SCtgFetch* pFetch = taosArrayGet(pCtx->pFetchs, pTask->msgIdx);
+        SCtgFetch* pFetch = taosArrayGet(pCtx->pFetchs, tReq->msgIdx);
         SMetaRes *pRes = taosArrayGet(pCtx->pResList, pFetch->resIdx + i);
         pRes->pRes = vgInfo;
       } else {
@@ -958,7 +960,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog *pCtg, SCtgTask* pTask, SDBVgInfo *d
              vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn, vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
     if (update) {
-      SCtgFetch* pFetch = taosArrayGet(pCtx->pFetchs, pTask->msgIdx);
+      SCtgFetch* pFetch = taosArrayGet(pCtx->pFetchs, tReq->msgIdx);
       SMetaRes *pRes = taosArrayGet(pCtx->pResList, pFetch->resIdx + i);
       pRes->pRes = pNewVg;
     } else {
