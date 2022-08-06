@@ -545,7 +545,7 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
   SArray* aBlockIdx = taosArrayInit(8, sizeof(SBlockIdx));
 
   int64_t st = taosGetTimestampUs();
-  int32_t code = tsdbReadBlockIdx(pFileReader, aBlockIdx, NULL);
+  int32_t code = tsdbReadBlockIdx(pFileReader, aBlockIdx);
   if (code != TSDB_CODE_SUCCESS) {
     goto _end;
   }
@@ -617,7 +617,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, uint32_
     STableBlockScanInfo* pScanInfo = taosHashGet(pReader->status.pTableMap, &pBlockIdx->uid, sizeof(int64_t));
 
     tMapDataReset(&pScanInfo->mapData);
-    tsdbReadBlock(pReader->pFileReader, pBlockIdx, &pScanInfo->mapData, NULL);
+    tsdbReadBlock(pReader->pFileReader, pBlockIdx, &pScanInfo->mapData);
 
     size += pScanInfo->mapData.nData;
     for (int32_t j = 0; j < pScanInfo->mapData.nItem; ++j) {

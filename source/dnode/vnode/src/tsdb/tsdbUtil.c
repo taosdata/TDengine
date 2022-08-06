@@ -152,25 +152,6 @@ int32_t tTABLEIDCmprFn(const void *p1, const void *p2) {
   return 0;
 }
 
-// TSDBKEY ======================================================
-static FORCE_INLINE int32_t tPutTSDBKEY(uint8_t *p, TSDBKEY *pKey) {
-  int32_t n = 0;
-
-  n += tPutI64v(p ? p + n : p, pKey->version);
-  n += tPutI64(p ? p + n : p, pKey->ts);
-
-  return n;
-}
-
-static FORCE_INLINE int32_t tGetTSDBKEY(uint8_t *p, TSDBKEY *pKey) {
-  int32_t n = 0;
-
-  n += tGetI64v(p + n, &pKey->version);
-  n += tGetI64(p + n, &pKey->ts);
-
-  return n;
-}
-
 // SBlockIdx ======================================================
 int32_t tPutBlockIdx(uint8_t *p, void *ph) {
   int32_t    n = 0;
@@ -225,9 +206,9 @@ int32_t tPutBlock(uint8_t *p, void *ph) {
   SBlock *pBlock = (SBlock *)ph;
 
   n += tPutI64v(p ? p + n : p, pBlock->minKey.version);
-  n += tPutI64(p ? p + n : p, pBlock->minKey.ts);
+  n += tPutI64v(p ? p + n : p, pBlock->minKey.ts);
   n += tPutI64v(p ? p + n : p, pBlock->maxKey.version);
-  n += tPutI64(p ? p + n : p, pBlock->maxKey.ts);
+  n += tPutI64v(p ? p + n : p, pBlock->maxKey.ts);
   n += tPutI64v(p ? p + n : p, pBlock->minVer);
   n += tPutI64v(p ? p + n : p, pBlock->maxVer);
   n += tPutI32v(p ? p + n : p, pBlock->nRow);
@@ -251,9 +232,9 @@ int32_t tGetBlock(uint8_t *p, void *ph) {
   SBlock *pBlock = (SBlock *)ph;
 
   n += tGetI64v(p + n, &pBlock->minKey.version);
-  n += tGetI64(p + n, &pBlock->minKey.ts);
+  n += tGetI64v(p + n, &pBlock->minKey.ts);
   n += tGetI64v(p + n, &pBlock->maxKey.version);
-  n += tGetI64(p + n, &pBlock->maxKey.ts);
+  n += tGetI64v(p + n, &pBlock->maxKey.ts);
   n += tGetI64v(p + n, &pBlock->minVer);
   n += tGetI64v(p + n, &pBlock->maxVer);
   n += tGetI32v(p + n, &pBlock->nRow);
@@ -1777,6 +1758,30 @@ int32_t tGetDiskDataHdr(uint8_t *p, void *ph) {
 }
 
 // ALGORITHM ==============================
+int32_t tPutColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg) {
+  int32_t n = 0;
+
+  n += tPutI16v(p ? p + n : p, pColAgg->colId);
+  n += tPutI16v(p ? p + n : p, pColAgg->numOfNull);
+  n += tPutI64(p ? p + n : p, pColAgg->sum);
+  n += tPutI64(p ? p + n : p, pColAgg->max);
+  n += tPutI64(p ? p + n : p, pColAgg->min);
+
+  return n;
+}
+
+int32_t tGetColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg) {
+  int32_t n = 0;
+
+  n += tGetI16v(p + n, &pColAgg->colId);
+  n += tGetI16v(p + n, &pColAgg->numOfNull);
+  n += tGetI64(p + n, &pColAgg->sum);
+  n += tGetI64(p + n, &pColAgg->max);
+  n += tGetI64(p + n, &pColAgg->min);
+
+  return n;
+}
+
 void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
   SColVal  colVal;
   SColVal *pColVal = &colVal;

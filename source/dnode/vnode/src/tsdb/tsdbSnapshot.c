@@ -58,7 +58,7 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
       if (code) goto _err;
 
       // SBlockIdx
-      code = tsdbReadBlockIdx(pReader->pDataFReader, pReader->aBlockIdx, NULL);
+      code = tsdbReadBlockIdx(pReader->pDataFReader, pReader->aBlockIdx);
       if (code) goto _err;
 
       pReader->iBlockIdx = 0;
@@ -78,7 +78,7 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
         pReader->pBlockIdx = (SBlockIdx*)taosArrayGet(pReader->aBlockIdx, pReader->iBlockIdx);
         pReader->iBlockIdx++;
 
-        code = tsdbReadBlock(pReader->pDataFReader, pReader->pBlockIdx, &pReader->mBlock, NULL);
+        code = tsdbReadBlock(pReader->pDataFReader, pReader->pBlockIdx, &pReader->mBlock);
         if (code) goto _err;
 
         pReader->iBlock = 0;
@@ -552,7 +552,7 @@ _err:
 static int32_t tsdbSnapMoveWriteTableData(STsdbSnapWriter* pWriter, SBlockIdx* pBlockIdx) {
   int32_t code = 0;
 
-  code = tsdbReadBlock(pWriter->pDataFReader, pBlockIdx, &pWriter->mBlock, NULL);
+  code = tsdbReadBlock(pWriter->pDataFReader, pBlockIdx, &pWriter->mBlock);
   if (code) goto _err;
 
   // SBlockData
@@ -791,7 +791,7 @@ static int32_t tsdbSnapWriteTableData(STsdbSnapWriter* pWriter, TABLEID id) {
     }
 
     if (pWriter->pBlockIdx) {
-      code = tsdbReadBlock(pWriter->pDataFReader, pWriter->pBlockIdx, &pWriter->mBlock, NULL);
+      code = tsdbReadBlock(pWriter->pDataFReader, pWriter->pBlockIdx, &pWriter->mBlock);
       if (code) goto _err;
     } else {
       tMapDataReset(&pWriter->mBlock);
@@ -843,7 +843,7 @@ static int32_t tsdbSnapWriteDataEnd(STsdbSnapWriter* pWriter) {
     pWriter->iBlockIdx++;
   }
 
-  code = tsdbWriteBlockIdx(pWriter->pDataFWriter, pWriter->aBlockIdxW, NULL);
+  code = tsdbWriteBlockIdx(pWriter->pDataFWriter, pWriter->aBlockIdxW);
   if (code) goto _err;
 
   code = tsdbFSUpsertFSet(&pWriter->fs, &pWriter->pDataFWriter->wSet);
@@ -897,7 +897,7 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
       code = tsdbDataFReaderOpen(&pWriter->pDataFReader, pTsdb, pSet);
       if (code) goto _err;
 
-      code = tsdbReadBlockIdx(pWriter->pDataFReader, pWriter->aBlockIdx, NULL);
+      code = tsdbReadBlockIdx(pWriter->pDataFReader, pWriter->aBlockIdx);
       if (code) goto _err;
     } else {
       ASSERT(pWriter->pDataFReader == NULL);

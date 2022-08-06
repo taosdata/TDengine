@@ -465,13 +465,12 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
       if (code) goto _err;
 
       // tMapDataReset(&state->blockIdxMap);
-      // code = tsdbReadBlockIdx(state->pDataFReader, &state->blockIdxMap, NULL);
       if (!state->aBlockIdx) {
         state->aBlockIdx = taosArrayInit(0, sizeof(SBlockIdx));
       } else {
         taosArrayClear(state->aBlockIdx);
       }
-      code = tsdbReadBlockIdx(state->pDataFReader, state->aBlockIdx, NULL);
+      code = tsdbReadBlockIdx(state->pDataFReader, state->aBlockIdx);
       if (code) goto _err;
 
       /* if (state->pBlockIdx) { */
@@ -487,8 +486,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
       }
 
       tMapDataReset(&state->blockMap);
-      code = tsdbReadBlock(state->pDataFReader, state->pBlockIdx, &state->blockMap, NULL);
-      /* code = tsdbReadBlock(state->pDataFReader, &state->blockIdx, &state->blockMap, NULL); */
+      code = tsdbReadBlock(state->pDataFReader, state->pBlockIdx, &state->blockMap);
       if (code) goto _err;
 
       state->nBlock = state->blockMap.nItem;

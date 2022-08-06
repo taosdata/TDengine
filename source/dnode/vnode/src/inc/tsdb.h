@@ -183,6 +183,8 @@ void    tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *m
 int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t now);
 int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SArray *aSkyline);
 void    tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg);
+int32_t tPutColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg);
+int32_t tGetColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg);
 // tsdbMemTable ==============================================================================================
 // SMemTable
 int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
@@ -238,9 +240,9 @@ int32_t tsdbFSUpsertDelFile(STsdbFS *pFS, SDelFile *pDelFile);
 int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet);
 int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync);
 int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter);
-int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx, uint8_t **ppBuf);
-int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf, SBlockIdx *pBlockIdx);
-int32_t tsdbWriteBlockL(SDataFWriter *pWriter, SArray *aBlockL, uint8_t **ppBuf);
+int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx);
+int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, SBlockIdx *pBlockIdx);
+int32_t tsdbWriteBlockL(SDataFWriter *pWriter, SArray *aBlockL);
 int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo,
                            int8_t cmprAlg, int8_t toLast, uint8_t **ppBuf);
 
@@ -248,9 +250,9 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo);
 // SDataFReader
 int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet);
 int32_t tsdbDataFReaderClose(SDataFReader **ppReader);
-int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx, uint8_t **ppBuf);
-int32_t tsdbReadBlockL(SDataFReader *pReader, SArray *aBlockL, uint8_t **ppBuf);
-int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMapData, uint8_t **ppBuf);
+int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx);
+int32_t tsdbReadBlockL(SDataFReader *pReader, SArray *aBlockL);
+int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMapData);
 int32_t tsdbReadColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBlock, int16_t *aColId, int32_t nCol,
                         SBlockData *pBlockData, uint8_t **ppBuf1, uint8_t **ppBuf2);
 int32_t tsdbReadBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBlock, SBlockData *pBlockData,
@@ -604,6 +606,9 @@ struct SDataFWriter {
   SDataFile fData;
   SLastFile fLast;
   SSmaFile  fSma;
+
+  uint8_t *pBuf1;
+  uint8_t *pBuf2;
 
   SDiskData dData;
 };

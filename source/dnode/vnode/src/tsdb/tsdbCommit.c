@@ -339,7 +339,7 @@ static int32_t tsdbCommitterNextTableData(SCommitter *pCommitter) {
     pCommitter->dReader.pBlockIdx =
         (SBlockIdx *)taosArrayGet(pCommitter->dReader.aBlockIdx, pCommitter->dReader.iBlockIdx);
 
-    code = tsdbReadBlock(pCommitter->dReader.pReader, pCommitter->dReader.pBlockIdx, &pCommitter->dReader.mBlock, NULL);
+    code = tsdbReadBlock(pCommitter->dReader.pReader, pCommitter->dReader.pBlockIdx, &pCommitter->dReader.mBlock);
     if (code) goto _exit;
 
     ASSERT(pCommitter->dReader.mBlock.nItem > 0);
@@ -370,7 +370,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
     if (code) goto _err;
 
     // data
-    code = tsdbReadBlockIdx(pCommitter->dReader.pReader, pCommitter->dReader.aBlockIdx, NULL);
+    code = tsdbReadBlockIdx(pCommitter->dReader.pReader, pCommitter->dReader.aBlockIdx);
     if (code) goto _err;
 
     pCommitter->dReader.iBlockIdx = 0;
@@ -378,8 +378,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
       pCommitter->dReader.pBlockIdx =
           (SBlockIdx *)taosArrayGet(pCommitter->dReader.aBlockIdx, pCommitter->dReader.iBlockIdx);
 
-      code =
-          tsdbReadBlock(pCommitter->dReader.pReader, pCommitter->dReader.pBlockIdx, &pCommitter->dReader.mBlock, NULL);
+      code = tsdbReadBlock(pCommitter->dReader.pReader, pCommitter->dReader.pBlockIdx, &pCommitter->dReader.mBlock);
       if (code) goto _err;
     } else {
       pCommitter->dReader.pBlockIdx = NULL;
@@ -387,7 +386,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
     tBlockDataReset(&pCommitter->dReader.bData);
 
     // last
-    code = tsdbReadBlockL(pCommitter->dReader.pReader, pCommitter->dReader.aBlockL, NULL);
+    code = tsdbReadBlockL(pCommitter->dReader.pReader, pCommitter->dReader.aBlockL);
     if (code) goto _err;
 
     pCommitter->dReader.iBlockL = -1;
@@ -506,7 +505,7 @@ static int32_t tsdbCommitDataBlock(SCommitter *pCommitter, SBlock *pBlock) {
     tBlockReset(&block);  // as a new block
   }
 
-  // statistic
+  // info
   block.nRow += pBlockData->nRow;
   for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
     TSDBKEY key = {.ts = pBlockData->aTSKEY[iRow], .version = pBlockData->aVersion[iRow]};
@@ -532,7 +531,7 @@ static int32_t tsdbCommitDataBlock(SCommitter *pCommitter, SBlock *pBlock) {
   // write
   block.nSubBlock++;
   code = tsdbWriteBlockData(pCommitter->dWriter.pWriter, pBlockData, &block.aSubBlock[block.nSubBlock - 1],
-                            ((block.nSubBlock == 1) && block.hasDup) ? &block.smaInfo : NULL, pCommitter->cmprAlg, 0,
+                            ((block.nSubBlock == 1) && !block.hasDup) ? &block.smaInfo : NULL, pCommitter->cmprAlg, 0,
                             NULL);
   if (code) goto _err;
 
@@ -557,7 +556,7 @@ static int32_t tsdbCommitLastBlock(SCommitter *pCommitter) {
 
   ASSERT(pBlockData->nRow > 0);
 
-  // statistic
+  // info
   blockL.suid = pBlockData->suid;
   blockL.nRow = pBlockData->nRow;
   blockL.minVer = VERSION_MAX;
@@ -1041,7 +1040,7 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData) {
   // end
   if (pCommitter->dWriter.mBlock.nItem > 0) {
     SBlockIdx blockIdx = {.suid = pTbData->suid, .uid = pTbData->uid};
-    code = tsdbWriteBlock(pCommitter->dWriter.pWriter, &pCommitter->dWriter.mBlock, NULL, &blockIdx);
+    code = tsdbWriteBlock(pCommitter->dWriter.pWriter, &pCommitter->dWriter.mBlock, &blockIdx);
     if (code) goto _err;
 
     if (taosArrayPush(pCommitter->dWriter.aBlockIdx, &blockIdx) == NULL) {
@@ -1067,11 +1066,11 @@ static int32_t tsdbCommitFileDataEnd(SCommitter *pCommitter) {
   int32_t code = 0;
 
   // write aBlockIdx
-  code = tsdbWriteBlockIdx(pCommitter->dWriter.pWriter, pCommitter->dWriter.aBlockIdx, NULL);
+  code = tsdbWriteBlockIdx(pCommitter->dWriter.pWriter, pCommitter->dWriter.aBlockIdx);
   if (code) goto _err;
 
   // write aBlockL
-  code = tsdbWriteBlockL(pCommitter->dWriter.pWriter, pCommitter->dWriter.aBlockL, NULL);
+  code = tsdbWriteBlockL(pCommitter->dWriter.pWriter, pCommitter->dWriter.aBlockL);
   if (code) goto _err;
 
   // update file header
@@ -1107,7 +1106,7 @@ static int32_t tsdbMoveCommitData(SCommitter *pCommitter, TABLEID toTable) {
     if (pCommitter->dReader.pBlockIdx == NULL || tTABLEIDCmprFn(pCommitter->dReader.pBlockIdx, &toTable) >= 0) break;
 
     SBlockIdx blockIdx = *pCommitter->dReader.pBlockIdx;
-    code = tsdbWriteBlock(pCommitter->dWriter.pWriter, &pCommitter->dReader.mBlock, NULL, &blockIdx);
+    code = tsdbWriteBlock(pCommitter->dWriter.pWriter, &pCommitter->dReader.mBlock, &blockIdx);
     if (code) goto _err;
 
     if (taosArrayPush(pCommitter->dWriter.aBlockIdx, &blockIdx) == NULL) {
