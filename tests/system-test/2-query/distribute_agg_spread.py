@@ -6,6 +6,7 @@ import random
 
 
 class TDTestCase:
+    updatecfgDict = {"maxTablesPerVnode":2 ,"minTablesPerVnode":2,"tableIncStepPerVnode":2 }
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to execute {__file__}")
@@ -183,9 +184,6 @@ class TDTestCase:
         for colname in colnames:
             if colname.startswith(f"c"):
                 self.check_spread_distribute_diff_vnode(colname)
-            else:
-                # self.check_spread_distribute_diff_vnode(colname) # bug for tag
-                pass
 
     def distribute_agg_query(self, dbname="testdb"):
         # basic filter
