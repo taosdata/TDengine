@@ -1448,6 +1448,10 @@ static void doUpdateNumOfRows(SResultRow* pRow, int32_t numOfExprs, const int32_
       pRow->numOfRows = pResInfo->numOfRes;
     }
   }
+  // TODO: if all expr skips all blocks, e.g. all null inputs for max function, output one row in final result.
+  if (pRow->numOfRows == 0) {
+    pRow->numOfRows = 1;
+  }
 }
 
 // todo extract method with copytoSSDataBlock
