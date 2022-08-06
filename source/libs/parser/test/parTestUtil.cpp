@@ -24,6 +24,7 @@
 #include "parInt.h"
 
 using namespace std;
+using namespace std::placeholders;
 using namespace testing;
 
 namespace ParserTest {
@@ -118,8 +119,8 @@ class ParserTestBaseImpl {
     TEST_INTERFACE_ASYNC_API
   };
 
-  static void _destoryParseMetaCache(SParseMetaCache* pMetaCache) {
-    destoryParseMetaCache(pMetaCache);
+  static void _destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request) {
+    destoryParseMetaCache(pMetaCache, request);
     delete pMetaCache;
   }
 
@@ -340,7 +341,9 @@ class ParserTestBaseImpl {
       doParse(&cxt, query.get());
       SQuery* pQuery = *(query.get());
 
-      unique_ptr<SParseMetaCache, void (*)(SParseMetaCache*)> metaCache(new SParseMetaCache(), _destoryParseMetaCache);
+      bool                                                           request = true;
+      unique_ptr<SParseMetaCache, function<void(SParseMetaCache*)> > metaCache(
+          new SParseMetaCache(), bind(_destoryParseMetaCache, _1, cref(request)));
       doCollectMetaKey(&cxt, pQuery, metaCache.get());
 
       unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
@@ -353,6 +356,8 @@ class ParserTestBaseImpl {
           unique_ptr<SMetaData, void (*)(SMetaData*)> metaData(new SMetaData(), MockCatalogService::destoryMetaData);
           doGetAllMeta(catalogReq.get(), metaData.get());
 
+          metaCache.reset(new SParseMetaCache());
+          request = false;
           doPutMetaDataToCache(catalogReq.get(), metaData.get(), metaCache.get());
 
           doAuthenticate(&cxt, pQuery, metaCache.get());

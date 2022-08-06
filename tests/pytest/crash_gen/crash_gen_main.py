@@ -1339,8 +1339,9 @@ class Task():
                 0x03A1, # STable [does] not exist
                 0x03AA, # Tag already exists
                 0x0603, # Table already exists
-                0x2603, # Table does not exist
+                0x2603, # Table does not exist, replaced by 2662 below
                 0x260d, # Tags number not matched
+                0x2662, # Table does not exist #TODO: what about 2603 above?
 
 
 

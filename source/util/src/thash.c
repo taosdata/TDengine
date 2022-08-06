@@ -832,8 +832,9 @@ void *taosHashIterate(SHashObj *pHashObj, void *p) {
   if (pNode) {
     SHashEntry *pe = pHashObj->hashList[slot];
 
-    uint16_t prevRef = atomic_load_16(&pNode->refCount);
+    /*uint16_t prevRef = atomic_load_16(&pNode->refCount);*/
     uint16_t afterRef = atomic_add_fetch_16(&pNode->refCount, 1);
+#if 0
     ASSERT(prevRef < afterRef);
 
     // the reference count value is overflow, which will cause the delete node operation immediately.
@@ -845,6 +846,8 @@ void *taosHashIterate(SHashObj *pHashObj, void *p) {
     } else {
       data = GET_HASH_NODE_DATA(pNode);
     }
+#endif
+    data = GET_HASH_NODE_DATA(pNode);
 
     if (afterRef >= MAX_WARNING_REF_COUNT) {
       uWarn("hash entry ref count is abnormally high: %d", afterRef);

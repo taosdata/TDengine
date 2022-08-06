@@ -93,6 +93,29 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
   }
 }
 
+void tdCleanupStreamInputDataBlock(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  if (!pTaskInfo || !pTaskInfo->pRoot || pTaskInfo->pRoot->numOfDownstream <= 0) {
+    return;
+  }
+  SOperatorInfo* pOptrInfo = pTaskInfo->pRoot->pDownstream[0];
+
+  if (pOptrInfo->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    SStreamScanInfo* pInfo = pOptrInfo->info;
+    if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
+      for (int32_t i = 0; i < taosArrayGetSize(pInfo->pBlockLists); ++i) {
+        SSDataBlock* p = *(SSDataBlock**)taosArrayGet(pInfo->pBlockLists, i);
+        taosArrayDestroy(p->pDataBlock);
+        taosMemoryFreeClear(p);
+      }
+    } else {
+      ASSERT(0);
+    }
+  } else {
+    ASSERT(0);
+  }
+}
+
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
   if (tinfo == NULL) {
     return TSDB_CODE_QRY_APP_ERROR;
@@ -104,7 +127,7 @@ int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numO
 
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
-  int32_t code = doSetStreamBlock(pTaskInfo->pRoot, (void**)pBlocks, numOfBlocks, type, GET_TASKID(pTaskInfo));
+  int32_t code = doSetStreamBlock(pTaskInfo->pRoot, (void*)pBlocks, numOfBlocks, type, GET_TASKID(pTaskInfo));
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed to set the stream block data", GET_TASKID(pTaskInfo));
   } else {
@@ -193,6 +216,8 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
       continue;
     }
 
+    tDecoderClear(&mr.coder);
+
     // TODO handle ntb case
     if (mr.me.type != TSDB_CHILD_TABLE || mr.me.ctbEntry.suid != pScanInfo->tableUid) {
       continue;
@@ -241,7 +266,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
     }
 
     // todo refactor STableList
-    bool assignUid = false;
+    bool   assignUid = false;
     size_t bufLen = (pScanInfo->pGroupTags != NULL) ? getTableTagsBufLen(pScanInfo->pGroupTags) : 0;
     char*  keyBuf = NULL;
     if (bufLen > 0) {
@@ -316,7 +341,7 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* table
 }
 
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
-                        qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, const char* sql, EOPTR_EXEC_MODEL model) {
+                        qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, char* sql, EOPTR_EXEC_MODEL model) {
   assert(pSubplan != NULL);
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
 

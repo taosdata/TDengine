@@ -436,8 +436,8 @@ static int32_t pushDownCondOptDealScan(SOptimizeContext* pCxt, SScanLogicNode* p
 
   SNode*  pPrimaryKeyCond = NULL;
   SNode*  pOtherCond = NULL;
-  int32_t code = filterPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pScan->pTagIndexCond, &pScan->pTagCond,
-                                    &pOtherCond);
+  int32_t code = filterPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pScan->pTagIndexCond,
+                                     &pScan->pTagCond, &pOtherCond);
   if (TSDB_CODE_SUCCESS == code && NULL != pScan->pTagCond) {
     code = pushDownCondOptRebuildTbanme(&pScan->pTagCond);
   }
@@ -1711,7 +1711,7 @@ static bool eliminateProjOptCanChildConditionUseChildTargets(SLogicNode* pChild,
     if (!cxt.canUse) return false;
   }
   if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pChild) && NULL != ((SJoinLogicNode*)pChild)->pOnConditions) {
-    SJoinLogicNode* pJoinLogicNode = (SJoinLogicNode*)pChild;
+    SJoinLogicNode*         pJoinLogicNode = (SJoinLogicNode*)pChild;
     CheckNewChildTargetsCxt cxt = {.pNewChildTargets = pNewChildTargets, .canUse = false};
     nodesWalkExpr(pJoinLogicNode->pOnConditions, eliminateProjOptCanUseNewChildTargetsImpl, &cxt);
     if (!cxt.canUse) return false;
@@ -1768,7 +1768,7 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   if (TSDB_CODE_SUCCESS == code) {
     NODES_CLEAR_LIST(pProjectNode->node.pChildren);
     nodesDestroyNode((SNode*)pProjectNode);
-    //if pChild is a project logic node, remove its projection which is not reference by its target.
+    // if pChild is a project logic node, remove its projection which is not reference by its target.
     alignProjectionWithTarget(pChild);
   }
   pCxt->optimized = true;
@@ -2404,6 +2404,9 @@ static const SOptimizeRule optimizeRuleSet[] = {
 static const int32_t optimizeRuleNum = (sizeof(optimizeRuleSet) / sizeof(SOptimizeRule));
 
 static void dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
+  if (0 == (qDebugFlag & DEBUG_DEBUG)) {
+    return;
+  }
   char* pStr = NULL;
   nodesNodeToString((SNode*)pSubplan, false, &pStr, NULL);
   if (NULL == pRuleName) {
