@@ -88,14 +88,15 @@ int32_t tDecodeSMStreamTaskRecoverRsp(SDecoder* pDecoder, SMStreamTaskRecoverRsp
 }
 
 int32_t streamProcessFailRecoverReq(SStreamTask* pTask, SMStreamTaskRecoverReq* pReq, SRpcMsg* pRsp) {
+#if 0
   if (pTask->taskStatus != TASK_STATUS__FAIL) {
     return 0;
   }
 
   if (pTask->isStreamDistributed) {
-    if (pTask->isDataScan) {
+    if (pTask->taskType == TASK_TYPE__SOURCE) {
       pTask->taskStatus = TASK_STATUS__PREPARE_RECOVER;
-    } else if (pTask->execType != TASK_EXEC__NONE) {
+    } else if (pTask->taskType != TASK_TYPE__SINK) {
       pTask->taskStatus = TASK_STATUS__PREPARE_RECOVER;
       bool    hasCheckpoint = false;
       int32_t childSz = taosArrayGetSize(pTask->childEpInfo);
@@ -113,7 +114,7 @@ int32_t streamProcessFailRecoverReq(SStreamTask* pTask, SMStreamTaskRecoverReq* 
       }
     }
   } else {
-    if (pTask->isDataScan) {
+    if (pTask->taskType == TASK_TYPE__SOURCE) {
       if (pTask->checkpointVer != -1) {
         // load from checkpoint
       } else {
@@ -133,5 +134,6 @@ int32_t streamProcessFailRecoverReq(SStreamTask* pTask, SMStreamTaskRecoverReq* 
     }
   }
 
+#endif
   return 0;
 }
