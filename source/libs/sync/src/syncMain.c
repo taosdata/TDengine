@@ -1270,6 +1270,8 @@ int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode) {
   atomic_add_fetch_64(&pSyncNode->electTimerLogicClockUser, 1);
   taosTmrStop(pSyncNode->pElectTimer);
   pSyncNode->pElectTimer = NULL;
+
+  sTrace("vgId:%d, sync %s stop elect timer", pSyncNode->vgId, syncUtilState2String(pSyncNode->state));
   return ret;
 }
 
@@ -1343,7 +1345,8 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
   atomic_add_fetch_64(&pSyncNode->heartbeatTimerLogicClockUser, 1);
   taosTmrStop(pSyncNode->pHeartbeatTimer);
   pSyncNode->pHeartbeatTimer = NULL;
-  sTrace("vgId:%d, stop heartbeat timer", pSyncNode->vgId);
+
+  sTrace("vgId:%d, sync %s stop heartbeat timer", pSyncNode->vgId, syncUtilState2String(pSyncNode->state));
 
   return ret;
 }
@@ -1562,7 +1565,7 @@ char* syncNode2Str(const SSyncNode* pSyncNode) {
   return serialized;
 }
 
-void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
+inline void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
   int32_t userStrLen = strlen(str);
 
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
@@ -1634,7 +1637,7 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
   taosMemoryFree(pCfgStr);
 }
 
-void syncNodeErrorLog(const SSyncNode* pSyncNode, char* str) {
+inline void syncNodeErrorLog(const SSyncNode* pSyncNode, char* str) {
   int32_t userStrLen = strlen(str);
 
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
@@ -1701,7 +1704,7 @@ void syncNodeErrorLog(const SSyncNode* pSyncNode, char* str) {
   taosMemoryFree(pCfgStr);
 }
 
-char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
+inline char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
   int   len = 256;
   char* s = (char*)taosMemoryMalloc(len);
 
@@ -1724,7 +1727,7 @@ char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
   return s;
 }
 
-bool syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config) {
+inline bool syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config) {
   bool b1 = false;
   bool b2 = false;
 
@@ -1984,6 +1987,12 @@ void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
     snprintf(tmpBuf, sizeof(tmpBuf), "update term to %" PRIu64, term);
     syncNodeBecomeFollower(pSyncNode, tmpBuf);
     raftStoreClearVote(pSyncNode->pRaftStore);
+  }
+}
+
+void syncNodeUpdateTermWithoutStepDown(SSyncNode* pSyncNode, SyncTerm term) {
+  if (term > pSyncNode->pRaftStore->currentTerm) {
+    raftStoreSetTerm(pSyncNode->pRaftStore, term);
   }
 }
 
@@ -2614,7 +2623,7 @@ int32_t syncNodeOnClientRequestBatchCb(SSyncNode* ths, SyncClientRequestBatch* p
   // fsync once
   SSyncLogStoreData* pData = ths->pLogStore->data;
   SWal*              pWal = pData->pWal;
-  walFsync(pWal, true);
+  walFsync(pWal, false);
 
   if (ths->replicaNum > 1) {
     // if multi replica, start replicate right now
@@ -2797,11 +2806,28 @@ bool syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg) {
 }
 
 int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag) {
+  if (beginIndex > endIndex) {
+    return 0;
+  }
+
+  // advance commit index to sanpshot first
+  SSnapshot snapshot = {0};
+  ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
+  if (snapshot.lastApplyIndex >= 0 && snapshot.lastApplyIndex >= beginIndex) {
+    char eventLog[128];
+    snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%" PRId64 " to index:%" PRId64, beginIndex,
+             snapshot.lastApplyIndex);
+    syncNodeEventLog(ths, eventLog);
+
+    // update begin index
+    beginIndex = snapshot.lastApplyIndex + 1;
+  }
+
   int32_t    code = 0;
   ESyncState state = flag;
 
   char eventLog[128];
-  snprintf(eventLog, sizeof(eventLog), "commit wal from index:%" PRId64 " to index:%" PRId64, beginIndex, endIndex);
+  snprintf(eventLog, sizeof(eventLog), "commit by wal from index:%" PRId64 " to index:%" PRId64, beginIndex, endIndex);
   syncNodeEventLog(ths, eventLog);
 
   // execute fsm
@@ -3040,7 +3066,7 @@ void syncLogRecvAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntries
   syncNodeEventLog(pSyncNode, logBuf);
 }
 
-void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s) {
+ void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s) {
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);

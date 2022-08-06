@@ -52,15 +52,16 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 
   pMeta->ahandle = ahandle;
   pMeta->expandFunc = expandFunc;
-
+  return pMeta;
 _err:
-
   return NULL;
 }
 
 void streamMetaClose(SStreamMeta* pMeta) {
-  //
-  return;
+  tdbCommit(pMeta->db, &pMeta->txn);
+  tdbTbClose(pMeta->pTaskDb);
+  tdbTbClose(pMeta->pStateDb);
+  tdbClose(pMeta->db);
 }
 
 int32_t streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask) {
@@ -123,13 +124,32 @@ int32_t streamMetaCommit(SStreamMeta* pMeta) {
   if (tdbCommit(pMeta->db, &pMeta->txn) < 0) {
     return -1;
   }
+  memset(&pMeta->txn, 0, sizeof(TXN));
+  if (tdbTxnOpen(&pMeta->txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
+      0) {
+    return -1;
+  }
+  if (tdbBegin(pMeta->db, &pMeta->txn) < 0) {
+    return -1;
+  }
   return 0;
 }
 
-int32_t streamMetaRollBack(SStreamMeta* pMeta) {
-  // TODO tdb rollback
+int32_t streamMetaAbort(SStreamMeta* pMeta) {
+  if (tdbAbort(pMeta->db, &pMeta->txn) < 0) {
+    return -1;
+  }
+  memset(&pMeta->txn, 0, sizeof(TXN));
+  if (tdbTxnOpen(&pMeta->txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
+      0) {
+    return -1;
+  }
+  if (tdbBegin(pMeta->db, &pMeta->txn) < 0) {
+    return -1;
+  }
   return 0;
 }
+
 int32_t streamRestoreTask(SStreamMeta* pMeta) {
   TBC* pCur = NULL;
   if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
@@ -153,6 +173,18 @@ int32_t streamRestoreTask(SStreamMeta* pMeta) {
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     tDecodeSStreamTask(&decoder, pTask);
     tDecoderClear(&decoder);
+
+    if (pMeta->expandFunc(pMeta->ahandle, pTask) < 0) {
+      return -1;
+    }
+
+    if (taosHashPut(pMeta->pTasks, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void*)) < 0) {
+      return -1;
+    }
+  }
+
+  if (tdbTbcClose(pCur) < 0) {
+    return -1;
   }
 
   return 0;

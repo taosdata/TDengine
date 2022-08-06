@@ -110,9 +110,6 @@ static int32_t sndProcessTaskDeployReq(SSnode *pNode, SRpcMsg *pMsg) {
 
   pTask->pMsgCb = &pNode->msgCb;
 
-  ASSERT(pTask->execType != TASK_EXEC__NONE);
-
-  ASSERT(pTask->isDataScan == 0);
   pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, NULL);
   ASSERT(pTask->exec.executor);
 
