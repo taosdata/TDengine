@@ -2344,8 +2344,9 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
           break;
         }
       } else if (ts < pSliceInfo->current) {
-        //in case interpolation window starts and ends between two datapoints, fill(prev) need to interpolate
+        //in case interpolation window starts and ends between two datapoints, fill(prev), fill(next) need to interpolate
         doKeepPrevRows(pSliceInfo, pBlock, i);
+        doKeepNextRows(pSliceInfo, pBlock, i + 1);
 
         if (i < pBlock->info.rows - 1) {
           int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, i + 1);
