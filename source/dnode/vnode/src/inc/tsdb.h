@@ -62,6 +62,8 @@ typedef struct SRowIter      SRowIter;
 typedef struct STsdbFS       STsdbFS;
 typedef struct SRowMerger    SRowMerger;
 typedef struct STsdbReadSnap STsdbReadSnap;
+typedef struct SBlockInfo    SBlockInfo;
+typedef struct SSmaInfo      SSmaInfo;
 
 #define TSDB_MAX_SUBBLOCKS 8
 #define TSDB_FHDR_SIZE     512
@@ -411,16 +413,16 @@ typedef struct {
   uint8_t **ppData;
 } SBlockCol;
 
-typedef struct {
+struct SBlockInfo {
   int64_t offset;  // block data offset
   int32_t szBlock;
   int32_t szKey;
-} SBlockInfo;
+};
 
-typedef struct {
+struct SSmaInfo {
   int64_t offset;
   int32_t size;
-} SSmaInfo;
+};
 
 struct SBlock {
   TSDBKEY    minKey;
