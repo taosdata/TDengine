@@ -57,11 +57,14 @@ int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
 
   // maybe update term
   if (pMsg->term > ths->pRaftStore->currentTerm) {
+    syncNodeUpdateTerm(ths, pMsg->term);
+#if 0  
     if (logOK) {
       syncNodeUpdateTerm(ths, pMsg->term);
     } else {
       syncNodeUpdateTermWithoutStepDown(ths, pMsg->term);
     }
+#endif
   }
   ASSERT(pMsg->term <= ths->pRaftStore->currentTerm);
 
@@ -167,11 +170,14 @@ int32_t syncNodeOnRequestVoteSnapshotCb(SSyncNode* ths, SyncRequestVote* pMsg) {
 
   // maybe update term
   if (pMsg->term > ths->pRaftStore->currentTerm) {
+    syncNodeUpdateTerm(ths, pMsg->term);
+#if 0
     if (logOK) {
       syncNodeUpdateTerm(ths, pMsg->term);
     } else {
       syncNodeUpdateTermWithoutStepDown(ths, pMsg->term);
     }
+#endif
   }
   ASSERT(pMsg->term <= ths->pRaftStore->currentTerm);
 
