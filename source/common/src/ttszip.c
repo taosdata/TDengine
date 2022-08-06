@@ -30,6 +30,12 @@ static int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader);
  * @return
  */
 STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
+  if (!osTempSpaceAvailable()) {
+    terrno = TSDB_CODE_TSC_NO_DISKSPACE;
+    // tscError("tmp file created failed since %s", terrstr());
+    return NULL;
+  }
+  
   STSBuf* pTSBuf = taosMemoryCalloc(1, sizeof(STSBuf));
   if (pTSBuf == NULL) {
     return NULL;

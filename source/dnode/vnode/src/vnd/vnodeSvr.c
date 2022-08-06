@@ -330,6 +330,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     case TDMT_STREAM_TASK_RUN:
       return tqProcessTaskRunReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_DISPATCH:
+      //      return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, pInfo->workerId != 0);
       return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, true);
     case TDMT_STREAM_TASK_RECOVER:
       return tqProcessTaskRecoverReq(pVnode->pTq, pMsg);
@@ -436,14 +437,10 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *p
     goto _err;
   }
 
-  // taosMemoryFree(req.schemaRow.pSchema);
-  // taosMemoryFree(req.schemaTag.pSchema);
   tDecoderClear(&coder);
   return 0;
 
 _err:
-  taosMemoryFree(req.schemaRow.pSchema);
-  taosMemoryFree(req.schemaTag.pSchema);
   tDecoderClear(&coder);
   return -1;
 }

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "taoserror.h"
 #include "tglobal.h"
 #include "tcompare.h"
 
@@ -257,7 +258,14 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval,
 
   resetSlotInfo(pBucket);
 
-  int32_t ret = createDiskbasedBuf(&pBucket->pBuffer, pBucket->bufPageSize, pBucket->bufPageSize * 512, "1", TD_TMP_DIR_PATH);
+  if (!osTempSpaceAvailable()) {
+    terrno = TSDB_CODE_NO_AVAIL_DISK;
+    // qError("MemBucket create disk based Buf failed since %s", terrstr(terrno));
+    tMemBucketDestroy(pBucket);
+    return NULL;
+  }
+
+  int32_t ret = createDiskbasedBuf(&pBucket->pBuffer, pBucket->bufPageSize, pBucket->bufPageSize * 512, "1", tsTempDir);
   if (ret != 0) {
     tMemBucketDestroy(pBucket);
     return NULL;

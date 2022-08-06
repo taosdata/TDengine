@@ -443,19 +443,23 @@ SNode* createNotBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, 
                                   createOperatorNode(pCxt, OP_TYPE_GREATER_THAN, nodesCloneNode(pExpr), pRight));
 }
 
-static SNode* createPrimaryKeyCol(SAstCreateContext* pCxt) {
+static SNode* createPrimaryKeyCol(SAstCreateContext* pCxt, const SToken* pFuncName) {
   CHECK_PARSER_STATUS(pCxt);
   SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   CHECK_OUT_OF_MEM(pCol);
   pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-  strcpy(pCol->colName, PK_TS_COL_INTERNAL_NAME);
+  if (NULL == pFuncName) {
+    strcpy(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME);
+  } else {
+    strncpy(pCol->colName, pFuncName->z, pFuncName->n);
+  }
   return (SNode*)pCol;
 }
 
 SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList) {
   CHECK_PARSER_STATUS(pCxt);
   if (0 == strncasecmp("_rowts", pFuncName->z, pFuncName->n) || 0 == strncasecmp("_c0", pFuncName->z, pFuncName->n)) {
-    return createPrimaryKeyCol(pCxt);
+    return createPrimaryKeyCol(pCxt, pFuncName);
   }
   SFunctionNode* func = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   CHECK_OUT_OF_MEM(func);
@@ -586,7 +590,7 @@ SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr) {
   CHECK_PARSER_STATUS(pCxt);
   SStateWindowNode* state = (SStateWindowNode*)nodesMakeNode(QUERY_NODE_STATE_WINDOW);
   CHECK_OUT_OF_MEM(state);
-  state->pCol = createPrimaryKeyCol(pCxt);
+  state->pCol = createPrimaryKeyCol(pCxt, NULL);
   if (NULL == state->pCol) {
     nodesDestroyNode((SNode*)state);
     CHECK_OUT_OF_MEM(state->pCol);
@@ -600,7 +604,7 @@ SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode
   CHECK_PARSER_STATUS(pCxt);
   SIntervalWindowNode* interval = (SIntervalWindowNode*)nodesMakeNode(QUERY_NODE_INTERVAL_WINDOW);
   CHECK_OUT_OF_MEM(interval);
-  interval->pCol = createPrimaryKeyCol(pCxt);
+  interval->pCol = createPrimaryKeyCol(pCxt, NULL);
   if (NULL == interval->pCol) {
     nodesDestroyNode((SNode*)interval);
     CHECK_OUT_OF_MEM(interval->pCol);
@@ -639,7 +643,7 @@ SNode* createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode) {
 
 SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd) {
   CHECK_PARSER_STATUS(pCxt);
-  return createBetweenAnd(pCxt, createPrimaryKeyCol(pCxt), pStart, pEnd);
+  return createBetweenAnd(pCxt, createPrimaryKeyCol(pCxt, NULL), pStart, pEnd);
 }
 
 SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, SToken* pAlias) {
@@ -752,7 +756,7 @@ SNode* addFillClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pFill) {
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt) && NULL != pFill) {
     SFillNode* pFillClause = (SFillNode*)pFill;
     nodesDestroyNode(pFillClause->pWStartTs);
-    pFillClause->pWStartTs = createPrimaryKeyCol(pCxt);
+    pFillClause->pWStartTs = createPrimaryKeyCol(pCxt, NULL);
     ((SSelectStmt*)pStmt)->pFill = (SNode*)pFillClause;
   }
   return pStmt;
@@ -767,6 +771,7 @@ SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pPr
   select->pFromTable = pTable;
   sprintf(select->stmtName, "%p", select);
   select->isTimeLineResult = true;
+  select->onlyHasKeepOrderFunc = true;
   select->timeRange = TSWINDOW_INITIALIZER;
   return (SNode*)select;
 }
@@ -1730,7 +1735,7 @@ SNode* createCountFuncForDelete(SAstCreateContext* pCxt) {
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   CHECK_OUT_OF_MEM(pFunc);
   strcpy(pFunc->functionName, "count");
-  if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pFunc->pParameterList, createPrimaryKeyCol(pCxt))) {
+  if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pFunc->pParameterList, createPrimaryKeyCol(pCxt, NULL))) {
     nodesDestroyNode((SNode*)pFunc);
     CHECK_OUT_OF_MEM(NULL);
   }
