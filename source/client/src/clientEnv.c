@@ -111,7 +111,9 @@ static bool clientRpcRfp(int32_t code, tmsg_t msgType) {
 
 // start timer for particular msgType
 static bool clientRpcTfp(int32_t code, tmsg_t msgType) {
-  //
+  if (msgType == TDMT_VND_SUBMIT || msgType == TDMT_VND_CREATE_TABLE) {
+    return true;
+  }
   return false;
 }
 
