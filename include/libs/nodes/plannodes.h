@@ -114,6 +114,7 @@ typedef struct SAggLogicNode {
   SNodeList* pAggFuncs;
   bool       hasLastRow;
   bool       hasTimeLineFunc;
+  bool       onlyHasKeepOrderFunc;
 } SAggLogicNode;
 
 typedef struct SProjectLogicNode {
@@ -554,6 +555,8 @@ typedef struct SQueryPlan {
 } SQueryPlan;
 
 void nodesWalkPhysiPlan(SNode* pNode, FNodeWalker walker, void* pContext);
+
+const char* dataOrderStr(EDataOrderLevel order);
 
 #ifdef __cplusplus
 }
