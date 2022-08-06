@@ -107,6 +107,7 @@ typedef struct SDataBlockInfo {
   int32_t     childId;  // used for stream, do not serialize
   EStreamType type;     // used for stream, do not serialize
   STimeWindow calWin;   // used for stream, do not serialize
+  TSKEY       watermark;// used for stream
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {

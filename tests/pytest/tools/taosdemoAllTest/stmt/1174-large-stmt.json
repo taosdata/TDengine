@@ -6,7 +6,7 @@
 	"user": "root",
 	"password": "taosdata",
 	"thread_count": 10,
-	"thread_count_create_tbl": 1,
+	"create_table_thread_count": 1,
     "result_file": "1174.out",
     "confirm_parameter_prompt": "no",
 	"num_of_records_per_req": 51,

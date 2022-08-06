@@ -4180,7 +4180,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     int32_t children = 0;
     pOptr = createStreamFinalSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, children);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION == type) {
-    int32_t children = 1;
+    int32_t children = pHandle->numOfVgroups;
     pOptr = createStreamFinalSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, children);
   } else if (QUERY_NODE_PHYSICAL_PLAN_PARTITION == type) {
     pOptr = createPartitionOperatorInfo(ops[0], (SPartitionPhysiNode*)pPhyNode, pTaskInfo);
@@ -4492,7 +4492,7 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pT
 }
 
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                               const char* sql, EOPTR_EXEC_MODEL model) {
+                               char* sql, EOPTR_EXEC_MODEL model) {
   uint64_t queryId = pPlan->id.queryId;
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -4503,6 +4503,7 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   }
 
   (*pTaskInfo)->sql = sql;
+  sql = NULL;
   (*pTaskInfo)->pSubplan = pPlan;
   (*pTaskInfo)->pRoot = createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, &(*pTaskInfo)->tableqinfoList,
                                            pPlan->pTagCond, pPlan->pTagIndexCond, pPlan->user);
@@ -4515,6 +4516,7 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   return code;
 
 _complete:
+  taosMemoryFree(sql);
   doDestroyTask(*pTaskInfo);
   terrno = code;
   return code;
