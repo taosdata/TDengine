@@ -40,6 +40,14 @@ impl Timestamp {
             Precision::Nanosecond => Timestamp::Nanoseconds(raw),
         }
     }
+
+    pub fn precision(&self) -> Precision {
+        match self {
+            Timestamp::Milliseconds(_) => Precision::Millisecond,
+            Timestamp::Microseconds(_) => Precision::Microsecond,
+            Timestamp::Nanoseconds(_) => Precision::Nanosecond,
+        }
+    }
     pub fn as_raw_i64(&self) -> i64 {
         match self {
             Timestamp::Milliseconds(raw)

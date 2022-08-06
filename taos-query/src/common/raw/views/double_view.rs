@@ -136,4 +136,21 @@ impl<'a> Iterator for DoubleViewIter<'a> {
             None
         }
     }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        if self.row < self.view.len() {
+            let len = self.view.len() - self.row;
+            (len, Some(len))
+        } else {
+            (0, Some(0))
+        }
+    }
 }
+
+impl<'a> ExactSizeIterator for DoubleViewIter<'a> {
+    fn len(&self) -> usize {
+        self.view.len() - self.row
+    }
+}
+

@@ -22,6 +22,11 @@ pub struct TimestampView {
 }
 
 impl TimestampView {
+    /// Precision for current view
+    pub fn precision(&self) -> Precision {
+        self.precision
+    }
+
     /// Rows
     pub fn len(&self) -> usize {
         self.data.len() / std::mem::size_of::<Target>()

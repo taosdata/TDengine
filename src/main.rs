@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::Result;
 use taos::*;
-use taosx::{local_to_taos, taoz::*, tmq_to_local, tmq_to_td};
+use taosx::{local_to_taos, query_to_csv, query_to_parquet, taoz::*, tmq_to_local, tmq_to_td};
 use tokio::io::*;
 
 use clap::Parser;
@@ -210,6 +210,12 @@ async fn main() -> Result<()> {
         }
         ("local", "taos") => {
             local_to_taos(args.from, args.to, args.jobs, args.yes_i_really_mean_it).await?;
+        }
+        ("taos", "csv") => {
+            query_to_csv(args.from, args.to).await?;
+        }
+        ("taos", "parquet") => {
+            query_to_parquet(args.from, args.to).await?;
         }
         ("tmq", "csv") => {
             // tmq table to csv, write table records to csv format.

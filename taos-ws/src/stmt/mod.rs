@@ -169,18 +169,11 @@ impl WsStmtClient {
 
             loop {
                 tokio::select! {
-                    _ = interval.tick() => {
-                        //
-                        log::trace!("Check websocket message sender alive");
-                    }
                     Some(msg) = msg_recv.recv() => {
-                        // dbg!(&msg);
-                        // log::info!("send message: {}", msg.to_string());
                         sender.send(msg).await.unwrap();
-                        log::info!("send done");
                     }
                     _ = rx.changed() => {
-                        log::info!("close sender task");
+                        log::debug!("close sender task");
                         break;
                     }
                 }
@@ -195,14 +188,14 @@ impl WsStmtClient {
                         match message {
                             Ok(message) => match message {
                                 Message::Text(text) => {
-                                    log::info!("json response: {}", text);
+                                    log::debug!("json response: {}", text);
                                     let v: StmtRecv = serde_json::from_str(&text).unwrap();
                                     match v.ok() {
                                         StmtOk::Conn(_) => {
                                             log::warn!("[{req_id}] received connected response in message loop");
                                         },
                                         StmtOk::Init(req_id, stmt_id) => {
-                                            log::info!("stmt init done: {{ req_id: {}, stmt_id: {:?}}}", req_id, stmt_id);
+                                            log::debug!("stmt init done: {{ req_id: {}, stmt_id: {:?}}}", req_id, stmt_id);
                                             if let Some((_, sender)) = queries_sender.remove(&req_id)
                                             {
                                                 sender.send(stmt_id).unwrap();
@@ -212,7 +205,7 @@ impl WsStmtClient {
                                         }
                                         StmtOk::Stmt(stmt_id, res) => {
                                             if let Some(sender) = fetches_sender.read(&stmt_id, |_, sender| sender.clone()) {
-                                                log::info!("send data to fetches with id {}", stmt_id);
+                                                log::debug!("send data to fetches with id {}", stmt_id);
                                                 // let res = res.clone();
                                                 sender.send(res).unwrap();
                                             // }) {
@@ -251,7 +244,7 @@ impl WsStmtClient {
                         }
                     }
                     _ = close_listener.changed() => {
-                        log::info!("close reader task");
+                        log::debug!("close reader task");
                         break
                     }
                 }
@@ -328,7 +321,7 @@ impl WsAsyncStmt {
         Ok(())
     }
     pub async fn add_batch(&self) -> Result<()> {
-        log::info!("add batch");
+        log::debug!("add batch");
         let message = StmtSend::AddBatch(self.args);
         self.ws.send(message.to_msg()).await?;
         let _ = self.receiver.recv_timeout(self.timeout)??;
@@ -340,10 +333,10 @@ impl WsAsyncStmt {
             columns: columns,
         };
         {
-            log::info!("bind");
+            log::debug!("bind with: {message:?}");
             self.ws.send(message.to_msg()).await?;
         }
-        log::info!("begin receive");
+        log::debug!("begin receive");
         let _ = self.receiver.recv_timeout(self.timeout)??;
         Ok(())
     }
@@ -375,7 +368,7 @@ impl WsAsyncStmt {
     }
 
     pub async fn exec(&self) -> Result<usize> {
-        log::info!("exec");
+        log::debug!("exec");
         let message = StmtSend::Exec(self.args);
         self.ws.send_timeout(message.to_msg(), self.timeout).await?;
         if let Some(affected) = self.receiver.recv_timeout(self.timeout)?? {

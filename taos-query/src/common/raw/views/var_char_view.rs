@@ -7,6 +7,7 @@ use crate::{
 };
 
 use bytes::Bytes;
+use itertools::Itertools;
 
 #[derive(Debug, Clone)]
 pub struct VarCharView {
@@ -81,6 +82,13 @@ impl VarCharView {
         (0..self.len())
             .map(|row| unsafe { self.get_unchecked(row) }.map(|s| s.to_string()))
             .collect()
+    }
+    pub fn iter_as_bytes(&self) -> impl Iterator<Item = Option<&[u8]>> {
+        (0..self.len()).map(|row| unsafe { self.get_unchecked(row) }.map(|s| s.as_bytes()))
+    }
+
+    pub fn to_bytes_vec(&self) -> Vec<Option<&[u8]>> {
+        self.iter_as_bytes().collect_vec()
     }
 
     /// Write column data as raw bytes.
