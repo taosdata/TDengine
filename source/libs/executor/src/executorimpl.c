@@ -1453,7 +1453,8 @@ static void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t nu
       returnNotNull = true;
     }
   }
-  // TODO: if all expr skips all blocks, e.g. all null inputs for max function, output one row in final result.
+  // if all expr skips all blocks, e.g. all null inputs for max function, output one row in final result.
+  //  except for first/last, which require not null output, output no rows
   if (pRow->numOfRows == 0 && !returnNotNull) {
     pRow->numOfRows = 1;
   }
