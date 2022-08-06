@@ -88,7 +88,7 @@ static int32_t getExprFunctionId(SExprInfo* pExprInfo) {
 
 static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type, int16_t bytes);
 
-static void setBlockStatisInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock* pSDataBlock);
+static void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock* pSDataBlock);
 
 static void releaseQueryBuf(size_t numOfTables);
 
@@ -433,7 +433,7 @@ static void doSetInputDataBlockInfo(SOperatorInfo* pOperator, SqlFunctionCtx* pC
   for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
     pCtx[i].order = order;
     pCtx[i].input.numOfRows = pBlock->info.rows;
-    setBlockStatisInfo(&pCtx[i], &pOperator->exprSupp.pExprInfo[i], pBlock);
+    setBlockSMAInfo(&pCtx[i], &pOperator->exprSupp.pExprInfo[i], pBlock);
     pCtx[i].pSrcBlock = pBlock;
   }
 }
@@ -799,7 +799,7 @@ static int32_t doCreateConstantValColumnAggInfo(SInputColumnInfoData* pInput, SF
   return TSDB_CODE_SUCCESS;
 }
 
-void setBlockStatisInfo(SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, SSDataBlock* pBlock) {
+void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, SSDataBlock* pBlock) {
   int32_t numOfRows = pBlock->info.rows;
 
   SInputColumnInfoData* pInput = &pCtx->input;
