@@ -202,7 +202,7 @@ else
 endi
 
 vg_ready:
-print ====>  create stable/child table
+print ====>  create stable stb  /child table ctb and general table ntb
 sql create table stb (ts timestamp, c1 int, c2 float, c3 binary(10)) tags (t1 int)
 
 sql show stables
@@ -225,7 +225,7 @@ endw
 $totalTblNum = $tbNum * 2
 sleep 1000
 sql show tables
-print ====> expect $totalTblNum and infinsert $rows  in fact 
+print ====> expect $totalTblNum and insert $rows  in fact 
 if $rows != $totalTblNum then 
   return -1
 endi
@@ -237,6 +237,7 @@ sql show vgroups
 $dnodeId = $data[0][3]
 $dnodeId = dnode . $dnodeId
 
+print ====> switch_leader_to_offine_loop
 switch_leader_to_offine_loop:
 
 print $dnodeId
@@ -271,22 +272,7 @@ system sh/exec.sh -n $dnodeId -s start
 $switch_loop_cnt = $switch_loop_cnt + 1
 print $switch_loop_cnt
 
-if $switch_loop_cnt == 1 then
-  sql show vgroups
-  $dnodeId = $data[0][3]
-  $dnodeId = dnode . $dnodeId
-  goto switch_leader_to_offine_loop
-elif $switch_loop_cnt == 2 then
-  sql show vgroups
-  $dnodeId = $data[0][3]
-  $dnodeId = dnode . $dnodeId
-  goto switch_leader_to_offine_loop
-elif $switch_loop_cnt == 3 then
-  sql show vgroups
-  $dnodeId = $data[0][3]
-  $dnodeId = dnode . $dnodeId
-  goto switch_leader_to_offine_loop
-elif $switch_loop_cnt == 4 then
+if $switch_loop_cnt <= 4 then
   sql show vgroups
   $dnodeId = $data[0][3]  
   $dnodeId = dnode . $dnodeId
