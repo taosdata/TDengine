@@ -349,28 +349,19 @@ _err:
 
 /**
  * @brief pTSchema is shared
- * 
- * @param pSma 
- * @param pDest 
- * @param pSrc 
- * @return int32_t 
+ *
+ * @param pSma
+ * @param pDest
+ * @param pSrc
+ * @return int32_t
  */
-int32_t tdCloneRSmaInfo(SSma *pSma, SRSmaInfo *pDest, SRSmaInfo *pSrc) {
+int32_t tdCloneRSmaInfo(SSma *pSma, SRSmaInfo **pDest, SRSmaInfo *pSrc) {
   SVnode     *pVnode = pSma->pVnode;
   SRSmaParam *param = NULL;
   if (!pSrc) {
+    *pDest = NULL;
     return TSDB_CODE_SUCCESS;
   }
-
-  if (!pDest) {
-    pDest = taosMemoryCalloc(1, sizeof(SRSmaInfo));
-    if (!pDest) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return TSDB_CODE_FAILED;
-    }
-  }
-
-  memcpy(pDest, pSrc, sizeof(SRSmaInfo));
 
   SMetaReader mr = {0};
   metaReaderInit(&mr, SMA_META(pSma), 0);
@@ -384,21 +375,20 @@ int32_t tdCloneRSmaInfo(SSma *pSma, SRSmaInfo *pDest, SRSmaInfo *pSrc) {
   ASSERT(mr.me.uid == pSrc->suid);
   if (TABLE_IS_ROLLUP(mr.me.flags)) {
     param = &mr.me.stbEntry.rsmaParam;
-    for (int i = 0; i < TSDB_RETENTION_L2; ++i) {
-      SRSmaInfoItem *pItem = &pSrc->items[i];
-      if (pItem->taskInfo) {
-        tdCloneQTaskInfo(pSma, pDest->items[i].taskInfo, pItem->taskInfo, param, pSrc->suid, i);
-      }
+    for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
+      tdCloneQTaskInfo(pSma, pSrc->iTaskInfo[i], pSrc->taskInfo[i], param, pSrc->suid, i);
     }
     smaDebug("vgId:%d, rsma clone env success for %" PRIi64, TD_VID(pVnode), pSrc->suid);
   }
 
   metaReaderClear(&mr);
+  
+  *pDest = pSrc; // pointer copy
+  
   return TSDB_CODE_SUCCESS;
 _err:
+  *pDest = NULL;
   metaReaderClear(&mr);
-  tdFreeRSmaInfo(pSma, pDest, false);
+  // tdFreeRSmaInfo(pSma, pDest, false);
   return TSDB_CODE_FAILED;
 }
-
-// ...
