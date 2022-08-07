@@ -17,7 +17,7 @@
 
 typedef struct SSmaStat SSmaStat;
 
-#define SMA_MGMT_REF_NUM         10240
+#define SMA_MGMT_REF_NUM 10240
 
 extern SSmaMgmt smaMgmt;
 

@@ -2658,6 +2658,31 @@ typedef struct {
 } SVgEpSet;
 
 typedef struct {
+  int64_t refId;
+  uint64_t handle;
+} SRSmaFetchMsg;
+
+static FORCE_INLINE int32_t tEncodeSRSmaFetchMsg(SEncoder* pCoder, const SRSmaFetchMsg* pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeI64(pCoder, pReq->refId) < 0) return -1;
+  if (tEncodeU64(pCoder, pReq->handle) < 0) return -1;
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+static FORCE_INLINE int32_t tDecodeSRSmaFetchMsg(SDecoder* pCoder, SRSmaFetchMsg* pReq) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeI64(pCoder, &pReq->refId) < 0) return -1;
+  if (tDecodeU64(pCoder, &pReq->handle) < 0) return -1;
+
+  tEndDecode(pCoder);
+  return 0;
+}
+
+typedef struct {
   int8_t         version;       // for compatibility(default 0)
   int8_t         intervalUnit;  // MACRO: TIME_UNIT_XXX
   int8_t         slidingUnit;   // MACRO: TIME_UNIT_XXX
