@@ -677,6 +677,159 @@ _err:
   return code;
 }
 
+int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnDataAgg) {
+  int32_t   code = 0;
+  SSmaInfo *pSmaInfo = &pBlock->smaInfo;
+
+  ASSERT(pSmaInfo->size > 0);
+
+  taosArrayClear(aColumnDataAgg);
+
+  // alloc
+  int32_t size = pSmaInfo->size + sizeof(TSCKSUM);
+  code = tRealloc(&pReader->pBuf1, size);
+  if (code) goto _err;
+
+  // read
+  int64_t n = taosReadFile(pReader->pSmaFD, pReader->pBuf1, size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  } else if (n < size) {
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _err;
+  }
+
+  // check
+  if (!taosCheckChecksumWhole(pReader->pBuf1, size)) {
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _err;
+  }
+
+  // decode
+  n = 0;
+  while (n < pSmaInfo->size) {
+    SColumnDataAgg sma;
+
+    n += tGetColumnDataAgg(pReader->pBuf1 + n, &sma);
+    if (taosArrayPush(aColumnDataAgg, &sma) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+  }
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb read block sma failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo, int8_t fromLast, int16_t *aColId,
+                                     int32_t nColId, SBlockData *pBlockData) {
+  int32_t code = 0;
+
+  tBlockDataReset(pBlockData);
+
+  TdFilePtr pFD = fromLast ? pReader->pLastFD : pReader->pDataFD;
+
+  // seek
+  int64_t n = taosLSeekFile(pFD, pBlkInfo->offset, SEEK_SET);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // read
+  code = tRealloc(&pReader->pBuf1, pBlkInfo->szBlock);
+  if (code) goto _err;
+
+  n = taosReadFile(pFD, pReader->pBuf1, pBlkInfo->szBlock);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  } else if (n < pBlkInfo->szBlock) {
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _err;
+  }
+
+  uint8_t *p = pReader->pBuf1;
+  // check & decode
+  SDiskDataHdr hdr;
+  if (!taosCheckChecksumWhole(p, pBlkInfo->szKey)) {
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _err;
+  }
+  p += tGetDiskDataHdr(p, &hdr);
+
+  tBlockDataSetSchema(pBlockData, NULL, hdr.suid, hdr.uid);
+  pBlockData->nRow = hdr.nRow;
+
+  if (hdr.uid == 0) {
+    ASSERT(hdr.szUid);
+    code = tsdbDecmprData(p, hdr.szUid, TSDB_DATA_TYPE_BIGINT, hdr.cmprAlg, (uint8_t **)&pBlockData->aUid,
+                          sizeof(int64_t) * hdr.nRow, &pReader->pBuf2);
+    if (code) goto _err;
+  } else {
+    ASSERT(hdr.szUid == 0);
+  }
+  p += hdr.szUid;
+
+  code = tsdbDecmprData(p, hdr.szVer, TSDB_DATA_TYPE_BIGINT, hdr.cmprAlg, (uint8_t **)&pBlockData->aVersion,
+                        sizeof(int64_t) * hdr.nRow, &pReader->pBuf2);
+  if (code) goto _err;
+  p += hdr.szVer;
+
+  code = tsdbDecmprData(p, hdr.szKey, TSDB_DATA_TYPE_BIGINT, hdr.cmprAlg, (uint8_t **)&pBlockData->aTSKEY,
+                        sizeof(TSKEY) * hdr.nRow, &pReader->pBuf2);
+  if (code) goto _err;
+  p += hdr.szKey;
+  p += sizeof(TSCKSUM);
+
+  // SBlockCol
+  if (hdr.szBlkCol > 0) {
+    if (!taosCheckChecksumWhole(p, hdr.szBlkCol + sizeof(TSCKSUM))) {
+      code = TSDB_CODE_FILE_CORRUPTED;
+      goto _err;
+    }
+
+    int32_t  iColData = 0;
+    uint8_t *pt = p + hdr.szBlkCol + sizeof(TSCKSUM);
+    n = 0;
+    while (n < hdr.szBlkCol) {
+      SBlockCol blockCol;
+
+      n += tGetBlockCol(p + n, &blockCol);
+
+      ASSERT(blockCol.flag && blockCol.flag != HAS_NONE);
+
+      SColData *pColData;
+      code = tBlockDataAddColData(pBlockData, iColData, &pColData);
+      if (code) goto _err;
+      iColData++;
+
+      tColDataInit(pColData, blockCol.cid, blockCol.type, blockCol.smaOn);
+
+      if (blockCol.flag == HAS_NULL) {
+        for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
+          code = tColDataAppendValue(pColData, &COL_VAL_NULL(blockCol.cid, blockCol.type));
+          if (code) goto _err;
+        }
+      } else {
+        code = tsdbDecmprColData(pt + blockCol.offset, &blockCol, hdr.cmprAlg, hdr.nRow, pColData, pReader->pBuf2);
+        if (code) goto _err;
+      }
+    }
+  }
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb read block data impl failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+#if 0
 static int32_t tsdbReadBlockDataKey(SBlockData *pBlockData, SBlockInfo *pSubBlock, uint8_t *pBuf, uint8_t **ppBuf) {
   int32_t code = 0;
 #if 0
@@ -1350,54 +1503,7 @@ _err:
 #endif
   return code;
 }
-
-int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnDataAgg) {
-  int32_t   code = 0;
-  SSmaInfo *pSmaInfo = &pBlock->smaInfo;
-
-  ASSERT(pSmaInfo->size > 0);
-
-  taosArrayClear(aColumnDataAgg);
-
-  // alloc
-  int32_t size = pSmaInfo->size + sizeof(TSCKSUM);
-  code = tRealloc(&pReader->pBuf1, size);
-  if (code) goto _err;
-
-  // read
-  int64_t n = taosReadFile(pReader->pSmaFD, pReader->pBuf1, size);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  } else if (n < size) {
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _err;
-  }
-
-  // check
-  if (!taosCheckChecksumWhole(pReader->pBuf1, size)) {
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _err;
-  }
-
-  // decode
-  n = 0;
-  while (n < pSmaInfo->size) {
-    SColumnDataAgg sma;
-
-    n += tGetColumnDataAgg(pReader->pBuf1 + n, &sma);
-    if (taosArrayPush(aColumnDataAgg, &sma) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _err;
-    }
-  }
-
-  return code;
-
-_err:
-  tsdbError("vgId:%d tsdb read block sma failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
-  return code;
-}
+#endif
 
 // SDataFWriter ====================================================
 int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet) {

@@ -1751,6 +1751,36 @@ _exit:
   return code;
 }
 
+int32_t tsdbDecmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, uint8_t **ppOut, int32_t szOut,
+                       uint8_t **ppBuf) {
+  int32_t code = 0;
+
+  code = tRealloc(ppOut, szOut);
+  if (code) goto _exit;
+
+  if (cmprAlg == NO_COMPRESSION) {
+    ASSERT(szIn == szOut);
+    memcpy(*ppOut, pIn, szOut);
+  } else {
+    if (cmprAlg == TWO_STAGE_COMP) {
+      code = tRealloc(ppBuf, szOut + COMP_OVERFLOW_BYTES);
+      if (code) goto _exit;
+    }
+
+    int32_t size = tDataTypes[type].decompFunc(pIn, szIn, szOut / tDataTypes[type].bytes, *ppOut, szOut, cmprAlg,
+                                               *ppBuf, szOut + COMP_OVERFLOW_BYTES);
+    if (size <= 0) {
+      code = TSDB_CODE_COMPRESS_ERROR;
+      goto _exit;
+    }
+
+    ASSERT(size == szOut);
+  }
+
+_exit:
+  return code;
+}
+
 int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol, uint8_t **ppOut, int8_t nOut,
                         uint8_t **ppBuf) {
   int32_t code = 0;
@@ -1789,6 +1819,51 @@ int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol
   code = tRealloc(ppOut, nOut + size);
   if (code) goto _exit;
   taosCalcChecksumAppend(0, *ppOut + nOut, size);
+
+_exit:
+  return code;
+}
+
+int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, int32_t nVal, SColData *pColData,
+                          uint8_t **ppBuf) {
+  int32_t code = 0;
+
+  int32_t size = pBlockCol->szBitmap + pBlockCol->szOffset + pBlockCol->szValue + sizeof(TSCKSUM);
+  if (!taosCheckChecksumWhole(pIn, size)) {
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _exit;
+  }
+
+  pColData->cid = pBlockCol->cid;
+  pColData->type = pBlockCol->type;
+  pColData->smaOn = pBlockCol->smaOn;
+  pColData->flag = pBlockCol->flag;
+  pColData->nVal = nVal;
+  pColData->nData = pBlockCol->szOrigin;
+
+  uint8_t *p = pIn;
+  // bitmap
+  if (pBlockCol->szBitmap) {
+    code = tsdbDecmprData(p, pBlockCol->szBitmap, TSDB_DATA_TYPE_TINYINT, cmprAlg, &pColData->pBitMap,
+                          BIT2_SIZE(pColData->nVal), ppBuf);
+    if (code) goto _exit;
+  }
+  p += pBlockCol->szBitmap;
+
+  // offset
+  if (pBlockCol->szOffset) {
+    code = tsdbDecmprData(p, pBlockCol->szOffset, TSDB_DATA_TYPE_INT, cmprAlg, (uint8_t **)&pColData->aOffset,
+                          sizeof(int32_t) * pColData->nVal, ppBuf);
+    if (code) goto _exit;
+  }
+  p += pBlockCol->szOffset;
+
+  // value
+  if (pBlockCol->szValue) {
+    code = tsdbDecmprData(p, pBlockCol->szValue, pColData->type, cmprAlg, &pColData->pData, pColData->nData, ppBuf);
+    if (code) goto _exit;
+  }
+  p += pBlockCol->szValue;
 
 _exit:
   return code;
