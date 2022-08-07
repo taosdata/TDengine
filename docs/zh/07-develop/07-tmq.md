@@ -97,9 +97,9 @@ TMQ支持多种订阅类型：
 - 用户对于要处理的每一个数据块都可能有不同的schema，因此，必须重新获取schema
 - 返回数据不带有tag
 
-## 创建 consumer
+## 创建 consumer 以及consumer group
 
-目前支持的config：
+对于consumer, 目前支持的config包括：
 
 | 参数名称                     | 参数值                         | 备注                                                   |
 | ---------------------------- | ------------------------------ | ------------------------------------------------------ |
@@ -132,6 +132,9 @@ TMQ支持多种订阅类型：
   tmq_conf_destroy(conf);
   return tmq;
 ```
+
+上述配置中包括consumer group ID，如果多个 consumer 指定的 consumer group ID一样，则自动形成一个consumer group，共享消费进度。
+
 
 ## 创建 topic 列表
 
