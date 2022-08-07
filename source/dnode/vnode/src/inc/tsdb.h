@@ -603,6 +603,7 @@ struct SDataFWriter {
   uint8_t *pBuf1;
   uint8_t *pBuf2;
   uint8_t *pBuf3;
+  uint8_t *pBuf4;
 };
 
 struct STsdbReadSnap {
