@@ -34,16 +34,23 @@ class Testfsync(TDCase):
         """
         test_param = self.cfg["create_name"]
         dbname = self.tdCom.get_long_name()
-        self.tdCom.createDb(dbname, wal=2)
+        self.tdCom.createDb(dbname, wal_level=2)
         self.tdRest.request('show databases')
         db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         # default
         self.tdSql.checkEqual(db_field, self.cfg["default"])
         # !bug TD-
-        # self.tdRest.request(f'show {dbname}.vgroups')
-        # db_vnode_kv_dict = self.tdRest.getOneRow(1,dbname)
-        # data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
-        # self.tdSql.checkEqual(db_field,int(data['config'][self.cfg["vnode_json_key"]]))
+        self.tdRest.request(f'show {dbname}.vgroups')
+        db_vnode_kv_dict = self.tdRest.getOneRow(1,dbname)
+        for i in self.taosd_setting['spec']['dnodes']:
+            fqdn = i['endpoint'].split(':')[0]
+            vnode_dir = i['config']['dataDir']+ "/vnode"
+            if self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'):
+                data = json.loads(self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
+                break
+            else:
+                continue
+        self.tdSql.checkEqual(db_field,int(data['config'][self.cfg["vnode_json_key"]]))
         self.tdRest.request(f'drop database {dbname}')
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
@@ -53,10 +60,17 @@ class Testfsync(TDCase):
             db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
             self.tdSql.checkEqual(db_field, param_value)
             # !bug TD-
-            # self.tdRest.request(f'show {dbname}.vgroups')
-            # db_vnode_kv_dict = self.tdRest.getOneRow(1,dbname)
-            # data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
-            # self.tdSql.checkEqual(db_field,int(data['config'][self.cfg["vnode_json_key"]]))
+            self.tdRest.request(f'show {dbname}.vgroups')
+            db_vnode_kv_dict = self.tdRest.getOneRow(1,dbname)
+            for i in self.taosd_setting['spec']['dnodes']:
+                fqdn = i['endpoint'].split(':')[0]
+                vnode_dir = i['config']['dataDir']+ "/vnode"
+                if self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'):
+                    data = json.loads(self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
+                    break
+                else:
+                    continue
+            self.tdSql.checkEqual(db_field,int(data['config'][self.cfg["vnode_json_key"]]))
             self.tdRest.request(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name()
         self.tdRest.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')

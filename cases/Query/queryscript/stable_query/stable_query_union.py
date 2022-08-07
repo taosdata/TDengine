@@ -54,6 +54,7 @@ class TDTestQuery(TDCase):
     db = "stable_union"
     db_1 = "stable_union_1"
     db_2 = "stable_union_2"
+    db_2_2 = "stable_union_2_2"
     db_3 = "stable_union_3"
     db_4 = "stable_union_4"
     service_host = ""
@@ -298,6 +299,26 @@ class TDTestQuery(TDCase):
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
+            except Exception as e:
+                raise e 
+            
+        #self.tdSql.execute('''drop database if exists %s ;''' %self.db)
+        
+        num2 = sql.count('where')
+        self.logger.info("sqlnum2 %d" % num2) 
+        
+    def right_case2_2(self):
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_2_2)
+        conn1 = case_common[0]
+        cur1 = case_common[1]
+        sql = 'Count the number of sqls'
+
+        for i in range(2):
+            try:
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db_2_2)  
+                self.tdSql.execute('use %s;' %self.db_2_2)   
+
                 self.logger.info("case2.1:select * from stable_1 where condition order by ts asc | desc union all select * from stable_1[null data] where condition && select * from ( union all )")
                 self.logger.info("\n\n\n=========================================case2.1=========================================\n\n\n")
                 stable_where_all_and_null = tdWhere.stable_where_all_and_null()
@@ -397,8 +418,8 @@ class TDTestQuery(TDCase):
         #self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num2 = sql.count('where')
-        self.logger.info("sqlnum2 %d" % num2) 
-
+        self.logger.info("sqlnum2_2 %d" % num2) 
+        
     def right_case3(self):        
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_3)
         conn1 = case_common[0]
@@ -678,7 +699,11 @@ class TDTestQuery(TDCase):
     def rm_sql_2(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
         self.tdCreateData.drop_db("%s" % self.db_2) 
-         
+        
+    def rm_sql_2_2(self):
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        self.tdCreateData.drop_db("%s" % self.db_2_2) 
+                 
     def rm_sql_3(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
         self.tdCreateData.drop_db("%s" % self.db_3)  
@@ -704,6 +729,13 @@ class TDTestQuery(TDCase):
         # self.rm_sql_2()
         # endTime2 = time.time()       
         # self.logger.info("total time2 %d s" % (endTime2 - startTime2))
+        
+        # startTime2 = time.time()
+        # self.data_create(self.db_2_2)
+        # self.right_case2_2()
+        # self.rm_sql_2_2()
+        # endTime2 = time.time()       
+        # self.logger.info("total time2_2 %d s" % (endTime2 - startTime2))
         
         # startTime3 = time.time()
         # self.data_create(self.db_3) 

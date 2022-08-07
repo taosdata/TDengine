@@ -1,0 +1,77 @@
+settings:
+  - name: taosd
+    fqdn: [ceph01, node221, node222, node223, node224]
+    spec:
+      version: 3.0.0.0  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: ceph01:6030
+      dnodes:
+        - endpoint: ceph01:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            supportVnodes: 128
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 143
+        - endpoint: node221:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 143
+        - endpoint: node222:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 143
+        - endpoint: node223:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 143
+        - endpoint: node224:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 143
+
+  - name: taospy
+    fqdn: [ceph01]
+    spec:
+      version: 3.0.0.0
+      client_version: 3.0.0.0
+      config:
+        firstEP: ceph01:6030
+        dataDir: /var/lib/taos
+        logDir: /var/log/taos
+        debugFlag: 143
+        asynclog: 0
+  - name: taosAdapter
+    fqdn: [ceph01]
+    spec:
+      version: 3.0.0.0
+      config_file: /etc/taos/taosadaper.toml
+      adapter_config:
+        logLevel: info
+        port: 6041
+        taosConfigDir: /etc/taos
+        log:
+          path: /var/log/taos
+        opentsdb_telnet:
+          enable: true
+          maxTCPConnections: 250
+          tcpKeepAlive: false
+          dbs: ["telnet_tcp"]
+          ports: [6046]
+          user: root
+          password: taosdata
+          worker: 1000
+
+      taos_config:
+        firstEP: ceph01:6030
+        dataDir: /var/lib/taos
+        logDir: /var/log/taos
+        debugFlag: 143

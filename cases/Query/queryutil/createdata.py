@@ -19,12 +19,12 @@ import operator
 import numpy as np
 import pandas as pd
 import time, datetime
-from regex import I
 from taostest import TDCase
 import subprocess
 import os
 import taos
 import random
+from taostest.util.common import TDCom
 from taostest.util.remote import Remote
 
 class TDCreateData():
@@ -33,6 +33,7 @@ class TDCreateData():
         self.logger = logger
         
         self._remote: Remote = Remote(self.logger)
+        self.tdCommon = TDCom(self.tdSql)
         self._remote._logger.info("********")
 
     def desc(self) -> str:
@@ -55,7 +56,8 @@ class TDCreateData():
         
     def drop_db(self,database):
         #delete:
-        table_list = ['stable_1','stable_2','regular_table_1','stable_1_1','regular_table_2']
+        #table_list = ['stable_1','stable_2','regular_table_1','stable_1_1','regular_table_2']
+        table_list = ['stable_1','stable_2']
         for i in table_list:
             self.tdSql.execute("delete from {}.{};".format(database, i))
             self.tdSql.execute("flush database {};".format(database))
@@ -66,12 +68,19 @@ class TDCreateData():
         #drop:
         self.tdSql.execute('''drop database if exists %s ;''' %database)
 
+    def show_local_variables(self):
+        self.tdSql.query('''show local variables;''')
+        for i in range(self.tdSql.query_row):
+            self.logger.info("%s - %s"% (self.tdSql.query_data[i][0], self.tdSql.query_data[i][1]))
+
     def dropandcreateDB_random(self,database,n):
         self.ts = 1630000000000
         self.num_random = 100
         fake = Faker('zh_CN')
-        self.tdSql.execute('''drop database if exists %s ;''' %database)
-        self.tdSql.execute('''create database %s keep 36500;'''%database)
+        # self.tdSql.execute('''drop database if exists %s ;''' %database)
+        # self.tdSql.execute('''create database %s keep 36500;'''%database)
+        self.show_local_variables()
+        self.tdCommon.createDb(database, True, keep=36500)
         self.tdSql.execute('''use %s;'''%database)
 
         self.tdSql.execute('''create stable stable_1 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint , q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
@@ -207,8 +216,10 @@ class TDCreateData():
         self.num_random = 10
         self.stable_child_num = 10
         fake = Faker('zh_CN')
-        self.tdSql.execute('''drop database if exists %s ;''' %database)
-        self.tdSql.execute('''create database %s keep 36500;'''%database)
+        # self.tdSql.execute('''drop database if exists %s ;''' %database)
+        # self.tdSql.execute('''create database %s keep 36500;'''%database)
+        self.show_local_variables()
+        self.tdCommon.createDb(database, True, keep=36500)
         self.tdSql.execute('''use %s;'''%database)
         # 1 = readings 2 = diagnostics
         self.tdSql.execute('''create stable stable_1 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint , q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
@@ -310,7 +321,7 @@ class TDCreateData():
                             % ( j, self.ts + i*1000-1, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i,
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i -1,
                             fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),
                             fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=1000, max=10000, step=1),fake.random_int(min=100, max=1000, step=1)))
                 
@@ -320,9 +331,19 @@ class TDCreateData():
                             % ( j, self.ts + i*1000+1, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i,
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i +1,
                             fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),
                             fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=100, max=1000, step=1),fake.random_int(min=1000, max=10000, step=1),fake.random_int(min=100, max=1000, step=1)))
+                
+                self.tdSql.execute('''insert into stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                                  values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                            % ( j, self.ts + i*1000+10, fake.random_int(min=-2147483647, max=2147483647, step=1), 
+                            fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
+                            fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i + 10))
+                
+                # self.tdSql.execute('''insert into stable_1_%d  (ts , q_binary , q_nchar, q_ts  ) values(%d, 'binary.%s', 'nchar.%s' , %d) ;''' 
+                #             % ( j, self.ts + i*1000+5 , fake.pystr() , fake.address() , self.ts + i))
 
                 status= random.randint(0,1)
                 self.tdSql.execute('''insert into stable_2_%d (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts ,fuel_state , current_load ,status , load_capacity , fuel_capacity , nominal_fuel_consumption) values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d, %f, %f, %d, %f, %f, %f) ;''' 
@@ -336,10 +357,26 @@ class TDCreateData():
                             % ( j ,self.ts + i*1000 + 1, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i ,status))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i +1,status))
+            
+                self.tdSql.execute('''insert into stable_2_%d (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts  ) values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                            % ( j ,self.ts + i*1000 + 9, fake.random_int(min=-2147483647, max=2147483647, step=1), 
+                            fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
+                            fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i +9))
+                
+                self.tdSql.execute('''insert into stable_2_%d (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts ,fuel_state , current_load ,status , load_capacity , fuel_capacity , nominal_fuel_consumption) values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d, %f, %f, %d, %f, %f, %f) ;''' 
+                            % ( j ,self.ts + i*1000 + 20, fake.random_int(min=-2147483647, max=2147483647, step=1), 
+                            fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
+                            fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i +20,
+                            fake.random_int(min=100, max=32767, step=1),fake.random_int(min=100, max=32767, step=1),status,fake.random_int(min=100, max=32767, step=1),fake.random_int(min=100, max=32767, step=1),fake.random_int(min=100, max=32767, step=1)))
+                                    
+                # self.tdSql.execute('''insert into stable_2_%d  (ts , q_binary , q_nchar, q_ts  ) values(%d, 'binary.%s', 'nchar.%s' , %d) ;''' 
+                #             % ( j, self.ts + i*1000+5 , fake.pystr() , fake.address() , self.ts + i))
 
         self.tdSql.query("select count(*) from stable_2;")
-        self.tdSql.checkData(0,0,self.stable_child_num*self.num_random*n*2)
+        self.tdSql.checkData(0,0,self.stable_child_num*self.num_random*n*4)
         self.tdSql.query("select count(*) from regular_table_1;")
         self.tdSql.checkData(0,0,self.num_random*n)
         
@@ -347,8 +384,10 @@ class TDCreateData():
         self.ts = 1630000000000
         self.num_random = 100
         fake = Faker('zh_CN')
-        self.tdSql.execute('''drop database if exists %s ;''' %database)
-        self.tdSql.execute('''create database %s keep 36500;'''%database)
+        # self.tdSql.execute('''drop database if exists %s ;''' %database)
+        # self.tdSql.execute('''create database %s keep 36500;'''%database)
+        self.show_local_variables()
+        self.tdCommon.createDb(database, True, keep=36500)
         self.tdSql.execute('''use %s;'''%database)
 
         self.tdSql.execute('''create stable stable_1 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint , q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
@@ -405,12 +444,12 @@ class TDCreateData():
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
 
             self.tdSql.execute('''insert into stable_1_2 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
-                        % (self.ts + i*1000, fake.random_int(min=0, max=2147483647, step=1), 
+                        % (self.ts + i*1000 -1, fake.random_int(min=0, max=2147483647, step=1), 
                         fake.random_int(min=0, max=9223372036854775807, step=1), 
                         fake.random_int(min=0, max=32767, step=1) , fake.random_int(min=0, max=127, step=1) , 
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
             self.tdSql.execute('''insert into regular_table_2 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
-                        % (self.ts + i*1000, fake.random_int(min=0, max=2147483647, step=1), 
+                        % (self.ts + i*1000 -1, fake.random_int(min=0, max=2147483647, step=1), 
                         fake.random_int(min=0, max=9223372036854775807, step=1), 
                         fake.random_int(min=0, max=32767, step=1) , fake.random_int(min=0, max=127, step=1) , 
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
@@ -454,8 +493,10 @@ class TDCreateData():
         self.ts = 1630000000000
         self.num_random = 100
         fake = Faker('zh_CN')
-        self.tdSql.execute('''drop database if exists %s ;''' %database)
-        self.tdSql.execute('''create database %s keep 36500;'''%database)
+        # self.tdSql.execute('''drop database if exists %s ;''' %database)
+        # self.tdSql.execute('''create database %s keep 36500;'''%database)
+        self.show_local_variables()
+        self.tdCommon.createDb(database, True, keep=36500)
         self.tdSql.execute('''use %s;'''%database)
 
         self.tdSql.execute('''create stable stable_1 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint , q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
@@ -539,7 +580,7 @@ class TDCreateData():
                         q_binary1 , q_nchar1 , q_binary2 , q_nchar2 , q_binary3 , q_nchar3 , q_binary4 , q_nchar4 , q_binary5 , q_nchar5 , q_binary6 , q_nchar6 , q_binary7 , q_nchar7, q_binary8 , q_nchar8) \
                         values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d, 'binary1.%s', 'nchar1.%s', 'binary2.%s', 'nchar2.%s', 'binary3.%s', 'nchar3.%s',  \
                         'binary4.%s', 'nchar4.%s', 'binary5.%s', 'nchar5.%s', 'binary6.%s', 'nchar6.%s', 'binary7.%s', 'nchar7.%s', 'binary8.%s', 'nchar8.%s') ;''' 
-                        % (self.ts + i*1000, fake.random_int(min=0, max=2147483647, step=1), 
+                        % (self.ts + i*1000 -1, fake.random_int(min=0, max=2147483647, step=1), 
                         fake.random_int(min=0, max=9223372036854775807, step=1), 
                         fake.random_int(min=0, max=32767, step=1) , fake.random_int(min=0, max=127, step=1) , 
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i, fake.pystr() , fake.address() , fake.pystr() , fake.address() , fake.pystr() , fake.address() , 
@@ -548,7 +589,7 @@ class TDCreateData():
                         q_binary1 , q_nchar1 , q_binary2 , q_nchar2 , q_binary3 , q_nchar3 , q_binary4 , q_nchar4 , q_binary5 , q_nchar5 , q_binary6 , q_nchar6 , q_binary7 , q_nchar7, q_binary8 , q_nchar8)  \
                         values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d, 'binary1.%s', 'nchar1.%s', 'binary2.%s', 'nchar2.%s', 'binary3.%s', 'nchar3.%s',  \
                         'binary4.%s', 'nchar4.%s', 'binary5.%s', 'nchar5.%s', 'binary6.%s', 'nchar6.%s', 'binary7.%s', 'nchar7.%s', 'binary8.%s', 'nchar8.%s') ;''' 
-                        % (self.ts + i*1000, fake.random_int(min=0, max=2147483647, step=1), 
+                        % (self.ts + i*1000 -1, fake.random_int(min=0, max=2147483647, step=1), 
                         fake.random_int(min=0, max=9223372036854775807, step=1), 
                         fake.random_int(min=0, max=32767, step=1) , fake.random_int(min=0, max=127, step=1) , 
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i, fake.pystr() , fake.address() , fake.pystr() , fake.address() , fake.pystr() , fake.address() , 
@@ -609,11 +650,13 @@ class TDCreateData():
         self.tdSql.checkData(0,0,self.num_random*n)
         
                                
-    def dropandcreateDB_null(self):
+    def dropandcreateDB_null(self,database,n):
         self.num_null = 100
         self.ts = 1630000000000
-        self.tdSql.execute('''drop database if exists db ;''')
-        self.tdSql.execute('''create database db keep 36500;''')
+        # self.tdSql.execute('''drop database if exists db ;''')
+        # self.tdSql.execute('''create database db keep 36500;''')
+        self.show_local_variables()
+        self.tdCommon.createDb(database, True, keep=36500)
         self.tdSql.execute('''use db;''')
 
         self.tdSql.execute('''create stable stable_1 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint , q_float float , q_double double , q_bool bool , q_binary binary(20) , q_nchar nchar(20) , q_ts timestamp ,  \
@@ -735,20 +778,26 @@ class TDCreateData():
        
         if  (list1 == list2) and len(list2)>0:
             self.logger.info(("===list=_===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
-        elif str(list1) == str(list2) :
-            self.logger.info(("===list=str_===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
-        elif abs(float(str(list1).replace("]","").replace("[","")) - float(str(list2).replace("]","").replace("[",""))) <= 0.5:
-            #self.logger.info(("=====list_abs===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
-            self.logger.info(("===list_abs===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
-        elif abs(float(str(list1).replace("]","").replace("[","").replace("e+","")) - float(str(list2).replace("]","").replace("[","").replace("e+",""))) <= 0.0001:
-            #self.logger.info(("=====list_abs+e+===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
-            self.logger.info(("===list_abs+e+===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         elif str(list1).replace("]","").replace("[","") == str(list2).replace("]","").replace("[",""):
             #result is NAN -NAN
             self.logger.info(("===list_nan===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         elif (list1 == None) and (list2 == None):
             #result is None -None
             self.logger.info(("===list_none===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
+        elif (list1 == 'NULL') and (list2 == 'NULL'):
+            #result is NULL -NULL
+            self.logger.info(("===list_none===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
+        elif str(list1) == str(list2) :
+            self.logger.info(("===list=str_===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
+        elif abs(float(str(list1).replace("]","").replace("[","")) - float(str(list2).replace("]","").replace("[",""))) <= 0.5:
+            #self.logger.info(("=====list_abs===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            self.logger.info(("===list_abs===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
+        elif (abs(list1-list2)/list1 <= 0.01) or (abs(list1-list2)/list2 <= 0.01):
+            #self.logger.info(("=====list_abs+e+===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            self.logger.info(("===list_abs+sub/list===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
+        elif abs(float(str(list1).replace("]","").replace("[","").replace("e+","")) - float(str(list2).replace("]","").replace("[","").replace("e+",""))) <= 0.0001:
+            #self.logger.info(("=====list_abs+e+===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            self.logger.info(("===list_abs+e+===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         else:
             self.logger.info(("sql1:'%s' result != sql2:'%s' result") %(sql1,sql2))
             self.logger.info(("=====list_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))

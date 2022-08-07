@@ -13,7 +13,8 @@
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.rest import TDRest
-
+from taostest.util.remote import Remote
+import sys
 class TestInfluxdbLineRestfulInsert(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql, env_setting=self.env_setting)
@@ -22,11 +23,13 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self.tdCom.sml_type = "influxdb_restful"
         self.dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname=self.dbname, precision="us")
+        self._remote: Remote = Remote(self.logger)
 
     def init_check(self):
         """
         normal tags and cols, one for every elm
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_sql, stb_name = self.tdCom.gen_full_type_sql()
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
@@ -35,6 +38,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         """
         check all normal type
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         full_type_list = ["f", "F", "false", "False", "t", "T", "true", "True"]
         for t_type in full_type_list:
@@ -49,6 +53,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
             please test :
             binary_symbols = '\"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"\'\'"\"'
         '''
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         binary_symbols = '"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"'
         nchar_symbols = f'L{binary_symbols}'
@@ -56,6 +61,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
 
     def iu_check(self):
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_sql = f'{self.tdCom.get_long_name()},t0=127 c1=9223372036854775807i,c2=1u 0'
         stb_name = input_sql.split(",")[0]
@@ -70,6 +76,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         check id.index in tags
         eg: t0=**,id=**,t1=**
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_sql, stb_name = self.tdCom.gen_full_type_sql(id_change_tag=True)
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
@@ -79,6 +86,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         check id param
         eg: id and ID
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_sql, stb_name = self.tdCom.gen_full_type_sql(id_upper_tag=True)
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
@@ -91,6 +99,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         """
         id not exist
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_sql, stb_name = self.tdCom.gen_full_type_sql(id_noexist_tag=True)
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
@@ -106,6 +115,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         max tag count is 128
         max col count is 4096
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         for input_sql in [self.tdCom.gen_long_sql(self.tdCom.boundary_config["MAX_TAG_COUNT"], 1)[0], self.tdCom.gen_long_sql(1, self.tdCom.boundary_config["MAX_TAG_COL_COUNT"]-2)[0]]:
             self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
             self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
@@ -123,18 +133,20 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         test illegal id name
         mix "~!@#$¥%^&*()-+={}|[]、「」【】:;《》<>?"
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         rstr = list("~!@#$¥%^&*()-+|[]、「」【】;:《》<>?")
         for i in rstr:
             stb_name=f"aaa{i}bbb"
             input_sql = self.tdCom.gen_full_type_sql(stb_name=stb_name, tb_name=f'{stb_name}_sub')[0]
             self.tdCom.check_res(input_sql, f'`{stb_name}`', dbname=self.dbname)
-            self.tdRest.restApiPost(f"drop table if exists test.`{stb_name}`")
-
+            self.tdRest.restApiPost(f"drop table if exists {self.dbname}.`{stb_name}`")
+            
     def id_start_with_num_check(self):
         """
         id is start with num
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name="1aaabbb")
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
@@ -143,6 +155,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         """
         check now unsupported
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_sql = self.tdCom.gen_full_type_sql(ts="now")[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
@@ -153,6 +166,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         """
         check date format ts unsupported
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_sql = self.tdCom.gen_full_type_sql(ts="2021-07-21\ 19:01:46.920")[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
@@ -163,6 +177,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         """
         check ts format like 16260068336390us19
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_sql = self.tdCom.gen_full_type_sql(ts="16260068336390us19")[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
@@ -176,6 +191,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         chech upper tag
         length of stb_name tb_name <= 192
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         stb_name_192 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"])
         tb_name_192 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"])
@@ -203,6 +219,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         """
         check full type tag value limit
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         # nchar
         # * legal nchar could not be larger than 16374/4
@@ -218,6 +235,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         """
         check full type col value limit
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         # i8
         for c1 in [f'-{self.tdCom.boundary_config["TINYINT_MAX"]}i8', f'{self.tdCom.boundary_config["TINYINT_MAX"]}i8']:
@@ -295,6 +313,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         """
         test illegal tag col value
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         # bool
         for i in ["TrUe", "tRue", "trUe", "truE", "FalsE", "fAlse", "faLse", "falSe", "falsE"]:
@@ -340,6 +359,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         """
         check duplicate Id Tag Col
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_sql_id = self.tdCom.gen_full_type_sql(id_double_tag=True)[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql_id, precision="ns", dbname=self.dbname)
@@ -363,6 +383,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         """
         check duplicate insert when stb exist
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name="duplicate")
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
@@ -373,6 +394,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         """
         check length increase
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_sql, stb_name = self.tdCom.gen_full_type_sql()
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
@@ -385,6 +407,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         """
             every binary and nchar must be length+2
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         stb_name = self.tdCom.get_long_name()
         tb_name = f'{stb_name}_1'
@@ -412,6 +435,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         """
         check nchar length limit
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         stb_name = self.tdCom.get_long_name()
         input_sql = f'{stb_name},t2=t c0=f 1626006833639000000'
@@ -448,6 +472,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         """
         test batch insert
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         stb_name = self.tdCom.get_long_name()
         self.tdRest.restApiPost(f'create stable {self.dbname}.{stb_name}(ts timestamp, f int) tags(t1 bigint)')
@@ -473,6 +498,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         """
         test multi insert
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         long_sql = ''
         stb_name = self.tdCom.get_long_name(8)
@@ -489,6 +515,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         """
         test batch error insert
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         stb_name = self.tdCom.get_long_name(8)
         lines = f'st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i 64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000"\n\
@@ -501,6 +528,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         """
         test multi cols insert
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_sql = self.tdCom.gen_full_type_sql(c_multi_tag=True)[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
@@ -511,6 +539,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         """
         test multi tags insert
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_sql = self.tdCom.gen_full_type_sql(t_multi_tag=True)[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
@@ -521,6 +550,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         """
         test blank col insert
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_sql = self.tdCom.gen_full_type_sql(c_blank_tag=True)[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
@@ -531,6 +561,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         """
         test blank tag insert
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_sql, stb_name = self.tdCom.gen_full_type_sql(t_blank_tag=True)
         self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
@@ -541,6 +572,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         """
         check nchar ---> chinese
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_sql, stb_name = self.tdCom.gen_full_type_sql(chinese_tag=True)
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
