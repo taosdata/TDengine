@@ -41,12 +41,13 @@ typedef struct {
 
 typedef struct SRpcHandleInfo {
   // rpc info
-  void    *handle;         // rpc handle returned to app
-  int64_t  refId;          // refid, used by server
-  int32_t  noResp;         // has response or not(default 0, 0: resp, 1: no resp);
-  int32_t  persistHandle;  // persist handle or not
+  void   *handle;         // rpc handle returned to app
+  int64_t refId;          // refid, used by server
+  int8_t  noResp;         // has response or not(default 0, 0: resp, 1: no resp)
+  int8_t  persistHandle;  // persist handle or not
+  int8_t  hasEpSet;
+
   STraceId traceId;
-  int8_t   hasEpSet;
 
   // app info
   void *ahandle;  // app handle set by client
@@ -69,8 +70,9 @@ typedef struct SRpcMsg {
   SRpcHandleInfo info;
 } SRpcMsg;
 
-typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *rf);
+typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *epset);
 typedef bool (*RpcRfp)(int32_t code, tmsg_t msgType);
+typedef bool (*RpcTfp)(int32_t code, tmsg_t msgType);
 
 typedef struct SRpcInit {
   char     localFqdn[TSDB_FQDN_LEN];
@@ -84,11 +86,14 @@ typedef struct SRpcInit {
   // the following is for client app ecurity only
   char *user;  // user name
 
-  // call back to process incoming msg, code shall be ignored by server app
+  // call back to process incoming msg
   RpcCfp cfp;
 
-  // user defined retry func
+  // retry not not for particular msg
   RpcRfp rfp;
+
+  // set up timeout for particular msg
+  RpcTfp tfp;
 
   void *parent;
 } SRpcInit;

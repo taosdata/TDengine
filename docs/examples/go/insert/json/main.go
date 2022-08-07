@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/taosdata/driver-go/v3/af"
 )
@@ -20,7 +20,7 @@ func prepareDatabase(conn *af.Connector) {
 func main() {
 	conn, err := af.Open("localhost", "root", "taosdata", "", 6030)
 	if err != nil {
-		fmt.Println("fail to connect, err:", err)
+		log.Fatalln("fail to connect, err:", err)
 	}
 	defer conn.Close()
 	prepareDatabase(conn)
@@ -32,6 +32,6 @@ func main() {
 
 	err = conn.OpenTSDBInsertJsonPayload(payload)
 	if err != nil {
-		fmt.Println("insert error:", err)
+		log.Fatalln("insert error:", err)
 	}
 }
