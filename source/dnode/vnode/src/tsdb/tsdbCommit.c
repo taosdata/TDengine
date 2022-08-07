@@ -309,7 +309,7 @@ static int32_t tsdbCommitterNextLastRow(SCommitter *pCommitter) {
     pCommitter->dReader.iBlockL++;
     if (pCommitter->dReader.iBlockL < taosArrayGetSize(pCommitter->dReader.aBlockL)) {
       pCommitter->dReader.pBlockL = (SBlockL *)taosArrayGet(pCommitter->dReader.aBlockL, pCommitter->dReader.iBlockL);
-      code = tsdbReadLastBlock(pCommitter->dReader.pReader, pCommitter->dReader.pBlockL, pBlockDatal, NULL, NULL);
+      code = tsdbReadLastBlock(pCommitter->dReader.pReader, pCommitter->dReader.pBlockL, pBlockDatal, NULL, 0);
       if (code) goto _exit;
 
       pCommitter->dReader.iRow = 0;
@@ -593,7 +593,7 @@ static int32_t tsdbMergeCommitData(SCommitter *pCommitter, STbDataIter *pIter, S
   SBlockData *pBlockDataR = &pCommitter->dReader.bData;
   SBlockData *pBlockDataW = &pCommitter->dWriter.bData;
 
-  code = tsdbReadDataBlock(pCommitter->dReader.pReader, pBlock, pBlockDataR, NULL, NULL);
+  code = tsdbReadDataBlock(pCommitter->dReader.pReader, pBlock, pBlockDataR, NULL, 0);
   if (code) goto _err;
 
   tBlockDataClearData(pBlockDataW);

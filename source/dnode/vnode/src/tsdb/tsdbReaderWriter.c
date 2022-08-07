@@ -816,7 +816,7 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
           if (code) goto _err;
         }
       } else {
-        code = tsdbDecmprColData(pt + blockCol.offset, &blockCol, hdr.cmprAlg, hdr.nRow, pColData, pReader->pBuf2);
+        code = tsdbDecmprColData(pt + blockCol.offset, &blockCol, hdr.cmprAlg, hdr.nRow, pColData, &pReader->pBuf2);
         if (code) goto _err;
       }
     }
@@ -826,6 +826,39 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
 
 _err:
   tsdbError("vgId:%d tsdb read block data impl failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+int32_t tsdbReadDataBlock(SDataFReader *pReader, SBlock *pBlock, SBlockData *pBlockData, int16_t *aColId,
+                          int32_t nColId) {
+  int32_t code = 0;
+
+  code = tsdbReadBlockDataImpl(pReader, &pBlock->aSubBlock[0], 0, aColId, nColId, pBlockData);
+  if (code) goto _err;
+
+  for (int32_t iSubBlock = 1; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
+    // TODO
+    ASSERT(0);
+  }
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb read data block failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+int32_t tsdbReadLastBlock(SDataFReader *pReader, SBlockL *pBlockL, SBlockData *pBlockData, int16_t *aColId,
+                          int32_t nColId) {
+  int32_t code = 0;
+
+  code = tsdbReadBlockDataImpl(pReader, &pBlockL->bInfo, 1, aColId, nColId, pBlockData);
+  if (code) goto _err;
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb read last block failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
