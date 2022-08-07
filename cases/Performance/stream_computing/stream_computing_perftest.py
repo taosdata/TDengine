@@ -47,7 +47,6 @@ class StreamComputingPerfTest(TDCase):
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
         self.fqdn = self.taosd_setting["fqdn"][0]
         self.firstEp = self.taosd_setting["spec"]["config"]["firstEP"]
-        print(self.taosd_setting)
         self.data_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"]
         self.log_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["logDir"]
         
@@ -102,6 +101,8 @@ class StreamComputingPerfTest(TDCase):
         Insert_file = Perf_Base_func(self.logger, self.run_log_dir)
         for cases in cfg:
             self.clean_and_restart_taosd()
+            if cases == "case33":
+                time.sleep(10)
             i = 0
             for json_file in cfg[cases]:
                 if "stream_info" in cfg[cases][json_file]:
@@ -110,6 +111,7 @@ class StreamComputingPerfTest(TDCase):
                     target_tb = cfg[cases][json_file]["stream_info"]["stream_stb"]
                     query_sql = cfg[cases][json_file]["stream_info"]["source_sql"]
                     target_db = target_tb.split(".")[0]
+                    # self.tdSql.execute(f'create database if not exists {target_db} minrows 1 vgroups 1')
                     self.tdSql.execute(f'create database if not exists {target_db} minrows 1 vgroups {cfg[cases][json_file]["db_info"]["vgroups"]}')
                     # self.tdSql.execute(f'create database if not exists perf_db2 minrows 1 vgroups 1')
                     # interval=cfg[cases][json_file]["stream_info"]["interval"]
@@ -190,7 +192,6 @@ class StreamComputingPerfTest(TDCase):
                 jfile.genBenchmarkJson(self.run_log_dir, file_name[i], json_info)
                 i += 1
             # put the file to target
-            print(taosBenchmark_iplist)
             Insert_file.put_file(taosBenchmark_iplist, json_data, file_name)
             result_file_name = self.run_log_dir + '/perf_report.txt'
             f = open(result_file_name, 'a')
@@ -285,14 +286,61 @@ class StreamComputingPerfTest(TDCase):
                 f.write(f'\n\n')
                 
                 f.write(f'--------{cases}---- sub_query row_count \t--------\n')
-                self.tdSql.query(cfg[cases][json_file]["stream_info"]["source_sql"])
-                f.write(str(self.tdSql.query_row))
+                if "interval" not in cfg[cases][json_file]["stream_info"]["source_sql"]:
+                    self.tdSql.query(f'select count(*) from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]}')
+                    sub_query_row_count = self.tdSql.query_data[0][0]
+                else:
+                    self.tdSql.query(cfg[cases][json_file]["stream_info"]["source_sql"])
+                    sub_query_row_count = self.tdSql.query_row
+                f.write(str(sub_query_row_count))
                 f.write(f'\n\n')
 
                 f.write(f'--------{cases}---- target_db row_count \t--------\n')
                 self.tdSql.query(f'select count(*) from {cfg[cases][json_file]["stream_info"]["stream_stb"]};')
                 if len(self.tdSql.query_data) > 0:
+                    target_stb_row_count = self.tdSql.query_data[0][0]
+                    latency = 0
+                    if cfg[cases][json_file]["stream_info"]["trigger_mode"] == "at_once":
+                        while sub_query_row_count != target_stb_row_count:
+                            time.sleep(3)
+                            self.tdSql.query(f'select count(*) from {cfg[cases][json_file]["stream_info"]["stream_stb"]};')
+                            target_stb_row_count = self.tdSql.query_data[0][0]
+                            if latency < self.stream_timeout:
+                                latency += 1
+                            else:
+                                f.write(str(target_stb_row_count))
+                                return
                     f.write(str(self.tdSql.query_data[0][0]))
+                else:
+                    f.write(str(0))
+                f.write(f'\n\n')
+
+                f.write(f'--------{cases}---- final result \t--------\n')
+                if "_wstart" in cfg[cases][json_file]["stream_info"]["source_sql"]:
+                    select_ts_elm = "_wstart as start"
+                    order_by_elm = "start"
+                else:
+                    select_ts_elm = "ts"
+                    order_by_elm = "ts"
+                if "stream_info" in cfg[cases][json_file]:
+                    if "partition by" in cfg[cases][json_file]["stream_info"]["source_sql"]:
+                        if cfg[cases][json_file]["stream_info"]["trigger_mode"] == "at_once":
+                            if "interval" in cfg[cases][json_file]["stream_info"]["source_sql"]:
+                                self.tdSql.query(f'select avg(sp),max(sp),min(sp),apercentile(sp, 50) from (select {order_by_elm},spread(cha) as sp, `tbname` from ((select {select_ts_elm}  , tbname, max(cast({non_prikey_ts_col_name} as bigint)) as cha from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]} partition by tbname interval({cfg[cases][json_file]["stream_info"]["interval"]})) \
+                                    union all (select {order_by_elm}, `tbname`, cast(`now` as bigint)  from {cfg[cases][json_file]["stream_info"]["stream_stb"]}) order by {order_by_elm}, `tbname`) partition by {order_by_elm},`tbname` order by {order_by_elm} );')
+                                self.tdSql.query(f'select avg(sp),max(sp),min(sp),apercentile(sp, 50) from (select t1.ts, timediff(t2.`now`, t1.{non_prikey_ts_col_name}) sp from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]} t1, {cfg[cases][json_file]["stream_info"]["stream_stb"]} t2 where t1.ts=t2.ts and t1.tbname = t2.`tbname`);');
+                            else:
+                                self.tdSql.query(f'select avg(sp),max(sp),min(sp),apercentile(sp, 50) from (select t1.ts, timediff(t2.`now`, t1.{non_prikey_ts_col_name}) sp from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]} t1, {cfg[cases][json_file]["stream_info"]["stream_stb"]} t2 where t1.ts=t2.ts and t1.tbname = t2.`tbname`);');
+                                # self.tdSql.query(f'select avg(sp),max(sp),min(sp),apercentile(sp, 50) from (select {order_by_elm},spread(cha) as sp, `tbname` from ((select {select_ts_elm}  , tbname, max(cast({non_prikey_ts_col_name} as bigint)) as cha from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]} partition by tbname) \
+                                #     union all (select {order_by_elm}, `tbname`, cast(`now` as bigint)  from {cfg[cases][json_file]["stream_info"]["stream_stb"]}) order by {order_by_elm}, `tbname`) partition by {order_by_elm},`tbname` order by {order_by_elm} );')
+                        else:
+                            self.tdSql.query(f'select avg(sp),max(sp),min(sp),apercentile(sp, 50) from (select {order_by_elm},spread(cha) as sp, `tbname` from ((select {select_ts_elm}  ,tbname, max(cast({non_prikey_ts_col_name} as bigint)) as cha from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]} partition by tbname interval({cfg[cases][json_file]["stream_info"]["interval"]})) \
+                                union all (select {order_by_elm}, `tbname`, cast(`now` as bigint)  from {cfg[cases][json_file]["stream_info"]["stream_stb"]}) order by {order_by_elm}, `tbname`) partition by {order_by_elm},`tbname` order by {order_by_elm} ) where sp>0;')
+                    else:
+                        self.tdSql.query(f'select avg(sp),max(sp),min(sp),apercentile(sp, 50) from (select {order_by_elm},spread(cha) as sp from ((select {select_ts_elm}  ,max(cast({non_prikey_ts_col_name} as bigint)) as cha from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]} interval({cfg[cases][json_file]["stream_info"]["interval"]})) \
+                            union all (select {order_by_elm}, cast(`now` as bigint)  from {cfg[cases][json_file]["stream_info"]["stream_stb"]}) order by {order_by_elm}) partition by {order_by_elm} order by {order_by_elm} );')
+                if len(self.tdSql.query_data) > 0:
+                    f.write(str([round(x, 1) for x in self.tdSql.query_data[0]]))
                 else:
                     f.write(str(0))
                 f.write(f'\n\n')
