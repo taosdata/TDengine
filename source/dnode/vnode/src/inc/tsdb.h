@@ -63,6 +63,7 @@ typedef struct SRowMerger    SRowMerger;
 typedef struct STsdbReadSnap STsdbReadSnap;
 typedef struct SBlockInfo    SBlockInfo;
 typedef struct SSmaInfo      SSmaInfo;
+typedef struct SBlockCol     SBlockCol;
 
 #define TSDB_MAX_SUBBLOCKS 8
 #define TSDB_FHDR_SIZE     512
@@ -181,7 +182,8 @@ int32_t tPutColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg);
 int32_t tGetColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg);
 int32_t tsdbCmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, uint8_t **ppOut, int32_t nOut,
                      int32_t *szOut, uint8_t **ppBuf);
-int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol, uint8_t **ppBuf);
+int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol, uint8_t **ppOut, int8_t nOut,
+                        uint8_t **ppBuf);
 // tsdbMemTable ==============================================================================================
 // SMemTable
 int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
@@ -400,7 +402,7 @@ struct SMapData {
   uint8_t *pData;
 };
 
-typedef struct {
+struct SBlockCol {
   int16_t cid;
   int8_t  type;
   int8_t  smaOn;
@@ -410,7 +412,7 @@ typedef struct {
   int32_t szOffset;  // offset size, 0 only for non-variant-length type
   int32_t szValue;   // value size, 0 when flag == (HAS_NULL | HAS_NONE)
   int32_t offset;
-} SBlockCol;
+};
 
 struct SBlockInfo {
   int64_t offset;  // block data offset
@@ -600,6 +602,7 @@ struct SDataFWriter {
 
   uint8_t *pBuf1;
   uint8_t *pBuf2;
+  uint8_t *pBuf3;
 };
 
 struct STsdbReadSnap {

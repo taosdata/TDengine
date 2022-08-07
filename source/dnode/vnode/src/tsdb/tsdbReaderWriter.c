@@ -1414,7 +1414,6 @@ int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pS
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
-  code = tDiskDataInit(&pWriter->dData);
   if (code) goto _err;
   pWriter->pTsdb = pTsdb;
   pWriter->wSet = (SDFileSet){.diskId = pSet->diskId,
@@ -1594,9 +1593,9 @@ int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync) {
     goto _err;
   }
 
-  tDiskDataClear(&(*ppWriter)->dData);
   tFree((*ppWriter)->pBuf1);
   tFree((*ppWriter)->pBuf2);
+  tFree((*ppWriter)->pBuf3);
   taosMemoryFree(*ppWriter);
 _exit:
   *ppWriter = NULL;
@@ -1905,10 +1904,13 @@ _err:
 
 int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo,
                            int8_t cmprAlg, int8_t toLast) {
-  int32_t   code = 0;
-  TdFilePtr pFD = toLast ? pWriter->pLastFD : pWriter->pDataFD;
+  int32_t code = 0;
 
   ASSERT(pBlockData->nRow > 0);
+
+  pBlkInfo->offset = toLast ? pWriter->fLast.size : pWriter->fData.size;
+  pBlkInfo->szBlock = 0;
+  pBlkInfo->szKey = 0;
 
   // ================= DATA ====================
   SDiskDataHdr hdr = {.delimiter = TSDB_FILE_DLMT,
@@ -1923,23 +1925,8 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
     goto _err;
   }
 
-  // uid
-  if (pBlockData->uid == 0) {
-    ASSERT(toLast);
-    code = tsdbCmprData();
-    if (code) goto _err;
-  }
-
-  // version
-  code = tsdbCmprData();
-  if (code) goto _err;
-
-  // ts
-  code = tsdbCmprData();
-  if (code) goto _err;
-
-  // columns
-  int32_t offset = 0;
+  // encode =================
+  int32_t nBuf1 = 0;
   for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aIdx); iColData++) {
     SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
 
@@ -1954,15 +1941,71 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
                           .szOrigin = pColData->nData};
 
     if (pColData->flag != HAS_NULL) {
+      code = tsdbCmprColData(pColData, cmprAlg, &blockCol, &pWriter->pBuf1, nBuf1, &pWriter->pBuf3);
+      if (code) goto _err;
+
+      blockCol.offset = nBuf1;
+      nBuf1 = nBuf1 + blockCol.szBitmap + blockCol.szOffset + blockCol.szValue + sizeof(TSCKSUM);
     }
 
     if (taosArrayPush(aBlockCol, &blockCol) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;
     }
+
+    hdr.szBlkCol += tPutBlockCol(NULL, &blockCol);
   }
 
-  // write
+  // (uid + version + tskey + aBlockCol)
+  if (pBlockData->uid == 0) {
+    code = tsdbCmprData((uint8_t *)pBlockData->aUid, sizeof(int64_t) * pBlockData->nRow, TSDB_DATA_TYPE_BIGINT, cmprAlg,
+                        &pWriter->pBuf2, 0, &hdr.szUid, &pWriter->pBuf3);
+    if (code) goto _err;
+  }
+
+  code = tsdbCmprData((uint8_t *)pBlockData->aVersion, sizeof(int64_t) * pBlockData->nRow, TSDB_DATA_TYPE_BIGINT,
+                      cmprAlg, &pWriter->pBuf2, hdr.szUid, &hdr.szVer, &pWriter->pBuf3);
+  if (code) goto _err;
+
+  code = tsdbCmprData((uint8_t *)pBlockData->aTSKEY, sizeof(TSKEY) * pBlockData->nRow, TSDB_DATA_TYPE_TIMESTAMP,
+                      cmprAlg, &pWriter->pBuf2, hdr.szUid + hdr.szVer, &hdr.szKey, &pWriter->pBuf3);
+  if (code) goto _err;
+
+  pBlkInfo->szKey = tPutDiskDataHdr(NULL, &hdr);
+  code = tRealloc(&pWriter->pBuf3, pBlkInfo->szKey);
+  if (code) goto _err;
+  tPutDiskDataHdr(pWriter->pBuf3, &hdr);
+  TSCKSUM cksm = taosCalcChecksum(0, pWriter->pBuf3, pBlkInfo->szKey);
+
+  // write =================
+  TdFilePtr pFD = toLast ? pWriter->pLastFD : pWriter->pDataFD;
+
+  // hdr
+  int64_t n = taosWriteFile(pFD, pWriter->pBuf3, pBlkInfo->szKey);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // uid + version + tskey + (CKSM)
+  taosCalcChecksumAppend(cksm, pWriter->pBuf2, hdr.szUid + hdr.szVer + hdr.szKey + sizeof(TSCKSUM));
+  n = taosWriteFile(pFD, pWriter->pBuf2, hdr.szUid + hdr.szVer + hdr.szKey + sizeof(TSCKSUM));
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+  pBlkInfo->szKey = pBlkInfo->szKey + hdr.szUid + hdr.szVer + hdr.szKey + sizeof(TSCKSUM);
+
+  // aBlockCol
+
+  // colmns
+
+  // update info
+  if (toLast) {
+    pWriter->fLast.size += pBlkInfo->szBlock;
+  } else {
+    pWriter->fData.size += pBlkInfo->szBlock;
+  }
 
   // ================= SMA ====================
   if (pSmaInfo) {
@@ -1971,10 +2014,12 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
   }
 
 _exit:
+  taosArrayDestroy(aBlockCol);
   return code;
 
 _err:
   tsdbError("vgId:%d tsdb write block data failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  taosArrayDestroy(aBlockCol);
   return code;
 }
 

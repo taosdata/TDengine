@@ -1373,11 +1373,11 @@ int32_t tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlock
 
     c = tsdbKeyCmprFn(&TSDBROW_KEY(&row1), &TSDBROW_KEY(&row2));
     if (c < 0) {
-      code = tBlockDataAppendRow(pBlockData, &row1, NULL);
+      // code = tBlockDataAppendRow(pBlockData, &row1, NULL);
       if (code) goto _exit;
       iRow1++;
     } else if (c > 0) {
-      code = tBlockDataAppendRow(pBlockData, &row2, NULL);
+      // code = tBlockDataAppendRow(pBlockData, &row2, NULL);
       if (code) goto _exit;
       iRow2++;
     } else {
@@ -1387,14 +1387,14 @@ int32_t tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlock
 
   while (iRow1 < nRow1) {
     row1 = tsdbRowFromBlockData(pBlockData1, iRow1);
-    code = tBlockDataAppendRow(pBlockData, &row1, NULL);
+    // code = tBlockDataAppendRow(pBlockData, &row1, NULL);
     if (code) goto _exit;
     iRow1++;
   }
 
   while (iRow2 < nRow2) {
     row2 = tsdbRowFromBlockData(pBlockData2, iRow2);
-    code = tBlockDataAppendRow(pBlockData, &row2, NULL);
+    // code = tBlockDataAppendRow(pBlockData, &row2, NULL);
     if (code) goto _exit;
     iRow2++;
   }
@@ -1751,43 +1751,44 @@ _exit:
   return code;
 }
 
-int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol, uint8_t **ppBuf) {
+int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol, uint8_t **ppOut, int8_t nOut,
+                        uint8_t **ppBuf) {
   int32_t code = 0;
 
-  int32_t n = 0;
+  pBlockCol->szBitmap = 0;
+  pBlockCol->szOffset = 0;
+  pBlockCol->szValue = 0;
+
+  int32_t size = 0;
   // bitmap
   if (pColData->flag != HAS_VALUE) {
-    code = tsdbCmprData(pColData->pBitMap, BIT2_SIZE(pColData->nVal), TSDB_DATA_TYPE_TINYINT, cmprAlg,
-                        pBlockCol->ppData, n, &pBlockCol->szBitmap, ppBuf);
+    code = tsdbCmprData(pColData->pBitMap, BIT2_SIZE(pColData->nVal), TSDB_DATA_TYPE_TINYINT, cmprAlg, ppOut,
+                        nOut + size, &pBlockCol->szBitmap, ppBuf);
     if (code) goto _exit;
-  } else {
-    pBlockCol->szBitmap = 0;
   }
-  n += pBlockCol->szBitmap;
+  size += pBlockCol->szBitmap;
 
   // offset
   if (IS_VAR_DATA_TYPE(pColData->type)) {
     code = tsdbCmprData((uint8_t *)pColData->aOffset, sizeof(int32_t) * pColData->nVal, TSDB_DATA_TYPE_INT, cmprAlg,
-                        pBlockCol->ppData, n, &pBlockCol->szOffset, ppBuf);
+                        ppOut, nOut + size, &pBlockCol->szOffset, ppBuf);
     if (code) goto _exit;
-  } else {
-    pBlockCol->szOffset = 0;
   }
-  n += pBlockCol->szOffset;
+  size += pBlockCol->szOffset;
 
   // value
   if (pColData->flag != (HAS_NULL | HAS_NONE)) {
-    code = tsdbCmprData((uint8_t *)pColData->pData, pColData->nData, pColData->type, cmprAlg, pBlockCol->ppData, n,
+    code = tsdbCmprData((uint8_t *)pColData->pData, pColData->nData, pColData->type, cmprAlg, ppOut, nOut + size,
                         &pBlockCol->szValue, ppBuf);
     if (code) goto _exit;
-  } else {
-    pBlockCol->szValue = 0;
   }
-  n += pBlockCol->szValue;
+  size += pBlockCol->szValue;
 
   // checksum
-  n += sizeof(TSCKSUM);
-  taosCalcChecksumAppend(0, *ppBuf, n);
+  size += sizeof(TSCKSUM);
+  code = tRealloc(ppOut, nOut + size);
+  if (code) goto _exit;
+  taosCalcChecksumAppend(0, *ppOut + nOut, size);
 
 _exit:
   return code;
