@@ -1911,72 +1911,58 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
   ASSERT(pBlockData->nRow > 0);
 
   // ================= DATA ====================
-#if 0
-  // convert
-  code = tBlockToDiskData(pBlockData, pDiskData, cmprAlg);
+  SDiskDataHdr hdr = {.delimiter = TSDB_FILE_DLMT,
+                      .suid = pBlockData->suid,
+                      .uid = pBlockData->uid,
+                      .nRow = pBlockData->nRow,
+                      .cmprAlg = cmprAlg};
+
+  SArray *aBlockCol = taosArrayInit(taosArrayGetSize(pBlockData->aIdx), sizeof(SBlockCol));
+  if (aBlockCol == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  // uid
+  if (pBlockData->uid == 0) {
+    ASSERT(toLast);
+    code = tsdbCmprData();
+    if (code) goto _err;
+  }
+
+  // version
+  code = tsdbCmprData();
   if (code) goto _err;
 
-  // write the block
-  if (toLast) {
-    pBlkInfo->offset = pWriter->fLast.size;
-  } else {
-    pBlkInfo->offset = pWriter->fData.size;
-  }
-
-  // HDR and KEY
-  int32_t size = tPutDiskDataHdr(NULL, &pDiskData->hdr);
-  code = tRealloc(ppBuf, size);
+  // ts
+  code = tsdbCmprData();
   if (code) goto _err;
 
-  tPutDiskDataHdr(*ppBuf, &pDiskData->hdr);
+  // columns
+  int32_t offset = 0;
+  for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aIdx); iColData++) {
+    SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
 
-  TSCKSUM cksm = taosCalcChecksum(0, *ppBuf, size);
+    ASSERT(pColData->flag);
 
-  int64_t n = taosWriteFile(pFD, *ppBuf, size);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
+    if (pColData->flag == HAS_NONE) continue;
+
+    SBlockCol blockCol = {.cid = pColData->cid,
+                          .type = pColData->type,
+                          .smaOn = pColData->smaOn,
+                          .flag = pColData->flag,
+                          .szOrigin = pColData->nData};
+
+    if (pColData->flag != HAS_NULL) {
+    }
+
+    if (taosArrayPush(aBlockCol, &blockCol) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
   }
 
-  cksm = taosCalcChecksum(cksm, *pDiskData->ppKey, pDiskData->hdr.szUid + pDiskData->hdr.szVer + pDiskData->hdr.szKey);
-  n = taosWriteFile(pFD, *pDiskData->ppKey, pDiskData->hdr.szUid + pDiskData->hdr.szVer + pDiskData->hdr.szKey);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  n = taosWriteFile(pFD, &cksm, sizeof(cksm));
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  pBlkInfo->szKey = size + pDiskData->hdr.szUid + pDiskData->hdr.szVer + pDiskData->hdr.szKey + sizeof(TSCKSUM);
-
-  // SBlockCol
-  if (pDiskData->hdr.szBlkCol == 0) {
-    pBlkInfo->szBlock = pBlkInfo->szKey;
-    goto _write_sma;
-  }
-
-  code = tRealloc(ppBuf, pDiskData->hdr.szBlkCol + sizeof(TSCKSUM));
-  if (code) goto _err;
-
-  n = 0;
-  for (int32_t iBlockCol = 0; iBlockCol < taosArrayGetSize(pDiskData->aBlockCol); iBlockCol++) {
-    n += tPutBlockCol(*ppBuf + n, taosArrayGet(pDiskData->aBlockCol, iBlockCol));
-  }
-  taosCalcChecksumAppend(0, *ppBuf, pDiskData->hdr.szBlkCol + sizeof(TSCKSUM));
-
-  n = taosWriteFile(pFD, *ppBuf, pDiskData->hdr.szBlkCol + sizeof(TSCKSUM));
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  for (int32_t iBlockCol = 0; iBlockCol < taosArrayGetSize(pDiskData->aBlockCol); iBlockCol++) {
-  }
-#endif
+  // write
 
   // ================= SMA ====================
   if (pSmaInfo) {

@@ -47,7 +47,6 @@ typedef struct SBlockL       SBlockL;
 typedef struct SColData      SColData;
 typedef struct SDiskDataHdr  SDiskDataHdr;
 typedef struct SBlockData    SBlockData;
-typedef struct SDiskData     SDiskData;
 typedef struct SDelFile      SDelFile;
 typedef struct SHeadFile     SHeadFile;
 typedef struct SDataFile     SDataFile;
@@ -152,11 +151,6 @@ SColData *tBlockDataGetColDataByIdx(SBlockData *pBlockData, int32_t idx);
 void      tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData);
 int32_t   tPutBlockData(uint8_t *p, SBlockData *pBlockData);
 int32_t   tGetBlockData(uint8_t *p, SBlockData *pBlockData);
-// SDiskData
-int32_t tDiskDataInit(SDiskData *pDiskData);
-void    tDiskDataClear(SDiskData *pDiskData);
-int32_t tBlockToDiskData(SBlockData *pBlockData, SDiskData *pDiskData, int8_t cmprAlg);
-int32_t tDiskToBlockData(SDiskData *pDiskData, SBlockData *pBlockData);
 // SDiskDataHdr
 int32_t tPutDiskDataHdr(uint8_t *p, void *ph);
 int32_t tGetDiskDataHdr(uint8_t *p, void *ph);
@@ -185,6 +179,9 @@ int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SAr
 void    tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg);
 int32_t tPutColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg);
 int32_t tGetColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg);
+int32_t tsdbCmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, uint8_t **ppOut, int32_t nOut,
+                     int32_t *szOut, uint8_t **ppBuf);
+int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol, uint8_t **ppBuf);
 // tsdbMemTable ==============================================================================================
 // SMemTable
 int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
@@ -404,16 +401,15 @@ struct SMapData {
 };
 
 typedef struct {
-  int16_t   cid;
-  int8_t    type;
-  int8_t    smaOn;
-  int8_t    flag;      // HAS_NONE|HAS_NULL|HAS_VALUE
-  int32_t   szOrigin;  // original column value size (only save for variant data type)
-  int32_t   szBitmap;  // bitmap size, 0 only for flag == HAS_VAL
-  int32_t   szOffset;  // offset size, 0 only for non-variant-length type
-  int32_t   szValue;   // value size, 0 when flag == (HAS_NULL | HAS_NONE)
-  int32_t   offset;
-  uint8_t **ppData;
+  int16_t cid;
+  int8_t  type;
+  int8_t  smaOn;
+  int8_t  flag;      // HAS_NONE|HAS_NULL|HAS_VALUE
+  int32_t szOrigin;  // original column value size (only save for variant data type)
+  int32_t szBitmap;  // bitmap size, 0 only for flag == HAS_VAL
+  int32_t szOffset;  // offset size, 0 only for non-variant-length type
+  int32_t szValue;   // value size, 0 when flag == (HAS_NULL | HAS_NONE)
+  int32_t offset;
 } SBlockCol;
 
 struct SBlockInfo {
@@ -588,14 +584,6 @@ struct SDelFWriter {
   uint8_t *pBuf1;
 };
 
-struct SDiskData {
-  SDiskDataHdr hdr;
-  uint8_t    **ppKey;
-  SArray      *aBlockCol;  // SArray<SBlockCol>
-  int32_t      nBuf;
-  SArray      *aBuf;  // SArray<uint8_t*>
-};
-
 struct SDataFWriter {
   STsdb    *pTsdb;
   SDFileSet wSet;
@@ -612,8 +600,6 @@ struct SDataFWriter {
 
   uint8_t *pBuf1;
   uint8_t *pBuf2;
-
-  SDiskData dData;
 };
 
 struct STsdbReadSnap {
