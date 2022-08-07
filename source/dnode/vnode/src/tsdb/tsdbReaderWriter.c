@@ -1926,6 +1926,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
   }
 
   // encode =================
+  // columns
   int32_t nBuf1 = 0;
   for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aIdx); iColData++) {
     SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
@@ -1956,26 +1957,33 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
     hdr.szBlkCol += tPutBlockCol(NULL, &blockCol);
   }
 
-  // (uid + version + tskey + aBlockCol)
+  // uid
   if (pBlockData->uid == 0) {
     code = tsdbCmprData((uint8_t *)pBlockData->aUid, sizeof(int64_t) * pBlockData->nRow, TSDB_DATA_TYPE_BIGINT, cmprAlg,
                         &pWriter->pBuf2, 0, &hdr.szUid, &pWriter->pBuf3);
     if (code) goto _err;
   }
 
+  // version
   code = tsdbCmprData((uint8_t *)pBlockData->aVersion, sizeof(int64_t) * pBlockData->nRow, TSDB_DATA_TYPE_BIGINT,
                       cmprAlg, &pWriter->pBuf2, hdr.szUid, &hdr.szVer, &pWriter->pBuf3);
   if (code) goto _err;
 
+  // tskey
   code = tsdbCmprData((uint8_t *)pBlockData->aTSKEY, sizeof(TSKEY) * pBlockData->nRow, TSDB_DATA_TYPE_TIMESTAMP,
                       cmprAlg, &pWriter->pBuf2, hdr.szUid + hdr.szVer, &hdr.szKey, &pWriter->pBuf3);
   if (code) goto _err;
 
+  // hdr
   pBlkInfo->szKey = tPutDiskDataHdr(NULL, &hdr);
   code = tRealloc(&pWriter->pBuf3, pBlkInfo->szKey);
   if (code) goto _err;
   tPutDiskDataHdr(pWriter->pBuf3, &hdr);
   TSCKSUM cksm = taosCalcChecksum(0, pWriter->pBuf3, pBlkInfo->szKey);
+
+  code = tRealloc(&pWriter->pBuf2, hdr.szUid + hdr.szVer + hdr.szKey + sizeof(TSCKSUM));
+  if (code) goto _err;
+  taosCalcChecksumAppend(cksm, pWriter->pBuf2, hdr.szUid + hdr.szVer + hdr.szKey + sizeof(TSCKSUM));
 
   // write =================
   TdFilePtr pFD = toLast ? pWriter->pLastFD : pWriter->pDataFD;
@@ -1988,17 +1996,43 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
   }
 
   // uid + version + tskey + (CKSM)
-  taosCalcChecksumAppend(cksm, pWriter->pBuf2, hdr.szUid + hdr.szVer + hdr.szKey + sizeof(TSCKSUM));
   n = taosWriteFile(pFD, pWriter->pBuf2, hdr.szUid + hdr.szVer + hdr.szKey + sizeof(TSCKSUM));
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
   pBlkInfo->szKey = pBlkInfo->szKey + hdr.szUid + hdr.szVer + hdr.szKey + sizeof(TSCKSUM);
+  pBlkInfo->szBlock += pBlkInfo->szKey;
 
   // aBlockCol
+  if (hdr.szBlkCol > 0) {
+    code = tRealloc(&pWriter->pBuf2, hdr.szBlkCol + sizeof(TSCKSUM));
+    if (code) goto _err;
+
+    n = 0;
+    for (int32_t iBlockCol = 0; iBlockCol < taosArrayGetSize(aBlockCol); iBlockCol++) {
+      n += tPutBlockCol(pWriter->pBuf2 + n, taosArrayGet(aBlockCol, iBlockCol));
+    }
+    ASSERT(n == hdr.szBlkCol);
+    taosCalcChecksumAppend(0, pWriter->pBuf2, hdr.szBlkCol + sizeof(TSCKSUM));
+
+    n = taosWriteFile(pFD, pWriter->pBuf2, hdr.szBlkCol + sizeof(TSCKSUM));
+    if (n < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+  }
 
   // colmns
+  if (nBuf1 > 0) {
+    n = taosWriteFile(pFD, pWriter->pBuf1, nBuf1);
+    if (n < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+
+    pBlkInfo->szBlock += nBuf1;
+  }
 
   // update info
   if (toLast) {
