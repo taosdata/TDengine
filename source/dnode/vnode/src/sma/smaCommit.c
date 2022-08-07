@@ -402,7 +402,7 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
   // step 1: merge rsmaInfoHash and iRsmaInfoHash
   // lock
   taosWLockLatch(SMA_ENV_LOCK(pEnv));
-
+#if 0
   if (taosHashGetSize(RSMA_INFO_HASH(pRSmaStat)) <= 0) {
     // just switch the hash pointer if rsmaInfoHash is empty
     if (taosHashGetSize(RSMA_IMU_INFO_HASH(pRSmaStat)) > 0) {
@@ -411,25 +411,47 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
       RSMA_IMU_INFO_HASH(pRSmaStat) = infoHash;
     }
   } else {
-    void *pIter = taosHashIterate(RSMA_IMU_INFO_HASH(pRSmaStat), NULL);
-    while (pIter) {
-      tb_uid_t *pSuid = (tb_uid_t *)taosHashGetKey(pIter, NULL);
+#endif
+#if 1
+  void *pIter = taosHashIterate(RSMA_IMU_INFO_HASH(pRSmaStat), NULL);
+  while (pIter) {
+    tb_uid_t *pSuid = (tb_uid_t *)taosHashGetKey(pIter, NULL);
 
-      if (!taosHashGet(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t))) {
-        taosHashPut(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t), pIter, sizeof(pIter));
-        smaDebug("vgId:%d, rsma async post commit, migrated from iRsmaInfoHash for table:%" PRIi64, SMA_VID(pSma),
-                 *pSuid);
-      } else {
-        // free the resources
-        SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)pIter;
-        tdFreeRSmaInfo(pSma, pRSmaInfo, false);
-        smaDebug("vgId:%d, rsma async post commit, free rsma info since already COW for table:%" PRIi64, SMA_VID(pSma),
-                 *pSuid);
+    if (!taosHashGet(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t))) {
+      SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)pIter;
+      if (RSMA_INFO_IS_DEL(pRSmaInfo)) {
+        int32_t refVal = T_REF_VAL_GET(pRSmaInfo);
+        if (refVal == 0) {
+          tdFreeRSmaInfo(pSma, pRSmaInfo, true);
+          smaDebug(
+              "vgId:%d, rsma async post commit, free rsma info since already deleted and ref is 0 for "
+              "table:%" PRIi64,
+              SMA_VID(pSma), *pSuid);
+        } else {
+          smaDebug(
+              "vgId:%d, rsma async post commit, not free rsma info since ref is %d although already deleted for "
+              "table:%" PRIi64,
+              SMA_VID(pSma), refVal, *pSuid);
+        }
+
+        pIter = taosHashIterate(RSMA_IMU_INFO_HASH(pRSmaStat), pIter);
+        continue;
       }
-
-      pIter = taosHashIterate(RSMA_IMU_INFO_HASH(pRSmaStat), pIter);
+      taosHashPut(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t), pIter, sizeof(pIter));
+      smaDebug("vgId:%d, rsma async post commit, migrated from iRsmaInfoHash for table:%" PRIi64, SMA_VID(pSma),
+               *pSuid);
+    } else {
+      // free the resources
+      SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)pIter;
+      tdFreeRSmaInfo(pSma, pRSmaInfo, false);
+      smaDebug("vgId:%d, rsma async post commit, free rsma info since already COW for table:%" PRIi64, SMA_VID(pSma),
+               *pSuid);
     }
+
+    pIter = taosHashIterate(RSMA_IMU_INFO_HASH(pRSmaStat), pIter);
   }
+#endif
+  // }
 
   taosHashCleanup(RSMA_IMU_INFO_HASH(pRSmaStat));
   RSMA_IMU_INFO_HASH(pRSmaStat) = NULL;

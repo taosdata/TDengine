@@ -115,10 +115,10 @@ struct SSmaStat {
 #define RSMA_FS_LOCK(r)       (&(r)->lock)
 
 struct SRSmaInfoItem {
-  tmr_h   tmrId;
-  int32_t maxDelay;
   int8_t  level;
   int8_t  triggerStat;
+  int32_t maxDelay;
+  tmr_h   tmrId;
 };
 
 struct SRSmaInfo {
@@ -173,8 +173,8 @@ int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat);
 int32_t tdRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo);
 int32_t tdUnRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo);
 
-void   *tdAcquireSmaRef(int32_t rsetId, int64_t refId, const char *tags, int32_t ln);
-int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId, const char *tags, int32_t ln);
+void   *tdAcquireSmaRef(int32_t rsetId, int64_t refId);
+int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId);
 
 int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType);
 
@@ -233,7 +233,6 @@ void           tdFreeQTaskInfo(qTaskInfo_t *taskHandle, int32_t vgId, int32_t le
 static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
-void           tdRemoveRSmaInfoBySuid(SSma *pSma, int64_t suid);
 int32_t        tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
 
 int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
