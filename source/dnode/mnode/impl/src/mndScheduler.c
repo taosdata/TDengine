@@ -307,10 +307,9 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
     return -1;
   }
-  int32_t totLevel = LIST_LENGTH(pPlan->pSubplans);
-  ASSERT(totLevel <= 2);
-  pStream->tasks = taosArrayInit(totLevel, sizeof(void*));
-  pStream->isDistributed = totLevel == 2;
+  int32_t planTotLevel = LIST_LENGTH(pPlan->pSubplans);
+  ASSERT(planTotLevel <= 2);
+  pStream->tasks = taosArrayInit(planTotLevel, sizeof(void*));
 
   bool    hasExtraSink = false;
   bool    externalTargetDB = strcmp(pStream->sourceDb, pStream->targetDb) != 0;
@@ -320,7 +319,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
 
   bool multiTarget = pDbObj->cfg.numOfVgroups > 1;
 
-  if (totLevel == 2 || externalTargetDB || multiTarget) {
+  if (planTotLevel == 2 || externalTargetDB || multiTarget) {
     /*if (true) {*/
     SArray* taskOneLevel = taosArrayInit(0, sizeof(void*));
     taosArrayPush(pStream->tasks, &taskOneLevel);
@@ -338,8 +337,9 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
       }
     }
   }
+  pStream->totalLevel = planTotLevel + hasExtraSink;
 
-  if (totLevel > 1) {
+  if (planTotLevel > 1) {
     SStreamTask* pInnerTask;
     // inner level
     {
@@ -370,13 +370,6 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
         qDestroyQueryPlan(pPlan);
         return -1;
       }
-
-#if 0
-      SDbObj* pSourceDb = mndAcquireDb(pMnode, pStream->sourceDb);
-      ASSERT(pDbObj != NULL);
-      sdbRelease(pSdb, pSourceDb);
-      pInnerTask->numOfVgroups = pSourceDb->cfg.numOfVgroups;
-#endif
 
       if (tsSchedStreamToSnode) {
         SSnodeObj* pSnode = mndSchedFetchOneSnode(pMnode);
@@ -464,7 +457,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
     }
   }
 
-  if (totLevel == 1) {
+  if (planTotLevel == 1) {
     SArray* taskOneLevel = taosArrayInit(0, sizeof(void*));
     taosArrayPush(pStream->tasks, &taskOneLevel);
 

@@ -215,7 +215,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
   walApplyVer(pTq->pVnode->pWal, ver);
 
   if (msgType == TDMT_VND_SUBMIT) {
-    if (taosHashGetSize(pTq->pStreamTasks) == 0) return 0;
+    if (taosHashGetSize(pTq->pStreamMeta->pTasks) == 0) return 0;
 
     void* data = taosMemoryMalloc(msgLen);
     if (data == NULL) {
