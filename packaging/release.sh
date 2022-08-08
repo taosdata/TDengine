@@ -26,7 +26,7 @@ soMode=dynamic  # [static | dynamic]
 dbName=taos     # [taos | ...]
 allocator=glibc # [glibc | jemalloc]
 verNumber=""
-verNumberComp="2.0.0.0"
+verNumberComp="3.0.0.0"
 httpdBuild=false
 
 while getopts "hv:V:c:o:l:s:d:a:n:m:H:" arg; do
