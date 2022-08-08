@@ -8,9 +8,9 @@ description: "支持用户编码的聚合函数和标量函数，在查询中嵌
 
 从 2.2.0.0 版本开始，TDengine 支持通过 C/C++ 语言进行 UDF 定义。接下来结合示例讲解 UDF 的使用方法。
 
-用户可以通过 UDF 实现两类函数： 标量函数 和 聚合函数。
+用户可以通过 UDF 实现两类函数： 标量函数和聚合函数。
 
-## 用 C/C++ 语言来定义 UDF
+## 接口函数
 
 ### 标量函数
 
@@ -20,7 +20,7 @@ description: "支持用户编码的聚合函数和标量函数，在查询中嵌
  
  其中 udf 是函数名的占位符，以上述模板实现的函数对行数据块进行标量计算。
 
-- scalarFunction 中各参数的具体含义是：
+- 其中各参数的具体含义是：
   - inputDataBlock: 输入的数据块
   - resultColumn: 输出列 
 
@@ -28,12 +28,12 @@ description: "支持用户编码的聚合函数和标量函数，在查询中嵌
 
 用户可以按照如下函数模板定义自己的聚合函数。
 
-`int32_t udf_start(SUdfInterBuf *interBuf)`
+`int32_t udaf_start(SUdfInterBuf *interBuf)`
 
-`int32_t udf(SUdfDataBlock* inputBlock, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf)`
+`int32_t udaf(SUdfDataBlock* inputBlock, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf)`
 
-`int32_t udf_finish(SUdfInterBuf* interBuf, SUdfInterBuf *result)`
-其中 udf 是函数名的占位符。其中各参数的具体含义是：
+`int32_t udaf_finish(SUdfInterBuf* interBuf, SUdfInterBuf *result)`
+其中 udaf 是函数名的占位符。其中各参数的具体含义是：
 
   - interBuf：中间结果 buffer。
   - inputBlock：输入的数据块。
@@ -48,12 +48,8 @@ description: "支持用户编码的聚合函数和标量函数，在查询中嵌
 
 `int32_t udf_destroy()`
 
-其中 udf 是函数名的占位符。udf_init 完成初始化工作。 udf_destroy 完成清理工作。
+其中 udf 是函数名的占位符，可以替换成自己的函数名。udf_init 完成初始化工作。 udf_destroy 完成清理工作。如果没有初始化工作，无需定义udf_init函数。如果没有清理工作，无需定义udf_destroy函数。
 
-:::note
-如果对应的函数不需要具体的功能，也需要实现一个空函数。
-
-:::
 
 ### UDF 数据结构
 ```c
@@ -187,6 +183,8 @@ SELECT X(c1,c2) FROM table/stable;
 
 ### 标量函数示例 [bit_and](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/bit_and.c)
 
+bit_add 实现多列的按位与功能。如果只有一列，返回这一列。bit_add 忽略空值。
+
 <details>
 <summary>bit_and.c</summary>
 
@@ -197,6 +195,8 @@ SELECT X(c1,c2) FROM table/stable;
 </details>
 
 ### 聚合函数示例 [sqr_sum](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/sqr_sum.c)
+
+sqr_sum 实现了输入列的所有数据的二阶范数，即对每个数据先平方，再累加求和，最后开方。
 
 <details>
 <summary>sqr_sum.c</summary>
