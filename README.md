@@ -56,13 +56,13 @@ To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in t
 ### Ubuntu 16.04 and above or Debian
 
 ```bash
-sudo apt-get install -y gcc cmake build-essential git libssl-dev
+sudo apt-get install -y autoconf gcc cmake build-essential git libssl-dev
 ```
 
 ### Ubuntu 14.04
 
 ```bash
-sudo apt-get install -y gcc cmake3 build-essential git binutils-2.26
+sudo apt-get install -y autoconf gcc cmake3 build-essential git binutils-2.26
 export PATH=/usr/lib/binutils-2.26/bin:$PATH
 ```
 
