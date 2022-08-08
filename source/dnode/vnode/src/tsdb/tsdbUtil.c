@@ -949,13 +949,14 @@ int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest) {
   int32_t size;
 
   ASSERT(pColDataSrc->nVal > 0);
+  ASSERT(pColDataDest->cid = pColDataSrc->cid);
+  ASSERT(pColDataDest->type = pColDataSrc->type);
 
-  pColDataDest->cid = pColDataSrc->cid;
-  pColDataDest->type = pColDataSrc->type;
   pColDataDest->smaOn = pColDataSrc->smaOn;
   pColDataDest->nVal = pColDataSrc->nVal;
   pColDataDest->flag = pColDataSrc->flag;
 
+  // bitmap
   if (pColDataSrc->flag != HAS_NONE && pColDataSrc->flag != HAS_NULL && pColDataSrc->flag != HAS_VALUE) {
     size = BIT2_SIZE(pColDataSrc->nVal);
     code = tRealloc(&pColDataDest->pBitMap, size);
@@ -963,6 +964,7 @@ int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest) {
     memcpy(pColDataDest->pBitMap, pColDataSrc->pBitMap, size);
   }
 
+  // offset
   if (IS_VAR_DATA_TYPE(pColDataDest->type)) {
     size = sizeof(int32_t) * pColDataSrc->nVal;
 
@@ -972,9 +974,10 @@ int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest) {
     memcpy(pColDataDest->aOffset, pColDataSrc->aOffset, size);
   }
 
+  // value
+  pColDataDest->nData = pColDataSrc->nData;
   code = tRealloc(&pColDataDest->pData, pColDataSrc->nData);
   if (code) goto _exit;
-  pColDataDest->nData = pColDataSrc->nData;
   memcpy(pColDataDest->pData, pColDataSrc->pData, pColDataDest->nData);
 
 _exit:
@@ -1169,32 +1172,25 @@ _exit:
   return code;
 }
 
-int32_t tBlockDataInitEx(SBlockData *pBlockData, int64_t *suid, int64_t uid, SArray *aColId) {
+int32_t tBlockDataInitEx(SBlockData *pBlockData, SBlockData *pBlockDataFrom) {
   int32_t code = 0;
 
   ASSERT(0);
-  ASSERT(suid || uid);
+  ASSERT(pBlockDataFrom->suid || pBlockDataFrom->uid);
 
-  pBlockData->suid = suid;
-  pBlockData->uid = uid;
+  pBlockData->suid = pBlockDataFrom->suid;
+  pBlockData->uid = pBlockDataFrom->uid;
   pBlockData->nRow = 0;
 
   taosArrayClear(pBlockData->aIdx);
-  if (aColId) {
-    int16_t lcid = -1;
-    for (int32_t iColId = 0; iColId < taosArrayGetSize(aColId); iColId++) {
-      int16_t cid = *(int16_t *)taosArrayGet(aColId, iColId);
+  for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockDataFrom->aIdx); iColData++) {
+    SColData *pColDataFrom = tBlockDataGetColDataByIdx(pBlockDataFrom, iColData);
 
-      ASSERT(cid != PRIMARYKEY_TIMESTAMP_COL_ID);
-      ASSERT(cid > lcid);
-      lcid = cid;
+    SColData *pColData;
+    code = tBlockDataAddColData(pBlockData, iColData, &pColData);
+    if (code) goto _exit;
 
-      SColData *pColData;
-      code = tBlockDataAddColData(pBlockData, iColId, &pColData);
-      if (code) goto _exit;
-
-      tColDataInit(pColData, cid, TSDB_DATA_TYPE_NULL, -1);
-    }
+    tColDataInit(pColData, pColDataFrom->cid, pColDataFrom->type, pColDataFrom->smaOn);
   }
 
 _exit:
@@ -1339,128 +1335,112 @@ _exit:
 int32_t tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData) {
   int32_t code = 0;
 
-  // set target
-  int32_t   iColData1 = 0;
-  int32_t   nColData1 = taosArrayGetSize(pBlockData1->aIdx);
-  int32_t   iColData2 = 0;
-  int32_t   nColData2 = taosArrayGetSize(pBlockData2->aIdx);
-  SColData *pColData1;
-  SColData *pColData2;
-  SColData *pColData;
+  ASSERT(pBlockData->suid == pBlockData1->suid);
+  ASSERT(pBlockData->uid == pBlockData1->uid);
+  ASSERT(pBlockData1->nRow > 0);
+  ASSERT(pBlockData2->nRow > 0);
 
-  tBlockDataReset(pBlockData);
-  while (iColData1 < nColData1 && iColData2 < nColData2) {
-    pColData1 = tBlockDataGetColDataByIdx(pBlockData1, iColData1);
-    pColData2 = tBlockDataGetColDataByIdx(pBlockData2, iColData2);
+  tBlockDataClear(pBlockData);
 
-    if (pColData1->cid == pColData2->cid) {
-      code = tBlockDataAddColData(pBlockData, taosArrayGetSize(pBlockData->aIdx), &pColData);
-      if (code) goto _exit;
-      tColDataInit(pColData, pColData2->cid, pColData2->type, pColData2->smaOn);
+  TSDBROW  row1 = tsdbRowFromBlockData(pBlockData1, 0);
+  TSDBROW  row2 = tsdbRowFromBlockData(pBlockData2, 0);
+  TSDBROW *pRow1 = &row1;
+  TSDBROW *pRow2 = &row2;
 
-      iColData1++;
-      iColData2++;
-    } else if (pColData1->cid < pColData2->cid) {
-      code = tBlockDataAddColData(pBlockData, taosArrayGetSize(pBlockData->aIdx), &pColData);
-      if (code) goto _exit;
-      tColDataInit(pColData, pColData1->cid, pColData1->type, pColData1->smaOn);
+  while (pRow1 && pRow2) {
+    int32_t c = tsdbRowCmprFn(pRow1, pRow2);
 
-      iColData1++;
-    } else {
-      code = tBlockDataAddColData(pBlockData, taosArrayGetSize(pBlockData->aIdx), &pColData);
-      if (code) goto _exit;
-      tColDataInit(pColData, pColData2->cid, pColData2->type, pColData2->smaOn);
-
-      iColData2++;
-    }
-  }
-
-  while (iColData1 < nColData1) {
-    code = tBlockDataAddColData(pBlockData, taosArrayGetSize(pBlockData->aIdx), &pColData);
-    if (code) goto _exit;
-    tColDataInit(pColData, pColData1->cid, pColData1->type, pColData1->smaOn);
-
-    iColData1++;
-  }
-
-  while (iColData2 < nColData2) {
-    code = tBlockDataAddColData(pBlockData, taosArrayGetSize(pBlockData->aIdx), &pColData);
-    if (code) goto _exit;
-    tColDataInit(pColData, pColData2->cid, pColData2->type, pColData2->smaOn);
-
-    iColData2++;
-  }
-
-  // loop to merge
-  int32_t iRow1 = 0;
-  int32_t nRow1 = pBlockData1->nRow;
-  int32_t iRow2 = 0;
-  int32_t nRow2 = pBlockData2->nRow;
-  TSDBROW row1;
-  TSDBROW row2;
-  int32_t c;
-
-  while (iRow1 < nRow1 && iRow2 < nRow2) {
-    row1 = tsdbRowFromBlockData(pBlockData1, iRow1);
-    row2 = tsdbRowFromBlockData(pBlockData2, iRow2);
-
-    c = tsdbKeyCmprFn(&TSDBROW_KEY(&row1), &TSDBROW_KEY(&row2));
     if (c < 0) {
-      // code = tBlockDataAppendRow(pBlockData, &row1, NULL);
+      code = tBlockDataAppendRow(pBlockData, pRow1, NULL,
+                                 pBlockData1->uid ? pBlockData1->uid : pBlockData1->aUid[pRow1->iRow]);
       if (code) goto _exit;
-      iRow1++;
+
+      pRow1->iRow++;
+      if (pRow1->iRow < pBlockData1->nRow) {
+        *pRow1 = tsdbRowFromBlockData(pBlockData1, pRow1->iRow);
+      } else {
+        pRow1 = NULL;
+      }
     } else if (c > 0) {
-      // code = tBlockDataAppendRow(pBlockData, &row2, NULL);
+      code = tBlockDataAppendRow(pBlockData, pRow2, NULL,
+                                 pBlockData2->uid ? pBlockData2->uid : pBlockData2->aUid[pRow2->iRow]);
       if (code) goto _exit;
-      iRow2++;
+
+      pRow2->iRow++;
+      if (pRow2->iRow < pBlockData2->nRow) {
+        *pRow2 = tsdbRowFromBlockData(pBlockData2, pRow2->iRow);
+      } else {
+        pRow2 = NULL;
+      }
     } else {
       ASSERT(0);
     }
   }
 
-  while (iRow1 < nRow1) {
-    row1 = tsdbRowFromBlockData(pBlockData1, iRow1);
-    // code = tBlockDataAppendRow(pBlockData, &row1, NULL);
+  while (pRow1) {
+    code = tBlockDataAppendRow(pBlockData, pRow1, NULL,
+                               pBlockData1->uid ? pBlockData1->uid : pBlockData1->aUid[pRow1->iRow]);
     if (code) goto _exit;
-    iRow1++;
+
+    pRow1->iRow++;
+    if (pRow1->iRow < pBlockData1->nRow) {
+      *pRow1 = tsdbRowFromBlockData(pBlockData1, pRow1->iRow);
+    } else {
+      pRow1 = NULL;
+    }
   }
 
-  while (iRow2 < nRow2) {
-    row2 = tsdbRowFromBlockData(pBlockData2, iRow2);
-    // code = tBlockDataAppendRow(pBlockData, &row2, NULL);
+  while (pRow2) {
+    code = tBlockDataAppendRow(pBlockData, pRow2, NULL,
+                               pBlockData2->uid ? pBlockData2->uid : pBlockData2->aUid[pRow2->iRow]);
     if (code) goto _exit;
-    iRow2++;
+
+    pRow2->iRow++;
+    if (pRow2->iRow < pBlockData2->nRow) {
+      *pRow2 = tsdbRowFromBlockData(pBlockData2, pRow2->iRow);
+    } else {
+      pRow2 = NULL;
+    }
   }
 
 _exit:
   return code;
 }
 
-int32_t tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest) {
-  int32_t   code = 0;
-  SColData *pColDataSrc;
-  SColData *pColDataDest;
+int32_t tBlockDataCopy(SBlockData *pSrc, SBlockData *pDest) {
+  int32_t code = 0;
 
-  ASSERT(pBlockDataSrc->nRow > 0);
+  tBlockDataClear(pDest);
 
-  tBlockDataReset(pBlockDataDest);
+  ASSERT(pDest->suid == pSrc->suid);
+  ASSERT(pDest->uid == pSrc->uid);
+  ASSERT(pSrc->nRow == pDest->nRow);
+  ASSERT(taosArrayGetSize(pSrc->aIdx) == taosArrayGetSize(pDest->aIdx));
 
-  pBlockDataDest->nRow = pBlockDataSrc->nRow;
-  // TSDBKEY
-  code = tRealloc((uint8_t **)&pBlockDataDest->aVersion, sizeof(int64_t) * pBlockDataSrc->nRow);
-  if (code) goto _exit;
-  code = tRealloc((uint8_t **)&pBlockDataDest->aTSKEY, sizeof(TSKEY) * pBlockDataSrc->nRow);
-  if (code) goto _exit;
-  memcpy(pBlockDataDest->aVersion, pBlockDataSrc->aVersion, sizeof(int64_t) * pBlockDataSrc->nRow);
-  memcpy(pBlockDataDest->aTSKEY, pBlockDataSrc->aTSKEY, sizeof(TSKEY) * pBlockDataSrc->nRow);
+  pDest->nRow = pSrc->nRow;
 
-  // other
-  for (size_t iColData = 0; iColData < taosArrayGetSize(pBlockDataSrc->aIdx); iColData++) {
-    pColDataSrc = tBlockDataGetColDataByIdx(pBlockDataSrc, iColData);
-    code = tBlockDataAddColData(pBlockDataDest, iColData, &pColDataDest);
+  if (pSrc->uid == 0) {
+    code = tRealloc((uint8_t **)&pDest->aUid, sizeof(int64_t) * pDest->nRow);
     if (code) goto _exit;
+    memcpy(pDest->aUid, pSrc->aUid, sizeof(int64_t) * pDest->nRow);
+  }
 
-    code = tColDataCopy(pColDataSrc, pColDataDest);
+  code = tRealloc((uint8_t **)&pDest->aVersion, sizeof(int64_t) * pDest->nRow);
+  if (code) goto _exit;
+  memcpy(pDest->aVersion, pSrc->aVersion, sizeof(int64_t) * pDest->nRow);
+
+  code = tRealloc((uint8_t **)&pDest->aTSKEY, sizeof(TSKEY) * pDest->nRow);
+  if (code) goto _exit;
+  memcpy(pDest->aTSKEY, pSrc->aTSKEY, sizeof(TSKEY) * pDest->nRow);
+
+  for (int32_t iColData = 0; iColData < taosArrayGetSize(pSrc->aIdx); iColData++) {
+    SColData *pColSrc = tBlockDataGetColDataByIdx(pSrc, iColData);
+    SColData *pColDest = tBlockDataGetColDataByIdx(pDest, iColData);
+
+    ASSERT(pColSrc->cid == pColDest->cid);
+    ASSERT(pColSrc->type == pColDest->type);
+
+    code = tColDataCopy(pColSrc, pColDest);
     if (code) goto _exit;
   }
 

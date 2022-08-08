@@ -141,17 +141,17 @@ int32_t tGetColData(uint8_t *p, SColData *pColData);
 int32_t   tBlockDataCreate(SBlockData *pBlockData);
 void      tBlockDataDestroy(SBlockData *pBlockData, int8_t deepClear);
 int32_t   tBlockDataInit(SBlockData *pBlockData, int64_t suid, int64_t uid, STSchema *pTSchema);
-int32_t   tBlockDataInitEx(SBlockData *pBlockData, int64_t *suid, int64_t uid, SArray *aColId);
+int32_t   tBlockDataInitEx(SBlockData *pBlockData, SBlockData *pBlockDataFrom);
 void      tBlockDataReset(SBlockData *pBlockData);
 int32_t   tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid);
 void      tBlockDataClear(SBlockData *pBlockData);
 SColData *tBlockDataGetColDataByIdx(SBlockData *pBlockData, int32_t idx);
 void      tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData);
+int32_t   tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest);
+int32_t   tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData);
 
 #if 1
 int32_t tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);
-int32_t tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData);
-int32_t tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest);
 int32_t tPutBlockData(uint8_t *p, SBlockData *pBlockData);
 int32_t tGetBlockData(uint8_t *p, SBlockData *pBlockData);
 #endif
@@ -261,10 +261,8 @@ int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx);
 int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMapData);
 int32_t tsdbReadBlockL(SDataFReader *pReader, SArray *aBlockL);
 int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnDataAgg);
-int32_t tsdbReadDataBlock(SDataFReader *pReader, SBlock *pBlock, SBlockData *pBlockData, int16_t *aColId,
-                          int32_t nColId);
-int32_t tsdbReadLastBlock(SDataFReader *pReader, SBlockL *pBlockL, SBlockData *pBlockData, int16_t *aColId,
-                          int32_t nColId);
+int32_t tsdbReadDataBlock(SDataFReader *pReader, SBlock *pBlock, SBlockData *pBlockData);
+int32_t tsdbReadLastBlock(SDataFReader *pReader, SBlockL *pBlockL, SBlockData *pBlockData);
 // SDelFWriter
 int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb);
 int32_t tsdbDelFWriterClose(SDelFWriter **ppWriter, int8_t sync);
