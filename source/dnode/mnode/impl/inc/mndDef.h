@@ -604,11 +604,11 @@ typedef struct {
   int64_t createTime;
   int64_t updateTime;
   int32_t version;
+  int32_t totalLevel;
   int64_t smaId;  // 0 for unused
   // info
   int64_t uid;
   int8_t  status;
-  int8_t  isDistributed;
   // config
   int8_t  igExpired;
   int8_t  trigger;
@@ -647,7 +647,6 @@ typedef struct {
 typedef struct {
   int64_t uid;
   int64_t streamId;
-  int8_t  isDistributed;
   int8_t  status;
   int8_t  stage;
 } SStreamRecoverObj;

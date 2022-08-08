@@ -3075,7 +3075,7 @@ typedef struct {
   void*   msg;
 } SBatchRsp;
 
-static FORCE_INLINE void tFreeSBatchRsp(void *p) {
+static FORCE_INLINE void tFreeSBatchRsp(void* p) {
   if (NULL == p) {
     return;
   }
