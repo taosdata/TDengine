@@ -467,6 +467,7 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
     if (NULL == taosArrayPush(newBatch.pMsgs, &req)) {
       CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }
+    msg = NULL;
     if (NULL == taosArrayPush(newBatch.pTaskIds, &pTask->taskId)) {
       CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }
@@ -517,6 +518,7 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
   if (NULL == taosArrayPush(pBatch->pMsgs, &req)) {
     CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
+  msg = NULL;  
   if (NULL == taosArrayPush(pBatch->pTaskIds, &pTask->taskId)) {
     CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
@@ -545,7 +547,7 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
       CTG_ERR_JRET(TSDB_CODE_APP_ERROR);
     }
 
-    tNameGetFullDbName(pName, newBatch.dbFName);    
+    tNameGetFullDbName(pName, pBatch->dbFName);    
   }
 
   ctgDebug("task %d %s req added to batch %d, target vgId %d", pTask->taskId, TMSG_INFO(msgType), pBatch->batchId,

@@ -1007,7 +1007,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   taosMemoryFree(pParam);
   if (code != 0) {
     tscWarn("msg discard from vgId:%d, epoch %d, code:%x", vgId, epoch, code);
-    if (pMsg->pData) taosMemoryFree(pMsg->pData);
+    if (pMsg->pData) taosMemoryFreeClear(pMsg->pData);
     if (code == TSDB_CODE_TQ_NO_COMMITTED_OFFSET) {
       SMqPollRspWrapper* pRspWrapper = taosAllocateQitem(sizeof(SMqPollRspWrapper), DEF_QITEM);
       if (pRspWrapper == NULL) {
