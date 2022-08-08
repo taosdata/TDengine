@@ -9,6 +9,7 @@
 #include "scalar.h"
 #include "tudf.h"
 #include "ttime.h"
+#include "tcompare.h"
 
 int32_t scalarGetOperatorParamNum(EOperatorType type) {
   if (OP_TYPE_IS_NULL == type || OP_TYPE_IS_NOT_NULL == type || OP_TYPE_IS_TRUE == type || OP_TYPE_IS_NOT_TRUE == type
@@ -222,10 +223,74 @@ void sclFreeParamList(SScalarParam *param, int32_t paramNum) {
 void sclDowngradeValueType(SValueNode *valueNode) {
   switch (valueNode->node.resType.type) {
     case TSDB_DATA_TYPE_BIGINT: {
-    
+      int8_t i8 = valueNode->datum.i;
+      if (i8 == valueNode->datum.i) {
+        valueNode->node.resType.type = TSDB_DATA_TYPE_TINYINT;
+        *(int8_t*)&valueNode->typeData = i8;
+        break;
+      }
+      int16_t i16 = valueNode->datum.i;
+      if (i16 == valueNode->datum.i) {
+        valueNode->node.resType.type = TSDB_DATA_TYPE_SMALLINT;
+        *(int16_t*)&valueNode->typeData = i16;
+        break;
+      }
+      int32_t i32 = valueNode->datum.i;
+      if (i32 == valueNode->datum.i) {
+        valueNode->node.resType.type = TSDB_DATA_TYPE_INT;
+        *(int32_t*)&valueNode->typeData = i32;
+        break;
+      }
+      break;
     }
-    case TSDB_DATA_TYPE_UBIGINT:
-    case TSDB_DATA_TYPE_DOUBLE:
+    case TSDB_DATA_TYPE_UBIGINT:{
+      uint8_t u8 = valueNode->datum.i;
+      if (u8 == valueNode->datum.i) {
+        int8_t i8 = valueNode->datum.i;
+        if (i8 == valueNode->datum.i) {
+          valueNode->node.resType.type = TSDB_DATA_TYPE_TINYINT;
+          *(int8_t*)&valueNode->typeData = i8;
+        } else {
+          valueNode->node.resType.type = TSDB_DATA_TYPE_UTINYINT;
+          *(uint8_t*)&valueNode->typeData = u8;
+        }
+        break;
+      }
+      uint16_t u16 = valueNode->datum.i;
+      if (u16 == valueNode->datum.i) {
+        int16_t i16 = valueNode->datum.i;
+        if (i16 == valueNode->datum.i) {
+          valueNode->node.resType.type = TSDB_DATA_TYPE_SMALLINT;
+          *(int16_t*)&valueNode->typeData = i16;
+        } else {
+          valueNode->node.resType.type = TSDB_DATA_TYPE_USMALLINT;
+          *(uint16_t*)&valueNode->typeData = u16;
+        }
+        break;
+      }
+      uint32_t u32 = valueNode->datum.i;
+      if (u32 == valueNode->datum.i) {
+        int32_t i32 = valueNode->datum.i;
+        if (i32 == valueNode->datum.i) {
+          valueNode->node.resType.type = TSDB_DATA_TYPE_INT;
+          *(int32_t*)&valueNode->typeData = i32;
+        } else {
+          valueNode->node.resType.type = TSDB_DATA_TYPE_UINT;
+          *(uint32_t*)&valueNode->typeData = u32;
+        }
+        break;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      float f = valueNode->datum.d;
+      if (FLT_EQUAL(f, valueNode->datum.d)) {
+        valueNode->node.resType.type = TSDB_DATA_TYPE_FLOAT;
+        *(float*)&valueNode->typeData = f;
+        break;
+      }
+      break;
+    }
     default:
       break;
   }
@@ -243,10 +308,7 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
 
       ASSERT(param->columnData == NULL);
       param->numOfRows = 1;
-      if (ctx->compOp && SCL_DOWNGRADE_DATETYPE(valueNode->node.resType.type)) {
-        sclDowngradeValueType(valueNode);
-      }
-      
+     
       /*int32_t code = */sclCreateColumnInfoData(&valueNode->node.resType, 1, param);
       if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type || valueNode->isNull) {
         colDataAppendNULL(param->columnData, 0);
@@ -453,7 +515,6 @@ int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScal
   }
 
   sclSetOperatorValueType(node, ctx);
-  ctx->compOp = SCL_IS_COMPARISON_OPERATOR(node->opType);
 
   SCL_ERR_JRET(sclInitParam(node->pLeft, &paramList[0], ctx, rowNum));
   if (paramNum > 1) {
@@ -689,6 +750,10 @@ EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
         return DEAL_RES_ERROR;
       }
     }
+
+    if (SCL_IS_COMPARISON_OPERATOR(node->opType) && SCL_DOWNGRADE_DATETYPE(valueNode->node.resType.type)) {
+      sclDowngradeValueType(valueNode);
+    }    
   }
 
   if (node->pRight && (QUERY_NODE_VALUE == nodeType(node->pRight))) {
@@ -706,6 +771,10 @@ EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
         return DEAL_RES_ERROR;
       }
     }
+
+    if (SCL_IS_COMPARISON_OPERATOR(node->opType) && SCL_DOWNGRADE_DATETYPE(valueNode->node.resType.type)) {
+      sclDowngradeValueType(valueNode);
+    }    
   }
 
   if (node->pRight && (QUERY_NODE_NODE_LIST == nodeType(node->pRight))) {
