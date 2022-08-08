@@ -327,8 +327,8 @@ endi
 
 print =================>td-2610
 sql select stddev(k) from tm2 where ts='2020-12-29 18:46:19.109'
-if $rows != 0 then
-  print expect 0, actual:$rows
+if $rows != 1 then
+  print expect 1, actual:$rows
   return -1
 endi
 sql select twa(k) from tm2 where ts='2020-12-29 18:46:19.109'
@@ -406,7 +406,7 @@ if $data00 != 1.378704626 then
 endi
 
 sql select stddev(c) from m1
-if $rows != 0 then
+if $rows != 1 then
   return -1
 endi
 

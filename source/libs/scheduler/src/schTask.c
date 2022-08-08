@@ -537,6 +537,7 @@ int32_t schMoveTaskToExecList(SSchJob *pJob, SSchTask *pTask, bool *moved) {
 int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bool *needRetry) {
   if (TSDB_CODE_SCH_TIMEOUT_ERROR == errCode) {
     pTask->maxExecTimes++;
+    pTask->maxRetryTimes++;
     if (pTask->timeoutUsec < SCH_MAX_TASK_TIMEOUT_USEC) {
       pTask->timeoutUsec *= 2;
       if (pTask->timeoutUsec > SCH_MAX_TASK_TIMEOUT_USEC) {

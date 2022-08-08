@@ -387,10 +387,13 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   
   char * sql = strndup(msg->msg, msg->sqlLen);
   QW_SCH_TASK_DLOG("processQuery start, node:%p, type:%s, handle:%p, SQL:%s", node, TMSG_INFO(pMsg->msgType), pMsg->info.handle, sql);
-  QW_ERR_RET(qwProcessQuery(QW_FPARAMS(), &qwMsg, sql));
-  QW_SCH_TASK_DLOG("processQuery end, node:%p", node);
+  QW_ERR_JRET(qwProcessQuery(QW_FPARAMS(), &qwMsg, sql));
 
-  return TSDB_CODE_SUCCESS;
+_return:
+
+  QW_SCH_TASK_DLOG("processQuery end, node:%p, code:%d", node, code);
+
+  return code;
 }
 
 int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
