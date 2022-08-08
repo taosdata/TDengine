@@ -2515,7 +2515,7 @@ static bool isPartitionByTbname(SNodeList* pPartitionByList) {
     return false;
   }
   SNode* pPartKey = nodesListGetNode(pPartitionByList, 0);
-  return QUERY_NODE_FUNCTION != nodeType(pPartKey) || FUNCTION_TYPE_TBNAME != ((SFunctionNode*)pPartKey)->funcType;
+  return QUERY_NODE_FUNCTION == nodeType(pPartKey) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pPartKey)->funcType;
 }
 
 static int32_t checkStateWindowForStream(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -2566,7 +2566,6 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
   }
-  pSelect->isTimeLineResult = true;
   pCxt->currClause = SQL_CLAUSE_WINDOW;
   int32_t code = translateExpr(pCxt, &pSelect->pWindow);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2637,7 +2636,6 @@ static int32_t translatePartitionBy(STranslateContext* pCxt, SSelectStmt* pSelec
   if (NULL == pSelect->pPartitionByList) {
     return TSDB_CODE_SUCCESS;
   }
-  pSelect->isTimeLineResult = false;
   pCxt->currClause = SQL_CLAUSE_PARTITION_BY;
   return translateExprList(pCxt, pSelect->pPartitionByList);
 }
