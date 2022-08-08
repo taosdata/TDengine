@@ -385,7 +385,8 @@ int64_t atomic_exchange_64(int64_t volatile* ptr, int64_t val) {
   return _InterlockedExchange((int32_t volatile*)(ptr), (int32_t)(val));
 #else
   return _InterlockedExchange64((int64_t volatile*)(ptr), (int64_t)(val));
-#endif#elif defined(_TD_NINGSI_60)
+#endif
+#elif defined(_TD_NINGSI_60)
   return atomic_exchange_64_impl((int64_t*)ptr, (int64_t)val);
 #else
   return __atomic_exchange_n((ptr), (val), __ATOMIC_SEQ_CST);
@@ -542,7 +543,8 @@ int64_t atomic_fetch_add_64(int64_t volatile* ptr, int64_t val) {
   return _InterlockedExchangeAdd((int32_t volatile*)(ptr), (int32_t)(val));
 #else
   return _InterlockedExchangeAdd64((int64_t volatile*)(ptr), (int64_t)(val));
-#endif#elif defined(_TD_NINGSI_60)
+#endif
+#elif defined(_TD_NINGSI_60)
   return __sync_fetch_and_add((ptr), (val));
 #else
   return __atomic_fetch_add((ptr), (val), __ATOMIC_SEQ_CST);
