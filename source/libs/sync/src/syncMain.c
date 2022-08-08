@@ -2674,7 +2674,16 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
     return 0;
   }
 
-  syncNodeEventLog(ths, "do leader transfer");
+  if (ths->vgId > 1) {
+    syncNodeEventLog(ths, "I am vnode, can not do leader transfer");
+    return 0;
+  }
+
+  do {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "do leader transfer, index:%ld", pEntry->index);
+    syncNodeEventLog(ths, logBuf);
+  } while (0);
 
   bool sameId = syncUtilSameId(&(pSyncLeaderTransfer->newLeaderId), &(ths->myRaftId));
   bool sameNodeInfo = strcmp(pSyncLeaderTransfer->newNodeInfo.nodeFqdn, ths->myNodeInfo.nodeFqdn) == 0 &&
