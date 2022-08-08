@@ -822,7 +822,7 @@ static int32_t tsdbMergeCommitLast(SCommitter *pCommitter, STbDataIter *pIter) {
       // commit and reset block data schema if need
       // QUESTION: Is there a case that pBlockData->nRow == 0 but need to change schema ?
       if (pBlockData->suid || pBlockData->uid) {
-        if (pBlockData->suid != pTbData->uid || pBlockData->suid == 0) {
+        if (pBlockData->suid != pTbData->suid || pBlockData->suid == 0) {
           if (pBlockData->nRow > 0) {
             code = tsdbCommitLastBlock(pCommitter);
             if (code) goto _err;

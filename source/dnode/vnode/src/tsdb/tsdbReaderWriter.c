@@ -771,7 +771,7 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
   if (code) goto _err;
   p += hdr.szKey;
 
-  ASSERT(p - pReader->pBuf1 == sizeof(TSCKSUM));
+  ASSERT(p - pReader->pBuf1 == pBlkInfo->szKey - sizeof(TSCKSUM));
 
   // read and decode columns
   if (taosArrayGetSize(pBlockData->aIdx) == 0) goto _exit;
@@ -1195,7 +1195,7 @@ _err:
 int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx) {
   int32_t    code = 0;
   SHeadFile *pHeadFile = &pWriter->fHead;
-  int64_t    size;
+  int64_t    size = 0;
   int64_t    n;
 
   // check
