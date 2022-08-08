@@ -187,7 +187,7 @@ class TDTestCase:
             tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.{stb} tags ( {i+1} )')
 
     def __insert_data(self, rows, ctb_num=20, dbname=DBNAME, rsma=False, rsma_type="sum"):
-        tdLog.printNoPrefix("==========step: start inser data into tables now.....")
+        tdLog.printNoPrefix("==========step: start insert data into tables now.....")
         # from ...pytest.util.common import DataSet
         data = DataSet()
         data.get_order_set(rows)

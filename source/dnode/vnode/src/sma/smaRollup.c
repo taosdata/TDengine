@@ -1389,7 +1389,7 @@ _end:
  * @return int32_t
  */
 int32_t tdRSmaFetchSend(SSma *pSma, SRSmaInfo *pInfo, int8_t level) {
-  SRSmaFetchMsg fetchMsg = {.refId = pInfo->refId, .suid = pInfo->suid, .level = level};
+  SRSmaFetchMsg fetchMsg = { .suid = pInfo->suid, .level = level};
   int32_t       ret = 0;
   int32_t       contLen = 0;
   SEncoder      encoder = {0};
@@ -1400,13 +1400,17 @@ int32_t tdRSmaFetchSend(SSma *pSma, SRSmaInfo *pInfo, int8_t level) {
     goto _err;
   }
 
-  void *pBuf = rpcMallocCont(contLen);
-  tEncoderInit(&encoder, pBuf, contLen);
+  void *pBuf = rpcMallocCont(contLen + sizeof(SMsgHead));
+  tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SMsgHead)), contLen);
   if (tEncodeSRSmaFetchMsg(&encoder, &fetchMsg) < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tEncoderClear(&encoder);
   }
   tEncoderClear(&encoder);
+  
+  ((SMsgHead *)pBuf)->vgId = SMA_VID(pSma);
+  ((SMsgHead *)pBuf)->contLen = contLen + sizeof(SMsgHead);
+
   SRpcMsg rpcMsg = {
       .code = 0,
       .msgType = TDMT_VND_FETCH_RSMA,
@@ -1415,24 +1419,42 @@ int32_t tdRSmaFetchSend(SSma *pSma, SRSmaInfo *pInfo, int8_t level) {
   };
 
   if ((terrno = tmsgPutToQueue(&pSma->pVnode->msgCb, FETCH_QUEUE, &rpcMsg)) != 0) {
-    smaError("vgId:%d, failed to put rsma fetch msg into fetch-queue for suid:%d level:%" PRIi8 " since %s",
+    smaError("vgId:%d, failed to put rsma fetch msg into fetch-queue for suid:%" PRIi64 " level:%" PRIi8 " since %s",
              SMA_VID(pSma), pInfo->suid, level, terrstr());
     goto _err;
   }
+
+  smaDebug("vgId:%d, success to put rsma fetch msg into fetch-queue for suid:%" PRIi64 " level:%" PRIi8, SMA_VID(pSma),
+           pInfo->suid, level);
 
   return TSDB_CODE_SUCCESS;
 _err:
   return TSDB_CODE_FAILED;
 }
 
+/**
+ * @brief fetch rsma data of level 2/3 and submit
+ * 
+ * @param pSma 
+ * @param pMsg 
+ * @return int32_t 
+ */
 int32_t smaProcessFetch(SSma *pSma, void *pMsg) {
   SRpcMsg       *pRpcMsg = (SRpcMsg *)pMsg;
   SRSmaFetchMsg  req = {0};
   SDecoder       decoder = {0};
+  void          *pBuf = NULL;
   SRSmaInfo     *pInfo = NULL;
   SRSmaInfoItem *pItem = NULL;
 
-  tDecoderInit(&decoder, pRpcMsg->pCont, pRpcMsg->contLen);
+  if (!pRpcMsg || pRpcMsg->contLen < sizeof(SMsgHead)) {
+    terrno = TSDB_CODE_RSMA_FETCH_MSG_MSSED_UP;
+    return -1;
+  }
+
+  pBuf = POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead));
+
+  tDecoderInit(&decoder, pBuf, pRpcMsg->contLen);
   if (tDecodeSRSmaFetchMsg(&decoder, &req) < 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _err;
@@ -1440,7 +1462,11 @@ int32_t smaProcessFetch(SSma *pSma, void *pMsg) {
 
   pInfo = tdAcquireRSmaInfoBySuid(pSma, req.suid);
   if (!pInfo) {
-    smaDebug("vgId:%d, failed to process rsma fetch msg since Empty rsma info", SMA_VID(pSma));
+    if (terrno == TSDB_CODE_SUCCESS) {
+      terrno = TSDB_CODE_RSMA_EMPTY_INFO;
+    }
+    smaWarn("vgId:%d, failed to process rsma fetch msg for suid:%" PRIi64 " level:%" PRIi8 " since %s", SMA_VID(pSma),
+             req.suid, req.level, terrstr());
     goto _err;
   }
 
@@ -1459,6 +1485,8 @@ int32_t smaProcessFetch(SSma *pSma, void *pMsg) {
 
   tdReleaseRSmaInfo(pSma, pInfo);
   tDecoderClear(&decoder);
+  smaDebug("vgId:%d, success to process rsma fetch msg for suid:%" PRIi64 " level:%" PRIi8, SMA_VID(pSma), req.suid,
+           req.level);
   return TSDB_CODE_SUCCESS;
 _err:
   tdReleaseRSmaInfo(pSma, pInfo);
