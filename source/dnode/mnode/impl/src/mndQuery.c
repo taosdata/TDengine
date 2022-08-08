@@ -84,6 +84,9 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
   }
   
   for (int32_t i = 0; i < msgNum; ++i) {
+    req.msgIdx = ntohl(*(int32_t*)((char*)pMsg->pCont + offset));
+    offset += sizeof(req.msgIdx);
+
     req.msgType = ntohl(*(int32_t*)((char*)pMsg->pCont + offset));
     offset += sizeof(req.msgType);
 
@@ -111,6 +114,7 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
     } else {
       rsp.rspCode = 0;
     }
+    rsp.msgIdx = req.msgIdx;
     rsp.reqType = reqMsg.msgType;
     rsp.msgLen = reqMsg.info.rspLen;
     rsp.msg = reqMsg.info.rsp;
@@ -136,6 +140,8 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
     
     *(int32_t*)((char*)pRsp + offset) = htonl(p->reqType);
     offset += sizeof(p->reqType);
+    *(int32_t*)((char*)pRsp + offset) = htonl(p->msgIdx);
+    offset += sizeof(p->msgIdx);
     *(int32_t*)((char*)pRsp + offset) = htonl(p->msgLen);
     offset += sizeof(p->msgLen);
     *(int32_t*)((char*)pRsp + offset) = htonl(p->rspCode);

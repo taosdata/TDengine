@@ -25,7 +25,7 @@ extern "C" {
 
 int32_t qwAbortPrerocessQuery(QW_FPARAMS_DEF);
 int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg);
-int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, const char* sql);
+int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char* sql);
 int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg);
 int32_t qwProcessReady(QW_FPARAMS_DEF, SQWMsg *qwMsg);
 int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg);

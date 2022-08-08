@@ -17,6 +17,7 @@
 #include "os.h"
 #include "query.h"
 #include "tdatablock.h"
+#include "tdbInt.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
 #include "tqueue.h"
@@ -66,6 +67,31 @@ enum {
   TASK_OUTPUT_STATUS__BLOCKED,
 };
 
+enum {
+  TASK_TRIGGER_STATUS__INACTIVE = 1,
+  TASK_TRIGGER_STATUS__ACTIVE,
+};
+
+enum {
+  TASK_LEVEL__SOURCE = 1,
+  TASK_LEVEL__AGG,
+  TASK_LEVEL__SINK,
+};
+
+enum {
+  TASK_OUTPUT__FIXED_DISPATCH = 1,
+  TASK_OUTPUT__SHUFFLE_DISPATCH,
+  TASK_OUTPUT__TABLE,
+  TASK_OUTPUT__SMA,
+  TASK_OUTPUT__FETCH,
+};
+
+enum {
+  STREAM_QUEUE__SUCESS = 1,
+  STREAM_QUEUE__FAILED,
+  STREAM_QUEUE__PROCESSING,
+};
+
 typedef struct {
   int8_t type;
 } SStreamQueueItem;
@@ -103,12 +129,6 @@ typedef struct {
   int8_t       type;
   SSDataBlock* pBlock;
 } SStreamTrigger;
-
-enum {
-  STREAM_QUEUE__SUCESS = 1,
-  STREAM_QUEUE__FAILED,
-  STREAM_QUEUE__PROCESSING,
-};
 
 typedef struct {
   STaosQueue* queue;
@@ -202,39 +222,6 @@ typedef struct {
   int8_t reserved;
 } STaskSinkFetch;
 
-enum {
-  TASK_SOURCE__SCAN = 1,
-  TASK_SOURCE__PIPE,
-};
-
-enum {
-  TASK_EXEC__NONE = 1,
-  TASK_EXEC__PIPE,
-};
-
-enum {
-  TASK_DISPATCH__NONE = 1,
-  TASK_DISPATCH__FIXED,
-  TASK_DISPATCH__SHUFFLE,
-};
-
-enum {
-  TASK_SINK__NONE = 1,
-  TASK_SINK__TABLE,
-  TASK_SINK__SMA,
-  TASK_SINK__FETCH,
-};
-
-enum {
-  TASK_INPUT_TYPE__SUMBIT_BLOCK = 1,
-  TASK_INPUT_TYPE__DATA_BLOCK,
-};
-
-enum {
-  TASK_TRIGGER_STATUS__IN_ACTIVE = 1,
-  TASK_TRIGGER_STATUS__ACTIVE,
-};
-
 typedef struct {
   int32_t nodeId;
   int32_t childId;
@@ -247,11 +234,9 @@ typedef struct {
 typedef struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
-  int8_t  isDataScan;
-  int8_t  execType;
-  int8_t  sinkType;
-  int8_t  dispatchType;
-  int8_t  isStreamDistributed;
+  int32_t totalLevel;
+  int8_t  taskLevel;
+  int8_t  outputType;
   int16_t dispatchMsgType;
 
   int8_t taskStatus;
@@ -262,13 +247,12 @@ typedef struct SStreamTask {
   int32_t nodeId;
   SEpSet  epSet;
 
-  // used for semi or single task,
-  // while final task should have processedVer for each child
+  // used for task source and sink,
+  // while task agg should have processedVer for each child
   int64_t recoverSnapVer;
   int64_t startVer;
   int64_t checkpointVer;
   int64_t processedVer;
-  // int32_t numOfVgroups;
 
   // children info
   SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>
@@ -276,19 +260,13 @@ typedef struct SStreamTask {
   // exec
   STaskExec exec;
 
-  // TODO: unify sink and dispatch
-
-  //  local sink
-  union {
-    STaskSinkTb    tbSink;
-    STaskSinkSma   smaSink;
-    STaskSinkFetch fetchSink;
-  };
-
-  // remote dispatcher
+  // output
   union {
     STaskDispatcherFixedEp fixedEpDispatcher;
     STaskDispatcherShuffle shuffleDispatcher;
+    STaskSinkTb            tbSink;
+    STaskSinkSma           smaSink;
+    STaskSinkFetch         fetchSink;
   };
 
   int8_t inputStatus;
@@ -301,9 +279,6 @@ typedef struct SStreamTask {
   int8_t  triggerStatus;
   int64_t triggerParam;
   void*   timer;
-
-  // application storage
-  // void* ahandle;
 
   // msg handle
   SMsgCb* pMsgCb;
@@ -341,7 +316,7 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
   }
 
   if (pItem->type != STREAM_INPUT__GET_RES && pItem->type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0) {
-    atomic_val_compare_exchange_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__IN_ACTIVE, TASK_TRIGGER_STATUS__ACTIVE);
+    atomic_val_compare_exchange_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__INACTIVE, TASK_TRIGGER_STATUS__ACTIVE);
   }
 
 #if 0
@@ -356,18 +331,15 @@ static FORCE_INLINE void streamTaskInputFail(SStreamTask* pTask) {
 }
 
 static FORCE_INLINE int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock) {
-  if (pTask->sinkType == TASK_SINK__TABLE) {
-    ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
+  if (pTask->outputType == TASK_OUTPUT__TABLE) {
     pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
     taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
     taosFreeQitem(pBlock);
-  } else if (pTask->sinkType == TASK_SINK__SMA) {
-    ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
+  } else if (pTask->outputType == TASK_OUTPUT__SMA) {
     pTask->smaSink.smaSink(pTask->smaSink.vnode, pTask->smaSink.smaId, pBlock->blocks);
     taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
     taosFreeQitem(pBlock);
   } else {
-    ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);
     taosWriteQitem(pTask->outputQueue->queue, pBlock);
   }
   return 0;
@@ -488,9 +460,20 @@ int32_t streamProcessRetrieveRsp(SStreamTask* pTask, SStreamRetrieveRsp* pRsp);
 int32_t streamTryExec(SStreamTask* pTask);
 int32_t streamSchedExec(SStreamTask* pTask);
 
-typedef struct SStreamMeta SStreamMeta;
+typedef int32_t FTaskExpand(void* ahandle, SStreamTask* pTask);
 
-SStreamMeta* streamMetaOpen();
+typedef struct SStreamMeta {
+  char*        path;
+  TDB*         db;
+  TTB*         pTaskDb;
+  TTB*         pStateDb;
+  SHashObj*    pTasks;
+  void*        ahandle;
+  TXN          txn;
+  FTaskExpand* expandFunc;
+} SStreamMeta;
+
+SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc);
 void         streamMetaClose(SStreamMeta* streamMeta);
 
 int32_t streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask);

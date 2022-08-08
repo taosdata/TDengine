@@ -31,12 +31,18 @@ extern "C" {
 #define parserDebug(param, ...) qDebug("PARSER: " param, ##__VA_ARGS__)
 #define parserTrace(param, ...) qTrace("PARSER: " param, ##__VA_ARGS__)
 
-#define PK_TS_COL_INTERNAL_NAME "_rowts"
+#define ROWTS_PSEUDO_COLUMN_NAME "_rowts"
+#define C0_PSEUDO_COLUMN_NAME    "_c0"
 
 typedef struct SMsgBuf {
   int32_t len;
   char*   buf;
 } SMsgBuf;
+
+typedef struct SParseTablesMetaReq {
+  char      dbFName[TSDB_DB_FNAME_LEN];
+  SHashObj* pTables;
+} SParseTablesMetaReq;
 
 typedef struct SParseMetaCache {
   SHashObj* pTableMeta;    // key is tbFName, element is STableMeta*
@@ -94,7 +100,7 @@ int32_t getUdfInfoFromCache(SParseMetaCache* pMetaCache, const char* pFunc, SFun
 int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pIndexes);
 int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableCfg** pOutput);
 int32_t getDnodeListFromCache(SParseMetaCache* pMetaCache, SArray** pDnodes);
-void    destoryParseMetaCache(SParseMetaCache* pMetaCache);
+void    destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request);
 
 #ifdef __cplusplus
 }

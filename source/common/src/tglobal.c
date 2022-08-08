@@ -89,7 +89,7 @@ bool tsSmlDataFormat =
 
 // query
 int32_t tsQueryPolicy = 1;
-int32_t tsQuerySmaOptimize = 1;
+int32_t tsQuerySmaOptimize = 0;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -389,7 +389,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 4);
   if (cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 4, 1024, 0) != 0) return -1;
 
-  tsNumOfVnodeStreamThreads = tsNumOfCores;
+  tsNumOfVnodeStreamThreads = tsNumOfCores / 4;
   tsNumOfVnodeStreamThreads = TMAX(tsNumOfVnodeStreamThreads, 4);
   if (cfgAddInt32(pCfg, "numOfVnodeStreamThreads", tsNumOfVnodeStreamThreads, 4, 1024, 0) != 0) return -1;
 
@@ -401,7 +401,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfVnodeWriteThreads = TMAX(tsNumOfVnodeWriteThreads, 1);
   if (cfgAddInt32(pCfg, "numOfVnodeWriteThreads", tsNumOfVnodeWriteThreads, 1, 1024, 0) != 0) return -1;
 
-  tsNumOfVnodeSyncThreads = tsNumOfCores;
+  // tsNumOfVnodeSyncThreads = tsNumOfCores;
+  tsNumOfVnodeSyncThreads = 32;
   tsNumOfVnodeSyncThreads = TMAX(tsNumOfVnodeSyncThreads, 1);
   if (cfgAddInt32(pCfg, "numOfVnodeSyncThreads", tsNumOfVnodeSyncThreads, 1, 1024, 0) != 0) return -1;
 

@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/taosdata/driver-go/v3/af"
-	"github.com/taosdata/driver-go/v3/af/param"
 	"github.com/taosdata/driver-go/v3/common"
+	"github.com/taosdata/driver-go/v3/common/param"
 )
 
 func checkErr(err error, prompt string) {

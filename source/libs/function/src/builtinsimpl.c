@@ -64,6 +64,9 @@ typedef struct SMinmaxResInfo {
   bool      assign;  // assign the first value or not
   int64_t   v;
   STuplePos tuplePos;
+
+  STuplePos nullTuplePos;
+  bool      nullTupleSaved;
 } SMinmaxResInfo;
 
 typedef struct STopBotResItem {
@@ -75,6 +78,10 @@ typedef struct STopBotResItem {
 typedef struct STopBotRes {
   int32_t         maxSize;
   int16_t         type;
+
+  STuplePos       nullTuplePos;
+  bool            nullTupleSaved;
+
   STopBotResItem* pItems;
 } STopBotRes;
 
@@ -221,6 +228,10 @@ typedef struct SSampleInfo {
   int32_t    numSampled;
   uint8_t    colType;
   int16_t    colBytes;
+
+  STuplePos  nullTuplePos;
+  bool       nullTupleSaved;
+
   char*      data;
   STuplePos* tuplePos;
 } SSampleInfo;
@@ -1134,6 +1145,9 @@ bool minmaxFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo)
   SMinmaxResInfo* buf = GET_ROWCELL_INTERBUF(pResultInfo);
   buf->assign = false;
   buf->tuplePos.pageId = -1;
+
+  buf->nullTupleSaved = false;
+  buf->nullTuplePos.pageId = -1;
   return true;
 }
 
@@ -1575,6 +1589,10 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
   }
 
 _min_max_over:
+  if (numOfElems == 0 && pCtx->subsidiaries.num > 0 && !pBuf->nullTupleSaved ) {
+    doSaveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, &pBuf->nullTuplePos);
+    pBuf->nullTupleSaved = true;
+  }
   return numOfElems;
 }
 
@@ -1615,7 +1633,7 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   if (pEntryInfo->numOfRes > 0) {
     setSelectivityValue(pCtx, pBlock, &pRes->tuplePos, currentRow);
   } else {
-    setNullSelectivityValue(pCtx, pBlock, currentRow);
+    setSelectivityValue(pCtx, pBlock, &pRes->nullTuplePos, currentRow);
   }
 
   return pEntryInfo->numOfRes;
@@ -3366,6 +3384,8 @@ bool topBotFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
 
   pRes->maxSize = pCtx->param[1].param.i;
 
+  pRes->nullTupleSaved = false;
+  pRes->nullTuplePos.pageId = -1;
   return true;
 }
 
@@ -3403,6 +3423,10 @@ int32_t topFunction(SqlFunctionCtx* pCtx) {
     doAddIntoResult(pCtx, data, i, pCtx->pSrcBlock, pRes->type, pInput->uid, pResInfo, true);
   }
 
+  if (numOfElems == 0 && pCtx->subsidiaries.num > 0 && !pRes->nullTupleSaved) {
+    doSaveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, &pRes->nullTuplePos);
+    pRes->nullTupleSaved = true;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3425,6 +3449,11 @@ int32_t bottomFunction(SqlFunctionCtx* pCtx) {
     numOfElems++;
     char* data = colDataGetData(pCol, i);
     doAddIntoResult(pCtx, data, i, pCtx->pSrcBlock, pRes->type, pInput->uid, pResInfo, false);
+  }
+
+  if (numOfElems == 0 && pCtx->subsidiaries.num > 0 && !pRes->nullTupleSaved) {
+    doSaveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, &pRes->nullTuplePos);
+    pRes->nullTupleSaved = true;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3625,6 +3654,11 @@ int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   // todo assign the tag value and the corresponding row data
   int32_t currentRow = pBlock->info.rows;
+  if (pEntryInfo->numOfRes <= 0) {
+    colDataAppendNULL(pCol, currentRow);
+    setSelectivityValue(pCtx, pBlock, &pRes->nullTuplePos, currentRow);
+    return pEntryInfo->numOfRes;
+  }
   for (int32_t i = 0; i < pEntryInfo->numOfRes; ++i) {
     STopBotResItem* pItem = &pRes->pItems[i];
     if (type == TSDB_DATA_TYPE_FLOAT) {
@@ -3811,14 +3845,17 @@ int32_t spreadFunctionMerge(SqlFunctionCtx* pCtx) {
   SSpreadInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
   int32_t start = pInput->startRowIndex;
-
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
     char*        data = colDataGetData(pCol, i);
     SSpreadInfo* pInputInfo = (SSpreadInfo*)varDataVal(data);
-    spreadTransferInfo(pInputInfo, pInfo);
+    if (pInputInfo->hasResult) {
+      spreadTransferInfo(pInputInfo, pInfo);
+    }
   }
 
-  SET_VAL(GET_RES_INFO(pCtx), 1, 1);
+  if (pInfo->hasResult) {
+    GET_RES_INFO(pCtx)->numOfRes = 1;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -3827,6 +3864,8 @@ int32_t spreadFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SSpreadInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   if (pInfo->hasResult == true) {
     SET_DOUBLE_VAL(&pInfo->result, pInfo->max - pInfo->min);
+  } else {
+    GET_RES_INFO(pCtx)->isNullRes = 1;
   }
   return functionFinalize(pCtx, pBlock);
 }
@@ -4897,7 +4936,8 @@ bool sampleFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo)
   pInfo->numSampled = 0;
   pInfo->colType = pCtx->resDataInfo.type;
   pInfo->colBytes = pCtx->resDataInfo.bytes;
-
+  pInfo->nullTuplePos.pageId = -1;
+  pInfo->nullTupleSaved = false;
   pInfo->data = (char*)pInfo + sizeof(SSampleInfo);
   pInfo->tuplePos = (STuplePos*)((char*)pInfo + sizeof(SSampleInfo) + pInfo->samples * pInfo->colBytes);
 
@@ -4943,6 +4983,11 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
     doReservoirSample(pCtx, pInfo, data, i);
   }
 
+  if (pInfo->numSampled == 0 && pCtx->subsidiaries.num > 0 && !pInfo->nullTupleSaved) {
+    doSaveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, &pInfo->nullTuplePos);
+    pInfo->nullTupleSaved = true;
+  }
+
   SET_VAL(pResInfo, pInfo->numSampled, pInfo->numSampled);
   return TSDB_CODE_SUCCESS;
 }
@@ -4957,6 +5002,11 @@ int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
   int32_t currentRow = pBlock->info.rows;
+  if (pInfo->numSampled == 0) {
+    colDataAppendNULL(pCol, currentRow);
+    setSelectivityValue(pCtx, pBlock, &pInfo->nullTuplePos, currentRow);
+    return pInfo->numSampled;
+  }
   for (int32_t i = 0; i < pInfo->numSampled; ++i) {
     colDataAppend(pCol, currentRow + i, pInfo->data + i * pInfo->colBytes, false);
     setSelectivityValue(pCtx, pBlock, &pInfo->tuplePos[i], currentRow + i);
