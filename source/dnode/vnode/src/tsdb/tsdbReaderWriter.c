@@ -63,6 +63,7 @@ _err:
 int32_t tsdbDelFWriterClose(SDelFWriter **ppWriter, int8_t sync) {
   int32_t      code = 0;
   SDelFWriter *pWriter = *ppWriter;
+  STsdb       *pTsdb = pWriter->pTsdb;
 
   // sync
   if (sync && taosFsyncFile(pWriter->pWriteH) < 0) {
@@ -83,7 +84,7 @@ int32_t tsdbDelFWriterClose(SDelFWriter **ppWriter, int8_t sync) {
   return code;
 
 _err:
-  tsdbError("vgId:%d, failed to close del file writer since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, failed to close del file writer since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -1053,7 +1054,9 @@ int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync) {
   STsdb  *pTsdb = NULL;
 
   if (*ppWriter == NULL) goto _exit;
-  pTsdb = (*ppWriter)->pTsdb if (sync) {
+
+  pTsdb = (*ppWriter)->pTsdb;
+  if (sync) {
     if (taosFsyncFile((*ppWriter)->pHeadFD) < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
