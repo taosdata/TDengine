@@ -299,6 +299,10 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
     vnodePostBlockMsg(pVnode, pMsg);
     if (rsp.info.handle != NULL) {
       tmsgSendRsp(&rsp);
+    } else {
+      if (rsp.pCont) {
+        rpcFreeCont(rsp.pCont);
+      }
     }
 
     vGTrace("vgId:%d, msg:%p is freed, code:0x%x index:%" PRId64, vgId, pMsg, rsp.code, pMsg->info.conn.applyIndex);

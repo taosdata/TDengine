@@ -65,7 +65,6 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
 void tFreeStreamDispatchReq(SStreamDispatchReq* pReq) {
   taosArrayDestroyP(pReq->data, taosMemoryFree);
   taosArrayDestroy(pReq->dataLen);
-  taosMemoryFree(pReq);
 }
 
 int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* pReq) {
@@ -285,7 +284,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
     }
     code = 0;
   FAIL_FIXED_DISPATCH:
-    taosArrayDestroy(req.data);
+    taosArrayDestroyP(req.data, taosMemoryFree);
     taosArrayDestroy(req.dataLen);
     return code;
 
