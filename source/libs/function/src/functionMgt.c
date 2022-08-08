@@ -221,7 +221,7 @@ bool fmIsLastRowFunc(int32_t funcId) {
   return FUNCTION_TYPE_LAST_ROW == funcMgtBuiltins[funcId].type;
 }
 
-bool fmIsReturnNotNullFunc(int32_t funcId) {
+bool fmIsNotNullOutputFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
   }
