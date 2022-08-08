@@ -181,7 +181,7 @@ TDengine 中时间戳的时区总是由客户端进行处理，而与服务端�
 
 ### 16. TDengine 3.0 都会用到哪些网络端口？
 
-使用到的网络端口请看文档：[serverport](/reference/config/#serverport)
+使用到的网络端口请看文档：[serverport](../../reference/config/#serverport)
 
 需要注意，文档上列举的端口号都是以默认端口 6030 为前提进行说明，如果修改了配置文件中的设置，那么列举的端口都会随之出现变化，管理员可以参考上述的信息调整防火墙设置。
 
@@ -191,7 +191,7 @@ taosAdapter 从 TDengine 2.4.0.0 版本开始成为 TDengine 服务端软件的�
 
 需要说明的是，taosAdapter 的日志路径 path 需要单独配置，默认路径是 /var/log/taos ；日志等级 logLevel 有 8 个等级，默认等级是 info ，配置成 panic 可关闭日志输出。请注意操作系统 / 目录的空间大小，可通过命令行参数、环境变量或配置文件来修改配置，默认配置文件是 /etc/taos/taosadapter.toml 。
 
-有关 taosAdapter 组件的详细介绍请看文档：[taosAdapter](https://docs.taosdata.com/reference/taosadapter/)
+有关 taosAdapter 组件的详细介绍请看文档：[taosAdapter](../../reference/taosadapter/)
 
 ### 18. 发生了 OOM 怎么办？
 
