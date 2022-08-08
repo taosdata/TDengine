@@ -182,6 +182,7 @@ void taos_free_result(TAOS_RES *res) {
 
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
+    tscDebug("0x%" PRIx64 " taos_free_result start to free query", pRequest->requestId);
     destroyRequest(pRequest);
   } else if (TD_RES_TMQ(res)) {
     SMqRspObj *pRsp = (SMqRspObj *)res;
@@ -482,7 +483,7 @@ void taos_stop_query(TAOS_RES *res) {
   int32_t numOfFields = taos_num_fields(pRequest);
   // It is not a query, no need to stop.
   if (numOfFields == 0) {
-    tscDebug("request %" PRIx64 " no need to be killed since not query", pRequest->requestId);
+    tscDebug("request 0x%" PRIx64 " no need to be killed since not query", pRequest->requestId);
     return;
   }
 
@@ -847,7 +848,7 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
   }
 
   pRequest->code =
-      setQueryResultFromRsp(pResultInfo, (SRetrieveTableRsp *)pResultInfo->pData, pResultInfo->convertUcs4, false);
+      setQueryResultFromRsp(pResultInfo, (SRetrieveTableRsp *)pResultInfo->pData, pResultInfo->convertUcs4, true);
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
     pRequest->code = code;

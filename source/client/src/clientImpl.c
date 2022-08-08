@@ -283,7 +283,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
 
   int32_t code = qExecCommand(pQuery->pRoot, &pRsp);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
-    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, false);
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
   }
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
@@ -1348,6 +1348,10 @@ int32_t doProcessMsgFromServer(void* param) {
     } else {
       memcpy(buf.pData, pMsg->pCont, pMsg->contLen);
     }
+
+    tscDebug("xxxxx malloc %p, message: %s, size:%d, code: %s, gtid: %s", buf.pData,
+             TMSG_INFO(pMsg->msgType), pMsg->contLen, tstrerror(pMsg->code), tbuf);
+    
   }
 
   pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);

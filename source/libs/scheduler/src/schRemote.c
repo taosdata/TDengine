@@ -389,6 +389,7 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
 
 _return:
 
+  qDebug("xxxxx free %p", pMsg->pData);
   taosMemoryFreeClear(pMsg->pData);
 
   qDebug("end to handle rsp msg, type:%s, handle:%p, code:%s", TMSG_INFO(pMsg->msgType), pMsg->handle,
@@ -402,6 +403,7 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
   qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " drop task rsp received, code:0x%x", pParam->queryId, pParam->taskId,
          code);
   if (pMsg) {
+    qDebug("xxxxx free %p", pMsg->pData);
     taosMemoryFree(pMsg->pData);       
   }
   return TSDB_CODE_SUCCESS;
@@ -414,6 +416,8 @@ int32_t schHandleLinkBrokenCallback(void *param, SDataBuf *pMsg, int32_t code) {
   qDebug("handle %p is broken", pMsg->handle);
 
   if (head->isHbParam) {
+
+    qDebug("xxxxx free %p", pMsg->pData);
     taosMemoryFree(pMsg->pData);
     
     SSchHbCallbackParam *hbParam = (SSchHbCallbackParam *)param;
@@ -456,6 +460,7 @@ int32_t schHandleHbCallback(void *param, SDataBuf *pMsg, int32_t code) {
 _return:
 
   tFreeSSchedulerHbRsp(&rsp);
+  qDebug("xxxxx free %p", pMsg->pData);
   taosMemoryFree(pMsg->pData);
   SCH_RET(code);
 }
