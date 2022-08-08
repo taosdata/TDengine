@@ -1237,6 +1237,8 @@ int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx) {
   pHeadFile->size += size;
 
 _exit:
+  tsdbTrace("vgId:%d write block idx, offset:%" PRId64 " size:%" PRId64 " nBlockIdx:%d", TD_VID(pWriter->pTsdb->pVnode),
+            pHeadFile->offset, size, taosArrayGetSize(aBlockIdx));
   return code;
 
 _err:
@@ -1277,8 +1279,10 @@ int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *mBlock, SBlockIdx *pBloc
   pBlockIdx->size = size;
   pHeadFile->size += size;
 
-  tsdbTrace("vgId:%d, write block, offset:%" PRId64 " size:%" PRId64, TD_VID(pWriter->pTsdb->pVnode), pBlockIdx->offset,
-            pBlockIdx->size);
+  tsdbTrace("vgId:%d, write block, file ID:%d commit ID:%d suid:%" PRId64 " uid:%" PRId64 " offset:%" PRId64
+            " size:%" PRId64 " nItem:%d",
+            TD_VID(pWriter->pTsdb->pVnode), pWriter->wSet.fid, pHeadFile->commitID, pBlockIdx->suid, pBlockIdx->uid,
+            pBlockIdx->offset, pBlockIdx->size, mBlock->nItem);
   return code;
 
 _err:
@@ -1331,6 +1335,8 @@ int32_t tsdbWriteBlockL(SDataFWriter *pWriter, SArray *aBlockL) {
   pHeadFile->size += size;
 
 _exit:
+  tsdbTrace("vgId:%d tsdb write blockl, loffset:%" PRId64 " size:%" PRId64, TD_VID(pWriter->pTsdb->pVnode),
+            pHeadFile->loffset, size);
   return code;
 
 _err:
@@ -1542,6 +1548,9 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
   }
 
 _exit:
+  tsdbTrace("vgId:%d tsdb write block data, suid:%" PRId64 " uid:%" PRId64 " nRow:%d, offset:%" PRId64 " size:%d",
+            TD_VID(pWriter->pTsdb->pVnode), pBlockData->suid, pBlockData->uid, pBlockData->nRow, pBlkInfo->offset,
+            pBlkInfo->szBlock);
   return code;
 
 _err:

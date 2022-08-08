@@ -1222,6 +1222,12 @@ static int32_t tsdbCommitFileData(SCommitter *pCommitter) {
     // commit current table data
     code = tsdbCommitTableData(pCommitter, pTbData);
     if (code) goto _err;
+
+    // move next reader table data if need
+    if (pCommitter->dReader.pBlockIdx && tTABLEIDCmprFn(pTbData, pCommitter->dReader.pBlockIdx) == 0) {
+      code = tsdbCommitterNextTableData(pCommitter);
+      if (code) goto _err;
+    }
   }
 
   code = tsdbMoveCommitData(pCommitter, (TABLEID){.suid = INT64_MAX, .uid = INT64_MAX});
