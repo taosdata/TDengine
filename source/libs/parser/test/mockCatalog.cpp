@@ -119,6 +119,12 @@ void generateInformationSchema(MockCatalogService* mcs) {
             .addColumn("dnode_id", TSDB_DATA_TYPE_INT);
     builder.done();
   }
+  {
+    ITableBuilder& builder =
+        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_CLUSTER, TSDB_SYSTEM_TABLE, 1)
+            .addColumn("id", TSDB_DATA_TYPE_BIGINT);
+    builder.done();
+  }
 }
 
 void generatePerformanceSchema(MockCatalogService* mcs) {
