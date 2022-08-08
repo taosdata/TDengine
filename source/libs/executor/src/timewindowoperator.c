@@ -2165,6 +2165,11 @@ static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         SPoint current = {.key = pSliceInfo->current};
         current.val = taosMemoryCalloc(pLinearInfo->bytes, 1);
 
+        // before interp range, do not fill
+        if (start.key == INT64_MIN || end.key == INT64_MAX) {
+          break;
+        }
+
         if (pLinearInfo->hasNull) {
           colDataAppendNULL(pDst, rows);
         } else {
@@ -2465,11 +2470,39 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
           pResBlock->info.rows += 1;
           doKeepPrevRows(pSliceInfo, pBlock, i);
 
-          pSliceInfo->current =
-              taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
 
-          if (pResBlock->info.rows >= pResBlock->info.capacity) {
-            break;
+          if (pSliceInfo->fillType == TSDB_FILL_LINEAR) {
+            doKeepLinearInfo(pSliceInfo, pBlock, i);
+            pSliceInfo->current =
+                taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
+            if (i < pBlock->info.rows - 1) {
+              int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, i + 1);
+              if (nextTs > pSliceInfo->current) {
+                while (pSliceInfo->current < nextTs && pSliceInfo->current <= pSliceInfo->win.ekey) {
+                  genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pBlock, pResBlock);
+                  pSliceInfo->current =
+                      taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
+                  if (pResBlock->info.rows >= pResBlock->info.capacity) {
+                    break;
+                  }
+                }
+
+                if (pSliceInfo->current > pSliceInfo->win.ekey) {
+                  doSetOperatorCompleted(pOperator);
+                  break;
+                }
+              } else {
+                // ignore current row, and do nothing
+              }
+            } else { // it is the last row of current block
+            }
+          } else { // non-linear interpolation
+            pSliceInfo->current =
+                taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
+
+            if (pResBlock->info.rows >= pResBlock->info.capacity) {
+              break;
+            }
           }
         }
 
