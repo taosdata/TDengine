@@ -14,21 +14,7 @@
  */
 
 #include "executor.h"
-#include "tdbInt.h"
 #include "tstream.h"
-
-typedef int32_t FTaskExpand(void* ahandle, SStreamTask* pTask);
-
-typedef struct SStreamMeta {
-  char*        path;
-  TDB*         db;
-  TTB*         pTaskDb;
-  TTB*         pStateDb;
-  SHashObj*    pTasks;
-  void*        ahandle;
-  TXN          txn;
-  FTaskExpand* expandFunc;
-} SStreamMeta;
 
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc) {
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
@@ -150,7 +136,7 @@ int32_t streamMetaAbort(SStreamMeta* pMeta) {
   return 0;
 }
 
-int32_t streamRestoreTask(SStreamMeta* pMeta) {
+int32_t streamLoadTasks(SStreamMeta* pMeta) {
   TBC* pCur = NULL;
   if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
     ASSERT(0);
