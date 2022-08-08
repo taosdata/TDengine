@@ -1517,7 +1517,7 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprS
 
     SResultRow* pRow = (SResultRow*)((char*)page + pPos->pos.offset);
 
-    doUpdateNumOfRows(pRow, numOfExprs, rowEntryOffset);
+    doUpdateNumOfRows(pCtx, pRow, numOfExprs, rowEntryOffset);
 
     // no results, continue to check the next one
     if (pRow->numOfRows == 0) {
