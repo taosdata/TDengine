@@ -116,10 +116,17 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
           TSDBROW row = tsdbRowFromBlockData(&pReader->oBlockData, iRow);
           int64_t version = TSDBROW_VERSION(&row);
 
+          tsdbTrace("vgId:%d, vnode snapshot tsdb read for %s, %" PRId64 "(%" PRId64 " , %" PRId64 ")",
+                    TD_VID(pReader->pTsdb->pVnode), pReader->pTsdb->path, version, pReader->sver, pReader->ever);
+
           if (version < pReader->sver || version > pReader->ever) continue;
 
           code = tBlockDataAppendRow(&pReader->nBlockData, &row, NULL);
           if (code) goto _err;
+        }
+
+        if (pReader->nBlockData.nRow <= 0) {
+          continue;
         }
 
         // org data

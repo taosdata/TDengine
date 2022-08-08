@@ -17,6 +17,7 @@
 #include "os.h"
 #include "query.h"
 #include "tdatablock.h"
+#include "tdbInt.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
 #include "tqueue.h"
@@ -85,6 +86,12 @@ enum {
   TASK_OUTPUT__FETCH,
 };
 
+enum {
+  STREAM_QUEUE__SUCESS = 1,
+  STREAM_QUEUE__FAILED,
+  STREAM_QUEUE__PROCESSING,
+};
+
 typedef struct {
   int8_t type;
 } SStreamQueueItem;
@@ -122,12 +129,6 @@ typedef struct {
   int8_t       type;
   SSDataBlock* pBlock;
 } SStreamTrigger;
-
-enum {
-  STREAM_QUEUE__SUCESS = 1,
-  STREAM_QUEUE__FAILED,
-  STREAM_QUEUE__PROCESSING,
-};
 
 typedef struct {
   STaosQueue* queue;
@@ -233,6 +234,7 @@ typedef struct {
 typedef struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
+  int32_t totalLevel;
   int8_t  taskLevel;
   int8_t  outputType;
   int16_t dispatchMsgType;
@@ -458,13 +460,26 @@ int32_t streamProcessRetrieveRsp(SStreamTask* pTask, SStreamRetrieveRsp* pRsp);
 int32_t streamTryExec(SStreamTask* pTask);
 int32_t streamSchedExec(SStreamTask* pTask);
 
-typedef struct SStreamMeta SStreamMeta;
+typedef int32_t FTaskExpand(void* ahandle, SStreamTask* pTask);
 
-SStreamMeta* streamMetaOpen();
+typedef struct SStreamMeta {
+  char*        path;
+  TDB*         db;
+  TTB*         pTaskDb;
+  TTB*         pStateDb;
+  SHashObj*    pTasks;
+  void*        ahandle;
+  TXN          txn;
+  FTaskExpand* expandFunc;
+} SStreamMeta;
+
+SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc);
 void         streamMetaClose(SStreamMeta* streamMeta);
 
-int32_t streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask);
-int32_t streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
+int32_t      streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask);
+int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, char* msg, int32_t msgLen);
+int32_t      streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
+SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
 
 int32_t streamMetaBegin(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);

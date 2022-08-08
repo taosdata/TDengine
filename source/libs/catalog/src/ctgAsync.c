@@ -1082,7 +1082,7 @@ _return:
     ctgReleaseVgInfoToCache(pCtg, dbCache);
   }
 
-  if (pTask->res) {
+  if (pTask->res || code) {
     ctgHandleTaskEnd(pTask, code);
   }
   

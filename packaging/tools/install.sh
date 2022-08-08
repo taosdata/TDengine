@@ -30,7 +30,6 @@ configDir="/etc/taos"
 installDir="/usr/local/taos"
 adapterName="taosadapter"
 benchmarkName="taosBenchmark"
-tmqName="tmq_sim"
 dumpName="taosdump"
 demoName="taosdemo"
 

@@ -268,7 +268,7 @@ static bool stbSplNeedSplit(bool streamQuery, SLogicNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN_JOIN:
       return stbSplNeedSplitJoin(streamQuery, (SJoinLogicNode*)pNode);
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
-      return stbSplIsMultiTbScanChild(streamQuery, pNode);
+      return streamQuery ? false : stbSplIsMultiTbScanChild(streamQuery, pNode);
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return !stbSplHasGatherExecFunc(((SAggLogicNode*)pNode)->pAggFuncs) && stbSplHasMultiTbScan(streamQuery, pNode);
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
