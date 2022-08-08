@@ -1794,7 +1794,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol, uint8_t **ppOut, int8_t nOut,
+int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol, uint8_t **ppOut, int32_t nOut,
                         uint8_t **ppBuf) {
   int32_t code = 0;
 

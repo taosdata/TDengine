@@ -1050,11 +1050,10 @@ _err:
 
 int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync) {
   int32_t code = 0;
-  STsdb  *pTsdb = (*ppWriter)->pTsdb;
+  STsdb  *pTsdb = NULL;
 
   if (*ppWriter == NULL) goto _exit;
-
-  if (sync) {
+  pTsdb = (*ppWriter)->pTsdb if (sync) {
     if (taosFsyncFile((*ppWriter)->pHeadFD) < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
