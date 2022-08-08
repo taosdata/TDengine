@@ -115,7 +115,7 @@ ELSE ()
     ENDIF ()
 
     MESSAGE("System processor ID: ${CMAKE_SYSTEM_PROCESSOR}")
-    IF (${TD_INTEL_64} OR ${TD_INTEL_32})
+    IF (TD_INTEL_64 OR TD_INTEL_32)
         ADD_DEFINITIONS("-msse4.2")
         IF("${FMA_SUPPORT}" MATCHES "true")
             MESSAGE(STATUS "turn fma function support on")
