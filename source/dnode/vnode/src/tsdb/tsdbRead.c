@@ -785,7 +785,7 @@ static int32_t doLoadFileBlockData(STsdbReader* pReader, SDataBlockIter* pBlockI
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
 
   SBlockIdx blockIdx = {.suid = pReader->suid, .uid = pBlockScanInfo->uid};
-  int32_t   code = tsdbReadDataBlock(pReader->pFileReader, pBlock, pBlockData, pSupInfo->colIds, numOfCols);
+  int32_t   code = tsdbReadDataBlock(pReader->pFileReader, pBlock, pBlockData /*, pSupInfo->colIds, numOfCols*/);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }

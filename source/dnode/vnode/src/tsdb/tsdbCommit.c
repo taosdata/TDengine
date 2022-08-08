@@ -309,7 +309,7 @@ static int32_t tsdbCommitterNextLastRow(SCommitter *pCommitter) {
     pCommitter->dReader.iBlockL++;
     if (pCommitter->dReader.iBlockL < taosArrayGetSize(pCommitter->dReader.aBlockL)) {
       pCommitter->dReader.pBlockL = (SBlockL *)taosArrayGet(pCommitter->dReader.aBlockL, pCommitter->dReader.iBlockL);
-      code = tsdbReadLastBlock(pCommitter->dReader.pReader, pCommitter->dReader.pBlockL, pBlockDatal, NULL, 0);
+      code = tsdbReadLastBlock(pCommitter->dReader.pReader, pCommitter->dReader.pBlockL, pBlockDatal);
       if (code) goto _exit;
 
       pCommitter->dReader.iRow = 0;
@@ -593,7 +593,7 @@ static int32_t tsdbMergeCommitData(SCommitter *pCommitter, STbDataIter *pIter, S
   SBlockData *pBlockDataR = &pCommitter->dReader.bData;
   SBlockData *pBlockDataW = &pCommitter->dWriter.bData;
 
-  code = tsdbReadDataBlock(pCommitter->dReader.pReader, pBlock, pBlockDataR, NULL, 0);
+  code = tsdbReadDataBlock(pCommitter->dReader.pReader, pBlock, pBlockDataR);
   if (code) goto _err;
 
   tBlockDataClear(pBlockDataW);
@@ -823,8 +823,8 @@ static int32_t tsdbMergeCommitLast(SCommitter *pCommitter, STbDataIter *pIter) {
 
       // set block data schema if need
       if (pBlockData->suid == 0 && pBlockData->uid == 0) {
-        code = tBlockDataSetSchema(pBlockData, pCommitter->skmTable.pTSchema, pTbData->suid,
-                                   pTbData->suid ? 0 : pTbData->uid);
+        code =
+            tBlockDataInit(pBlockData, pTbData->suid, pTbData->suid ? 0 : pTbData->uid, pCommitter->skmTable.pTSchema);
         if (code) goto _err;
       }
 
@@ -966,7 +966,7 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData) {
   if (code) goto _err;
 
   tMapDataReset(&pCommitter->dWriter.mBlock);
-  code = tBlockDataSetSchema(&pCommitter->dWriter.bData, pCommitter->skmTable.pTSchema, pTbData->suid, pTbData->uid);
+  code = tBlockDataInit(&pCommitter->dWriter.bData, pTbData->suid, pTbData->uid, pCommitter->skmTable.pTSchema);
   if (code) goto _err;
 
   // .data merge
@@ -1144,7 +1144,7 @@ static int32_t tsdbMoveCommitData(SCommitter *pCommitter, TABLEID toTable) {
       code = tsdbCommitterUpdateTableSchema(pCommitter, suid, uid, 1 /*TOOD*/);
       if (code) goto _err;
 
-      code = tBlockDataSetSchema(pBlockDataW, pCommitter->skmTable.pTSchema, suid, suid ? 0 : uid);
+      code = tBlockDataInit(pBlockDataW, suid, suid ? 0 : uid, pCommitter->skmTable.pTSchema);
       if (code) goto _err;
     }
 
