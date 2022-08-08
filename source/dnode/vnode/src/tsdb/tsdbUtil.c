@@ -1107,7 +1107,7 @@ static FORCE_INLINE int32_t tColDataCmprFn(const void *p1, const void *p2) {
 }
 
 // SBlockData ======================================================
-int32_t tBlockDataInit(SBlockData *pBlockData) {
+int32_t tBlockDataCreate(SBlockData *pBlockData) {
   int32_t code = 0;
 
   pBlockData->suid = 0;
@@ -1132,7 +1132,7 @@ _exit:
   return code;
 }
 
-void tBlockDataClear(SBlockData *pBlockData, int8_t deepClear) {
+void tBlockDataDestroy(SBlockData *pBlockData, int8_t deepClear) {
   tFree((uint8_t *)pBlockData->aUid);
   tFree((uint8_t *)pBlockData->aVersion);
   tFree((uint8_t *)pBlockData->aTSKEY);

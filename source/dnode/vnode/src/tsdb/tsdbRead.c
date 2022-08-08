@@ -438,7 +438,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
 
   pSup->tsColAgg.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
 
-  code = tBlockDataInit(&pReader->status.fileBlockData);
+  code = tBlockDataCreate(&pReader->status.fileBlockData);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     goto _end;
@@ -2670,7 +2670,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
     }
   }
   taosMemoryFree(pSupInfo->buildBuf);
-  tBlockDataClear(&pReader->status.fileBlockData, true);
+  tBlockDataDestroy(&pReader->status.fileBlockData, true);
 
   cleanupDataBlockIterator(&pReader->status.blockIter);
 
@@ -2874,7 +2874,7 @@ static SArray* doRetrieveDataBlock(STsdbReader* pReader) {
   tBlockDataClearData(&pStatus->fileBlockData);
   int32_t code = doLoadFileBlockData(pReader, &pStatus->blockIter, pBlockScanInfo, &pStatus->fileBlockData);
   if (code != TSDB_CODE_SUCCESS) {
-    tBlockDataClear(&pStatus->fileBlockData, 1);
+    tBlockDataDestroy(&pStatus->fileBlockData, 1);
 
     terrno = code;
     return NULL;

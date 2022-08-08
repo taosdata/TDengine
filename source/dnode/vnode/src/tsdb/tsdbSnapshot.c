@@ -289,9 +289,9 @@ int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, int8_t type
     goto _err;
   }
   pReader->mBlock = tMapDataInit();
-  code = tBlockDataInit(&pReader->oBlockData);
+  code = tBlockDataCreate(&pReader->oBlockData);
   if (code) goto _err;
-  code = tBlockDataInit(&pReader->nBlockData);
+  code = tBlockDataCreate(&pReader->nBlockData);
   if (code) goto _err;
 
   pReader->aDelIdx = taosArrayInit(0, sizeof(SDelIdx));
@@ -327,8 +327,8 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
   }
   taosArrayDestroy(pReader->aBlockIdx);
   tMapDataClear(&pReader->mBlock);
-  tBlockDataClear(&pReader->oBlockData, 1);
-  tBlockDataClear(&pReader->nBlockData, 1);
+  tBlockDataDestroy(&pReader->oBlockData, 1);
+  tBlockDataDestroy(&pReader->nBlockData, 1);
 
   if (pReader->pDelFReader) {
     tsdbDelFReaderClose(&pReader->pDelFReader);
@@ -1123,7 +1123,7 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWr
   pWriter->commitID = pTsdb->pVnode->state.commitID;
 
   // for data file
-  code = tBlockDataInit(&pWriter->bData);
+  code = tBlockDataCreate(&pWriter->bData);
 
   if (code) goto _err;
   pWriter->aBlockIdx = taosArrayInit(0, sizeof(SBlockIdx));
@@ -1131,7 +1131,7 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWr
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
-  code = tBlockDataInit(&pWriter->bDataR);
+  code = tBlockDataCreate(&pWriter->bDataR);
   if (code) goto _err;
 
   pWriter->aBlockIdxW = taosArrayInit(0, sizeof(SBlockIdx));
@@ -1139,7 +1139,7 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWr
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
-  code = tBlockDataInit(&pWriter->bDataW);
+  code = tBlockDataCreate(&pWriter->bDataW);
   if (code) goto _err;
 
   // for del file

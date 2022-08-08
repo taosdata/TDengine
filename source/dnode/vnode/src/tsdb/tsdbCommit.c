@@ -1270,7 +1270,7 @@ static int32_t tsdbCommitDataStart(SCommitter *pCommitter) {
     goto _exit;
   }
 
-  code = tBlockDataInit(&pCommitter->dReader.bData);
+  code = tBlockDataCreate(&pCommitter->dReader.bData);
   if (code) goto _exit;
 
   pCommitter->dReader.aBlockL = taosArrayInit(0, sizeof(SBlockL));
@@ -1279,7 +1279,7 @@ static int32_t tsdbCommitDataStart(SCommitter *pCommitter) {
     goto _exit;
   }
 
-  code = tBlockDataInit(&pCommitter->dReader.bDatal);
+  code = tBlockDataCreate(&pCommitter->dReader.bDatal);
   if (code) goto _exit;
 
   // Writer
@@ -1295,10 +1295,10 @@ static int32_t tsdbCommitDataStart(SCommitter *pCommitter) {
     goto _exit;
   }
 
-  code = tBlockDataInit(&pCommitter->dWriter.bData);
+  code = tBlockDataCreate(&pCommitter->dWriter.bData);
   if (code) goto _exit;
 
-  code = tBlockDataInit(&pCommitter->dWriter.bDatal);
+  code = tBlockDataCreate(&pCommitter->dWriter.bDatal);
   if (code) goto _exit;
 
 _exit:
@@ -1309,16 +1309,16 @@ static void tsdbCommitDataEnd(SCommitter *pCommitter) {
   // Reader
   taosArrayDestroy(pCommitter->dReader.aBlockIdx);
   tMapDataClear(&pCommitter->dReader.mBlock);
-  tBlockDataClear(&pCommitter->dReader.bData, 1);
+  tBlockDataDestroy(&pCommitter->dReader.bData, 1);
   taosArrayDestroy(pCommitter->dReader.aBlockL);
-  tBlockDataClear(&pCommitter->dReader.bDatal, 1);
+  tBlockDataDestroy(&pCommitter->dReader.bDatal, 1);
 
   // Writer
   taosArrayDestroy(pCommitter->dWriter.aBlockIdx);
   taosArrayDestroy(pCommitter->dWriter.aBlockL);
   tMapDataClear(&pCommitter->dWriter.mBlock);
-  tBlockDataClear(&pCommitter->dWriter.bData, 1);
-  tBlockDataClear(&pCommitter->dWriter.bDatal, 1);
+  tBlockDataDestroy(&pCommitter->dWriter.bData, 1);
+  tBlockDataDestroy(&pCommitter->dWriter.bDatal, 1);
   tTSchemaDestroy(pCommitter->skmTable.pTSchema);
   tTSchemaDestroy(pCommitter->skmRow.pTSchema);
 }

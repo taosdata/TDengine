@@ -846,63 +846,6 @@ _err:
 }
 
 #if 0
-static int32_t tsdbReadBlockDataKey(SBlockData *pBlockData, SBlockInfo *pSubBlock, uint8_t *pBuf, uint8_t **ppBuf) {
-  int32_t code = 0;
-#if 0
-  int64_t size = pSubBlock->szVersion + pSubBlock->szTSKEY + sizeof(TSCKSUM);
-  int64_t n;
-
-  if (!taosCheckChecksumWhole(pBuf, size)) {
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _err;
-  }
-
-  code = tRealloc((uint8_t **)&pBlockData->aVersion, sizeof(int64_t) * pSubBlock->nRow);
-  if (code) goto _err;
-  code = tRealloc((uint8_t **)&pBlockData->aTSKEY, sizeof(TSKEY) * pSubBlock->nRow);
-  if (code) goto _err;
-
-  if (pSubBlock->cmprAlg == NO_COMPRESSION) {
-    ASSERT(pSubBlock->szVersion == sizeof(int64_t) * pSubBlock->nRow);
-    ASSERT(pSubBlock->szTSKEY == sizeof(TSKEY) * pSubBlock->nRow);
-
-    // VERSION
-    memcpy(pBlockData->aVersion, pBuf, pSubBlock->szVersion);
-
-    // TSKEY
-    memcpy(pBlockData->aTSKEY, pBuf + pSubBlock->szVersion, pSubBlock->szTSKEY);
-  } else {
-    size = sizeof(int64_t) * pSubBlock->nRow + COMP_OVERFLOW_BYTES;
-    if (pSubBlock->cmprAlg == TWO_STAGE_COMP) {
-      code = tRealloc(ppBuf, size);
-      if (code) goto _err;
-    }
-
-    // VERSION
-    n = tsDecompressBigint(pBuf, pSubBlock->szVersion, pSubBlock->nRow, (char *)pBlockData->aVersion,
-                           sizeof(int64_t) * pSubBlock->nRow, pSubBlock->cmprAlg, *ppBuf, size);
-    if (n < 0) {
-      code = TSDB_CODE_COMPRESS_ERROR;
-      goto _err;
-    }
-
-    // TSKEY
-    n = tsDecompressTimestamp(pBuf + pSubBlock->szVersion, pSubBlock->szTSKEY, pSubBlock->nRow,
-                              (char *)pBlockData->aTSKEY, sizeof(TSKEY) * pSubBlock->nRow, pSubBlock->cmprAlg, *ppBuf,
-                              size);
-    if (n < 0) {
-      code = TSDB_CODE_COMPRESS_ERROR;
-      goto _err;
-    }
-  }
-
-  return code;
-
-_err:
-#endif
-  return code;
-}
-
 static int32_t tsdbReadColDataImpl(SBlockInfo *pSubBlock, SBlockCol *pBlockCol, SColData *pColData, uint8_t *pBuf,
                                    uint8_t **ppBuf) {
   int32_t code = 0;
@@ -995,80 +938,6 @@ static int32_t tsdbReadColDataImpl(SBlockInfo *pSubBlock, SBlockCol *pBlockCol, 
 
 _err:
 #endif
-  return code;
-}
-
-#if 0
-static int32_t tsdbReadBlockCol(uint8_t *pBuf, int32_t szBlockCol, SDiskDataHdr *pHdr, SArray *aBlockCol) {
-  int32_t    code = 0;
-  int32_t    n = 0;
-  SBlockCol  blockCol;
-  SBlockCol *pBlockCol = &blockCol;
-
-  // checksum
-  if (!taosCheckChecksumWhole(pBuf, szBlockCol + sizeof(TSCKSUM))) {
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _err;
-  }
-
-  // hdr
-  *pHdr = *(SDiskDataHdr *)pBuf;
-  n += sizeof(SDiskDataHdr);
-
-  // aBlockCol
-  while (n < szBlockCol) {
-    n += tGetBlockCol(pBuf + n, pBlockCol);
-
-    if (taosArrayPush(aBlockCol, pBlockCol) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _err;
-    }
-  }
-
-  ASSERT(n == szBlockCol);
-
-  return code;
-
-_err:
-  return code;
-}
-#endif
-
-static int32_t tsdbReadDataArray(uint8_t *pInput, int32_t szInput, int32_t nEle, int8_t type, int8_t cmprAlg,
-                                 uint8_t **ppOut, uint8_t **ppBuf) {
-  int32_t code = 0;
-  int32_t size;
-
-  // size
-  if (IS_VAR_DATA_TYPE(type)) {
-    size = nEle;
-  } else {
-    size = tDataTypes[type].bytes * nEle;
-  }
-
-  // alloc
-  code = tRealloc(ppOut, size);
-  if (code) goto _exit;
-
-  // decode
-  if (cmprAlg == NO_COMPRESSION) {
-    ASSERT(szInput == size);
-    memcpy(*ppOut, pInput, size);
-  } else {
-    if (cmprAlg == TWO_STAGE_COMP) {
-      code = tRealloc(ppBuf, size + COMP_OVERFLOW_BYTES);
-      if (code) goto _exit;
-
-      int32_t n =
-          tDataTypes[type].decompFunc(pInput, szInput, nEle, *ppOut, size, cmprAlg, *ppBuf, size + COMP_OVERFLOW_BYTES);
-      if (n <= 0) {
-        code = TSDB_CODE_COMPRESS_ERROR;
-        goto _exit;
-      }
-    }
-  }
-
-_exit:
   return code;
 }
 
@@ -1210,29 +1079,29 @@ int32_t tsdbReadColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBl
     SBlockData *pBlockData1 = &(SBlockData){0};
     SBlockData *pBlockData2 = &(SBlockData){0};
 
-    tBlockDataInit(pBlockData1);
-    tBlockDataInit(pBlockData2);
+    tBlockDataCreate(pBlockData1);
+    tBlockDataCreate(pBlockData2);
     for (int32_t iSubBlock = 1; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
       code = tsdbReadSubColData(pReader, pBlockIdx, pBlock, iSubBlock, aColId, nCol, pBlockData1, ppBuf1, ppBuf2);
       if (code) goto _err;
 
       code = tBlockDataCopy(pBlockData, pBlockData2);
       if (code) {
-        tBlockDataClear(pBlockData1, 1);
-        tBlockDataClear(pBlockData2, 1);
+        tBlockDataDestroy(pBlockData1, 1);
+        tBlockDataDestroy(pBlockData2, 1);
         goto _err;
       }
 
       code = tBlockDataMerge(pBlockData1, pBlockData2, pBlockData);
       if (code) {
-        tBlockDataClear(pBlockData1, 1);
-        tBlockDataClear(pBlockData2, 1);
+        tBlockDataDestroy(pBlockData1, 1);
+        tBlockDataDestroy(pBlockData2, 1);
         goto _err;
       }
     }
 
-    tBlockDataClear(pBlockData1, 1);
-    tBlockDataClear(pBlockData2, 1);
+    tBlockDataDestroy(pBlockData1, 1);
+    tBlockDataDestroy(pBlockData2, 1);
   }
 
   tFree(pBuf1);
@@ -1349,34 +1218,34 @@ int32_t tsdbReadDataBlock(SDataFReader *pReader, SBlock *pBlock, SBlockData *pBl
     SBlockData *pBlockData1 = &(SBlockData){0};
     SBlockData *pBlockData2 = &(SBlockData){0};
 
-    tBlockDataInit(pBlockData1);
-    tBlockDataInit(pBlockData2);
+    tBlockDataCreate(pBlockData1);
+    tBlockDataCreate(pBlockData2);
     for (iSubBlock = 1; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
       code = tsdbReadSubBlockData(pReader, pBlock, iSubBlock, pBlockData1, ppBuf1, ppBuf2);
       if (code) {
-        tBlockDataClear(pBlockData1, 1);
-        tBlockDataClear(pBlockData2, 1);
+        tBlockDataDestroy(pBlockData1, 1);
+        tBlockDataDestroy(pBlockData2, 1);
         goto _err;
       }
 
       code = tBlockDataCopy(pBlockData, pBlockData2);
       if (code) {
-        tBlockDataClear(pBlockData1, 1);
-        tBlockDataClear(pBlockData2, 1);
+        tBlockDataDestroy(pBlockData1, 1);
+        tBlockDataDestroy(pBlockData2, 1);
         goto _err;
       }
 
       // merge two block data
       code = tBlockDataMerge(pBlockData1, pBlockData2, pBlockData);
       if (code) {
-        tBlockDataClear(pBlockData1, 1);
-        tBlockDataClear(pBlockData2, 1);
+        tBlockDataDestroy(pBlockData1, 1);
+        tBlockDataDestroy(pBlockData2, 1);
         goto _err;
       }
     }
 
-    tBlockDataClear(pBlockData1, 1);
-    tBlockDataClear(pBlockData2, 1);
+    tBlockDataDestroy(pBlockData1, 1);
+    tBlockDataDestroy(pBlockData2, 1);
   }
 
   ASSERT(pBlock->nRow == pBlockData->nRow);

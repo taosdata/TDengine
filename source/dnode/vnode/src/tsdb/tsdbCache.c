@@ -450,9 +450,9 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
       if (--state->iFileSet >= 0) {
         pFileSet = (SDFileSet *)taosArrayGet(state->aDFileSet, state->iFileSet);
       } else {
-        // tBlockDataClear(&state->blockData, 1);
+        // tBlockDataDestroy(&state->blockData, 1);
         if (state->pBlockData) {
-          tBlockDataClear(state->pBlockData, 1);
+          tBlockDataDestroy(state->pBlockData, 1);
           state->pBlockData = NULL;
         }
 
@@ -494,7 +494,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
       if (!state->pBlockData) {
         state->pBlockData = &state->blockData;
 
-        tBlockDataInit(&state->blockData);
+        tBlockDataCreate(&state->blockData);
       }
     }
     case SFSNEXTROW_BLOCKDATA:
@@ -552,8 +552,8 @@ _err:
     state->aBlockIdx = NULL;
   }
   if (state->pBlockData) {
-    // tBlockDataClear(&state->blockData, 1);
-    tBlockDataClear(state->pBlockData, 1);
+    // tBlockDataDestroy(&state->blockData, 1);
+    tBlockDataDestroy(state->pBlockData, 1);
     state->pBlockData = NULL;
   }
 
@@ -579,8 +579,8 @@ int32_t clearNextRowFromFS(void *iter) {
     state->aBlockIdx = NULL;
   }
   if (state->pBlockData) {
-    // tBlockDataClear(&state->blockData, 1);
-    tBlockDataClear(state->pBlockData, 1);
+    // tBlockDataDestroy(&state->blockData, 1);
+    tBlockDataDestroy(state->pBlockData, 1);
     state->pBlockData = NULL;
   }
 
