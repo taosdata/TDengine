@@ -1,13 +1,20 @@
-const taos = require("td2.0-connector");
+const { options, connect } = require("@tdengine/rest");
 
-var conn = taos.connect({
-  host: "localhost",
-  port: 6030,
-  user: "root",
-  password: "taosdata",
-});
-conn.close();
+async function test() {
+  options.path = "/rest/sql";
+  options.host = "localhost";
+  let conn = connect(options);
+  let cursor = conn.cursor();
+  try {
+    let res = await cursor.query("SELECT server_version()");
+    res.toString();
+  } catch (err) {
+    console.log(err);
+  }
+}
+test();
 
-// run with: node connect.js
 // output:
-// Successfully connected to TDengine
+// server_version() |
+// ===================
+// 3.0.0.0          |
