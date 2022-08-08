@@ -141,6 +141,10 @@ static void inline vnodeHandleWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   }
   if (rsp.info.handle != NULL) {
     tmsgSendRsp(&rsp);
+  } else {
+    if (rsp.pCont) {
+      rpcFreeCont(rsp.pCont);
+    }
   }
 }
 
