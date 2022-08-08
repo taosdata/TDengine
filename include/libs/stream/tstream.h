@@ -476,8 +476,10 @@ typedef struct SStreamMeta {
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc);
 void         streamMetaClose(SStreamMeta* streamMeta);
 
-int32_t streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask);
-int32_t streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
+int32_t      streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask);
+int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, char* msg, int32_t msgLen);
+int32_t      streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
+SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
 
 int32_t streamMetaBegin(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);
