@@ -486,11 +486,11 @@ static int32_t tdBlockRowMerge(STableMeta* pTableMeta, SBlockKeyTuple* pEndKeyTp
   void* pDestRow = NULL;
   ++((*pBlkRowMerger)->index);
   if ((*pBlkRowMerger)->index < taosArrayGetSize((*pBlkRowMerger)->rowArray)) {
-    void* pAlloc = *(void**)taosArrayGet((*pBlkRowMerger)->rowArray, (*pBlkRowMerger)->index);
-    if (tRealloc((uint8_t**)&pAlloc, rowSize) != 0) {
+    void** pAlloc = (void**)taosArrayGet((*pBlkRowMerger)->rowArray, (*pBlkRowMerger)->index);
+    if (tRealloc((uint8_t**)pAlloc, rowSize) != 0) {
       return TSDB_CODE_FAILED;
     }
-    pDestRow = pAlloc;
+    pDestRow = *pAlloc;
   } else {
     if (tRealloc((uint8_t**)&pDestRow, rowSize) != 0) {
       return TSDB_CODE_FAILED;

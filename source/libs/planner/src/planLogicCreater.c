@@ -342,7 +342,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pJoin->inputTsOrder = ORDER_ASC;
   pJoin->node.groupAction = GROUP_ACTION_CLEAR;
   pJoin->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
-  pJoin->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+  pJoin->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -472,6 +472,11 @@ static EGroupAction getGroupAction(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   return (pCxt->pPlanCxt->streamQuery || NULL != pSelect->pLimit) ? GROUP_ACTION_KEEP : GROUP_ACTION_NONE;
 }
 
+static EDataOrderLevel getRequireDataOrder(bool needTimeline, SSelectStmt* pSelect) {
+  return needTimeline ? (NULL != pSelect->pPartitionByList ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
+                      : DATA_ORDER_LEVEL_NONE;
+}
+
 static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (!pSelect->hasAggFuncs && NULL == pSelect->pGroupByList) {
     return TSDB_CODE_SUCCESS;
@@ -486,8 +491,8 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   pAgg->hasTimeLineFunc = pSelect->hasTimeLineFunc;
   pAgg->onlyHasKeepOrderFunc = pSelect->onlyHasKeepOrderFunc;
   pAgg->node.groupAction = getGroupAction(pCxt, pSelect);
-  pAgg->node.requireDataOrder = pAgg->hasTimeLineFunc ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_NONE;
-  pAgg->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+  pAgg->node.requireDataOrder = getRequireDataOrder(pAgg->hasTimeLineFunc, pSelect);
+  pAgg->node.resultDataOrder = pAgg->onlyHasKeepOrderFunc ? pAgg->node.requireDataOrder : DATA_ORDER_LEVEL_NONE;
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -557,8 +562,7 @@ static int32_t createIndefRowsFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt
   pIdfRowsFunc->isUniqueFunc = pSelect->hasUniqueFunc;
   pIdfRowsFunc->isTimeLineFunc = pSelect->hasTimeLineFunc;
   pIdfRowsFunc->node.groupAction = getGroupAction(pCxt, pSelect);
-  pIdfRowsFunc->node.requireDataOrder =
-      pIdfRowsFunc->isTimeLineFunc ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_NONE;
+  pIdfRowsFunc->node.requireDataOrder = getRequireDataOrder(pIdfRowsFunc->isTimeLineFunc, pSelect);
   pIdfRowsFunc->node.resultDataOrder = pIdfRowsFunc->node.requireDataOrder;
 
   // indefinite rows functions and _select_values functions
@@ -592,7 +596,7 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   }
 
   pInterpFunc->node.groupAction = getGroupAction(pCxt, pSelect);
-  pInterpFunc->node.requireDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
+  pInterpFunc->node.requireDataOrder = getRequireDataOrder(true, pSelect);
   pInterpFunc->node.resultDataOrder = pInterpFunc->node.requireDataOrder;
 
   int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, fmIsInterpFunc, &pInterpFunc->pFuncs);
@@ -668,8 +672,10 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
 
   pWindow->winType = WINDOW_TYPE_STATE;
   pWindow->node.groupAction = getGroupAction(pCxt, pSelect);
-  pWindow->node.requireDataOrder = pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_IN_BLOCK : DATA_ORDER_LEVEL_IN_GROUP;
-  pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
+  pWindow->node.requireDataOrder =
+      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_IN_BLOCK : getRequireDataOrder(true, pSelect);
+  pWindow->node.resultDataOrder =
+      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_GLOBAL : pWindow->node.requireDataOrder;
   pWindow->pStateExpr = nodesCloneNode(pState->pExpr);
   pWindow->pTspk = nodesCloneNode(pState->pCol);
   if (NULL == pWindow->pStateExpr || NULL == pWindow->pTspk) {
@@ -691,8 +697,10 @@ static int32_t createWindowLogicNodeBySession(SLogicPlanContext* pCxt, SSessionW
   pWindow->sessionGap = ((SValueNode*)pSession->pGap)->datum.i;
   pWindow->windowAlgo = pCxt->pPlanCxt->streamQuery ? SESSION_ALGO_STREAM_SINGLE : SESSION_ALGO_MERGE;
   pWindow->node.groupAction = getGroupAction(pCxt, pSelect);
-  pWindow->node.requireDataOrder = pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_IN_BLOCK : DATA_ORDER_LEVEL_IN_GROUP;
-  pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
+  pWindow->node.requireDataOrder =
+      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_IN_BLOCK : getRequireDataOrder(true, pSelect);
+  pWindow->node.resultDataOrder =
+      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_GLOBAL : pWindow->node.requireDataOrder;
 
   pWindow->pTspk = nodesCloneNode((SNode*)pSession->pCol);
   if (NULL == pWindow->pTspk) {
@@ -720,8 +728,12 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
       (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
   pWindow->windowAlgo = pCxt->pPlanCxt->streamQuery ? INTERVAL_ALGO_STREAM_SINGLE : INTERVAL_ALGO_HASH;
   pWindow->node.groupAction = (NULL != pInterval->pFill ? GROUP_ACTION_KEEP : getGroupAction(pCxt, pSelect));
-  pWindow->node.requireDataOrder = pSelect->hasTimeLineFunc ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_IN_BLOCK;
-  pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
+  pWindow->node.requireDataOrder =
+      pCxt->pPlanCxt->streamQuery
+          ? DATA_ORDER_LEVEL_IN_BLOCK
+          : (pSelect->hasTimeLineFunc ? getRequireDataOrder(true, pSelect) : DATA_ORDER_LEVEL_IN_BLOCK);
+  pWindow->node.resultDataOrder =
+      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_GLOBAL : getRequireDataOrder(true, pSelect);
 
   pWindow->pTspk = nodesCloneNode(pInterval->pCol);
   if (NULL == pWindow->pTspk) {
@@ -768,8 +780,8 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   pFill->node.groupAction = getGroupAction(pCxt, pSelect);
-  pFill->node.requireDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
-  pFill->node.resultDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
+  pFill->node.requireDataOrder = getRequireDataOrder(true, pSelect);
+  pFill->node.resultDataOrder = pFill->node.requireDataOrder;
   pFill->inputTsOrder = ORDER_ASC;
 
   int32_t code = nodesCollectColumns(pSelect, SQL_CLAUSE_WINDOW, NULL, COLLECT_COL_TYPE_ALL, &pFill->node.pTargets);
