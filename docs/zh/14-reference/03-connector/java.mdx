@@ -699,6 +699,7 @@ TaosConsumer consumer = new TaosConsumer<>(config);
 - enable.auto.commit: 是否允许自动提交。
 - group.id: consumer: 所在的 group。
 - value.deserializer: 结果集反序列化方法，可以继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer`，并指定结果集 bean，实现反序列化。也可以继承 `com.taosdata.jdbc.tmq.Deserializer`，根据 SQL 的 resultSet 自定义反序列化方式。
+- 其他参数请参考：[Consumer 参数列表](/develop/tmq#创建-consumer-以及consumer-group)
 
 #### 订阅消费数据
 
