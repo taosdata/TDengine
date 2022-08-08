@@ -722,7 +722,8 @@ void vnodeSyncClose(SVnode *pVnode) { syncStop(pVnode->sync); }
 
 bool vnodeIsLeader(SVnode *pVnode) {
   if (!syncIsReady(pVnode->sync)) {
-    vDebug("vgId:%d, vnode not ready", pVnode->config.vgId);
+    vDebug("vgId:%d, vnode not ready, state:%s, restore:%d", pVnode->config.vgId, syncGetMyRoleStr(pVnode->sync),
+           syncRestoreFinish(pVnode->sync));
     return false;
   }
 
