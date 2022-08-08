@@ -292,7 +292,7 @@ class TDTestCase:
         tdSql.execute(f"use {DB4}")
         self.__create_tb(rsma=True, dbname=DB4, ctb_num=db4_ctb_num, rsma_type="last")
         self.__insert_data(rows=self.rows, rsma=True, dbname=DB4, ctb_num=db4_ctb_num, rsma_type="last")
-        time.sleep(8)
+        time.sleep(7)
         tdSql.query(f"select count(*) from {DB4}.stb1 where ts > now()-5m")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, self.rows * db4_ctb_num)
