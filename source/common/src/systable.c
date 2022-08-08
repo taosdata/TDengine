@@ -354,11 +354,19 @@ static const SSysTableMeta perfsMeta[] = {
     {TSDB_PERFS_TABLE_APPS, appSchema, tListLen(appSchema)}};
 
 void getInfosDbMeta(const SSysTableMeta** pInfosTableMeta, size_t* size) {
-  *pInfosTableMeta = infosMeta;
-  *size = tListLen(infosMeta);
+  if (pInfosTableMeta) {
+    *pInfosTableMeta = infosMeta;
+  }
+  if (size) {
+    *size = tListLen(infosMeta);
+  }
 }
 
 void getPerfDbMeta(const SSysTableMeta** pPerfsTableMeta, size_t* size) {
-  *pPerfsTableMeta = perfsMeta;
-  *size = tListLen(perfsMeta);
+  if (pPerfsTableMeta) {
+    *pPerfsTableMeta = perfsMeta;
+  }
+  if (size) {
+    *size = tListLen(perfsMeta);
+  }
 }
