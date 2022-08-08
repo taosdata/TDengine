@@ -1691,13 +1691,17 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   if (!pShow->sysDbRsp) {
     SDbObj infoschemaDb = {0};
     setInformationSchemaDbCfg(&infoschemaDb);
-    dumpDbInfoData(pBlock, &infoschemaDb, pShow, numOfRows, 14, true, 0, 1);
+    size_t numOfTables = 0;
+    getInfosDbMeta(NULL, &numOfTables);
+    dumpDbInfoData(pBlock, &infoschemaDb, pShow, numOfRows, numOfTables, true, 0, 1);
 
     numOfRows += 1;
 
     SDbObj perfschemaDb = {0};
     setPerfSchemaDbCfg(&perfschemaDb);
-    dumpDbInfoData(pBlock, &perfschemaDb, pShow, numOfRows, 3, true, 0, 1);
+    numOfTables = 0;
+    getPerfDbMeta(NULL, &numOfTables);
+    dumpDbInfoData(pBlock, &perfschemaDb, pShow, numOfRows, numOfTables, true, 0, 1);
 
     numOfRows += 1;
     pShow->sysDbRsp = true;

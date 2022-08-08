@@ -25,6 +25,7 @@ TDengine 采用 SQL 作为查询语言。应用程序可以通过 REST API 或�
 - 单列、多列数据查询
 - 标签和数值的多种过滤条件：>, <, =, <\>, like 等
 - 聚合结果的分组（Group by）、排序（Order by）、约束输出（Limit/Offset）
+- 时间窗口（Interval）、会话窗口（Session）和状态窗口（State_window）等窗口切分聚合查询
 - 数值列及聚合结果的四则运算
 - 时间戳对齐的连接查询（Join Query: 隐式连接）操作
 - 多种聚合/计算函数: count, max, min, avg, sum, twa, stddev, leastsquares, top, bottom, first, last, percentile, apercentile, last_row, spread, diff 等
@@ -40,7 +41,7 @@ taos> select * from d1001 where voltage > 215 order by ts desc limit 2;
 Query OK, 2 row(s) in set (0.001100s)
 ```
 
-为满足物联网场景的需求，TDengine 支持几个特殊的函数，比如 twa(时间加权平均)，spread (最大值与最小值的差)，last_row(最后一条记录)等，更多与物联网场景相关的函数将添加进来。TDengine 还支持连续查询。
+为满足物联网场景的需求，TDengine 支持几个特殊的函数，比如 twa(时间加权平均)，spread (最大值与最小值的差)，last_row(最后一条记录)等，更多与物联网场景相关的函数将添加进来。
 
 具体的查询语法请看 [TAOS SQL 的数据查询](/taos-sql/select) 章节。
 
@@ -73,7 +74,7 @@ taos> SELECT count(*), max(current) FROM meters where groupId = 2 and ts > now -
 Query OK, 1 row(s) in set (0.002136s)
 ```
 
-TDengine 仅容许对属于同一个超级表的表之间进行聚合查询，不同超级表之间的聚合查询不支持。在 [TAOS SQL 的数据查询](/taos-sql/select) 一章，查询类操作都会注明是否支持超级表。
+在 [TAOS SQL 的数据查询](/taos-sql/select) 一章，查询类操作都会注明是否支持超级表。
 
 ## 降采样查询、插值
 

@@ -438,6 +438,14 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
   }
 }
 
+void ctgFreeTbMetasMsgCtx(SCtgMsgCtx* pCtx) {
+  ctgFreeMsgCtx(pCtx);
+  if (pCtx->lastOut) {
+    ctgFreeSTableMetaOutput((STableMetaOutput*)pCtx->lastOut);
+    pCtx->lastOut = NULL;
+  }
+}
+
 void ctgFreeSTableMetaOutput(STableMetaOutput* pOutput) {
   if (NULL == pOutput) {
     return;
@@ -641,7 +649,7 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       taosArrayDestroy(taskCtx->pFetchs);
       // NO NEED TO FREE pNames
 
-      taosArrayDestroyEx(pTask->msgCtxs, (FDelete)ctgFreeMsgCtx);
+      taosArrayDestroyEx(pTask->msgCtxs, (FDelete)ctgFreeTbMetasMsgCtx);
       
       if (pTask->msgCtx.lastOut) {
         ctgFreeSTableMetaOutput((STableMetaOutput*)pTask->msgCtx.lastOut);

@@ -2409,6 +2409,9 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
 
 static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
   SSyncNode* pSyncNode = (SSyncNode*)param;
+
+  syncNodeEventLog(pSyncNode, "eq hb timer");
+
   if (pSyncNode->replicaNum > 1) {
     if (atomic_load_64(&pSyncNode->heartbeatTimerLogicClockUser) <=
         atomic_load_64(&pSyncNode->heartbeatTimerLogicClock)) {
@@ -2665,7 +2668,22 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
     syncNodeEventLog(ths, "I am not follower, can not do leader transfer");
     return 0;
   }
-  syncNodeEventLog(ths, "do leader transfer");
+
+  if (!ths->restoreFinish) {
+    syncNodeEventLog(ths, "restore not finish, can not do leader transfer");
+    return 0;
+  }
+
+  if (ths->vgId > 1) {
+    syncNodeEventLog(ths, "I am vnode, can not do leader transfer");
+    return 0;
+  }
+
+  do {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "do leader transfer, index:%ld", pEntry->index);
+    syncNodeEventLog(ths, logBuf);
+  } while (0);
 
   bool sameId = syncUtilSameId(&(pSyncLeaderTransfer->newLeaderId), &(ths->myRaftId));
   bool sameNodeInfo = strcmp(pSyncLeaderTransfer->newNodeInfo.nodeFqdn, ths->myNodeInfo.nodeFqdn) == 0 &&
