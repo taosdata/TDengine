@@ -2658,7 +2658,6 @@ typedef struct {
 } SVgEpSet;
 
 typedef struct {
-  int64_t refId;
   int64_t suid;
   int8_t  level;
 } SRSmaFetchMsg;
@@ -2666,7 +2665,6 @@ typedef struct {
 static FORCE_INLINE int32_t tEncodeSRSmaFetchMsg(SEncoder* pCoder, const SRSmaFetchMsg* pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
 
-  if (tEncodeI64(pCoder, pReq->refId) < 0) return -1;
   if (tEncodeI64(pCoder, pReq->suid) < 0) return -1;
   if (tEncodeI8(pCoder, pReq->level) < 0) return -1;
 
@@ -2677,7 +2675,6 @@ static FORCE_INLINE int32_t tEncodeSRSmaFetchMsg(SEncoder* pCoder, const SRSmaFe
 static FORCE_INLINE int32_t tDecodeSRSmaFetchMsg(SDecoder* pCoder, SRSmaFetchMsg* pReq) {
   if (tStartDecode(pCoder) < 0) return -1;
 
-  if (tDecodeI64(pCoder, &pReq->refId) < 0) return -1;
   if (tDecodeI64(pCoder, &pReq->suid) < 0) return -1;
   if (tDecodeI8(pCoder, &pReq->level) < 0) return -1;
 

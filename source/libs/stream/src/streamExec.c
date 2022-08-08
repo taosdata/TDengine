@@ -15,7 +15,7 @@
 
 #include "streamInc.h"
 
-static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) {
+static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* pRes) {
   void* exec = pTask->exec.executor;
 
   // set input
@@ -82,14 +82,16 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
   return 0;
 }
 
+#if 0
 static FORCE_INLINE int32_t streamUpdateVer(SStreamTask* pTask, SStreamDataBlock* pBlock) {
   ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK);
   int32_t             childId = pBlock->childId;
   int64_t             ver = pBlock->sourceVer;
   SStreamChildEpInfo* pChildInfo = taosArrayGetP(pTask->childEpInfo, childId);
-  pChildInfo->processedVer = ver;
+  /*pChildInfo-> = ver;*/
   return 0;
 }
+#endif
 
 int32_t streamPipelineExec(SStreamTask* pTask, int32_t batchNum) {
   ASSERT(pTask->taskLevel != TASK_LEVEL__SINK);
@@ -197,6 +199,8 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     qDebug("stream task %d exec begin, msg batch: %d", pTask->taskId, cnt);
     streamTaskExecImpl(pTask, data, pRes);
     qDebug("stream task %d exec end", pTask->taskId);
+
+    streamFreeQitem(data);
 
     if (taosArrayGetSize(pRes) != 0) {
       SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);

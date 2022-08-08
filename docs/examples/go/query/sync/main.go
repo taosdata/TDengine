@@ -31,6 +31,6 @@ func main() {
 			log.Fatalln("scan error:\n", err)
 			return
 		}
-		log.Fatalln(r.ts, r.current)
+		log.Println(r.ts, r.current)
 	}
 }

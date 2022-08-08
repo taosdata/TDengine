@@ -481,7 +481,7 @@ int64_t metaGetTbNum(SMeta *pMeta) {
   /* int64_t num = 0; */
   /* vnodeGetAllCtbNum(pMeta->pVnode, &num); */
 
-  return pMeta->pVnode->config.vndStats.numOfCTables;
+  return pMeta->pVnode->config.vndStats.numOfCTables + pMeta->pVnode->config.vndStats.numOfNTables;
 }
 
 // N.B. Called by statusReq per second

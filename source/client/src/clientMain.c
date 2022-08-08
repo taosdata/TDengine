@@ -658,12 +658,17 @@ typedef struct SqlParseWrapper {
   SQuery        *pQuery;
 } SqlParseWrapper;
 
+static void destoryTablesReq(void *p) {
+  STablesReq *pRes = (STablesReq *)p;
+  taosArrayDestroy(pRes->pTables);
+}
+
 static void destorySqlParseWrapper(SqlParseWrapper *pWrapper) {
   taosArrayDestroy(pWrapper->catalogReq.pDbVgroup);
   taosArrayDestroy(pWrapper->catalogReq.pDbCfg);
   taosArrayDestroy(pWrapper->catalogReq.pDbInfo);
-  taosArrayDestroy(pWrapper->catalogReq.pTableMeta);
-  taosArrayDestroy(pWrapper->catalogReq.pTableHash);
+  taosArrayDestroyEx(pWrapper->catalogReq.pTableMeta, destoryTablesReq);
+  taosArrayDestroyEx(pWrapper->catalogReq.pTableHash, destoryTablesReq);
   taosArrayDestroy(pWrapper->catalogReq.pUdf);
   taosArrayDestroy(pWrapper->catalogReq.pIndex);
   taosArrayDestroy(pWrapper->catalogReq.pUser);
