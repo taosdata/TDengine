@@ -1272,8 +1272,7 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
     colDataAssign(pDst, pSrc, src->info.rows, &src->info);
   }
 
-  dst->info.rows = src->info.rows;
-  dst->info.capacity = src->info.rows;
+  dst->info = src->info;
   return 0;
 }
 

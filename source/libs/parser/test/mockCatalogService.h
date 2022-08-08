@@ -50,6 +50,7 @@ struct MockTableMeta {
 class MockCatalogServiceImpl;
 class MockCatalogService {
  public:
+  static void destoryTablesReq(void* p);
   static void destoryCatalogReq(SCatalogReq* pReq);
   static void destoryMetaRes(void* p);
   static void destoryMetaArrayRes(void* p);

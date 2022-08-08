@@ -189,20 +189,6 @@ typedef struct {
   tsem_t          rspSem;
 } SMqPollCbParam;
 
-#if 0
-typedef struct {
-  tmq_t*         tmq;
-  int8_t         async;
-  int8_t         automatic;
-  int8_t         freeOffsets;
-  tmq_commit_cb* userCb;
-  tsem_t         rspSem;
-  int32_t        rspErr;
-  SArray*        offsets;
-  void*          userParam;
-} SMqCommitCbParam;
-#endif
-
 typedef struct {
   tmq_t* tmq;
   int8_t automatic;
@@ -384,29 +370,6 @@ char** tmq_list_to_c_array(const tmq_list_t* list) {
 static int32_t tmqMakeTopicVgKey(char* dst, const char* topicName, int32_t vg) {
   return sprintf(dst, "%s:%d", topicName, vg);
 }
-
-#if 0
-int32_t tmqCommitCb(void* param, const SDataBuf* pMsg, int32_t code) {
-  SMqCommitCbParam* pParam = (SMqCommitCbParam*)param;
-  pParam->rspErr = code;
-  if (pParam->async) {
-    if (pParam->automatic && pParam->tmq->commitCb) {
-      pParam->tmq->commitCb(pParam->tmq, pParam->rspErr, pParam->tmq->commitCbUserParam);
-    } else if (!pParam->automatic && pParam->userCb) {
-      pParam->userCb(pParam->tmq, pParam->rspErr, pParam->userParam);
-    }
-
-    if (pParam->freeOffsets) {
-      taosArrayDestroy(pParam->offsets);
-    }
-
-    taosMemoryFree(pParam);
-  } else {
-    tsem_post(&pParam->rspSem);
-  }
-  return 0;
-}
-#endif
 
 int32_t tmqCommitCb2(void* param, SDataBuf* pBuf, int32_t code) {
   SMqCommitCbParam2*   pParam = (SMqCommitCbParam2*)param;
@@ -659,123 +622,6 @@ int32_t tmqCommitInner2(tmq_t* tmq, const TAOS_RES* msg, int8_t automatic, int8_
 
   return 0;
 }
-
-#if 0
-int32_t tmqCommitInner(tmq_t* tmq, const TAOS_RES* msg, int8_t automatic, int8_t async,
-                       tmq_commit_cb* userCb, void* userParam) {
-  SMqCMCommitOffsetReq req;
-  SArray*              pOffsets = NULL;
-  void*                buf = NULL;
-  SMqCommitCbParam*    pParam = NULL;
-  SMsgSendInfo*        sendInfo = NULL;
-  int8_t               freeOffsets;
-  int32_t              code = -1;
-
-  if (msg == NULL) {
-    freeOffsets = 1;
-    pOffsets = taosArrayInit(0, sizeof(SMqOffset));
-    for (int32_t i = 0; i < taosArrayGetSize(tmq->clientTopics); i++) {
-      SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
-      for (int32_t j = 0; j < taosArrayGetSize(pTopic->vgs); j++) {
-        SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
-        SMqOffset    offset;
-        tstrncpy(offset.topicName, pTopic->topicName, TSDB_TOPIC_FNAME_LEN);
-        tstrncpy(offset.cgroup, tmq->groupId, TSDB_CGROUP_LEN);
-        offset.vgId = pVg->vgId;
-        offset.offset = pVg->currentOffset;
-        taosArrayPush(pOffsets, &offset);
-      }
-    }
-  } else {
-    freeOffsets = 0;
-    pOffsets = (SArray*)&msg->container;
-  }
-
-  req.num = (int32_t)pOffsets->size;
-  req.offsets = pOffsets->pData;
-
-  SEncoder encoder;
-
-  tEncoderInit(&encoder, NULL, 0);
-  code = tEncodeSMqCMCommitOffsetReq(&encoder, &req);
-  if (code < 0) {
-    goto END;
-  }
-  int32_t tlen = encoder.pos;
-  buf = taosMemoryMalloc(tlen);
-  if (buf == NULL) {
-    tEncoderClear(&encoder);
-    goto END;
-  }
-  tEncoderClear(&encoder);
-
-  tEncoderInit(&encoder, buf, tlen);
-  tEncodeSMqCMCommitOffsetReq(&encoder, &req);
-  tEncoderClear(&encoder);
-
-  pParam = taosMemoryCalloc(1, sizeof(SMqCommitCbParam));
-  if (pParam == NULL) {
-    goto END;
-  }
-  pParam->tmq = tmq;
-  pParam->automatic = automatic;
-  pParam->async = async;
-  pParam->offsets = pOffsets;
-  pParam->freeOffsets = freeOffsets;
-  pParam->userCb = userCb;
-  pParam->userParam = userParam;
-  if (!async) tsem_init(&pParam->rspSem, 0, 0);
-
-  sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
-  if (sendInfo == NULL) goto END;
-  sendInfo->msgInfo = (SDataBuf){
-      .pData = buf,
-      .len = tlen,
-      .handle = NULL,
-  };
-
-  sendInfo->requestId = generateRequestId();
-  sendInfo->requestObjRefId = 0;
-  sendInfo->param = pParam;
-  sendInfo->fp = tmqCommitCb;
-  sendInfo->msgType = TDMT_MND_MQ_COMMIT_OFFSET;
-
-  SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
-
-  int64_t transporterId = 0;
-  asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
-
-  if (!async) {
-    tsem_wait(&pParam->rspSem);
-    code = pParam->rspErr;
-    tsem_destroy(&pParam->rspSem);
-    taosMemoryFree(pParam);
-  } else {
-    code = 0;
-  }
-
-  // avoid double free if msg is sent
-  buf = NULL;
-
-END:
-  if (buf) taosMemoryFree(buf);
-  /*if (pParam) taosMemoryFree(pParam);*/
-  /*if (sendInfo) taosMemoryFree(sendInfo);*/
-
-  if (code != 0 && async) {
-    if (automatic) {
-      tmq->commitCb(tmq, code, (tmq_topic_vgroup_list_t*)pOffsets, tmq->commitCbUserParam);
-    } else {
-      userCb(tmq, code, (tmq_topic_vgroup_list_t*)pOffsets, userParam);
-    }
-  }
-
-  if (!async && freeOffsets) {
-    taosArrayDestroy(pOffsets);
-  }
-  return code;
-}
-#endif
 
 void tmqAssignAskEpTask(void* param, void* tmrId) {
   tmq_t*  tmq = (tmq_t*)param;
@@ -1161,7 +1007,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   taosMemoryFree(pParam);
   if (code != 0) {
     tscWarn("msg discard from vgId:%d, epoch %d, code:%x", vgId, epoch, code);
-    if (pMsg->pData) taosMemoryFree(pMsg->pData);
+    if (pMsg->pData) taosMemoryFreeClear(pMsg->pData);
     if (code == TSDB_CODE_TQ_NO_COMMITTED_OFFSET) {
       SMqPollRspWrapper* pRspWrapper = taosAllocateQitem(sizeof(SMqPollRspWrapper), DEF_QITEM);
       if (pRspWrapper == NULL) {
@@ -1839,13 +1685,22 @@ int32_t tmq_consumer_close(tmq_t* tmq) {
       return rsp;
     }
 
+    int32_t     retryCnt = 0;
     tmq_list_t* lst = tmq_list_new();
-    rsp = tmq_subscribe(tmq, lst);
+    while (1) {
+      rsp = tmq_subscribe(tmq, lst);
+      if (rsp != TSDB_CODE_MND_CONSUMER_NOT_READY || retryCnt > 5) {
+        break;
+      } else {
+        retryCnt++;
+        taosMsleep(500);
+      }
+    }
+
     tmq_list_destroy(lst);
 
-    if (rsp != 0) {
-      return rsp;
-    }
+    /*return rsp;*/
+    return 0;
   }
   // TODO: free resources
   return 0;

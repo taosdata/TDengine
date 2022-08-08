@@ -46,6 +46,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_RPC_FQDN_ERROR                TAOS_DEF_ERROR_CODE(0, 0x0015)
 #define TSDB_CODE_RPC_PORT_EADDRINUSE           TAOS_DEF_ERROR_CODE(0, 0x0017)
 #define TSDB_CODE_RPC_BROKEN_LINK               TAOS_DEF_ERROR_CODE(0, 0x0018)
+#define TSDB_CODE_RPC_TIMEOUT                   TAOS_DEF_ERROR_CODE(0, 0x0019)
 
 //common & util
 #define TSDB_CODE_TIME_UNSYNCED                 TAOS_DEF_ERROR_CODE(0, 0x0013) 

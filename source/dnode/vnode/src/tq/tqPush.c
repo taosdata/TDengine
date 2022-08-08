@@ -136,31 +136,6 @@ int32_t tqSendExecReq(STQ* pTq, STqHandle* pHandle) {
   return 0;
 }
 
-int32_t tqEnqueueAll(STQ* pTq, SSubmitReq* pReq) {
-  void*              pIter = NULL;
-  SStreamDataSubmit* pSubmit = streamDataSubmitNew(pReq);
-  if (pSubmit == NULL) {
-    return -1;
-  }
-
-  while (1) {
-    pIter = taosHashIterate(pTq->handles, pIter);
-    if (pIter == NULL) break;
-    STqHandle* pHandle = (STqHandle*)pIter;
-    if (tqEnqueue(pHandle, pSubmit) < 0) {
-      continue;
-    }
-    int8_t execStatus = atomic_load_8(&pHandle->pushHandle.execStatus);
-    if (execStatus == TASK_EXEC_STATUS__IDLE || execStatus == TASK_EXEC_STATUS__CLOSING) {
-      tqSendExecReq(pTq, pHandle);
-    }
-  }
-
-  streamDataSubmitRefDec(pSubmit);
-
-  return 0;
-}
-
 int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver, SRpcHandleInfo handleInfo) {
   if (msgType != TDMT_VND_SUBMIT) return 0;
   void*       pIter = NULL;
@@ -240,7 +215,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
   walApplyVer(pTq->pVnode->pWal, ver);
 
   if (msgType == TDMT_VND_SUBMIT) {
-    if (taosHashGetSize(pTq->pStreamTasks) == 0) return 0;
+    if (taosHashGetSize(pTq->pStreamMeta->pTasks) == 0) return 0;
 
     void* data = taosMemoryMalloc(msgLen);
     if (data == NULL) {

@@ -208,6 +208,9 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   taosCloseFile(&pIdxFile);
   taosCloseFile(&pLogFile);
 
+  taosFsyncFile(pWal->pLogFile);
+  taosFsyncFile(pWal->pIdxFile);
+
   walSaveMeta(pWal);
 
   // unlock

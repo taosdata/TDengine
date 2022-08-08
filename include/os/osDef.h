@@ -57,7 +57,7 @@ extern "C" {
 
 #if defined(WINDOWS)
   char *stpcpy (char *dest, const char *src);
-  char *stpncpy (char *dest, const char *src, size_t n);
+  char *stpncpy (char *dest, const char *src, int n);
 
   // specific
 #ifndef __COMPAR_FN_T
@@ -77,7 +77,7 @@ extern "C" {
 
   char *     strsep(char **stringp, const char *delim);
   char *     getpass(const char *prefix);
-  char *     strndup(const char *s, size_t n);
+  char *     strndup(const char *s, int n);
 
   // for send function in tsocket.c
   #define MSG_NOSIGNAL             0

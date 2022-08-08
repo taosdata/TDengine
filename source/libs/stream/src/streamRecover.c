@@ -87,51 +87,80 @@ int32_t tDecodeSMStreamTaskRecoverRsp(SDecoder* pDecoder, SMStreamTaskRecoverRsp
   return 0;
 }
 
-int32_t streamProcessFailRecoverReq(SStreamTask* pTask, SMStreamTaskRecoverReq* pReq, SRpcMsg* pRsp) {
-  if (pTask->taskStatus != TASK_STATUS__FAIL) {
-    return 0;
-  }
+typedef struct {
+  int32_t vgId;
+  int32_t childId;
+  int64_t ver;
+} SStreamVgVerCheckpoint;
 
-  if (pTask->isStreamDistributed) {
-    if (pTask->isDataScan) {
-      pTask->taskStatus = TASK_STATUS__PREPARE_RECOVER;
-    } else if (pTask->execType != TASK_EXEC__NONE) {
-      pTask->taskStatus = TASK_STATUS__PREPARE_RECOVER;
-      bool    hasCheckpoint = false;
-      int32_t childSz = taosArrayGetSize(pTask->childEpInfo);
-      for (int32_t i = 0; i < childSz; i++) {
-        SStreamChildEpInfo* pEpInfo = taosArrayGetP(pTask->childEpInfo, i);
-        if (pEpInfo->checkpointVer == -1) {
-          hasCheckpoint = true;
-          break;
-        }
-      }
-      if (hasCheckpoint) {
-        // load from checkpoint
-      } else {
-        // recover child
-      }
-    }
-  } else {
-    if (pTask->isDataScan) {
-      if (pTask->checkpointVer != -1) {
-        // load from checkpoint
-      } else {
-        // reset stream query task info
-        // TODO get snapshot ver
-        pTask->recoverSnapVer = -1;
-        qStreamPrepareRecover(pTask->exec.executor, pTask->startVer, pTask->recoverSnapVer);
-        pTask->taskStatus = TASK_STATUS__RECOVERING;
-      }
-    }
-  }
+int32_t tEncodeSStreamVgVerCheckpoint(SEncoder* pEncoder, const SStreamVgVerCheckpoint* pCheckpoint) {
+  if (tEncodeI32(pEncoder, pCheckpoint->vgId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pCheckpoint->childId) < 0) return -1;
+  if (tEncodeI64(pEncoder, pCheckpoint->ver) < 0) return -1;
+  return 0;
+}
 
-  if (pTask->taskStatus == TASK_STATUS__RECOVERING) {
-    if (streamPipelineExec(pTask, 100) < 0) {
-      // set fail
-      return -1;
-    }
-  }
+int32_t tDecodeSStreamVgVerCheckpoint(SDecoder* pDecoder, SStreamVgVerCheckpoint* pCheckpoint) {
+  if (tDecodeI32(pDecoder, &pCheckpoint->vgId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pCheckpoint->childId) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pCheckpoint->ver) < 0) return -1;
+  return 0;
+}
 
+typedef struct {
+  int64_t streamId;
+  int64_t checkTs;
+  int64_t checkpointId;
+  int32_t taskId;
+  SArray* checkpointVer;  // SArray<SStreamVgCheckpointVer>
+} SStreamAggVerCheckpoint;
+
+int32_t tEncodeSStreamAggVerCheckpoint(SEncoder* pEncoder, const SStreamAggVerCheckpoint* pCheckpoint) {
+  if (tEncodeI64(pEncoder, pCheckpoint->streamId) < 0) return -1;
+  if (tEncodeI64(pEncoder, pCheckpoint->checkTs) < 0) return -1;
+  if (tEncodeI64(pEncoder, pCheckpoint->checkpointId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pCheckpoint->taskId) < 0) return -1;
+  int32_t sz = taosArrayGetSize(pCheckpoint->checkpointVer);
+  if (tEncodeI32(pEncoder, sz) < 0) return -1;
+  for (int32_t i = 0; i < sz; i++) {
+    SStreamVgVerCheckpoint* pOneVgCkpoint = taosArrayGet(pCheckpoint->checkpointVer, i);
+    if (tEncodeSStreamVgVerCheckpoint(pEncoder, pOneVgCkpoint) < 0) return -1;
+  }
+  return 0;
+}
+
+int32_t tDecodeSStreamAggVerCheckpoint(SDecoder* pDecoder, SStreamAggVerCheckpoint* pCheckpoint) {
+  if (tDecodeI64(pDecoder, &pCheckpoint->streamId) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pCheckpoint->checkTs) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pCheckpoint->checkpointId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pCheckpoint->taskId) < 0) return -1;
+  int32_t sz;
+  if (tDecodeI32(pDecoder, &sz) < 0) return -1;
+  for (int32_t i = 0; i < sz; i++) {
+    SStreamVgVerCheckpoint oneVgCheckpoint;
+    if (tDecodeSStreamVgVerCheckpoint(pDecoder, &oneVgCheckpoint) < 0) return -1;
+    taosArrayPush(pCheckpoint->checkpointVer, &oneVgCheckpoint);
+  }
+  return 0;
+}
+
+int32_t streamRecoverSinkLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
+  ASSERT(pTask->taskLevel == TASK_LEVEL__SINK);
+  // load status
+  void*   pVal = NULL;
+  int32_t vLen = 0;
+  if (tdbTbGet(pMeta->pStateDb, &pTask->taskId, sizeof(void*), &pVal, &vLen) < 0) {
+    return -1;
+  }
+  SDecoder decoder;
+  tDecoderInit(&decoder, pVal, vLen);
+  SStreamAggVerCheckpoint aggCheckpoint;
+  tDecodeSStreamAggVerCheckpoint(&decoder, &aggCheckpoint);
+  /*pTask->*/
+  return 0;
+}
+
+int32_t streamRecoverTask(SStreamTask* pTask) {
+  //
   return 0;
 }

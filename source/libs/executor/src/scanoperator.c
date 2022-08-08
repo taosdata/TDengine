@@ -790,6 +790,7 @@ static int32_t doGetTableRowSize(void* pMeta, uint64_t uid, int32_t* rowLen, con
     }
   } else if (mr.me.type == TSDB_CHILD_TABLE) {
     uint64_t suid = mr.me.ctbEntry.suid;
+    tDecoderClear(&mr.coder);
     code = metaGetTableEntryByUid(&mr, suid);
     if (code != TSDB_CODE_SUCCESS) {
       qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", suid, tstrerror(terrno), idstr);
@@ -1525,6 +1526,11 @@ static void destroyStreamScanOperatorInfo(void* param, int32_t numOfOutput) {
   if (pStreamScan->pColMatchInfo) {
     taosArrayDestroy(pStreamScan->pColMatchInfo);
   }
+  if (pStreamScan->pPseudoExpr) {
+    destroyExprInfo(pStreamScan->pPseudoExpr, pStreamScan->numOfPseudoExpr);
+    taosMemoryFreeClear(pStreamScan->pPseudoExpr);
+  }
+
   updateInfoDestroy(pStreamScan->pUpdateInfo);
   blockDataDestroy(pStreamScan->pRes);
   blockDataDestroy(pStreamScan->pUpdateRes);
@@ -2538,6 +2544,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
   while (pInfo->curPos < size && count < pOperator->resultInfo.capacity) {
     STableKeyInfo* item = taosArrayGet(pInfo->pTableList->pTableList, pInfo->curPos);
     int32_t        code = metaGetTableEntryByUid(&mr, item->uid);
+    tDecoderClear(&mr.coder);
     if (code != TSDB_CODE_SUCCESS) {
       qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", item->uid, tstrerror(terrno),
              GET_TASKID(pTaskInfo));

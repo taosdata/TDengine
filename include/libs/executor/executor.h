@@ -77,6 +77,13 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* n
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type);
 
 /**
+ * @brief Cleanup SSDataBlock for StreamScanInfo
+ * 
+ * @param tinfo 
+ */
+void tdCleanupStreamInputDataBlock(qTaskInfo_t tinfo);
+
+/**
  * Update the table id list, add or remove.
  *
  * @param tinfo
@@ -96,7 +103,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
  * @return
  */
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pPlan,
-                        qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, const char* sql, EOPTR_EXEC_MODEL model);
+                        qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, char* sql, EOPTR_EXEC_MODEL model);
 
 /**
  *

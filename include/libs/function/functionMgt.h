@@ -202,6 +202,7 @@ bool fmIsForbidStreamFunc(int32_t funcId);
 bool fmIsIntervalInterpoFunc(int32_t funcId);
 bool fmIsInterpFunc(int32_t funcId);
 bool fmIsLastRowFunc(int32_t funcId);
+bool fmIsNotNullOutputFunc(int32_t funcId);
 bool fmIsSelectValueFunc(int32_t funcId);
 bool fmIsSystemInfoFunc(int32_t funcId);
 bool fmIsImplicitTsFunc(int32_t funcId);
