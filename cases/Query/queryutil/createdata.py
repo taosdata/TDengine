@@ -56,8 +56,8 @@ class TDCreateData():
         
     def drop_db(self,database):
         #delete:
-        #table_list = ['stable_1','stable_2','regular_table_1','stable_1_1','regular_table_2']
-        table_list = ['stable_1','stable_2']
+        table_list = ['stable_1','stable_2','regular_table_1','stable_1_1','regular_table_2']
+        #table_list = ['stable_1','stable_2']
         for i in table_list:
             self.tdSql.execute("delete from {}.{};".format(database, i))
             self.tdSql.execute("flush database {};".format(database))
@@ -206,6 +206,13 @@ class TDCreateData():
             #             fake.random_int(min=-32767, max=0, step=1) , fake.random_int(min=-127, max=0, step=1) , 
             #             fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
 
+        i = random.randint(0,1)
+        if i ==0:
+            self.logger.info("======this case test use flush database =========")
+            self.tdSql.execute("flush database %s;" %database)       
+        elif i ==1:
+            self.logger.info("===!!!===this case test not use flush database =====!!!====")
+        
         self.tdSql.query("select count(*) from stable_1;")
         self.tdSql.checkData(0,0,3*self.num_random*n)
         self.tdSql.query("select count(*) from regular_table_1;")
@@ -375,6 +382,13 @@ class TDCreateData():
                 # self.tdSql.execute('''insert into stable_2_%d  (ts , q_binary , q_nchar, q_ts  ) values(%d, 'binary.%s', 'nchar.%s' , %d) ;''' 
                 #             % ( j, self.ts + i*1000+5 , fake.pystr() , fake.address() , self.ts + i))
 
+        i = random.randint(0,1)
+        if i ==0:
+            self.logger.info("======this case test use flush database =========")
+            self.tdSql.execute("flush database %s;" %database)       
+        elif i ==1:
+            self.logger.info("===!!!===this case test not use flush database =====!!!====")
+
         self.tdSql.query("select count(*) from stable_2;")
         self.tdSql.checkData(0,0,self.stable_child_num*self.num_random*n*4)
         self.tdSql.query("select count(*) from regular_table_1;")
@@ -482,6 +496,13 @@ class TDCreateData():
                         fake.random_int(min=-0, max=9223372036854775807, step=1), 
                         fake.random_int(min=-0, max=32767, step=1) , fake.random_int(min=-0, max=127, step=1) , 
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
+
+        i = random.randint(0,1)
+        if i ==0:
+            self.logger.info("======this case test use flush database =========")
+            self.tdSql.execute("flush database %s;" %database)       
+        elif i ==1:
+            self.logger.info("===!!!===this case test not use flush database =====!!!====")
 
         self.tdSql.query("select count(*) from stable_1;")
         self.tdSql.checkData(0,0,3*self.num_random*n)
@@ -644,6 +665,13 @@ class TDCreateData():
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i, fake.pystr() , fake.address() , fake.pystr() , fake.address() , fake.pystr() , fake.address() , 
                         fake.pystr() , fake.address() , fake.pystr() , fake.address() , fake.pystr() , fake.address() , fake.pystr() , fake.address() , fake.pystr() , fake.address()))
 
+        i = random.randint(0,1)
+        if i ==0:
+            self.logger.info("======this case test use flush database =========")
+            self.tdSql.execute("flush database %s;" %database)       
+        elif i ==1:
+            self.logger.info("===!!!===this case test not use flush database =====!!!====")
+
         self.tdSql.query("select count(*) from stable_1;")
         self.tdSql.checkData(0,0,3*self.num_random*n)
         self.tdSql.query("select count(*) from regular_table_1;")
@@ -714,6 +742,13 @@ class TDCreateData():
             self.tdSql.execute('''insert into regular_table_3 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
                             % (self.ts + i*3000 , -2147483647+i, -9223372036854775807+i, -32767+i, -127+i, -i, -i, i, i, self.ts + i))
 
+        i = random.randint(0,1)
+        if i ==0:
+            self.logger.info("======this case test use flush database =========")
+            self.tdSql.execute("flush database %s;" %database)       
+        elif i ==1:
+            self.logger.info("===!!!===this case test not use flush database =====!!!====")
+
         self.tdSql.query("select count(*) from stable_1;")
         self.tdSql.checkData(0,0,570)
         self.tdSql.query("select count(*) from regular_table_1;")
@@ -768,7 +803,7 @@ class TDCreateData():
             for j1 in range(col1):
                 list1.append(self.tdSql.getData(i1,j1))
         
-        self.tdSql.execute("reset query cache;") #TD=16766
+        self.tdSql.execute("reset query cache;") 
         self.sql2 = sql2  
         list2 =[]
         self.tdSql.query(sql2)
