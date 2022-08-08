@@ -8,7 +8,8 @@ target_include_directories(
 
 target_link_libraries(
     stream
-    PRIVATE os util transport qcom executor tdb
+    PUBLIC tdb
+    PRIVATE os util transport qcom executor
 )
 
 if(${BUILD_TEST})
