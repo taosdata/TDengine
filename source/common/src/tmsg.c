@@ -5562,7 +5562,7 @@ void tFreeSMAlterStbRsp(SMAlterStbRsp *pRsp) {
 
 int32_t tEncodeSTqOffsetVal(SEncoder *pEncoder, const STqOffsetVal *pOffsetVal) {
   if (tEncodeI8(pEncoder, pOffsetVal->type) < 0) return -1;
-  if (pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+  if (pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     if (tEncodeI64(pEncoder, pOffsetVal->uid) < 0) return -1;
     if (tEncodeI64(pEncoder, pOffsetVal->ts) < 0) return -1;
   } else if (pOffsetVal->type == TMQ_OFFSET__LOG) {
@@ -5577,7 +5577,7 @@ int32_t tEncodeSTqOffsetVal(SEncoder *pEncoder, const STqOffsetVal *pOffsetVal) 
 
 int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
   if (tDecodeI8(pDecoder, &pOffsetVal->type) < 0) return -1;
-  if (pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+  if (pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_DATA  || pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     if (tDecodeI64(pDecoder, &pOffsetVal->uid) < 0) return -1;
     if (tDecodeI64(pDecoder, &pOffsetVal->ts) < 0) return -1;
   } else if (pOffsetVal->type == TMQ_OFFSET__LOG) {
@@ -5600,7 +5600,7 @@ int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
     snprintf(buf, maxLen, "offset(reset to latest)");
   } else if (pVal->type == TMQ_OFFSET__LOG) {
     snprintf(buf, maxLen, "offset(log) ver:%" PRId64, pVal->version);
-  } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+  } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA  || pVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     snprintf(buf, maxLen, "offset(ss data) uid:%" PRId64 ", ts:%" PRId64, pVal->uid, pVal->ts);
   } else {
     ASSERT(0);

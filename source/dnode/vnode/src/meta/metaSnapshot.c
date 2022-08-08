@@ -267,14 +267,14 @@ int32_t destroySnapContext(SSnapContext* ctx){
 
 static int32_t buildNormalChildTableInfo(SVCreateTbReq *req, void **pBuf, int32_t *contLen){
   int32_t ret = 0;
-  SVCreateTbBatchReq reqs = {};
+  SVCreateTbBatchReq reqs = {0};
 
   reqs.pArray = taosArrayInit(1, sizeof(struct SVCreateTbReq));
   if (NULL == reqs.pArray){
     ret = -1;
     goto end;
   }
-  taosArrayPush(reqs.pArray, &req);
+  taosArrayPush(reqs.pArray, req);
   reqs.nReqs = 1;
 
   tEncodeSize(tEncodeSVCreateTbBatchReq, &reqs, *contLen, ret);
@@ -289,7 +289,7 @@ static int32_t buildNormalChildTableInfo(SVCreateTbReq *req, void **pBuf, int32_
     goto end;
   }
   SEncoder coder = {0};
-  tEncoderInit(&coder, *pBuf + sizeof(SMsgHead), *contLen);
+  tEncoderInit(&coder, POINTER_SHIFT(*pBuf, sizeof(SMsgHead)), *contLen);
   if (tEncodeSVCreateTbBatchReq(&coder, &reqs) < 0) {
     taosMemoryFreeClear(*pBuf);
     tEncoderClear(&coder);
@@ -317,7 +317,7 @@ static int32_t buildSuperTableInfo(SVCreateStbReq *req, void **pBuf, int32_t *co
   }
 
   SEncoder       encoder = {0};
-  tEncoderInit(&encoder, *pBuf + sizeof(SMsgHead), *contLen);
+  tEncoderInit(&encoder, POINTER_SHIFT(*pBuf, sizeof(SMsgHead)), *contLen);
   if (tEncodeSVCreateStbReq(&encoder, req) < 0) {
     taosMemoryFreeClear(*pBuf);
     tEncoderClear(&encoder);
@@ -418,7 +418,10 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void **pBuf, int32_t *contLen, in
                || (ctx->subType == TOPIC_SUB_TYPE__TABLE && me.type == TSDB_CHILD_TABLE && me.ctbEntry.suid == ctx->suid)) {
 
       STableInfoForChildTable* data = (STableInfoForChildTable*)taosHashGet(ctx->suidInfo, &me.ctbEntry.suid, sizeof(tb_uid_t));
-      ASSERT(data);
+      if(!data){    // if table has been deleted
+        tDecoderClear(&dc);
+        continue;
+      }
       SVCreateTbReq req = {0};
 
       req.type = TD_CHILD_TABLE;
