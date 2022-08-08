@@ -1,14 +1,20 @@
 ---
-sidebar_label: 消息队列
-description: "数据订阅与推送服务。连续写入到 TDengine 中的时序数据能够被自动推送到订阅客户端。"
-title: 消息队列
+sidebar_label: 数据订阅
+description: "数据订阅与推送服务。写入到 TDengine 中的时序数据能够被自动推送到订阅客户端。"
+title: 数据订阅
 ---
 
-基于数据天然的时间序列特性，TDengine 的数据写入（insert）与消息系统的数据发布（pub）逻辑上一致，均可视为系统中插入一条带时间戳的新记录。同时，TDengine 在内部严格按照数据时间序列单调递增的方式保存数据。本质上来说，TDengine 中每一张表均可视为一个标准的消息队列。
+为了帮助应用实时获取写入 TDengine 的数据，或者以事件到达顺序处理数据，TDengine提供了类似消息队列产品的数据订阅、消费接口。这样在很多场景下，采用 TDengine 的时序数据处理系统不再需要集成消息队列产品，比如 kafka, 从而简化系统设计的复杂度，降低运营维护成本。
 
-TDengine 内嵌支持消息订阅与推送服务（下文都简称TMQ）。使用系统提供的 API，用户可使用普通查询语句订阅数据库中的一张或多张表，或整个库。客户端启动订阅后，定时或按需轮询服务器是否有新的记录到达，有新的记录到达就会将结果反馈到客户。
+与 kafka 一样，你需要定义 topic, 但 TDengine 的 topic 是基于一个已经存在的超级表、子表或普通表的查询条件，即一个 SELECT 语句。你可以使用 SQL 对标签、表名、列、表达式等条件进行过滤，以及对数据进行标量函数与 UDF 计算（不包括数据聚合）。与其他消息队列软件相比，这是 TDengine 数据订阅功能的最大的优势，它提供了更大的灵活性，数据的颗粒度可以由应用随时调整，而且数据的过滤与预处理交给 TDengine，而不是应用完成，有效的减少传输的数据量与应用的复杂度。
 
-TMQ提供了提交机制来保证消息队列的可靠性和正确性。在调用方法上，支持自动提交和手动提交。
+消费者订阅 topic 后，可以实时获得最新的数据。多个消费者可以组成一个消费者组 (consumer group), 一个消费者组里的多个消费者共享消费进度，便于多线程、分布式地消费数据，提高消费速度。但不同消费者组中的消费者即使消费同一个topic, 并不共享消费进度。一个消费者可以订阅多个 topic。如果订阅的是超级表，数据可能会分布在多个不同的 vnode 上，也就是多个 shard 上，这样一个消费组里有多个消费者可以提高消费效率。TDengine 的消息队列提供了消息的ACK机制，在宕机、重启等复杂环境下确保 at least once 消费。
+
+为了实现上述功能，TDengine 会为 WAL (Write-Ahead-Log) 文件自动创建索引以支持快速随机访问，并提供了灵活可配置的文件切换与保留机制：用户可以按需指定 WAL 文件保留的时间以及大小（详见 create database 语句）。通过以上方式将 WAL 改造成了一个保留事件到达顺序的、可持久化的存储引擎（但由于 TSDB 具有远比 WAL 更高的压缩率，我们不推荐保留太长时间，一般来说，不超过几天）。 对于以 topic 形式创建的查询，TDengine 将对接 WAL 而不是 TSDB 作为其存储引擎。在消费时，TDengine 根据当前消费进度从 WAL 直接读取数据，并使用统一的查询引擎实现过滤、变换等操作，将数据推送给消费者。
+
+本文档不对消息队列本身的基础知识做介绍，如果需要了解，请自行搜索。
+
+## 主要数据结构和API
 
 TMQ 的 API 中，与订阅相关的主要数据结构和API如下：
 
@@ -47,7 +53,9 @@ DLL_EXPORT void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_comm
 
 这些 API 的文档请见 [C/C++ Connector](/reference/connector/cpp)，下面介绍一下它们的具体用法（超级表和子表结构请参考“数据建模”一节），完整的示例代码可以在 [tmq.c](https://github.com/taosdata/TDengine/blob/3.0/examples/c/tmq.c) 看到。
 
-一、首先完成建库、建一张超级表和多张子表，并每个子表插入若干条数据记录：
+## 写入数据
+
+首先完成建库、建一张超级表和多张子表操作，然后就可以写入数据了，比如：
 
 ```sql
 drop database if exists tmqdb;
@@ -63,14 +71,15 @@ insert into tmqdb.ctb2 values(now, 2, 2, 'a1')(now+1s, 22, 22, 'a22');
 insert into tmqdb.ctb3 values(now, 3, 3, 'a1')(now+1s, 33, 33, 'a33');
 ```
 
-二、创建topic：
+## 创建topic：
 
 ```sql
 create topic topicName as select ts, c1, c2, c3 from tmqdb.stb where c1 > 1;
 ```
 
-注：TMQ支持多种订阅类型：
-1、列订阅
+TMQ支持多种订阅类型：
+
+### 列订阅
 
 语法：CREATE TOPIC topic_name as subquery
 通过select语句订阅（包括select *，或select ts, c1等指定列描述订阅，可以带条件过滤、标量函数计算，但不支持聚合函数、不支持时间窗口聚合）
@@ -79,25 +88,18 @@ create topic topicName as select ts, c1, c2, c3 from tmqdb.stb where c1 > 1;
 - 被订阅或用于计算的column和tag不可被删除、修改
 - 若发生schema变更，新增的column不出现在结果中
 
-2、超级表订阅
+### 超级表订阅
 语法：CREATE TOPIC topic_name AS STABLE stbName
 
-- 订阅某超级表的全部数据，schema变更不受限，schema变更后写入的数据将以最新schema返回
-- 在tmq的返回消息中schema是块级别的，每块的schema可能不一样
-- 列变更后写入的数据若未落盘，将以写入时的schema返回
-- 列变更后写入的数据若已落盘，将以落盘时的schema返回
+与select * from stbName订阅的区别是：
+- 不会限制用户的schema变更
+- 返回的是非结构化的数据：返回数据的schema会随之超级表的schema变化而变化
+- 用户对于要处理的每一个数据块都可能有不同的schema，因此，必须重新获取schema
+- 返回数据不带有tag
 
-3、db订阅
-语法：CREATE TOPIC topic_name AS DATABASE db_name
+## 创建 consumer 以及consumer group
 
-- 订阅某一db的全部数据，schema变更不受限
-- 在tmq的返回消息中schema是块级别的，每块的schema可能不一样
-- 列变更后写入的数据若未落盘，将以写入时的schema返回
-- 列变更后写入的数据若已落盘，将以落盘时的schema返回
-
-三、创建consumer
-
-目前支持的config：
+对于consumer, 目前支持的config包括：
 
 | 参数名称                     | 参数值                         | 备注                                                   |
 | ---------------------------- | ------------------------------ | ------------------------------------------------------ |
@@ -121,7 +123,7 @@ create topic topicName as select ts, c1, c2, c3 from tmqdb.stb where c1 > 1;
   tmq_conf_set(conf, "group.id", "cgrpName");
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
-  tmq_conf_set(conf, "auto.offset.reset", "earliest");  
+  tmq_conf_set(conf, "auto.offset.reset", "earliest");
   tmq_conf_set(conf, "experimental.snapshot.enable", "true");
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
@@ -131,7 +133,12 @@ create topic topicName as select ts, c1, c2, c3 from tmqdb.stb where c1 > 1;
   return tmq;
 ```
 
-四、创建订阅主题列表
+上述配置中包括consumer group ID，如果多个 consumer 指定的 consumer group ID一样，则自动形成一个consumer group，共享消费进度。
+
+
+## 创建 topic 列表
+
+单个consumer支持同时订阅多个topic。
 
 ```sql
   tmq_list_t* topicList = tmq_list_new();
@@ -139,9 +146,7 @@ create topic topicName as select ts, c1, c2, c3 from tmqdb.stb where c1 > 1;
   return topicList;
 ```
 
-单个consumer支持同时订阅多个topic。
-
-五、启动订阅并开始消费
+## 启动订阅并开始消费
 
 ```sql
   /* 启动订阅 */
@@ -151,9 +156,9 @@ create topic topicName as select ts, c1, c2, c3 from tmqdb.stb where c1 > 1;
   /* 循环poll消息 */
   int32_t totalRows = 0;
   int32_t msgCnt = 0;
-  int32_t consumeDelay = 5000;
+  int32_t timeOut = 5000;
   while (running) {
-    TAOS_RES* tmqmsg = tmq_consumer_poll(tmq, consumeDelay);
+    TAOS_RES* tmqmsg = tmq_consumer_poll(tmq, timeOut);
     if (tmqmsg) {
       msgCnt++;
       totalRows += msg_process(tmqmsg);
@@ -190,7 +195,7 @@ create topic topicName as select ts, c1, c2, c3 from tmqdb.stb where c1 > 1;
     int32_t*    length      = taos_fetch_lengths(msg);
     int32_t     precision   = taos_result_precision(msg);
     const char* tbName      = tmq_get_table_name(msg);
-	rows++; 
+    rows++; 
     taos_print_row(buf, row, fields, numOfFields);
     printf("row content from %s: %s\n", (tbName != NULL ? tbName : "null table"), buf);
   }
@@ -199,7 +204,7 @@ create topic topicName as select ts, c1, c2, c3 from tmqdb.stb where c1 > 1;
 }
 ```
 
-五、结束消费
+## 结束消费
 
 ```sql
   /* 取消订阅 */
@@ -209,7 +214,7 @@ create topic topicName as select ts, c1, c2, c3 from tmqdb.stb where c1 > 1;
   tmq_consumer_close(tmq);
 ```
 
-六、删除topic
+## 删除topic
 
 如果不再需要，可以删除创建topic，但注意：只有没有被订阅的topic才能别删除。
 
@@ -218,7 +223,7 @@ create topic topicName as select ts, c1, c2, c3 from tmqdb.stb where c1 > 1;
   drop topic topicName;
 ```
 
-七、状态查看
+## 状态查看
 
 1、topics：查询已经创建的topic
 

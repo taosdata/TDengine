@@ -27,6 +27,10 @@ else ()
     cat("${TD_SUPPORT_DIR}/taosadapter_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
+if(TD_LINUX_64 AND JEMALLOC_ENABLED)
+    cat("${TD_SUPPORT_DIR}/jemalloc_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
+
 # pthread
 if(${BUILD_PTHREAD})
     cat("${TD_SUPPORT_DIR}/pthread_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -391,6 +395,19 @@ if(${BUILD_WITH_SQLITE})
         )
     endif(NOT TD_WINDOWS)
 endif(${BUILD_WITH_SQLITE})
+
+# jemalloc
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+    include(ExternalProject)
+    ExternalProject_Add(jemalloc
+        PREFIX        "jemalloc"
+        SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/jemalloc
+        BUILD_IN_SOURCE     1
+        CONFIGURE_COMMAND   ./autogen.sh COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/
+        BUILD_COMMAND       ${MAKE}
+        )
+    INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
+ENDIF ()
 
 # addr2line
 if(${BUILD_ADDR2LINE})
