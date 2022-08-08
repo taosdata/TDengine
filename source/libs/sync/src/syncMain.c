@@ -2668,6 +2668,12 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
     syncNodeEventLog(ths, "I am not follower, can not do leader transfer");
     return 0;
   }
+
+  if (!ths->restoreFinish) {
+    syncNodeEventLog(ths, "restore not finish, can not do leader transfer");
+    return 0;
+  }
+
   syncNodeEventLog(ths, "do leader transfer");
 
   bool sameId = syncUtilSameId(&(pSyncLeaderTransfer->newLeaderId), &(ths->myRaftId));
