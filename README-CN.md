@@ -187,7 +187,6 @@ git submodule update --init --recursive
 这个脚本等价于执行如下命令：
 
 ```bash
-git submodule update --init --recursive
 mkdir debug
 cd debug
 cmake .. -DBUILD_TOOLS=true

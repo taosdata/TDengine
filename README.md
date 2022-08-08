@@ -191,7 +191,6 @@ You can run the bash script `build.sh` to build both TDengine and taosTools incl
 It equals to execute following commands:
 
 ```bash
-git submodule update --init --recursive
 mkdir debug
 cd debug
 cmake .. -DBUILD_TOOLS=true
