@@ -3845,14 +3845,17 @@ int32_t spreadFunctionMerge(SqlFunctionCtx* pCtx) {
   SSpreadInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
   int32_t start = pInput->startRowIndex;
-
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
     char*        data = colDataGetData(pCol, i);
     SSpreadInfo* pInputInfo = (SSpreadInfo*)varDataVal(data);
-    spreadTransferInfo(pInputInfo, pInfo);
+    if (pInputInfo->hasResult) {
+      spreadTransferInfo(pInputInfo, pInfo);
+    }
   }
 
-  SET_VAL(GET_RES_INFO(pCtx), 1, 1);
+  if (pInfo->hasResult) {
+    GET_RES_INFO(pCtx)->numOfRes = 1;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -3861,6 +3864,8 @@ int32_t spreadFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SSpreadInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   if (pInfo->hasResult == true) {
     SET_DOUBLE_VAL(&pInfo->result, pInfo->max - pInfo->min);
+  } else {
+    GET_RES_INFO(pCtx)->isNullRes = 1;
   }
   return functionFinalize(pCtx, pBlock);
 }
