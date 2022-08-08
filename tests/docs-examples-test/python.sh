@@ -5,6 +5,8 @@ set -e
 taosd >>/dev/null 2>&1 &
 taosadapter >>/dev/null 2>&1 &
 
+sleep 10
+
 cd ../../docs/examples/python
 
 # 1
