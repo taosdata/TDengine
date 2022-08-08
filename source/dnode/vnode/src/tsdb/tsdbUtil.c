@@ -1172,6 +1172,7 @@ _exit:
 int32_t tBlockDataInitEx(SBlockData *pBlockData, int64_t *suid, int64_t uid, SArray *aColId) {
   int32_t code = 0;
 
+  ASSERT(0);
   ASSERT(suid || uid);
 
   pBlockData->suid = suid;
@@ -1208,6 +1209,8 @@ void tBlockDataReset(SBlockData *pBlockData) {
 }
 
 void tBlockDataClear(SBlockData *pBlockData) {
+  ASSERT(pBlockData->suid || pBlockData->uid);
+
   pBlockData->nRow = 0;
   for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aIdx); iColData++) {
     SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
@@ -1864,8 +1867,8 @@ int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, in
     goto _exit;
   }
 
-  pColData->cid = pBlockCol->cid;
-  pColData->type = pBlockCol->type;
+  ASSERT(pColData->cid == pBlockCol->cid);
+  ASSERT(pColData->type == pBlockCol->type);
   pColData->smaOn = pBlockCol->smaOn;
   pColData->flag = pBlockCol->flag;
   pColData->nVal = nVal;
@@ -1899,7 +1902,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbReadAndCheckFile(TdFilePtr pFD, int64_t offset, uint8_t **ppOut, int32_t size, int8_t toCheck) {
+int32_t tsdbReadAndCheck(TdFilePtr pFD, int64_t offset, uint8_t **ppOut, int32_t size, int8_t toCheck) {
   int32_t code = 0;
 
   // alloc

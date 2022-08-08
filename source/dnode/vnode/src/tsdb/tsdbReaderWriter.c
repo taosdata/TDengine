@@ -727,27 +727,24 @@ _err:
   return code;
 }
 
-static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo, int8_t fromLast, int16_t *aColId,
-                                     int32_t nColId, SBlockData *pBlockData) {
+static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo, int8_t fromLast,
+                                     SBlockData *pBlockData) {
   int32_t code = 0;
-
-  ASSERT(pBlockData->suid || pBlockData->uid);
 
   tBlockDataClear(pBlockData);
 
   TdFilePtr pFD = fromLast ? pReader->pLastFD : pReader->pDataFD;
 
   // uid + version + tskey
-  code = tsdbReadAndCheckFile(pFD, pBlkInfo->offset, &pReader->pBuf1, pBlkInfo->szKey, 1);
+  code = tsdbReadAndCheck(pFD, pBlkInfo->offset, &pReader->pBuf1, pBlkInfo->szKey, 1);
   if (code) goto _err;
   SDiskDataHdr hdr;
   uint8_t     *p = pReader->pBuf1 + tGetDiskDataHdr(pReader->pBuf1, &hdr);
 
   ASSERT(hdr.delimiter == TSDB_FILE_DLMT);
-  ASSERT(hdr.suid || hdr.uid);
+  ASSERT(pBlockData->suid == hdr.suid);
+  ASSERT(pBlockData->uid == hdr.uid);
 
-  pBlockData->suid = hdr.suid;
-  pBlockData->uid = hdr.uid;
   pBlockData->nRow = hdr.nRow;
 
   // uid
@@ -776,36 +773,61 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
   ASSERT(p - pReader->pBuf1 == sizeof(TSCKSUM));
 
   // read and decode columns
+  if (taosArrayGetSize(pBlockData->aIdx) == 0) goto _exit;
+
   if (hdr.szBlkCol > 0) {
-    code = tsdbReadAndCheckFile(pFD, pBlkInfo->offset + pBlkInfo->szKey, &pReader->pBuf1,
-                                hdr.szBlkCol + sizeof(TSCKSUM), 1);
+    int64_t offset = pBlkInfo->offset + pBlkInfo->szKey;
+    code = tsdbReadAndCheck(pFD, offset, &pReader->pBuf1, hdr.szBlkCol + sizeof(TSCKSUM), 1);
     if (code) goto _err;
+  }
 
-    int32_t n = 0;
-    while (n < hdr.szBlkCol) {
-      SBlockCol blockCol;
+  SBlockCol  blockCol = {.cid = 0};
+  SBlockCol *pBlockCol = &blockCol;
+  int32_t    n = 0;
 
-      n += tGetBlockCol(pReader->pBuf1 + n, &blockCol);
+  for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aIdx); iColData++) {
+    SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
 
-      ASSERT(blockCol.flag && blockCol.flag != HAS_NONE);
-
-      // TODO: merge with the column IDs
-
-      SColData *pColData = NULL;  // (todo)
-
-      if (blockCol.flag == HAS_NULL) {
-        // TODO: make a hdr.nRow COL_VAL_NULL();
+    while (pBlockCol && pBlockCol->cid < pColData->cid) {
+      if (n < hdr.szBlkCol) {
+        n += tGetBlockCol(pReader->pBuf1 + n, pBlockCol);
       } else {
-        code = tsdbReadAndCheckFile(
-            pFD, pBlkInfo->offset + pBlkInfo->szKey + hdr.szBlkCol + sizeof(TSCKSUM) + blockCol.offset, &pReader->pBuf2,
-            blockCol.szBitmap + blockCol.szOffset + blockCol.szValue + sizeof(TSCKSUM), 1);
+        ASSERT(n == hdr.szBlkCol);
+        pBlockCol = NULL;
+      }
+    }
 
-        code = tsdbDecmprColData(pReader->pBuf2, &blockCol, hdr.cmprAlg, hdr.nRow, pColData, &pReader->pBuf3);
+    if (pBlockCol == NULL || pBlockCol->cid > pColData->cid) {
+      // add a lot of NONE
+      for (int32_t iRow = 0; iRow < hdr.nRow; iRow++) {
+        code = tColDataAppendValue(pColData, &COL_VAL_NONE(pBlockCol->cid, pBlockCol->type));
+        if (code) goto _err;
+      }
+    } else {
+      ASSERT(pBlockCol->type == pColData->type);
+      ASSERT(pBlockCol->flag && pBlockCol->flag != HAS_NONE);
+
+      if (pBlockCol->flag == HAS_NULL) {
+        // add a lot of NULL
+        for (int32_t iRow = 0; iRow < hdr.nRow; iRow++) {
+          code = tColDataAppendValue(pColData, &COL_VAL_NULL(pBlockCol->cid, pBlockCol->type));
+          if (code) goto _err;
+        }
+      } else {
+        // decode from binary
+        int64_t offset = pBlkInfo->offset + pBlkInfo->szKey + hdr.szBlkCol + sizeof(TSCKSUM) + pBlockCol->offset;
+        int32_t size = pBlockCol->szBitmap + pBlockCol->szOffset + pBlockCol->szValue + sizeof(TSCKSUM);
+
+        code = tsdbReadAndCheck(pFD, offset, &pReader->pBuf2, size, 0);
+        if (code) goto _err;
+
+        code = tsdbDecmprColData(pReader->pBuf2, pBlockCol, hdr.cmprAlg, hdr.nRow, pColData, &pReader->pBuf3);
         if (code) goto _err;
       }
     }
   }
 
+_exit:
   return code;
 
 _err:
@@ -817,7 +839,7 @@ int32_t tsdbReadDataBlock(SDataFReader *pReader, SBlock *pBlock, SBlockData *pBl
                           int32_t nColId) {
   int32_t code = 0;
 
-  code = tsdbReadBlockDataImpl(pReader, &pBlock->aSubBlock[0], 0, aColId, nColId, pBlockData);
+  code = tsdbReadBlockDataImpl(pReader, &pBlock->aSubBlock[0], 0, pBlockData);
   if (code) goto _err;
 
   for (int32_t iSubBlock = 1; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
@@ -836,7 +858,7 @@ int32_t tsdbReadLastBlock(SDataFReader *pReader, SBlockL *pBlockL, SBlockData *p
                           int32_t nColId) {
   int32_t code = 0;
 
-  code = tsdbReadBlockDataImpl(pReader, &pBlockL->bInfo, 1, aColId, nColId, pBlockData);
+  code = tsdbReadBlockDataImpl(pReader, &pBlockL->bInfo, 1, pBlockData);
   if (code) goto _err;
 
   return code;
