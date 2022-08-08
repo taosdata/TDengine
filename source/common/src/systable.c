@@ -308,9 +308,9 @@ static const SSysDbTableSchema offsetSchema[] = {
 };
 
 static const SSysDbTableSchema querySchema[] = {
-    {.name = "query_id", .bytes = TSDB_QUERY_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "req_id", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
-    {.name = "connId", .bytes = 4, .type = TSDB_DATA_TYPE_UINT},
+    {.name = "kill_id", .bytes = TSDB_QUERY_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "query_id", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "conn_id", .bytes = 4, .type = TSDB_DATA_TYPE_UINT},
     {.name = "app", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "user", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
@@ -354,11 +354,19 @@ static const SSysTableMeta perfsMeta[] = {
     {TSDB_PERFS_TABLE_APPS, appSchema, tListLen(appSchema)}};
 
 void getInfosDbMeta(const SSysTableMeta** pInfosTableMeta, size_t* size) {
-  *pInfosTableMeta = infosMeta;
-  *size = tListLen(infosMeta);
+  if (pInfosTableMeta) {
+    *pInfosTableMeta = infosMeta;
+  }
+  if (size) {
+    *size = tListLen(infosMeta);
+  }
 }
 
 void getPerfDbMeta(const SSysTableMeta** pPerfsTableMeta, size_t* size) {
-  *pPerfsTableMeta = perfsMeta;
-  *size = tListLen(perfsMeta);
+  if (pPerfsTableMeta) {
+    *pPerfsTableMeta = perfsMeta;
+  }
+  if (size) {
+    *size = tListLen(perfsMeta);
+  }
 }

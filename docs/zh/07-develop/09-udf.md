@@ -124,52 +124,49 @@ gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
 
 用户可以通过 SQL 指令在系统中加载客户端所在主机上的 UDF 函数库（不能通过 RESTful 接口或 HTTP 管理界面来进行这一过程）。一旦创建成功，则当前 TDengine 集群的所有用户都可以在 SQL 指令中使用这些函数。UDF 存储在系统的 MNode 节点上，因此即使重启 TDengine 系统，已经创建的 UDF 也仍然可用。
 
-在创建 UDF 时，需要区分标量函数和聚合函数。如果创建时声明了错误的函数类别，则可能导致通过 SQL 指令调用函数时出错。此外， UDF 支持输入与输出类型不一致，用户需要保证输入数据类型与 UDF 程序匹配，UDF 输出数据类型与 OUTPUTTYPE 匹配。
+在创建 UDF 时，需要区分标量函数和聚合函数。如果创建时声明了错误的函数类别，则可能导致通过 SQL 指令调用函数时出错。此外，用户需要保证输入数据类型与 UDF 程序匹配，UDF 输出数据类型与 OUTPUTTYPE 匹配。
 
 - 创建标量函数
 ```sql
-CREATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) [ BUFSIZE B ];
+CREATE FUNCTION function_name AS library_path OUTPUTTYPE output_type;
 ```
 
-  - ids(X)：标量函数未来在 SQL 指令中被调用时的函数名，必须与函数实现中 udfNormalFunc 的实际名称一致；
-  - ids(Y)：包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件），这个路径需要用英文单引号或英文双引号括起来；
-  - typename(Z)：此函数计算结果的数据类型，与上文中 udfNormalFunc 的 itype 参数不同，这里不是使用数字表示法，而是直接写类型名称即可；
-  - B：中间计算结果的缓冲区大小，单位是字节，最小 0，最大 512，如果不使用可以不设置。
+  - function_name：标量函数未来在 SQL 中被调用时的函数名，必须与函数实现中 udf 的实际名称一致；
+  - library_path：包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件），这个路径需要用英文单引号或英文双引号括起来；
+  - output_type：此函数计算结果的数据类型名称；
 
-  例如，如下语句可以把 add_one.so 创建为系统中可用的 UDF：
+  例如，如下语句可以把 libbitand.so 创建为系统中可用的 UDF：
 
   ```sql
-  CREATE FUNCTION add_one AS "/home/taos/udf_example/add_one.so" OUTPUTTYPE INT;
+  CREATE FUNCTION bit_and AS "/home/taos/udf_example/libbitand.so" OUTPUTTYPE INT;
   ```
 
 - 创建聚合函数：
 ```sql
-CREATE AGGREGATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) [ BUFSIZE B ];
+CREATE AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE output_type [ BUFSIZE buffer_size ];
 ```
 
-  - ids(X)：聚合函数未来在 SQL 指令中被调用时的函数名，必须与函数实现中 udfNormalFunc 的实际名称一致；
-  - ids(Y)：包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件），这个路径需要用英文单引号或英文双引号括起来；
-  - typename(Z)：此函数计算结果的数据类型，与上文中 udfNormalFunc 的 itype 参数不同，这里不是使用数字表示法，而是直接写类型名称即可；
-  - B：中间计算结果的缓冲区大小，单位是字节，最小 0，最大 512，如果不使用可以不设置。
+  - function_name：聚合函数未来在 SQL 中被调用时的函数名，必须与函数实现中 udfNormalFunc 的实际名称一致；
+  - library_path：包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件），这个路径需要用英文单引号或英文双引号括起来；
+  - output_type：此函数计算结果的数据类型，与上文中 udfNormalFunc 的 itype 参数不同，这里不是使用数字表示法，而是直接写类型名称即可；
+  - buffer_size：中间计算结果的缓冲区大小，单位是字节。如果不使用可以不设置。
 
-  关于中间计算结果的使用，可以参考示例程序[demo.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/demo.c)
-
-  例如，如下语句可以把 demo.so 创建为系统中可用的 UDF：
+  例如，如下语句可以把 libsqrsum.so 创建为系统中可用的 UDF：
 
   ```sql
-  CREATE AGGREGATE FUNCTION demo AS "/home/taos/udf_example/demo.so" OUTPUTTYPE DOUBLE bufsize 14;
+  CREATE AGGREGATE FUNCTION sqr_sum AS "/home/taos/udf_example/libsqrsum.so" OUTPUTTYPE DOUBLE bufsize 8;
   ```
 
 ### 管理 UDF
 
 - 删除指定名称的用户定义函数：
 ```
-DROP FUNCTION ids(X);
+DROP FUNCTION function_name;
 ```
 
-- ids(X)：此参数的含义与 CREATE 指令中的 ids(X) 参数一致，也即要删除的函数的名字，例如 
+- function_name：此参数的含义与 CREATE 指令中的 function_name 参数一致，也即要删除的函数的名字，例如 
 ```sql
-DROP FUNCTION add_one;
+DROP FUNCTION bit_and;
 ```
 - 显示系统中当前可用的所有 UDF：
 ```sql
@@ -180,53 +177,32 @@ SHOW FUNCTIONS;
 
 在 SQL 指令中，可以直接以在系统中创建 UDF 时赋予的函数名来调用用户定义函数。例如：
 ```sql
-SELECT X(c) FROM table/stable;
+SELECT X(c1,c2) FROM table/stable;
 ```
 
-表示对名为 c 的数据列调用名为 X 的用户定义函数。SQL 指令中用户定义函数可以配合 WHERE 等查询特性来使用。
+表示对名为 c1, c2 的数据列调用名为 X 的用户定义函数。SQL 指令中用户定义函数可以配合 WHERE 等查询特性来使用。
 
-## UDF 的一些使用限制
-
-在当前版本下，使用 UDF 存在如下这些限制：
-
-1. 在创建和调用 UDF 时，服务端和客户端都只支持 Linux 操作系统；
-2. UDF 不能与系统内建的 SQL 函数混合使用，暂不支持在一条 SQL 语句中使用多个不同名的 UDF ；
-3. UDF 只支持以单个数据列作为输入；
-4. UDF 只要创建成功，就会被持久化存储到 MNode 节点中；
-5. 无法通过 RESTful 接口来创建 UDF；
-6. UDF 在 SQL 中定义的函数名，必须与 .so 库文件实现中的接口函数名前缀保持一致，也即必须是 udfNormalFunc 的名称，而且不可与 TDengine 中已有的内建 SQL 函数重名。
 
 ## 示例代码
 
-### 标量函数示例 [add_one](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/add_one.c)
+### 标量函数示例 [bit_and](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/bit_and.c)
 
 <details>
-<summary>add_one.c</summary>
+<summary>bit_and.c</summary>
 
 ```c
-{{#include tests/script/sh/add_one.c}}
+{{#include tests/script/sh/bit_and.c}}
 ```
 
 </details>
 
-### 向量函数示例 [abs_max](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/abs_max.c)
+### 聚合函数示例 [sqr_sum](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/sqr_sum.c)
 
 <details>
-<summary>abs_max.c</summary>
+<summary>sqr_sum.c</summary>
 
 ```c
-{{#include tests/script/sh/abs_max.c}}
-```
-
-</details>
-
-### 使用中间计算结果示例 [demo](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/demo.c)
-
-<details>
-<summary>demo.c</summary>
-
-```c
-{{#include tests/script/sh/demo.c}}
+{{#include tests/script/sh/sqr_sum.c}}
 ```
 
 </details>

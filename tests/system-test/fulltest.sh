@@ -27,7 +27,7 @@ python3 ./test.py -f 1-insert/alter_stable.py
 python3 ./test.py -f 1-insert/alter_table.py
 python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
 python3 ./test.py -f 1-insert/table_comment.py
-#python3 ./test.py -f 1-insert/time_range_wise.py  #TD-18130
+python3 ./test.py -f 1-insert/time_range_wise.py
 python3 ./test.py -f 1-insert/block_wise.py
 python3 ./test.py -f 1-insert/create_retentions.py
 python3 ./test.py -f 1-insert/table_param_ttl.py
@@ -216,7 +216,7 @@ python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_query
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_querydatas_stop_follower.py -N 4 -M 1
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_querydatas_stop_leader_force_stop.py -N 4 -M 1 
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_querydatas_stop_leader.py -N 4 -M 1 
-python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_vgroups.py  -N 4 -M 1
+#python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_vgroups.py  -N 4 -M 1
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_vgroups_stopOne.py -N 4 -M 1
 
 

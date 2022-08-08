@@ -221,6 +221,18 @@ bool fmIsLastRowFunc(int32_t funcId) {
   return FUNCTION_TYPE_LAST_ROW == funcMgtBuiltins[funcId].type;
 }
 
+bool fmIsNotNullOutputFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_LAST == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_LAST_PARTIAL == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_LAST_MERGE == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_FIRST == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_FIRST_PARTIAL == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_FIRST_MERGE == funcMgtBuiltins[funcId].type;
+}
+
 bool fmIsSelectValueFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;

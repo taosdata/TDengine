@@ -195,7 +195,7 @@ class TDTestCase:
     def distribute_agg_query(self):
         # basic filter
         tdSql.query("select spread(c1) from stb1 where c1 is null")
-        tdSql.checkRows(0)
+        tdSql.checkRows(1)
 
         tdSql.query("select spread(c1) from stb1 where t1=1")
         tdSql.checkData(0,0,8.000000000)
