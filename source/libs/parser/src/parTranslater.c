@@ -4708,6 +4708,12 @@ static int32_t translateKillTransaction(STranslateContext* pCxt, SKillStmt* pStm
   return buildCmdMsg(pCxt, TDMT_MND_KILL_TRANS, (FSerializeFunc)tSerializeSKillTransReq, &killReq);
 }
 
+static bool crossTableWithoutAggOper(SSelectStmt* pSelect) {
+  return NULL == pSelect->pWindow && !pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc &&
+         !pSelect->hasInterpFunc && TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
+         !isPartitionByTbname(pSelect->pPartitionByList);
+}
+
 static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   if (NULL != pStmt->pOptions->pWatermark &&
       (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStmt->pOptions->pWatermark))) {
@@ -4723,14 +4729,19 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     return TSDB_CODE_SUCCESS;
   }
 
-  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt->pQuery)) {
-    SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
-    if (QUERY_NODE_REAL_TABLE == nodeType(pSelect->pFromTable)) {
-      return TSDB_CODE_SUCCESS;
-    }
+  if (QUERY_NODE_SELECT_STMT != nodeType(pStmt->pQuery)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
   }
 
-  return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
+  SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
+
+  if (QUERY_NODE_REAL_TABLE != nodeType(pSelect->pFromTable) ||
+      TSDB_DATA_TYPE_TIMESTAMP != ((SExprNode*)nodesListGetNode(pSelect->pProjectionList, 0))->resType.type ||
+      !pSelect->isTimeLineResult || crossTableWithoutAggOper(pSelect)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static void getSourceDatabase(SNode* pStmt, int32_t acctId, char* pDbFName) {

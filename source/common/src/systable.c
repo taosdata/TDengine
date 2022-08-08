@@ -16,8 +16,8 @@
 #include "systable.h"
 #include "taos.h"
 #include "tdef.h"
-#include "types.h"
 #include "tgrant.h"
+#include "types.h"
 
 #define SYSTABLE_SCH_TABLE_NAME_LEN ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_DB_NAME_LEN    ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
@@ -97,7 +97,7 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "wal_retention_period", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "wal_retention_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "wal_roll_period", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "wal_seg_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
+    {.name = "wal_segment_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
 };
 
 static const SSysDbTableSchema userFuncSchema[] = {
@@ -243,8 +243,8 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema)},
     {TSDB_INS_TABLE_MODULES, modulesSchema, tListLen(modulesSchema)},
     {TSDB_INS_TABLE_QNODES, qnodesSchema, tListLen(qnodesSchema)},
-//    {TSDB_INS_TABLE_SNODES, snodesSchema, tListLen(snodesSchema)},
-//    {TSDB_INS_TABLE_BNODES, bnodesSchema, tListLen(bnodesSchema)},
+    //    {TSDB_INS_TABLE_SNODES, snodesSchema, tListLen(snodesSchema)},
+    //    {TSDB_INS_TABLE_BNODES, bnodesSchema, tListLen(bnodesSchema)},
     {TSDB_INS_TABLE_CLUSTER, clusterSchema, tListLen(clusterSchema)},
     {TSDB_INS_TABLE_DATABASES, userDBSchema, tListLen(userDBSchema)},
     {TSDB_INS_TABLE_FUNCTIONS, userFuncSchema, tListLen(userFuncSchema)},
