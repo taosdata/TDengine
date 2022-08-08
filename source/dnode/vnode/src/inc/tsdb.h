@@ -138,22 +138,23 @@ int32_t tGetColData(uint8_t *p, SColData *pColData);
 #define tBlockDataFirstKey(PBLOCKDATA) TSDBROW_KEY(&tBlockDataFirstRow(PBLOCKDATA))
 #define tBlockDataLastKey(PBLOCKDATA)  TSDBROW_KEY(&tBlockDataLastRow(PBLOCKDATA))
 
-int32_t tBlockDataCreate(SBlockData *pBlockData);
-void    tBlockDataDestroy(SBlockData *pBlockData, int8_t deepClear);
-
-void    tBlockDataReset(SBlockData *pBlockData);
-int32_t tBlockDataSetSchema(SBlockData *pBlockData, STSchema *pTSchema, int64_t suid, int64_t uid);
-int32_t tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);
-int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid);
-void    tBlockDataClearData(SBlockData *pBlockData);
-
-int32_t   tBlockDataCorrectSchema(SBlockData *pBlockData, SBlockData *pBlockDataFrom);
-int32_t   tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData);
-int32_t   tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest);
+int32_t   tBlockDataCreate(SBlockData *pBlockData);
+void      tBlockDataDestroy(SBlockData *pBlockData, int8_t deepClear);
+int32_t   tBlockDataInit(SBlockData *pBlockData, int64_t suid, int64_t uid, STSchema *pTSchema);
+int32_t   tBlockDataInitEx(SBlockData *pBlockData, int64_t *suid, int64_t uid, SArray *aColId);
+void      tBlockDataReset(SBlockData *pBlockData);
+int32_t   tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid);
+void      tBlockDataClear(SBlockData *pBlockData);
 SColData *tBlockDataGetColDataByIdx(SBlockData *pBlockData, int32_t idx);
 void      tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData);
-int32_t   tPutBlockData(uint8_t *p, SBlockData *pBlockData);
-int32_t   tGetBlockData(uint8_t *p, SBlockData *pBlockData);
+
+#if 1
+int32_t tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);
+int32_t tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData);
+int32_t tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest);
+int32_t tPutBlockData(uint8_t *p, SBlockData *pBlockData);
+int32_t tGetBlockData(uint8_t *p, SBlockData *pBlockData);
+#endif
 // SDiskDataHdr
 int32_t tPutDiskDataHdr(uint8_t *p, void *ph);
 int32_t tGetDiskDataHdr(uint8_t *p, void *ph);
@@ -190,7 +191,7 @@ int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol
                         uint8_t **ppBuf);
 int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, int32_t nVal, SColData *pColData,
                           uint8_t **ppBuf);
-int32_t tsdbReadAndCheckFile(TdFilePtr pFD, int64_t offset, uint8_t **ppOut, int32_t size);
+int32_t tsdbReadAndCheckFile(TdFilePtr pFD, int64_t offset, uint8_t **ppOut, int32_t size, int8_t toCheck);
 // tsdbMemTable ==============================================================================================
 // SMemTable
 int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);

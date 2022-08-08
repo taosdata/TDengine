@@ -539,7 +539,7 @@ static int32_t tsdbCommitDataBlock(SCommitter *pCommitter, SBlock *pBlock) {
   if (code) goto _err;
 
   // clear
-  tBlockDataClearData(pBlockData);
+  tBlockDataClear(pBlockData);
 
   return code;
 
@@ -578,7 +578,7 @@ static int32_t tsdbCommitLastBlock(SCommitter *pCommitter) {
   }
 
   // clear
-  tBlockDataClearData(pBlockData);
+  tBlockDataClear(pBlockData);
 
   return code;
 
@@ -596,7 +596,7 @@ static int32_t tsdbMergeCommitData(SCommitter *pCommitter, STbDataIter *pIter, S
   code = tsdbReadDataBlock(pCommitter->dReader.pReader, pBlock, pBlockDataR, NULL, 0);
   if (code) goto _err;
 
-  tBlockDataClearData(pBlockDataW);
+  tBlockDataClear(pBlockDataW);
   int32_t  iRow = 0;
   TSDBROW  row;
   TSDBROW *pRow1 = tsdbTbDataIterGet(pIter);
@@ -672,7 +672,7 @@ static int32_t tsdbCommitTableMemData(SCommitter *pCommitter, STbDataIter *pIter
   STbData    *pTbData = pIter->pTbData;
   SBlockData *pBlockData = &pCommitter->dWriter.bData;
 
-  tBlockDataClearData(pBlockData);
+  tBlockDataClear(pBlockData);
   TSDBROW *pRow = tsdbTbDataIterGet(pIter);
   while (true) {
     if (pRow == NULL) {
@@ -741,7 +741,7 @@ static int32_t tsdbMergeAsSubBlock(SCommitter *pCommitter, STbDataIter *pIter, S
   STbData    *pTbData = pIter->pTbData;
   SBlockData *pBlockData = &pCommitter->dWriter.bData;
 
-  tBlockDataClearData(pBlockData);
+  tBlockDataClear(pBlockData);
   TSDBROW *pRow = tsdbTbDataIterGet(pIter);
   while (true) {
     if (pRow == NULL) break;

@@ -1748,7 +1748,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
   TSDBKEY key = getCurrentKeyInBuf(pBlockIter, pReader);
   if (fileBlockShouldLoad(pReader, pFBlock, pBlock, pScanInfo, key)) {
     tBlockDataReset(&pStatus->fileBlockData);
-    tBlockDataClearData(&pStatus->fileBlockData);
+    tBlockDataClear(&pStatus->fileBlockData);
     code = doLoadFileBlockData(pReader, pBlockIter, pScanInfo, &pStatus->fileBlockData);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -2208,7 +2208,7 @@ static int32_t checkForNeighborFileBlock(STsdbReader* pReader, STableBlockScanIn
 
     // 3. load the neighbor block, and set it to be the currently accessed file data block
     tBlockDataReset(&pStatus->fileBlockData);
-    tBlockDataClearData(&pStatus->fileBlockData);
+    tBlockDataClear(&pStatus->fileBlockData);
     int32_t code = doLoadFileBlockData(pReader, pBlockIter, pScanInfo, &pStatus->fileBlockData);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -2871,7 +2871,7 @@ static SArray* doRetrieveDataBlock(STsdbReader* pReader) {
   STableBlockScanInfo* pBlockScanInfo = taosHashGet(pStatus->pTableMap, &pFBlock->uid, sizeof(pFBlock->uid));
 
   tBlockDataReset(&pStatus->fileBlockData);
-  tBlockDataClearData(&pStatus->fileBlockData);
+  tBlockDataClear(&pStatus->fileBlockData);
   int32_t code = doLoadFileBlockData(pReader, &pStatus->blockIter, pBlockScanInfo, &pStatus->fileBlockData);
   if (code != TSDB_CODE_SUCCESS) {
     tBlockDataDestroy(&pStatus->fileBlockData, 1);

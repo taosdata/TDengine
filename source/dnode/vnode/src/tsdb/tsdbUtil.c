@@ -1145,31 +1145,54 @@ void tBlockDataDestroy(SBlockData *pBlockData, int8_t deepClear) {
   pBlockData->aColData = NULL;
 }
 
-void tBlockDataReset(SBlockData *pBlockData) {
-  pBlockData->suid = 0;
-  pBlockData->uid = 0;
-  pBlockData->nRow = 0;
-  taosArrayClear(pBlockData->aIdx);
-}
-
-int32_t tBlockDataSetSchema(SBlockData *pBlockData, STSchema *pTSchema, int64_t suid, int64_t uid) {
+int32_t tBlockDataInit(SBlockData *pBlockData, int64_t suid, int64_t uid, STSchema *pTSchema) {
   int32_t code = 0;
 
   ASSERT(suid || uid);
 
-  tBlockDataReset(pBlockData);
   pBlockData->suid = suid;
   pBlockData->uid = uid;
+  pBlockData->nRow = 0;
 
-  if (pTSchema) {
-    for (int32_t iColumn = 1; iColumn < pTSchema->numOfCols; iColumn++) {
-      STColumn *pTColumn = &pTSchema->columns[iColumn];
+  taosArrayClear(pBlockData->aIdx);
+  for (int32_t iColumn = 1; iColumn < pTSchema->numOfCols; iColumn++) {
+    STColumn *pTColumn = &pTSchema->columns[iColumn];
+
+    SColData *pColData;
+    code = tBlockDataAddColData(pBlockData, iColumn - 1, &pColData);
+    if (code) goto _exit;
+
+    tColDataInit(pColData, pTColumn->colId, pTColumn->type, (pTColumn->flags & COL_SMA_ON) ? 1 : 0);
+  }
+
+_exit:
+  return code;
+}
+
+int32_t tBlockDataInitEx(SBlockData *pBlockData, int64_t *suid, int64_t uid, SArray *aColId) {
+  int32_t code = 0;
+
+  ASSERT(suid || uid);
+
+  pBlockData->suid = suid;
+  pBlockData->uid = uid;
+  pBlockData->nRow = 0;
+
+  taosArrayClear(pBlockData->aIdx);
+  if (aColId) {
+    int16_t lcid = -1;
+    for (int32_t iColId = 0; iColId < taosArrayGetSize(aColId); iColId++) {
+      int16_t cid = *(int16_t *)taosArrayGet(aColId, iColId);
+
+      ASSERT(cid != PRIMARYKEY_TIMESTAMP_COL_ID);
+      ASSERT(cid > lcid);
+      lcid = cid;
+
       SColData *pColData;
-
-      code = tBlockDataAddColData(pBlockData, iColumn - 1, &pColData);
+      code = tBlockDataAddColData(pBlockData, iColId, &pColData);
       if (code) goto _exit;
 
-      tColDataInit(pColData, pTColumn->colId, pTColumn->type, (pTColumn->flags & COL_SMA_ON) != 0);
+      tColDataInit(pColData, cid, TSDB_DATA_TYPE_NULL, -1);
     }
   }
 
@@ -1177,7 +1200,14 @@ _exit:
   return code;
 }
 
-void tBlockDataClearData(SBlockData *pBlockData) {
+void tBlockDataReset(SBlockData *pBlockData) {
+  pBlockData->suid = 0;
+  pBlockData->uid = 0;
+  pBlockData->nRow = 0;
+  taosArrayClear(pBlockData->aIdx);
+}
+
+void tBlockDataClear(SBlockData *pBlockData) {
   pBlockData->nRow = 0;
   for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aIdx); iColData++) {
     SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
@@ -1869,7 +1899,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbReadAndCheckFile(TdFilePtr pFD, int64_t offset, uint8_t **ppOut, int32_t size) {
+int32_t tsdbReadAndCheckFile(TdFilePtr pFD, int64_t offset, uint8_t **ppOut, int32_t size, int8_t toCheck) {
   int32_t code = 0;
 
   // alloc
@@ -1894,7 +1924,7 @@ int32_t tsdbReadAndCheckFile(TdFilePtr pFD, int64_t offset, uint8_t **ppOut, int
   }
 
   // check
-  if (!taosCheckChecksumWhole(*ppOut, size)) {
+  if (toCheck && !taosCheckChecksumWhole(*ppOut, size)) {
     code = TSDB_CODE_FILE_CORRUPTED;
     goto _exit;
   }
