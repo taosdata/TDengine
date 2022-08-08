@@ -33,11 +33,17 @@ typedef struct SFillColInfo {
   SVariant   fillVal;
 } SFillColInfo;
 
+typedef struct SFillLinearInfo {
+  SPoint start;
+  SPoint end;
+  bool   fillLastPoint;
+} SFillLinearInfo;
+
 typedef struct {
   SSchema col;
   char*   tagVal;
 } SFillTagColInfo;
-  
+
 typedef struct SFillInfo {
   TSKEY     start;                // start timestamp
   TSKEY     end;                  // endKey for fill

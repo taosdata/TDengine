@@ -732,18 +732,19 @@ typedef struct SStreamSessionAggOperatorInfo {
 } SStreamSessionAggOperatorInfo;
 
 typedef struct STimeSliceOperatorInfo {
-  SSDataBlock*   pRes;
-  STimeWindow    win;
-  SInterval      interval;
-  int64_t        current;
-  SArray*        pPrevRow;      // SArray<SGroupValue>
-  SArray*        pNextRow;      // SArray<SGroupValue>
-  bool           isPrevRowSet;
-  bool           isNextRowSet;
-  int32_t        fillType;      // fill type
-  SColumn        tsCol;         // primary timestamp column
-  SExprSupp      scalarSup;     // scalar calculation
-  struct SFillColInfo*  pFillColInfo;  // fill column info
+  SSDataBlock*            pRes;
+  STimeWindow             win;
+  SInterval               interval;
+  int64_t                 current;
+  SArray*                 pPrevRow;      // SArray<SGroupValue>
+  SArray*                 pNextRow;      // SArray<SGroupValue>
+  SArray*                 pLinearInfo;   // SArray<SFillLinearInfo>
+  bool                    isPrevRowSet;
+  bool                    isNextRowSet;
+  int32_t                 fillType;      // fill type
+  SColumn                 tsCol;         // primary timestamp column
+  SExprSupp               scalarSup;     // scalar calculation
+  struct SFillColInfo*    pFillColInfo;  // fill column info
 } STimeSliceOperatorInfo;
 
 typedef struct SStateWindowOperatorInfo {
