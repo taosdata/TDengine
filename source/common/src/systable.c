@@ -24,7 +24,7 @@
 #define SYSTABLE_SCH_COL_NAME_LEN   ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 
 static const SSysDbTableSchema dnodesSchema[] = {
-    {.name = "id", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
+    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_SMALLINT},
     {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "vnodes", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
     {.name = "support_vnodes", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
@@ -66,7 +66,7 @@ static const SSysDbTableSchema bnodesSchema[] = {
 };
 
 static const SSysDbTableSchema clusterSchema[] = {
-    {.name = "id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
+    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "name", .bytes = TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
