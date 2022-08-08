@@ -2416,29 +2416,56 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
         // in case of interpolation window starts and ends between two datapoints, fill(prev) need to interpolate
         doKeepPrevRows(pSliceInfo, pBlock, i);
 
-        if (i < pBlock->info.rows - 1) {
-          // in case of interpolation window starts and ends between two datapoints, fill(next) need to interpolate
-          doKeepNextRows(pSliceInfo, pBlock, i + 1);
-          int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, i + 1);
-          if (nextTs > pSliceInfo->current) {
-            while (pSliceInfo->current < nextTs && pSliceInfo->current <= pSliceInfo->win.ekey) {
-              genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pBlock, pResBlock);
-              pSliceInfo->current =
-                  taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
-              if (pResBlock->info.rows >= pResBlock->info.capacity) {
+        if (pSliceInfo->fillType == TSDB_FILL_LINEAR) {
+          doKeepLinearInfo(pSliceInfo, pBlock, i);
+          //pSliceInfo->current =
+          //    taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
+          if (i < pBlock->info.rows - 1) {
+            int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, i + 1);
+            if (nextTs > pSliceInfo->current) {
+              while (pSliceInfo->current < nextTs && pSliceInfo->current <= pSliceInfo->win.ekey) {
+                genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pBlock, pResBlock);
+                pSliceInfo->current =
+                    taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
+                if (pResBlock->info.rows >= pResBlock->info.capacity) {
+                  break;
+                }
+              }
+
+              if (pSliceInfo->current > pSliceInfo->win.ekey) {
+                doSetOperatorCompleted(pOperator);
                 break;
               }
+            } else {
+              // ignore current row, and do nothing
             }
-
-            if (pSliceInfo->current > pSliceInfo->win.ekey) {
-              doSetOperatorCompleted(pOperator);
-              break;
-            }
-          } else {
-            // ignore current row, and do nothing
+          } else { // it is the last row of current block
           }
-        } else {  // it is the last row of current block
-          doKeepPrevRows(pSliceInfo, pBlock, i);
+        } else { // non-linear interpolation
+          if (i < pBlock->info.rows - 1) {
+            // in case of interpolation window starts and ends between two datapoints, fill(next) need to interpolate
+            doKeepNextRows(pSliceInfo, pBlock, i + 1);
+            int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, i + 1);
+            if (nextTs > pSliceInfo->current) {
+              while (pSliceInfo->current < nextTs && pSliceInfo->current <= pSliceInfo->win.ekey) {
+                genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pBlock, pResBlock);
+                pSliceInfo->current =
+                    taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
+                if (pResBlock->info.rows >= pResBlock->info.capacity) {
+                  break;
+                }
+              }
+
+              if (pSliceInfo->current > pSliceInfo->win.ekey) {
+                doSetOperatorCompleted(pOperator);
+                break;
+              }
+            } else {
+              // ignore current row, and do nothing
+            }
+          } else {  // it is the last row of current block
+            doKeepPrevRows(pSliceInfo, pBlock, i);
+          }
         }
       } else {  // ts > pSliceInfo->current
         // in case of interpolation window starts and ends between two datapoints, fill(next) need to interpolate
