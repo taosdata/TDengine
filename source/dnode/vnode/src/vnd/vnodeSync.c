@@ -722,10 +722,12 @@ void vnodeSyncClose(SVnode *pVnode) { syncStop(pVnode->sync); }
 
 bool vnodeIsLeader(SVnode *pVnode) {
   if (!syncIsReady(pVnode->sync)) {
+    vDebug("vgId:%d, vnode not ready", pVnode->config.vgId);
     return false;
   }
 
   if (!pVnode->restored) {
+    vDebug("vgId:%d, vnode not restored", pVnode->config.vgId);
     terrno = TSDB_CODE_APP_NOT_READY;
     return false;
   }
