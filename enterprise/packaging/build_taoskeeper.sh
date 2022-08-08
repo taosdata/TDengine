@@ -24,7 +24,7 @@ EOF
 
 prepare_repo() {
   ([ -d build-taoskeeper ] && [ -d build-taoskeeper/.git ] && cd build-taoskeeper/ && git pull) || \
-    (rm -rf build-taoskeeper && git clone git@github.com:taosdata/taoskeeper build-taoskeeper && cd build-taoskeeper)
+    (rm -rf build-taoskeeper && git clone https://github.com/taosdata/taoskeeper.git build-taoskeeper && cd build-taoskeeper)
 }
 
 checkout_latest_tag() {
