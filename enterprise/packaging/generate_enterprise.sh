@@ -35,7 +35,6 @@ cd $communityDir
 rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
-git submodule update --init --recursive
 ./packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
 
 # if [ ! -d  "$archiveDir/v$version" ]; then
