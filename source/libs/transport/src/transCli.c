@@ -994,6 +994,8 @@ static void cliAsyncCb(uv_async_t* handle) {
   if (count >= 2) {
     tTrace("cli process batch size:%d", count);
   }
+  // if (!uv_is_active((uv_handle_t*)pThrd->prepare)) uv_prepare_start(pThrd->prepare, cliPrepareCb);
+
   if (pThrd->stopMsg != NULL) cliHandleQuit(pThrd->stopMsg, pThrd);
 }
 static void cliPrepareCb(uv_prepare_t* handle) {
@@ -1089,7 +1091,7 @@ static SCliThrd* createThrdObj() {
   pThrd->prepare = taosMemoryCalloc(1, sizeof(uv_prepare_t));
   uv_prepare_init(pThrd->loop, pThrd->prepare);
   pThrd->prepare->data = pThrd;
-  uv_prepare_start(pThrd->prepare, cliPrepareCb);
+  // uv_prepare_start(pThrd->prepare, cliPrepareCb);
 
   int32_t timerSize = 512;
   pThrd->timerList = taosArrayInit(timerSize, sizeof(void*));
@@ -1126,7 +1128,6 @@ static void destroyThrdObj(SCliThrd* pThrd) {
     taosMemoryFree(timer);
   }
   taosArrayDestroy(pThrd->timerList);
-
   taosMemoryFree(pThrd->prepare);
   taosMemoryFree(pThrd->loop);
   taosMemoryFree(pThrd);
