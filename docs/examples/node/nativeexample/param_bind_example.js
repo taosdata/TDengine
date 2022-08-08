@@ -1,4 +1,4 @@
-const taos = require("td2.0-connector");
+const taos = require("@tdengine/client");
 
 const conn = taos.connect({
   host: "localhost",
@@ -23,25 +23,22 @@ function insertData() {
   );
 
   // bind table name and tags
-  let tagBind = new taos.TaosBind(2);
-  tagBind.bindBinary("California.SanFrancisco");
-  tagBind.bindInt(2);
-  cursor.stmtSetTbnameTags("d1001", tagBind.getBind());
+  let tagBind = new taos.TaosMultiBindArr(2);
+  tagBind.multiBindBinary(["California.SanFrancisco"]);
+  tagBind.multiBindInt([2]);
+  cursor.stmtSetTbnameTags("d1001", tagBind.getMultiBindArr());
 
   // bind values
-  let rows = [
-    [1648432611249, 10.3, 219, 0.31],
-    [1648432611749, 12.6, 218, 0.33],
-  ];
-  for (let row of rows) {
-    let valueBind = new taos.TaosBind(4);
-    valueBind.bindTimestamp(row[0]);
-    valueBind.bindFloat(row[1]);
-    valueBind.bindInt(row[2]);
-    valueBind.bindFloat(row[3]);
-    cursor.stmtBindParam(valueBind.getBind());
-    cursor.stmtAddBatch();
-  }
+  let rows = [[1648432611249, 1648432611749], [10.3, 12.6], [219, 218], [0.31, 0.33]];
+
+  let valueBind = new taos.TaosMultiBindArr(4);
+  valueBind.multiBindTimestamp(rows[0]);
+  valueBind.multiBindFloat(rows[1]);
+  valueBind.multiBindInt(rows[2]);
+  valueBind.multiBindFloat(rows[3]);
+  cursor.stmtBindParamBatch(valueBind.getMultiBindArr());
+  cursor.stmtAddBatch();
+
 
   // execute
   cursor.stmtExecute();

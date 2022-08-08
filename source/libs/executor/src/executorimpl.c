@@ -1449,7 +1449,7 @@ static void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t nu
       pRow->numOfRows = pResInfo->numOfRes;
     }
 
-    if (fmIsReturnNotNullFunc(pCtx[j].functionId)) {
+    if (fmIsNotNullOutputFunc(pCtx[j].functionId)) {
       returnNotNull = true;
     }
   }
