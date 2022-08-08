@@ -62,6 +62,12 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
   return 0;
 }
 
+void tFreeStreamDispatchReq(SStreamDispatchReq* pReq) {
+  taosArrayDestroyP(pReq->data, taosMemoryFree);
+  taosArrayDestroy(pReq->dataLen);
+  taosMemoryFree(pReq);
+}
+
 int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;

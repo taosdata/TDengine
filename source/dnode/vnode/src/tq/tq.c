@@ -859,8 +859,10 @@ void vnodeEnqueueStreamMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   tDecoderInit(&decoder, msgBody, msgLen);
   if (tDecodeStreamDispatchReq(&decoder, &req) < 0) {
     code = TSDB_CODE_MSG_DECODE_ERROR;
+    tDecoderClear(&decoder);
     goto FAIL;
   }
+  tDecoderClear(&decoder);
 
   int32_t taskId = req.taskId;
 
