@@ -200,9 +200,23 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
     // send msg
     syncNodeAppendEntriesBatch(pSyncNode, pDestId, pMsg);
     syncAppendEntriesBatchDestroy(pMsg);
+
+    // speed up
+    if (pMsg->dataCount > 0 && pMsg->prevLogIndex < pSyncNode->commitIndex) {
+      ret = 1;
+
+      do {
+        char     logBuf[128];
+        char     host[64];
+        uint16_t port;
+        syncUtilU642Addr(pDestId->addr, host, sizeof(host), &port);
+        snprintf(logBuf, sizeof(logBuf), "speed up for %s:%d, pre-index:%ld", host, port, pMsg->prevLogIndex);
+        syncNodeEventLog(pSyncNode, logBuf);
+      } while (0);
+    }
   }
 
-  return 0;
+  return ret;
 }
 
 int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
@@ -309,7 +323,14 @@ int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
       break;
   }
 
-  syncNodeRestartHeartbeatTimer(pSyncNode);
+  if (ret > 0) {
+    // speed up replicate
+    int32_t ms = pSyncNode->heartbeatTimerMS < 50 ? pSyncNode->heartbeatTimerMS : 50;
+    syncNodeRestartNowHeartbeatTimerMS(pSyncNode, ms);
+
+  } else {
+    syncNodeRestartHeartbeatTimer(pSyncNode);
+  }
 
   return ret;
 }

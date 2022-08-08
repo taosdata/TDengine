@@ -1322,10 +1322,10 @@ int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
   return ret;
 }
 
-int32_t syncNodeStartNowHeartbeatTimer(SSyncNode* pSyncNode) {
+int32_t syncNodeStartHeartbeatTimerMS(SSyncNode* pSyncNode, int32_t ms) {
   int32_t ret = 0;
   if (syncEnvIsStart()) {
-    taosTmrReset(pSyncNode->FpHeartbeatTimerCB, 1, pSyncNode, gSyncEnv->pTimerManager, &pSyncNode->pHeartbeatTimer);
+    taosTmrReset(pSyncNode->FpHeartbeatTimerCB, ms, pSyncNode, gSyncEnv->pTimerManager, &pSyncNode->pHeartbeatTimer);
     atomic_store_64(&pSyncNode->heartbeatTimerLogicClock, pSyncNode->heartbeatTimerLogicClockUser);
   } else {
     sError("vgId:%d, start heartbeat timer error, sync env is stop", pSyncNode->vgId);
@@ -1333,10 +1333,15 @@ int32_t syncNodeStartNowHeartbeatTimer(SSyncNode* pSyncNode) {
 
   do {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "start heartbeat timer, ms:%d", 1);
+    snprintf(logBuf, sizeof(logBuf), "start heartbeat timer, ms:%d", ms);
     syncNodeEventLog(pSyncNode, logBuf);
   } while (0);
 
+  return ret;
+}
+
+int32_t syncNodeStartNowHeartbeatTimer(SSyncNode* pSyncNode) {
+  int32_t ret = syncNodeStartHeartbeatTimerMS(pSyncNode, 1);
   return ret;
 }
 
@@ -1360,6 +1365,12 @@ int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode) {
 int32_t syncNodeRestartNowHeartbeatTimer(SSyncNode* pSyncNode) {
   syncNodeStopHeartbeatTimer(pSyncNode);
   syncNodeStartNowHeartbeatTimer(pSyncNode);
+  return 0;
+}
+
+int32_t syncNodeRestartNowHeartbeatTimerMS(SSyncNode* pSyncNode, int32_t ms) {
+  syncNodeStopHeartbeatTimer(pSyncNode);
+  syncNodeStartHeartbeatTimerMS(pSyncNode, ms);
   return 0;
 }
 
