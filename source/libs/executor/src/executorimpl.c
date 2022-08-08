@@ -4071,7 +4071,11 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     } else {
       ASSERT(0);
     }
-    pOperator->resultDataBlockId = pPhyNode->pOutputDataBlockDesc->dataBlockId;
+
+    if (pOperator != NULL) {
+      pOperator->resultDataBlockId = pPhyNode->pOutputDataBlockDesc->dataBlockId;
+    }
+
     return pOperator;
   }
 

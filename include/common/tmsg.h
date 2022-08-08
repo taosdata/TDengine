@@ -296,13 +296,13 @@ void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 #define COL_IDX_ON   ((int8_t)0x2)
 #define COL_SET_NULL ((int8_t)0x10)
 #define COL_SET_VAL  ((int8_t)0x20)
-typedef struct SSchema {
+struct SSchema {
   int8_t   type;
   int8_t   flags;
   col_id_t colId;
   int32_t  bytes;
   char     name[TSDB_COL_NAME_LEN];
-} SSchema;
+};
 
 #define COL_IS_SET(FLG)  (((FLG) & (COL_SET_VAL | COL_SET_NULL)) != 0)
 #define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
@@ -648,7 +648,7 @@ typedef struct {
   };
   bool output;  // TODO remove it later
 
-  int16_t type;
+  int8_t  type;
   int32_t bytes;
   uint8_t precision;
   uint8_t scale;
