@@ -43,6 +43,7 @@ extern "C" {
 #define EXPLAIN_GROUP_SORT_FORMAT "Group Sort"
 #define EXPLAIN_INTERVAL_FORMAT "Interval on Column %s"
 #define EXPLAIN_MERGE_INTERVAL_FORMAT "Merge Interval on Column %s"
+#define EXPLAIN_MERGE_ALIGNED_INTERVAL_FORMAT "Merge Aligned Interval on Column %s"
 #define EXPLAIN_FILL_FORMAT "Fill"
 #define EXPLAIN_SESSION_FORMAT "Session"
 #define EXPLAIN_STATE_WINDOW_FORMAT "StateWindow on Column %s"
@@ -59,6 +60,8 @@ extern "C" {
 #define EXPLAIN_RATIO_TIME_FORMAT "Ratio: %f"
 #define EXPLAIN_MERGE_FORMAT "SortMerge"
 #define EXPLAIN_MERGE_KEYS_FORMAT "Merge Key: "
+#define EXPLAIN_PARTITION_KETS_FORMAT "Partition Key: "
+#define EXPLAIN_INTERP_FORMAT "Interp"
 
 #define EXPLAIN_PLANNING_TIME_FORMAT "Planning Time: %.3f ms"
 #define EXPLAIN_EXEC_TIME_FORMAT "Execution Time: %.3f ms"
@@ -69,6 +72,7 @@ extern "C" {
 #define EXPLAIN_LEFT_PARENTHESIS_FORMAT " ("
 #define EXPLAIN_RIGHT_PARENTHESIS_FORMAT ")"
 #define EXPLAIN_BLANK_FORMAT " "
+#define EXPLAIN_COMMA_FORMAT ", "
 #define EXPLAIN_COST_FORMAT "cost=%.2f..%.2f"
 #define EXPLAIN_ROWS_FORMAT "rows=%" PRIu64
 #define EXPLAIN_COLUMNS_FORMAT "columns=%d"
@@ -86,6 +90,7 @@ extern "C" {
 #define EXPLAIN_OUTPUT_ORDER_TYPE_FORMAT "output_order=%s"
 #define EXPLAIN_OFFSET_FORMAT "offset=%d"
 #define EXPLAIN_SOFFSET_FORMAT "soffset=%d"
+#define EXPLAIN_PARTITIONS_FORMAT "partitions=%d"
 
 #define COMMAND_RESET_LOG "resetLog"
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"

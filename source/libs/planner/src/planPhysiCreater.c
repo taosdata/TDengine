@@ -985,7 +985,7 @@ static bool projectCanMergeDataBlock(SProjectLogicNode* pProject) {
     return true;
   }
   if (1 != LIST_LENGTH(pProject->node.pChildren)) {
-    return false;
+    return true;
   }
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
   return DATA_ORDER_LEVEL_GLOBAL == pChild->resultDataOrder ? true : false;
