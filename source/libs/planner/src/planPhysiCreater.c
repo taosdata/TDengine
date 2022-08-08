@@ -1390,6 +1390,9 @@ static int32_t createFillPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   if (TSDB_CODE_SUCCESS == code) {
     code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pFillNode->pWStartTs, &pFill->pWStartTs);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addDataBlockSlot(pCxt, &pFill->pWStartTs, pFill->node.pOutputDataBlockDesc);
+  }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pFillNode->pValues) {
     pFill->pValues = nodesCloneNode(pFillNode->pValues);
