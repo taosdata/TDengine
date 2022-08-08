@@ -153,7 +153,7 @@ go env -w GOPROXY=https://goproxy.cn,direct
 
 ### Setup rust environment
 
-TDengine includees few compoments developed by Rust language. Please refer to rust-lang.org official documentation for rust environment setup.
+TDengine includees few compoments developed by Rust language. Please refer to [rust-lang.org](https://www.rust-lang.org/) official documentation for rust environment setup.
 
 ## Get the source codes
 
@@ -258,7 +258,7 @@ Please specify "x64" for 64 bits Windows or specify "x86" is for 32 bits Windows
 
 ```cmd
 mkdir debug && cd debug
-"c:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" < x64 | x86 >
+"C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" < x64 | x86 >
 cmake .. -G "NMake Makefiles"
 nmake
 ```
