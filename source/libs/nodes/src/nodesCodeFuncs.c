@@ -655,6 +655,7 @@ static int32_t jsonToLogicScanNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkProjectLogicPlanProjections = "Projections";
+static const char* jkProjectLogicPlanIgnoreGroupId = "IgnoreGroupId";
 
 static int32_t logicProjectNodeToJson(const void* pObj, SJson* pJson) {
   const SProjectLogicNode* pNode = (const SProjectLogicNode*)pObj;
@@ -662,6 +663,9 @@ static int32_t logicProjectNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = logicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkProjectLogicPlanProjections, pNode->pProjections);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkProjectLogicPlanIgnoreGroupId, pNode->ignoreGroupId);
   }
 
   return code;
@@ -673,6 +677,9 @@ static int32_t jsonToLogicProjectNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkProjectLogicPlanProjections, &pNode->pProjections);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkProjectLogicPlanIgnoreGroupId, &pNode->ignoreGroupId);
   }
 
   return code;
@@ -1689,6 +1696,7 @@ static int32_t jsonToPhysiSysTableScanNode(const SJson* pJson, void* pObj) {
 
 static const char* jkProjectPhysiPlanProjections = "Projections";
 static const char* jkProjectPhysiPlanMergeDataBlock = "MergeDataBlock";
+static const char* jkProjectPhysiPlanIgnoreGroupId = "IgnoreGroupId";
 
 static int32_t physiProjectNodeToJson(const void* pObj, SJson* pJson) {
   const SProjectPhysiNode* pNode = (const SProjectPhysiNode*)pObj;
@@ -1699,6 +1707,9 @@ static int32_t physiProjectNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkProjectPhysiPlanMergeDataBlock, pNode->mergeDataBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkProjectPhysiPlanIgnoreGroupId, pNode->ignoreGroupId);
   }
 
   return code;
@@ -1713,6 +1724,9 @@ static int32_t jsonToPhysiProjectNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkProjectPhysiPlanMergeDataBlock, &pNode->mergeDataBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkProjectPhysiPlanIgnoreGroupId, &pNode->ignoreGroupId);
   }
 
   return code;
