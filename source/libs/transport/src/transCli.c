@@ -1265,7 +1265,8 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         cliSchedMsgToNextNode(pMsg, pThrd);
         return -1;
       } else {
-        pResp->code = TSDB_CODE_APP_NOT_READY;
+        // change error code for taos client driver if retryCnt exceeds limit
+        if (0 == strncmp(pTransInst->label, "TSC", strlen("TSC"))) pResp->code = TSDB_CODE_APP_NOT_READY;
       }
     }
   }
