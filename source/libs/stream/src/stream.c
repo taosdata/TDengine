@@ -136,6 +136,7 @@ int32_t streamTaskEnqueue(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg*
   pRsp->pCont = buf;
   pRsp->contLen = sizeof(SMsgHead) + sizeof(SStreamDispatchRsp);
   tmsgSendRsp(pRsp);
+  tFreeStreamDispatchReq(pReq);
   return status == TASK_INPUT_STATUS__NORMAL ? 0 : -1;
 }
 

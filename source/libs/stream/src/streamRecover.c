@@ -87,61 +87,93 @@ int32_t tDecodeSMStreamTaskRecoverRsp(SDecoder* pDecoder, SMStreamTaskRecoverRsp
   return 0;
 }
 
-typedef struct {
-  int32_t vgId;
-  int32_t childId;
-  int64_t ver;
-} SStreamVgVerCheckpoint;
-
-int32_t tEncodeSStreamVgVerCheckpoint(SEncoder* pEncoder, const SStreamVgVerCheckpoint* pCheckpoint) {
-  if (tEncodeI32(pEncoder, pCheckpoint->vgId) < 0) return -1;
+int32_t tEncodeSStreamCheckpointInfo(SEncoder* pEncoder, const SStreamCheckpointInfo* pCheckpoint) {
+  if (tEncodeI32(pEncoder, pCheckpoint->nodeId) < 0) return -1;
   if (tEncodeI32(pEncoder, pCheckpoint->childId) < 0) return -1;
-  if (tEncodeI64(pEncoder, pCheckpoint->ver) < 0) return -1;
+  if (tEncodeI64(pEncoder, pCheckpoint->stateProcessedVer) < 0) return -1;
   return 0;
 }
 
-int32_t tDecodeSStreamVgVerCheckpoint(SDecoder* pDecoder, SStreamVgVerCheckpoint* pCheckpoint) {
-  if (tDecodeI32(pDecoder, &pCheckpoint->vgId) < 0) return -1;
+int32_t tDecodeSStreamCheckpointInfo(SDecoder* pDecoder, SStreamCheckpointInfo* pCheckpoint) {
+  if (tDecodeI32(pDecoder, &pCheckpoint->nodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pCheckpoint->childId) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pCheckpoint->ver) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pCheckpoint->stateProcessedVer) < 0) return -1;
   return 0;
 }
 
-typedef struct {
-  int64_t streamId;
-  int64_t checkTs;
-  int64_t checkpointId;
-  int32_t taskId;
-  SArray* checkpointVer;  // SArray<SStreamVgCheckpointVer>
-} SStreamAggVerCheckpoint;
-
-int32_t tEncodeSStreamAggVerCheckpoint(SEncoder* pEncoder, const SStreamAggVerCheckpoint* pCheckpoint) {
+int32_t tEncodeSStreamMultiVgCheckpointInfo(SEncoder* pEncoder, const SStreamMultiVgCheckpointInfo* pCheckpoint) {
   if (tEncodeI64(pEncoder, pCheckpoint->streamId) < 0) return -1;
   if (tEncodeI64(pEncoder, pCheckpoint->checkTs) < 0) return -1;
-  if (tEncodeI64(pEncoder, pCheckpoint->checkpointId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pCheckpoint->checkpointId) < 0) return -1;
   if (tEncodeI32(pEncoder, pCheckpoint->taskId) < 0) return -1;
   int32_t sz = taosArrayGetSize(pCheckpoint->checkpointVer);
   if (tEncodeI32(pEncoder, sz) < 0) return -1;
   for (int32_t i = 0; i < sz; i++) {
-    SStreamVgVerCheckpoint* pOneVgCkpoint = taosArrayGet(pCheckpoint->checkpointVer, i);
-    if (tEncodeSStreamVgVerCheckpoint(pEncoder, pOneVgCkpoint) < 0) return -1;
+    SStreamCheckpointInfo* pOneVgCkpoint = taosArrayGet(pCheckpoint->checkpointVer, i);
+    if (tEncodeSStreamCheckpointInfo(pEncoder, pOneVgCkpoint) < 0) return -1;
   }
   return 0;
 }
 
-int32_t tDecodeSStreamAggVerCheckpoint(SDecoder* pDecoder, SStreamAggVerCheckpoint* pCheckpoint) {
+int32_t tDecodeSStreamMultiVgCheckpointInfo(SDecoder* pDecoder, SStreamMultiVgCheckpointInfo* pCheckpoint) {
   if (tDecodeI64(pDecoder, &pCheckpoint->streamId) < 0) return -1;
   if (tDecodeI64(pDecoder, &pCheckpoint->checkTs) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pCheckpoint->checkpointId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pCheckpoint->checkpointId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pCheckpoint->taskId) < 0) return -1;
   int32_t sz;
   if (tDecodeI32(pDecoder, &sz) < 0) return -1;
   for (int32_t i = 0; i < sz; i++) {
-    SStreamVgVerCheckpoint oneVgCheckpoint;
-    if (tDecodeSStreamVgVerCheckpoint(pDecoder, &oneVgCheckpoint) < 0) return -1;
+    SStreamCheckpointInfo oneVgCheckpoint;
+    if (tDecodeSStreamCheckpointInfo(pDecoder, &oneVgCheckpoint) < 0) return -1;
     taosArrayPush(pCheckpoint->checkpointVer, &oneVgCheckpoint);
   }
   return 0;
+}
+
+int32_t streamCheckSinkLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
+  void* buf = NULL;
+
+  ASSERT(pTask->taskLevel == TASK_LEVEL__SINK);
+  int32_t sz = taosArrayGetSize(pTask->checkpointInfo);
+
+  SStreamMultiVgCheckpointInfo checkpoint;
+  checkpoint.checkpointId = 0;
+  checkpoint.checkTs = taosGetTimestampMs();
+  checkpoint.streamId = pTask->streamId;
+  checkpoint.taskId = pTask->taskId;
+  checkpoint.checkpointVer = pTask->checkpointInfo;
+
+  int32_t len;
+  int32_t code;
+  tEncodeSize(tEncodeSStreamMultiVgCheckpointInfo, &checkpoint, len, code);
+  if (code < 0) {
+    return -1;
+  }
+
+  buf = taosMemoryCalloc(1, len);
+  if (buf == NULL) {
+    return -1;
+  }
+  SEncoder encoder;
+  tEncoderInit(&encoder, buf, len);
+  tEncodeSStreamMultiVgCheckpointInfo(&encoder, &checkpoint);
+  tEncoderClear(&encoder);
+
+  SStreamCheckpointKey key = {
+      .taskId = pTask->taskId,
+      .checkpointId = checkpoint.checkpointId,
+  };
+
+  if (tdbTbUpsert(pMeta->pStateDb, &key, sizeof(SStreamCheckpointKey), buf, len, &pMeta->txn) < 0) {
+    ASSERT(0);
+    goto FAIL;
+  }
+
+  taosMemoryFree(buf);
+  return 0;
+FAIL:
+  if (buf) taosMemoryFree(buf);
+  return -1;
 }
 
 int32_t streamRecoverSinkLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
@@ -154,9 +186,39 @@ int32_t streamRecoverSinkLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
   }
   SDecoder decoder;
   tDecoderInit(&decoder, pVal, vLen);
-  SStreamAggVerCheckpoint aggCheckpoint;
-  tDecodeSStreamAggVerCheckpoint(&decoder, &aggCheckpoint);
-  /*pTask->*/
+  SStreamMultiVgCheckpointInfo aggCheckpoint;
+  tDecodeSStreamMultiVgCheckpointInfo(&decoder, &aggCheckpoint);
+  tDecoderClear(&decoder);
+
+  pTask->nextCheckId = aggCheckpoint.checkpointId + 1;
+  pTask->checkpointInfo = aggCheckpoint.checkpointVer;
+
+  return 0;
+}
+
+int32_t streamCheckAggLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
+  ASSERT(pTask->taskLevel == TASK_LEVEL__AGG);
+  // save and copy state
+  // save state info
+  return 0;
+}
+
+int32_t streamRecoverAggLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
+  ASSERT(pTask->taskLevel == TASK_LEVEL__AGG);
+  // try recover sink level
+  // after all sink level recovered, choose current state backend to recover
+  return 0;
+}
+
+int32_t streamCheckSourceLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
+  ASSERT(pTask->taskLevel == TASK_LEVEL__SOURCE);
+  // try recover agg level
+  //
+  return 0;
+}
+
+int32_t streamRecoverSourceLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
+  ASSERT(pTask->taskLevel == TASK_LEVEL__SOURCE);
   return 0;
 }
 
