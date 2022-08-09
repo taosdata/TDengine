@@ -182,6 +182,7 @@ static int32_t setColumnIdSlotList(STsdbReader* pReader, SSDataBlock* pBlock) {
 
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
       pSupInfo->buildBuf[i] = taosMemoryMalloc(pCol->info.bytes);
+      tsdbInfo("-------------------%d\n", pCol->info.bytes);
     }
   }
 
@@ -674,6 +675,7 @@ static void doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int32_
       colDataAppendNULL(pColInfoData, rowIndex);
     } else {
       varDataSetLen(pSup->buildBuf[colIndex], pColVal->value.nData);
+      ASSERT(pColVal->value.nData <= pColInfoData->info.bytes);
       memcpy(varDataVal(pSup->buildBuf[colIndex]), pColVal->value.pData, pColVal->value.nData);
       colDataAppend(pColInfoData, rowIndex, pSup->buildBuf[colIndex], false);
     }
