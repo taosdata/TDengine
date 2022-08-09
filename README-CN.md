@@ -50,17 +50,10 @@ TDengine 目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后�
 
 ## 安装工具
 
-### Ubuntu 16.04 及以上版本 & Debian：
+### Ubuntu 18.04 及以上版本 & Debian：
 
 ```bash
 sudo apt-get install -y gcc cmake build-essential git libssl-dev
-```
-
-### Ubuntu 14.04：
-
-```bash
-sudo apt-get install -y gcc cmake3 build-essential git binutils-2.26
-export PATH=/usr/lib/binutils-2.26/bin:$PATH
 ```
 
 编译或打包 JDBC 驱动源码，需安装 Java JDK 8 或以上版本和 Apache Maven 2.7 或以上版本。
@@ -89,7 +82,7 @@ taosTools 是用于 TDengine 的辅助工具软件集合。目前它包含 taosB
 sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
 ```
 
-### CentOS 7：
+### CentOS 7.9：
 
 ```bash
 sudo yum install -y gcc gcc-c++ make cmake git openssl-devel

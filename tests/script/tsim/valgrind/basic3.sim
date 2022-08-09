@@ -50,11 +50,11 @@ while $i < $tbNum
 endw 
 
 print =============== step3: tb
-sql select tbcol5 - tbcol3 from tb1
 
-print =============== step4: stb
-sql select tbcol5 - tbcol3 from stb
+sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 1 soffset 1;
+sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 2 soffset 4 limit 10 offset 1;
 
+_OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 print =============== check
 $null=
