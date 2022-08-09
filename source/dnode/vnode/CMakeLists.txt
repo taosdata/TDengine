@@ -23,6 +23,7 @@ target_sources(
     "src/meta/metaQuery.c"
     "src/meta/metaCommit.c"
     "src/meta/metaEntry.c"
+    "src/meta/metaCache.c"
     "src/meta/metaSnapshot.c"
 
     # sma

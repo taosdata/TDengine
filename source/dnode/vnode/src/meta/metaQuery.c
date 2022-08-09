@@ -54,8 +54,8 @@ _err:
 }
 
 int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
-  SMeta  *pMeta = pReader->pMeta;
-  int64_t version;
+  SMeta      *pMeta = pReader->pMeta;
+  SUidIdxVal *pUidIdxVal;
 
   // query uid.idx
   if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pReader->pBuf, &pReader->szBuf) < 0) {
@@ -63,8 +63,8 @@ int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
     return -1;
   }
 
-  version = *(int64_t *)pReader->pBuf;
-  return metaGetTableEntryByVersion(pReader, version, uid);
+  pUidIdxVal = (SUidIdxVal *)pReader->pBuf;
+  return metaGetTableEntryByVersion(pReader, pUidIdxVal->version, uid);
 }
 
 int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
@@ -160,7 +160,7 @@ int metaTbCursorNext(SMTbCursor *pTbCur) {
 
     tDecoderClear(&pTbCur->mr.coder);
 
-    metaGetTableEntryByVersion(&pTbCur->mr, *(int64_t *)pTbCur->pVal, *(tb_uid_t *)pTbCur->pKey);
+    metaGetTableEntryByVersion(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)->version, *(tb_uid_t *)pTbCur->pKey);
     if (pTbCur->mr.me.type == TSDB_SUPER_TABLE) {
       continue;
     }
@@ -185,7 +185,7 @@ _query:
     goto _err;
   }
 
-  version = *(int64_t *)pData;
+  version = ((SUidIdxVal *)pData)->version;
 
   tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = uid, .version = version}, sizeof(STbDbKey), &pData, &nData);
   SMetaEntry me = {0};

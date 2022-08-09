@@ -60,6 +60,15 @@ static FORCE_INLINE tb_uid_t metaGenerateUid(SMeta* pMeta) { return tGenIdPI64()
 // metaTable ==================
 int metaHandleEntry(SMeta* pMeta, const SMetaEntry* pME);
 
+// metaCache ==================
+typedef struct SMetaCache SMetaCache;
+
+int32_t metaCacheOpen(SMeta* pMeta);
+void    metaCacheClose(SMeta* pMeta);
+int32_t metaCacheUpsert(SMeta* pMeta, SEntryInfo* pInfo);
+int32_t metaCacheDrop(SMeta* pMeta, int64_t uid);
+int32_t metaCacheGetImpl(SMeta* pMeta, int64_t uid, SEntryInfo* pInfo);
+
 struct SMeta {
   TdThreadRwlock lock;
 
@@ -83,7 +92,8 @@ struct SMeta {
   // stream
   TTB* pStreamDb;
 
-  SMetaIdx* pIdx;
+  SMetaIdx*   pIdx;
+  SMetaCache* pCache;
 };
 
 typedef struct {
@@ -104,6 +114,12 @@ typedef struct {
 } SCtbIdxKey;
 
 #pragma pack(push, 1)
+typedef struct {
+  int64_t suid;
+  int64_t version;
+  int32_t skmVer;
+} SUidIdxVal;
+
 typedef struct {
   tb_uid_t suid;
   int32_t  cid;
