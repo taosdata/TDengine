@@ -160,12 +160,12 @@ endi
 
 sql select stddev(c1) from (select c1 from nest_tb0);
 sql_error select percentile(c1, 20) from (select * from nest_tb0);
-sql select interp(c1) from (select * from nest_tb0);
+#sql select interp(c1) from (select * from nest_tb0);
 sql_error select derivative(val, 1s, 0) from (select c1 val from nest_tb0);
 sql_error select twa(c1) from (select c1 from nest_tb0);
 sql_error select irate(c1) from (select c1 from nest_tb0);
 sql_error select diff(c1), twa(c1) from (select * from nest_tb0);
-sql_error select irate(c1), interp(c1), twa(c1) from (select * from nest_tb0);
+#sql_error select irate(c1), interp(c1), twa(c1) from (select * from nest_tb0);
 
 sql select _wstart, apercentile(c1, 50) from (select * from nest_tb0) interval(1d)
 if $rows != 7 then

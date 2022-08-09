@@ -413,10 +413,10 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
     }
   }
   while (1) {
-    pIter = taosHashIterate(pTq->pStreamTasks, pIter);
+    pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
     if (pIter == NULL) break;
     SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->isDataScan) {
+    if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
       int32_t code = qUpdateQualifiedTableId(pTask->exec.executor, tbUidList, isAdd);
       ASSERT(code == 0);
     }

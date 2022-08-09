@@ -739,6 +739,9 @@ typedef struct STimeSliceOperatorInfo {
   SInterval      interval;
   int64_t        current;
   SArray*        pPrevRow;      // SArray<SGroupValue>
+  SArray*        pNextRow;      // SArray<SGroupValue>
+  bool           isPrevRowSet;
+  bool           isNextRowSet;
   int32_t        fillType;      // fill type
   SColumn        tsCol;         // primary timestamp column
   SExprSupp      scalarSup;     // scalar calculation
@@ -858,8 +861,10 @@ void    initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLi
 void    doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset,
                          int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput, int32_t order);
 
-int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows, char* pData,
-                                  int32_t compLen, int32_t numOfOutput, uint64_t* total, SArray* pColList, char** pNextStart);
+int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, int32_t numOfOutput, SArray* pColList, char** pNextStart);
+void updateLoadRemoteInfo(SLoadRemoteDataInfo *pInfo, int32_t numOfRows, int32_t dataLen, int64_t startTs,
+                          SOperatorInfo* pOperator);
+
 STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInterval* pInterval, int32_t order);
 
 int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t *order, int32_t* scanFlag);
@@ -988,7 +993,7 @@ int32_t decodeOperator(SOperatorInfo* ops, const char* data, int32_t length);
 
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                               const char* sql, EOPTR_EXEC_MODEL model);
+                               char* sql, EOPTR_EXEC_MODEL model);
 int32_t createDataSinkParam(SDataSinkNode *pNode, void **pParam, qTaskInfo_t* pTaskInfo, SReadHandle* readHandle);
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInfoList);
 

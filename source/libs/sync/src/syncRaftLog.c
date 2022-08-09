@@ -237,51 +237,6 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   return 0;
 }
 
-#if 0
-static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
-  SSyncLogStoreData* pData = pLogStore->data;
-  SWal*              pWal = pData->pWal;
-
-  SyncIndex writeIndex = raftLogWriteIndex(pLogStore);
-  if (pEntry->index != writeIndex) {
-    sError("vgId:%d, wal write index error, entry-index:%" PRId64 " update to %" PRId64, pData->pSyncNode->vgId,
-           pEntry->index, writeIndex);
-    pEntry->index = writeIndex;
-  }
-
-  int          code = 0;
-  SWalSyncInfo syncMeta;
-  syncMeta.isWeek = pEntry->isWeak;
-  syncMeta.seqNum = pEntry->seqNum;
-  syncMeta.term = pEntry->term;
-  code = walWriteWithSyncInfo(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
-  if (code != 0) {
-    int32_t     err = terrno;
-    const char* errStr = tstrerror(err);
-    int32_t     sysErr = errno;
-    const char* sysErrStr = strerror(errno);
-
-    char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "wal write error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
-             pEntry->index, err, err, errStr, sysErr, sysErrStr);
-    syncNodeErrorLog(pData->pSyncNode, logBuf);
-
-    ASSERT(0);
-  }
-
-  // walFsync(pWal, true);
-
-  do {
-    char eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "write index:%" PRId64 ", type:%s,%d, type2:%s,%d", pEntry->index,
-             TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType);
-    syncNodeEventLog(pData->pSyncNode, eventLog);
-  } while (0);
-
-  return code;
-}
-#endif
-
 // entry found, return 0
 // entry not found, return -1, terrno = TSDB_CODE_WAL_LOG_NOT_EXIST
 // other error, return -1
@@ -350,10 +305,18 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
   return code;
 }
 
+// truncate semantic
 static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIndex) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  int32_t            code = walRollback(pWal, fromIndex);
+
+  // need not truncate
+  SyncIndex wallastVer = walGetLastVer(pWal);
+  if (fromIndex > wallastVer) {
+    return 0;
+  }
+
+  int32_t code = walRollback(pWal, fromIndex);
   if (code != 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
@@ -368,7 +331,7 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
   // event log
   do {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "wal truncate, from-index:%" PRId64, fromIndex);
+    snprintf(logBuf, sizeof(logBuf), "log truncate, from-index:%" PRId64, fromIndex);
     syncNodeEventLog(pData->pSyncNode, logBuf);
   } while (0);
 
@@ -399,45 +362,6 @@ static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** pp
 
 //-------------------------------
 // log[0 .. n]
-
-#if 0
-int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
-  SSyncLogStoreData* pData = pLogStore->data;
-  SWal*              pWal = pData->pWal;
-
-  SyncIndex lastIndex = logStoreLastIndex(pLogStore);
-  ASSERT(pEntry->index == lastIndex + 1);
-
-  int          code = 0;
-  SWalSyncInfo syncMeta;
-  syncMeta.isWeek = pEntry->isWeak;
-  syncMeta.seqNum = pEntry->seqNum;
-  syncMeta.term = pEntry->term;
-  code = walWriteWithSyncInfo(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
-  if (code != 0) {
-    int32_t     err = terrno;
-    const char* errStr = tstrerror(err);
-    int32_t     sysErr = errno;
-    const char* sysErrStr = strerror(errno);
-
-    char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "wal write error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
-             pEntry->index, err, err, errStr, sysErr, sysErrStr);
-    syncNodeErrorLog(pData->pSyncNode, logBuf);
-
-    ASSERT(0);
-  }
-
-  // walFsync(pWal, true);
-
-  char eventLog[128];
-  snprintf(eventLog, sizeof(eventLog), "old write index:%" PRId64 ", type:%s,%d, type2:%s,%d", pEntry->index,
-           TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType);
-  syncNodeEventLog(pData->pSyncNode, eventLog);
-
-  return code;
-}
-#endif
 
 int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   SSyncLogStoreData* pData = pLogStore->data;
@@ -719,6 +643,12 @@ SyncIndex logStoreFirstIndex(SSyncLogStore* pLogStore) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   return walGetFirstVer(pWal);
+}
+
+SyncIndex logStoreWalCommitVer(SSyncLogStore* pLogStore) {
+  SSyncLogStoreData* pData = pLogStore->data;
+  SWal*              pWal = pData->pWal;
+  return walGetCommittedVer(pWal);
 }
 
 // for debug -----------------

@@ -743,7 +743,7 @@ class TDTestCase:
         # filter data
 
         tdSql.query(" select sample(c1, 20 ) from t1 where c1 is null ")
-        tdSql.checkRows(0)
+        tdSql.checkRows(1)
 
         tdSql.query(" select sample(c1, 20 ) from t1 where c1 =6 ")
         tdSql.checkRows(1)

@@ -448,7 +448,8 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     }
   }
 
-  vTrace("vgId:%d, sync msg:%p is processed, type:%s code:0x%x", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType), code);
+  vTrace("vgId:%d, sync msg:%p is processed, type:%s code:0x%x", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType),
+         code);
   syncNodeRelease(pSyncNode);
   if (code != 0 && terrno == 0) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -629,8 +630,8 @@ static int32_t vnodeSnapshotStartWrite(struct SSyncFSM *pFsm, void *pParam, void
 static int32_t vnodeSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool isApply, SSnapshot *pSnapshot) {
 #ifdef USE_TSDB_SNAPSHOT
   SVnode *pVnode = pFsm->data;
-  vInfo("vgId:%d, stop write vnode snapshot, apply:%d, index:%" PRId64 " term:%" PRIu64 " config:%" PRId64, pVnode->config.vgId, isApply,
-        pSnapshot->lastApplyIndex, pSnapshot->lastApplyTerm, pSnapshot->lastConfigIndex);
+  vInfo("vgId:%d, stop write vnode snapshot, apply:%d, index:%" PRId64 " term:%" PRIu64 " config:%" PRId64,
+        pVnode->config.vgId, isApply, pSnapshot->lastApplyIndex, pSnapshot->lastApplyTerm, pSnapshot->lastConfigIndex);
 
   int32_t code = vnodeSnapWriterClose(pWriter, !isApply, pSnapshot);
   vInfo("vgId:%d, apply vnode snapshot finished, code:0x%x", pVnode->config.vgId, code);
@@ -707,8 +708,8 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   }
 
   setPingTimerMS(pVnode->sync, 5000);
-  setElectTimerMS(pVnode->sync, 1300);
-  setHeartbeatTimerMS(pVnode->sync, 900);
+  setElectTimerMS(pVnode->sync, 4000);
+  setHeartbeatTimerMS(pVnode->sync, 700);
   return 0;
 }
 
@@ -721,10 +722,12 @@ void vnodeSyncClose(SVnode *pVnode) { syncStop(pVnode->sync); }
 
 bool vnodeIsLeader(SVnode *pVnode) {
   if (!syncIsReady(pVnode->sync)) {
+    vDebug("vgId:%d, vnode not ready", pVnode->config.vgId);
     return false;
   }
 
   if (!pVnode->restored) {
+    vDebug("vgId:%d, vnode not restored", pVnode->config.vgId);
     terrno = TSDB_CODE_APP_NOT_READY;
     return false;
   }

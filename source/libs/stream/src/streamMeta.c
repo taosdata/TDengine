@@ -14,21 +14,7 @@
  */
 
 #include "executor.h"
-#include "tdbInt.h"
 #include "tstream.h"
-
-typedef int32_t FTaskExpand(void* ahandle, SStreamTask* pTask);
-
-typedef struct SStreamMeta {
-  char*        path;
-  TDB*         db;
-  TTB*         pTaskDb;
-  TTB*         pStateDb;
-  SHashObj*    pTasks;
-  void*        ahandle;
-  TXN          txn;
-  FTaskExpand* expandFunc;
-} SStreamMeta;
 
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc) {
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
@@ -50,17 +36,70 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     goto _err;
   }
 
+  pMeta->pTasks = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  if (pMeta->pTasks == NULL) {
+    goto _err;
+  }
+
+  if (streamMetaBegin(pMeta) < 0) {
+    goto _err;
+  }
+
   pMeta->ahandle = ahandle;
   pMeta->expandFunc = expandFunc;
 
+  return pMeta;
 _err:
-
   return NULL;
 }
 
 void streamMetaClose(SStreamMeta* pMeta) {
-  //
-  return;
+  tdbCommit(pMeta->db, &pMeta->txn);
+  tdbTbClose(pMeta->pTaskDb);
+  tdbTbClose(pMeta->pStateDb);
+  tdbClose(pMeta->db);
+
+  void* pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pMeta->pTasks, pIter);
+    if (pIter == NULL) break;
+    SStreamTask* pTask = *(SStreamTask**)pIter;
+    tFreeSStreamTask(pTask);
+  }
+  taosHashCleanup(pMeta->pTasks);
+  taosMemoryFree(pMeta->path);
+  taosMemoryFree(pMeta);
+}
+
+int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, char* msg, int32_t msgLen) {
+  SStreamTask* pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
+  if (pTask == NULL) {
+    return -1;
+  }
+  SDecoder decoder;
+  tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
+  if (tDecodeSStreamTask(&decoder, pTask) < 0) {
+    ASSERT(0);
+    goto FAIL;
+  }
+  tDecoderClear(&decoder);
+
+  if (pMeta->expandFunc(pMeta->ahandle, pTask) < 0) {
+    ASSERT(0);
+    goto FAIL;
+  }
+
+  taosHashPut(pMeta->pTasks, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void*));
+
+  if (tdbTbUpsert(pMeta->pTaskDb, &pTask->taskId, sizeof(int32_t), msg, msgLen, &pMeta->txn) < 0) {
+    ASSERT(0);
+    return -1;
+  }
+  return 0;
+
+FAIL:
+  if (pTask) taosMemoryFree(pTask);
+  return -1;
 }
 
 int32_t streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask) {
@@ -93,6 +132,16 @@ int32_t streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   return 0;
 }
 
+SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId) {
+  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
+  if (ppTask) {
+    ASSERT((*ppTask)->taskId == taskId);
+    return *ppTask;
+  } else {
+    return NULL;
+  }
+}
+
 int32_t streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
   if (ppTask) {
@@ -123,14 +172,33 @@ int32_t streamMetaCommit(SStreamMeta* pMeta) {
   if (tdbCommit(pMeta->db, &pMeta->txn) < 0) {
     return -1;
   }
+  memset(&pMeta->txn, 0, sizeof(TXN));
+  if (tdbTxnOpen(&pMeta->txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
+      0) {
+    return -1;
+  }
+  if (tdbBegin(pMeta->db, &pMeta->txn) < 0) {
+    return -1;
+  }
   return 0;
 }
 
-int32_t streamMetaRollBack(SStreamMeta* pMeta) {
-  // TODO tdb rollback
+int32_t streamMetaAbort(SStreamMeta* pMeta) {
+  if (tdbAbort(pMeta->db, &pMeta->txn) < 0) {
+    return -1;
+  }
+  memset(&pMeta->txn, 0, sizeof(TXN));
+  if (tdbTxnOpen(&pMeta->txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
+      0) {
+    return -1;
+  }
+  if (tdbBegin(pMeta->db, &pMeta->txn) < 0) {
+    return -1;
+  }
   return 0;
 }
-int32_t streamRestoreTask(SStreamMeta* pMeta) {
+
+int32_t streamLoadTasks(SStreamMeta* pMeta) {
   TBC* pCur = NULL;
   if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
     ASSERT(0);
@@ -153,6 +221,18 @@ int32_t streamRestoreTask(SStreamMeta* pMeta) {
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     tDecodeSStreamTask(&decoder, pTask);
     tDecoderClear(&decoder);
+
+    if (pMeta->expandFunc(pMeta->ahandle, pTask) < 0) {
+      return -1;
+    }
+
+    if (taosHashPut(pMeta->pTasks, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void*)) < 0) {
+      return -1;
+    }
+  }
+
+  if (tdbTbcClose(pCur) < 0) {
+    return -1;
   }
 
   return 0;

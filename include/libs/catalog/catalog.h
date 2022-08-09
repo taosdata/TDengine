@@ -58,12 +58,17 @@ typedef struct SDbInfo {
   int64_t dbId;
 } SDbInfo;
 
+typedef struct STablesReq {
+  char    dbFName[TSDB_DB_FNAME_LEN];
+  SArray* pTables;
+} STablesReq;
+
 typedef struct SCatalogReq {
   SArray* pDbVgroup;      // element is db full name
   SArray* pDbCfg;         // element is db full name
   SArray* pDbInfo;        // element is db full name
-  SArray* pTableMeta;     // element is SNAME
-  SArray* pTableHash;     // element is SNAME
+  SArray* pTableMeta;     // element is STablesReq
+  SArray* pTableHash;     // element is STablesReq
   SArray* pUdf;           // element is udf name
   SArray* pIndex;         // element is index name
   SArray* pUser;          // element is SUserAuthInfo

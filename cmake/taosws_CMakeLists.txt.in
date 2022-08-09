@@ -2,7 +2,7 @@
 # taosws-rs
 ExternalProject_Add(taosws-rs
         GIT_REPOSITORY https://github.com/taosdata/taosws-rs.git
-        GIT_TAG 9fa7e2f
+        GIT_TAG 29424d5
         SOURCE_DIR "${TD_SOURCE_DIR}/tools/taosws-rs"
         BINARY_DIR ""
         #BUILD_IN_SOURCE TRUE

@@ -1,15 +1,16 @@
-from tabnanny import check
 import taos
 import time
 import inspect
 import traceback
 import socket
 from dataclasses  import dataclass
+from datetime import datetime
 
 from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
+from util.common import *
 
 PRIVILEGES_ALL      = "ALL"
 PRIVILEGES_READ     = "READ"
@@ -21,17 +22,40 @@ WEIGHT_WRITE    = 3
 
 PRIMARY_COL = "ts"
 
-INT_COL     = "c1"
-BINT_COL    = "c2"
-SINT_COL    = "c3"
-TINT_COL    = "c4"
-FLOAT_COL   = "c5"
-DOUBLE_COL  = "c6"
-BOOL_COL    = "c7"
+INT_COL = "c_int"
+BINT_COL = "c_bint"
+SINT_COL = "c_sint"
+TINT_COL = "c_tint"
+FLOAT_COL = "c_float"
+DOUBLE_COL = "c_double"
+BOOL_COL = "c_bool"
+TINT_UN_COL = "c_utint"
+SINT_UN_COL = "c_usint"
+BINT_UN_COL = "c_ubint"
+INT_UN_COL = "c_uint"
+BINARY_COL = "c_binary"
+NCHAR_COL = "c_nchar"
+TS_COL = "c_ts"
 
-BINARY_COL  = "c8"
-NCHAR_COL   = "c9"
-TS_COL      = "c10"
+NUM_COL = [INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, ]
+CHAR_COL = [BINARY_COL, NCHAR_COL, ]
+BOOLEAN_COL = [BOOL_COL, ]
+TS_TYPE_COL = [TS_COL, ]
+
+INT_TAG = "t_int"
+
+ALL_COL = [PRIMARY_COL, INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, BINARY_COL, NCHAR_COL, BOOL_COL, TS_COL]
+TAG_COL = [INT_TAG]
+
+# insert data args：
+TIME_STEP = 10000
+NOW = int(datetime.timestamp(datetime.now()) * 1000)
+
+# init db/table
+DBNAME  = "db"
+STBNAME = "stb1"
+CTBNAME = "ct1"
+NTBNAME = "nt1"
 
 class TDconnect:
     def __init__(self,
@@ -247,25 +271,26 @@ class TDTestCase:
         with taos_connect(user=user.name, passwd=user.passwd) as use:
             time.sleep(2)
             if check_priv == PRIVILEGES_ALL:
-                use.query("use db")
-                use.query("show tables")
-                use.query("select * from ct1")
-                use.query("insert into t1 (ts) values (now())")
+                use.query(f"use {DBNAME}")
+                use.query(f"show {DBNAME}.tables")
+                use.query(f"select * from {DBNAME}.{CTBNAME}")
+                use.query(f"insert into {DBNAME}.{CTBNAME} (ts) values (now())")
             elif check_priv == PRIVILEGES_READ:
-                use.query("use db")
-                use.query("show tables")
-                use.query("select * from ct1")
-                use.error("insert into t1 (ts) values (now())")
+                use.query(f"use {DBNAME}")
+                use.query(f"show {DBNAME}.tables")
+                use.query(f"select * from {DBNAME}.{CTBNAME}")
+                use.error(f"insert into {DBNAME}.{CTBNAME} (ts) values (now())")
             elif check_priv == PRIVILEGES_WRITE:
-                use.query("use db")
-                use.query("show tables")
-                use.error("select * from ct1")
-                use.query("insert into t1 (ts) values (now())")
+                use.query(f"use {DBNAME}")
+                use.query(f"show {DBNAME}.tables")
+                use.error(f"select * from {DBNAME}.{CTBNAME}")
+                use.query(f"insert into {DBNAME}.{CTBNAME} (ts) values (now())")
             elif check_priv is None:
-                use.error("use db")
-                use.error("show tables")
-                use.error("select * from db.ct1")
-                use.error("insert into db.t1 (ts) values (now())")
+                use.error(f"use {DBNAME}")
+                # use.error(f"show {DBNAME}.tables")
+                use.error(f"show tables")
+                use.error(f"select * from {DBNAME}.{CTBNAME}")
+                use.error(f"insert into {DBNAME}.{CTBNAME} (ts) values (now())")
 
     def __change_user_priv(self, user: User, pre_priv, invoke=False):
         if user.priv == pre_priv and invoke :
@@ -418,7 +443,7 @@ class TDTestCase:
             self.__grant_user_privileges(privilege="", dbname="db", user_name=self.__user_list[0]) ,
             self.__grant_user_privileges(privilege=" ".join(self.__privilege), user_name=self.__user_list[0]) ,
             f"GRANT {self.__privilege[0]} ON * TO {self.__user_list[0]}" ,
-            f"GRANT {self.__privilege[0]} ON db.t1 TO {self.__user_list[0]}" ,
+            f"GRANT {self.__privilege[0]} ON {DBNAME}.{NTBNAME} TO {self.__user_list[0]}" ,
         ]
 
     def __revoke_err(self):
@@ -430,7 +455,7 @@ class TDTestCase:
             self.__revoke_user_privileges(privilege="", dbname="db", user_name=self.__user_list[0]) ,
             self.__revoke_user_privileges(privilege=" ".join(self.__privilege), user_name=self.__user_list[0]) ,
             f"REVOKE {self.__privilege[0]} ON * FROM {self.__user_list[0]}" ,
-            f"REVOKE {self.__privilege[0]} ON db.t1 FROM {self.__user_list[0]}" ,
+            f"REVOKE {self.__privilege[0]} ON {DBNAME}.{NTBNAME} FROM {self.__user_list[0]}" ,
         ]
 
     def test_grant_err(self):
@@ -505,101 +530,48 @@ class TDTestCase:
         self.drop_user_error()
         self.drop_user_current()
 
-    def __create_tb(self):
-
-        tdLog.printNoPrefix("==========step1:create table")
-        create_stb_sql  =  f'''create table stb1(
-                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
-                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
-                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
-            ) tags (t1 int)
-            '''
-        create_ntb_sql = f'''create table t1(
-                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
-                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
-                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
-            )
+    def __create_tb(self, stb=STBNAME, ctb_num=20, ntbnum=1, dbname=DBNAME):
+        tdLog.printNoPrefix("==========step: create table")
+        create_stb_sql = f'''create table {dbname}.{stb}(
+                {PRIMARY_COL} timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+                {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
+                {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
+                {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
+            ) tags ({INT_TAG} int)
             '''
         tdSql.execute(create_stb_sql)
-        tdSql.execute(create_ntb_sql)
 
-        for i in range(4):
-            tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
-            { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2}
-
-    def __insert_data(self, rows):
-        now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
-        for i in range(rows):
-            tdSql.execute(
-                f"insert into ct1 values ( { now_time - i * 1000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
-            )
-            tdSql.execute(
-                f"insert into ct4 values ( { now_time - i * 7776000000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
-            )
-            tdSql.execute(
-                f"insert into ct2 values ( { now_time - i * 7776000000 }, {-i},  {-11111 * i}, {-111 * i % 32767 }, {-11 * i % 127}, {-1.11*i}, {-1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
-            )
-        tdSql.execute(
-            f'''insert into ct1 values
-            ( { now_time - rows * 5 }, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar_测试_0', { now_time + 8 } )
-            ( { now_time + 10000 }, { rows }, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar_测试_9', { now_time + 9 } )
-            '''
-        )
-
-        tdSql.execute(
-            f'''insert into ct4 values
-            ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            ( { now_time - rows * 3888000000 + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            ( { now_time +  7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            (
-                { now_time + 5184000000}, {pow(2,31)-pow(2,15)}, {pow(2,63)-pow(2,30)}, 32767, 127,
-                { 3.3 * pow(10,38) }, { 1.3 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nchar_测试_limit-1", { now_time - 86400000}
+        for i in range(ntbnum):
+            create_ntb_sql = f'''create table {dbname}.nt{i+1}(
+                    {PRIMARY_COL} timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+                    {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                    {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
+                    {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
+                    {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
                 )
-            (
-                { now_time + 2592000000 }, {pow(2,31)-pow(2,16)}, {pow(2,63)-pow(2,31)}, 32766, 126,
-                { 3.2 * pow(10,38) }, { 1.2 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nchar_测试_limit-2", { now_time - 172800000}
-                )
-            '''
-        )
-
-        tdSql.execute(
-            f'''insert into ct2 values
-            ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            ( { now_time - rows * 3888000000 + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            ( { now_time + 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            (
-                { now_time + 5184000000 }, { -1 * pow(2,31) + pow(2,15) }, { -1 * pow(2,63) + pow(2,30) }, -32766, -126,
-                { -1 * 3.2 * pow(10,38) }, { -1.2 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nchar_测试_limit-1", { now_time - 86400000 }
-                )
-            (
-                { now_time + 2592000000 }, { -1 * pow(2,31) + pow(2,16) }, { -1 * pow(2,63) + pow(2,31) }, -32767, -127,
-                { - 3.3 * pow(10,38) }, { -1.3 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nchar_测试_limit-2", { now_time - 172800000 }
-                )
-            '''
-        )
-
-        for i in range(rows):
-            insert_data = f'''insert into t1 values
-                ( { now_time - i * 3600000 }, {i}, {i * 11111}, { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2},
-                "binary_{i}", "nchar_测试_{i}", { now_time - 1000 * i } )
                 '''
-            tdSql.execute(insert_data)
-        tdSql.execute(
-            f'''insert into t1 values
-            ( { now_time + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            ( { now_time - (( rows // 2 ) * 60 + 30) * 60000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            ( { now_time - rows * 3600000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            ( { now_time + 7200000 }, { pow(2,31) - pow(2,15) }, { pow(2,63) - pow(2,30) }, 32767, 127,
-                { 3.3 * pow(10,38) }, { 1.3 * pow(10,308) }, { rows % 2 },
-                "binary_limit-1", "nchar_测试_limit-1", { now_time - 86400000 }
-                )
-            (
-                { now_time + 3600000 } , { pow(2,31) - pow(2,16) }, { pow(2,63) - pow(2,31) }, 32766, 126,
-                { 3.2 * pow(10,38) }, { 1.2 * pow(10,308) }, { (rows-1) % 2 },
-                "binary_limit-2", "nchar_测试_limit-2", { now_time - 172800000 }
-                )
+            tdSql.execute(create_ntb_sql)
+
+        for i in range(ctb_num):
+            tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.{stb} tags ( {i+1} )')
+
+    def __insert_data(self, rows, ctb_num=20, dbname=DBNAME, star_time=NOW):
+        tdLog.printNoPrefix("==========step: start inser data into tables now.....")
+        # from ...pytest.util.common import DataSet
+        data = DataSet()
+        data.get_order_set(rows)
+
+        for i in range(rows):
+            row_data = f'''
+                {data.int_data[i]}, {data.bint_data[i]}, {data.sint_data[i]}, {data.tint_data[i]}, {data.float_data[i]}, {data.double_data[i]},
+                {data.bool_data[i]}, '{data.vchar_data[i]}', '{data.nchar_data[i]}', {data.ts_data[i]}, {data.utint_data[i]},
+                {data.usint_data[i]}, {data.uint_data[i]}, {data.ubint_data[i]}
             '''
-        )
+            tdSql.execute( f"insert into {dbname}.{NTBNAME} values ( {star_time - i * int(TIME_STEP * 1.2)}, {row_data} )" )
+
+            for j in range(ctb_num):
+                tdSql.execute( f"insert into {dbname}.ct{j+1} values ( {star_time - j * i * TIME_STEP}, {row_data} )" )
 
     def run(self):
         tdSql.prepare()
@@ -656,27 +628,81 @@ class TDTestCase:
         with taos_connect(user=self.__user_list[0], passwd=f"new{self.__passwd_list[0]}") as user:
             # user = conn
             # 不能创建用户
-            tdLog.printNoPrefix("==========step5: normal user can not create user")
+            tdLog.printNoPrefix("==========step4.1: normal user can not create user")
             user.error("create use utest1 pass 'utest1pass'")
             # 可以查看用户
-            tdLog.printNoPrefix("==========step6: normal user can show user")
+            tdLog.printNoPrefix("==========step4.2: normal user can show user")
             user.query("show users")
             assert user.queryRows == self.users_count + 1
             # 不可以修改其他用户的密码
-            tdLog.printNoPrefix("==========step7: normal user can not alter other user pass")
+            tdLog.printNoPrefix("==========step4.3: normal user can not alter other user pass")
             user.error(self.__alter_pass_sql(self.__user_list[1], self.__passwd_list[1] ))
             user.error(self.__alter_pass_sql("root", "taosdata_root" ))
             # 可以修改自己的密码
-            tdLog.printNoPrefix("==========step8: normal user can alter owner pass")
+            tdLog.printNoPrefix("==========step4.4: normal user can alter owner pass")
             user.query(self.__alter_pass_sql(self.__user_list[0], self.__passwd_list[0]))
             # 不可以删除用户，包括自己
-            tdLog.printNoPrefix("==========step9: normal user can not drop any user ")
+            tdLog.printNoPrefix("==========step4.5: normal user can not drop any user ")
             user.error(f"drop user {self.__user_list[0]}")
             user.error(f"drop user {self.__user_list[1]}")
             user.error("drop user root")
 
+        tdLog.printNoPrefix("==========step5: enable info")
+        taos1_conn = taos.connect(user=self.__user_list[1], password=f"new{self.__passwd_list[1]}")
+        taos1_conn.query(f"show databases")
+        tdSql.execute(f"alter user {self.__user_list[1]} enable 0")
+        tdSql.execute(f"alter user {self.__user_list[2]} enable 0")
+        taos1_except = True
+        try:
+            taos1_conn.query("show databases")
+        except BaseException:
+            taos1_except = False
+        if taos1_except:
+            tdLog.exit("taos 1 connect except error not occured,  when enable == 0, should not r/w ")
+        else:
+            tdLog.info("taos 1 connect except error occured,  enable == 0")
+
+        taos2_except = True
+        try:
+            taos.connect(user=self.__user_list[2], password=f"new{self.__passwd_list[2]}")
+        except BaseException:
+            taos2_except = False
+        if taos2_except:
+            tdLog.exit("taos 2 connect except error not occured,  when enable == 0, should not connect")
+        else:
+            tdLog.info("taos 2 connect except error occured,  enable == 0, can not login")
+
+        tdLog.printNoPrefix("==========step6: sysinfo info")
+        taos3_conn = taos.connect(user=self.__user_list[3], password=f"new{self.__passwd_list[3]}")
+        taos3_conn.query(f"show dnodes")
+        taos3_conn.query(f"show {DBNAME}.vgroups")
+        tdSql.execute(f"alter user {self.__user_list[3]} sysinfo 0")
+        tdSql.execute(f"alter user {self.__user_list[4]} sysinfo 0")
+        taos3_except = True
+        try:
+            taos3_conn.query(f"show dnodes")
+            taos3_conn.query(f"show {DBNAME}.vgroups")
+        except BaseException:
+            taos3_except = False
+        if taos3_except:
+            tdLog.exit("taos 3 query except error not occured,  when sysinfo == 0, should not show info:dnode/monde/qnode ")
+        else:
+            tdLog.info("taos 3 query except error occured,  sysinfo == 0, can not show dnode/vgroups")
+
+        taos4_conn = taos.connect(user=self.__user_list[4], password=f"new{self.__passwd_list[4]}")
+        taos4_except = True
+        try:
+            taos4_conn.query(f"show mnodes")
+            taos4_conn.query(f"show {DBNAME}.vgroups")
+        except BaseException:
+            taos4_except = False
+        if taos4_except:
+            tdLog.exit("taos 4 query except error not occured,  when sysinfo == 0, when enable == 0, should not show info:dnode/monde/qnode")
+        else:
+            tdLog.info("taos 4 query except error occured,  sysinfo == 0, can not show dnode/vgroups")
+
         # root删除用户测试
-        tdLog.printNoPrefix("==========step10: super user drop normal user")
+        tdLog.printNoPrefix("==========step7: super user drop normal user")
         self.test_drop_user()
 
         tdSql.query("show users")

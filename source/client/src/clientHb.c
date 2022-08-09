@@ -286,6 +286,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   if (pInst == NULL || NULL == *pInst) {
     taosThreadMutexUnlock(&appInfo.mutex);
     tscError("cluster not exist, key:%s", key);
+    taosMemoryFree(pMsg->pData);
     tFreeClientHbBatchRsp(&pRsp);
     return -1;
   }
