@@ -513,6 +513,7 @@ SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
 int32_t streamMetaBegin(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);
 int32_t streamMetaRollBack(SStreamMeta* pMeta);
+int32_t streamLoadTasks(SStreamMeta* pMeta);
 
 #ifdef __cplusplus
 }
