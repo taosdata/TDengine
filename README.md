@@ -53,17 +53,10 @@ To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in t
 
 ## Install build dependencies
 
-### Ubuntu 16.04 and above or Debian
+### Ubuntu 18.04 and above or Debian
 
 ```bash
 sudo apt-get install -y gcc cmake build-essential git libssl-dev
-```
-
-### Ubuntu 14.04
-
-```bash
-sudo apt-get install -y gcc cmake3 build-essential git binutils-2.26
-export PATH=/usr/lib/binutils-2.26/bin:$PATH
 ```
 
 To compile and package the JDBC driver source code, you should have a Java jdk-8 or higher and Apache Maven 2.7 or higher installed.
@@ -91,7 +84,7 @@ To build the [taosTools](https://github.com/taosdata/taos-tools) on Ubuntu/Debia
 sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
 ```
 
-### CentOS 7
+### CentOS 7.9
 
 ```bash
 sudo yum install epel-release
