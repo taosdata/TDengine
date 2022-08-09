@@ -469,7 +469,8 @@ static int32_t createGroupKeysFromPartKeys(SNodeList* pPartKeys, SNodeList** pOu
 }
 
 static EGroupAction getGroupAction(SLogicPlanContext* pCxt, SSelectStmt* pSelect) {
-  return (pCxt->pPlanCxt->streamQuery || NULL != pSelect->pLimit) ? GROUP_ACTION_KEEP : GROUP_ACTION_NONE;
+  return (pCxt->pPlanCxt->streamQuery || NULL != pSelect->pLimit || NULL != pSelect->pSlimit) ? GROUP_ACTION_KEEP
+                                                                                              : GROUP_ACTION_NONE;
 }
 
 static EDataOrderLevel getRequireDataOrder(bool needTimeline, SSelectStmt* pSelect) {
