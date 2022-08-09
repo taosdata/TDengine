@@ -344,7 +344,8 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   metaSaveToTbDb(pMeta, &nStbEntry);
 
   // update uid index
-  tdbTbcUpsert(pUidIdxc, &pReq->suid, sizeof(tb_uid_t), &version, sizeof(version), 0);
+  SUidIdxVal uidIdxVal = {.suid = nStbEntry.uid, .version = version, .skmVer = nStbEntry.stbEntry.schemaRow.version};
+  tdbTbcUpsert(pUidIdxc, &pReq->suid, sizeof(tb_uid_t), &uidIdxVal, sizeof(uidIdxVal), 0);
 
   // update cache
   SEntryInfo info = {.uid = nStbEntry.uid,
