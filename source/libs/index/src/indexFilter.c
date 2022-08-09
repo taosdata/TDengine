@@ -430,14 +430,14 @@ static void sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typeda
     param->val = &typedata->i8;
   } else if (ltype == TSDB_DATA_TYPE_UBIGINT) {
     uint64_t u64;
-    typedata->u64 = u64;
     SIF_DATA_CONVERT(rtype, right->condValue, u64);
+    typedata->u64 = u64;
     param->val = &typedata->u64;
 
   } else if (ltype == TSDB_DATA_TYPE_UINT) {
     uint32_t u32;
-    typedata->u32 = u32;
     SIF_DATA_CONVERT(rtype, right->condValue, u32);
+    typedata->u32 = u32;
     param->val = &typedata->u32;
   } else if (ltype == TSDB_DATA_TYPE_USMALLINT) {
     uint16_t u16;
@@ -446,8 +446,8 @@ static void sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typeda
     param->val = &typedata->u16;
   } else if (ltype == TSDB_DATA_TYPE_UTINYINT) {
     uint8_t u8;
-    typedata->u8 = u8;
     SIF_DATA_CONVERT(rtype, right->condValue, u8);
+    typedata->u8 = u8;
     param->val = &typedata->u8;
   }
 }
@@ -480,6 +480,7 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
     char buf[128] = {0};
 
     SDataTypeBuf typedata;
+    memset(&typedata, 0, sizeof(typedata));
     if (IS_VAR_DATA_TYPE(left->colValType)) {
       if (!IS_VAR_DATA_TYPE(right->colValType)) {
         NUM_TO_STRING(right->colValType, right->condValue, sizeof(buf) - 2, buf + VARSTR_HEADER_SIZE);
