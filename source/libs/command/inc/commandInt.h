@@ -60,6 +60,7 @@ extern "C" {
 #define EXPLAIN_RATIO_TIME_FORMAT "Ratio: %f"
 #define EXPLAIN_MERGE_FORMAT "SortMerge"
 #define EXPLAIN_MERGE_KEYS_FORMAT "Merge Key: "
+#define EXPLAIN_IGNORE_GROUPID_FORMAT "Ignore Group Id: %s"
 #define EXPLAIN_PARTITION_KETS_FORMAT "Partition Key: "
 #define EXPLAIN_INTERP_FORMAT "Interp"
 

@@ -226,10 +226,35 @@ typedef struct {
   int32_t nodeId;
   int32_t childId;
   int32_t taskId;
-  int64_t checkpointVer;
-  int64_t processedVer;
-  SEpSet  epSet;
+  // int64_t checkpointVer;
+  // int64_t processedVer;
+  SEpSet epSet;
 } SStreamChildEpInfo;
+
+typedef struct {
+  int32_t nodeId;
+  int32_t childId;
+  int64_t stateSaveVer;
+  int64_t stateProcessedVer;
+} SStreamCheckpointInfo;
+
+typedef struct {
+  int64_t streamId;
+  int64_t checkTs;
+  int32_t checkpointId;  // incremental
+  int32_t taskId;
+  SArray* checkpointVer;  // SArray<SStreamCheckpointInfo>
+} SStreamMultiVgCheckpointInfo;
+
+typedef struct {
+  int32_t taskId;
+  int32_t checkpointId;  // incremental
+} SStreamCheckpointKey;
+
+typedef struct {
+  int32_t taskId;
+  SArray* checkpointVer;
+} SStreamRecoveringState;
 
 typedef struct SStreamTask {
   int64_t streamId;
@@ -256,6 +281,8 @@ typedef struct SStreamTask {
 
   // children info
   SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>
+  int32_t nextCheckId;
+  SArray* checkpointInfo;  // SArray<SStreamCheckpointInfo>
 
   // exec
   STaskExec exec;
@@ -445,6 +472,7 @@ typedef struct {
 
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq);
+void    tFreeStreamDispatchReq(SStreamDispatchReq* pReq);
 
 int32_t streamSetupTrigger(SStreamTask* pTask);
 
@@ -468,6 +496,7 @@ typedef struct SStreamMeta {
   TTB*         pTaskDb;
   TTB*         pStateDb;
   SHashObj*    pTasks;
+  SHashObj*    pRecoveringState;
   void*        ahandle;
   TXN          txn;
   FTaskExpand* expandFunc;
@@ -484,6 +513,7 @@ SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
 int32_t streamMetaBegin(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);
 int32_t streamMetaRollBack(SStreamMeta* pMeta);
+int32_t streamLoadTasks(SStreamMeta* pMeta);
 
 #ifdef __cplusplus
 }

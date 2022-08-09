@@ -525,7 +525,7 @@ static int sortMergeDataBlockDupRows(STableDataBlocks* dataBuf, SBlockKeyInfo* p
                                      SBlockRowMerger** ppBlkRowMerger) {
   SSubmitBlk* pBlocks = (SSubmitBlk*)dataBuf->pData;
   STableMeta* pTableMeta = dataBuf->pTableMeta;
-  int16_t     nRows = pBlocks->numOfRows;
+  int32_t     nRows = pBlocks->numOfRows;
 
   // size is less than the total size, since duplicated rows may be removed.
 
@@ -546,7 +546,7 @@ static int sortMergeDataBlockDupRows(STableDataBlocks* dataBuf, SBlockKeyInfo* p
   int32_t         extendedRowSize = getExtendedRowSize(dataBuf);
   SBlockKeyTuple* pBlkKeyTuple = pBlkKeyInfo->pKeyTuple;
   char*           pBlockData = pBlocks->data + pBlocks->schemaLen;
-  int             n = 0;
+  int32_t         n = 0;
   while (n < nRows) {
     pBlkKeyTuple->skey = TD_ROW_KEY((STSRow*)pBlockData);
     pBlkKeyTuple->payloadAddr = pBlockData;

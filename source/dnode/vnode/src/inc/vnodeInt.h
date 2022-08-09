@@ -187,6 +187,7 @@ int32_t smaAsyncPreCommit(SSma* pSma);
 int32_t smaAsyncCommit(SSma* pSma);
 int32_t smaAsyncPostCommit(SSma* pSma);
 int32_t smaDoRetention(SSma* pSma, int64_t now);
+int32_t smaProcessFetch(SSma *pSma, void* pMsg);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
