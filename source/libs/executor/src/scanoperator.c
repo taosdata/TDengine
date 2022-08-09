@@ -312,9 +312,13 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     return TSDB_CODE_SUCCESS;
   } else if (*status == FUNC_DATA_REQUIRED_STATIS_LOAD) {
     pCost->loadBlockStatis += 1;
-    loadSMA = true; // mark the operator of load sma;
+    loadSMA = true; // mark the operation of load sma;
     bool success = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo);
-    if (!success) { // failed to load the block sma data, data block statistics does not exist, load data block instead
+    if (success) { // failed to load the block sma data, data block statistics does not exist, load data block instead
+      qDebug("%s data block SMA loaded, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
+             pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
+      return TSDB_CODE_SUCCESS;
+    } else {
       *status = FUNC_DATA_REQUIRED_DATA_LOAD;
     }
   }
@@ -339,7 +343,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     }
   }
 
-  // try to filter datablock according to current results
+  // try to filter data block according to current results
   doDynamicPruneDataBlock(pOperator, pBlockInfo, status);
   if (*status == FUNC_DATA_REQUIRED_NOT_LOAD) {
     qDebug("%s data block skipped due to dynamic prune, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
