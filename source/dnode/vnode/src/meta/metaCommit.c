@@ -19,9 +19,12 @@ static FORCE_INLINE void *metaMalloc(void *pPool, size_t size) { return vnodeBuf
 static FORCE_INLINE void  metaFree(void *pPool, void *p) { vnodeBufPoolFree((SVBufPool *)pPool, p); }
 
 // begin a meta txn
-int metaBegin(SMeta *pMeta) {
-  tdbTxnOpen(&pMeta->txn, 0, metaMalloc, metaFree, pMeta->pVnode->inUse, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
-
+int metaBegin(SMeta *pMeta, int8_t fromSys) {
+  if (fromSys) {
+    tdbTxnOpen(&pMeta->txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  } else {
+    tdbTxnOpen(&pMeta->txn, 0, metaMalloc, metaFree, pMeta->pVnode->inUse, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  }
   if (tdbBegin(pMeta->pEnv, &pMeta->txn) < 0) {
     return -1;
   }
