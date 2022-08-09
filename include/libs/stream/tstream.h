@@ -42,8 +42,8 @@ enum {
   TASK_STATUS__DROPPING,
   TASK_STATUS__FAIL,
   TASK_STATUS__STOP,
-  TASK_STATUS__PREPARE_RECOVER,
-  TASK_STATUS__RECOVERING,
+  TASK_STATUS__RECOVER_DOWNSTREAM,
+  TASK_STATUS__RECOVER_SELF,
 };
 
 enum {
@@ -232,8 +232,8 @@ typedef struct {
 } SStreamChildEpInfo;
 
 typedef struct {
-  int32_t nodeId;
-  int32_t childId;
+  int32_t srcNodeId;
+  int32_t srcChildId;
   int64_t stateSaveVer;
   int64_t stateProcessedVer;
 } SStreamCheckpointInfo;
@@ -394,9 +394,6 @@ typedef struct {
   int32_t upstreamTaskId;
   int32_t upstreamChildId;
   int32_t upstreamNodeId;
-#if 0
-  int64_t sourceVer;
-#endif
   int32_t blockNum;
   SArray* dataLen;  // SArray<int32_t>
   SArray* data;     // SArray<SRetrieveTableRsp*>
@@ -426,6 +423,7 @@ typedef struct {
   int32_t rspToTaskId;
 } SStreamRetrieveRsp;
 
+#if 0
 typedef struct {
   int64_t streamId;
   int32_t taskId;
@@ -462,13 +460,25 @@ int32_t tDecodeSMStreamTaskRecoverReq(SDecoder* pDecoder, SMStreamTaskRecoverReq
 int32_t tEncodeSMStreamTaskRecoverRsp(SEncoder* pEncoder, const SMStreamTaskRecoverRsp* pRsp);
 int32_t tDecodeSMStreamTaskRecoverRsp(SDecoder* pDecoder, SMStreamTaskRecoverRsp* pRsp);
 
-typedef struct {
-  int64_t streamId;
-} SPStreamTaskRecoverReq;
+int32_t streamProcessRecoverReq(SStreamTask* pTask, SStreamTaskRecoverReq* pReq, SRpcMsg* pMsg);
+int32_t streamProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp);
+#endif
 
 typedef struct {
-  int8_t reserved;
-} SPStreamTaskRecoverRsp;
+  int64_t streamId;
+  int32_t downstreamTaskId;
+  int32_t taskId;
+} SStreamRecoverDownstreamReq;
+
+typedef struct {
+  int64_t streamId;
+  int32_t downstreamTaskId;
+  int32_t taskId;
+  SArray* checkpointVer;  // SArray<SStreamCheckpointInfo>
+} SStreamRecoverDownstreamRsp;
+
+int32_t tEncodeSStreamTaskRecoverReq(SEncoder* pEncoder, const SStreamRecoverDownstreamReq* pReq);
+int32_t tDecodeSStreamTaskRecoverRsp(SDecoder* pDecoder, const SStreamRecoverDownstreamRsp* pRsp);
 
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq);
@@ -479,8 +489,6 @@ int32_t streamSetupTrigger(SStreamTask* pTask);
 int32_t streamProcessRunReq(SStreamTask* pTask);
 int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg, bool exec);
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp);
-int32_t streamProcessRecoverReq(SStreamTask* pTask, SStreamTaskRecoverReq* pReq, SRpcMsg* pMsg);
-int32_t streamProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp);
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
 int32_t streamProcessRetrieveRsp(SStreamTask* pTask, SStreamRetrieveRsp* pRsp);

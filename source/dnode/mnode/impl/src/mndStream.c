@@ -504,6 +504,7 @@ static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
   return 0;
 }
 
+#if 0
 static int32_t mndPersistTaskRecoverReq(STrans *pTrans, SStreamTask *pTask) {
   SMStreamTaskRecoverReq *pReq = taosMemoryCalloc(1, sizeof(SMStreamTaskRecoverReq));
   if (pReq == NULL) {
@@ -540,7 +541,6 @@ static int32_t mndPersistTaskRecoverReq(STrans *pTrans, SStreamTask *pTask) {
   return 0;
 }
 
-#if 0
 int32_t mndRecoverStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
   if (pStream->isDistributed) {
     int32_t lv = taosArrayGetSize(pStream->tasks);

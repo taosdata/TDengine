@@ -15,6 +15,7 @@
 
 #include "streamInc.h"
 
+#if 0
 int32_t tEncodeStreamTaskRecoverReq(SEncoder* pEncoder, const SStreamTaskRecoverReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
@@ -86,17 +87,18 @@ int32_t tDecodeSMStreamTaskRecoverRsp(SDecoder* pDecoder, SMStreamTaskRecoverRsp
   tEndDecode(pDecoder);
   return 0;
 }
+#endif
 
 int32_t tEncodeSStreamCheckpointInfo(SEncoder* pEncoder, const SStreamCheckpointInfo* pCheckpoint) {
-  if (tEncodeI32(pEncoder, pCheckpoint->nodeId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pCheckpoint->childId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pCheckpoint->srcNodeId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pCheckpoint->srcChildId) < 0) return -1;
   if (tEncodeI64(pEncoder, pCheckpoint->stateProcessedVer) < 0) return -1;
   return 0;
 }
 
 int32_t tDecodeSStreamCheckpointInfo(SDecoder* pDecoder, SStreamCheckpointInfo* pCheckpoint) {
-  if (tDecodeI32(pDecoder, &pCheckpoint->nodeId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pCheckpoint->childId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pCheckpoint->srcNodeId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pCheckpoint->srcChildId) < 0) return -1;
   if (tDecodeI64(pDecoder, &pCheckpoint->stateProcessedVer) < 0) return -1;
   return 0;
 }
@@ -221,11 +223,17 @@ int32_t streamSaveAggLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
   return 0;
 }
 
-int32_t streamFetchSinkStatus(SStreamTask* pTask) {
-  ASSERT(pTask->taskLevel != TASK_LEVEL__SINK);
+int32_t streamFetchDownstreamStatus(SStreamTask* pTask) {
   // set self status to recover_phase1
   // build fetch status msg
   // send fetch msg
+  atomic_store_8(&pTask->taskStatus, TASK_STATUS__RECOVER_DOWNSTREAM);
+
+  if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
+  } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+  } else {
+    ASSERT(0);
+  }
   return 0;
 }
 
