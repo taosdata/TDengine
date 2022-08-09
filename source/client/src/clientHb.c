@@ -327,7 +327,13 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
   while (pIter != NULL) {
     int64_t     *rid = pIter;
     SRequestObj *pRequest = acquireRequest(*rid);
-    if (NULL == pRequest || pRequest->killed) {
+    if (NULL == pRequest) {
+      pIter = taosHashIterate(pObj->pRequests, pIter);
+      continue;
+    }
+
+    if (pRequest->killed) {
+      releaseRequest(*rid);
       pIter = taosHashIterate(pObj->pRequests, pIter);
       continue;
     }

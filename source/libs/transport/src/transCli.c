@@ -1271,6 +1271,9 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         transFreeMsg(pResp->pCont);
         cliSchedMsgToNextNode(pMsg, pThrd);
         return -1;
+      } else {
+        // change error code for taos client driver if retryCnt exceeds limit
+        if (0 == strncmp(pTransInst->label, "TSC", strlen("TSC"))) pResp->code = TSDB_CODE_APP_NOT_READY;
       }
     }
   }
@@ -1381,6 +1384,7 @@ int transReleaseCliHandle(void* handle) {
   tGDebug("send release request at thread:%08" PRId64 "", pThrd->pid);
 
   if (0 != transAsyncSend(pThrd->asyncPool, &cmsg->q)) {
+    taosMemoryFree(cmsg);
     return -1;
   }
   return 0;
