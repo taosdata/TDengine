@@ -130,14 +130,13 @@ int32_t tDecodeSStreamMultiVgCheckpointInfo(SDecoder* pDecoder, SStreamMultiVgCh
   return 0;
 }
 
-int32_t streamCheckSinkLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
+int32_t streamSaveStateInfo(SStreamMeta* pMeta, SStreamTask* pTask) {
   void* buf = NULL;
 
   ASSERT(pTask->taskLevel == TASK_LEVEL__SINK);
-  int32_t sz = taosArrayGetSize(pTask->checkpointInfo);
 
   SStreamMultiVgCheckpointInfo checkpoint;
-  checkpoint.checkpointId = 0;
+  checkpoint.checkpointId = atomic_fetch_add_32(&pTask->nextCheckId, 1);
   checkpoint.checkTs = taosGetTimestampMs();
   checkpoint.streamId = pTask->streamId;
   checkpoint.taskId = pTask->taskId;
@@ -169,16 +168,21 @@ int32_t streamCheckSinkLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
     goto FAIL;
   }
 
+  int32_t sz = taosArrayGetSize(pTask->checkpointInfo);
+  for (int32_t i = 0; i < sz; i++) {
+    SStreamCheckpointInfo* pCheck = taosArrayGet(pTask->checkpointInfo, i);
+    pCheck->stateSaveVer = pCheck->stateProcessedVer;
+  }
+
   taosMemoryFree(buf);
   return 0;
 FAIL:
   if (buf) taosMemoryFree(buf);
   return -1;
+  return 0;
 }
 
-int32_t streamRecoverSinkLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
-  ASSERT(pTask->taskLevel == TASK_LEVEL__SINK);
-  // load status
+int32_t streamLoadStateInfo(SStreamMeta* pMeta, SStreamTask* pTask) {
   void*   pVal = NULL;
   int32_t vLen = 0;
   if (tdbTbGet(pMeta->pStateDb, &pTask->taskId, sizeof(void*), &pVal, &vLen) < 0) {
@@ -196,29 +200,71 @@ int32_t streamRecoverSinkLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
   return 0;
 }
 
-int32_t streamCheckAggLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
+int32_t streamSaveSinkLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
+  ASSERT(pTask->taskLevel == TASK_LEVEL__SINK);
+  return streamSaveStateInfo(pMeta, pTask);
+}
+
+int32_t streamRecoverSinkLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
+  ASSERT(pTask->taskLevel == TASK_LEVEL__SINK);
+  return streamLoadStateInfo(pMeta, pTask);
+}
+
+int32_t streamSaveAggLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
   ASSERT(pTask->taskLevel == TASK_LEVEL__AGG);
-  // save and copy state
+  // TODO save and copy state
+
   // save state info
+  if (streamSaveStateInfo(pMeta, pTask) < 0) {
+    return -1;
+  }
+  return 0;
+}
+
+int32_t streamFetchSinkStatus(SStreamTask* pTask) {
+  ASSERT(pTask->taskLevel != TASK_LEVEL__SINK);
+  // set self status to recover_phase1
+  // build fetch status msg
+  // send fetch msg
+  return 0;
+}
+
+int32_t streamProcessFetchStatusRsp(SStreamMeta* pMeta, SStreamTask* pTask, void* msg) {
+  // if failed, set timer and retry
+  // if successful
+  // add rsp state to partial recover hash
+  // if complete, begin actual recover
   return 0;
 }
 
 int32_t streamRecoverAggLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
   ASSERT(pTask->taskLevel == TASK_LEVEL__AGG);
-  // try recover sink level
-  // after all sink level recovered, choose current state backend to recover
+  // recover sink level
+  // after all sink level recovered
+  // choose suitable state to recover
   return 0;
 }
 
-int32_t streamCheckSourceLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
+int32_t streamSaveSourceLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
   ASSERT(pTask->taskLevel == TASK_LEVEL__SOURCE);
-  // try recover agg level
-  //
+  // TODO: save and copy state
   return 0;
 }
 
 int32_t streamRecoverSourceLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
   ASSERT(pTask->taskLevel == TASK_LEVEL__SOURCE);
+  // if totLevel == 3
+  // fetch agg state
+  // recover from local state to agg state, not send msg
+  // recover from agg state to most recent log v1
+  // enable input queue, set status recover_phase2
+  // recover from v1 to queue msg v2, set status normal
+
+  // if totLevel == 2
+  // fetch sink state
+  // recover from local state to sink state v1, send msg
+  // enable input queue, set status recover_phase2
+  // recover from v1 to queue msg v2, set status normal
   return 0;
 }
 
