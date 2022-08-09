@@ -283,7 +283,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
 
   int32_t code = qExecCommand(pQuery->pRoot, &pRsp);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
-    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, false);
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
   }
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
