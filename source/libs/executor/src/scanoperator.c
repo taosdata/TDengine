@@ -343,6 +343,9 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     }
   }
 
+  // free the sma info, since it should not be involved in later computing process.
+  taosMemoryFreeClear(pBlock->pBlockAgg);
+
   // try to filter data block according to current results
   doDynamicPruneDataBlock(pOperator, pBlockInfo, status);
   if (*status == FUNC_DATA_REQUIRED_NOT_LOAD) {

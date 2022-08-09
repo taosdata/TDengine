@@ -348,6 +348,8 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
   taosThreadOnce(&initPoolOnce, initRefPool);
   atexit(cleanupRefPool);
 
+  qDebug("start to create subplan task, TID:0x%"PRIx64 " QID:0x%"PRIx64, taskId, pSubplan->id.queryId);
+
   int32_t code = createExecTaskInfoImpl(pSubplan, pTask, readHandle, taskId, sql, model);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -371,6 +373,8 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
       taosMemoryFreeClear(pSinkParam);
     }
   }
+
+  qDebug("subplan task create completed, TID:0x%"PRIx64 " QID:0x%"PRIx64, taskId, pSubplan->id.queryId);
 
 _error:
   // if failed to add ref for all tables in this query, abort current query
