@@ -51,7 +51,6 @@ int32_t metaCacheOpen(SMeta* pMeta) {
 
   // load the cache info
   TBC* pUidIdxC = NULL;
-  TXN  txn = {.flags = };
   if (tdbTbcOpen(pMeta->pUidIdx, &pUidIdxC, NULL) < 0) {
     goto _err;
   }
@@ -63,7 +62,10 @@ int32_t metaCacheOpen(SMeta* pMeta) {
 
   while (tdbTbcNext(pUidIdxC, &pKey, &nKey, &pData, &nData) == 0) {
     SUidIdxVal* pUidIdxVal = (SUidIdxVal*)pData;
-    SEntryInfo  info = {.uid = (tb_uid_t*)pKey, .suid = pUidIdxVal->suid, .skmVer = pUidIdxVal->skmVer};
+    SEntryInfo  info = {.uid = *(tb_uid_t*)pKey,
+                        .suid = pUidIdxVal->suid,
+                        .skmVer = pUidIdxVal->skmVer,
+                        .version = pUidIdxVal->version};
     code = metaCacheUpsert(pMeta, &info);
     if (code) goto _err;
   }
