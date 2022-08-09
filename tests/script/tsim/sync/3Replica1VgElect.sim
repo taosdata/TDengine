@@ -48,7 +48,7 @@ endi
 $replica = 3
 $vgroups = 1
 
-print ============= create database
+print ============= create database db
 sql create database db replica $replica vgroups $vgroups
 
 $loop_cnt = 0
@@ -135,7 +135,7 @@ endw
 $totalTblNum = $tbNum * 2
 sleep 1000
 sql show tables
-print ====> expect $totalTblNum and infinsert $rows  in fact 
+print ====> expect $totalTblNum and insert $rows  in fact 
 if $rows != $totalTblNum then 
   return -1
 endi

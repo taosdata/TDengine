@@ -850,6 +850,10 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->numOfVgroups = -1;
   pOptions->singleStable = -1;
   pOptions->schemaless = -1;
+  pOptions->walRetentionPeriod = -1;
+  pOptions->walRetentionSize = -1;
+  pOptions->walRollPeriod = -1;
+  pOptions->walSegmentSize = -1;
   return (SNode*)pOptions;
 }
 

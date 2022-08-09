@@ -67,7 +67,7 @@ typedef struct SResultRowEntryInfo {
   bool     initialized:1;     // output buffer has been initialized
   bool     complete:1;        // query has completed
   uint8_t  isNullRes:6;       // the result is null
-  uint16_t numOfRes;          // num of output result in current buffer
+  uint16_t numOfRes;          // num of output result in current buffer. NOT NULL RESULT
 } SResultRowEntryInfo;
 
 // determine the real data need to calculated the result

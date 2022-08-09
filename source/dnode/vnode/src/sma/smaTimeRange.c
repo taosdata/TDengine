@@ -116,8 +116,10 @@ int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg) {
     }
 
     // create stable to save tsma result in dstVgId
+    SName stbFullName = {0};
+    tNameFromString(&stbFullName, pCfg->dstTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
     SVCreateStbReq pReq = {0};
-    pReq.name = pCfg->dstTbName;
+    pReq.name = (char*)tNameGetTableName(&stbFullName);
     pReq.suid = pCfg->dstTbUid;
     pReq.schemaRow = pCfg->schemaRow;
     pReq.schemaTag = pCfg->schemaTag;
@@ -125,6 +127,12 @@ int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg) {
     if (metaCreateSTable(SMA_META(pSma), version, &pReq) < 0) {
       return -1;
     }
+
+    smaDebug("vgId:%d, success to create sma index %s %" PRIi64 " on stb:%" PRIi64 ", dstSuid:%" PRIi64
+             " dstTb:%s dstVg:%d",
+             SMA_VID(pSma), pCfg->indexName, pCfg->indexUid, pCfg->tableUid, pCfg->dstTbUid, pReq.name, pCfg->dstVgId);
+  } else {
+    ASSERT(0);
   }
 
   return 0;

@@ -1272,8 +1272,7 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
     colDataAssign(pDst, pSrc, src->info.rows, &src->info);
   }
 
-  dst->info.rows = src->info.rows;
-  dst->info.capacity = src->info.rows;
+  dst->info = src->info;
   return 0;
 }
 
@@ -1875,21 +1874,20 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
  * @brief TODO: Assume that the final generated result it less than 3M
  *
  * @param pReq
- * @param pDataBlocks
+ * @param pDataBlock
  * @param vgId
- * @param suid  // TODO: check with Liao whether suid response is reasonable
+ * @param suid
  *
- * TODO: colId should be set
  */
-int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema* pTSchema, int32_t vgId,
+int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataBlock, STSchema* pTSchema, int32_t vgId,
                                     tb_uid_t suid) {
-  int32_t sz = taosArrayGetSize(pDataBlocks);
   int32_t bufSize = sizeof(SSubmitReq);
+  int32_t sz = 1;
   for (int32_t i = 0; i < sz; ++i) {
-    SDataBlockInfo* pBlkInfo = &((SSDataBlock*)taosArrayGet(pDataBlocks, i))->info;
+    const SDataBlockInfo* pBlkInfo = &pDataBlock->info;
 
-    int32_t numOfCols = taosArrayGetSize(pDataBlocks);
-    bufSize += pBlkInfo->rows * (TD_ROW_HEAD_LEN + pBlkInfo->rowSize + BitmapLen(numOfCols));
+    int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
+    bufSize += pBlkInfo->rows * (TD_ROW_HEAD_LEN + pBlkInfo->rowSize + BitmapLen(colNum));
     bufSize += sizeof(SSubmitBlk);
   }
 
@@ -1906,7 +1904,6 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
   tdSRowInit(&rb, pTSchema->version);
 
   for (int32_t i = 0; i < sz; ++i) {
-    SSDataBlock* pDataBlock = taosArrayGet(pDataBlocks, i);
     int32_t      colNum = taosArrayGetSize(pDataBlock->pDataBlock);
     int32_t      rows = pDataBlock->info.rows;
     //    int32_t      rowSize = pDataBlock->info.rowSize;

@@ -16,15 +16,15 @@
 #include "systable.h"
 #include "taos.h"
 #include "tdef.h"
-#include "types.h"
 #include "tgrant.h"
+#include "types.h"
 
 #define SYSTABLE_SCH_TABLE_NAME_LEN ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_DB_NAME_LEN    ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_COL_NAME_LEN   ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 
 static const SSysDbTableSchema dnodesSchema[] = {
-    {.name = "id", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
+    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "vnodes", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
     {.name = "support_vnodes", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
@@ -66,7 +66,7 @@ static const SSysDbTableSchema bnodesSchema[] = {
 };
 
 static const SSysDbTableSchema clusterSchema[] = {
-    {.name = "id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
+    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "name", .bytes = TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
@@ -97,7 +97,7 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "wal_retention_period", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "wal_retention_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "wal_roll_period", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "wal_seg_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
+    {.name = "wal_segment_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
 };
 
 static const SSysDbTableSchema userFuncSchema[] = {
@@ -243,8 +243,8 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema)},
     {TSDB_INS_TABLE_MODULES, modulesSchema, tListLen(modulesSchema)},
     {TSDB_INS_TABLE_QNODES, qnodesSchema, tListLen(qnodesSchema)},
-//    {TSDB_INS_TABLE_SNODES, snodesSchema, tListLen(snodesSchema)},
-//    {TSDB_INS_TABLE_BNODES, bnodesSchema, tListLen(bnodesSchema)},
+    //    {TSDB_INS_TABLE_SNODES, snodesSchema, tListLen(snodesSchema)},
+    //    {TSDB_INS_TABLE_BNODES, bnodesSchema, tListLen(bnodesSchema)},
     {TSDB_INS_TABLE_CLUSTER, clusterSchema, tListLen(clusterSchema)},
     {TSDB_INS_TABLE_DATABASES, userDBSchema, tListLen(userDBSchema)},
     {TSDB_INS_TABLE_FUNCTIONS, userFuncSchema, tListLen(userFuncSchema)},
@@ -308,9 +308,9 @@ static const SSysDbTableSchema offsetSchema[] = {
 };
 
 static const SSysDbTableSchema querySchema[] = {
-    {.name = "query_id", .bytes = TSDB_QUERY_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "req_id", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
-    {.name = "connId", .bytes = 4, .type = TSDB_DATA_TYPE_UINT},
+    {.name = "kill_id", .bytes = TSDB_QUERY_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "query_id", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "conn_id", .bytes = 4, .type = TSDB_DATA_TYPE_UINT},
     {.name = "app", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "user", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
@@ -354,11 +354,19 @@ static const SSysTableMeta perfsMeta[] = {
     {TSDB_PERFS_TABLE_APPS, appSchema, tListLen(appSchema)}};
 
 void getInfosDbMeta(const SSysTableMeta** pInfosTableMeta, size_t* size) {
-  *pInfosTableMeta = infosMeta;
-  *size = tListLen(infosMeta);
+  if (pInfosTableMeta) {
+    *pInfosTableMeta = infosMeta;
+  }
+  if (size) {
+    *size = tListLen(infosMeta);
+  }
 }
 
 void getPerfDbMeta(const SSysTableMeta** pPerfsTableMeta, size_t* size) {
-  *pPerfsTableMeta = perfsMeta;
-  *size = tListLen(perfsMeta);
+  if (pPerfsTableMeta) {
+    *pPerfsTableMeta = perfsMeta;
+  }
+  if (size) {
+    *size = tListLen(perfsMeta);
+  }
 }

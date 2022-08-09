@@ -308,12 +308,12 @@ static int32_t tdProcessRSmaSyncPostCommitImpl(SSma *pSma) {
  * @return int32_t
  */
 static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
-  SSmaEnv *pSmaEnv = SMA_RSMA_ENV(pSma);
-  if (!pSmaEnv) {
+  SSmaEnv *pEnv = SMA_RSMA_ENV(pSma);
+  if (!pEnv) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SSmaStat  *pStat = SMA_ENV_STAT(pSmaEnv);
+  SSmaStat  *pStat = SMA_ENV_STAT(pEnv);
   SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pStat);
 
   // step 1: set rsma stat
@@ -337,17 +337,25 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   }
 
   // step 3:  swap rsmaInfoHash and iRsmaInfoHash
-  ASSERT(!RSMA_IMU_INFO_HASH(pRSmaStat));
+  // lock
+  taosWLockLatch(SMA_ENV_LOCK(pEnv));
+
   ASSERT(RSMA_INFO_HASH(pRSmaStat));
+  ASSERT(!RSMA_IMU_INFO_HASH(pRSmaStat));
 
   RSMA_IMU_INFO_HASH(pRSmaStat) = RSMA_INFO_HASH(pRSmaStat);
   RSMA_INFO_HASH(pRSmaStat) =
       taosHashInit(RSMA_TASK_INFO_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
 
   if (!RSMA_INFO_HASH(pRSmaStat)) {
+    // unlock
+    taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
     smaError("vgId:%d, rsma async commit failed since %s", SMA_VID(pSma), terrstr());
     return TSDB_CODE_FAILED;
   }
+
+  // unlock
+  taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
 
   // step 4: others
   pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
@@ -383,26 +391,52 @@ static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma) {
  * @return int32_t
  */
 static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
-  SSmaEnv *pSmaEnv = SMA_RSMA_ENV(pSma);
-  if (!pSmaEnv) {
+  SSmaEnv *pEnv = SMA_RSMA_ENV(pSma);
+  if (!pEnv) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SSmaStat  *pStat = SMA_ENV_STAT(pSmaEnv);
+  SSmaStat  *pStat = SMA_ENV_STAT(pEnv);
   SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pStat);
 
   // step 1: merge rsmaInfoHash and iRsmaInfoHash
-  taosWLockLatch(SMA_ENV_LOCK(pSmaEnv));
-
+  // lock
+  taosWLockLatch(SMA_ENV_LOCK(pEnv));
+#if 0
   if (taosHashGetSize(RSMA_INFO_HASH(pRSmaStat)) <= 0) {
-    // TODO: optimization - just switch the hash pointer if rsmaInfoHash is empty
-  }
-
+    // just switch the hash pointer if rsmaInfoHash is empty
+    if (taosHashGetSize(RSMA_IMU_INFO_HASH(pRSmaStat)) > 0) {
+      SHashObj *infoHash = RSMA_INFO_HASH(pRSmaStat);
+      RSMA_INFO_HASH(pRSmaStat) = RSMA_IMU_INFO_HASH(pRSmaStat);
+      RSMA_IMU_INFO_HASH(pRSmaStat) = infoHash;
+    }
+  } else {
+#endif
+#if 1
   void *pIter = taosHashIterate(RSMA_IMU_INFO_HASH(pRSmaStat), NULL);
   while (pIter) {
     tb_uid_t *pSuid = (tb_uid_t *)taosHashGetKey(pIter, NULL);
 
     if (!taosHashGet(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t))) {
+      SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)pIter;
+      if (RSMA_INFO_IS_DEL(pRSmaInfo)) {
+        int32_t refVal = T_REF_VAL_GET(pRSmaInfo);
+        if (refVal == 0) {
+          tdFreeRSmaInfo(pSma, pRSmaInfo, true);
+          smaDebug(
+              "vgId:%d, rsma async post commit, free rsma info since already deleted and ref is 0 for "
+              "table:%" PRIi64,
+              SMA_VID(pSma), *pSuid);
+        } else {
+          smaDebug(
+              "vgId:%d, rsma async post commit, not free rsma info since ref is %d although already deleted for "
+              "table:%" PRIi64,
+              SMA_VID(pSma), refVal, *pSuid);
+        }
+
+        pIter = taosHashIterate(RSMA_IMU_INFO_HASH(pRSmaStat), pIter);
+        continue;
+      }
       taosHashPut(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t), pIter, sizeof(pIter));
       smaDebug("vgId:%d, rsma async post commit, migrated from iRsmaInfoHash for table:%" PRIi64, SMA_VID(pSma),
                *pSuid);
@@ -416,11 +450,14 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
 
     pIter = taosHashIterate(RSMA_IMU_INFO_HASH(pRSmaStat), pIter);
   }
+#endif
+  // }
 
   taosHashCleanup(RSMA_IMU_INFO_HASH(pRSmaStat));
   RSMA_IMU_INFO_HASH(pRSmaStat) = NULL;
 
-  taosWUnLockLatch(SMA_ENV_LOCK(pSmaEnv));
+  // unlock
+  taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
 
   // step 2: cleanup outdated qtaskinfo files
   tdCleanupQTaskInfoFiles(pSma, pRSmaStat);

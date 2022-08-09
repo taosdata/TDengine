@@ -732,15 +732,19 @@ typedef struct SStreamSessionAggOperatorInfo {
 } SStreamSessionAggOperatorInfo;
 
 typedef struct STimeSliceOperatorInfo {
-  SSDataBlock*   pRes;
-  STimeWindow    win;
-  SInterval      interval;
-  int64_t        current;
-  SArray*        pPrevRow;      // SArray<SGroupValue>
-  int32_t        fillType;      // fill type
-  SColumn        tsCol;         // primary timestamp column
-  SExprSupp      scalarSup;     // scalar calculation
-  struct SFillColInfo*  pFillColInfo;  // fill column info
+  SSDataBlock*            pRes;
+  STimeWindow             win;
+  SInterval               interval;
+  int64_t                 current;
+  SArray*                 pPrevRow;      // SArray<SGroupValue>
+  SArray*                 pNextRow;      // SArray<SGroupValue>
+  SArray*                 pLinearInfo;   // SArray<SFillLinearInfo>
+  bool                    isPrevRowSet;
+  bool                    isNextRowSet;
+  int32_t                 fillType;      // fill type
+  SColumn                 tsCol;         // primary timestamp column
+  SExprSupp               scalarSup;     // scalar calculation
+  struct SFillColInfo*    pFillColInfo;  // fill column info
 } STimeSliceOperatorInfo;
 
 typedef struct SStateWindowOperatorInfo {
@@ -987,7 +991,7 @@ int32_t decodeOperator(SOperatorInfo* ops, const char* data, int32_t length);
 
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                               const char* sql, EOPTR_EXEC_MODEL model);
+                               char* sql, EOPTR_EXEC_MODEL model);
 int32_t createDataSinkParam(SDataSinkNode *pNode, void **pParam, qTaskInfo_t* pTaskInfo, SReadHandle* readHandle);
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInfoList);
 

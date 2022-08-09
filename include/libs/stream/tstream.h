@@ -17,6 +17,7 @@
 #include "os.h"
 #include "query.h"
 #include "tdatablock.h"
+#include "tdbInt.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
 #include "tqueue.h"
@@ -85,6 +86,12 @@ enum {
   TASK_OUTPUT__FETCH,
 };
 
+enum {
+  STREAM_QUEUE__SUCESS = 1,
+  STREAM_QUEUE__FAILED,
+  STREAM_QUEUE__PROCESSING,
+};
+
 typedef struct {
   int8_t type;
 } SStreamQueueItem;
@@ -122,12 +129,6 @@ typedef struct {
   int8_t       type;
   SSDataBlock* pBlock;
 } SStreamTrigger;
-
-enum {
-  STREAM_QUEUE__SUCESS = 1,
-  STREAM_QUEUE__FAILED,
-  STREAM_QUEUE__PROCESSING,
-};
 
 typedef struct {
   STaosQueue* queue;
@@ -225,14 +226,40 @@ typedef struct {
   int32_t nodeId;
   int32_t childId;
   int32_t taskId;
-  int64_t checkpointVer;
-  int64_t processedVer;
-  SEpSet  epSet;
+  // int64_t checkpointVer;
+  // int64_t processedVer;
+  SEpSet epSet;
 } SStreamChildEpInfo;
+
+typedef struct {
+  int32_t nodeId;
+  int32_t childId;
+  int64_t stateSaveVer;
+  int64_t stateProcessedVer;
+} SStreamCheckpointInfo;
+
+typedef struct {
+  int64_t streamId;
+  int64_t checkTs;
+  int32_t checkpointId;  // incremental
+  int32_t taskId;
+  SArray* checkpointVer;  // SArray<SStreamCheckpointInfo>
+} SStreamMultiVgCheckpointInfo;
+
+typedef struct {
+  int32_t taskId;
+  int32_t checkpointId;  // incremental
+} SStreamCheckpointKey;
+
+typedef struct {
+  int32_t taskId;
+  SArray* checkpointVer;
+} SStreamRecoveringState;
 
 typedef struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
+  int32_t totalLevel;
   int8_t  taskLevel;
   int8_t  outputType;
   int16_t dispatchMsgType;
@@ -254,6 +281,8 @@ typedef struct SStreamTask {
 
   // children info
   SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>
+  int32_t nextCheckId;
+  SArray* checkpointInfo;  // SArray<SStreamCheckpointInfo>
 
   // exec
   STaskExec exec;
@@ -443,6 +472,7 @@ typedef struct {
 
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq);
+void    tFreeStreamDispatchReq(SStreamDispatchReq* pReq);
 
 int32_t streamSetupTrigger(SStreamTask* pTask);
 
@@ -458,17 +488,32 @@ int32_t streamProcessRetrieveRsp(SStreamTask* pTask, SStreamRetrieveRsp* pRsp);
 int32_t streamTryExec(SStreamTask* pTask);
 int32_t streamSchedExec(SStreamTask* pTask);
 
-typedef struct SStreamMeta SStreamMeta;
+typedef int32_t FTaskExpand(void* ahandle, SStreamTask* pTask);
 
-SStreamMeta* streamMetaOpen();
+typedef struct SStreamMeta {
+  char*        path;
+  TDB*         db;
+  TTB*         pTaskDb;
+  TTB*         pStateDb;
+  SHashObj*    pTasks;
+  SHashObj*    pRecoveringState;
+  void*        ahandle;
+  TXN          txn;
+  FTaskExpand* expandFunc;
+} SStreamMeta;
+
+SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc);
 void         streamMetaClose(SStreamMeta* streamMeta);
 
-int32_t streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask);
-int32_t streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
+int32_t      streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask);
+int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, char* msg, int32_t msgLen);
+int32_t      streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
+SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
 
 int32_t streamMetaBegin(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);
 int32_t streamMetaRollBack(SStreamMeta* pMeta);
+int32_t streamLoadTasks(SStreamMeta* pMeta);
 
 #ifdef __cplusplus
 }
