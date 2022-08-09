@@ -54,7 +54,7 @@ int32_t schChkJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel) {
     sum += pTask->plan->execNodeStat.tableNum;
   }
 
-  if (sum < schMgmt.cfg.maxNodeTableNum) {
+  if (schMgmt.cfg.maxNodeTableNum <= 0 || sum < schMgmt.cfg.maxNodeTableNum) {
     SCH_JOB_DLOG("job no need flow ctrl, totalTableNum:%d", sum);
     return TSDB_CODE_SUCCESS;
   }
@@ -230,7 +230,7 @@ int32_t schLaunchTasksInFlowCtrlListImpl(SSchJob *pJob, SSchFlowControl *ctrl) {
     SCH_TASK_DLOG("task to launch, fqdn:%s, port:%d, tableNum:%d, remainNum:%d, remainExecTaskNum:%d", 
        ep->fqdn, ep->port, pTask->plan->execNodeStat.tableNum, ctrl->tableNumSum, ctrl->execTaskNum);
     
-    SCH_ERR_JRET(schLaunchTaskImpl(pJob, pTask));
+    SCH_ERR_JRET(schAsyncLaunchTaskImpl(pJob, pTask));
     
     remainNum -= pTask->plan->execNodeStat.tableNum;
     if (remainNum <= 0) {

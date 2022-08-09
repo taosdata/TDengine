@@ -819,7 +819,10 @@ int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
+int32_t schLaunchTaskImpl(void *param) {
+  SSchTaskCtx *pCtx = (SSchTaskCtx *)param;
+  SSchJob *pJob = pCtx->pJob;
+  SSchTask *pTask = pCtx->pTask;
   int8_t  status = 0;
   int32_t code = 0;
 
@@ -834,12 +837,12 @@ int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
 
   if (schJobNeedToStop(pJob, &status)) {
     SCH_TASK_DLOG("no need to launch task cause of job status %s", jobTaskStatusStr(status));
-    SCH_ERR_RET(TSDB_CODE_SCH_IGNORE_ERROR);
+    SCH_ERR_JRET(TSDB_CODE_SCH_IGNORE_ERROR);
   }
 
   // NOTE: race condition: the task should be put into the hash table before send msg to server
   if (SCH_GET_TASK_STATUS(pTask) != JOB_TASK_STATUS_EXEC) {
-    SCH_ERR_RET(schPushTaskToExecList(pJob, pTask));
+    SCH_ERR_JRET(schPushTaskToExecList(pJob, pTask));
     SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_EXEC);
   }
 
@@ -850,19 +853,51 @@ int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
     if (TSDB_CODE_SUCCESS != code) {
       SCH_TASK_ELOG("failed to create physical plan, code:%s, msg:%p, len:%d", tstrerror(code), pTask->msg,
                     pTask->msgLen);
-      SCH_ERR_RET(code);
+      SCH_ERR_JRET(code);
     } else {
       SCH_TASK_DLOGL("physical plan len:%d, %s", pTask->msgLen, pTask->msg);
     }
   }
 
-  SCH_ERR_RET(schSetTaskCandidateAddrs(pJob, pTask));
+  SCH_ERR_JRET(schSetTaskCandidateAddrs(pJob, pTask));
 
   if (SCH_IS_QUERY_JOB(pJob)) {
-    SCH_ERR_RET(schEnsureHbConnection(pJob, pTask));
+    SCH_ERR_JRET(schEnsureHbConnection(pJob, pTask));
   }
 
-  SCH_ERR_RET(schBuildAndSendMsg(pJob, pTask, NULL, plan->msgType));
+  SCH_ERR_JRET(schBuildAndSendMsg(pJob, pTask, NULL, plan->msgType));
+
+_return:
+
+  taosMemoryFree(param);
+
+#if SCH_ASYNC_LAUNCH_TASK
+  if (code) {
+    code = schProcessOnTaskFailure(pJob, pTask, code);
+  }
+  if (code) {
+    code = schHandleJobFailure(pJob, code);
+  }
+#endif
+
+  SCH_RET(code);
+}
+
+int32_t schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {  
+
+  SSchTaskCtx *param = taosMemoryCalloc(1, sizeof(SSchTaskCtx));
+  if (NULL == param) {
+    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  
+  param->pJob = pJob;
+  param->pTask = pTask;
+
+#if SCH_ASYNC_LAUNCH_TASK
+  taosAsyncExec(schLaunchTaskImpl, param, NULL);
+#else
+  SCH_ERR_RET(schLaunchTaskImpl(param));
+#endif
 
   return TSDB_CODE_SUCCESS;
 }
@@ -878,10 +913,10 @@ int32_t schLaunchTask(SSchJob *pJob, SSchTask *pTask) {
     SCH_ERR_JRET(schCheckIncTaskFlowQuota(pJob, pTask, &enough));
 
     if (enough) {
-      SCH_ERR_JRET(schLaunchTaskImpl(pJob, pTask));
+      SCH_ERR_JRET(schAsyncLaunchTaskImpl(pJob, pTask));
     }
   } else {
-    SCH_ERR_JRET(schLaunchTaskImpl(pJob, pTask));
+    SCH_ERR_JRET(schAsyncLaunchTaskImpl(pJob, pTask));
   }
 
   return TSDB_CODE_SUCCESS;
