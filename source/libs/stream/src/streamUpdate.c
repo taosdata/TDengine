@@ -14,6 +14,7 @@
  */
 
 #include "tstreamUpdate.h"
+#include "tencode.h"
 #include "ttime.h"
 #include "query.h"
 
@@ -249,4 +250,111 @@ void updateInfoDestoryColseWinSBF(SUpdateInfo *pInfo) {
   }
   tScalableBfDestroy(pInfo->pCloseWinSBF);
   pInfo->pCloseWinSBF = NULL;
+}
+
+int32_t updateInfoSerialize(void *buf, int32_t bufLen, const SUpdateInfo *pInfo) {
+  ASSERT(pInfo);
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  int32_t size = taosArrayGetSize(pInfo->pTsBuckets);
+  if (tEncodeI32(&encoder, size) < 0) return -1;
+  for (int32_t i = 0; i < size; i++) {
+    TSKEY* pTs = (TSKEY*)taosArrayGet(pInfo->pTsBuckets, i);
+    if (tEncodeI64(&encoder, *pTs) < 0) return -1;
+  }
+
+  if (tEncodeU64(&encoder, pInfo->numBuckets) < 0) return -1;
+
+  int32_t sBfSize = taosArrayGetSize(pInfo->pTsSBFs);
+  if (tEncodeI32(&encoder, sBfSize) < 0) return -1;
+  for (int32_t i = 0; i < sBfSize; i++) {
+    SScalableBf* pSBf = taosArrayGetP(pInfo->pTsSBFs, i);
+    if (tScalableBfEncode(pSBf, &encoder) < 0) return -1;
+  }
+
+  if (tEncodeU64(&encoder, pInfo->numSBFs) < 0) return -1;
+  if (tEncodeI64(&encoder, pInfo->interval) < 0) return -1;
+  if (tEncodeI64(&encoder, pInfo->watermark) < 0) return -1;
+  if (tEncodeI64(&encoder, pInfo->minTS) < 0) return -1;
+  
+  if (tScalableBfEncode(pInfo->pCloseWinSBF, &encoder) < 0) return -1;
+
+  int32_t mapSize = taosHashGetSize(pInfo->pMap);
+  if (tEncodeI32(&encoder, mapSize) < 0) return -1;
+  void*  pIte = NULL;
+  size_t keyLen = 0;
+  while ((pIte = taosHashIterate(pInfo->pMap, pIte)) != NULL) {
+    void* key = taosHashGetKey(pIte, &keyLen);
+    if (tEncodeU64(&encoder, *(uint64_t*)key) < 0) return -1;
+    if (tEncodeI64(&encoder, *(TSKEY*)pIte) < 0) return -1;
+  }
+
+  if (tEncodeI64(&encoder, pInfo->scanWindow.skey) < 0) return -1;
+  if (tEncodeI64(&encoder, pInfo->scanWindow.ekey) < 0) return -1;
+  if (tEncodeU64(&encoder, pInfo->scanGroupId) < 0) return -1;
+  if (tEncodeU64(&encoder, pInfo->maxVersion) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t updateInfoDeserialize(void *buf, int32_t bufLen, SUpdateInfo *pInfo) {
+  ASSERT(pInfo);
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+  if (tStartDecode(&decoder) < 0) return -1;
+
+  int32_t size = 0;
+  if (tDecodeI32(&decoder, &size) < 0) return -1;
+  pInfo->pTsBuckets =  taosArrayInit(size, sizeof(TSKEY));
+  TSKEY ts = INT64_MIN;
+  for (int32_t i = 0; i < size; i++) {
+    if (tDecodeI64(&decoder, &ts) < 0) return -1;
+    taosArrayPush(pInfo->pTsBuckets, &ts);
+  }
+
+  if (tDecodeU64(&decoder, &pInfo->numBuckets) < 0) return -1;
+
+  int32_t sBfSize = 0;
+  if (tDecodeI32(&decoder, &sBfSize) < 0) return -1;
+  pInfo->pTsSBFs = taosArrayInit(sBfSize, sizeof(void *));
+  for (int32_t i = 0; i < sBfSize; i++) {
+    SScalableBf* pSBf = tScalableBfDecode(&decoder);
+    if (!pSBf) return -1;
+    taosArrayPush(pInfo->pTsSBFs, &pSBf);
+  }
+
+  if (tDecodeU64(&decoder, &pInfo->numSBFs) < 0) return -1;
+  if (tDecodeI64(&decoder, &pInfo->interval) < 0) return -1;
+  if (tDecodeI64(&decoder, &pInfo->watermark) < 0) return -1;
+  if (tDecodeI64(&decoder, &pInfo->minTS) < 0) return -1;
+  pInfo->pCloseWinSBF = tScalableBfDecode(&decoder);
+
+  int32_t mapSize = 0;
+  if (tDecodeI32(&decoder, &mapSize) < 0) return -1;
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  pInfo->pMap = taosHashInit(mapSize, hashFn, true, HASH_NO_LOCK);
+  uint64_t uid = 0;
+  ts = INT64_MIN;
+  for(int32_t i = 0; i < mapSize; i++) {
+    if (tDecodeU64(&decoder, &uid) < 0) return -1;
+    if (tDecodeI64(&decoder, &ts) < 0) return -1;
+    taosHashPut(pInfo->pMap, &uid, sizeof(uint64_t), &ts, sizeof(TSKEY));
+  }
+  ASSERT(mapSize == taosHashGetSize(pInfo->pMap));
+
+  if (tDecodeI64(&decoder, &pInfo->scanWindow.skey) < 0) return -1;
+  if (tDecodeI64(&decoder, &pInfo->scanWindow.ekey) < 0) return -1;
+  if (tDecodeU64(&decoder, &pInfo->scanGroupId) < 0) return -1;
+  if (tDecodeU64(&decoder, &pInfo->maxVersion) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
 }
