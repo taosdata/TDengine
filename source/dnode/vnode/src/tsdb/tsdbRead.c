@@ -1279,6 +1279,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
         tRowMergerInit(&merge, &fRow, pReader->pSchema);
         doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
         tRowMergerGetRow(&merge, &pTSRow);
+        freeTSRow = true;
       }
     } else if (k.ts < key) {  // k.ts < key
       doMergeMultiRows(pRow, pBlockScanInfo->uid, pIter, pDelList, &pTSRow, pReader, &freeTSRow);
@@ -1290,6 +1291,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
       doMergeRowsInBuf(pIter, pBlockScanInfo->uid, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
 
       tRowMergerGetRow(&merge, &pTSRow);
+      freeTSRow = true;
     }
   } else {  // descending order scan
     if (key < k.ts) {
@@ -1301,6 +1303,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
         tRowMergerInit(&merge, &fRow, pReader->pSchema);
         doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
         tRowMergerGetRow(&merge, &pTSRow);
+        freeTSRow = true;
       }
     } else {  // descending order: mem rows -----> imem rows ------> file block
       STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(pRow), pReader, pBlockScanInfo->uid);
@@ -1312,13 +1315,17 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
       doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
 
       tRowMergerGetRow(&merge, &pTSRow);
+      freeTSRow = true;
     }
   }
 
   tRowMergerClear(&merge);
   doAppendRowFromTSRow(pReader->pResBlock, pReader, pTSRow, uid);
 
-  taosMemoryFree(pTSRow);
+  if (freeTSRow) {
+    taosMemoryFree(pTSRow);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
