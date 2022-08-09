@@ -670,55 +670,127 @@ public class SchemalessInsertTest {
 
 TDengine Java 连接器支持订阅功能，应用 API 如下：
 
-#### 创建订阅
+#### 创建 Topic
 
 ```java
-TSDBSubscribe sub = ((TSDBConnection)conn).subscribe("topic", "select * from meters", false);
+Connection connection = DriverManager.getConnection(url, properties);
+Statement statement = connection.createStatement();
+statement.executeUpdate("create topic if not exists topic_speed as select ts, speed from speed_table");
 ```
 
 `subscribe` 方法的三个参数含义如下：
 
-- topic：订阅的主题（即名称），此参数是订阅的唯一标识
-- sql：订阅的查询语句，此语句只能是 `select` 语句，只应查询原始数据，只能按时间正序查询数据
-- restart：如果订阅已经存在，是重新开始，还是继续之前的订阅
+- topic_speed：订阅的主题（即名称），此参数是订阅的唯一标识。
+- sql：订阅的查询语句，此语句只能是 `select` 语句，只应查询原始数据，只能按时间正序查询数据。
 
-如上面的例子将使用 SQL 语句 `select * from meters` 创建一个名为 `topic` 的订阅，如果这个订阅已经存在，将继续之前的查询进度，而不是从头开始消费所有的数据。
+如上面的例子将使用 SQL 语句 `select ts, speed from speed_table` 创建一个名为 `topic_speed` 的订阅。
+
+#### 创建 Consumer
+
+```java
+Properties config = new Properties();
+config.setProperty("enable.auto.commit", "true");
+config.setProperty("group.id", "group1");
+config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.ResultDeserializer");
+
+TaosConsumer consumer = new TaosConsumer<>(config);
+```
+
+- enable.auto.commit: 是否允许自动提交。
+- group.id: consumer: 所在的 group。
+- value.deserializer: 结果集反序列化方法，可以继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer`，并指定结果集 bean，实现反序列化。也可以继承 `com.taosdata.jdbc.tmq.Deserializer`，根据 SQL 的 resultSet 自定义反序列化方式。
+- 其他参数请参考：[Consumer 参数列表](/develop/tmq#创建-consumer-以及consumer-group)
 
 #### 订阅消费数据
 
 ```java
-int total = 0;
 while(true) {
-    TSDBResultSet rs = sub.consume();
-    int count = 0;
-    while(rs.next()) {
-        count++;
-    }
-    total += count;
-    System.out.printf("%d rows consumed, total %d\n", count, total);
-    Thread.sleep(1000);
+    ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
+        for (ResultBean record : records) {
+            process(record);
+        }
 }
 ```
 
-`consume` 方法返回一个结果集，其中包含从上次 `consume` 到目前为止的所有新数据。请务必按需选择合理的调用 `consume` 的频率（如例子中的 `Thread.sleep(1000)`），否则会给服务端造成不必要的压力。
+`poll` 方法返回一个结果集，其中包含从上次 `poll` 到目前为止的所有新数据。请务必按需选择合理的调用 `poll` 的频率（如例子中的 `Duration.ofMillis(100)`），否则会给服务端造成不必要的压力。
 
 #### 关闭订阅
 
 ```java
-sub.close(true);
+consumer.close()
 ```
 
-`close` 方法关闭一个订阅。如果其参数为 `true` 表示保留订阅进度信息，后续可以创建同名订阅继续消费数据；如为 `false` 则不保留订阅进度。
-
-### 关闭资源
+### 使用示例如下：
 
 ```java
-resultSet.close();
-stmt.close();
-conn.close();
-```
+public abstract class ConsumerLoop {
+    private final TaosConsumer<ResultBean> consumer;
+    private final List<String> topics;
+    private final AtomicBoolean shutdown;
+    private final CountDownLatch shutdownLatch;
 
-> `注意务必要将 connection 进行关闭`，否则会出现连接泄露。
+    public ConsumerLoop() throws SQLException {
+        Properties config = new Properties();
+        config.setProperty("msg.with.table.name", "true");
+        config.setProperty("enable.auto.commit", "true");
+        config.setProperty("group.id", "group1");
+        config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.ResultDeserializer");
+
+        this.consumer = new TaosConsumer<>(config);
+        this.topics = Collections.singletonList("topic_speed");
+        this.shutdown = new AtomicBoolean(false);
+        this.shutdownLatch = new CountDownLatch(1);
+    }
+
+    public abstract void process(ResultBean result);
+
+    public void pollData() throws SQLException {
+        try {
+            consumer.subscribe(topics);
+
+            while (!shutdown.get()) {
+                ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
+                for (ResultBean record : records) {
+                    process(record);
+                }
+            }
+        } finally {
+             consumer.close();
+            shutdownLatch.countDown();
+        }
+    }
+
+    public void shutdown() throws InterruptedException {
+        shutdown.set(true);
+        shutdownLatch.await();
+    }
+
+    static class ResultDeserializer extends ReferenceDeserializer<ResultBean> {
+
+    }
+
+    static class ResultBean {
+        private Timestamp ts;
+        private int speed;
+
+        public Timestamp getTs() {
+            return ts;
+        }
+
+        public void setTs(Timestamp ts) {
+            this.ts = ts;
+        }
+
+        public int getSpeed() {
+            return speed;
+        }
+
+        public void setSpeed(int speed) {
+            this.speed = speed;
+        }
+    }
+}
+```
 
 ### 与连接池使用
 
