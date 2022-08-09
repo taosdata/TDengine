@@ -392,6 +392,9 @@ static void destroyDataSinkNode(SDataSinkNode* pNode) { nodesDestroyNode((SNode*
 static void destroyExprNode(SExprNode* pExpr) { taosArrayDestroy(pExpr->pAssociation); }
 
 static void destroyTableCfg(STableCfg* pCfg) {
+  if (NULL == pCfg) {
+    return;
+  }
   taosArrayDestroy(pCfg->pFuncs);
   taosMemoryFree(pCfg->pComment);
   taosMemoryFree(pCfg->pSchemas);

@@ -141,6 +141,10 @@ static void inline vnodeHandleWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   }
   if (rsp.info.handle != NULL) {
     tmsgSendRsp(&rsp);
+  } else {
+    if (rsp.pCont) {
+      rpcFreeCont(rsp.pCont);
+    }
   }
 }
 
@@ -299,6 +303,10 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
     vnodePostBlockMsg(pVnode, pMsg);
     if (rsp.info.handle != NULL) {
       tmsgSendRsp(&rsp);
+    } else {
+      if (rsp.pCont) {
+        rpcFreeCont(rsp.pCont);
+      }
     }
 
     vGTrace("vgId:%d, msg:%p is freed, code:0x%x index:%" PRId64, vgId, pMsg, rsp.code, pMsg->info.conn.applyIndex);
@@ -722,7 +730,8 @@ void vnodeSyncClose(SVnode *pVnode) { syncStop(pVnode->sync); }
 
 bool vnodeIsLeader(SVnode *pVnode) {
   if (!syncIsReady(pVnode->sync)) {
-    vDebug("vgId:%d, vnode not ready", pVnode->config.vgId);
+    vDebug("vgId:%d, vnode not ready, state:%s, restore:%d", pVnode->config.vgId, syncGetMyRoleStr(pVnode->sync),
+           syncRestoreFinish(pVnode->sync));
     return false;
   }
 
