@@ -18,7 +18,7 @@ stream_options: {
 }
 ```
 
-详细的语法规则参考 [流式计算](/taos-sql/stream/)
+详细的语法规则参考 [流式计算](../../taos-sql/stream)
 
 ## 示例一
 
