@@ -1495,7 +1495,7 @@ static const char *getCacheModelStr(int8_t cacheModel) {
   return "unknown";
 }
 
-static bool mndIsDbReady(SMnode *pMnode, SDbObj *pDb) {
+bool mndIsDbReady(SMnode *pMnode, SDbObj *pDb) {
   if (pDb->cfg.replications == 1) return true;
 
   SSdb *pSdb = pMnode->pSdb;
