@@ -56,13 +56,13 @@ To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in t
 ### Ubuntu 16.04 and above or Debian
 
 ```bash
-sudo apt-get install -y gcc cmake build-essential git libssl-dev
+sudo apt-get install -y autoconf gcc cmake build-essential git libssl-dev
 ```
 
 ### Ubuntu 14.04
 
 ```bash
-sudo apt-get install -y gcc cmake3 build-essential git binutils-2.26
+sudo apt-get install -y autoconf gcc cmake3 build-essential git binutils-2.26
 export PATH=/usr/lib/binutils-2.26/bin:$PATH
 ```
 
@@ -153,7 +153,7 @@ go env -w GOPROXY=https://goproxy.cn,direct
 
 ### Setup rust environment
 
-TDengine includees few compoments developed by Rust language. Please refer to rust-lang.org official documentation for rust environment setup.
+TDengine includees few compoments developed by Rust language. Please refer to [rust-lang.org](https://www.rust-lang.org/) official documentation for rust environment setup.
 
 ## Get the source codes
 
@@ -258,7 +258,7 @@ Please specify "x64" for 64 bits Windows or specify "x86" is for 32 bits Windows
 
 ```cmd
 mkdir debug && cd debug
-"c:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" < x64 | x86 >
+"C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" < x64 | x86 >
 cmake .. -G "NMake Makefiles"
 nmake
 ```
