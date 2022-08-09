@@ -150,6 +150,8 @@ typedef struct {
   STqOffsetVal   prepareStatus; // for tmq
   STqOffsetVal   lastStatus;    // for tmq
   SMqMetaRsp     metaRsp;       // for tmq fetching meta
+  SSchemaWrapper *schema;
+  char           tbName[TSDB_TABLE_NAME_LEN];
   SSDataBlock*   pullOverBlk;   // for streaming
   SWalFilterCond cond;
   int64_t        lastScanUid;

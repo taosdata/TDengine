@@ -189,6 +189,12 @@ int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 
 SMqMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
 
+int64_t qStreamExtractPrepareUid(qTaskInfo_t tinfo);
+
+const SSchemaWrapper* qExtractSchemaFromTask(qTaskInfo_t tinfo);
+
+const char* qExtractTbnameFromTask(qTaskInfo_t tinfo);
+
 void* qExtractReaderFromStreamScanner(void* scanner);
 
 int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);

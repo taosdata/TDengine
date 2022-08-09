@@ -156,7 +156,13 @@ typedef struct SMetaTableInfo{
   int64_t         suid;
   int64_t         uid;
   SSchemaWrapper *schema;
+  char            tbName[TSDB_TABLE_NAME_LEN];
 }SMetaTableInfo;
+
+typedef struct SIdInfo{
+  int64_t         version;
+  int32_t         index;
+}SIdInfo;
 
 typedef struct SSnapContext {
   SMeta    *pMeta;
@@ -166,6 +172,8 @@ typedef struct SSnapContext {
   int8_t    subType;
   SHashObj *idVersion;
   SHashObj *suidInfo;
+  SArray   *idList;
+  int32_t   index;
   bool      withMeta;
   bool      queryMetaOrData;    // true-get meta, false-get data
 }SSnapContext;
