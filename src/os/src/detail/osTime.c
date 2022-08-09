@@ -557,15 +557,17 @@ int64_t taosTimeSub(int64_t timeStamp, int64_t duration, char unit, int32_t prec
   return (int64_t)(mktime(&tm) * TSDB_TICK_PER_SECOND(precision));
 }
 
-
 int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision) {
   if (ekey < skey) {
     int64_t tmp = ekey;
     ekey = skey;
     skey = tmp;
   }
+
+  int64_t tz_offset = -1 * timezone * TSDB_TICK_PER_SECOND(precision);
+
   if (unit != 'n' && unit != 'y') {
-    return (int32_t)(ekey/interval - skey/interval);
+    return (int32_t)((ekey+tz_offset)/interval - (skey+tz_offset)/interval) + 1;
   }
 
   skey /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
@@ -584,7 +586,7 @@ int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char
     interval *= 12;
   }
 
-  return (int32_t)(emon/interval - smon/interval);
+  return (int32_t)(emon/interval - smon/interval) + 1;
 }
 
 int64_t taosTimeTruncate(int64_t timeStamp, const SInterval* pInterval, int32_t precision) {
