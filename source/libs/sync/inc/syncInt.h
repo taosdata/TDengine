@@ -162,6 +162,9 @@ typedef struct SSyncNode {
   // is config changing
   bool changing;
 
+  int64_t startTime;
+  int64_t lastReplicateTime;
+
 } SSyncNode;
 
 // open/close --------------
@@ -186,16 +189,18 @@ int32_t syncNodePingAll(SSyncNode* pSyncNode);
 // timer control --------------
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode);
+
 int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeResetElectTimer(SSyncNode* pSyncNode);
+
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
-int32_t syncNodeStartNowHeartbeatTimer(SSyncNode* pSyncNode);
+int32_t syncNodeStartHeartbeatTimerNow(SSyncNode* pSyncNode);
 int32_t syncNodeStartHeartbeatTimerMS(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode);
-int32_t syncNodeRestartNowHeartbeatTimer(SSyncNode* pSyncNode);
+int32_t syncNodeRestartHeartbeatTimerNow(SSyncNode* pSyncNode);
 int32_t syncNodeRestartNowHeartbeatTimerMS(SSyncNode* pSyncNode, int32_t ms);
 
 // utils --------------

@@ -154,6 +154,8 @@ void schedulerFreeJob(int64_t* jobId, int32_t errCode) {
     return;
   }
 
+  SCH_JOB_DLOG("start to free job 0x%" PRIx64 ", errCode:0x%x", *jobId, errCode);
+
   schHandleJobDrop(pJob, errCode);
   
   schReleaseJob(*jobId);
