@@ -1,4 +1,4 @@
-const { options, connect } = require("td2.0-rest-connector");
+const { options, connect } = require("@tdengine/rest");
 
 async function test() {
   options.path = "/rest/sqlt";
@@ -17,4 +17,4 @@ test();
 // output:
 // server_version() |
 // ===================
-// 2.4.0.12         |
+// 3.0.0.0          |

@@ -333,7 +333,7 @@ int32_t taosWriteMsg(TdSocketPtr pSocket, void *buf, int32_t nbytes) {
     return -1;
   }
   int32_t nleft, nwritten;
-  char *  ptr = (char *)buf;
+  char   *ptr = (char *)buf;
 
   nleft = nbytes;
 
@@ -362,7 +362,7 @@ int32_t taosReadMsg(TdSocketPtr pSocket, void *buf, int32_t nbytes) {
     return -1;
   }
   int32_t nleft, nread;
-  char *  ptr = (char *)buf;
+  char   *ptr = (char *)buf;
 
   nleft = nbytes;
 
@@ -912,7 +912,7 @@ uint32_t taosGetIpv4FromFqdn(const char *fqdn) {
 
   int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
   if (result) {
-    struct sockaddr *   sa = result->ai_addr;
+    struct sockaddr    *sa = result->ai_addr;
     struct sockaddr_in *si = (struct sockaddr_in *)sa;
     struct in_addr      ia = si->sin_addr;
     uint32_t            ip = ia.s_addr;

@@ -286,6 +286,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   if (pInst == NULL || NULL == *pInst) {
     taosThreadMutexUnlock(&appInfo.mutex);
     tscError("cluster not exist, key:%s", key);
+    taosMemoryFree(pMsg->pData);
     tFreeClientHbBatchRsp(&pRsp);
     return -1;
   }
@@ -326,7 +327,13 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
   while (pIter != NULL) {
     int64_t     *rid = pIter;
     SRequestObj *pRequest = acquireRequest(*rid);
-    if (NULL == pRequest || pRequest->killed) {
+    if (NULL == pRequest) {
+      pIter = taosHashIterate(pObj->pRequests, pIter);
+      continue;
+    }
+
+    if (pRequest->killed) {
+      releaseRequest(*rid);
       pIter = taosHashIterate(pObj->pRequests, pIter);
       continue;
     }

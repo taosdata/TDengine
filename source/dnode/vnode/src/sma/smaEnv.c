@@ -17,7 +17,7 @@
 
 typedef struct SSmaStat SSmaStat;
 
-#define SMA_MGMT_REF_NUM         10240
+#define SMA_MGMT_REF_NUM 10240
 
 extern SSmaMgmt smaMgmt;
 
@@ -171,7 +171,7 @@ int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat) {
 
 int32_t tdRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
   if (!pRSmaInfo) return 0;
-
+  
   int ref = T_REF_INC(pRSmaInfo);
   smaDebug("vgId:%d, ref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
   return 0;
@@ -183,9 +183,6 @@ int32_t tdUnRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
   int ref = T_REF_DEC(pRSmaInfo);
   smaDebug("vgId:%d, unref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
 
-  if (ref == 0) {
-    tdRemoveRSmaInfoBySuid(pSma, pRSmaInfo->suid);
-  }
   return 0;
 }
 

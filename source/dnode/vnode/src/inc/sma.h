@@ -115,24 +115,29 @@ struct SSmaStat {
 #define RSMA_FS_LOCK(r)       (&(r)->lock)
 
 struct SRSmaInfoItem {
-  void   *taskInfo;  // qTaskInfo_t
-  int64_t refId;
-  tmr_h   tmrId;
-  int32_t maxDelay;
   int8_t  level;
   int8_t  triggerStat;
+  int32_t maxDelay;
+  tmr_h   tmrId;
 };
 
 struct SRSmaInfo {
   STSchema *pTSchema;
   int64_t   suid;
+  int64_t   refId;  // refId of SRSmaStat
   int8_t    delFlag;
   T_REF_DECLARE()
   SRSmaInfoItem items[TSDB_RETENTION_L2];
+  void         *taskInfo[TSDB_RETENTION_L2];   // qTaskInfo_t
+  void         *iTaskInfo[TSDB_RETENTION_L2];  // immutable
 };
-#define RSMA_INFO_HEAD_LEN   24
-#define RSMA_INFO_IS_DEL(r)  ((r)->delFlag == 1)
-#define RSMA_INFO_SET_DEL(r) ((r)->delFlag = 1)
+
+#define RSMA_INFO_HEAD_LEN     32
+#define RSMA_INFO_IS_DEL(r)    ((r)->delFlag == 1)
+#define RSMA_INFO_SET_DEL(r)   ((r)->delFlag = 1)
+#define RSMA_INFO_QTASK(r, i)  ((r)->taskInfo[i])
+#define RSMA_INFO_IQTASK(r, i) ((r)->iTaskInfo[i])
+#define RSMA_INFO_ITEM(r, i)   (&(r)->items[i])
 
 enum {
   TASK_TRIGGER_STAT_INIT = 0,
@@ -168,8 +173,8 @@ int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat);
 int32_t tdRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo);
 int32_t tdUnRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo);
 
-void   *tdAcquireSmaRef(int32_t rsetId, int64_t refId, const char *tags, int32_t ln);
-int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId, const char *tags, int32_t ln);
+void   *tdAcquireSmaRef(int32_t rsetId, int64_t refId);
+int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId);
 
 int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType);
 
@@ -223,12 +228,11 @@ static FORCE_INLINE void tdSmaStatSetDropped(STSmaStat *pTStat) {
 
 void           tdRSmaQTaskInfoGetFileName(int32_t vid, int64_t version, char *outputName);
 void           tdRSmaQTaskInfoGetFullName(int32_t vid, int64_t version, const char *path, char *outputName);
-int32_t        tdCloneRSmaInfo(SSma *pSma, SRSmaInfo *pDest, SRSmaInfo *pSrc);
+int32_t        tdCloneRSmaInfo(SSma *pSma, SRSmaInfo **pDest, SRSmaInfo *pSrc);
 void           tdFreeQTaskInfo(qTaskInfo_t *taskHandle, int32_t vgId, int32_t level);
 static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
-void           tdRemoveRSmaInfoBySuid(SSma *pSma, int64_t suid);
 int32_t        tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
 
 int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);

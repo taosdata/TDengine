@@ -1495,8 +1495,34 @@ static const char *getCacheModelStr(int8_t cacheModel) {
   return "unknown";
 }
 
-static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, int32_t rows, int64_t numOfTables,
-                           bool sysDb, ESdbStatus objStatus, bool sysinfo) {
+bool mndIsDbReady(SMnode *pMnode, SDbObj *pDb) {
+  if (pDb->cfg.replications == 1) return true;
+
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  bool  isReady = true;
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    if (pVgroup->dbUid == pDb->uid && pVgroup->replica > 1) {
+      bool hasLeader = false;
+      for (int32_t i = 0; i < pVgroup->replica; ++i) {
+        if (pVgroup->vnodeGid[i].role == TAOS_SYNC_STATE_LEADER) {
+          hasLeader = true;
+        }
+      }
+      if (!hasLeader) isReady = false;
+    }
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  return isReady;
+}
+
+static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, int32_t rows,
+                              int64_t numOfTables, bool sysDb, ESdbStatus objStatus, bool sysinfo) {
   int32_t cols = 0;
   int32_t bytes = pShow->pMeta->pSchemas[cols].bytes;
   char   *buf = taosMemoryMalloc(bytes);
@@ -1509,8 +1535,16 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
   }
 
   char *statusStr = "ready";
-  if (objStatus == SDB_STATUS_CREATING) statusStr = "creating";
-  if (objStatus == SDB_STATUS_DROPPING) statusStr = "dropping";
+  if (objStatus == SDB_STATUS_CREATING) {
+    statusStr = "creating";
+  } else if (objStatus == SDB_STATUS_DROPPING) {
+    statusStr = "dropping";
+  } else {
+    if (!sysDb && !mndIsDbReady(pMnode, pDb)) {
+      statusStr = "unsynced";
+    }
+  }
+
   char statusVstr[24] = {0};
   STR_WITH_SIZE_TO_VARSTR(statusVstr, statusStr, strlen(statusStr));
 
@@ -1691,13 +1725,17 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   if (!pShow->sysDbRsp) {
     SDbObj infoschemaDb = {0};
     setInformationSchemaDbCfg(&infoschemaDb);
-    dumpDbInfoData(pBlock, &infoschemaDb, pShow, numOfRows, 14, true, 0, 1);
+    size_t numOfTables = 0;
+    getInfosDbMeta(NULL, &numOfTables);
+    mndDumpDbInfoData(pMnode, pBlock, &infoschemaDb, pShow, numOfRows, numOfTables, true, 0, 1);
 
     numOfRows += 1;
 
     SDbObj perfschemaDb = {0};
     setPerfSchemaDbCfg(&perfschemaDb);
-    dumpDbInfoData(pBlock, &perfschemaDb, pShow, numOfRows, 3, true, 0, 1);
+    numOfTables = 0;
+    getPerfDbMeta(NULL, &numOfTables);
+    mndDumpDbInfoData(pMnode, pBlock, &perfschemaDb, pShow, numOfRows, numOfTables, true, 0, 1);
 
     numOfRows += 1;
     pShow->sysDbRsp = true;
@@ -1710,7 +1748,7 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb) == 0) {
       int32_t numOfTables = 0;
       sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, NULL, NULL);
-      dumpDbInfoData(pBlock, pDb, pShow, numOfRows, numOfTables, false, objStatus, sysinfo);
+      mndDumpDbInfoData(pMnode, pBlock, pDb, pShow, numOfRows, numOfTables, false, objStatus, sysinfo);
       numOfRows++;
     }
 

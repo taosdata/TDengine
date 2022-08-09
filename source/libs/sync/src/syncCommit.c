@@ -92,6 +92,12 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     }
   }
 
+  // advance commit index as large as possible
+  SyncIndex walCommitVer = logStoreWalCommitVer(pSyncNode->pLogStore);
+  if (walCommitVer > newCommitIndex) {
+    newCommitIndex = walCommitVer;
+  }
+
   // maybe execute fsm
   if (newCommitIndex > pSyncNode->commitIndex) {
     SyncIndex beginIndex = pSyncNode->commitIndex + 1;

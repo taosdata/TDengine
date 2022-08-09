@@ -48,7 +48,7 @@ char *strsep(char **stringp, const char *delim) {
   /* NOTREACHED */
 }
 /* Duplicate a string, up to at most size characters */
-char *strndup(const char *s, size_t size) {
+char *strndup(const char *s, int size) {
   size_t l;
   char * s2;
   l = strlen(s);
@@ -62,7 +62,7 @@ char *strndup(const char *s, size_t size) {
 }
 /* Copy no more than N characters of SRC to DEST, returning the address of
    the terminating '\0' in DEST, if any, or else DEST + N.  */
-char *stpncpy(char *dest, const char *src, size_t n) {
+char *stpncpy(char *dest, const char *src, int n) {
   size_t size = strnlen(src, n);
   memcpy(dest, src, size);
   dest += size;

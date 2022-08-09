@@ -354,8 +354,6 @@ void  operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type);
 void *getDataMin(int32_t type);
 void *getDataMax(int32_t type);
 
-#define SET_DOUBLE_NULL(v) (*(uint64_t *)(v) = TSDB_DATA_DOUBLE_NULL)
-#define SET_BIGINT_NULL(v) (*(uint64_t *)(v) = TSDB_DATA_BIGINT_NULL)
 
 #ifdef __cplusplus
 }

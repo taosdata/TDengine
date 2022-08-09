@@ -94,9 +94,10 @@ typedef void* queue[2];
 /* Return the structure holding the given element. */
 #define QUEUE_DATA(e, type, field) ((type*)((void*)((char*)(e)-offsetof(type, field))))
 
-#define TRANS_RETRY_COUNT_LIMIT 100  // retry count limit
-#define TRANS_RETRY_INTERVAL    15   // ms retry interval
-#define TRANS_CONN_TIMEOUT      3    // connect timeout
+#define TRANS_RETRY_COUNT_LIMIT 100   // retry count limit
+#define TRANS_RETRY_INTERVAL    15    // retry interval (ms)
+#define TRANS_CONN_TIMEOUT      3     // connect timeout (s)
+#define TRANS_READ_TIMEOUT      3000  // read timeout  (ms)
 
 typedef SRpcMsg      STransMsg;
 typedef SRpcCtx      STransCtx;
@@ -104,13 +105,13 @@ typedef SRpcCtxVal   STransCtxVal;
 typedef SRpcInfo     STrans;
 typedef SRpcConnInfo STransHandleInfo;
 
-// ref mgt
-// handle
+// ref mgt handle
 typedef struct SExHandle {
   void*   handle;
   int64_t refId;
   void*   pThrd;
 } SExHandle;
+
 /*convet from fqdn to ip */
 typedef struct SCvtAddr {
   char ip[TSDB_FQDN_LEN];
