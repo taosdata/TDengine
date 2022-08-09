@@ -2395,10 +2395,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
                 doSetOperatorCompleted(pOperator);
                 break;
               }
-            } else {
-              // ignore current row, and do nothing
             }
-          } else { // it is the last row of current block
           }
         } else { // non-linear interpolation
           pSliceInfo->current =
@@ -2418,6 +2415,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
 
         if (pSliceInfo->fillType == TSDB_FILL_LINEAR) {
           doKeepLinearInfo(pSliceInfo, pBlock, i);
+          // no need to increate pSliceInfo->current here
           //pSliceInfo->current =
           //    taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
           if (i < pBlock->info.rows - 1) {
@@ -2436,10 +2434,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
                 doSetOperatorCompleted(pOperator);
                 break;
               }
-            } else {
-              // ignore current row, and do nothing
             }
-          } else { // it is the last row of current block
           }
         } else { // non-linear interpolation
           if (i < pBlock->info.rows - 1) {
@@ -2518,10 +2513,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
                   doSetOperatorCompleted(pOperator);
                   break;
                 }
-              } else {
-                // ignore current row, and do nothing
               }
-            } else { // it is the last row of current block
             }
           } else { // non-linear interpolation
             pSliceInfo->current =
@@ -2541,8 +2533,8 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
     }
 
     // check if need to interpolate after ts range
-    // except for fill(next)
-    while (pSliceInfo->current <= pSliceInfo->win.ekey && pSliceInfo->fillType != TSDB_FILL_NEXT) {
+    // except for fill(next), fill(linear)
+    while (pSliceInfo->current <= pSliceInfo->win.ekey && pSliceInfo->fillType != TSDB_FILL_NEXT && pSliceInfo->fillType != TSDB_FILL_LINEAR) {
       genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pBlock, pResBlock);
       pSliceInfo->current =
           taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
