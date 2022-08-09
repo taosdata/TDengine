@@ -573,7 +573,7 @@ int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char
     skey = tmp;
   }
   if (unit != 'n' && unit != 'y') {
-    return (int32_t)((ekey - skey) / interval);
+    return (int32_t)(ekey/interval - skey/interval);
   }
 
   skey /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
@@ -592,7 +592,7 @@ int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char
     interval *= 12;
   }
 
-  return (emon - smon) / (int32_t)interval;
+  return (int32_t)(emon/interval - smon/interval);
 }
 
 int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precision) {
