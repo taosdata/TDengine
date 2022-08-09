@@ -75,22 +75,20 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
   int32_t        code = 0;
   bool           qcontinue = true;
-  SSDataBlock   *pRes = NULL;
   uint64_t       useconds = 0;
   int32_t        i = 0;
   int32_t        execNum = 0;
   qTaskInfo_t    taskHandle = ctx->taskHandle;
   DataSinkHandle sinkHandle = ctx->sinkHandle;
 
+  SArray* pResList = taosArrayInit(4, POINTER_BYTES);
   while (true) {
     QW_TASK_DLOG("start to execTask, loopIdx:%d", i++);
-
-    pRes = NULL;
 
     // if *taskHandle is NULL, it's killed right now
     if (taskHandle) {
       qwDbgSimulateSleep();
-      code = qExecTask(taskHandle, &pRes, &useconds);
+      code = qExecTask(taskHandle, pResList, &useconds);
       if (code) {
         if (code != TSDB_CODE_OPS_NOT_SUPPORT) {
           QW_TASK_ELOG("qExecTask failed, code:%x - %s", code, tstrerror(code));
@@ -103,9 +101,8 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
 
     ++execNum;
 
-    if (NULL == pRes) {
+    if (taosArrayGetSize(pResList) == 0) {
       QW_TASK_DLOG("qExecTask end with empty res, useconds:%" PRIu64, useconds);
-
       dsEndPut(sinkHandle, useconds);
 
       QW_ERR_RET(qwHandleTaskComplete(QW_FPARAMS(), ctx));
@@ -117,18 +114,19 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
       break;
     }
 
-    int32_t rows = pRes->info.rows;
+    for(int32_t j = 0; j < taosArrayGetSize(pResList); ++j) {
+      SSDataBlock *pRes = taosArrayGetP(pResList, j);
+      ASSERT(pRes->info.rows > 0);
 
-    ASSERT(pRes->info.rows > 0);
+      SInputData inputData = {.pData = pRes};
+      code = dsPutDataBlock(sinkHandle, &inputData, &qcontinue);
+      if (code) {
+        QW_TASK_ELOG("dsPutDataBlock failed, code:%x - %s", code, tstrerror(code));
+        QW_ERR_RET(code);
+      }
 
-    SInputData inputData = {.pData = pRes};
-    code = dsPutDataBlock(sinkHandle, &inputData, &qcontinue);
-    if (code) {
-      QW_TASK_ELOG("dsPutDataBlock failed, code:%x - %s", code, tstrerror(code));
-      QW_ERR_RET(code);
+      QW_TASK_DLOG("data put into sink, rows:%d, continueExecTask:%d", pRes->info.rows, qcontinue);
     }
-
-    QW_TASK_DLOG("data put into sink, rows:%d, continueExecTask:%d", rows, qcontinue);
 
     if (!qcontinue) {
       if (queryStop) {
@@ -151,6 +149,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
     }
   }
 
+  taosArrayDestroy(pResList);
   QW_RET(code);
 }
 

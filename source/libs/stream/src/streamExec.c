@@ -43,13 +43,17 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
   }
 
   // exec
+  SArray* pResList = taosArrayInit(4, POINTER_BYTES);
   while (1) {
     SSDataBlock* output = NULL;
     uint64_t     ts = 0;
-    if (qExecTask(exec, &output, &ts) < 0) {
+
+    taosArrayClear(pResList);
+    if (qExecTask(exec, pResList, &ts) < 0) {
       ASSERT(false);
     }
-    if (output == NULL) {
+
+    if (taosArrayGetSize(pResList) == 0) {
       if (pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
         SSDataBlock             block = {0};
         const SStreamDataBlock* pRetrieveBlock = (const SStreamDataBlock*)data;
@@ -65,6 +69,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
       break;
     }
 
+    output = taosArrayGetP(pResList, 0);
     if (output->info.type == STREAM_RETRIEVE) {
       if (streamBroadcastToChildren(pTask, output) < 0) {
         // TODO
@@ -79,6 +84,8 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
     block.info.childId = pTask->selfChildId;
     taosArrayPush(pRes, &block);
   }
+
+  taosArrayDestroy(pResList);
   return 0;
 }
 
@@ -98,6 +105,7 @@ int32_t streamPipelineExec(SStreamTask* pTask, int32_t batchNum) {
 
   void* exec = pTask->exec.executor;
 
+  SArray* pResList = taosArrayInit(4, POINTER_BYTES);
   while (1) {
     SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
     if (pRes == NULL) {
@@ -107,14 +115,17 @@ int32_t streamPipelineExec(SStreamTask* pTask, int32_t batchNum) {
 
     int32_t batchCnt = 0;
     while (1) {
-      SSDataBlock* output = NULL;
-      uint64_t     ts = 0;
-      if (qExecTask(exec, &output, &ts) < 0) {
+      uint64_t ts = 0;
+      taosArrayClear(pResList);
+      if (qExecTask(exec, pResList, &ts) < 0) {
         ASSERT(0);
       }
-      if (output == NULL) break;
+
+      if (taosArrayGetSize(pResList) == 0) break;
 
       SSDataBlock block = {0};
+      SSDataBlock* output = taosArrayGetP(pResList, 0);
+
       assignOneDataBlock(&block, output);
       block.info.childId = pTask->selfChildId;
       taosArrayPush(pRes, &block);

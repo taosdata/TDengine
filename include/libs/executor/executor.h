@@ -123,7 +123,7 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* table
  * @param handle
  * @return
  */
-int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds);
+int32_t qExecTask(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds);
 
 /**
  * kill the ongoing query and free the query handle and corresponding resources automatically

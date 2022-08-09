@@ -80,14 +80,22 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVa
   }
 
   int32_t rowCnt = 0;
+  SArray* pResList = taosArrayInit(4, POINTER_BYTES);
+
   while (1) {
+    taosArrayClear(pResList);
+
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
     tqDebug("task start to execute");
-    if (qExecTask(task, &pDataBlock, &ts) < 0) {
+    if (qExecTask(task, pResList, &ts) < 0) {
       ASSERT(0);
     }
-    tqDebug("task execute end, get %p", pDataBlock);
+
+    if (taosArrayGetSize(pResList) > 0) {
+      pDataBlock = taosArrayGet(pResList, 0);
+      tqDebug("task execute end, get %p", pDataBlock);
+    }
 
     if (pDataBlock != NULL) {
       if (pRsp->withTbName) {
@@ -143,6 +151,7 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVa
     break;
   }
 
+  taosArrayDestroy(pResList);
   return 0;
 }
 

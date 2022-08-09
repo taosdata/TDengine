@@ -422,11 +422,17 @@ int waitMoment(SQInfo* pQInfo) {
 }
 #endif
 
-int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
+static void freeBlock(void* param) {
+  SSDataBlock* pBlock = *(SSDataBlock**) param;
+  blockDataDestroy(pBlock);
+}
+
+int32_t qExecTask(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   int64_t        threadId = taosGetSelfPthreadId();
 
-  *pRes = NULL;
+  taosArrayClearEx(pResList, freeBlock);
+
   int64_t curOwner = 0;
   if ((curOwner = atomic_val_compare_exchange_64(&pTaskInfo->owner, 0, threadId)) != 0) {
     qError("%s-%p execTask is now executed by thread:%p", GET_TASKID(pTaskInfo), pTaskInfo, (void*)curOwner);
@@ -457,23 +463,34 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
 
   qDebug("%s execTask is launched", GET_TASKID(pTaskInfo));
 
+  int32_t current = 0;
+  SSDataBlock* pRes = NULL;
+
   int64_t st = taosGetTimestampUs();
 
-  *pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot);
+  while((pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot)) != NULL) {
+    SSDataBlock* p = createOneDataBlock(pRes, true);
+    current += p->info.rows;
+    ASSERT(p->info.rows > 0);
+    taosArrayPush(pResList, &p);
+
+    if (current >= 4096) {
+      break;
+    }
+  }
+
   uint64_t el = (taosGetTimestampUs() - st);
 
   pTaskInfo->cost.elapsedTime += el;
-  if (NULL == *pRes) {
+  if (NULL == pRes) {
     *useconds = pTaskInfo->cost.elapsedTime;
   }
 
   cleanUpUdfs();
-
-  int32_t  current = (*pRes != NULL) ? (*pRes)->info.rows : 0;
   uint64_t total = pTaskInfo->pRoot->resultInfo.totalRows;
 
-  qDebug("%s task suspended, %d rows returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",
-         GET_TASKID(pTaskInfo), current, total, 0, el / 1000.0);
+  qDebug("%s task suspended, %d rows in %d blocks returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",
+         GET_TASKID(pTaskInfo), current, (int32_t) taosArrayGetSize(pResList), total, 0, el / 1000.0);
 
   atomic_store_64(&pTaskInfo->owner, 0);
   return pTaskInfo->code;
