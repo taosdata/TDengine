@@ -48,15 +48,17 @@ int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_ELECTION) {
     if (atomic_load_64(&ths->electTimerLogicClockUser) <= pMsg->logicClock) {
       ++(ths->electTimerCounter);
-      sInfo("vgId:%d, sync timeout, type:election count:%d", ths->vgId, ths->electTimerCounter);
+      sInfo("vgId:%d, sync timeout, type:election count:%d, electTimerLogicClockUser:%ld", ths->vgId,
+            ths->electTimerCounter, ths->electTimerLogicClockUser);
       syncNodeElect(ths);
     }
 
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_HEARTBEAT) {
     if (atomic_load_64(&ths->heartbeatTimerLogicClockUser) <= pMsg->logicClock) {
       ++(ths->heartbeatTimerCounter);
-      sInfo("vgId:%d, sync timeout, type:replicate count:%d", ths->vgId, ths->heartbeatTimerCounter);
-      syncNodeReplicate(ths);
+      sInfo("vgId:%d, sync timeout, type:replicate count:%d, heartbeatTimerLogicClockUser:%ld", ths->vgId,
+            ths->heartbeatTimerCounter, ths->heartbeatTimerLogicClockUser);
+      syncNodeReplicate(ths, true);
     }
   } else {
     sError("vgId:%d, unknown timeout-type:%d", ths->vgId, pMsg->timeoutType);

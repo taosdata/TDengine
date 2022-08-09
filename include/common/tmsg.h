@@ -227,8 +227,7 @@ typedef struct SSubmitBlk {
   int32_t sversion;   // data schema version
   int32_t dataLen;    // data part length, not including the SSubmitBlk head
   int32_t schemaLen;  // schema length, if length is 0, no schema exists
-  int16_t numOfRows;  // total number of rows in current submit block
-  int16_t padding;    // TODO just for padding here
+  int32_t numOfRows;  // total number of rows in current submit block
   char    data[];
 } SSubmitBlk;
 
@@ -256,7 +255,7 @@ typedef struct {
   int32_t sversion;   // data schema version
   int32_t dataLen;    // data part length, not including the SSubmitBlk head
   int32_t schemaLen;  // schema length, if length is 0, no schema exists
-  int16_t numOfRows;  // total number of rows in current submit block
+  int32_t numOfRows;  // total number of rows in current submit block
   // head of SSubmitBlk
   int32_t     numOfBlocks;
   const void* pMsg;
@@ -337,8 +336,10 @@ static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* p
 }
 
 static FORCE_INLINE void tDeleteSSchemaWrapper(SSchemaWrapper* pSchemaWrapper) {
-  taosMemoryFree(pSchemaWrapper->pSchema);
-  taosMemoryFree(pSchemaWrapper);
+  if (pSchemaWrapper) {
+    taosMemoryFree(pSchemaWrapper->pSchema);
+    taosMemoryFree(pSchemaWrapper);
+  }
 }
 
 static FORCE_INLINE int32_t taosEncodeSSchema(void** buf, const SSchema* pSchema) {
@@ -1368,6 +1369,7 @@ typedef struct {
   int64_t skey;
   int64_t ekey;
   int64_t version;  // for stream
+  TSKEY   watermark;// for stream
   char    data[];
 } SRetrieveTableRsp;
 
@@ -2656,6 +2658,31 @@ typedef struct {
 } SVgEpSet;
 
 typedef struct {
+  int64_t suid;
+  int8_t  level;
+} SRSmaFetchMsg;
+
+static FORCE_INLINE int32_t tEncodeSRSmaFetchMsg(SEncoder* pCoder, const SRSmaFetchMsg* pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeI64(pCoder, pReq->suid) < 0) return -1;
+  if (tEncodeI8(pCoder, pReq->level) < 0) return -1;
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+static FORCE_INLINE int32_t tDecodeSRSmaFetchMsg(SDecoder* pCoder, SRSmaFetchMsg* pReq) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeI64(pCoder, &pReq->suid) < 0) return -1;
+  if (tDecodeI8(pCoder, &pReq->level) < 0) return -1;
+
+  tEndDecode(pCoder);
+  return 0;
+}
+
+typedef struct {
   int8_t         version;       // for compatibility(default 0)
   int8_t         intervalUnit;  // MACRO: TIME_UNIT_XXX
   int8_t         slidingUnit;   // MACRO: TIME_UNIT_XXX
@@ -3053,6 +3080,7 @@ int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
 int32_t tDecodeDeleteRes(SDecoder* pCoder, SDeleteRes* pRes);
 
 typedef struct {
+  int32_t msgIdx;
   int32_t msgType;
   int32_t msgLen;
   void*   msg;
@@ -3066,12 +3094,13 @@ typedef struct {
 
 typedef struct {
   int32_t reqType;
+  int32_t msgIdx;
   int32_t msgLen;
   int32_t rspCode;
   void*   msg;
 } SBatchRsp;
 
-static FORCE_INLINE void tFreeSBatchRsp(void *p) {
+static FORCE_INLINE void tFreeSBatchRsp(void* p) {
   if (NULL == p) {
     return;
   }

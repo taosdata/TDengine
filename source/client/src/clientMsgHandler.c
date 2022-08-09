@@ -30,6 +30,10 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   setErrno(pRequest, code);
 
+  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
+    removeMeta(pRequest->pTscObj, pRequest->targetTableList);
+  }
+
   taosMemoryFree(pMsg->pData);
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
@@ -385,7 +389,7 @@ int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
       code = buildShowVariablesRsp(rsp.variables, &pRes);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, false);
+      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, true);
     }
 
     tFreeSShowVariablesRsp(&rsp);

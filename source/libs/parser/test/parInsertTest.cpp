@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <functional>
+
 #include <gtest/gtest.h>
 
 #include "mockCatalogService.h"
@@ -20,6 +22,7 @@
 #include "parInt.h"
 
 using namespace std;
+using namespace std::placeholders;
 using namespace testing;
 
 namespace {
@@ -63,7 +66,9 @@ class InsertTest : public Test {
 
   int32_t runAsync() {
     cxt_.async = true;
-    unique_ptr<SParseMetaCache, void (*)(SParseMetaCache*)> metaCache(new SParseMetaCache(), _destoryParseMetaCache);
+    bool                                                           request = true;
+    unique_ptr<SParseMetaCache, function<void(SParseMetaCache*)> > metaCache(
+        new SParseMetaCache(), std::bind(_destoryParseMetaCache, _1, cref(request)));
     code_ = parseInsertSyntax(&cxt_, &res_, metaCache.get());
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "parseInsertSyntax code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
@@ -81,6 +86,8 @@ class InsertTest : public Test {
     unique_ptr<SMetaData, void (*)(SMetaData*)> metaData(new SMetaData(), MockCatalogService::destoryMetaData);
     g_mockCatalogService->catalogGetAllMeta(catalogReq.get(), metaData.get());
 
+    metaCache.reset(new SParseMetaCache());
+    request = false;
     code_ = putMetaDataToCache(catalogReq.get(), metaData.get(), metaCache.get());
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "putMetaDataToCache code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
@@ -110,15 +117,15 @@ class InsertTest : public Test {
       SSubmitBlk* blk = (SSubmitBlk*)(submit + 1);
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         cout << "Block:" << i << endl;
-        cout << "\tuid:" << be64toh(blk->uid) << ", tid:" << be64toh(blk->suid) << ", padding:" << ntohl(blk->padding)
-             << ", sversion:" << ntohl(blk->sversion) << ", dataLen:" << ntohl(blk->dataLen)
-             << ", schemaLen:" << ntohl(blk->schemaLen) << ", numOfRows:" << ntohs(blk->numOfRows) << endl;
+        cout << "\tuid:" << be64toh(blk->uid) << ", tid:" << be64toh(blk->suid) << ", sversion:" << ntohl(blk->sversion)
+             << ", dataLen:" << ntohl(blk->dataLen) << ", schemaLen:" << ntohl(blk->schemaLen)
+             << ", numOfRows:" << ntohl(blk->numOfRows) << endl;
         blk = (SSubmitBlk*)(blk->data + ntohl(blk->dataLen));
       }
     }
   }
 
-  void checkReslut(int32_t numOfTables, int16_t numOfRows1, int16_t numOfRows2 = -1) {
+  void checkReslut(int32_t numOfTables, int32_t numOfRows1, int32_t numOfRows2 = -1) {
     SVnodeModifOpStmt* pStmt = getVnodeModifStmt(res_);
     ASSERT_EQ(pStmt->payloadType, PAYLOAD_TYPE_KV);
     ASSERT_EQ(pStmt->insertType, TSDB_QUERY_TYPE_INSERT);
@@ -134,7 +141,7 @@ class InsertTest : public Test {
       int32_t     numOfBlocks = ntohl(submit->numOfBlocks);
       SSubmitBlk* blk = (SSubmitBlk*)(submit + 1);
       for (int32_t i = 0; i < numOfBlocks; ++i) {
-        ASSERT_EQ(ntohs(blk->numOfRows), (0 == i ? numOfRows1 : (numOfRows2 > 0 ? numOfRows2 : numOfRows1)));
+        ASSERT_EQ(ntohl(blk->numOfRows), (0 == i ? numOfRows1 : (numOfRows2 > 0 ? numOfRows2 : numOfRows1)));
         blk = (SSubmitBlk*)(blk->data + ntohl(blk->dataLen));
       }
     }
@@ -144,8 +151,8 @@ class InsertTest : public Test {
   static const int max_err_len = 1024;
   static const int max_sql_len = 1024 * 1024;
 
-  static void _destoryParseMetaCache(SParseMetaCache* pMetaCache) {
-    destoryParseMetaCache(pMetaCache);
+  static void _destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request) {
+    destoryParseMetaCache(pMetaCache, request);
     delete pMetaCache;
   }
 

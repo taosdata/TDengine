@@ -481,7 +481,7 @@ int64_t metaGetTbNum(SMeta *pMeta) {
   /* int64_t num = 0; */
   /* vnodeGetAllCtbNum(pMeta->pVnode, &num); */
 
-  return pMeta->pVnode->config.vndStats.numOfCTables;
+  return pMeta->pVnode->config.vndStats.numOfCTables + pMeta->pVnode->config.vndStats.numOfNTables;
 }
 
 // N.B. Called by statusReq per second
@@ -599,9 +599,11 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid, bool deepCopy) {
   for (int i = 0; i < pSW->number; ++i) {
     smaId = *(tb_uid_t *)taosArrayGet(pSmaIds, i);
     if (metaGetTableEntryByUid(&mr, smaId) < 0) {
+      tDecoderClear(&mr.coder);
       metaWarn("vgId:%d, no entry for tbId:%" PRIi64 ", smaId:%" PRIi64, TD_VID(pMeta->pVnode), uid, smaId);
       continue;
     }
+    tDecoderClear(&mr.coder);
     pTSma = pSW->tSma + smaIdx;
     memcpy(pTSma, mr.me.smaEntry.tsma, sizeof(STSma));
     if (deepCopy) {

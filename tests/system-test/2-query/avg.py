@@ -295,7 +295,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 4.500000000)
 
         tdSql.query(f" select avg(c1) from {dbname}.stb1 where c1 is null ")
-        tdSql.checkRows(0)
+        tdSql.checkRows(1)
 
 
     def avg_func_filter(self, dbname="db"):

@@ -73,7 +73,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
       ASSERT(pEntry != NULL);
 
       // cannot commit, even if quorum agree. need check term!
-      if (pEntry->term == pSyncNode->pRaftStore->currentTerm) {
+      if (pEntry->term <= pSyncNode->pRaftStore->currentTerm) {
         // update commit index
         newCommitIndex = index;
 
@@ -90,6 +90,12 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
 
       syncEntryDestory(pEntry);
     }
+  }
+
+  // advance commit index as large as possible
+  SyncIndex walCommitVer = logStoreWalCommitVer(pSyncNode->pLogStore);
+  if (walCommitVer > newCommitIndex) {
+    newCommitIndex = walCommitVer;
   }
 
   // maybe execute fsm

@@ -161,12 +161,7 @@ git clone https://github.com/taosdata/TDengine.git
 cd TDengine
 ```
 
-Go 连接器和 Grafana 插件在其他独立仓库，如果安装它们的话，需要在 TDengine 目录下通过此命令安装：
-
-```bash
-git submodule update --init --recursive
-```
-
+Go 连接器和 Grafana 插件已移到其他独立仓库。
 如果使用 https 协议下载比较慢，可以通过修改 ~/.gitconfig 文件添加以下两行设置使用 ssh 协议下载。需要首先上传 ssh 密钥到 GitHub，详细方法请参考 GitHub 官方文档。
 
 ```
@@ -187,7 +182,6 @@ git submodule update --init --recursive
 这个脚本等价于执行如下命令：
 
 ```bash
-git submodule update --init --recursive
 mkdir debug
 cd debug
 cmake .. -DBUILD_TOOLS=true

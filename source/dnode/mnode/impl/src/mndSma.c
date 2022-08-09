@@ -489,7 +489,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   smaObj.uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
   ASSERT(smaObj.uid != 0);
   char resultTbName[TSDB_TABLE_FNAME_LEN + 16] = {0};
-  snprintf(resultTbName, TSDB_TABLE_FNAME_LEN + 16, "td.tsma.rst.tb.%s", pCreate->name);
+  snprintf(resultTbName, TSDB_TABLE_FNAME_LEN + 16, "%s_td_tsma_rst_tb",pCreate->name);
   memcpy(smaObj.dstTbName, resultTbName, TSDB_TABLE_FNAME_LEN);
   smaObj.dstTbUid = mndGenerateUid(smaObj.dstTbName, TSDB_TABLE_FNAME_LEN);
   smaObj.stbUid = pStb->uid;
@@ -602,6 +602,9 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   if (mndScheduleStream(pMnode, &streamObj) != 0) goto _OVER;
   if (mndPersistStream(pMnode, pTrans, &streamObj) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+
+  mDebug("mndSma: create sma index %s %" PRIi64 " on stb:%" PRIi64 ", dstSuid:%" PRIi64 " dstTb:%s dstVg:%d",
+         pCreate->name, smaObj.uid, smaObj.stbUid, smaObj.dstTbUid, smaObj.dstTbName, smaObj.dstVgId);
 
   code = 0;
 
@@ -795,11 +798,12 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
   pStb = mndAcquireStb(pMnode, pSma->stb);
   if (pStb == NULL) goto _OVER;
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq);
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop sma:%s", pTrans->id, pSma->name);
   mndTransSetDbName(pTrans, pDb->name, NULL);
+  mndTransSetSerial(pTrans);
 
   char streamName[TSDB_TABLE_FNAME_LEN] = {0};
   mndGetStreamNameFromSmaName(streamName, pSma->name);
@@ -812,12 +816,14 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
     if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
       mError("stream:%s, failed to drop task since %s", pStream->name, terrstr());
       sdbRelease(pMnode->pSdb, pStream);
+      ASSERT(0);
       goto _OVER;
     }
 
     // drop stream
     if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
       sdbRelease(pMnode->pSdb, pStream);
+      ASSERT(0);
       goto _OVER;
     }
   }
@@ -850,6 +856,7 @@ int32_t mndDropSmasByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
     if (pIter == NULL) break;
 
     if (pSma->stbUid == pStb->uid) {
+      mndTransSetSerial(pTrans);
       pVgroup = mndAcquireVgroup(pMnode, pSma->dstVgId);
       if (pVgroup == NULL) goto _OVER;
 

@@ -118,3 +118,4 @@ contrib/*
 !contrib/test
 sql
 debug*/
+.env

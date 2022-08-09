@@ -11,7 +11,7 @@ import TabItem from "@theme/TabItem";
 
 :::
 
-TDengine 开源版本提供 deb 和 rpm 格式安装包，用户可以根据自己的运行环境选择合适的安装包。其中 deb 支持 Debian/Ubuntu 及衍生系统，rpm 支持 CentOS/RHEL/SUSE 及衍生系统。同时我们也为企业用户提供 tar.gz 格式安装包。
+TDengine 开源版本提供 deb 和 rpm 格式安装包，用户可以根据自己的运行环境选择合适的安装包。其中 deb 支持 Debian/Ubuntu 及衍生系统，rpm 支持 CentOS/RHEL/SUSE 及衍生系统。同时我们也为企业用户提供 tar.gz 格式安装包。也支持通过 `apt-get` 工具从线上进行安装。
 
 ## 安装
 
@@ -46,114 +46,122 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统
 </TabItem>
 <TabItem label="Deb 安装" value="debinst">
 
-1、从官网下载获得 deb 安装包，例如 TDengine-server-2.4.0.7-Linux-x64.deb；
-2、进入到 TDengine-server-2.4.0.7-Linux-x64.deb 安装包所在目录，执行如下的安装命令：
+1、从官网下载获得 deb 安装包，例如 TDengine-server-3.0.0.10002-Linux-x64.deb；
+2、进入到 TDengine-server-3.0.0.10002-Linux-x64.deb 安装包所在目录，执行如下的安装命令：
 
 ```
-$ sudo dpkg -i TDengine-server-2.4.0.7-Linux-x64.deb
-(Reading database ... 137504 files and directories currently installed.)
-Preparing to unpack TDengine-server-2.4.0.7-Linux-x64.deb ...
-TDengine is removed successfully!
-Unpacking tdengine (2.4.0.7) over (2.4.0.7) ...
-Setting up tdengine (2.4.0.7) ...
+$ sudo dpkg -i TDengine-server-3.0.0.10002-Linux-x64.deb
+Selecting previously unselected package tdengine.
+(Reading database ... 119653 files and directories currently installed.)
+Preparing to unpack TDengine-server-3.0.0.10002-Linux-x64.deb ...
+Unpacking tdengine (3.0.0.10002) ...
+Setting up tdengine (3.0.0.10002) ...
 Start to install TDengine...
 
-System hostname is: ubuntu-1804
+System hostname is: v3cluster-0002
 
 Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join
 OR leave it blank to build one:
 
-Enter your email address for priority support or enter empty to skip:
+Enter your email address for priority support or enter empty to skip: 
 Created symlink /etc/systemd/system/multi-user.target.wants/taosd.service → /etc/systemd/system/taosd.service.
 
 To configure TDengine : edit /etc/taos/taos.cfg
 To start TDengine     : sudo systemctl start taosd
-To access TDengine    : taos -h ubuntu-1804 to login into TDengine server
+To access TDengine    : taos -h v3cluster-0002 to login into TDengine server
 
 
 TDengine is installed successfully!
+
 ```
 
 </TabItem>
 
 <TabItem label="RPM 安装" value="rpminst">
 
-1、从官网下载获得 rpm 安装包，例如 TDengine-server-2.4.0.7-Linux-x64.rpm；
-2、进入到 TDengine-server-2.4.0.7-Linux-x64.rpm 安装包所在目录，执行如下的安装命令：
+1、从官网下载获得 rpm 安装包，例如 TDengine-server-3.0.0.10002-Linux-x64.rpm；
+2、进入到 TDengine-server-3.0.0.10002-Linux-x64.rpm 安装包所在目录，执行如下的安装命令：
 
 ```
-$ sudo rpm -ivh TDengine-server-2.4.0.7-Linux-x64.rpm
+$ sudo rpm -ivh TDengine-server-3.0.0.10002-Linux-x64.rpm
 Preparing...                          ################################# [100%]
+Stop taosd service success!
 Updating / installing...
-   1:tdengine-2.4.0.7-3               ################################# [100%]
+   1:tdengine-3.0.0.10002-3           ################################# [100%]
 Start to install TDengine...
 
-System hostname is: centos7
+System hostname is: chenhaoran01
 
 Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join
 OR leave it blank to build one:
 
-Enter your email address for priority support or enter empty to skip:
-
+Enter your email address for priority support or enter empty to skip: 
 Created symlink from /etc/systemd/system/multi-user.target.wants/taosd.service to /etc/systemd/system/taosd.service.
 
 To configure TDengine : edit /etc/taos/taos.cfg
 To start TDengine     : sudo systemctl start taosd
-To access TDengine    : taos -h centos7 to login into TDengine server
+To access TDengine    : taos -h chenhaoran01 to login into TDengine server
 
 
 TDengine is installed successfully!
+
 ```
 
 </TabItem>
 
 <TabItem label="tar.gz 安装" value="tarinst">
 
-1、从官网下载获得 tar.gz 安装包，例如 TDengine-server-2.4.0.7-Linux-x64.tar.gz；
-2、进入到 TDengine-server-2.4.0.7-Linux-x64.tar.gz 安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本：
+1、从官网下载获得 tar.gz 安装包，例如 TDengine-server-3.0.0.10002-Linux-x64.tar.gz；
+2、进入到 TDengine-server-3.0.0.10002-Linux-x64.tar.gz 安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本：
 
 ```
-$ tar xvzf TDengine-enterprise-server-2.4.0.7-Linux-x64.tar.gz
-TDengine-enterprise-server-2.4.0.7/
-TDengine-enterprise-server-2.4.0.7/driver/
-TDengine-enterprise-server-2.4.0.7/driver/vercomp.txt
-TDengine-enterprise-server-2.4.0.7/driver/libtaos.so.2.4.0.7
-TDengine-enterprise-server-2.4.0.7/install.sh
-TDengine-enterprise-server-2.4.0.7/examples/
+$ tar -zxvf TDengine-server-3.0.0.10002-Linux-x64.tar.gz
+TDengine-server-3.0.0.10002/
+TDengine-server-3.0.0.10002/driver/
+TDengine-server-3.0.0.10002/driver/libtaos.so.3.0.0.10002
+TDengine-server-3.0.0.10002/driver/vercomp.txt
+TDengine-server-3.0.0.10002/release_note
+TDengine-server-3.0.0.10002/taos.tar.gz
+TDengine-server-3.0.0.10002/install.sh
 ...
 
 $ ll
-total 43816
-drwxrwxr-x  3 ubuntu ubuntu     4096 Feb 22 09:31 ./
-drwxr-xr-x 20 ubuntu ubuntu     4096 Feb 22 09:30 ../
-drwxrwxr-x  4 ubuntu ubuntu     4096 Feb 22 09:30 TDengine-enterprise-server-2.4.0.7/
--rw-rw-r--  1 ubuntu ubuntu 44852544 Feb 22 09:31 TDengine-enterprise-server-2.4.0.7-Linux-x64.tar.gz
+total 56832
+drwxr-xr-x 3 root root     4096 Aug  8 10:29 ./
+drwxrwxrwx 6 root root     4096 Aug  5 16:45 ../
+drwxr-xr-x 4 root root     4096 Aug  4 18:03 TDengine-server-3.0.0.10002/
+-rwxr-xr-x 1 root root 58183066 Aug  8 10:28 TDengine-server-3.0.0.10002-Linux-x64.tar.gz*
 
-$ cd TDengine-enterprise-server-2.4.0.7/
+$ cd TDengine-server-3.0.0.10002/
 
  $ ll
-total 40784
-drwxrwxr-x  4 ubuntu ubuntu     4096 Feb 22 09:30 ./
-drwxrwxr-x  3 ubuntu ubuntu     4096 Feb 22 09:31 ../
-drwxrwxr-x  2 ubuntu ubuntu     4096 Feb 22 09:30 driver/
-drwxrwxr-x 10 ubuntu ubuntu     4096 Feb 22 09:30 examples/
--rwxrwxr-x  1 ubuntu ubuntu    33294 Feb 22 09:30 install.sh*
--rw-rw-r--  1 ubuntu ubuntu 41704288 Feb 22 09:30 taos.tar.gz
+total 51612
+drwxr-xr-x  4 root root     4096 Aug  4 18:03 ./
+drwxr-xr-x  3 root root     4096 Aug  8 10:29 ../
+drwxr-xr-x  2 root root     4096 Aug  4 18:03 driver/
+drwxr-xr-x 11 root root     4096 Aug  4 18:03 examples/
+-rwxr-xr-x  1 root root    30980 Aug  4 18:03 install.sh*
+-rw-r--r--  1 root root     6724 Aug  4 18:03 release_note
+-rw-r--r--  1 root root 52793079 Aug  4 18:03 taos.tar.gz
 
 $ sudo ./install.sh
 
-Start to update TDengine...
+Start to install TDengine...
 Created symlink /etc/systemd/system/multi-user.target.wants/taosd.service → /etc/systemd/system/taosd.service.
-Nginx for TDengine is updated successfully!
+
+System hostname is: v3cluster-0002
+
+Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join
+OR leave it blank to build one:
+
+Enter your email address for priority support or enter empty to skip: 
 
 To configure TDengine : edit /etc/taos/taos.cfg
-To configure Taos Adapter (if has) : edit /etc/taos/taosadapter.toml
+To configure taosadapter (if has) : edit /etc/taos/taosadapter.toml
 To start TDengine     : sudo systemctl start taosd
-To access TDengine    : use taos -h ubuntu-1804 in shell OR from http://127.0.0.1:6060
+To access TDengine    : taos -h v3cluster-0002 to login into TDengine server
 
-TDengine is updated successfully!
-Install taoskeeper as a standalone service
-taoskeeper is installed, enable it by `systemctl enable taoskeeper`
+TDengine is installed successfully!
 ```
 
 :::info

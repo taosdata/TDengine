@@ -737,6 +737,9 @@ typedef struct STimeSliceOperatorInfo {
   SInterval      interval;
   int64_t        current;
   SArray*        pPrevRow;      // SArray<SGroupValue>
+  SArray*        pNextRow;      // SArray<SGroupValue>
+  bool           isPrevRowSet;
+  bool           isNextRowSet;
   int32_t        fillType;      // fill type
   SColumn        tsCol;         // primary timestamp column
   SExprSupp      scalarSup;     // scalar calculation
@@ -844,6 +847,7 @@ void    initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock);
 void    cleanupBasicInfo(SOptrBasicInfo* pInfo);
 int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr);
 void    cleanupExprSupp(SExprSupp* pSup);
+void    destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs);
 int32_t initAggInfo(SExprSupp *pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
                     const char* pkey);
 void    initResultSizeInfo(SResultInfo * pResultInfo, int32_t numOfRows);
@@ -986,7 +990,7 @@ int32_t decodeOperator(SOperatorInfo* ops, const char* data, int32_t length);
 
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                               const char* sql, EOPTR_EXEC_MODEL model);
+                               char* sql, EOPTR_EXEC_MODEL model);
 int32_t createDataSinkParam(SDataSinkNode *pNode, void **pParam, qTaskInfo_t* pTaskInfo, SReadHandle* readHandle);
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInfoList);
 

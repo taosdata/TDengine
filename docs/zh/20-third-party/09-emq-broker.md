@@ -17,6 +17,7 @@ MQTT 是流行的物联网数据传输协议，[EMQX](https://github.com/emqx/em
 
 用户可以根据当前的操作系统，到 EMQX 官网下载安装包，并执行安装。下载地址如下：<https://www.emqx.io/zh/downloads>。安装后使用 `sudo emqx start` 或 `sudo systemctl start emqx` 启动 EMQX 服务。
 
+注意：本文基于 EMQX v4.4.5 版本，其他版本由于相关配置界面、配置方法以及功能可能随着版本升级有所区别。
 
 ## 创建数据库和表
 
@@ -32,7 +33,7 @@ CREATE TABLE sensor_data (ts TIMESTAMP, temperature FLOAT, humidity FLOAT, volum
 
 ## 配置 EMQX 规则
 
-由于 EMQX 不同版本配置界面所有不同，这里仅以 v4.4.3 为例，其他版本请参考相应官网文档。
+由于 EMQX 不同版本配置界面所有不同，这里仅以 v4.4.5 为例，其他版本请参考相应官网文档。
 
 ### 登录 EMQX Dashboard
 

@@ -2,7 +2,7 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
+	"log"
 	"time"
 
 	_ "github.com/taosdata/driver-go/v3/taosRestful"
@@ -12,14 +12,12 @@ func main() {
 	var taosDSN = "root:taosdata@http(localhost:6041)/power"
 	taos, err := sql.Open("taosRestful", taosDSN)
 	if err != nil {
-		fmt.Println("failed to connect TDengine, err:", err)
-		return
+		log.Fatalln("failed to connect TDengine, err:", err)
 	}
 	defer taos.Close()
 	rows, err := taos.Query("SELECT ts, current FROM meters LIMIT 2")
 	if err != nil {
-		fmt.Println("failed to select from table, err:", err)
-		return
+		log.Fatalln("failed to select from table, err:", err)
 	}
 
 	defer rows.Close()
@@ -30,9 +28,9 @@ func main() {
 		}
 		err := rows.Scan(&r.ts, &r.current)
 		if err != nil {
-			fmt.Println("scan error:\n", err)
+			log.Fatalln("scan error:\n", err)
 			return
 		}
-		fmt.Println(r.ts, r.current)
+		log.Println(r.ts, r.current)
 	}
 }

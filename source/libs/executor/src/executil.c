@@ -191,6 +191,7 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
   pBlock->info.blockId = pNode->dataBlockId;
   pBlock->info.type = STREAM_INVALID;
   pBlock->info.calWin = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
+  pBlock->info.watermark = INT64_MIN;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SSlotDescNode*  pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
@@ -632,7 +633,7 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
               tListLen(pExp->pExpr->_function.functionName));
 #if 1
       // todo refactor: add the parameter for tbname function
-      if (strcmp(pExp->pExpr->_function.functionName, "tbname") == 0) {
+      if (!pFuncNode->pParameterList && (strcmp(pExp->pExpr->_function.functionName, "tbname") == 0)) {
         pFuncNode->pParameterList = nodesMakeList();
         ASSERT(LIST_LENGTH(pFuncNode->pParameterList) == 0);
         SValueNode* res = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
@@ -953,7 +954,7 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
     return w;
   }
 
-  w = getResultRowByPos(pBuf, &pResultRowInfo->cur)->win;
+  w = getResultRowByPos(pBuf, &pResultRowInfo->cur, false)->win;
 
   // in case of typical time window, we can calculate time window directly.
   if (w.skey > ts || w.ekey < ts) {

@@ -179,6 +179,7 @@
 ./test.sh -f tsim/query/scalarFunction.sim
 ./test.sh -f tsim/query/scalarNull.sim
 ./test.sh -f tsim/query/session.sim
+./test.sh -f tsim/query/udf.sim
 
 # ---- qnode
 ./test.sh -f tsim/qnode/basic1.sim
@@ -331,7 +332,7 @@
 ./test.sh -f tsim/vnode/stable_replica3_vnode3.sim
 
 # --- sync
-./test.sh -f tsim/sync/3Replica1VgElect.sim
+#./test.sh -f tsim/sync/3Replica1VgElect.sim
 #./test.sh -f tsim/sync/3Replica5VgElect.sim
 ./test.sh -f tsim/sync/oneReplica1VgElect.sim
 ./test.sh -f tsim/sync/oneReplica5VgElect.sim
