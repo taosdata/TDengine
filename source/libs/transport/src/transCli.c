@@ -1264,6 +1264,8 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         transFreeMsg(pResp->pCont);
         cliSchedMsgToNextNode(pMsg, pThrd);
         return -1;
+      } else {
+        pResp->code = TSDB_CODE_APP_NOT_READY;
       }
     }
   }
