@@ -104,9 +104,11 @@ typedef struct SDataBlockInfo {
   uint32_t    capacity;
   // TODO: optimize and remove following
   int64_t     version;  // used for stream, and need serialization
+  int64_t     ts;       // used for stream, and need serialization
   int32_t     childId;  // used for stream, do not serialize
   EStreamType type;     // used for stream, do not serialize
   STimeWindow calWin;   // used for stream, do not serialize
+  TSKEY       watermark;// used for stream
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {

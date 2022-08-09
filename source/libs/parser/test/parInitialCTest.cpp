@@ -111,6 +111,10 @@ TEST_F(ParserInitialCTest, createDatabase) {
     expect.numOfVgroups = TSDB_DEFAULT_VN_PER_DB;
     expect.numOfStables = TSDB_DEFAULT_DB_SINGLE_STABLE;
     expect.schemaless = TSDB_DEFAULT_DB_SCHEMALESS;
+    expect.walRetentionPeriod = TSDB_DEFAULT_DB_WAL_RETENTION_PERIOD;
+    expect.walRetentionSize = TSDB_DEFAULT_DB_WAL_RETENTION_SIZE;
+    expect.walRollPeriod = TSDB_DEFAULT_DB_WAL_ROLL_PERIOD;
+    expect.walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
   };
 
   auto setDbBufferFunc = [&](int32_t buffer) { expect.buffer = buffer; };

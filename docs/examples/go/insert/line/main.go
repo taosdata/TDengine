@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/taosdata/driver-go/v3/af"
 )
@@ -33,6 +34,6 @@ func main() {
 
 	err = conn.InfluxDBInsertLines(lines, "ms")
 	if err != nil {
-		fmt.Println("insert error:", err)
+		log.Fatalln("insert error:", err)
 	}
 }

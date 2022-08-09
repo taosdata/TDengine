@@ -284,7 +284,6 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 
   for (int32_t i = 0; i < parentNum; ++i) {
     SSchTask *parent = *(SSchTask **)taosArrayGet(pTask->parents, i);
-    int32_t   readyNum = atomic_add_fetch_32(&parent->childReady, 1);
 
     SCH_LOCK(SCH_WRITE, &parent->planLock);
     SDownstreamSourceNode source = {
@@ -297,6 +296,8 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     };
     qSetSubplanExecutionNode(parent->plan, pTask->plan->id.groupId, &source);
     SCH_UNLOCK(SCH_WRITE, &parent->planLock);
+
+    int32_t readyNum = atomic_add_fetch_32(&parent->childReady, 1);
 
     if (SCH_TASK_READY_FOR_LAUNCH(readyNum, parent)) {
       SCH_TASK_DLOG("all %d children task done, start to launch parent task 0x%" PRIx64, readyNum, parent->taskId);
@@ -410,7 +411,7 @@ int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32
     if (pJob->fetched) {
       SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
       SCH_TASK_ELOG("already fetched while got error %s", tstrerror(rspCode));
-      SCH_ERR_RET(rspCode);
+      SCH_ERR_JRET(rspCode);
     }
     SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
 
@@ -536,6 +537,7 @@ int32_t schMoveTaskToExecList(SSchJob *pJob, SSchTask *pTask, bool *moved) {
 int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bool *needRetry) {
   if (TSDB_CODE_SCH_TIMEOUT_ERROR == errCode) {
     pTask->maxExecTimes++;
+    pTask->maxRetryTimes++;
     if (pTask->timeoutUsec < SCH_MAX_TASK_TIMEOUT_USEC) {
       pTask->timeoutUsec *= 2;
       if (pTask->timeoutUsec > SCH_MAX_TASK_TIMEOUT_USEC) {

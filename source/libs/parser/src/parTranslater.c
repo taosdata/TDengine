@@ -1253,20 +1253,21 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
   if (!fmIsRepeatScanFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
-  if (isSelectStmt(pCxt->pCurrStmt)) {
-    // select percentile() without from clause is also valid
-    if (NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) {
-      return TSDB_CODE_SUCCESS;
-    }
-    SNode* pTable = ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable;
-    if (QUERY_NODE_REAL_TABLE == nodeType(pTable) &&
-        (TSDB_CHILD_TABLE == ((SRealTableNode*)pTable)->pMeta->tableType ||
-         TSDB_NORMAL_TABLE == ((SRealTableNode*)pTable)->pMeta->tableType)) {
-      return TSDB_CODE_SUCCESS;
-    }
+  if (!isSelectStmt(pCxt->pCurrStmt)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
+                                   "%s is only supported in single table query", pFunc->functionName);
   }
-  return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
-                                 "%s is only supported in single table query", pFunc->functionName);
+  SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+  SNode*       pTable = pSelect->pFromTable;
+  // select percentile() without from clause is also valid
+  if ((NULL != pTable && (QUERY_NODE_REAL_TABLE != nodeType(pTable) ||
+                          (TSDB_CHILD_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
+                           TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType))) ||
+      NULL != pSelect->pPartitionByList) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
+                                   "%s is only supported in single table query", pFunc->functionName);
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static bool isStar(SNode* pNode) {
@@ -2509,9 +2510,31 @@ static EDealRes checkStateExpr(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t translateStateWindow(STranslateContext* pCxt, SStateWindowNode* pState) {
+static bool isPartitionByTbname(SNodeList* pPartitionByList) {
+  if (1 != LIST_LENGTH(pPartitionByList)) {
+    return false;
+  }
+  SNode* pPartKey = nodesListGetNode(pPartitionByList, 0);
+  return QUERY_NODE_FUNCTION == nodeType(pPartKey) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pPartKey)->funcType;
+}
+
+static int32_t checkStateWindowForStream(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (!pCxt->createStream) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
+      !isPartitionByTbname(pSelect->pPartitionByList)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateStateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  SStateWindowNode* pState = (SStateWindowNode*)pSelect->pWindow;
   nodesWalkExprPostOrder(pState->pExpr, checkStateExpr, pCxt);
-  // todo check for "function not support for state_window"
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pCxt->errCode = checkStateWindowForStream(pCxt, pSelect);
+  }
   return pCxt->errCode;
 }
 
@@ -2522,14 +2545,13 @@ static int32_t translateSessionWindow(STranslateContext* pCxt, SSessionWindowNod
   if (PRIMARYKEY_TIMESTAMP_COL_ID != pSession->pCol->colId) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SESSION_COL);
   }
-  // todo check for "function not support for session"
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   switch (nodeType(pSelect->pWindow)) {
     case QUERY_NODE_STATE_WINDOW:
-      return translateStateWindow(pCxt, (SStateWindowNode*)pSelect->pWindow);
+      return translateStateWindow(pCxt, pSelect);
     case QUERY_NODE_SESSION_WINDOW:
       return translateSessionWindow(pCxt, (SSessionWindowNode*)pSelect->pWindow);
     case QUERY_NODE_INTERVAL_WINDOW:
@@ -2544,7 +2566,6 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
   }
-  pSelect->isTimeLineResult = true;
   pCxt->currClause = SQL_CLAUSE_WINDOW;
   int32_t code = translateExpr(pCxt, &pSelect->pWindow);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2615,7 +2636,6 @@ static int32_t translatePartitionBy(STranslateContext* pCxt, SSelectStmt* pSelec
   if (NULL == pSelect->pPartitionByList) {
     return TSDB_CODE_SUCCESS;
   }
-  pSelect->isTimeLineResult = false;
   pCxt->currClause = SQL_CLAUSE_PARTITION_BY;
   return translateExprList(pCxt, pSelect->pPartitionByList);
 }
@@ -4686,6 +4706,12 @@ static int32_t translateKillTransaction(STranslateContext* pCxt, SKillStmt* pStm
   return buildCmdMsg(pCxt, TDMT_MND_KILL_TRANS, (FSerializeFunc)tSerializeSKillTransReq, &killReq);
 }
 
+static bool crossTableWithoutAggOper(SSelectStmt* pSelect) {
+  return NULL == pSelect->pWindow && !pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc &&
+         !pSelect->hasInterpFunc && TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
+         !isPartitionByTbname(pSelect->pPartitionByList);
+}
+
 static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   if (NULL != pStmt->pOptions->pWatermark &&
       (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStmt->pOptions->pWatermark))) {
@@ -4701,14 +4727,12 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     return TSDB_CODE_SUCCESS;
   }
 
-  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt->pQuery)) {
-    SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
-    if (QUERY_NODE_REAL_TABLE == nodeType(pSelect->pFromTable)) {
-      return TSDB_CODE_SUCCESS;
-    }
+  if (QUERY_NODE_SELECT_STMT != nodeType(pStmt->pQuery) ||
+      QUERY_NODE_REAL_TABLE != nodeType(((SSelectStmt*)pStmt->pQuery)->pFromTable)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
   }
 
-  return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY);
+  return TSDB_CODE_SUCCESS;
 }
 
 static void getSourceDatabase(SNode* pStmt, int32_t acctId, char* pDbFName) {
@@ -4737,11 +4761,22 @@ static int32_t addWstartTsToCreateStreamQuery(SNode* pStmt) {
   return code;
 }
 
+static int32_t checkStreamQuery(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (TSDB_DATA_TYPE_TIMESTAMP != ((SExprNode*)nodesListGetNode(pSelect->pProjectionList, 0))->resType.type ||
+      !pSelect->isTimeLineResult || crossTableWithoutAggOper(pSelect)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t buildCreateStreamQuery(STranslateContext* pCxt, SNode* pStmt, SCMCreateStreamReq* pReq) {
   pCxt->createStream = true;
   int32_t code = addWstartTsToCreateStreamQuery(pStmt);
   if (TSDB_CODE_SUCCESS == code) {
     code = translateQuery(pCxt, pStmt);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkStreamQuery(pCxt, (SSelectStmt*)pStmt);
   }
   if (TSDB_CODE_SUCCESS == code) {
     getSourceDatabase(pStmt, pCxt->pParseCxt->acctId, pReq->sourceDB);

@@ -381,6 +381,8 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
     terrno = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
     metaReaderClear(&mr);
     return -1;
+  } else if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+    terrno = TSDB_CODE_SUCCESS;
   }
   metaReaderClear(&mr);
 

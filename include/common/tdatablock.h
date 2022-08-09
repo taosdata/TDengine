@@ -246,7 +246,7 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag);
 // for debug
 char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf);
 
-int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema* pTSchema, int32_t vgId,
+int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataBlocks, STSchema* pTSchema, int32_t vgId,
                                     tb_uid_t suid);
 
 char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId);

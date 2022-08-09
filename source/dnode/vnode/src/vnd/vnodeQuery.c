@@ -273,6 +273,9 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   }
 
   for (int32_t i = 0; i < msgNum; ++i) {
+    req.msgIdx = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
+    offset += sizeof(req.msgIdx);
+
     req.msgType = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
     offset += sizeof(req.msgType);
 
@@ -301,6 +304,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
         break;
     }
 
+    rsp.msgIdx = req.msgIdx;
     rsp.reqType = reqMsg.msgType;
     rsp.msgLen = reqMsg.contLen;
     rsp.rspCode = reqMsg.code;
@@ -327,6 +331,8 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
 
     *(int32_t *)((char *)pRsp + offset) = htonl(p->reqType);
     offset += sizeof(p->reqType);
+    *(int32_t *)((char *)pRsp + offset) = htonl(p->msgIdx);
+    offset += sizeof(p->msgIdx);
     *(int32_t *)((char *)pRsp + offset) = htonl(p->msgLen);
     offset += sizeof(p->msgLen);
     *(int32_t *)((char *)pRsp + offset) = htonl(p->rspCode);
@@ -467,7 +473,7 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
     int numOfCols = 0;
     vnodeGetStbColumnNum(pVnode, id, &numOfCols);
 
-    *num += ctbNum * numOfCols;
+    *num += ctbNum * (numOfCols - 1);
   }
 
   metaCloseStbCursor(pCur);

@@ -124,8 +124,7 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
   SDB_SET_INT8(pRaw, dataPos, pTrans->exec, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pTrans->oper, _OVER)
   SDB_SET_INT8(pRaw, dataPos, 0, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, 0, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, 0, _OVER)
+  SDB_SET_INT16(pRaw, dataPos, pTrans->originRpcType, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pTrans->createdTime, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname1, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname2, TSDB_TABLE_FNAME_LEN, _OVER)
@@ -282,13 +281,12 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT8(pRaw, dataPos, &exec, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &oper, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &reserved, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &reserved, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &reserved, _OVER)
   pTrans->stage = stage;
   pTrans->policy = policy;
   pTrans->conflict = conflict;
   pTrans->exec = exec;
   pTrans->oper = oper;
+  SDB_GET_INT16(pRaw, dataPos, &pTrans->originRpcType, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pTrans->createdTime, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pTrans->dbname1, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pTrans->dbname2, TSDB_TABLE_FNAME_LEN, _OVER)
@@ -611,6 +609,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
 
   if (pReq != NULL) {
     taosArrayPush(pTrans->pRpcArray, &pReq->info);
+    pTrans->originRpcType = pReq->msgType;
   }
   mTrace("trans:%d, local object is created, data:%p", pTrans->id, pTrans);
   return pTrans;
@@ -908,6 +907,23 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
           rspMsg.pCont = rpcCont;
           rspMsg.contLen = pTrans->rpcRspLen;
         }
+      }
+
+      if (pTrans->originRpcType == TDMT_MND_CREATE_DB) {
+        mDebug("trans:%d, origin msgtype:%s", pTrans->id, TMSG_INFO(pTrans->originRpcType));
+        SDbObj *pDb = mndAcquireDb(pMnode, pTrans->dbname1);
+        if (pDb != NULL) {
+          for (int32_t j = 0; j < 12; j++) {
+            bool ready = mndIsDbReady(pMnode, pDb);
+            if (!ready) {
+              mDebug("trans:%d, db:%s not ready yet, wait %d times", pTrans->id, pTrans->dbname1, j);
+              taosMsleep(1000);
+            } else {
+              break;
+            }
+          }
+        }
+        mndReleaseDb(pMnode, pDb);
       }
 
       tmsgSendRsp(&rspMsg);

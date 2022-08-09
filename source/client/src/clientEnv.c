@@ -60,7 +60,7 @@ static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
 }
 
 static void deregisterRequest(SRequestObj *pRequest) {
-  const static int64_t SLOW_QUERY_INTERVAL = 3000000L; // todo configurable
+  const static int64_t SLOW_QUERY_INTERVAL = 3000000L;  // todo configurable
   assert(pRequest != NULL);
 
   STscObj            *pTscObj = pRequest->pTscObj;
@@ -77,13 +77,13 @@ static void deregisterRequest(SRequestObj *pRequest) {
   if (QUERY_NODE_VNODE_MODIF_STMT == pRequest->stmtType) {
     atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
   } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
-    atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);           
+    atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
   }
-  
+
   if (duration >= SLOW_QUERY_INTERVAL) {
     atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
   }
-  
+
   releaseTscObj(pTscObj->id);
 }
 
@@ -109,6 +109,14 @@ static bool clientRpcRfp(int32_t code, tmsg_t msgType) {
   }
 }
 
+// start timer for particular msgType
+static bool clientRpcTfp(int32_t code, tmsg_t msgType) {
+  if (msgType == TDMT_VND_SUBMIT || msgType == TDMT_VND_CREATE_TABLE) {
+    return true;
+  }
+  return false;
+}
+
 // TODO refactor
 void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   SRpcInit rpcInit;
@@ -118,6 +126,7 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.numOfThreads = numOfThread;
   rpcInit.cfp = processMsgFromServer;
   rpcInit.rfp = clientRpcRfp;
+  // rpcInit.tfp = clientRpcTfp;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
@@ -375,7 +384,7 @@ void taos_init_imp(void) {
   initQueryModuleMsgHandle();
 
   taosConvInit();
-  
+
   rpcInit();
 
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
