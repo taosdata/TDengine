@@ -157,7 +157,7 @@ taos> select avg(current), max(voltage), min(phase) from test.meters;
 查询 location="California.SanFrancisco" 的记录总条数：
 
 ```sql
-taos> select count(*) from test.meters where location="California.SanFrancisco";
+taos> select count(*) from test.meters where location="San Francisco";
 ```
 
 查询 groupId=10 的所有记录的平均值、最大值、最小值等：
