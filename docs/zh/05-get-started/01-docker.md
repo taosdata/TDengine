@@ -104,7 +104,7 @@ docker run -d --network=host --name tdengine-taosd -e TAOS_DISABLE_ADAPTER=true 
    
    ```
 
-   该命令将在数据库 test 下面自动创建一张超级表 meters，该超级表下有 1 万张表，表名为 "d0" 到 "d9999"，每张表有 1 万条记录，每条记录有 (ts, current, voltage, phase) 四个字段，时间戳从 "2017-07-14 10:40:00 000" 到 "2017-07-14 10:40:09 999"，每张表带有标签 location 和 groupId，groupId 被设置为 1 到 10， location 被设置为 "San Francisco" 或者 "Los Angeles"。
+   该命令将在数据库 test 下面自动创建一张超级表 meters，该超级表下有 1 万张表，表名为 "d0" 到 "d9999"，每张表有 1 万条记录，每条记录有 (ts, current, voltage, phase) 四个字段，时间戳从 "2017-07-14 10:40:00 000" 到 "2017-07-14 10:40:09 999"，每张表带有标签 location 和 groupId，groupId 被设置为 1 到 10， location 被设置为 "San Francisco" 或者 "Los Angeles"等城市名称。
 
    这条命令很快完成 1 亿条记录的插入。具体时间取决于硬件性能。
 
@@ -126,7 +126,7 @@ taos> select count(*) from test.meters;
 taos> select avg(current), max(voltage), min(phase) from test.meters;
 ```
 
-查询 location="California.SanFrancisco" 的记录总条数：
+查询 location="San Francisco" 的记录总条数：
 
 ```sql
 taos> select count(*) from test.meters where location="San Francisco";
