@@ -777,24 +777,13 @@ int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec) {
   }
 }
 
+#if 0
 int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTaskRecoverReq* pReq = pMsg->pCont;
   int32_t                taskId = pReq->taskId;
   SStreamTask*           pTask = streamMetaGetTask(pTq->pStreamMeta, taskId);
   if (pTask) {
     streamProcessRecoverReq(pTask, pReq, pMsg);
-    return 0;
-  } else {
-    return -1;
-  }
-}
-
-int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
-  SStreamDispatchRsp* pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-  int32_t             taskId = pRsp->taskId;
-  SStreamTask*        pTask = streamMetaGetTask(pTq->pStreamMeta, taskId);
-  if (pTask) {
-    streamProcessDispatchRsp(pTask, pRsp);
     return 0;
   } else {
     return -1;
@@ -808,6 +797,19 @@ int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTask* pTask = streamMetaGetTask(pTq->pStreamMeta, taskId);
   if (pTask) {
     streamProcessRecoverRsp(pTask, pRsp);
+    return 0;
+  } else {
+    return -1;
+  }
+}
+#endif
+
+int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
+  SStreamDispatchRsp* pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t             taskId = pRsp->taskId;
+  SStreamTask*        pTask = streamMetaGetTask(pTq->pStreamMeta, taskId);
+  if (pTask) {
+    streamProcessDispatchRsp(pTask, pRsp);
     return 0;
   } else {
     return -1;
@@ -873,6 +875,8 @@ void vnodeEnqueueStreamMsg(SVnode* pVnode, SRpcMsg* pMsg) {
         .code = 0,
     };
     streamProcessDispatchReq(pTask, &req, &rsp, false);
+    rpcFreeCont(pMsg->pCont);
+    taosFreeQitem(pMsg);
     return;
   }
 
@@ -883,4 +887,6 @@ FAIL:
       .info = pMsg->info,
   };
   tmsgSendRsp(&rsp);
+  rpcFreeCont(pMsg->pCont);
+  taosFreeQitem(pMsg);
 }

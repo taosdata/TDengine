@@ -229,6 +229,7 @@ int32_t streamProcessRunReq(SStreamTask* pTask) {
   return 0;
 }
 
+#if 0
 int32_t streamProcessRecoverReq(SStreamTask* pTask, SStreamTaskRecoverReq* pReq, SRpcMsg* pRsp) {
   void* buf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamTaskRecoverRsp));
   ((SMsgHead*)buf)->vgId = htonl(pReq->upstreamNodeId);
@@ -267,6 +268,7 @@ int32_t streamProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp)
 
   return 0;
 }
+#endif
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pRsp) {
   qDebug("task %d receive retrieve req from node %d task %d", pTask->taskId, pReq->srcNodeId, pReq->srcTaskId);
