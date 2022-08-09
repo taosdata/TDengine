@@ -7,7 +7,7 @@
 ./test.sh -f tsim/user/privilege_db.sim
 ./test.sh -f tsim/user/privilege_sysinfo.sim
 
-# ---- db
+# ---- db ----
 ./test.sh -f tsim/db/alter_option.sim
 # unsupport ./test.sh -f tsim/db/alter_replica_13.sim
 # unsupport ./test.sh -f tsim/db/alter_replica_31.sim
