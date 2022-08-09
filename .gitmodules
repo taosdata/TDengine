@@ -24,4 +24,4 @@
 	url = https://github.com/Yurunsoft/tdengine-restful-connector.git
 [submodule "src/plugins/taosws-rs"]
 	path = src/plugins/taosws-rs
-	url = https://github.com/taosdata/taosws-rs
+	url = https://github.com/taosdata/taos-connector-rust
