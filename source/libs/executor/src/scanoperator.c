@@ -2665,10 +2665,16 @@ _error:
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
                                 const char* idStr) {
+
+  int64_t st = taosGetTimestampUs();
+
   int32_t code = getTableList(pHandle->meta, pHandle->vnode, pScanNode, pTagCond, pTagIndexCond, pTableListInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
+
+  int64_t st1 = taosGetTimestampUs();
+  qDebug("generate queried table list completed, elapsed time:%.2f ms %s", (st1-st)/1000.0, idStr);
 
   if (taosArrayGetSize(pTableListInfo->pTableList) == 0) {
     qDebug("no table qualified for query, %s" PRIx64, idStr);
@@ -2680,6 +2686,9 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
+
+  int64_t st2 = taosGetTimestampUs();
+  qDebug("generate group id map completed, elapsed time:%.2f ms %s", (st2-st1)/1000.0, idStr);
 
   return TSDB_CODE_SUCCESS;
 }
