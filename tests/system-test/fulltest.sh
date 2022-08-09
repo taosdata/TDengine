@@ -90,6 +90,12 @@ python3 ./test.py -f 2-query/distribute_agg_max.py
 python3 ./test.py -f 2-query/distribute_agg_max.py -R
 python3 ./test.py -f 2-query/distribute_agg_min.py
 python3 ./test.py -f 2-query/distribute_agg_min.py -R
+python3 ./test.py -f 2-query/distribute_agg_spread.py
+python3 ./test.py -f 2-query/distribute_agg_spread.py -R
+python3 ./test.py -f 2-query/distribute_agg_stddev.py
+python3 ./test.py -f 2-query/distribute_agg_stddev.py -R
+python3 ./test.py -f 2-query/distribute_agg_sum.py
+python3 ./test.py -f 2-query/distribute_agg_sum.py -R
 
 
 
@@ -156,9 +162,6 @@ python3 ./test.py -f 2-query/function_stateduration.py
 python3 ./test.py -f 2-query/statecount.py
 python3 ./test.py -f 2-query/tail.py
 python3 ./test.py -f 2-query/ttl_comment.py
-python3 ./test.py -f 2-query/distribute_agg_sum.py
-python3 ./test.py -f 2-query/distribute_agg_spread.py
-python3 ./test.py -f 2-query/distribute_agg_stddev.py
 python3 ./test.py -f 2-query/twa.py
 python3 ./test.py -f 2-query/irate.py
 python3 ./test.py -f 2-query/function_null.py
@@ -195,7 +198,7 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeRecreateMnode.py  -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStopFollowerLeader.py  -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py  -N 5 -M 3
 
-# vnode case 
+# vnode case
 python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_createDb_replica1.py -N 4 -M 1
 python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica1_insertdatas.py -N 4 -M 1
 python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica1_insertdatas_querys.py -N 4 -M 1
@@ -214,9 +217,9 @@ python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_query
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_mnode3_insertdatas_querys.py -N 4 -M 1
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_querydatas_stop_follower_force_stop.py -N 4 -M 1
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_querydatas_stop_follower.py -N 4 -M 1
-# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_querydatas_stop_leader_force_stop.py -N 4 -M 1 
-# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_querydatas_stop_leader.py -N 4 -M 1 
-python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_vgroups.py  -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_querydatas_stop_leader_force_stop.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_querydatas_stop_leader.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_vgroups.py  -N 4 -M 1
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_vgroups_stopOne.py -N 4 -M 1
 
 

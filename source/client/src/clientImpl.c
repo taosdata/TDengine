@@ -283,7 +283,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
 
   int32_t code = qExecCommand(pQuery->pRoot, &pRsp);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
-    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, false);
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
   }
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
@@ -1308,8 +1308,8 @@ int32_t doProcessMsgFromServer(void* param) {
   char      tbuf[40] = {0};
   TRACE_TO_STR(trace, tbuf);
 
-  tscDebug("processMsgFromServer handle %p, message: %s, code: %s, gtid: %s", pMsg->info.handle,
-           TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code), tbuf);
+  tscDebug("processMsgFromServer handle %p, message: %s, size:%d, code: %s, gtid: %s", pMsg->info.handle,
+           TMSG_INFO(pMsg->msgType), pMsg->contLen, tstrerror(pMsg->code), tbuf);
 
   if (pSendInfo->requestObjRefId != 0) {
     SRequestObj* pRequest = (SRequestObj*)taosAcquireRef(clientReqRefPool, pSendInfo->requestObjRefId);
@@ -1922,7 +1922,7 @@ _OVER:
   return code;
 }
 
-int32_t appendTbToReq(SArray* pList, int32_t pos1, int32_t len1, int32_t pos2, int32_t len2, const char* str,
+int32_t appendTbToReq(SHashObj* pHash, int32_t pos1, int32_t len1, int32_t pos2, int32_t len2, const char* str,
                       int32_t acctId, char* db) {
   SName name;
 
@@ -1957,20 +1957,33 @@ int32_t appendTbToReq(SArray* pList, int32_t pos1, int32_t len1, int32_t pos2, i
     return -1;
   }
 
-  taosArrayPush(pList, &name);
+  char dbFName[TSDB_DB_FNAME_LEN];
+  sprintf(dbFName, "%d.%.*s", acctId, dbLen, dbName);
+
+  STablesReq* pDb = taosHashGet(pHash, dbFName, strlen(dbFName));
+  if (pDb) {
+    taosArrayPush(pDb->pTables, &name);
+  } else {
+    STablesReq db;
+    db.pTables = taosArrayInit(20, sizeof(SName));
+    strcpy(db.dbFName, dbFName);
+    taosArrayPush(db.pTables, &name);
+    taosHashPut(pHash, dbFName, strlen(dbFName), &db, sizeof(db));
+  }
 
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq) {
-  *pReq = taosArrayInit(10, sizeof(SName));
-  if (NULL == *pReq) {
+  SHashObj* pHash = taosHashInit(3, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  if (NULL == pHash) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
   bool    inEscape = false;
   int32_t code = 0;
+  void *pIter = NULL;
 
   int32_t vIdx = 0;
   int32_t vPos[2];
@@ -1985,7 +1998,7 @@ int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, 
         vLen[vIdx] = i - vPos[vIdx];
       }
 
-      code = appendTbToReq(*pReq, vPos[0], vLen[0], vPos[1], vLen[1], tbList, acctId, dbName);
+      code = appendTbToReq(pHash, vPos[0], vLen[0], vPos[1], vLen[1], tbList, acctId, dbName);
       if (code) {
         goto _return;
       }
@@ -2035,7 +2048,7 @@ int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, 
         vLen[vIdx] = i - vPos[vIdx];
       }
 
-      code = appendTbToReq(*pReq, vPos[0], vLen[0], vPos[1], vLen[1], tbList, acctId, dbName);
+      code = appendTbToReq(pHash, vPos[0], vLen[0], vPos[1], vLen[1], tbList, acctId, dbName);
       if (code) {
         goto _return;
       }
@@ -2067,14 +2080,31 @@ int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, 
     goto _return;
   }
 
+  int32_t dbNum = taosHashGetSize(pHash);
+  *pReq = taosArrayInit(dbNum, sizeof(STablesReq));
+  pIter = taosHashIterate(pHash, NULL);
+  while (pIter) {
+    STablesReq* pDb = (STablesReq*)pIter;
+    taosArrayPush(*pReq, pDb);
+    pIter = taosHashIterate(pHash, pIter);
+  }
+
+  taosHashCleanup(pHash);
+
   return TSDB_CODE_SUCCESS;
 
 _return:
 
   terrno = TSDB_CODE_TSC_INVALID_OPERATION;
 
-  taosArrayDestroy(*pReq);
-  *pReq = NULL;
+  pIter = taosHashIterate(pHash, NULL);
+  while (pIter) {
+    STablesReq* pDb = (STablesReq*)pIter;
+    taosArrayDestroy(pDb->pTables);
+    pIter = taosHashIterate(pHash, pIter);
+  }
+
+  taosHashCleanup(pHash);
 
   return terrno;
 }
