@@ -22,7 +22,7 @@ stream_options: {
 
 ## 示例一
 
-查找过去 12 小时电表电压大于 220V 的记录条数和电流的最大值，并对采集的数据按时间窗口聚合。
+企业电表的数据经常都是成百上千亿条的，那么想要将这些分散、凌乱的数据清洗或转换都需要比较长的时间，很难做到高效性和实时性，以下例子中，通过流计算可以将过去 12 小时电表电压大于 220V 的数据清洗掉，然后以小时为窗口整合并计算出每个窗口中电流的最大值，并将结果输出到指定的数据表中。
 
 ### 创建 DB 和原始数据表
 
@@ -42,18 +42,18 @@ create table stream_db.d1003 using stream_db.meters tags("shanghai", 3);
 ### 创建流
 
 ```sql
-create stream stream1 into stream_db.stream1_output_stb as select _wstart as start, count(voltage), max(current) from stream_db.meters where voltage > 220 and ts > now - 12h interval (1h);
+create stream stream1 into stream_db.stream1_output_stb as select _wstart as start, _wend as end, max(current) as max_current from stream_db.meters where voltage <= 220 and ts > now - 12h interval (1h);
 ```
 
 ### 写入数据
 ```sql
 insert into stream_db.d1001 values(now-14h, 10.3, 210);
-insert into stream_db.d1001 values(now-13h, 13.5, 226);
-insert into stream_db.d1001 values(now-12h, 12.5, 221);
+insert into stream_db.d1001 values(now-13h, 13.5, 216);
+insert into stream_db.d1001 values(now-12h, 12.5, 219);
 insert into stream_db.d1002 values(now-11h, 14.7, 221);
-insert into stream_db.d1002 values(now-10h, 10.5, 219);
-insert into stream_db.d1002 values(now-9h, 11.2, 217);
-insert into stream_db.d1003 values(now-8h, 11.5, 222);
+insert into stream_db.d1002 values(now-10h, 10.5, 218);
+insert into stream_db.d1002 values(now-9h, 11.2, 220);
+insert into stream_db.d1003 values(now-8h, 11.5, 217);
 insert into stream_db.d1003 values(now-7h, 12.3, 227);
 insert into stream_db.d1003 values(now-6h, 12.3, 215);
 ```
@@ -61,12 +61,13 @@ insert into stream_db.d1003 values(now-6h, 12.3, 215);
 ### 查询以观查结果
 ```sql
 taos> select * from stream_db.stream1_output_stb;
-          start          |    count(voltage)     |     max(current)     |       group_id        |
-=================================================================================================
- 2022-08-08 08:00:00.000 |                     1 |             14.70000 |                     0 |
- 2022-08-08 11:00:00.000 |                     1 |             11.50000 |                     0 |
- 2022-08-08 12:00:00.000 |                     1 |             12.30000 |                     0 |
-Query OK, 3 rows in database (0.008239s)
+          start          |           end           |     max_current      |       group_id        |
+===================================================================================================
+ 2022-08-09 14:00:00.000 | 2022-08-09 15:00:00.000 |             10.50000 |                     0 |
+ 2022-08-09 15:00:00.000 | 2022-08-09 16:00:00.000 |             11.20000 |                     0 |
+ 2022-08-09 16:00:00.000 | 2022-08-09 17:00:00.000 |             11.50000 |                     0 |
+ 2022-08-09 18:00:00.000 | 2022-08-09 19:00:00.000 |             12.30000 |                     0 |
+Query OK, 4 rows in database (0.012033s)
 ```
 
 ## 示例二
