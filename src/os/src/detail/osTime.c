@@ -564,6 +564,12 @@ int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char
     skey = tmp;
   }
 
+#ifdef _MSC_VER
+#if _MSC_VER >= 1900
+  int64_t timezone = _timezone;
+#endif
+#endif
+
   int64_t tz_offset = -1 * timezone * TSDB_TICK_PER_SECOND(precision);
 
   if (unit != 'n' && unit != 'y') {
