@@ -2,61 +2,78 @@
 
 set internal_dir=%~dp0\..\..\
 set community_dir=%~dp0\..
-cd %community_dir%
-git checkout -- .
-cd %community_dir%\packaging
+set package_dir=%cd%
 
 :: %1 name %2 version
 if !%1==! GOTO USAGE
 if !%2==! GOTO USAGE
-if %1 == taos GOTO TAOS
-if %1 == power GOTO POWER
-if %1 == tq GOTO TQ
-if %1 == pro GOTO PRO
-if %1 == kh GOTO KH
-if %1 == jh GOTO JH
-GOTO USAGE
 
-:TAOS
-goto RELEASE
-
-:POWER
-call sed_power.bat %community_dir%
-goto RELEASE
-
-:TQ
-call sed_tq.bat %community_dir%
-goto RELEASE
-
-:PRO
-call sed_pro.bat %community_dir%
-goto RELEASE
-
-:KH
-call sed_kh.bat %community_dir%
-goto RELEASE
-
-:JH
-call sed_jh.bat %community_dir%
-goto RELEASE
-
-:RELEASE
-echo release windows-client-64 for %1, version: %2
-if not exist %internal_dir%\debug\ver-%2-64bit-%1 (
-	md %internal_dir%\debug\ver-%2-64bit-%1
+if "%1" == "cluster" (
+	set work_dir=%internal_dir%
+	set packagServerName_x64=TDengine-enterprise-server-%2-beta-Windows-x64
+	set packagServerName_x86=TDengine-enterprise-server-%2-beta-Windows-x86
+	set packagClientName_x64=TDengine-enterprise-client-%2-beta-Windows-x64
+	set packagClientName_x86=TDengine-enterprise-client-%2-beta-Windows-x86
 ) else (
-	rd /S /Q %internal_dir%\debug\ver-%2-64bit-%1
-	md %internal_dir%\debug\ver-%2-64bit-%1
+	set work_dir=%community_dir%
+	set packagServerName_x64=TDengine-server-%2-Windows-x64
+	set packagServerName_x86=TDengine-server-%2-Windows-x86
+	set packagClientName_x64=TDengine-client-%2-Windows-x64
+	set packagClientName_x86=TDengine-client-%2-Windows-x86
 )
-cd %internal_dir%\debug\ver-%2-64bit-%1
-call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" amd64
-cmake ../../ -G "NMake Makefiles" -DVERNUMBER=%2 -DCPUTYPE=x64
-set CL=/MP4
-nmake install
+
+echo release windows-client for %1, version: %2
+if not exist %work_dir%\debug (
+	md %work_dir%\debug
+)
+if not exist %work_dir%\debug\ver-%2-x64 (
+	md %work_dir%\debug\ver-%2-x64
+) else (
+	rd /S /Q %work_dir%\debug\ver-%2-x64
+	md %work_dir%\debug\ver-%2-x64
+)
+if not exist %work_dir%\debug\ver-%2-x86 (
+	md %work_dir%\debug\ver-%2-x86
+) else (
+	rd /S /Q %work_dir%\debug\ver-%2-x86
+	md %work_dir%\debug\ver-%2-x86
+)
+cd %work_dir%\debug\ver-%2-x64
+call vcvarsall.bat x64
+cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_HTTP=false -DVERNUMBER=%2 -DCPUTYPE=x64
+cmake --build .
+rd /s /Q C:\TDengine
+cmake --install .
+if not %errorlevel% == 0  ( call :RUNFAILED build x64 failed & exit /b 1)
+cd %package_dir%
+iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%2" /DMyAppExcludeSource="" tools\tdengine.iss /O..\release
+if not %errorlevel% == 0  ( call :RUNFAILED package %packagServerName_x64% failed & exit /b 1)
+iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%2" /DMyAppExcludeSource="taosd.exe" tools\tdengine.iss /O..\release
+if not %errorlevel% == 0  ( call :RUNFAILED package %packagClientName_x64% failed & exit /b 1)
+
+cd %work_dir%\debug\ver-%2-x86
+call vcvarsall.bat x86
+cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_HTTP=false -DVERNUMBER=%2 -DCPUTYPE=x86
+cmake --build .
+rd /s /Q C:\TDengine
+cmake --install .
+if not %errorlevel% == 0  ( call :RUNFAILED build x86 failed & exit /b 1)
+cd %package_dir%
+iscc /DMyAppInstallName="%packagServerName_x86%" /DMyAppVersion="%2" /DMyAppExcludeSource="" tools\tdengine.iss /O..\release
+if not %errorlevel% == 0  ( call :RUNFAILED package %packagServerName_x86% failed & exit /b 1)
+iscc /DMyAppInstallName="%packagClientName_x86%" /DMyAppVersion="%2" /DMyAppExcludeSource="taosd.exe" tools\tdengine.iss /O..\release
+if not %errorlevel% == 0  ( call :RUNFAILED package %packagClientName_x86% failed & exit /b 1)
+
 goto EXIT0
 
 :USAGE
-echo Usage: release.bat $productName $version
+echo Usage: release.bat $verMode $version
 goto EXIT0
 
 :EXIT0
+exit /b
+
+:RUNFAILED
+echo %*
+cd %package_dir%
+goto :eof

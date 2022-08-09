@@ -411,7 +411,7 @@ int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32
     if (pJob->fetched) {
       SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
       SCH_TASK_ELOG("already fetched while got error %s", tstrerror(rspCode));
-      SCH_ERR_RET(rspCode);
+      SCH_ERR_JRET(rspCode);
     }
     SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
 

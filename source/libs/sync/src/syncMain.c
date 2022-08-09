@@ -495,6 +495,18 @@ const char* syncGetMyRoleStr(int64_t rid) {
   return s;
 }
 
+bool syncRestoreFinish(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return false;
+  }
+  ASSERT(rid == pSyncNode->rid);
+  bool restoreFinish = pSyncNode->restoreFinish;
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return restoreFinish;
+}
+
 SyncTerm syncGetMyTerm(int64_t rid) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
@@ -1086,6 +1098,10 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   // start raft
   // syncNodeBecomeFollower(pSyncNode);
 
+  int64_t timeNow = taosGetTimestampMs();
+  pSyncNode->startTime = timeNow;
+  pSyncNode->lastReplicateTime = timeNow;
+
   syncNodeEventLog(pSyncNode, "sync open");
 
   return pSyncNode;
@@ -1303,7 +1319,7 @@ int32_t syncNodeResetElectTimer(SSyncNode* pSyncNode) {
   return ret;
 }
 
-int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
+static int32_t syncNodeDoStartHeartbeatTimer(SSyncNode* pSyncNode) {
   int32_t ret = 0;
   if (syncEnvIsStart()) {
     taosTmrReset(pSyncNode->FpHeartbeatTimerCB, pSyncNode->heartbeatTimerMS, pSyncNode, gSyncEnv->pTimerManager,
@@ -1322,21 +1338,21 @@ int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
   return ret;
 }
 
-int32_t syncNodeStartNowHeartbeatTimer(SSyncNode* pSyncNode) {
-  int32_t ret = 0;
-  if (syncEnvIsStart()) {
-    taosTmrReset(pSyncNode->FpHeartbeatTimerCB, 1, pSyncNode, gSyncEnv->pTimerManager, &pSyncNode->pHeartbeatTimer);
-    atomic_store_64(&pSyncNode->heartbeatTimerLogicClock, pSyncNode->heartbeatTimerLogicClockUser);
-  } else {
-    sError("vgId:%d, start heartbeat timer error, sync env is stop", pSyncNode->vgId);
-  }
+int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
+  pSyncNode->heartbeatTimerMS = pSyncNode->hbBaseLine;
+  int32_t ret = syncNodeDoStartHeartbeatTimer(pSyncNode);
+  return ret;
+}
 
-  do {
-    char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "start heartbeat timer, ms:%d", 1);
-    syncNodeEventLog(pSyncNode, logBuf);
-  } while (0);
+int32_t syncNodeStartHeartbeatTimerMS(SSyncNode* pSyncNode, int32_t ms) {
+  pSyncNode->heartbeatTimerMS = ms;
+  int32_t ret = syncNodeDoStartHeartbeatTimer(pSyncNode);
+  return ret;
+}
 
+int32_t syncNodeStartHeartbeatTimerNow(SSyncNode* pSyncNode) {
+  pSyncNode->heartbeatTimerMS = 1;
+  int32_t ret = syncNodeDoStartHeartbeatTimer(pSyncNode);
   return ret;
 }
 
@@ -1357,9 +1373,15 @@ int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode) {
   return 0;
 }
 
-int32_t syncNodeRestartNowHeartbeatTimer(SSyncNode* pSyncNode) {
+int32_t syncNodeRestartHeartbeatTimerNow(SSyncNode* pSyncNode) {
   syncNodeStopHeartbeatTimer(pSyncNode);
-  syncNodeStartNowHeartbeatTimer(pSyncNode);
+  syncNodeStartHeartbeatTimerNow(pSyncNode);
+  return 0;
+}
+
+int32_t syncNodeRestartNowHeartbeatTimerMS(SSyncNode* pSyncNode, int32_t ms) {
+  syncNodeStopHeartbeatTimer(pSyncNode);
+  syncNodeStartHeartbeatTimerMS(pSyncNode, ms);
   return 0;
 }
 
@@ -1931,9 +1953,6 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
 
       // Raft 3.6.2 Committing entries from previous terms
       syncNodeAppendNoop(pSyncNode);
-#if 0  // simon
-      syncNodeReplicate(pSyncNode);
-#endif
       syncMaybeAdvanceCommitIndex(pSyncNode);
 
     } else {
@@ -2115,9 +2134,6 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
 
   // Raft 3.6.2 Committing entries from previous terms
   syncNodeAppendNoop(pSyncNode);
-#if 0  // simon
-  syncNodeReplicate(pSyncNode);
-#endif
   syncMaybeAdvanceCommitIndex(pSyncNode);
 }
 
@@ -2488,7 +2504,7 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     int32_t code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
     ASSERT(code == 0);
-    syncNodeReplicate(ths);
+    syncNodeReplicate(ths, false);
   }
 
   syncEntryDestory(pEntry);
@@ -2561,7 +2577,7 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncI
 
     // if mulit replica, start replicate right now
     if (ths->replicaNum > 1) {
-      syncNodeReplicate(ths);
+      syncNodeReplicate(ths, false);
 
       // pre commit
       syncNodePreCommit(ths, pEntry, 0);
@@ -2630,7 +2646,7 @@ int32_t syncNodeOnClientRequestBatchCb(SSyncNode* ths, SyncClientRequestBatch* p
 
   if (ths->replicaNum > 1) {
     // if multi replica, start replicate right now
-    syncNodeReplicate(ths);
+    syncNodeReplicate(ths, false);
 
   } else if (ths->replicaNum == 1) {
     // one replica
