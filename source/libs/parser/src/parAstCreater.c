@@ -819,6 +819,10 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->numOfVgroups = TSDB_DEFAULT_VN_PER_DB;
   pOptions->singleStable = TSDB_DEFAULT_DB_SINGLE_STABLE;
   pOptions->schemaless = TSDB_DEFAULT_DB_SCHEMALESS;
+  pOptions->walRetentionPeriod = TSDB_DEFAULT_DB_WAL_RETENTION_PERIOD;
+  pOptions->walRetentionSize = TSDB_DEFAULT_DB_WAL_RETENTION_SIZE;
+  pOptions->walRollPeriod = TSDB_DEFAULT_DB_WAL_ROLL_PERIOD;
+  pOptions->walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
   return (SNode*)pOptions;
 }
 
@@ -846,6 +850,10 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->numOfVgroups = -1;
   pOptions->singleStable = -1;
   pOptions->schemaless = -1;
+  pOptions->walRetentionPeriod = -1;
+  pOptions->walRetentionSize = -1;
+  pOptions->walRollPeriod = -1;
+  pOptions->walSegmentSize = -1;
   return (SNode*)pOptions;
 }
 
