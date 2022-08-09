@@ -88,7 +88,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
     // if *taskHandle is NULL, it's killed right now
     if (taskHandle) {
       qwDbgSimulateSleep();
-      code = qExecTask(taskHandle, pResList, &useconds);
+      code = qExecTaskOpt(taskHandle, pResList, &useconds);
       if (code) {
         if (code != TSDB_CODE_OPS_NOT_SUPPORT) {
           QW_TASK_ELOG("qExecTask failed, code:%x - %s", code, tstrerror(code));

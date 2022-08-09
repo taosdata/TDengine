@@ -427,7 +427,7 @@ static void freeBlock(void* param) {
   blockDataDestroy(pBlock);
 }
 
-int32_t qExecTask(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds) {
+int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   int64_t        threadId = taosGetSelfPthreadId();
 
@@ -491,6 +491,63 @@ int32_t qExecTask(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds) {
 
   qDebug("%s task suspended, %d rows in %d blocks returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",
          GET_TASKID(pTaskInfo), current, (int32_t) taosArrayGetSize(pResList), total, 0, el / 1000.0);
+
+  atomic_store_64(&pTaskInfo->owner, 0);
+  return pTaskInfo->code;
+}
+
+int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  int64_t        threadId = taosGetSelfPthreadId();
+
+  *pRes = NULL;
+  int64_t curOwner = 0;
+  if ((curOwner = atomic_val_compare_exchange_64(&pTaskInfo->owner, 0, threadId)) != 0) {
+    qError("%s-%p execTask is now executed by thread:%p", GET_TASKID(pTaskInfo), pTaskInfo, (void*)curOwner);
+    pTaskInfo->code = TSDB_CODE_QRY_IN_EXEC;
+    return pTaskInfo->code;
+  }
+
+  if (pTaskInfo->cost.start == 0) {
+    pTaskInfo->cost.start = taosGetTimestampMs();
+  }
+
+  if (isTaskKilled(pTaskInfo)) {
+    atomic_store_64(&pTaskInfo->owner, 0);
+    qDebug("%s already killed, abort", GET_TASKID(pTaskInfo));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // error occurs, record the error code and return to client
+  int32_t ret = setjmp(pTaskInfo->env);
+  if (ret != TSDB_CODE_SUCCESS) {
+    pTaskInfo->code = ret;
+    cleanUpUdfs();
+    qDebug("%s task abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
+    atomic_store_64(&pTaskInfo->owner, 0);
+
+    return pTaskInfo->code;
+  }
+
+  qDebug("%s execTask is launched", GET_TASKID(pTaskInfo));
+
+  int64_t st = taosGetTimestampUs();
+
+  *pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot);
+  uint64_t el = (taosGetTimestampUs() - st);
+
+  pTaskInfo->cost.elapsedTime += el;
+  if (NULL == *pRes) {
+    *useconds = pTaskInfo->cost.elapsedTime;
+  }
+
+  cleanUpUdfs();
+
+  int32_t  current = (*pRes != NULL) ? (*pRes)->info.rows : 0;
+  uint64_t total = pTaskInfo->pRoot->resultInfo.totalRows;
+
+  qDebug("%s task suspended, %d rows returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",
+         GET_TASKID(pTaskInfo), current, total, 0, el / 1000.0);
 
   atomic_store_64(&pTaskInfo->owner, 0);
   return pTaskInfo->code;

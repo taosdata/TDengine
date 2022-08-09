@@ -612,7 +612,7 @@ static int32_t tdRSmaFetchAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSm
 
   while (1) {
     uint64_t ts;
-    int32_t  code = qExecTask(taskInfo, pResList, &ts);
+    int32_t  code = qExecTaskOpt(taskInfo, pResList, &ts);
     if (code < 0) {
       smaError("vgId:%d, qExecTask for rsma table %" PRIi64 " level %" PRIi8 " failed since %s", SMA_VID(pSma), suid,
                pItem->level, terrstr(code));
