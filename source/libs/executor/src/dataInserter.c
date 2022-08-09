@@ -213,6 +213,9 @@ int32_t dataBlockToSubmit(SDataInserterHandle* pInserter, SSubmitReq** pReq) {
           tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, data, true, pColumn->offset, k);
         }
       }
+      if(!fullCol) {
+        rb.hasNone = true;
+      }
       tdSRowEnd(&rb);
 
       if (ignoreRow) {
