@@ -1348,10 +1348,6 @@ int32_t doProcessMsgFromServer(void* param) {
     } else {
       memcpy(buf.pData, pMsg->pCont, pMsg->contLen);
     }
-
-    tscDebug("xxxxx malloc %p, message: %s, size:%d, code: %s, gtid: %s", buf.pData,
-             TMSG_INFO(pMsg->msgType), pMsg->contLen, tstrerror(pMsg->code), tbuf);
-    
   }
 
   pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
