@@ -2542,7 +2542,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
 
     // check if need to interpolate after ts range
     // except for fill(next)
-    while (pSliceInfo->current <= pSliceInfo->win.ekey && pSliceInfo->fillType != TSDB_FILL_NEXT) {
+    while (pSliceInfo->current <= pSliceInfo->win.ekey && pSliceInfo->fillType != TSDB_FILL_NEXT && pSliceInfo->fillType != TSDB_FILL_LINEAR) {
       genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pBlock, pResBlock);
       pSliceInfo->current =
           taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
