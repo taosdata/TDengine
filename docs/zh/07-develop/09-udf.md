@@ -8,10 +8,13 @@ description: "支持用户编码的聚合函数和标量函数，在查询中嵌
 
 从 2.2.0.0 版本开始，TDengine 支持通过 C/C++ 语言进行 UDF 定义。接下来结合示例讲解 UDF 的使用方法。
 
-用户可以通过 UDF 实现两类函数： 标量函数和聚合函数。标量函数需要实现以下标量接口函数 udf，聚合函数需要实现 udaf_start ， udaf ， udaf_finish。如果需要初始化，实现 udf_init；如果需要清理工作，实现udf_destory。
+用户可以通过 UDF 实现两类函数： 标量函数和聚合函数。标量函数对每行数据返回一个值，如求绝对值 abs，正弦函数 sin，字符串拼接函数 concat 等。聚合函数对多行数据进行返回一个值，如求平均数 avg，最大值 max 等。实现udf时，需要实现规定的接口函数。接口函数的名称是 udf 名称，或者是 udf 名称和特定后缀（_start, _finish, _init, _destroy)的连接。scalarfn，aggfn, udf需要替换成udf函数名。
+- 标量函数需要实现标量接口函数 scalarfn，
+- 聚合函数需要实现聚合接口函数 aggfn_start ， aggfn ， aggfn_finish。
+- 无论标量函数还是聚合函数，如果需要初始化，实现 udf_init；如果需要清理工作，实现udf_destory。
 
 ## 实现标量函数
-假如我们要实现一个名为scalarfn的用户标量函数，函数实现模板如下
+标量函数实现模板如下
 ```c
 #include "taos.h"
 #include "taoserror.h"
@@ -40,8 +43,11 @@ int32_t scalarfn_destroy() {
     return TSDB_CODE_SUCCESS;
 }
 ```
+scalarfn 为函数名的占位符，需要替换成函数名，如bit_and。
+
 ## 实现聚合函数
-假如实现名为aggfn的聚合函数，函数模板如下
+
+聚合函数的实现模板如下
 ```c
 #include "taos.h"
 #include "taoserror.h"
@@ -55,21 +61,29 @@ int32_t aggfn_init() {
 }
 
 // aggregate start function. The intermediate value or the state(@interBuf) is initialized in this function. The function name shall be concatenation of udf name and _start suffix
+// @param interbuf intermediate value to intialize
 // @return error number defined in taoserror.h
 int32_t aggfn_start(SUdfInterBuf* interBuf) {
+    // initialize intermediate value in interBuf
     return TSDB_CODE_SUCESS;
 }
 
 // aggregate reduce function. This function aggregate old state(@interbuf) and one data bock(inputBlock) and output a new state(@newInterBuf).
+// @param inputBlock input data block
+// @param interBuf old state
+// @param newInterBuf new state
+// @return error number defined in taoserror.h
 int32_t aggfn(SUdfDataBlock* inputBlock, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf) {
     // read from inputBlock and interBuf and output to newInterBuf
     return TSDB_CODE_SUCCESS;
 }
 
 // aggregate function finish function. This function transforms the intermediate value(@interBuf) into the final output(@result). The function name must be concatenation of aggfn and _finish suffix.
+// @interBuf : intermediate value
+// @result: final result
 // @return error number defined in taoserror.h
 int32_t int32_t aggfn_finish(SUdfInterBuf* interBuf, SUdfInterBuf *result) {
-    // read data from inputDataBlock and process, then output to resultColumn
+    // read data from inputDataBlock and process, then output to result
     return TSDB_CODE_SUCCESS;
 }
 
@@ -80,12 +94,17 @@ int32_t aggfn_destroy() {
     return TSDB_CODE_SUCCESS;
 }
 ```
+aggfn为函数名的占位符，需要修改为自己的函数名，如l2norm。
 
 ## 接口函数定义
 
+接口函数的名称是 udf 名称，或者是 udf 名称和特定后缀（_start, _finish, _init, _destroy)的连接。scalarfn，aggfn, udf需要替换成udf函数名。
+
+接口函数返回值表示是否成功，如果错误返回错误代码。错误见taoserror.h
+
 ### 标量接口函数
 
- `int32_t udf(SUdfDataBlock* inputDataBlock, SUdfColumn *resultColumn)` 
+ `int32_t scalarfn(SUdfDataBlock* inputDataBlock, SUdfColumn *resultColumn)` 
  
  其中 udf 是函数名的占位符，以上述模板实现的函数对行数据块进行标量计算。
 
@@ -95,12 +114,12 @@ int32_t aggfn_destroy() {
 
 ### 聚合接口函数
 
-`int32_t udaf_start(SUdfInterBuf *interBuf)`
+`int32_t aggfn_start(SUdfInterBuf *interBuf)`
 
-`int32_t udaf(SUdfDataBlock* inputBlock, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf)`
+`int32_t aggfn(SUdfDataBlock* inputBlock, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf)`
 
-`int32_t udaf_finish(SUdfInterBuf* interBuf, SUdfInterBuf *result)`
-其中 udaf 是函数名的占位符。其中各参数的具体含义是：
+`int32_t aggfn_finish(SUdfInterBuf* interBuf, SUdfInterBuf *result)`
+其中 aggfn 是函数名的占位符。其中各参数的具体含义是：
 
   - interBuf：中间结果 buffer。
   - inputBlock：输入的数据块。
@@ -108,7 +127,7 @@ int32_t aggfn_destroy() {
   - result：最终结果。
 
 
-其计算过程为：首先调用udf_start生成结果buffer，然后相关的数据会被分为多个行数据块，对每个行数据块调用 udf 用数据块更新中间结果，最后再调用 udf_finish 从中间结果产生最终结果，最终结果只能含 0 或 1 条结果数据。
+其计算过程为：首先调用aggfn_start生成结果buffer，然后相关的数据会被分为多个行数据块，对每个行数据块调用 aggfn 用数据块更新中间结果，最后再调用 aggfn_finish 从中间结果产生最终结果，最终结果只能含 0 或 1 条结果数据。
 
 ### UDF 初始化和销毁
 `int32_t udf_init()`
@@ -118,7 +137,7 @@ int32_t aggfn_destroy() {
 其中 udf 是函数名的占位符，可以替换成自己的函数名。udf_init 完成初始化工作。 udf_destroy 完成清理工作。如果没有初始化工作，无需定义udf_init函数。如果没有清理工作，无需定义udf_destroy函数。
 
 
-### UDF 数据结构
+## UDF 数据结构
 ```c
 typedef struct SUdfColumnMeta {
   int16_t type;
@@ -166,6 +185,13 @@ typedef struct SUdfInterBuf {
   int8_t numOfResult; //zero or one
 } SUdfInterBuf;
 ```
+数据结构说明如下：
+
+- SUdfDataBlock 数据块包含行数 numOfRows 和列数 numCols。udfCols[i] (0 <= i <= numCols-1)表示每一列数据，类型为SUdfColumn*。
+- SUdfColumn 包含列的数据类型定义 colMeta 和列的数据colData。
+- SUdfColumnMeta 成员定义同 taos.h 数据类型定义。
+- SUdfColumnData 数据可以变长，varLenCol定义了变长数据，fixLenCol定义了定长数据。 
+- SUdfInterBuf 定义中间结构buffer，以及buffer中结果个数 numOfResult
 
 为了更好的操作以上数据结构，提供了一些便利函数，定义在 taosudf.h。
 
@@ -214,10 +240,10 @@ CREATE AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE output_type [
   - output_type：此函数计算结果的数据类型，与上文中 udfNormalFunc 的 itype 参数不同，这里不是使用数字表示法，而是直接写类型名称即可；
   - buffer_size：中间计算结果的缓冲区大小，单位是字节。如果不使用可以不设置。
 
-  例如，如下语句可以把 libsqrsum.so 创建为系统中可用的 UDF：
+  例如，如下语句可以把 libl2norm.so 创建为系统中可用的 UDF：
 
   ```sql
-  CREATE AGGREGATE FUNCTION sqr_sum AS "/home/taos/udf_example/libsqrsum.so" OUTPUTTYPE DOUBLE bufsize 8;
+  CREATE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUTTYPE DOUBLE bufsize 8;
   ```
 
 ### 管理 UDF
@@ -261,15 +287,15 @@ bit_add 实现多列的按位与功能。如果只有一列，返回这一列。
 
 </details>
 
-### 聚合函数示例 [sqr_sum](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/sqr_sum.c)
+### 聚合函数示例 [l2norm](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/l2norm.c)
 
-sqr_sum 实现了输入列的所有数据的二阶范数，即对每个数据先平方，再累加求和，最后开方。
+l2norm 实现了输入列的所有数据的二阶范数，即对每个数据先平方，再累加求和，最后开方。
 
 <details>
-<summary>sqr_sum.c</summary>
+<summary>l2norm.c</summary>
 
 ```c
-{{#include tests/script/sh/sqr_sum.c}}
+{{#include tests/script/sh/l2norm.c}}
 ```
 
 </details>
