@@ -1966,12 +1966,7 @@ int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, in
     }
     // set the null value for the columns that do not assign values
     if ((spd->numOfBound < spd->numOfCols) && TD_IS_TP_ROW(row)) {
-      for (int32_t i = 0; i < spd->numOfCols; ++i) {
-        if (spd->cols[i].valStat == VAL_STAT_NONE) {  // the primary TS key is not VAL_STAT_NONE
-          tdAppendColValToTpRow(pBuilder, TD_VTYPE_NONE, getNullValue(pSchema[i].type), true, pSchema[i].type, i,
-                                spd->cols[i].toffset);
-        }
-      }
+      pBuilder->hasNone = true;
     }
     tdSRowEnd(pBuilder);
 #ifdef TD_DEBUG_PRINT_ROW
@@ -2050,12 +2045,7 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
 
     // set the null value for the columns that do not assign values
     if (rowEnd && (spd->numOfBound < spd->numOfCols) && TD_IS_TP_ROW(row)) {
-      for (int32_t i = 0; i < spd->numOfCols; ++i) {
-        if (spd->cols[i].valStat == VAL_STAT_NONE) {  // the primary TS key is not VAL_STAT_NONE
-          tdAppendColValToTpRow(pBuilder, TD_VTYPE_NONE, getNullValue(pSchema[i].type), true, pSchema[i].type, i,
-                                spd->cols[i].toffset);
-        }
-      }
+      pBuilder->hasNone = true;
     }
     if (rowEnd) {
       tdSRowEnd(pBuilder);
@@ -2432,12 +2422,7 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
 
     // set the null value for the columns that do not assign values
     if ((spd->numOfBound < spd->numOfCols) && TD_IS_TP_ROW(row)) {
-      for (int32_t i = 0; i < spd->numOfCols; ++i) {
-        if (spd->cols[i].valStat == VAL_STAT_NONE) {  // the primary TS key is not VAL_STAT_NONE
-          tdAppendColValToTpRow(pBuilder, TD_VTYPE_NONE, getNullValue(pSchema[i].type), true, pSchema[i].type, i,
-                                spd->cols[i].toffset);
-        }
-      }
+      pBuilder->hasNone = true;
     }
 
     tdSRowEnd(pBuilder);
