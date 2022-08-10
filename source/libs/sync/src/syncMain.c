@@ -1100,6 +1100,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
 
   int64_t timeNow = taosGetTimestampMs();
   pSyncNode->startTime = timeNow;
+  pSyncNode->leaderTime = timeNow;
   pSyncNode->lastReplicateTime = timeNow;
 
   syncNodeEventLog(pSyncNode, "sync open");
@@ -2015,6 +2016,8 @@ void syncNodeUpdateTermWithoutStepDown(SSyncNode* pSyncNode, SyncTerm term) {
   }
 }
 
+void syncNodeLeaderChangeRsp(SSyncNode* pSyncNode) { syncRespCleanRsp(pSyncNode->pSyncRespMgr); }
+
 void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
   // maybe clear leader cache
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
@@ -2027,6 +2030,9 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
 
   // reset elect timer
   syncNodeResetElectTimer(pSyncNode);
+
+  // send rsp to client
+  syncNodeLeaderChangeRsp(pSyncNode);
 
   // call back
   if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpBecomeFollowerCb != NULL) {
@@ -2068,6 +2074,8 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
 //     /\ UNCHANGED <<messages, currentTerm, votedFor, candidateVars, logVars>>
 //
 void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
+  pSyncNode->leaderTime = taosGetTimestampMs();
+
   // reset restoreFinish
   pSyncNode->restoreFinish = false;
 
@@ -2954,8 +2962,11 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
             }
             ths->restoreFinish = true;
 
+            int64_t restoreDelay = taosGetTimestampMs() - ths->leaderTime;
+
             char eventLog[128];
-            snprintf(eventLog, sizeof(eventLog), "restore finish, index:%" PRId64, pEntry->index);
+            snprintf(eventLog, sizeof(eventLog), "restore finish, index:%ld, elapsed:%ld ms, ", pEntry->index,
+                     restoreDelay);
             syncNodeEventLog(ths, eventLog);
           }
         }
