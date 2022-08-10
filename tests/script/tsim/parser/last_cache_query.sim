@@ -304,8 +304,8 @@ endi
 if $data21 != 24 then 
   return -1
 endi
-if $data22 != 11.000000000 then 
-  print $data02
+if $data22 != 11.000000000 then
+  print expect 11.000000000 actual: $data22
   return -1
 endi
 if $data23 != 25 then 
