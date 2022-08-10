@@ -2570,6 +2570,8 @@ static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
   STagScanInfo* pInfo = (STagScanInfo*)param;
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
 
+  taosArrayDestroy(pInfo->pColMatchInfo);
+  
   taosMemoryFreeClear(param);
 }
 
