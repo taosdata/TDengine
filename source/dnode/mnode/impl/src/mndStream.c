@@ -943,12 +943,17 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&targetDB, false);
 
-    char targetSTB[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    tNameFromString(&n, pStream->targetSTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-    strcpy(&targetSTB[VARSTR_HEADER_SIZE], tNameGetTableName(&n));
-    varDataSetLen(targetSTB, strlen(varDataVal(targetSTB)));
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&targetSTB, false);
+    if (pStream->targetSTbName[0] == 0) {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, NULL, true);
+    } else {
+      char targetSTB[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      tNameFromString(&n, pStream->targetSTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+      strcpy(&targetSTB[VARSTR_HEADER_SIZE], tNameGetTableName(&n));
+      varDataSetLen(targetSTB, strlen(varDataVal(targetSTB)));
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&targetSTB, false);
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pStream->watermark, false);

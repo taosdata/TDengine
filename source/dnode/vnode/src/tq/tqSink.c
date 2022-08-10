@@ -16,7 +16,7 @@
 #include "tq.h"
 
 SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, bool createTb, int64_t suid,
-                            const char* stbFullName, int32_t vgId) {
+                            const char* stbFullName, int32_t vgId, SBatchDeleteReq* deleteReq) {
   SSubmitReq* ret = NULL;
   SArray*     schemaReqs = NULL;
   SArray*     schemaReqSz = NULL;
@@ -33,10 +33,13 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
     schemaReqSz = taosArrayInit(sz, sizeof(int32_t));
     for (int32_t i = 0; i < sz; i++) {
       SSDataBlock* pDataBlock = taosArrayGet(pBlocks, i);
-      STagVal      tagVal = {
-               .cid = taosArrayGetSize(pDataBlock->pDataBlock) + 1,
-               .type = TSDB_DATA_TYPE_UBIGINT,
-               .i64 = (int64_t)pDataBlock->info.groupId,
+      if (pDataBlock->info.type == STREAM_DELETE_DATA) {
+        //
+      }
+      STagVal tagVal = {
+          .cid = taosArrayGetSize(pDataBlock->pDataBlock) + 1,
+          .type = TSDB_DATA_TYPE_UBIGINT,
+          .i64 = (int64_t)pDataBlock->info.groupId,
       };
       STag* pTag = NULL;
       taosArrayClear(tagArray);
@@ -176,16 +179,44 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
 }
 
 void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
-  const SArray* pRes = (const SArray*)data;
-  SVnode*       pVnode = (SVnode*)vnode;
+  const SArray*   pRes = (const SArray*)data;
+  SVnode*         pVnode = (SVnode*)vnode;
+  SBatchDeleteReq deleteReq = {0};
 
   tqDebug("vgId:%d, task %d write into table, block num: %d", TD_VID(pVnode), pTask->taskId, (int32_t)pRes->size);
 
   ASSERT(pTask->tbSink.pTSchema);
+  deleteReq.deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
   SSubmitReq* pReq = tdBlockToSubmit(pRes, pTask->tbSink.pTSchema, true, pTask->tbSink.stbUid,
-                                     pTask->tbSink.stbFullName, pVnode->config.vgId);
+                                     pTask->tbSink.stbFullName, pVnode->config.vgId, &deleteReq);
 
   tqDebug("vgId:%d, task %d convert blocks over, put into write-queue", TD_VID(pVnode), pTask->taskId);
+
+  int32_t code;
+  int32_t len;
+  tEncodeSize(tEncodeSBatchDeleteReq, &deleteReq, len, code);
+  if (code < 0) {
+    //
+    ASSERT(0);
+  }
+  SEncoder encoder;
+  void*    buf = taosMemoryCalloc(1, len + sizeof(SMsgHead));
+  void*    abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+  tEncoderInit(&encoder, abuf, len);
+  tEncodeSBatchDeleteReq(&encoder, &deleteReq);
+  tEncoderClear(&encoder);
+
+  if (taosArrayGetSize(deleteReq.deleteReqs) != 0) {
+    SRpcMsg msg = {
+        .msgType = TDMT_VND_BATCH_DEL,
+        .pCont = buf,
+        .contLen = len + sizeof(SMsgHead),
+    };
+    if (tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) != 0) {
+      tqDebug("failed to put into write-queue since %s", terrstr());
+    }
+  }
+  taosArrayDestroy(deleteReq.deleteReqs);
 
   /*tPrintFixedSchemaSubmitReq(pReq, pTask->tbSink.pTSchema);*/
   // build write msg
