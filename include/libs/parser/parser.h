@@ -53,6 +53,8 @@ typedef struct SParseContext {
   int8_t           schemalessType;
   const char*      svrVer;
   bool             nodeOffline;
+  SArray*          pTableMetaPos;    // sql table pos => catalog data pos
+  SArray*          pTableVgroupPos;  // sql table pos => catalog data pos
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
@@ -84,8 +86,8 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
                                 int32_t rowNum);
 int32_t qBuildStmtColFields(void* pDataBlock, int32_t* fieldNum, TAOS_FIELD_E** fields);
 int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TAOS_FIELD_E** fields);
-int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName, TAOS_MULTI_BIND* bind,
-                           char* msgBuf, int32_t msgBufLen);
+int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName,
+                           TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen);
 void    destroyBoundColumnInfo(void* pBoundInfo);
 int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
                      int32_t msgBufLen);

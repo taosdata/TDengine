@@ -689,11 +689,11 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
       TDMT_VND_CREATE_TABLE == pRequest->type) {
     pRequest->body.resInfo.numOfRows = res.numOfRows;
     if (TDMT_VND_SUBMIT == pRequest->type) {
-      STscObj            *pTscObj = pRequest->pTscObj;
-      SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
-      atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertRows, res.numOfRows);           
+      STscObj*            pTscObj = pRequest->pTscObj;
+      SAppClusterSummary* pActivity = &pTscObj->pAppInfo->summary;
+      atomic_add_fetch_64((int64_t*)&pActivity->numOfInsertRows, res.numOfRows);
     }
-    
+
     schedulerFreeJob(&pRequest->body.queryJob, 0);
   }
 
@@ -800,8 +800,8 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
       break;
     }
     case TDMT_VND_SUBMIT: {
-      atomic_add_fetch_64((int64_t *)&pAppInfo->summary.insertBytes, pRes->numOfBytes);
-      
+      atomic_add_fetch_64((int64_t*)&pAppInfo->summary.insertBytes, pRes->numOfBytes);
+
       code = handleSubmitExecRes(pRequest, pRes->res, pCatalog, &epset);
       break;
     }
@@ -832,9 +832,9 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     if (pResult) {
       pRequest->body.resInfo.numOfRows = pResult->numOfRows;
       if (TDMT_VND_SUBMIT == pRequest->type) {
-        STscObj            *pTscObj = pRequest->pTscObj;
-        SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
-        atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertRows, pResult->numOfRows);           
+        STscObj*            pTscObj = pRequest->pTscObj;
+        SAppClusterSummary* pActivity = &pTscObj->pAppInfo->summary;
+        atomic_add_fetch_64((int64_t*)&pActivity->numOfInsertRows, pResult->numOfRows);
       }
     }
 
@@ -877,14 +877,14 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
   if (pQuery->pRoot) {
     pRequest->stmtType = pQuery->pRoot->type;
   }
-  
+
   if (pQuery->pRoot && !pRequest->inRetry) {
-    STscObj            *pTscObj = pRequest->pTscObj;
-    SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
+    STscObj*            pTscObj = pRequest->pTscObj;
+    SAppClusterSummary* pActivity = &pTscObj->pAppInfo->summary;
     if (QUERY_NODE_VNODE_MODIF_STMT == pQuery->pRoot->type) {
-      atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1);
+      atomic_add_fetch_64((int64_t*)&pActivity->numOfInsertsReq, 1);
     } else if (QUERY_NODE_SELECT_STMT == pQuery->pRoot->type) {
-      atomic_add_fetch_64((int64_t *)&pActivity->numOfQueryReq, 1);           
+      atomic_add_fetch_64((int64_t*)&pActivity->numOfQueryReq, 1);
     }
   }
 
@@ -1467,9 +1467,9 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
     tscDebug("0x%" PRIx64 " fetch results, numOfRows:%d total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
              pRequest->self, pResInfo->numOfRows, pResInfo->totalRows, pResInfo->completed, pRequest->requestId);
 
-    STscObj            *pTscObj = pRequest->pTscObj;
-    SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
-    atomic_add_fetch_64((int64_t *)&pActivity->fetchBytes, pRequest->body.resInfo.payloadLen);           
+    STscObj*            pTscObj = pRequest->pTscObj;
+    SAppClusterSummary* pActivity = &pTscObj->pAppInfo->summary;
+    atomic_add_fetch_64((int64_t*)&pActivity->fetchBytes, pRequest->body.resInfo.payloadLen);
 
     if (pResultInfo->numOfRows == 0) {
       return NULL;
@@ -1983,7 +1983,7 @@ int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, 
 
   bool    inEscape = false;
   int32_t code = 0;
-  void *pIter = NULL;
+  void*   pIter = NULL;
 
   int32_t vIdx = 0;
   int32_t vPos[2];
