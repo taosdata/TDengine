@@ -12,17 +12,17 @@ DBeaver 是一款流行、开源的数据库管理工具以及 SQL 客户端，�
 ## 前置条件
 1. DBeaver 依赖 Java (JDK) 11 ，不过其安装包中已包含。可选安装 Maven、Git。
 2. 已安装并启动了 TDengine。
-3. 若使用 TSDBDriver 驱动类连接请在本地安装 TDengine 客户端。
-4. 若使用 RestfulDriver 驱动类连接 TDengine，请确保 taosAdapter 已经正常运行。
+3. 若使用原生连接（选择 TSDBDriver 驱动类），请在本地安装 TDengine 客户端。
+4. 若使用 REST 连接（选择 RestfulDriver 驱动类），请确保 taosAdapter 已经正常运行。
 
 ## 配置步骤
 - 可以克隆 DBeaver 在 [GitHub](https://github.com/dbeaver/dbeaver) 上的源码，执行 `mvn package`，也可以直接下载打包好的安装包。此处选择直接下载安装包。
-- 在 GitHub DBeaver 仓库的 [Releases](https://github.com/dbeaver/dbeaver/releases) 处下载对应版本的 DBeaver，比如系统为 macOS，处理器芯片是 M1 ，此处下载  dbeaver-ce-22.1.2-macos-aarch64.dmg 进行安装。
+- 在 GitHub DBeaver 仓库的 [Releases](https://github.com/dbeaver/dbeaver/releases) 处下载对应版本的 DBeaver，比如系统为 macOS，处理器芯片是 M1 ，此处下载 dbeaver-ce-22.1.2-macos-aarch64.dmg 进行安装。推荐使用 22.1.2 版本的 DBeaver，后续版本未进行验证。
 - 点击数据库标签，选择驱动管理器：
 
 ![image](https://user-images.githubusercontent.com/70138133/181191577-7bb91c96-b4fc-455f-9f6c-545993f0a445.png)
 
-- 新建驱动，选择 TDengine 的 JDBC Connector 驱动包（其中的 dist.jar 包），此驱动包可以下载或者自行编译、打包，参考 [IDEA-源码编译 JDBC-Connector](https://docs.taosdata.com/third-party/IDEA#%E6%BA%90%E7%A0%81%E7%BC%96%E8%AF%91-jdbc-connector)：
+- 新建驱动，选择 TDengine 的 JDBC Connector 驱动包（其中的 dist.jar 包），此驱动包可以下载或者自行编译、打包，参考 [IDEA-源码编译 JDBC-Connector](../IDEA/#%E6%BA%90%E7%A0%81%E7%BC%96%E8%AF%91-jdbc-connector)：
 
 ![image](https://user-images.githubusercontent.com/70138133/181191709-fcc3faa3-cfe9-4b0b-8c1b-5074c9411c8b.png)
 
