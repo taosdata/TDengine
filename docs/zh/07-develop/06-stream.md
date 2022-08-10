@@ -71,7 +71,7 @@ Query OK, 4 rows in database (0.012033s)
 ```
 
 ## 示例二
-查询所有电表中电压等于 220V 的数据，对过滤出的电表电流数据进行四舍五入运算，同时将主键时间戳列转换为 bigint 类型，并对采集的数据按表名分组。
+某运营商平台要采集机房所有服务器的系统资源指标，包含 cpu、内存、网络延迟等，采集后需要对数据进行四舍五入运算，将地域和服务器名以下划线拼接，然后将结果按时间排序并以服务器名分组输出到新的数据表中。
 
 ### 创建 DB 和原始数据表
 首先准备数据，完成建库、建一张超级表和多张子表操作
@@ -80,47 +80,49 @@ Query OK, 4 rows in database (0.012033s)
 drop database if exists stream_db;
 create database stream_db;
 
-create stable stream_db.meters (ts timestamp, current float, voltage int) TAGS (location varchar(64), groupId int);
+create stable stream_db.idc (ts timestamp, cpu float, mem float, latency float) TAGS (location varchar(64), groupId int);
 
-create table stream_db.d1001 using stream_db.meters tags("beijing", 1);
-create table stream_db.d1002 using stream_db.meters tags("shanghai", 2);
-create table stream_db.d1003 using stream_db.meters tags("beijing", 2);
-create table stream_db.d1004 using stream_db.meters tags("tianjin", 3);
-create table stream_db.d1005 using stream_db.meters tags("shanghai", 1);
+create table stream_db.server01 using stream_db.idc tags("beijing", 1);
+create table stream_db.server02 using stream_db.idc tags("shanghai", 2);
+create table stream_db.server03 using stream_db.idc tags("beijing", 2);
+create table stream_db.server04 using stream_db.idc tags("tianjin", 3);
+create table stream_db.server05 using stream_db.idc tags("shanghai", 1);
 ```
 
 ### 创建流
 
 ```sql
-create stream stream2 into stream_db.stream2_output_stb as select ts,cast(ts as bigint),round(current),location from stream_db.meters where voltage=220 partition by tbname;
+create stream stream2 into stream_db.stream2_output_stb as select ts, concat_ws("_", location, tbname) as server_location, round(cpu) as cpu, round(mem) as mem, round(latency) as latency from stream_db.idc partition by tbname order by ts;
 ```
 
 ### 写入数据
 ```sql
-insert into stream_db.d1001 values(now-14h, 10.3, 210);
-insert into stream_db.d1001 values(now-13h, 13.5, 220);
-insert into stream_db.d1002 values(now-12h, 14.7, 218);
-insert into stream_db.d1002 values(now-11h, 10.5, 220);
-insert into stream_db.d1003 values(now-10h, 11.5, 220);
-insert into stream_db.d1003 values(now-9h, 12.3, 215);
-insert into stream_db.d1004 values(now-8h, 11.5, 220);
-insert into stream_db.d1004 values(now-7h, 15.3, 217);
-insert into stream_db.d1005 values(now-6h, 16.5, 216);
-insert into stream_db.d1005 values(now-5h, 12.3, 220);
+insert into stream_db.server01 values(now-14h, 50.9, 654.8, 23.11);
+insert into stream_db.server01 values(now-13h, 13.5, 221.2, 11.22);
+insert into stream_db.server02 values(now-12h, 154.7, 218.3, 22.33);
+insert into stream_db.server02 values(now-11h, 120.5, 111.5, 5.55);
+insert into stream_db.server03 values(now-10h, 101.5, 125.6, 5.99);
+insert into stream_db.server03 values(now-9h, 12.3, 165.6, 6.02);
+insert into stream_db.server04 values(now-8h, 160.9, 120.7, 43.51);
+insert into stream_db.server04 values(now-7h, 240.9, 520.7, 54.55);
+insert into stream_db.server05 values(now-6h, 190.9, 320.7, 55.43);
+insert into stream_db.server05 values(now-5h, 110.9, 600.7, 35.54);
 ```
 ### 查询以观查结果
 ```sql
-taos> select * from stream_db.stream2_output_stb;
-           ts            |  cast(ts as bigint)   |    round(current)    |            location            |       group_id        |
-==================================================================================================================================
- 2022-08-08 09:29:55.557 |         1659922195557 |             12.00000 | beijing                        |   7226905450883977166 |
- 2022-08-08 11:29:55.570 |         1659929395570 |             12.00000 | tianjin                        |   7226905450884501455 |
- 2022-08-08 08:29:55.549 |         1659918595549 |             11.00000 | shanghai                       |   7226905450883452877 |
- 2022-08-08 06:29:55.534 |         1659911395534 |             14.00000 | beijing                        |   7226905450882928588 |
- 2022-08-08 14:29:56.175 |         1659940196175 |             12.00000 | shanghai                       |   7226905450895708112 |
-Query OK, 5 rows in database (0.015235s)
+taos> select ts, server_location, cpu, mem, latency from stream_db.stream2_output_stb;
+           ts            |        server_location         |         cpu          |         mem          |       latency        |
+================================================================================================================================
+ 2022-08-09 21:24:56.785 | beijing_server01               |             51.00000 |            655.00000 |             23.00000 |
+ 2022-08-09 22:24:56.795 | beijing_server01               |             14.00000 |            221.00000 |             11.00000 |
+ 2022-08-09 23:24:56.806 | shanghai_server02              |            155.00000 |            218.00000 |             22.00000 |
+ 2022-08-10 00:24:56.815 | shanghai_server02              |            121.00000 |            112.00000 |              6.00000 |
+ 2022-08-10 01:24:56.826 | beijing_server03               |            102.00000 |            126.00000 |              6.00000 |
+ 2022-08-10 02:24:56.838 | beijing_server03               |             12.00000 |            166.00000 |              6.00000 |
+ 2022-08-10 03:24:56.846 | tianjin_server04               |            161.00000 |            121.00000 |             44.00000 |
+ 2022-08-10 04:24:56.853 | tianjin_server04               |            241.00000 |            521.00000 |             55.00000 |
+ 2022-08-10 05:24:56.866 | shanghai_server05              |            191.00000 |            321.00000 |             55.00000 |
+ 2022-08-10 06:24:57.301 | shanghai_server05              |            111.00000 |            601.00000 |             36.00000 |
+Query OK, 10 rows in database (0.022950s)
 ```
-
-## 示例三
-...待续
 
