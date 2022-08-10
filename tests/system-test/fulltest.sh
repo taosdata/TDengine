@@ -96,7 +96,16 @@ python3 ./test.py -f 2-query/distribute_agg_stddev.py
 python3 ./test.py -f 2-query/distribute_agg_stddev.py -R
 python3 ./test.py -f 2-query/distribute_agg_sum.py
 python3 ./test.py -f 2-query/distribute_agg_sum.py -R
-
+python3 ./test.py -f 2-query/explain.py
+python3 ./test.py -f 2-query/explain.py -R
+python3 ./test.py -f 2-query/first.py
+python3 ./test.py -f 2-query/first.py -R
+python3 ./test.py -f 2-query/floor.py
+python3 ./test.py -f 2-query/floor.py -R
+python3 ./test.py -f 2-query/function_null.py
+python3 ./test.py -f 2-query/function_null.py -R
+python3 ./test.py -f 2-query/function_stateduration.py
+python3 ./test.py -f 2-query/function_stateduration.py -R
 
 
 
@@ -118,7 +127,6 @@ python3 ./test.py -f 2-query/union1.py
 python3 ./test.py -f 2-query/concat2.py
 python3 ./test.py -f 2-query/spread.py
 python3 ./test.py -f 2-query/hyperloglog.py
-python3 ./test.py -f 2-query/explain.py
 python3 ./test.py -f 2-query/leastsquares.py
 python3 ./test.py -f 2-query/histogram.py
 
@@ -129,7 +137,6 @@ python3 ./test.py -f 2-query/Today.py
 python3 ./test.py -f 2-query/max.py
 python3 ./test.py -f 2-query/min.py
 python3 ./test.py -f 2-query/last.py
-python3 ./test.py -f 2-query/first.py
 python3 ./test.py -f 2-query/To_iso8601.py
 python3 ./test.py -f 2-query/To_unixtimestamp.py
 python3 ./test.py -f 2-query/timetruncate.py
@@ -138,7 +145,6 @@ python3 ./test.py -f 2-query/json_tag.py
 
 python3 ./test.py -f 2-query/top.py
 python3 ./test.py -f 2-query/percentile.py
-python3 ./test.py -f 2-query/floor.py
 python3 ./test.py -f 2-query/round.py
 python3 ./test.py -f 2-query/log.py
 python3 ./test.py -f 2-query/pow.py
@@ -158,13 +164,11 @@ python3 ./test.py -f 2-query/sample.py
 python3 ./test.py -f 2-query/function_diff.py
 python3 ./test.py -f 2-query/unique.py
 python3 ./test.py -f 2-query/stateduration.py
-python3 ./test.py -f 2-query/function_stateduration.py
 python3 ./test.py -f 2-query/statecount.py
 python3 ./test.py -f 2-query/tail.py
 python3 ./test.py -f 2-query/ttl_comment.py
 python3 ./test.py -f 2-query/twa.py
 python3 ./test.py -f 2-query/irate.py
-python3 ./test.py -f 2-query/function_null.py
 python3 ./test.py -f 2-query/queryQnode.py
 python3 ./test.py -f 2-query/max_partition.py
 python3 ./test.py -f 2-query/last_row.py
