@@ -49,6 +49,8 @@ int32_t metaCacheOpen(SMeta* pMeta) {
     goto _err;
   }
 
+  pMeta->pCache = pCache;
+
   // load the cache info
   TBC* pUidIdxC = NULL;
   if (tdbTbcOpen(pMeta->pUidIdx, &pUidIdxC, NULL) < 0) {
@@ -59,6 +61,10 @@ int32_t metaCacheOpen(SMeta* pMeta) {
   void* pData = NULL;
   int   nKey;
   int   nData;
+
+  if (tdbTbcMoveToFirst(pUidIdxC)) {
+    goto _exit;
+  }
 
   while (tdbTbcNext(pUidIdxC, &pKey, &nKey, &pData, &nData) == 0) {
     SUidIdxVal* pUidIdxVal = (SUidIdxVal*)pData;
@@ -74,7 +80,7 @@ int32_t metaCacheOpen(SMeta* pMeta) {
   tdbFree(pData);
   tdbTbcClose(pUidIdxC);
 
-  pMeta->pCache = pCache;
+_exit:
   return code;
 
 _err:
