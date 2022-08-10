@@ -942,8 +942,8 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       }
 
       // end point
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pConsumer->ep, true);
+      /*pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);*/
+      /*colDataAppend(pColInfo, numOfRows, (const char *)&pConsumer->ep, true);*/
 
       // up time
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

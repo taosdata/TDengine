@@ -101,6 +101,42 @@ void tScalableBfDestroy(SScalableBf *pSBf) {
   taosMemoryFree(pSBf);
 }
 
-void tScalableBfDump(const SScalableBf *pSBf) {
-  // Todo;
+int32_t tScalableBfEncode(const SScalableBf *pSBf, SEncoder* pEncoder) {
+  if (!pSBf) {
+    if (tEncodeI32(pEncoder, 0) < 0) return -1;
+    return 0;
+  }
+  int32_t size = taosArrayGetSize(pSBf->bfArray);
+  if (tEncodeI32(pEncoder, size) < 0) return -1;
+  for (int32_t i = 0; i < size; i++) {
+    SBloomFilter* pBF = taosArrayGetP(pSBf->bfArray, i);
+    if (tBloomFilterEncode(pBF, pEncoder) < 0) return -1;
+  }
+  if (tEncodeU32(pEncoder, pSBf->growth) < 0) return -1;
+  if (tEncodeU64(pEncoder, pSBf->numBits) < 0) return -1;
+  return 0;
+}
+
+SScalableBf* tScalableBfDecode(SDecoder* pDecoder) {
+  SScalableBf *pSBf = taosMemoryCalloc(1, sizeof(SScalableBf));
+  pSBf->bfArray = NULL;
+  int32_t size = 0;
+  if (tDecodeI32(pDecoder, &size) < 0) goto _error;
+  if (size == 0) {
+    tScalableBfDestroy(pSBf);
+    return NULL;
+  }
+  pSBf->bfArray = taosArrayInit(size * 2, sizeof(void *));
+  for (int32_t i = 0; i < size; i++) {
+    SBloomFilter* pBF = tBloomFilterDecode(pDecoder);
+    if (!pBF) goto _error;
+    taosArrayPush(pSBf->bfArray, &pBF);
+  }
+  if (tDecodeU32(pDecoder, &pSBf->growth) < 0) goto _error;
+  if (tDecodeU64(pDecoder, &pSBf->numBits) < 0) goto _error;
+  return pSBf;
+
+_error:
+  tScalableBfDestroy(pSBf);
+  return NULL;
 }

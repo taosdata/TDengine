@@ -47,6 +47,8 @@ bool updateInfoIgnore(SUpdateInfo *pInfo, STimeWindow* pWin, uint64_t groupId, u
 void updateInfoDestroy(SUpdateInfo *pInfo);
 void updateInfoAddCloseWindowSBF(SUpdateInfo *pInfo);
 void updateInfoDestoryColseWinSBF(SUpdateInfo *pInfo);
+int32_t updateInfoSerialize(void *buf, int32_t bufLen, const SUpdateInfo *pInfo);
+int32_t updateInfoDeserialize(void *buf, int32_t bufLen, SUpdateInfo *pInfo);
 
 #ifdef __cplusplus
 }

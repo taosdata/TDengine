@@ -17,6 +17,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "pthread.h"
+#include "tdef.h"
 
 #ifdef WINDOWS
 
@@ -57,7 +58,7 @@ int32_t taosGetAppName(char* name, int32_t* len) {
     end = filepath;
   }
 
-  strcpy(name, end);
+  tstrncpy(name, end, TSDB_APP_NAME_LEN);
 
   if (len != NULL) {
     *len = (int32_t)strlen(end);
@@ -595,7 +596,7 @@ int32_t taosGetAppName(char *name, int32_t *len) {
   buf[PATH_MAX] = '\0';
   size_t n = strlen(buf);
   if (len) *len = n;
-  if (name) strcpy(name, buf);
+  if (name) tstrncpy(name, buf, TSDB_APP_NAME_LEN);
   return 0;
 }
 
@@ -622,7 +623,7 @@ void    taosResetPthread(TdThread* thread) { *thread = 0; }
 bool    taosComparePthread(TdThread first, TdThread second) { return first == second; }
 
 int32_t taosGetPId() {
-  static __thread int32_t pid = 0;
+  static int32_t pid;
   if (pid != 0) return pid;
   pid = getpid();
   return pid;
@@ -644,7 +645,7 @@ int32_t taosGetAppName(char* name, int32_t* len) {
 
   ++end;
 
-  strcpy(name, end);
+  tstrncpy(name, end, TSDB_APP_NAME_LEN);
 
   if (len != NULL) {
     *len = strlen(name);

@@ -29,8 +29,8 @@ sql insert into ct1 values(now, 10, 10.0);
 sql insert into ct1 values(now+1s, 1, 1.0);
 sql insert into ct1 values(now+2s, 100, 100.0);
 
-print =============== wait maxdelay 5+1 seconds for results
-sleep 6000
+print =============== wait maxdelay 5+2 seconds for results
+sleep 7000
 
 print =============== select * from retention level 2 from memory
 sql select * from ct1;
@@ -135,8 +135,8 @@ print =============== insert after rsma qtaskinfo recovery
 sql insert into ct1 values(now, 50, 500.0);
 sql insert into ct1 values(now+1s, 40, 40.0);
 
-print =============== wait maxdelay 5+1 seconds for results
-sleep 6000
+print =============== wait maxdelay 5+2 seconds for results
+sleep 7000
 
 print =============== select * from retention level 2 from file and memory after rsma qtaskinfo recovery
 sql select * from ct1;

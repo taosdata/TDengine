@@ -703,7 +703,11 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   int64_t sentbytes;
 
   while (leftbytes > 0) {
+  #ifdef _TD_ARM_32
+    sentbytes = sendfile(pFileOut->fd, pFileIn->fd, (long int*)offset, leftbytes);
+  #else
     sentbytes = sendfile(pFileOut->fd, pFileIn->fd, offset, leftbytes);
+  #endif
     if (sentbytes == -1) {
       if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
         continue;

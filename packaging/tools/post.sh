@@ -132,6 +132,7 @@ function install_bin() {
     [ -x ${bin_dir}/taosd ] && ${csudo}ln -s ${bin_dir}/taosd ${bin_link_dir}/taosd          || :
     [ -x ${bin_dir}/taosadapter ] && ${csudo}ln -s ${bin_dir}/taosadapter ${bin_link_dir}/taosadapter             || :
     [ -x ${bin_dir}/taosBenchmark ] && ${csudo}ln -sf ${bin_dir}/taosBenchmark ${bin_link_dir}/taosdemo || :
+    [ -x ${bin_dir}/taosBenchmark ] && ${csudo}ln -sf ${bin_dir}/taosBenchmark ${bin_link_dir}/taosBenchmark || :
     [ -x ${bin_dir}/TDinsight.sh ] && ${csudo}ln -sf ${bin_dir}/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
     [ -x ${bin_dir}/taosdump ] && ${csudo}ln -s ${bin_dir}/taosdump ${bin_link_dir}/taosdump || :
     [ -x ${bin_dir}/set_core.sh ] && ${csudo}ln -s ${bin_dir}/set_core.sh ${bin_link_dir}/set_core || :

@@ -25,9 +25,9 @@ extern "C" {
 // reference counting
 typedef void (*_ref_fn_t)(const void *pObj);
 
-#define T_REF_DECLARE() \
-  struct {              \
-    int32_t val;        \
+#define T_REF_DECLARE()   \
+  struct {                \
+    volatile int32_t val; \
   } _ref;
 
 #define T_REF_REGISTER_FUNC(s, e) \

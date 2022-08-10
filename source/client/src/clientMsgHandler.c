@@ -389,7 +389,7 @@ int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
       code = buildShowVariablesRsp(rsp.variables, &pRes);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, false);
+      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, true);
     }
 
     tFreeSShowVariablesRsp(&rsp);
