@@ -16,6 +16,7 @@
 #define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "tdef.h"
 #include "pthread.h"
 
 #ifdef WINDOWS
