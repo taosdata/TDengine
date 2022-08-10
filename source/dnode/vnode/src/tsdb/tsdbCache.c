@@ -745,12 +745,12 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
 
   STbData *pMem = NULL;
   if (pIter->pReadSnap->pMem) {
-    tsdbGetTbDataFromMemTable(pIter->pReadSnap->pMem, suid, uid, &pMem);
+    pMem = tsdbGetTbDataFromMemTable(pIter->pReadSnap->pMem, suid, uid);
   }
 
   STbData *pIMem = NULL;
   if (pIter->pReadSnap->pIMem) {
-    tsdbGetTbDataFromMemTable(pIter->pReadSnap->pIMem, suid, uid, &pIMem);
+    pMem = tsdbGetTbDataFromMemTable(pIter->pReadSnap->pIMem, suid, uid);
   }
 
   pIter->pTsdb = pTsdb;

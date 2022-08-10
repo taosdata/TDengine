@@ -55,6 +55,15 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
     taosMemoryFree(pMemTable);
     goto _err;
   }
+
+  pMemTable->hTbData.nTbData = 0;
+  pMemTable->hTbData.nBucket = 4096;
+  pMemTable->hTbData.aBucket = (STbData **)taosMemoryCalloc(pMemTable->hTbData.nBucket, sizeof(STbData *));
+  if (pMemTable->hTbData.aBucket == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
   vnodeBufPoolRef(pMemTable->pPool);
 
   *ppMemTable = pMemTable;
@@ -68,6 +77,7 @@ _err:
 void tsdbMemTableDestroy(SMemTable *pMemTable) {
   if (pMemTable) {
     vnodeBufPoolUnRef(pMemTable->pPool);
+    taosMemoryFree(pMemTable->hTbData.aBucket);
     taosArrayDestroy(pMemTable->aTbData);
     taosMemoryFree(pMemTable);
   }
@@ -91,14 +101,25 @@ static int32_t tbDataPCmprFn(const void *p1, const void *p2) {
 
   return 0;
 }
-void tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, STbData **ppTbData) {
-  STbData *pTbData = &(STbData){.suid = suid, .uid = uid};
+
+static FORCE_INLINE STbData *tsdbGetTbDataFromMemTableImpl(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid) {
+  STbData **ppTbData = &pMemTable->hTbData.aBucket[TABS(uid) % pMemTable->hTbData.nBucket];
+  while (*ppTbData && ((*ppTbData)->uid != uid)) {
+    ppTbData = &(*ppTbData)->next;
+  }
+
+  return *ppTbData;
+}
+
+STbData *tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid) {
+  STbData *pTbData;
 
   taosRLockLatch(&pMemTable->latch);
-  void *p = taosArraySearch(pMemTable->aTbData, &pTbData, tbDataPCmprFn, TD_EQ);
+  pTbData = tsdbGetTbDataFromMemTableImpl(pMemTable, suid, uid);
   taosRUnLockLatch(&pMemTable->latch);
 
-  *ppTbData = p ? *(STbData **)p : NULL;
+  ASSERT(pTbData == NULL || pTbData->suid == suid);
+  return pTbData;
 }
 
 int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlock,
@@ -309,18 +330,45 @@ _exit:
   return pIter->pRow;
 }
 
+static int32_t tsdbMemTableRehash(SMemTable *pMemTable) {
+  int32_t code = 0;
+
+  int32_t   nBucket = pMemTable->hTbData.nBucket * 2;
+  STbData **aBucket = (STbData **)taosMemoryCalloc(nBucket, sizeof(STbData *));
+  if (aBucket == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  for (int32_t iBucket = 0; iBucket < pMemTable->hTbData.nBucket; iBucket++) {
+    STbData *pTbData = pMemTable->hTbData.aBucket[iBucket];
+    while (pTbData) {
+      STbData *pTbDataT = pTbData->next;
+
+      pTbData->next = aBucket[TABS(pTbData->uid) % nBucket];
+      aBucket[TABS(pTbData->uid) % nBucket] = pTbData;
+
+      pTbData = pTbDataT;
+    }
+  }
+
+  taosMemoryFree(pMemTable->hTbData.aBucket);
+  pMemTable->hTbData.nBucket = nBucket;
+  pMemTable->hTbData.aBucket = aBucket;
+
+_exit:
+  return code;
+}
+
 static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, STbData **ppTbData) {
   int32_t  code = 0;
   int32_t  idx = 0;
   STbData *pTbData = NULL;
   STbData *pTbDataT = &(STbData){.suid = suid, .uid = uid};
 
-  // get
-  idx = taosArraySearchIdx(pMemTable->aTbData, &pTbDataT, tbDataPCmprFn, TD_GE);
-  if (idx >= 0) {
-    pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, idx);
-    if (tbDataPCmprFn(&pTbDataT, &pTbData) == 0) goto _exit;
-  }
+  // search
+  pTbData = tsdbGetTbDataFromMemTableImpl(pMemTable, suid, uid);
+  if (pTbData) goto _exit;
 
   // create
   SVBufPool *pPool = pMemTable->pTsdb->pVnode->inUse;
@@ -362,15 +410,31 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   }
 
   taosWLockLatch(&pMemTable->latch);
+
   p = taosArrayInsert(pMemTable->aTbData, idx, &pTbData);
+  if (p == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    taosWUnLockLatch(&pMemTable->latch);
+    goto _err;
+  }
+
+  // add to hash, rehash if need (todo)
+  if (pMemTable->hTbData.nTbData >= pMemTable->hTbData.nBucket) {
+    code = tsdbMemTableRehash(pMemTable);
+    if (code) {
+      taosWUnLockLatch(&pMemTable->latch);
+      goto _err;
+    }
+  }
+  int32_t iBucket = TABS(uid) % pMemTable->hTbData.nBucket;
+  pTbData->next = pMemTable->hTbData.aBucket[iBucket];
+  pMemTable->hTbData.aBucket[iBucket] = pTbData;
+  pMemTable->hTbData.nTbData++;
+
   taosWUnLockLatch(&pMemTable->latch);
 
   tsdbDebug("vgId:%d, add table data %p at idx:%d", TD_VID(pMemTable->pTsdb->pVnode), pTbData, idx);
 
-  if (p == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
 _exit:
   *ppTbData = pTbData;
   return code;
