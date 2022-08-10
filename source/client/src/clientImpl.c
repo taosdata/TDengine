@@ -1571,7 +1571,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols) {
+int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols) {
   int32_t cols = *(int32_t*) (p + sizeof(int32_t) * 3);
   ASSERT(numOfCols == cols);
 

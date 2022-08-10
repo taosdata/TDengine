@@ -2157,7 +2157,6 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
       char* pStart = pRetrieveRsp->data;
       while(index++ < pRetrieveRsp->numOfBlocks) {
         SSDataBlock* pb = createOneDataBlock(pExchangeInfo->pDummyBlock, false);
-        blockDataEnsureCapacity(pb, pRetrieveRsp->numOfRows);
         code = extractDataBlockFromFetchRsp(pb, pStart, pRetrieveRsp->numOfCols, NULL, &pStart);
         if (code != 0) {
           taosMemoryFreeClear(pDataInfo->pRsp);

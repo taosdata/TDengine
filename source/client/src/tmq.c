@@ -2947,7 +2947,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
   tdSRowSetTpInfo(&rb, numOfCols, fLen);
   int32_t dataLen = 0;
 
-  char*    pStart = pData + sizeof(int32_t) + sizeof(uint64_t) + numOfCols * (sizeof(int16_t) + sizeof(int32_t));
+  char*    pStart = pData + getVersion1BlockMetaSize(pData, numOfCols) - numOfCols * (sizeof(int8_t) + sizeof(int32_t));
   int32_t* colLength = (int32_t*)pStart;
   pStart += sizeof(int32_t) * numOfCols;
 
