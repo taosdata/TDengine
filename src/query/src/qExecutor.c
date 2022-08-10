@@ -5320,15 +5320,17 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, void* tsdb, void* sourceOptr
 }
 
 static void doTableQueryInfoTimeWindowCheck(SQueryAttr* pQueryAttr, STableQueryInfo* pTableQueryInfo) {
+  //
+  //  current subscribe can not ensure pTableQueryInfo->lastKey >= pTableQueryInfo->win.skey, so remove this condition check
+  //  reason is subscribe calc query windows skey is all child table smallest skey, so bigest child table block->skey maybe large than this table's pTableQueryInfo->win.skey
+  //
   if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
     assert(
         (pTableQueryInfo->win.skey <= pTableQueryInfo->win.ekey) &&
-        (pTableQueryInfo->lastKey >= pTableQueryInfo->win.skey) &&
         (pTableQueryInfo->win.skey >= pQueryAttr->window.skey && pTableQueryInfo->win.ekey <= pQueryAttr->window.ekey));
   } else {
     assert(
         (pTableQueryInfo->win.skey >= pTableQueryInfo->win.ekey) &&
-        (pTableQueryInfo->lastKey <= pTableQueryInfo->win.skey) &&
         (pTableQueryInfo->win.skey <= pQueryAttr->window.skey && pTableQueryInfo->win.ekey >= pQueryAttr->window.ekey));
   }
 }
@@ -5428,6 +5430,24 @@ static SSDataBlock* doTableScanImpl(void* param, bool* newgroup) {
           (STableQueryInfo**)taosHashGet(pTableGroupInfo->map, &pBlock->info.tid, sizeof(pBlock->info.tid));
       if (pTableQueryInfo == NULL) {
         break;
+      }
+
+      // check windows condition
+      int64_t skey = (*pTableQueryInfo)->win.skey;
+      if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
+        // ASC
+        if ( skey > pBlock->info.window.ekey ) {
+          qWarn(" pTableQueryInfo skey(%" PRId64 ") > pBlock ekey(%" PRId64 "), so remove this block. pBlock skey=% tid=%d" PRId64,
+                  skey, pBlock->info.window.ekey, pBlock->info.window.skey, pBlock->info.tid);
+          continue;
+        }
+      } else {
+        // DESC
+        if ( skey < pBlock->info.window.skey ) {
+          qWarn(" pTableQueryInfo skey(%" PRId64 ") < pBlock skey(%" PRId64 "), so remove this block. pBlock ekey=% tid=%d" PRId64,
+                skey, pBlock->info.window.skey, pBlock->info.window.ekey, pBlock->info.tid);
+          continue;
+        }
       }
 
       pRuntimeEnv->current = *pTableQueryInfo;
