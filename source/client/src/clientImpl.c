@@ -1747,7 +1747,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
     pStart1 += colLen1;
   }
 
-  *(int32_t*)(pResultInfo->convertJson) = totalLen;
+  *(int32_t*)(pResultInfo->convertJson + 4) = totalLen;
   pResultInfo->pData = pResultInfo->convertJson;
   return TSDB_CODE_SUCCESS;
 }
