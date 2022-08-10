@@ -27,6 +27,22 @@ static int metaUpdateSuidIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry);
 static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type);
 
+static void metaGetEntryUidIdxVal(const SMetaEntry *pEntry, SUidIdxVal *pVal) {
+  pVal->version = pEntry->version;
+  if (pEntry->type == TSDB_CHILD_TABLE) {
+    pVal->suid = pEntry->ctbEntry.suid;
+    pVal->skmVer = -1;
+  } else if (pEntry->type == TSDB_SUPER_TABLE) {
+    pVal->suid = pEntry->uid;
+    pVal->skmVer = pEntry->stbEntry.schemaRow.version;
+  } else if (pEntry->type == TSDB_NORMAL_TABLE) {
+    pVal->suid = 0;
+    pVal->skmVer = pEntry->ntbEntry.schemaRow.version;
+  } else {
+    ASSERT(0);
+  }
+}
+
 static int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp) {
   pMetaRsp->pSchemas = taosMemoryMalloc(pSchema->nCols * sizeof(SSchema));
   if (NULL == pMetaRsp->pSchemas) {
@@ -344,7 +360,8 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   metaSaveToTbDb(pMeta, &nStbEntry);
 
   // update uid index
-  SUidIdxVal uidIdxVal = {.suid = nStbEntry.uid, .version = version, .skmVer = nStbEntry.stbEntry.schemaRow.version};
+  SUidIdxVal uidIdxVal;
+  metaGetEntryUidIdxVal(&nStbEntry, &uidIdxVal);
   tdbTbcUpsert(pUidIdxc, &pReq->suid, sizeof(tb_uid_t), &uidIdxVal, sizeof(uidIdxVal), 0);
 
   // update cache
@@ -718,7 +735,9 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   // save to table db
   metaSaveToTbDb(pMeta, &entry);
 
-  tdbTbcUpsert(pUidIdxc, &entry.uid, sizeof(tb_uid_t), &version, sizeof(version), 0);
+  SUidIdxVal uidIdxVal;
+  metaGetEntryUidIdxVal(&entry, &uidIdxVal);
+  tdbTbcUpsert(pUidIdxc, &entry.uid, sizeof(tb_uid_t), &uidIdxVal, sizeof(uidIdxVal), 0);
 
   metaSaveToSkmDb(pMeta, &entry);
 
@@ -869,7 +888,8 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   metaSaveToTbDb(pMeta, &ctbEntry);
 
   // save to uid.idx
-  SUidIdxVal uidIdxVal = {.suid = ctbEntry.ctbEntry.suid, .version = version, .skmVer = -1};
+  SUidIdxVal uidIdxVal;
+  metaGetEntryUidIdxVal(&ctbEntry, &uidIdxVal);
   tdbTbUpsert(pMeta->pUidIdx, &ctbEntry.uid, sizeof(tb_uid_t), &uidIdxVal, sizeof(uidIdxVal), &pMeta->txn);
 
   if (iCol == 0) {
@@ -970,7 +990,9 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
 
   // save to table db
   metaSaveToTbDb(pMeta, &entry);
-  tdbTbcUpsert(pUidIdxc, &entry.uid, sizeof(tb_uid_t), &version, sizeof(version), 0);
+  SUidIdxVal uidIdxVal;
+  metaGetEntryUidIdxVal(&entry, &uidIdxVal);
+  tdbTbcUpsert(pUidIdxc, &entry.uid, sizeof(tb_uid_t), &uidIdxVal, sizeof(uidIdxVal), 0);
   metaULock(pMeta);
 
   tdbTbcClose(pTbDbc);
@@ -1053,19 +1075,8 @@ _err:
 }
 
 static int metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME) {
-  SUidIdxVal uidIdxVal = {.version = pME->version};
-  if (pME->type == TSDB_CHILD_TABLE) {
-    uidIdxVal.suid = pME->ctbEntry.suid;
-    uidIdxVal.skmVer = -1;
-  } else if (pME->type == TSDB_SUPER_TABLE) {
-    uidIdxVal.suid = pME->uid;
-    uidIdxVal.skmVer = pME->stbEntry.schemaRow.version;
-  } else if (pME->type == TSDB_NORMAL_TABLE) {
-    uidIdxVal.suid = 0;
-    uidIdxVal.skmVer = pME->ntbEntry.schemaRow.version;
-  } else {
-    ASSERT(0);
-  }
+  SUidIdxVal uidIdxVal;
+  metaGetEntryUidIdxVal(pME, &uidIdxVal);
   return tdbTbInsert(pMeta->pUidIdx, &pME->uid, sizeof(tb_uid_t), &uidIdxVal, sizeof(uidIdxVal), &pMeta->txn);
 }
 
