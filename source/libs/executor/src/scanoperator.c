@@ -319,6 +319,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
              pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
       return TSDB_CODE_SUCCESS;
     } else {
+      qDebug("%s failed to load SMA, since not all columns have SMA", GET_TASKID(pTaskInfo));
       *status = FUNC_DATA_REQUIRED_DATA_LOAD;
     }
   }
@@ -326,20 +327,19 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   ASSERT(*status == FUNC_DATA_REQUIRED_DATA_LOAD);
 
   // try to filter data block according to sma info
-  if (pTableScanInfo->pFilterNode != NULL) {
-    if (!loadSMA) {
-      doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo);
-    }
+  if (pTableScanInfo->pFilterNode != NULL && (!loadSMA)) {
+    bool success = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo);
+    if (success) {
+      size_t size = taosArrayGetSize(pBlock->pDataBlock);
+      bool   keep = doFilterByBlockSMA(pTableScanInfo->pFilterNode, pBlock->pBlockAgg, size, pBlockInfo->rows);
+      if (!keep) {
+        qDebug("%s data block filter out by block SMA, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
+               pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
+        pCost->filterOutBlocks += 1;
+        (*status) = FUNC_DATA_REQUIRED_FILTEROUT;
 
-    bool keep = doFilterByBlockSMA(pTableScanInfo->pFilterNode, pBlock->pBlockAgg, taosArrayGetSize(pBlock->pDataBlock),
-                                   pBlockInfo->rows);
-    if (!keep) {
-      qDebug("%s data block filter out by block SMA, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
-             pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
-      pCost->filterOutBlocks += 1;
-      (*status) = FUNC_DATA_REQUIRED_FILTEROUT;
-
-      return TSDB_CODE_SUCCESS;
+        return TSDB_CODE_SUCCESS;
+      }
     }
   }
 
