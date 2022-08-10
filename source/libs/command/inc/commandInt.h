@@ -58,6 +58,7 @@ extern "C" {
 #define EXPLAIN_RATIO_TIME_FORMAT "Ratio: %f"
 #define EXPLAIN_MERGE_FORMAT "Merge"
 #define EXPLAIN_MERGE_KEYS_FORMAT "Merge Key: "
+#define EXPLAIN_IGNORE_GROUPID_FORMAT "Ignore Group Id: %s"
 
 #define EXPLAIN_PLANNING_TIME_FORMAT "Planning Time: %.3f ms"
 #define EXPLAIN_EXEC_TIME_FORMAT "Execution Time: %.3f ms"

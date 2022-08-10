@@ -50,17 +50,10 @@ TDengine 目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后�
 
 ## 安装工具
 
-### Ubuntu 16.04 及以上版本 & Debian：
+### Ubuntu 18.04 及以上版本 & Debian：
 
 ```bash
 sudo apt-get install -y gcc cmake build-essential git libssl-dev
-```
-
-### Ubuntu 14.04：
-
-```bash
-sudo apt-get install -y gcc cmake3 build-essential git binutils-2.26
-export PATH=/usr/lib/binutils-2.26/bin:$PATH
 ```
 
 编译或打包 JDBC 驱动源码，需安装 Java JDK 8 或以上版本和 Apache Maven 2.7 或以上版本。
@@ -89,7 +82,7 @@ taosTools 是用于 TDengine 的辅助工具软件集合。目前它包含 taosB
 sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
 ```
 
-### CentOS 7：
+### CentOS 7.9：
 
 ```bash
 sudo yum install -y gcc gcc-c++ make cmake git openssl-devel
@@ -161,12 +154,7 @@ git clone https://github.com/taosdata/TDengine.git
 cd TDengine
 ```
 
-Go 连接器和 Grafana 插件在其他独立仓库，如果安装它们的话，需要在 TDengine 目录下通过此命令安装：
-
-```bash
-git submodule update --init --recursive
-```
-
+Go 连接器和 Grafana 插件已移到其他独立仓库。
 如果使用 https 协议下载比较慢，可以通过修改 ~/.gitconfig 文件添加以下两行设置使用 ssh 协议下载。需要首先上传 ssh 密钥到 GitHub，详细方法请参考 GitHub 官方文档。
 
 ```
@@ -187,7 +175,6 @@ git submodule update --init --recursive
 这个脚本等价于执行如下命令：
 
 ```bash
-git submodule update --init --recursive
 mkdir debug
 cd debug
 cmake .. -DBUILD_TOOLS=true

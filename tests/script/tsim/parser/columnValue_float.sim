@@ -558,3 +558,5 @@ sql_error alter table st_float_e22 set tag tagname=abc
 sql alter table st_float_e23 set tag tagname="abc"   
 sql alter table st_float_e24 set tag tagname=" "     
 sql alter table st_float_e25 set tag tagname=''      
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

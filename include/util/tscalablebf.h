@@ -33,7 +33,8 @@ int32_t tScalableBfPut(SScalableBf *pSBf, const void *keyBuf, uint32_t len);
 int32_t tScalableBfNoContain(const SScalableBf *pSBf, const void *keyBuf,
                              uint32_t len);
 void tScalableBfDestroy(SScalableBf *pSBf);
-void tScalableBfDump(const SScalableBf *pSBf);
+int32_t tScalableBfEncode(const SScalableBf *pSBf, SEncoder* pEncoder);
+SScalableBf* tScalableBfDecode(SDecoder* pDecoder);
 
 #ifdef __cplusplus
 }

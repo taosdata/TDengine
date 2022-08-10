@@ -237,8 +237,8 @@ if $rows != 3 then
   return -1
 endi
 sql show databases
-print wallevel $data13_testwal
-if $data13_testwal != 1 then 
+print wallevel $data20_testwal
+if $data20_testwal != 1 then 
   return -1
 endi
 sql drop database testwal

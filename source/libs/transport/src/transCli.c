@@ -1009,6 +1009,8 @@ static void cliAsyncCb(uv_async_t* handle) {
   if (count >= 2) {
     tTrace("cli process batch size:%d", count);
   }
+  // if (!uv_is_active((uv_handle_t*)pThrd->prepare)) uv_prepare_start(pThrd->prepare, cliPrepareCb);
+
   if (pThrd->stopMsg != NULL) cliHandleQuit(pThrd->stopMsg, pThrd);
 }
 static void cliPrepareCb(uv_prepare_t* handle) {
@@ -1104,7 +1106,7 @@ static SCliThrd* createThrdObj() {
   pThrd->prepare = taosMemoryCalloc(1, sizeof(uv_prepare_t));
   uv_prepare_init(pThrd->loop, pThrd->prepare);
   pThrd->prepare->data = pThrd;
-  uv_prepare_start(pThrd->prepare, cliPrepareCb);
+  // uv_prepare_start(pThrd->prepare, cliPrepareCb);
 
   int32_t timerSize = 512;
   pThrd->timerList = taosArrayInit(timerSize, sizeof(void*));
@@ -1141,7 +1143,6 @@ static void destroyThrdObj(SCliThrd* pThrd) {
     taosMemoryFree(timer);
   }
   taosArrayDestroy(pThrd->timerList);
-
   taosMemoryFree(pThrd->prepare);
   taosMemoryFree(pThrd->loop);
   taosMemoryFree(pThrd);
@@ -1285,6 +1286,9 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         transFreeMsg(pResp->pCont);
         cliSchedMsgToNextNode(pMsg, pThrd);
         return -1;
+      } else {
+        // change error code for taos client driver if retryCnt exceeds limit
+        if (0 == strncmp(pTransInst->label, "TSC", strlen("TSC"))) pResp->code = TSDB_CODE_APP_NOT_READY;
       }
     }
   }
@@ -1395,6 +1399,7 @@ int transReleaseCliHandle(void* handle) {
   tGDebug("send release request at thread:%08" PRId64 "", pThrd->pid);
 
   if (0 != transAsyncSend(pThrd->asyncPool, &cmsg->q)) {
+    taosMemoryFree(cmsg);
     return -1;
   }
   return 0;
