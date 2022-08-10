@@ -49,7 +49,7 @@ if $rows != 12 then
   return -1
 endi
 if $data02 != NULL then
-  print "expect: NULL, act: $data03"
+  print "expect: NULL, act: $data02"
   return -1
 endi
 if $data03 != @binary00@ then

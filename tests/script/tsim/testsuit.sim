@@ -1,10 +1,10 @@
-run tsim/user/password.sim
-run tsim/user/privilege_db.sim
-run tsim/user/privilege_sysinfo.sim
-run tsim/user/basic.sim
-run tsim/table/basic1.sim
-run tsim/trans/lossdata1.sim
-run tsim/trans/create_db.sim
+#run tsim/user/password.sim
+#run tsim/user/privilege_db.sim
+#run tsim/user/privilege_sysinfo.sim
+#run tsim/user/basic.sim
+#run tsim/table/basic1.sim
+#run tsim/trans/lossdata1.sim
+#run tsim/trans/create_db.sim
 run tsim/stable/alter_metrics.sim
 run tsim/stable/tag_modify.sim
 run tsim/stable/alter_comment.sim

@@ -2947,7 +2947,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
   tdSRowSetTpInfo(&rb, numOfCols, fLen);
   int32_t dataLen = 0;
 
-  char*    pStart = pData + sizeof(int32_t) + sizeof(uint64_t) + numOfCols * (sizeof(int16_t) + sizeof(int32_t));
+  char*    pStart = pData + getVersion1BlockMetaSize(pData, numOfCols);
   int32_t* colLength = (int32_t*)pStart;
   pStart += sizeof(int32_t) * numOfCols;
 
@@ -2977,6 +2977,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
           char* data = pCol[k].pData + pCol[k].offset[j];
           tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, data, true, offset, k);
         } else {
+
           tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, offset, k);
         }
       } else {
@@ -2990,6 +2991,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
 
       offset += TYPE_BYTES[pColumn->type];
     }
+    tdSRowEnd(&rb);
     int32_t rowLen = TD_ROW_LEN(rowData);
     rowData = POINTER_SHIFT(rowData, rowLen);
     dataLen += rowLen;
@@ -3220,6 +3222,7 @@ static int32_t tmqWriteRaw(TAOS* taos, void* data, int32_t dataLen) {
         }
         offset += TYPE_BYTES[pColumn->type];
       }
+      tdSRowEnd(&rb);
       int32_t rowLen = TD_ROW_LEN(rowData);
       rowData = POINTER_SHIFT(rowData, rowLen);
       dataLen += rowLen;
