@@ -672,6 +672,18 @@ static void vnodeRestoreFinish(struct SSyncFSM *pFsm) {
   vDebug("vgId:%d, sync restore finished", pVnode->config.vgId);
 }
 
+static void vnodeBecomeFollower(struct SSyncFSM *pFsm) {
+  SVnode *pVnode = pFsm->data;
+  vDebug("vgId:%d, become follower", pVnode->config.vgId);
+
+  // clear old leader resource
+}
+
+static void vnodeBecomeLeader(struct SSyncFSM *pFsm) {
+  SVnode *pVnode = pFsm->data;
+  vDebug("vgId:%d, become leader", pVnode->config.vgId);
+}
+
 static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pVnode;
@@ -681,6 +693,8 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpGetSnapshotInfo = vnodeSyncGetSnapshot;
   pFsm->FpRestoreFinishCb = vnodeRestoreFinish;
   pFsm->FpLeaderTransferCb = vnodeLeaderTransfer;
+  pFsm->FpBecomeLeaderCb = vnodeBecomeLeader;
+  pFsm->FpBecomeFollowerCb = vnodeBecomeFollower;
   pFsm->FpReConfigCb = vnodeSyncReconfig;
   pFsm->FpSnapshotStartRead = vnodeSnapshotStartRead;
   pFsm->FpSnapshotStopRead = vnodeSnapshotStopRead;
