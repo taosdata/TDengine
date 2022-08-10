@@ -298,6 +298,143 @@ int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle,
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct tagFilterAssist{
+  SHashObj *colHash;
+  int32_t   index;
+  SArray   *cInfoList;
+}tagFilterAssist;
+
+static EDealRes getColumn(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    tagFilterAssist *pData = (tagFilterAssist *)pContext;
+    SColumnNode* pSColumnNode = (SColumnNode*)pNode;
+    void *data = taosHashGet(pData->colHash, &pSColumnNode->colId, sizeof(pSColumnNode->colId));
+    if(!data){
+      taosHashPut(pData->colHash, &pSColumnNode->colId, sizeof(pSColumnNode->colId), &pNode, sizeof(pNode));
+      pSColumnNode->slotId = pData->index++;
+      SColumnInfo cInfo = {.colId = pSColumnNode->colId, .type = pSColumnNode->node.resType.type, .bytes = pSColumnNode->node.resType.bytes};
+      taosArrayPush(pData->cInfoList, &cInfo);
+    }
+
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t createResultData(SDataType* pType, int32_t numOfRows, SScalarParam* pParam) {
+  SColumnInfoData* pColumnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  if (pColumnData == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
+  }
+
+  pColumnData->info.type      = pType->type;
+  pColumnData->info.bytes     = pType->bytes;
+  pColumnData->info.scale     = pType->scale;
+  pColumnData->info.precision = pType->precision;
+
+  int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFree(pColumnData);
+    return terrno;
+  }
+
+  pParam->columnData = pColumnData;
+  pParam->colAlloced = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+SColumnInfoData* getColInfoResult(void* metaHandle, SArray* pTableList, SNode* pTagCond){
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray* pBlockList = NULL;
+  SSDataBlock* pResBlock = NULL;
+  SScalarParam output = {0};
+
+  tagFilterAssist ctx = {0};
+  ctx.colHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
+  if(ctx.colHash == NULL){
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto end;
+  }
+  ctx.index = 0;
+  ctx.cInfoList = taosArrayInit(4, sizeof(SColumnInfo));
+  if(ctx.cInfoList == NULL){
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto end;
+  }
+  nodesWalkExprPostOrder(pTagCond, getColumn, (void *)&ctx);
+
+  pResBlock = createDataBlock();
+  if (pResBlock == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto end;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(ctx.cInfoList); ++i) {
+    SColumnInfoData colInfo = {{0}, 0};
+    colInfo.info = *(SColumnInfo*)taosArrayGet(ctx.cInfoList, i);
+    blockDataAppendColInfo(pResBlock, &colInfo);
+  }
+
+  int32_t rows = taosArrayGetSize(pTableList);
+  code = blockDataEnsureCapacity(pResBlock, rows);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    goto end;
+  }
+
+  for (int32_t i = 0; i < rows; i++) {
+    STableKeyInfo* info = taosArrayGet(pTableList, i);
+
+    SMetaReader mr = {0};
+    metaReaderInit(&mr, metaHandle, 0);
+    code = metaGetTableEntryByUid(&mr, info->uid);
+    if (TSDB_CODE_SUCCESS == code) {
+      for(int32_t j = 0; j < taosArrayGetSize(pResBlock->pDataBlock); j++){
+        SColumnInfoData* pColInfo = (SColumnInfoData*)taosArrayGet(pResBlock->pDataBlock, j);
+        STagVal tagVal = {0};
+        tagVal.cid = pColInfo->info.colId;
+        const char* p = metaGetTableTagVal(&mr.me, pColInfo->info.type, &tagVal);
+
+        if (IS_VAR_DATA_TYPE(pColInfo->info.type)) {
+          char* tmp = taosMemoryCalloc(tagVal.nData + VARSTR_HEADER_SIZE, 1);
+          memcpy(varDataVal(tmp), tagVal.pData, tagVal.nData);
+          varDataSetLen(tmp, tagVal.nData);
+          colDataAppend(pColInfo, i, tmp, p == NULL);
+          taosMemoryFree(tmp);
+        } else {
+          colDataAppend(pColInfo, i, p, p == NULL);
+        }
+      }
+
+    }
+    metaReaderClear(&mr);
+  }
+
+  pBlockList = taosArrayInit(2, POINTER_BYTES);
+  taosArrayPush(pBlockList, &pResBlock);
+
+  SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  code = createResultData(&type, rows, &output);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+
+  code = scalarCalculate(pTagCond, pBlockList, &output);
+  if(code != TSDB_CODE_SUCCESS){
+    terrno = code;
+  }
+
+end:
+  taosArrayDestroy(pBlockList);
+  taosHashCleanup(ctx.colHash);
+  taosArrayDestroy(ctx.cInfoList);
+  blockDataDestroy(pResBlock);
+  taosArrayDestroy(pBlockList);
+  return output.columnData;
+}
+
 int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
                      STableListInfo* pListInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -347,22 +484,23 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   }
 
   if (pTagCond) {
+    SColumnInfoData* pColInfoData = getColInfoResult(metaHandle, pListInfo->pTableList, pTagCond);
+    if(terrno != TDB_CODE_SUCCESS){
+      colDataDestroy(pColInfoData);
+      return terrno;
+    }
+
     int32_t i = 0;
     while (i < taosArrayGetSize(pListInfo->pTableList)) {
-      STableKeyInfo* info = taosArrayGet(pListInfo->pTableList, i);
+      void* var = POINTER_SHIFT(pColInfoData->pData, i * pColInfoData->info.bytes);
 
-      bool qualified = true;
-      code = isQualifiedTable(info, pTagCond, metaHandle, &qualified);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-
-      if (!qualified) {
+      if (*(bool*)var == false) {
         taosArrayRemove(pListInfo->pTableList, i);
         continue;
       }
       i++;
     }
+    colDataDestroy(pColInfoData);
   }
 
   pListInfo->pGroupList = taosArrayInit(4, POINTER_BYTES);

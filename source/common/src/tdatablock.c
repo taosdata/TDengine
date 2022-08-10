@@ -1343,12 +1343,14 @@ SSDataBlock* createDataBlock() {
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (pBlock == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
   }
 
   pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
   if (pBlock->pDataBlock == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFree(pBlock);
+    return NULL;
   }
 
   return pBlock;
