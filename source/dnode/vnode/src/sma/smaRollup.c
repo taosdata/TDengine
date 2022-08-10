@@ -604,28 +604,44 @@ _end:
 
 static int32_t tdRSmaFetchAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSmaInfoItem *pItem, STSchema *pTSchema,
                                           int64_t suid, int8_t blkType) {
-  while (1) {
-    SSDataBlock *output = NULL;
-    uint64_t     ts;
+  SArray *pResList = taosArrayInit(1, POINTER_BYTES);
+  if (pResList == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
 
-    int32_t code = qExecTask(taskInfo, &output, &ts);
+  while (1) {
+    uint64_t ts;
+    int32_t  code = qExecTaskOpt(taskInfo, pResList, &ts);
     if (code < 0) {
       smaError("vgId:%d, qExecTask for rsma table %" PRIi64 " level %" PRIi8 " failed since %s", SMA_VID(pSma), suid,
                pItem->level, terrstr(code));
       goto _err;
     }
 
-    if (output) {
-#if 0
+    if (taosArrayGetSize(pResList) == 0) {
+      if (terrno == 0) {
+        smaDebug("vgId:%d, no rsma %" PRIi8 " data fetched yet", SMA_VID(pSma), pItem->level);
+      } else {
+        smaDebug("vgId:%d, no rsma %" PRIi8 " data fetched since %s", SMA_VID(pSma), pItem->level, terrstr());
+        goto _err;
+      }
+
+      break;
+    }
+
+    for (int32_t i = 0; i < taosArrayGetSize(pResList); ++i) {
+      SSDataBlock *output = taosArrayGetP(pResList, i);
+
+#if 1
       char flag[10] = {0};
       snprintf(flag, 10, "level %" PRIi8, pItem->level);
-      SArray *pResult = taosArrayInit(1, sizeof(SSDataBlock));
-      taosArrayPush(pResult, output);
-      blockDebugShowDataBlocks(pResult, flag);
-      taosArrayDestroy(pResult);
+//      blockDebugShowDataBlocks(output, flag);
+//      taosArrayDestroy(pResult);
 #endif
-      STsdb      *sinkTsdb = (pItem->level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb[0] : pSma->pRSmaTsdb[1]);
+      STsdb *     sinkTsdb = (pItem->level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb[0] : pSma->pRSmaTsdb[1]);
       SSubmitReq *pReq = NULL;
+
       // TODO: the schema update should be handled later(TD-17965)
       if (buildSubmitReqFromDataBlock(&pReq, output, pTSchema, SMA_VID(pSma), suid) < 0) {
         smaError("vgId:%d, build submit req for rsma stable %" PRIi64 " level %" PRIi8 " failed since %s",
@@ -644,17 +660,14 @@ static int32_t tdRSmaFetchAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSm
                SMA_VID(pSma), suid, pItem->level, output->info.version);
 
       taosMemoryFreeClear(pReq);
-    } else if (terrno == 0) {
-      smaDebug("vgId:%d, no rsma %" PRIi8 " data fetched yet", SMA_VID(pSma), pItem->level);
-      break;
-    } else {
-      smaDebug("vgId:%d, no rsma %" PRIi8 " data fetched since %s", SMA_VID(pSma), pItem->level, terrstr());
-      goto _err;
     }
   }
 
+  taosArrayDestroy(pResList);
   return TSDB_CODE_SUCCESS;
+
 _err:
+  taosArrayDestroy(pResList);
   return TSDB_CODE_FAILED;
 }
 
@@ -1407,7 +1420,7 @@ int32_t tdRSmaFetchSend(SSma *pSma, SRSmaInfo *pInfo, int8_t level) {
     tEncoderClear(&encoder);
   }
   tEncoderClear(&encoder);
-  
+
   ((SMsgHead *)pBuf)->vgId = SMA_VID(pSma);
   ((SMsgHead *)pBuf)->contLen = contLen + sizeof(SMsgHead);
 
@@ -1434,10 +1447,10 @@ _err:
 
 /**
  * @brief fetch rsma data of level 2/3 and submit
- * 
- * @param pSma 
- * @param pMsg 
- * @return int32_t 
+ *
+ * @param pSma
+ * @param pMsg
+ * @return int32_t
  */
 int32_t smaProcessFetch(SSma *pSma, void *pMsg) {
   SRpcMsg       *pRpcMsg = (SRpcMsg *)pMsg;
