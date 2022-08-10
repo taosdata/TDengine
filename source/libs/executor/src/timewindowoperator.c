@@ -2087,8 +2087,10 @@ static void doKeepNextRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock
   pSliceInfo->isNextRowSet = true;
 }
 
-static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock* pBlock, int32_t rowIndex) {
+static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock* pBlock, int32_t rowIndex,
+                             bool isLastRow) {
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  bool fillLastPoint = pSliceInfo->fillLastPoint;
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
     SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pSliceInfo->tsCol.slotId);
@@ -2096,22 +2098,30 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
 
     // null data should not be kept since it can not be used to perform interpolation
     if (!colDataIsNull_s(pColInfoData, i)) {
-      int64_t startKey = *(int64_t*)colDataGetData(pTsCol, rowIndex);
-      int64_t endKey   = *(int64_t*)colDataGetData(pTsCol, rowIndex + 1);
-      pLinearInfo->start.key = startKey;
-      pLinearInfo->end.key   = endKey;
+      if (isLastRow) {
+        pLinearInfo->start.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
+        memcpy(pLinearInfo->start.val, colDataGetData(pColInfoData, rowIndex), pLinearInfo->bytes);
+      } else if (fillLastPoint) {
+        pLinearInfo->end.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
+        memcpy(pLinearInfo->end.val, colDataGetData(pColInfoData, rowIndex), pLinearInfo->bytes);
+      } else {
+        pLinearInfo->start.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
+        pLinearInfo->end.key = *(int64_t*)colDataGetData(pTsCol, rowIndex + 1);
 
-      char* val;
-      val = colDataGetData(pColInfoData, rowIndex);
-      memcpy(pLinearInfo->start.val, val, pLinearInfo->bytes);
-      val = colDataGetData(pColInfoData, rowIndex + 1);
-      memcpy(pLinearInfo->end.val, val, pLinearInfo->bytes);
+        char* val;
+        val = colDataGetData(pColInfoData, rowIndex);
+        memcpy(pLinearInfo->start.val, val, pLinearInfo->bytes);
+        val = colDataGetData(pColInfoData, rowIndex + 1);
+        memcpy(pLinearInfo->end.val, val, pLinearInfo->bytes);
+      }
 
       pLinearInfo->hasNull = false;
     } else {
       pLinearInfo->hasNull = true;
     }
   }
+
+  pSliceInfo->fillLastPoint = isLastRow ? true : false;
 
 }
 
@@ -2269,7 +2279,7 @@ static int32_t initFillLinearInfo(STimeSliceOperatorInfo* pInfo, SSDataBlock* pB
   }
 
   pInfo->pLinearInfo = taosArrayInit(4, sizeof(SFillLinearInfo));
-  if (pInfo->pNextRow == NULL) {
+  if (pInfo->pLinearInfo == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -2283,13 +2293,18 @@ static int32_t initFillLinearInfo(STimeSliceOperatorInfo* pInfo, SSDataBlock* pB
     linearInfo.start.val = taosMemoryCalloc(1, pColInfo->info.bytes);
     linearInfo.end.val   = taosMemoryCalloc(1, pColInfo->info.bytes);
     linearInfo.hasNull   = false;
-    linearInfo.fillLastPoint = false;
     linearInfo.type  = pColInfo->info.type;
     linearInfo.bytes = pColInfo->info.bytes;
     taosArrayPush(pInfo->pLinearInfo, &linearInfo);
   }
 
+  pInfo->fillLastPoint = false;
+
   return TSDB_CODE_SUCCESS;
+}
+
+static bool needToFillLastPoint(STimeSliceOperatorInfo* pSliceInfo) {
+  return (pSliceInfo->fillLastPoint == true && pSliceInfo->fillType == TSDB_FILL_LINEAR);
 }
 
 static int32_t initKeeperInfo(STimeSliceOperatorInfo* pInfo, SSDataBlock* pBlock) {
@@ -2356,6 +2371,23 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
     for (int32_t i = 0; i < pBlock->info.rows; ++i) {
       int64_t ts = *(int64_t*)colDataGetData(pTsCol, i);
 
+      if (i == 0 && needToFillLastPoint(pSliceInfo)) { // first row in current block
+        doKeepLinearInfo(pSliceInfo, pBlock, i, false);
+        while (pSliceInfo->current < ts && pSliceInfo->current <= pSliceInfo->win.ekey) {
+          genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
+          pSliceInfo->current =
+              taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
+          if (pResBlock->info.rows >= pResBlock->info.capacity) {
+            break;
+          }
+        }
+
+        if (pSliceInfo->current > pSliceInfo->win.ekey) {
+          doSetOperatorCompleted(pOperator);
+          break;
+        }
+      }
+
       if (ts == pSliceInfo->current) {
         for (int32_t j = 0; j < pOperator->exprSupp.numOfExprs; ++j) {
           SExprInfo* pExprInfo = &pOperator->exprSupp.pExprInfo[j];
@@ -2374,9 +2406,10 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
 
         // for linear interpolation, always fill value between this and next points;
         // if its the first point in data block, also fill values between previous(if there's any) and this point;
-        // if its the last point in data block, no need to fill, but reserve this point as the start value for next data block.
+        // if its the last point in data block, no need to fill, but reserve this point as the start value and do
+        // the interpolation when processing next data block.
         if (pSliceInfo->fillType == TSDB_FILL_LINEAR) {
-          doKeepLinearInfo(pSliceInfo, pBlock, i);
+          doKeepLinearInfo(pSliceInfo, pBlock, i, false);
           pSliceInfo->current =
               taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
           if (i < pBlock->info.rows - 1) {
@@ -2396,6 +2429,9 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
                 break;
               }
             }
+          } else {// it is the last row of current block
+            //store ts value as start, and calculate interp value when processing next block
+            doKeepLinearInfo(pSliceInfo, pBlock, i, true);
           }
         } else { // non-linear interpolation
           pSliceInfo->current =
@@ -2414,7 +2450,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
         doKeepPrevRows(pSliceInfo, pBlock, i);
 
         if (pSliceInfo->fillType == TSDB_FILL_LINEAR) {
-          doKeepLinearInfo(pSliceInfo, pBlock, i);
+          doKeepLinearInfo(pSliceInfo, pBlock, i, false);
           // no need to increate pSliceInfo->current here
           //pSliceInfo->current =
           //    taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
@@ -2494,7 +2530,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
 
 
           if (pSliceInfo->fillType == TSDB_FILL_LINEAR) {
-            doKeepLinearInfo(pSliceInfo, pBlock, i);
+            doKeepLinearInfo(pSliceInfo, pBlock, i, false);
             pSliceInfo->current =
                 taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
             if (i < pBlock->info.rows - 1) {
