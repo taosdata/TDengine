@@ -412,6 +412,8 @@ SColumnInfoData* getColInfoResult(void* metaHandle, SArray* pTableList, SNode* p
     }
     metaReaderClear(&mr);
   }
+  pResBlock->info.rows = rows;
+
   int64_t st1 = taosGetTimestampUs();
   qDebug("generate tag block rows:%d, cost:%lf ms", rows, st1-st);
 
@@ -432,7 +434,6 @@ SColumnInfoData* getColInfoResult(void* metaHandle, SArray* pTableList, SNode* p
   qDebug("calculate tag block rows:%d, cost:%lf ms", rows, st2-st1);
 
 end:
-  taosArrayDestroy(pBlockList);
   taosHashCleanup(ctx.colHash);
   taosArrayDestroy(ctx.cInfoList);
   blockDataDestroy(pResBlock);
