@@ -666,6 +666,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
 
     ++iColVal;
   }
+  tdSRowEnd(&rb);
 
   taosMemoryFreeClear(varBuf);
 
@@ -880,26 +881,29 @@ int32_t tdGetKvRowValOfCol(SCellVal *output, STSRow *pRow, void *pBitmap, int32_
 
 int32_t tdGetTpRowValOfCol(SCellVal *output, STSRow *pRow, void *pBitmap, int8_t colType, int32_t offset,
                            int16_t colIdx) {
-#ifdef TD_SUPPORT_BITMAP
+  if (pRow->statis == 0) {
+    output->valType = TD_VTYPE_NORM;
+    if (IS_VAR_DATA_TYPE(colType)) {
+      output->val = POINTER_SHIFT(pRow, *(VarDataOffsetT *)POINTER_SHIFT(TD_ROW_DATA(pRow), offset));
+    } else {
+      output->val = POINTER_SHIFT(TD_ROW_DATA(pRow), offset);
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (tdGetBitmapValType(pBitmap, colIdx, &output->valType, 0) != TSDB_CODE_SUCCESS) {
     output->valType = TD_VTYPE_NONE;
     return terrno;
   }
-  if (tdValTypeIsNorm(output->valType)) {
+
+  if (output->valType == TD_VTYPE_NORM) {
     if (IS_VAR_DATA_TYPE(colType)) {
       output->val = POINTER_SHIFT(pRow, *(VarDataOffsetT *)POINTER_SHIFT(TD_ROW_DATA(pRow), offset));
     } else {
       output->val = POINTER_SHIFT(TD_ROW_DATA(pRow), offset);
     }
   }
-#else
-  if (IS_VAR_DATA_TYPE(colType)) {
-    output->val = POINTER_SHIFT(pRow, *(VarDataOffsetT *)POINTER_SHIFT(TD_ROW_DATA(pRow), offset));
-  } else {
-    output->val = POINTER_SHIFT(TD_ROW_DATA(pRow), offset);
-  }
-  output->valType = isNull(output->val, colType) ? TD_VTYPE_NULL : TD_VTYPE_NORM;
-#endif
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -908,7 +912,7 @@ int32_t tdAppendColValToRow(SRowBuilder *pBuilder, col_id_t colId, int8_t colTyp
   STSRow *pRow = pBuilder->pBuf;
   if (!val) {
 #ifdef TD_SUPPORT_BITMAP
-    if (tdValTypeIsNorm(valType)) {
+    if (valType == TD_VTYPE_NORM) {
       terrno = TSDB_CODE_INVALID_PTR;
       return terrno;
     }
@@ -925,6 +929,21 @@ int32_t tdAppendColValToRow(SRowBuilder *pBuilder, col_id_t colId, int8_t colTyp
     return TSDB_CODE_SUCCESS;
   }
   // TODO:  We can avoid the type judegement by FP, but would prevent the inline scheme.
+
+  switch (valType) {
+    case TD_VTYPE_NORM:
+      break;
+    case TD_VTYPE_NULL:
+      if (!pBuilder->hasNull) pBuilder->hasNull = true;
+      break;
+    case TD_VTYPE_NONE:
+      if (!pBuilder->hasNone) pBuilder->hasNone = true;
+      break;
+    default:
+      ASSERT(0);
+      break;
+  }
+
   if (TD_IS_TP_ROW(pRow)) {
     tdAppendColValToTpRow(pBuilder, valType, val, isCopyVarData, colType, colIdx, offset);
   } else {
@@ -951,7 +970,7 @@ int32_t tdAppendColValToKvRow(SRowBuilder *pBuilder, TDRowValT valType, const vo
 
   STSRow *row = pBuilder->pBuf;
   // No need to store None/Null values.
-  if (tdValIsNorm(valType, val, colType)) {
+  if (valType == TD_VTYPE_NORM) {
     // ts key stored in STSRow.ts
     SKvRowIdx *pColIdx = (SKvRowIdx *)POINTER_SHIFT(TD_ROW_COL_IDX(row), offset);
     char      *ptr = (char *)POINTER_SHIFT(row, TD_ROW_LEN(row));
@@ -1012,7 +1031,7 @@ int32_t tdAppendColValToTpRow(SRowBuilder *pBuilder, TDRowValT valType, const vo
   // 1. No need to set flen part for Null/None, just use bitmap. When upsert for the same primary TS key, the bitmap
   // should be updated simultaneously if Norm val overwrite Null/None cols.
   // 2. When consume STSRow in memory by taos client/tq, the output of Null/None cols should both be Null.
-  if (tdValIsNorm(valType, val, colType)) {
+  if (valType == TD_VTYPE_NORM) {
     // TODO: The layout of new data types imported since 3.0 like blob/medium blob is the same with binary/nchar.
     if (IS_VAR_DATA_TYPE(colType)) {
       // ts key stored in STSRow.ts
@@ -1092,6 +1111,9 @@ int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
     return terrno;
   }
 
+  if (pBuilder->hasNone) pBuilder->hasNone = false;
+  if (pBuilder->hasNull) pBuilder->hasNull = false;
+
   TD_ROW_SET_INFO(pBuilder->pBuf, 0);
   TD_ROW_SET_TYPE(pBuilder->pBuf, pBuilder->rowType);
 
@@ -1157,14 +1179,6 @@ int32_t tdSRowGetBuf(SRowBuilder *pBuilder, void *pBuf) {
       return terrno;
   }
   return TSDB_CODE_SUCCESS;
-}
-
-int32_t tdSRowInitEx(SRowBuilder *pBuilder, void *pBuf, uint32_t allNullLen, uint32_t boundNullLen, int32_t nCols,
-                     int32_t nBoundCols, int32_t flen) {
-  if (tdSRowSetExtendedInfo(pBuilder, allNullLen, boundNullLen, nCols, nBoundCols, flen) < 0) {
-    return terrno;
-  }
-  return tdSRowResetBuf(pBuilder, pBuf);
 }
 
 void tdSRowReset(SRowBuilder *pBuilder) {

@@ -29,6 +29,7 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t  code = 0;
@@ -190,6 +191,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
     case TDMT_VND_DELETE:
       if (vnodeProcessDeleteReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
       break;
+    case TDMT_VND_BATCH_DEL:
+      if (vnodeProcessBatchDeleteReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
+      break;
     /* TQ */
     case TDMT_VND_MQ_VG_CHANGE:
       if (tqProcessVgChangeReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
@@ -204,7 +208,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       break;
     case TDMT_VND_MQ_COMMIT_OFFSET:
       if (tqProcessOffsetCommitReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
-                                   pMsg->contLen - sizeof(SMsgHead)) < 0) {
+                                   pMsg->contLen - sizeof(SMsgHead), version) < 0) {
         goto _err;
       }
       break;
@@ -1050,6 +1054,23 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
     tsdbSetKeepCfg(pVnode->pTsdb, &pVnode->config.tsdbCfg);
   }
 
+  return 0;
+}
+
+static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  SBatchDeleteReq deleteReq;
+  SDecoder        decoder;
+  tDecoderInit(&decoder, pReq, len);
+  tDecodeSBatchDeleteReq(&decoder, &deleteReq);
+
+  int32_t sz = taosArrayGetSize(deleteReq.deleteReqs);
+  for (int32_t i = 0; i < sz; i++) {
+    SSingleDeleteReq *pOneReq = taosArrayGet(deleteReq.deleteReqs, i);
+    int32_t code = tsdbDeleteTableData(pVnode->pTsdb, version, deleteReq.suid, pOneReq->uid, pOneReq->ts, pOneReq->ts);
+    if (code) {
+      // TODO
+    }
+  }
   return 0;
 }
 

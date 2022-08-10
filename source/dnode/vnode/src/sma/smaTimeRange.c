@@ -119,7 +119,7 @@ int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg) {
     SName stbFullName = {0};
     tNameFromString(&stbFullName, pCfg->dstTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
     SVCreateStbReq pReq = {0};
-    pReq.name = (char*)tNameGetTableName(&stbFullName);
+    pReq.name = (char *)tNameGetTableName(&stbFullName);
     pReq.suid = pCfg->dstTbUid;
     pReq.schemaRow = pCfg->schemaRow;
     pReq.schemaTag = pCfg->schemaTag;
@@ -200,8 +200,9 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
     goto _err;
   }
 
+  SBatchDeleteReq deleteReq;
   SSubmitReq *pSubmitReq = tdBlockToSubmit((const SArray *)msg, pTsmaStat->pTSchema, true, pTsmaStat->pTSma->dstTbUid,
-                                           pTsmaStat->pTSma->dstTbName, pTsmaStat->pTSma->dstVgId);
+                                           pTsmaStat->pTSma->dstTbName, pTsmaStat->pTSma->dstVgId, &deleteReq);
 
   if (!pSubmitReq) {
     smaError("vgId:%d, failed to gen submit blk while tsma insert for smaIndex %" PRIi64 " since %s", SMA_VID(pSma),

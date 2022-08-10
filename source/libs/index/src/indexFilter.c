@@ -358,9 +358,101 @@ static Filter sifGetFilterFunc(EIndexQueryType type, bool *reverse) {
   }
   return NULL;
 }
-static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
-  int ret = 0;
+typedef union {
+  uint8_t  u8;
+  uint16_t u16;
+  uint32_t u32;
+  uint64_t u64;
 
+  int8_t  i8;
+  int16_t i16;
+  int32_t i32;
+  int64_t i64;
+
+  double d;
+  float  f;
+} SDataTypeBuf;
+
+#define SIF_DATA_CONVERT(type, val, dst)       \
+  do {                                         \
+    if (type == TSDB_DATA_TYPE_DOUBLE)         \
+      dst = GET_DOUBLE_VAL(val);               \
+    else if (type == TSDB_DATA_TYPE_BIGINT)    \
+      dst = *(int64_t *)val;                   \
+    else if (type == TSDB_DATA_TYPE_INT)       \
+      dst = *(int32_t *)val;                   \
+    else if (type == TSDB_DATA_TYPE_SMALLINT)  \
+      dst = *(int16_t *)val;                   \
+    else if (type == TSDB_DATA_TYPE_TINYINT)   \
+      dst = *(int8_t *)val;                    \
+    else if (type == TSDB_DATA_TYPE_UTINYINT)  \
+      dst = *(uint8_t *)val;                   \
+    else if (type == TSDB_DATA_TYPE_USMALLINT) \
+      dst = *(uint16_t *)val;                  \
+    else if (type == TSDB_DATA_TYPE_UINT)      \
+      dst = *(uint32_t *)val;                  \
+    else if (type == TSDB_DATA_TYPE_UBIGINT)   \
+      dst = *(uint64_t *)val;                  \
+  } while (0);
+
+static void sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typedata, SMetaFltParam *param) {
+  int8_t ltype = left->colValType, rtype = right->colValType;
+  if (ltype == TSDB_DATA_TYPE_FLOAT) {
+    float f;
+    SIF_DATA_CONVERT(rtype, right->condValue, f);
+    typedata->f = f;
+    param->val = &typedata->f;
+  } else if (ltype == TSDB_DATA_TYPE_DOUBLE) {
+    double d;
+    SIF_DATA_CONVERT(rtype, right->condValue, d);
+    typedata->d = d;
+    param->val = &typedata->d;
+  } else if (ltype == TSDB_DATA_TYPE_BIGINT) {
+    int64_t i64;
+    SIF_DATA_CONVERT(rtype, right->condValue, i64);
+    typedata->i64 = i64;
+    param->val = &typedata->i64;
+  } else if (ltype == TSDB_DATA_TYPE_INT) {
+    int32_t i32;
+    SIF_DATA_CONVERT(rtype, right->condValue, i32);
+    typedata->i32 = i32;
+    param->val = &typedata->i32;
+  } else if (ltype == TSDB_DATA_TYPE_SMALLINT) {
+    int16_t i16;
+
+    SIF_DATA_CONVERT(rtype, right->condValue, i16);
+    typedata->i16 = i16;
+    param->val = &typedata->i16;
+  } else if (ltype == TSDB_DATA_TYPE_TINYINT) {
+    int8_t i8;
+    SIF_DATA_CONVERT(rtype, right->condValue, i8)
+    typedata->i8 = i8;
+    param->val = &typedata->i8;
+  } else if (ltype == TSDB_DATA_TYPE_UBIGINT) {
+    uint64_t u64;
+    SIF_DATA_CONVERT(rtype, right->condValue, u64);
+    typedata->u64 = u64;
+    param->val = &typedata->u64;
+
+  } else if (ltype == TSDB_DATA_TYPE_UINT) {
+    uint32_t u32;
+    SIF_DATA_CONVERT(rtype, right->condValue, u32);
+    typedata->u32 = u32;
+    param->val = &typedata->u32;
+  } else if (ltype == TSDB_DATA_TYPE_USMALLINT) {
+    uint16_t u16;
+    SIF_DATA_CONVERT(rtype, right->condValue, u16);
+    typedata->u16 = u16;
+    param->val = &typedata->u16;
+  } else if (ltype == TSDB_DATA_TYPE_UTINYINT) {
+    uint8_t u8;
+    SIF_DATA_CONVERT(rtype, right->condValue, u8);
+    typedata->u8 = u8;
+    param->val = &typedata->u8;
+  }
+}
+static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
+  int             ret = 0;
   SIndexMetaArg  *arg = &output->arg;
   EIndexQueryType qtype = 0;
   SIF_ERR_RET(sifGetFuncFromSql(operType, &qtype));
@@ -385,9 +477,10 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
                            .reverse = reverse,
                            .filterFunc = filterFunc};
 
-    char   buf[128] = {0};
-    float  f = 0.0;
-    double d = 0.0;
+    char buf[128] = {0};
+
+    SDataTypeBuf typedata;
+    memset(&typedata, 0, sizeof(typedata));
     if (IS_VAR_DATA_TYPE(left->colValType)) {
       if (!IS_VAR_DATA_TYPE(right->colValType)) {
         NUM_TO_STRING(right->colValType, right->condValue, sizeof(buf) - 2, buf + VARSTR_HEADER_SIZE);
@@ -395,26 +488,7 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
         param.val = buf;
       }
     } else {
-      if (left->colValType == TSDB_DATA_TYPE_FLOAT) {
-        if (right->colValType == TSDB_DATA_TYPE_DOUBLE) {
-          f = GET_DOUBLE_VAL(right->condValue);
-          param.val = &f;
-        } else if (right->colValType == TSDB_DATA_TYPE_BIGINT) {
-          f = *(int64_t *)(right->condValue);
-          param.val = &f;
-        } else {
-          f = *(int32_t *)(right->condValue);
-          param.val = &f;
-        }
-      } else if (left->colValType == TSDB_DATA_TYPE_DOUBLE) {
-        if (right->colValType == TSDB_DATA_TYPE_DOUBLE) {
-          d = GET_DOUBLE_VAL(right->condValue);
-          param.val = &d;
-        } else if (right->colValType == TSDB_DATA_TYPE_BIGINT) {
-          d = *(int64_t *)(right->condValue);
-          param.val = &d;
-        }
-      }
+      sifSetFltParam(left, right, &typedata, &param);
     }
     ret = metaFilterTableIds(arg->metaEx, &param, output->result);
   }
