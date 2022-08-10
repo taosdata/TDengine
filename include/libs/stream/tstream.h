@@ -154,7 +154,10 @@ static FORCE_INLINE void streamQueueProcessFail(SStreamQueue* queue) {
   atomic_store_8(&queue->status, STREAM_QUEUE__FAILED);
 }
 
-static FORCE_INLINE void* streamQueueCurItem(SStreamQueue* queue) { return queue->qItem; }
+static FORCE_INLINE void* streamQueueCurItem(SStreamQueue* queue) {
+  //
+  return queue->qItem;
+}
 
 static FORCE_INLINE void* streamQueueNextItem(SStreamQueue* queue) {
   int8_t dequeueFlag = atomic_exchange_8(&queue->status, STREAM_QUEUE__PROCESSING);
@@ -226,9 +229,7 @@ typedef struct {
   int32_t nodeId;
   int32_t childId;
   int32_t taskId;
-  // int64_t checkpointVer;
-  // int64_t processedVer;
-  SEpSet epSet;
+  SEpSet  epSet;
 } SStreamChildEpInfo;
 
 typedef struct {
@@ -373,15 +374,6 @@ static FORCE_INLINE int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBloc
 }
 
 typedef struct {
-  int32_t reserved;
-} SStreamTaskDeployRsp;
-
-typedef struct {
-  // SMsgHead     head;
-  SStreamTask* task;
-} SStreamTaskDeployReq;
-
-typedef struct {
   SMsgHead head;
   int64_t  streamId;
   int32_t  taskId;
@@ -478,7 +470,18 @@ typedef struct {
 } SStreamRecoverDownstreamRsp;
 
 int32_t tEncodeSStreamTaskRecoverReq(SEncoder* pEncoder, const SStreamRecoverDownstreamReq* pReq);
-int32_t tDecodeSStreamTaskRecoverRsp(SDecoder* pDecoder, const SStreamRecoverDownstreamRsp* pRsp);
+int32_t tDecodeSStreamTaskRecoverReq(SDecoder* pDecoder, SStreamRecoverDownstreamReq* pReq);
+
+int32_t tEncodeSStreamTaskRecoverRsp(SEncoder* pEncoder, const SStreamRecoverDownstreamRsp* pRsp);
+int32_t tDecodeSStreamTaskRecoverRsp(SDecoder* pDecoder, SStreamRecoverDownstreamRsp* pRsp);
+
+typedef struct {
+  int64_t streamId;
+  int32_t taskId;
+  int32_t waitingRspCnt;
+  int32_t totReq;
+  SArray* info;  // SArray<SArray<SStreamCheckpointInfo>*>
+} SStreamRecoverStatus;
 
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq);
@@ -504,7 +507,7 @@ typedef struct SStreamMeta {
   TTB*         pTaskDb;
   TTB*         pStateDb;
   SHashObj*    pTasks;
-  SHashObj*    pRecoveringState;
+  SHashObj*    pRecoverStatus;
   void*        ahandle;
   TXN          txn;
   FTaskExpand* expandFunc;

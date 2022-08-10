@@ -16,7 +16,8 @@
 #include "transComm.h"
 
 typedef struct SConnList {
-  queue conn;
+  queue   conn;
+  int32_t size;
 } SConnList;
 
 typedef struct SCliConn {
@@ -339,8 +340,8 @@ void cliHandleResp(SCliConn* conn) {
       tDebug("%s conn %p stop timer", CONN_GET_INST_LABEL(conn), conn);
       uv_timer_stop(conn->timer);
     }
-    conn->timer->data = NULL;
     taosArrayPush(pThrd->timerList, &conn->timer);
+    conn->timer->data = NULL;
     conn->timer = NULL;
   }
 
@@ -510,7 +511,7 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
   SHashObj*  pPool = pool;
   SConnList* plist = taosHashGet(pPool, key, strlen(key));
   if (plist == NULL) {
-    SConnList list;
+    SConnList list = {0};
     taosHashPut(pPool, key, strlen(key), (void*)&list, sizeof(list));
     plist = taosHashGet(pPool, key, strlen(key));
     QUEUE_INIT(&plist->conn);
@@ -519,15 +520,18 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
   if (QUEUE_IS_EMPTY(&plist->conn)) {
     return NULL;
   }
+
+  plist->size -= 1;
   queue*    h = QUEUE_HEAD(&plist->conn);
   SCliConn* conn = QUEUE_DATA(h, SCliConn, q);
   conn->status = ConnNormal;
   QUEUE_REMOVE(&conn->q);
   QUEUE_INIT(&conn->q);
 
-  transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
-  conn->task = NULL;
-
+  if (conn->task != NULL) {
+    transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
+    conn->task = NULL;
+  }
   return conn;
 }
 static void addConnToPool(void* pool, SCliConn* conn) {
@@ -538,6 +542,13 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   CONN_HANDLE_THREAD_QUIT(thrd);
 
   allocConnRef(conn, true);
+
+  if (conn->timer != NULL) {
+    uv_timer_stop(conn->timer);
+    taosArrayPush(thrd->timerList, &conn->timer);
+    conn->timer->data = NULL;
+    conn->timer = NULL;
+  }
 
   STrans* pTransInst = thrd->pTransInst;
   cliReleaseUnfinishedMsg(conn);
@@ -556,13 +567,17 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   assert(conn->list != NULL);
   QUEUE_INIT(&conn->q);
   QUEUE_PUSH(&conn->list->conn, &conn->q);
+  conn->list->size += 1;
 
+  conn->task = NULL;
   assert(!QUEUE_IS_EMPTY(&conn->list->conn));
 
-  STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
-  arg->param1 = conn;
-  arg->param2 = thrd;
-  conn->task = transDQSched(thrd->timeoutQueue, doCloseIdleConn, arg, CONN_PERSIST_TIME(pTransInst->idleTime));
+  if (conn->list->size >= 50) {
+    STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
+    arg->param1 = conn;
+    arg->param2 = thrd;
+    conn->task = transDQSched(thrd->timeoutQueue, doCloseIdleConn, arg, CONN_PERSIST_TIME(pTransInst->idleTime));
+  }
 }
 static int32_t allocConnRef(SCliConn* conn, bool update) {
   if (update) {
@@ -1374,7 +1389,7 @@ int transReleaseCliHandle(void* handle) {
   }
 
   STransMsg tmsg = {.info.handle = handle};
-  TRACE_SET_MSGID(&tmsg.info.traceId, tGenIdPI64());
+  // TRACE_SET_MSGID(&tmsg.info.traceId, tGenIdPI64());
 
   SCliMsg* cmsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cmsg->msg = tmsg;
@@ -1415,7 +1430,6 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
   if (ctx != NULL) {
     pCtx->appCtx = *ctx;
   }
-  assert(pTransInst->connType == TAOS_CONN_CLIENT);
 
   SCliMsg* cliMsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cliMsg->ctx = pCtx;
