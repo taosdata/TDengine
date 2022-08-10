@@ -24,14 +24,14 @@ EOF
 
 prepare_repo() {
   ([ -d build-taoskeeper ] && [ -d build-taoskeeper/.git ] && cd build-taoskeeper/ && git pull) || \
-    (rm -rf build-taoskeeper && git clone https://github.com/taosdata/taoskeeper.git build-taoskeeper && cd build-taoskeeper)
+    (rm -rf build-taoskeeper && git clone https://github.com/taosdata/taoskeeperinternal.git build-taoskeeper && cd build-taoskeeper)
 }
 
 checkout_latest_tag() {
   cd build-taoskeeper
   latest=$(git tag --sort=-taggerdate|grep -o 'v.*'|head -n1)
   if [ "$latest" = "" ]; then
-    latest="develop"
+    latest="3.0"
   else
     git checkout $latest
   fi

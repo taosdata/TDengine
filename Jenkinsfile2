@@ -121,7 +121,6 @@ def pre_test(){
     '''
     sh '''
         cd ${WKC}
-        git submodule update --init --recursive
     '''
     sh '''
         cd ${WKPY}
@@ -273,7 +272,6 @@ def pre_test_win(){
     '''
     bat '''
         cd %WIN_COMMUNITY_ROOT%
-        git submodule update --init --recursive
     '''
     bat '''
         cd %WIN_CONNECTOR_ROOT%
