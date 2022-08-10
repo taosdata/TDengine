@@ -21,6 +21,7 @@ class TDTestCase:
     def check_customize_param_ms(self):
 
         time_zone = time.strftime('%z')
+        tdSql.execute(f'drop database if exists {self.dbname}')
         tdSql.execute(f'create database {self.dbname} precision "ms"')
         tdSql.execute(f'use {self.dbname}')
         tdSql.execute(f'create table if not exists {self.ntbname}(ts timestamp, c1 int, c2 timestamp)')
