@@ -384,6 +384,7 @@ SColumnInfoData* getColInfoResult(void* metaHandle, SArray* pTableList, SNode* p
     goto end;
   }
 
+  int64_t st = taosGetTimestampUs();
   for (int32_t i = 0; i < rows; i++) {
     STableKeyInfo* info = taosArrayGet(pTableList, i);
 
@@ -411,6 +412,8 @@ SColumnInfoData* getColInfoResult(void* metaHandle, SArray* pTableList, SNode* p
     }
     metaReaderClear(&mr);
   }
+  int64_t st1 = taosGetTimestampUs();
+  qDebug("generate tag block rows:%d, cost:%lf ms", rows, st1-st);
 
   pBlockList = taosArrayInit(2, POINTER_BYTES);
   taosArrayPush(pBlockList, &pResBlock);
@@ -425,6 +428,8 @@ SColumnInfoData* getColInfoResult(void* metaHandle, SArray* pTableList, SNode* p
   if(code != TSDB_CODE_SUCCESS){
     terrno = code;
   }
+  int64_t st2 = taosGetTimestampUs();
+  qDebug("calculate tag block rows:%d, cost:%lf ms", rows, st2-st1);
 
 end:
   taosArrayDestroy(pBlockList);
