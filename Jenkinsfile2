@@ -38,9 +38,11 @@ def pre_test(){
     sh '''
         cd ${WK}
         git reset --hard
+        git fetch
         cd ${WKC}
         git reset --hard
         git clean -fxd
+        git fetch
     '''
     script {
         sh '''
@@ -146,10 +148,12 @@ def pre_test_win(){
     bat '''
         cd %WIN_INTERNAL_ROOT%
         git reset --hard
+        git fetch
     '''
     bat '''
         cd %WIN_COMMUNITY_ROOT%
         git reset --hard
+        git fetch
     '''
     script {
         bat '''
