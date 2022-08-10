@@ -5437,14 +5437,14 @@ static SSDataBlock* doTableScanImpl(void* param, bool* newgroup) {
       if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
         // ASC
         if ( skey > pBlock->info.window.ekey ) {
-          qWarn(" pTableQueryInfo skey(%" PRId64 ") > pBlock ekey(%" PRId64 "), so remove this block. pBlock skey=% tid=%d" PRId64,
+          qWarn(" pTableQueryInfo skey(%" PRId64 ") > pBlock ekey(%" PRId64 "), so remove this block. pBlock skey=%" PRId64 " tid=%d",
                   skey, pBlock->info.window.ekey, pBlock->info.window.skey, pBlock->info.tid);
           continue;
         }
       } else {
         // DESC
         if ( skey < pBlock->info.window.skey ) {
-          qWarn(" pTableQueryInfo skey(%" PRId64 ") < pBlock skey(%" PRId64 "), so remove this block. pBlock ekey=% tid=%d" PRId64,
+          qWarn(" pTableQueryInfo skey(%" PRId64 ") < pBlock skey(%" PRId64 "), so remove this block. pBlock ekey=%" PRId64 "tid=%d",
                 skey, pBlock->info.window.skey, pBlock->info.window.ekey, pBlock->info.tid);
           continue;
         }
