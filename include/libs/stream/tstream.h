@@ -118,7 +118,7 @@ typedef struct {
   int64_t sourceVer;
   int64_t reqId;
 
-  SArray* blocks;  // SArray<SSDataBlock*>
+  SArray* blocks;  // SArray<SSDataBlock>
 } SStreamDataBlock;
 
 typedef struct {
