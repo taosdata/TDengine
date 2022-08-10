@@ -427,7 +427,7 @@ bool tdSKvRowGetVal(STSRow *pRow, col_id_t colId, col_id_t colIdx, SCellVal *pVa
     tdRowSetVal(pVal, TD_VTYPE_NORM, TD_ROW_KEY_ADDR(pRow));
     return true;
   }
-  int16_t nCols = tdRowGetNCols(pRow);
+  int16_t nCols = tdRowGetNCols(pRow) - 1;
   if (nCols <= 0) {
     pVal->valType = TD_VTYPE_NONE;
     return true;
@@ -488,7 +488,7 @@ bool tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId, col_id_t *nIdx, SCe
   STSRow    *pRow = pIter->pRow;
   SKvRowIdx *pKvIdx = NULL;
   bool       colFound = false;
-  col_id_t   kvNCols = tdRowGetNCols(pRow);
+  col_id_t   kvNCols = tdRowGetNCols(pRow) - 1;
   void      *pColIdx = TD_ROW_COL_IDX(pRow);
 
   while (*nIdx < kvNCols) {
@@ -534,7 +534,7 @@ bool tdGetTpRowDataOfCol(STSRowIter *pIter, col_type_t colType, int32_t offset, 
     return TSDB_CODE_SUCCESS;
   }
 
-  if (tdGetBitmapValType(pIter->pBitmap, pIter->colIdx, &pVal->valType, 0) != TSDB_CODE_SUCCESS) {
+  if (tdGetBitmapValType(pIter->pBitmap, pIter->colIdx - 1, &pVal->valType, 0) != TSDB_CODE_SUCCESS) {
     pVal->valType = TD_VTYPE_NONE;
     return terrno;
   }
@@ -814,7 +814,7 @@ int32_t tdSetBitmapValTypeI(void *pBitmap, int16_t colIdx, TDRowValT valType) {
 
 int32_t tdGetKvRowValOfCol(SCellVal *output, STSRow *pRow, void *pBitmap, int32_t offset, int16_t colIdx) {
 #ifdef TD_SUPPORT_BITMAP
-  TASSERT(colIdx < tdRowGetNCols(pRow));
+  TASSERT(colIdx < tdRowGetNCols(pRow) - 1);
   if (tdGetBitmapValType(pBitmap, colIdx, &output->valType, 0) != TSDB_CODE_SUCCESS) {
     output->valType = TD_VTYPE_NONE;
     return terrno;
@@ -1054,14 +1054,14 @@ int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
       break;
     case TD_ROW_KV:
 #ifdef TD_SUPPORT_BITMAP
-      pBuilder->pBitmap = tdGetBitmapAddrKv(pBuilder->pBuf, pBuilder->nBoundCols - 1);
+      pBuilder->pBitmap = tdGetBitmapAddrKv(pBuilder->pBuf, pBuilder->nBoundCols);
       memset(pBuilder->pBitmap, TD_VTYPE_NONE_BYTE_II, pBuilder->nBoundBitmaps);
 #endif
       len = TD_ROW_HEAD_LEN + TD_ROW_NCOLS_LEN + (pBuilder->nBoundCols - 1) * sizeof(SKvRowIdx) +
             pBuilder->nBoundBitmaps;  // add
       TD_ROW_SET_LEN(pBuilder->pBuf, len);
       TD_ROW_SET_SVER(pBuilder->pBuf, pBuilder->sver);
-      TD_ROW_SET_NCOLS(pBuilder->pBuf, pBuilder->nBoundCols - 1);
+      TD_ROW_SET_NCOLS(pBuilder->pBuf, pBuilder->nBoundCols);
       break;
     default:
       TASSERT(0);

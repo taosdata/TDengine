@@ -256,7 +256,7 @@ static FORCE_INLINE void *tdGetBitmapAddrTp(STSRow *pRow, uint32_t flen) {
 
 static FORCE_INLINE void *tdGetBitmapAddrKv(STSRow *pRow, col_id_t nKvCols) {
   // The primary TS key is stored separatedly and is Norm value, thus should minus 1 firstly
-  return POINTER_SHIFT(TD_ROW_COL_IDX(pRow), nKvCols * sizeof(SKvRowIdx));
+  return POINTER_SHIFT(TD_ROW_COL_IDX(pRow), (--nKvCols) * sizeof(SKvRowIdx));
 }
 void   *tdGetBitmapAddr(STSRow *pRow, uint8_t rowType, uint32_t flen, col_id_t nKvCols);
 int32_t tdSetBitmapValType(void *pBitmap, int16_t colIdx, TDRowValT valType, int8_t bitmapMode);
