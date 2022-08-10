@@ -448,15 +448,16 @@ static void tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *p
   SMemSkipListNode *px;
   SMemSkipListNode *pn;
   TSDBKEY          *pTKey;
-  int               c;
-  int               backward = flags & SL_MOVE_BACKWARD;
-  int               fromPos = flags & SL_MOVE_FROM_POS;
+  int32_t           backward = flags & SL_MOVE_BACKWARD;
+  int32_t           fromPos = flags & SL_MOVE_FROM_POS;
 
   if (backward) {
     px = pTbData->sl.pTail;
 
-    for (int8_t iLevel = pTbData->sl.maxLevel - 1; iLevel >= pTbData->sl.level; iLevel--) {
-      pos[iLevel] = px;
+    if (!fromPos) {
+      for (int8_t iLevel = pTbData->sl.level; iLevel < pTbData->sl.maxLevel; iLevel++) {
+        pos[iLevel] = px;
+      }
     }
 
     if (pTbData->sl.level) {
@@ -467,7 +468,7 @@ static void tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *p
         while (pn != pTbData->sl.pHead) {
           pTKey = (TSDBKEY *)SL_NODE_DATA(pn);
 
-          c = tsdbKeyCmprFn(pTKey, pKey);
+          int32_t c = tsdbKeyCmprFn(pTKey, pKey);
           if (c <= 0) {
             break;
           } else {
@@ -482,8 +483,10 @@ static void tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *p
   } else {
     px = pTbData->sl.pHead;
 
-    for (int8_t iLevel = pTbData->sl.maxLevel - 1; iLevel >= pTbData->sl.level; iLevel--) {
-      pos[iLevel] = px;
+    if (!fromPos) {
+      for (int8_t iLevel = pTbData->sl.level; iLevel < pTbData->sl.maxLevel; iLevel++) {
+        pos[iLevel] = px;
+      }
     }
 
     if (pTbData->sl.level) {
@@ -492,9 +495,7 @@ static void tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *p
       for (int8_t iLevel = pTbData->sl.level - 1; iLevel >= 0; iLevel--) {
         pn = SL_NODE_FORWARD(px, iLevel);
         while (pn != pTbData->sl.pTail) {
-          pTKey = (TSDBKEY *)SL_NODE_DATA(pn);
-
-          c = tsdbKeyCmprFn(pTKey, pKey);
+          int32_t c = tsdbKeyCmprFn(SL_NODE_DATA(pn), pKey);
           if (c >= 0) {
             break;
           } else {
@@ -535,34 +536,42 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
     goto _exit;
   }
   pNode->level = level;
-  for (int8_t iLevel = 0; iLevel < level; iLevel++) {
-    SL_NODE_FORWARD(pNode, iLevel) = NULL;
-    SL_NODE_BACKWARD(pNode, iLevel) = NULL;
-  }
-
   tPutTSDBRow((uint8_t *)SL_NODE_DATA(pNode), pRow);
 
-  // put
-  for (int8_t iLevel = 0; iLevel < pNode->level; iLevel++) {
-    SMemSkipListNode *px = pos[iLevel];
+  for (int8_t iLevel = level - 1; iLevel >= 0; iLevel--) {
+    SMemSkipListNode *pn = pos[iLevel];
+    SMemSkipListNode *px;
 
     if (forward) {
-      SMemSkipListNode *pNext = SL_NODE_FORWARD(px, iLevel);
+      px = SL_NODE_FORWARD(pn, iLevel);
 
-      SL_NODE_FORWARD(pNode, iLevel) = pNext;
-      SL_NODE_BACKWARD(pNode, iLevel) = px;
-
-      SL_NODE_BACKWARD(pNext, iLevel) = pNode;
-      SL_NODE_FORWARD(px, iLevel) = pNode;
-    } else {
-      SMemSkipListNode *pPrev = SL_NODE_BACKWARD(px, iLevel);
-
+      SL_NODE_BACKWARD(pNode, iLevel) = pn;
       SL_NODE_FORWARD(pNode, iLevel) = px;
-      SL_NODE_BACKWARD(pNode, iLevel) = pPrev;
+    } else {
+      px = SL_NODE_BACKWARD(pn, iLevel);
 
-      SL_NODE_FORWARD(pPrev, iLevel) = pNode;
-      SL_NODE_BACKWARD(px, iLevel) = pNode;
+      SL_NODE_BACKWARD(pNode, iLevel) = px;
+      SL_NODE_FORWARD(pNode, iLevel) = pn;
     }
+  }
+
+  for (int8_t iLevel = level - 1; iLevel >= 0; iLevel--) {
+    SMemSkipListNode *pn = pos[iLevel];
+    SMemSkipListNode *px;
+
+    if (forward) {
+      px = SL_NODE_FORWARD(pn, iLevel);
+
+      SL_NODE_FORWARD(pn, iLevel) = pNode;
+      SL_NODE_BACKWARD(px, iLevel) = pNode;
+    } else {
+      px = SL_NODE_BACKWARD(pn, iLevel);
+
+      SL_NODE_FORWARD(px, iLevel) = pNode;
+      SL_NODE_BACKWARD(pn, iLevel) = pNode;
+    }
+
+    pos[iLevel] = pNode;
   }
 
   pTbData->sl.size++;
@@ -603,7 +612,7 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
   // forward put rest data
   row.pTSRow = tGetSubmitBlkNext(&blkIter);
   if (row.pTSRow) {
-    for (int8_t iLevel = 0; iLevel < pTbData->sl.maxLevel; iLevel++) {
+    for (int8_t iLevel = pos[0]->level; iLevel < pTbData->sl.maxLevel; iLevel++) {
       pos[iLevel] = SL_NODE_BACKWARD(pos[iLevel], iLevel);
     }
     do {

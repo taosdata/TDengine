@@ -154,7 +154,7 @@ TEST(testCase, driverInit_Test) {
 }
 
 TEST(testCase, connect_Test) {
-  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/tdengine/sim/dnode1/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
 
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   if (pConn == NULL) {
@@ -670,54 +670,56 @@ TEST(testCase, projection_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 1");
-  if (taos_errno(pRes) != 0) {
-    printf("error in create db, reason:%s\n", taos_errstr(pRes));
-  }
+//  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 1");
+//  if (taos_errno(pRes) != 0) {
+//    printf("error in create db, reason:%s\n", taos_errstr(pRes));
+//  }
+//  taos_free_result(pRes);
+
+  TAOS_RES* pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "use abc1");
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create stable st1 (ts timestamp, k int) tags(a int)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create stable st2 (ts timestamp, k int) tags(a int)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create table tu using st1 tags(1)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
-
-  for(int32_t i = 0; i < 1; ++i) {
-    printf("create table :%d\n", i);
-    createNewTable(pConn, i);
-  }
-
-  pRes = taos_query(pConn, "select * from tu");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
-    taos_free_result(pRes);
-    ASSERT_TRUE(false);
-  }
-
-  TAOS_ROW    pRow = NULL;
-  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-  int32_t     numOfFields = taos_num_fields(pRes);
-
-  char str[512] = {0};
-  while ((pRow = taos_fetch_row(pRes)) != NULL) {
-    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-    printf("%s\n", str);
-  }
+  pRes = taos_query(pConn, "explain verbose true select _wstart,count(*),a from st1 partition by a interval(1s)");
+  printResult(pRes);
+//  pRes = taos_query(pConn, "create stable st1 (ts timestamp, k int) tags(a int)");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
+//  }
+//  taos_free_result(pRes);
+//
+//  pRes = taos_query(pConn, "create stable st2 (ts timestamp, k int) tags(a int)");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
+//  }
+//  taos_free_result(pRes);
+//
+//  pRes = taos_query(pConn, "create table tu using st1 tags(1)");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
+//  }
+//  taos_free_result(pRes);
+//
+//  for(int32_t i = 0; i < 1; ++i) {
+//    printf("create table :%d\n", i);
+//    createNewTable(pConn, i);
+//  }
+//
+//  pRes = taos_query(pConn, "select * from tu");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
+//    taos_free_result(pRes);
+//    ASSERT_TRUE(false);
+//  }
+//
+//  TAOS_ROW    pRow = NULL;
+//  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+//  int32_t     numOfFields = taos_num_fields(pRes);
+//
+//  char str[512] = {0};
+//  while ((pRow = taos_fetch_row(pRes)) != NULL) {
+//    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+//    printf("%s\n", str);
+//  }
 
   taos_free_result(pRes);
   taos_close(pConn);

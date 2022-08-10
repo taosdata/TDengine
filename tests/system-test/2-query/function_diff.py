@@ -256,8 +256,6 @@ class TDTestCase:
         tdSql.error(self.diff_query_form(col='c%'))     # col is spercial char 1
         tdSql.error(self.diff_query_form(col='c_'))     # col is spercial char 2
         tdSql.error(self.diff_query_form(col='c.'))     # col is spercial char 3
-        tdSql.error(self.diff_query_form(col='c3'))     # timestamp col
-        tdSql.error(self.diff_query_form(col='ts'))     # Primary key
         tdSql.error(self.diff_query_form(col='avg(c1)'))    # expr col
         # tdSql.error(self.diff_query_form(col='c6'))     # bool col
         tdSql.query("select diff(c6) from t1")
