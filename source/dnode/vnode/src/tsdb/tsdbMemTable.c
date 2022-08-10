@@ -330,6 +330,36 @@ _exit:
   return pIter->pRow;
 }
 
+static int32_t tsdbMemTableRehash(SMemTable *pMemTable) {
+  int32_t code = 0;
+
+  int32_t   nBucket = pMemTable->hTbData.nBucket * 2;
+  STbData **aBucket = (STbData **)taosMemoryCalloc(nBucket, sizeof(STbData *));
+  if (aBucket == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  for (int32_t iBucket = 0; iBucket < pMemTable->hTbData.nBucket; iBucket++) {
+    STbData *pTbData = pMemTable->hTbData.aBucket[iBucket];
+    while (pTbData) {
+      STbData *pTbDataT = pTbData->next;
+
+      pTbData->next = aBucket[TABS(pTbData->uid) % nBucket];
+      aBucket[TABS(pTbData->uid) % nBucket] = pTbData;
+
+      pTbData = pTbDataT;
+    }
+  }
+
+  taosMemoryFree(pMemTable->hTbData.aBucket);
+  pMemTable->hTbData.nBucket = nBucket;
+  pMemTable->hTbData.aBucket = aBucket;
+
+_exit:
+  return code;
+}
+
 static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, STbData **ppTbData) {
   int32_t  code = 0;
   int32_t  idx = 0;
@@ -382,8 +412,20 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   taosWLockLatch(&pMemTable->latch);
 
   p = taosArrayInsert(pMemTable->aTbData, idx, &pTbData);
+  if (p == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    taosWUnLockLatch(&pMemTable->latch);
+    goto _err;
+  }
 
   // add to hash, rehash if need (todo)
+  if (pMemTable->hTbData.nTbData >= pMemTable->hTbData.nBucket) {
+    code = tsdbMemTableRehash(pMemTable);
+    if (code) {
+      taosWUnLockLatch(&pMemTable->latch);
+      goto _err;
+    }
+  }
   int32_t iBucket = TABS(uid) % pMemTable->hTbData.nBucket;
   pTbData->next = pMemTable->hTbData.aBucket[iBucket];
   pMemTable->hTbData.aBucket[iBucket] = pTbData;
@@ -393,10 +435,6 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
 
   tsdbDebug("vgId:%d, add table data %p at idx:%d", TD_VID(pMemTable->pTsdb->pVnode), pTbData, idx);
 
-  if (p == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
 _exit:
   *ppTbData = pTbData;
   return code;
