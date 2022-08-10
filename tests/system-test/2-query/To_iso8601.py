@@ -15,16 +15,18 @@ class TDTestCase:
         tdSql.init(conn.cursor())
         self.rowNum = 10
         self.ts = 1640966400000  # 2022-1-1 00:00:00.000
+        self.dbname = 'db'
+        self.stbname = f'{self.dbname}.stb'
+        self.ntbname = f'{self.dbname}.ntb'
     def check_customize_param_ms(self):
 
         time_zone = time.strftime('%z')
-        tdSql.execute('create database db1 precision "ms"')
-        tdSql.execute('use db1')
-        tdSql.execute('create table if not exists ntb(ts timestamp, c1 int, c2 timestamp)')
+        tdSql.execute(f'create database {self.dbname} precision "ms"')
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(f'create table if not exists {self.ntbname}(ts timestamp, c1 int, c2 timestamp)')
         for i in range(self.rowNum):
-            tdSql.execute("insert into ntb values(%d, %d, %d)"
-                        % (self.ts + i, i + 1, self.ts + i))
-        tdSql.query('select to_iso8601(ts) from ntb')
+            tdSql.execute(f"insert into {self.ntbname} values({self.ts + i}, {i + 1}, {self.ts + i})")
+        tdSql.query(f'select to_iso8601(ts) from {self.ntbname}')
         for i in range(self.rowNum):
             tdSql.checkEqual(tdSql.queryResult[i][0],f'2022-01-01T00:00:00.00{i}{time_zone}')
 
@@ -36,17 +38,17 @@ class TDTestCase:
                             '-00:00','-01:00','-02:00','-03:00','-04:00','-05:00','-06:00','-07:00','-08:00','-09:00','-10:00','-11:00','-12:00',\
                                 'z','Z']
         for j in timezone_list:
-            tdSql.query(f'select to_iso8601(ts,"{j}") from ntb')
+            tdSql.query(f'select to_iso8601(ts,"{j}") from {self.ntbname}')
             for i in range(self.rowNum):
                 tdSql.checkEqual(tdSql.queryResult[i][0],f'2022-01-01T00:00:00.00{i}{j}')
 
         error_param_list = [0,100.5,'a','!']
         for i in error_param_list:
-            tdSql.error(f'select to_iso8601(ts,"{i}") from ntb')
+            tdSql.error(f'select to_iso8601(ts,"{i}") from {self.ntbname}')
         #! bug TD-16372:对于错误的时区，缺少校验
         error_timezone_param = ['+13','-13','+1300','-1300','+0001','-0001','-0330','-0530']
         for i in error_timezone_param:
-            tdSql.error(f'select to_iso8601(ts,"{i}") from ntb')
+            tdSql.error(f'select to_iso8601(ts,"{i}") from {self.ntbname}')
 
     def check_base_function(self):
         tdSql.prepare()
