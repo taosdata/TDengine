@@ -924,8 +924,8 @@ github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpO
 github.com/hudl/fargo v1.3.0/go.mod h1:y3CKSmjA+wD2gak7sUSXTAoopbhU08POFhmITJgmKTg=
 github.com/huskar-t/file-rotatelogs/v2 v2.4.1 h1:yA/0HY7Jn3/uM4SFTNlD4l62+lVoMMlyoOGTyGmBWR0=
 github.com/huskar-t/file-rotatelogs/v2 v2.4.1/go.mod h1:8ULZrsgVJPDgP9QY8mL6/xlHT4FM/wtp4l8UYew+3f8=
-github.com/huskar-t/melody v0.0.0-20220301024158-14c90c8df229 h1:mp5Gtz8DcNUNXlC7oAMlIrDoQymtaUSR77mFJFSMXGI=
-github.com/huskar-t/melody v0.0.0-20220301024158-14c90c8df229/go.mod h1:pfxtyQ9i9meRbS4BJBZ9YkE7upPetr0KKqcOCfi4nqY=
+github.com/huskar-t/melody v0.0.0-20220722113213-5f82fb933d2a h1:+lEQ6e+tnZ9CSzxqgxcvFzJoQ+fuio4ty4BPwbXJUIo=
+github.com/huskar-t/melody v0.0.0-20220722113213-5f82fb933d2a/go.mod h1:pfxtyQ9i9meRbS4BJBZ9YkE7upPetr0KKqcOCfi4nqY=
 github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/ianlancetaylor/demangle v0.0.0-20200824232613-28f6c0f3b639/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/imdario/mergo v0.3.5/go.mod h1:2EnlNZ0deacrJVfApfmtdGgDfMuh/nq6Ok1EcJh5FfA=
@@ -1559,10 +1559,10 @@ github.com/swaggo/swag v1.7.6/go.mod h1:7vLqNYEtYoIsD14wXgy9oDS65MNiDANrPtbk9rnL
 github.com/syndtr/gocapability v0.0.0-20170704070218-db04d3cc01c8/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=
 github.com/syndtr/gocapability v0.0.0-20180916011248-d98352740cb2/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=
 github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=
-github.com/taosdata/driver-go/v3 v3.0.0-20220720015908-7637dce8541a h1:pJRECIr0hTTab6fj6CcmNaaTPyHch9C1BEqnj01fsD4=
-github.com/taosdata/driver-go/v3 v3.0.0-20220720015908-7637dce8541a/go.mod h1:lT4lpI3wo3hXRwP3nzm7xDs/YgYbw5YU58XingVlfsY=
-github.com/taosdata/taosadapter v0.0.0-20220721094919-d8f19ede56f1 h1:xPO4MWeBw1FO6Aqn3hWz/5MdamBiNLO053zcOXTN4X0=
-github.com/taosdata/taosadapter v0.0.0-20220721094919-d8f19ede56f1/go.mod h1:wk+cjypMR9Dna3VZftYptaImuw4SAFpEmREqXGxZ7n8=
+github.com/taosdata/driver-go/v3 v3.0.0-20220810051730-b7703dbd487a h1:Zai07wv18w3CGtZu7z9sAdzfG/eLdQHJJkHCrwmsr0w=
+github.com/taosdata/driver-go/v3 v3.0.0-20220810051730-b7703dbd487a/go.mod h1:lT4lpI3wo3hXRwP3nzm7xDs/YgYbw5YU58XingVlfsY=
+github.com/taosdata/taosadapter/v3 v3.0.0-20220810073226-ed6a16043d8c h1:+56EJye1FnPTGncl15oBOpF22Iy7DO8Rd0b4eV0Y7zY=
+github.com/taosdata/taosadapter/v3 v3.0.0-20220810073226-ed6a16043d8c/go.mod h1:LYB+HKUmV/Kx4+A50vyTQuVu+1d2BFxOtjT9dGN/kYQ=
 github.com/tbrandon/mbserver v0.0.0-20170611213546-993e1772cc62 h1:Oj2e7Sae4XrOsk3ij21QjjEgAcVSeo9nkp0dI//cD2o=
 github.com/tbrandon/mbserver v0.0.0-20170611213546-993e1772cc62/go.mod h1:qUzPVlSj2UgxJkVbH0ZwuuiR46U8RBMDT5KLY78Ifpw=
 github.com/tchap/go-patricia v2.2.6+incompatible/go.mod h1:bmLyhP68RS6kStMGxByiQ23RP/odRBOTVjwp2cDyi6I=
