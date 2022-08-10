@@ -1547,7 +1547,7 @@ static int32_t initMemDataIterator(STableBlockScanInfo* pBlockScanInfo, STsdbRea
 
   STbData* d = NULL;
   if (pReader->pReadSnap->pMem != NULL) {
-    tsdbGetTbDataFromMemTable(pReader->pReadSnap->pMem, pReader->suid, pBlockScanInfo->uid, &d);
+    d = tsdbGetTbDataFromMemTable(pReader->pReadSnap->pMem, pReader->suid, pBlockScanInfo->uid);
     if (d != NULL) {
       code = tsdbTbDataIterCreate(d, &startKey, backward, &pBlockScanInfo->iter.iter);
       if (code == TSDB_CODE_SUCCESS) {
@@ -1568,7 +1568,7 @@ static int32_t initMemDataIterator(STableBlockScanInfo* pBlockScanInfo, STsdbRea
 
   STbData* di = NULL;
   if (pReader->pReadSnap->pIMem != NULL) {
-    tsdbGetTbDataFromMemTable(pReader->pReadSnap->pIMem, pReader->suid, pBlockScanInfo->uid, &di);
+    di = tsdbGetTbDataFromMemTable(pReader->pReadSnap->pIMem, pReader->suid, pBlockScanInfo->uid);
     if (di != NULL) {
       code = tsdbTbDataIterCreate(di, &startKey, backward, &pBlockScanInfo->iiter.iter);
       if (code == TSDB_CODE_SUCCESS) {
@@ -2512,9 +2512,7 @@ void* tsdbGetIvtIdx(SMeta* pMeta) {
   return metaGetIvtIdx(pMeta);
 }
 
-uint64_t getReaderMaxVersion(STsdbReader *pReader) {
-  return pReader->verRange.maxVer;
-}
+uint64_t getReaderMaxVersion(STsdbReader* pReader) { return pReader->verRange.maxVer; }
 
 /**
  * @brief Get all suids since suid
@@ -3029,7 +3027,7 @@ int64_t tsdbGetNumOfRowsInMemTable(STsdbReader* pReader) {
 
     STbData* d = NULL;
     if (pReader->pTsdb->mem != NULL) {
-      tsdbGetTbDataFromMemTable(pReader->pReadSnap->pMem, pReader->suid, pBlockScanInfo->uid, &d);
+      d = tsdbGetTbDataFromMemTable(pReader->pReadSnap->pMem, pReader->suid, pBlockScanInfo->uid);
       if (d != NULL) {
         rows += tsdbGetNRowsInTbData(d);
       }
@@ -3037,7 +3035,7 @@ int64_t tsdbGetNumOfRowsInMemTable(STsdbReader* pReader) {
 
     STbData* di = NULL;
     if (pReader->pTsdb->imem != NULL) {
-      tsdbGetTbDataFromMemTable(pReader->pReadSnap->pIMem, pReader->suid, pBlockScanInfo->uid, &di);
+      di = tsdbGetTbDataFromMemTable(pReader->pReadSnap->pIMem, pReader->suid, pBlockScanInfo->uid);
       if (di != NULL) {
         rows += tsdbGetNRowsInTbData(di);
       }

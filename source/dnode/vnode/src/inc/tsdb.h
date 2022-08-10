@@ -170,11 +170,11 @@ int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SAr
 void    tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg);
 // tsdbMemTable ==============================================================================================
 // SMemTable
-int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
-void    tsdbMemTableDestroy(SMemTable *pMemTable);
-void    tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, STbData **ppTbData);
-void    tsdbRefMemTable(SMemTable *pMemTable);
-void    tsdbUnrefMemTable(SMemTable *pMemTable);
+int32_t  tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
+void     tsdbMemTableDestroy(SMemTable *pMemTable);
+STbData *tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid);
+void     tsdbRefMemTable(SMemTable *pMemTable);
+void     tsdbUnrefMemTable(SMemTable *pMemTable);
 // STbDataIter
 int32_t  tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
 void    *tsdbTbDataIterDestroy(STbDataIter *pIter);
@@ -325,6 +325,8 @@ struct SDelDataInfo {
 };
 
 struct STbData {
+  STbData *next;
+
   tb_uid_t     suid;
   tb_uid_t     uid;
   TSKEY        minKey;
@@ -349,6 +351,11 @@ struct SMemTable {
   int64_t          nRow;
   int64_t          nDel;
   SArray          *aTbData;  // SArray<STbData*>
+  struct {
+    int32_t   nTbData;
+    int32_t   nBucket;
+    STbData **aBucket;
+  } hTbData;
 };
 
 struct TSDBROW {
