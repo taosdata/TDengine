@@ -183,7 +183,7 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
   return 0;
 }
 
-int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen) {
+int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen, int64_t ver) {
   STqOffset offset = {0};
   SDecoder  decoder;
   tDecoderInit(&decoder, msg, msgLen);
@@ -302,6 +302,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     tqError("tmq poll: consumer handle mismatch for consumer:%" PRId64
             ", in vgId:%d, subkey %s, handle consumer id %" PRId64,
             consumerId, TD_VID(pTq->pVnode), pReq->subKey, pHandle->consumerId);
+    terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
     return -1;
   }
 

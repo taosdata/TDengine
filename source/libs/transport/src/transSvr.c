@@ -75,7 +75,6 @@ typedef struct SWorkThrd {
   SAsyncPool*   asyncPool;
   uv_prepare_t* prepare;
   queue         msg;
-  TdThreadMutex msgMtx;
 
   queue conn;
   void* pTransInst;
@@ -253,10 +252,10 @@ static void uvHandleReq(SSvrConn* pConn) {
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
     transRefSrvHandle(pConn);
 
-    tGTrace("%s conn %p %s received from %s, local info:%s, len:%d", transLabel(pTransInst), pConn,
+    tGDebug("%s conn %p %s received from %s, local info:%s, len:%d", transLabel(pTransInst), pConn,
             TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, transMsg.contLen);
   } else {
-    tGTrace("%s conn %p %s received from %s, local info:%s, len:%d, resp:%d, code:%d", transLabel(pTransInst), pConn,
+    tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, resp:%d, code:%d", transLabel(pTransInst), pConn,
             TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, transMsg.contLen, pHead->noResp, transMsg.code);
   }
 
@@ -416,7 +415,7 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
 
   STrans*   pTransInst = pConn->pTransInst;
   STraceId* trace = &pMsg->info.traceId;
-  tGTrace("%s conn %p %s is sent to %s, local info:%s, len:%d", transLabel(pTransInst), pConn,
+  tGDebug("%s conn %p %s is sent to %s, local info:%s, len:%d", transLabel(pTransInst), pConn,
           TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, pMsg->contLen);
   pHead->msgLen = htonl(len);
 
@@ -499,6 +498,7 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
       tError("unexcept occurred, continue");
       continue;
     }
+
     // release handle to rpc init
     if (msg->type == Quit) {
       (*transAsyncHandle[msg->type])(msg, pThrd);
@@ -743,7 +743,6 @@ static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
   pThrd->pipe->data = pThrd;
 
   QUEUE_INIT(&pThrd->msg);
-  taosThreadMutexInit(&pThrd->msgMtx, NULL);
 
   pThrd->prepare = taosMemoryCalloc(1, sizeof(uv_prepare_t));
   uv_prepare_init(pThrd->loop, pThrd->prepare);

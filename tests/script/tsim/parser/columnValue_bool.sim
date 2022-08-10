@@ -634,3 +634,4 @@ sql alter table st_bool_i4 set tag tagname="abc"
 sql alter table st_bool_i5 set tag tagname=" "     
 sql alter table st_bool_i6 set tag tagname=''      
 
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

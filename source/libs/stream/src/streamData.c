@@ -27,10 +27,9 @@ int32_t streamDispatchReqToData(const SStreamDispatchReq* pReq, SStreamDataBlock
   ASSERT(pReq->blockNum == taosArrayGetSize(pReq->dataLen));
 
   for (int32_t i = 0; i < blockNum; i++) {
-    /*int32_t            len = *(int32_t*)taosArrayGet(pReq->dataLen, i);*/
     SRetrieveTableRsp* pRetrieve = taosArrayGetP(pReq->data, i);
     SSDataBlock*       pDataBlock = taosArrayGet(pArray, i);
-    blockDecode(pDataBlock, htonl(pRetrieve->numOfCols), htonl(pRetrieve->numOfRows), pRetrieve->data);
+    blockDecode(pDataBlock, pRetrieve->data);
     // TODO: refactor
     pDataBlock->info.window.skey = be64toh(pRetrieve->skey);
     pDataBlock->info.window.ekey = be64toh(pRetrieve->ekey);
@@ -52,7 +51,7 @@ int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock
   taosArraySetSize(pArray, 1);
   SRetrieveTableRsp* pRetrieve = pReq->pRetrieve;
   SSDataBlock*       pDataBlock = taosArrayGet(pArray, 0);
-  blockDecode(pDataBlock, htonl(pRetrieve->numOfCols), htonl(pRetrieve->numOfRows), pRetrieve->data);
+  blockDecode(pDataBlock, pRetrieve->data);
   // TODO: refactor
   pDataBlock->info.window.skey = be64toh(pRetrieve->skey);
   pDataBlock->info.window.ekey = be64toh(pRetrieve->ekey);
@@ -125,7 +124,7 @@ void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit) {
   }
 }
 
-SStreamQueueItem* streamAppendQueueItem(SStreamQueueItem* dst, SStreamQueueItem* elem) {
+SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* elem) {
   ASSERT(elem);
   if (dst->type == STREAM_INPUT__DATA_BLOCK && elem->type == STREAM_INPUT__DATA_BLOCK) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)dst;
@@ -172,8 +171,8 @@ void streamFreeQitem(SStreamQueueItem* data) {
       int32_t  ref = atomic_sub_fetch_32(pRef, 1);
       ASSERT(ref >= 0);
       if (ref == 0) {
-        void* data = taosArrayGetP(pMerge->reqs, i);
-        taosMemoryFree(data);
+        void* dataStr = taosArrayGetP(pMerge->reqs, i);
+        taosMemoryFree(dataStr);
         taosMemoryFree(pRef);
       }
     }

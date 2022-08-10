@@ -166,6 +166,18 @@ void mndLeaderTransfer(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cb
   mDebug("vgId:1, mnode leader transfer finish");
 }
 
+static void mndBecomeFollower(struct SSyncFSM *pFsm) {
+  SMnode *pMnode = pFsm->data;
+  mDebug("vgId:1, become follower");
+
+  // clear old leader resource
+}
+
+static void mndBecomeLeader(struct SSyncFSM *pFsm) {
+  SMnode *pMnode = pFsm->data;
+  mDebug("vgId:1, become leader");
+}
+
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pMnode;
@@ -175,6 +187,8 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   pFsm->FpRestoreFinishCb = mndRestoreFinish;
   pFsm->FpLeaderTransferCb = mndLeaderTransfer;
   pFsm->FpReConfigCb = mndReConfig;
+  pFsm->FpBecomeLeaderCb = mndBecomeLeader;
+  pFsm->FpBecomeFollowerCb = mndBecomeFollower;
   pFsm->FpGetSnapshot = mndSyncGetSnapshot;
   pFsm->FpGetSnapshotInfo = mndSyncGetSnapshotInfo;
   pFsm->FpSnapshotStartRead = mndSnapshotStartRead;
