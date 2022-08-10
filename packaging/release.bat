@@ -11,13 +11,13 @@ if !%2==! GOTO USAGE
 if "%1" == "cluster" (
 	set work_dir=%internal_dir%
 	set packagServerName_x64=TDengine-enterprise-server-%2-beta-Windows-x64
-	set packagServerName_x86=TDengine-enterprise-server-%2-beta-Windows-x86
+	@REM set packagServerName_x86=TDengine-enterprise-server-%2-beta-Windows-x86
 	set packagClientName_x64=TDengine-enterprise-client-%2-beta-Windows-x64
 	set packagClientName_x86=TDengine-enterprise-client-%2-beta-Windows-x86
 ) else (
 	set work_dir=%community_dir%
 	set packagServerName_x64=TDengine-server-%2-Windows-x64
-	set packagServerName_x86=TDengine-server-%2-Windows-x86
+	@REM set packagServerName_x86=TDengine-server-%2-Windows-x86
 	set packagClientName_x64=TDengine-client-%2-Windows-x64
 	set packagClientName_x86=TDengine-client-%2-Windows-x86
 )
@@ -59,8 +59,8 @@ rd /s /Q C:\TDengine
 cmake --install .
 if not %errorlevel% == 0  ( call :RUNFAILED build x86 failed & exit /b 1)
 cd %package_dir%
-iscc /DMyAppInstallName="%packagServerName_x86%" /DMyAppVersion="%2" /DMyAppExcludeSource="" tools\tdengine.iss /O..\release
-if not %errorlevel% == 0  ( call :RUNFAILED package %packagServerName_x86% failed & exit /b 1)
+@REM iscc /DMyAppInstallName="%packagServerName_x86%" /DMyAppVersion="%2" /DMyAppExcludeSource="" tools\tdengine.iss /O..\release
+@REM if not %errorlevel% == 0  ( call :RUNFAILED package %packagServerName_x86% failed & exit /b 1)
 iscc /DMyAppInstallName="%packagClientName_x86%" /DMyAppVersion="%2" /DMyAppExcludeSource="taosd.exe" tools\tdengine.iss /O..\release
 if not %errorlevel% == 0  ( call :RUNFAILED package %packagClientName_x86% failed & exit /b 1)
 

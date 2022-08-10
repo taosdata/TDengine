@@ -23,33 +23,6 @@ static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 static int32_t refMgt;
 static int32_t instMgt;
 
-int transAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey) {
-  T_MD5_CTX context;
-  int       ret = -1;
-
-  tMD5Init(&context);
-  tMD5Update(&context, (uint8_t*)pKey, TSDB_PASSWORD_LEN);
-  tMD5Update(&context, (uint8_t*)pMsg, msgLen);
-  tMD5Update(&context, (uint8_t*)pKey, TSDB_PASSWORD_LEN);
-  tMD5Final(&context);
-
-  if (memcmp(context.digest, pAuth, sizeof(context.digest)) == 0) ret = 0;
-
-  return ret;
-}
-
-void transBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey) {
-  T_MD5_CTX context;
-
-  tMD5Init(&context);
-  tMD5Update(&context, (uint8_t*)pKey, TSDB_PASSWORD_LEN);
-  tMD5Update(&context, (uint8_t*)pMsg, msgLen);
-  tMD5Update(&context, (uint8_t*)pKey, TSDB_PASSWORD_LEN);
-  tMD5Final(&context);
-
-  memcpy(pAuth, context.digest, sizeof(context.digest));
-}
-
 bool transCompressMsg(char* msg, int32_t len, int32_t* flen) {
   return false;
   // SRpcHead* pHead = rpcHeadFromCont(pCont);
@@ -176,7 +149,6 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
    * info--->|
    */
   SConnBuffer* p = connBuf;
-
   uvBuf->base = p->buf + p->len;
   if (p->left == -1) {
     uvBuf->len = p->cap - p->len;
@@ -184,7 +156,8 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
     if (p->left < p->cap - p->len) {
       uvBuf->len = p->left;
     } else {
-      p->buf = taosMemoryRealloc(p->buf, p->left + p->len);
+      p->cap = p->left + p->len;
+      p->buf = taosMemoryRealloc(p->buf, p->cap);
       uvBuf->base = p->buf + p->len;
       uvBuf->len = p->left;
     }
@@ -266,14 +239,9 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   uv_async_t* async = &(pool->asyncs[idx]);
   SAsyncItem* item = async->data;
 
-  int64_t st = taosGetTimestampUs();
   taosThreadMutexLock(&item->mtx);
   QUEUE_PUSH(&item->qmsg, q);
   taosThreadMutexUnlock(&item->mtx);
-  int64_t el = taosGetTimestampUs() - st;
-  if (el > 50) {
-    // tInfo("lock and unlock cost:%d", (int)el);
-  }
   return uv_async_send(async);
 }
 
@@ -349,30 +317,21 @@ void transReqQueueInit(queue* q) {
   QUEUE_INIT(q);
 }
 void* transReqQueuePush(queue* q) {
-  uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
-  STransReq*  wreq = taosMemoryCalloc(1, sizeof(STransReq));
-  wreq->data = req;
-  req->data = wreq;
-  QUEUE_PUSH(q, &wreq->q);
-  return req;
+  STransReq* req = taosMemoryCalloc(1, sizeof(STransReq));
+  req->wreq.data = req;
+  QUEUE_PUSH(q, &req->q);
+  return &req->wreq;
 }
 void* transReqQueueRemove(void* arg) {
   void*       ret = NULL;
-  uv_write_t* req = arg;
-  STransReq*  wreq = req && req->data ? req->data : NULL;
+  uv_write_t* wreq = arg;
 
-  assert(wreq->data == req);
-  if (wreq == NULL || wreq->data == NULL) {
-    taosMemoryFree(wreq->data);
-    taosMemoryFree(wreq);
-    return req;
-  }
+  STransReq* req = wreq ? wreq->data : NULL;
+  if (req == NULL) return NULL;
+  QUEUE_REMOVE(&req->q);
 
-  QUEUE_REMOVE(&wreq->q);
-
-  ret = req && req->handle ? req->handle->data : NULL;
-  taosMemoryFree(wreq->data);
-  taosMemoryFree(wreq);
+  ret = wreq && wreq->handle ? wreq->handle->data : NULL;
+  taosMemoryFree(req);
 
   return ret;
 }
@@ -381,7 +340,6 @@ void transReqQueueClear(queue* q) {
     queue* h = QUEUE_HEAD(q);
     QUEUE_REMOVE(h);
     STransReq* req = QUEUE_DATA(h, STransReq, q);
-    taosMemoryFree(req->data);
     taosMemoryFree(req);
   }
 }
