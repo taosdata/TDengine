@@ -195,12 +195,6 @@ static FORCE_INLINE void tdRowSetVal(SCellVal *pVal, uint8_t valType, void *val)
   pVal->valType = valType;
   pVal->val = val;
 }
-/**
- * @brief Primary TS column not included.
- *
- * @param pRow
- * @return FORCE_INLINE
- */
 static FORCE_INLINE col_id_t    tdRowGetNCols(STSRow *pRow) { return *(col_id_t *)TD_ROW_NCOLS(pRow); }
 static FORCE_INLINE void        tdRowCpy(void *dst, const STSRow *pRow) { memcpy(dst, pRow, TD_ROW_LEN(pRow)); }
 static FORCE_INLINE const char *tdRowEnd(STSRow *pRow) { return (const char *)POINTER_SHIFT(pRow, TD_ROW_LEN(pRow)); }
@@ -325,16 +319,13 @@ typedef struct {
   col_id_t  kvIdx;   // [0, nKvCols)
 } STSRowIter;
 
-void    tdSTSRowIterReset(STSRowIter *pIter, STSRow *pRow);
-void    tdSTSRowIterInit(STSRowIter *pIter, STSchema *pSchema);
+void tdSTSRowIterInit(STSRowIter *pIter, STSchema *pSchema);
+void tdSTSRowIterReset(STSRowIter *pIter, STSRow *pRow);
+bool tdSTSRowIterFetch(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCellVal *pVal);
+bool tdSTSRowIterNext(STSRowIter *pIter, SCellVal *pVal);
+
 int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow);
-bool    tdGetTpRowDataOfCol(STSRowIter *pIter, col_type_t colType, int32_t offset, SCellVal *pVal);
-bool    tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId, col_id_t *nIdx, SCellVal *pVal);
-bool    tdSTSRowIterNext(STSRowIter *pIter, SCellVal *pVal);
-bool    tdSTpRowGetVal(STSRow *pRow, col_id_t colId, col_type_t colType, int32_t flen, uint32_t offset, col_id_t colIdx,
-                       SCellVal *pVal);
-bool    tdSKvRowGetVal(STSRow *pRow, col_id_t colId, col_id_t colIdx, SCellVal *pVal);
-void    tdSCellValPrint(SCellVal *pVal, int8_t colType);
+bool    tdSTSRowGetVal(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCellVal *pVal);
 void    tdSRowPrint(STSRow *row, STSchema *pSchema, const char *tag);
 
 #ifdef __cplusplus
