@@ -204,7 +204,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       break;
     case TDMT_VND_MQ_COMMIT_OFFSET:
       if (tqProcessOffsetCommitReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
-                                   pMsg->contLen - sizeof(SMsgHead)) < 0) {
+                                   pMsg->contLen - sizeof(SMsgHead), version) < 0) {
         goto _err;
       }
       break;

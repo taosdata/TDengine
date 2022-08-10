@@ -76,8 +76,8 @@ int32_t tsem_wait(tsem_t* sem) {
 
 int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
   struct timespec ts, rel;
-  FILETIME ft_before, ft_after;
-  int rc;
+  FILETIME        ft_before, ft_after;
+  int             rc;
 
   rel.tv_sec = 0;
   rel.tv_nsec = nanosecs;
@@ -217,7 +217,8 @@ int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
 //     int e = errno;
 //     if (e == EEXIST) continue;
 //     if (e == EINTR) continue;
-//     fprintf(stderr, "==%s[%d]%s():[%p]==not created[%d]%s\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem,
+//     fprintf(stderr, "==%s[%d]%s():[%p]==not created[%d]%s\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//     sem,
 //             e, strerror(e));
 //     abort();
 //   } while (p->sem == SEM_FAILED);
@@ -231,7 +232,8 @@ int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
 //   }
 //   kern_return_t ret = semaphore_create(sem_port, &p->sem, SYNC_POLICY_FIFO, value);
 //   if (ret != KERN_SUCCESS) {
-//     fprintf(stderr, "==%s[%d]%s():[%p]==semophore_create failed\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//     fprintf(stderr, "==%s[%d]%s():[%p]==semophore_create failed\n", taosDirEntryBaseName(__FILE__), __LINE__,
+//     __func__,
 //             sem);
 //     // we fail-fast here, because we have less-doc about semaphore_create for the moment
 //     abort();
@@ -258,8 +260,8 @@ int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
 //   }
 //   struct tsem_s *p = *sem;
 //   if (!p->valid) {
-//     fprintf(stderr, "==%s[%d]%s():[%p]==already destroyed\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
-//     abort();
+//     fprintf(stderr, "==%s[%d]%s():[%p]==already destroyed\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//     sem); abort();
 //   }
 // #ifdef SEM_USE_PTHREAD
 //   if (taosThreadMutexLock(&p->lock)) {
@@ -270,7 +272,8 @@ int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
 //   p->val -= 1;
 //   if (p->val < 0) {
 //     if (taosThreadCondWait(&p->cond, &p->lock)) {
-//       fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//       fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__,
+//       __func__,
 //               sem);
 //       abort();
 //     }
@@ -297,8 +300,8 @@ int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
 //   }
 //   struct tsem_s *p = *sem;
 //   if (!p->valid) {
-//     fprintf(stderr, "==%s[%d]%s():[%p]==already destroyed\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
-//     abort();
+//     fprintf(stderr, "==%s[%d]%s():[%p]==already destroyed\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//     sem); abort();
 //   }
 // #ifdef SEM_USE_PTHREAD
 //   if (taosThreadMutexLock(&p->lock)) {
@@ -309,7 +312,8 @@ int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
 //   p->val += 1;
 //   if (p->val <= 0) {
 //     if (taosThreadCondSignal(&p->cond)) {
-//       fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//       fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__,
+//       __func__,
 //               sem);
 //       abort();
 //     }
@@ -332,7 +336,8 @@ int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
 // int tsem_destroy(tsem_t *sem) {
 //   // fprintf(stderr, "==%s[%d]%s():[%p]==destroying\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
 //   if (!*sem) {
-//     // fprintf(stderr, "==%s[%d]%s():[%p]==not initialized\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
+//     // fprintf(stderr, "==%s[%d]%s():[%p]==not initialized\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//     sem);
 //     // abort();
 //     return 0;
 //   }
@@ -370,7 +375,8 @@ int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
 //   int r = sem_unlink(name);
 //   if (r) {
 //     int e = errno;
-//     fprintf(stderr, "==%s[%d]%s():[%p]==unlink failed[%d]%s\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem,
+//     fprintf(stderr, "==%s[%d]%s():[%p]==unlink failed[%d]%s\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//     sem,
 //             e, strerror(e));
 //     abort();
 //   }
@@ -385,225 +391,189 @@ int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
 //   *sem = NULL;
 //   return 0;
 // }
-typedef struct
-{
-    pthread_mutex_t count_lock;
-    pthread_cond_t  count_bump;
-    unsigned int count;
-}bosal_sem_t;
+typedef struct {
+  pthread_mutex_t count_lock;
+  pthread_cond_t  count_bump;
+  unsigned int    count;
+} bosal_sem_t;
 
-int tsem_init(tsem_t *psem, int flags, unsigned int count)
-{
-    bosal_sem_t *pnewsem;
-    int result;
+int tsem_init(tsem_t *psem, int flags, unsigned int count) {
+  bosal_sem_t *pnewsem;
+  int          result;
 
-    pnewsem = (bosal_sem_t *)malloc(sizeof(bosal_sem_t));
-    if (! pnewsem)
-    {
-        return -1;
-    }
-    result = pthread_mutex_init(&pnewsem->count_lock, NULL);
-    if (result)
-    {
-        free(pnewsem);
-        return result;
-    }
-    result = pthread_cond_init(&pnewsem->count_bump, NULL);
-    if (result)
-    {
-        pthread_mutex_destroy(&pnewsem->count_lock);
-        free(pnewsem);
-        return result;
-    }
-    pnewsem->count = count;
-    *psem = (tsem_t)pnewsem;
-    return 0;
+  pnewsem = (bosal_sem_t *)malloc(sizeof(bosal_sem_t));
+  if (!pnewsem) {
+    return -1;
+  }
+  result = pthread_mutex_init(&pnewsem->count_lock, NULL);
+  if (result) {
+    free(pnewsem);
+    return result;
+  }
+  result = pthread_cond_init(&pnewsem->count_bump, NULL);
+  if (result) {
+    pthread_mutex_destroy(&pnewsem->count_lock);
+    free(pnewsem);
+    return result;
+  }
+  pnewsem->count = count;
+  *psem = (tsem_t)pnewsem;
+  return 0;
 }
 
-int tsem_destroy(tsem_t *psem)
-{
-    bosal_sem_t *poldsem;
+int tsem_destroy(tsem_t *psem) {
+  bosal_sem_t *poldsem;
 
-    if (! psem)
-    {
-        return EINVAL;
-    }
-    poldsem = (bosal_sem_t *)*psem;
+  if (!psem) {
+    return EINVAL;
+  }
+  poldsem = (bosal_sem_t *)*psem;
 
-    pthread_mutex_destroy(&poldsem->count_lock);
-    pthread_cond_destroy(&poldsem->count_bump);
-    free(poldsem);
-    return 0;
+  pthread_mutex_destroy(&poldsem->count_lock);
+  pthread_cond_destroy(&poldsem->count_bump);
+  free(poldsem);
+  return 0;
 }
 
-int tsem_post(tsem_t *psem)
-{
-     bosal_sem_t *pxsem;
-    int result, xresult;
+int tsem_post(tsem_t *psem) {
+  bosal_sem_t *pxsem;
+  int          result, xresult;
 
-    if (! psem)
-    {
-        return EINVAL;
-    }
-    pxsem = (bosal_sem_t *)*psem;
+  if (!psem) {
+    return EINVAL;
+  }
+  pxsem = (bosal_sem_t *)*psem;
 
-    result = pthread_mutex_lock(&pxsem->count_lock);
-    if (result)
-    {
-        return result;
-    }
-    pxsem->count = pxsem->count + 1;
+  result = pthread_mutex_lock(&pxsem->count_lock);
+  if (result) {
+    return result;
+  }
+  pxsem->count = pxsem->count + 1;
 
-    xresult = pthread_cond_signal(&pxsem->count_bump);
+  xresult = pthread_cond_signal(&pxsem->count_bump);
 
-    result = pthread_mutex_unlock(&pxsem->count_lock);
-    if (result)
-    {
-        return result;
-    }
-    if (xresult)
-    {
-        errno = xresult;
-        return -1;
-    }
-    return 0;
+  result = pthread_mutex_unlock(&pxsem->count_lock);
+  if (result) {
+    return result;
+  }
+  if (xresult) {
+    errno = xresult;
+    return -1;
+  }
+  return 0;
 }
 
-int tsem_trywait(tsem_t *psem)
-{
-    bosal_sem_t *pxsem;
-    int result, xresult;
+int tsem_trywait(tsem_t *psem) {
+  bosal_sem_t *pxsem;
+  int          result, xresult;
 
-    if (! psem)
-    {
-        return EINVAL;
-    }
-    pxsem = (bosal_sem_t *)*psem;
+  if (!psem) {
+    return EINVAL;
+  }
+  pxsem = (bosal_sem_t *)*psem;
 
-    result = pthread_mutex_lock(&pxsem->count_lock);
-    if (result)
-    {
-        return result;
-    }
-    xresult = 0;
+  result = pthread_mutex_lock(&pxsem->count_lock);
+  if (result) {
+    return result;
+  }
+  xresult = 0;
 
-    if (pxsem->count > 0)
-    {
-        pxsem->count--;
-    }
-    else
-    {
-        xresult = EAGAIN;
-    }
-    result = pthread_mutex_unlock(&pxsem->count_lock);
-    if (result)
-    {
-        return result;
-    }
-    if (xresult)
-    {
-        errno = xresult;
-        return -1;
-    }
-    return 0;
+  if (pxsem->count > 0) {
+    pxsem->count--;
+  } else {
+    xresult = EAGAIN;
+  }
+  result = pthread_mutex_unlock(&pxsem->count_lock);
+  if (result) {
+    return result;
+  }
+  if (xresult) {
+    errno = xresult;
+    return -1;
+  }
+  return 0;
 }
 
-int tsem_wait(tsem_t *psem)
-{
-    bosal_sem_t *pxsem;
-    int result, xresult;
+int tsem_wait(tsem_t *psem) {
+  bosal_sem_t *pxsem;
+  int          result, xresult;
 
-    if (! psem)
-    {
-        return EINVAL;
-    }
-    pxsem = (bosal_sem_t *)*psem;
+  if (!psem) {
+    return EINVAL;
+  }
+  pxsem = (bosal_sem_t *)*psem;
 
-    result = pthread_mutex_lock(&pxsem->count_lock);
-    if (result)
-    {
-        return result;
-    }
-    xresult = 0;
+  result = pthread_mutex_lock(&pxsem->count_lock);
+  if (result) {
+    return result;
+  }
+  xresult = 0;
 
-    if (pxsem->count == 0)
-    {
-        xresult = pthread_cond_wait(&pxsem->count_bump, &pxsem->count_lock);
+  if (pxsem->count == 0) {
+    xresult = pthread_cond_wait(&pxsem->count_bump, &pxsem->count_lock);
+  }
+  if (!xresult) {
+    if (pxsem->count > 0) {
+      pxsem->count--;
     }
-    if (! xresult)
-    {
-        if (pxsem->count > 0)
-        {
-            pxsem->count--;
-        }
-    }
-    result = pthread_mutex_unlock(&pxsem->count_lock);
-    if (result)
-    {
-        return result;
-    }
-    if (xresult)
-    {
-        errno = xresult;
-        return -1;
-    }
-    return 0;
+  }
+  result = pthread_mutex_unlock(&pxsem->count_lock);
+  if (result) {
+    return result;
+  }
+  if (xresult) {
+    errno = xresult;
+    return -1;
+  }
+  return 0;
 }
 
-int tsem_timewait(tsem_t *psem, int64_t nanosecs)
-{
+int tsem_timewait(tsem_t *psem, int64_t nanosecs) {
   struct timespec abstim = {
       .tv_sec = 0,
       .tv_nsec = nanosecs,
   };
 
-    bosal_sem_t *pxsem;
-    int result, xresult;
+  bosal_sem_t *pxsem;
+  int          result, xresult;
 
-    if (! psem)
-    {
-        return EINVAL;
-    }
-    pxsem = (bosal_sem_t *)*psem;
+  if (!psem) {
+    return EINVAL;
+  }
+  pxsem = (bosal_sem_t *)*psem;
 
-    result = pthread_mutex_lock(&pxsem->count_lock);
-    if (result)
-    {
-        return result;
-    }
-    xresult = 0;
+  result = pthread_mutex_lock(&pxsem->count_lock);
+  if (result) {
+    return result;
+  }
+  xresult = 0;
 
-    if (pxsem->count == 0)
-    {
-        xresult = pthread_cond_timedwait(&pxsem->count_bump, &pxsem->count_lock, &abstim);
+  if (pxsem->count == 0) {
+    xresult = pthread_cond_timedwait(&pxsem->count_bump, &pxsem->count_lock, &abstim);
+  }
+  if (!xresult) {
+    if (pxsem->count > 0) {
+      pxsem->count--;
     }
-    if (! xresult)
-    {
-        if (pxsem->count > 0)
-        {
-            pxsem->count--;
-        }
-    }
-    result = pthread_mutex_unlock(&pxsem->count_lock);
-    if (result)
-    {
-        return result;
-    }
-    if (xresult)
-    {
-        errno = xresult;
-        return -1;
-    }
-    return 0;
+  }
+  result = pthread_mutex_unlock(&pxsem->count_lock);
+  if (result) {
+    return result;
+  }
+  if (xresult) {
+    errno = xresult;
+    return -1;
+  }
+  return 0;
 }
 
-bool taosCheckPthreadValid(TdThread thread) { 
+bool taosCheckPthreadValid(TdThread thread) {
   int32_t ret = taosThreadKill(thread, 0);
   if (ret == ESRCH) return false;
   if (ret == EINVAL) return false;
   // alive
   return true;
- }
+}
 
 int64_t taosGetSelfPthreadId() {
   TdThread thread = taosThreadSelf();
@@ -650,7 +620,13 @@ int64_t taosGetSelfPthreadId() {
 int64_t taosGetPthreadId(TdThread thread) { return (int64_t)thread; }
 void    taosResetPthread(TdThread* thread) { *thread = 0; }
 bool    taosComparePthread(TdThread first, TdThread second) { return first == second; }
-int32_t taosGetPId() { return getpid(); }
+
+int32_t taosGetPId() {
+  static __thread int32_t pid = 0;
+  if (pid != 0) return pid;
+  pid = getpid();
+  return pid;
+}
 
 int32_t taosGetAppName(char* name, int32_t* len) {
   const char* self = "/proc/self/exe";

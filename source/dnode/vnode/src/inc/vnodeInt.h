@@ -157,7 +157,7 @@ int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId);
 int32_t tqProcessCheckAlterInfoReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen);
+int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen, int64_t ver);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen);

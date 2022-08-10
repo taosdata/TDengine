@@ -16,8 +16,8 @@
 #include "systable.h"
 #include "taos.h"
 #include "tdef.h"
-#include "types.h"
 #include "tgrant.h"
+#include "types.h"
 
 #define SYSTABLE_SCH_TABLE_NAME_LEN ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_DB_NAME_LEN    ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
@@ -243,8 +243,8 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema)},
     {TSDB_INS_TABLE_MODULES, modulesSchema, tListLen(modulesSchema)},
     {TSDB_INS_TABLE_QNODES, qnodesSchema, tListLen(qnodesSchema)},
-//    {TSDB_INS_TABLE_SNODES, snodesSchema, tListLen(snodesSchema)},
-//    {TSDB_INS_TABLE_BNODES, bnodesSchema, tListLen(bnodesSchema)},
+    //    {TSDB_INS_TABLE_SNODES, snodesSchema, tListLen(snodesSchema)},
+    //    {TSDB_INS_TABLE_BNODES, bnodesSchema, tListLen(bnodesSchema)},
     {TSDB_INS_TABLE_CLUSTER, clusterSchema, tListLen(clusterSchema)},
     {TSDB_INS_TABLE_DATABASES, userDBSchema, tListLen(userDBSchema)},
     {TSDB_INS_TABLE_FUNCTIONS, userFuncSchema, tListLen(userFuncSchema)},
@@ -284,7 +284,6 @@ static const SSysDbTableSchema consumerSchema[] = {
     {.name = "client_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "status", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "topics", .bytes = TSDB_TOPIC_FNAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "end_point", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "up_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "subscribe_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
