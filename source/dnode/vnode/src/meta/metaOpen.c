@@ -144,7 +144,9 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   }
 
   // open cache
-  if (terrno = metaCacheOpen(pMeta)) {
+  int32_t code = metaCacheOpen(pMeta);
+  if (code) {
+    terrno = code;
     metaError("vgId:%d failed to open meta cache since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
