@@ -423,3 +423,5 @@ sql_error alter table st_int_e22 set tag tagname=abc
 sql_error alter table st_int_e23 set tag tagname="abc"   
 sql_error alter table st_int_e24 set tag tagname=" "     
 sql alter table st_int_e25 set tag tagname=''      
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

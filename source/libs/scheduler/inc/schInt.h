@@ -61,6 +61,8 @@ typedef enum {
 #define SCH_MAX_TASK_TIMEOUT_USEC 60000000
 #define SCH_DEFAULT_MAX_RETRY_NUM 6
 
+#define SCH_ASYNC_LAUNCH_TASK 0
+
 typedef struct SSchDebug {
   bool     lockEnable;
   bool     apiEnable;
@@ -281,6 +283,11 @@ typedef struct SSchJob {
   SQueryProfileSummary summary;
 } SSchJob;
 
+typedef struct SSchTaskCtx {
+  SSchJob  *pJob;
+  SSchTask *pTask;
+} SSchTaskCtx;
+
 extern SSchedulerMgmt schMgmt;
 
 #define SCH_TASK_TIMEOUT(_task) ((taosGetTimestampUs() - *(int64_t*)taosArrayGet((_task)->profile.execTime, (_task)->execId)) > (_task)->timeoutUsec)
@@ -428,7 +435,7 @@ int32_t schChkJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel);
 int32_t schDecTaskFlowQuota(SSchJob *pJob, SSchTask *pTask);
 int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough);
 int32_t schLaunchTasksInFlowCtrlList(SSchJob *pJob, SSchTask *pTask);
-int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask);
+int32_t schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask);
 int32_t schLaunchFetchTask(SSchJob *pJob);
 int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode);
 int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId, SArray* taskAction);

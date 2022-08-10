@@ -84,7 +84,7 @@
 ./test.sh -f tsim/insert/update0.sim
 ./test.sh -f tsim/insert/update1_sort_merge.sim
 
-# ---- parser
+# ---- parser ----
 ./test.sh -f tsim/parser/alter__for_community_version.sim
 ./test.sh -f tsim/parser/alter_column.sim
 ./test.sh -f tsim/parser/alter_stable.sim
@@ -106,7 +106,7 @@
 ./test.sh -f tsim/parser/commit.sim
 ./test.sh -f tsim/parser/condition.sim
 ./test.sh -f tsim/parser/constCol.sim
-#./test.sh -f tsim/parser/create_db.sim
+./test.sh -f tsim/parser/create_db.sim
 ./test.sh -f tsim/parser/create_mt.sim
 ./test.sh -f tsim/parser/create_tb_with_tag_name.sim
 ./test.sh -f tsim/parser/create_tb.sim
@@ -129,7 +129,7 @@
 ./test.sh -f tsim/parser/import.sim
 ./test.sh -f tsim/parser/insert_multiTbl.sim
 ./test.sh -f tsim/parser/insert_tb.sim
-# TD-17038 ./test.sh -f tsim/parser/interp.sim
+# TD-18293 ./test.sh -f tsim/parser/interp.sim
 ./test.sh -f tsim/parser/join_manyblocks.sim
 ./test.sh -f tsim/parser/join_multitables.sim
 ./test.sh -f tsim/parser/join_multivnode.sim
@@ -318,7 +318,7 @@
 ./test.sh -f tsim/valgrind/checkError7.sim
 ./test.sh -f tsim/valgrind/checkUdf.sim
 
-# --- vnode
+# --- vnode ----
 # unsupport ./test.sh -f tsim/vnode/replica3_basic.sim
 # unsupport ./test.sh -f tsim/vnode/replica3_repeat.sim
 # unsupport ./test.sh -f tsim/vnode/replica3_vgroup.sim
@@ -332,8 +332,8 @@
 ./test.sh -f tsim/vnode/stable_replica3_vnode3.sim
 
 # --- sync
-#./test.sh -f tsim/sync/3Replica1VgElect.sim
-#./test.sh -f tsim/sync/3Replica5VgElect.sim
+./test.sh -f tsim/sync/3Replica1VgElect.sim
+./test.sh -f tsim/sync/3Replica5VgElect.sim
 ./test.sh -f tsim/sync/oneReplica1VgElect.sim
 ./test.sh -f tsim/sync/oneReplica5VgElect.sim
 

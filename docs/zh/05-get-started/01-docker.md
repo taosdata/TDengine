@@ -10,8 +10,10 @@ title: 通过 Docker 快速体验 TDengine
 如果已经安装了 docker， 只需执行下面的命令。
 
 ```shell
-docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine
+docker run -d -p 6030:6030 -p 6041/6041 -p 6043-6049/6043-6049 -p 6043-6049:6043-6049/udp tdengine/tdengine
 ```
+
+注意：TDengine 3.0 服务端仅使用 6030 TCP 端口。6041 为 taosAdapter 所使用提供 REST 服务端口。6043-6049 为 taosAdapter 提供第三方应用接入所使用端口，可根据需要选择是否打开。
 
 确定该容器已经启动并且在正常运行
 
