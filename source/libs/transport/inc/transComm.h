@@ -105,13 +105,13 @@ typedef SRpcCtxVal   STransCtxVal;
 typedef SRpcInfo     STrans;
 typedef SRpcConnInfo STransHandleInfo;
 
-// ref mgt
-// handle
+// ref mgt handle
 typedef struct SExHandle {
   void*   handle;
   int64_t refId;
   void*   pThrd;
 } SExHandle;
+
 /*convet from fqdn to ip */
 typedef struct SCvtAddr {
   char ip[TSDB_FQDN_LEN];

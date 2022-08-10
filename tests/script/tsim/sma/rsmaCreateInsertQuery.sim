@@ -29,8 +29,8 @@ sql insert into ct1 values(now, 10);
 sql insert into ct1 values(now+1s, 1);
 sql insert into ct1 values(now+2s, 100);
 
-print =============== wait maxdelay 15+1 seconds for results
-sleep 16000
+print =============== wait maxdelay 15+2 seconds for results
+sleep 17000
 
 print =============== select * from retention level 2 from memory
 sql select * from ct1;

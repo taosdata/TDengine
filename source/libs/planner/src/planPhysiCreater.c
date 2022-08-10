@@ -998,6 +998,7 @@ static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChild
   }
 
   pProject->mergeDataBlock = projectCanMergeDataBlock(pProjectLogicNode);
+  pProject->ignoreGroupId = pProjectLogicNode->ignoreGroupId;
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (0 == LIST_LENGTH(pChildren)) {

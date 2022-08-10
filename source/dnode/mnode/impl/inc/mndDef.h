@@ -162,8 +162,9 @@ typedef struct {
   int64_t     lastExecTime;
   int32_t     lastAction;
   int32_t     lastErrorNo;
-  tmsg_t      lastMsgType;
   SEpSet      lastEpset;
+  tmsg_t      lastMsgType;
+  tmsg_t      originRpcType;
   char        dbname1[TSDB_TABLE_FNAME_LEN];
   char        dbname2[TSDB_TABLE_FNAME_LEN];
   int32_t     startFunc;

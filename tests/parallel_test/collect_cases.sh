@@ -41,7 +41,7 @@ fi
 cat ../script/jenkins/basic.txt |grep -v "^#"|grep -v "^$"|sed "s/^/,,script,/" >>$case_file
 grep "^python" ../system-test/fulltest.sh |sed "s/^/,,system-test,/" >>$case_file
 grep "^python" ../develop-test/fulltest.sh |sed "s/^/,,develop-test,/" >>$case_file
-
+find ../docs-examples-test/ -name "*.sh" -printf '%f\n' | xargs -I {} echo ",,docs-examples-test,bash {}" >> $case_file
 # tar source code for run.sh to use
 # if [ $ent -eq 0 ]; then
 #     cd ../../../

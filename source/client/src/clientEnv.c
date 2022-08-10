@@ -126,7 +126,7 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.numOfThreads = numOfThread;
   rpcInit.cfp = processMsgFromServer;
   rpcInit.rfp = clientRpcRfp;
-  rpcInit.tfp = clientRpcTfp;
+  // rpcInit.tfp = clientRpcTfp;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
