@@ -182,7 +182,7 @@ static int32_t setColumnIdSlotList(STsdbReader* pReader, SSDataBlock* pBlock) {
 
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
       pSupInfo->buildBuf[i] = taosMemoryMalloc(pCol->info.bytes);
-      tsdbInfo("-------------------%d\n", pCol->info.bytes);
+      // tsdbInfo("-------------------%d\n", pCol->info.bytes);
     }
   }
 

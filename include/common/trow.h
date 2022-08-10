@@ -195,6 +195,12 @@ static FORCE_INLINE void tdRowSetVal(SCellVal *pVal, uint8_t valType, void *val)
   pVal->valType = valType;
   pVal->val = val;
 }
+/**
+ * @brief Primary TS column not included.
+ *
+ * @param pRow
+ * @return FORCE_INLINE
+ */
 static FORCE_INLINE col_id_t    tdRowGetNCols(STSRow *pRow) { return *(col_id_t *)TD_ROW_NCOLS(pRow); }
 static FORCE_INLINE void        tdRowCpy(void *dst, const STSRow *pRow) { memcpy(dst, pRow, TD_ROW_LEN(pRow)); }
 static FORCE_INLINE const char *tdRowEnd(STSRow *pRow) { return (const char *)POINTER_SHIFT(pRow, TD_ROW_LEN(pRow)); }
@@ -250,7 +256,7 @@ static FORCE_INLINE void *tdGetBitmapAddrTp(STSRow *pRow, uint32_t flen) {
 
 static FORCE_INLINE void *tdGetBitmapAddrKv(STSRow *pRow, col_id_t nKvCols) {
   // The primary TS key is stored separatedly and is Norm value, thus should minus 1 firstly
-  return POINTER_SHIFT(TD_ROW_COL_IDX(pRow), (--nKvCols) * sizeof(SKvRowIdx));
+  return POINTER_SHIFT(TD_ROW_COL_IDX(pRow), nKvCols * sizeof(SKvRowIdx));
 }
 void   *tdGetBitmapAddr(STSRow *pRow, uint8_t rowType, uint32_t flen, col_id_t nKvCols);
 int32_t tdSetBitmapValType(void *pBitmap, int16_t colIdx, TDRowValT valType, int8_t bitmapMode);
@@ -322,10 +328,9 @@ typedef struct {
 void    tdSTSRowIterReset(STSRowIter *pIter, STSRow *pRow);
 void    tdSTSRowIterInit(STSRowIter *pIter, STSchema *pSchema);
 int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow);
-bool    tdSTSRowGetVal(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCellVal *pVal);
 bool    tdGetTpRowDataOfCol(STSRowIter *pIter, col_type_t colType, int32_t offset, SCellVal *pVal);
-bool    tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId, col_type_t colType, col_id_t *nIdx, SCellVal *pVal);
-bool    tdSTSRowIterNext(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCellVal *pVal);
+bool    tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId, col_id_t *nIdx, SCellVal *pVal);
+bool    tdSTSRowIterNext(STSRowIter *pIter, SCellVal *pVal);
 bool    tdSTpRowGetVal(STSRow *pRow, col_id_t colId, col_type_t colType, int32_t flen, uint32_t offset, col_id_t colIdx,
                        SCellVal *pVal);
 bool    tdSKvRowGetVal(STSRow *pRow, col_id_t colId, col_id_t colIdx, SCellVal *pVal);

@@ -325,7 +325,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader) {
     for (int32_t i = 0; i < colActual; i++) {
       SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
       SCellVal         sVal = {0};
-      if (!tdSTSRowIterNext(&iter, pColData->info.colId, pColData->info.type, &sVal)) {
+      if (!tdSTSRowIterNext(&iter, &sVal)) {
         break;
       }
       if (colDataAppend(pColData, curRow, sVal.val, sVal.valType != TD_VTYPE_NORM) < 0) {
