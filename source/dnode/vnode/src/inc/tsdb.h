@@ -325,8 +325,6 @@ struct SDelDataInfo {
 };
 
 struct STbData {
-  STbData *next;
-
   tb_uid_t     suid;
   tb_uid_t     uid;
   TSKEY        minKey;
@@ -337,6 +335,8 @@ struct STbData {
   SDelData    *pHead;
   SDelData    *pTail;
   SMemSkipList sl;
+
+  STbData *next;
 };
 
 struct SMemTable {
