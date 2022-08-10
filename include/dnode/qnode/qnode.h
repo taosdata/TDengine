@@ -26,17 +26,6 @@ extern "C" {
 typedef struct SQnode SQnode;
 
 typedef struct {
-  int64_t numOfStartTask;
-  int64_t numOfStopTask;
-  int64_t numOfRecvedFetch;
-  int64_t numOfSentHb;
-  int64_t numOfSentFetch;
-  int64_t numOfTaskInQueue;
-  int64_t numOfFetchInQueue;
-  int64_t numOfErrors;
-} SQnodeLoad;
-
-typedef struct {
   SMsgCb msgCb;
 } SQnodeOpt;
 
@@ -71,8 +60,7 @@ int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad);
  * @param pQnode The qnode object.
  * @param pMsg The request message
  */
-int32_t qndProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg);
-int32_t qndProcessFetchMsg(SQnode *pQnode, SRpcMsg *pMsg);
+int32_t qndProcessQueryMsg(SQnode *pQnode, int64_t ts, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

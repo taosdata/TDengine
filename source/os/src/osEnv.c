@@ -16,8 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "osEnv.h"
 
-extern void taosWinSocketInit();
-
 char            configDir[PATH_MAX] = {0};
 char            tsDataDir[PATH_MAX] = {0};
 char            tsLogDir[PATH_MAX] = {0};
@@ -37,6 +35,7 @@ int64_t         tsOpenMax = 0;
 int64_t         tsStreamMax = 0;
 float           tsNumOfCores = 0;
 int64_t         tsTotalMemoryKB = 0;
+char*           tsProcPath = NULL;
 
 void osDefaultInit() {
   taosSeedRand(taosSafeRand());
@@ -50,7 +49,7 @@ void osDefaultInit() {
     tsNumOfCores = 2;
   }
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   taosWinSocketInit();
 
   const char *tmpDir = getenv("tmp");
@@ -71,11 +70,11 @@ void osDefaultInit() {
 
 #elif defined(_TD_DARWIN_64)
   if (configDir[0] == 0) {
-    strcpy(configDir, "/tmp/taosd");
+    strcpy(configDir, "/usr/local/etc/taos");
   }
   strcpy(tsDataDir, "/usr/local/var/lib/taos");
   strcpy(tsLogDir, "/usr/local/var/log/taos");
-  strcpy(tsTempDir, "/usr/local/etc/taos");
+  strcpy(tsTempDir, "/tmp/taosd");
   strcpy(tsOsName, "Darwin");
 
 #else
@@ -105,6 +104,10 @@ void osUpdate() {
 void osCleanup() {}
 
 bool osLogSpaceAvailable() { return tsLogSpace.reserved <= tsLogSpace.size.avail; }
+
+bool osDataSpaceAvailable() { return tsDataSpace.reserved <= tsDataSpace.size.avail; }
+
+bool osTempSpaceAvailable() { return tsTempSpace.reserved <= tsTempSpace.size.avail; }
 
 void osSetTimezone(const char *timezone) { taosSetSystemTimezone(timezone, tsTimezoneStr, &tsDaylight, &tsTimezone); }
 

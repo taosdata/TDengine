@@ -247,7 +247,12 @@ SLHashObj* tHashInit(int32_t inMemPages, int32_t pageSize, _hash_fn_t fn, int32_
     return NULL;
   }
 
-  int32_t code = createDiskbasedBuf(&pHashObj->pBuf, pageSize, inMemPages * pageSize, 0, "/tmp");
+  if (!osTempSpaceAvailable()) {
+    terrno = TSDB_CODE_NO_AVAIL_DISK;
+    printf("tHash Init failed since %s", terrstr(terrno));
+    return NULL;
+  }
+  int32_t code = createDiskbasedBuf(&pHashObj->pBuf, pageSize, inMemPages * pageSize, 0, tsTempDir);
   if (code != 0) {
     terrno = code;
     return NULL;
@@ -409,6 +414,7 @@ char* tHashGet(SLHashObj* pHashObj, const void *key, size_t keyLen) {
 
 int32_t tHashRemove(SLHashObj* pHashObj, const void *key, size_t keyLen) {
   // todo
+  return TSDB_CODE_SUCCESS;
 }
 
 void tHashPrint(const SLHashObj* pHashObj, int32_t type) {

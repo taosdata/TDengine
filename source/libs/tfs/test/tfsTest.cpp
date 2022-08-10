@@ -16,7 +16,11 @@
 
 class TfsTest : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { root = "/tmp/tfsTest"; }
+ #ifdef _TD_DARWIN_64
+  static void SetUpTestSuite() { root = "/private" TD_TMP_DIR_PATH "tfsTest"; }
+#else
+  static void SetUpTestSuite() { root = TD_TMP_DIR_PATH "tfsTest"; }
+#endif
   static void TearDownTestSuite() {}
 
  public:
@@ -231,7 +235,7 @@ TEST_F(TfsTest, 04_File) {
     EXPECT_EQ(tfsMkdir(pTfs, "t3"), 0);
 
     // FILE *fp = fopen(f1.aname, "w");
-    TdFilePtr pFile = taosOpenFile(f1.aname, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    TdFilePtr pFile = taosOpenFile(f1.aname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
     ASSERT_NE(pFile, nullptr);
     taosWriteFile(pFile, "12345678", 5);
     taosCloseFile(&pFile);
@@ -299,15 +303,27 @@ TEST_F(TfsTest, 04_File) {
 TEST_F(TfsTest, 05_MultiDisk) {
   int32_t code = 0;
 
-  const char *root00 = "/tmp/tfsTest00";
-  const char *root01 = "/tmp/tfsTest01";
-  const char *root10 = "/tmp/tfsTest10";
-  const char *root11 = "/tmp/tfsTest11";
-  const char *root12 = "/tmp/tfsTest12";
-  const char *root20 = "/tmp/tfsTest20";
-  const char *root21 = "/tmp/tfsTest21";
-  const char *root22 = "/tmp/tfsTest22";
-  const char *root23 = "/tmp/tfsTest23";
+ #ifdef _TD_DARWIN_64
+  const char *root00 = "/private" TD_TMP_DIR_PATH "tfsTest00";
+  const char *root01 = "/private" TD_TMP_DIR_PATH "tfsTest01";
+  const char *root10 = "/private" TD_TMP_DIR_PATH "tfsTest10";
+  const char *root11 = "/private" TD_TMP_DIR_PATH "tfsTest11";
+  const char *root12 = "/private" TD_TMP_DIR_PATH "tfsTest12";
+  const char *root20 = "/private" TD_TMP_DIR_PATH "tfsTest20";
+  const char *root21 = "/private" TD_TMP_DIR_PATH "tfsTest21";
+  const char *root22 = "/private" TD_TMP_DIR_PATH "tfsTest22";
+  const char *root23 = "/private" TD_TMP_DIR_PATH "tfsTest23";
+#else
+  const char *root00 = TD_TMP_DIR_PATH "tfsTest00";
+  const char *root01 = TD_TMP_DIR_PATH "tfsTest01";
+  const char *root10 = TD_TMP_DIR_PATH "tfsTest10";
+  const char *root11 = TD_TMP_DIR_PATH "tfsTest11";
+  const char *root12 = TD_TMP_DIR_PATH "tfsTest12";
+  const char *root20 = TD_TMP_DIR_PATH "tfsTest20";
+  const char *root21 = TD_TMP_DIR_PATH "tfsTest21";
+  const char *root22 = TD_TMP_DIR_PATH "tfsTest22";
+  const char *root23 = TD_TMP_DIR_PATH "tfsTest23";
+#endif
 
   SDiskCfg dCfg[9] = {0};
   tstrncpy(dCfg[0].dir, root01, TSDB_FILENAME_LEN);
@@ -640,7 +656,7 @@ TEST_F(TfsTest, 05_MultiDisk) {
       EXPECT_EQ(tfsMkdir(pTfs, "t3"), 0);
 
       // FILE *fp = fopen(f1.aname, "w");
-      TdFilePtr pFile = taosOpenFile(f1.aname, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+      TdFilePtr pFile = taosOpenFile(f1.aname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
       ASSERT_NE(pFile, nullptr);
       taosWriteFile(pFile, "12345678", 5);
       taosCloseFile(&pFile);

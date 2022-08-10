@@ -28,8 +28,8 @@ char     simScriptDir[PATH_MAX] = {0};
 extern bool simExecSuccess;
 
 int32_t simInitCfg() {
-  taosCreateLog("simlog", 1, configDir, NULL, NULL, NULL, 1);
-  taosInitCfg(configDir, NULL, NULL, NULL, 1);
+  taosCreateLog("simlog", 1, configDir, NULL, NULL, NULL, NULL, 1);
+  taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1);
 
   SConfig *pCfg = taosGetCfg();
   simDebugFlag = cfgGetItem(pCfg, "simDebugFlag")->i32;
@@ -56,6 +56,7 @@ void simFreeScript(SScript *script) {
       bgScript->killed = true;
       if (taosCheckPthreadValid(bgScript->bgPid)) {
         taosThreadJoin(bgScript->bgPid, NULL);
+        taosThreadClear(&bgScript->bgPid);
       }
 
       simDebug("script:%s, background thread joined", bgScript->fileName);
@@ -80,24 +81,27 @@ SScript *simProcessCallOver(SScript *script) {
       simExecSuccess = false;
       simInfo("script:" FAILED_PREFIX "%s" FAILED_POSTFIX ", " FAILED_PREFIX "failed" FAILED_POSTFIX ", error:%s",
               script->fileName, script->error);
-      return NULL;
     } else {
       simExecSuccess = true;
       simInfo("script:" SUCCESS_PREFIX "%s" SUCCESS_POSTFIX ", " SUCCESS_PREFIX "success" SUCCESS_POSTFIX,
               script->fileName);
-      simCloseTaosdConnect(script);
-      simScriptSucced++;
-      simScriptPos--;
-
-      simFreeScript(script);
-      if (simScriptPos == -1) {
-        simInfo("----------------------------------------------------------------------");
-        simInfo("Simulation Test Done, " SUCCESS_PREFIX "%d" SUCCESS_POSTFIX " Passed:\n", simScriptSucced);
-        return NULL;
-      }
-
-      return simScriptList[simScriptPos];
     }
+
+    simCloseTaosdConnect(script);
+    simScriptSucced++;
+    simScriptPos--;
+    simFreeScript(script);
+
+    if (simScriptPos == -1 && simExecSuccess) {
+      simInfo("----------------------------------------------------------------------");
+      simInfo("Simulation Test Done, " SUCCESS_PREFIX "%d" SUCCESS_POSTFIX " Passed:\n", simScriptSucced);
+      return NULL;
+    }
+
+    if (simScriptPos == -1) return NULL;
+    if (!simExecSuccess) return NULL;
+
+    return simScriptList[simScriptPos];
   } else {
     simDebug("script:%s,  is stopped", script->fileName);
     simFreeScript(script);

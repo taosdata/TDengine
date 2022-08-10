@@ -28,15 +28,16 @@ typedef int64_t tb_uid_t;
 #define TSWINDOW_INITIALIZER       ((STimeWindow){INT64_MIN, INT64_MAX})
 #define TSWINDOW_DESC_INITIALIZER  ((STimeWindow){INT64_MAX, INT64_MIN})
 #define IS_TSWINDOW_SPECIFIED(win) (((win).skey != INT64_MIN) || ((win).ekey != INT64_MAX))
+#define TSWINDOW_IS_EQUAL(t1, t2)  (((t1).skey == (t2).skey) && ((t1).ekey == (t2).ekey))
 
 typedef enum {
-  TSDB_SUPER_TABLE  = 1,    // super table
-  TSDB_CHILD_TABLE  = 2,    // table created from super table
-  TSDB_NORMAL_TABLE = 3,    // ordinary table
-  TSDB_STREAM_TABLE = 4,    // table created from stream computing
-  TSDB_TEMP_TABLE   = 5,    // temp table created by nest query
-  TSDB_SYSTEM_TABLE = 6,
-  TSDB_TABLE_MAX    = 7
+  TSDB_SUPER_TABLE = 1,   // super table
+  TSDB_CHILD_TABLE = 2,   // table created from super table
+  TSDB_NORMAL_TABLE = 3,  // ordinary table
+  TSDB_TEMP_TABLE = 4,    // temp table created by nest query
+  TSDB_SYSTEM_TABLE = 5,
+  TSDB_TSMA_TABLE = 6,  // time-range-wise sma
+  TSDB_TABLE_MAX = 7
 } ETableType;
 
 typedef enum {
@@ -57,6 +58,8 @@ typedef enum {
   TD_ROW_PARTIAL_UPDATE = 2,
 } TDUpdateConfig;
 
+#define TD_SUPPORT_UPDATE(u) ((u) > 0)
+
 typedef enum {
   TSDB_STATIS_OK = 0,    // statis part exist and load successfully
   TSDB_STATIS_NONE = 1,  // statis part not exist
@@ -69,16 +72,31 @@ typedef enum {
   TSDB_SMA_STAT_DROPPED = 2,   // sma dropped
 } ETsdbSmaStat;                // bit operation
 
-
 typedef enum {
   TSDB_SMA_TYPE_BLOCK = 0,       // Block-wise SMA
   TSDB_SMA_TYPE_TIME_RANGE = 1,  // Time-range-wise SMA
   TSDB_SMA_TYPE_ROLLUP = 2,      // Rollup SMA
 } ETsdbSmaType;
 
+typedef enum {
+  TSDB_RETENTION_L0 = 0,
+  TSDB_RETENTION_L1 = 1,
+  TSDB_RETENTION_L2 = 2,
+  TSDB_RETENTION_MAX = 3
+} ERetentionLevel;
+
+typedef enum {
+  TSDB_BITMODE_DEFAULT = 0,  // 2 bits
+  TSDB_BITMODE_ONE_BIT = 1,  // 1 bit
+} EBitmapMode;
+
 extern char *qtypeStr[];
 
-#define TSDB_PORT_HTTP      11
+#define TSDB_PORT_HTTP 11
+
+#undef TD_DEBUG_PRINT_ROW
+#undef TD_DEBUG_PRINT_TSDB_LOAD_DCOLS
+#undef TD_DEBUG_PRINT_TAG
 
 #ifdef __cplusplus
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+YAML:9:25: error: unknown key 'AlignConsecutiveMacros' * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -294,3 +294,4 @@ const char COMMON_INPUTS_INV[] = {
     '\xee', '\xef', '\xf0', '\xf1', '\xf2', '\xf3', '\xf4', '\xf5', '\xf6', '\xf7', '\xf8', '\xf9', '\xfa', '\xfb',
     '\xfc', '\xfd', '\xfe', '\xff',
 };
+const int32_t COMMON_INPUTS_LEN = sizeof(COMMON_INPUTS) / sizeof(COMMON_INPUTS[0]);

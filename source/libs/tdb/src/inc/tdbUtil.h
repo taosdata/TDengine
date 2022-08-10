@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#if __STDC_VERSION__ >= 201112L
+#if __STDC_VERSION__ >= 201112LL
 #define TDB_STATIC_ASSERT(op, info) static_assert(op, info)
 #else
 #define TDB_STATIC_ASSERT(op, info)
@@ -28,29 +28,10 @@ extern "C" {
 
 #define TDB_ROUND8(x) (((x) + 7) & ~7)
 
-int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique);
+int tdbGnrtFileID(tdb_fd_t fd, uint8_t *fileid, bool unique);
+int tdbGetFileSize(tdb_fd_t fd, int szPage, SPgno *size);
 
-#define TDB_REALLOC(PTR, SIZE)                                                               \
-  ({                                                                                         \
-    void *nPtr;                                                                              \
-    if ((PTR) == NULL || ((int *)(PTR))[-1] < (SIZE)) {                                      \
-      nPtr = tdbOsRealloc((PTR) ? (char *)(PTR) - sizeof(int) : NULL, (SIZE) + sizeof(int)); \
-      if (nPtr) {                                                                            \
-        ((int *)nPtr)[0] = (SIZE);                                                           \
-        nPtr = (char *)nPtr + sizeof(int);                                                   \
-      }                                                                                      \
-    } else {                                                                                 \
-      nPtr = (PTR);                                                                          \
-    }                                                                                        \
-    nPtr;                                                                                    \
-  })
-
-#define TDB_FREE(PTR)                         \
-  do {                                        \
-    if (PTR) {                                \
-      tdbOsFree((char *)(PTR) - sizeof(int)); \
-    }                                         \
-  } while (0)
+void *tdbRealloc(void *ptr, size_t size);
 
 static inline void *tdbDefaultMalloc(void *arg, size_t size) {
   void *ptr;
@@ -83,15 +64,18 @@ static inline int tdbPutVarInt(u8 *p, int v) {
 static inline int tdbGetVarInt(const u8 *p, int *v) {
   int n = 0;
   int tv = 0;
+  int t;
 
   for (;;) {
     if (p[n] <= 0x7f) {
-      tv = (tv << 7) | p[n];
+      t = p[n];
+      tv |= (t << (7 * n));
       n++;
       break;
     }
 
-    tv = (tv << 7) | (p[n] & 0x7f);
+    t = p[n] & 0x7f;
+    tv |= (t << (7 * n));
     n++;
   }
 
@@ -100,6 +84,8 @@ static inline int tdbGetVarInt(const u8 *p, int *v) {
   *v = tv;
   return n;
 }
+
+static inline u32 tdbCstringHash(const char *s) { return MurmurHash3_32(s, strlen(s)); }
 
 #ifdef __cplusplus
 }

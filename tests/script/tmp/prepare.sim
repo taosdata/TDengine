@@ -7,39 +7,33 @@ system sh/deploy.sh -n dnode4 -i 4
 
 return
 
-system sh/deploy.sh -n dnode1 -i 1
-system sh/deploy.sh -n dnode2 -i 2
-system sh/deploy.sh -n dnode3 -i 3
-system sh/deploy.sh -n dnode4 -i 4
-system sh/deploy.sh -n dnode5 -i 5
-system sh/deploy.sh -n dnode6 -i 6
-system sh/deploy.sh -n dnode7 -i 7
-system sh/deploy.sh -n dnode8 -i 8
-system sh/deploy.sh -n dnode9 -i 9
 system sh/exec.sh -n dnode1 -s start
-system sh/exec.sh -n dnode2 -s start
-system sh/exec.sh -n dnode3 -s start
-system sh/exec.sh -n dnode4 -s start
-system sh/exec.sh -n dnode5 -s start
-system sh/exec.sh -n dnode6 -s start
-system sh/exec.sh -n dnode7 -s start
-system sh/exec.sh -n dnode8 -s start
-system sh/exec.sh -n dnode9 -s start
+sql connect
 
-sleep 2000
+$num = 200
+$i = 0
+while $i < $num 
+  $port = $i + 8000
+  $i = $i + 1
+  sql create dnode $hostname port $port
+endw 
 
-sql create dnode $hostname port 7200
-sql create dnode $hostname port 7300
-sql create dnode $hostname port 7400
-sql create dnode $hostname port 7500
-sql create dnode $hostname port 7600
-sql create dnode $hostname port 7700
-sql create dnode $hostname port 7800
-sql create dnode $hostname port 7900
+$i = 0
+while $i < $num 
+  $port = $i + 8000
+  $i = $i + 1
+  $name = dnode . $port
+  system sh/deploy.sh -n $name -i 1
+  system sh/cfg.sh -n $name -c serverPort -v $port
+  system sh/exec.sh -n $name -s start
+endw 
 
-sql show dnodes;
-print $data00 $data01
-print $data10 $data11
-print $data20 $data21
-print $data30 $data31
-print $data40 $data41
+return 
+
+sql create database db vgroups 1024 buffer 3;
+sql use db;
+sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned);
+sql create table ct1 using stb tags(1000);
+sql create table ct2 using stb tags(1000) ;
+sql show db.tables;
+sql insert into ct1 values(now+0s, 10, 2.0, 3.0);

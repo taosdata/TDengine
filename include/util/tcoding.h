@@ -57,6 +57,23 @@ static FORCE_INLINE void *taosDecodeFixedI8(const void *buf, int8_t *value) {
   return POINTER_SHIFT(buf, sizeof(*value));
 }
 
+static FORCE_INLINE void *taosSkipFixedLen(const void *buf, size_t len) { return POINTER_SHIFT(buf, len); }
+
+// --- Bool
+
+static FORCE_INLINE int32_t taosEncodeFixedBool(void **buf, bool value) {
+  if (buf != NULL) {
+    ((int8_t *)(*buf))[0] = (value ? 1 : 0);
+    *buf = POINTER_SHIFT(*buf, sizeof(int8_t));
+  }
+  return (int32_t)sizeof(int8_t);
+}
+
+static FORCE_INLINE void *taosDecodeFixedBool(const void *buf, bool *value) {
+  *value = ( (((int8_t *)buf)[0] == 0) ? false : true );
+  return POINTER_SHIFT(buf, sizeof(int8_t));
+}
+
 // ---- Fixed U16
 static FORCE_INLINE int32_t taosEncodeFixedU16(void **buf, uint16_t value) {
   if (buf != NULL) {

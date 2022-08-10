@@ -16,6 +16,23 @@
 #define _DEFAULT_SOURCE
 #include "tutil.h"
 
+void *tmemmem(const char *haystack, int32_t hlen, const char *needle, int32_t nlen) {
+  const char *limit;
+
+  if (nlen == 0 || hlen < nlen) {
+    return NULL;
+  }
+
+  limit = haystack + hlen - nlen + 1;
+  while ((haystack = (char *)memchr(haystack, needle[0], limit - haystack)) != NULL) {
+    if (memcmp(haystack, needle, nlen) == 0) {
+      return (void *)haystack;
+    }
+    haystack++;
+  }
+  return NULL;
+}
+
 int32_t strdequote(char *z) {
   if (z == NULL) {
     return 0;
@@ -47,71 +64,12 @@ int32_t strdequote(char *z) {
   return j + 1;  // only one quote, do nothing
 }
 
-int32_t strRmquote(char *z, int32_t len) {
-  // delete escape character: \\, \', \"
-  char delim = z[0];
-  if (delim != '\'' && delim != '\"') {
-    return len;
-  }
-
-  int32_t cnt = 0;
-  int32_t j = 0;
-  for (uint32_t k = 1; k < len - 1; ++k) {
-    if (z[k] == '\\' || (z[k] == delim && z[k + 1] == delim)) {
-      if (z[k] == '\\' && z[k + 1] == '_') {
-        // match '_' self
-      } else {
-        z[j] = z[k + 1];
-        cnt++;
-        j++;
-        k++;
-        continue;
-      }
-    }
-
-    z[j] = z[k];
-    j++;
-  }
-
-  z[j] = 0;
-
-  return len - 2 - cnt;
-}
-
-int32_t strndequote(char *dst, const char *z, int32_t len) {
-  assert(dst != NULL);
-  if (z == NULL || len == 0) {
-    return 0;
-  }
-
-  int32_t quote = z[0];
-  int32_t i = 1, j = 0;
-
-  while (z[i] != 0) {
-    if (z[i] == quote) {
-      if (z[i + 1] == quote) {
-        dst[j++] = (char)quote;
-        i++;
-      } else {
-        dst[j++] = 0;
-        return (j - 1);
-      }
-    } else {
-      dst[j++] = z[i];
-    }
-
-    i++;
-  }
-
-  return j + 1;  // only one quote, do nothing
-}
-
 size_t strtrim(char *z) {
   int32_t i = 0;
   int32_t j = 0;
 
   int32_t delta = 0;
-  while (z[j] == ' ') {
+  while (isspace(z[j])) {
     ++j;
   }
 
@@ -124,9 +82,9 @@ size_t strtrim(char *z) {
 
   int32_t stop = 0;
   while (z[j] != 0) {
-    if (z[j] == ' ' && stop == 0) {
+    if (isspace(z[j]) && stop == 0) {
       stop = j;
-    } else if (z[j] != ' ' && stop != 0) {
+    } else if (!isspace(z[j]) && stop != 0) {
       stop = 0;
     }
 

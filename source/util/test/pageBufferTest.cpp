@@ -13,7 +13,7 @@ namespace {
 // simple test
 void simpleTest() {
   SDiskbasedBuf* pBuf = NULL;
-  int32_t ret = createDiskbasedBuf(&pBuf, 1024, 4096, "", "/tmp/");
+  int32_t ret = createDiskbasedBuf(&pBuf, 1024, 4096, "", TD_TMP_DIR_PATH);
   
   int32_t pageId = 0;
   int32_t groupId = 0;
@@ -57,7 +57,7 @@ void simpleTest() {
 
 void writeDownTest() {
   SDiskbasedBuf* pBuf = NULL;
-  int32_t ret = createDiskbasedBuf(&pBuf, 1024, 4*1024, "1", "/tmp/");
+  int32_t ret = createDiskbasedBuf(&pBuf, 1024, 4*1024, "1", TD_TMP_DIR_PATH);
 
   int32_t pageId = 0;
   int32_t writePageId = 0;
@@ -106,7 +106,7 @@ void writeDownTest() {
 
 void recyclePageTest() {
   SDiskbasedBuf* pBuf = NULL;
-  int32_t ret = createDiskbasedBuf(&pBuf, 1024, 4*1024, "1", "/tmp/");
+  int32_t ret = createDiskbasedBuf(&pBuf, 1024, 4*1024, "1", TD_TMP_DIR_PATH);
 
   int32_t pageId = 0;
   int32_t writePageId = 0;

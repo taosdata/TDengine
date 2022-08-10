@@ -41,10 +41,10 @@ extern "C" {
 #define TARRAY_GET_START(array)       ((array)->pData)
 
 typedef struct SArray {
-  size_t size;
+  size_t   size;
   uint32_t capacity;
   uint32_t elemSize;
-  void*  pData;
+  void*    pData;
 } SArray;
 
 /**
@@ -86,6 +86,14 @@ void taosArrayRemoveBatch(SArray* pArray, const int32_t* pData, int32_t numOfEle
  * @param fp
  */
 void taosArrayRemoveDuplicate(SArray* pArray, __compar_fn_t comparFn, void (*fp)(void*));
+
+/**
+ *
+ * @param pArray
+ * @param comparFn
+ * @param fp
+ */
+void taosArrayRemoveDuplicateP(SArray* pArray, __compar_fn_t comparFn, void (*fp)(void*));
 
 /**
  *  add all element from the source array list into the destination
@@ -200,23 +208,34 @@ SArray* taosArrayFromList(const void* src, size_t size, size_t elemSize);
 SArray* taosArrayDup(const SArray* pSrc);
 
 /**
+ * deep copy a new array
+ * @param pSrc
+ */
+SArray* taosArrayDeepCopy(const SArray* pSrc, FCopy deepCopy);
+
+/**
  * clear the array (remove all element)
  * @param pArray
  */
 void taosArrayClear(SArray* pArray);
 
 /**
- * destroy array list
- * @param pArray
- */
-void* taosArrayDestroy(SArray* pArray);
-
-/**
- *
+ * clear the array (remove all element)
  * @param pArray
  * @param fp
  */
-void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*));
+void taosArrayClearEx(SArray* pArray, void (*fp)(void*));
+
+/**
+ * clear the array (remove all element)
+ * @param pArray
+ * @param fp
+ */
+void taosArrayClearP(SArray* pArray, FDelete fp);
+
+void* taosArrayDestroy(SArray* pArray);
+void  taosArrayDestroyP(SArray* pArray, FDelete fp);
+void  taosArrayDestroyEx(SArray* pArray, FDelete fp);
 
 /**
  * sort the array
@@ -263,6 +282,11 @@ char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t
  */
 
 void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void* param);
+
+int32_t taosEncodeArray(void** buf, const SArray* pArray, FEncode encode);
+void*   taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t dataSz);
+
+char* taosShowStrArray(const SArray* pArray);
 
 #ifdef __cplusplus
 }

@@ -30,6 +30,7 @@ import argparse
 import sys
 import os
 import io
+import datetime
 import signal
 import traceback
 import requests
@@ -370,7 +371,9 @@ class ThreadCoordinator:
             if isinstance(err, CrashGenError): # our own transition failure
                 Logging.info("State transition error")
                 # TODO: saw an error here once, let's print out stack info for err?
-                traceback.print_stack()
+                traceback.print_stack() # Stack frame to here.
+                Logging.info("Caused by:")
+                traceback.print_exception(*sys.exc_info()) # Ref: https://www.geeksforgeeks.org/how-to-print-exception-stack-trace-in-python/
                 transitionFailed = True
                 self._te = None  # Not running any more
                 self._execStats.registerFailure("State transition error: {}".format(err))
@@ -466,6 +469,7 @@ class ThreadCoordinator:
         self._te = None  # No more executor, time to end
         Logging.debug("Main thread tapping all threads one last time...")
         self.tapAllThreads()  # Let the threads run one last time
+        #TODO: looks like we are not capturing the failures for the last step yet (i.e. calling registerFailure if neccessary)
 
         Logging.debug("\r\n\n--> Main thread ready to finish up...")
         Logging.debug("Main thread joining all threads")
@@ -739,7 +743,11 @@ class AnyState:
                 sCnt += 1
                 if (sCnt >= 2):
                     raise CrashGenError(
-                        "Unexpected more than 1 success with task: {}".format(cls))
+                        "Unexpected more than 1 success at state: {}, with task: {}, in task set: {}".format(
+                            self.__class__.__name__,
+                            cls.__name__, # verified just now that isinstance(task, cls)
+                            [c.__class__.__name__ for c in tasks]
+                        ))
 
     def assertIfExistThenSuccess(self, tasks, cls):
         sCnt = 0
@@ -751,8 +759,11 @@ class AnyState:
             if task.isSuccess():
                 sCnt += 1
         if (exists and sCnt <= 0):
-            raise CrashGenError("Unexpected zero success for task type: {}, from tasks: {}"
-                .format(cls, tasks))
+            raise CrashGenError("Unexpected zero success at state: {}, with task: {}, in task set: {}".format(
+                            self.__class__.__name__,
+                            cls.__name__, # verified just now that isinstance(task, cls)
+                            [c.__class__.__name__ for c in tasks]
+                        ))
 
     def assertNoTask(self, tasks, cls):
         for task in tasks:
@@ -988,16 +999,17 @@ class StateMechine:
         dbc.execute("show dnodes")
 
         # Generic Checks, first based on the start state
-        if self._curState.canCreateDb():
-            self._curState.assertIfExistThenSuccess(tasks, TaskCreateDb)
-            # self.assertAtMostOneSuccess(tasks, CreateDbTask) # not really, in
-            # case of multiple creation and drops
+        if not Config.getConfig().ignore_errors: # verify state, only if we are asked not to ignore certain errors.
+            if self._curState.canCreateDb():
+                self._curState.assertIfExistThenSuccess(tasks, TaskCreateDb)
+                # self.assertAtMostOneSuccess(tasks, CreateDbTask) # not really, in
+                # case of multiple creation and drops
 
-        if self._curState.canDropDb():
-            if gSvcMgr == None: # only if we are running as client-only
-                self._curState.assertIfExistThenSuccess(tasks, TaskDropDb)
-            # self.assertAtMostOneSuccess(tasks, DropDbTask) # not really in
-            # case of drop-create-drop
+            if self._curState.canDropDb():
+                if gSvcMgr == None: # only if we are running as client-only
+                    self._curState.assertIfExistThenSuccess(tasks, TaskDropDb)
+                # self.assertAtMostOneSuccess(tasks, DropDbTask) # not really in
+                # case of drop-create-drop
 
         # if self._state.canCreateFixedTable():
             # self.assertIfExistThenSuccess(tasks, CreateFixedTableTask) # Not true, DB may be dropped
@@ -1019,7 +1031,8 @@ class StateMechine:
         newState = self._findCurrentState(dbc)
         Logging.debug("[STT] New DB state determined: {}".format(newState))
         # can old state move to new state through the tasks?
-        self._curState.verifyTasksToState(tasks, newState)
+        if not Config.getConfig().ignore_errors: # verify state, only if we are asked not to ignore certain errors.
+            self._curState.verifyTasksToState(tasks, newState)
         self._curState = newState
 
     def pickTaskType(self):
@@ -1106,14 +1119,20 @@ class Database:
     # TODO: fix the error as result of above: "tsdb timestamp is out of range"
     @classmethod
     def setupLastTick(cls):
-        t1 = datetime.datetime(2020, 6, 1)
+        # start time will be auto generated , start at 10 years ago  local time 
+        local_time = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-16]
+        local_epoch_time = [int(i) for i in local_time.split("-")]
+        #local_epoch_time will be such as : [2022, 7, 18]
+
+        t1 = datetime.datetime(local_epoch_time[0]-5, local_epoch_time[1], local_epoch_time[2])
         t2 = datetime.datetime.now()
         # maybe a very large number, takes 69 years to exceed Python int range
         elSec = int(t2.timestamp() - t1.timestamp())
         elSec2 = (elSec % (8 * 12 * 30 * 24 * 60 * 60 / 500)) * \
             500  # a number representing seconds within 10 years
         # print("elSec = {}".format(elSec))
-        t3 = datetime.datetime(2012, 1, 1)  # default "keep" is 10 years
+
+        t3 = datetime.datetime(local_epoch_time[0]-10, local_epoch_time[1], local_epoch_time[2])  # default "keep" is 10 years
         t4 = datetime.datetime.fromtimestamp(
             t3.timestamp() + elSec2)  # see explanation above
         Logging.debug("Setting up TICKS to start from: {}".format(t4))
@@ -1290,6 +1309,7 @@ class Task():
 
     def _isErrAcceptable(self, errno, msg):
         if errno in [
+                # TDengine 2.x Error Codes:
                 0x05,  # TSDB_CODE_RPC_NOT_READY
                 0x0B,  # Unable to establish connection, more details in TD-1648
                 # 0x200, # invalid SQL， TODO: re-examine with TD-934
@@ -1310,6 +1330,21 @@ class Task():
                 0x14,   # db not ready, errno changed
                 0x600,  # Invalid table ID, why?
                 0x218,  # Table does not exist
+
+                # TDengine 3.0 Error Codes:
+                0x0333, # Object is creating # TODO: this really is NOT an acceptable error
+                0x0369, # Tag already exists
+                0x0388, # Database not exist
+                0x03A0, # STable already exists
+                0x03A1, # STable [does] not exist
+                0x03AA, # Tag already exists
+                0x0603, # Table already exists
+                0x2603, # Table does not exist, replaced by 2662 below
+                0x260d, # Tags number not matched
+                0x2662, # Table does not exist #TODO: what about 2603 above?
+
+
+
                 1000  # REST catch-all error
             ]: 
             return True # These are the ALWAYS-ACCEPTABLE ones
@@ -1749,6 +1784,8 @@ class TdSuperTable:
             tagType = tags[tagName]
             if tagType == 'BINARY':
                 tagStrs.append("'Beijing-Shanghai-LosAngeles'")
+            elif tagType== 'VARCHAR':
+                tagStrs.append("'London-Paris-Berlin'")
             elif tagType == 'FLOAT':
                 tagStrs.append('9.9')
             elif tagType == 'INT':
@@ -2201,16 +2238,14 @@ class TaskAddData(StateTransitionTask):
 class ThreadStacks: # stack info for all threads
     def __init__(self):
         self._allStacks = {}
-        allFrames = sys._current_frames() # All current stack frames
+        allFrames = sys._current_frames() # All current stack frames, keyed with "ident"
         for th in threading.enumerate():  # For each thread
-            if th.ident is None:
-                continue          
-            stack = traceback.extract_stack(allFrames[th.ident]) # Get stack for a thread
-            shortTid = th.ident % 10000
+            stack = traceback.extract_stack(allFrames[th.ident]) #type: ignore # Get stack for a thread
+            shortTid = th.native_id % 10000 #type: ignore                      
             self._allStacks[shortTid] = stack # Was using th.native_id
 
     def print(self, filteredEndName = None, filterInternal = False):
-        for tIdent, stack in self._allStacks.items(): # for each thread, stack frames top to bottom
+        for shortTid, stack in self._allStacks.items(): # for each thread, stack frames top to bottom
             lastFrame = stack[-1]
             if filteredEndName: # we need to filter out stacks that match this name                
                 if lastFrame.name == filteredEndName : # end did not match
@@ -2222,7 +2257,9 @@ class ThreadStacks: # stack info for all threads
                     '__init__']: # the thread that extracted the stack
                     continue # ignore
             # Now print
-            print("\n<----- Thread Info for LWP/ID: {} (most recent call last) <-----".format(tIdent))
+            print("\n<----- Thread Info for LWP/ID: {} (most recent call last) <-----".format(shortTid))
+            lastSqlForThread = DbConn.fetchSqlForThread(shortTid)
+            print("Last SQL statement attempted from thread {} is: {}".format(shortTid, lastSqlForThread))
             stackFrame = 0
             for frame in stack: # was using: reversed(stack)
                 # print(frame)
@@ -2465,7 +2502,7 @@ class MainExec:
             action='store',
             default=None,
             type=str,
-            help='Ignore error codes, comma separated, 0x supported (default: None)')
+            help='Ignore error codes, comma separated, 0x supported, also suppresses certain transition state checks. (default: None)')
         parser.add_argument(
             '-i',
             '--num-replicas',

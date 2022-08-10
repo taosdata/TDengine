@@ -1,55 +1,96 @@
-set(META_DB_IMPL_LIST "BDB" "TDB")
-set(META_DB_IMPL "BDB" CACHE STRING "Use BDB as the default META implementation")
-set_property(CACHE META_DB_IMPL PROPERTY STRINGS ${META_DB_IMPL_LIST})
+# vnode
+add_library(vnode STATIC "")
+target_sources(
+    vnode
+    PRIVATE
 
-if(META_DB_IMPL IN_LIST META_DB_IMPL_LIST)
-    message(STATUS "META DB Impl: ${META_DB_IMPL}==============")
-else()
-    message(FATAL_ERROR "Invalid META DB IMPL: ${META_DB_IMPL}==============")
-endif()
+    # vnode
+    "src/vnd/vnodeOpen.c"
+    "src/vnd/vnodeBufPool.c"
+    "src/vnd/vnodeCfg.c"
+    "src/vnd/vnodeCommit.c"
+    "src/vnd/vnodeQuery.c"
+    "src/vnd/vnodeModule.c"
+    "src/vnd/vnodeSvr.c"
+    "src/vnd/vnodeSync.c"
+    "src/vnd/vnodeSnapshot.c"
 
-aux_source_directory(src/meta META_SRC)
-if(${META_DB_IMPL} STREQUAL "BDB")
-    list(REMOVE_ITEM META_SRC "src/meta/metaTDBImpl.c")
-elseif(${META_DB_IMPL} STREQUAL "TDB")
-    list(REMOVE_ITEM META_SRC "src/meta/metaBDBImpl.c")
-endif()
+    # meta
+    "src/meta/metaOpen.c"
+    "src/meta/metaIdx.c"
+    "src/meta/metaTable.c"
+    "src/meta/metaSma.c"
+    "src/meta/metaQuery.c"
+    "src/meta/metaCommit.c"
+    "src/meta/metaEntry.c"
+    "src/meta/metaSnapshot.c"
 
-aux_source_directory(src/tq TQ_SRC)
-aux_source_directory(src/tsdb TSDB_SRC)
-aux_source_directory(src/vnd VND_SRC)
+    # sma
+    "src/sma/smaEnv.c"
+    "src/sma/smaUtil.c"
+    "src/sma/smaOpen.c"
+    "src/sma/smaCommit.c"
+    "src/sma/smaRollup.c"
+    "src/sma/smaSnapshot.c"
+    "src/sma/smaTimeRange.c"
 
-list(APPEND
-    VNODE_SRC
-    ${META_SRC}
-    ${TQ_SRC}
-    ${TSDB_SRC}
-    ${VND_SRC}
+    # tsdb
+    "src/tsdb/tsdbCommit.c"
+    "src/tsdb/tsdbFile.c"
+    "src/tsdb/tsdbFS.c"
+    "src/tsdb/tsdbOpen.c"
+    "src/tsdb/tsdbMemTable.c"
+    "src/tsdb/tsdbRead.c"
+    "src/tsdb/tsdbCache.c"
+    "src/tsdb/tsdbWrite.c"
+    "src/tsdb/tsdbReaderWriter.c"
+    "src/tsdb/tsdbUtil.c"
+    "src/tsdb/tsdbSnapshot.c"
+    "src/tsdb/tsdbCacheRead.c"
+    "src/tsdb/tsdbRetention.c"
+
+    # tq
+    "src/tq/tq.c"
+    "src/tq/tqExec.c"
+    "src/tq/tqMeta.c"
+    "src/tq/tqRead.c"
+    "src/tq/tqOffset.c"
+    "src/tq/tqPush.c"
+    "src/tq/tqSink.c"
+    "src/tq/tqCommit.c"
+    "src/tq/tqSnapshot.c"
+    "src/tq/tqOffsetSnapshot.c"
 )
-
-add_library(vnode STATIC ${VNODE_SRC})
 target_include_directories(
     vnode
-    PUBLIC inc
-    PRIVATE src/inc
+    PUBLIC "inc"
+    PRIVATE "src/inc"
+    PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
 )
 target_link_libraries(
     vnode
     PUBLIC os
     PUBLIC util
     PUBLIC common
-    PUBLIC transport
     PUBLIC tfs
     PUBLIC wal
-    PUBLIC scheduler
-    PUBLIC executor
-    PUBLIC stream
     PUBLIC qworker
     PUBLIC sync
-    # TODO: get rid of BDB
-    PUBLIC bdb
+    PUBLIC executor
+    PUBLIC scheduler
     PUBLIC tdb
+
+    # PUBLIC bdb
+    # PUBLIC scalar
+    PUBLIC transport
+    PUBLIC stream
+    PUBLIC index
 )
+target_compile_definitions(vnode PUBLIC -DMETA_REFACT)
+
+if(${BUILD_WITH_INVERTEDINDEX})
+    add_definitions(-DUSE_INVERTED_INDEX)
+endif(${BUILD_WITH_INVERTEDINDEX})
 
 if(${BUILD_TEST})
     add_subdirectory(test)

@@ -2,7 +2,7 @@ aux_source_directory(src TRANSPORT_SRC)
 add_library(transport STATIC ${TRANSPORT_SRC})
 target_include_directories(
     transport
-    PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/transport"
+    PUBLIC "${TD_SOURCE_DIR}/include/libs/transport"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
@@ -18,7 +18,7 @@ if (${BUILD_WITH_UV_TRANS})
 if (${BUILD_WITH_UV})
   target_include_directories(
     transport    
-    PUBLIC "${CMAKE_SOURCE_DIR}/contrib/libuv/include"
+    PUBLIC "${TD_SOURCE_DIR}/contrib/libuv/include"
   )
   
   target_link_libraries(

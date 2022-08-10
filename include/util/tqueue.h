@@ -44,9 +44,17 @@ typedef struct STaosQset  STaosQset;
 typedef struct STaosQall  STaosQall;
 typedef struct {
   void   *ahandle;
+  void   *fp;
+  void   *queue;
   int32_t workerId;
   int32_t threadNum;
+  int64_t timestamp;
 } SQueueInfo;
+
+typedef enum {
+  DEF_QITEM = 0,
+  RPC_QITEM = 1,
+} EQItype;
 
 typedef void (*FItem)(SQueueInfo *pInfo, void *pItem);
 typedef void (*FItems)(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfItems);
@@ -54,12 +62,14 @@ typedef void (*FItems)(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfItems);
 STaosQueue *taosOpenQueue();
 void        taosCloseQueue(STaosQueue *queue);
 void        taosSetQueueFp(STaosQueue *queue, FItem itemFp, FItems itemsFp);
-void       *taosAllocateQitem(int32_t size);
+void       *taosAllocateQitem(int32_t size, EQItype itype);
 void        taosFreeQitem(void *pItem);
 void        taosWriteQitem(STaosQueue *queue, void *pItem);
 int32_t     taosReadQitem(STaosQueue *queue, void **ppItem);
 bool        taosQueueEmpty(STaosQueue *queue);
-int32_t     taosQueueSize(STaosQueue *queue);
+void        taosUpdateItemSize(STaosQueue *queue, int32_t items);
+int32_t     taosQueueItemSize(STaosQueue *queue);
+int64_t     taosQueueMemorySize(STaosQueue *queue);
 
 STaosQall *taosAllocateQall();
 void       taosFreeQall(STaosQall *qall);
@@ -74,11 +84,11 @@ int32_t    taosAddIntoQset(STaosQset *qset, STaosQueue *queue, void *ahandle);
 void       taosRemoveFromQset(STaosQset *qset, STaosQueue *queue);
 int32_t    taosGetQueueNumber(STaosQset *qset);
 
-int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, void **ahandle, FItem *itemFp);
-int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, void **ahandle, FItems *itemsFp);
+int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, SQueueInfo *qinfo);
+int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, SQueueInfo *qinfo);
 void    taosResetQsetThread(STaosQset *qset, void *pItem);
-int32_t taosGetQueueItemsNumber(STaosQueue *queue);
-int32_t taosGetQsetItemsNumber(STaosQset *qset);
+
+extern int64_t tsRpcQueueMemoryAllowed;
 
 #ifdef __cplusplus
 }

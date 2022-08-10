@@ -16,7 +16,7 @@
 #define __INDEX_TFILE_H__
 
 #include "indexFst.h"
-#include "indexFstCountingWriter.h"
+#include "indexFstFile.h"
 #include "indexInt.h"
 #include "indexTfile.h"
 #include "indexUtil.h"
@@ -28,19 +28,19 @@ extern "C" {
 
 // tfile header content
 // |<---suid--->|<---version--->|<-------colName------>|<---type-->|<--fstOffset->|
-// |<-uint64_t->|<---int32_t--->|<--TSDB_COL_NAME_LEN-->|<-uint8_t->|<---int32_t-->|
+// |<-uint64_t->|<---int64_t--->|<--TSDB_COL_NAME_LEN-->|<-uint8_t->|<---int32_t-->|
 
 #pragma pack(push, 1)
 typedef struct TFileHeader {
   uint64_t suid;
-  int32_t  version;
+  int64_t  version;
   char     colName[TSDB_COL_NAME_LEN];  //
   uint8_t  colType;
   int32_t  fstOffset;
 } TFileHeader;
 #pragma pack(pop)
 
-#define TFILE_HEADER_SIZE (sizeof(TFileHeader))
+#define TFILE_HEADER_SIZE   (sizeof(TFileHeader))
 #define TFILE_HEADER_NO_FST (TFILE_HEADER_SIZE - sizeof(int32_t))
 
 typedef struct TFileValue {
@@ -59,7 +59,7 @@ typedef struct TFileCache {
 
 typedef struct TFileWriter {
   FstBuilder* fb;
-  WriterCtx*  ctx;
+  IFileCtx*   ctx;
   TFileHeader header;
   uint32_t    offset;
 } TFileWriter;
@@ -68,15 +68,17 @@ typedef struct TFileWriter {
 typedef struct TFileReader {
   T_REF_DECLARE()
   Fst*        fst;
-  WriterCtx*  ctx;
+  IFileCtx*   ctx;
   TFileHeader header;
   bool        remove;
+  void*       lru;
 } TFileReader;
 
 typedef struct IndexTFile {
-  char*        path;
-  TFileCache*  cache;
-  TFileWriter* tw;
+  char*         path;
+  TFileCache*   cache;
+  TFileWriter*  tw;
+  TdThreadMutex mtx;
 } IndexTFile;
 
 typedef struct TFileWriterOpt {
@@ -94,32 +96,32 @@ typedef struct TFileReaderOpt {
 } TFileReaderOpt;
 
 // tfile cache, manage tindex reader
-TFileCache*  tfileCacheCreate(const char* path);
+TFileCache*  tfileCacheCreate(SIndex* idx, const char* path);
 void         tfileCacheDestroy(TFileCache* tcache);
 TFileReader* tfileCacheGet(TFileCache* tcache, ICacheKey* key);
 void         tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader);
 
 TFileReader* tfileGetReaderByCol(IndexTFile* tf, uint64_t suid, char* colName);
 
-TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const char* colName);
-TFileReader* tfileReaderCreate(WriterCtx* ctx);
+TFileReader* tfileReaderOpen(SIndex* idx, uint64_t suid, int64_t version, const char* colName);
+TFileReader* tfileReaderCreate(IFileCtx* ctx);
 void         tfileReaderDestroy(TFileReader* reader);
-int          tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTempResult* tr);
+int          tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTRslt* tr);
 void         tfileReaderRef(TFileReader* reader);
 void         tfileReaderUnRef(TFileReader* reader);
 
-TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int32_t version, const char* colName, uint8_t type);
+TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int64_t version, const char* colName, uint8_t type);
 void         tfileWriterClose(TFileWriter* tw);
-TFileWriter* tfileWriterCreate(WriterCtx* ctx, TFileHeader* header);
+TFileWriter* tfileWriterCreate(IFileCtx* ctx, TFileHeader* header);
 void         tfileWriterDestroy(TFileWriter* tw);
 int          tfileWriterPut(TFileWriter* tw, void* data, bool order);
 int          tfileWriterFinish(TFileWriter* tw);
 
 //
-IndexTFile* indexTFileCreate(const char* path);
-void        indexTFileDestroy(IndexTFile* tfile);
-int         indexTFilePut(void* tfile, SIndexTerm* term, uint64_t uid);
-int         indexTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTempResult* tr);
+IndexTFile* idxTFileCreate(SIndex* idx, const char* path);
+void        idxTFileDestroy(IndexTFile* tfile);
+int         idxTFilePut(void* tfile, SIndexTerm* term, uint64_t uid);
+int         idxTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTRslt* tr);
 
 Iterate* tfileIteratorCreate(TFileReader* reader);
 void     tfileIteratorDestroy(Iterate* iterator);

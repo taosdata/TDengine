@@ -14,11 +14,10 @@
 class DndTestBnode : public ::testing::Test {
  protected:
   static void SetUpTestSuite() {
-    test.Init("/tmp/dnode_test_bnode", 9112);
+    test.Init(TD_TMP_DIR_PATH "dbnodeTest", 9112);
     taosMsleep(1100);
   }
   static void TearDownTestSuite() { test.Cleanup(); }
-
   static Testbase test;
 
  public:
@@ -33,22 +32,22 @@ TEST_F(DndTestBnode, 01_Create_Bnode) {
     SDCreateBnodeReq createReq = {0};
     createReq.dnodeId = 2;
 
-    int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &createReq);
+    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSMCreateDropQSBNodeReq(pReq, contLen, &createReq);
+    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_BNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_INVALID_OPTION);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_INVALID_OPTION);
   }
 
   {
     SDCreateBnodeReq createReq = {0};
     createReq.dnodeId = 1;
 
-    int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &createReq);
+    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSMCreateDropQSBNodeReq(pReq, contLen, &createReq);
+    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_BNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -59,24 +58,24 @@ TEST_F(DndTestBnode, 01_Create_Bnode) {
     SDCreateBnodeReq createReq = {0};
     createReq.dnodeId = 1;
 
-    int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &createReq);
+    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSMCreateDropQSBNodeReq(pReq, contLen, &createReq);
+    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_BNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_ALREADY_DEPLOYED);
   }
 
-  test.Restart();
+  // test.Restart();
 
   {
     SDCreateBnodeReq createReq = {0};
     createReq.dnodeId = 1;
 
-    int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &createReq);
+    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSMCreateDropQSBNodeReq(pReq, contLen, &createReq);
+    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &createReq);
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_BNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_ALREADY_DEPLOYED);
@@ -88,22 +87,22 @@ TEST_F(DndTestBnode, 02_Drop_Bnode) {
     SDDropBnodeReq dropReq = {0};
     dropReq.dnodeId = 2;
 
-    int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &dropReq);
+    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSMCreateDropQSBNodeReq(pReq, contLen, &dropReq);
+    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_BNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_INVALID_OPTION);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_INVALID_OPTION);
   }
 
   {
     SDDropBnodeReq dropReq = {0};
     dropReq.dnodeId = 1;
 
-    int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &dropReq);
+    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSMCreateDropQSBNodeReq(pReq, contLen, &dropReq);
+    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_BNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -114,24 +113,24 @@ TEST_F(DndTestBnode, 02_Drop_Bnode) {
     SDDropBnodeReq dropReq = {0};
     dropReq.dnodeId = 1;
 
-    int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &dropReq);
+    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSMCreateDropQSBNodeReq(pReq, contLen, &dropReq);
+    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_BNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_NOT_DEPLOYED);
   }
 
-  test.Restart();
+  // test.Restart();
 
   {
     SDDropBnodeReq dropReq = {0};
     dropReq.dnodeId = 1;
 
-    int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &dropReq);
+    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSMCreateDropQSBNodeReq(pReq, contLen, &dropReq);
+    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_BNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -142,9 +141,9 @@ TEST_F(DndTestBnode, 02_Drop_Bnode) {
     SDCreateBnodeReq createReq = {0};
     createReq.dnodeId = 1;
 
-    int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &createReq);
+    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSMCreateDropQSBNodeReq(pReq, contLen, &createReq);
+    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_BNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);

@@ -30,6 +30,12 @@ static int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader);
  * @return
  */
 STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
+  if (!osTempSpaceAvailable()) {
+    terrno = TSDB_CODE_TSC_NO_DISKSPACE;
+    // tscError("tmp file created failed since %s", terrstr());
+    return NULL;
+  }
+  
   STSBuf* pTSBuf = taosMemoryCalloc(1, sizeof(STSBuf));
   if (pTSBuf == NULL) {
     return NULL;
@@ -39,7 +45,7 @@ STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
 
   taosGetTmpfilePath(tsTempDir, "join", pTSBuf->path);
   // pTSBuf->pFile = fopen(pTSBuf->path, "wb+");
-  pTSBuf->pFile = taosOpenFile(pTSBuf->path, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
+  pTSBuf->pFile = taosOpenFile(pTSBuf->path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
   if (pTSBuf->pFile == NULL) {
     taosMemoryFree(pTSBuf);
     return NULL;
@@ -845,11 +851,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
 
   int64_t offset = getDataStartOffset();
   int32_t size = (int32_t)pSrcBuf->fileSize - (int32_t)offset;
-#if defined(_TD_DARWIN_64)
-  int64_t written = taosFSendFile(pDestBuf->pFile->fp, pSrcBuf->pFile->fp, &offset, size);
-#else
   int64_t written = taosFSendFile(pDestBuf->pFile, pSrcBuf->pFile, &offset, size);
-#endif
 
   if (written == -1 || written != size) {
     return -1;

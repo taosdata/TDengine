@@ -1,0 +1,13 @@
+
+# msvcregex
+ExternalProject_Add(msvcregex
+        GIT_REPOSITORY https://gitee.com/l0km/libgnurx-msvc.git
+        GIT_TAG master
+        SOURCE_DIR "${TD_CONTRIB_DIR}/msvcregex"
+        BINARY_DIR ""
+        #BUILD_IN_SOURCE TRUE
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+)

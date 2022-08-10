@@ -17,7 +17,7 @@ typedef struct SDemo{
 }SDemo;
 
 #define FLOAT_NULL            0x7FF00000              // it is an NAN
-#define DOUBLE_NULL           0x7FFFFF0000000000L     // it is an NAN
+#define DOUBLE_NULL           0x7FFFFF0000000000LL     // it is an NAN
 
 
 void demo(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* interBuf, char* tsOutput,

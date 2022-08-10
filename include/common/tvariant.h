@@ -36,11 +36,10 @@ typedef struct SVariant {
   };
 } SVariant;
 
-int32_t toInteger(const char *z, int32_t n, int32_t base, int64_t *value, bool *issigned);
+int32_t toInteger(const char *z, int32_t n, int32_t base, int64_t *value);
+int32_t toUInteger(const char *z, int32_t n, int32_t base, uint64_t *value);
 
 bool taosVariantIsValid(SVariant *pVar);
-
-void taosVariantCreate(SVariant *pVar, const char *z, int32_t n, int32_t type);
 
 void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uint32_t type);
 
@@ -59,9 +58,10 @@ int32_t taosVariantDumpEx(SVariant *pVariant, char *payload, int16_t type, bool 
 #endif
 
 int32_t taosVariantTypeSetType(SVariant *pVariant, char type);
+char   *taosVariantGet(SVariant *pVar, int32_t type);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /*_TD_COMMON_VARIANT_H_*/
+#endif /*_TD_COMMON_VARIANT_H_*/

@@ -7,7 +7,6 @@
 #include "index.h"
 #include "indexCache.h"
 #include "indexFst.h"
-#include "indexFstCountingWriter.h"
 #include "indexFstUtil.h"
 #include "indexInt.h"
 #include "indexTfile.h"
@@ -15,12 +14,12 @@
 #include "tutil.h"
 void* callback(void* s) { return s; }
 
-static std::string fileName = "/tmp/tindex.tindex";
+static std::string fileName = TD_TMP_DIR_PATH "tindex.tindex";
 class FstWriter {
  public:
   FstWriter() {
     taosRemoveFile(fileName.c_str());
-    _wc = writerCtxCreate(TFile, fileName.c_str(), false, 64 * 1024 * 1024);
+    _wc = idxFileCtxCreate(TFILE, fileName.c_str(), false, 64 * 1024 * 1024);
     _b = fstBuilderCreate(_wc, 0);
   }
   bool Put(const std::string& key, uint64_t val) {
@@ -35,28 +34,28 @@ class FstWriter {
     return ok;
   }
   ~FstWriter() {
-    fstBuilderFinish(_b);
+    // fstBuilderFinish(_b);
     fstBuilderDestroy(_b);
 
-    writerCtxDestroy(_wc, false);
+    idxFileCtxDestroy(_wc, false);
   }
 
  private:
   FstBuilder* _b;
-  WriterCtx*  _wc;
+  IFileCtx*   _wc;
 };
 
 class FstReadMemory {
  public:
-  FstReadMemory(size_t size, const std::string& fileName = "/tmp/tindex.tindex") {
-    _wc = writerCtxCreate(TFile, fileName.c_str(), true, 64 * 1024);
-    _w = fstCountingWriterCreate(_wc);
+  FstReadMemory(int32_t size, const std::string& fileName = TD_TMP_DIR_PATH "tindex.tindex") {
+    _wc = idxFileCtxCreate(TFILE, fileName.c_str(), true, 64 * 1024);
+    _w = idxFileCreate(_wc);
     _size = size;
     memset((void*)&_s, 0, sizeof(_s));
   }
   bool init() {
     char* buf = (char*)taosMemoryCalloc(1, sizeof(char) * _size);
-    int   nRead = fstCountingWriterRead(_w, (uint8_t*)buf, _size);
+    int   nRead = idxFileRead(_w, (uint8_t*)buf, _size);
     if (nRead <= 0) {
       return false;
     }
@@ -85,11 +84,11 @@ class FstReadMemory {
     return ok;
   }
   // add later
-  bool Search(AutomationCtx* ctx, std::vector<uint64_t>& result) {
-    FstStreamBuilder*      sb = fstSearch(_fst, ctx);
-    StreamWithState*       st = streamBuilderIntoStream(sb);
-    StreamWithStateResult* rt = NULL;
-    while ((rt = streamWithStateNextWith(st, NULL)) != NULL) {
+  bool Search(FAutoCtx* ctx, std::vector<uint64_t>& result) {
+    FStmBuilder* sb = fstSearch(_fst, ctx);
+    FStmSt*      st = stmBuilderIntoStm(sb);
+    FStmStRslt*  rt = NULL;
+    while ((rt = stmStNextWith(st, NULL)) != NULL) {
       // result.push_back((uint64_t)(rt->out.out));
       FstSlice*   s = &rt->data;
       int32_t     sz = 0;
@@ -99,27 +98,27 @@ class FstReadMemory {
       result.push_back(rt->out.out);
       swsResultDestroy(rt);
     }
-    streamWithStateDestroy(st);
-    fstStreamBuilderDestroy(sb);
+    stmStDestroy(st);
+    stmBuilderDestroy(sb);
     return true;
   }
-  bool SearchRange(AutomationCtx* ctx, const std::string& low, RangeType lowType, const std::string& high,
+  bool SearchRange(FAutoCtx* ctx, const std::string& low, RangeType lowType, const std::string& high,
                    RangeType highType, std::vector<uint64_t>& result) {
-    FstStreamBuilder* sb = fstSearch(_fst, ctx);
+    FStmBuilder* sb = fstSearch(_fst, ctx);
 
     FstSlice l = fstSliceCreate((uint8_t*)low.c_str(), low.size());
     FstSlice h = fstSliceCreate((uint8_t*)high.c_str(), high.size());
 
     // range [low, high);
-    fstStreamBuilderSetRange(sb, &l, lowType);
-    fstStreamBuilderSetRange(sb, &h, highType);
+    stmBuilderSetRange(sb, &l, lowType);
+    stmBuilderSetRange(sb, &h, highType);
 
     fstSliceDestroy(&l);
     fstSliceDestroy(&h);
 
-    StreamWithState*       st = streamBuilderIntoStream(sb);
-    StreamWithStateResult* rt = NULL;
-    while ((rt = streamWithStateNextWith(st, NULL)) != NULL) {
+    FStmSt*     st = stmBuilderIntoStm(sb);
+    FStmStRslt* rt = NULL;
+    while ((rt = stmStNextWith(st, NULL)) != NULL) {
       // result.push_back((uint64_t)(rt->out.out));
       FstSlice*   s = &rt->data;
       int32_t     sz = 0;
@@ -129,11 +128,11 @@ class FstReadMemory {
       result.push_back(rt->out.out);
       swsResultDestroy(rt);
     }
-    streamWithStateDestroy(st);
-    fstStreamBuilderDestroy(sb);
+    stmStDestroy(st);
+    stmBuilderDestroy(sb);
     return true;
   }
-  bool SearchWithTimeCostUs(AutomationCtx* ctx, std::vector<uint64_t>& result) {
+  bool SearchWithTimeCostUs(FAutoCtx* ctx, std::vector<uint64_t>& result) {
     int64_t s = taosGetTimestampUs();
     bool    ok = this->Search(ctx, result);
     int64_t e = taosGetTimestampUs();
@@ -141,18 +140,18 @@ class FstReadMemory {
   }
 
   ~FstReadMemory() {
-    fstCountingWriterDestroy(_w);
+    idxFileDestroy(_w);
     fstDestroy(_fst);
     fstSliceDestroy(&_s);
-    writerCtxDestroy(_wc, false);
+    idxFileCtxDestroy(_wc, false);
   }
 
  private:
-  FstCountingWriter* _w;
-  Fst*               _fst;
-  FstSlice           _s;
-  WriterCtx*         _wc;
-  size_t             _size;
+  IdxFstFile* _w;
+  Fst*        _fst;
+  FstSlice    _s;
+  IFileCtx*   _wc;
+  int32_t     _size;
 };
 
 #define L 100
@@ -253,7 +252,7 @@ void checkFstLongTerm() {
   // prefix search
   // std::vector<uint64_t> result;
 
-  // AutomationCtx* ctx = automCtxCreate((void*)"ab", AUTOMATION_ALWAYS);
+  // FAutoCtx* ctx = automCtxCreate((void*)"ab", AUTOMATION_ALWAYS);
   // m->Search(ctx, result);
   // std::cout << "size: " << result.size() << std::endl;
   // assert(result.size() == count);
@@ -272,9 +271,8 @@ void checkFstCheckIterator1() {
 
   std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
 
-  fw->Put("Hello world", 1);
-  fw->Put("Hello worle", 2);
-  fw->Put("hello worlf", 4);
+  fw->Put("test1&^D&10", 1);
+  fw->Put("test2&^D&10", 2);
   delete fw;
 
   FstReadMemory* m = new FstReadMemory(1024 * 64);
@@ -287,7 +285,7 @@ void checkFstCheckIterator1() {
   // prefix search
   std::vector<uint64_t> result;
 
-  AutomationCtx* ctx = automCtxCreate((void*)"He", AUTOMATION_ALWAYS);
+  FAutoCtx* ctx = automCtxCreate((void*)"He", AUTOMATION_ALWAYS);
   m->Search(ctx, result);
   std::cout << "size: " << result.size() << std::endl;
   // assert(result.size() == count);
@@ -322,7 +320,7 @@ void checkFstCheckIterator2() {
   // prefix search
   std::vector<uint64_t> result;
 
-  AutomationCtx* ctx = automCtxCreate((void*)"He", AUTOMATION_ALWAYS);
+  FAutoCtx* ctx = automCtxCreate((void*)"He", AUTOMATION_ALWAYS);
   m->Search(ctx, result);
   std::cout << "size: " << result.size() << std::endl;
   // assert(result.size() == count);
@@ -362,7 +360,7 @@ void checkFstCheckIteratorPrefix() {
     // prefix search
     std::vector<uint64_t> result;
 
-    AutomationCtx* ctx = automCtxCreate((void*)"he", AUTOMATION_PREFIX);
+    FAutoCtx* ctx = automCtxCreate((void*)"he", AUTOMATION_PREFIX);
     m->Search(ctx, result);
     assert(result.size() == 1);
     automCtxDestroy(ctx);
@@ -371,7 +369,7 @@ void checkFstCheckIteratorPrefix() {
     // prefix search
     std::vector<uint64_t> result;
 
-    AutomationCtx* ctx = automCtxCreate((void*)"Hello", AUTOMATION_PREFIX);
+    FAutoCtx* ctx = automCtxCreate((void*)"Hello", AUTOMATION_PREFIX);
     m->Search(ctx, result);
     assert(result.size() == 2);
     automCtxDestroy(ctx);
@@ -379,7 +377,7 @@ void checkFstCheckIteratorPrefix() {
   {
     std::vector<uint64_t> result;
 
-    AutomationCtx* ctx = automCtxCreate((void*)"jddd", AUTOMATION_PREFIX);
+    FAutoCtx* ctx = automCtxCreate((void*)"jddd", AUTOMATION_PREFIX);
     m->Search(ctx, result);
     assert(result.size() == 1);
     automCtxDestroy(ctx);
@@ -413,7 +411,7 @@ void checkFstCheckIteratorRange1() {
   {
     // prefix search
     std::vector<uint64_t> result;
-    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "b", GE, "e", LT, result);
     assert(result.size() == 3);
@@ -422,7 +420,7 @@ void checkFstCheckIteratorRange1() {
   {
     // prefix search
     std::vector<uint64_t> result;
-    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "b", GT, "e", LT, result);
     assert(result.size() == 2);
@@ -431,7 +429,7 @@ void checkFstCheckIteratorRange1() {
   {
     // prefix search
     std::vector<uint64_t> result;
-    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "b", GT, "e", LE, result);
     assert(result.size() == 3);
@@ -440,7 +438,7 @@ void checkFstCheckIteratorRange1() {
   {
     // prefix search
     std::vector<uint64_t> result;
-    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "b", GE, "e", LE, result);
     assert(result.size() == 4);
@@ -474,7 +472,7 @@ void checkFstCheckIteratorRange2() {
   {
     // range  search
     std::vector<uint64_t> result;
-    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "b", GE, "ed", LT, result);
     assert(result.size() == 4);
@@ -483,7 +481,16 @@ void checkFstCheckIteratorRange2() {
   {
     // range  search
     std::vector<uint64_t> result;
-    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "bb", GE, "ed", LT, result);
+    assert(result.size() == 3);
+    automCtxDestroy(ctx);
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "b", GE, "ed", LE, result);
     assert(result.size() == 5);
@@ -493,7 +500,7 @@ void checkFstCheckIteratorRange2() {
   {
     // range  search
     std::vector<uint64_t> result;
-    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "b", GT, "ed", LE, result);
     assert(result.size() == 4);
@@ -502,10 +509,72 @@ void checkFstCheckIteratorRange2() {
   {
     // range  search
     std::vector<uint64_t> result;
-    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "b", GT, "ed", LT, result);
     assert(result.size() == 3);
+    automCtxDestroy(ctx);
+  }
+  delete m;
+}
+void checkFstCheckIteratorRange3() {
+  FstWriter* fw = new FstWriter;
+  int64_t    s = taosGetTimestampUs();
+  int        count = 2;
+  // Performance_fstWriteRecords(fw);
+  int64_t e = taosGetTimestampUs();
+
+  std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
+
+  fw->Put("ab", 1);
+  fw->Put("b", 2);
+  fw->Put("cdd", 3);
+  fw->Put("cde", 3);
+  fw->Put("ddd", 4);
+  fw->Put("ed", 5);
+  delete fw;
+
+  FstReadMemory* m = new FstReadMemory(1024 * 64);
+  if (m->init() == false) {
+    std::cout << "init readMemory failed" << std::endl;
+    delete m;
+    return;
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "b", GE, "", (RangeType)10, result);
+    assert(result.size() == 5);
+    automCtxDestroy(ctx);
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "", (RangeType)20, "ab", LE, result);
+    assert(result.size() == 1);
+    automCtxDestroy(ctx);
+    // taosMemoryFree(ctx);
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "", (RangeType)30, "ab", LT, result);
+    assert(result.size() == 0);
+    automCtxDestroy(ctx);
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "ed", GT, "ed", (RangeType)40, result);
+    assert(result.size() == 0);
     automCtxDestroy(ctx);
   }
   delete m;
@@ -529,7 +598,9 @@ void fst_get(Fst* fst) {
 void validateTFile(char* arg) {
   std::thread threads[NUM_OF_THREAD];
   // std::vector<std::thread> threads;
-  TFileReader* reader = tfileReaderOpen(arg, 0, 20000000, "tag1");
+  SIndex* index = (SIndex*)taosMemoryCalloc(1, sizeof(SIndex));
+  index->path = strdup(arg);
+  TFileReader* reader = tfileReaderOpen(index, 0, 20000000, "tag1");
 
   for (int i = 0; i < NUM_OF_THREAD; i++) {
     threads[i] = std::thread(fst_get, reader->fst);
@@ -548,7 +619,7 @@ void iterTFileReader(char* path, char* uid, char* colName, char* ver) {
   uint64_t suid = atoi(uid);
   int      version = atoi(ver);
 
-  TFileReader* reader = tfileReaderOpen(path, suid, version, colName);
+  TFileReader* reader = tfileReaderOpen(NULL, suid, version, colName);
 
   Iterate* iter = tfileIteratorCreate(reader);
   bool     tn = iter ? iter->next(iter) : false;
@@ -574,10 +645,11 @@ int main(int argc, char* argv[]) {
   // iterTFileReader(argv[1], argv[2], argv[3], argv[4]);
   //}
   checkFstCheckIterator1();
-  checkFstCheckIterator2();
-  checkFstCheckIteratorPrefix();
-  checkFstCheckIteratorRange1();
-  checkFstCheckIteratorRange2();
+  // checkFstCheckIterator2();
+  // checkFstCheckIteratorPrefix();
+  // checkFstCheckIteratorRange1();
+  // checkFstCheckIteratorRange2();
+  // checkFstCheckIteratorRange3();
   // checkFstLongTerm();
   // checkFstPrefixSearch();
 

@@ -20,11 +20,12 @@
 extern "C" {
 #endif
 
-// start a copy of itself
-int32_t taosNewProc(const char *args);
-
-// the length of the new name must be less than the original name to take effect
-void taosSetProcName(char **argv, const char *name);
+int32_t taosNewProc(char **args);
+void    taosWaitProc(int32_t pid);
+void    taosKillProc(int32_t pid);
+bool    taosProcExist(int32_t pid);
+void    taosSetProcName(int32_t argc, char **argv, const char *name);
+void    taosSetProcPath(int32_t argc, char **argv);
 
 #ifdef __cplusplus
 }

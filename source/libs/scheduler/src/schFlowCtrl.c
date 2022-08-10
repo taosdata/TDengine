@@ -13,19 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "schedulerInt.h"
+#include "schInt.h"
 #include "tmsg.h"
 #include "query.h"
 #include "catalog.h"
 #include "tref.h"
 
-void schFreeFlowCtrl(SSchLevel *pLevel) {
-  if (NULL == pLevel->flowCtrl) {
+void schFreeFlowCtrl(SSchJob *pJob) {
+  if (NULL == pJob->flowCtrl) {
     return;
   }
 
   SSchFlowControl *ctrl = NULL;
-  void *pIter = taosHashIterate(pLevel->flowCtrl, NULL);
+  void *pIter = taosHashIterate(pJob->flowCtrl, NULL);
   while (pIter) {
     ctrl = (SSchFlowControl *)pIter;
 
@@ -33,35 +33,35 @@ void schFreeFlowCtrl(SSchLevel *pLevel) {
       taosArrayDestroy(ctrl->taskList);
     }
     
-    pIter = taosHashIterate(pLevel->flowCtrl, pIter);
+    pIter = taosHashIterate(pJob->flowCtrl, pIter);
   }
 
-  taosHashCleanup(pLevel->flowCtrl);
-  pLevel->flowCtrl = NULL;
+  taosHashCleanup(pJob->flowCtrl);
+  pJob->flowCtrl = NULL;
 }
 
-int32_t schCheckJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel) {
+int32_t schChkJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel) {
   if (!SCH_IS_QUERY_JOB(pJob)) {
     SCH_JOB_DLOG("job no need flow ctrl, queryJob:%d", SCH_IS_QUERY_JOB(pJob));
     return TSDB_CODE_SUCCESS;
   }
 
   int32_t sum = 0;
-  
-  for (int32_t i = 0; i < pLevel->taskNum; ++i) {
-    SSchTask *pTask = taosArrayGet(pLevel->subTasks, i);
+  int32_t taskNum = taosArrayGetSize(pJob->dataSrcTasks);
+  for (int32_t i = 0; i < taskNum; ++i) {
+    SSchTask *pTask = *(SSchTask **)taosArrayGet(pJob->dataSrcTasks, i);
 
     sum += pTask->plan->execNodeStat.tableNum;
   }
 
-  if (sum < schMgmt.cfg.maxNodeTableNum) {
+  if (schMgmt.cfg.maxNodeTableNum <= 0 || sum < schMgmt.cfg.maxNodeTableNum) {
     SCH_JOB_DLOG("job no need flow ctrl, totalTableNum:%d", sum);
     return TSDB_CODE_SUCCESS;
   }
 
-  pLevel->flowCtrl = taosHashInit(pLevel->taskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
-  if (NULL == pLevel->flowCtrl) {
-    SCH_JOB_ELOG("taosHashInit %d flowCtrl failed", pLevel->taskNum);
+  pJob->flowCtrl = taosHashInit(pJob->taskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  if (NULL == pJob->flowCtrl) {
+    SCH_JOB_ELOG("taosHashInit %d flowCtrl failed", pJob->taskNum);
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
@@ -78,7 +78,7 @@ int32_t schDecTaskFlowQuota(SSchJob *pJob, SSchTask *pTask) {
   int32_t code = 0;
   SEp *ep = SCH_GET_CUR_EP(&pTask->plan->execNode);
   
-  ctrl = (SSchFlowControl *)taosHashGet(pLevel->flowCtrl, ep, sizeof(SEp));
+  ctrl = (SSchFlowControl *)taosHashGet(pJob->flowCtrl, ep, sizeof(SEp));
   if (NULL == ctrl) {
     SCH_TASK_ELOG("taosHashGet node from flowCtrl failed, fqdn:%s, port:%d", ep->fqdn, ep->port);
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
@@ -110,11 +110,11 @@ int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough) {
   SEp *ep = SCH_GET_CUR_EP(&pTask->plan->execNode);
   
   do {
-    ctrl = (SSchFlowControl *)taosHashGet(pLevel->flowCtrl, ep, sizeof(SEp));
+    ctrl = (SSchFlowControl *)taosHashGet(pJob->flowCtrl, ep, sizeof(SEp));
     if (NULL == ctrl) {
       SSchFlowControl nctrl = {.tableNumSum = pTask->plan->execNodeStat.tableNum, .execTaskNum = 1};
 
-      code = taosHashPut(pLevel->flowCtrl, ep, sizeof(SEp), &nctrl, sizeof(nctrl));
+      code = taosHashPut(pJob->flowCtrl, ep, sizeof(SEp), &nctrl, sizeof(nctrl));
       if (code) {
         if (HASH_NODE_EXIST(code)) {
           continue;
@@ -230,7 +230,7 @@ int32_t schLaunchTasksInFlowCtrlListImpl(SSchJob *pJob, SSchFlowControl *ctrl) {
     SCH_TASK_DLOG("task to launch, fqdn:%s, port:%d, tableNum:%d, remainNum:%d, remainExecTaskNum:%d", 
        ep->fqdn, ep->port, pTask->plan->execNodeStat.tableNum, ctrl->tableNumSum, ctrl->execTaskNum);
     
-    SCH_ERR_JRET(schLaunchTaskImpl(pJob, pTask));
+    SCH_ERR_JRET(schAsyncLaunchTaskImpl(pJob, pTask));
     
     remainNum -= pTask->plan->execNodeStat.tableNum;
     if (remainNum <= 0) {
@@ -273,10 +273,9 @@ int32_t schLaunchTasksInFlowCtrlList(SSchJob *pJob, SSchTask *pTask) {
 
   SCH_ERR_RET(schDecTaskFlowQuota(pJob, pTask));
 
-  SSchLevel *pLevel = pTask->level;
   SEp *ep = SCH_GET_CUR_EP(&pTask->plan->execNode);
   
-  SSchFlowControl *ctrl = (SSchFlowControl *)taosHashGet(pLevel->flowCtrl, ep, sizeof(SEp));
+  SSchFlowControl *ctrl = (SSchFlowControl *)taosHashGet(pJob->flowCtrl, ep, sizeof(SEp));
   if (NULL == ctrl) {
     SCH_TASK_ELOG("taosHashGet node from flowCtrl failed, fqdn:%s, port:%d", ep->fqdn, ep->port);
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);

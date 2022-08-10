@@ -20,28 +20,30 @@
 extern "C" {
 #endif
 
+// If the error is in a third-party library, place this header file under the third-party library header file.
+// When you want to use this feature, you should find or add the same function in the following sectio
+#ifndef ALLOW_FORBID_FUNC
+#define qsort  QSORT_FUNC_TAOS_FORBID
+#endif
+
 #define TPOW2(x) ((x) * (x))
 #define TABS(x) ((x) > 0 ? (x) : -(x))
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#define TSWAP(a, b)                              \
+  do {                                           \
+    char *__tmp = alloca(sizeof(a));             \
+    memcpy(__tmp, &(a), sizeof(a));              \
+    memcpy(&(a), &(b), sizeof(a));               \
+    memcpy(&(b), __tmp, sizeof(a));              \
+  } while (0)
 
-  #define TSWAP(a, b, c) \
-    do {                \
-      c __tmp = (c)(a); \
-      (a) = (c)(b);     \
-      (b) = __tmp;      \
-    } while (0)
+#ifdef WINDOWS
+
   #define TMAX(a, b) (((a) > (b)) ? (a) : (b))
   #define TMIN(a, b) (((a) < (b)) ? (a) : (b))
+  #define TRANGE(aa, bb, cc) ((aa) = TMAX((aa), (bb)),(aa) = TMIN((aa), (cc)))
 
 #else
-
-  #define TSWAP(a, b, c)       \
-    do {                       \
-      __typeof(a) __tmp = (a); \
-      (a) = (b);               \
-      (b) = __tmp;             \
-    } while (0)
 
   #define TMAX(a, b)             \
     ({                           \
@@ -50,13 +52,26 @@ extern "C" {
       (__a > __b) ? __a : __b;   \
     })
 
-  #define TMIN(a, b)             \
-    ({                           \
-      __typeof(a) __a = (a);     \
-      __typeof(b) __b = (b);     \
-      (__a < __b) ? __a : __b;   \
-    })
+#define TMIN(a, b)             \
+  ({                           \
+    __typeof(a) __a = (a);     \
+    __typeof(b) __b = (b);     \
+    (__a < __b) ? __a : __b;   \
+  })
+
+#define TRANGE(a, b, c) \
+  ({                    \
+    a = TMAX(a, b);     \
+    a = TMIN(a, c);     \
+  })
 #endif
+
+#ifndef __COMPAR_FN_T
+#define __COMPAR_FN_T
+typedef int32_t (*__compar_fn_t)(const void *, const void *);
+#endif
+
+void taosSort(void* arr, int64_t sz, int64_t width, __compar_fn_t compar);
 
 #ifdef __cplusplus
 }

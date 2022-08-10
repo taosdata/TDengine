@@ -26,29 +26,28 @@ extern "C" {
 #include "syncInt.h"
 #include "syncRaftEntry.h"
 #include "taosdef.h"
-
-#define SYNC_INDEX_BEGIN 0
-#define SYNC_INDEX_INVALID -1
+#include "wal.h"
 
 typedef struct SSyncLogStoreData {
   SSyncNode* pSyncNode;
   SWal*      pWal;
+
+  TdThreadMutex mutex;
+  SWalReader*   pWalHandle;
+
+  // SyncIndex       beginIndex;  // valid begin index, default 0, may be set beginIndex > 0
 } SSyncLogStoreData;
 
-SSyncLogStore*  logStoreCreate(SSyncNode* pSyncNode);
-void            logStoreDestory(SSyncLogStore* pLogStore);
-int32_t         logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
-SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index);
-int32_t         logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex);
-SyncIndex       logStoreLastIndex(SSyncLogStore* pLogStore);
-SyncTerm        logStoreLastTerm(SSyncLogStore* pLogStore);
-int32_t         logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index);
-SyncIndex       logStoreGetCommitIndex(SSyncLogStore* pLogStore);
-SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore);
-cJSON*          logStore2Json(SSyncLogStore* pLogStore);
-char*           logStore2Str(SSyncLogStore* pLogStore);
-cJSON*          logStoreSimple2Json(SSyncLogStore* pLogStore);
-char*           logStoreSimple2Str(SSyncLogStore* pLogStore);
+SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode);
+void           logStoreDestory(SSyncLogStore* pLogStore);
+cJSON*         logStore2Json(SSyncLogStore* pLogStore);
+char*          logStore2Str(SSyncLogStore* pLogStore);
+cJSON*         logStoreSimple2Json(SSyncLogStore* pLogStore);
+char*          logStoreSimple2Str(SSyncLogStore* pLogStore);
+
+SyncIndex logStoreFirstIndex(SSyncLogStore* pLogStore);
+
+SyncIndex logStoreWalCommitVer(SSyncLogStore* pLogStore);
 
 // for debug
 void logStorePrint(SSyncLogStore* pLogStore);

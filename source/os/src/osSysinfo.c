@@ -17,7 +17,23 @@
 #include "os.h"
 #include "taoserror.h"
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#define PROCESS_ITEM 12
+
+typedef struct {
+  uint64_t user;
+  uint64_t nice;
+  uint64_t system;
+  uint64_t idle;
+} SysCpuInfo;
+
+typedef struct {
+  uint64_t utime;   // user time
+  uint64_t stime;   // kernel time
+  uint64_t cutime;  // all user time
+  uint64_t cstime;  // all dead time
+} ProcCpuInfo;
+
+#ifdef WINDOWS
 
 /*
  * windows implementation
@@ -75,6 +91,7 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
 
   return EXCEPTION_CONTINUE_SEARCH;
 }
+LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception);
 
 #elif defined(_TD_DARWIN_64)
 
@@ -91,22 +108,6 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
 #include <sys/syscall.h>
 #include <sys/utsname.h>
 #include <unistd.h>
-
-#define PROCESS_ITEM 12
-
-typedef struct {
-  uint64_t user;
-  uint64_t nice;
-  uint64_t system;
-  uint64_t idle;
-} SysCpuInfo;
-
-typedef struct {
-  uint64_t utime;   // user time
-  uint64_t stime;   // kernel time
-  uint64_t cutime;  // all user time
-  uint64_t cstime;  // all dead time
-} ProcCpuInfo;
 
 static pid_t tsProcId;
 static char  tsSysNetFile[] = "/proc/net/dev";
@@ -125,18 +126,34 @@ static void taosGetProcIOnfos() {
   snprintf(tsProcCpuFile, sizeof(tsProcCpuFile), "/proc/%d/stat", tsProcId);
   snprintf(tsProcIOFile, sizeof(tsProcIOFile), "/proc/%d/io", tsProcId);
 }
+#endif
 
 static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
+#ifdef WINDOWS
+  FILETIME pre_idleTime = {0};
+  FILETIME pre_kernelTime = {0};
+  FILETIME pre_userTime = {0};
+  FILETIME idleTime;
+  FILETIME kernelTime;
+  FILETIME userTime;
+  bool res = GetSystemTimes(&idleTime, &kernelTime, &userTime);
+  if (res) {
+    cpuInfo->idle = CompareFileTime(&pre_idleTime, &idleTime);
+    cpuInfo->system = CompareFileTime(&pre_kernelTime, &kernelTime);
+    cpuInfo->user = CompareFileTime(&pre_userTime, &userTime);
+    cpuInfo->nice = 0;
+  }
+#elif defined(_TD_DARWIN_64)
+  assert(0);
+#else
   TdFilePtr pFile = taosOpenFile(tsSysCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
-    // printf("open file:%s failed", tsSysCpuFile);
     return -1;
   }
 
   char   *line = NULL;
   ssize_t _bytes = taosGetLineFile(pFile, &line);
   if ((_bytes < 0) || (line == NULL)) {
-    // printf("read file:%s failed", tsSysCpuFile);
     taosCloseFile(&pFile);
     return -1;
   }
@@ -147,20 +164,33 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
 
   if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
+#endif
   return 0;
 }
 
 static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
+#ifdef WINDOWS
+  FILETIME pre_krnlTm = {0};
+  FILETIME pre_usrTm = {0};
+	FILETIME creatTm, exitTm, krnlTm, usrTm;
+
+	if (GetThreadTimes(GetCurrentThread(), &creatTm, &exitTm, &krnlTm, &usrTm)) {
+    cpuInfo->stime = CompareFileTime(&pre_krnlTm, &krnlTm);
+    cpuInfo->utime = CompareFileTime(&pre_usrTm, &usrTm);
+    cpuInfo->cutime = 0;
+    cpuInfo->cstime = 0;
+	}
+#elif defined(_TD_DARWIN_64)
+  assert(0);
+#else
   TdFilePtr pFile = taosOpenFile(tsProcCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
-    // printf("open file:%s failed", tsProcCpuFile);
     return -1;
   }
 
   char   *line = NULL;
   ssize_t _bytes = taosGetLineFile(pFile, &line);
   if ((_bytes < 0) || (line == NULL)) {
-    // printf("read file:%s failed", tsProcCpuFile);
     taosCloseFile(&pFile);
     return -1;
   }
@@ -176,22 +206,22 @@ static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
 
   if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
+#endif
   return 0;
 }
 
-#endif
 
-bool taosCheckSystemIsSmallEnd() {
-    union check{
-        int16_t i;
-        char ch[2];
-    }c;
-    c.i=1;
-    return c.ch[0]==1;
+bool taosCheckSystemIsLittleEnd() {
+  union check {
+    int16_t i;
+    char    ch[2];
+  } c;
+  c.i = 1;
+  return c.ch[0] == 1;
 }
 
 void taosGetSystemInfo() {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   taosGetCpuCores(&tsNumOfCores);
   taosGetTotalMemory(&tsTotalMemoryKB);
 
@@ -214,7 +244,8 @@ void taosGetSystemInfo() {
 }
 
 int32_t taosGetEmail(char *email, int32_t maxLen) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
+  // assert(0);
 #elif defined(_TD_DARWIN_64)
   const char *filepath = "/usr/local/taos/email";
 
@@ -245,7 +276,9 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
 }
 
 int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
+  snprintf(releaseName, maxLen, "Windows");
+  return 0;
 #elif defined(_TD_DARWIN_64)
   char   *line = NULL;
   size_t  size = 0;
@@ -300,7 +333,16 @@ int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
 }
 
 int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
+  char value[100];
+  DWORD bufferSize = sizeof(value);
+  RegGetValue(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", "ProcessorNameString", RRF_RT_ANY, NULL, (PVOID)&value, &bufferSize);
+  tstrncpy(cpuModel, value, maxLen);
+  SYSTEM_INFO si;
+  memset(&si,0,sizeof(SYSTEM_INFO));
+  GetSystemInfo(&si);
+  *numOfCores = si.dwNumberOfProcessors;
+  return 0;
 #elif defined(_TD_DARWIN_64)
   char   *line = NULL;
   size_t  size = 0;
@@ -333,9 +375,10 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   size_t  size = 0;
   int32_t done = 0;
   int32_t code = -1;
+  float   coreCount = 0;
 
   TdFilePtr pFile = taosOpenFile("/proc/cpuinfo", TD_FILE_READ | TD_FILE_STREAM);
-  if (pFile == NULL) return false;
+  if (pFile == NULL) return code;
 
   while (done != 3 && (size = taosGetLineFile(pFile, &line)) != -1) {
     line[size - 1] = '\0';
@@ -349,17 +392,42 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
       *numOfCores = atof(v);
       done |= 2;
     }
+    if (strncmp(line, "processor", 9) == 0) coreCount += 1;
   }
 
   if (line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
 
+  if (code != 0 && (done & 1) == 0) {
+    TdFilePtr pFile1 = taosOpenFile("/proc/device-tree/model", TD_FILE_READ | TD_FILE_STREAM);
+    if (pFile1 == NULL) return code;
+    taosGetsFile(pFile1, maxLen, cpuModel);
+    taosCloseFile(&pFile1);
+    code = 0;
+    done |= 1;
+  }
+
+  if (code != 0 && (done & 1) == 0) {
+    TdCmdPtr pCmd = taosOpenCmd("uname -a");
+    if (pCmd == NULL) return code;
+    if (taosGetsCmd(pCmd, maxLen, cpuModel) > 0) {
+      code = 0;
+      done |= 1;
+    }
+    taosCloseCmd(&pCmd);
+  }
+
+  if ((done & 2) == 0) {
+  	*numOfCores = coreCount;
+  	done |= 2;
+  }
+  
   return code;
 #endif
 }
 
 int32_t taosGetCpuCores(float *numOfCores) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   SYSTEM_INFO info;
   GetSystemInfo(&info);
   *numOfCores = info.dwNumberOfProcessors;
@@ -373,57 +441,37 @@ int32_t taosGetCpuCores(float *numOfCores) {
 #endif
 }
 
-int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+void taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
+  static int64_t lastSysUsed = 0;
+  static int64_t lastSysTotal = 0;
+  static int64_t lastProcTotal = 0;
+  static int64_t curSysUsed = 0;
+  static int64_t curSysTotal = 0;
+  static int64_t curProcTotal = 0;
+
   *cpu_system = 0;
   *cpu_engine = 0;
-  return 0;
-#elif defined(_TD_DARWIN_64)
-  *cpu_system = 0;
-  *cpu_engine = 0;
-  return 0;
-#else
-  static uint64_t lastSysUsed = 0;
-  static uint64_t lastSysTotal = 0;
-  static uint64_t lastProcTotal = 0;
 
-  SysCpuInfo  sysCpu;
-  ProcCpuInfo procCpu;
-  if (taosGetSysCpuInfo(&sysCpu) != 0) {
-    return -1;
+  SysCpuInfo  sysCpu = {0};
+  ProcCpuInfo procCpu = {0};
+  if (taosGetSysCpuInfo(&sysCpu) == 0 && taosGetProcCpuInfo(&procCpu) == 0) {
+    curSysUsed = sysCpu.user + sysCpu.nice + sysCpu.system;
+    curSysTotal = curSysUsed + sysCpu.idle;
+    curProcTotal = procCpu.utime + procCpu.stime + procCpu.cutime + procCpu.cstime;
+
+    if (curSysTotal > lastSysTotal && curSysUsed >= lastSysUsed && curProcTotal >= lastProcTotal) {
+      *cpu_engine = (curSysUsed - lastSysUsed) / (double)(curSysTotal - lastSysTotal) * 100;
+      *cpu_system = (curProcTotal - lastProcTotal) / (double)(curSysTotal - lastSysTotal) * 100;
+    }
+
+    lastSysUsed = curSysUsed;
+    lastSysTotal = curSysTotal;
+    lastProcTotal = curProcTotal;
   }
-  if (taosGetProcCpuInfo(&procCpu) != 0) {
-    return -1;
-  }
-
-  uint64_t curSysUsed = sysCpu.user + sysCpu.nice + sysCpu.system;
-  uint64_t curSysTotal = curSysUsed + sysCpu.idle;
-  uint64_t curProcTotal = procCpu.utime + procCpu.stime + procCpu.cutime + procCpu.cstime;
-
-  if (lastSysUsed == 0 || lastSysTotal == 0 || lastProcTotal == 0) {
-    lastSysUsed = curSysUsed > 1 ? curSysUsed : 1;
-    lastSysTotal = curSysTotal > 1 ? curSysTotal : 1;
-    lastProcTotal = curProcTotal > 1 ? curProcTotal : 1;
-    return -1;
-  }
-
-  if (curSysTotal == lastSysTotal) {
-    return -1;
-  }
-
-  *cpu_engine = (curSysUsed - lastSysUsed) / (double)(curSysTotal - lastSysTotal) * 100;
-  *cpu_system = (curProcTotal - lastProcTotal) / (double)(curSysTotal - lastSysTotal) * 100;
-
-  lastSysUsed = curSysUsed;
-  lastSysTotal = curSysTotal;
-  lastProcTotal = curProcTotal;
-
-  return 0;
-#endif
 }
 
 int32_t taosGetTotalMemory(int64_t *totalKB) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   MEMORYSTATUSEX memsStat;
   memsStat.dwLength = sizeof(memsStat);
   if (!GlobalMemoryStatusEx(&memsStat)) {
@@ -441,7 +489,7 @@ int32_t taosGetTotalMemory(int64_t *totalKB) {
 }
 
 int32_t taosGetProcMemory(int64_t *usedKB) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   unsigned bytes_used = 0;
 
 #if defined(_WIN64) && defined(_MSC_VER)
@@ -493,7 +541,7 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
 }
 
 int32_t taosGetSysMemory(int64_t *usedKB) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   MEMORYSTATUSEX memsStat;
   memsStat.dwLength = sizeof(memsStat);
   if (!GlobalMemoryStatusEx(&memsStat)) {
@@ -558,7 +606,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
 }
 
 int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   IO_COUNTERS io_counter;
   if (GetProcessIoCounters(GetCurrentProcess(), &io_counter)) {
     if (rchars) *rchars = io_counter.ReadTransferCount;
@@ -617,8 +665,34 @@ int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int
 #endif
 }
 
+void taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes) {
+  static int64_t last_rchars = 0;
+  static int64_t last_wchars = 0;
+  static int64_t last_read_bytes = 0;
+  static int64_t last_write_bytes = 0;
+  static int64_t cur_rchars = 0;
+  static int64_t cur_wchars = 0;
+  static int64_t cur_read_bytes = 0;
+  static int64_t cur_write_bytes = 0;
+  if (taosGetProcIO(&cur_rchars, &cur_wchars, &cur_read_bytes, &cur_write_bytes) == 0) {
+    *rchars = cur_rchars - last_rchars;
+    *wchars = cur_wchars - last_wchars;
+    *read_bytes = cur_read_bytes - last_read_bytes;
+    *write_bytes = cur_write_bytes - last_write_bytes;
+    last_rchars = cur_rchars;
+    last_wchars = cur_wchars;
+    last_read_bytes = cur_read_bytes;
+    last_write_bytes = cur_write_bytes;
+  } else {
+    *rchars = 0;
+    *wchars = 0;
+    *read_bytes = 0;
+    *write_bytes = 0;
+  }
+}
+
 int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   *receive_bytes = 0;
   *transmit_bytes = 0;
   return 0;
@@ -672,8 +746,24 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
 #endif
 }
 
+void taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes) {
+  static int64_t last_receive_bytes = 0;
+  static int64_t last_transmit_bytes = 0;
+  static int64_t cur_receive_bytes = 0;
+  static int64_t cur_transmit_bytes = 0;
+  if (taosGetCardInfo(&cur_receive_bytes, &cur_transmit_bytes) == 0) {
+    *receive_bytes = cur_receive_bytes - last_receive_bytes;
+    *transmit_bytes = cur_transmit_bytes - last_transmit_bytes;
+    last_receive_bytes = cur_receive_bytes;
+    last_transmit_bytes = cur_transmit_bytes;
+  } else {
+    *receive_bytes = 0;
+    *transmit_bytes = 0;
+  }
+}
+
 void taosKillSystem() {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   printf("function taosKillSystem, exit!");
   exit(0);
 #elif defined(_TD_DARWIN_64)
@@ -687,19 +777,20 @@ void taosKillSystem() {
 }
 
 int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   GUID guid;
   CoCreateGuid(&guid);
-
-  sprintf(uid, "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X", guid.Data1, guid.Data2, guid.Data3, guid.Data4[0],
+  snprintf(uid, uidlen, "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X", guid.Data1, guid.Data2, guid.Data3, guid.Data4[0],
           guid.Data4[1], guid.Data4[2], guid.Data4[3], guid.Data4[4], guid.Data4[5], guid.Data4[6], guid.Data4[7]);
 
   return 0;
 #elif defined(_TD_DARWIN_64)
   uuid_t uuid = {0};
+  char buf[37] = {0};
   uuid_generate(uuid);
   // it's caller's responsibility to make enough space for `uid`, that's 36-char + 1-null
-  uuid_unparse_lower(uuid, uid);
+  uuid_unparse_lower(uuid, buf);
+  memcpy(uid, buf, uidlen);
   return 0;
 #else
   int len = 0;
@@ -723,7 +814,8 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
 }
 
 char *taosGetCmdlineByPID(int pid) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
+  assert(0);
   return "";
 #elif defined(_TD_DARWIN_64)
   static char cmdline[1024];
@@ -759,8 +851,9 @@ char *taosGetCmdlineByPID(int pid) {
 }
 
 void taosSetCoreDump(bool enable) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  SetUnhandledExceptionFilter(&FlCrashDump);
+#ifdef WINDOWS
+  // SetUnhandledExceptionFilter(exceptionHandler);
+  // SetUnhandledExceptionFilter(&FlCrashDump);
 #elif defined(_TD_DARWIN_64)
 #else
   if (!enable) return;
@@ -839,7 +932,21 @@ void taosSetCoreDump(bool enable) {
 }
 
 SysNameInfo taosGetSysNameInfo() {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
+  SysNameInfo info = {0};
+  DWORD dwVersion = GetVersion();
+
+  char *tmp = NULL;
+  tmp = getenv("OS");
+  if (tmp != NULL) tstrncpy(info.sysname, tmp, sizeof(info.sysname));
+  tmp = getenv("COMPUTERNAME");
+  if (tmp != NULL) tstrncpy(info.nodename, tmp, sizeof(info.nodename));
+  sprintf_s(info.release, sizeof(info.release), "%d", dwVersion & 0x0F);
+  sprintf_s(info.version, sizeof(info.release), "%d", (dwVersion >> 8) & 0x0F);
+  tmp = getenv("PROCESSOR_ARCHITECTURE");
+  if (tmp != NULL) tstrncpy(info.machine, tmp, sizeof(info.machine));
+
+  return info;
 #elif defined(_TD_DARWIN_64)
   SysNameInfo info = {0};
 
@@ -866,5 +973,21 @@ SysNameInfo taosGetSysNameInfo() {
   }
 
   return info;
+#endif
+}
+
+
+bool taosCheckCurrentInDll() {
+#ifdef WINDOWS
+  MEMORY_BASIC_INFORMATION mbi;
+  char path[PATH_MAX] = {0};
+  GetModuleFileName(((VirtualQuery(taosCheckCurrentInDll,&mbi,sizeof(mbi)) != 0) ? (HMODULE)mbi.AllocationBase : NULL), path, PATH_MAX);
+  int strLastIndex = strlen(path);
+  if ((path[strLastIndex-3] == 'd' || path[strLastIndex-3] == 'D') && (path[strLastIndex-2] == 'l' || path[strLastIndex-2] == 'L') && (path[strLastIndex-1] == 'l' || path[strLastIndex-1] == 'L')) {
+    return true;
+  }
+  return false;
+#else
+  return false;
 #endif
 }

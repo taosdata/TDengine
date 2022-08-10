@@ -93,6 +93,8 @@ extern "C" {
 //       /\ UNCHANGED <<candidateVars, leaderVars>>
 //
 int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg);
+int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMsg);
+int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatch* pMsg);
 
 #ifdef __cplusplus
 }

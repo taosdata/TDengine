@@ -1,0 +1,5 @@
+taospy
+numpy
+fabric2
+psutil
+pandas

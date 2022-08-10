@@ -21,13 +21,11 @@
 
 #include "function.h"
 #include "taggfunction.h"
-#include "tfill.h"
-#include "thistogram.h"
-#include "ttszip.h"
-#include "tpercentile.h"
 #include "tbuffer.h"
 #include "tcompression.h"
-//#include "queryLog.h"
+#include "thistogram.h"
+#include "tpercentile.h"
+#include "ttszip.h"
 #include "tdatablock.h"
 #include "tudf.h"
 
@@ -39,7 +37,7 @@
 
 #define GET_TRUE_DATA_TYPE()                          \
   int32_t type = 0;                                   \
-  if (pCtx->currentStage == MERGE_STAGE) {            \
+  if (pCtx->scanFlag == MERGE_STAGE) {            \
     type = pCtx->resDataInfo.type;                          \
     assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY); \
   } else {                                            \
@@ -163,38 +161,18 @@ typedef struct SRateInfo {
   bool    isIRate;    // true for IRate functions, false for Rate functions
 } SRateInfo;
 
-typedef struct SDerivInfo {
-  double   prevValue;     // previous value
-  TSKEY    prevTs;        // previous timestamp
-  bool     ignoreNegative;// ignore the negative value
-  int64_t  tsWindow;      // time window for derivative
-  bool     valueSet;      // the value has been set already
-} SDerivInfo;
+//typedef struct SDerivInfo {
+//  double   prevValue;     // previous value
+//  TSKEY    prevTs;        // previous timestamp
+//  bool     ignoreNegative;// ignore the negative value
+//  int64_t  tsWindow;      // time window for derivative
+//  bool     valueSet;      // the value has been set already
+//} SDerivInfo;
 
 typedef struct SResPair {
   TSKEY  key;
   double avg;
 } SResPair;
-
-#define TSDB_BLOCK_DIST_STEP_ROWS 16
-
-typedef struct STableBlockDist {
-  uint16_t  rowSize;
-  uint16_t  numOfFiles;
-  uint32_t  numOfTables;
-  uint64_t  totalSize;
-  uint64_t  totalRows;
-  int32_t   maxRows;
-  int32_t   minRows;
-  int32_t   firstSeekTimeUs;
-  uint32_t  numOfRowsInMemTable;
-  uint32_t  numOfSmallBlocks;
-  SArray   *dataBlockInfos;
-} STableBlockDist;
-
-typedef struct SFileBlockInfo {
-  int32_t numBlocksOfStep;
-} SFileBlockInfo;
 
 void cleanupResultRowEntry(struct SResultRowEntryInfo* pCell) {
   pCell->initialized = false;
@@ -228,7 +206,7 @@ int32_t getNumOfResult(SqlFunctionCtx* pCtx, int32_t num, SSDataBlock* pResBlock
     SColumnInfoData* pCol = taosArrayGet(pResBlock->pDataBlock, i);
 
     SResultRowEntryInfo *pResInfo = GET_RES_INFO(&pCtx[i]);
-    if (!pResInfo->hasResult) {
+    if (pResInfo->numOfRes == 0) {
       for(int32_t j = 0; j < pResInfo->numOfRes; ++j) {
         colDataAppend(pCol, j, NULL, true);  // TODO add set null data api
       }
@@ -258,7 +236,7 @@ bool isRowEntryCompleted(struct SResultRowEntryInfo* pEntry) {
 bool isRowEntryInitialized(struct SResultRowEntryInfo* pEntry) {
   return pEntry->initialized;
 }
-
+#if 0
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, SResultDataInfo* pInfo, int16_t extLength,
     bool isSuperTable/*, SUdfInfo* pUdfInfo*/) {
   if (!isValidDataType(dataType)) {
@@ -492,6 +470,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 static bool function_setup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
   if (pResultInfo->initialized) {
@@ -502,7 +481,7 @@ static bool function_setup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInf
   initResultRowEntry(pResultInfo, pCtx->resDataInfo.interBufSize);
   return true;
 }
-
+#if 0
 /**
  * in handling the stable query, function_finalizer is called after the secondary
  * merge being completed, during the first merge procedure, which is executed at the
@@ -519,53 +498,6 @@ static void function_finalizer(SqlFunctionCtx *pCtx) {
   doFinalizer(pCtx);
 }
 
-/*
- * count function does need the finalize, if data is missing, the default value, which is 0, is used
- * count function does not use the pCtx->interResBuf to keep the intermediate buffer
- */
-static void count_function(SqlFunctionCtx *pCtx) {
-  int32_t numOfElem = 0;
-  
-  /*
-   * 1. column data missing (schema modified) causes pCtx->hasNull == true. pCtx->isAggSet == true;
-   * 2. for general non-primary key columns, pCtx->hasNull may be true or false, pCtx->isAggSet == true;
-   * 3. for primary key column, pCtx->hasNull always be false, pCtx->isAggSet == false;
-   */
-  if (pCtx->isAggSet) {
-    numOfElem = pCtx->size - pCtx->agg.numOfNull;
-  } else {
-    if (pCtx->hasNull) {
-      for (int32_t i = 0; i < pCtx->size; ++i) {
-        char *val = GET_INPUT_DATA(pCtx, i);
-        if (isNull(val, pCtx->inputType)) {
-          continue;
-        }
-        
-        numOfElem += 1;
-      }
-    } else {
-      //when counting on the primary time stamp column and no statistics data is presented, use the size value directly.
-      numOfElem = pCtx->size;
-    }
-  }
-  
-  if (numOfElem > 0) {
-//    GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
-  }
-  
-  *((int64_t *)pCtx->pOutput) += numOfElem;
-  SET_VAL(pCtx, numOfElem, 1);
-}
-
-static void count_func_merge(SqlFunctionCtx *pCtx) {
-  int64_t *pData = (int64_t *)GET_INPUT_DATA_LIST(pCtx);
-  for (int32_t i = 0; i < pCtx->size; ++i) {
-    *((int64_t *)pCtx->pOutput) += pData[i];
-  }
-  
-  SET_VAL(pCtx, pCtx->size, 1);
-}
-
 /**
  * 1. If the column value for filter exists, we need to load the SFields, which serves
  *    as the pre-filter to decide if the actual data block is required or not.
@@ -577,14 +509,14 @@ static void count_func_merge(SqlFunctionCtx *pCtx) {
  */
 int32_t countRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-    return BLK_DATA_NO_NEEDED;
+    return BLK_DATA_NOT_LOAD;
   } else {
-    return BLK_DATA_STATIS_NEEDED;
+    return BLK_DATA_SMA_LOAD;
   }
 }
 
 int32_t noDataRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
-  return BLK_DATA_NO_NEEDED;
+  return BLK_DATA_NOT_LOAD;
 }
 #define LIST_ADD_N_DOUBLE_FLOAT(x, ctx, p, t, numOfElem, tsdbType)              \
   do {                                                                \
@@ -655,184 +587,77 @@ int32_t noDataRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
     LOOPCHECK_N(*_data, _list, ctx, tsdbType, sign, notNullElems);             \
   } while (0)
 
-static void do_sum(SqlFunctionCtx *pCtx) {
-  int32_t notNullElems = 0;
-  
-  // Only the pre-computing information loaded and actual data does not loaded
-  if (pCtx->isAggSet) {
-    notNullElems = pCtx->size - pCtx->agg.numOfNull;
-    assert(pCtx->size >= pCtx->agg.numOfNull);
-    
-    if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
-      int64_t *retVal = (int64_t *)pCtx->pOutput;
-      *retVal += pCtx->agg.sum;
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
-      uint64_t *retVal = (uint64_t *)pCtx->pOutput;
-      *retVal += (uint64_t)pCtx->agg.sum;
-    } else if (IS_FLOAT_TYPE(pCtx->inputType)) {
-      double *retVal = (double*) pCtx->pOutput;
-      SET_DOUBLE_VAL(retVal, *retVal + GET_DOUBLE_VAL((const char*)&(pCtx->agg.sum)));
-    }
-  } else {  // computing based on the true data block
-    void *pData = GET_INPUT_DATA_LIST(pCtx);
-    notNullElems = 0;
-
-    if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
-      int64_t *retVal = (int64_t *)pCtx->pOutput;
-
-      if (pCtx->inputType == TSDB_DATA_TYPE_TINYINT) {
-        LIST_ADD_N(*retVal, pCtx, pData, int8_t, notNullElems, pCtx->inputType);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_SMALLINT) {
-        LIST_ADD_N(*retVal, pCtx, pData, int16_t, notNullElems, pCtx->inputType);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_INT) {
-        LIST_ADD_N(*retVal, pCtx, pData, int32_t, notNullElems, pCtx->inputType);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_BIGINT) {
-        LIST_ADD_N(*retVal, pCtx, pData, int64_t, notNullElems, pCtx->inputType);
-      }
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
-      uint64_t *retVal = (uint64_t *)pCtx->pOutput;
-
-      if (pCtx->inputType == TSDB_DATA_TYPE_UTINYINT) {
-        LIST_ADD_N(*retVal, pCtx, pData, uint8_t, notNullElems, pCtx->inputType);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_USMALLINT) {
-        LIST_ADD_N(*retVal, pCtx, pData, uint16_t, notNullElems, pCtx->inputType);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_UINT) {
-        LIST_ADD_N(*retVal, pCtx, pData, uint32_t, notNullElems, pCtx->inputType);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_UBIGINT) {
-        LIST_ADD_N(*retVal, pCtx, pData, uint64_t, notNullElems, pCtx->inputType);
-      }
-    } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE) {
-      double *retVal = (double *)pCtx->pOutput;
-      LIST_ADD_N_DOUBLE(*retVal, pCtx, pData, double, notNullElems, pCtx->inputType);
-    } else if (pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
-      double *retVal = (double *)pCtx->pOutput;
-      LIST_ADD_N_DOUBLE_FLOAT(*retVal, pCtx, pData, float, notNullElems, pCtx->inputType);
-    }
-  }
-  
-  // data in the check operation are all null, not output
-  SET_VAL(pCtx, notNullElems, 1);
-  
-  if (notNullElems > 0) {
-//    GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
-  }
-}
-
-static void sum_function(SqlFunctionCtx *pCtx) {
-  do_sum(pCtx);
-  
-  // keep the result data in output buffer, not in the intermediate buffer
-  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-//  if (pResInfo->hasResult == DATA_SET_FLAG && pCtx->stableQuery) {
-    // set the flag for super table query
-    SSumInfo *pSum = (SSumInfo *)pCtx->pOutput;
-    pSum->hasResult = DATA_SET_FLAG;
-//  }
-}
-
-static void sum_func_merge(SqlFunctionCtx *pCtx) {
-  int32_t notNullElems = 0;
-
-  GET_TRUE_DATA_TYPE();
-  assert(pCtx->stableQuery);
-
-  for (int32_t i = 0; i < pCtx->size; ++i) {
-    char *    input = GET_INPUT_DATA(pCtx, i);
-    SSumInfo *pInput = (SSumInfo *)input;
-    if (pInput->hasResult != DATA_SET_FLAG) {
-      continue;
-    }
-
-    notNullElems++;
-
-    if (IS_SIGNED_NUMERIC_TYPE(type)) {
-      *(int64_t *)pCtx->pOutput += pInput->isum;
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-      *(uint64_t *) pCtx->pOutput += pInput->usum;
-    } else {
-      SET_DOUBLE_VAL((double *)pCtx->pOutput, *(double *)pCtx->pOutput + pInput->dsum);
-    }
-  }
-
-  SET_VAL(pCtx, notNullElems, 1);
-  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-  
-  if (notNullElems > 0) {
-    //pResInfo->hasResult = DATA_SET_FLAG;
-  }
-}
-
 static int32_t statisRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
-  return BLK_DATA_STATIS_NEEDED;
+  return BLK_DATA_SMA_LOAD;
 }
 
 static int32_t dataBlockRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
-  return BLK_DATA_ALL_NEEDED;
+  return BLK_DATA_DATA_LOAD;
 }
 
 // todo: if column in current data block are null, opt for this case
 static int32_t firstFuncRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   if (pCtx->order == TSDB_ORDER_DESC) {
-    return BLK_DATA_NO_NEEDED;
+    return BLK_DATA_NOT_LOAD;
   }
   
   // no result for first query, data block is required
   if (GET_RES_INFO(pCtx) == NULL || GET_RES_INFO(pCtx)->numOfRes <= 0) {
-    return BLK_DATA_ALL_NEEDED;
+    return BLK_DATA_DATA_LOAD;
   } else {
-    return BLK_DATA_NO_NEEDED;
+    return BLK_DATA_NOT_LOAD;
   }
 }
 
 static int32_t lastFuncRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
-  if (pCtx->order != pCtx->param[0].i) {
-    return BLK_DATA_NO_NEEDED;
-  }
+//  if (pCtx->order != pCtx->param[0].param.i) {
+//    return BLK_DATA_NOT_LOAD;
+//  }
   
   if (GET_RES_INFO(pCtx) == NULL || GET_RES_INFO(pCtx)->numOfRes <= 0) {
-    return BLK_DATA_ALL_NEEDED;
+    return BLK_DATA_DATA_LOAD;
   } else {
-    return BLK_DATA_NO_NEEDED;
+    return BLK_DATA_NOT_LOAD;
   }
 }
 
 static int32_t firstDistFuncRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   if (pCtx->order == TSDB_ORDER_DESC) {
-    return BLK_DATA_NO_NEEDED;
+    return BLK_DATA_NOT_LOAD;
   }
 
   // not initialized yet, it is the first block, load it.
   if (pCtx->pOutput == NULL) {
-    return BLK_DATA_ALL_NEEDED;
+    return BLK_DATA_DATA_LOAD;
   }
 
   // the pCtx should be set to current Ctx and output buffer before call this function. Otherwise, pCtx->pOutput is
   // the previous windowRes output buffer, not current unloaded block. In this case, the following filter is invalid
   SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->pOutput + pCtx->inputBytes);
   if (pInfo->hasResult != DATA_SET_FLAG) {
-    return BLK_DATA_ALL_NEEDED;
+    return BLK_DATA_DATA_LOAD;
   } else {  // data in current block is not earlier than current result
-    return (pInfo->ts <= w->skey) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+    return (pInfo->ts <= w->skey) ? BLK_DATA_NOT_LOAD : BLK_DATA_DATA_LOAD;
   }
 }
 
 static int32_t lastDistFuncRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
-  if (pCtx->order != pCtx->param[0].i) {
-    return BLK_DATA_NO_NEEDED;
-  }
+//  if (pCtx->order != pCtx->param[0].param.i) {
+//    return BLK_DATA_NOT_LOAD;
+//  }
 
   // not initialized yet, it is the first block, load it.
   if (pCtx->pOutput == NULL) {
-    return BLK_DATA_ALL_NEEDED;
+    return BLK_DATA_DATA_LOAD;
   }
 
   // the pCtx should be set to current Ctx and output buffer before call this function. Otherwise, pCtx->pOutput is
   // the previous windowRes output buffer, not current unloaded block. In this case, the following filter is invalid
   SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->pOutput + pCtx->inputBytes);
   if (pInfo->hasResult != DATA_SET_FLAG) {
-    return BLK_DATA_ALL_NEEDED;
+    return BLK_DATA_DATA_LOAD;
   } else {
-    return (pInfo->ts > w->ekey) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+    return (pInfo->ts > w->ekey) ? BLK_DATA_NOT_LOAD : BLK_DATA_DATA_LOAD;
   }
 }
 
@@ -844,17 +669,17 @@ static int32_t lastDistFuncRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_
  */
 static void avg_function(SqlFunctionCtx *pCtx) {
   int32_t notNullElems = 0;
-  
+
   // NOTE: keep the intermediate result into the interResultBuf
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-  
+
   SAvgInfo *pAvgInfo = (SAvgInfo *)GET_ROWCELL_INTERBUF(pResInfo);
   double   *pVal = &pAvgInfo->sum;
-  
+
   if (pCtx->isAggSet) { // Pre-aggregation
     notNullElems = pCtx->size - pCtx->agg.numOfNull;
     assert(notNullElems >= 0);
-    
+
     if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
       *pVal += pCtx->agg.sum;
     }  else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
@@ -864,7 +689,7 @@ static void avg_function(SqlFunctionCtx *pCtx) {
     }
   } else {
     void *pData = GET_INPUT_DATA_LIST(pCtx);
-    
+
     if (pCtx->inputType == TSDB_DATA_TYPE_TINYINT) {
       LIST_ADD_N(*pVal, pCtx, pData, int8_t, notNullElems, pCtx->inputType);
     } else if (pCtx->inputType == TSDB_DATA_TYPE_SMALLINT) {
@@ -887,18 +712,18 @@ static void avg_function(SqlFunctionCtx *pCtx) {
       LIST_ADD_N(*pVal, pCtx, pData, uint64_t, notNullElems, pCtx->inputType);
     }
   }
-  
+
   if (!pCtx->hasNull) {
     assert(notNullElems == pCtx->size);
   }
-  
+
   SET_VAL(pCtx, notNullElems, 1);
   pAvgInfo->num += notNullElems;
-  
+
   if (notNullElems > 0) {
     //pResInfo->hasResult = DATA_SET_FLAG;
   }
-  
+
   // keep the data into the final output buffer for super table query since this execution may be the last one
   if (pCtx->stableQuery) {
     memcpy(pCtx->pOutput, GET_ROWCELL_INTERBUF(pResInfo), sizeof(SAvgInfo));
@@ -907,18 +732,18 @@ static void avg_function(SqlFunctionCtx *pCtx) {
 
 static void avg_func_merge(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-  
+
   double *sum = (double*) pCtx->pOutput;
   char   *input = GET_INPUT_DATA_LIST(pCtx);
-  
+
   for (int32_t i = 0; i < pCtx->size; ++i, input += pCtx->inputBytes) {
     SAvgInfo *pInput = (SAvgInfo *)input;
     if (pInput->num == 0) {  // current input is null
       continue;
     }
-    
+
     SET_DOUBLE_VAL(sum, *sum + pInput->sum);
-    
+
     // keep the number of data into the temp buffer
     *(int64_t *)GET_ROWCELL_INTERBUF(pResInfo) += pInput->num;
   }
@@ -930,7 +755,7 @@ static void avg_func_merge(SqlFunctionCtx *pCtx) {
 static void avg_finalizer(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
   
-  if (pCtx->currentStage == MERGE_STAGE) {
+  if (pCtx->scanFlag == MERGE_STAGE) {
     assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
     
     if (GET_INT64_VAL(GET_ROWCELL_INTERBUF(pResInfo)) <= 0) {
@@ -1174,7 +999,7 @@ static void stddev_function(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
   SStddevInfo *pStd = GET_ROWCELL_INTERBUF(pResInfo);
 
-  if (pCtx->currentStage == REPEAT_SCAN && pStd->stage == 0) {
+  if (pCtx->scanFlag == REPEAT_SCAN && pStd->stage == 0) {
     pStd->stage++;
     avg_finalizer(pCtx);
 
@@ -1281,128 +1106,6 @@ int32_t tsCompare(const void* p1, const void* p2) {
   }
 }
 
-static void stddev_dst_function(SqlFunctionCtx *pCtx) {
-  SStddevdstInfo *pStd = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-
-  // the second stage to calculate standard deviation
-  double *retVal = &pStd->res;
-
-  // all data are null, no need to proceed
-  SArray* resList = (SArray*) pCtx->param[0].pz;
-  if (resList == NULL) {
-    return;
-  }
-
-  // find the correct group average results according to the tag value
-  int32_t len = (int32_t) taosArrayGetSize(resList);
-  assert(len > 0);
-
-  double avg = 0;
-  if (len == 1) {
-    SResPair* p = taosArrayGet(resList, 0);
-    avg = p->avg;
-  } else {  // todo opt performance by using iterator since the timestamp lsit is matched with the output result
-    SResPair* p = bsearch(&pCtx->startTs, resList->pData, len, sizeof(SResPair), tsCompare);
-    if (p == NULL) {
-      return;
-    }
-
-    avg = p->avg;
-  }
-
-  void *pData = GET_INPUT_DATA_LIST(pCtx);
-  int32_t num = 0;
-
-  switch (pCtx->inputType) {
-    case TSDB_DATA_TYPE_INT: {
-      for (int32_t i = 0; i < pCtx->size; ++i) {
-        if (pCtx->hasNull && isNull((const char*) (&((int32_t *)pData)[i]), pCtx->inputType)) {
-          continue;
-        }
-        num += 1;
-        *retVal += TPOW2(((int32_t *)pData)[i] - avg);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_FLOAT: {
-      LOOP_STDDEV_IMPL(float, *retVal, pData, pCtx, avg, pCtx->inputType, num);
-      break;
-    }
-    case TSDB_DATA_TYPE_DOUBLE: {
-      LOOP_STDDEV_IMPL(double, *retVal, pData, pCtx, avg, pCtx->inputType, num);
-      break;
-    }
-    case TSDB_DATA_TYPE_TINYINT: {
-      LOOP_STDDEV_IMPL(int8_t, *retVal, pData, pCtx, avg, pCtx->inputType, num);
-      break;
-    }
-    case TSDB_DATA_TYPE_UTINYINT: {
-      LOOP_STDDEV_IMPL(int8_t, *retVal, pData, pCtx, avg, pCtx->inputType, num);
-      break;
-    }
-    case TSDB_DATA_TYPE_SMALLINT: {
-      LOOP_STDDEV_IMPL(int16_t, *retVal, pData, pCtx, avg, pCtx->inputType, num);
-      break;
-    }
-    case TSDB_DATA_TYPE_USMALLINT: {
-      LOOP_STDDEV_IMPL(uint16_t, *retVal, pData, pCtx, avg, pCtx->inputType, num);
-      break;
-    }
-    case TSDB_DATA_TYPE_UINT: {
-      LOOP_STDDEV_IMPL(uint32_t, *retVal, pData, pCtx, avg, pCtx->inputType, num);
-      break;
-    }
-    case TSDB_DATA_TYPE_BIGINT: {
-      LOOP_STDDEV_IMPL(int64_t, *retVal, pData, pCtx, avg, pCtx->inputType, num);
-      break;
-    }
-    case TSDB_DATA_TYPE_UBIGINT: {
-      LOOP_STDDEV_IMPL(uint64_t, *retVal, pData, pCtx, avg, pCtx->inputType, num);
-      break;
-    }
-    default:
-      assert(0);
-//      qError("stddev function not support data type:%d", pCtx->inputType);
-  }
-
-  pStd->num += num;
-  SET_VAL(pCtx, num, 1);
-
-  // copy to the final output buffer for super table
-  memcpy(pCtx->pOutput, GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx)), sizeof(SAvgInfo));
-}
-
-static void stddev_dst_merge(SqlFunctionCtx *pCtx) {
-  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-  SStddevdstInfo* pRes = GET_ROWCELL_INTERBUF(pResInfo);
-
-  char   *input = GET_INPUT_DATA_LIST(pCtx);
-
-  for (int32_t i = 0; i < pCtx->size; ++i, input += pCtx->inputBytes) {
-    SStddevdstInfo *pInput = (SStddevdstInfo *)input;
-    if (pInput->num == 0) {  // current input is null
-      continue;
-    }
-
-    pRes->num += pInput->num;
-    pRes->res += pInput->res;
-  }
-}
-
-static void stddev_dst_finalizer(SqlFunctionCtx *pCtx) {
-  SStddevdstInfo *pStd = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-
-  if (pStd->num <= 0) {
-    setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
-  } else {
-    double *retValue = (double *)pCtx->pOutput;
-    SET_DOUBLE_VAL(retValue, sqrt(pStd->res / pStd->num));
-    SET_VAL(pCtx, 1, 1);
-  }
-
-  doFinalizer(pCtx);
-}
-
 //////////////////////////////////////////////////////////////////////////////////////
 static bool first_last_function_setup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResInfo) {
   if (!function_setup(pCtx, pResInfo)) {
@@ -1410,8 +1113,8 @@ static bool first_last_function_setup(SqlFunctionCtx *pCtx, SResultRowEntryInfo*
   }
   
   // used to keep the timestamp for comparison
-  pCtx->param[1].nType = 0;
-  pCtx->param[1].i = 0;
+//  pCtx->param[1].param.nType = 0;
+//  pCtx->param[1].param.i = 0;
   
   return true;
 }
@@ -1507,13 +1210,13 @@ static void first_dist_func_merge(SqlFunctionCtx *pCtx) {
   }
   
   // The param[1] is used to keep the initial value of max ts value
-  if (pCtx->param[1].nType != pCtx->resDataInfo.type || pCtx->param[1].i > pInput->ts) {
-    memcpy(pCtx->pOutput, pData, pCtx->resDataInfo.bytes);
-    pCtx->param[1].i = pInput->ts;
-    pCtx->param[1].nType = pCtx->resDataInfo.type;
-    
-//    DO_UPDATE_TAG_COLUMNS(pCtx, pInput->ts);
-  }
+//  if (pCtx->param[1].param.nType != pCtx->resDataInfo.type || pCtx->param[1].param.i > pInput->ts) {
+//    memcpy(pCtx->pOutput, pData, pCtx->resDataInfo.bytes);
+//    pCtx->param[1].param.i = pInput->ts;
+//    pCtx->param[1].param.nType = pCtx->resDataInfo.type;
+//
+////    DO_UPDATE_TAG_COLUMNS(pCtx, pInput->ts);
+//  }
   
   SET_VAL(pCtx, 1, 1);
 //  GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
@@ -1528,9 +1231,9 @@ static void first_dist_func_merge(SqlFunctionCtx *pCtx) {
  *    least one data in this block that is not null.(TODO opt for this case)
  */
 static void last_function(SqlFunctionCtx *pCtx) {
-  if (pCtx->order != pCtx->param[0].i) {
-    return;
-  }
+//  if (pCtx->order != pCtx->param[0].param.i) {
+//    return;
+//  }
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
 
@@ -1602,9 +1305,9 @@ static void last_dist_function(SqlFunctionCtx *pCtx) {
    * 1. for scan data is not the required order
    * 2. for data blocks that are not loaded, no need to check data
    */
-  if (pCtx->order != pCtx->param[0].i) {
-    return;
-  }
+//  if (pCtx->order != pCtx->param[0].param.i) {
+//    return;
+//  }
 
   int32_t notNullElems = 0;
   for (int32_t i = pCtx->size - 1; i >= 0; --i) {
@@ -1644,10 +1347,10 @@ static void last_dist_func_merge(SqlFunctionCtx *pCtx) {
    * param[1] used to keep the corresponding timestamp to decide if current result is
    * the true last result
    */
-  if (pCtx->param[1].nType != pCtx->resDataInfo.type || pCtx->param[1].i < pInput->ts) {
+  if (pCtx->param[1].param.nType != pCtx->resDataInfo.type || pCtx->param[1].param.i < pInput->ts) {
     memcpy(pCtx->pOutput, pData, pCtx->resDataInfo.bytes);
-    pCtx->param[1].i = pInput->ts;
-    pCtx->param[1].nType = pCtx->resDataInfo.type;
+    pCtx->param[1].param.i = pInput->ts;
+    pCtx->param[1].param.nType = pCtx->resDataInfo.type;
     
 //    DO_UPDATE_TAG_COLUMNS(pCtx, pInput->ts);
   }
@@ -1922,10 +1625,10 @@ static void copyTopBotRes(SqlFunctionCtx *pCtx, int32_t type) {
   }
   
   // set the output timestamp of each record.
-  TSKEY *output = pCtx->ptsOutputBuf;
-  for (int32_t i = 0; i < len; ++i, output += step) {
-    *output = tvp[i]->timestamp;
-  }
+//  TSKEY *output = pCtx->pTsOutput;
+//  for (int32_t i = 0; i < len; ++i, output += step) {
+//    *output = tvp[i]->timestamp;
+//  }
   
   // set the corresponding tag data for each record
   // todo check malloc failure
@@ -1958,7 +1661,7 @@ static STopBotInfo *getTopBotOutputInfo(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
 
   // only the first_stage_merge is directly written data into final output buffer
-  if (pCtx->stableQuery && pCtx->currentStage != MERGE_STAGE) {
+  if (pCtx->stableQuery && pCtx->scanFlag != MERGE_STAGE) {
     return (STopBotInfo*) pCtx->pOutput;
   } else { // during normal table query and super table at the secondary_stage, result is written to intermediate buffer
     return GET_ROWCELL_INTERBUF(pResInfo);
@@ -1975,11 +1678,11 @@ static STopBotInfo *getTopBotOutputInfo(SqlFunctionCtx *pCtx) {
 static void buildTopBotStruct(STopBotInfo *pTopBotInfo, SqlFunctionCtx *pCtx) {
   char *tmp = (char *)pTopBotInfo + sizeof(STopBotInfo);
   pTopBotInfo->res = (tValuePair**) tmp;
-  tmp += POINTER_BYTES * pCtx->param[0].i;
+//  tmp += POINTER_BYTES * pCtx->param[0].param.i;
 
 //  size_t size = sizeof(tValuePair) + pCtx->tagInfo.tagsLen;
 
-//  for (int32_t i = 0; i < pCtx->param[0].i; ++i) {
+//  for (int32_t i = 0; i < pCtx->param[0].param.i; ++i) {
 //    pTopBotInfo->res[i] = (tValuePair*) tmp;
 //    pTopBotInfo->res[i]->pTags = tmp + sizeof(tValuePair);
 //    tmp += size;
@@ -1995,13 +1698,13 @@ bool topbot_datablock_filter(SqlFunctionCtx *pCtx, const char *minval, const cha
   STopBotInfo *pTopBotInfo = getTopBotOutputInfo(pCtx);
   
   // required number of results are not reached, continue load data block
-  if (pTopBotInfo->num < pCtx->param[0].i) {
-    return true;
-  }
+//  if (pTopBotInfo->num < pCtx->param[0].param.i) {
+//    return true;
+//  }
   
-  if ((void *)pTopBotInfo->res[0] != (void *)((char *)pTopBotInfo + sizeof(STopBotInfo) + POINTER_BYTES * pCtx->param[0].i)) {
-    buildTopBotStruct(pTopBotInfo, pCtx);
-  }
+//  if ((void *)pTopBotInfo->res[0] != (void *)((char *)pTopBotInfo + sizeof(STopBotInfo) + POINTER_BYTES * pCtx->param[0].param.i)) {
+//    buildTopBotStruct(pTopBotInfo, pCtx);
+//  }
 
   tValuePair **pRes = (tValuePair**) pTopBotInfo->res;
   
@@ -2058,9 +1761,9 @@ static void top_function(SqlFunctionCtx *pCtx) {
   STopBotInfo *pRes = getTopBotOutputInfo(pCtx);
   assert(pRes->num >= 0);
 
-  if ((void *)pRes->res[0] != (void *)((char *)pRes + sizeof(STopBotInfo) + POINTER_BYTES * pCtx->param[0].i)) {
-    buildTopBotStruct(pRes, pCtx);
-  }
+//  if ((void *)pRes->res[0] != (void *)((char *)pRes + sizeof(STopBotInfo) + POINTER_BYTES * pCtx->param[0].param.i)) {
+//    buildTopBotStruct(pRes, pCtx);
+//  }
   
   for (int32_t i = 0; i < pCtx->size; ++i) {
     char *data = GET_INPUT_DATA(pCtx, i);
@@ -2072,7 +1775,7 @@ static void top_function(SqlFunctionCtx *pCtx) {
 
     // NOTE: Set the default timestamp if it is missing [todo refactor]
     TSKEY ts = (pCtx->ptsList != NULL)? GET_TS_DATA(pCtx, i):0;
-//    do_top_function_add(pRes, (int32_t)pCtx->param[0].i, data, ts, pCtx->inputType, &pCtx->tagInfo, NULL, 0);
+//    do_top_function_add(pRes, (int32_t)pCtx->param[0].param.i, data, ts, pCtx->inputType, &pCtx->tagInfo, NULL, 0);
   }
   
   if (!pCtx->hasNull) {
@@ -2099,8 +1802,8 @@ static void top_func_merge(SqlFunctionCtx *pCtx) {
   // the intermediate result is binary, we only use the output data type
   for (int32_t i = 0; i < pInput->num; ++i) {
     int16_t type = (pCtx->resDataInfo.type == TSDB_DATA_TYPE_FLOAT)? TSDB_DATA_TYPE_DOUBLE:pCtx->resDataInfo.type;
-//    do_top_function_add(pOutput, (int32_t)pCtx->param[0].i, &pInput->res[i]->v.i, pInput->res[i]->timestamp,
-//                        type, &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->currentStage);
+//    do_top_function_add(pOutput, (int32_t)pCtx->param[0].param.i, &pInput->res[i]->v.i, pInput->res[i]->timestamp,
+//                        type, &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->scanFlag);
   }
   
   SET_VAL(pCtx, pInput->num, pOutput->num);
@@ -2116,9 +1819,9 @@ static void bottom_function(SqlFunctionCtx *pCtx) {
   
   STopBotInfo *pRes = getTopBotOutputInfo(pCtx);
   
-  if ((void *)pRes->res[0] != (void *)((char *)pRes + sizeof(STopBotInfo) + POINTER_BYTES * pCtx->param[0].i)) {
-    buildTopBotStruct(pRes, pCtx);
-  }
+//  if ((void *)pRes->res[0] != (void *)((char *)pRes + sizeof(STopBotInfo) + POINTER_BYTES * pCtx->param[0].param.i)) {
+//    buildTopBotStruct(pRes, pCtx);
+//  }
 
   for (int32_t i = 0; i < pCtx->size; ++i) {
     char *data = GET_INPUT_DATA(pCtx, i);
@@ -2129,7 +1832,7 @@ static void bottom_function(SqlFunctionCtx *pCtx) {
     notNullElems++;
     // NOTE: Set the default timestamp if it is missing [todo refactor]
     TSKEY ts = (pCtx->ptsList != NULL)? GET_TS_DATA(pCtx, i):0;
-//    do_bottom_function_add(pRes, (int32_t)pCtx->param[0].i, data, ts, pCtx->inputType, &pCtx->tagInfo, NULL, 0);
+//    do_bottom_function_add(pRes, (int32_t)pCtx->param[0].param.i, data, ts, pCtx->inputType, &pCtx->tagInfo, NULL, 0);
   }
   
   if (!pCtx->hasNull) {
@@ -2156,8 +1859,8 @@ static void bottom_func_merge(SqlFunctionCtx *pCtx) {
   // the intermediate result is binary, we only use the output data type
   for (int32_t i = 0; i < pInput->num; ++i) {
     int16_t type = (pCtx->resDataInfo.type == TSDB_DATA_TYPE_FLOAT) ? TSDB_DATA_TYPE_DOUBLE : pCtx->resDataInfo.type;
-//    do_bottom_function_add(pOutput, (int32_t)pCtx->param[0].i, &pInput->res[i]->v.i, pInput->res[i]->timestamp, type,
-//                           &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->currentStage);
+//    do_bottom_function_add(pOutput, (int32_t)pCtx->param[0].param.i, &pInput->res[i]->v.i, pInput->res[i]->timestamp, type,
+//                           &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->scanFlag);
   }
 
   SET_VAL(pCtx, pInput->num, pOutput->num);
@@ -2182,12 +1885,12 @@ static void top_bottom_func_finalizer(SqlFunctionCtx *pCtx) {
   tValuePair **tvp = pRes->res;
   
   // user specify the order of output by sort the result according to timestamp
-  if (pCtx->param[1].i == PRIMARYKEY_TIMESTAMP_COL_ID) {
-    __compar_fn_t comparator = (pCtx->param[2].i == TSDB_ORDER_ASC) ? resAscComparFn : resDescComparFn;
-    qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
-  } else /*if (pCtx->param[1].i > PRIMARYKEY_TIMESTAMP_COL_ID)*/ {
-    __compar_fn_t comparator = (pCtx->param[2].i == TSDB_ORDER_ASC) ? resDataAscComparFn : resDataDescComparFn;
-    qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
+  if (pCtx->param[1].param.i == PRIMARYKEY_TIMESTAMP_COL_ID) {
+    __compar_fn_t comparator = (pCtx->param[2].param.i == TSDB_ORDER_ASC) ? resAscComparFn : resDescComparFn;
+    taosSort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
+  } else /*if (pCtx->param[1].param.i > PRIMARYKEY_TIMESTAMP_COL_ID)*/ {
+    __compar_fn_t comparator = (pCtx->param[2].param.i == TSDB_ORDER_ASC) ? resDataAscComparFn : resDataDescComparFn;
+    taosSort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
   }
   
   GET_TRUE_DATA_TYPE();
@@ -2217,7 +1920,7 @@ static void percentile_function(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
-  if (pCtx->currentStage == REPEAT_SCAN && pInfo->stage == 0) {
+  if (pCtx->scanFlag == REPEAT_SCAN && pInfo->stage == 0) {
     pInfo->stage += 1;
 
     // all data are null, set it completed
@@ -2297,7 +2000,7 @@ static void percentile_function(SqlFunctionCtx *pCtx) {
 }
 
 static void percentile_finalizer(SqlFunctionCtx *pCtx) {
-  double v = pCtx->param[0].nType == TSDB_DATA_TYPE_INT ? pCtx->param[0].i : pCtx->param[0].d;
+//  double v = pCtx->param[0].param.nType == TSDB_DATA_TYPE_INT ? pCtx->param[0].param.i : pCtx->param[0].param.d;
   
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo* ppInfo = (SPercentileInfo *) GET_ROWCELL_INTERBUF(pResInfo);
@@ -2307,7 +2010,7 @@ static void percentile_finalizer(SqlFunctionCtx *pCtx) {
     assert(ppInfo->numOfElems == 0);
     setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
   } else {
-    SET_DOUBLE_VAL((double *)pCtx->pOutput, getPercentile(pMemBucket, v));
+//    SET_DOUBLE_VAL((double *)pCtx->pOutput, getPercentile(pMemBucket, v));
   }
   
   tMemBucketDestroy(pMemBucket);
@@ -2324,7 +2027,7 @@ static SAPercentileInfo *getAPerctInfo(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
   SAPercentileInfo* pInfo = NULL;
 
-  if (pCtx->stableQuery && pCtx->currentStage != MERGE_STAGE) {
+  if (pCtx->stableQuery && pCtx->scanFlag != MERGE_STAGE) {
     pInfo = (SAPercentileInfo*) pCtx->pOutput;
   } else {
     pInfo = GET_ROWCELL_INTERBUF(pResInfo);
@@ -2409,12 +2112,12 @@ static void apercentile_func_merge(SqlFunctionCtx *pCtx) {
 }
 
 static void apercentile_finalizer(SqlFunctionCtx *pCtx) {
-  double v = (pCtx->param[0].nType == TSDB_DATA_TYPE_INT) ? pCtx->param[0].i : pCtx->param[0].d;
+  double v = (pCtx->param[0].param.nType == TSDB_DATA_TYPE_INT) ? pCtx->param[0].param.i : pCtx->param[0].param.d;
   
   SResultRowEntryInfo *     pResInfo = GET_RES_INFO(pCtx);
   SAPercentileInfo *pOutput = GET_ROWCELL_INTERBUF(pResInfo);
 
-  if (pCtx->currentStage == MERGE_STAGE) {
+  if (pCtx->scanFlag == MERGE_STAGE) {
 //    if (pResInfo->hasResult == DATA_SET_FLAG) {  // check for null
 //      assert(pOutput->pHisto->numOfElems > 0);
 //
@@ -2452,7 +2155,7 @@ static bool leastsquares_function_setup(SqlFunctionCtx *pCtx, SResultRowEntryInf
   SLeastsquaresInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   // 2*3 matrix
-  pInfo->startVal = pCtx->param[0].d;
+//  pInfo->startVal = pCtx->param[0].param.d;
   return true;
 }
 
@@ -2498,54 +2201,54 @@ static void leastsquares_function(SqlFunctionCtx *pCtx) {
         param[0][2] += x * p[i];
         param[1][2] += p[i];
         
-        x += pCtx->param[1].d;
+        x += pCtx->param[1].param.d;
         numOfElem++;
       }
       break;
     }
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t *p = pData;
-      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].d);
+      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].param.d);
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       double *p = pData;
-      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].d);
+      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].param.d);
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
       float *p = pData;
-      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].d);
+      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].param.d);
       break;
     };
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t *p = pData;
-      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].d);
+      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].param.d);
       break;
     }
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t *p = pData;
-      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].d);
+      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].param.d);
       break;
     }
     case TSDB_DATA_TYPE_UTINYINT: {
       uint8_t *p = pData;
-      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].d);
+      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].param.d);
       break;
     }
     case TSDB_DATA_TYPE_USMALLINT: {
       uint16_t *p = pData;
-      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].d);
+      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].param.d);
       break;
     }
     case TSDB_DATA_TYPE_UINT: {
       uint32_t *p = pData;
-      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].d);
+      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].param.d);
       break;
     }
     case TSDB_DATA_TYPE_UBIGINT: {
       uint64_t *p = pData;
-      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].d);
+      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].param.d);
       break;
     }
   }
@@ -2604,16 +2307,16 @@ static void col_project_function(SqlFunctionCtx *pCtx) {
   }
 
   // only one row is required.
-  if (pCtx->param[0].i == 1) {
-    SET_VAL(pCtx, pCtx->size, 1);
-  } else {
-    INC_INIT_VAL(pCtx, pCtx->size);
-  }
+//  if (pCtx->param[0].param.i == 1) {
+//    SET_VAL(pCtx, pCtx->size, 1);
+//  } else {
+//    INC_INIT_VAL(pCtx, pCtx->size);
+//  }
 
   char *pData = GET_INPUT_DATA_LIST(pCtx);
   if (pCtx->order == TSDB_ORDER_ASC) {
-    int32_t numOfRows = (pCtx->param[0].i == 1)? 1:pCtx->size;
-    memcpy(pCtx->pOutput, pData, (size_t) numOfRows * pCtx->inputBytes);
+//    int32_t numOfRows = (pCtx->param[0].param.i == 1)? 1:pCtx->size;
+//    memcpy(pCtx->pOutput, pData, (size_t) numOfRows * pCtx->inputBytes);
   } else {
     for(int32_t i = 0; i < pCtx->size; ++i) {
       memcpy(pCtx->pOutput + (pCtx->size - 1 - i) * pCtx->inputBytes, pData + i * pCtx->inputBytes,
@@ -2654,7 +2357,7 @@ static void copy_function(SqlFunctionCtx *pCtx);
 
 static void tag_function(SqlFunctionCtx *pCtx) {
   SET_VAL(pCtx, 1, 1);
-  if (pCtx->currentStage == MERGE_STAGE) {
+  if (pCtx->scanFlag == MERGE_STAGE) {
     copy_function(pCtx);
   } else {
     taosVariantDump(&pCtx->tag, pCtx->pOutput, pCtx->resDataInfo.type, true);
@@ -2678,7 +2381,7 @@ static bool diff_function_setup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResI
   }
   
   // diff function require the value is set to -1
-  pCtx->param[1].nType = INITIAL_VALUE_NOT_ASSIGNED;
+  pCtx->param[1].param.nType = INITIAL_VALUE_NOT_ASSIGNED;
   return false;
 }
 
@@ -2690,9 +2393,9 @@ static bool deriv_function_setup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pRes
   // diff function require the value is set to -1
   SDerivInfo* pDerivInfo = GET_ROWCELL_INTERBUF(pResultInfo);
 
-  pDerivInfo->ignoreNegative = pCtx->param[1].i;
+//  pDerivInfo->ignoreNegative = pCtx->param[1].param.i;
   pDerivInfo->prevTs   = -1;
-  pDerivInfo->tsWindow = pCtx->param[0].i;
+//  pDerivInfo->tsWindow = pCtx->param[0].param.i;
   pDerivInfo->valueSet = false;
   return false;
 }
@@ -2707,7 +2410,7 @@ static void deriv_function(SqlFunctionCtx *pCtx) {
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
   int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
 
-  TSKEY *pTimestamp = pCtx->ptsOutputBuf;
+  TSKEY *pTimestamp = NULL;//pCtx->pTsOutput;
   TSKEY *tsList = GET_TS_LIST(pCtx);
 
   double *pOutput = (double *)pCtx->pOutput;
@@ -2879,29 +2582,17 @@ static void deriv_function(SqlFunctionCtx *pCtx) {
   GET_RES_INFO(pCtx)->numOfRes += notNullElems;
 }
 
-#define DIFF_IMPL(ctx, d, type)                                                              \
-  do {                                                                                       \
-    if ((ctx)->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {                               \
-      (ctx)->param[1].nType = (ctx)->inputType;                                              \
-      *(type *)&(ctx)->param[1].i = *(type *)(d);                                       \
-    } else {                                                                                 \
-      *(type *)(ctx)->pOutput = *(type *)(d) - (*(type *)(&(ctx)->param[1].i));      \
-      *(type *)(&(ctx)->param[1].i) = *(type *)(d);                                     \
-      *(int64_t *)(ctx)->ptsOutputBuf = GET_TS_DATA(ctx, index);                             \
-    }                                                                                        \
-  } while (0);
-
 // TODO difference in date column
 static void diff_function(SqlFunctionCtx *pCtx) {
   void *data = GET_INPUT_DATA_LIST(pCtx);
-  bool  isFirstBlock = (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED);
+  bool  isFirstBlock = (pCtx->param[1].param.nType == INITIAL_VALUE_NOT_ASSIGNED);
 
   int32_t notNullElems = 0;
 
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
   int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
 
-  TSKEY* pTimestamp = pCtx->ptsOutputBuf;
+  TSKEY* pTimestamp = NULL;//pCtx->pTsOutput;
   TSKEY* tsList = GET_TS_LIST(pCtx);
 
   switch (pCtx->inputType) {
@@ -2914,15 +2605,15 @@ static void diff_function(SqlFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          *pOutput = (int32_t)(pData[i] - pCtx->param[1].i);  // direct previous may be null
+        if (pCtx->param[1].param.nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+          *pOutput = (int32_t)(pData[i] - pCtx->param[1].param.i);  // direct previous may be null
           *pTimestamp = (tsList != NULL)? tsList[i]:0;
           pOutput    += 1;
           pTimestamp += 1;
         }
 
-        pCtx->param[1].i = pData[i];
-        pCtx->param[1].nType = pCtx->inputType;
+        pCtx->param[1].param.i = pData[i];
+        pCtx->param[1].param.nType = pCtx->inputType;
         notNullElems++;
       }
       break;
@@ -2936,15 +2627,15 @@ static void diff_function(SqlFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          *pOutput = pData[i] - pCtx->param[1].i;  // direct previous may be null
+        if (pCtx->param[1].param.nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+          *pOutput = pData[i] - pCtx->param[1].param.i;  // direct previous may be null
           *pTimestamp = (tsList != NULL)? tsList[i]:0;
           pOutput    += 1;
           pTimestamp += 1;
         }
 
-        pCtx->param[1].i = pData[i];
-        pCtx->param[1].nType = pCtx->inputType;
+        pCtx->param[1].param.i = pData[i];
+        pCtx->param[1].param.nType = pCtx->inputType;
         notNullElems++;
       }
       break;
@@ -2958,15 +2649,15 @@ static void diff_function(SqlFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          SET_DOUBLE_VAL(pOutput, pData[i] - pCtx->param[1].d);  // direct previous may be null
+        if (pCtx->param[1].param.nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+          SET_DOUBLE_VAL(pOutput, pData[i] - pCtx->param[1].param.d);  // direct previous may be null
           *pTimestamp = (tsList != NULL)? tsList[i]:0;
           pOutput    += 1;
           pTimestamp += 1;
         }
 
-        pCtx->param[1].d = pData[i];
-        pCtx->param[1].nType = pCtx->inputType;
+        pCtx->param[1].param.d = pData[i];
+        pCtx->param[1].param.nType = pCtx->inputType;
         notNullElems++;
       }
       break;
@@ -2980,15 +2671,15 @@ static void diff_function(SqlFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          *pOutput = (float)(pData[i] - pCtx->param[1].d);  // direct previous may be null
+        if (pCtx->param[1].param.nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+          *pOutput = (float)(pData[i] - pCtx->param[1].param.d);  // direct previous may be null
           *pTimestamp = (tsList != NULL)? tsList[i]:0;
           pOutput    += 1;
           pTimestamp += 1;
         }
 
-        pCtx->param[1].d = pData[i];
-        pCtx->param[1].nType = pCtx->inputType;
+        pCtx->param[1].param.d = pData[i];
+        pCtx->param[1].param.nType = pCtx->inputType;
         notNullElems++;
       }
       break;
@@ -3002,15 +2693,15 @@ static void diff_function(SqlFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          *pOutput = (int16_t)(pData[i] - pCtx->param[1].i);  // direct previous may be null
+        if (pCtx->param[1].param.nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+          *pOutput = (int16_t)(pData[i] - pCtx->param[1].param.i);  // direct previous may be null
           *pTimestamp = (tsList != NULL)? tsList[i]:0;
           pOutput    += 1;
           pTimestamp += 1;
         }
 
-        pCtx->param[1].i = pData[i];
-        pCtx->param[1].nType = pCtx->inputType;
+        pCtx->param[1].param.i = pData[i];
+        pCtx->param[1].param.nType = pCtx->inputType;
         notNullElems++;
       }
       break;
@@ -3025,15 +2716,15 @@ static void diff_function(SqlFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          *pOutput = (int8_t)(pData[i] - pCtx->param[1].i);  // direct previous may be null
+        if (pCtx->param[1].param.nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+          *pOutput = (int8_t)(pData[i] - pCtx->param[1].param.i);  // direct previous may be null
           *pTimestamp = (tsList != NULL)? tsList[i]:0;
           pOutput    += 1;
           pTimestamp += 1;
         }
 
-        pCtx->param[1].i = pData[i];
-        pCtx->param[1].nType = pCtx->inputType;
+        pCtx->param[1].param.i = pData[i];
+        pCtx->param[1].param.nType = pCtx->inputType;
         notNullElems++;
       }
       break;
@@ -3044,7 +2735,7 @@ static void diff_function(SqlFunctionCtx *pCtx) {
   }
 
   // initial value is not set yet
-  if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED || notNullElems <= 0) {
+  if (pCtx->param[1].param.nType == INITIAL_VALUE_NOT_ASSIGNED || notNullElems <= 0) {
     /*
      * 1. current block and blocks before are full of null
      * 2. current block may be null value
@@ -3110,9 +2801,9 @@ static bool spread_function_setup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pRe
   SSpreadInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   // this is the server-side setup function in client-side, the secondary merge do not need this procedure
-  if (pCtx->currentStage == MERGE_STAGE) {
-    pCtx->param[0].d = DBL_MAX;
-    pCtx->param[3].d = -DBL_MAX;
+  if (pCtx->scanFlag == MERGE_STAGE) {
+//    pCtx->param[0].param.d = DBL_MAX;
+//    pCtx->param[3].param.d = -DBL_MAX;
   } else {
     pInfo->min = DBL_MAX;
     pInfo->max = -DBL_MAX;
@@ -3212,13 +2903,13 @@ void spread_func_merge(SqlFunctionCtx *pCtx) {
     return;
   }
   
-  if (pCtx->param[0].d > pData->min) {
-    pCtx->param[0].d = pData->min;
-  }
+//  if (pCtx->param[0].param.d > pData->min) {
+//    pCtx->param[0].param.d = pData->min;
+//  }
   
-  if (pCtx->param[3].d < pData->max) {
-    pCtx->param[3].d = pData->max;
-  }
+//  if (pCtx->param[3].param.d < pData->max) {
+//    pCtx->param[3].param.d = pData->max;
+//  }
   
 //  GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
 }
@@ -3230,7 +2921,7 @@ void spread_function_finalizer(SqlFunctionCtx *pCtx) {
    */
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
   
-  if (pCtx->currentStage == MERGE_STAGE) {
+  if (pCtx->scanFlag == MERGE_STAGE) {
     assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
     
 //    if (pResInfo->hasResult != DATA_SET_FLAG) {
@@ -3238,7 +2929,7 @@ void spread_function_finalizer(SqlFunctionCtx *pCtx) {
 //      return;
 //    }
     
-    SET_DOUBLE_VAL((double *)pCtx->pOutput, pCtx->param[3].d - pCtx->param[0].d);
+//    SET_DOUBLE_VAL((double *)pCtx->pOutput, pCtx->param[3].param.d - pCtx->param[0].param.d);
   } else {
     assert(IS_NUMERIC_TYPE(pCtx->inputType) || (pCtx->inputType == TSDB_DATA_TYPE_TIMESTAMP));
     
@@ -3591,7 +3282,7 @@ void twa_function_finalizer(SqlFunctionCtx *pCtx) {
  */
 
 static void interp_function_impl(SqlFunctionCtx *pCtx) {
-  int32_t type = (int32_t) pCtx->param[2].i;
+  int32_t type = (int32_t) pCtx->param[2].param.i;
   if (type == TSDB_FILL_NONE) {
     return;
   }
@@ -3603,7 +3294,7 @@ static void interp_function_impl(SqlFunctionCtx *pCtx) {
   } else if (type == TSDB_FILL_NULL) {
     setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
   } else if (type == TSDB_FILL_SET_VALUE) {
-    taosVariantDump(&pCtx->param[1], pCtx->pOutput, pCtx->inputType, true);
+//    taosVariantDump(&pCtx->param[1], pCtx->pOutput, pCtx->inputType, true);
   } else {
     if (pCtx->start.key != INT64_MIN && ((ascQuery && pCtx->start.key <= pCtx->startTs && pCtx->end.key >= pCtx->startTs) || ((!ascQuery) && pCtx->start.key >= pCtx->startTs && pCtx->end.key <= pCtx->startTs))) {
       if (type == TSDB_FILL_PREV) {
@@ -3628,7 +3319,7 @@ static void interp_function_impl(SqlFunctionCtx *pCtx) {
           if (isNull((char *)&pCtx->start.val, srcType) || isNull((char *)&pCtx->end.val, srcType)) {
             setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
           } else {
-            taosGetLinearInterpolationVal(&point, pCtx->resDataInfo.type, &point1, &point2, TSDB_DATA_TYPE_DOUBLE);
+//            taosGetLinearInterpolationVal(&point, pCtx->resDataInfo.type, &point1, &point2, TSDB_DATA_TYPE_DOUBLE);
           }
         } else {
           setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
@@ -3701,7 +3392,7 @@ static void interp_function_impl(SqlFunctionCtx *pCtx) {
           if (isNull(start, srcType) || isNull(end, srcType)) {
             setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
           } else {
-            taosGetLinearInterpolationVal(&point, pCtx->resDataInfo.type, &point1, &point2, srcType);
+//            taosGetLinearInterpolationVal(&point, pCtx->resDataInfo.type, &point1, &point2, srcType);
           }
         } else {
           setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
@@ -3775,11 +3466,11 @@ static void ts_comp_function(SqlFunctionCtx *pCtx) {
   
   // primary ts must be existed, so no need to check its existance
   if (pCtx->order == TSDB_ORDER_ASC) {
-    tsBufAppend(pTSbuf, (int32_t)pCtx->param[0].i, &pCtx->tag, input, pCtx->size * TSDB_KEYSIZE);
+//    tsBufAppend(pTSbuf, (int32_t)pCtx->param[0].param.i, &pCtx->tag, input, pCtx->size * TSDB_KEYSIZE);
   } else {
     for (int32_t i = pCtx->size - 1; i >= 0; --i) {
       char *d = GET_INPUT_DATA(pCtx, i);
-      tsBufAppend(pTSbuf, (int32_t)pCtx->param[0].i, &pCtx->tag, d, (int32_t)TSDB_KEYSIZE);
+//      tsBufAppend(pTSbuf, (int32_t)pCtx->param[0].param.i, &pCtx->tag, d, (int32_t)TSDB_KEYSIZE);
     }
   }
   
@@ -3931,7 +3622,7 @@ static void rate_finalizer(SqlFunctionCtx *pCtx) {
     return;
   }
   
-  SET_DOUBLE_VAL((double*) pCtx->pOutput, do_calc_rate(pRateInfo, (double) TSDB_TICK_PER_SECOND(pCtx->param[0].i)));
+//  SET_DOUBLE_VAL((double*) pCtx->pOutput, do_calc_rate(pRateInfo, (double) TSDB_TICK_PER_SECOND(pCtx->param[0].param.i)));
 
   // cannot set the numOfIteratedElems again since it is set during previous iteration
   pResInfo->numOfRes  = 1;
@@ -3984,7 +3675,7 @@ static void irate_function(SqlFunctionCtx *pCtx) {
   }
 }
 
-static void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDist) {
+static void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDistInfo* pDist) {
   SBufferReader br = tbufInitReader(data, len, false);
 
   pDist->numOfTables = tbufReadUint32(&br);
@@ -3993,7 +3684,7 @@ static void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDi
   pDist->totalRows   = tbufReadUint64(&br);
   pDist->maxRows     = tbufReadInt32(&br);
   pDist->minRows     = tbufReadInt32(&br);
-  pDist->numOfRowsInMemTable = tbufReadUint32(&br);
+  pDist->numOfInmemRows = tbufReadUint32(&br);
   pDist->numOfSmallBlocks = tbufReadUint32(&br);
   int64_t numSteps = tbufReadUint64(&br);
 
@@ -4024,11 +3715,11 @@ static void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDi
 
 static void blockInfo_func(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-  STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
+  STableBlockDistInfo* pDist = (STableBlockDistInfo*) GET_ROWCELL_INTERBUF(pResInfo);
 
   int32_t len = *(int32_t*) pCtx->pInput;
   blockDistInfoFromBinary((char*)pCtx->pInput + sizeof(int32_t), len, pDist);
-  pDist->rowSize = (uint16_t)pCtx->param[0].i;
+//  pDist->rowSize = (uint16_t)pCtx->param[0].param.i;
 
   memcpy(pCtx->pOutput, pCtx->pInput, sizeof(int32_t) + len);
 
@@ -4036,12 +3727,12 @@ static void blockInfo_func(SqlFunctionCtx* pCtx) {
   //pResInfo->hasResult = DATA_SET_FLAG;
 }
 
-static void mergeTableBlockDist(SResultRowEntryInfo* pResInfo, const STableBlockDist* pSrc) {
-  STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
+static void mergeTableBlockDist(SResultRowEntryInfo* pResInfo, const STableBlockDistInfo* pSrc) {
+  STableBlockDistInfo* pDist = (STableBlockDistInfo*) GET_ROWCELL_INTERBUF(pResInfo);
   assert(pDist != NULL && pSrc != NULL);
 
   pDist->numOfTables += pSrc->numOfTables;
-  pDist->numOfRowsInMemTable += pSrc->numOfRowsInMemTable;
+  pDist->numOfInmemRows += pSrc->numOfInmemRows;
   pDist->numOfSmallBlocks += pSrc->numOfSmallBlocks;
   pDist->numOfFiles += pSrc->numOfFiles;
   pDist->totalSize += pSrc->totalSize;
@@ -4054,8 +3745,8 @@ static void mergeTableBlockDist(SResultRowEntryInfo* pResInfo, const STableBlock
     pDist->maxRows = pSrc->maxRows;
     pDist->minRows = pSrc->minRows;
 
-    int32_t maxSteps = TSDB_MAX_MAX_ROW_FBLOCK/TSDB_BLOCK_DIST_STEP_ROWS;
-    if (TSDB_MAX_MAX_ROW_FBLOCK % TSDB_BLOCK_DIST_STEP_ROWS != 0) {
+    int32_t maxSteps = TSDB_MAX_MAXROWS_FBLOCK/TSDB_BLOCK_DIST_STEP_ROWS;
+    if (TSDB_MAX_MAXROWS_FBLOCK % TSDB_BLOCK_DIST_STEP_ROWS != 0) {
       ++maxSteps;
     }
     pDist->dataBlockInfos = taosArrayInit(maxSteps, sizeof(SFileBlockInfo));
@@ -4071,7 +3762,7 @@ static void mergeTableBlockDist(SResultRowEntryInfo* pResInfo, const STableBlock
 }
 
 void block_func_merge(SqlFunctionCtx* pCtx) {
-  STableBlockDist info = {0};
+  STableBlockDistInfo info = {0};
   int32_t len = *(int32_t*) pCtx->pInput;
   blockDistInfoFromBinary(((char*)pCtx->pInput) + sizeof(int32_t), len, &info);
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
@@ -4082,7 +3773,7 @@ void block_func_merge(SqlFunctionCtx* pCtx) {
   //pResInfo->hasResult = DATA_SET_FLAG;
 }
 
-void getPercentiles(STableBlockDist *pTableBlockDist, int64_t totalBlocks, int32_t numOfPercents,
+void getPercentiles(STableBlockDistInfo *pTableBlockDist, int64_t totalBlocks, int32_t numOfPercents,
                     double* percents, int32_t* percentiles) {
   if (totalBlocks == 0) {
     for (int32_t i = 0; i < numOfPercents; ++i) {
@@ -4117,7 +3808,7 @@ void getPercentiles(STableBlockDist *pTableBlockDist, int64_t totalBlocks, int32
   }
 }
 
-void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
+void generateBlockDistResult(STableBlockDistInfo *pTableBlockDist, char* result) {
   if (pTableBlockDist == NULL) {
     return;
   }
@@ -4171,16 +3862,16 @@ void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
                    percentiles[6], percentiles[7], percentiles[8], percentiles[9], percentiles[10], percentiles[11],
                    min, max, avg, stdDev,
                    totalRows, totalBlocks, smallBlocks, totalLen/1024.0, compRatio,
-                   pTableBlockDist->numOfRowsInMemTable);
+                   pTableBlockDist->numOfInmemRows);
   varDataSetLen(result, sz);
   UNUSED(sz);
 }
 
 void blockinfo_func_finalizer(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-  STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
+  STableBlockDistInfo* pDist = (STableBlockDistInfo*) GET_ROWCELL_INTERBUF(pResInfo);
 
-  pDist->rowSize = (uint16_t)pCtx->param[0].i;
+//  pDist->rowSize = (uint16_t)pCtx->param[0].param.i;
   generateBlockDistResult(pDist, pCtx->pOutput);
 
   if (pDist->dataBlockInfos != NULL) {
@@ -4216,460 +3907,4 @@ int32_t functionCompatList[] = {
     // tid_tag, derivative, blk_info
     6,          8,        7,
 };
-
-SAggFunctionInfo aggFunc[35] = {{
-                              // 0, count function does not invoke the finalize function
-                              "count",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_COUNT,
-                              FUNCTION_COUNT,
-                              BASIC_FUNC_SO,
-                              function_setup,
-                              count_function,
-                              doFinalizer,
-                              count_func_merge,
-                              countRequired,
-                          },
-                          {
-                              // 1
-                              "sum",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_SUM,
-                              FUNCTION_SUM,
-                              BASIC_FUNC_SO,
-                              function_setup,
-                              sum_function,
-                              function_finalizer,
-                              sum_func_merge,
-                              statisRequired,
-                          },
-                          {
-                              // 2
-                              "avg",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_AVG,
-                              FUNCTION_AVG,
-                              BASIC_FUNC_SO,
-                              function_setup,
-                              avg_function,
-                              avg_finalizer,
-                              avg_func_merge,
-                              statisRequired,
-                          },
-                          {
-                              // 3
-                              "min",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_MIN,
-                              FUNCTION_MIN,
-                              BASIC_FUNC_SO | FUNCSTATE_SELECTIVITY,
-                              min_func_setup,
-                              NULL,
-                              function_finalizer,
-                              min_func_merge,
-                              statisRequired,
-                          },
-                          {
-                              // 4
-                              "max",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_MAX,
-                              FUNCTION_MAX,
-                              BASIC_FUNC_SO | FUNCSTATE_SELECTIVITY,
-                              max_func_setup,
-                              NULL,
-                              function_finalizer,
-                              max_func_merge,
-                              statisRequired,
-                          },
-                          {
-                              // 5
-                              "stddev",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_STDDEV,
-                              FUNCTION_STDDEV_DST,
-                              FUNCSTATE_SO | FUNCSTATE_STREAM,
-                              function_setup,
-                              stddev_function,
-                              stddev_finalizer,
-                              noop1,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 6
-                              "percentile",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_PERCT,
-                              FUNCTION_INVALID_ID,
-                              FUNCSTATE_SO | FUNCSTATE_STREAM,
-                              percentile_function_setup,
-                              percentile_function,
-                              percentile_finalizer,
-                              noop1,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 7
-                              "apercentile",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_APERCT,
-                              FUNCTION_APERCT,
-                              FUNCSTATE_SO | FUNCSTATE_STREAM | FUNCSTATE_STABLE,
-                              apercentile_function_setup,
-                              apercentile_function,
-                              apercentile_finalizer,
-                              apercentile_func_merge,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 8
-                              "first",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_FIRST,
-                              FUNCTION_FIRST_DST,
-                              BASIC_FUNC_SO | FUNCSTATE_SELECTIVITY,
-                              function_setup,
-                              first_function,
-                              function_finalizer,
-                              noop1,
-                              firstFuncRequired,
-                          },
-                          {
-                              // 9
-                              "last",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_LAST,
-                              FUNCTION_LAST_DST,
-                              BASIC_FUNC_SO | FUNCSTATE_SELECTIVITY,
-                              function_setup,
-                              last_function,
-                              function_finalizer,
-                              noop1,
-                              lastFuncRequired,
-                          },
-                          {
-                              // 10
-                              "last_row",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_LAST_ROW,
-                              FUNCTION_LAST_ROW,
-                              FUNCSTATE_SO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                              first_last_function_setup,
-                              last_row_function,
-                              last_row_finalizer,
-                              last_dist_func_merge,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 11
-                              "top",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_TOP,
-                              FUNCTION_TOP,
-                              FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                              top_bottom_function_setup,
-                              top_function,
-                              top_bottom_func_finalizer,
-                              top_func_merge,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 12
-                              "bottom",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_BOTTOM,
-                              FUNCTION_BOTTOM,
-                              FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                              top_bottom_function_setup,
-                              bottom_function,
-                              top_bottom_func_finalizer,
-                              bottom_func_merge,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 13
-                              "spread",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_SPREAD,
-                              FUNCTION_SPREAD,
-                              BASIC_FUNC_SO,
-                              spread_function_setup,
-                              spread_function,
-                              spread_function_finalizer,
-                              spread_func_merge,
-                              countRequired,
-                          },
-                          {
-                              // 14
-                              "twa",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_TWA,
-                              FUNCTION_TWA,
-                              BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
-                              twa_function_setup,
-                              twa_function,
-                              twa_function_finalizer,
-                              twa_function_copy,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 15
-                              "leastsquares",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_LEASTSQR,
-                              FUNCTION_INVALID_ID,
-                              FUNCSTATE_SO | FUNCSTATE_STREAM,
-                              leastsquares_function_setup,
-                              leastsquares_function,
-                              leastsquares_finalizer,
-                              noop1,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 16
-                              "dummy",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_TS,
-                              FUNCTION_TS,
-                              BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
-                              function_setup,
-                              date_col_output_function,
-                              doFinalizer,
-                              copy_function,
-                              noDataRequired,
-                          },
-                          {
-                              // 17
-                              "ts",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_TS_DUMMY,
-                              FUNCTION_TS_DUMMY,
-                              BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
-                              function_setup,
-                              noop1,
-                              doFinalizer,
-                              copy_function,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 18
-                              "tag_dummy",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_TAG_DUMMY,
-                              FUNCTION_TAG_DUMMY,
-                              BASIC_FUNC_SO,
-                              function_setup,
-                              tag_function,
-                              doFinalizer,
-                              copy_function,
-                              noDataRequired,
-                          },
-                          {
-                              // 19
-                              "ts",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_TS_COMP,
-                              FUNCTION_TS_COMP,
-                              FUNCSTATE_MO | FUNCSTATE_NEED_TS,
-                              ts_comp_function_setup,
-                              ts_comp_function,
-                              ts_comp_finalize,
-                              copy_function,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 20
-                              "tag",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_TAG,
-                              FUNCTION_TAG,
-                              BASIC_FUNC_SO,
-                              function_setup,
-                              tag_function,
-                              doFinalizer,
-                              copy_function,
-                              noDataRequired,
-                          },
-                          {//TODO this is a scala function
-                              // 21, column project sql function
-                              "colprj",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_PRJ,
-                              FUNCTION_PRJ,
-                              BASIC_FUNC_MO | FUNCSTATE_NEED_TS,
-                              function_setup,
-                              col_project_function,
-                              doFinalizer,
-                              copy_function,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 22, multi-output, tag function has only one result
-                              "tagprj",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_TAGPRJ,
-                              FUNCTION_TAGPRJ,
-                              BASIC_FUNC_MO,
-                              function_setup,
-                              tag_project_function,
-                              doFinalizer,
-                              copy_function,
-                              noDataRequired,
-                          },
-                          {
-                              // 23
-                              "arithmetic",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_ARITHM,
-                              FUNCTION_ARITHM,
-                              FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS,
-                              function_setup,
-                              arithmetic_function,
-                              doFinalizer,
-                              copy_function,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 24
-                              "diff",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_DIFF,
-                              FUNCTION_INVALID_ID,
-                              FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                              diff_function_setup,
-                              diff_function,
-                              doFinalizer,
-                              noop1,
-                              dataBlockRequired,
-                          },
-    // distributed version used in two-stage aggregation processes
-                          {
-                              // 25
-                              "first_dist",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_FIRST_DST,
-                              FUNCTION_FIRST_DST,
-                              BASIC_FUNC_SO | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                              first_last_function_setup,
-                              first_dist_function,
-                              function_finalizer,
-                              first_dist_func_merge,
-                              firstDistFuncRequired,
-                          },
-                          {
-                              // 26
-                              "last_dist",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_LAST_DST,
-                              FUNCTION_LAST_DST,
-                              BASIC_FUNC_SO | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                              first_last_function_setup,
-                              last_dist_function,
-                              function_finalizer,
-                              last_dist_func_merge,
-                              lastDistFuncRequired,
-                          },
-                          {
-                              // 27
-                              "stddev",   // return table id and the corresponding tags for join match and subscribe
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_STDDEV_DST,
-                              FUNCTION_AVG,
-                              FUNCSTATE_SO | FUNCSTATE_STABLE,
-                              function_setup,
-                              stddev_dst_function,
-                              stddev_dst_finalizer,
-                              stddev_dst_merge,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 28
-                              "interp",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_INTERP,
-                              FUNCTION_INTERP,
-                              FUNCSTATE_SO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS ,
-                              function_setup,
-                              interp_function,
-                              doFinalizer,
-                              copy_function,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 29
-                              "rate",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_RATE,
-                              FUNCTION_RATE,
-                              BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
-                              rate_function_setup,
-                              rate_function,
-                              rate_finalizer,
-                              rate_func_copy,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 30
-                              "irate",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_IRATE,
-                              FUNCTION_IRATE,
-                              BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
-                              rate_function_setup,
-                              irate_function,
-                              rate_finalizer,
-                              rate_func_copy,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 31
-                              "tbid",   // return table id and the corresponding tags for join match and subscribe
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_TID_TAG,
-                              FUNCTION_TID_TAG,
-                              FUNCSTATE_MO | FUNCSTATE_STABLE,
-                              function_setup,
-                              noop1,
-                              noop1,
-                              noop1,
-                              dataBlockRequired,
-                          },
-                          {   //32
-                              "derivative",   // return table id and the corresponding tags for join match and subscribe
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_DERIVATIVE,
-                              FUNCTION_INVALID_ID,
-                              FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                              deriv_function_setup,
-                              deriv_function,
-                              doFinalizer,
-                              noop1,
-                              dataBlockRequired,
-                          },
-                          {
-                                // 33
-                              "block_dist",   // return table id and the corresponding tags for join match and subscribe
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_BLKINFO,
-                              FUNCTION_BLKINFO,
-                              FUNCSTATE_SO | FUNCSTATE_STABLE,
-                              function_setup,
-                              blockInfo_func,
-                              blockinfo_func_finalizer,
-                              block_func_merge,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 34
-                              "cov",   // return table id and the corresponding tags for join match and subscribe
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_COV,
-                              FUNCTION_COV,
-                              FUNCSTATE_SO | FUNCSTATE_STABLE,
-                              function_setup,
-                              sum_function,
-                              function_finalizer,
-                              sum_func_merge,
-                              statisRequired,
-                          }
-                          };
+#endif

@@ -1,11 +1,11 @@
-aux_source_directory(. ACCT_SRC)
-add_executable(mnode_test_acct ${ACCT_SRC})
+aux_source_directory(. MNODE_ACCT_TEST_SRC)
+add_executable(acctTest ${MNODE_ACCT_TEST_SRC})
 target_link_libraries(
-    mnode_test_acct
+    acctTest
     PUBLIC sut
 )
 
 add_test(
-    NAME mnode_test_acct
-    COMMAND mnode_test_acct
+    NAME acctTest
+    COMMAND acctTest
 )

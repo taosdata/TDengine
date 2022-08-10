@@ -13,199 +13,94 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_DEF_H_
-#define _TD_VNODE_DEF_H_
+#ifndef _TD_VND_H_
+#define _TD_VND_H_
 
-#include "tmallocator.h"
-// #include "sync.h"
-#include "tcoding.h"
-#include "tdatablock.h"
-#include "tfs.h"
-#include "tlist.h"
-#include "tlockfree.h"
-#include "tmacro.h"
-#include "vnode.h"
-#include "vnodeQuery.h"
-#include "wal.h"
+#include "sync.h"
+#include "syncTools.h"
+#include "ttrace.h"
+#include "vnodeInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct STQ STQ;
+// clang-format off
+#define vFatal(...) do { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
+#define vError(...) do { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
+#define vWarn(...)  do { if (vDebugFlag & DEBUG_WARN)  { taosPrintLog("VND WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
+#define vInfo(...)  do { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
+#define vDebug(...) do { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND ", DEBUG_DEBUG, vDebugFlag, __VA_ARGS__); }}    while(0)
+#define vTrace(...) do { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", DEBUG_TRACE, vDebugFlag, __VA_ARGS__); }}    while(0)
 
-typedef struct SVState   SVState;
-typedef struct SVBufPool SVBufPool;
+#define vGTrace(param, ...) do { if (vDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vTrace(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
+#define vGFatal(param, ...) do { if (vDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vFatal(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
+#define vGError(param, ...) do { if (vDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vError(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
+#define vGWarn(param, ...)  do { if (vDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vWarn(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
+#define vGInfo(param, ...)  do { if (vDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vInfo(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
+#define vGDebug(param, ...) do { if (vDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vDebug(param ", gtid:%s", __VA_ARGS__, buf);}}    while(0)
 
-typedef struct SVnodeTask {
-  TD_DLIST_NODE(SVnodeTask);
-  void* arg;
-  int (*execute)(void*);
-} SVnodeTask;
+// clang-format on
 
-typedef struct SVnodeMgr {
-  td_mode_flag_t vnodeInitFlag;
-  // For commit
-  bool          stop;
-  uint16_t      nthreads;
-  TdThread*     threads;
-  TdThreadMutex mutex;
-  TdThreadCond  hasTask;
-  TD_DLIST(SVnodeTask) queue;
-} SVnodeMgr;
+// vnodeCfg.c
+extern const SVnodeCfg vnodeCfgDefault;
 
-typedef struct {
-  int8_t  streamType;  // sma or other
-  int8_t  dstType;
-  int16_t padding;
-  int32_t smaId;
-  int64_t tbUid;
-  int64_t lastReceivedVer;
-  int64_t lastCommittedVer;
-} SStreamSinkInfo;
+int32_t vnodeCheckCfg(const SVnodeCfg*);
+int32_t vnodeEncodeConfig(const void* pObj, SJson* pJson);
+int32_t vnodeDecodeConfig(const SJson* pJson, void* pObj);
 
-typedef struct {
-  SVnode*   pVnode;
-  SHashObj* pHash;  // streamId -> SStreamSinkInfo
-} SSink;
+// vnodeModule.c
+int32_t vnodeScheduleTask(int32_t (*execute)(void*), void* arg);
 
-extern SVnodeMgr vnodeMgr;
-
-// SVState
-struct SVState {
-  int64_t processed;
-  int64_t committed;
-  int64_t applied;
+// vnodeBufPool.c
+typedef struct SVBufPoolNode SVBufPoolNode;
+struct SVBufPoolNode {
+  SVBufPoolNode*  prev;
+  SVBufPoolNode** pnext;
+  int64_t         size;
+  uint8_t         data[];
 };
 
-struct SVnode {
-  int32_t    vgId;
-  char*      path;
-  SVnodeCfg  config;
-  SVState    state;
-  SVBufPool* pBufPool;
-  SMeta*     pMeta;
-  STsdb*     pTsdb;
-  SWal*      pWal;
-  STQ*       pTq;
-  SSink*     pSink;
-  tsem_t     canCommit;
-  SQHandle*  pQuery;
-  SMsgCb     msgCb;
-  STfs*      pTfs;
+struct SVBufPool {
+  SVBufPool*       next;
+  SVnode*          pVnode;
+  volatile int32_t nRef;
+  int64_t          size;
+  uint8_t*         ptr;
+  SVBufPoolNode*   pTail;
+  SVBufPoolNode    node;
 };
 
-int vnodeScheduleTask(SVnodeTask* task);
+int32_t vnodeOpenBufPool(SVnode* pVnode, int64_t size);
+int32_t vnodeCloseBufPool(SVnode* pVnode);
+void    vnodeBufPoolReset(SVBufPool* pPool);
 
-#define vFatal(...)                                              \
-  do {                                                           \
-    if (vDebugFlag & DEBUG_FATAL) {                              \
-      taosPrintLog("VND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); \
-    }                                                            \
-  } while (0)
-#define vError(...)                                              \
-  do {                                                           \
-    if (vDebugFlag & DEBUG_ERROR) {                              \
-      taosPrintLog("VND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); \
-    }                                                            \
-  } while (0)
-#define vWarn(...)                                             \
-  do {                                                         \
-    if (vDebugFlag & DEBUG_WARN) {                             \
-      taosPrintLog("VND WARN ", DEBUG_WARN, 255, __VA_ARGS__); \
-    }                                                          \
-  } while (0)
-#define vInfo(...)                                        \
-  do {                                                    \
-    if (vDebugFlag & DEBUG_INFO) {                        \
-      taosPrintLog("VND ", DEBUG_INFO, 255, __VA_ARGS__); \
-    }                                                     \
-  } while (0)
-#define vDebug(...)                                                  \
-  do {                                                               \
-    if (vDebugFlag & DEBUG_DEBUG) {                                  \
-      taosPrintLog("VND ", DEBUG_DEBUG, tsdbDebugFlag, __VA_ARGS__); \
-    }                                                                \
-  } while (0)
-#define vTrace(...)                                                  \
-  do {                                                               \
-    if (vDebugFlag & DEBUG_TRACE) {                                  \
-      taosPrintLog("VND ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); \
-    }                                                                \
-  } while (0)
+// vnodeQuery.c
+int32_t vnodeQueryOpen(SVnode* pVnode);
+void    vnodeQueryClose(SVnode* pVnode);
+int32_t vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
+int     vnodeGetTableCfg(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
+int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg);
 
-// vnodeCfg.h
-extern const SVnodeCfg defaultVnodeOptions;
+// vnodeCommit.c
+int32_t vnodeBegin(SVnode* pVnode);
+int32_t vnodeShouldCommit(SVnode* pVnode);
+int32_t vnodeCommit(SVnode* pVnode);
+int32_t vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
+int32_t vnodeCommitInfo(const char* dir, const SVnodeInfo* pInfo);
+int32_t vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);
+int32_t vnodeSyncCommit(SVnode* pVnode);
+int32_t vnodeAsyncCommit(SVnode* pVnode);
 
-int  vnodeValidateOptions(const SVnodeCfg*);
-void vnodeOptionsCopy(SVnodeCfg* pDest, const SVnodeCfg* pSrc);
-
-// For commit
-#define vnodeShouldCommit vnodeBufPoolIsFull
-int vnodeSyncCommit(SVnode* pVnode);
-int vnodeAsyncCommit(SVnode* pVnode);
-
-// SVBufPool
-
-int   vnodeOpenBufPool(SVnode* pVnode);
-void  vnodeCloseBufPool(SVnode* pVnode);
-int   vnodeBufPoolSwitch(SVnode* pVnode);
-int   vnodeBufPoolRecycle(SVnode* pVnode);
-void* vnodeMalloc(SVnode* pVnode, uint64_t size);
-bool  vnodeBufPoolIsFull(SVnode* pVnode);
-
-SMemAllocatorFactory* vBufPoolGetMAF(SVnode* pVnode);
-
-// SVMemAllocator
-typedef struct SVArenaNode {
-  TD_SLIST_NODE(SVArenaNode);
-  uint64_t size;  // current node size
-  void*    ptr;
-  char     data[];
-} SVArenaNode;
-
-typedef struct SVMemAllocator {
-  T_REF_DECLARE()
-  TD_DLIST_NODE(SVMemAllocator);
-  uint64_t     capacity;
-  uint64_t     ssize;
-  uint64_t     lsize;
-  SVArenaNode* pNode;
-  TD_SLIST(SVArenaNode) nlist;
-} SVMemAllocator;
-
-SVMemAllocator* vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize);
-void            vmaDestroy(SVMemAllocator* pVMA);
-void            vmaReset(SVMemAllocator* pVMA);
-void*           vmaMalloc(SVMemAllocator* pVMA, uint64_t size);
-void            vmaFree(SVMemAllocator* pVMA, void* ptr);
-bool            vmaIsFull(SVMemAllocator* pVMA);
-
-// init once
-int  tqInit();
-void tqCleanUp();
-
-// open in each vnode
-STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pMeta, STqCfg* tqConfig,
-            SMemAllocatorFactory* allocFac);
-void tqClose(STQ*);
-
-// required by vnode
-int tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t version);
-int tqCommit(STQ*);
-
-int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
-int32_t tqProcessRebReq(STQ* pTq, char* msg);
-int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId);
-int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t workerId);
-
-// sma
-void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
+// vnodeSync.c
+int32_t vnodeSyncOpen(SVnode* pVnode, char* path);
+void    vnodeSyncStart(SVnode* pVnode);
+void    vnodeSyncClose(SVnode* pVnode);
+void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg);
+bool    vnodeIsLeader(SVnode* pVnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_VNODE_DEF_H_*/
+#endif /*_TD_VND_H_*/

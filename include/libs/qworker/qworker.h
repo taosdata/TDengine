@@ -20,9 +20,9 @@
 extern "C" {
 #endif
 
+#include "executor.h"
 #include "tmsgcb.h"
 #include "trpc.h"
-
 
 enum {
   NODE_TYPE_VNODE = 1,
@@ -31,8 +31,6 @@ enum {
   NODE_TYPE_MNODE,
 };
 
-
-
 typedef struct SQWorkerCfg {
   uint32_t maxSchedulerNum;
   uint32_t maxTaskNum;
@@ -40,43 +38,48 @@ typedef struct SQWorkerCfg {
 } SQWorkerCfg;
 
 typedef struct {
-  uint64_t numOfStartTask;
-  uint64_t numOfStopTask;
-  uint64_t numOfRecvedFetch;
-  uint64_t numOfSentHb;
-  uint64_t numOfSentFetch;
-  uint64_t numOfTaskInQueue;
+  uint64_t cacheDataSize;
+
+  uint64_t queryProcessed;
+  uint64_t cqueryProcessed;
+  uint64_t fetchProcessed;
+  uint64_t dropProcessed;
+  uint64_t hbProcessed;
+  uint64_t deleteProcessed;
+
+  uint64_t numOfQueryInQueue;
   uint64_t numOfFetchInQueue;
+  uint64_t timeInQueryQueue;
+  uint64_t timeInFetchQueue;
+
   uint64_t numOfErrors;
 } SQWorkerStat;
 
 int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, const SMsgCb *pMsgCb);
 
-int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
+int32_t qWorkerAbortPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg);
 
-int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
+int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg);
 
-int32_t qWorkerProcessDataSinkMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
+int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
-int32_t qWorkerProcessReadyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
+int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
-int32_t qWorkerProcessStatusMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
+int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
-int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
+int32_t qWorkerProcessRspMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
-int32_t qWorkerProcessFetchRsp(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
+int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
-int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
+int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
-int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
+int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
-int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
-
-int32_t qWorkerProcessShowMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
-
-int32_t qWorkerProcessShowFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
+int32_t qWorkerProcessDeleteMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SDeleteRes *pRes);
 
 void qWorkerDestroy(void **qWorkerMgmt);
+
+int32_t qWorkerGetStat(SReadHandle *handle, void *qWorkerMgmt, SQWorkerStat *pStat);
 
 #ifdef __cplusplus
 }

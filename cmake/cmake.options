@@ -25,17 +25,94 @@ IF(${TD_WINDOWS})
             ON
           )
 
-ENDIF ()
+    MESSAGE("build msvcregex Win32")
+    option(
+            BUILD_MSVCREGEX
+            "If build msvcregex on Windows"
+            ON
+          )
 
-IF(${TD_LINUX} MATCHES TRUE)
+    MESSAGE("build wcwidth Win32")
+    option(
+            BUILD_WCWIDTH
+            "If build wcwidth on Windows"
+            ON
+          )
+
+    MESSAGE("build wingetopt Win32")
+    option(
+            BUILD_WINGETOPT 
+                "If build wingetopt on Windows"
+            ON
+        )
+
+    option(
+            BUILD_TEST 
+            "If build unit tests using googletest" 
+            ON
+        )
+    
+    option(
+            TDENGINE_3
+            "TDengine 3.x for taos-tools"
+            ON
+        )
+    
+    option(
+            BUILD_CRASHDUMP
+            "If build crashdump on Windows" 
+            ON
+        )
+
+ELSEIF (TD_DARWIN_64)
+    add_definitions(-DCOMPILER_SUPPORTS_CXX13)
+    option(
+        BUILD_TEST
+        "If build unit tests using googletest"
+        ON
+    )
+ELSE ()
+    include(CheckCXXCompilerFlag)
+    CHECK_CXX_COMPILER_FLAG("-std=c++13" COMPILER_SUPPORTS_CXX13)
+    IF(${COMPILER_SUPPORTS_CXX13})
+        add_definitions(-DCOMPILER_SUPPORTS_CXX13)
+        option(
+            BUILD_TEST
+            "If build unit tests using googletest"
+            ON
+        )
+    ELSE ()
+        option(
+            BUILD_TEST
+            "If build unit tests using googletest"
+            OFF
+        )
+    ENDIF ()
+ENDIF ()
 
 option(
-    BUILD_TEST 
-    "If build unit tests using googletest" 
+    RUST_BINDINGS
+    "If build with rust-bindings"
     ON
-)
+    )
 
-ENDIF ()
+option(
+    JEMALLOC_ENABLED
+    "If build with jemalloc"
+    OFF
+    )
+
+option(
+    BUILD_SANITIZER
+    "If build sanitizer"
+    OFF
+    )
+
+option(
+    BUILD_ADDR2LINE
+    "If build addr2line"
+    OFF
+    )
 
 option(
     BUILD_WITH_LEVELDB 
@@ -55,16 +132,11 @@ option(
     OFF
 )
 
-IF(${TD_WINDOWS})
-    MESSAGE("Not build BDB on Windows")
-ELSE ()
-    option(
-            BUILD_WITH_BDB
-            "If build with BerkleyDB"
-            ON
-          )
-
-ENDIF ()
+option(
+    BUILD_WITH_BDB
+    "If build with BDB" 
+    OFF
+)
 
 option(
     BUILD_WITH_LUCENE 
@@ -91,18 +163,6 @@ option(
     ON 
 )
 
-option(
-    BUILD_WITH_CRAFT
-    "If build with canonical-raft"
-    OFF
-)
-
-option(
-    BUILD_WITH_TRAFT
-    "If build with traft"
-    OFF
-)
-
 IF(${TD_LINUX} MATCHES TRUE)
 
 option(
@@ -124,3 +184,4 @@ option(
    "If use invertedIndex" 
    ON 
 )
+

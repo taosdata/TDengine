@@ -22,9 +22,10 @@
 extern "C" {
 #endif
 
-typedef struct SRpcMsg      SRpcMsg;
-typedef struct SEpSet       SEpSet;
-typedef struct SMgmtWrapper SMgmtWrapper;
+typedef struct SRpcMsg        SRpcMsg;
+typedef struct SEpSet         SEpSet;
+typedef struct SMgmtWrapper   SMgmtWrapper;
+typedef struct SRpcHandleInfo SRpcHandleInfo;
 
 typedef enum {
   QUERY_QUEUE,
@@ -33,37 +34,41 @@ typedef enum {
   WRITE_QUEUE,
   APPLY_QUEUE,
   SYNC_QUEUE,
-  MERGE_QUEUE,
+  STREAM_QUEUE,
   QUEUE_MAX,
 } EQueueType;
 
-typedef int32_t (*PutToQueueFp)(SMgmtWrapper* pWrapper, SRpcMsg* pReq);
-typedef int32_t (*GetQueueSizeFp)(SMgmtWrapper* pWrapper, int32_t vgId, EQueueType qtype);
-typedef int32_t (*SendReqFp)(SMgmtWrapper* pWrapper, const SEpSet* epSet, SRpcMsg* pReq);
-typedef int32_t (*SendMnodeReqFp)(SMgmtWrapper* pWrapper, SRpcMsg* pReq);
-typedef void (*SendRspFp)(SMgmtWrapper* pWrapper, const SRpcMsg* pRsp);
-typedef void (*RegisterBrokenLinkArgFp)(SMgmtWrapper* pWrapper, SRpcMsg* pMsg);
-typedef void (*ReleaseHandleFp)(SMgmtWrapper* pWrapper, void* handle, int8_t type);
+typedef int32_t (*PutToQueueFp)(void* pMgmt, EQueueType qtype, SRpcMsg* pMsg);
+typedef int32_t (*GetQueueSizeFp)(void* pMgmt, int32_t vgId, EQueueType qtype);
+typedef int32_t (*SendReqFp)(const SEpSet* pEpSet, SRpcMsg* pMsg);
+typedef void (*SendRspFp)(SRpcMsg* pMsg);
+typedef void (*SendRedirectRspFp)(SRpcMsg* pMsg, const SEpSet* pNewEpSet);
+typedef void (*RegisterBrokenLinkArgFp)(SRpcMsg* pMsg);
+typedef void (*ReleaseHandleFp)(SRpcHandleInfo* pHandle, int8_t type);
+typedef void (*ReportStartup)(const char* name, const char* desc);
 
 typedef struct {
-  SMgmtWrapper*           pWrapper;
-  PutToQueueFp            queueFps[QUEUE_MAX];
+  void*                   mgmt;
+  void*                   clientRpc;
+  PutToQueueFp            putToQueueFp;
   GetQueueSizeFp          qsizeFp;
   SendReqFp               sendReqFp;
-  SendMnodeReqFp          sendMnodeReqFp;
   SendRspFp               sendRspFp;
+  SendRedirectRspFp       sendRedirectRspFp;
   RegisterBrokenLinkArgFp registerBrokenLinkArgFp;
   ReleaseHandleFp         releaseHandleFp;
+  ReportStartup           reportStartupFp;
 } SMsgCb;
 
-void    tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb);
-int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq);
-int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype);
-int32_t tmsgSendReq(const SMsgCb* pMsgCb, const SEpSet* epSet, SRpcMsg* pReq);
-int32_t tmsgSendMnodeReq(const SMsgCb* pMsgCb, SRpcMsg* pReq);
-void    tmsgSendRsp(const SRpcMsg* pRsp);
-void    tmsgRegisterBrokenLinkArg(const SMsgCb* pMsgCb, SRpcMsg* pMsg);
-void    tmsgReleaseHandle(void* handle, int8_t type);
+void    tmsgSetDefault(const SMsgCb* msgcb);
+int32_t tmsgPutToQueue(const SMsgCb* msgcb, EQueueType qtype, SRpcMsg* pMsg);
+int32_t tmsgGetQueueSize(const SMsgCb* msgcb, int32_t vgId, EQueueType qtype);
+int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg);
+void    tmsgSendRsp(SRpcMsg* pMsg);
+void    tmsgSendRedirectRsp(SRpcMsg* pMsg, const SEpSet* pNewEpSet);
+void    tmsgRegisterBrokenLinkArg(SRpcMsg* pMsg);
+void    tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type);
+void    tmsgReportStartup(const char* name, const char* desc);
 
 #ifdef __cplusplus
 }

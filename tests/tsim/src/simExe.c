@@ -18,11 +18,11 @@
 
 void simLogSql(char *sql, bool useSharp) {
   static TdFilePtr pFile = NULL;
-  char         filename[256];
+  char             filename[256];
   sprintf(filename, "%s/sim.sql", simScriptDir);
   if (pFile == NULL) {
     // fp = fopen(filename, "w");
-    pFile = taosOpenFile(filename, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+    pFile = taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
     if (pFile == NULL) {
       fprintf(stderr, "ERROR: failed to open file: %s\n", filename);
       return;
@@ -39,14 +39,62 @@ void simLogSql(char *sql, bool useSharp) {
 
 char *simParseArbitratorName(char *varName) {
   static char hostName[140];
+#ifdef WINDOWS
+  taosGetFqdn(hostName);
+  sprintf(&hostName[strlen(hostName)], ":%d", 8000);
+#else
   sprintf(hostName, "%s:%d", "localhost", 8000);
+#endif
   return hostName;
 }
 
 char *simParseHostName(char *varName) {
   static char hostName[140];
+#ifdef WINDOWS
+  hostName[0] = '\"';
+  taosGetFqdn(&hostName[1]);
+  int strEndIndex = strlen(hostName);
+  hostName[strEndIndex] = '\"';
+  hostName[strEndIndex + 1] = '\0';
+#else
   sprintf(hostName, "%s", "localhost");
+#endif
   return hostName;
+}
+
+static void simFindFirstNum(const char *begin, int32_t beginLen, int32_t *num) {
+  if (beginLen <= 5) {
+    *num = 0;
+  } else {
+    *num = atoi(begin + 5);
+  }
+}
+
+static void simFindSecondNum(const char *begin, int32_t beginLen, int32_t *num) {
+  const char *number = strstr(begin, "][");
+  if (number == NULL) {
+    *num = 0;
+  } else {
+    *num = atoi(number + 2);
+  }
+}
+
+static void simFindFirstKeyVal(const char *begin, int32_t beginLen, char *key, int32_t keyLen) {
+  key[0] = 0;
+  for (int32_t i = 5; i < beginLen && i - 5 < keyLen; ++i) {
+    if (begin[i] != 0 && begin[i] != ']' && begin[i] != ')') {
+      key[i - 5] = begin[i];
+    }
+  }
+}
+
+static void simFindSecondKeyNum(const char *begin, int32_t beginLen, int32_t *num) {
+  const char *number = strstr(begin, ")[");
+  if (number == NULL) {
+    *num = 0;
+  } else {
+    *num = atoi(number + 2);
+  }
 }
 
 char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
@@ -66,13 +114,40 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
 
   if (strncmp(varName, "system_content", varLen) == 0) return script->system_ret_content;
 
-  // variable like data2_192.168.0.1
   if (strncmp(varName, "data", 4) == 0) {
     if (varLen < 6) {
       return "null";
     }
 
-    if (varName[5] == '_') {
+    int32_t row = 0;
+    int32_t col = 0;
+    char    keyVal[1024] = {0};
+    int32_t keyLen = 1024;
+
+    if (varName[4] == '[') {
+      // $data[0][1]
+      simFindFirstNum(varName, varLen, &row);
+      simFindSecondNum(varName, varLen, &col);
+      if (row < 0 || row >= MAX_QUERY_ROW_NUM) {
+        return "null";
+      }
+      if (col < 0 || col >= MAX_QUERY_COL_NUM) {
+        return "null";
+      }
+      simDebug("script:%s, data[%d][%d]=%s", script->fileName, row, col, script->data[row][col]);
+      return script->data[row][col];
+    } else if (varName[4] == '(') {
+      // $data(db)[0]
+      simFindFirstKeyVal(varName, varLen, keyVal, keyLen);
+      simFindSecondKeyNum(varName, varLen, &col);
+      for (int32_t i = 0; i < MAX_QUERY_ROW_NUM; ++i) {
+        if (strncmp(keyVal, script->data[i][0], keyLen) == 0) {
+          simDebug("script:%s, keyName:%s, keyValue:%s", script->fileName, script->data[i][0], script->data[i][col]);
+          return script->data[i][col];
+        }
+      }
+    } else if (varName[5] == '_') {
+      // data2_db
       int32_t col = varName[4] - '0';
       if (col < 0 || col >= MAX_QUERY_COL_NUM) {
         return "null";
@@ -90,6 +165,7 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
       }
       return "null";
     } else if (varName[6] == '_') {
+      // data21_db
       int32_t col = (varName[4] - '0') * 10 + (varName[5] - '0');
       if (col < 0 || col >= MAX_QUERY_COL_NUM) {
         return "null";
@@ -107,6 +183,7 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
       }
       return "null";
     } else {
+      // $data00
       int32_t row = varName[4] - '0';
       int32_t col = varName[5] - '0';
       if (row < 0 || row >= MAX_QUERY_ROW_NUM) {
@@ -119,6 +196,8 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
       simDebug("script:%s, data[%d][%d]=%s", script->fileName, row, col, script->data[row][col]);
       return script->data[row][col];
     }
+
+    return "null";
   }
 
   for (int32_t i = 0; i < script->varLen; ++i) {
@@ -127,9 +206,6 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
       continue;
     }
     if (strncmp(varName, var->varName, varLen) == 0) {
-      // if (strlen(var->varValue) != 0)
-      //  simDebug("script:%s, var:%s, value:%s", script->fileName,
-      //  var->varName, var->varValue);
       return var->varValue;
     }
   }
@@ -305,37 +381,49 @@ bool simExecuteRunBackCmd(SScript *script, char *option) {
   return true;
 }
 
-void simReplaceShToBat(char *dst) {
-  char *sh = strstr(dst, ".sh");
-  if (sh != NULL) {
+bool simReplaceStr(char *buf, char *src, char *dst) {
+  bool  replaced = false;
+  char *begin = strstr(buf, src);
+  if (begin != NULL) {
+    int32_t srcLen = (int32_t)strlen(src);
     int32_t dstLen = (int32_t)strlen(dst);
-    char   *end = dst + dstLen;
-    *(end + 1) = 0;
+    int32_t interval = (dstLen - srcLen);
+    int32_t remainLen = (int32_t)strlen(buf);
+    char   *end = buf + remainLen;
+    *(end + interval) = 0;
 
-    for (char *p = end; p >= sh; p--) {
-      *(p + 1) = *p;
+    for (char *p = end; p >= begin; p--) {
+      *(p + interval) = *p;
     }
 
-    sh[0] = '.';
-    sh[1] = 'b';
-    sh[2] = 'a';
-    sh[3] = 't';
-    sh[4] = ' ';
+    memcpy(begin, dst, dstLen);
+    replaced = true;
   }
 
-  simDebug("system cmd is %s", dst);
+  simInfo("system cmd is %s", buf);
+  return replaced;
 }
 
 bool simExecuteSystemCmd(SScript *script, char *option) {
   char buf[4096] = {0};
+  bool replaced = false;
 
 #ifndef WINDOWS
   sprintf(buf, "cd %s; ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
 #else
-  sprintf(buf, "%s%s", simScriptDir, option);
-  simReplaceShToBat(buf);
+  sprintf(buf, "%s", simScriptDir);
+  simVisuallizeOption(script, option, buf + strlen(buf));
+  simReplaceStr(buf, ".sh", ".bat");
 #endif
+
+  if (useMultiProcess) {
+    simReplaceStr(buf, "deploy.sh", "deploy.sh -m");
+  }
+
+  if (useValgrind) {
+    replaced = simReplaceStr(buf, "exec.sh", "exec.sh -v");
+  }
 
   simLogSql(buf, true);
   int32_t code = system(buf);
@@ -352,6 +440,11 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
 
   sprintf(script->system_exit_code, "%d", code);
   script->linePos++;
+  if (replaced && strstr(buf, "start") != NULL) {
+    simInfo("====> startup is slow in valgrind mode, so sleep 5 seconds after exec.sh -s start");
+    taosMsleep(5000);
+  }
+
   return true;
 }
 
@@ -362,6 +455,12 @@ void simStoreSystemContentResult(SScript *script, char *filename) {
   // if ((fd = fopen(filename, "r")) != NULL) {
   if ((pFile = taosOpenFile(filename, TD_FILE_READ)) != NULL) {
     taosReadFile(pFile, script->system_ret_content, MAX_SYSTEM_RESULT_LEN - 1);
+    int32_t len = strlen(script->system_ret_content);
+    for (int32_t i = 0; i < len; ++i) {
+      if (script->system_ret_content[i] == '\n' || script->system_ret_content[i] == '\r') {
+        script->system_ret_content[i] = 0;
+      }
+    }
     taosCloseFile(&pFile);
     char rmCmd[MAX_FILE_NAME_LEN] = {0};
     sprintf(rmCmd, "rm -f %s", filename);
@@ -373,11 +472,17 @@ bool simExecuteSystemContentCmd(SScript *script, char *option) {
   char buf[4096] = {0};
   char buf1[4096 + 512] = {0};
   char filename[400] = {0};
-  sprintf(filename, "%s/%s.tmp", simScriptDir, script->fileName);
+  sprintf(filename, "%s" TD_DIRSEP "%s.tmp", simScriptDir, script->fileName);
 
+#ifdef WINDOWS
+  sprintf(buf, "cd %s && ", simScriptDir);
+  simVisuallizeOption(script, option, buf + strlen(buf));
+  sprintf(buf1, "%s > %s 2>nul", buf, filename);
+#else
   sprintf(buf, "cd %s; ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
   sprintf(buf1, "%s > %s 2>/dev/null", buf, filename);
+#endif
 
   sprintf(script->system_exit_code, "%d", system(buf1));
   simStoreSystemContentResult(script, filename);
@@ -530,7 +635,7 @@ bool simCreateTaosdConnect(SScript *script, char *rest) {
 bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
   char       timeStr[30] = {0};
   time_t     tt;
-  struct tm *tp;
+  struct tm  tp;
   SCmdLine  *line = &script->lines[script->linePos];
   int32_t    ret = -1;
 
@@ -663,20 +768,9 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               } else {
                 tt = (*(int64_t *)row[i]) / 1000000000;
               }
-              /* comment out as it make testcases like select_with_tags.sim fail.
-                but in windows, this may cause the call to localtime crash if tt < 0,
-                need to find a better solution.
-              if (tt < 0) {
-                tt = 0;
-              }
-              */
 
-#ifdef WINDOWS
-              if (tt < 0) tt = 0;
-#endif
-
-              tp = localtime(&tt);
-              strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", tp);
+              taosLocalTime(&tt, &tp);
+              strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", &tp);
               if (precision == TSDB_TIME_PRECISION_MILLI) {
                 sprintf(value, "%s.%03d", timeStr, (int32_t)(*((int64_t *)row[i]) % 1000));
               } else if (precision == TSDB_TIME_PRECISION_MICRO) {
@@ -767,10 +861,10 @@ bool simExecuteSqlSlowCmd(SScript *script, char *rest) {
 
 bool simExecuteRestfulCmd(SScript *script, char *rest) {
   TdFilePtr pFile = NULL;
-  char  filename[256];
+  char      filename[256];
   sprintf(filename, "%s/tmp.sql", simScriptDir);
   // fp = fopen(filename, "w");
-  pFile = taosOpenFile(filename, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+  pFile = taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
   if (pFile == NULL) {
     fprintf(stderr, "ERROR: failed to open file: %s\n", filename);
     return false;

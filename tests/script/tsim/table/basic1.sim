@@ -29,7 +29,7 @@ endi
 print =============== create database
 sql create database d1
 sql show databases
-if $rows != 5 then 
+if $rows != 6 then
   return -1
 endi
 
@@ -91,9 +91,9 @@ print =============== create normal table
 sql create database ndb
 sql use ndb
 sql create table nt0 (ts timestamp, i int)
-sql create table if not exists nt0 (ts timestamp, i int)
+# sql create table if not exists nt0 (ts timestamp, i int)
 sql create table nt1 (ts timestamp, i int)
-sql create table if not exists nt1 (ts timestamp, i int)
+# sql create table if not exists nt1 (ts timestamp, i int)
 sql create table if not exists nt3 (ts timestamp, i int)
 
 sql show tables
@@ -205,29 +205,13 @@ endi
 print =============== query data from st
 print ==============select * against super will cause crash.
 sql select ts from st
-if $rows != 21 then 
+if $rows != 21 then
+  print expect 21, actual $rows
   return -1
 endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
-
-$loop_cnt = 0
-check_dnode_ready:
-	$loop_cnt = $loop_cnt + 1
-	sleep 200
-	if $loop_cnt == 10 then
-	  print ====> dnode not ready!
-		return -1
-	endi
-sql show dnodes
-print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
-if $data00 != 1 then
-  return -1
-endi
-if $data04 != ready then
-  goto check_dnode_ready
-endi
 
 print =============== query data
 sql select * from c1

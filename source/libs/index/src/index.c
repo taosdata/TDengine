@@ -19,25 +19,56 @@
 #include "indexInt.h"
 #include "indexTfile.h"
 #include "indexUtil.h"
+#include "tcoding.h"
+#include "tdataformat.h"
 #include "tdef.h"
+#include "tref.h"
 #include "tsched.h"
 
 #ifdef USE_LUCENE
 #include "lucene++/Lucene_c.h"
 #endif
 
-#define INDEX_NUM_OF_THREADS 4
-#define INDEX_QUEUE_SIZE 200
+#define INDEX_NUM_OF_THREADS 5
+#define INDEX_QUEUE_SIZE     200
 
-void* indexQhandle = NULL;
+#define INDEX_DATA_BOOL_NULL      0x02
+#define INDEX_DATA_TINYINT_NULL   0x80
+#define INDEX_DATA_SMALLINT_NULL  0x8000
+#define INDEX_DATA_INT_NULL       0x80000000LL
+#define INDEX_DATA_BIGINT_NULL    0x8000000000000000LL
+#define INDEX_DATA_TIMESTAMP_NULL TSDB_DATA_BIGINT_NULL
+
+#define INDEX_DATA_FLOAT_NULL    0x7FF00000            // it is an NAN
+#define INDEX_DATA_DOUBLE_NULL   0x7FFFFF0000000000LL  // an NAN
+#define INDEX_DATA_NCHAR_NULL    0xFFFFFFFF
+#define INDEX_DATA_BINARY_NULL   0xFF
+#define INDEX_DATA_JSON_NULL     0xFFFFFFFF
+#define INDEX_DATA_JSON_null     0xFFFFFFFE
+#define INDEX_DATA_JSON_NOT_NULL 0x01
+
+#define INDEX_DATA_UTINYINT_NULL  0xFF
+#define INDEX_DATA_USMALLINT_NULL 0xFFFF
+#define INDEX_DATA_UINT_NULL      0xFFFFFFFF
+#define INDEX_DATA_UBIGINT_NULL   0xFFFFFFFFFFFFFFFFL
+
+#define INDEX_DATA_NULL_STR   "NULL"
+#define INDEX_DATA_NULL_STR_L "null"
+
+void*   indexQhandle = NULL;
+int32_t indexRefMgt;
+
+static void indexDestroy(void* sIdx);
 
 void indexInit() {
   // refactor later
   indexQhandle = taosInitScheduler(INDEX_QUEUE_SIZE, INDEX_NUM_OF_THREADS, "index");
+  indexRefMgt = taosOpenRef(1000, indexDestroy);
 }
-void indexCleanUp() {
+void indexCleanup() {
   // refacto later
   taosCleanUpScheduler(indexQhandle);
+  taosCloseRef(indexRefMgt);
 }
 
 typedef struct SIdxColInfo {
@@ -47,98 +78,125 @@ typedef struct SIdxColInfo {
 
 static TdThreadOnce isInit = PTHREAD_ONCE_INIT;
 // static void           indexInit();
-static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* term, SArray** result);
+static int idxTermSearch(SIndex* sIdx, SIndexTermQuery* term, SArray** result);
 
-static void indexInterResultsDestroy(SArray* results);
-static int  indexMergeFinalResults(SArray* interResults, EIndexOperatorType oType, SArray* finalResult);
+static void idxInterRsltDestroy(SArray* results);
+static int  idxMergeFinalResults(SArray* in, EIndexOperatorType oType, SArray* out);
 
-static int indexGenTFile(SIndex* index, IndexCache* cache, SArray* batch);
+static int idxGenTFile(SIndex* index, IndexCache* cache, SArray* batch);
 
 // merge cache and tfile by opera type
-static void indexMergeCacheAndTFile(SArray* result, IterateValue* icache, IterateValue* iTfv, SIdxTempResult* helper);
+static void idxMergeCacheAndTFile(SArray* result, IterateValue* icache, IterateValue* iTfv, SIdxTRslt* helper);
 
 // static int32_t indexSerialTermKey(SIndexTerm* itm, char* buf);
 // int32_t        indexSerialKey(ICacheKey* key, char* buf);
 
+static void idxPost(void* idx) {
+  SIndex* pIdx = idx;
+  tsem_post(&pIdx->sem);
+}
+static void indexWait(void* idx) {
+  SIndex* pIdx = idx;
+  tsem_wait(&pIdx->sem);
+}
+
 int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
+  int ret = TSDB_CODE_SUCCESS;
   taosThreadOnce(&isInit, indexInit);
-  SIndex* sIdx = taosMemoryCalloc(1, sizeof(SIndex));
-  if (sIdx == NULL) {
-    return -1;
+  SIndex* idx = taosMemoryCalloc(1, sizeof(SIndex));
+  if (idx == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-#ifdef USE_LUCENE
-  index_t* index = index_open(path);
-  sIdx->index = index;
-#endif
+  idx->lru = taosLRUCacheInit(opts->cacheSize, -1, .5);
+  if (idx->lru == NULL) {
+    ret = TSDB_CODE_OUT_OF_MEMORY;
+    goto END;
+  }
+  taosLRUCacheSetStrictCapacity(idx->lru, false);
 
-#ifdef USE_INVERTED_INDEX
-  // sIdx->cache = (void*)indexCacheCreate(sIdx);
-  sIdx->tindex = indexTFileCreate(path);
-  if (sIdx->tindex == NULL) {
+  idx->tindex = idxTFileCreate(idx, path);
+  if (idx->tindex == NULL) {
+    ret = TSDB_CODE_OUT_OF_MEMORY;
     goto END;
   }
 
-  sIdx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  sIdx->cVersion = 1;
-  sIdx->path = tstrdup(path);
-  taosThreadMutexInit(&sIdx->mtx, NULL);
-  *index = sIdx;
-  return 0;
-#endif
+  idx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  idx->cVersion = 1;
+  idx->path = tstrdup(path);
+  taosThreadMutexInit(&idx->mtx, NULL);
+  tsem_init(&idx->sem, 0, 0);
+
+  idx->refId = idxAddRef(idx);
+  idx->opts = *opts;
+  idxAcquireRef(idx->refId);
+
+  *index = idx;
+  return ret;
 
 END:
-  if (sIdx != NULL) {
-    indexClose(sIdx);
+  if (idx != NULL) {
+    indexClose(idx);
   }
-
   *index = NULL;
-  return -1;
+  return ret;
 }
 
-void indexClose(SIndex* sIdx) {
-#ifdef USE_LUCENE
-  index_close(sIdex->index);
-  sIdx->index = NULL;
-#endif
+void indexDestroy(void* handle) {
+  SIndex* idx = handle;
+  taosThreadMutexDestroy(&idx->mtx);
+  tsem_destroy(&idx->sem);
+  idxTFileDestroy(idx->tindex);
+  taosMemoryFree(idx->path);
 
-#ifdef USE_INVERTED_INDEX
-  void* iter = taosHashIterate(sIdx->colObj, NULL);
-  while (iter) {
-    IndexCache** pCache = iter;
-    if (*pCache) {
-      indexCacheUnRef(*pCache);
-    }
-    iter = taosHashIterate(sIdx->colObj, iter);
+  SLRUCache* lru = idx->lru;
+  if (lru != NULL) {
+    taosLRUCacheEraseUnrefEntries(lru);
+    taosLRUCacheCleanup(lru);
   }
-  taosHashCleanup(sIdx->colObj);
-  taosThreadMutexDestroy(&sIdx->mtx);
-  indexTFileDestroy(sIdx->tindex);
-#endif
-  taosMemoryFree(sIdx->path);
-  taosMemoryFree(sIdx);
+  idx->lru = NULL;
+  taosMemoryFree(idx);
   return;
+}
+void indexClose(SIndex* sIdx) {
+  bool ref = 0;
+  if (sIdx->colObj != NULL) {
+    void* iter = taosHashIterate(sIdx->colObj, NULL);
+    while (iter) {
+      IndexCache** pCache = iter;
+      idxCacheForceToMerge((void*)(*pCache));
+      indexInfo("%s wait to merge", (*pCache)->colName);
+      indexWait((void*)(sIdx));
+      indexInfo("%s finish to wait", (*pCache)->colName);
+      iter = taosHashIterate(sIdx->colObj, iter);
+      idxCacheUnRef(*pCache);
+    }
+    taosHashCleanup(sIdx->colObj);
+    sIdx->colObj = NULL;
+  }
+
+  idxReleaseRef(sIdx->refId);
+  idxRemoveRef(sIdx->refId);
+}
+int64_t idxAddRef(void* p) {
+  // impl
+  return taosAddRef(indexRefMgt, p);
+}
+int32_t idxRemoveRef(int64_t ref) {
+  // impl later
+  return taosRemoveRef(indexRefMgt, ref);
+}
+
+void idxAcquireRef(int64_t ref) {
+  // impl
+  taosAcquireRef(indexRefMgt, ref);
+}
+void idxReleaseRef(int64_t ref) {
+  // impl
+  taosReleaseRef(indexRefMgt, ref);
 }
 
 int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
-#ifdef USE_LUCENE
-  index_document_t* doc = index_document_create();
-
-  char buf[16] = {0};
-  sprintf(buf, "%d", uid);
-
-  for (int i = 0; i < taosArrayGetSize(fVals); i++) {
-    SIndexTerm* p = taosArrayGetP(fVals, i);
-    index_document_add(doc, (const char*)(p->key), p->nKey, (const char*)(p->val), p->nVal, 1);
-  }
-  index_document_add(doc, NULL, 0, buf, strlen(buf), 0);
-
-  index_put(index->index, doc);
-  index_document_destroy(doc);
-#endif
-
-#ifdef USE_INVERTED_INDEX
-
   // TODO(yihao): reduce the lock range
   taosThreadMutexLock(&index->mtx);
   for (int i = 0; i < taosArrayGetSize(fVals); i++) {
@@ -146,11 +204,11 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
 
     char      buf[128] = {0};
     ICacheKey key = {.suid = p->suid, .colName = p->colName, .nColName = strlen(p->colName), .colType = p->colType};
-    int32_t   sz = indexSerialCacheKey(&key, buf);
+    int32_t   sz = idxSerialCacheKey(&key, buf);
 
     IndexCache** cache = taosHashGet(index->colObj, buf, sz);
     if (cache == NULL) {
-      IndexCache* pCache = indexCacheCreate(index, p->suid, p->colName, p->colType);
+      IndexCache* pCache = idxCacheCreate(index, p->suid, p->colName, p->colType);
       taosHashPut(index->colObj, buf, sz, &pCache, sizeof(void*));
     }
   }
@@ -161,110 +219,55 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
 
     char      buf[128] = {0};
     ICacheKey key = {.suid = p->suid, .colName = p->colName, .nColName = strlen(p->colName), .colType = p->colType};
-    int32_t   sz = indexSerialCacheKey(&key, buf);
+    int32_t   sz = idxSerialCacheKey(&key, buf);
+    indexDebug("w suid:%" PRIu64 ", colName:%s, colType:%d", key.suid, key.colName, key.colType);
 
     IndexCache** cache = taosHashGet(index->colObj, buf, sz);
     assert(*cache != NULL);
-    int ret = indexCachePut(*cache, p, uid);
+    int ret = idxCachePut(*cache, p, uid);
     if (ret != 0) {
       return ret;
     }
   }
-
-#endif
   return 0;
 }
 int indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* result) {
-#ifdef USE_LUCENE
-  EIndexOperatorType opera = multiQuerys->opera;
-
-  int    nQuery = taosArrayGetSize(multiQuerys->query);
-  char** fields = taosMemoryMalloc(sizeof(char*) * nQuery);
-  char** keys = taosMemoryMalloc(sizeof(char*) * nQuery);
-  int*   types = taosMemoryMalloc(sizeof(int) * nQuery);
-
-  for (int i = 0; i < nQuery; i++) {
-    SIndexTermQuery* p = taosArrayGet(multiQuerys->query, i);
-    SIndexTerm*      term = p->field_value;
-
-    fields[i] = taosMemoryCalloc(1, term->nKey + 1);
-    keys[i] = taosMemoryCalloc(1, term->nVal + 1);
-
-    memcpy(fields[i], term->key, term->nKey);
-    memcpy(keys[i], term->val, term->nVal);
-    types[i] = (int)(p->type);
-  }
-  int* tResult = NULL;
-  int  tsz = 0;
-  index_multi_search(index->index, (const char**)fields, (const char**)keys, types, nQuery, opera, &tResult, &tsz);
-
-  for (int i = 0; i < tsz; i++) {
-    taosArrayPush(result, &tResult[i]);
-  }
-
-  for (int i = 0; i < nQuery; i++) {
-    taosMemoryFree(fields[i]);
-    taosMemoryFree(keys[i]);
-  }
-  taosMemoryFree(fields);
-  taosMemoryFree(keys);
-  taosMemoryFree(types);
-#endif
-
-#ifdef USE_INVERTED_INDEX
   EIndexOperatorType opera = multiQuerys->opera;  // relation of querys
 
-  SArray* interResults = taosArrayInit(4, POINTER_BYTES);
+  SArray* iRslts = taosArrayInit(4, POINTER_BYTES);
   int     nQuery = taosArrayGetSize(multiQuerys->query);
   for (size_t i = 0; i < nQuery; i++) {
-    SIndexTermQuery* qTerm = taosArrayGet(multiQuerys->query, i);
-    SArray*          tResult = NULL;
-    indexTermSearch(index, qTerm, &tResult);
-    taosArrayPush(interResults, (void*)&tResult);
+    SIndexTermQuery* qterm = taosArrayGet(multiQuerys->query, i);
+    SArray*          trslt = NULL;
+    idxTermSearch(index, qterm, &trslt);
+    taosArrayPush(iRslts, (void*)&trslt);
   }
-  indexMergeFinalResults(interResults, opera, result);
-  indexInterResultsDestroy(interResults);
-
-#endif
+  idxMergeFinalResults(iRslts, opera, result);
+  idxInterRsltDestroy(iRslts);
   return 0;
 }
 
-int indexDelete(SIndex* index, SIndexMultiTermQuery* query) {
-#ifdef USE_INVERTED_INDEX
+int indexDelete(SIndex* index, SIndexMultiTermQuery* query) { return 1; }
+// int indexRebuild(SIndex* index, SIndexOpts* opts) { return 0; }
 
-#endif
-
-  return 1;
+SIndexOpts* indexOptsCreate(int32_t cacheSize) {
+  SIndexOpts* opts = taosMemoryCalloc(1, sizeof(SIndexOpts));
+  opts->cacheSize = cacheSize;
+  return opts;
 }
-int indexRebuild(SIndex* index, SIndexOpts* opts) {
-#ifdef USE_INVERTED_INDEX
-#endif
-
-  return 0;
-}
-
-SIndexOpts* indexOptsCreate() {
-#ifdef USE_LUCENE
-#endif
-  return NULL;
-}
-void indexOptsDestroy(SIndexOpts* opts) {
-#ifdef USE_LUCENE
-#endif
-  return;
-}
+void indexOptsDestroy(SIndexOpts* opts) { return taosMemoryFree(opts); }
 /*
  * @param: oper
  *
  */
 SIndexMultiTermQuery* indexMultiTermQueryCreate(EIndexOperatorType opera) {
-  SIndexMultiTermQuery* p = (SIndexMultiTermQuery*)taosMemoryMalloc(sizeof(SIndexMultiTermQuery));
-  if (p == NULL) {
+  SIndexMultiTermQuery* mtq = (SIndexMultiTermQuery*)taosMemoryMalloc(sizeof(SIndexMultiTermQuery));
+  if (mtq == NULL) {
     return NULL;
   }
-  p->opera = opera;
-  p->query = taosArrayInit(4, sizeof(SIndexTermQuery));
-  return p;
+  mtq->opera = opera;
+  mtq->query = taosArrayInit(4, sizeof(SIndexTermQuery));
+  return mtq;
 }
 void indexMultiTermQueryDestroy(SIndexMultiTermQuery* pQuery) {
   for (int i = 0; i < taosArrayGetSize(pQuery->query); i++) {
@@ -282,24 +285,37 @@ int indexMultiTermQueryAdd(SIndexMultiTermQuery* pQuery, SIndexTerm* term, EInde
 
 SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colType, const char* colName,
                             int32_t nColName, const char* colVal, int32_t nColVal) {
-  SIndexTerm* t = (SIndexTerm*)taosMemoryCalloc(1, (sizeof(SIndexTerm)));
-  if (t == NULL) {
+  SIndexTerm* tm = (SIndexTerm*)taosMemoryCalloc(1, (sizeof(SIndexTerm)));
+  if (tm == NULL) {
     return NULL;
   }
 
-  t->suid = suid;
-  t->operType = oper;
-  t->colType = colType;
+  tm->suid = suid;
+  tm->operType = oper;
+  tm->colType = colType;
 
-  t->colName = (char*)taosMemoryCalloc(1, nColName + 1);
-  memcpy(t->colName, colName, nColName);
-  t->nColName = nColName;
+  tm->colName = (char*)taosMemoryCalloc(1, nColName + 1);
+  memcpy(tm->colName, colName, nColName);
+  tm->nColName = nColName;
 
-  t->colVal = (char*)taosMemoryCalloc(1, nColVal + 1);
-  memcpy(t->colVal, colVal, nColVal);
-  t->nColVal = nColVal;
-  return t;
+  char*   buf = NULL;
+  int32_t len = 0;
+  if (colVal != NULL && nColVal != 0) {
+    len = idxConvertDataToStr((void*)colVal, IDX_TYPE_GET_TYPE(colType), (void**)&buf);
+  } else if (colVal == NULL) {
+    buf = strndup(INDEX_DATA_NULL_STR, (int32_t)strlen(INDEX_DATA_NULL_STR));
+    len = (int32_t)strlen(INDEX_DATA_NULL_STR);
+  } else {
+    const char* emptyStr = " ";
+    buf = strndup(emptyStr, (int32_t)strlen(emptyStr));
+    len = (int32_t)strlen(emptyStr);
+  }
+  tm->colVal = buf;
+  tm->nColVal = len;
+
+  return tm;
 }
+
 void indexTermDestroy(SIndexTerm* p) {
   taosMemoryFree(p->colName);
   taosMemoryFree(p->colVal);
@@ -320,7 +336,55 @@ void indexMultiTermDestroy(SIndexMultiTerm* terms) {
   taosArrayDestroy(terms);
 }
 
-static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result) {
+/*
+ * rebuild index
+ */
+
+static void idxSchedRebuildIdx(SSchedMsg* msg) {
+  // TODO, no need rebuild index
+  SIndex* idx = msg->ahandle;
+
+  int8_t st = kFinished;
+  atomic_store_8(&idx->status, st);
+  idxReleaseRef(idx->refId);
+}
+void indexRebuild(SIndexJson* idx, void* iter) {
+  // set up rebuild status
+  int8_t st = kRebuild;
+  atomic_store_8(&idx->status, st);
+
+  // task put into BG thread
+  SSchedMsg schedMsg = {0};
+  schedMsg.fp = idxSchedRebuildIdx;
+  schedMsg.ahandle = idx;
+  idxAcquireRef(idx->refId);
+  taosScheduleTask(indexQhandle, &schedMsg);
+}
+
+/*
+ * check index json status
+ **/
+bool indexIsRebuild(SIndex* idx) {
+  // idx rebuild or not
+  return ((SIdxStatus)atomic_load_8(&idx->status)) == kRebuild ? true : false;
+}
+/*
+ * rebuild index
+ */
+void indexJsonRebuild(SIndexJson* idx, void* iter) {
+  // idx rebuild or not
+  indexRebuild(idx, iter);
+}
+
+/*
+ * check index json status
+ **/
+bool indexJsonIsRebuild(SIndexJson* idx) {
+  // load idx rebuild or not
+  return ((SIdxStatus)atomic_load_8(&idx->status)) == kRebuild ? true : false;
+}
+
+static int idxTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result) {
   SIndexTerm* term = query->term;
   const char* colName = term->colName;
   int32_t     nColName = term->nColName;
@@ -331,7 +395,8 @@ static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result
   char      buf[128] = {0};
   ICacheKey key = {
       .suid = term->suid, .colName = term->colName, .nColName = strlen(term->colName), .colType = term->colType};
-  int32_t sz = indexSerialCacheKey(&key, buf);
+  indexDebug("r suid:%" PRIu64 ", colName:%s, colType:%d", key.suid, key.colName, key.colType);
+  int32_t sz = idxSerialCacheKey(&key, buf);
 
   taosThreadMutexLock(&sIdx->mtx);
   IndexCache** pCache = taosHashGet(sIdx->colObj, buf, sz);
@@ -344,15 +409,15 @@ static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result
 
   int64_t st = taosGetTimestampUs();
 
-  SIdxTempResult* tr = sIdxTempResultCreate();
-  if (0 == indexCacheSearch(cache, query, tr, &s)) {
+  SIdxTRslt* tr = idxTRsltCreate();
+  if (0 == idxCacheSearch(cache, query, tr, &s)) {
     if (s == kTypeDeletion) {
       indexInfo("col: %s already drop by", term->colName);
       // coloum already drop by other oper, no need to query tindex
       return 0;
     } else {
       st = taosGetTimestampUs();
-      if (0 != indexTFileSearch(sIdx->tindex, query, tr)) {
+      if (0 != idxTFileSearch(sIdx->tindex, query, tr)) {
         indexError("corrupt at index(TFile) col:%s val: %s", term->colName, term->colVal);
         goto END;
       }
@@ -366,15 +431,15 @@ static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result
   int64_t cost = taosGetTimestampUs() - st;
   indexInfo("search cost: %" PRIu64 "us", cost);
 
-  sIdxTempResultMergeTo(*result, tr);
+  idxTRsltMergeTo(tr, *result);
 
-  sIdxTempResultDestroy(tr);
+  idxTRsltDestroy(tr);
   return 0;
 END:
-  sIdxTempResultDestroy(tr);
+  idxTRsltDestroy(tr);
   return -1;
 }
-static void indexInterResultsDestroy(SArray* results) {
+static void idxInterRsltDestroy(SArray* results) {
   if (results == NULL) {
     return;
   }
@@ -387,38 +452,38 @@ static void indexInterResultsDestroy(SArray* results) {
   taosArrayDestroy(results);
 }
 
-static int indexMergeFinalResults(SArray* interResults, EIndexOperatorType oType, SArray* fResults) {
+static int idxMergeFinalResults(SArray* in, EIndexOperatorType oType, SArray* out) {
   // refactor, merge interResults into fResults by oType
-  for (int i = 0; i < taosArrayGetSize(interResults); i--) {
-    SArray* t = taosArrayGetP(interResults, i);
+  for (int i = 0; i < taosArrayGetSize(in); i--) {
+    SArray* t = taosArrayGetP(in, i);
     taosArraySort(t, uidCompare);
     taosArrayRemoveDuplicate(t, uidCompare, NULL);
   }
 
   if (oType == MUST) {
-    iIntersection(interResults, fResults);
+    iIntersection(in, out);
   } else if (oType == SHOULD) {
-    iUnion(interResults, fResults);
+    iUnion(in, out);
   } else if (oType == NOT) {
     // just one column index, enhance later
-    taosArrayAddAll(fResults, interResults);
+    // taosArrayAddAll(fResults, interResults);
     // not use currently
   }
   return 0;
 }
 
-static void indexMayMergeTempToFinalResult(SArray* result, TFileValue* tfv, SIdxTempResult* tr) {
+static void idxMayMergeTempToFinalRslt(SArray* result, TFileValue* tfv, SIdxTRslt* tr) {
   int32_t sz = taosArrayGetSize(result);
   if (sz > 0) {
     TFileValue* lv = taosArrayGetP(result, sz - 1);
     if (tfv != NULL && strcmp(lv->colVal, tfv->colVal) != 0) {
-      sIdxTempResultMergeTo(lv->tableId, tr);
-      sIdxTempResultClear(tr);
+      idxTRsltMergeTo(tr, lv->tableId);
+      idxTRsltClear(tr);
 
       taosArrayPush(result, &tfv);
     } else if (tfv == NULL) {
       // handle last iterator
-      sIdxTempResultMergeTo(lv->tableId, tr);
+      idxTRsltMergeTo(tr, lv->tableId);
     } else {
       // temp result saved in help
       tfileValueDestroy(tfv);
@@ -427,26 +492,26 @@ static void indexMayMergeTempToFinalResult(SArray* result, TFileValue* tfv, SIdx
     taosArrayPush(result, &tfv);
   }
 }
-static void indexMergeCacheAndTFile(SArray* result, IterateValue* cv, IterateValue* tv, SIdxTempResult* tr) {
+static void idxMergeCacheAndTFile(SArray* result, IterateValue* cv, IterateValue* tv, SIdxTRslt* tr) {
   char*       colVal = (cv != NULL) ? cv->colVal : tv->colVal;
   TFileValue* tfv = tfileValueCreate(colVal);
 
-  indexMayMergeTempToFinalResult(result, tfv, tr);
+  idxMayMergeTempToFinalRslt(result, tfv, tr);
 
   if (cv != NULL) {
     uint64_t id = *(uint64_t*)taosArrayGet(cv->val, 0);
     uint32_t ver = cv->ver;
     if (cv->type == ADD_VALUE) {
-      INDEX_MERGE_ADD_DEL(tr->deled, tr->added, id)
+      INDEX_MERGE_ADD_DEL(tr->del, tr->add, id)
     } else if (cv->type == DEL_VALUE) {
-      INDEX_MERGE_ADD_DEL(tr->added, tr->deled, id)
+      INDEX_MERGE_ADD_DEL(tr->add, tr->del, id)
     }
   }
   if (tv != NULL) {
     taosArrayAddAll(tr->total, tv->val);
   }
 }
-static void indexDestroyFinalResult(SArray* result) {
+static void idxDestroyFinalRslt(SArray* result) {
   int32_t sz = result ? taosArrayGetSize(result) : 0;
   for (size_t i = 0; i < sz; i++) {
     TFileValue* tv = taosArrayGetP(result, i);
@@ -455,7 +520,7 @@ static void indexDestroyFinalResult(SArray* result) {
   taosArrayDestroy(result);
 }
 
-int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
+int idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
   if (sIdx == NULL) {
     return -1;
   }
@@ -463,13 +528,28 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
 
   int64_t st = taosGetTimestampUs();
 
-  IndexCache*  pCache = (IndexCache*)cache;
+  IndexCache* pCache = (IndexCache*)cache;
+
+  while (quit && atomic_load_32(&pCache->merging) == 1)
+    ;
   TFileReader* pReader = tfileGetReaderByCol(sIdx->tindex, pCache->suid, pCache->colName);
   if (pReader == NULL) {
     indexWarn("empty tfile reader found");
   }
   // handle flush
-  Iterate* cacheIter = indexCacheIteratorCreate(pCache);
+  Iterate* cacheIter = idxCacheIteratorCreate(pCache);
+  if (cacheIter == NULL) {
+    indexError("%p immtable is empty, ignore merge opera", pCache);
+    idxCacheDestroyImm(pCache);
+    tfileReaderUnRef(pReader);
+    atomic_store_32(&pCache->merging, 0);
+    if (quit) {
+      idxPost(sIdx);
+    }
+    idxReleaseRef(sIdx->refId);
+    return 0;
+  }
+
   Iterate* tfileIter = tfileIteratorCreate(pReader);
   if (tfileIter == NULL) {
     indexWarn("empty tfile reader iterator");
@@ -480,7 +560,7 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
   bool cn = cacheIter ? cacheIter->next(cacheIter) : false;
   bool tn = tfileIter ? tfileIter->next(tfileIter) : false;
 
-  SIdxTempResult* tr = sIdxTempResultCreate();
+  SIdxTRslt* tr = idxTRsltCreate();
   while (cn == true || tn == true) {
     IterateValue* cv = (cn == true) ? cacheIter->getValue(cacheIter) : NULL;
     IterateValue* tv = (tn == true) ? tfileIter->getValue(tfileIter) : NULL;
@@ -494,30 +574,30 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
       comp = 1;
     }
     if (comp == 0) {
-      indexMergeCacheAndTFile(result, cv, tv, tr);
+      idxMergeCacheAndTFile(result, cv, tv, tr);
       cn = cacheIter->next(cacheIter);
       tn = tfileIter->next(tfileIter);
     } else if (comp < 0) {
-      indexMergeCacheAndTFile(result, cv, NULL, tr);
+      idxMergeCacheAndTFile(result, cv, NULL, tr);
       cn = cacheIter->next(cacheIter);
     } else {
-      indexMergeCacheAndTFile(result, NULL, tv, tr);
+      idxMergeCacheAndTFile(result, NULL, tv, tr);
       tn = tfileIter->next(tfileIter);
     }
   }
-  indexMayMergeTempToFinalResult(result, NULL, tr);
-  sIdxTempResultDestroy(tr);
+  idxMayMergeTempToFinalRslt(result, NULL, tr);
+  idxTRsltDestroy(tr);
 
-  int ret = indexGenTFile(sIdx, pCache, result);
-  indexDestroyFinalResult(result);
+  int ret = idxGenTFile(sIdx, pCache, result);
+  idxDestroyFinalRslt(result);
 
-  indexCacheDestroyImm(pCache);
+  idxCacheDestroyImm(pCache);
 
-  indexCacheIteratorDestroy(cacheIter);
+  idxCacheIteratorDestroy(cacheIter);
   tfileIteratorDestroy(tfileIter);
 
   tfileReaderUnRef(pReader);
-  indexCacheUnRef(pCache);
+  idxCacheUnRef(pCache);
 
   int64_t cost = taosGetTimestampUs() - st;
   if (ret != 0) {
@@ -525,6 +605,12 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
   } else {
     indexInfo("success to merge , time cost: %" PRId64 "ms", cost / 1000);
   }
+  atomic_store_32(&pCache->merging, 0);
+  if (quit) {
+    idxPost(sIdx);
+  }
+  idxReleaseRef(sIdx->refId);
+
   return ret;
 }
 void iterateValueDestroy(IterateValue* value, bool destroy) {
@@ -539,8 +625,27 @@ void iterateValueDestroy(IterateValue* value, bool destroy) {
   taosMemoryFree(value->colVal);
   value->colVal = NULL;
 }
-static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
-  int32_t version = CACHE_VERSION(cache);
+
+static int64_t idxGetAvailableVer(SIndex* sIdx, IndexCache* cache) {
+  ICacheKey key = {.suid = cache->suid, .colName = cache->colName, .nColName = strlen(cache->colName)};
+  int64_t   ver = CACHE_VERSION(cache);
+
+  IndexTFile* tf = (IndexTFile*)(sIdx->tindex);
+
+  taosThreadMutexLock(&tf->mtx);
+  TFileReader* rd = tfileCacheGet(tf->cache, &key);
+  taosThreadMutexUnlock(&tf->mtx);
+
+  if (rd != NULL) {
+    ver = (ver > rd->header.version ? ver : rd->header.version) + 1;
+    indexInfo("header: %" PRId64 ", ver: %" PRId64 "", rd->header.version, ver);
+  }
+  tfileReaderUnRef(rd);
+  return ver;
+}
+static int idxGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
+  int64_t version = idxGetAvailableVer(sIdx, cache);
+  indexInfo("file name version: %" PRId64 "", version);
   uint8_t colType = cache->type;
 
   TFileWriter* tw = tfileWriterOpen(sIdx->path, cache->suid, version, cache->colName, colType);
@@ -556,35 +661,39 @@ static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   }
   tfileWriterClose(tw);
 
-  TFileReader* reader = tfileReaderOpen(sIdx->path, cache->suid, version, cache->colName);
+  TFileReader* reader = tfileReaderOpen(sIdx, cache->suid, version, cache->colName);
   if (reader == NULL) {
     return -1;
   }
+  indexInfo("success to create tfile, reopen it, %s", reader->ctx->file.buf);
+
+  IndexTFile* tf = (IndexTFile*)sIdx->tindex;
 
   TFileHeader* header = &reader->header;
   ICacheKey    key = {.suid = cache->suid, .colName = header->colName, .nColName = strlen(header->colName)};
 
-  taosThreadMutexLock(&sIdx->mtx);
-  IndexTFile* ifile = (IndexTFile*)sIdx->tindex;
-  tfileCachePut(ifile->cache, &key, reader);
-  taosThreadMutexUnlock(&sIdx->mtx);
+  taosThreadMutexLock(&tf->mtx);
+  tfileCachePut(tf->cache, &key, reader);
+  taosThreadMutexUnlock(&tf->mtx);
+
   return ret;
 END:
   if (tw != NULL) {
-    writerCtxDestroy(tw->ctx, true);
+    idxFileCtxDestroy(tw->ctx, true);
     taosMemoryFree(tw);
   }
   return -1;
 }
 
-int32_t indexSerialCacheKey(ICacheKey* key, char* buf) {
-  bool hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(key->colType, TSDB_DATA_TYPE_JSON);
+int32_t idxSerialCacheKey(ICacheKey* key, char* buf) {
+  bool hasJson = IDX_TYPE_CONTAIN_EXTERN_TYPE(key->colType, TSDB_DATA_TYPE_JSON);
 
   char* p = buf;
-  SERIALIZE_MEM_TO_BUF(buf, key, suid);
+  char  tbuf[65] = {0};
+  idxInt2str((int64_t)key->suid, tbuf, 0);
+
+  SERIALIZE_STR_VAR_TO_BUF(buf, tbuf, strlen(tbuf));
   SERIALIZE_VAR_TO_BUF(buf, '_', char);
-  // SERIALIZE_MEM_TO_BUF(buf, key, colType);
-  // SERIALIZE_VAR_TO_BUF(buf, '_', char);
   if (hasJson) {
     SERIALIZE_STR_VAR_TO_BUF(buf, JSON_COLUMN, strlen(JSON_COLUMN));
   } else {

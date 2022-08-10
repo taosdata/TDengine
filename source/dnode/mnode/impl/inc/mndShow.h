@@ -17,6 +17,7 @@
 #define _TD_MND_SHOW_H_
 
 #include "mndInt.h"
+#include "systable.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,11 +25,8 @@ extern "C" {
 
 int32_t mndInitShow(SMnode *pMnode);
 void    mndCleanupShow(SMnode *pMnode);
-void    mndAddShowMetaHandle(SMnode *pMnode, EShowType showType, ShowMetaFp fp);
 void    mndAddShowRetrieveHandle(SMnode *pMnode, EShowType showType, ShowRetrieveFp fp);
 void    mndAddShowFreeIterHandle(SMnode *pMnode, EShowType msgType, ShowFreeIterFp fp);
-void    mndVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow);
-char   *mndShowStr(int32_t showType);
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,13 @@
+
+# wingetopt
+ExternalProject_Add(wingetopt
+        GIT_REPOSITORY https://github.com/alex85k/wingetopt.git
+        GIT_TAG master
+        SOURCE_DIR "${TD_CONTRIB_DIR}/wingetopt"
+        BINARY_DIR ""
+        #BUILD_IN_SOURCE TRUE
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+)

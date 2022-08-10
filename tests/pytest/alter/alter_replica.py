@@ -42,7 +42,7 @@ class TDTestCase:
         tdDnodes.start(3)
 
     def run(self):
-        tdSql.execute('create database db replica 3 days 7')
+        tdSql.execute('create database db replica 3 duration 7')
         tdSql.execute('use db')
         for tid in range(1, 11):
             tdSql.execute('create table tb%d(ts timestamp, i int)' % tid)

@@ -30,10 +30,9 @@ typedef struct SMnode SMnode;
 
 typedef struct {
   int32_t  dnodeId;
-  int64_t  clusterId;
-  int8_t   replica;
-  int8_t   selfIndex;
-  SReplica replicas[TSDB_MAX_REPLICA];
+  bool     standby;
+  bool     deploy;
+  SReplica replica;
   SMsgCb   msgCb;
 } SMnodeOpt;
 
@@ -53,15 +52,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption);
  * @param pMnode The mnode object to close.
  */
 void mndClose(SMnode *pMnode);
-
-/**
- * @brief Close a mnode.
- *
- * @param pMnode The mnode object to close.
- * @param pOption Options of the mnode.
- * @return int32_t 0 for success, -1 for failure.
- */
-int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption);
+void mndPreClose(SMnode *pMnode);
 
 /**
  * @brief Start mnode
@@ -71,37 +62,49 @@ int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption);
 int32_t mndStart(SMnode *pMnode);
 
 /**
+ * @brief Stop mnode
+ *
+ * @param pMnode The mnode object.
+ */
+void mndStop(SMnode *pMnode);
+
+/**
  * @brief Get mnode monitor info.
  *
  * @param pMnode The mnode object.
- * @param pClusterInfo
- * @param pVgroupInfo
- * @param pGrantInfo
+ * @param pCluster
+ * @param pVgroup
+ * @param pStbInfo
+ * @param pGrant
  * @return int32_t 0 for success, -1 for failure.
  */
 int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
-                          SMonGrantInfo *pGrantInfo);
+                          SMonStbInfo *pStbInfo, SMonGrantInfo *pGrantInfo);
 
 /**
- * @brief Get user authentication info.
+ * @brief Get mnode loads for status msg.
  *
  * @param pMnode The mnode object.
- * @param user
- * @param spi
- * @param encrypt
- * @param secret
- * @param ckey
+ * @param pLoad
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, char *secret, char *ckey);
+int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
 
 /**
- * @brief Process the read, write, sync request.
+ * @brief Process the rpc, sync request.
  *
  * @param pMsg The request msg.
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t mndProcessMsg(SNodeMsg *pMsg);
+int32_t mndProcessRpcMsg(SRpcMsg *pMsg);
+int32_t mndProcessSyncMsg(SRpcMsg *pMsg);
+int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg);
+void    mndPostProcessQueryMsg(SRpcMsg *pMsg);
+
+/**
+ * @brief Generate machine code
+ */
+void mndGenerateMachineCode();
 
 #ifdef __cplusplus
 }

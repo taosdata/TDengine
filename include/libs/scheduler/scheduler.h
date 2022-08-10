@@ -23,10 +23,7 @@ extern "C" {
 #include "catalog.h"
 #include "planner.h"
 
-typedef struct SSchedulerCfg {
-  uint32_t maxJobNum;
-  int32_t  maxNodeTableNum;
-} SSchedulerCfg;
+extern tsem_t schdRspSem;
 
 typedef struct SQueryProfileSummary {
   int64_t startTs;      // Object created and added into the message queue
@@ -51,44 +48,51 @@ typedef struct SQueryProfileSummary {
   uint64_t resultSize;   // generated result size in Kb.
 } SQueryProfileSummary;
 
-typedef struct SQueryResult {
-  int32_t         code;
-  uint64_t        numOfRows;
-  int32_t         msgSize;
-  char           *msg;
-} SQueryResult;
-
 typedef struct STaskInfo {
   SQueryNodeAddr addr;
   SSubQueryMsg  *msg;
 } STaskInfo;
 
-int32_t schedulerInit(SSchedulerCfg *cfg);
+typedef struct SSchdFetchParam {
+  void **pData;
+  int32_t* code;
+} SSchdFetchParam;
 
-/**
- * Process the query job, generated according to the query physical plan.
- * This is a synchronized API, and is also thread-safety.
- * @param nodeList  Qnode/Vnode address list, element is SQueryNodeAddr
- * @return
- */
-int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryPlan* pDag, int64_t* pJob, const char* sql, SQueryResult *pRes);
+typedef void (*schedulerExecFp)(SExecResult* pResult, void* param, int32_t code);
+typedef void (*schedulerFetchFp)(void* pResult, void* param, int32_t code);
+typedef bool (*schedulerChkKillFp)(void* param);
 
-/**
- * Process the query job, generated according to the query physical plan.
- * This is a asynchronized API, and is also thread-safety.
- * @param pNodeList  Qnode/Vnode address list, element is SQueryNodeAddr
- * @return
- */
-int32_t schedulerAsyncExecJob(void *transport, SArray *pNodeList, SQueryPlan* pDag, const char* sql, int64_t *pJob);
+typedef struct SSchedulerReq {
+  bool                  syncReq;
+  SRequestConnInfo     *pConn;
+  SArray               *pNodeList;
+  SQueryPlan           *pDag;
+  const char           *sql;
+  int64_t               startTs;
+  schedulerExecFp       execFp;
+  schedulerFetchFp      fetchFp;
+  void*                 cbParam;
+  schedulerChkKillFp    chkKillFp;
+  void*                 chkKillParam;
+  SExecResult*          pExecRes;
+  void**                pFetchRes;
+} SSchedulerReq;
 
-/**
- * Fetch query result from the remote query executor
- * @param pJob
- * @param data
- * @return
- */
-int32_t schedulerFetchRows(int64_t job, void **data);
 
+int32_t schedulerInit(void);
+
+int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJob);
+
+int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq *pReq);
+
+void schedulerFetchRowsA(int64_t job, schedulerFetchFp fp, void* param);
+
+int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub);
+
+void schedulerStopQueryHb(void *pTrans);
+
+int32_t schedulerUpdatePolicy(int32_t policy);
+int32_t schedulerEnableReSchedule(bool enableResche);
 
 /**
  * Cancel query job
@@ -101,28 +105,11 @@ int32_t schedulerFetchRows(int64_t job, void **data);
  * Free the query job
  * @param pJob
  */
-void schedulerFreeJob(int64_t job);
+void schedulerFreeJob(int64_t* job, int32_t errCode);
 
 void schedulerDestroy(void);
 
-/**
- * convert dag to task list
- * @param pDag
- * @param pTasks SArray**<STaskInfo>
- * @return
- */
-int32_t schedulerConvertDagToTaskList(SQueryPlan* pDag, SArray **pTasks);
-
-/**
- * make one task info's multiple copies
- * @param src
- * @param dst SArray**<STaskInfo>
- * @return
- */
-int32_t schedulerCopyTask(STaskInfo *src, SArray **dst, int32_t copyNum);
-
-void schedulerFreeTaskList(SArray *taskList);
-
+void schdExecCallback(SExecResult* pResult, void* param, int32_t code);
 
 #ifdef __cplusplus
 }

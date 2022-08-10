@@ -22,7 +22,6 @@ extern "C" {
 
 #include <assert.h>
 #include <ctype.h>
-#include <semaphore.h>
 
 #include <regex.h>
 
@@ -42,7 +41,6 @@ extern "C" {
 #include <sys/types.h>
 #include <termios.h>
 #include <sys/statvfs.h>
-#include <sys/prctl.h>
 #include <sys/shm.h>
 #include <sys/wait.h>
 
@@ -51,7 +49,15 @@ extern "C" {
 #include <sys/prctl.h>
 #include <argp.h>
 #endif
+#else
 
+#include <malloc.h>
+#include <time.h>
+#ifndef TD_USE_WINSOCK
+#include <winsock2.h>
+#else
+#include <winsock.h>
+#endif
 #endif
 
 #include <errno.h>
@@ -97,8 +103,6 @@ extern "C" {
 #include "osTimer.h"
 #include "osTimezone.h"
 #include "osEnv.h"
-
-void osDefaultInit();
 
 #ifdef __cplusplus
 }

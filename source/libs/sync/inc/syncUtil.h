@@ -55,6 +55,13 @@ char*       syncUtilprintBin(char* ptr, uint32_t len);
 char*       syncUtilprintBin2(char* ptr, uint32_t len);
 SyncIndex   syncUtilMinIndex(SyncIndex a, SyncIndex b);
 SyncIndex   syncUtilMaxIndex(SyncIndex a, SyncIndex b);
+void        syncUtilMsgHtoN(void* msg);
+void        syncUtilMsgNtoH(void* msg);
+bool        syncUtilIsData(tmsg_t msgType);
+bool        syncUtilUserPreCommit(tmsg_t msgType);
+bool        syncUtilUserCommit(tmsg_t msgType);
+bool        syncUtilUserRollback(tmsg_t msgType);
+void        syncUtilJson2Line(char* jsonStr);
 
 #ifdef __cplusplus
 }

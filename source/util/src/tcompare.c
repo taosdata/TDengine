@@ -56,11 +56,11 @@ int32_t setChkNotInBytes8(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareChkInString(const void *pLeft, const void *pRight) {
-  return NULL != taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;
+  return NULL != taosHashGet((SHashObj *)pRight, pLeft, varDataTLen(pLeft)) ? 1 : 0;
 }
 
 int32_t compareChkNotInString(const void *pLeft, const void *pRight) {
-  return NULL == taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;
+  return NULL == taosHashGet((SHashObj *)pRight, pLeft, varDataTLen(pLeft)) ? 1 : 0;
 }
 
 int32_t compareInt8Val(const void *pLeft, const void *pRight) {
@@ -173,6 +173,7 @@ int32_t compareDoubleVal(const void *pLeft, const void *pRight) {
   if (isnan(p2)) {
     return 1;
   }
+
   if (FLT_EQUAL(p1, p2)) {
     return 0;
   }
@@ -221,6 +222,33 @@ int32_t compareLenPrefixedWStrDesc(const void *pLeft, const void *pRight) {
   return compareLenPrefixedWStr(pRight, pLeft);
 }
 
+// string > number > bool > null
+// ref: https://dev.mysql.com/doc/refman/8.0/en/json.html#json-comparison
+int32_t compareJsonVal(const void *pLeft, const void *pRight) {
+  char leftType = *(char*)pLeft;
+  char rightType = *(char*)pRight;
+  if(leftType != rightType){
+    return leftType > rightType ? 1 : -1;
+  }
+
+  char* realDataLeft = POINTER_SHIFT(pLeft, CHAR_BYTES);
+  char* realDataRight = POINTER_SHIFT(pRight, CHAR_BYTES);
+  if(leftType == TSDB_DATA_TYPE_BOOL) {
+    DEFAULT_COMP(GET_INT8_VAL(realDataLeft), GET_INT8_VAL(realDataRight));
+  }else if(leftType == TSDB_DATA_TYPE_DOUBLE){
+    DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(realDataLeft), GET_DOUBLE_VAL(realDataRight));
+  }else if(leftType == TSDB_DATA_TYPE_NCHAR){
+    return compareLenPrefixedWStr(realDataLeft, realDataRight);
+  }else if(leftType == TSDB_DATA_TYPE_NULL) {
+    return 0;
+  }else{
+    assert(0);
+  }
+}
+
+int32_t compareJsonValDesc(const void *pLeft, const void *pRight) {
+    return compareJsonVal(pRight, pLeft);
+}
 /*
  * Compare two strings
  *    TSDB_MATCH:            Match
@@ -427,7 +455,8 @@ int32_t compareWStrPatternMatch(const void *pLeft, const void *pRight) {
   char *pattern = taosMemoryCalloc(varDataLen(pRight) + TSDB_NCHAR_SIZE, 1);
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
 
-  int32_t ret = WCSPatternMatch((TdUcs4*)pattern, (TdUcs4*)varDataVal(pLeft), varDataLen(pLeft) / TSDB_NCHAR_SIZE, &pInfo);
+  int32_t ret =
+      WCSPatternMatch((TdUcs4 *)pattern, (TdUcs4 *)varDataVal(pLeft), varDataLen(pLeft) / TSDB_NCHAR_SIZE, &pInfo);
   taosMemoryFree(pattern);
 
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
@@ -436,7 +465,6 @@ int32_t compareWStrPatternMatch(const void *pLeft, const void *pRight) {
 int32_t compareWStrPatternNotMatch(const void *pLeft, const void *pRight) {
   return compareWStrPatternMatch(pLeft, pRight) ? 0 : 1;
 }
-
 __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
   __compar_fn_t comparFn = NULL;
 
@@ -568,53 +596,38 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
 }
 
 __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order) {
-  __compar_fn_t comparFn = NULL;
-
   switch (keyType) {
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_BOOL:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareInt8Val : compareInt8ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareInt8Val : compareInt8ValDesc;
     case TSDB_DATA_TYPE_SMALLINT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareInt16Val : compareInt16ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareInt16Val : compareInt16ValDesc;
     case TSDB_DATA_TYPE_INT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareInt32Val : compareInt32ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareInt32Val : compareInt32ValDesc;
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareInt64Val : compareInt64ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareInt64Val : compareInt64ValDesc;
     case TSDB_DATA_TYPE_FLOAT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareFloatVal : compareFloatValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareFloatVal : compareFloatValDesc;
     case TSDB_DATA_TYPE_DOUBLE:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareDoubleVal : compareDoubleValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareDoubleVal : compareDoubleValDesc;
     case TSDB_DATA_TYPE_UTINYINT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareUint8Val : compareUint8ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareUint8Val : compareUint8ValDesc;
     case TSDB_DATA_TYPE_USMALLINT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareUint16Val : compareUint16ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareUint16Val : compareUint16ValDesc;
     case TSDB_DATA_TYPE_UINT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareUint32Val : compareUint32ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareUint32Val : compareUint32ValDesc;
     case TSDB_DATA_TYPE_UBIGINT:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareUint64Val : compareUint64ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareUint64Val : compareUint64ValDesc;
     case TSDB_DATA_TYPE_BINARY:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareLenPrefixedStr : compareLenPrefixedStrDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareLenPrefixedStr : compareLenPrefixedStrDesc;
     case TSDB_DATA_TYPE_NCHAR:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareLenPrefixedWStr : compareLenPrefixedWStrDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareLenPrefixedWStr : compareLenPrefixedWStrDesc;
+    case TSDB_DATA_TYPE_JSON:
+      return (order == TSDB_ORDER_ASC) ? compareJsonVal : compareJsonValDesc;
     default:
-      comparFn = (order == TSDB_ORDER_ASC) ? compareInt32Val : compareInt32ValDesc;
-      break;
+      return (order == TSDB_ORDER_ASC) ? compareInt32Val : compareInt32ValDesc;
   }
-
-  return comparFn;
 }
 
 int32_t doCompare(const char *f1, const char *f2, int32_t type, size_t size) {

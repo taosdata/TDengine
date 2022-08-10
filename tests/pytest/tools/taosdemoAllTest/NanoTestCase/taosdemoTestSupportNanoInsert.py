@@ -138,7 +138,7 @@ class TDTestCase:
 
         sqls_ls = [
             'drop database  if exists nsdbsql;',
-            'create database nsdbsql precision "ns" keep 3600 days 6 update 1;',
+            'create database nsdbsql precision "ns" keep 3600 duration 6 update 1;',
             'use nsdbsql;',
             'CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupdId int);',
             'CREATE TABLE d1001 USING meters TAGS ("Beijing.Chaoyang", 2);',

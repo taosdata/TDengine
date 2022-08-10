@@ -25,9 +25,8 @@ SSyncFSM* pFsm;
 
 SSyncNode* syncNodeInit() {
   syncInfo.vgId = 1234;
-  syncInfo.rpcClient = gSyncIO->clientRpc;
+  syncInfo.msgcb = &gSyncIO->msgcb;
   syncInfo.FpSendMsg = syncIOSendMsg;
-  syncInfo.queue = gSyncIO->pMsgQ;
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./");
@@ -89,20 +88,22 @@ int main(int argc, char** argv) {
   SSyncNode* pSyncNode = syncInitTest();
   assert(pSyncNode != NULL);
 
-  syncNodePrint2((char*)"syncInitTest", pSyncNode);
+  syncNodeLog2((char*)"syncInitTest", pSyncNode);
 
   initRaftId(pSyncNode);
 
   //--------------------------------------------------------------
 
   for (int i = 0; i < 10; ++i) {
-    SyncPingReply* pSyncMsg = syncPingReplyBuild2(&pSyncNode->myRaftId, &pSyncNode->myRaftId, "syncIOSendMsgTest");
-    SRpcMsg        rpcMsg;
+    SyncPingReply* pSyncMsg =
+        syncPingReplyBuild2(&pSyncNode->myRaftId, &pSyncNode->myRaftId, 1000, "syncIOSendMsgTest");
+    SRpcMsg rpcMsg = {0};
     syncPingReply2RpcMsg(pSyncMsg, &rpcMsg);
 
     SEpSet epSet;
     syncUtilnodeInfo2EpSet(&pSyncNode->myNodeInfo, &epSet);
-    pSyncNode->FpSendMsg(pSyncNode->rpcClient, &epSet, &rpcMsg);
+    rpcMsg.info.noResp = 1;
+    pSyncNode->FpSendMsg(&epSet, &rpcMsg);
 
     taosMsleep(1000);
   }

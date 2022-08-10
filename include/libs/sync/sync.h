@@ -20,16 +20,37 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <tdatablock.h>
-#include "taosdef.h"
-#include "trpc.h"
-#include "wal.h"
+#include "cJSON.h"
+#include "tdef.h"
+#include "tmsgcb.h"
+
+extern bool gRaftDetailLog;
+
+#define SYNC_RESP_TTL_MS       10000000
+#define SYNC_SPEED_UP_HB_TIMER 400
+#define SYNC_SPEED_UP_AFTER_MS (1000 * 20)
+#define SYNC_SLOW_DOWN_RANGE   100
+
+#define SYNC_MAX_BATCH_SIZE 1
+#define SYNC_INDEX_BEGIN    0
+#define SYNC_INDEX_INVALID  -1
+#define SYNC_TERM_INVALID   0xFFFFFFFFFFFFFFFF
+
+typedef enum {
+  SYNC_STRATEGY_NO_SNAPSHOT = 0,
+  SYNC_STRATEGY_STANDARD_SNAPSHOT = 1,
+  SYNC_STRATEGY_WAL_FIRST = 2,
+} ESyncStrategy;
 
 typedef uint64_t SyncNodeId;
 typedef int32_t  SyncGroupId;
 typedef int64_t  SyncIndex;
 typedef uint64_t SyncTerm;
+
+typedef struct SSyncNode      SSyncNode;
+typedef struct SSyncBuffer    SSyncBuffer;
+typedef struct SWal           SWal;
+typedef struct SSyncRaftEntry SSyncRaftEntry;
 
 typedef enum {
   TAOS_SYNC_STATE_FOLLOWER = 100,
@@ -38,14 +59,9 @@ typedef enum {
   TAOS_SYNC_STATE_ERROR = 103,
 } ESyncState;
 
-typedef struct SSyncBuffer {
-  void*  data;
-  size_t len;
-} SSyncBuffer;
-
 typedef struct SNodeInfo {
-  uint16_t nodePort;                 // node sync Port
-  char     nodeFqdn[TSDB_FQDN_LEN];  // node FQDN
+  uint16_t nodePort;
+  char     nodeFqdn[TSDB_FQDN_LEN];
 } SNodeInfo;
 
 typedef struct SSyncCfg {
@@ -54,46 +70,77 @@ typedef struct SSyncCfg {
   SNodeInfo nodeInfo[TSDB_MAX_REPLICA];
 } SSyncCfg;
 
-typedef struct SNodesRole {
-  int32_t    replicaNum;
-  SNodeInfo  nodeInfo[TSDB_MAX_REPLICA];
-  ESyncState role[TSDB_MAX_REPLICA];
-} SNodesRole;
+typedef struct SFsmCbMeta {
+  int32_t    code;
+  SyncIndex  index;
+  SyncTerm   term;
+  uint64_t   seqNum;
+  SyncIndex  lastConfigIndex;
+  ESyncState state;
+  SyncTerm   currentTerm;
+  bool       isWeak;
+  uint64_t   flag;
+} SFsmCbMeta;
 
-// abstract definition of snapshot
+typedef struct SReConfigCbMeta {
+  int32_t    code;
+  SyncIndex  index;
+  SyncTerm   term;
+  uint64_t   seqNum;
+  SyncIndex  lastConfigIndex;
+  ESyncState state;
+  SyncTerm   currentTerm;
+  bool       isWeak;
+  uint64_t   flag;
+
+  // config info
+  SSyncCfg  oldCfg;
+  SSyncCfg  newCfg;
+  SyncIndex newCfgIndex;
+  SyncTerm  newCfgTerm;
+  uint64_t  newCfgSeqNum;
+
+} SReConfigCbMeta;
+
+typedef struct SSnapshotParam {
+  SyncIndex start;
+  SyncIndex end;
+} SSnapshotParam;
+
 typedef struct SSnapshot {
   void*     data;
   SyncIndex lastApplyIndex;
+  SyncTerm  lastApplyTerm;
+  SyncIndex lastConfigIndex;
 } SSnapshot;
+
+typedef struct SSnapshotMeta {
+  SyncIndex lastConfigIndex;
+} SSnapshotMeta;
 
 typedef struct SSyncFSM {
   void* data;
 
-  // when value in pMsg finish a raft flow, FpCommitCb is called, code indicates the result
-  // user can do something according to the code and isWeak. for example, write data into tsdb
-  void (*FpCommitCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SyncIndex index, bool isWeak, int32_t code,
-                     ESyncState state);
+  void (*FpCommitCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
+  void (*FpPreCommitCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
+  void (*FpRollBackCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
 
-  // when value in pMsg has been written into local log store, FpPreCommitCb is called, code indicates the result
-  // user can do something according to the code and isWeak. for example, write data into tsdb
-  void (*FpPreCommitCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SyncIndex index, bool isWeak, int32_t code,
-                        ESyncState state);
+  void (*FpRestoreFinishCb)(struct SSyncFSM* pFsm);
+  void (*FpReConfigCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta cbMeta);
+  void (*FpLeaderTransferCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
 
-  // when log entry is updated by a new one, FpRollBackCb is called
-  // user can do something to roll back. for example, delete data from tsdb, or just ignore it
-  void (*FpRollBackCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SyncIndex index, bool isWeak, int32_t code,
-                       ESyncState state);
+  int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot, void* pReaderParam, void** ppReader);
+  int32_t (*FpGetSnapshotInfo)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
 
-  // user should implement this function, use "data" to take snapshot into "snapshot"
-  int32_t (*FpTakeSnapshot)(SSnapshot* snapshot);
+  int32_t (*FpSnapshotStartRead)(struct SSyncFSM* pFsm, void* pReaderParam, void** ppReader);
+  int32_t (*FpSnapshotStopRead)(struct SSyncFSM* pFsm, void* pReader);
+  int32_t (*FpSnapshotDoRead)(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32_t* len);
 
-  // user should implement this function, restore "data" from "snapshot"
-  int32_t (*FpRestoreSnapshot)(const SSnapshot* snapshot);
+  int32_t (*FpSnapshotStartWrite)(struct SSyncFSM* pFsm, void* pWriterParam, void** ppWriter);
+  int32_t (*FpSnapshotStopWrite)(struct SSyncFSM* pFsm, void* pWriter, bool isApply, SSnapshot* pSnapshot);
+  int32_t (*FpSnapshotDoWrite)(struct SSyncFSM* pFsm, void* pWriter, void* pBuf, int32_t len);
 
 } SSyncFSM;
-
-struct SSyncRaftEntry;
-typedef struct SSyncRaftEntry SSyncRaftEntry;
 
 // abstract definition of log store in raft
 // SWal implements it
@@ -121,56 +168,65 @@ typedef struct SSyncLogStore {
   // return commit index of log
   SyncIndex (*getCommitIndex)(struct SSyncLogStore* pLogStore);
 
+  SyncIndex (*syncLogBeginIndex)(struct SSyncLogStore* pLogStore);
+  SyncIndex (*syncLogEndIndex)(struct SSyncLogStore* pLogStore);
+  bool (*syncLogIsEmpty)(struct SSyncLogStore* pLogStore);
+  int32_t (*syncLogEntryCount)(struct SSyncLogStore* pLogStore);
+  int32_t (*syncLogRestoreFromSnapshot)(struct SSyncLogStore* pLogStore, SyncIndex index);
+  bool (*syncLogExist)(struct SSyncLogStore* pLogStore, SyncIndex index);
+
+  SyncIndex (*syncLogWriteIndex)(struct SSyncLogStore* pLogStore);
+  SyncIndex (*syncLogLastIndex)(struct SSyncLogStore* pLogStore);
+  SyncTerm (*syncLogLastTerm)(struct SSyncLogStore* pLogStore);
+
+  int32_t (*syncLogAppendEntry)(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
+  int32_t (*syncLogGetEntry)(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry);
+  int32_t (*syncLogTruncate)(struct SSyncLogStore* pLogStore, SyncIndex fromIndex);
+
 } SSyncLogStore;
 
-// raft need to persist two variables in storage: currentTerm, voteFor
-typedef struct SStateMgr {
-  void* data;
-
-  int32_t (*getCurrentTerm)(struct SStateMgr* pMgr, SyncTerm* pCurrentTerm);
-  int32_t (*persistCurrentTerm)(struct SStateMgr* pMgr, SyncTerm pCurrentTerm);
-
-  int32_t (*getVoteFor)(struct SStateMgr* pMgr, SyncNodeId* pVoteFor);
-  int32_t (*persistVoteFor)(struct SStateMgr* pMgr, SyncNodeId voteFor);
-
-  int32_t (*getSyncCfg)(struct SStateMgr* pMgr, SSyncCfg* pSyncCfg);
-  int32_t (*persistSyncCfg)(struct SStateMgr* pMgr, SSyncCfg* pSyncCfg);
-
-} SStateMgr;
-
 typedef struct SSyncInfo {
-  SyncGroupId vgId;
-  SSyncCfg    syncCfg;
-  char        path[TSDB_FILENAME_LEN];
-  SWal*       pWal;
-  SSyncFSM*   pFsm;
-
-  void* rpcClient;
-  int32_t (*FpSendMsg)(void* rpcClient, const SEpSet* pEpSet, SRpcMsg* pMsg);
-  void* queue;
-  int32_t (*FpEqMsg)(void* queue, SRpcMsg* pMsg);
-
+  bool          isStandBy;
+  ESyncStrategy snapshotStrategy;
+  SyncGroupId   vgId;
+  int32_t       batchSize;
+  SSyncCfg      syncCfg;
+  char          path[TSDB_FILENAME_LEN];
+  SWal*         pWal;
+  SSyncFSM*     pFsm;
+  SMsgCb*       msgcb;
+  int32_t (*FpSendMsg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
+  int32_t (*FpEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
 } SSyncInfo;
 
-struct SSyncNode;
-typedef struct SSyncNode SSyncNode;
+int32_t     syncInit();
+void        syncCleanUp();
+int64_t     syncOpen(const SSyncInfo* pSyncInfo);
+void        syncStart(int64_t rid);
+void        syncStop(int64_t rid);
+int32_t     syncSetStandby(int64_t rid);
+ESyncState  syncGetMyRole(int64_t rid);
+bool        syncIsReady(int64_t rid);
+const char* syncGetMyRoleStr(int64_t rid);
+bool        syncRestoreFinish(int64_t rid);
+SyncTerm    syncGetMyTerm(int64_t rid);
+SyncGroupId syncGetVgId(int64_t rid);
+void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
+void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
+int32_t     syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak);
+int32_t     syncProposeBatch(int64_t rid, SRpcMsg** pMsgPArr, bool* pIsWeakArr, int32_t arrSize);
+bool        syncEnvIsStart();
+const char* syncStr(ESyncState state);
+bool        syncIsRestoreFinish(int64_t rid);
+int32_t     syncGetSnapshotByIndex(int64_t rid, SyncIndex index, SSnapshot* pSnapshot);
 
-int32_t syncInit();
-void    syncCleanUp();
+int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg);
 
-int64_t    syncStart(const SSyncInfo* pSyncInfo);
-void       syncStop(int64_t rid);
-int32_t    syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
-int32_t    syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
-ESyncState syncGetMyRole(int64_t rid);
+// build SRpcMsg, need to call syncPropose with SRpcMsg
+int32_t syncReconfigBuild(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg);
 
-// propose with sequence number, to implement linearizable semantics
-int32_t syncPropose2(int64_t rid, const SRpcMsg* pMsg, bool isWeak, uint64_t seqNum);
-
-// for compatibility, the same as syncPropose
-int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
-
-extern int32_t sDebugFlag;
+int32_t syncLeaderTransfer(int64_t rid);
+int32_t syncLeaderTransferTo(int64_t rid, SNodeInfo newLeader);
 
 #ifdef __cplusplus
 }

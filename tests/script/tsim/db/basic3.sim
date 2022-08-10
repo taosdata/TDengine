@@ -1,24 +1,6 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
-
-$loop_cnt = 0
-check_dnode_ready:
-	$loop_cnt = $loop_cnt + 1
-	sleep 200
-	if $loop_cnt == 10 then
-	  print ====> dnode not ready!
-		return -1
-	endi
-sql show dnodes
-print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
-if $data00 != 1 then
-  return -1
-endi
-if $data04 != ready then
-  goto check_dnode_ready
-endi
-
 sql connect
 
 print =============== create database d1
@@ -29,15 +11,15 @@ sql create table d1.t3 (ts timestamp, i int);
 sql create table d1.t4 (ts timestamp, i int);
 
 sql show databases
-if $rows != 2 then 
+if $rows != 3 then
   return -1
 endi
 
-if $data00 != d1 then 
+if $data20 != d1 then
   return -1
 endi
 
-if $data02 != 2 then 
+if $data22 != 2 then
   return -1
 endi
 
@@ -57,7 +39,7 @@ sql create table d2.t2 (ts timestamp, i int);
 sql create table d2.t3 (ts timestamp, i int);
 
 sql show databases
-if $rows != 3 then 
+if $rows != 4 then
   return -1
 endi
 

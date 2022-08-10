@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tdbInt.h"
+#include "tdbOs.h"
 
 #ifndef TDB_FOR_TDENGINE
 

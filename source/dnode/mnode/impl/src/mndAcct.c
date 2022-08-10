@@ -15,10 +15,12 @@
 
 #define _DEFAULT_SOURCE
 #include "mndAcct.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
+#include "mndTrans.h"
 
-#define TSDB_ACCT_VER_NUMBER 1
-#define TSDB_ACCT_RESERVE_SIZE 128
+#define ACCT_VER_NUMBER   1
+#define ACCT_RESERVE_SIZE 128
 
 static int32_t  mndCreateDefaultAcct(SMnode *pMnode);
 static SSdbRaw *mndAcctActionEncode(SAcctObj *pAcct);
@@ -26,19 +28,21 @@ static SSdbRow *mndAcctActionDecode(SSdbRaw *pRaw);
 static int32_t  mndAcctActionInsert(SSdb *pSdb, SAcctObj *pAcct);
 static int32_t  mndAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct);
 static int32_t  mndAcctActionUpdate(SSdb *pSdb, SAcctObj *pOld, SAcctObj *pNew);
-static int32_t  mndProcessCreateAcctReq(SNodeMsg *pReq);
-static int32_t  mndProcessAlterAcctReq(SNodeMsg *pReq);
-static int32_t  mndProcessDropAcctReq(SNodeMsg *pReq);
+static int32_t  mndProcessCreateAcctReq(SRpcMsg *pReq);
+static int32_t  mndProcessAlterAcctReq(SRpcMsg *pReq);
+static int32_t  mndProcessDropAcctReq(SRpcMsg *pReq);
 
 int32_t mndInitAcct(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_ACCT,
-                     .keyType = SDB_KEY_BINARY,
-                     .deployFp = mndCreateDefaultAcct,
-                     .encodeFp = (SdbEncodeFp)mndAcctActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndAcctActionDecode,
-                     .insertFp = (SdbInsertFp)mndAcctActionInsert,
-                     .updateFp = (SdbUpdateFp)mndAcctActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndAcctActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_ACCT,
+      .keyType = SDB_KEY_BINARY,
+      .deployFp = mndCreateDefaultAcct,
+      .encodeFp = (SdbEncodeFp)mndAcctActionEncode,
+      .decodeFp = (SdbDecodeFp)mndAcctActionDecode,
+      .insertFp = (SdbInsertFp)mndAcctActionInsert,
+      .updateFp = (SdbUpdateFp)mndAcctActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndAcctActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ACCT, mndProcessCreateAcctReq);
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_ACCT, mndProcessAlterAcctReq);
@@ -55,57 +59,81 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
   acctObj.createdTime = taosGetTimestampMs();
   acctObj.updateTime = acctObj.createdTime;
   acctObj.acctId = 1;
-  acctObj.cfg = (SAcctCfg){.maxUsers = INT32_MAX,
-                           .maxDbs = INT32_MAX,
-                           .maxStbs = INT32_MAX,
-                           .maxTbs = INT32_MAX,
-                           .maxTimeSeries = INT32_MAX,
-                           .maxStreams = INT32_MAX,
-                           .maxFuncs = INT32_MAX,
-                           .maxConsumers = INT32_MAX,
-                           .maxConns = INT32_MAX,
-                           .maxTopics = INT32_MAX,
-                           .maxStorage = INT64_MAX,
-                           .accessState = TSDB_VN_ALL_ACCCESS};
+  acctObj.status = 0;
+  acctObj.cfg = (SAcctCfg){
+      .maxUsers = INT32_MAX,
+      .maxDbs = INT32_MAX,
+      .maxStbs = INT32_MAX,
+      .maxTbs = INT32_MAX,
+      .maxTimeSeries = INT32_MAX,
+      .maxStreams = INT32_MAX,
+      .maxFuncs = INT32_MAX,
+      .maxConsumers = INT32_MAX,
+      .maxConns = INT32_MAX,
+      .maxTopics = INT32_MAX,
+      .maxStorage = INT64_MAX,
+      .accessState = TSDB_VN_ALL_ACCCESS,
+  };
 
   SSdbRaw *pRaw = mndAcctActionEncode(&acctObj);
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mDebug("acct:%s, will be created while deploy sdb, raw:%p", acctObj.acct, pRaw);
-  return sdbWrite(pMnode->pSdb, pRaw);
+  mDebug("acct:%s, will be created when deploying, raw:%p", acctObj.acct, pRaw);
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL);
+  if (pTrans == NULL) {
+    mError("acct:%s, failed to create since %s", acctObj.acct, terrstr());
+    return -1;
+  }
+  mDebug("trans:%d, used to create acct:%s", pTrans->id, acctObj.acct);
+
+  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
+    mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  mndTransDrop(pTrans);
+  return 0;
 }
 
 static SSdbRaw *mndAcctActionEncode(SAcctObj *pAcct) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_ACCT, TSDB_ACCT_VER_NUMBER, sizeof(SAcctObj) + TSDB_ACCT_RESERVE_SIZE);
-  if (pRaw == NULL) goto ACCT_ENCODE_OVER;
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_ACCT, ACCT_VER_NUMBER, sizeof(SAcctObj) + ACCT_RESERVE_SIZE);
+  if (pRaw == NULL) goto _OVER;
 
   int32_t dataPos = 0;
-  SDB_SET_BINARY(pRaw, dataPos, pAcct->acct, TSDB_USER_LEN, ACCT_ENCODE_OVER)
-  SDB_SET_INT64(pRaw, dataPos, pAcct->createdTime, ACCT_ENCODE_OVER)
-  SDB_SET_INT64(pRaw, dataPos, pAcct->updateTime, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->acctId, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->status, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxUsers, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxDbs, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxStbs, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxTbs, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxTimeSeries, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxStreams, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxFuncs, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxConsumers, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxConns, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxTopics, ACCT_ENCODE_OVER)
-  SDB_SET_INT64(pRaw, dataPos, pAcct->cfg.maxStorage, ACCT_ENCODE_OVER)
-  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.accessState, ACCT_ENCODE_OVER)
-  SDB_SET_RESERVE(pRaw, dataPos, TSDB_ACCT_RESERVE_SIZE, ACCT_ENCODE_OVER)
-  SDB_SET_DATALEN(pRaw, dataPos, ACCT_ENCODE_OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pAcct->acct, TSDB_USER_LEN, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pAcct->createdTime, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pAcct->updateTime, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->acctId, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->status, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxUsers, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxDbs, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxStbs, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxTbs, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxTimeSeries, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxStreams, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxFuncs, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxConsumers, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxConns, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxTopics, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pAcct->cfg.maxStorage, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.accessState, _OVER)
+  SDB_SET_RESERVE(pRaw, dataPos, ACCT_RESERVE_SIZE, _OVER)
+  SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
   terrno = 0;
 
-ACCT_ENCODE_OVER:
+_OVER:
   if (terrno != 0) {
     mError("acct:%s, failed to encode to raw:%p since %s", pAcct->acct, pRaw, terrstr());
     sdbFreeRaw(pRaw);
@@ -120,42 +148,42 @@ static SSdbRow *mndAcctActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto ACCT_DECODE_OVER;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
-  if (sver != TSDB_ACCT_VER_NUMBER) {
+  if (sver != ACCT_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    goto ACCT_DECODE_OVER;
+    goto _OVER;
   }
 
   SSdbRow *pRow = sdbAllocRow(sizeof(SAcctObj));
-  if (pRow == NULL) goto ACCT_DECODE_OVER;
+  if (pRow == NULL) goto _OVER;
 
   SAcctObj *pAcct = sdbGetRowObj(pRow);
-  if (pAcct == NULL) goto ACCT_DECODE_OVER;
+  if (pAcct == NULL) goto _OVER;
 
   int32_t dataPos = 0;
-  SDB_GET_BINARY(pRaw, dataPos, pAcct->acct, TSDB_USER_LEN, ACCT_DECODE_OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pAcct->createdTime, ACCT_DECODE_OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pAcct->updateTime, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->acctId, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->status, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxUsers, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxDbs, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxStbs, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxTbs, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxTimeSeries, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxStreams, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxFuncs, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxConsumers, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxConns, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxTopics, ACCT_DECODE_OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pAcct->cfg.maxStorage, ACCT_DECODE_OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.accessState, ACCT_DECODE_OVER)
-  SDB_GET_RESERVE(pRaw, dataPos, TSDB_ACCT_RESERVE_SIZE, ACCT_DECODE_OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pAcct->acct, TSDB_USER_LEN, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pAcct->createdTime, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pAcct->updateTime, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->acctId, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->status, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxUsers, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxDbs, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxStbs, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxTbs, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxTimeSeries, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxStreams, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxFuncs, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxConsumers, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxConns, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxTopics, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pAcct->cfg.maxStorage, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.accessState, _OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, ACCT_RESERVE_SIZE, _OVER)
 
   terrno = 0;
 
-ACCT_DECODE_OVER:
+_OVER:
   if (terrno != 0) {
     mError("acct:%s, failed to decode from raw:%p since %s", pAcct->acct, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
@@ -178,27 +206,38 @@ static int32_t mndAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct) {
 
 static int32_t mndAcctActionUpdate(SSdb *pSdb, SAcctObj *pOld, SAcctObj *pNew) {
   mTrace("acct:%s, perform update action, old row:%p new row:%p", pOld->acct, pOld, pNew);
-
   pOld->updateTime = pNew->updateTime;
   pOld->status = pNew->status;
   memcpy(&pOld->cfg, &pNew->cfg, sizeof(SAcctCfg));
   return 0;
 }
 
-static int32_t mndProcessCreateAcctReq(SNodeMsg *pReq) {
-  terrno = TSDB_CODE_MND_MSG_NOT_PROCESSED;
+static int32_t mndProcessCreateAcctReq(SRpcMsg *pReq) {
+  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_CREATE_ACCT) != 0) {
+    return -1;
+  }
+
+  terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   mError("failed to process create acct request since %s", terrstr());
   return -1;
 }
 
-static int32_t mndProcessAlterAcctReq(SNodeMsg *pReq) {
-  terrno = TSDB_CODE_MND_MSG_NOT_PROCESSED;
+static int32_t mndProcessAlterAcctReq(SRpcMsg *pReq) {
+  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_ALTER_ACCT) != 0) {
+    return -1;
+  }
+
+  terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   mError("failed to process create acct request since %s", terrstr());
   return -1;
 }
 
-static int32_t mndProcessDropAcctReq(SNodeMsg *pReq) {
-  terrno = TSDB_CODE_MND_MSG_NOT_PROCESSED;
+static int32_t mndProcessDropAcctReq(SRpcMsg *pReq) {
+  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_DROP_ACCT) != 0) {
+    return -1;
+  }
+
+  terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   mError("failed to process create acct request since %s", terrstr());
   return -1;
 }

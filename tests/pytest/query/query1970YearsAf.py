@@ -57,7 +57,7 @@ class TDTestCase:
             "name": "db",
             "drop": "yes",
             "replica": 1,
-            "days": 10,
+            "duration": 10,
             "cache": 16,
             "blocks": 8,
             "precision": "ms",
@@ -68,7 +68,7 @@ class TDTestCase:
             "walLevel": 1,
             "cachelast": 0,
             "quorum": 1,
-            "fsync": 3000,
+            "wal_fsync_period": 3000,
             "update": 0
         }
 
@@ -133,7 +133,7 @@ class TDTestCase:
             "user": "root",
             "password": "taosdata",
             "thread_count": 4,
-            "thread_count_create_tbl": 4,
+            "create_table_thread_count": 4,
             "result_file": "/tmp/insert_res.txt",
             "confirm_parameter_prompt": "no",
             "insert_interval": 0,

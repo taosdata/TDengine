@@ -1,98 +1,177 @@
-add_executable(indexTest "")
-add_executable(fstTest "")
-add_executable(fstUT "")
-add_executable(UtilUT "")
-add_executable(jsonUT "")
+IF(NOT TD_DARWIN)
+  add_executable(idxTest "")
+  add_executable(idxFstTest "")
+  add_executable(idxFstUT "")
+  add_executable(idxUtilUT "")
+  add_executable(idxJsonUT "")
+  add_executable(idxFstUtilUT "")
 
-target_sources(indexTest
-  PRIVATE 
-  "indexTests.cc" 
-)
-target_sources(fstTest
-  PRIVATE 
-  "fstTest.cc" 
-)
+  target_sources(idxTest
+    PRIVATE 
+    "indexTests.cc" 
+  )
+  target_sources(idxFstTest
+    PRIVATE 
+    "fstTest.cc" 
+  )
 
-target_sources(fstUT
-  PRIVATE 
-  "fstUT.cc" 
-)
-target_sources(UtilUT
-  PRIVATE 
-  "utilUT.cc" 
-)
+  target_sources(idxFstUT
+    PRIVATE 
+    "fstUT.cc" 
+  )
+  target_sources(idxUtilUT
+    PRIVATE 
+    "utilUT.cc" 
+  )
 
-target_sources(jsonUT
-  PRIVATE 
-  "jsonUT.cc" 
-)
-target_include_directories ( indexTest
-  PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/index" 
+  target_sources(idxJsonUT
+    PRIVATE 
+    "jsonUT.cc" 
+  )
+  target_sources(idxFstUtilUT
+   PRIVATE 
+   "fstUtilUT.cc" 
+  )
+ 
+  target_include_directories (idxTest
+   PUBLIC
+   "${TD_SOURCE_DIR}/include/libs/index" 
+   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  ) 
+  target_include_directories (idxFstTest 
+   PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/index" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-) 
-target_include_directories ( fstTest 
-  PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/index" 
-  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-) 
+  ) 
+  target_sources(idxJsonUT
+    PRIVATE 
+    "jsonUT.cc" 
+  )
+  target_include_directories (idxTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/index" 
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  ) 
+  target_include_directories (idxFstTest 
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/index" 
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  ) 
 
-target_include_directories ( fstUT 
-  PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/index" 
-  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-) 
+  target_include_directories (idxFstUT 
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/index" 
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  ) 
 
-target_include_directories ( UtilUT 
-  PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/index" 
-  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-) 
+  target_include_directories (idxUtilUT 
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/index" 
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  ) 
 
-target_include_directories (jsonUT
-  PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/index" 
-  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-) 
-target_link_libraries (indexTest
-  os  
-  util
-  common
-  gtest_main
-  index
-)
-target_link_libraries (fstTest
-  os  
-  util
-  common
-  gtest_main
-  index
-)
-target_link_libraries (fstUT
-  os  
-  util
-  common
-  gtest_main
-  index
-)
+  target_include_directories (idxJsonUT
+   PUBLIC
+   "${TD_SOURCE_DIR}/include/libs/index" 
+   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  ) 
+  target_include_directories (idxFstUtilUT
+   PUBLIC
+   "${TD_SOURCE_DIR}/include/libs/index" 
+   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  ) 
 
-target_link_libraries (UtilUT
-  os  
-  util
-  common
-  gtest_main
-  index
-)
+  target_link_libraries (idxTest
+    os  
+    util
+    common
+    gtest_main
+    index
+  )
+  target_link_libraries (idxFstTest
+    os  
+    util
+    common
+    gtest_main
+    index
+  )
+  target_link_libraries (idxFstUT
+    os  
+    util
+    common
+    gtest_main
+    index
+  )
+  target_include_directories (idxJsonUT
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/index" 
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  ) 
+  target_link_libraries (idxTest
+    os  
+    util
+    common
+    gtest_main
+    index
+  )
+  target_link_libraries (idxFstTest
+    os  
+    util
+    common
+    gtest_main
+    index
+  )
+  target_link_libraries (idxFstUT
+    os  
+    util
+    common
+    gtest_main
+    index
+  )
 
-target_link_libraries (jsonUT
-  os  
-  util
-  common
-  gtest_main
-  index
-)
+  target_link_libraries (idxUtilUT
+    os  
+    util
+    common
+    gtest_main
+    index
+  )
 
-#add_test(
-#  NAME index_test
-#  COMMAND indexTest
-#)
+  target_link_libraries (idxJsonUT
+    os  
+    util
+    common
+    gtest_main
+    index
+  )
+  target_link_libraries (idxFstUtilUT
+    os  
+    util
+    common
+    gtest_main
+    index
+  )
+  
+  add_test(
+    NAME idxJsonUT
+    COMMAND idxJsonUT 
+  )
+  add_test(
+    NAME idxFstUtilUT 
+    COMMAND idxFstUtilUT  
+  
+  )
+
+  add_test(
+    NAME idxtest
+    COMMAND idxTest
+  )
+  add_test(
+    NAME idxUtilUT 
+    COMMAND idxUtilUT 
+  )
+  add_test(
+    NAME idxFstUT 
+    COMMAND idxFstUT 
+  )
+ENDIF ()

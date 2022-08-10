@@ -264,7 +264,7 @@ class TDTestCase:
 
     def td4288(self):
         tdLog.printNoPrefix("==========TD-4288==========")
-        # keep ~ [days,365000]
+        # keep ~ [duration,365000]
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database  if not exists db")
         tdSql.query("show variables")

@@ -83,7 +83,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, np.max(floatData))
 
         # test case: https://jira.taosdata.com:18080/browse/TD-2583
-        tdSql.execute("create database test days 2")
+        tdSql.execute("create database test duration 2")
         tdSql.execute("create table car(ts timestamp, speed int)")
         tdSql.execute("insert into car values(now, -1)")
         tdSql.execute("insert into car values(now-10d, null)")

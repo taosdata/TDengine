@@ -2,7 +2,7 @@ aux_source_directory(src SNODE_SRC)
 add_library(snode STATIC ${SNODE_SRC})
 target_include_directories(
     snode
-    PUBLIC "${CMAKE_SOURCE_DIR}/include/dnode/snode"
+    PUBLIC "${TD_SOURCE_DIR}/include/dnode/snode"
     private "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(

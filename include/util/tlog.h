@@ -59,11 +59,15 @@ extern int32_t sDebugFlag;
 extern int32_t tsdbDebugFlag;
 extern int32_t tqDebugFlag;
 extern int32_t fsDebugFlag;
+extern int32_t metaDebugFlag;
+extern int32_t udfDebugFlag;
+extern int32_t smaDebugFlag;
+extern int32_t idxDebugFlag;
+extern int32_t tdbDebugFlag;
 
 int32_t taosInitLog(const char *logName, int32_t maxFiles);
 void    taosCloseLog();
 void    taosResetLog();
-void    taosSetAllDebugFlag(int32_t flag);
 void    taosDumpData(uint8_t *msg, int32_t len);
 
 void taosPrintLog(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...)
@@ -78,16 +82,19 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
 #endif
     ;
 
+// clang-format off
 #define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", DEBUG_FATAL, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
 #define uError(...) { if (uDebugFlag & DEBUG_ERROR) { taosPrintLog("UTL ERROR ", DEBUG_ERROR, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
 #define uWarn(...)  { if (uDebugFlag & DEBUG_WARN)  { taosPrintLog("UTL WARN ", DEBUG_WARN, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
 #define uInfo(...)  { if (uDebugFlag & DEBUG_INFO)  { taosPrintLog("UTL ", DEBUG_INFO, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
 #define uDebug(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLog("UTL ", DEBUG_DEBUG, uDebugFlag, __VA_ARGS__); }}
 #define uTrace(...) { if (uDebugFlag & DEBUG_TRACE) { taosPrintLog("UTL ", DEBUG_TRACE, uDebugFlag, __VA_ARGS__); }}
+#define uDebugL(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLongString("UTL ", DEBUG_DEBUG, uDebugFlag, __VA_ARGS__); }}
 
 #define pError(...) { taosPrintLog("APP ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }
 #define pPrint(...) { taosPrintLog("APP ", DEBUG_INFO, 255, __VA_ARGS__); }
-
+// clang-format on
+//#define BUF_PAGE_DEBUG
 #ifdef __cplusplus
 }
 #endif

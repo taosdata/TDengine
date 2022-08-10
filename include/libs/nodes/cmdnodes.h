@@ -20,232 +20,412 @@
 extern "C" {
 #endif
 
+#include "query.h"
 #include "querynodes.h"
 
+#define DESCRIBE_RESULT_COLS      4
+#define DESCRIBE_RESULT_FIELD_LEN (TSDB_COL_NAME_LEN - 1 + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_TYPE_LEN  (20 + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_NOTE_LEN  (8 + VARSTR_HEADER_SIZE)
+
+#define SHOW_CREATE_DB_RESULT_COLS       2
+#define SHOW_CREATE_DB_RESULT_FIELD1_LEN (TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_CREATE_DB_RESULT_FIELD2_LEN (TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE)
+
+#define SHOW_CREATE_TB_RESULT_COLS       2
+#define SHOW_CREATE_TB_RESULT_FIELD1_LEN (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_CREATE_TB_RESULT_FIELD2_LEN (TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE)
+
+#define SHOW_LOCAL_VARIABLES_RESULT_COLS       2
+#define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
+
+#define PRIVILEGE_TYPE_MASK(n) (1 << n)
+
+#define PRIVILEGE_TYPE_ALL   PRIVILEGE_TYPE_MASK(0)
+#define PRIVILEGE_TYPE_READ  PRIVILEGE_TYPE_MASK(1)
+#define PRIVILEGE_TYPE_WRITE PRIVILEGE_TYPE_MASK(2)
+
+#define PRIVILEGE_TYPE_TEST_MASK(val, mask) (((val) & (mask)) != 0)
+
 typedef struct SDatabaseOptions {
-  ENodeType type;
-  int32_t numOfBlocks;
-  int32_t cacheBlockSize;
-  int8_t cachelast;
-  int32_t compressionLevel;
-  int32_t daysPerFile;
-  int32_t fsyncPeriod;
-  int32_t maxRowsPerBlock;
-  int32_t minRowsPerBlock;
-  int32_t keep;
-  int32_t precision;
-  int32_t quorum;
-  int32_t replica;
-  int32_t ttl;
-  int32_t walLevel;
-  int32_t numOfVgroups;
-  int8_t singleStable;
-  int8_t streamMode;
-  SNodeList* pRetentions;
+  ENodeType   type;
+  int32_t     buffer;
+  char        cacheModelStr[TSDB_CACHE_MODEL_STR_LEN];
+  int8_t      cacheModel;
+  int32_t     cacheLastSize;
+  int8_t      compressionLevel;
+  int32_t     daysPerFile;
+  SValueNode* pDaysPerFile;
+  int32_t     fsyncPeriod;
+  int32_t     maxRowsPerBlock;
+  int32_t     minRowsPerBlock;
+  SNodeList*  pKeep;
+  int64_t     keep[3];
+  int32_t     pages;
+  int32_t     pagesize;
+  char        precisionStr[3];
+  int8_t      precision;
+  int8_t      replica;
+  char        strictStr[TSDB_DB_STRICT_STR_LEN];
+  int8_t      strict;
+  int8_t      walLevel;
+  int32_t     numOfVgroups;
+  int8_t      singleStable;
+  SNodeList*  pRetentions;
+  int8_t      schemaless;
+  int32_t     walRetentionPeriod;
+  int32_t     walRetentionSize;
+  int32_t     walRollPeriod;
+  int32_t     walSegmentSize;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
-  ENodeType type;
-  char dbName[TSDB_DB_NAME_LEN];
-  bool ignoreExists;
+  ENodeType         type;
+  char              dbName[TSDB_DB_NAME_LEN];
+  bool              ignoreExists;
   SDatabaseOptions* pOptions;
 } SCreateDatabaseStmt;
 
 typedef struct SUseDatabaseStmt {
   ENodeType type;
-  char dbName[TSDB_DB_NAME_LEN];
+  char      dbName[TSDB_DB_NAME_LEN];
 } SUseDatabaseStmt;
 
 typedef struct SDropDatabaseStmt {
   ENodeType type;
-  char dbName[TSDB_DB_NAME_LEN];
-  bool ignoreNotExists;
+  char      dbName[TSDB_DB_NAME_LEN];
+  bool      ignoreNotExists;
 } SDropDatabaseStmt;
 
 typedef struct SAlterDatabaseStmt {
-  ENodeType type;
-  char dbName[TSDB_DB_NAME_LEN];
+  ENodeType         type;
+  char              dbName[TSDB_DB_NAME_LEN];
   SDatabaseOptions* pOptions;
 } SAlterDatabaseStmt;
 
-typedef struct STableOptions {
+typedef struct SFlushDatabaseStmt {
   ENodeType type;
-  int32_t keep;
-  int32_t ttl;
-  char comments[TSDB_STB_COMMENT_LEN];
+  char      dbName[TSDB_DB_NAME_LEN];
+} SFlushDatabaseStmt;
+
+typedef struct STrimDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+} STrimDatabaseStmt;
+
+typedef struct STableOptions {
+  ENodeType  type;
+  bool       commentNull;
+  char       comment[TSDB_TB_COMMENT_LEN];
+  SNodeList* pMaxDelay;
+  int64_t    maxDelay1;
+  int64_t    maxDelay2;
+  SNodeList* pWatermark;
+  int64_t    watermark1;
+  int64_t    watermark2;
+  SNodeList* pRollupFuncs;
+  int32_t    ttl;
   SNodeList* pSma;
-  SNodeList* pFuncs;
-  float filesFactor;
-  int32_t delay;
 } STableOptions;
 
 typedef struct SColumnDefNode {
   ENodeType type;
-  char colName[TSDB_COL_NAME_LEN];
+  char      colName[TSDB_COL_NAME_LEN];
   SDataType dataType;
-  char comments[TSDB_STB_COMMENT_LEN];
+  char      comments[TSDB_TB_COMMENT_LEN];
+  bool      sma;
 } SColumnDefNode;
 
 typedef struct SCreateTableStmt {
-  ENodeType type;
-  char dbName[TSDB_DB_NAME_LEN];
-  char tableName[TSDB_TABLE_NAME_LEN];
-  bool ignoreExists;
-  SNodeList* pCols;
-  SNodeList* pTags;
+  ENodeType      type;
+  char           dbName[TSDB_DB_NAME_LEN];
+  char           tableName[TSDB_TABLE_NAME_LEN];
+  bool           ignoreExists;
+  SNodeList*     pCols;
+  SNodeList*     pTags;
   STableOptions* pOptions;
 } SCreateTableStmt;
 
 typedef struct SCreateSubTableClause {
-  ENodeType type;
-  char dbName[TSDB_DB_NAME_LEN];
-  char tableName[TSDB_TABLE_NAME_LEN];
-  char useDbName[TSDB_DB_NAME_LEN];
-  char useTableName[TSDB_TABLE_NAME_LEN];
-  bool ignoreExists;
-  SNodeList* pSpecificTags;
-  SNodeList* pValsOfTags;
+  ENodeType      type;
+  char           dbName[TSDB_DB_NAME_LEN];
+  char           tableName[TSDB_TABLE_NAME_LEN];
+  char           useDbName[TSDB_DB_NAME_LEN];
+  char           useTableName[TSDB_TABLE_NAME_LEN];
+  bool           ignoreExists;
+  SNodeList*     pSpecificTags;
+  SNodeList*     pValsOfTags;
+  STableOptions* pOptions;
 } SCreateSubTableClause;
 
 typedef struct SCreateMultiTableStmt {
-  ENodeType type;
+  ENodeType  type;
   SNodeList* pSubTables;
 } SCreateMultiTableStmt;
 
 typedef struct SDropTableClause {
   ENodeType type;
-  char dbName[TSDB_DB_NAME_LEN];
-  char tableName[TSDB_TABLE_NAME_LEN];
-  bool ignoreNotExists;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+  bool      ignoreNotExists;
 } SDropTableClause;
 
 typedef struct SDropTableStmt {
-  ENodeType type;
+  ENodeType  type;
   SNodeList* pTables;
 } SDropTableStmt;
 
 typedef struct SDropSuperTableStmt {
   ENodeType type;
-  char dbName[TSDB_DB_NAME_LEN];
-  char tableName[TSDB_TABLE_NAME_LEN];
-  bool ignoreNotExists;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+  bool      ignoreNotExists;
 } SDropSuperTableStmt;
 
 typedef struct SAlterTableStmt {
-  ENodeType type;
-  char dbName[TSDB_DB_NAME_LEN];
-  char tableName[TSDB_TABLE_NAME_LEN];
-  int8_t alterType;
-  char colName[TSDB_COL_NAME_LEN];
-  char newColName[TSDB_COL_NAME_LEN];
+  ENodeType      type;
+  char           dbName[TSDB_DB_NAME_LEN];
+  char           tableName[TSDB_TABLE_NAME_LEN];
+  int8_t         alterType;
+  char           colName[TSDB_COL_NAME_LEN];
+  char           newColName[TSDB_COL_NAME_LEN];
   STableOptions* pOptions;
-  SDataType dataType;
-  SValueNode* pVal;
+  SDataType      dataType;
+  SValueNode*    pVal;
 } SAlterTableStmt;
 
 typedef struct SCreateUserStmt {
   ENodeType type;
-  char useName[TSDB_USER_LEN];
-  char password[TSDB_USET_PASSWORD_LEN];
+  char      useName[TSDB_USER_LEN];
+  char      password[TSDB_USET_PASSWORD_LEN];
+  int8_t    sysinfo;
 } SCreateUserStmt;
 
 typedef struct SAlterUserStmt {
   ENodeType type;
-  char useName[TSDB_USER_LEN];
-  char password[TSDB_USET_PASSWORD_LEN];
-  int8_t alterType;
+  char      useName[TSDB_USER_LEN];
+  int8_t    alterType;
+  char      password[TSDB_USET_PASSWORD_LEN];
+  int8_t    enable;
+  int8_t    sysinfo;
 } SAlterUserStmt;
 
 typedef struct SDropUserStmt {
   ENodeType type;
-  char useName[TSDB_USER_LEN];
+  char      useName[TSDB_USER_LEN];
 } SDropUserStmt;
 
 typedef struct SCreateDnodeStmt {
   ENodeType type;
-  char fqdn[TSDB_FQDN_LEN];
-  int32_t port;
+  char      fqdn[TSDB_FQDN_LEN];
+  int32_t   port;
 } SCreateDnodeStmt;
 
 typedef struct SDropDnodeStmt {
   ENodeType type;
-  int32_t dnodeId;
-  char fqdn[TSDB_FQDN_LEN];
-  int32_t port;
+  int32_t   dnodeId;
+  char      fqdn[TSDB_FQDN_LEN];
+  int32_t   port;
 } SDropDnodeStmt;
 
 typedef struct SAlterDnodeStmt {
   ENodeType type;
-  int32_t dnodeId;
-  char config[TSDB_DNODE_CONFIG_LEN];
-  char value[TSDB_DNODE_VALUE_LEN];
+  int32_t   dnodeId;
+  char      config[TSDB_DNODE_CONFIG_LEN];
+  char      value[TSDB_DNODE_VALUE_LEN];
 } SAlterDnodeStmt;
 
 typedef struct SShowStmt {
-  ENodeType type;
-  SNode* pDbName;        // SValueNode
-  SNode* pTbNamePattern; // SValueNode
+  ENodeType     type;
+  SNode*        pDbName;  // SValueNode
+  SNode*        pTbName;  // SValueNode
+  EOperatorType tableCondType;
 } SShowStmt;
 
-typedef enum EIndexType {
-  INDEX_TYPE_SMA = 1,
-  INDEX_TYPE_FULLTEXT
-} EIndexType;
+typedef struct SShowCreateDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  void*     pCfg;  // SDbCfgInfo
+} SShowCreateDatabaseStmt;
+
+typedef struct SShowCreateTableStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+  void*     pDbCfg;     // SDbCfgInfo
+  void*     pTableCfg;  // STableCfg
+} SShowCreateTableStmt;
+
+typedef struct SShowTableDistributedStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+} SShowTableDistributedStmt;
+
+typedef struct SShowDnodeVariablesStmt {
+  ENodeType type;
+  SNode*    pDnodeId;
+} SShowDnodeVariablesStmt;
+
+typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT } EIndexType;
 
 typedef struct SIndexOptions {
-  ENodeType type;
+  ENodeType  type;
   SNodeList* pFuncs;
-  SNode* pInterval;
-  SNode* pOffset;
-  SNode* pSliding;
+  SNode*     pInterval;
+  SNode*     pOffset;
+  SNode*     pSliding;
+  SNode*     pStreamOptions;
 } SIndexOptions;
 
 typedef struct SCreateIndexStmt {
-  ENodeType type;
-  EIndexType indexType;
-  bool ignoreExists;
-  char indexName[TSDB_INDEX_NAME_LEN];
-  char tableName[TSDB_TABLE_NAME_LEN];
-  SNodeList* pCols;
+  ENodeType      type;
+  EIndexType     indexType;
+  bool           ignoreExists;
+  char           indexDbName[TSDB_DB_NAME_LEN];
+  char           indexName[TSDB_INDEX_NAME_LEN];
+  char           dbName[TSDB_DB_NAME_LEN];
+  char           tableName[TSDB_TABLE_NAME_LEN];
+  SNodeList*     pCols;
   SIndexOptions* pOptions;
 } SCreateIndexStmt;
 
 typedef struct SDropIndexStmt {
   ENodeType type;
-  bool ignoreNotExists;
-  char indexName[TSDB_INDEX_NAME_LEN];
-  char tableName[TSDB_TABLE_NAME_LEN];
+  bool      ignoreNotExists;
+  char      indexDbName[TSDB_DB_NAME_LEN];
+  char      indexName[TSDB_INDEX_NAME_LEN];
 } SDropIndexStmt;
 
-typedef struct SCreateQnodeStmt {
+typedef struct SCreateComponentNodeStmt {
   ENodeType type;
-  int32_t dnodeId;
-} SCreateQnodeStmt;
+  int32_t   dnodeId;
+} SCreateComponentNodeStmt;
 
-typedef struct SDropQnodeStmt {
+typedef struct SDropComponentNodeStmt {
   ENodeType type;
-  int32_t dnodeId;
-} SDropQnodeStmt;
+  int32_t   dnodeId;
+} SDropComponentNodeStmt;
 
 typedef struct SCreateTopicStmt {
   ENodeType type;
-  char topicName[TSDB_TABLE_NAME_LEN];
-  char subscribeDbName[TSDB_DB_NAME_LEN];
-  bool ignoreExists;
-  SNode* pQuery;
+  char      topicName[TSDB_TABLE_NAME_LEN];
+  char      subDbName[TSDB_DB_NAME_LEN];
+  char      subSTbName[TSDB_TABLE_NAME_LEN];
+  bool      ignoreExists;
+  bool      withMeta;
+  SNode*    pQuery;
 } SCreateTopicStmt;
 
 typedef struct SDropTopicStmt {
   ENodeType type;
-  char topicName[TSDB_TABLE_NAME_LEN];
-  bool ignoreNotExists;
+  char      topicName[TSDB_TABLE_NAME_LEN];
+  bool      ignoreNotExists;
 } SDropTopicStmt;
+
+typedef struct SDropCGroupStmt {
+  ENodeType type;
+  char      topicName[TSDB_TABLE_NAME_LEN];
+  char      cgroup[TSDB_CGROUP_LEN];
+  bool      ignoreNotExists;
+} SDropCGroupStmt;
 
 typedef struct SAlterLocalStmt {
   ENodeType type;
-  char config[TSDB_DNODE_CONFIG_LEN];
-  char value[TSDB_DNODE_VALUE_LEN];
+  char      config[TSDB_DNODE_CONFIG_LEN];
+  char      value[TSDB_DNODE_VALUE_LEN];
 } SAlterLocalStmt;
+
+typedef struct SDescribeStmt {
+  ENodeType   type;
+  char        dbName[TSDB_DB_NAME_LEN];
+  char        tableName[TSDB_TABLE_NAME_LEN];
+  STableMeta* pMeta;
+} SDescribeStmt;
+
+typedef struct SKillStmt {
+  ENodeType type;
+  int32_t   targetId;
+} SKillStmt;
+
+typedef struct SKillQueryStmt {
+  ENodeType type;
+  char      queryId[TSDB_QUERY_ID_LEN];
+} SKillQueryStmt;
+
+typedef struct SStreamOptions {
+  ENodeType type;
+  int8_t    triggerType;
+  SNode*    pDelay;
+  SNode*    pWatermark;
+  bool      ignoreExpired;
+} SStreamOptions;
+
+typedef struct SCreateStreamStmt {
+  ENodeType       type;
+  char            streamName[TSDB_TABLE_NAME_LEN];
+  char            targetDbName[TSDB_DB_NAME_LEN];
+  char            targetTabName[TSDB_TABLE_NAME_LEN];
+  bool            ignoreExists;
+  SStreamOptions* pOptions;
+  SNode*          pQuery;
+} SCreateStreamStmt;
+
+typedef struct SDropStreamStmt {
+  ENodeType type;
+  char      streamName[TSDB_TABLE_NAME_LEN];
+  bool      ignoreNotExists;
+} SDropStreamStmt;
+
+typedef struct SCreateFunctionStmt {
+  ENodeType type;
+  bool      ignoreExists;
+  char      funcName[TSDB_FUNC_NAME_LEN];
+  bool      isAgg;
+  char      libraryPath[PATH_MAX];
+  SDataType outputDt;
+  int32_t   bufSize;
+} SCreateFunctionStmt;
+
+typedef struct SDropFunctionStmt {
+  ENodeType type;
+  char      funcName[TSDB_FUNC_NAME_LEN];
+  bool      ignoreNotExists;
+} SDropFunctionStmt;
+
+typedef struct SGrantStmt {
+  ENodeType type;
+  char      userName[TSDB_USER_LEN];
+  char      dbName[TSDB_DB_NAME_LEN];
+  int64_t   privileges;
+} SGrantStmt;
+
+typedef SGrantStmt SRevokeStmt;
+
+typedef struct SBalanceVgroupStmt {
+  ENodeType type;
+} SBalanceVgroupStmt;
+
+typedef struct SMergeVgroupStmt {
+  ENodeType type;
+  int32_t   vgId1;
+  int32_t   vgId2;
+} SMergeVgroupStmt;
+
+typedef struct SRedistributeVgroupStmt {
+  ENodeType  type;
+  int32_t    vgId;
+  int32_t    dnodeId1;
+  int32_t    dnodeId2;
+  int32_t    dnodeId3;
+  SNodeList* pDnodes;
+} SRedistributeVgroupStmt;
+
+typedef struct SSplitVgroupStmt {
+  ENodeType type;
+  int32_t   vgId;
+} SSplitVgroupStmt;
 
 #ifdef __cplusplus
 }

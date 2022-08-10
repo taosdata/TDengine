@@ -16,8 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "ttypes.h"
 #include "tcompression.h"
+#include "trow.h"
 
-const int32_t TYPE_BYTES[15] = {
+const int32_t TYPE_BYTES[16] = {
     -1,                      // TSDB_DATA_TYPE_NULL
     CHAR_BYTES,              // TSDB_DATA_TYPE_BOOL
     CHAR_BYTES,              // TSDB_DATA_TYPE_TINYINT
@@ -33,6 +34,7 @@ const int32_t TYPE_BYTES[15] = {
     SHORT_BYTES,             // TSDB_DATA_TYPE_USMALLINT
     INT_BYTES,               // TSDB_DATA_TYPE_UINT
     sizeof(uint64_t),        // TSDB_DATA_TYPE_UBIGINT
+    TSDB_MAX_JSON_TAG_LEN,   // TSDB_DATA_TYPE_JSON
 };
 
 #define DO_STATICS(__sum, __min, __max, __minIndex, __maxIndex, _list, _index) \
@@ -49,8 +51,8 @@ const int32_t TYPE_BYTES[15] = {
     }                                                                          \
   } while (0)
 
-static void getStatics_bool(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
-                            int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+static void getStatics_bool(int8_t bitmapMode, const void *pBitmap, const void *pData, int32_t numOfRow, int64_t *min,
+                            int64_t *max, int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   int8_t *data = (int8_t *)pData;
   *min = INT64_MAX;
   *max = INT64_MIN;
@@ -60,7 +62,8 @@ static void getStatics_bool(const void *pData, int32_t numOfRow, int64_t *min, i
   assert(numOfRow <= INT16_MAX);
 
   for (int32_t i = 0; i < numOfRow; ++i) {
-    if (data[i] == TSDB_DATA_BOOL_NULL) {
+    // if (data[i] == TSDB_DATA_BOOL_NULL) {
+    if (!tdIsBitmapValTypeNorm(pBitmap, i, bitmapMode)) {
       (*numOfNull) += 1;
       continue;
     }
@@ -69,8 +72,8 @@ static void getStatics_bool(const void *pData, int32_t numOfRow, int64_t *min, i
   }
 }
 
-static void getStatics_i8(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
-                          int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+static void getStatics_i8(int8_t bitmapMode, const void *pBitmap, const void *pData, int32_t numOfRow, int64_t *min,
+                          int64_t *max, int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   int8_t *data = (int8_t *)pData;
   *min = INT64_MAX;
   *max = INT64_MIN;
@@ -80,7 +83,8 @@ static void getStatics_i8(const void *pData, int32_t numOfRow, int64_t *min, int
   assert(numOfRow <= INT16_MAX);
 
   for (int32_t i = 0; i < numOfRow; ++i) {
-    if (((uint8_t)data[i]) == TSDB_DATA_TINYINT_NULL) {
+    // if (((uint8_t)data[i]) == TSDB_DATA_TINYINT_NULL) {
+    if (!tdIsBitmapValTypeNorm(pBitmap, i, bitmapMode)) {
       (*numOfNull) += 1;
       continue;
     }
@@ -89,8 +93,8 @@ static void getStatics_i8(const void *pData, int32_t numOfRow, int64_t *min, int
   }
 }
 
-static void getStatics_u8(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
-                          int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+static void getStatics_u8(int8_t bitmapMode, const void *pBitmap, const void *pData, int32_t numOfRow, int64_t *min,
+                          int64_t *max, int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   uint8_t *data = (uint8_t *)pData;
   uint64_t _min = UINT64_MAX;
   uint64_t _max = 0;
@@ -102,7 +106,8 @@ static void getStatics_u8(const void *pData, int32_t numOfRow, int64_t *min, int
   assert(numOfRow <= INT16_MAX);
 
   for (int32_t i = 0; i < numOfRow; ++i) {
-    if (((uint8_t)data[i]) == TSDB_DATA_UTINYINT_NULL) {
+    // if (((uint8_t)data[i]) == TSDB_DATA_UTINYINT_NULL) {
+    if (!tdIsBitmapValTypeNorm(pBitmap, i, bitmapMode)) {
       (*numOfNull) += 1;
       continue;
     }
@@ -115,8 +120,8 @@ static void getStatics_u8(const void *pData, int32_t numOfRow, int64_t *min, int
   *sum = _sum;
 }
 
-static void getStatics_i16(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
-                           int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+static void getStatics_i16(int8_t bitmapMode, const void *pBitmap, const void *pData, int32_t numOfRow, int64_t *min,
+                           int64_t *max, int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   int16_t *data = (int16_t *)pData;
   *min = INT64_MAX;
   *max = INT64_MIN;
@@ -126,7 +131,8 @@ static void getStatics_i16(const void *pData, int32_t numOfRow, int64_t *min, in
   assert(numOfRow <= INT16_MAX);
 
   for (int32_t i = 0; i < numOfRow; ++i) {
-    if (((uint16_t)data[i]) == TSDB_DATA_SMALLINT_NULL) {
+    // if (((uint16_t)data[i]) == TSDB_DATA_SMALLINT_NULL) {
+    if (!tdIsBitmapValTypeNorm(pBitmap, i, bitmapMode)) {
       (*numOfNull) += 1;
       continue;
     }
@@ -135,8 +141,8 @@ static void getStatics_i16(const void *pData, int32_t numOfRow, int64_t *min, in
   }
 }
 
-static void getStatics_u16(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
-                           int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+static void getStatics_u16(int8_t bitmapMode, const void *pBitmap, const void *pData, int32_t numOfRow, int64_t *min,
+                           int64_t *max, int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   uint16_t *data = (uint16_t *)pData;
   uint64_t  _min = UINT64_MAX;
   uint64_t  _max = 0;
@@ -148,7 +154,8 @@ static void getStatics_u16(const void *pData, int32_t numOfRow, int64_t *min, in
   assert(numOfRow <= INT16_MAX);
 
   for (int32_t i = 0; i < numOfRow; ++i) {
-    if (((uint16_t)data[i]) == TSDB_DATA_USMALLINT_NULL) {
+    // if (((uint16_t)data[i]) == TSDB_DATA_USMALLINT_NULL) {
+    if (!tdIsBitmapValTypeNorm(pBitmap, i, bitmapMode)) {
       (*numOfNull) += 1;
       continue;
     }
@@ -161,8 +168,8 @@ static void getStatics_u16(const void *pData, int32_t numOfRow, int64_t *min, in
   *sum = _sum;
 }
 
-static void getStatics_i32(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
-                           int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+static void getStatics_i32(int8_t bitmapMode, const void *pBitmap, const void *pData, int32_t numOfRow, int64_t *min,
+                           int64_t *max, int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   int32_t *data = (int32_t *)pData;
   *min = INT64_MAX;
   *max = INT64_MIN;
@@ -172,7 +179,8 @@ static void getStatics_i32(const void *pData, int32_t numOfRow, int64_t *min, in
   assert(numOfRow <= INT16_MAX);
 
   for (int32_t i = 0; i < numOfRow; ++i) {
-    if (((uint32_t)data[i]) == TSDB_DATA_INT_NULL) {
+    // if (((uint32_t)data[i]) == TSDB_DATA_INT_NULL) {
+    if (!tdIsBitmapValTypeNorm(pBitmap, i, bitmapMode)) {
       (*numOfNull) += 1;
       continue;
     }
@@ -181,8 +189,8 @@ static void getStatics_i32(const void *pData, int32_t numOfRow, int64_t *min, in
   }
 }
 
-static void getStatics_u32(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
-                           int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+static void getStatics_u32(int8_t bitmapMode, const void *pBitmap, const void *pData, int32_t numOfRow, int64_t *min,
+                           int64_t *max, int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   uint32_t *data = (uint32_t *)pData;
   uint64_t  _min = UINT64_MAX;
   uint64_t  _max = 0;
@@ -194,7 +202,8 @@ static void getStatics_u32(const void *pData, int32_t numOfRow, int64_t *min, in
   assert(numOfRow <= INT16_MAX);
 
   for (int32_t i = 0; i < numOfRow; ++i) {
-    if (((uint32_t)data[i]) == TSDB_DATA_UINT_NULL) {
+    // if (((uint32_t)data[i]) == TSDB_DATA_UINT_NULL) {
+    if (!tdIsBitmapValTypeNorm(pBitmap, i, bitmapMode)) {
       (*numOfNull) += 1;
       continue;
     }
@@ -207,8 +216,8 @@ static void getStatics_u32(const void *pData, int32_t numOfRow, int64_t *min, in
   *sum = _sum;
 }
 
-static void getStatics_i64(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
-                           int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+static void getStatics_i64(int8_t bitmapMode, const void *pBitmap, const void *pData, int32_t numOfRow, int64_t *min,
+                           int64_t *max, int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   int64_t *data = (int64_t *)pData;
   *min = INT64_MAX;
   *max = INT64_MIN;
@@ -218,7 +227,8 @@ static void getStatics_i64(const void *pData, int32_t numOfRow, int64_t *min, in
   assert(numOfRow <= INT16_MAX);
 
   for (int32_t i = 0; i < numOfRow; ++i) {
-    if (((uint64_t)data[i]) == TSDB_DATA_BIGINT_NULL) {
+    // if (((uint64_t)data[i]) == TSDB_DATA_BIGINT_NULL) {
+    if (!tdIsBitmapValTypeNorm(pBitmap, i, bitmapMode)) {
       (*numOfNull) += 1;
       continue;
     }
@@ -227,8 +237,8 @@ static void getStatics_i64(const void *pData, int32_t numOfRow, int64_t *min, in
   }
 }
 
-static void getStatics_u64(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
-                           int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+static void getStatics_u64(int8_t bitmapMode, const void *pBitmap, const void *pData, int32_t numOfRow, int64_t *min,
+                           int64_t *max, int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   uint64_t *data = (uint64_t *)pData;
   uint64_t  _min = UINT64_MAX;
   uint64_t  _max = 0;
@@ -240,7 +250,8 @@ static void getStatics_u64(const void *pData, int32_t numOfRow, int64_t *min, in
   assert(numOfRow <= INT16_MAX);
 
   for (int32_t i = 0; i < numOfRow; ++i) {
-    if (((uint64_t)data[i]) == TSDB_DATA_UBIGINT_NULL) {
+    // if (((uint64_t)data[i]) == TSDB_DATA_UBIGINT_NULL) {
+    if (!tdIsBitmapValTypeNorm(pBitmap, i, bitmapMode)) {
       (*numOfNull) += 1;
       continue;
     }
@@ -253,8 +264,8 @@ static void getStatics_u64(const void *pData, int32_t numOfRow, int64_t *min, in
   *sum = _sum;
 }
 
-static void getStatics_f(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
-                         int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+static void getStatics_f(int8_t bitmapMode, const void *pBitmap, const void *pData, int32_t numOfRow, int64_t *min,
+                         int64_t *max, int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   float *data = (float *)pData;
   float  fmin = FLT_MAX;
   float  fmax = -FLT_MAX;
@@ -265,7 +276,8 @@ static void getStatics_f(const void *pData, int32_t numOfRow, int64_t *min, int6
   assert(numOfRow <= INT16_MAX);
 
   for (int32_t i = 0; i < numOfRow; ++i) {
-    if ((*(uint32_t *)&(data[i])) == TSDB_DATA_FLOAT_NULL) {
+    // if ((*(uint32_t *)&(data[i])) == TSDB_DATA_FLOAT_NULL) {
+    if (!tdIsBitmapValTypeNorm(pBitmap, i, bitmapMode)) {
       (*numOfNull) += 1;
       continue;
     }
@@ -289,8 +301,8 @@ static void getStatics_f(const void *pData, int32_t numOfRow, int64_t *min, int6
   SET_DOUBLE_VAL(min, fmin);
 }
 
-static void getStatics_d(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
-                         int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+static void getStatics_d(int8_t bitmapMode, const void *pBitmap, const void *pData, int32_t numOfRow, int64_t *min,
+                         int64_t *max, int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   double *data = (double *)pData;
   double  dmin = DBL_MAX;
   double  dmax = -DBL_MAX;
@@ -301,7 +313,8 @@ static void getStatics_d(const void *pData, int32_t numOfRow, int64_t *min, int6
   assert(numOfRow <= INT16_MAX);
 
   for (int32_t i = 0; i < numOfRow; ++i) {
-    if ((*(uint64_t *)&(data[i])) == TSDB_DATA_DOUBLE_NULL) {
+    // if ((*(uint64_t *)&(data[i])) == TSDB_DATA_DOUBLE_NULL) {
+    if (!tdIsBitmapValTypeNorm(pBitmap, i, bitmapMode)) {
       (*numOfNull) += 1;
       continue;
     }
@@ -325,13 +338,14 @@ static void getStatics_d(const void *pData, int32_t numOfRow, int64_t *min, int6
   SET_DOUBLE_PTR(min, &dmin);
 }
 
-static void getStatics_bin(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
-                           int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+static void getStatics_bin(int8_t bitmapMode, const void *pBitmap, const void *pData, int32_t numOfRow, int64_t *min,
+                           int64_t *max, int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   const char *data = pData;
   assert(numOfRow <= INT16_MAX);
 
   for (int32_t i = 0; i < numOfRow; ++i) {
-    if (isNull(data, TSDB_DATA_TYPE_BINARY)) {
+    // if (isNull(data, TSDB_DATA_TYPE_BINARY)) {
+    if (!tdIsBitmapValTypeNorm(pBitmap, i, bitmapMode)) {
       (*numOfNull) += 1;
     }
 
@@ -345,13 +359,14 @@ static void getStatics_bin(const void *pData, int32_t numOfRow, int64_t *min, in
   *maxIndex = 0;
 }
 
-static void getStatics_nchr(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
-                            int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+static void getStatics_nchr(int8_t bitmapMode, const void *pBitmap, const void *pData, int32_t numOfRow, int64_t *min,
+                            int64_t *max, int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   const char *data = pData;
   assert(numOfRow <= INT16_MAX);
 
   for (int32_t i = 0; i < numOfRow; ++i) {
-    if (isNull(data, TSDB_DATA_TYPE_NCHAR)) {
+    // if (isNull(data, TSDB_DATA_TYPE_NCHAR)) {
+    if (!tdIsBitmapValTypeNorm(pBitmap, i, bitmapMode)) {
       (*numOfNull) += 1;
     }
 
@@ -365,7 +380,7 @@ static void getStatics_nchr(const void *pData, int32_t numOfRow, int64_t *min, i
   *maxIndex = 0;
 }
 
-tDataTypeDescriptor tDataTypes[15] = {
+tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
     {TSDB_DATA_TYPE_NULL, 6, 1, "NOTYPE", 0, 0, NULL, NULL, NULL},
     {TSDB_DATA_TYPE_BOOL, 4, CHAR_BYTES, "BOOL", false, true, tsCompressBool, tsDecompressBool, getStatics_bool},
     {TSDB_DATA_TYPE_TINYINT, 7, CHAR_BYTES, "TINYINT", INT8_MIN, INT8_MAX, tsCompressTinyint, tsDecompressTinyint,
@@ -377,7 +392,7 @@ tDataTypeDescriptor tDataTypes[15] = {
      getStatics_i64},
     {TSDB_DATA_TYPE_FLOAT, 5, FLOAT_BYTES, "FLOAT", 0, 0, tsCompressFloat, tsDecompressFloat, getStatics_f},
     {TSDB_DATA_TYPE_DOUBLE, 6, DOUBLE_BYTES, "DOUBLE", 0, 0, tsCompressDouble, tsDecompressDouble, getStatics_d},
-    {TSDB_DATA_TYPE_BINARY, 6, 0, "BINARY", 0, 0, tsCompressString, tsDecompressString, getStatics_bin},
+    {TSDB_DATA_TYPE_VARCHAR, 6, 0, "VARCHAR", 0, 0, tsCompressString, tsDecompressString, getStatics_bin},
     {TSDB_DATA_TYPE_TIMESTAMP, 9, LONG_BYTES, "TIMESTAMP", INT64_MIN, INT64_MAX, tsCompressTimestamp,
      tsDecompressTimestamp, getStatics_i64},
     {TSDB_DATA_TYPE_NCHAR, 5, 8, "NCHAR", 0, 0, tsCompressString, tsDecompressString, getStatics_nchr},
@@ -388,22 +403,24 @@ tDataTypeDescriptor tDataTypes[15] = {
     {TSDB_DATA_TYPE_UINT, 12, INT_BYTES, "INT UNSIGNED", 0, UINT32_MAX, tsCompressInt, tsDecompressInt, getStatics_u32},
     {TSDB_DATA_TYPE_UBIGINT, 15, LONG_BYTES, "BIGINT UNSIGNED", 0, UINT64_MAX, tsCompressBigint, tsDecompressBigint,
      getStatics_u64},
+    {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString, tsDecompressString,
+     getStatics_nchr},
 };
 
 char tTokenTypeSwitcher[13] = {
-    TSDB_DATA_TYPE_NULL,    // no type
-    TSDB_DATA_TYPE_BINARY,  // TK_ID
-    TSDB_DATA_TYPE_BOOL,    // TK_BOOL
-    TSDB_DATA_TYPE_BIGINT,  // TK_TINYINT
-    TSDB_DATA_TYPE_BIGINT,  // TK_SMALLINT
-    TSDB_DATA_TYPE_BIGINT,  // TK_INTEGER
-    TSDB_DATA_TYPE_BIGINT,  // TK_BIGINT
-    TSDB_DATA_TYPE_DOUBLE,  // TK_FLOAT
-    TSDB_DATA_TYPE_DOUBLE,  // TK_DOUBLE
-    TSDB_DATA_TYPE_BINARY,  // TK_STRING
-    TSDB_DATA_TYPE_BIGINT,  // TK_TIMESTAMP
-    TSDB_DATA_TYPE_BINARY,  // TK_BINARY
-    TSDB_DATA_TYPE_NCHAR,   // TK_NCHAR
+    TSDB_DATA_TYPE_NULL,     // no type
+    TSDB_DATA_TYPE_BINARY,   // TK_ID
+    TSDB_DATA_TYPE_BOOL,     // TK_BOOL
+    TSDB_DATA_TYPE_BIGINT,   // TK_TINYINT
+    TSDB_DATA_TYPE_BIGINT,   // TK_SMALLINT
+    TSDB_DATA_TYPE_BIGINT,   // TK_INTEGER
+    TSDB_DATA_TYPE_BIGINT,   // TK_BIGINT
+    TSDB_DATA_TYPE_DOUBLE,   // TK_FLOAT
+    TSDB_DATA_TYPE_DOUBLE,   // TK_DOUBLE
+    TSDB_DATA_TYPE_BINARY,   // TK_STRING
+    TSDB_DATA_TYPE_BIGINT,   // TK_TIMESTAMP
+    TSDB_DATA_TYPE_VARCHAR,  // TK_BINARY
+    TSDB_DATA_TYPE_NCHAR,    // TK_NCHAR
 };
 
 float  floatMin = -FLT_MAX, floatMax = FLT_MAX;
@@ -431,7 +448,7 @@ FORCE_INLINE void *getDataMax(int32_t type) {
   }
 }
 
-bool isValidDataType(int32_t type) { return type >= TSDB_DATA_TYPE_NULL && type <= TSDB_DATA_TYPE_UBIGINT; }
+bool isValidDataType(int32_t type) { return type >= TSDB_DATA_TYPE_NULL && type < TSDB_DATA_TYPE_MAX; }
 
 void setVardataNull(void *val, int32_t type) {
   if (type == TSDB_DATA_TYPE_BINARY) {
@@ -542,7 +559,7 @@ static const void *nullValues[] = {
 };
 
 const void *getNullValue(int32_t type) {
-  assert(type >= TSDB_DATA_TYPE_BOOL && type <= TSDB_DATA_TYPE_UBIGINT);
+  assert(type >= TSDB_DATA_TYPE_BOOL && type <= TSDB_DATA_TYPE_UBIGINT);  // TODO: extend the types
   return nullValues[type - 1];
 }
 
@@ -636,35 +653,35 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void *buf
   switch (type) {
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_UINT: {
-      TSWAP(*(int32_t *)(pLeft), *(int32_t *)(pRight), int32_t);
+      TSWAP(*(int32_t *)(pLeft), *(int32_t *)(pRight));
       break;
     }
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
-      TSWAP(*(int64_t *)(pLeft), *(int64_t *)(pRight), int64_t);
+      TSWAP(*(int64_t *)(pLeft), *(int64_t *)(pRight));
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
-      TSWAP(*(double *)(pLeft), *(double *)(pRight), double);
+      TSWAP(*(double *)(pLeft), *(double *)(pRight));
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_USMALLINT: {
-      TSWAP(*(int16_t *)(pLeft), *(int16_t *)(pRight), int16_t);
+      TSWAP(*(int16_t *)(pLeft), *(int16_t *)(pRight));
       break;
     }
 
     case TSDB_DATA_TYPE_FLOAT: {
-      TSWAP(*(float *)(pLeft), *(float *)(pRight), float);
+      TSWAP(*(float *)(pLeft), *(float *)(pRight));
       break;
     }
 
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_UTINYINT: {
-      TSWAP(*(int8_t *)(pLeft), *(int8_t *)(pRight), int8_t);
+      TSWAP(*(int8_t *)(pLeft), *(int8_t *)(pRight));
       break;
     }
 

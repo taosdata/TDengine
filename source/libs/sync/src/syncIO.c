@@ -15,6 +15,7 @@
 
 #include "syncIO.h"
 #include <tdatablock.h>
+#include "os.h"
 #include "syncMessage.h"
 #include "syncUtil.h"
 #include "tglobal.h"
@@ -29,7 +30,7 @@ static int32_t  syncIODestroy(SSyncIO *io);
 static int32_t  syncIOStartInternal(SSyncIO *io);
 static int32_t  syncIOStopInternal(SSyncIO *io);
 
-static void   *syncIOConsumerFunc(void *param);
+static void *  syncIOConsumerFunc(void *param);
 static void    syncIOProcessRequest(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static void    syncIOProcessReply(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static int32_t syncIOAuth(void *parent, char *meterId, char *spi, char *encrypt, char *secret, char *ckey);
@@ -46,11 +47,11 @@ static void    syncIOTickPing(void *param, void *tmrId);
 int32_t syncIOStart(char *host, uint16_t port) {
   int32_t ret = 0;
   gSyncIO = syncIOCreate(host, port);
-  assert(gSyncIO != NULL);
+  ASSERT(gSyncIO != NULL);
 
   taosSeedRand(taosGetTimestampSec());
   ret = syncIOStartInternal(gSyncIO);
-  assert(ret == 0);
+  ASSERT(ret == 0);
 
   sTrace("syncIOStart ok, gSyncIO:%p", gSyncIO);
   return ret;
@@ -58,38 +59,47 @@ int32_t syncIOStart(char *host, uint16_t port) {
 
 int32_t syncIOStop() {
   int32_t ret = syncIOStopInternal(gSyncIO);
-  assert(ret == 0);
+  ASSERT(ret == 0);
 
   ret = syncIODestroy(gSyncIO);
-  assert(ret == 0);
+  ASSERT(ret == 0);
   return ret;
 }
 
-int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg) {
-  assert(pEpSet->inUse == 0);
-  assert(pEpSet->numOfEps == 1);
+int32_t syncIOSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
+  ASSERT(pEpSet->inUse == 0);
+  ASSERT(pEpSet->numOfEps == 1);
 
   int32_t ret = 0;
-  char    logBuf[256];
-  snprintf(logBuf, sizeof(logBuf), "==syncIOSendMsg== %s:%d", pEpSet->eps[0].fqdn, pEpSet->eps[0].port);
-  syncRpcMsgPrint2(logBuf, pMsg);
+  {
+    syncUtilMsgNtoH(pMsg->pCont);
 
-  pMsg->handle = NULL;
-  pMsg->noResp = 1;
-  rpcSendRequest(clientRpc, pEpSet, pMsg, NULL);
+    char logBuf[256] = {0};
+    snprintf(logBuf, sizeof(logBuf), "==syncIOSendMsg== %s:%d msgType:%d", pEpSet->eps[0].fqdn, pEpSet->eps[0].port,
+             pMsg->msgType);
+    syncRpcMsgLog2(logBuf, pMsg);
+
+    syncUtilMsgHtoN(pMsg->pCont);
+  }
+
+  pMsg->info.handle = NULL;
+  pMsg->info.noResp = 1;
+  rpcSendRequest(gSyncIO->clientRpc, pEpSet, pMsg, NULL);
   return ret;
 }
 
-int32_t syncIOEqMsg(void *queue, SRpcMsg *pMsg) {
+int32_t syncIOEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   int32_t ret = 0;
-  char    logBuf[128];
-  syncRpcMsgPrint2((char *)"==syncIOEqMsg==", pMsg);
+
+  char logBuf[256] = {0};
+  snprintf(logBuf, sizeof(logBuf), "==syncIOEqMsg== msgType:%d", pMsg->msgType);
+  syncRpcMsgLog2(logBuf, pMsg);
 
   SRpcMsg *pTemp;
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM);
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
 
-  STaosQueue *pMsgQ = queue;
+  STaosQueue *pMsgQ = gSyncIO->pMsgQ;
   taosWriteQitem(pMsgQ, pTemp);
 
   return ret;
@@ -97,25 +107,25 @@ int32_t syncIOEqMsg(void *queue, SRpcMsg *pMsg) {
 
 int32_t syncIOQTimerStart() {
   int32_t ret = syncIOStartQ(gSyncIO);
-  assert(ret == 0);
+  ASSERT(ret == 0);
   return ret;
 }
 
 int32_t syncIOQTimerStop() {
   int32_t ret = syncIOStopQ(gSyncIO);
-  assert(ret == 0);
+  ASSERT(ret == 0);
   return ret;
 }
 
 int32_t syncIOPingTimerStart() {
   int32_t ret = syncIOStartPing(gSyncIO);
-  assert(ret == 0);
+  ASSERT(ret == 0);
   return ret;
 }
 
 int32_t syncIOPingTimerStop() {
   int32_t ret = syncIOStopPing(gSyncIO);
-  assert(ret == 0);
+  ASSERT(ret == 0);
   return ret;
 }
 
@@ -141,7 +151,7 @@ static SSyncIO *syncIOCreate(char *host, uint16_t port) {
 static int32_t syncIODestroy(SSyncIO *io) {
   int32_t ret = 0;
   int8_t  start = atomic_load_8(&io->isStart);
-  assert(start == 0);
+  ASSERT(start == 0);
 
   if (io->serverRpc != NULL) {
     rpcClose(io->serverRpc);
@@ -164,7 +174,6 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
   taosBlockSIGPIPE();
 
   rpcInit();
-  tsRpcForceTcp = 1;
 
   // cient rpc init
   {
@@ -177,9 +186,6 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
     rpcInit.sessions = 100;
     rpcInit.idleTime = 100;
     rpcInit.user = "sync-io";
-    rpcInit.secret = "sync-io";
-    rpcInit.ckey = "key";
-    rpcInit.spi = 0;
     rpcInit.connType = TAOS_CONN_CLIENT;
 
     io->clientRpc = rpcOpen(&rpcInit);
@@ -193,13 +199,13 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
   {
     SRpcInit rpcInit;
     memset(&rpcInit, 0, sizeof(rpcInit));
+    snprintf(rpcInit.localFqdn, sizeof(rpcInit.localFqdn), "%s", "127.0.0.1");
     rpcInit.localPort = io->myAddr.eps[0].port;
     rpcInit.label = "SYNC-IO-SERVER";
     rpcInit.numOfThreads = 1;
     rpcInit.cfp = syncIOProcessRequest;
     rpcInit.sessions = 1000;
     rpcInit.idleTime = 2 * 1500;
-    rpcInit.afp = syncIOAuth;
     rpcInit.parent = io;
     rpcInit.connType = TAOS_CONN_SERVER;
 
@@ -230,18 +236,19 @@ static int32_t syncIOStopInternal(SSyncIO *io) {
   int32_t ret = 0;
   atomic_store_8(&io->isStart, 0);
   taosThreadJoin(io->consumerTid, NULL);
+  taosThreadClear(&io->consumerTid);
   taosTmrCleanUp(io->timerMgr);
   return ret;
 }
 
 static void *syncIOConsumerFunc(void *param) {
-  SSyncIO   *io = param;
-  STaosQall *qall;
-  SRpcMsg   *pRpcMsg, rpcMsg;
-  qall = taosAllocateQall();
+  SSyncIO *  io = param;
+  STaosQall *qall = taosAllocateQall();
+  SRpcMsg *  pRpcMsg, rpcMsg;
+  SQueueInfo qinfo = {0};
 
   while (1) {
-    int numOfMsgs = taosReadAllQitemsFromQset(io->pQset, qall, NULL, NULL);
+    int numOfMsgs = taosReadAllQitemsFromQset(io->pQset, qall, &qinfo);
     sTrace("syncIOConsumerFunc %d msgs are received", numOfMsgs);
     if (numOfMsgs <= 0) {
       break;
@@ -249,72 +256,91 @@ static void *syncIOConsumerFunc(void *param) {
 
     for (int i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(qall, (void **)&pRpcMsg);
-      syncRpcMsgLog2((char *)"==syncIOConsumerFunc==", pRpcMsg);
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "==syncIOConsumMsg== msgType:%d", pRpcMsg->msgType);
+      syncRpcMsgLog2(logBuf, pRpcMsg);
 
       // use switch case instead of if else
-      if (pRpcMsg->msgType == SYNC_PING) {
+      if (pRpcMsg->msgType == TDMT_SYNC_PING) {
         if (io->FpOnSyncPing != NULL) {
           SyncPing *pSyncMsg = syncPingFromRpcMsg2(pRpcMsg);
-          assert(pSyncMsg != NULL);
+          ASSERT(pSyncMsg != NULL);
           io->FpOnSyncPing(io->pSyncNode, pSyncMsg);
           syncPingDestroy(pSyncMsg);
         }
 
-      } else if (pRpcMsg->msgType == SYNC_PING_REPLY) {
+      } else if (pRpcMsg->msgType == TDMT_SYNC_PING_REPLY) {
         if (io->FpOnSyncPingReply != NULL) {
           SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pRpcMsg);
-          assert(pSyncMsg != NULL);
+          ASSERT(pSyncMsg != NULL);
           io->FpOnSyncPingReply(io->pSyncNode, pSyncMsg);
           syncPingReplyDestroy(pSyncMsg);
         }
 
-      } else if (pRpcMsg->msgType == SYNC_CLIENT_REQUEST) {
+      } else if (pRpcMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
         if (io->FpOnSyncClientRequest != NULL) {
           SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pRpcMsg);
-          assert(pSyncMsg != NULL);
-          io->FpOnSyncClientRequest(io->pSyncNode, pSyncMsg);
+          ASSERT(pSyncMsg != NULL);
+          io->FpOnSyncClientRequest(io->pSyncNode, pSyncMsg, NULL);
           syncClientRequestDestroy(pSyncMsg);
         }
 
-      } else if (pRpcMsg->msgType == SYNC_REQUEST_VOTE) {
+      } else if (pRpcMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
         if (io->FpOnSyncRequestVote != NULL) {
           SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pRpcMsg);
-          assert(pSyncMsg != NULL);
+          ASSERT(pSyncMsg != NULL);
           io->FpOnSyncRequestVote(io->pSyncNode, pSyncMsg);
           syncRequestVoteDestroy(pSyncMsg);
         }
 
-      } else if (pRpcMsg->msgType == SYNC_REQUEST_VOTE_REPLY) {
+      } else if (pRpcMsg->msgType == TDMT_SYNC_REQUEST_VOTE_REPLY) {
         if (io->FpOnSyncRequestVoteReply != NULL) {
           SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pRpcMsg);
-          assert(pSyncMsg != NULL);
+          ASSERT(pSyncMsg != NULL);
           io->FpOnSyncRequestVoteReply(io->pSyncNode, pSyncMsg);
           syncRequestVoteReplyDestroy(pSyncMsg);
         }
 
-      } else if (pRpcMsg->msgType == SYNC_APPEND_ENTRIES) {
+      } else if (pRpcMsg->msgType == TDMT_SYNC_APPEND_ENTRIES) {
         if (io->FpOnSyncAppendEntries != NULL) {
           SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pRpcMsg);
-          assert(pSyncMsg != NULL);
+          ASSERT(pSyncMsg != NULL);
           io->FpOnSyncAppendEntries(io->pSyncNode, pSyncMsg);
           syncAppendEntriesDestroy(pSyncMsg);
         }
 
-      } else if (pRpcMsg->msgType == SYNC_APPEND_ENTRIES_REPLY) {
+      } else if (pRpcMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_REPLY) {
         if (io->FpOnSyncAppendEntriesReply != NULL) {
           SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pRpcMsg);
-          assert(pSyncMsg != NULL);
+          ASSERT(pSyncMsg != NULL);
           io->FpOnSyncAppendEntriesReply(io->pSyncNode, pSyncMsg);
           syncAppendEntriesReplyDestroy(pSyncMsg);
         }
 
-      } else if (pRpcMsg->msgType == SYNC_TIMEOUT) {
+      } else if (pRpcMsg->msgType == TDMT_SYNC_TIMEOUT) {
         if (io->FpOnSyncTimeout != NULL) {
           SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pRpcMsg);
-          assert(pSyncMsg != NULL);
+          ASSERT(pSyncMsg != NULL);
           io->FpOnSyncTimeout(io->pSyncNode, pSyncMsg);
           syncTimeoutDestroy(pSyncMsg);
         }
+
+      } else if (pRpcMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
+        if (io->FpOnSyncSnapshotSend != NULL) {
+          SyncSnapshotSend *pSyncMsg = syncSnapshotSendFromRpcMsg2(pRpcMsg);
+          ASSERT(pSyncMsg != NULL);
+          io->FpOnSyncSnapshotSend(io->pSyncNode, pSyncMsg);
+          syncSnapshotSendDestroy(pSyncMsg);
+        }
+
+      } else if (pRpcMsg->msgType == TDMT_SYNC_SNAPSHOT_RSP) {
+        if (io->FpOnSyncSnapshotRsp != NULL) {
+          SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pRpcMsg);
+          ASSERT(pSyncMsg != NULL);
+          io->FpOnSyncSnapshotRsp(io->pSyncNode, pSyncMsg);
+          syncSnapshotRspDestroy(pSyncMsg);
+        }
+
       } else {
         sTrace("unknown msgType:%d, no operator", pRpcMsg->msgType);
       }
@@ -336,13 +362,15 @@ static void *syncIOConsumerFunc(void *param) {
               rpcMsg.handle = pRpcMsg->handle;
               rpcMsg.code = 0;
 
-              syncRpcMsgPrint2((char *)"syncIOConsumerFunc rpcSendResponse --> ", &rpcMsg);
+              syncRpcMsgLog2((char *)"syncIOConsumerFunc rpcSendResponse --> ", &rpcMsg);
               rpcSendResponse(&rpcMsg);
             }
       */
 
       taosFreeQitem(pRpcMsg);
     }
+
+    taosUpdateItemSize(qinfo.queue, numOfMsgs);
   }
 
   taosFreeQall(qall);
@@ -350,19 +378,21 @@ static void *syncIOConsumerFunc(void *param) {
 }
 
 static void syncIOProcessRequest(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  syncRpcMsgPrint2((char *)"==syncIOProcessRequest==", pMsg);
+  syncUtilMsgNtoH(pMsg->pCont);
+
+  syncRpcMsgLog2((char *)"==syncIOProcessRequest==", pMsg);
   SSyncIO *io = pParent;
   SRpcMsg *pTemp;
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM);
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
   taosWriteQitem(io->pMsgQ, pTemp);
 }
 
 static void syncIOProcessReply(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  if (pMsg->msgType == SYNC_RESPONSE) {
+  if (pMsg->msgType == TDMT_SYNC_COMMON_RESPONSE) {
     sTrace("==syncIOProcessReply==");
   } else {
-    syncRpcMsgPrint2((char *)"==syncIOProcessReply==", pMsg);
+    syncRpcMsgLog2((char *)"==syncIOProcessReply==", pMsg);
   }
   rpcFreeCont(pMsg->pCont);
 }
@@ -408,14 +438,14 @@ static void syncIOTickQ(void *param, void *tmrId) {
   srcId.vgId = -1;
   destId.addr = syncUtilAddr2U64(io->myAddr.eps[0].fqdn, io->myAddr.eps[0].port);
   destId.vgId = -1;
-  SyncPingReply *pMsg = syncPingReplyBuild2(&srcId, &destId, "syncIOTickQ");
+  SyncPingReply *pMsg = syncPingReplyBuild2(&srcId, &destId, -1, "syncIOTickQ");
 
   SRpcMsg rpcMsg;
   syncPingReply2RpcMsg(pMsg, &rpcMsg);
   SRpcMsg *pTemp;
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM);
   memcpy(pTemp, &rpcMsg, sizeof(SRpcMsg));
-  syncRpcMsgPrint2((char *)"==syncIOTickQ==", &rpcMsg);
+  syncRpcMsgLog2((char *)"==syncIOTickQ==", &rpcMsg);
   taosWriteQitem(io->pMsgQ, pTemp);
   syncPingReplyDestroy(pMsg);
 
@@ -430,12 +460,12 @@ static void syncIOTickPing(void *param, void *tmrId) {
   srcId.vgId = -1;
   destId.addr = syncUtilAddr2U64(io->myAddr.eps[0].fqdn, io->myAddr.eps[0].port);
   destId.vgId = -1;
-  SyncPing *pMsg = syncPingBuild2(&srcId, &destId, "syncIOTickPing");
+  SyncPing *pMsg = syncPingBuild2(&srcId, &destId, -1, "syncIOTickPing");
   // SyncPing *pMsg = syncPingBuild3(&srcId, &destId);
 
   SRpcMsg rpcMsg;
   syncPing2RpcMsg(pMsg, &rpcMsg);
-  syncRpcMsgPrint2((char *)"==syncIOTickPing==", &rpcMsg);
+  syncRpcMsgLog2((char *)"==syncIOTickPing==", &rpcMsg);
   rpcSendRequest(io->clientRpc, &io->myAddr, &rpcMsg, NULL);
   syncPingDestroy(pMsg);
 

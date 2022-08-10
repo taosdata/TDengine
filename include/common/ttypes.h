@@ -24,13 +24,14 @@ extern "C" {
 #include "types.h"
 
 // ----------------- For variable data types such as TSDB_DATA_TYPE_BINARY and TSDB_DATA_TYPE_NCHAR
-typedef int32_t  VarDataOffsetT;
 typedef uint32_t TDRowLenT;
 typedef uint8_t  TDRowValT;
+typedef uint64_t TDRowVerT;
 typedef int16_t  col_id_t;
 typedef int8_t   col_type_t;
 typedef int32_t  col_bytes_t;
-typedef uint16_t schema_ver_t;
+typedef int32_t  schema_ver_t;
+typedef int32_t  func_id_t;
 
 #pragma pack(push, 1)
 typedef struct {
@@ -48,7 +49,9 @@ typedef struct {
 #define varDataCopy(dst, v)    memcpy((dst), (void *)(v), varDataTLen(v))
 #define varDataLenByData(v)    (*(VarDataLenT *)(((char *)(v)) - VARSTR_HEADER_SIZE))
 #define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT)(_len))
-#define IS_VAR_DATA_TYPE(t)    (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR))
+#define IS_VAR_DATA_TYPE(t) \
+  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR) || ((t) == TSDB_DATA_TYPE_JSON))
+#define IS_STR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
 #define varDataNetLen(v)  (htons(((VarDataLenT *)(v))[0]))
 #define varDataNetTLen(v) (sizeof(VarDataLenT) + varDataNetLen(v))
@@ -140,20 +143,144 @@ typedef struct {
     }                                          \
   } while (0)
 
+#define SET_TYPED_DATA_MIN(_v, _type) \
+  do {                                \
+    switch (_type) {                  \
+      case TSDB_DATA_TYPE_BOOL:       \
+      case TSDB_DATA_TYPE_TINYINT:    \
+        *(int8_t *)(_v) = INT8_MIN;   \
+        break;                        \
+      case TSDB_DATA_TYPE_SMALLINT:   \
+        *(int16_t *)(_v) = INT16_MIN; \
+        break;                        \
+      case TSDB_DATA_TYPE_INT:        \
+        *(int32_t *)(_v) = INT32_MIN; \
+        break;                        \
+      case TSDB_DATA_TYPE_BIGINT:     \
+      case TSDB_DATA_TYPE_TIMESTAMP:  \
+        *(int64_t *)(_v) = INT64_MIN; \
+        break;                        \
+      case TSDB_DATA_TYPE_FLOAT:      \
+        *(float *)(_v) = FLT_MIN;     \
+        break;                        \
+      case TSDB_DATA_TYPE_DOUBLE:     \
+        *(double *)(_v) = DBL_MIN;    \
+        break;                        \
+      case TSDB_DATA_TYPE_UTINYINT:   \
+        *(uint8_t *)(_v) = 0;         \
+        break;                        \
+      case TSDB_DATA_TYPE_USMALLINT:  \
+        *(uint16_t *)(_v) = 0;        \
+        break;                        \
+      case TSDB_DATA_TYPE_UBIGINT:    \
+        *(uint64_t *)(_v) = 0;        \
+        break;                        \
+      case TSDB_DATA_TYPE_UINT:       \
+        *(uint32_t *)(_v) = 0;        \
+        break;                        \
+      default:                        \
+        break;                        \
+    }                                 \
+  } while (0)
+
+#define SET_TYPED_DATA_MAX(_v, _type)   \
+  do {                                  \
+    switch (_type) {                    \
+      case TSDB_DATA_TYPE_BOOL:         \
+      case TSDB_DATA_TYPE_TINYINT:      \
+        *(int8_t *)(_v) = INT8_MAX;     \
+        break;                          \
+      case TSDB_DATA_TYPE_SMALLINT:     \
+        *(int16_t *)(_v) = INT16_MAX;   \
+        break;                          \
+      case TSDB_DATA_TYPE_INT:          \
+        *(int32_t *)(_v) = INT32_MAX;   \
+        break;                          \
+      case TSDB_DATA_TYPE_BIGINT:       \
+      case TSDB_DATA_TYPE_TIMESTAMP:    \
+        *(int64_t *)(_v) = INT64_MAX;   \
+        break;                          \
+      case TSDB_DATA_TYPE_FLOAT:        \
+        *(float *)(_v) = FLT_MAX;       \
+        break;                          \
+      case TSDB_DATA_TYPE_DOUBLE:       \
+        *(double *)(_v) = DBL_MAX;      \
+        break;                          \
+      case TSDB_DATA_TYPE_UTINYINT:     \
+        *(uint8_t *)(_v) = UINT8_MAX;   \
+        break;                          \
+      case TSDB_DATA_TYPE_USMALLINT:    \
+        *(uint16_t *)(_v) = UINT16_MAX; \
+        break;                          \
+      case TSDB_DATA_TYPE_UINT:         \
+        *(uint32_t *)(_v) = UINT32_MAX; \
+        break;                          \
+      case TSDB_DATA_TYPE_UBIGINT:      \
+        *(uint64_t *)(_v) = UINT64_MAX; \
+        break;                          \
+      default:                          \
+        break;                          \
+    }                                   \
+  } while (0)
+
+#define NUM_TO_STRING(_inputType, _input, _outputBytes, _output)                       \
+  do {                                                                                 \
+    switch (_inputType) {                                                              \
+      case TSDB_DATA_TYPE_TINYINT:                                                     \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(int8_t *)(_input));         \
+        break;                                                                         \
+      case TSDB_DATA_TYPE_UTINYINT:                                                    \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(uint8_t *)(_input));        \
+        break;                                                                         \
+      case TSDB_DATA_TYPE_SMALLINT:                                                    \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(int16_t *)(_input));        \
+        break;                                                                         \
+      case TSDB_DATA_TYPE_USMALLINT:                                                   \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(uint16_t *)(_input));       \
+        break;                                                                         \
+      case TSDB_DATA_TYPE_TIMESTAMP:                                                   \
+      case TSDB_DATA_TYPE_BIGINT:                                                      \
+        snprintf(_output, (int32_t)(_outputBytes), "%" PRId64, *(int64_t *)(_input));  \
+        break;                                                                         \
+      case TSDB_DATA_TYPE_UBIGINT:                                                     \
+        snprintf(_output, (int32_t)(_outputBytes), "%" PRIu64, *(uint64_t *)(_input)); \
+        break;                                                                         \
+      case TSDB_DATA_TYPE_FLOAT:                                                       \
+        snprintf(_output, (int32_t)(_outputBytes), "%f", *(float *)(_input));          \
+        break;                                                                         \
+      case TSDB_DATA_TYPE_DOUBLE:                                                      \
+        snprintf(_output, (int32_t)(_outputBytes), "%f", *(double *)(_input));         \
+        break;                                                                         \
+      case TSDB_DATA_TYPE_UINT:                                                        \
+        snprintf(_output, (int32_t)(_outputBytes), "%u", *(uint32_t *)(_input));       \
+        break;                                                                         \
+      default:                                                                         \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(int32_t *)(_input));        \
+        break;                                                                         \
+    }                                                                                  \
+  } while (0)
+
+// TODO: use varchar(0) to represent NULL type
+#define IS_VAR_NULL_TYPE(_t, _b) ((_t) == TSDB_DATA_TYPE_VARCHAR && (_b) == 0)
+#define IS_NULL_TYPE(_t)         ((_t) == TSDB_DATA_TYPE_NULL)
+
 #define IS_SIGNED_NUMERIC_TYPE(_t)   ((_t) >= TSDB_DATA_TYPE_TINYINT && (_t) <= TSDB_DATA_TYPE_BIGINT)
 #define IS_UNSIGNED_NUMERIC_TYPE(_t) ((_t) >= TSDB_DATA_TYPE_UTINYINT && (_t) <= TSDB_DATA_TYPE_UBIGINT)
 #define IS_FLOAT_TYPE(_t)            ((_t) == TSDB_DATA_TYPE_FLOAT || (_t) == TSDB_DATA_TYPE_DOUBLE)
+#define IS_INTEGER_TYPE(_t)          ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)))
 
 #define IS_NUMERIC_TYPE(_t) ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)) || (IS_FLOAT_TYPE(_t)))
+#define IS_MATHABLE_TYPE(_t) \
+  (IS_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL) || (_t) == (TSDB_DATA_TYPE_TIMESTAMP))
 
-#define IS_VALID_TINYINT(_t)   ((_t) > INT8_MIN && (_t) <= INT8_MAX)
-#define IS_VALID_SMALLINT(_t)  ((_t) > INT16_MIN && (_t) <= INT16_MAX)
-#define IS_VALID_INT(_t)       ((_t) > INT32_MIN && (_t) <= INT32_MAX)
-#define IS_VALID_BIGINT(_t)    ((_t) > INT64_MIN && (_t) <= INT64_MAX)
-#define IS_VALID_UTINYINT(_t)  ((_t) >= 0 && (_t) < UINT8_MAX)
-#define IS_VALID_USMALLINT(_t) ((_t) >= 0 && (_t) < UINT16_MAX)
-#define IS_VALID_UINT(_t)      ((_t) >= 0 && (_t) < UINT32_MAX)
-#define IS_VALID_UBIGINT(_t)   ((_t) >= 0 && (_t) < UINT64_MAX)
+#define IS_VALID_TINYINT(_t)   ((_t) >= INT8_MIN && (_t) <= INT8_MAX)
+#define IS_VALID_SMALLINT(_t)  ((_t) >= INT16_MIN && (_t) <= INT16_MAX)
+#define IS_VALID_INT(_t)       ((_t) >= INT32_MIN && (_t) <= INT32_MAX)
+#define IS_VALID_BIGINT(_t)    ((_t) >= INT64_MIN && (_t) <= INT64_MAX)
+#define IS_VALID_UTINYINT(_t)  ((_t) >= 0 && (_t) <= UINT8_MAX)
+#define IS_VALID_USMALLINT(_t) ((_t) >= 0 && (_t) <= UINT16_MAX)
+#define IS_VALID_UINT(_t)      ((_t) >= 0 && (_t) <= UINT32_MAX)
+#define IS_VALID_UBIGINT(_t)   ((_t) >= 0 && (_t) <= UINT64_MAX)
 #define IS_VALID_FLOAT(_t)     ((_t) >= -FLT_MAX && (_t) <= FLT_MAX)
 #define IS_VALID_DOUBLE(_t)    ((_t) >= -DBL_MAX && (_t) <= DBL_MAX)
 
@@ -208,11 +335,11 @@ typedef struct tDataTypeDescriptor {
                       int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
   int32_t (*decompFunc)(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output,
                         int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
-  void (*statisFunc)(const void *pData, int32_t numofrow, int64_t *min, int64_t *max, int64_t *sum, int16_t *minindex,
-                     int16_t *maxindex, int16_t *numofnull);
+  void (*statisFunc)(int8_t bitmapMode, const void *pBitmap, const void *pData, int32_t numofrow, int64_t *min,
+                     int64_t *max, int64_t *sum, int16_t *minindex, int16_t *maxindex, int16_t *numofnull);
 } tDataTypeDescriptor;
 
-extern tDataTypeDescriptor tDataTypes[15];
+extern tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX];
 
 bool isValidDataType(int32_t type);
 
@@ -227,11 +354,9 @@ void  operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type);
 void *getDataMin(int32_t type);
 void *getDataMax(int32_t type);
 
-#define SET_DOUBLE_NULL(v) (*(uint64_t *)(v) = TSDB_DATA_DOUBLE_NULL)
-#define SET_BIGINT_NULL(v) (*(uint64_t *)(v) = TSDB_DATA_BIGINT_NULL)
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /*_TD_COMMON_TTYPE_H_*/
+#endif /*_TD_COMMON_TTYPE_H_*/

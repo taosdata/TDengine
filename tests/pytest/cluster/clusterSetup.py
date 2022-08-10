@@ -92,13 +92,13 @@ class Node:
             self.conn.run("yes|./install.sh")
 
     def configTaosd(self, taosConfigKey, taosConfigValue):
-        self.conn.run("sudo echo '%s %s' >> %s" % (taosConfigKey, taosConfigValue, "/etc/taos/taos.cfg"))
+        self.conn.run("sudo echo %s %s >> %s" % (taosConfigKey, taosConfigValue, "/etc/taos/taos.cfg"))
 
     def removeTaosConfig(self, taosConfigKey, taosConfigValue): 
         self.conn.run("sudo sed -in-place -e '/%s %s/d' %s" % (taosConfigKey, taosConfigValue, "/etc/taos/taos.cfg"))
     
     def configHosts(self, ip, name):
-        self.conn.run("echo '%s %s' >> %s" % (ip, name, '/etc/hosts'))
+        self.conn.run("echo %s %s >> %s" % (ip, name, '/etc/hosts'))
 
     def removeData(self):
         try:

@@ -29,14 +29,22 @@ extern "C" {
     #define tcgetattr TCGETATTR_FUNC_TAOS_FORBID
 #endif
 
+typedef struct TdCmd *TdCmdPtr;
+
+TdCmdPtr taosOpenCmd(const char* cmd);
+int64_t  taosGetsCmd(TdCmdPtr pCmd, int32_t maxSize, char *__restrict buf);
+int64_t  taosGetLineCmd(TdCmdPtr pCmd, char** __restrict ptrBuf);
+int32_t  taosEOFCmd(TdCmdPtr pCmd);
+int64_t  taosCloseCmd(TdCmdPtr* ppCmd);
+
 void* taosLoadDll(const char* filename);
 void* taosLoadSym(void* handle, char* name);
 void  taosCloseDll(void* handle);
 
 int32_t taosSetConsoleEcho(bool on);
-void setTerminalMode();
-int32_t getOldTerminalMode();
-void resetTerminalMode();
+void    taosSetTerminalMode();
+int32_t taosGetOldTerminalMode();
+void    taosResetTerminalMode();
 
 #ifdef __cplusplus
 }

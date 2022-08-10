@@ -27,9 +27,8 @@ SSyncNode* pSyncNode;
 
 SSyncNode* syncNodeInit() {
   syncInfo.vgId = 1234;
-  syncInfo.rpcClient = gSyncIO->clientRpc;
+  syncInfo.msgcb = &gSyncIO->msgcb;
   syncInfo.FpSendMsg = syncIOSendMsg;
-  syncInfo.queue = gSyncIO->pMsgQ;
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./");
@@ -72,9 +71,8 @@ void initRaftId(SSyncNode* pSyncNode) {
 }
 
 int main(int argc, char** argv) {
-  // taosInitLog((char *)"syncTest.log", 100000, 10);
   tsAsyncLog = 0;
-  sDebugFlag = 143 + 64;
+  sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
 
   myIndex = 0;
   if (argc >= 2) {
@@ -118,7 +116,7 @@ int main(int argc, char** argv) {
   }
 
   for (int i = 0; i < replicaNum; ++i) {
-    SyncRequestVoteReply* reply = syncRequestVoteReplyBuild();
+    SyncRequestVoteReply* reply = syncRequestVoteReplyBuild(1000);
     reply->destId = pSyncNode->myRaftId;
     reply->srcId = ids[i];
     reply->term = term;

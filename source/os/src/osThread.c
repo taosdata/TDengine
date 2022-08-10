@@ -77,34 +77,6 @@ int32_t taosThreadAttrSetStackSize(TdThreadAttr * attr, size_t stacksize) {
   return pthread_attr_setstacksize(attr, stacksize);
 }
 
-int32_t taosThreadBarrierDestroy(TdThreadBarrier * barrier) {
-  return pthread_barrier_destroy(barrier);
-}
-
-int32_t taosThreadBarrierInit(TdThreadBarrier * barrier, const TdThreadBarrierAttr * attr, uint32_t count) {
-  return pthread_barrier_init(barrier, attr, count);
-}
-
-int32_t taosThreadBarrierWait(TdThreadBarrier * barrier) {
-  return pthread_barrier_wait(barrier);
-}
-
-int32_t taosThreadBarrierAttrDestroy(TdThreadBarrierAttr * attr) {
-  return pthread_barrierattr_destroy(attr);
-}
-
-int32_t taosThreadBarrierAttrGetPshared(const TdThreadBarrierAttr * attr, int32_t *pshared) {
-  return pthread_barrierattr_getpshared(attr, pshared);
-}
-
-int32_t taosThreadBarrierAttrInit(TdThreadBarrierAttr * attr) {
-  return pthread_barrierattr_init(attr);
-}
-
-int32_t taosThreadBarrierAttrSetPshared(TdThreadBarrierAttr * attr, int32_t pshared) {
-  return pthread_barrierattr_setpshared(attr, pshared);
-}
-
 int32_t taosThreadCancel(TdThread thread) {
   return pthread_cancel(thread);
 }
@@ -185,9 +157,9 @@ int32_t taosThreadKill(TdThread thread, int32_t sig) {
   return pthread_kill(thread, sig);
 }
 
-int32_t taosThreadMutexConsistent(TdThreadMutex* mutex) {
-  return pthread_mutex_consistent(mutex);
-}
+// int32_t taosThreadMutexConsistent(TdThreadMutex* mutex) {
+//   return pthread_mutex_consistent(mutex);
+// }
 
 int32_t taosThreadMutexDestroy(TdThreadMutex * mutex) {
   return pthread_mutex_destroy(mutex);
@@ -201,9 +173,9 @@ int32_t taosThreadMutexLock(TdThreadMutex * mutex) {
   return pthread_mutex_lock(mutex);
 }
 
-int32_t taosThreadMutexTimedLock(TdThreadMutex * mutex, const struct timespec *abstime) {
-  return pthread_mutex_timedlock(mutex, abstime);
-}
+// int32_t taosThreadMutexTimedLock(TdThreadMutex * mutex, const struct timespec *abstime) {
+//   return pthread_mutex_timedlock(mutex, abstime);
+// }
 
 int32_t taosThreadMutexTryLock(TdThreadMutex * mutex) {
   return pthread_mutex_trylock(mutex);
@@ -221,9 +193,9 @@ int32_t taosThreadMutexAttrGetPshared(const TdThreadMutexAttr * attr, int32_t *p
   return pthread_mutexattr_getpshared(attr, pshared);
 }
 
-int32_t taosThreadMutexAttrGetRobust(const TdThreadMutexAttr * attr, int32_t * robust) {
-  return pthread_mutexattr_getrobust(attr, robust);
-}
+// int32_t taosThreadMutexAttrGetRobust(const TdThreadMutexAttr * attr, int32_t * robust) {
+//   return pthread_mutexattr_getrobust(attr, robust);
+// }
 
 int32_t taosThreadMutexAttrGetType(const TdThreadMutexAttr * attr, int32_t *kind) {
   return pthread_mutexattr_gettype(attr, kind);
@@ -237,9 +209,9 @@ int32_t taosThreadMutexAttrSetPshared(TdThreadMutexAttr * attr, int32_t pshared)
   return pthread_mutexattr_setpshared(attr, pshared);
 }
 
-int32_t taosThreadMutexAttrSetRobust(TdThreadMutexAttr * attr, int32_t robust) {
-  return pthread_mutexattr_setrobust(attr, robust);
-}
+// int32_t taosThreadMutexAttrSetRobust(TdThreadMutexAttr * attr, int32_t robust) {
+//   return pthread_mutexattr_setrobust(attr, robust);
+// }
 
 int32_t taosThreadMutexAttrSetType(TdThreadMutexAttr * attr, int32_t kind) {
   return pthread_mutexattr_settype(attr, kind);
@@ -261,13 +233,13 @@ int32_t taosThreadRwlockRdlock(TdThreadRwlock * rwlock) {
   return pthread_rwlock_rdlock(rwlock);
 }
 
-int32_t taosThreadRwlockTimedRdlock(TdThreadRwlock * rwlock, const struct timespec *abstime) {
-  return pthread_rwlock_timedrdlock(rwlock, abstime);
-}
+// int32_t taosThreadRwlockTimedRdlock(TdThreadRwlock * rwlock, const struct timespec *abstime) {
+//   return pthread_rwlock_timedrdlock(rwlock, abstime);
+// }
 
-int32_t taosThreadRwlockTimedWrlock(TdThreadRwlock * rwlock, const struct timespec *abstime) {
-  return pthread_rwlock_timedwrlock(rwlock, abstime);
-}
+// int32_t taosThreadRwlockTimedWrlock(TdThreadRwlock * rwlock, const struct timespec *abstime) {
+//   return pthread_rwlock_timedwrlock(rwlock, abstime);
+// }
 
 int32_t taosThreadRwlockTryRdlock(TdThreadRwlock * rwlock) {
   return pthread_rwlock_tryrdlock(rwlock);
@@ -322,33 +294,50 @@ int32_t taosThreadSetSpecific(TdThreadKey key, const void *value) {
 }
 
 int32_t taosThreadSpinDestroy(TdThreadSpinlock * lock) {
-  return pthread_spin_destroy(lock);
+#ifdef TD_USE_SPINLOCK_AS_MUTEX
+  return pthread_mutex_destroy((pthread_mutex_t*)lock);
+#else
+  return pthread_spin_destroy((pthread_spinlock_t*)lock);
+#endif
 }
 
 int32_t taosThreadSpinInit(TdThreadSpinlock * lock, int32_t pshared) {
-  return pthread_spin_init(lock, pshared);
+#ifdef TD_USE_SPINLOCK_AS_MUTEX
+  assert(pshared == 0);
+  return pthread_mutex_init((pthread_mutex_t*)lock, NULL);
+#else
+  return pthread_spin_init((pthread_spinlock_t*)lock, pshared);
+#endif
 }
 
 int32_t taosThreadSpinLock(TdThreadSpinlock * lock) {
-  return pthread_spin_lock(lock);
+#ifdef TD_USE_SPINLOCK_AS_MUTEX
+  return pthread_mutex_lock((pthread_mutex_t*)lock);
+#else
+  return pthread_spin_lock((pthread_spinlock_t*)lock);
+#endif
 }
 
 int32_t taosThreadSpinTrylock(TdThreadSpinlock * lock) {
-  return pthread_spin_trylock(lock);
+#ifdef TD_USE_SPINLOCK_AS_MUTEX
+  return pthread_mutex_trylock((pthread_mutex_t*)lock);
+#else
+  return pthread_spin_trylock((pthread_spinlock_t*)lock);
+#endif
 }
 
 int32_t taosThreadSpinUnlock(TdThreadSpinlock * lock) {
-  return pthread_spin_unlock(lock);
+#ifdef TD_USE_SPINLOCK_AS_MUTEX
+  return pthread_mutex_unlock((pthread_mutex_t*)lock);
+#else
+  return pthread_spin_unlock((pthread_spinlock_t*)lock);
+#endif
 }
 
 void taosThreadTestCancel(void) {
   return pthread_testcancel();
 }
 
-int32_t taosThreadSigMask(int32_t how, sigset_t const *set, sigset_t * oset) {
-  return pthread_sigmask(how, set, oset);
-}
-
-int32_t taosThreadSigWait(const sigset_t * set, int32_t *sig) {
-  return sigwait(set, sig);
+void taosThreadClear(TdThread *thread) {
+  memset(thread, 0, sizeof(TdThread));
 }

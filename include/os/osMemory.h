@@ -32,13 +32,17 @@ extern "C" {
 void *taosMemoryMalloc(int32_t size);
 void *taosMemoryCalloc(int32_t num, int32_t size);
 void *taosMemoryRealloc(void *ptr, int32_t size);
-void taosMemoryFree(const void *ptr);
+void *taosMemoryStrDup(const char *ptr);
+void taosMemoryFree(void *ptr);
 int32_t taosMemorySize(void *ptr);
+void taosPrintBackTrace();
 
-#define taosMemoryFreeClear(ptr) \
-  do {                           \
-    taosMemoryFree(ptr);         \
-    (ptr)=NULL;                  \
+#define taosMemoryFreeClear(ptr)   \
+  do {                             \
+    if (ptr) {                     \
+      taosMemoryFree((void *)ptr); \
+      (ptr) = NULL;                \
+    }                              \
   } while (0)
 
 #ifdef __cplusplus

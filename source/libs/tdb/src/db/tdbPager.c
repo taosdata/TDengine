@@ -15,35 +15,22 @@
 
 #include "tdbInt.h"
 
-struct SPager {
-  char    *dbFileName;
-  char    *jFileName;
-  int      pageSize;
-  uint8_t  fid[TDB_FILE_ID_LEN];
-  tdb_fd_t fd;
-  tdb_fd_t jfd;
-  SPCache *pCache;
-  SPgno    dbFileSize;
-  SPgno    dbOrigSize;
-  SPage   *pDirty;
-  u8       inTran;
-};
-
-typedef struct __attribute__((__packed__)) {
+#pragma pack(push, 1)
+typedef struct {
   u8    hdrString[16];
   u16   pageSize;
   SPgno freePage;
   u32   nFreePages;
   u8    reserved[102];
 } SFileHdr;
+#pragma pack(pop)
 
 TDB_STATIC_ASSERT(sizeof(SFileHdr) == 128, "Size of file header is not correct");
 
 #define TDB_PAGE_INITIALIZED(pPage) ((pPage)->pPager != NULL)
 
-static int tdbPagerReadPage(SPager *pPager, SPage *pPage);
-static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
-static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage *, void *), void *arg);
+static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage *, void *, int), void *arg,
+                            u8 loadPage);
 static int tdbPagerWritePageToJournal(SPager *pPager, SPage *pPage);
 static int tdbPagerWritePageToDB(SPager *pPager, SPage *pPage);
 
@@ -85,72 +72,120 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
     return -1;
   }
 
-  ret = tdbGnrtFileID(pPager->dbFileName, pPager->fid, false);
+  ret = tdbGnrtFileID(pPager->fd, pPager->fid, false);
   if (ret < 0) {
     return -1;
   }
 
   // pPager->jfd = -1;
   pPager->pageSize = tdbPCacheGetPageSize(pCache);
+  // pPager->dbOrigSize
+  ret = tdbGetFileSize(pPager->fd, pPager->pageSize, &(pPager->dbOrigSize));
+  pPager->dbFileSize = pPager->dbOrigSize;
 
   *ppPager = pPager;
   return 0;
 }
 
 int tdbPagerClose(SPager *pPager) {
-  // TODO
+  if (pPager) {
+    if (pPager->inTran) {
+      tdbOsClose(pPager->jfd);
+    }
+    tdbOsClose(pPager->fd);
+    tdbOsFree(pPager);
+  }
   return 0;
 }
 
-int tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate) {
+int tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate, SBTree *pBt) {
   SPgno  pgno;
   SPage *pPage;
   int    ret;
 
-  {
-    // TODO: try to search the main DB to get the page number
+  if (pPager->dbOrigSize > 0) {
+    pgno = 1;
+  } else {
     pgno = 0;
   }
 
-  // if (pgno == 0 && toCreate) {
-  //   ret = tdbPagerAllocPage(pPager, &pPage, &pgno);
-  //   if (ret < 0) {
-  //     return -1;
-  //   }
+  {
+    // TODO: try to search the main DB to get the page number
+    // pgno = 0;
+  }
 
-  //   // TODO: Need to zero the page
+  if (pgno == 0 && toCreate) {
+    // allocate a new child page
+    TXN txn;
+    tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, 0);
 
-  //   ret = tdbPagerWrite(pPager, pPage);
-  //   if (ret < 0) {
-  //     return -1;
-  //   }
-  // }
+    pPager->inTran = 1;
+
+    SBtreeInitPageArg zArg;
+    zArg.flags = 0x1 | 0x2;  // root leaf node;
+    zArg.pBt = pBt;
+    ret = tdbPagerFetchPage(pPager, &pgno, &pPage, tdbBtreeInitPage, &zArg, &txn);
+    if (ret < 0) {
+      return -1;
+    }
+
+    //    ret = tdbPagerAllocPage(pPager, &pPage, &pgno);
+    // if (ret < 0) {
+    //  return -1;
+    //}
+
+    // TODO: Need to zero the page
+
+    ret = tdbPagerWrite(pPager, pPage);
+    if (ret < 0) {
+      return -1;
+    }
+
+    tdbTxnClose(&txn);
+  }
 
   *ppgno = pgno;
   return 0;
 }
 
 int tdbPagerWrite(SPager *pPager, SPage *pPage) {
-  int ret;
+  int     ret;
+  SPage **ppPage;
 
+  ASSERT(pPager->inTran);
+#if 0
   if (pPager->inTran == 0) {
     ret = tdbPagerBegin(pPager);
     if (ret < 0) {
       return -1;
     }
   }
+#endif
 
   if (pPage->isDirty) return 0;
+
+  // ref page one more time so the page will not be release
+  tdbRefPage(pPage);
 
   // Set page as dirty
   pPage->isDirty = 1;
 
-  // Add page to dirty list
-  // TODO: sort the list according to the page number
-  pPage->pDirtyNext = pPager->pDirty;
-  pPager->pDirty = pPage;
+  // Add page to dirty list(TODO: NOT use O(n^2) algorithm)
+  for (ppPage = &pPager->pDirty; (*ppPage) && TDB_PAGE_PGNO(*ppPage) < TDB_PAGE_PGNO(pPage);
+       ppPage = &((*ppPage)->pDirtyNext)) {
+  }
 
-  // Write page to journal
+  if (*ppPage && TDB_PAGE_PGNO(*ppPage) == TDB_PAGE_PGNO(pPage)) {
+    tdbUnrefPage(pPage);
+
+    return 0;
+  }
+
+  ASSERT(*ppPage == NULL || TDB_PAGE_PGNO(*ppPage) > TDB_PAGE_PGNO(pPage));
+  pPage->pDirtyNext = *ppPage;
+  *ppPage = pPage;
+
+  // Write page to journal if neccessary
   if (TDB_PAGE_PGNO(pPage) <= pPager->dbOrigSize) {
     ret = tdbPagerWritePageToJournal(pPager, pPage);
     if (ret < 0) {
@@ -162,7 +197,7 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   return 0;
 }
 
-int tdbPagerBegin(SPager *pPager) {
+int tdbPagerBegin(SPager *pPager, TXN *pTxn) {
   if (pPager->inTran) {
     return 0;
   }
@@ -180,123 +215,173 @@ int tdbPagerBegin(SPager *pPager) {
   return 0;
 }
 
-int tdbPagerCommit(SPager *pPager) {
+int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
   SPage *pPage;
   int    ret;
 
-  // Begin commit
-  {
-    // TODO: Sync the journal file (Here or when write ?)
+  // sync the journal file
+  ret = tdbOsFSync(pPager->jfd);
+  if (ret < 0) {
+    // TODO
+    ASSERT(0);
+    return 0;
   }
 
-  for (;;) {
-    pPage = pPager->pDirty;
-
-    if (pPage == NULL) break;
-
+  // loop to write the dirty pages to file
+  for (pPage = pPager->pDirty; pPage; pPage = pPage->pDirtyNext) {
+    // TODO: update the page footer
     ret = tdbPagerWritePageToDB(pPager, pPage);
     if (ret < 0) {
       ASSERT(0);
       return -1;
     }
+  }
 
+  tdbTrace("tdbttl commit:%p, %d", pPager, pPager->dbOrigSize);
+  pPager->dbOrigSize = pPager->dbFileSize;
+
+  // release the page
+  for (pPage = pPager->pDirty; pPage; pPage = pPager->pDirty) {
     pPager->pDirty = pPage->pDirtyNext;
     pPage->pDirtyNext = NULL;
 
-    // TODO: release the page
+    pPage->isDirty = 0;
+
+    tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
 
+  // sync the db file
   tdbOsFSync(pPager->fd);
 
+  // remove the journal file
   tdbOsClose(pPager->jfd);
   tdbOsRemove(pPager->jFileName);
-  // pPager->jfd = -1;
+  pPager->inTran = 0;
 
   return 0;
 }
 
-static int tdbPagerReadPage(SPager *pPager, SPage *pPage) {
-  i64 offset;
-  int ret;
-
-  ASSERT(memcmp(pPager->fid, pPage->pgid.fileid, TDB_FILE_ID_LEN) == 0);
-
-  offset = (pPage->pgid.pgno - 1) * (i64)(pPager->pageSize);
-  ret = tdbOsPRead(pPager->fd, pPage->pData, pPager->pageSize, offset);
-  if (ret < 0) {
-    // TODO: handle error
-    return -1;
-  }
-  return 0;
-}
-
-int tdbPagerGetPageSize(SPager *pPager) { return pPager->pageSize; }
-
-int tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg) {
+// recovery dirty pages
+int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
   SPage *pPage;
-  SPgid  pgid;
+  int    pgIdx;
+  SPgno  journalSize = 0;
   int    ret;
 
-  // Fetch a page container from the page cache
-  memcpy(&pgid, pPager->fid, TDB_FILE_ID_LEN);
-  pgid.pgno = pgno;
-  pPage = tdbPCacheFetch(pPager->pCache, &pgid, 1);
-  if (pPage == NULL) {
+  // 0, sync the journal file
+  ret = tdbOsFSync(pPager->jfd);
+  if (ret < 0) {
+    // TODO
+    ASSERT(0);
+    return 0;
+  }
+
+  tdb_fd_t jfd = tdbOsOpen(pPager->jFileName, TDB_O_RDWR, 0755);
+  if (jfd == NULL) {
+    return 0;
+  }
+
+  ret = tdbGetFileSize(jfd, pPager->pageSize, &journalSize);
+  if (ret < 0) {
     return -1;
   }
 
-  // Initialize the page if need
-  if (!TDB_PAGE_INITIALIZED(pPage)) {
-    ret = tdbPagerInitPage(pPager, pPage, initPage, arg);
+  // 1, read pages from jounal file
+  // 2, write original pages to buffered ones
+
+  /* TODO: reset the buffered pages instead of releasing them
+  // loop to reset the dirty pages from file
+  for (pgIdx = 0, pPage = pPager->pDirty; pPage != NULL && pgIndex < journalSize; pPage = pPage->pDirtyNext, ++pgIdx) {
+    // read pgno & the page from journal
+    SPgno pgno;
+
+    int ret = tdbOsRead(jfd, &pgno, sizeof(pgno));
+    if (ret < 0) {
+      return -1;
+    }
+
+    ret = tdbOsRead(jfd, pageBuf, pPager->pageSize);
     if (ret < 0) {
       return -1;
     }
   }
+  */
+  // 3, release the dirty pages
+  for (pPage = pPager->pDirty; pPage; pPage = pPager->pDirty) {
+    pPager->pDirty = pPage->pDirtyNext;
+    pPage->pDirtyNext = NULL;
 
-  ASSERT(TDB_PAGE_INITIALIZED(pPage));
-  ASSERT(pPage->pPager == pPager);
+    pPage->isDirty = 0;
 
-  *ppPage = pPage;
+    tdbPCacheRelease(pPager->pCache, pPage, pTxn);
+  }
+
+  // 4, remove the journal file
+  tdbOsClose(pPager->jfd);
+  tdbOsRemove(pPager->jFileName);
+  pPager->inTran = 0;
+
   return 0;
 }
 
-int tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg) {
-  int    ret;
+int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *, int), void *arg,
+                      TXN *pTxn) {
   SPage *pPage;
   SPgid  pgid;
+  int    ret;
+  SPgno  pgno;
+  u8     loadPage;
 
-  // Allocate a page number
-  ret = tdbPagerAllocPage(pPager, ppgno);
-  if (ret < 0) {
-    return -1;
+  pgno = *ppgno;
+  loadPage = 1;
+
+  // alloc new page
+  if (pgno == 0) {
+    loadPage = 0;
+    ret = tdbPagerAllocPage(pPager, &pgno);
+    if (ret < 0) {
+      ASSERT(0);
+      return -1;
+    }
   }
 
-  ASSERT(*ppgno != 0);
+  ASSERT(pgno > 0);
 
-  // Fetch a page container from the page cache
+  // fetch a page container
   memcpy(&pgid, pPager->fid, TDB_FILE_ID_LEN);
-  pgid.pgno = *ppgno;
-  pPage = tdbPCacheFetch(pPager->pCache, &pgid, 1);
+  pgid.pgno = pgno;
+  pPage = tdbPCacheFetch(pPager->pCache, &pgid, pTxn);
   if (pPage == NULL) {
+    ASSERT(0);
     return -1;
   }
 
-  ASSERT(!TDB_PAGE_INITIALIZED(pPage));
-
-  // Initialize the page if need
-  ret = tdbPagerInitPage(pPager, pPage, initPage, arg);
-  if (ret < 0) {
-    return -1;
+  tdbTrace("tdbttl fetch pager:%p", pPage->pPager);
+  // init page if need
+  if (!TDB_PAGE_INITIALIZED(pPage)) {
+    ret = tdbPagerInitPage(pPager, pPage, initPage, arg, loadPage);
+    if (ret < 0) {
+      ASSERT(0);
+      return -1;
+    }
   }
+
+  // printf("thread %" PRId64 " pager fetch page %d pgno %d ppage %p\n", taosGetSelfPthreadId(), pPage->id,
+  //        TDB_PAGE_PGNO(pPage), pPage);
 
   ASSERT(TDB_PAGE_INITIALIZED(pPage));
   ASSERT(pPage->pPager == pPager);
 
+  *ppgno = pgno;
   *ppPage = pPage;
   return 0;
 }
 
-void tdbPagerReturnPage(SPager *pPager, SPage *pPage) { tdbPCacheRelease(pPager->pCache, pPage); }
+void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn) {
+  tdbPCacheRelease(pPager->pCache, pPage, pTxn);
+  // printf("thread %" PRId64 " pager retun page %d pgno %d ppage %p\n", taosGetSelfPthreadId(), pPage->id,
+  //        TDB_PAGE_PGNO(pPage), pPage);
+}
 
 static int tdbPagerAllocFreePage(SPager *pPager, SPgno *ppgno) {
   // TODO: Allocate a page from the free list
@@ -308,7 +393,7 @@ static int tdbPagerAllocNewPage(SPager *pPager, SPgno *ppgno) {
   return 0;
 }
 
-static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno) {
+int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno) {
   int ret;
 
   *ppgno = 0;
@@ -332,10 +417,14 @@ static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno) {
   return 0;
 }
 
-static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage *, void *), void *arg) {
-  int ret;
-  int lcode;
-  int nLoops;
+static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage *, void *, int), void *arg,
+                            u8 loadPage) {
+  int   ret;
+  int   lcode;
+  int   nLoops;
+  i64   nRead;
+  SPgno pgno;
+  int   init = 0;
 
   lcode = TDB_TRY_LOCK_PAGE(pPage);
   if (lcode == P_LOCK_SUCC) {
@@ -344,8 +433,25 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
       return 0;
     }
 
-    ret = (*initPage)(pPage, arg);
+    pgno = TDB_PAGE_PGNO(pPage);
+
+    tdbTrace("tdbttl init pager:%p, pgno:%d, loadPage:%d, size:%d", pPager, pgno, loadPage, pPager->dbOrigSize);
+    if (loadPage && pgno <= pPager->dbOrigSize) {
+      init = 1;
+
+      nRead = tdbOsPRead(pPager->fd, pPage->pData, pPage->pageSize, ((i64)pPage->pageSize) * (pgno - 1));
+      tdbTrace("tdbttl pager:%p, pgno:%d, nRead:%" PRId64, pPager, pgno, nRead);
+      if (nRead < pPage->pageSize) {
+        ASSERT(0);
+        return -1;
+      }
+    } else {
+      init = 0;
+    }
+
+    ret = (*initPage)(pPage, arg, init);
     if (ret < 0) {
+      ASSERT(0);
       TDB_UNLOCK_PAGE(pPage);
       return -1;
     }
@@ -364,6 +470,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
       }
     }
   } else {
+    ASSERT(0);
     return -1;
   }
 
@@ -394,7 +501,7 @@ static int tdbPagerWritePageToDB(SPager *pPager, SPage *pPage) {
   i64 offset;
   int ret;
 
-  offset = pPage->pageSize * TDB_PAGE_PGNO(pPage);
+  offset = pPage->pageSize * (TDB_PAGE_PGNO(pPage) - 1);
   if (tdbOsLSeek(pPager->fd, offset, SEEK_SET) < 0) {
     ASSERT(0);
     return -1;
@@ -405,6 +512,63 @@ static int tdbPagerWritePageToDB(SPager *pPager, SPage *pPage) {
     ASSERT(0);
     return -1;
   }
+
+  return 0;
+}
+
+int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
+  int   ret = 0;
+  SPgno journalSize = 0;
+  u8   *pageBuf = NULL;
+
+  tdb_fd_t jfd = tdbOsOpen(pPager->jFileName, TDB_O_RDWR, 0755);
+  if (jfd == NULL) {
+    return 0;
+  }
+
+  ret = tdbGetFileSize(jfd, pPager->pageSize, &journalSize);
+  if (ret < 0) {
+    return -1;
+  }
+
+  pageBuf = tdbOsCalloc(1, pPager->pageSize);
+  if (pageBuf == NULL) {
+    return -1;
+  }
+
+  for (int pgIndex = 0; pgIndex < journalSize; ++pgIndex) {
+    // read pgno & the page from journal
+    SPgno pgno;
+
+    int ret = tdbOsRead(jfd, &pgno, sizeof(pgno));
+    if (ret < 0) {
+      return -1;
+    }
+
+    ret = tdbOsRead(jfd, pageBuf, pPager->pageSize);
+    if (ret < 0) {
+      return -1;
+    }
+
+    i64 offset = pPager->pageSize * (pgno - 1);
+    if (tdbOsLSeek(pPager->fd, offset, SEEK_SET) < 0) {
+      ASSERT(0);
+      return -1;
+    }
+
+    ret = tdbOsWrite(pPager->fd, pageBuf, pPager->pageSize);
+    if (ret < 0) {
+      ASSERT(0);
+      return -1;
+    }
+  }
+
+  tdbOsFSync(pPager->fd);
+
+  tdbOsFree(pageBuf);
+
+  tdbOsClose(jfd);
+  tdbOsRemove(pPager->jFileName);
 
   return 0;
 }

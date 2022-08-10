@@ -16,9 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "mndCluster.h"
 #include "mndShow.h"
+#include "mndTrans.h"
 
-#define TSDB_CLUSTER_VER_NUMBE 1
-#define TSDB_CLUSTER_RESERVE_SIZE 64
+#define CLUSTER_VER_NUMBE    1
+#define CLUSTER_RESERVE_SIZE 64
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster);
 static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw);
@@ -26,21 +27,21 @@ static int32_t  mndClusterActionInsert(SSdb *pSdb, SClusterObj *pCluster);
 static int32_t  mndClusterActionDelete(SSdb *pSdb, SClusterObj *pCluster);
 static int32_t  mndClusterActionUpdate(SSdb *pSdb, SClusterObj *pOldCluster, SClusterObj *pNewCluster);
 static int32_t  mndCreateDefaultCluster(SMnode *pMnode);
-static int32_t  mndGetClusterMeta(SNodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t  mndRetrieveClusters(SNodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextCluster(SMnode *pMnode, void *pIter);
 
 int32_t mndInitCluster(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_CLUSTER,
-                     .keyType = SDB_KEY_INT64,
-                     .deployFp = (SdbDeployFp)mndCreateDefaultCluster,
-                     .encodeFp = (SdbEncodeFp)mndClusterActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndClusterActionDecode,
-                     .insertFp = (SdbInsertFp)mndClusterActionInsert,
-                     .updateFp = (SdbUpdateFp)mndClusterActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndClusterActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_CLUSTER,
+      .keyType = SDB_KEY_INT64,
+      .deployFp = (SdbDeployFp)mndCreateDefaultCluster,
+      .encodeFp = (SdbEncodeFp)mndClusterActionEncode,
+      .decodeFp = (SdbDecodeFp)mndClusterActionDecode,
+      .insertFp = (SdbInsertFp)mndClusterActionInsert,
+      .updateFp = (SdbUpdateFp)mndClusterActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndClusterActionDelete,
+  };
 
-  mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_CLUSTER, mndGetClusterMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CLUSTER, mndRetrieveClusters);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CLUSTER, mndCancelGetNextCluster);
   return sdbSetTable(pMnode->pSdb, table);
@@ -61,22 +62,56 @@ int32_t mndGetClusterName(SMnode *pMnode, char *clusterName, int32_t len) {
   return 0;
 }
 
+int64_t mndGetClusterId(SMnode *pMnode) {
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  int64_t clusterId = -1;
+
+  while (1) {
+    SClusterObj *pCluster = NULL;
+    pIter = sdbFetch(pSdb, SDB_CLUSTER, pIter, (void **)&pCluster);
+    if (pIter == NULL) break;
+
+    clusterId = pCluster->id;
+    sdbRelease(pSdb, pCluster);
+  }
+
+  return clusterId;
+}
+
+int64_t mndGetClusterCreateTime(SMnode *pMnode) {
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  int64_t createTime = INT64_MAX;
+
+  while (1) {
+    SClusterObj *pCluster = NULL;
+    pIter = sdbFetch(pSdb, SDB_CLUSTER, pIter, (void **)&pCluster);
+    if (pIter == NULL) break;
+
+    createTime = pCluster->createdTime;
+    sdbRelease(pSdb, pCluster);
+  }
+
+  return createTime;
+}
+
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_CLUSTER, TSDB_CLUSTER_VER_NUMBE, sizeof(SClusterObj) + TSDB_CLUSTER_RESERVE_SIZE);
-  if (pRaw == NULL) goto CLUSTER_ENCODE_OVER;
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_CLUSTER, CLUSTER_VER_NUMBE, sizeof(SClusterObj) + CLUSTER_RESERVE_SIZE);
+  if (pRaw == NULL) goto _OVER;
 
   int32_t dataPos = 0;
-  SDB_SET_INT64(pRaw, dataPos, pCluster->id, CLUSTER_ENCODE_OVER)
-  SDB_SET_INT64(pRaw, dataPos, pCluster->createdTime, CLUSTER_ENCODE_OVER)
-  SDB_SET_INT64(pRaw, dataPos, pCluster->updateTime, CLUSTER_ENCODE_OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN, CLUSTER_ENCODE_OVER)
-  SDB_SET_RESERVE(pRaw, dataPos, TSDB_CLUSTER_RESERVE_SIZE, CLUSTER_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pCluster->id, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pCluster->createdTime, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pCluster->updateTime, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN, _OVER)
+  SDB_SET_RESERVE(pRaw, dataPos, CLUSTER_RESERVE_SIZE, _OVER)
 
   terrno = 0;
 
-CLUSTER_ENCODE_OVER:
+_OVER:
   if (terrno != 0) {
     mError("cluster:%" PRId64 ", failed to encode to raw:%p since %s", pCluster->id, pRaw, terrstr());
     sdbFreeRaw(pRaw);
@@ -91,29 +126,29 @@ static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto CLUSTER_DECODE_OVER;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
-  if (sver != TSDB_CLUSTER_VER_NUMBE) {
+  if (sver != CLUSTER_VER_NUMBE) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    goto CLUSTER_DECODE_OVER;
+    goto _OVER;
   }
 
   SSdbRow *pRow = sdbAllocRow(sizeof(SClusterObj));
-  if (pRow == NULL) goto CLUSTER_DECODE_OVER;
+  if (pRow == NULL) goto _OVER;
 
   SClusterObj *pCluster = sdbGetRowObj(pRow);
-  if (pCluster == NULL) goto CLUSTER_DECODE_OVER;
+  if (pCluster == NULL) goto _OVER;
 
   int32_t dataPos = 0;
-  SDB_GET_INT64(pRaw, dataPos, &pCluster->id, CLUSTER_DECODE_OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pCluster->createdTime, CLUSTER_DECODE_OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pCluster->updateTime, CLUSTER_DECODE_OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN, CLUSTER_DECODE_OVER)
-  SDB_GET_RESERVE(pRaw, dataPos, TSDB_CLUSTER_RESERVE_SIZE, CLUSTER_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pCluster->id, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pCluster->createdTime, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pCluster->updateTime, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN, _OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, CLUSTER_RESERVE_SIZE, _OVER)
 
   terrno = 0;
 
-CLUSTER_DECODE_OVER:
+_OVER:
   if (terrno != 0) {
     mError("cluster:%" PRId64 ", failed to decode from raw:%p since %s", pCluster->id, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
@@ -126,6 +161,7 @@ CLUSTER_DECODE_OVER:
 
 static int32_t mndClusterActionInsert(SSdb *pSdb, SClusterObj *pCluster) {
   mTrace("cluster:%" PRId64 ", perform insert action, row:%p", pCluster->id, pCluster);
+  pSdb->pMnode->clusterId = pCluster->id;
   return 0;
 }
 
@@ -146,67 +182,50 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
 
   int32_t code = taosGetSystemUUID(clusterObj.name, TSDB_CLUSTER_ID_LEN);
   if (code != 0) {
-    strcpy(clusterObj.name, "tdengine2.0");
+    strcpy(clusterObj.name, "tdengine3.0");
     mError("failed to get name from system, set to default val %s", clusterObj.name);
   }
 
   clusterObj.id = mndGenerateUid(clusterObj.name, TSDB_CLUSTER_ID_LEN);
   clusterObj.id = (clusterObj.id >= 0 ? clusterObj.id : -clusterObj.id);
   pMnode->clusterId = clusterObj.id;
-  mDebug("cluster:%" PRId64 ", name is %s", clusterObj.id, clusterObj.name);
+  mInfo("cluster:%" PRId64 ", name is %s", clusterObj.id, clusterObj.name);
 
   SSdbRaw *pRaw = mndClusterActionEncode(&clusterObj);
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mDebug("cluster:%" PRId64 ", will be created while deploy sdb, raw:%p", clusterObj.id, pRaw);
-  return sdbWrite(pMnode->pSdb, pRaw);
-}
+  mDebug("cluster:%" PRId64 ", will be created when deploying, raw:%p", clusterObj.id, pRaw);
 
-static int32_t mndGetClusterMeta(SNodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta) {
-  int32_t  cols = 0;
-  SSchema *pSchema = pMeta->pSchemas;
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL);
+  if (pTrans == NULL) {
+    mError("cluster:%" PRId64 ", failed to create since %s", clusterObj.id, terrstr());
+    return -1;
+  }
+  mDebug("trans:%d, used to create cluster:%" PRId64, pTrans->id, clusterObj.id);
 
-  pShow->bytes[cols] = 8;
-  pSchema[cols].type = TSDB_DATA_TYPE_BIGINT;
-  strcpy(pSchema[cols].name, "id");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
+  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
+    mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  pShow->bytes[cols] = TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "name");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pShow->bytes[cols] = 8;
-  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create_time");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
-
-  pMeta->numOfColumns = cols;
-  strcpy(pMeta->tbName, mndShowStr(pShow->type));
-  pShow->numOfColumns = cols;
-
-  pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) {
-    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
   }
 
-  pShow->numOfRows = 1;
-  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbName, mndShowStr(pShow->type));
-
+  mndTransDrop(pTrans);
   return 0;
 }
 
-static int32_t mndRetrieveClusters(SNodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode      *pMnode = pMsg->pNode;
+static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode      *pMnode = pMsg->info.node;
   SSdb        *pSdb = pMnode->pSdb;
   int32_t      numOfRows = 0;
   int32_t      cols = 0;
-  char        *pWrite;
   SClusterObj *pCluster = NULL;
 
   while (numOfRows < rows) {
@@ -214,25 +233,23 @@ static int32_t mndRetrieveClusters(SNodeMsg *pMsg, SShowObj *pShow, char *data, 
     if (pShow->pIter == NULL) break;
 
     cols = 0;
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pCluster->id, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pCluster->id;
-    cols++;
+    char buf[tListLen(pCluster->name) + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, pCluster->name, pShow->pMeta->pSchemas[cols].bytes);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pCluster->name, TSDB_CLUSTER_ID_LEN);
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, buf, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pCluster->createdTime;
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pCluster->createdTime, false);
 
     sdbRelease(pSdb, pCluster);
     numOfRows++;
   }
 
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
-  pShow->numOfReads += numOfRows;
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 

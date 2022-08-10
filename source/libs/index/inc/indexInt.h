@@ -24,17 +24,25 @@
 #include "tchecksum.h"
 #include "thash.h"
 #include "tlog.h"
+#include "tlrucache.h"
 #include "tutil.h"
-
-#ifdef USE_LUCENE
-#include <lucene++/Lucene_c.h>
-#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+// clang-format off
+#define indexFatal(...) do { if (idxDebugFlag & DEBUG_FATAL) {  taosPrintLog("IDX FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }} while (0)
+#define indexError(...) do { if (idxDebugFlag & DEBUG_ERROR) {  taosPrintLog("IDX ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }} while (0)
+#define indexWarn(...)  do { if (idxDebugFlag & DEBUG_WARN)  {  taosPrintLog("IDX WARN ", DEBUG_WARN, 255, __VA_ARGS__); }} while (0)
+#define indexInfo(...)  do { if (idxDebugFlag & DEBUG_INFO)  { taosPrintLog("IDX ", DEBUG_INFO, 255, __VA_ARGS__); } } while (0)
+#define indexDebug(...) do { if (idxDebugFlag & DEBUG_DEBUG) { taosPrintLog("IDX ", DEBUG_DEBUG, idxDebugFlag, __VA_ARGS__);} } while (0)
+#define indexTrace(...) do { if (idxDebugFlag & DEBUG_TRACE) { taosPrintLog("IDX", DEBUG_TRACE, idxDebugFlag, __VA_ARGS__);} } while (0)
+// clang-format on
+
+typedef enum { LT, LE, GT, GE, CONTAINS, EQ } RangeType;
 typedef enum { kTypeValue, kTypeDeletion } STermValueType;
+typedef enum { kRebuild, kFinished } SIdxStatus;
 
 typedef struct SIndexStat {
   int32_t totalAdded;    //
@@ -45,31 +53,22 @@ typedef struct SIndexStat {
 } SIndexStat;
 
 struct SIndex {
-#ifdef USE_LUCENE
-  index_t* index;
-#endif
+  int64_t   refId;
   void*     cache;
   void*     tindex;
   SHashObj* colObj;  // < field name, field id>
 
-  int64_t suid;      // current super table id, -1 is normal table
-  int32_t cVersion;  // current version allocated to cache
+  int64_t    suid;      // current super table id, -1 is normal table
+  int32_t    cVersion;  // current version allocated to cache
+  SLRUCache* lru;
+  char*      path;
 
-  char* path;
-
-  SIndexStat      stat;
+  int8_t        status;
+  SIndexStat    stat;
   TdThreadMutex mtx;
-};
-
-struct SIndexOpts {
-#ifdef USE_LUCENE
-  void* opts;
-#endif
-
-#ifdef USE_INVERTED_INDEX
-  int32_t cacheSize;  // MB
-  // add cache module later
-#endif
+  tsem_t        sem;
+  bool          quit;
+  SIndexOpts    opts;
 };
 
 struct SIndexMultiTermQuery {
@@ -120,57 +119,26 @@ typedef struct TFileCacheKey {
   char*    colName;
   int32_t  nColName;
 } ICacheKey;
+int idxFlushCacheToTFile(SIndex* sIdx, void*, bool quit);
 
-int indexFlushCacheToTFile(SIndex* sIdx, void*);
+int64_t idxAddRef(void* p);
+int32_t idxRemoveRef(int64_t ref);
+void    idxAcquireRef(int64_t ref);
+void    idxReleaseRef(int64_t ref);
 
-int32_t indexSerialCacheKey(ICacheKey* key, char* buf);
+int32_t idxSerialCacheKey(ICacheKey* key, char* buf);
 // int32_t indexSerialKey(ICacheKey* key, char* buf);
 // int32_t indexSerialTermKey(SIndexTerm* itm, char* buf);
 
-#define indexFatal(...)                                            \
-  do {                                                             \
-    if (sDebugFlag & DEBUG_FATAL) {                                \
-      taosPrintLog("index FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); \
-    }                                                              \
-  } while (0)
-#define indexError(...)                                            \
-  do {                                                             \
-    if (sDebugFlag & DEBUG_ERROR) {                                \
-      taosPrintLog("index ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); \
-    }                                                              \
-  } while (0)
-#define indexWarn(...)                                           \
-  do {                                                           \
-    if (sDebugFlag & DEBUG_WARN) {                               \
-      taosPrintLog("index WARN ", DEBUG_WARN, 255, __VA_ARGS__); \
-    }                                                            \
-  } while (0)
-#define indexInfo(...)                                      \
-  do {                                                      \
-    if (sDebugFlag & DEBUG_INFO) {                          \
-      taosPrintLog("index ", DEBUG_INFO, 255, __VA_ARGS__); \
-    }                                                       \
-  } while (0)
-#define indexDebug(...)                                             \
-  do {                                                              \
-    if (sDebugFlag & DEBUG_DEBUG) {                                 \
-      taosPrintLog("index ", DEBUG_DEBUG, sDebugFlag, __VA_ARGS__); \
-    }                                                               \
-  } while (0)
-#define indexTrace(...)                                             \
-  do {                                                              \
-    if (sDebugFlag & DEBUG_TRACE) {                                 \
-      taosPrintLog("index ", DEBUG_TRACE, sDebugFlag, __VA_ARGS__); \
-    }                                                               \
-  } while (0)
+#define IDX_TYPE_CONTAIN_EXTERN_TYPE(ty, exTy) (((ty >> 4) & (exTy)) != 0)
 
-#define INDEX_TYPE_CONTAIN_EXTERN_TYPE(ty, exTy) (((ty >> 4) & (exTy)) != 0)
-#define INDEX_TYPE_GET_TYPE(ty) (ty & 0x0F)
-#define INDEX_TYPE_ADD_EXTERN_TYPE(ty, exTy) \
-  do {                                       \
-    uint8_t oldTy = ty;                      \
-    ty = (ty >> 4) | exTy;                   \
-    ty = (ty << 4) | oldTy;                  \
+#define IDX_TYPE_GET_TYPE(ty) (ty & 0x0F)
+
+#define IDX_TYPE_ADD_EXTERN_TYPE(ty, exTy) \
+  do {                                     \
+    uint8_t oldTy = ty;                    \
+    ty = (ty >> 4) | exTy;                 \
+    ty = (ty << 4) | oldTy;                \
   } while (0)
 
 #ifdef __cplusplus

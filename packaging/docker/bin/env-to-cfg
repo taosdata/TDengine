@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+self=$0
+
+snake_to_camel_case() {
+  echo $1 | awk -F _ '{printf "%s", $1; for(i=2; i<=NF; i++) printf "%s", toupper(substr($i,1,1)) substr($i,2); print"";}'
+}
+
+if echo $1 | grep -E "^$" - >/dev/null; then
+  export |grep -E 'TAOS_.*' -o| sed 's/TAOS_//' |tr A-Z a-z | awk -F"=" '{print "name=$(""'$self' " $1"); echo $name "$2}' |sh
+else
+  snake_to_camel_case $1
+fi

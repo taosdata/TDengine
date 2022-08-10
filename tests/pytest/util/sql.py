@@ -16,10 +16,12 @@ import os
 import time
 import datetime
 import inspect
+import traceback
 import psutil
 import shutil
 import pandas as pd
 from util.log import *
+from util.constant import *
 
 def _parse_datetime(timestr):
     try:
@@ -47,19 +49,25 @@ class TDSql:
     def close(self):
         self.cursor.close()
 
-    def prepare(self):
-        tdLog.info("prepare database:db")
+    def prepare(self, dbname="db", drop=True, **kwargs):
+        tdLog.info(f"prepare database:{dbname}")
         s = 'reset query cache'
         try:
             self.cursor.execute(s)
         except:
             tdLog.notice("'reset query cache' is not supported")
-        s = 'drop database if exists db'
+        if drop:
+            s = f'drop database if exists {dbname}'
+            self.cursor.execute(s)
+        s = f'create database {dbname}'
+        for k, v in kwargs.items():
+            s += f" {k} {v}"
+        if "duration" not in kwargs:
+            s += " duration 300"
         self.cursor.execute(s)
-        s = 'create database db'
+        s = f'use {dbname}'
         self.cursor.execute(s)
-        s = 'use db'
-        self.cursor.execute(s)
+        time.sleep(2)
 
     def error(self, sql):
         expectErrNotOccured = True
@@ -76,21 +84,38 @@ class TDSql:
             self.queryResult = None
             tdLog.info("sql:%s, expect error occured" % (sql))
 
-    def query(self, sql, row_tag=None):
+    def query(self, sql, row_tag=None,queryTimes=10):
         self.sql = sql
+        i=1
+        while i <= queryTimes:
+            try:
+                self.cursor.execute(sql)
+                self.queryResult = self.cursor.fetchall()
+                self.queryRows = len(self.queryResult)
+                self.queryCols = len(self.cursor.description)
+                if row_tag:
+                    return self.queryResult
+                return self.queryRows
+            except Exception as e:
+                tdLog.notice("Try to query again, query times: %d "%i)
+                if i == queryTimes:
+                    caller = inspect.getframeinfo(inspect.stack()[1][0])
+                    args = (caller.filename, caller.lineno, sql, repr(e))
+                    tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+                    raise Exception(repr(e))   
+                i+=1
+                time.sleep(1)
+                pass
+
+
+    def is_err_sql(self, sql):
+        err_flag = True
         try:
             self.cursor.execute(sql)
-            self.queryResult = self.cursor.fetchall()
-            self.queryRows = len(self.queryResult)
-            self.queryCols = len(self.cursor.description)
-        except Exception as e:
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, sql, repr(e))
-            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
-            raise Exception(repr(e))
-        if row_tag:
-            return self.queryResult
-        return self.queryRows
+        except BaseException:
+            err_flag = False
+
+        return False if err_flag else True
 
     def getVariable(self, search_attr):
         '''
@@ -114,8 +139,7 @@ class TDSql:
             col_name_list = []
             col_type_list = []
             self.cursor.execute(sql)
-            self.queryCols = self.cursor.description
-            for query_col in self.queryCols:
+            for query_col in self.cursor.description:
                 col_name_list.append(query_col[0])
                 col_type_list.append(query_col[1])
         except Exception as e:
@@ -147,13 +171,25 @@ class TDSql:
             raise Exception(repr(e))
         return (self.queryRows, timeout)
 
+    def getRows(self):
+        return self.queryRows
+
     def checkRows(self, expectRows):
         if self.queryRows == expectRows:
             tdLog.info("sql:%s, queryRows:%d == expect:%d" % (self.sql, self.queryRows, expectRows))
+            return True
         else:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, self.queryRows, expectRows)
             tdLog.exit("%s(%d) failed: sql:%s, queryRows:%d != expect:%d" % args)
+
+    def checkRows_range(self, excepte_row_list):
+        if self.queryRows in excepte_row_list:
+            tdLog.info(f"sql:{self.sql}, queryRows:{self.queryRows} in expect:{excepte_row_list}")
+            return True
+        else:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{self.sql}, queryRows:{self.queryRows} not in expect:{excepte_row_list}")
 
     def checkCols(self, expectCols):
         if self.queryCols == expectCols:
@@ -201,9 +237,17 @@ class TDSql:
                 tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                             (self.sql, row, col, self.queryResult[row][col], data))
                 return
-            elif isinstance(data, float) and abs(self.queryResult[row][col] - data) <= 0.000001:
-                tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
+            elif isinstance(data, float):
+                if abs(data) >= 1 and abs((self.queryResult[row][col] - data) / data) <= 0.000001:
+                    tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
+                                (self.sql, row, col, self.queryResult[row][col], data))
+                elif abs(data) < 1 and abs(self.queryResult[row][col] - data) <= 0.000001:
+                    tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
+                                (self.sql, row, col, self.queryResult[row][col], data))
+                else:
+                    caller = inspect.getframeinfo(inspect.stack()[1][0])
+                    args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
+                    tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
                 return
             else:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -242,7 +286,6 @@ class TDSql:
             raise Exception(repr(e))
         return self.queryResult
 
-        
     def executeTimes(self, sql, times):
         for i in range(times):
             try:
@@ -251,16 +294,23 @@ class TDSql:
                 time.sleep(1)
                 continue
 
-    def execute(self, sql):
+    def execute(self, sql,queryTimes=10):
         self.sql = sql
-        try:
-            self.affectedRows = self.cursor.execute(sql)
-        except Exception as e:
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, sql, repr(e))
-            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
-            raise Exception(repr(e))
-        return self.affectedRows
+        i=1
+        while i <= queryTimes:
+            try:
+                self.affectedRows = self.cursor.execute(sql)
+                return self.affectedRows
+            except Exception as e:
+                tdLog.notice("Try to execute sql again, query times: %d "%i)
+                if i == queryTimes:
+                    caller = inspect.getframeinfo(inspect.stack()[1][0])
+                    args = (caller.filename, caller.lineno, sql, repr(e))
+                    tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+                    raise Exception(repr(e))                    
+                i+=1
+                time.sleep(1)
+                pass
 
     def checkAffectedRows(self, expectAffectedRows):
         if self.affectedRows != expectAffectedRows:
@@ -278,13 +328,32 @@ class TDSql:
             args = (caller.filename, caller.lineno, self.sql, col_name_list, expect_col_name_list)
             tdLog.exit("%s(%d) failed: sql:%s, col_name_list:%s != expect_col_name_list:%s" % args)
 
+    def __check_equal(self, elm, expect_elm):
+        if not type(elm) in(list, tuple) and elm == expect_elm:
+            return True
+        if type(elm) in(list, tuple) and type(expect_elm) in(list, tuple):
+            if len(elm) != len(expect_elm):
+                return False
+            if len(elm) == 0:
+                return True
+            for i in range(len(elm)):
+                flag = self.__check_equal(elm[i], expect_elm[i])
+                if not flag:
+                    return False
+            return True
+        return False
+
     def checkEqual(self, elm, expect_elm):
         if elm == expect_elm:
             tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
-        else:
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
-            tdLog.exit("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
+            return
+        if self.__check_equal(elm, expect_elm):
+            tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
+            return
+
+        caller = inspect.getframeinfo(inspect.stack()[1][0])
+        args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
+        tdLog.exit("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
 
     def checkNotEqual(self, elm, expect_elm):
         if elm != expect_elm:
@@ -293,6 +362,73 @@ class TDSql:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
             tdLog.exit("%s(%d) failed: sql:%s, elm:%s == expect_elm:%s" % args)
+
+    def get_times(self, time_str, precision="ms"):
+        caller = inspect.getframeinfo(inspect.stack()[1][0])
+        if time_str[-1] not in TAOS_TIME_INIT:
+            tdLog.exit(f"{caller.filename}({caller.lineno}) failed: {time_str} not a standard taos time init")
+        if precision not in TAOS_PRECISION:
+            tdLog.exit(f"{caller.filename}({caller.lineno}) failed: {precision} not a standard taos time precision")
+
+        if time_str[-1] == TAOS_TIME_INIT[0]:
+            times =  int(time_str[:-1]) * TIME_NS
+        if time_str[-1] == TAOS_TIME_INIT[1]:
+            times =  int(time_str[:-1]) * TIME_US
+        if time_str[-1] == TAOS_TIME_INIT[2]:
+            times =  int(time_str[:-1]) * TIME_MS
+        if time_str[-1] == TAOS_TIME_INIT[3]:
+            times =  int(time_str[:-1]) * TIME_S
+        if time_str[-1] == TAOS_TIME_INIT[4]:
+            times =  int(time_str[:-1]) * TIME_M
+        if time_str[-1] == TAOS_TIME_INIT[5]:
+            times =  int(time_str[:-1]) * TIME_H
+        if time_str[-1] == TAOS_TIME_INIT[6]:
+            times =  int(time_str[:-1]) * TIME_D
+        if time_str[-1] == TAOS_TIME_INIT[7]:
+            times =  int(time_str[:-1]) * TIME_W
+        if time_str[-1] == TAOS_TIME_INIT[8]:
+            times =  int(time_str[:-1]) * TIME_N
+        if time_str[-1] == TAOS_TIME_INIT[9]:
+            times =  int(time_str[:-1]) * TIME_Y
+
+        if precision == "ms":
+            return int(times)
+        elif precision == "us":
+            return int(times*1000)
+        elif precision == "ns":
+            return int(times*1000*1000)
+
+    def get_type(self, col):
+        if self.cursor.istype(col, "BOOL"):
+            return "BOOL"
+        if self.cursor.istype(col, "INT"):
+            return "INT"
+        if self.cursor.istype(col, "BIGINT"):
+            return "BIGINT"
+        if self.cursor.istype(col, "TINYINT"):
+            return "TINYINT"
+        if self.cursor.istype(col, "SMALLINT"):
+            return "SMALLINT"
+        if self.cursor.istype(col, "FLOAT"):
+            return "FLOAT"
+        if self.cursor.istype(col, "DOUBLE"):
+            return "DOUBLE"
+        if self.cursor.istype(col, "BINARY"):
+            return "BINARY"
+        if self.cursor.istype(col, "NCHAR"):
+            return "NCHAR"
+        if self.cursor.istype(col, "TIMESTAMP"):
+            return "TIMESTAMP"
+        if self.cursor.istype(col, "JSON"):
+            return "JSON"
+        if self.cursor.istype(col, "TINYINT UNSIGNED"):
+            return "TINYINT UNSIGNED"
+        if self.cursor.istype(col, "SMALLINT UNSIGNED"):
+            return "SMALLINT UNSIGNED"
+        if self.cursor.istype(col, "INT UNSIGNED"):
+            return "INT UNSIGNED"
+        if self.cursor.istype(col, "BIGINT UNSIGNED"):
+            return "BIGINT UNSIGNED"
 
     def taosdStatus(self, state):
         tdLog.sleep(5)

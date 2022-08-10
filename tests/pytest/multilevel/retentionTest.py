@@ -56,7 +56,7 @@ class TDTestCase:
         tdDnodes.deploy(1,cfg)
         tdDnodes.startWithoutSleep(1)
         
-        tdSql.execute("create database test days 1 keep 15,5,10")
+        tdSql.execute("create database test duration 1 keep 15,5,10")
         tdSql.execute("use test")
 
         tdSql.execute("create table tb(ts timestamp, c int)")

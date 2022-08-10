@@ -3,8 +3,8 @@
 ExternalProject_Add(NuRaft
         GIT_REPOSITORY https://github.com/eBay/NuRaft.git
         GIT_TAG v1.3.0
-        SOURCE_DIR "${CMAKE_CONTRIB_DIR}/nuraft"
-        BINARY_DIR "${CMAKE_CONTRIB_DIR}/nuraft"
+        SOURCE_DIR "${TD_CONTRIB_DIR}/nuraft"
+        BINARY_DIR "${TD_CONTRIB_DIR}/nuraft"
         CONFIGURE_COMMAND "./prepare.sh"
         BUILD_COMMAND ""
         INSTALL_COMMAND ""

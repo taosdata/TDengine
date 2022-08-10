@@ -17,6 +17,7 @@
 #ifdef USE_UV
 #include <uv.h>
 #endif
+// clang-format off
 #include "zlib.h"
 #include "thttp.h"
 #include "taoserror.h"
@@ -117,7 +118,7 @@ _OVER:
 static void clientConnCb(uv_connect_t* req, int32_t status) {
   if (status < 0) {
     terrno = TAOS_SYSTEM_ERROR(status);
-    uError("Connection error %s\n", uv_strerror(status));
+    uError("connection error %s", uv_strerror(status));
     uv_close((uv_handle_t*)req->handle, NULL);
     return;
   }
@@ -164,8 +165,8 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   wb[1] = uv_buf_init((char*)pCont, contLen);
 
   connect->data = wb;
-  uv_tcp_connect(connect, &socket_tcp, (const struct sockaddr*)&dest, clientConnCb);
   terrno = 0;
+  uv_tcp_connect(connect, &socket_tcp, (const struct sockaddr*)&dest, clientConnCb);
   uv_run(loop, UV_RUN_DEFAULT);
   uv_loop_close(loop);
   taosMemoryFree(connect);
@@ -174,7 +175,7 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
 
 #else
 int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32_t contLen, EHttpCompFlag flag) {
-  int32_t code = -1;
+  int32_t     code = -1;
   TdSocketPtr pSocket = NULL;
 
   uint32_t ip = taosGetIpv4FromFqdn(server);
@@ -231,4 +232,5 @@ SEND_OVER:
   return code;
 }
 
+// clang-format on
 #endif

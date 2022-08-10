@@ -34,22 +34,23 @@ typedef struct SMultiMergeSource {
   SSDataBlock *pBlock;
 } SMultiMergeSource;
 
-typedef struct SExternalMemSource {
+typedef struct SSortSource {
   SMultiMergeSource src;
-  SArray*           pageIdList;
-  int32_t           pageIndex;
-} SExternalMemSource;
+  union{
+    struct{
+      SArray*           pageIdList;
+      int32_t           pageIndex;
+    };
+    void             *param;
+  };
 
-typedef struct SGenericSource {
-  SMultiMergeSource src;
-  void             *param;
-} SGenericSource;
+} SSortSource;
 
 typedef struct SMsortComparParam {
   void        **pSources;
   int32_t       numOfSources;
   SArray       *orderInfo;   // SArray<SBlockOrderInfo>
-  bool          nullFirst;
+  bool          cmpGroupId;
 } SMsortComparParam;
 
 typedef struct SSortHandle SSortHandle;
@@ -89,7 +90,7 @@ int32_t tsortClose(SSortHandle* pHandle);
  *
  * @return
  */
-int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fp);
+int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetchFp, void (*fp)(SSDataBlock*, void*), void* param);
 
 /**
  *
@@ -98,6 +99,11 @@ int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fp);
  * @return
  */
 int32_t tsortSetComparFp(SSortHandle* pHandle, _sort_merge_compar_fn_t fp);
+
+/**
+ *
+ */
+int32_t tsortSetCompareGroupId(SSortHandle* pHandle, bool compareGroupId);
 
 /**
  *
@@ -117,18 +123,47 @@ STupleHandle* tsortNextTuple(SSortHandle* pHandle);
 /**
  *
  * @param pHandle
- * @param colIndex
+ * @param colId
  * @return
  */
-bool tsortIsNullVal(STupleHandle* pVHandle, int32_t colIndex);
+bool tsortIsNullVal(STupleHandle* pVHandle, int32_t colId);
 
 /**
  *
  * @param pHandle
- * @param colIndex
+ * @param colId
  * @return
  */
-void* tsortGetValue(STupleHandle* pVHandle, int32_t colIndex);
+void* tsortGetValue(STupleHandle* pVHandle, int32_t colId);
+
+/**
+ *
+ * @param pVHandle
+ * @return
+ */
+uint64_t tsortGetGroupId(STupleHandle* pVHandle);
+
+/**
+ *
+ * @param pSortHandle
+ * @return
+ */
+SSDataBlock* tsortGetSortedDataBlock(const SSortHandle* pSortHandle);
+
+/**
+ * return the sort execution information.
+ *
+ * @param pHandle
+ * @return
+ */
+SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle);
+
+/**
+ * get proper sort buffer pages according to the row size
+ * @param rowSize
+ * @return
+ */
+int32_t getProperSortPageSize(size_t rowSize);
 
 #ifdef __cplusplus
 }

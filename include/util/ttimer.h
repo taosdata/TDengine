@@ -31,19 +31,15 @@ extern int32_t taosTmrThreads;
 
 void *taosTmrInit(int32_t maxTmr, int32_t resoultion, int32_t longest, const char *label);
 
+void taosTmrCleanUp(void *handle);
+
 tmr_h taosTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void *param, void *handle);
 
 bool taosTmrStop(tmr_h tmrId);
 
-bool taosTmrStopA(tmr_h *timerId);
+bool taosTmrStopA(tmr_h *tmrId);
 
 bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void *param, void *handle, tmr_h *pTmrId);
-
-void taosTmrCleanUp(void *handle);
-
-int32_t taosInitTimer(void (*callback)(int32_t), int32_t ms);
-
-void taosUninitTimer();
 
 #ifdef __cplusplus
 }

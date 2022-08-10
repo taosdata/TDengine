@@ -5,18 +5,12 @@ set +e
 
 echo "Executing deploy.sh"
 
-if [ $# != 4 ]; then
-  echo "argument list need input : "
-  echo "  -n nodeName"
-  echo "  -i nodePort"
-  exit 1
-fi
-
 UNAME_BIN=`which uname`
 OS_TYPE=`$UNAME_BIN`
 NODE_NAME=
 NODE=
-while getopts "n:i:" arg
+MULTIPROCESS=0
+while getopts "n:i:m" arg
 do
   case $arg in
     n)
@@ -24,6 +18,9 @@ do
       ;;
     i)
       NODE=$OPTARG
+      ;;
+    m)
+      MULTIPROCESS=1
       ;;
     ?)
       echo "unkonw argument"
@@ -53,9 +50,9 @@ else
 fi
 
 if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  BIN_DIR=`find . -name "taosd"|grep source|head -n1|cut -d '/' ${cut_opt}2,3`
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2,3`
 else
-  BIN_DIR=`find . -name "taosd"|grep source|head -n1|cut -d '/' ${cut_opt}2`
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2`
 fi
 
 BUILD_DIR=$TAOS_DIR/$BIN_DIR
@@ -124,26 +121,32 @@ echo "firstEp                ${HOSTNAME}:7100"   >> $TAOS_CFG
 echo "secondEp               ${HOSTNAME}:7200"   >> $TAOS_CFG
 echo "fqdn                   ${HOSTNAME}"        >> $TAOS_CFG
 echo "serverPort             ${NODE}"            >> $TAOS_CFG
-echo "supportVnodes          128"                >> $TAOS_CFG
+echo "supportVnodes          1024"                >> $TAOS_CFG
+echo "statusInterval         1"                  >> $TAOS_CFG
 echo "dataDir                $DATA_DIR"          >> $TAOS_CFG
 echo "logDir                 $LOG_DIR"           >> $TAOS_CFG
 echo "debugFlag              0"                  >> $TAOS_CFG
-echo "mDebugFlag             143"                >> $TAOS_CFG
-echo "dDebugFlag             143"                >> $TAOS_CFG
-echo "vDebugFlag             143"                >> $TAOS_CFG
-echo "tsdbDebugFlag          143"                >> $TAOS_CFG
-echo "cDebugFlag             143"                >> $TAOS_CFG
-echo "jniDebugFlag           143"                >> $TAOS_CFG
-echo "qDebugFlag             143"                >> $TAOS_CFG
-echo "rpcDebugFlag           143"                >> $TAOS_CFG
 echo "tmrDebugFlag           131"                >> $TAOS_CFG
 echo "uDebugFlag             143"                >> $TAOS_CFG
-echo "sDebugFlag             143"                >> $TAOS_CFG
+echo "rpcDebugFlag           143"                >> $TAOS_CFG
+echo "jniDebugFlag           143"                >> $TAOS_CFG
+echo "qDebugFlag             143"                >> $TAOS_CFG
+echo "cDebugFlag             143"                >> $TAOS_CFG
+echo "dDebugFlag             143"                >> $TAOS_CFG
+echo "vDebugFlag             143"                >> $TAOS_CFG
+echo "mDebugFlag             143"                >> $TAOS_CFG
 echo "wDebugFlag             143"                >> $TAOS_CFG
+echo "sDebugFlag             143"                >> $TAOS_CFG
+echo "tsdbDebugFlag          143"                >> $TAOS_CFG
+echo "tqDebugFlag            143"                >> $TAOS_CFG
+echo "fsDebugFlag            143"                >> $TAOS_CFG
+echo "idxDebugFlag           143"                >> $TAOS_CFG
+echo "udfDebugFlag           143"                >> $TAOS_CFG
+echo "smaDebugFlag           143"                >> $TAOS_CFG
+echo "idxDebugFlag           143"                >> $TAOS_CFG
 echo "numOfLogLines          20000000"           >> $TAOS_CFG
-echo "statusInterval         1"                  >> $TAOS_CFG
 echo "asyncLog               0"                  >> $TAOS_CFG
 echo "locale                 en_US.UTF-8"        >> $TAOS_CFG
 echo "telemetryReporting     0"                  >> $TAOS_CFG
-echo "multiProcess           0"                  >> $TAOS_CFG
+echo "multiProcess           ${MULTIPROCESS}"    >> $TAOS_CFG
 echo " "                                         >> $TAOS_CFG  

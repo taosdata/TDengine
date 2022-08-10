@@ -11,7 +11,7 @@ target_link_libraries(
 
 target_include_directories(
     sync
-    PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    PUBLIC "${TD_SOURCE_DIR}/include/libs/sync"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 

@@ -9,8 +9,8 @@ ADD_EXECUTABLE(nodesTest ${SOURCE_LIST})
 
 TARGET_INCLUDE_DIRECTORIES(
         nodesTest
-        PUBLIC "${CMAKE_SOURCE_DIR}/include/nodes/"
-        PRIVATE "${CMAKE_SOURCE_DIR}/source/nodes/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/nodes/"
+        PRIVATE "${TD_SOURCE_DIR}/source/nodes/inc"
 )
 
 TARGET_LINK_LIBRARIES(

@@ -17,6 +17,7 @@
 #define _TD_MND_USER_H_
 
 #include "mndInt.h"
+#include "thash.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,8 +25,14 @@ extern "C" {
 
 int32_t   mndInitUser(SMnode *pMnode);
 void      mndCleanupUser(SMnode *pMnode);
-SUserObj *mndAcquireUser(SMnode *pMnode, char *userName);
+SUserObj *mndAcquireUser(SMnode *pMnode, const char *userName);
 void      mndReleaseUser(SMnode *pMnode, SUserObj *pUser);
+
+// for trans test
+SSdbRaw  *mndUserActionEncode(SUserObj *pUser);
+SHashObj *mndDupDbHash(SHashObj *pOld);
+int32_t   mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_t numOfUses, void **ppRsp,
+                                  int32_t *pRspLen);
 
 #ifdef __cplusplus
 }

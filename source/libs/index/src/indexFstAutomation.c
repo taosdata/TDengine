@@ -71,19 +71,19 @@ StartWithStateValue* startWithStateValueDump(StartWithStateValue* sv) {
 }
 
 // iterate fst
-static void* alwaysMatchStart(AutomationCtx* ctx) { return NULL; }
-static bool  alwaysMatchIsMatch(AutomationCtx* ctx, void* state) { return true; }
-static bool  alwaysMatchCanMatch(AutomationCtx* ctx, void* state) { return true; }
-static bool  alwaysMatchWillAlwaysMatch(AutomationCtx* ctx, void* state) { return true; }
-static void* alwaysMatchAccpet(AutomationCtx* ctx, void* state, uint8_t byte) { return NULL; }
-static void* alwaysMatchAccpetEof(AutomationCtx* ctx, void* state) { return NULL; }
+static void* alwaysMatchStart(FAutoCtx* ctx) { return NULL; }
+static bool  alwaysMatchIsMatch(FAutoCtx* ctx, void* state) { return true; }
+static bool  alwaysMatchCanMatch(FAutoCtx* ctx, void* state) { return true; }
+static bool  alwaysMatchWillAlwaysMatch(FAutoCtx* ctx, void* state) { return true; }
+static void* alwaysMatchAccpet(FAutoCtx* ctx, void* state, uint8_t byte) { return NULL; }
+static void* alwaysMatchAccpetEof(FAutoCtx* ctx, void* state) { return NULL; }
 // prefix query, impl later
 
-static void* prefixStart(AutomationCtx* ctx) {
+static void* prefixStart(FAutoCtx* ctx) {
   StartWithStateValue* data = (StartWithStateValue*)(ctx->stdata);
   return startWithStateValueDump(data);
 };
-static bool prefixIsMatch(AutomationCtx* ctx, void* sv) {
+static bool prefixIsMatch(FAutoCtx* ctx, void* sv) {
   StartWithStateValue* ssv = (StartWithStateValue*)sv;
   if (ssv == NULL) {
     return false;
@@ -94,15 +94,15 @@ static bool prefixIsMatch(AutomationCtx* ctx, void* sv) {
     return false;
   }
 }
-static bool prefixCanMatch(AutomationCtx* ctx, void* sv) {
+static bool prefixCanMatch(FAutoCtx* ctx, void* sv) {
   StartWithStateValue* ssv = (StartWithStateValue*)sv;
   if (ssv == NULL) {
     return false;
   }
   return ssv->val >= 0;
 }
-static bool  prefixWillAlwaysMatch(AutomationCtx* ctx, void* state) { return true; }
-static void* prefixAccept(AutomationCtx* ctx, void* state, uint8_t byte) {
+static bool  prefixWillAlwaysMatch(FAutoCtx* ctx, void* state) { return true; }
+static void* prefixAccept(FAutoCtx* ctx, void* state, uint8_t byte) {
   StartWithStateValue* ssv = (StartWithStateValue*)state;
   if (ssv == NULL || ctx == NULL) {
     return NULL;
@@ -125,18 +125,18 @@ static void* prefixAccept(AutomationCtx* ctx, void* state, uint8_t byte) {
   }
   return NULL;
 }
-static void* prefixAcceptEof(AutomationCtx* ctx, void* state) { return NULL; }
+static void* prefixAcceptEof(FAutoCtx* ctx, void* state) { return NULL; }
 
 // pattern query, impl later
 
-static void* patternStart(AutomationCtx* ctx) { return NULL; }
-static bool  patternIsMatch(AutomationCtx* ctx, void* data) { return true; }
-static bool  patternCanMatch(AutomationCtx* ctx, void* data) { return true; }
-static bool  patternWillAlwaysMatch(AutomationCtx* ctx, void* state) { return true; }
+static void* patternStart(FAutoCtx* ctx) { return NULL; }
+static bool  patternIsMatch(FAutoCtx* ctx, void* data) { return true; }
+static bool  patternCanMatch(FAutoCtx* ctx, void* data) { return true; }
+static bool  patternWillAlwaysMatch(FAutoCtx* ctx, void* state) { return true; }
 
-static void* patternAccept(AutomationCtx* ctx, void* state, uint8_t byte) { return NULL; }
+static void* patternAccept(FAutoCtx* ctx, void* state, uint8_t byte) { return NULL; }
 
-static void* patternAcceptEof(AutomationCtx* ctx, void* state) { return NULL; }
+static void* patternAcceptEof(FAutoCtx* ctx, void* state) { return NULL; }
 
 AutomationFunc automFuncs[] = {
     {alwaysMatchStart, alwaysMatchIsMatch, alwaysMatchCanMatch, alwaysMatchWillAlwaysMatch, alwaysMatchAccpet,
@@ -146,8 +146,8 @@ AutomationFunc automFuncs[] = {
     // add more search type
 };
 
-AutomationCtx* automCtxCreate(void* data, AutomationType atype) {
-  AutomationCtx* ctx = taosMemoryCalloc(1, sizeof(AutomationCtx));
+FAutoCtx* automCtxCreate(void* data, AutomationType atype) {
+  FAutoCtx* ctx = taosMemoryCalloc(1, sizeof(FAutoCtx));
   if (ctx == NULL) {
     return NULL;
   }
@@ -169,7 +169,7 @@ AutomationCtx* automCtxCreate(void* data, AutomationType atype) {
   ctx->stdata = (void*)sv;
   return ctx;
 }
-void automCtxDestroy(AutomationCtx* ctx) {
+void automCtxDestroy(FAutoCtx* ctx) {
   startWithStateValueDestroy(ctx->stdata);
   taosMemoryFree(ctx->data);
   taosMemoryFree(ctx);

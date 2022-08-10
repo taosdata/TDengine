@@ -36,8 +36,6 @@ extern "C" {
 
 #define FILTER_DUMMY_EMPTY_OPTR  127
 
-#define MAX_NUM_STR_SIZE 40
-
 #define FILTER_RM_UNIT_MIN_ROWS 100
 
 enum {
@@ -188,6 +186,7 @@ typedef struct SFilterColCtx {
 
 typedef struct SFilterCompare {
   uint8_t       type;
+  int8_t        precision;
   uint8_t       optr;
   uint8_t       optr2;
 } SFilterCompare;
@@ -217,8 +216,11 @@ typedef struct SFilterPCtx {
 } SFilterPCtx;
 
 typedef struct SFltTreeStat {
-  int32_t code;
-  bool    scalarMode;
+  int32_t      code;
+  int8_t       precision;
+  bool         scalarMode;
+  SArray*      nodeList;
+  SFilterInfo* info;
 } SFltTreeStat;
 
 typedef struct SFltScalarCtx {
@@ -231,7 +233,7 @@ typedef struct SFltBuildGroupCtx {
   int32_t      code;
 } SFltBuildGroupCtx;
 
-typedef struct SFilterInfo {
+struct SFilterInfo {
   bool              scalarMode;
   SFltScalarCtx     sclCtx;
   uint32_t          options;
@@ -256,7 +258,7 @@ typedef struct SFilterInfo {
   SArray           *blkList;
 
   SFilterPCtx       pctx;
-} SFilterInfo;
+};
 
 #define FILTER_NO_MERGE_DATA_TYPE(t) ((t) == TSDB_DATA_TYPE_BINARY || (t) == TSDB_DATA_TYPE_NCHAR || (t) == TSDB_DATA_TYPE_JSON)
 #define FILTER_NO_MERGE_OPTR(o) ((o) == OP_TYPE_IS_NULL || (o) == OP_TYPE_IS_NOT_NULL || (o) == FILTER_DUMMY_EMPTY_OPTR)
@@ -303,6 +305,7 @@ typedef struct SFilterInfo {
 #define FILTER_GET_FIELD(i, id) (&((i)->fields[(id).type].fields[(id).idx]))
 #define FILTER_GET_COL_FIELD(i, idx) (&((i)->fields[FLD_TYPE_COLUMN].fields[idx]))
 #define FILTER_GET_COL_FIELD_TYPE(fi) (((SColumnNode *)((fi)->desc))->node.resType.type)
+#define FILTER_GET_COL_FIELD_PRECISION(fi) (((SColumnNode *)((fi)->desc))->node.resType.precision)
 #define FILTER_GET_COL_FIELD_SIZE(fi) (((SColumnNode *)((fi)->desc))->node.resType.bytes)
 #define FILTER_GET_COL_FIELD_ID(fi) (((SColumnNode *)((fi)->desc))->colId)
 #define FILTER_GET_COL_FIELD_SLOT_ID(fi) (((SColumnNode *)((fi)->desc))->slotId)
@@ -310,7 +313,6 @@ typedef struct SFilterInfo {
 #define FILTER_GET_COL_FIELD_DATA(fi, ri) (colDataGetData(((SColumnInfoData *)(fi)->data), (ri)))
 #define FILTER_GET_VAL_FIELD_TYPE(fi) (((SValueNode *)((fi)->desc))->node.resType.type)
 #define FILTER_GET_VAL_FIELD_DATA(fi) ((char *)(fi)->data)
-#define FILTER_GET_JSON_VAL_FIELD_DATA(fi) ((char *)(fi)->desc)
 #define FILTER_GET_TYPE(fl) ((fl) & FLD_TYPE_MAX)
 
 #define FILTER_GROUP_UNIT(i, g, uid) ((i)->units + (g)->unitIdxs[uid])
@@ -318,12 +320,12 @@ typedef struct SFilterInfo {
 #define FILTER_UNIT_RIGHT_FIELD(i, u) FILTER_GET_FIELD(i, (u)->right)
 #define FILTER_UNIT_RIGHT2_FIELD(i, u) FILTER_GET_FIELD(i, (u)->right2)
 #define FILTER_UNIT_DATA_TYPE(u) ((u)->compare.type)
+#define FILTER_UNIT_DATA_PRECISION(u) ((u)->compare.precision)
 #define FILTER_UNIT_COL_DESC(i, u) FILTER_GET_COL_FIELD_DESC(FILTER_UNIT_LEFT_FIELD(i, u))
 #define FILTER_UNIT_COL_DATA(i, u, ri) FILTER_GET_COL_FIELD_DATA(FILTER_UNIT_LEFT_FIELD(i, u), ri)
 #define FILTER_UNIT_COL_SIZE(i, u) FILTER_GET_COL_FIELD_SIZE(FILTER_UNIT_LEFT_FIELD(i, u))
 #define FILTER_UNIT_COL_ID(i, u) FILTER_GET_COL_FIELD_ID(FILTER_UNIT_LEFT_FIELD(i, u))
 #define FILTER_UNIT_VAL_DATA(i, u) FILTER_GET_VAL_FIELD_DATA(FILTER_UNIT_RIGHT_FIELD(i, u))
-#define FILTER_UNIT_JSON_VAL_DATA(i, u) FILTER_GET_JSON_VAL_FIELD_DATA(FILTER_UNIT_RIGHT_FIELD(i, u))
 #define FILTER_UNIT_COL_IDX(u) ((u)->left.idx)
 #define FILTER_UNIT_OPTR(u) ((u)->compare.optr)
 #define FILTER_UNIT_COMP_FUNC(u) ((u)->compare.func)
@@ -348,7 +350,7 @@ typedef struct SFilterInfo {
 
 extern bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right);
 extern __compar_fn_t filterGetCompFunc(int32_t type, int32_t optr);
-
+extern OptrStr gOptrStr[];
 
 #ifdef __cplusplus
 }

@@ -1,8 +1,13 @@
 #include <gtest/gtest.h>
 
-#include "tdbInt.h"
+#define ALLOW_FORBID_FUNC
+#include "os.h"
+#include "tdb.h"
 
+#include <shared_mutex>
 #include <string>
+#include <thread>
+#include <vector>
 
 typedef struct SPoolMem {
   int64_t          size;
@@ -11,7 +16,7 @@ typedef struct SPoolMem {
 } SPoolMem;
 
 static SPoolMem *openPool() {
-  SPoolMem *pPool = (SPoolMem *)tdbOsMalloc(sizeof(*pPool));
+  SPoolMem *pPool = (SPoolMem *)taosMemoryMalloc(sizeof(*pPool));
 
   pPool->prev = pPool->next = pPool;
   pPool->size = 0;
@@ -19,7 +24,7 @@ static SPoolMem *openPool() {
   return pPool;
 }
 
-static void closePool(SPoolMem *pPool) {
+static void clearPool(SPoolMem *pPool) {
   SPoolMem *pMem;
 
   do {
@@ -31,22 +36,23 @@ static void closePool(SPoolMem *pPool) {
     pMem->prev->next = pMem->next;
     pPool->size -= pMem->size;
 
-    tdbOsFree(pMem);
+    taosMemoryFree(pMem);
   } while (1);
 
   assert(pPool->size == 0);
-
-  tdbOsFree(pPool);
 }
 
-#define clearPool closePool
+static void closePool(SPoolMem *pPool) {
+  clearPool(pPool);
+  taosMemoryFree(pPool);
+}
 
-static void *poolMalloc(void *arg, int size) {
+static void *poolMalloc(void *arg, size_t size) {
   void     *ptr = NULL;
   SPoolMem *pPool = (SPoolMem *)arg;
   SPoolMem *pMem;
 
-  pMem = (SPoolMem *)tdbOsMalloc(sizeof(*pMem) + size);
+  pMem = (SPoolMem *)taosMemoryMalloc(sizeof(*pMem) + size);
   if (pMem == NULL) {
     assert(0);
   }
@@ -73,7 +79,7 @@ static void poolFree(void *arg, void *ptr) {
   pMem->prev->next = pMem->next;
   pPool->size -= pMem->size;
 
-  tdbOsFree(pMem);
+  taosMemoryFree(pMem);
 }
 
 static int tKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
@@ -113,56 +119,63 @@ static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, in
   return cret;
 }
 
-TEST(tdb_test, simple_test) {
-  int            ret;
-  TENV          *pEnv;
-  TDB           *pDb;
-  FKeyComparator compFunc;
-  int            nData = 1000000;
+TEST(tdb_test, DISABLED_simple_insert1) {
+  int           ret;
+  TDB          *pEnv;
+  TTB          *pDb;
+  tdb_cmpr_fn_t compFunc;
+  int           nData = 1000000;
+  TXN           txn;
+
+  taosRemoveDir("tdb");
 
   // Open Env
-  ret = tdbEnvOpen("tdb", 4096, 256000, &pEnv);
+  ret = tdbOpen("tdb", 4096, 64, &pEnv);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
   compFunc = tKeyCmpr;
-  ret = tdbDbOpen("db.db", TDB_VARIANT_LEN, TDB_VARIANT_LEN, compFunc, pEnv, &pDb);
+  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb);
   GTEST_ASSERT_EQ(ret, 0);
 
   {
-    char key[64];
-    char val[64];
+    char      key[64];
+    char      val[64];
+    int64_t   poolLimit = 4096;  // 1M pool limit
+    int64_t   txnid = 0;
+    SPoolMem *pPool;
 
-    {  // Insert some data
-      int       i = 1;
-      SPoolMem *pPool;
-      int       memPoolCapacity = 16 * 1024;
+    // open the pool
+    pPool = openPool();
 
-      pPool = openPool();
+    // start a transaction
+    txnid++;
+    tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+    tdbBegin(pEnv, &txn);
 
-      tdbTxnBegin(pEnv);
+    for (int iData = 1; iData <= nData; iData++) {
+      sprintf(key, "key%d", iData);
+      sprintf(val, "value%d", iData);
+      ret = tdbTbInsert(pDb, key, strlen(key), val, strlen(val), &txn);
+      GTEST_ASSERT_EQ(ret, 0);
 
-      for (;;) {
-        if (i > nData) break;
+      // if pool is full, commit the transaction and start a new one
+      if (pPool->size >= poolLimit) {
+        // commit current transaction
+        tdbCommit(pEnv, &txn);
+        tdbTxnClose(&txn);
 
-        sprintf(key, "key%d", i);
-        sprintf(val, "value%d", i);
-        ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val));
-        GTEST_ASSERT_EQ(ret, 0);
-
-        if (pPool->size >= memPoolCapacity) {
-          tdbTxnCommit(pEnv);
-
-          clearPool(pPool);
-
-          tdbTxnBegin(pEnv);
-        }
-
-        i++;
+        // start a new transaction
+        clearPool(pPool);
+        txnid++;
+        tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+        tdbBegin(pEnv, &txn);
       }
-
-      closePool(pPool);
     }
+
+    // commit the transaction
+    tdbCommit(pEnv, &txn);
+    tdbTxnClose(&txn);
 
     {  // Query the data
       void *pVal = NULL;
@@ -172,28 +185,31 @@ TEST(tdb_test, simple_test) {
         sprintf(key, "key%d", i);
         sprintf(val, "value%d", i);
 
-        ret = tdbDbGet(pDb, key, strlen(key), &pVal, &vLen);
+        ret = tdbTbGet(pDb, key, strlen(key), &pVal, &vLen);
+        ASSERT(ret == 0);
         GTEST_ASSERT_EQ(ret, 0);
 
         GTEST_ASSERT_EQ(vLen, strlen(val));
         GTEST_ASSERT_EQ(memcmp(val, pVal, vLen), 0);
       }
 
-      TDB_FREE(pVal);
+      tdbFree(pVal);
     }
 
     {  // Iterate to query the DB data
-      TDBC *pDBC;
+      TBC  *pDBC;
       void *pKey = NULL;
       void *pVal = NULL;
       int   vLen, kLen;
       int   count = 0;
 
-      ret = tdbDbcOpen(pDb, &pDBC);
+      ret = tdbTbcOpen(pDb, &pDBC, NULL);
       GTEST_ASSERT_EQ(ret, 0);
 
+      tdbTbcMoveToFirst(pDBC);
+
       for (;;) {
-        ret = tdbDbNext(pDBC, &pKey, &kLen, &pVal, &vLen);
+        ret = tdbTbcNext(pDBC, &pKey, &kLen, &pVal, &vLen);
         if (ret < 0) break;
 
         // std::cout.write((char *)pKey, kLen) /* << " " << kLen */ << " ";
@@ -205,20 +221,509 @@ TEST(tdb_test, simple_test) {
 
       GTEST_ASSERT_EQ(count, nData);
 
-      tdbDbcClose(pDBC);
+      tdbTbcClose(pDBC);
 
-      TDB_FREE(pKey);
-      TDB_FREE(pVal);
+      tdbFree(pKey);
+      tdbFree(pVal);
     }
   }
 
-  ret = tdbDbDrop(pDb);
+  ret = tdbTbDrop(pDb);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Close a database
-  tdbDbClose(pDb);
+  tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbEnvClose(pEnv);
+  ret = tdbClose(pEnv);
   GTEST_ASSERT_EQ(ret, 0);
+}
+
+TEST(tdb_test, DISABLED_simple_insert2) {
+  int           ret;
+  TDB          *pEnv;
+  TTB          *pDb;
+  tdb_cmpr_fn_t compFunc;
+  int           nData = 1000000;
+  TXN           txn;
+
+  taosRemoveDir("tdb");
+
+  // Open Env
+  ret = tdbOpen("tdb", 1024, 10, &pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // Create a database
+  compFunc = tDefaultKeyCmpr;
+  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  {
+    char      key[64];
+    char      val[64];
+    int64_t   txnid = 0;
+    SPoolMem *pPool;
+
+    // open the pool
+    pPool = openPool();
+
+    // start a transaction
+    txnid++;
+    tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+    tdbBegin(pEnv, &txn);
+
+    for (int iData = 1; iData <= nData; iData++) {
+      sprintf(key, "key%d", iData);
+      sprintf(val, "value%d", iData);
+      ret = tdbTbInsert(pDb, key, strlen(key), val, strlen(val), &txn);
+      GTEST_ASSERT_EQ(ret, 0);
+    }
+
+    {  // Iterate to query the DB data
+      TBC  *pDBC;
+      void *pKey = NULL;
+      void *pVal = NULL;
+      int   vLen, kLen;
+      int   count = 0;
+
+      ret = tdbTbcOpen(pDb, &pDBC, NULL);
+      GTEST_ASSERT_EQ(ret, 0);
+
+      tdbTbcMoveToFirst(pDBC);
+
+      for (;;) {
+        ret = tdbTbcNext(pDBC, &pKey, &kLen, &pVal, &vLen);
+        if (ret < 0) break;
+
+        // std::cout.write((char *)pKey, kLen) /* << " " << kLen */ << " ";
+        // std::cout.write((char *)pVal, vLen) /* << " " << vLen */;
+        // std::cout << std::endl;
+
+        count++;
+      }
+
+      GTEST_ASSERT_EQ(count, nData);
+
+      tdbTbcClose(pDBC);
+
+      tdbFree(pKey);
+      tdbFree(pVal);
+    }
+  }
+
+  // commit the transaction
+  tdbCommit(pEnv, &txn);
+  tdbTxnClose(&txn);
+
+  ret = tdbTbDrop(pDb);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  ret = tdbClose(pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+}
+
+TEST(tdb_test, DISABLED_simple_delete1) {
+  int       ret;
+  TTB      *pDb;
+  char      key[128];
+  char      data[128];
+  TXN       txn;
+  TDB      *pEnv;
+  SPoolMem *pPool;
+  void     *pKey = NULL;
+  void     *pData = NULL;
+  int       nKey;
+  TBC      *pDbc;
+  int       nData;
+  int       nKV = 69;
+
+  taosRemoveDir("tdb");
+
+  pPool = openPool();
+
+  // open env
+  ret = tdbOpen("tdb", 1024, 256, &pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // open database
+  ret = tdbTbOpen("db.db", -1, -1, tKeyCmpr, pEnv, &pDb);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  tdbTxnOpen(&txn, 0, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  tdbBegin(pEnv, &txn);
+
+  // loop to insert batch data
+  for (int iData = 0; iData < nKV; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(data, "data%d", iData);
+    ret = tdbTbInsert(pDb, key, strlen(key), data, strlen(data), &txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  // query the data
+  for (int iData = 0; iData < nKV; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(data, "data%d", iData);
+
+    ret = tdbTbGet(pDb, key, strlen(key), &pData, &nData);
+    GTEST_ASSERT_EQ(ret, 0);
+    GTEST_ASSERT_EQ(memcmp(data, pData, nData), 0);
+  }
+
+  // loop to delete some data
+  for (int iData = nKV - 1; iData > 30; iData--) {
+    sprintf(key, "key%d", iData);
+
+    ret = tdbTbDelete(pDb, key, strlen(key), &txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  // query the data
+  for (int iData = 0; iData < nKV; iData++) {
+    sprintf(key, "key%d", iData);
+
+    ret = tdbTbGet(pDb, key, strlen(key), &pData, &nData);
+    if (iData <= 30) {
+      GTEST_ASSERT_EQ(ret, 0);
+    } else {
+      GTEST_ASSERT_EQ(ret, -1);
+    }
+  }
+
+  // loop to iterate the data
+  tdbTbcOpen(pDb, &pDbc, NULL);
+
+  ret = tdbTbcMoveToFirst(pDbc);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  pKey = NULL;
+  pData = NULL;
+  for (;;) {
+    ret = tdbTbcNext(pDbc, &pKey, &nKey, &pData, &nData);
+    if (ret < 0) break;
+
+    std::cout.write((char *)pKey, nKey) /* << " " << kLen */ << " ";
+    std::cout.write((char *)pData, nData) /* << " " << vLen */;
+    std::cout << std::endl;
+  }
+
+  tdbTbcClose(pDbc);
+
+  tdbCommit(pEnv, &txn);
+
+  closePool(pPool);
+
+  tdbTbClose(pDb);
+  tdbClose(pEnv);
+}
+
+TEST(tdb_test, DISABLED_simple_upsert1) {
+  int       ret;
+  TDB      *pEnv;
+  TTB      *pDb;
+  int       nData = 100000;
+  char      key[64];
+  char      data[64];
+  void     *pData = NULL;
+  SPoolMem *pPool;
+  TXN       txn;
+
+  taosRemoveDir("tdb");
+
+  // open env
+  ret = tdbOpen("tdb", 4096, 64, &pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // open database
+  ret = tdbTbOpen("db.db", -1, -1, NULL, pEnv, &pDb);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  pPool = openPool();
+  // insert some data
+  tdbTxnOpen(&txn, 0, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  tdbBegin(pEnv, &txn);
+
+  for (int iData = 0; iData < nData; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(data, "data%d", iData);
+    ret = tdbTbInsert(pDb, key, strlen(key), data, strlen(data), &txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  // query the data
+  for (int iData = 0; iData < nData; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(data, "data%d", iData);
+    ret = tdbTbGet(pDb, key, strlen(key), &pData, &nData);
+    GTEST_ASSERT_EQ(ret, 0);
+    GTEST_ASSERT_EQ(memcmp(pData, data, nData), 0);
+  }
+
+  // upsert some data
+  for (int iData = 0; iData < nData; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(data, "data%d-u", iData);
+    ret = tdbTbUpsert(pDb, key, strlen(key), data, strlen(data), &txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  tdbCommit(pEnv, &txn);
+
+  // query the data
+  for (int iData = 0; iData < nData; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(data, "data%d-u", iData);
+    ret = tdbTbGet(pDb, key, strlen(key), &pData, &nData);
+    GTEST_ASSERT_EQ(ret, 0);
+    GTEST_ASSERT_EQ(memcmp(pData, data, nData), 0);
+  }
+
+  tdbTbClose(pDb);
+  tdbClose(pEnv);
+}
+
+TEST(tdb_test, multi_thread_query) {
+  int           ret;
+  TDB          *pEnv;
+  TTB          *pDb;
+  tdb_cmpr_fn_t compFunc;
+  int           nData = 1000000;
+  TXN           txn;
+
+  taosRemoveDir("tdb");
+
+  // Open Env
+  ret = tdbOpen("tdb", 4096, 10, &pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // Create a database
+  compFunc = tKeyCmpr;
+  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  char      key[64];
+  char      val[64];
+  int64_t   poolLimit = 4096 * 20;  // 1M pool limit
+  int64_t   txnid = 0;
+  SPoolMem *pPool;
+
+  // open the pool
+  pPool = openPool();
+
+  // start a transaction
+  txnid++;
+  txn.flags = TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED;
+  txn.txnId = -1;
+  txn.xMalloc = poolMalloc;
+  txn.xFree = poolFree;
+  txn.xArg = pPool;
+  // tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, );
+  tdbBegin(pEnv, &txn);
+
+  for (int iData = 1; iData <= nData; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(val, "value%d", iData);
+    ret = tdbTbInsert(pDb, key, strlen(key), val, strlen(val), &txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  auto f = [](TTB *pDb, int nData) {
+    TBC  *pDBC;
+    void *pKey = NULL;
+    void *pVal = NULL;
+    int   vLen, kLen;
+    int   count = 0;
+    int   ret;
+    TXN   txn;
+
+    SPoolMem *pPool = openPool();
+    txn.flags = 0;
+    txn.txnId = 0;
+    txn.xMalloc = poolMalloc;
+    txn.xFree = poolFree;
+    txn.xArg = pPool;
+
+    ret = tdbTbcOpen(pDb, &pDBC, &txn);
+    GTEST_ASSERT_EQ(ret, 0);
+
+    tdbTbcMoveToFirst(pDBC);
+
+    for (;;) {
+      ret = tdbTbcNext(pDBC, &pKey, &kLen, &pVal, &vLen);
+      if (ret < 0) break;
+
+      // std::cout.write((char *)pKey, kLen) /* << " " << kLen */ << " ";
+      // std::cout.write((char *)pVal, vLen) /* << " " << vLen */;
+      // std::cout << std::endl;
+
+      count++;
+    }
+
+    GTEST_ASSERT_EQ(count, nData);
+
+    tdbTbcClose(pDBC);
+
+    tdbFree(pKey);
+    tdbFree(pVal);
+  };
+
+  // tdbCommit(pEnv, &txn);
+
+  // multi-thread query
+  int                      nThreads = 20;
+  std::vector<std::thread> threads;
+  for (int i = 0; i < nThreads; i++) {
+    if (i == 0) {
+      threads.push_back(std::thread(tdbCommit, pEnv, &txn));
+    } else {
+      threads.push_back(std::thread(f, pDb, nData));
+    }
+  }
+
+  for (auto &th : threads) {
+    th.join();
+  }
+
+  // commit the transaction
+  tdbCommit(pEnv, &txn);
+  tdbTxnClose(&txn);
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  ret = tdbClose(pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+}
+
+TEST(tdb_test, DISABLED_multi_thread1) {
+#if 0
+  int           ret;
+  TDB          *pDb;
+  TTB          *pTb;
+  tdb_cmpr_fn_t compFunc;
+  int           nData = 10000000;
+  TXN           txn;
+
+  std::shared_timed_mutex mutex;
+
+  taosRemoveDir("tdb");
+
+  // Open Env
+  ret = tdbOpen("tdb", 512, 1, &pDb);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  ret = tdbTbOpen("db.db", -1, -1, NULL, pDb, &pTb);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  auto insert = [](TDB *pDb, TTB *pTb, int nData, int *stop, std::shared_timed_mutex *mu) {
+    TXN       txn = {0};
+    char      key[128];
+    char      val[128];
+    SPoolMem *pPool = openPool();
+
+    txn.flags = TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED;
+    txn.txnId = -1;
+    txn.xMalloc = poolMalloc;
+    txn.xFree = poolFree;
+    txn.xArg = pPool;
+    tdbBegin(pDb, &txn);
+    for (int iData = 1; iData <= nData; iData++) {
+      sprintf(key, "key%d", iData);
+      sprintf(val, "value%d", iData);
+      {
+        std::lock_guard<std::shared_timed_mutex> wmutex(*mu);
+
+        int ret = tdbTbInsert(pTb, key, strlen(key), val, strlen(val), &txn);
+
+        GTEST_ASSERT_EQ(ret, 0);
+      }
+
+      if (pPool->size > 1024 * 1024) {
+        tdbCommit(pDb, &txn);
+
+        clearPool(pPool);
+        tdbBegin(pDb, &txn);
+      }
+    }
+
+    tdbCommit(pDb, &txn);
+    closePool(pPool);
+
+    *stop = 1;
+  };
+
+  auto query = [](TTB *pTb, int *stop, std::shared_timed_mutex *mu) {
+    TBC  *pDBC;
+    void *pKey = NULL;
+    void *pVal = NULL;
+    int   vLen, kLen;
+    int   ret;
+    TXN   txn;
+
+    SPoolMem *pPool = openPool();
+    txn.flags = 0;
+    txn.txnId = 0;
+    txn.xMalloc = poolMalloc;
+    txn.xFree = poolFree;
+    txn.xArg = pPool;
+
+    for (;;) {
+      if (*stop) break;
+
+      clearPool(pPool);
+      int count = 0;
+      {
+        std::shared_lock<std::shared_timed_mutex> rMutex(*mu);
+
+        ret = tdbTbcOpen(pTb, &pDBC, &txn);
+        GTEST_ASSERT_EQ(ret, 0);
+
+        tdbTbcMoveToFirst(pDBC);
+
+        for (;;) {
+          ret = tdbTbcNext(pDBC, &pKey, &kLen, &pVal, &vLen);
+          if (ret < 0) break;
+          count++;
+        }
+
+        std::cout << count << std::endl;
+
+        tdbTbcClose(pDBC);
+      }
+
+      usleep(500000);
+    }
+
+    closePool(pPool);
+    tdbFree(pKey);
+    tdbFree(pVal);
+  };
+
+  std::vector<std::thread> threads;
+  int                      nThreads = 10;
+  int                      stop = 0;
+  for (int i = 0; i < nThreads; i++) {
+    if (i == 0) {
+      threads.push_back(std::thread(insert, pDb, pTb, nData, &stop, &mutex));
+    } else {
+      threads.push_back(std::thread(query, pTb, &stop, &mutex));
+    }
+  }
+
+  for (auto &th : threads) {
+    th.join();
+  }
+
+  // Close a database
+  tdbTbClose(pTb);
+
+  // Close Env
+  ret = tdbClose(pDb);
+  GTEST_ASSERT_EQ(ret, 0);
+#endif
 }

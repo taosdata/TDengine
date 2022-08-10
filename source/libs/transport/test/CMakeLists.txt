@@ -1,41 +1,32 @@
 add_executable(transportTest "")
-add_executable(client "")
-add_executable(server "")
 add_executable(transUT "")
-add_executable(syncClient "")
-add_executable(pushServer "")
+add_executable(svrBench "")
+add_executable(cliBench "")
 
 target_sources(transUT
   PRIVATE
   "transUT.cpp"
-)  
+)
+
 target_sources(transportTest 
   PRIVATE
   "transportTests.cpp"
-)  
-target_sources (client
-  PRIVATE
-  "rclient.c" 
-)   
-target_sources (server
-  PRIVATE
-  "rserver.c" 
-)   
-target_sources (syncClient
-  PRIVATE
-  "syncClient.c" 
-)   
+)
 
-target_sources(pushServer
+target_sources(svrBench
   PRIVATE
-  "pushServer.c"
+  "svrBench.c"
+)
+target_sources(cliBench
+  PRIVATE
+  "cliBench.c"
 )
 
 target_include_directories(transportTest 
   PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/transport" 
+  "${TD_SOURCE_DIR}/include/libs/transport" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-) 
+)
 
 target_link_libraries (transportTest
   os  
@@ -44,6 +35,7 @@ target_link_libraries (transportTest
   gtest_main
   transport 
 )
+
 target_link_libraries (transUT
   os  
   util
@@ -52,44 +44,43 @@ target_link_libraries (transUT
   transport 
 )
 
-target_include_directories(client
-  PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/transport" 
-  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-) 
-
-target_link_libraries (client
-  os  
-  util
-  common
-  gtest_main
-  transport 
-)
-target_include_directories(server
-  PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/transport" 
-  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-) 
-
 target_include_directories(transUT
   PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/transport" 
+  "${TD_SOURCE_DIR}/include/libs/transport" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-) 
+)
 
-target_link_libraries (server
+target_include_directories(svrBench
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/transport" 
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(svrBench
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/transport" 
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+
+target_link_libraries (svrBench
   os  
   util
   common
   gtest_main
   transport 
 )
-target_include_directories(syncClient
+
+target_include_directories(cliBench
   PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/transport" 
+  "${TD_SOURCE_DIR}/include/libs/transport" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-) 
-target_link_libraries (syncClient
+)
+target_include_directories(cliBench
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/transport" 
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+
+target_link_libraries (cliBench
   os  
   util
   common
@@ -97,16 +88,12 @@ target_link_libraries (syncClient
   transport 
 )
 
-target_include_directories(pushServer
-  PUBLIC
-  "${CMAKE_SOURCE_DIR}/include/libs/transport" 
-  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-) 
-target_link_libraries (pushServer
-  os  
-  util
-  common
-  gtest_main
-  transport 
+add_test(
+  NAME transUT 
+  COMMAND transUT 
+)
+add_test(
+  NAME transUtilUt 
+  COMMAND transportTest
 )
 

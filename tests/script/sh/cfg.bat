@@ -16,12 +16,12 @@ rem echo NODE:       %NODE%
 set SCRIPT_DIR=%~dp0..\
 rem echo SCRIPT_DIR: %SCRIPT_DIR%
 
-set BUILD_DIR=%SCRIPT_DIR%..\..\..\debug\build\bin\
+echo %cd% | grep community > nul && set "BUILD_DIR=%SCRIPT_DIR%..\..\..\debug\build\bin\" || set "BUILD_DIR=%SCRIPT_DIR%..\..\debug\build\bin\"
 set TSIM=%BUILD_DIR%tsim
 rem echo BUILD_DIR:  %BUILD_DIR%
 rem echo TSIM:       %TSIM%
 
-set SIM_DIR=%SCRIPT_DIR%..\..\..\sim\
+echo %cd% | grep community > nul && set "SIM_DIR=%SCRIPT_DIR%..\..\..\sim\" || set "SIM_DIR=%SCRIPT_DIR%..\..\sim\"
 rem echo SIM_DIR:    %SIM_DIR%
 
 set NODE_DIR=%SIM_DIR%%NODE_NAME%\

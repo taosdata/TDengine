@@ -1,0 +1,12 @@
+
+# rust-bindings
+ExternalProject_Add(rust-bindings
+        GIT_REPOSITORY https://github.com/songtianyi/tdengine-rust-bindings.git
+        GIT_TAG 7ed7a97
+        SOURCE_DIR "${TD_SOURCE_DIR}/examples/rust"
+        BINARY_DIR "${TD_SOURCE_DIR}/examples/rust"
+        CONFIGURE_COMMAND "" 
+        BUILD_COMMAND ""  
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+        )

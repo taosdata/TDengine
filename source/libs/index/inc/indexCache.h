@@ -31,13 +31,15 @@ extern "C" {
 typedef struct MemTable {
   T_REF_DECLARE()
   SSkipList* mem;
+  void*      pCache;
 } MemTable;
 typedef struct IndexCache {
   T_REF_DECLARE()
   MemTable *mem, *imm;
+  int32_t   merging;
   SIndex*   index;
   char*     colName;
-  int32_t   version;
+  int64_t   version;
   int64_t   occupiedMem;
   int8_t    type;
   uint64_t  suid;
@@ -46,11 +48,12 @@ typedef struct IndexCache {
   TdThreadCond  finished;
 } IndexCache;
 
-#define CACHE_VERSION(cache) atomic_load_32(&cache->version)
+#define CACHE_VERSION(cache) atomic_load_64(&cache->version)
+
 typedef struct CacheTerm {
   // key
   char*   colVal;
-  int32_t version;
+  int64_t version;
   // value
   uint64_t uid;
   int8_t   colType;
@@ -59,24 +62,27 @@ typedef struct CacheTerm {
 } CacheTerm;
 //
 
-IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8_t type);
+IndexCache* idxCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8_t type);
 
-void indexCacheDestroy(void* cache);
+void idxCacheForceToMerge(void* cache);
+void idxCacheDestroy(void* cache);
+void idxCacheBroadcast(void* cache);
+void idxCacheWait(void* cache);
 
-Iterate* indexCacheIteratorCreate(IndexCache* cache);
-void     indexCacheIteratorDestroy(Iterate* iiter);
+Iterate* idxCacheIteratorCreate(IndexCache* cache);
+void     idxCacheIteratorDestroy(Iterate* iiter);
 
-int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid);
+int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid);
 
 // int indexCacheGet(void *cache, uint64_t *rst);
-int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTempResult* tr, STermValueType* s);
+int idxCacheSearch(void* cache, SIndexTermQuery* query, SIdxTRslt* tr, STermValueType* s);
 
-void indexCacheRef(IndexCache* cache);
-void indexCacheUnRef(IndexCache* cache);
+void idxCacheRef(IndexCache* cache);
+void idxCacheUnRef(IndexCache* cache);
 
-void indexCacheDebug(IndexCache* cache);
+void idxCacheDebug(IndexCache* cache);
 
-void indexCacheDestroyImm(IndexCache* cache);
+void idxCacheDestroyImm(IndexCache* cache);
 #ifdef __cplusplus
 }
 #endif

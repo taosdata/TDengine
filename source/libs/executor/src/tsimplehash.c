@@ -37,7 +37,7 @@ typedef struct SHNode {
   char             data[];
 } SHNode;
 
-typedef struct SSHashObj {
+struct SSHashObj {
   SHNode         **hashList;
   size_t           capacity;     // number of slots
   int64_t          size;         // number of elements in hash table
@@ -45,10 +45,10 @@ typedef struct SSHashObj {
   _equal_fn_t      equalFp;      // equal function
   int32_t          keyLen;
   int32_t          dataLen;
-} SSHashObj;
+};
 
 static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
-  int32_t len = MIN(length, HASH_MAX_CAPACITY);
+  int32_t len = (length < HASH_MAX_CAPACITY ? length : HASH_MAX_CAPACITY);
 
   int32_t i = 4;
   while (i < len) i = (i << 1u);
@@ -107,7 +107,7 @@ static SHNode *doCreateHashNode(const void *key, size_t keyLen, const void *pDat
   return pNewNode;
 }
 
-void taosHashTableResize(SSHashObj *pHashObj) {
+static void taosHashTableResize(SSHashObj *pHashObj) {
   if (!HASH_NEED_RESIZE(pHashObj)) {
     return;
   }
@@ -127,7 +127,7 @@ void taosHashTableResize(SSHashObj *pHashObj) {
   }
 
   size_t inc = newCapacity - pHashObj->capacity;
-  memset(pNewEntryList + pHashObj->capacity * sizeof(void*), 0, inc);
+  memset((char*)pNewEntryList + pHashObj->capacity * sizeof(void*), 0, inc);
 
   pHashObj->hashList = pNewEntryList;
   pHashObj->capacity = newCapacity;
@@ -258,6 +258,7 @@ void *tSimpleHashGet(SSHashObj *pHashObj, const void *key) {
 
 int32_t tSimpleHashRemove(SSHashObj *pHashObj, const void *key) {
   // todo
+  return TSDB_CODE_SUCCESS;
 }
 
 void tSimpleHashClear(SSHashObj *pHashObj) {
@@ -300,7 +301,7 @@ size_t tSimpleHashGetMemSize(const SSHashObj *pHashObj) {
 
 void *tSimpleHashGetKey(const SSHashObj* pHashObj, void *data, size_t* keyLen) {
   int32_t offset = offsetof(SHNode, data);
-  SHNode *node = data - offset;
+  SHNode *node = ((SHNode*)(char*)data - offset);
   if (keyLen != NULL) {
     *keyLen = pHashObj->keyLen;
   }

@@ -16,8 +16,11 @@
 #ifndef _TD_INDEX_H_
 #define _TD_INDEX_H_
 
+#include "nodes.h"
 #include "os.h"
+#include "taoserror.h"
 #include "tarray.h"
+#include "tglobal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,7 +28,6 @@ extern "C" {
 
 typedef struct SIndex               SIndex;
 typedef struct SIndexTerm           SIndexTerm;
-typedef struct SIndexOpts           SIndexOpts;
 typedef struct SIndexMultiTermQuery SIndexMultiTermQuery;
 typedef struct SArray               SIndexMultiTerm;
 
@@ -41,12 +43,27 @@ typedef enum {
   UPDATE_VALUE,  // update index column value
   ADD_INDEX,     // add index on specify column
   DROP_INDEX,    // drop existed index
-  DROP_SATBLE    // drop stable
+  DROP_SATBLE,   // drop stable
+  DEFAULT        // query
 } SIndexOperOnColumn;
 
-typedef enum { MUST = 0, SHOULD = 1, NOT = 2 } EIndexOperatorType;
-typedef enum { QUERY_TERM = 0, QUERY_PREFIX = 1, QUERY_SUFFIX = 2, QUERY_REGEX = 3, QUERY_RANGE = 4 } EIndexQueryType;
+typedef enum { MUST = 0, SHOULD, NOT } EIndexOperatorType;
+typedef enum {
+  QUERY_TERM = 0,
+  QUERY_PREFIX,
+  QUERY_SUFFIX,
+  QUERY_REGEX,
+  QUERY_LESS_THAN,
+  QUERY_LESS_EQUAL,
+  QUERY_GREATER_THAN,
+  QUERY_GREATER_EQUAL,
+  QUERY_RANGE,
+  QUERY_MAX
+} EIndexQueryType;
 
+typedef struct SIndexOpts {
+  int32_t cacheSize;  // MB
+} SIndexOpts;
 /*
  * create multi query
  * @param oper (input, relation between querys)
@@ -112,7 +129,7 @@ int indexSearch(SIndex* index, SIndexMultiTermQuery* query, SArray* result);
  * @parma opt   (input, rebuild index opts)
  * @return error code
  */
-int indexRebuild(SIndex* index, SIndexOpts* opt);
+// int indexRebuild(SIndex* index, SIndexOpts* opt);
 
 /*
  * open index
@@ -121,14 +138,14 @@ int indexRebuild(SIndex* index, SIndexOpts* opt);
  * @param index (output, index json object)
  * @return error code
  */
-int tIndexJsonOpen(SIndexJsonOpts* opts, const char* path, SIndexJson** index);
+int indexJsonOpen(SIndexJsonOpts* opts, const char* path, SIndexJson** index);
 /*
  * close index
  * @param index (input, index to be closed)
  * @return void
  */
 
-void tIndexJsonClose(SIndexJson* index);
+void indexJsonClose(SIndexJson* index);
 
 /*
  * insert terms into index
@@ -137,7 +154,7 @@ void tIndexJsonClose(SIndexJson* index);
  * @param uid  (input, uid of terms)
  * @return error code
  */
-int tIndexJsonPut(SIndexJson* index, SIndexJsonMultiTerm* terms, uint64_t uid);
+int indexJsonPut(SIndexJson* index, SIndexJsonMultiTerm* terms, uint64_t uid);
 /*
  * search index
  * @param index (input, index object)
@@ -146,7 +163,7 @@ int tIndexJsonPut(SIndexJson* index, SIndexJsonMultiTerm* terms, uint64_t uid);
  * @return error code
  */
 
-int tIndexJsonSearch(SIndexJson* index, SIndexJsonMultiTermQuery* query, SArray* result);
+int indexJsonSearch(SIndexJson* index, SIndexJsonMultiTermQuery* query, SArray* result);
 /*
  * @param
  * @param
@@ -158,7 +175,7 @@ void             indexMultiTermDestroy(SIndexMultiTerm* terms);
  * @param:
  * @param:
  */
-SIndexOpts* indexOptsCreate();
+SIndexOpts* indexOptsCreate(int32_t cacheSize);
 void        indexOptsDestroy(SIndexOpts* opts);
 
 /*
@@ -171,16 +188,48 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn operType, uint8_t c
 void        indexTermDestroy(SIndexTerm* p);
 
 /*
+ * rebuild index
+ */
+void indexRebuild(SIndexJson* idx, void* iter);
+
+/*
+ * check index json status
+ **/
+bool indexIsRebuild(SIndex* idx);
+/*
+ * rebuild index json
+ */
+void indexJsonRebuild(SIndexJson* idx, void* iter);
+
+/*
+ * check index json status
+ **/
+bool indexJsonIsRebuild(SIndexJson* idx);
+
+/*
  * init index env
  *
  */
 void indexInit();
 
+/* index filter */
+typedef struct SIndexMetaArg {
+  void*    metaEx;
+  void*    idx;
+  void*    ivtIdx;
+  uint64_t suid;
+} SIndexMetaArg;
+
+typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltStatus;
+
+SIdxFltStatus idxGetFltStatus(SNode* pFilterNode);
+
+int32_t doFilterTag(SNode* pFilterNode, SIndexMetaArg* metaArg, SArray* result, SIdxFltStatus* status);
 /*
  * destory index env
  *
  */
-void indexCleanUp();
+void indexCleanup();
 
 #ifdef __cplusplus
 }

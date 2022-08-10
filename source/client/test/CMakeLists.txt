@@ -8,23 +8,40 @@ AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 ADD_EXECUTABLE(clientTest clientTests.cpp)
 TARGET_LINK_LIBRARIES(
         clientTest
-        PUBLIC os util common transport parser catalog scheduler function gtest taos qcom
+        PUBLIC os util common transport parser catalog scheduler function gtest taos_static qcom executor
 )
 
 ADD_EXECUTABLE(tmqTest tmqTest.cpp)
 TARGET_LINK_LIBRARIES(
         tmqTest
-        PUBLIC os util common transport parser catalog scheduler function gtest taos qcom
+        PUBLIC os util common transport parser catalog scheduler function gtest taos_static qcom
+)
+
+ADD_EXECUTABLE(smlTest smlTest.cpp)
+TARGET_LINK_LIBRARIES(
+        smlTest
+        PUBLIC os util common transport parser catalog scheduler function gtest taos_static qcom
 )
 
 TARGET_INCLUDE_DIRECTORIES(
         clientTest
-        PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/client/"
-        PRIVATE "${CMAKE_SOURCE_DIR}/source/libs/client/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/client/"
+        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 
 TARGET_INCLUDE_DIRECTORIES(
         tmqTest
-        PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/client/"
-        PRIVATE "${CMAKE_SOURCE_DIR}/source/libs/client/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/client/"
+        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        smlTest
+        PUBLIC "${TD_SOURCE_DIR}/include/client/"
+        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+)
+
+add_test(
+        NAME smlTest
+        COMMAND smlTest
 )

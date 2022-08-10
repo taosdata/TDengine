@@ -18,43 +18,32 @@
 
 #include "monitor.h"
 
-#include "tarray.h"
 #include "tjson.h"
 
 typedef struct {
-  int64_t   ts;
-  ELogLevel level;
-  char      content[MON_LOG_LEN];
-} SMonLogItem;
-
-typedef struct {
-  int64_t time;
-  int64_t req_select;
-  int64_t req_insert;
-  int64_t req_insert_batch;
-  int64_t net_in;
-  int64_t net_out;
-  int64_t io_read;
-  int64_t io_write;
-  int64_t io_read_disk;
-  int64_t io_write_disk;
-} SMonState;
-
-typedef struct SMonInfo {
-  int64_t   curTime;
-  SMonState lastState;
-  SArray   *logs;  // array of SMonLogItem
-  SJson    *pJson;
+  int64_t    curTime;
+  int64_t    lastTime;
+  SJson     *pJson;
+  SMonLogs   log;
+  SMonDmInfo dmInfo;
+  SMonMmInfo mmInfo;
+  SMonVmInfo vmInfo;
+  SMonSmInfo smInfo;
+  SMonQmInfo qmInfo;
+  SMonBmInfo bmInfo;
 } SMonInfo;
 
 typedef struct {
   TdThreadMutex lock;
-  SArray         *logs;  // array of SMonLogItem
-  int32_t         maxLogs;
-  const char     *server;
-  uint16_t        port;
-  bool            comp;
-  SMonState       state;
+  SArray       *logs;  // array of SMonLogItem
+  SMonCfg       cfg;
+  int64_t       lastTime;
+  SMonDmInfo    dmInfo;
+  SMonMmInfo    mmInfo;
+  SMonVmInfo    vmInfo;
+  SMonSmInfo    smInfo;
+  SMonQmInfo    qmInfo;
+  SMonBmInfo    bmInfo;
 } SMonitor;
 
 #ifdef __cplusplus

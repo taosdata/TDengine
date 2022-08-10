@@ -13,7 +13,7 @@
 
 class DndTestVnode : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/dnode_test_vnode", 9115); }
+  static void SetUpTestSuite() { test.Init(TD_TMP_DIR_PATH "dvnodeTest", 9115); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -33,23 +33,19 @@ TEST_F(DndTestVnode, 01_Create_Vnode) {
     strcpy(createReq.db, "1.d1");
     createReq.dbUid = 9527;
     createReq.vgVersion = 1;
-    createReq.cacheBlockSize = 16;
-    createReq.totalBlocks = 10;
     createReq.daysPerFile = 10;
     createReq.daysToKeep0 = 3650;
     createReq.daysToKeep1 = 3650;
     createReq.daysToKeep2 = 3650;
     createReq.minRows = 100;
     createReq.minRows = 4096;
-    createReq.commitTime = 3600;
     createReq.fsyncPeriod = 3000;
     createReq.walLevel = 1;
     createReq.precision = 0;
     createReq.compression = 2;
     createReq.replica = 1;
-    createReq.quorum = 1;
-    createReq.update = 0;
-    createReq.cacheLastRow = 0;
+    createReq.strict = 1;
+    createReq.cacheLast = 0;
     createReq.selfIndex = 0;
     for (int r = 0; r < createReq.replica; ++r) {
       SReplica* pReplica = &createReq.replicas[r];
@@ -67,76 +63,24 @@ TEST_F(DndTestVnode, 01_Create_Vnode) {
       ASSERT_EQ(pRsp->code, 0);
       test.Restart();
     } else {
-      ASSERT_EQ(pRsp->code, TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED);
+      ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_ALREADY_DEPLOYED);
     }
-  }
-
-  {
-    SCreateVnodeReq createReq = {0};
-    createReq.vgId = 2;
-    createReq.dnodeId = 3;
-    strcpy(createReq.db, "1.d1");
-    createReq.dbUid = 9527;
-    createReq.vgVersion = 1;
-    createReq.cacheBlockSize = 16;
-    createReq.totalBlocks = 10;
-    createReq.daysPerFile = 10;
-    createReq.daysToKeep0 = 3650;
-    createReq.daysToKeep1 = 3650;
-    createReq.daysToKeep2 = 3650;
-    createReq.minRows = 100;
-    createReq.minRows = 4096;
-    createReq.commitTime = 3600;
-    createReq.fsyncPeriod = 3000;
-    createReq.walLevel = 1;
-    createReq.precision = 0;
-    createReq.compression = 2;
-    createReq.replica = 1;
-    createReq.quorum = 1;
-    createReq.update = 0;
-    createReq.cacheLastRow = 0;
-    createReq.selfIndex = 0;
-    for (int r = 0; r < createReq.replica; ++r) {
-      SReplica* pReplica = &createReq.replicas[r];
-      pReplica->id = 1;
-      pReplica->port = 9527;
-    }
-
-    int32_t contLen = tSerializeSCreateVnodeReq(NULL, 0, &createReq);
-    void*   pReq = rpcMallocCont(contLen);
-    tSerializeSCreateVnodeReq(pReq, contLen, &createReq);
-
-    SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_VNODE, pReq, contLen);
-    ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_DND_VNODE_INVALID_OPTION);
   }
 }
 
 TEST_F(DndTestVnode, 02_Alter_Vnode) {
   for (int i = 0; i < 3; ++i) {
     SAlterVnodeReq alterReq = {0};
-    alterReq.vgId = 2;
-    alterReq.dnodeId = 1;
-    strcpy(alterReq.db, "1.d1");
-    alterReq.dbUid = 9527;
     alterReq.vgVersion = 2;
-    alterReq.cacheBlockSize = 16;
-    alterReq.totalBlocks = 10;
     alterReq.daysPerFile = 10;
     alterReq.daysToKeep0 = 3650;
     alterReq.daysToKeep1 = 3650;
     alterReq.daysToKeep2 = 3650;
-    alterReq.minRows = 100;
-    alterReq.minRows = 4096;
-    alterReq.commitTime = 3600;
     alterReq.fsyncPeriod = 3000;
     alterReq.walLevel = 1;
-    alterReq.precision = 0;
-    alterReq.compression = 2;
     alterReq.replica = 1;
-    alterReq.quorum = 1;
-    alterReq.update = 0;
-    alterReq.cacheLastRow = 0;
+    alterReq.strict = 1;
+    alterReq.cacheLast = 0;
     alterReq.selfIndex = 0;
     for (int r = 0; r < alterReq.replica; ++r) {
       SReplica* pReplica = &alterReq.replicas[r];
@@ -148,7 +92,7 @@ TEST_F(DndTestVnode, 02_Alter_Vnode) {
     void*   pReq = rpcMallocCont(contLen);
     tSerializeSCreateVnodeReq(pReq, contLen, &alterReq);
 
-    SRpcMsg* pRsp = test.SendReq(TDMT_DND_ALTER_VNODE, pReq, contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_VND_ALTER_VNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
   }
@@ -164,37 +108,37 @@ TEST_F(DndTestVnode, 03_Create_Stb) {
     req.keep = 0;
     req.type = TD_SUPER_TABLE;
 
-    SSchema schemas[5] = {0};
+    SSchemaEx schemas[2] = {0};
     {
-      SSchema* pSchema = &schemas[0];
+      SSchemaEx* pSchema = &schemas[0];
       pSchema->bytes = htonl(8);
       pSchema->type = TSDB_DATA_TYPE_TIMESTAMP;
       strcpy(pSchema->name, "ts");
     }
 
     {
-      SSchema* pSchema = &schemas[1];
+      SSchemaEx* pSchema = &schemas[1];
       pSchema->bytes = htonl(4);
       pSchema->type = TSDB_DATA_TYPE_INT;
       strcpy(pSchema->name, "col1");
     }
-
+    SSchema tagSchemas[3] = {0};
     {
-      SSchema* pSchema = &schemas[2];
+      SSchema* pSchema = &tagSchemas[0];
       pSchema->bytes = htonl(2);
       pSchema->type = TSDB_DATA_TYPE_TINYINT;
       strcpy(pSchema->name, "tag1");
     }
 
     {
-      SSchema* pSchema = &schemas[3];
+      SSchema* pSchema = &tagSchemas[1];
       pSchema->bytes = htonl(8);
       pSchema->type = TSDB_DATA_TYPE_BIGINT;
       strcpy(pSchema->name, "tag2");
     }
 
     {
-      SSchema* pSchema = &schemas[4];
+      SSchema* pSchema = &tagSchemas[2];
       pSchema->bytes = htonl(16);
       pSchema->type = TSDB_DATA_TYPE_BINARY;
       strcpy(pSchema->name, "tag3");
@@ -204,7 +148,7 @@ TEST_F(DndTestVnode, 03_Create_Stb) {
     req.stbCfg.nCols = 2;
     req.stbCfg.pSchema = &schemas[0];
     req.stbCfg.nTagCols = 3;
-    req.stbCfg.pTagSchema = &schemas[2];
+    req.stbCfg.pTagSchema = &tagSchemas[0];
 
     int32_t   contLen = tSerializeSVCreateTbReq(NULL, &req) + sizeof(SMsgHead);
     SMsgHead* pHead = (SMsgHead*)rpcMallocCont(contLen);
@@ -236,37 +180,37 @@ TEST_F(DndTestVnode, 04_Alter_Stb) {
     req.keep = 0;
     req.type = TD_SUPER_TABLE;
 
-    SSchema schemas[5] = {0};
+    SSchemaEx schemas[2] = {0};
     {
-      SSchema* pSchema = &schemas[0];
+      SSchemaEx* pSchema = &schemas[0];
       pSchema->bytes = htonl(8);
       pSchema->type = TSDB_DATA_TYPE_TIMESTAMP;
       strcpy(pSchema->name, "ts");
     }
 
     {
-      SSchema* pSchema = &schemas[1];
+      SSchemaEx* pSchema = &schemas[1];
       pSchema->bytes = htonl(4);
       pSchema->type = TSDB_DATA_TYPE_INT;
       strcpy(pSchema->name, "col1");
     }
-
+    SSchema tagSchemas[3] = {0};
     {
-      SSchema* pSchema = &schemas[2];
+      SSchema* pSchema = &tagSchemas[0];
       pSchema->bytes = htonl(2);
       pSchema->type = TSDB_DATA_TYPE_TINYINT;
       strcpy(pSchema->name, "_tag1");
     }
 
     {
-      SSchema* pSchema = &schemas[3];
+      SSchema* pSchema = &tagSchemas[1];
       pSchema->bytes = htonl(8);
       pSchema->type = TSDB_DATA_TYPE_BIGINT;
       strcpy(pSchema->name, "_tag2");
     }
 
     {
-      SSchema* pSchema = &schemas[4];
+      SSchema* pSchema = &tagSchemas[2];
       pSchema->bytes = htonl(16);
       pSchema->type = TSDB_DATA_TYPE_BINARY;
       strcpy(pSchema->name, "_tag3");
@@ -276,7 +220,7 @@ TEST_F(DndTestVnode, 04_Alter_Stb) {
     req.stbCfg.nCols = 2;
     req.stbCfg.pSchema = &schemas[0];
     req.stbCfg.nTagCols = 3;
-    req.stbCfg.pTagSchema = &schemas[2];
+    req.stbCfg.pTagSchema = &tagSchemas[0];
 
     int32_t   contLen = tSerializeSVCreateTbReq(NULL, &req) + sizeof(SMsgHead);
     SMsgHead* pHead = (SMsgHead*)rpcMallocCont(contLen);
@@ -341,7 +285,7 @@ TEST_F(DndTestVnode, 06_Drop_Vnode) {
       ASSERT_EQ(pRsp->code, 0);
       test.Restart();
     } else {
-      ASSERT_EQ(pRsp->code, TSDB_CODE_DND_VNODE_NOT_DEPLOYED);
+      ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_NOT_DEPLOYED);
     }
   }
 }

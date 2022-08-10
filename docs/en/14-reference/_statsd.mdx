@@ -1,0 +1,55 @@
+### Configuring taosAdapter
+
+To configure taosAdapter to receive StatsD data.
+
+- Enable the configuration item in the taosAdapter configuration file (default location /etc/taos/taosadapter.toml)
+
+```
+...
+[statsd]
+enable = true
+port = 6044
+db = "statsd"
+user = "root"
+password = "taosdata"
+worker = 10
+gatherInterval = "5s"
+protocol = "udp"
+maxTCPConnections = 250
+tcpKeepAlive = false
+allowPendingMessages = 50000
+deleteCounters = true
+deleteGauges = true
+deleteSets = true
+deleteTimings = true
+...
+```
+
+The default database name written by taosAdapter is `statsd`. To specify a different name, you can also modify the taosAdapter configuration file db entry. user and password fill in the actual TDengine configuration values. After changing the configuration file, you need to restart the taosAdapter.
+
+- You can also enable taosAdapter to receive StatsD data by using the taosAdapter command-line parameters or setting environment variables.
+
+### Configuring StatsD
+
+To use StatsD, you need to download its [source code](https://github.com/statsd/statsd). Please refer to the example file `exampleConfig.js` in the root directory of the source download to modify the configuration file. In <taosAdpater's host\>, please fill in the domain name or IP address of the server running taosAdapter, and <port for StatsD\>, please fill in the port where taosAdapter receives StatsD data (default is 6044).
+
+```
+backends section add ". /backends/repeater"
+Add { host:'<taosAdapter's host>', port: <port for StatsD>} to repeater section
+```
+
+Example configuration file.
+
+```
+{
+port: 8125
+, backends: [". /backends/repeater"]
+, repeater: [{ host: '127.0.0.1', port: 6044}]
+}
+```
+
+Start StatsD after adding the following (assuming the config file is modified to config.js)
+
+```
+node stats.js config.js &
+```

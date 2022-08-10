@@ -16,46 +16,65 @@
 #define _DEFAULT_SOURCE
 #include "tencode.h"
 
-#if __STDC_VERSION__ >= 201112L
+#if __STDC_VERSION__ >= 201112LL
 static_assert(sizeof(float) == sizeof(uint32_t), "sizeof(float) must equal to sizeof(uint32_t)");
 static_assert(sizeof(double) == sizeof(uint64_t), "sizeof(double) must equal to sizeof(uint64_t)");
 #endif
 
-void tCoderInit(SCoder* pCoder, td_endian_t endian, uint8_t* data, int32_t size, td_coder_t type) {
-  if (type == TD_ENCODER) {
-    if (data == NULL) size = 0;
-  } else {
-    ASSERT(data && size > 0);
-  }
+struct SEncoderNode {
+  SEncoderNode* pNext;
+  uint8_t*      data;
+  uint32_t      size;
+  uint32_t      pos;
+};
 
-  pCoder->type = type;
-  pCoder->endian = endian;
-  pCoder->data = data;
-  pCoder->size = size;
-  pCoder->pos = 0;
-  tFreeListInit(&(pCoder->fl));
-  TD_SLIST_INIT(&(pCoder->stack));
+struct SDecoderNode {
+  SDecoderNode* pNext;
+  uint8_t*      data;
+  uint32_t      size;
+  uint32_t      pos;
+};
+
+void tEncoderInit(SEncoder* pEncoder, uint8_t* data, uint32_t size) {
+  if (data == NULL) size = 0;
+  pEncoder->data = data;
+  pEncoder->size = size;
+  pEncoder->pos = 0;
+  pEncoder->mList = NULL;
+  pEncoder->eStack = NULL;
 }
 
-void tCoderClear(SCoder* pCoder) {
-  tFreeListClear(&(pCoder->fl));
-  struct SCoderNode* pNode;
-  for (;;) {
-    pNode = TD_SLIST_HEAD(&(pCoder->stack));
-    if (pNode == NULL) break;
-    TD_SLIST_POP(&(pCoder->stack));
-    taosMemoryFree(pNode);
+void tEncoderClear(SEncoder* pCoder) {
+  for (SCoderMem* pMem = pCoder->mList; pMem; pMem = pCoder->mList) {
+    pCoder->mList = pMem->next;
+    taosMemoryFree(pMem);
   }
+  memset(pCoder, 0, sizeof(*pCoder));
 }
 
-int32_t tStartEncode(SCoder* pCoder) {
-  struct SCoderNode* pNode;
+void tDecoderInit(SDecoder* pDecoder, uint8_t* data, uint32_t size) {
+  pDecoder->data = data;
+  pDecoder->size = size;
+  pDecoder->pos = 0;
+  pDecoder->mList = NULL;
+  pDecoder->dStack = NULL;
+}
 
-  ASSERT(pCoder->type == TD_ENCODER);
+void tDecoderClear(SDecoder* pCoder) {
+  for (SCoderMem* pMem = pCoder->mList; pMem; pMem = pCoder->mList) {
+    pCoder->mList = pMem->next;
+    taosMemoryFree(pMem);
+  }
+  memset(pCoder, 0, sizeof(*pCoder));
+}
+
+int32_t tStartEncode(SEncoder* pCoder) {
+  SEncoderNode* pNode;
+
   if (pCoder->data) {
     if (pCoder->size - pCoder->pos < sizeof(int32_t)) return -1;
 
-    pNode = taosMemoryMalloc(sizeof(*pNode));
+    pNode = tEncoderMalloc(pCoder, sizeof(*pNode));
     if (pNode == NULL) return -1;
 
     pNode->data = pCoder->data;
@@ -66,22 +85,23 @@ int32_t tStartEncode(SCoder* pCoder) {
     pCoder->pos = 0;
     pCoder->size = pNode->size - pNode->pos - sizeof(int32_t);
 
-    TD_SLIST_PUSH(&(pCoder->stack), pNode);
+    pNode->pNext = pCoder->eStack;
+    pCoder->eStack = pNode;
   } else {
     pCoder->pos += sizeof(int32_t);
   }
+
   return 0;
 }
 
-void tEndEncode(SCoder* pCoder) {
-  struct SCoderNode* pNode;
-  int32_t            len;
+void tEndEncode(SEncoder* pCoder) {
+  SEncoderNode* pNode;
+  int32_t       len;
 
-  ASSERT(pCoder->type == TD_ENCODER);
   if (pCoder->data) {
-    pNode = TD_SLIST_HEAD(&(pCoder->stack));
+    pNode = pCoder->eStack;
     ASSERT(pNode);
-    TD_SLIST_POP(&(pCoder->stack));
+    pCoder->eStack = pNode->pNext;
 
     len = pCoder->pos;
 
@@ -92,19 +112,16 @@ void tEndEncode(SCoder* pCoder) {
     tEncodeI32(pCoder, len);
 
     TD_CODER_MOVE_POS(pCoder, len);
-
-    taosMemoryFree(pNode);
   }
 }
 
-int32_t tStartDecode(SCoder* pCoder) {
-  int32_t            len;
-  struct SCoderNode* pNode;
+int32_t tStartDecode(SDecoder* pCoder) {
+  SDecoderNode* pNode;
+  int32_t       len;
 
-  ASSERT(pCoder->type == TD_DECODER);
   if (tDecodeI32(pCoder, &len) < 0) return -1;
 
-  pNode = taosMemoryMalloc(sizeof(*pNode));
+  pNode = tDecoderMalloc(pCoder, sizeof(*pNode));
   if (pNode == NULL) return -1;
 
   pNode->data = pCoder->data;
@@ -115,23 +132,20 @@ int32_t tStartDecode(SCoder* pCoder) {
   pCoder->size = len;
   pCoder->pos = 0;
 
-  TD_SLIST_PUSH(&(pCoder->stack), pNode);
+  pNode->pNext = pCoder->dStack;
+  pCoder->dStack = pNode;
 
   return 0;
 }
 
-void tEndDecode(SCoder* pCoder) {
-  struct SCoderNode* pNode;
+void tEndDecode(SDecoder* pCoder) {
+  SDecoderNode* pNode;
 
-  ASSERT(pCoder->type == TD_DECODER);
-
-  pNode = TD_SLIST_HEAD(&(pCoder->stack));
+  pNode = pCoder->dStack;
   ASSERT(pNode);
-  TD_SLIST_POP(&(pCoder->stack));
+  pCoder->dStack = pNode->pNext;
 
   pCoder->data = pNode->data;
   pCoder->pos = pCoder->size + pNode->pos;
   pCoder->size = pNode->size;
-
-  taosMemoryFree(pNode);
 }

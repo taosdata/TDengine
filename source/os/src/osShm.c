@@ -17,10 +17,38 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-int32_t taosCreateShm(SShm* pShm, int32_t shmsize) {
+#define MAX_SHMIDS 6
+
+static int32_t shmids[MAX_SHMIDS] = {0};
+
+static void taosDeleteCreatedShms() {
+#if defined(WINDOWS)
+  assert(0);
+#else
+  for (int32_t i = 0; i < MAX_SHMIDS; ++i) {
+    int32_t shmid = shmids[i] - 1;
+    if (shmid >= 0) {
+      shmctl(shmid, IPC_RMID, NULL);
+    }
+  }
+#endif
+}
+
+int32_t taosCreateShm(SShm* pShm, int32_t key, int32_t shmsize) {
+#if defined(WINDOWS)
+  assert(0);
+#else
   pShm->id = -1;
 
-  int32_t shmid = shmget(0X95279527, shmsize, IPC_CREAT | 0600);
+#if 1
+  key_t   __shkey = IPC_PRIVATE;
+  int32_t __shmflag = IPC_CREAT | IPC_EXCL | 0600;
+#else
+  key_t   __shkey = 0X95270000 + key;
+  int32_t __shmflag = IPC_CREAT | 0600;
+#endif
+
+  int32_t shmid = shmget(__shkey, shmsize, __shmflag);
   if (shmid < 0) {
     return -1;
   }
@@ -33,10 +61,24 @@ int32_t taosCreateShm(SShm* pShm, int32_t shmsize) {
   pShm->id = shmid;
   pShm->size = shmsize;
   pShm->ptr = shmptr;
+
+#if 0
+  if (key >= 0 && key < MAX_SHMIDS) {
+    shmids[key] = pShm->id + 1;
+  }
+  atexit(taosDeleteCreatedShms);
+#else
+  shmctl(pShm->id, IPC_RMID, NULL);
+#endif
+
+#endif
   return 0;
 }
 
 void taosDropShm(SShm* pShm) {
+#if defined(WINDOWS)
+  assert(0);
+#else
   if (pShm->id >= 0) {
     if (pShm->ptr != NULL) {
       shmdt(pShm->ptr);
@@ -46,14 +88,19 @@ void taosDropShm(SShm* pShm) {
   pShm->id = -1;
   pShm->size = 0;
   pShm->ptr = NULL;
+#endif
 }
 
 int32_t taosAttachShm(SShm* pShm) {
+#if defined(WINDOWS)
+  assert(0);
+#else
   errno = 0;
 
   void* ptr = shmat(pShm->id, NULL, 0);
   if (errno == 0) {
     pShm->ptr = ptr;
   }
+#endif
   return errno;
 }

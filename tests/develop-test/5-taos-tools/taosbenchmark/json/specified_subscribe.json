@@ -1,0 +1,24 @@
+{
+  "filetype": "subscribe",
+  "cfgdir": "/etc/taos",
+  "host": "127.0.0.1",
+  "port": 6030,
+  "user": "root",
+  "password": "taosdata",
+  "databases": "db",
+  "confirm_parameter_prompt": "no",
+  "specified_table_query": {
+    "threads": 1,
+    "mode": "async",
+    "interval": 1000,
+    "restart": "no",
+    "keepProgress": "yes",
+    "resubAfterConsume": 10,
+    "endAfterConsume": 1,
+    "sqls": [
+      {
+        "sql": "select * from stb;"
+      }
+    ]
+  }
+}

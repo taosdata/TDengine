@@ -1,11 +1,10 @@
-aux_source_directory(. BQTEST_SRC)
-add_executable(dnode_test_bnode ${BQTEST_SRC})
+aux_source_directory(. DND_BNODE_TEST_SRC)
+add_executable(dbnodeTest ${DND_BNODE_TEST_SRC})
 target_link_libraries(
-    dnode_test_bnode
-    PUBLIC sut
+    dbnodeTest sut
 )
 
 add_test(
-    NAME dnode_test_bnode
-    COMMAND dnode_test_bnode
+    NAME dbnodeTest
+    COMMAND dbnodeTest
 )

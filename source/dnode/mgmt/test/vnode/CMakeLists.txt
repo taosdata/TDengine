@@ -1,11 +1,11 @@
-aux_source_directory(. VNODE_SRC)
-add_executable(dnode_test_vnode ${VNODE_SRC})
-target_link_libraries(
-    dnode_test_vnode
-    PUBLIC sut
-)
+# aux_source_directory(. DND_VNODE_TEST_SRC)
+# add_executable(dvnodeTest ${DND_VNODE_TEST_SRC})
+# target_link_libraries(
+#     dvnodeTest
+#     PUBLIC sut
+# )
 
-add_test(
-    NAME dnode_test_vnode
-    COMMAND dnode_test_vnode
-)
+# add_test(
+#     NAME dvnodeTest
+#     COMMAND dvnodeTest
+# )

@@ -6,12 +6,14 @@
 #include <vector>
 #include "index.h"
 #include "indexCache.h"
+#include "indexComm.h"
 #include "indexFst.h"
-#include "indexFstCountingWriter.h"
+#include "indexFstCommon.h"
 #include "indexFstUtil.h"
 #include "indexInt.h"
 #include "indexTfile.h"
 #include "indexUtil.h"
+#include "tcoding.h"
 #include "tglobal.h"
 #include "tskiplist.h"
 #include "tutil.h"
@@ -224,6 +226,22 @@ TEST_F(UtilEnv, 04union) {
   iUnion(src, rslt);
   assert(taosArrayGetSize(rslt) == 12);
 }
+TEST_F(UtilEnv, 05unionExcept) {
+  clearSourceArray(src);
+  clearFinalArray(rslt);
+
+  uint64_t arr2[] = {7};
+  SArray * f = (SArray *)taosArrayGetP(src, 1);
+  for (int i = 0; i < sizeof(arr2) / sizeof(arr2[0]); i++) {
+    taosArrayPush(f, &arr2[i]);
+  }
+
+  iUnion(src, rslt);
+
+  SArray *ept = taosArrayInit(0, sizeof(uint64_t));
+  iExcept(rslt, ept);
+  EXPECT_EQ(taosArrayGetSize(rslt), 1);
+}
 TEST_F(UtilEnv, 01Except) {
   SArray *total = taosArrayInit(4, sizeof(uint64_t));
   {
@@ -304,4 +322,46 @@ TEST_F(UtilEnv, 01Except) {
   ASSERT_EQ(taosArrayGetSize(total), 2);
   ASSERT_EQ(*(uint64_t *)taosArrayGet(total, 0), 1);
   ASSERT_EQ(*(uint64_t *)taosArrayGet(total, 1), 100);
+}
+TEST_F(UtilEnv, testFill) {
+  for (int i = 0; i < 1000000; i++) {
+    int64_t val = i;
+    char    buf[65] = {0};
+    idxInt2str(val, buf, 1);
+    EXPECT_EQ(val, taosStr2int64(buf));
+  }
+  for (int i = 0; i < 1000000; i++) {
+    int64_t val = 0 - i;
+    char    buf[65] = {0};
+    idxInt2str(val, buf, -1);
+    EXPECT_EQ(val, taosStr2int64(buf));
+  }
+}
+TEST_F(UtilEnv, TempResult) {
+  SIdxTRslt *relt = idxTRsltCreate();
+
+  SArray *f = taosArrayInit(0, sizeof(uint64_t));
+
+  uint64_t val = UINT64_MAX - 1;
+  taosArrayPush(relt->add, &val);
+  idxTRsltMergeTo(relt, f);
+  EXPECT_EQ(taosArrayGetSize(f), 1);
+}
+TEST_F(UtilEnv, TempResultExcept) {
+  SIdxTRslt *relt = idxTRsltCreate();
+
+  SArray *f = taosArrayInit(0, sizeof(uint64_t));
+
+  uint64_t val = UINT64_MAX;
+  taosArrayPush(relt->add, &val);
+  idxTRsltMergeTo(relt, f);
+  EXPECT_EQ(taosArrayGetSize(f), 1);
+}
+
+TEST_F(UtilEnv, testDictComm) {
+  int32_t count = COMMON_INPUTS_LEN;
+  for (int i = 0; i < 256; i++) {
+    uint8_t v = COMMON_INPUTS_INV[i];
+    EXPECT_EQ(COMMON_INPUTS[v], i);
+  }
 }

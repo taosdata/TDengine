@@ -40,6 +40,7 @@ extern "C" {
  * @return timestamp decided by global conf variable, tsTimePrecision
  * if precision == TSDB_TIME_PRECISION_MICRO, it returns timestamp in microsecond.
  *    precision == TSDB_TIME_PRECISION_MILLI, it returns timestamp in millisecond.
+ *    precision == TSDB_TIME_PRECISION_NANO,  it returns timestamp in nanosecond.
  */
 static FORCE_INLINE int64_t taosGetTimestamp(int32_t precision) {
   if (precision == TSDB_TIME_PRECISION_MICRO) {
@@ -51,7 +52,28 @@ static FORCE_INLINE int64_t taosGetTimestamp(int32_t precision) {
   }
 }
 
+/*
+ * @return timestamp of today at 00:00:00 in given precision
+ * if precision == TSDB_TIME_PRECISION_MICRO, it returns timestamp in microsecond.
+ *    precision == TSDB_TIME_PRECISION_MILLI, it returns timestamp in millisecond.
+ *    precision == TSDB_TIME_PRECISION_NANO,  it returns timestamp in nanosecond.
+ */
+static FORCE_INLINE int64_t taosGetTimestampToday(int32_t precision) {
+  int64_t    factor = (precision == TSDB_TIME_PRECISION_MILLI)   ? 1000
+                      : (precision == TSDB_TIME_PRECISION_MICRO) ? 1000000
+                                                                 : 1000000000;
+  time_t     t = taosTime(NULL);
+  struct tm  tm;
+  taosLocalTime(&t, &tm);
+  tm.tm_hour = 0;
+  tm.tm_min = 0;
+  tm.tm_sec = 0;
+
+  return (int64_t)taosMktime(&tm) * factor;
+}
+
 int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision);
+
 int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precision);
 int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision);
 
@@ -60,10 +82,13 @@ int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* durati
 
 int32_t taosParseTime(const char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t dayligth);
 void    deltaToUtcInitOnce();
+char    getPrecisionUnit(int32_t precision);
 
 int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrecision);
+int64_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char toUnit);
+int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal);
 
-void taosFormatUtcTime(char *buf, int32_t bufLen, int64_t time, int32_t precision);
+void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t time, int32_t precision);
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,388 @@
+---
+toc_max_heading_level: 4
+sidebar_position: 5
+sidebar_label: Rust
+title: TDengine Rust Connector
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+import Preparition from "./_preparition.mdx"
+import RustInsert from "../../07-develop/03-insert-data/_rust_sql.mdx"
+import RustInfluxLine from "../../07-develop/03-insert-data/_rust_line.mdx"
+import RustOpenTSDBTelnet from "../../07-develop/03-insert-data/_rust_opts_telnet.mdx"
+import RustOpenTSDBJson from "../../07-develop/03-insert-data/_rust_opts_json.mdx"
+import RustQuery from "../../07-develop/04-query-data/_rust.mdx"
+
+[![Crates.io](https://img.shields.io/crates/v/libtaos)](https://crates.io/crates/libtaos) ![Crates.io](https://img.shields.io/crates/d/libtaos) [![docs.rs](https://img.shields.io/docsrs/libtaos)](https://docs.rs/libtaos)
+
+`libtaos` 是 TDengine 的官方 Rust 语言连接器。Rust 开发人员可以通过它开发存取 TDengine 数据库的应用软件。
+
+`libtaos` 提供两种建立连接的方式。一种是**原生连接**，它通过 TDengine 客户端驱动程序（taosc）连接 TDengine 运行实例。另外一种是 **REST 连接**，它通过 taosAdapter 的 REST 接口连接 TDengine 运行实例。你可以通过不同的 “特性（即 Cargo 关键字 features）” 来指定使用哪种连接器。REST 连接支持任何平台，但原生连接支持所有 TDengine 客户端能运行的平台。
+
+`libtaos` 的源码托管在 [GitHub](https://github.com/taosdata/libtaos-rs)。
+
+## 支持的平台
+
+原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
+REST 连接支持所有能运行 Rust 的平台。
+
+## 版本支持
+
+请参考[版本支持列表](/reference/connector#版本支持)
+
+Rust 连接器仍然在快速开发中，1.0 之前无法保证其向后兼容。建议使用 2.4 版本以上的 TDengine，以避免已知问题。
+
+## 安装
+
+### 安装前准备
+* 安装 Rust 开发工具链
+* 如果使用原生连接，请安装 TDengine 客户端驱动，具体步骤请参考[安装客户端驱动](/reference/connector#安装客户端驱动)
+
+### 添加 libtaos 依赖
+
+根据选择的连接方式，按照如下说明在 [Rust](https://rust-lang.org) 项目中添加 [libtaos][libtaos] 依赖：
+
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
+
+在 `Cargo.toml` 文件中添加 [libtaos][libtaos]：
+
+```toml
+[dependencies]
+# use default feature
+libtaos = "*"
+```
+
+</TabItem>
+<TabItem value="rest" label="REST 连接">
+
+在 `Cargo.toml` 文件中添加 [libtaos][libtaos]，并启用 `rest` 特性。
+
+```toml
+[dependencies]
+# use rest feature
+libtaos = { version = "*", features = ["rest"]}
+```
+
+</TabItem>
+</Tabs>
+
+
+### 使用连接池
+
+请在 `Cargo.toml` 中启用 `r2d2` 特性。
+
+```toml
+[dependencies]
+# with taosc
+libtaos = { version = "*", features = ["r2d2"] }
+# or rest
+libtaos = { version = "*", features = ["rest", "r2d2"] }
+```
+
+## 建立连接
+
+[TaosCfgBuilder] 为使用者提供构造器形式的 API，以便于后续创建连接或使用连接池。
+
+```rust
+let cfg: TaosCfg = TaosCfgBuilder::default()
+    .ip("127.0.0.1")
+    .user("root")
+    .pass("taosdata")
+    .db("log") // do not set if not require a default database.
+    .port(6030u16)
+    .build()
+    .expect("TaosCfg builder error");
+}
+```
+
+现在您可以使用该对象创建连接：
+
+```rust
+let conn = cfg.connect()?;
+```
+
+连接对象可以创建多个：
+
+```rust
+let conn = cfg.connect()?;
+let conn2 = cfg.connect()?;
+```
+
+可以在应用中使用连接池：
+
+```rust
+let pool = r2d2::Pool::builder()
+    .max_size(10000) // max connections
+    .build(cfg)?;
+
+// ...
+// Use pool to get connection
+let conn = pool.get()?;
+```
+
+之后您可以对数据库进行相关操作：
+
+```rust
+async fn demo() -> Result<(), Error> {
+    // get connection ...
+
+    // create database
+    conn.exec("create database if not exists demo").await?;
+    // change database context
+    conn.exec("use demo").await?;
+    // create table
+    conn.exec("create table if not exists tb1 (ts timestamp, v int)").await?;
+    // insert
+    conn.exec("insert into tb1 values(now, 1)").await?;
+    // query
+    let rows = conn.query("select * from tb1").await?;
+    for row in rows.rows {
+        println!("{}", row.into_iter().join(","));
+    }
+}
+```
+
+## 使用示例
+
+### 写入数据
+
+#### SQL 写入
+
+<RustInsert />
+
+#### InfluxDB 行协议写入
+
+<RustInfluxLine />
+
+#### OpenTSDB Telnet 行协议写入
+
+<RustOpenTSDBTelnet />
+
+#### OpenTSDB JSON 行协议写入
+
+<RustOpenTSDBJson />
+
+### 查询数据
+
+<RustQuery />
+
+### 更多示例程序
+
+| 程序路径       | 程序说明                                                                      |
+| -------------- | ----------------------------------------------------------------------------- |
+| [demo.rs]      | 基本API 使用示例                                                              |
+| [bailongma-rs] | 使用 TDengine 作为存储后端的 Prometheus 远程存储 API 适配器，使用 r2d2 连接池 |
+
+## API 参考
+
+### 连接构造器 API
+
+[Builder Pattern](https://doc.rust-lang.org/1.0.0/style/ownership/builders.html) 构造器模式是 Rust 处理复杂数据类型或可选配置类型的解决方案。[libtaos] 实现中，使用连接构造器 [TaosCfgBuilder] 作为 TDengine Rust 连接器的入口。[TaosCfgBuilder] 提供对服务器、端口、数据库、用户名和密码等的可选配置。
+
+使用 `default()` 方法可以构建一个默认参数的 [TaosCfg]，用于后续连接数据库或建立连接池。
+
+```rust
+let cfg = TaosCfgBuilder::default().build()?;
+```
+
+使用构造器模式，用户可按需设置：
+
+```rust
+let cfg = TaosCfgBuilder::default()
+    .ip("127.0.0.1")
+    .user("root")
+    .pass("taosdata")
+    .db("log")
+    .port(6030u16)
+    .build()?;
+```
+
+使用 [TaosCfg] 对象创建 TDengine 连接：
+
+```rust
+let conn: Taos = cfg.connect();
+```
+
+### 连接池
+
+在复杂应用中，建议启用连接池。[libtaos] 的连接池使用 [r2d2] 实现。
+
+如下，可以生成一个默认参数的连接池。
+
+```rust
+let pool = r2d2::Pool::new(cfg)?;
+```
+
+同样可以使用连接池的构造器，对连接池参数进行设置：
+
+```rust
+    use std::time::Duration;
+    let pool = r2d2::Pool::builder()
+        .max_size(5000) // max connections
+        .max_lifetime(Some(Duration::from_minutes(100))) // lifetime of each connection
+        .min_idle(Some(1000)) // minimal idle connections
+        .connection_timeout(Duration::from_minutes(2))
+        .build(cfg);
+```
+
+在应用代码中，使用 `pool.get()?` 来获取一个连接对象 [Taos]。
+
+```rust
+let taos = pool.get()?;
+```
+
+### 连接
+
+[Taos] 结构体是 [libtaos] 中的连接管理者，主要提供了两个 API：
+
+1. `exec`: 执行某个非查询类 SQL 语句，例如 `CREATE`，`ALTER`，`INSERT` 等。
+
+    ```rust
+    taos.exec().await?;
+    ```
+
+2. `query`：执行查询语句，返回 [TaosQueryData] 对象。
+
+    ```rust
+    let q = taos.query("select * from log.logs").await?;
+    ```
+
+    [TaosQueryData] 对象存储了查询结果数据和返回的列的基本信息（列名，类型，长度）：
+
+    列信息使用 [ColumnMeta] 存储：
+
+    ```rust
+    let cols = &q.column_meta;
+    for col in cols {
+        println!("name: {}, type: {:?}, bytes: {}", col.name, col.type_, col.bytes);
+    }
+    ```
+
+    逐行获取数据：
+
+    ```rust
+    for (i, row) in q.rows.iter().enumerate() {
+        for (j, cell) in row.iter().enumerate() {
+            println!("cell({}, {}) data: {}", i, j, cell);
+        }
+    }
+    ```
+
+需要注意的是，需要使用 Rust 异步函数和异步运行时。
+
+[Taos] 提供部分 SQL 的 Rust 方法化以减少 `format!` 代码块的频率：
+
+- `.describe(table: &str)`: 执行 `DESCRIBE` 并返回一个 Rust 数据结构。
+- `.create_database(database: &str)`: 执行 `CREATE DATABASE` 语句。
+- `.use_database(database: &str)`: 执行 `USE` 语句。
+
+除此之外，该结构也是 [参数绑定](#参数绑定接口) 和 [行协议接口](#行协议接口) 的入口，使用方法请参考具体的 API 说明。
+
+### 参数绑定接口
+
+与 C 接口类似，Rust 提供参数绑定接口。首先，通过 [Taos] 对象创建一个 SQL 语句的参数绑定对象 [Stmt]：
+
+```rust
+let mut stmt: Stmt = taos.stmt("insert into ? values(?,?)")?;
+```
+
+参数绑定对象提供了一组接口用于实现参数绑定：
+
+##### `.set_tbname(tbname: impl ToCString)`
+
+用于绑定表名。
+
+##### `.set_tbname_tags(tbname: impl ToCString, tags: impl IntoParams)`
+
+当 SQL 语句使用超级表时，用于绑定子表表名和标签值：
+
+```rust
+let mut stmt = taos.stmt("insert into ? using stb0 tags(?) values(?,?)")?;
+// tags can be created with any supported type, here is an example using JSON
+let v = Field::Json(serde_json::from_str("{\"tag1\":\"一二三四五六七八九十\"}").unwrap());
+stmt.set_tbname_tags("tb0", [&tag])?;
+```
+
+##### `.bind(params: impl IntoParams)`
+
+用于绑定值类型。使用 [Field] 结构体构建需要的类型并绑定：
+
+```rust
+let ts = Field::Timestamp(Timestamp::now());
+let value = Field::Float(0.0);
+stmt.bind(vec![ts, value].iter())?;
+```
+
+##### `.execute()`
+
+执行 SQL。[Stmt] 对象可以复用，在执行后可以重新绑定并执行。
+
+```rust
+stmt.execute()?;
+
+// next bind cycle.
+//stmt.set_tbname()?;
+//stmt.bind()?;
+//stmt.execute()?;
+```
+
+### 行协议接口
+
+行协议接口支持多种模式和不同精度，需要引入 schemaless 模块中的常量以进行设置：
+
+```rust
+use libtaos::*;
+use libtaos::schemaless::*;
+```
+
+- InfluxDB 行协议
+
+    ```rust
+    let lines = [
+        "st,t1=abc,t2=def,t3=anything c1=3i64,c3=L\"pass\",c2=false 1626006833639000000"
+        "st,t1=abc,t2=def,t3=anything c1=3i64,c3=L\"abc\",c4=4f64 1626006833639000000"
+    ];
+    taos.schemaless_insert(&lines, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANOSECONDS)?;
+    ```
+
+- OpenTSDB Telnet 协议
+
+    ```rust
+    let lines = ["sys.if.bytes.out 1479496100 1.3E3 host=web01 interface=eth0"];
+    taos.schemaless_insert(&lines, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_SECONDS)?;
+    ```
+
+- OpenTSDB JSON 协议
+
+    ```rust
+    let lines = [r#"
+        {
+            "metric":   "st",
+            "timestamp":        1626006833,
+            "value":    10,
+            "tags":     {
+                "t1":   true,
+                "t2":   false,
+                "t3":   10,
+                "t4":   "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>"
+            }
+        }"#];
+    taos.schemaless_insert(&lines, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_SECONDS)?;
+    ```
+
+其他相关结构体 API 使用说明请移步 Rust 文档托管网页：<https://docs.rs/libtaos>。
+
+[libtaos]: https://github.com/taosdata/libtaos-rs
+[tdengine]: https://github.com/taosdata/TDengine
+[bailongma-rs]: https://github.com/taosdata/bailongma-rs
+[r2d2]: https://crates.io/crates/r2d2
+[demo.rs]: https://github.com/taosdata/libtaos-rs/blob/main/examples/demo.rs
+[TaosCfgBuilder]: https://docs.rs/libtaos/latest/libtaos/struct.TaosCfgBuilder.html
+[TaosCfg]: https://docs.rs/libtaos/latest/libtaos/struct.TaosCfg.html
+[Taos]: https://docs.rs/libtaos/latest/libtaos/struct.Taos.html
+[TaosQueryData]: https://docs.rs/libtaos/latest/libtaos/field/struct.TaosQueryData.html
+[Field]: https://docs.rs/libtaos/latest/libtaos/field/enum.Field.html
+[Stmt]: https://docs.rs/libtaos/latest/libtaos/stmt/struct.Stmt.html

@@ -22,21 +22,10 @@
 extern "C" {
 #endif
 
-typedef struct SInfosTableSchema {
-  char   *name;
-  int32_t type;
-  int32_t bytes;
-} SInfosTableSchema;
-
-typedef struct SInfosTableMeta {
-  char                    *name;
-  const SInfosTableSchema *schema;
-  int32_t                  colNum;
-} SInfosTableMeta;
-
-int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp);
 int32_t mndInitInfos(SMnode *pMnode);
-void mndCleanupInfos(SMnode *pMnode);
+void    mndCleanupInfos(SMnode *pMnode);
+int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp);
+int32_t mndBuildInsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbName, STableCfgRsp *pRsp);
 
 #ifdef __cplusplus
 }

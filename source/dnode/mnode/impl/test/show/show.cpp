@@ -13,7 +13,7 @@
 
 class MndTestShow : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_show", 9021); }
+  static void SetUpTestSuite() { test.Init(TD_TMP_DIR_PATH "mnode_test_show", 9021); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -34,9 +34,9 @@ TEST_F(MndTestShow, 01_ShowMsg_InvalidMsgMax) {
   tSerializeSShowReq(pReq, contLen, &showReq);
   tFreeSShowReq(&showReq);
 
-  SRpcMsg* pRsp = test.SendReq(TDMT_MND_SHOW, pReq, contLen);
+  SRpcMsg* pRsp = test.SendReq(TDMT_MND_SYSTABLE_RETRIEVE, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);
-  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
+  ASSERT_NE(pRsp->code, 0);
 }
 
 TEST_F(MndTestShow, 02_ShowMsg_InvalidMsgStart) {
@@ -48,16 +48,22 @@ TEST_F(MndTestShow, 02_ShowMsg_InvalidMsgStart) {
   tSerializeSShowReq(pReq, contLen, &showReq);
   tFreeSShowReq(&showReq);
 
-  SRpcMsg* pRsp = test.SendReq(TDMT_MND_SHOW, pReq, contLen);
+  SRpcMsg* pRsp = test.SendReq(TDMT_MND_SYSTABLE_RETRIEVE, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);
-  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
+  ASSERT_NE(pRsp->code, 0);
 }
 
 TEST_F(MndTestShow, 03_ShowMsg_Conn) {
+  char passwd[] = "taosdata";
+  char secretEncrypt[TSDB_PASSWORD_LEN] = {0};
+  taosEncryptPass_c((uint8_t*)passwd, strlen(passwd), secretEncrypt);
+
   SConnectReq connectReq = {0};
   connectReq.pid = 1234;
   strcpy(connectReq.app, "mnode_test_show");
   strcpy(connectReq.db, "");
+  strcpy(connectReq.user, "root");
+  strcpy(connectReq.passwd, secretEncrypt);
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
   void*   pReq = rpcMallocCont(contLen);
@@ -67,42 +73,11 @@ TEST_F(MndTestShow, 03_ShowMsg_Conn) {
   ASSERT_NE(pRsp, nullptr);
   ASSERT_EQ(pRsp->code, 0);
 
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_CONNS, "");
-
-  STableMetaRsp* pMeta = test.GetShowMeta();
-  EXPECT_STREQ(pMeta->tbName, "show connections");
-  EXPECT_EQ(pMeta->numOfTags, 0);
-  EXPECT_EQ(pMeta->numOfColumns, 7);
-  EXPECT_EQ(pMeta->precision, 0);
-  EXPECT_EQ(pMeta->tableType, 0);
-  EXPECT_EQ(pMeta->update, 0);
-  EXPECT_EQ(pMeta->sversion, 0);
-  EXPECT_EQ(pMeta->tversion, 0);
-  EXPECT_EQ(pMeta->tuid, 0);
-  EXPECT_EQ(pMeta->suid, 0);
-
-  test.SendShowRetrieveReq();
-
-  SRetrieveTableRsp* pRetrieveRsp = test.GetRetrieveRsp();
-  EXPECT_EQ(pRetrieveRsp->numOfRows, 1);
-  EXPECT_EQ(pRetrieveRsp->useconds, 0);
-  EXPECT_EQ(pRetrieveRsp->completed, 1);
-  EXPECT_EQ(pRetrieveRsp->precision, TSDB_TIME_PRECISION_MILLI);
-  EXPECT_EQ(pRetrieveRsp->compressed, 0);
-  EXPECT_EQ(pRetrieveRsp->compLen, 0);
+  test.SendShowReq(TSDB_MGMT_TABLE_CONNS, "perf_connections", "");
+  // EXPECT_EQ(test.GetShowRows(), 1);
 }
 
 TEST_F(MndTestShow, 04_ShowMsg_Cluster) {
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_CLUSTER, "");
-  CHECK_META( "show cluster", 3);
-  CHECK_SCHEMA(0, TSDB_DATA_TYPE_BIGINT, 8, "id");
-  CHECK_SCHEMA(1, TSDB_DATA_TYPE_BINARY, TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE, "name");
-  CHECK_SCHEMA(2, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
-
-  test.SendShowRetrieveReq();
+  test.SendShowReq(TSDB_MGMT_TABLE_CLUSTER, "ins_cluster", "");
   EXPECT_EQ(test.GetShowRows(), 1);
-
-  IgnoreInt64();
-  IgnoreBinary(TSDB_CLUSTER_ID_LEN);
-  CheckTimestamp();
 }

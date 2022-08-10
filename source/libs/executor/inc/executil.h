@@ -15,56 +15,48 @@
 #ifndef TDENGINE_QUERYUTIL_H
 #define TDENGINE_QUERYUTIL_H
 
-#include "tcommon.h"
+#include "vnode.h"
+#include "function.h"
+#include "nodes.h"
+#include "plannodes.h"
 #include "tbuffer.h"
+#include "tcommon.h"
 #include "tpagedbuf.h"
 
 #define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)     \
   do {                                               \
     assert(sizeof(_uid) == sizeof(uint64_t));        \
-    *(uint64_t *)(_k) = (_uid);                      \
+    *(uint64_t*)(_k) = (_uid);                       \
     memcpy((_k) + sizeof(uint64_t), (_ori), (_len)); \
   } while (0)
 
-#define SET_RES_EXT_WINDOW_KEY(_k, _ori, _len, _uid, _buf)             \
-  do {                                                                 \
-    assert(sizeof(_uid) == sizeof(uint64_t));                          \
-    *(void **)(_k) = (_buf);                                             \
-    *(uint64_t *)((_k) + POINTER_BYTES) = (_uid);                      \
-    memcpy((_k) + POINTER_BYTES + sizeof(uint64_t), (_ori), (_len));   \
+#define SET_RES_EXT_WINDOW_KEY(_k, _ori, _len, _uid, _buf)           \
+  do {                                                               \
+    assert(sizeof(_uid) == sizeof(uint64_t));                        \
+    *(void**)(_k) = (_buf);                                          \
+    *(uint64_t*)((_k) + POINTER_BYTES) = (_uid);                     \
+    memcpy((_k) + POINTER_BYTES + sizeof(uint64_t), (_ori), (_len)); \
   } while (0)
 
-
-#define GET_RES_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t))
+#define GET_RES_WINDOW_KEY_LEN(_l)     ((_l) + sizeof(uint64_t))
 #define GET_RES_EXT_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t) + POINTER_BYTES)
 
-#define GET_TASKID(_t)  (((SExecTaskInfo*)(_t))->id.str)
-
-#define curTimeWindowIndex(_winres)        ((_winres)->curIndex)
-
-struct SColumnFilterElem;
-
-typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, const char* val1, const char* val2, int16_t type);
+#define GET_TASKID(_t) (((SExecTaskInfo*)(_t))->id.str)
 
 typedef struct SGroupResInfo {
-  int32_t totalGroup;
-  int32_t currentGroup;
   int32_t index;
-  SArray* pRows;      // SArray<SResultRowPosition*>
-  bool    ordered;
-  int32_t position;
+  SArray* pRows;  // SArray<SResKeyPos>
 } SGroupResInfo;
 
 typedef struct SResultRow {
-  int32_t       pageId;      // pageId & rowId is the position of current result in disk-based output buffer
-  int32_t       offset:29;   // row index in buffer page
-  bool          startInterp; // the time window start timestamp has done the interpolation already.
-  bool          endInterp;   // the time window end timestamp has done the interpolation already.
-  bool          closed;      // this result status: closed or opened
-  uint32_t      numOfRows;   // number of rows of current time window
-  struct SResultRowEntryInfo* pEntryInfo;  // For each result column, there is a resultInfo
-  STimeWindow   win;
-  char         *key;               // start key of current result row
+  int32_t                    pageId;  // pageId & rowId is the position of current result in disk-based output buffer
+  int32_t                    offset : 29;  // row index in buffer page
+  bool                       startInterp;  // the time window start timestamp has done the interpolation already.
+  bool                       endInterp;    // the time window end timestamp has done the interpolation already.
+  bool                       closed;       // this result status: closed or opened
+  uint32_t                   numOfRows;    // number of rows of current time window
+  STimeWindow                win;
+  struct SResultRowEntryInfo pEntryInfo[];  // For each result column, there is a resultInfo
 } SResultRow;
 
 typedef struct SResultRowPosition {
@@ -72,99 +64,80 @@ typedef struct SResultRowPosition {
   int32_t offset;
 } SResultRowPosition;
 
+typedef struct SResKeyPos {
+  SResultRowPosition pos;
+  uint64_t           groupId;
+  char               key[];
+} SResKeyPos;
+
 typedef struct SResultRowInfo {
-  SList       *pRows;
-  SResultRowPosition *pPosition;
-  SResultRow **pResult;    // result list
-  int32_t      size;       // number of result set
-  int32_t      capacity;   // max capacity
-  int32_t      curPos;     // current active result row index of pResult list
+  int32_t            size;  // number of result set
+  SResultRowPosition cur;
+  SList*             openWindow;
 } SResultRowInfo;
 
-typedef struct SResultRowPool {
-  int32_t elemSize;
-  int32_t blockSize;
-  int32_t numOfElemPerBlock;
-
-  struct {
-    int32_t blockIndex;
-    int32_t pos;
-  } position;
-
-  SArray* pData;    // SArray<void*>
-} SResultRowPool;
-
-struct STaskAttr;
-struct STaskRuntimeEnv;
-struct SUdfInfo;
 struct SqlFunctionCtx;
 
-int32_t getOutputInterResultBufSize(struct STaskAttr* pQueryAttr);
-
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
-int32_t initResultRowInfo(SResultRowInfo* pResultRowInfo, int32_t size);
-void    cleanupResultRowInfo(SResultRowInfo* pResultRowInfo);
+void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
+void   cleanupResultRowInfo(SResultRowInfo* pResultRowInfo);
 
-void    resetResultRowInfo(struct STaskRuntimeEnv* pRuntimeEnv, SResultRowInfo* pResultRowInfo);
-int32_t numOfClosedResultRows(SResultRowInfo* pResultRowInfo);
-void    closeAllResultRows(SResultRowInfo* pResultRowInfo);
+void initResultRow(SResultRow* pResultRow);
+void closeResultRow(SResultRow* pResultRow);
+bool isResultRowClosed(SResultRow* pResultRow);
 
-int32_t initResultRow(SResultRow *pResultRow);
-void    closeResultRow(SResultRowInfo* pResultRowInfo, int32_t slot);
-bool    isResultRowClosed(SResultRowInfo *pResultRowInfo, int32_t slot);
-void    clearResultRow(struct STaskRuntimeEnv* pRuntimeEnv, SResultRow* pResultRow);
+struct SResultRowEntryInfo* getResultEntryInfo(const SResultRow* pRow, int32_t index, const int32_t* offset);
 
-struct SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t* offset);
-
-void* destroyQueryFuncExpr(SExprInfo* pExprInfo, int32_t numOfExpr);
-int32_t getRowNumForMultioutput(struct STaskAttr* pQueryAttr, bool topBottomQuery, bool stable);
-
-static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pResultRowInfo, int32_t slot) {
-  assert(pResultRowInfo != NULL && slot >= 0 && slot < pResultRowInfo->size);
-  return pResultRowInfo->pResult[slot];
+static FORCE_INLINE SResultRow* getResultRowByPos(SDiskbasedBuf* pBuf, SResultRowPosition* pos, bool forUpdate) {
+  SFilePage*  bufPage = (SFilePage*)getBufPage(pBuf, pos->pageId);
+  if (forUpdate) {
+    setBufPageDirty(bufPage, true);
+  }
+  SResultRow* pRow = (SResultRow*)((char*)bufPage + pos->offset);
+  return pRow;
 }
 
-static FORCE_INLINE char* getPosInResultPage(struct STaskAttr* pQueryAttr, SFilePage* page, int32_t rowOffset,
-                                             int32_t offset) {
-  assert(rowOffset >= 0 && pQueryAttr != NULL);
-
-//  int32_t numOfRows = (int32_t)getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
-//  return ((char *)page->data) + rowOffset + offset * numOfRows;
+static FORCE_INLINE void setResultBufPageDirty(SDiskbasedBuf* pBuf, SResultRowPosition* pos) {
+  void* pPage = getBufPage(pBuf, pos->pageId);
+  setBufPageDirty(pPage, true);
 }
 
-static FORCE_INLINE char* getPosInResultPage_rv(SFilePage* page, int32_t rowOffset, int32_t offset) {
-  assert(rowOffset >= 0);
+void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order);
+void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
 
-  int32_t numOfRows = 1;//(int32_t)getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
-  return (char*) page + rowOffset + offset * numOfRows;
-}
+void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
+bool hasRemainResults(SGroupResInfo* pGroupResInfo);
 
-//bool isNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type);
-//bool notNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type);
-
-__filter_func_t getFilterOperator(int32_t lowerOptr, int32_t upperOptr);
-
-SResultRow* getNewResultRow(SResultRowPool* p);
-
-typedef struct {
-  SArray* pResult;     // SArray<SResPair>
-  int32_t colId;
-} SStddevInterResult;
-
-void interResToBinary(SBufferWriter* bw, SArray* pRes, int32_t tagLen);
-SArray* interResFromBinary(const char* data, int32_t len);
-void freeInterResult(void* param);
-
-void    initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo);
-void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
-bool    hasRemainDataInCurrentGroup(SGroupResInfo* pGroupResInfo);
-bool    hasRemainData(SGroupResInfo* pGroupResInfo);
-
-bool    incNextGroup(SGroupResInfo* pGroupResInfo);
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 
-int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, struct STaskRuntimeEnv *pRuntimeEnv, int32_t* offset);
+SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode);
 
-//int32_t initUdfInfo(struct SUdfInfo* pUdfInfo);
+EDealRes doTranslateTagExpr(SNode** pNode, void* pContext);
+int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond, STableListInfo* pListInfo);
+int32_t getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId);
+size_t  getTableTagsBufLen(const SNodeList* pGroups);
+
+SArray*  createSortInfo(SNodeList* pNodeList);
+SArray*  extractPartitionColInfo(SNodeList* pNodeList);
+SArray*  extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
+                             int32_t type);
+
+SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs);
+
+SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset);
+void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols, bool outputEveryColumn);
+void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow);
+
+SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode);
+SColumn   extractColumnFromColumnNode(SColumnNode* pColNode);
+
+int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode);
+void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
+
+int32_t convertFillType(int32_t mode);
+
+int32_t resultrowComparAsc(const void* p1, const void* p2);
+
+int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified);
 
 #endif  // TDENGINE_QUERYUTIL_H

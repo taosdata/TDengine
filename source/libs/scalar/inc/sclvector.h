@@ -52,6 +52,11 @@ static FORCE_INLINE double getVectorDoubleValue_FLOAT(void *src, int32_t index) 
 static FORCE_INLINE double getVectorDoubleValue_DOUBLE(void *src, int32_t index) {
   return (double)*((double *)src + index);
 }
+static FORCE_INLINE double getVectorDoubleValue_BOOL(void *src, int32_t index) {
+  return (double)*((bool *)src + index);
+}
+
+double getVectorDoubleValue_JSON(void *src, int32_t index);
 
 static FORCE_INLINE _getDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType) {
   _getDoubleValue_fn_t p = NULL;
@@ -75,13 +80,21 @@ static FORCE_INLINE _getDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType)
     p = getVectorDoubleValue_FLOAT;
   } else if (srcType == TSDB_DATA_TYPE_DOUBLE) {
     p = getVectorDoubleValue_DOUBLE;
+  } else if (srcType == TSDB_DATA_TYPE_TIMESTAMP) {
+    p = getVectorDoubleValue_BIGINT;
+  } else if (srcType == TSDB_DATA_TYPE_JSON) {
+    p = getVectorDoubleValue_JSON;
+  } else if (srcType == TSDB_DATA_TYPE_BOOL) {
+    p = getVectorDoubleValue_BOOL;
+  } else if (srcType == TSDB_DATA_TYPE_NULL) {
+    p = NULL;
   } else {
-    assert(0);
+    ASSERT(0);
   }
   return p;
 }
 
-typedef void (*_bufConverteFunc)(char *buf, SScalarParam* pOut, int32_t outType);
+typedef void (*_bufConverteFunc)(char *buf, SScalarParam* pOut, int32_t outType, int32_t* overflow);
 typedef void (*_bin_scalar_fn_t)(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *output, int32_t order);
 _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binOperator);
 

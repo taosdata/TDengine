@@ -66,17 +66,17 @@ extern "C" {
  *        [1, 4, 5]
  * output:[4, 5]
  */
-void iIntersection(SArray *interResults, SArray *finalResult);
+void iIntersection(SArray *in, SArray *out);
 
-/* multi sorted result intersection
+/* multi sorted result union
  * input: [1, 2, 4, 5]
  *        [2, 3, 4, 5]
  *        [1, 4, 5]
  * output:[1, 2, 3, 4, 5]
  */
-void iUnion(SArray *interResults, SArray *finalResult);
+void iUnion(SArray *in, SArray *out);
 
-/*  sorted array
+/* see example
  * total:   [1, 2, 4, 5, 7, 8]
  * except:  [4, 5]
  * return:  [1, 2, 7, 8] saved in total
@@ -92,19 +92,24 @@ typedef struct {
   uint64_t data;
 } SIdxVerdata;
 
+/*
+ * index temp result
+ *
+ */
 typedef struct {
   SArray *total;
-  SArray *added;
-  SArray *deled;
-} SIdxTempResult;
+  SArray *add;
+  SArray *del;
+} SIdxTRslt;
 
-SIdxTempResult *sIdxTempResultCreate();
+SIdxTRslt *idxTRsltCreate();
 
-void sIdxTempResultClear(SIdxTempResult *tr);
+void idxTRsltClear(SIdxTRslt *tr);
 
-void sIdxTempResultDestroy(SIdxTempResult *tr);
+void idxTRsltDestroy(SIdxTRslt *tr);
 
-void sIdxTempResultMergeTo(SArray *result, SIdxTempResult *tr);
+void idxTRsltMergeTo(SIdxTRslt *tr, SArray *out);
+
 #ifdef __cplusplus
 }
 #endif

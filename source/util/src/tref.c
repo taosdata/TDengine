@@ -44,11 +44,11 @@ typedef struct {
   void (*fp)(void *);
 } SRefSet;
 
-static SRefSet         tsRefSetList[TSDB_REF_OBJECTS];
+static SRefSet       tsRefSetList[TSDB_REF_OBJECTS];
 static TdThreadOnce  tsRefModuleInit = PTHREAD_ONCE_INIT;
 static TdThreadMutex tsRefMutex;
-static int32_t         tsRefSetNum = 0;
-static int32_t         tsNextId = 0;
+static int32_t       tsRefSetNum = 0;
+static int32_t       tsNextId = 0;
 
 static void    taosInitRefModule(void);
 static void    taosLockList(int64_t *lockedBy);
@@ -431,7 +431,7 @@ static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove) {
       }
       released = 1;
     } else {
-      uTrace("rsetId:%d p:%p rid:%" PRId64 " is released", rsetId, pNode->p, rid);
+      uTrace("rsetId:%d p:%p rid:%" PRId64 " is released, remain count %d", rsetId, pNode->p, rid, pNode->count);
     }
   } else {
     uTrace("rsetId:%d rid:%" PRId64 " is not there, failed to release/remove", rsetId, rid);

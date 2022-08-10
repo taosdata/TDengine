@@ -15,10 +15,30 @@
 
 #include "tdbInt.h"
 
-int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique) {
+void *tdbRealloc(void *ptr, size_t size) {
+  void *nPtr;
+  if ((ptr) == NULL || ((int *)(ptr))[-1] < (size)) {
+    nPtr = tdbOsRealloc((ptr) ? (char *)(ptr) - sizeof(int) : NULL, (size) + sizeof(int));
+    if (nPtr) {
+      ((int *)nPtr)[0] = (size);
+      nPtr = (char *)nPtr + sizeof(int);
+    }
+  } else {
+    nPtr = (ptr);
+  }
+  return nPtr;
+}
+
+void tdbFree(void *p) {
+  if (p) {
+    tdbOsFree((char *)(p) - sizeof(int));
+  }
+}
+
+int tdbGnrtFileID(tdb_fd_t fd, uint8_t *fileid, bool unique) {
   int64_t stDev = 0, stIno = 0;
 
-  if (taosDevInoFile(fname, &stDev, &stIno) < 0) {
+  if (taosDevInoFile(fd, &stDev, &stIno) < 0) {
     return -1;
   }
 
@@ -30,5 +50,18 @@ int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique) {
     ((uint64_t *)fileid)[2] = taosRand();
   }
 
+  return 0;
+}
+
+int tdbGetFileSize(tdb_fd_t fd, int szPage, SPgno *size) {
+  int     ret;
+  int64_t szBytes;
+
+  ret = tdbOsFileSize(fd, &szBytes);
+  if (ret < 0) {
+    return -1;
+  }
+
+  *size = szBytes / szPage;
   return 0;
 }

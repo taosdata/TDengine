@@ -1,0 +1,40 @@
+system sh/stop_dnodes.sh
+
+
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+
+
+
+sleep 5000
+
+
+sql use db
+
+
+
+
+$N = 100
+$count = 0
+while $count < $N
+	$ms = 1591201000000 + $count
+    sql insert into ct1 values( $ms , $count , 2.1, 3.1)
+    $count = $count + 1
+endw
+
+
+
+
+
+
+
+sleep 5000
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+
+
+

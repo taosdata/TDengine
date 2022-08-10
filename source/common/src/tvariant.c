@@ -35,104 +35,36 @@
     assert(0);                                                      \
   } while (0)
 
-int32_t toInteger(const char *z, int32_t n, int32_t base, int64_t *value, bool *isSigned) {
+int32_t toInteger(const char *z, int32_t n, int32_t base, int64_t *value) {
   errno = 0;
   char *endPtr = NULL;
 
-  int32_t index = 0;
-
-  bool specifiedSign = (z[0] == '+' || z[0] == '-');
-  if (specifiedSign) {
-    *isSigned = true;
-    index = 1;
-  }
-
-  uint64_t val = strtoull(&z[index], &endPtr, base);
-  if (errno == ERANGE || errno == EINVAL) {
+  *value = taosStr2Int64(z, &endPtr, base);
+  if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
     errno = 0;
     return -1;
-  }
-
-  if (specifiedSign && val > INT64_MAX) {
-    return -1;
-  }
-
-  if (endPtr - &z[index] != n - index) {
-    return -1;
-  }
-
-  *isSigned = specifiedSign || (val <= INT64_MAX);
-  if (*isSigned) {
-    *value = (z[0] == '-') ? -val : val;
-  } else {
-    *(uint64_t *)value = val;
   }
 
   return 0;
 }
 
-void taosVariantCreate(SVariant *pVar, const char *z, int32_t n, int32_t type) {
-  int32_t ret = 0;
-  memset(pVar, 0, sizeof(SVariant));
+int32_t toUInteger(const char *z, int32_t n, int32_t base, uint64_t *value) {
+  errno = 0;
+  char *endPtr = NULL;
 
-  switch (type) {
-    case TSDB_DATA_TYPE_BOOL: {
-      if (strncasecmp(z, "true", 4) == 0) {
-        pVar->i = TSDB_TRUE;
-      } else if (strncasecmp(z, "false", 5) == 0) {
-        pVar->i = TSDB_FALSE;
-      } else {
-        return;
-      }
-      break;
-    }
-
-    case TSDB_DATA_TYPE_TINYINT:
-    case TSDB_DATA_TYPE_SMALLINT:
-    case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_INT: {
-      bool sign = true;
-
-      int32_t base = 10;
-      if (type == TK_NK_HEX) {
-        base = 16;
-      } else if (type == TK_NK_OCT) {
-        base = 8;
-      } else if (type == TK_NK_BIN) {
-        base = 2;
-      }
-
-      ret = toInteger(z, n, base, &pVar->i, &sign);
-      if (ret != 0) {
-        pVar->nType = -1;  // -1 means error type
-        return;
-      }
-
-      pVar->nType = (sign) ? TSDB_DATA_TYPE_BIGINT : TSDB_DATA_TYPE_UBIGINT;
-      break;
-    }
-    case TSDB_DATA_TYPE_DOUBLE:
-    case TSDB_DATA_TYPE_FLOAT: {
-      pVar->d = strtod(z, NULL);
-      break;
-    }
-    case TSDB_DATA_TYPE_BINARY: {
-      pVar->pz = strndup(z, n);
-      pVar->nLen = strRmquote(pVar->pz, n);
-      break;
-    }
-    case TSDB_DATA_TYPE_TIMESTAMP: {
-      assert(0);
-      pVar->i = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
-      break;
-    }
-
-    default: {  // nType == 0 means the null value
-      type = TSDB_DATA_TYPE_NULL;
-    }
+  const char *p = z;
+  while (*p != 0 && *p == ' ') p++;
+  if (*p != 0 && *p == '-') {
+    return -1;
   }
 
-  pVar->nType = type;
+  *value = taosStr2UInt64(z, &endPtr, base);
+  if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+    errno = 0;
+    return -1;
+  }
+
+  return 0;
 }
 
 /**
@@ -223,7 +155,8 @@ void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uin
 void taosVariantDestroy(SVariant *pVar) {
   if (pVar == NULL) return;
 
-  if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR) {
+  if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR
+     || pVar->nType == TSDB_DATA_TYPE_JSON) {
     taosMemoryFreeClear(pVar->pz);
     pVar->nLen = 0;
   }
@@ -252,7 +185,8 @@ void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
   if (pSrc == NULL || pDst == NULL) return;
 
   pDst->nType = pSrc->nType;
-  if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_NCHAR) {
+  if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_NCHAR
+      || pSrc->nType == TSDB_DATA_TYPE_JSON) {
     int32_t len = pSrc->nLen + TSDB_NCHAR_SIZE;
     char   *p = taosMemoryRealloc(pDst->pz, len);
     assert(p);
@@ -461,7 +395,7 @@ static int32_t toNchar(SVariant *pVariant, char **pDest, int32_t *pDestSize) {
 
   if (*pDest == pVariant->pz) {
     TdUcs4 *pWStr = taosMemoryCalloc(1, (nLen + 1) * TSDB_NCHAR_SIZE);
-    bool     ret = taosMbsToUcs4(pDst, nLen, pWStr, (nLen + 1) * TSDB_NCHAR_SIZE, NULL);
+    bool    ret = taosMbsToUcs4(pDst, nLen, pWStr, (nLen + 1) * TSDB_NCHAR_SIZE, NULL);
     if (!ret) {
       taosMemoryFreeClear(pWStr);
       return -1;
@@ -483,7 +417,7 @@ static int32_t toNchar(SVariant *pVariant, char **pDest, int32_t *pDestSize) {
   } else {
     int32_t output = 0;
 
-    bool ret = taosMbsToUcs4(pDst, nLen, (TdUcs4*)*pDest, (nLen + 1) * TSDB_NCHAR_SIZE, &output);
+    bool ret = taosMbsToUcs4(pDst, nLen, (TdUcs4 *)*pDest, (nLen + 1) * TSDB_NCHAR_SIZE, &output);
     if (!ret) {
       return -1;
     }
@@ -502,7 +436,7 @@ static FORCE_INLINE int32_t convertToDouble(char *pStr, int32_t len, double *val
   //    return -1;
   //  }
   //
-  //  *value = strtod(pStr, NULL);
+  //  *value = taosStr2Double(pStr, NULL);
   return 0;
 }
 
@@ -511,6 +445,16 @@ static FORCE_INLINE int32_t convertToInteger(SVariant *pVariant, int64_t *result
   if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
     setNull((char *)result, type, tDataTypes[type].bytes);
     return 0;
+  }
+
+  if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType) || (pVariant->nType == TSDB_DATA_TYPE_BOOL)) {
+    *result = pVariant->i;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(pVariant->nType)) {
+    *result = pVariant->u;
+  } else if (IS_FLOAT_TYPE(pVariant->nType)) {
+    *result = (int64_t)pVariant->d;
+  } else {
+    // TODO: handling var types
   }
 #if 0
   errno = 0;
@@ -899,7 +843,7 @@ int32_t tVariantDumpEx(SVariant *pVariant, char *payload, int16_t type, bool inc
               return -1;
             }
           } else {
-            tasoUcs4Copy((TdUcs4*)payload, pVariant->ucs4, pVariant->nLen);
+            tasoUcs4Copy((TdUcs4 *)payload, pVariant->ucs4, pVariant->nLen);
           }
         }
       } else {
@@ -969,7 +913,7 @@ int32_t taosVariantTypeSetType(SVariant *pVariant, char type) {
     case TSDB_DATA_TYPE_DOUBLE: {
       if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {
         errno = 0;
-        double v = strtod(pVariant->pz, NULL);
+        double v = taosStr2Double(pVariant->pz, NULL);
         if ((errno == ERANGE && v == -1) || (isinf(v) || isnan(v))) {
           taosMemoryFree(pVariant->pz);
           return -1;
@@ -1014,4 +958,33 @@ int32_t taosVariantTypeSetType(SVariant *pVariant, char type) {
   }
 
   return 0;
+}
+
+char *taosVariantGet(SVariant *pVar, int32_t type) {
+  switch (type) {
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      return (char *)&pVar->i;
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+      return (char *)&pVar->u;
+    case TSDB_DATA_TYPE_DOUBLE:
+    case TSDB_DATA_TYPE_FLOAT:
+      return (char *)&pVar->d;
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_JSON:
+      return (char *)pVar->pz;
+    case TSDB_DATA_TYPE_NCHAR:
+      return (char *)pVar->ucs4;
+    default:
+      return NULL;
+  }
+
+  return NULL;
 }

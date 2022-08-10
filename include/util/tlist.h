@@ -229,7 +229,7 @@ int32_t    tdListAppend(SList *list, void *data);
 SListNode *tdListPopHead(SList *list);
 SListNode *tdListPopTail(SList *list);
 SListNode *tdListGetHead(SList *list);
-SListNode *tsListGetTail(SList *list);
+SListNode *tdListGetTail(SList *list);
 SListNode *tdListPopNode(SList *list, SListNode *node);
 void       tdListMove(SList *src, SList *dst);
 void       tdListDiscard(SList *list);

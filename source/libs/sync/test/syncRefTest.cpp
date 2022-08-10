@@ -32,7 +32,7 @@ typedef struct SyncObj {
 
 static void syncFreeObj(void *param) {
   SyncObj *pObj = (SyncObj *)param;
-  printf("syncFreeObj name:%s rid:%ld \n", pObj->name, pObj->rid);
+  printf("syncFreeObj name:%s rid:%" PRId64 " \n", pObj->name, pObj->rid);
   taosMemoryFree(pObj);
 }
 
@@ -66,7 +66,7 @@ int64_t start() {
     return -1;
   }
 
-  printf("start name:%s rid:%ld \n", pObj->name, pObj->rid);
+  printf("start name:%s rid:%" PRId64 " \n", pObj->name, pObj->rid);
   return pObj->rid;
 }
 
@@ -74,7 +74,7 @@ void stop(int64_t rid) {
   SyncObj *pObj = (SyncObj *)taosAcquireRef(tsNodeRefId, rid);
   if (pObj == NULL) return;
 
-  printf("stop name:%s rid:%ld \n", pObj->name, pObj->rid);
+  printf("stop name:%s rid:%" PRId64 " \n", pObj->name, pObj->rid);
   pObj->data = NULL;
 
   taosReleaseRef(tsNodeRefId, pObj->rid);
@@ -89,7 +89,7 @@ void *func(void *param) {
 
   SyncObj *pObj = (SyncObj *)taosAcquireRef(tsNodeRefId, rid);
   if (pObj != NULL) {
-    printf("taosAcquireRef sleep:%d, name:%s, rid:%ld \n", ms, pObj->name, pObj->rid);
+    printf("taosAcquireRef sleep:%d, name:%s, rid:%" PRId64 " \n", ms, pObj->name, pObj->rid);
   } else {
     printf("taosAcquireRef sleep:%d, NULL! \n", ms);
   }

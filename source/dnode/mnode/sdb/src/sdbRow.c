@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "sdbInt.h"
+#include "sdb.h"
 
 SSdbRow *sdbAllocRow(int32_t objSize) {
   SSdbRow *pRow = taosMemoryCalloc(1, objSize + sizeof(SSdbRow));
@@ -23,7 +23,9 @@ SSdbRow *sdbAllocRow(int32_t objSize) {
     return NULL;
   }
 
+#if 0
   mTrace("row:%p, is created, len:%d", pRow->pObj, objSize);
+#endif
   return pRow;
 }
 
@@ -36,15 +38,17 @@ void *sdbGetRowObj(SSdbRow *pRow) {
   return pRow->pObj;
 }
 
-void sdbFreeRow(SSdb *pSdb, SSdbRow *pRow) {
+void sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc) {
   // remove attached object such as trans
   SdbDeleteFp deleteFp = pSdb->deleteFps[pRow->type];
   if (deleteFp != NULL) {
-    (*deleteFp)(pSdb, pRow->pObj);
+    (*deleteFp)(pSdb, pRow->pObj, callFunc);
   }
 
-  sdbPrintOper(pSdb, pRow, "freeRow");
+  sdbPrintOper(pSdb, pRow, "free");
 
+#if 0
   mTrace("row:%p, is freed", pRow->pObj);
+#endif
   taosMemoryFreeClear(pRow);
 }

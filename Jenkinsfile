@@ -113,7 +113,7 @@ pipeline {
               '''
               sh'''
               cd ${WKC}/debug
-              ctest
+              ctest -VV
               '''
             }
           }

@@ -22,9 +22,12 @@
 extern "C" {
 #endif
 
-int32_t mndInitSnode(SMnode *pMnode);
-void    mndCleanupSnode(SMnode *pMnode);
-SEpSet  mndAcquireEpFromSnode(SMnode *pMnode, const SSnodeObj *pSnode);
+int32_t    mndInitSnode(SMnode *pMnode);
+void       mndCleanupSnode(SMnode *pMnode);
+SSnodeObj *mndAcquireSnode(SMnode *pMnode, int32_t qnodeId);
+void       mndReleaseSnode(SMnode *pMnode, SSnodeObj *pObj);
+SEpSet     mndAcquireEpFromSnode(SMnode *pMnode, const SSnodeObj *pSnode);
+int32_t    mndSetDropSnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SSnodeObj *pObj);
 
 #ifdef __cplusplus
 }

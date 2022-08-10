@@ -1,11 +1,11 @@
-aux_source_directory(. SMA_SRC)
-add_executable(mnode_test_sma ${SMA_SRC})
+aux_source_directory(. MNODE_SMA_TEST_SRC)
+add_executable(smaTest ${MNODE_SMA_TEST_SRC})
 target_link_libraries(
-    mnode_test_sma
+    smaTest
     PUBLIC sut
 )
 
 add_test(
-    NAME mnode_test_sma
-    COMMAND mnode_test_sma
+    NAME smaTest
+    COMMAND smaTest
 )

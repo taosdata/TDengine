@@ -20,40 +20,36 @@
 extern "C" {
 #endif
 
-#include "functionMgt.h"
+#include "functionMgtInt.h"
 
-#define FUNCTION_NAME_MAX_LENGTH 16
-
-#define FUNC_MGT_FUNC_CLASSIFICATION_MASK(n)    (1 << n)
-
-#define FUNC_MGT_AGG_FUNC             FUNC_MGT_FUNC_CLASSIFICATION_MASK(0)
-#define FUNC_MGT_SCALAR_FUNC          FUNC_MGT_FUNC_CLASSIFICATION_MASK(1)
-#define FUNC_MGT_NONSTANDARD_SQL_FUNC FUNC_MGT_FUNC_CLASSIFICATION_MASK(2)
-#define FUNC_MGT_STRING_FUNC          FUNC_MGT_FUNC_CLASSIFICATION_MASK(3)
-#define FUNC_MGT_DATETIME_FUNC        FUNC_MGT_FUNC_CLASSIFICATION_MASK(4)
-#define FUNC_MGT_TIMELINE_FUNC        FUNC_MGT_FUNC_CLASSIFICATION_MASK(5)
-#define FUNC_MGT_TIMEORDER_FUNC       FUNC_MGT_FUNC_CLASSIFICATION_MASK(6)
-#define FUNC_MGT_PSEUDO_COLUMN_FUNC   FUNC_MGT_FUNC_CLASSIFICATION_MASK(7)
-#define FUNC_MGT_WINDOW_PC_FUNC       FUNC_MGT_FUNC_CLASSIFICATION_MASK(8)
-
-#define FUNC_MGT_TEST_MASK(val, mask) (((val) & (mask)) != 0)
-
-typedef int32_t (*FCheckAndGetResultType)(SFunctionNode* pFunc);
+typedef int32_t (*FTranslateFunc)(SFunctionNode* pFunc, char* pErrBuf, int32_t len);
+typedef EFuncDataRequired (*FFuncDataRequired)(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
+typedef int32_t (*FCreateMergeFuncParameters)(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters);
+typedef EFuncDataRequired (*FFuncDynDataRequired)(void* pRes, STimeWindow* pTimeWindow);
+typedef EFuncReturnRows (*FEstimateReturnRows)(SFunctionNode* pFunc);
 
 typedef struct SBuiltinFuncDefinition {
-  char name[FUNCTION_NAME_MAX_LENGTH];
-  EFunctionType type;
-  uint64_t classification;
-  FCheckAndGetResultType checkFunc;
-  FExecGetEnv getEnvFunc;
-  FExecInit initFunc;
-  FExecProcess processFunc;
-  FScalarExecProcess sprocessFunc;
-  FExecFinalize finalizeFunc;
+  const char*                name;
+  EFunctionType              type;
+  uint64_t                   classification;
+  FTranslateFunc             translateFunc;
+  FFuncDataRequired          dataRequiredFunc;
+  FFuncDynDataRequired       dynDataRequiredFunc;
+  FExecGetEnv                getEnvFunc;
+  FExecInit                  initFunc;
+  FExecProcess               processFunc;
+  FScalarExecProcess         sprocessFunc;
+  FExecFinalize              finalizeFunc;
+  FExecProcess               invertFunc;
+  FExecCombine               combineFunc;
+  const char*                pPartialFunc;
+  const char*                pMergeFunc;
+  FCreateMergeFuncParameters createMergeParaFuc;
+  FEstimateReturnRows        estimateReturnRowsFunc;
 } SBuiltinFuncDefinition;
 
 extern const SBuiltinFuncDefinition funcMgtBuiltins[];
-extern const int funcMgtBuiltinsNum;
+extern const int                    funcMgtBuiltinsNum;
 
 #ifdef __cplusplus
 }

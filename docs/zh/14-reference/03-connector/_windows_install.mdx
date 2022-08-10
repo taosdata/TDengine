@@ -1,0 +1,31 @@
+import PkgList from "/components/PkgList";
+
+1. 下载客户端安装包
+
+   <PkgList type={1} sys="Windows" />
+
+   [所有下载](https://www.taosdata.com/cn/all-downloads/)
+
+2. 执行安装程序，按提示选择默认值，完成安装
+3. 安装路径
+
+   默认安装路径为：C:\TDengine，其中包括以下文件(目录)：
+
+   - _taos.exe_：TDengine CLI 命令行程序
+   - _cfg_ : 配置文件目录
+   - _driver_: 应用驱动动态链接库
+   - _examples_: 示例程序 bash/C/C#/go/JDBC/Python/Node.js
+   - _include_: 头文件
+   - _log_ : 日志文件
+   - _unins000.exe_: 卸载程序
+
+4. 配置 taos.cfg
+
+   编辑 taos.cfg 文件（默认路径 C:\TDengine\cfg\taos.cfg），将 firstEP 修改为 TDengine 服务器的 End Point，例如：`h1.tdengine.com:6030`。
+
+:::tip
+
+1. 如利用 FQDN 连接服务器，必须确认本机网络环境 DNS 已配置好，或在 hosts 文件中添加 FQDN 寻址记录, 如编辑 C:\Windows\system32\drivers\etc\hosts，添加类似如下的记录：`192.168.1.99 h1.taos.com`
+2. 卸载：运行 unins000.exe 可卸载 TDengine 应用驱动。
+
+:::

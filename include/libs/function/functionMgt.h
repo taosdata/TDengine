@@ -20,8 +20,11 @@
 extern "C" {
 #endif
 
-#include "querynodes.h"
 #include "function.h"
+#include "querynodes.h"
+
+#define FUNC_AGGREGATE_UDF_ID 5001
+#define FUNC_SCALAR_UDF_ID    5002
 
 typedef enum EFunctionType {
   // aggregate function
@@ -31,15 +34,17 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_ELAPSED,
   FUNCTION_TYPE_IRATE,
   FUNCTION_TYPE_LAST_ROW,
-  FUNCTION_TYPE_LEASTSQUARES,
   FUNCTION_TYPE_MAX,
   FUNCTION_TYPE_MIN,
   FUNCTION_TYPE_MODE,
   FUNCTION_TYPE_PERCENTILE,
   FUNCTION_TYPE_SPREAD,
   FUNCTION_TYPE_STDDEV,
+  FUNCTION_TYPE_LEASTSQUARES,
   FUNCTION_TYPE_SUM,
   FUNCTION_TYPE_TWA,
+  FUNCTION_TYPE_HISTOGRAM,
+  FUNCTION_TYPE_HYPERLOGLOG,
 
   // nonstandard SQL function
   FUNCTION_TYPE_BOTTOM = 500,
@@ -54,6 +59,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TAIL,
   FUNCTION_TYPE_TOP,
   FUNCTION_TYPE_UNIQUE,
+  FUNCTION_TYPE_STATE_COUNT,
+  FUNCTION_TYPE_STATE_DURATION,
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
@@ -72,16 +79,21 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_ATAN,
 
   // string function
-  FUNCTION_TYPE_CHAR_LENGTH = 1500,
+  FUNCTION_TYPE_LENGTH = 1500,
+  FUNCTION_TYPE_CHAR_LENGTH,
   FUNCTION_TYPE_CONCAT,
   FUNCTION_TYPE_CONCAT_WS,
-  FUNCTION_TYPE_LENGTH,
+  FUNCTION_TYPE_LOWER,
+  FUNCTION_TYPE_UPPER,
+  FUNCTION_TYPE_LTRIM,
+  FUNCTION_TYPE_RTRIM,
+  FUNCTION_TYPE_SUBSTR,
 
   // conversion function
   FUNCTION_TYPE_CAST = 2000,
   FUNCTION_TYPE_TO_ISO8601,
+  FUNCTION_TYPE_TO_UNIXTIMESTAMP,
   FUNCTION_TYPE_TO_JSON,
-  FUNCTION_TYPE_UNIXTIMESTAMP,
 
   // date and time function
   FUNCTION_TYPE_NOW = 2500,
@@ -93,7 +105,7 @@ typedef enum EFunctionType {
   // system function
   FUNCTION_TYPE_DATABASE = 3000,
   FUNCTION_TYPE_CLIENT_VERSION,
-  FUNCTION_TYPE_SERVER_SERSION,
+  FUNCTION_TYPE_SERVER_VERSION,
   FUNCTION_TYPE_SERVER_STATUS,
   FUNCTION_TYPE_CURRENT_USER,
   FUNCTION_TYPE_USER,
@@ -101,12 +113,56 @@ typedef enum EFunctionType {
   // pseudo column function
   FUNCTION_TYPE_ROWTS = 3500,
   FUNCTION_TYPE_TBNAME,
-  FUNCTION_TYPE_QSTARTTS,
-  FUNCTION_TYPE_QENDTS,
-  FUNCTION_TYPE_WSTARTTS,
-  FUNCTION_TYPE_WENDTS,
-  FUNCTION_TYPE_WDURATION
+  FUNCTION_TYPE_QSTART,
+  FUNCTION_TYPE_QEND,
+  FUNCTION_TYPE_QDURATION,
+  FUNCTION_TYPE_WSTART,
+  FUNCTION_TYPE_WEND,
+  FUNCTION_TYPE_WDURATION,
+
+  // internal function
+  FUNCTION_TYPE_SELECT_VALUE,
+  FUNCTION_TYPE_BLOCK_DIST,       // block distribution aggregate function
+  FUNCTION_TYPE_BLOCK_DIST_INFO,  // block distribution pseudo column function
+  FUNCTION_TYPE_TO_COLUMN,
+  FUNCTION_TYPE_GROUP_KEY,
+  FUNCTION_TYPE_CACHE_LAST_ROW,
+
+  // distributed splitting functions
+  FUNCTION_TYPE_APERCENTILE_PARTIAL = 4000,
+  FUNCTION_TYPE_APERCENTILE_MERGE,
+  FUNCTION_TYPE_SPREAD_PARTIAL,
+  FUNCTION_TYPE_SPREAD_MERGE,
+  FUNCTION_TYPE_HISTOGRAM_PARTIAL,
+  FUNCTION_TYPE_HISTOGRAM_MERGE,
+  FUNCTION_TYPE_HYPERLOGLOG_PARTIAL,
+  FUNCTION_TYPE_HYPERLOGLOG_MERGE,
+  FUNCTION_TYPE_ELAPSED_PARTIAL,
+  FUNCTION_TYPE_ELAPSED_MERGE,
+
+  FUNCTION_TYPE_TOP_PARTIAL,
+  FUNCTION_TYPE_TOP_MERGE,
+  FUNCTION_TYPE_BOTTOM_PARTIAL,
+  FUNCTION_TYPE_BOTTOM_MERGE,
+  FUNCTION_TYPE_FIRST_PARTIAL,
+  FUNCTION_TYPE_FIRST_MERGE,
+  FUNCTION_TYPE_LAST_PARTIAL,
+  FUNCTION_TYPE_LAST_MERGE,
+  FUNCTION_TYPE_AVG_PARTIAL,
+  FUNCTION_TYPE_AVG_MERGE,
+  FUNCTION_TYPE_STDDEV_PARTIAL,
+  FUNCTION_TYPE_STDDEV_MERGE,
+
+  // user defined funcion
+  FUNCTION_TYPE_UDF = 10000
 } EFunctionType;
+
+typedef enum EFuncReturnRows {
+  FUNC_RETURN_ROWS_NORMAL = 1,
+  FUNC_RETURN_ROWS_INDEFINITE,
+  FUNC_RETURN_ROWS_N,
+  FUNC_RETURN_ROWS_N_MINUS_1
+} EFuncReturnRows;
 
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
@@ -116,24 +172,63 @@ int32_t fmFuncMgtInit();
 
 void fmFuncMgtDestroy();
 
-int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType);
+int32_t fmGetFuncInfo(SFunctionNode* pFunc, char* pMsg, int32_t msgLen);
 
-int32_t fmGetFuncResultType(SFunctionNode* pFunc);
+EFuncReturnRows fmGetFuncReturnRows(SFunctionNode* pFunc);
+
+bool fmIsBuiltinFunc(const char* pFunc);
 
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);
-bool fmIsNonstandardSQLFunc(int32_t funcId);
+bool fmIsVectorFunc(int32_t funcId);
+bool fmIsIndefiniteRowsFunc(int32_t funcId);
 bool fmIsStringFunc(int32_t funcId);
 bool fmIsDatetimeFunc(int32_t funcId);
+bool fmIsSelectFunc(int32_t funcId);
 bool fmIsTimelineFunc(int32_t funcId);
 bool fmIsTimeorderFunc(int32_t funcId);
+bool fmIsPseudoColumnFunc(int32_t funcId);
+bool fmIsScanPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowClauseFunc(int32_t funcId);
+bool fmIsSpecialDataRequiredFunc(int32_t funcId);
+bool fmIsDynamicScanOptimizedFunc(int32_t funcId);
+bool fmIsMultiResFunc(int32_t funcId);
+bool fmIsRepeatScanFunc(int32_t funcId);
+bool fmIsUserDefinedFunc(int32_t funcId);
+bool fmIsDistExecFunc(int32_t funcId);
+bool fmIsForbidFillFunc(int32_t funcId);
+bool fmIsForbidStreamFunc(int32_t funcId);
+bool fmIsIntervalInterpoFunc(int32_t funcId);
+bool fmIsInterpFunc(int32_t funcId);
+bool fmIsLastRowFunc(int32_t funcId);
+bool fmIsNotNullOutputFunc(int32_t funcId);
+bool fmIsSelectValueFunc(int32_t funcId);
+bool fmIsSystemInfoFunc(int32_t funcId);
+bool fmIsImplicitTsFunc(int32_t funcId);
+bool fmIsClientPseudoColumnFunc(int32_t funcId);
+bool fmIsMultiRowsFunc(int32_t funcId);
+bool fmIsKeepOrderFunc(int32_t funcId);
+bool fmIsCumulativeFunc(int32_t funcId);
 
-int32_t fmFuncScanType(int32_t funcId);
+int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
+
+typedef enum EFuncDataRequired {
+  FUNC_DATA_REQUIRED_DATA_LOAD = 1,
+  FUNC_DATA_REQUIRED_STATIS_LOAD,
+  FUNC_DATA_REQUIRED_NOT_LOAD,
+  FUNC_DATA_REQUIRED_FILTEROUT,
+} EFuncDataRequired;
+
+EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
+EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, STimeWindow* pTimeWindow);
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);
+int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
+int32_t fmSetInvertFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
+int32_t fmSetNormalFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
+bool    fmIsInvertible(int32_t funcId);
 
 #ifdef __cplusplus
 }

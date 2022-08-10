@@ -7,7 +7,6 @@
 ##################################################
 
 set +e
-#set -x
 
 FILE_NAME=
 RELEASE=0
@@ -16,7 +15,8 @@ VALGRIND=0
 UNIQUE=0
 UNAME_BIN=`which uname`
 OS_TYPE=`$UNAME_BIN`
-while getopts "f:avu" arg
+MULTIPROCESS=0
+while getopts "f:avum" arg
 do
   case $arg in
     f)
@@ -27,6 +27,9 @@ do
       ;;
     u)
       UNIQUE=1
+      ;;
+    m)
+      MULTIPROCESS=1
       ;;
     ?)
       echo "unknow argument"
@@ -57,16 +60,16 @@ else
 fi
 
 if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  BIN_DIR=`find . -name "taosd"|grep source|head -n1|cut -d '/' ${cut_opt}2,3`
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2,3`
 else
-  BIN_DIR=`find . -name "taosd"|grep source|head -n1|cut -d '/' ${cut_opt}2`
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2`
 fi
 
-BUILD_DIR=$TOP_DIR/$BIN_DIR
+declare -x BUILD_DIR=$TOP_DIR/$BIN_DIR
 
-SIM_DIR=$TOP_DIR/sim
+declare -x SIM_DIR=$TOP_DIR/sim
 
-PROGRAM=$BUILD_DIR/tests/tsim/tsim
+PROGRAM=$BUILD_DIR/build/bin/tsim
 
 PRG_DIR=$SIM_DIR/tsim
 CFG_DIR=$PRG_DIR/cfg
@@ -81,6 +84,7 @@ echo "SIM_DIR  : $SIM_DIR"
 echo "CODE_DIR : $CODE_DIR"
 echo "CFG_DIR  : $CFG_DIR"
 
+rm -rf $SIM_DIR/*
 rm -rf $LOG_DIR
 rm -rf $CFG_DIR
 
@@ -122,11 +126,22 @@ ulimit -c unlimited
 if [ -n "$FILE_NAME" ]; then
   echo "------------------------------------------------------------------------"
   if [ $VALGRIND -eq 1 ]; then
-    echo valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes  --log-file=${CODE_DIR}/../script/valgrind.log $PROGRAM -c $CFG_DIR -f $FILE_NAME
-    valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes  --log-file=${CODE_DIR}/../script/valgrind.log $PROGRAM -c $CFG_DIR -f $FILE_NAME
+    if [[ $MULTIPROCESS -eq 1 ]];then
+      FLAG="-m -v"
+    else
+      FLAG="-v"    
+    fi 
+  
+    echo valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --child-silent-after-fork=yes --show-leak-kinds=all --num-callers=20 -v  --workaround-gcc296-bugs=yes  --log-file=${LOG_DIR}/valgrind-tsim.log $PROGRAM -c $CFG_DIR -f $FILE_NAME $FLAG
+    valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --child-silent-after-fork=yes --show-leak-kinds=all --num-callers=20 -v  --workaround-gcc296-bugs=yes  --log-file=${LOG_DIR}/valgrind-tsim.log $PROGRAM -c $CFG_DIR -f $FILE_NAME $FLAG
   else
-    echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f $FILE_NAME
-    $PROGRAM -c $CFG_DIR -f $FILE_NAME
+    if [[ $MULTIPROCESS -eq 1 ]];then
+      echo "ExcuteCmd(multiprocess):" $PROGRAM -m -c $CFG_DIR -f $FILE_NAME  
+      $PROGRAM -m -c $CFG_DIR -f $FILE_NAME
+    else
+      echo "ExcuteCmd(singleprocess):" $PROGRAM -c $CFG_DIR -f $FILE_NAME  
+      $PROGRAM -c $CFG_DIR -f $FILE_NAME
+    fi
   fi
 else
   echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f basicSuite.sim

@@ -29,8 +29,10 @@ extern "C" {
 #define TSKEY_MAX         (INT64_MAX - 1)
 #define TSKEY_INITIAL_VAL TSKEY_MIN
 
+#define TD_VER_MAX UINT64_MAX  // TODO: use the real max version from query handle
+
 // Bytes for each type.
-extern const int32_t TYPE_BYTES[15];
+extern const int32_t TYPE_BYTES[16];
 
 // TODO: replace and remove code below
 #define CHAR_BYTES      sizeof(char)
@@ -47,12 +49,12 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_DATA_BOOL_NULL      0x02
 #define TSDB_DATA_TINYINT_NULL   0x80
 #define TSDB_DATA_SMALLINT_NULL  0x8000
-#define TSDB_DATA_INT_NULL       0x80000000L
-#define TSDB_DATA_BIGINT_NULL    0x8000000000000000L
+#define TSDB_DATA_INT_NULL       0x80000000LL
+#define TSDB_DATA_BIGINT_NULL    0x8000000000000000LL
 #define TSDB_DATA_TIMESTAMP_NULL TSDB_DATA_BIGINT_NULL
 
-#define TSDB_DATA_FLOAT_NULL  0x7FF00000           // it is an NAN
-#define TSDB_DATA_DOUBLE_NULL 0x7FFFFF0000000000L  // an NAN
+#define TSDB_DATA_FLOAT_NULL  0x7FF00000            // it is an NAN
+#define TSDB_DATA_DOUBLE_NULL 0x7FFFFF0000000000LL  // an NAN
 #define TSDB_DATA_NCHAR_NULL  0xFFFFFFFF
 #define TSDB_DATA_BINARY_NULL 0xFF
 
@@ -76,8 +78,6 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_DEFAULT_PASS "taosdata"
 #endif
 
-#define SHELL_MAX_PASSWORD_LEN 20
-
 #define TSDB_TRUE  1
 #define TSDB_FALSE 0
 #define TSDB_OK    0
@@ -86,34 +86,31 @@ extern const int32_t TYPE_BYTES[15];
 #define TS_PATH_DELIMITER "."
 #define TS_ESCAPE_CHAR    '`'
 
-#define TSDB_TIME_PRECISION_MILLI 0
-#define TSDB_TIME_PRECISION_MICRO 1
-#define TSDB_TIME_PRECISION_NANO  2
+#define TSDB_TIME_PRECISION_MILLI   0
+#define TSDB_TIME_PRECISION_MICRO   1
+#define TSDB_TIME_PRECISION_NANO    2
+#define TSDB_TIME_PRECISION_HOURS   3
+#define TSDB_TIME_PRECISION_MINUTES 4
+#define TSDB_TIME_PRECISION_SECONDS 5
 
 #define TSDB_TIME_PRECISION_MILLI_STR "ms"
 #define TSDB_TIME_PRECISION_MICRO_STR "us"
 #define TSDB_TIME_PRECISION_NANO_STR  "ns"
 
-#define TSDB_INFORMATION_SCHEMA_DB            "information_schema"
-#define TSDB_INS_TABLE_DNODES                 "dnodes"
-#define TSDB_INS_TABLE_MNODES                 "mnodes"
-#define TSDB_INS_TABLE_MODULES                "modules"
-#define TSDB_INS_TABLE_QNODES                 "qnodes"
-#define TSDB_INS_TABLE_USER_DATABASES         "user_databases"
-#define TSDB_INS_TABLE_USER_FUNCTIONS         "user_functions"
-#define TSDB_INS_TABLE_USER_INDEXES           "user_indexes"
-#define TSDB_INS_TABLE_USER_STABLES           "user_stables"
-#define TSDB_INS_TABLE_USER_STREAMS           "user_streams"
-#define TSDB_INS_TABLE_USER_TABLES            "user_tables"
-#define TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED "user_table_distributed"
-#define TSDB_INS_TABLE_USER_USERS             "user_users"
-#define TSDB_INS_TABLE_VGROUPS                "vgroups"
+#define TSDB_TIME_PRECISION_SEC_DIGITS   10
+#define TSDB_TIME_PRECISION_MILLI_DIGITS 13
+#define TSDB_TIME_PRECISION_MICRO_DIGITS 16
+#define TSDB_TIME_PRECISION_NANO_DIGITS  19
 
-#define TSDB_INS_USER_STABLES_DBNAME_COLID    2
+#define TSDB_INDEX_TYPE_SMA      "SMA"
+#define TSDB_INDEX_TYPE_FULLTEXT "FULLTEXT"
 
-#define TSDB_TICK_PER_SECOND(precision)                      \
-  ((int64_t)((precision) == TSDB_TIME_PRECISION_MILLI ? 1e3L \
-                                                      : ((precision) == TSDB_TIME_PRECISION_MICRO ? 1e6L : 1e9L)))
+#define TSDB_INS_USER_STABLES_DBNAME_COLID 2
+
+#define TSDB_TICK_PER_SECOND(precision)               \
+  ((int64_t)((precision) == TSDB_TIME_PRECISION_MILLI \
+                 ? 1000LL                             \
+                 : ((precision) == TSDB_TIME_PRECISION_MICRO ? 1000000LL : 1000000000LL)))
 
 #define T_MEMBER_SIZE(type, member) sizeof(((type *)0)->member)
 #define T_APPEND_MEMBER(dst, ptr, type, member)                                     \
@@ -128,18 +125,21 @@ extern const int32_t TYPE_BYTES[15];
   } while (0)
 
 typedef enum EOperatorType {
-  // arithmetic operator
+  // binary arithmetic operator
   OP_TYPE_ADD = 1,
   OP_TYPE_SUB,
   OP_TYPE_MULTI,
   OP_TYPE_DIV,
-  OP_TYPE_MOD,
+  OP_TYPE_REM,
+  // unary arithmetic operator
+  OP_TYPE_MINUS,
+  OP_TYPE_ASSIGN,
 
-  // bit operator
+  // bitwise operator
   OP_TYPE_BIT_AND,
   OP_TYPE_BIT_OR,
 
-  // comparison operator
+  // binary comparison operator
   OP_TYPE_GREATER_THAN,
   OP_TYPE_GREATER_EQUAL,
   OP_TYPE_LOWER_THAN,
@@ -152,6 +152,7 @@ typedef enum EOperatorType {
   OP_TYPE_NOT_LIKE,
   OP_TYPE_MATCH,
   OP_TYPE_NMATCH,
+  // unary comparison operator
   OP_TYPE_IS_NULL,
   OP_TYPE_IS_NOT_NULL,
   OP_TYPE_IS_TRUE,
@@ -166,21 +167,13 @@ typedef enum EOperatorType {
   OP_TYPE_JSON_CONTAINS
 } EOperatorType;
 
+#define OP_TYPE_CALC_MAX OP_TYPE_BIT_OR
+
 typedef enum ELogicConditionType {
-  LOGIC_COND_TYPE_AND,
+  LOGIC_COND_TYPE_AND = 1,
   LOGIC_COND_TYPE_OR,
   LOGIC_COND_TYPE_NOT,
 } ELogicConditionType;
-
-#define FUNCTION_CEIL  4500
-#define FUNCTION_FLOOR 4501
-#define FUNCTION_ABS   4502
-#define FUNCTION_ROUND 4503
-
-#define FUNCTION_LENGTH 4800
-#define FUNCTION_CONCAT 4801
-#define FUNCTION_LTRIM  4802
-#define FUNCTION_RTRIM  4803
 
 #define TSDB_NAME_DELIMITER_LEN 1
 
@@ -202,18 +195,23 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_FNAME_LEN   (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 
 #define TSDB_FUNC_NAME_LEN       65
-#define TSDB_FUNC_COMMENT_LEN    4096
-#define TSDB_FUNC_CODE_LEN       (65535 - 512)
+#define TSDB_FUNC_COMMENT_LEN    1024 * 1024
+#define TSDB_FUNC_CODE_LEN       10 * 1024 * 1024
 #define TSDB_FUNC_BUF_SIZE       512
 #define TSDB_FUNC_TYPE_SCALAR    1
 #define TSDB_FUNC_TYPE_AGGREGATE 2
+#define TSDB_FUNC_SCRIPT_BIN_LIB 0
+#define TSDB_FUNC_SCRIPT_LUA     1
 #define TSDB_FUNC_MAX_RETRIEVE   1024
 
 #define TSDB_INDEX_NAME_LEN      65  // 64 + 1 '\0'
+#define TSDB_INDEX_TYPE_LEN      10
+#define TSDB_INDEX_EXTS_LEN      256
+#define TSDB_INDEX_FNAME_LEN     (TSDB_DB_FNAME_LEN + TSDB_INDEX_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_TYPE_STR_MAX_LEN    32
 #define TSDB_TABLE_FNAME_LEN     (TSDB_DB_FNAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
-#define TSDB_TOPIC_FNAME_LEN     TSDB_TABLE_FNAME_LEN
-#define TSDB_STREAM_FNAME_LEN    TSDB_TABLE_FNAME_LEN
+#define TSDB_TOPIC_FNAME_LEN     (TSDB_ACCT_ID_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
+#define TSDB_STREAM_FNAME_LEN    (TSDB_ACCT_ID_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_SUBSCRIBE_KEY_LEN   (TSDB_CGROUP_LEN + TSDB_TOPIC_FNAME_LEN + 2)
 #define TSDB_PARTITION_KEY_LEN   (TSDB_SUBSCRIBE_KEY_LEN + 20)
 #define TSDB_COL_NAME_LEN        65
@@ -222,8 +220,11 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_SQL_SHOW_LEN    1024
 #define TSDB_MAX_ALLOWED_SQL_LEN (1 * 1024 * 1024u)  // sql length should be less than 1mb
 
-#define TSDB_APP_NAME_LEN    TSDB_UNI_LEN
-#define TSDB_STB_COMMENT_LEN 1024
+#define TSDB_APP_NAME_LEN   TSDB_UNI_LEN
+#define TSDB_TB_COMMENT_LEN 1025
+
+#define TSDB_QUERY_ID_LEN 26
+
 /**
  *  In some scenarios uint16_t (0~65535) is used to store the row len.
  *  - Firstly, we use 65531(65535 - 4), as the SDataRow/SKVRow contains 4 bits header.
@@ -235,24 +236,28 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_TAGS           128
 #define TSDB_MAX_TAG_CONDITIONS 1024
 
+#define TSDB_MAX_JSON_TAG_LEN 16384
+#define TSDB_MAX_JSON_KEY_LEN 256
+
 #define TSDB_AUTH_LEN          16
 #define TSDB_PASSWORD_LEN      32
 #define TSDB_USET_PASSWORD_LEN 129
 #define TSDB_VERSION_LEN       12
 #define TSDB_LABEL_LEN         8
+#define TSDB_JOB_STATUS_LEN    32
 
 #define TSDB_CLUSTER_ID_LEN     40
 #define TSDB_FQDN_LEN           128
 #define TSDB_EP_LEN             (TSDB_FQDN_LEN + 6)
 #define TSDB_IPv4ADDR_LEN       16
 #define TSDB_FILENAME_LEN       128
-#define TSDB_SHOW_SQL_LEN       512
-#define TSDB_SHOW_SUBQUERY_LEN  1000
+#define TSDB_SHOW_SQL_LEN       1024
 #define TSDB_SLOW_QUERY_SQL_LEN 512
+#define TSDB_SHOW_SUBQUERY_LEN  1000
 
 #define TSDB_TRANS_STAGE_LEN 12
 #define TSDB_TRANS_TYPE_LEN  16
-#define TSDB_TRANS_ERROR_LEN 64
+#define TSDB_TRANS_ERROR_LEN 512
 
 #define TSDB_STEP_NAME_LEN 32
 #define TSDB_STEP_DESC_LEN 128
@@ -260,16 +265,6 @@ typedef enum ELogicConditionType {
 #define TSDB_ERROR_MSG_LEN    1024
 #define TSDB_DNODE_CONFIG_LEN 128
 #define TSDB_DNODE_VALUE_LEN  256
-
-#define TSDB_MQTT_HOSTNAME_LEN  64
-#define TSDB_MQTT_PORT_LEN      8
-#define TSDB_MQTT_USER_LEN      24
-#define TSDB_MQTT_PASS_LEN      24
-#define TSDB_MQTT_TOPIC_LEN     64
-#define TSDB_MQTT_CLIENT_ID_LEN 32
-
-#define TSDB_DB_TYPE_DEFAULT 0
-#define TSDB_DB_TYPE_TOPIC   1
 
 #define TSDB_DEFAULT_PKT_SIZE 65480  // same as RPC_MAX_UDP_SIZE
 
@@ -279,9 +274,6 @@ typedef enum ELogicConditionType {
 #define TSDB_CQ_SQL_SIZE          1024
 #define TSDB_MIN_VNODES           16
 #define TSDB_MAX_VNODES           512
-#define TSDB_MIN_VNODES_PER_DB    1
-#define TSDB_MAX_VNODES_PER_DB    4096
-#define TSDB_DEFAULT_VN_PER_DB    2
 
 #define TSDB_DNODE_ROLE_ANY   0
 #define TSDB_DNODE_ROLE_MGMT  1
@@ -295,102 +287,105 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MULTI_TABLEMETA_MAX_NUM 100000  // maximum batch size allowed to load table meta
 
-#define TSDB_MIN_CACHE_BLOCK_SIZE     1
-#define TSDB_MAX_CACHE_BLOCK_SIZE     128  // 128MB for each vnode
-#define TSDB_DEFAULT_CACHE_BLOCK_SIZE 16
+#define TSDB_MIN_VNODES_PER_DB          1
+#define TSDB_MAX_VNODES_PER_DB          1024
+#define TSDB_DEFAULT_VN_PER_DB          2
+#define TSDB_MIN_BUFFER_PER_VNODE       3      // unit MB
+#define TSDB_MAX_BUFFER_PER_VNODE       16384  // unit MB
+#define TSDB_DEFAULT_BUFFER_PER_VNODE   96
+#define TSDB_MIN_PAGES_PER_VNODE        64
+#define TSDB_MAX_PAGES_PER_VNODE        16384
+#define TSDB_DEFAULT_PAGES_PER_VNODE    256
+#define TSDB_MIN_PAGESIZE_PER_VNODE     1  // unit KB
+#define TSDB_MAX_PAGESIZE_PER_VNODE     16384
+#define TSDB_DEFAULT_PAGESIZE_PER_VNODE 4
+#define TSDB_MIN_DAYS_PER_FILE          60  // unit minute
+#define TSDB_MAX_DAYS_PER_FILE          (3650 * 1440)
+#define TSDB_DEFAULT_DAYS_PER_FILE      (10 * 1440)
+#define TSDB_MIN_DURATION_PER_FILE      60  // unit minute
+#define TSDB_MAX_DURATION_PER_FILE      (3650 * 1440)
+#define TSDB_DEFAULT_DURATION_PER_FILE  (10 * 1440)
+#define TSDB_MIN_KEEP                   (1 * 1440)       // data in db to be reserved. unit minute
+#define TSDB_MAX_KEEP                   (365000 * 1440)  // data in db to be reserved.
+#define TSDB_DEFAULT_KEEP               (3650 * 1440)    // ten years
+#define TSDB_MIN_MINROWS_FBLOCK         10
+#define TSDB_MAX_MINROWS_FBLOCK         1000
+#define TSDB_DEFAULT_MINROWS_FBLOCK     100
+#define TSDB_MIN_MAXROWS_FBLOCK         200
+#define TSDB_MAX_MAXROWS_FBLOCK         10000
+#define TSDB_DEFAULT_MAXROWS_FBLOCK     4096
+#define TSDB_MIN_FSYNC_PERIOD           0
+#define TSDB_MAX_FSYNC_PERIOD           180000  // millisecond
+#define TSDB_DEFAULT_FSYNC_PERIOD       3000    // three second
+#define TSDB_MIN_WAL_LEVEL              1
+#define TSDB_MAX_WAL_LEVEL              2
+#define TSDB_DEFAULT_WAL_LEVEL          1
+#define TSDB_MIN_PRECISION              TSDB_TIME_PRECISION_MILLI
+#define TSDB_MAX_PRECISION              TSDB_TIME_PRECISION_NANO
+#define TSDB_DEFAULT_PRECISION          TSDB_TIME_PRECISION_MILLI
+#define TSDB_MIN_COMP_LEVEL             0
+#define TSDB_MAX_COMP_LEVEL             2
+#define TSDB_DEFAULT_COMP_LEVEL         2
+#define TSDB_MIN_DB_REPLICA             1
+#define TSDB_MAX_DB_REPLICA             3
+#define TSDB_DEFAULT_DB_REPLICA         1
+#define TSDB_DB_STRICT_STR_LEN          sizeof(TSDB_DB_STRICT_OFF_STR)
+#define TSDB_DB_STRICT_OFF_STR          "off"
+#define TSDB_DB_STRICT_ON_STR           "on"
+#define TSDB_DB_STRICT_OFF              0
+#define TSDB_DB_STRICT_ON               1
+#define TSDB_DEFAULT_DB_STRICT          TSDB_DB_STRICT_OFF
+#define TSDB_CACHE_MODEL_STR_LEN        sizeof(TSDB_CACHE_MODEL_LAST_VALUE_STR)
+#define TSDB_CACHE_MODEL_NONE_STR       "none"
+#define TSDB_CACHE_MODEL_LAST_ROW_STR   "last_row"
+#define TSDB_CACHE_MODEL_LAST_VALUE_STR "last_value"
+#define TSDB_CACHE_MODEL_BOTH_STR       "both"
+#define TSDB_CACHE_MODEL_NONE           0
+#define TSDB_CACHE_MODEL_LAST_ROW       1
+#define TSDB_CACHE_MODEL_LAST_VALUE     2
+#define TSDB_CACHE_MODEL_BOTH           3
+#define TSDB_DEFAULT_CACHE_MODEL        TSDB_CACHE_MODEL_NONE
+#define TSDB_MIN_DB_CACHE_SIZE          1  // MB
+#define TSDB_MAX_DB_CACHE_SIZE          65536
+#define TSDB_DEFAULT_CACHE_SIZE         1
+#define TSDB_DB_STREAM_MODE_OFF         0
+#define TSDB_DB_STREAM_MODE_ON          1
+#define TSDB_DEFAULT_DB_STREAM_MODE     0
+#define TSDB_DB_SINGLE_STABLE_ON        1
+#define TSDB_DB_SINGLE_STABLE_OFF       0
+#define TSDB_DEFAULT_DB_SINGLE_STABLE   TSDB_DB_SINGLE_STABLE_OFF
+#define TSDB_DB_SCHEMALESS_ON           1
+#define TSDB_DB_SCHEMALESS_OFF          0
+#define TSDB_DEFAULT_DB_SCHEMALESS      TSDB_DB_SCHEMALESS_OFF
 
-#define TSDB_MIN_TOTAL_BLOCKS     3
-#define TSDB_MAX_TOTAL_BLOCKS     10000
-#define TSDB_DEFAULT_TOTAL_BLOCKS 6
+#define TSDB_DB_MIN_WAL_RETENTION_PERIOD     -1
+#define TSDB_DEFAULT_DB_WAL_RETENTION_PERIOD (24 * 60 * 60 * 2)
+#define TSDB_DB_MIN_WAL_RETENTION_SIZE       -1
+#define TSDB_DEFAULT_DB_WAL_RETENTION_SIZE   -1
+#define TSDB_DB_MIN_WAL_ROLL_PERIOD          0
+#define TSDB_DEFAULT_DB_WAL_ROLL_PERIOD      (24 * 60 * 60 * 1)
+#define TSDB_DB_MIN_WAL_SEGMENT_SIZE         0
+#define TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE     0
 
-#define TSDB_MIN_DAYS_PER_FILE     1
-#define TSDB_MAX_DAYS_PER_FILE     3650
-#define TSDB_DEFAULT_DAYS_PER_FILE 10
+#define TSDB_MIN_ROLLUP_MAX_DELAY     1  // unit millisecond
+#define TSDB_MAX_ROLLUP_MAX_DELAY     (15 * 60 * 1000)
+#define TSDB_MIN_ROLLUP_WATERMARK     0  // unit millisecond
+#define TSDB_MAX_ROLLUP_WATERMARK     (15 * 60 * 1000)
+#define TSDB_DEFAULT_ROLLUP_WATERMARK 5000
+#define TSDB_MIN_TABLE_TTL            0
+#define TSDB_DEFAULT_TABLE_TTL        0
 
-#define TSDB_MIN_KEEP     1       // data in db to be reserved.
-#define TSDB_MAX_KEEP     365000  // data in db to be reserved.
-#define TSDB_DEFAULT_KEEP 3650    // ten years
-
-#define TSDB_MIN_MIN_ROW_FBLOCK     10
-#define TSDB_MAX_MIN_ROW_FBLOCK     1000
-#define TSDB_DEFAULT_MIN_ROW_FBLOCK 100
-
-#define TSDB_MIN_MAX_ROW_FBLOCK     200
-#define TSDB_MAX_MAX_ROW_FBLOCK     10000
-#define TSDB_DEFAULT_MAX_ROW_FBLOCK 4096
-
-#define TSDB_MIN_COMMIT_TIME     30
-#define TSDB_MAX_COMMIT_TIME     40960
-#define TSDB_DEFAULT_COMMIT_TIME 3600
-
-#define TSDB_MIN_FSYNC_PERIOD     0
-#define TSDB_MAX_FSYNC_PERIOD     180000  // millisecond
-#define TSDB_DEFAULT_FSYNC_PERIOD 3000    // three second
-
-#define TSDB_MIN_WAL_LEVEL     0
-#define TSDB_MAX_WAL_LEVEL     2
-#define TSDB_DEFAULT_WAL_LEVEL 1
-
-#define TSDB_MIN_PRECISION     TSDB_TIME_PRECISION_MILLI
-#define TSDB_MAX_PRECISION     TSDB_TIME_PRECISION_NANO
-#define TSDB_DEFAULT_PRECISION TSDB_TIME_PRECISION_MILLI
-
-#define TSDB_MIN_COMP_LEVEL     0
-#define TSDB_MAX_COMP_LEVEL     2
-#define TSDB_DEFAULT_COMP_LEVEL 2
-
-#define TSDB_MIN_DB_REPLICA_OPTION     1
-#define TSDB_MAX_DB_REPLICA_OPTION     3
-#define TSDB_DEFAULT_DB_REPLICA_OPTION 1
-
-#define TSDB_MIN_DB_QUORUM_OPTION     1
-#define TSDB_MAX_DB_QUORUM_OPTION     2
-#define TSDB_DEFAULT_DB_QUORUM_OPTION 1
-
-#define TSDB_MIN_DB_TTL_OPTION     1
-#define TSDB_DEFAULT_DB_TTL_OPTION 0
-
-#define TSDB_MIN_DB_SINGLE_STABLE_OPTION     0
-#define TSDB_MAX_DB_SINGLE_STABLE_OPTION     1
-#define TSDB_DEFAULT_DB_SINGLE_STABLE_OPTION 0
-
-#define TSDB_MIN_DB_STREAM_MODE_OPTION     0
-#define TSDB_MAX_DB_STREAM_MODE_OPTION     1
-#define TSDB_DEFAULT_DB_STREAM_MODE_OPTION 0
+#define TSDB_MIN_EXPLAIN_RATIO     0
+#define TSDB_MAX_EXPLAIN_RATIO     1
+#define TSDB_DEFAULT_EXPLAIN_RATIO 0.001
 
 #define TSDB_MAX_JOIN_TABLE_NUM 10
 #define TSDB_MAX_UNION_CLAUSE   5
-
-#define TSDB_MIN_DB_UPDATE            0
-#define TSDB_MAX_DB_UPDATE            2
-#define TSDB_DEFAULT_DB_UPDATE_OPTION 0
-
-#define TSDB_MIN_DB_CACHE_LAST_ROW  0
-#define TSDB_MAX_DB_CACHE_LAST_ROW  3
-#define TSDB_DEFAULT_CACHE_LAST_ROW 0
-
-#define TSDB_MIN_DB_STREAM_MODE     0
-#define TSDB_MAX_DB_STREAM_MODE     1
-#define TSDB_DEFAULT_DB_STREAM_MODE 0
-
-#define TSDB_MIN_DB_FILE_FACTOR     0
-#define TSDB_MAX_DB_FILE_FACTOR     1
-#define TSDB_DEFAULT_DB_FILE_FACTOR 0.1
-
-#define TSDB_MIN_DB_DELAY     1
-#define TSDB_MAX_DB_DELAY     10
-#define TSDB_DEFAULT_DB_DELAY 2
 
 #define TSDB_DEFAULT_EXPLAIN_VERBOSE false
 
-#define TSDB_MIN_EXPLAIN_RATIO       0
-#define TSDB_MAX_EXPLAIN_RATIO       1
-#define TSDB_DEFAULT_EXPLAIN_RATIO   0.001
-
-#define TSDB_EXPLAIN_RESULT_ROW_SIZE 1024
-
-#define TSDB_MAX_JOIN_TABLE_NUM 10
-#define TSDB_MAX_UNION_CLAUSE   5
+#define TSDB_EXPLAIN_RESULT_ROW_SIZE    512
+#define TSDB_EXPLAIN_RESULT_COLUMN_NAME "QUERY_PLAN"
 
 #define TSDB_MAX_FIELD_LEN             16384
 #define TSDB_MAX_BINARY_LEN            (TSDB_MAX_FIELD_LEN - TSDB_KEYSIZE)  // keep 16384
@@ -398,7 +393,11 @@ typedef enum ELogicConditionType {
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
 
-#define TSDB_MAX_RPC_THREADS 5
+#ifdef WINDOWS
+#define TSDB_MAX_RPC_THREADS 4  // windows pipe only support 4 connections.
+#else
+#define TSDB_MAX_RPC_THREADS 10
+#endif
 
 #define TSDB_QUERY_TYPE_NON_TYPE      0x00u  // none type
 #define TSDB_QUERY_TYPE_FREE_RESOURCE 0x01u  // free qhandle at vnode
@@ -409,21 +408,9 @@ typedef enum ELogicConditionType {
  * 1. ordinary sub query for select * from super_table
  * 2. all sqlobj generated by createSubqueryObj with this flag
  */
-#define TSDB_QUERY_TYPE_SUBQUERY        0x02u
-#define TSDB_QUERY_TYPE_STABLE_SUBQUERY 0x04u  // two-stage subquery for super table
-
-#define TSDB_QUERY_TYPE_TABLE_QUERY      0x08u  // query ordinary table; below only apply to client side
-#define TSDB_QUERY_TYPE_STABLE_QUERY     0x10u  // query on super table
-#define TSDB_QUERY_TYPE_JOIN_QUERY       0x20u  // join query
-#define TSDB_QUERY_TYPE_PROJECTION_QUERY 0x40u  // select *,columns... query
-#define TSDB_QUERY_TYPE_JOIN_SEC_STAGE   0x80u  // join sub query at the second stage
-
-#define TSDB_QUERY_TYPE_TAG_FILTER_QUERY 0x400u
-#define TSDB_QUERY_TYPE_INSERT           0x100u  // insert type
-#define TSDB_QUERY_TYPE_MULTITABLE_QUERY 0x200u
-#define TSDB_QUERY_TYPE_FILE_INSERT      0x400u   // insert data from file
-#define TSDB_QUERY_TYPE_STMT_INSERT      0x800u   // stmt insert type
-#define TSDB_QUERY_TYPE_NEST_SUBQUERY    0x1000u  // nested sub query
+#define TSDB_QUERY_TYPE_INSERT      0x100u  // insert type
+#define TSDB_QUERY_TYPE_FILE_INSERT 0x400u  // insert data from file
+#define TSDB_QUERY_TYPE_STMT_INSERT 0x800u  // stmt insert type
 
 #define TSDB_QUERY_HAS_TYPE(x, _type)   (((x) & (_type)) != 0)
 #define TSDB_QUERY_SET_TYPE(x, _type)   ((x) |= (_type))
@@ -443,7 +430,7 @@ typedef enum ELogicConditionType {
 #define TSDB_DEFAULT_STABLES_HASH_SIZE  100
 #define TSDB_DEFAULT_CTABLES_HASH_SIZE  20000
 
-#define TSDB_MAX_WAL_SIZE (1024 * 1024 * 3)
+#define TSDB_MAX_MSG_SIZE (1024 * 1024 * 10)
 
 #define TSDB_ARB_DUMMY_TIME 4765104000000  // 2121-01-01 00:00:00.000, :P
 
@@ -467,17 +454,28 @@ typedef struct {
 
 #define TMQ_SEPARATOR ':'
 
-#define SND_UNIQUE_THREAD_NUM 2
-#define SND_SHARED_THREAD_NUM 2
-
 enum {
   SND_WORKER_TYPE__SHARED = 1,
   SND_WORKER_TYPE__UNIQUE,
 };
 
-#define MND_VGID -1
-#define QND_VGID 1
-#define VND_VGID 0
+#define DEFAULT_HANDLE 0
+#define MNODE_HANDLE   1
+#define QNODE_HANDLE   -1
+#define SNODE_HANDLE   -2
+#define VNODE_HANDLE   -3
+#define BNODE_HANDLE   -4
+
+#define TSDB_CONFIG_OPTION_LEN 32
+#define TSDB_CONFIG_VALUE_LEN  64
+#define TSDB_CONFIG_NUMBER     8
+
+#define QUERY_ID_SIZE      20
+#define QUERY_OBJ_ID_SIZE  18
+#define SUBQUERY_INFO_SIZE 6
+#define QUERY_SAVE_SIZE    20
+
+#define MAX_NUM_STR_SIZE 40
 
 #ifdef __cplusplus
 }

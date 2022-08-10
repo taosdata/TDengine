@@ -66,7 +66,7 @@ class TDTestCase:
         tdDnodes.deploy(1,cfg)
         tdDnodes.startWithoutSleep(1)
 
-        tdSql.execute("create database test days 1")
+        tdSql.execute("create database test duration 1")
         tdSql.execute("use test")
 
         tdSql.execute("create table stb(ts timestamp, c int) tags(t int)")
@@ -85,7 +85,7 @@ class TDTestCase:
         tdLog.info("================= step3")
         tdSql.execute('drop database test')
         for i in range(50):
-            tdSql.execute("create database test%d days 1" %(i))
+            tdSql.execute("create database test%d duration 1" %(i))
             tdSql.execute("use test%d" %(i))
             tdSql.execute("create table tb (ts timestamp,i int)") 
             for j in range(10):           

@@ -25,9 +25,9 @@ extern "C" {
 // reference counting
 typedef void (*_ref_fn_t)(const void *pObj);
 
-#define T_REF_DECLARE() \
-  struct {              \
-    int32_t val;        \
+#define T_REF_DECLARE()   \
+  struct {                \
+    volatile int32_t val; \
   } _ref;
 
 #define T_REF_REGISTER_FUNC(s, e) \
@@ -71,11 +71,12 @@ typedef void (*_ref_fn_t)(const void *pObj);
 // single writer multiple reader lock
 typedef volatile int32_t SRWLatch;
 
-void taosInitRWLatch(SRWLatch *pLatch);
-void taosWLockLatch(SRWLatch *pLatch);
-void taosWUnLockLatch(SRWLatch *pLatch);
-void taosRLockLatch(SRWLatch *pLatch);
-void taosRUnLockLatch(SRWLatch *pLatch);
+void    taosInitRWLatch(SRWLatch *pLatch);
+void    taosWLockLatch(SRWLatch *pLatch);
+void    taosWUnLockLatch(SRWLatch *pLatch);
+void    taosRLockLatch(SRWLatch *pLatch);
+void    taosRUnLockLatch(SRWLatch *pLatch);
+int32_t taosWTryLockLatch(SRWLatch *pLatch);
 
 // copy on read
 #define taosCorBeginRead(x)                     \

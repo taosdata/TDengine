@@ -15,32 +15,42 @@
 
 #include "querynodes.h"
 
-#define COMPARE_SCALAR_FIELD(fldname) \
-	do { \
-		if (a->fldname != b->fldname) \
-			return false; \
-	} while (0)
+#define COMPARE_SCALAR_FIELD(fldname)           \
+  do {                                          \
+    if (a->fldname != b->fldname) return false; \
+  } while (0)
 
-#define COMPARE_STRING(a, b)	\
-	(((a) != NULL && (b) != NULL) ? (strcmp(a, b) == 0) : (a) == (b))
+#define COMPARE_STRING(a, b) (((a) != NULL && (b) != NULL) ? (strcmp((a), (b)) == 0) : (a) == (b))
 
-#define COMPARE_STRING_FIELD(fldname) \
-	do { \
-		if (!COMPARE_STRING(a->fldname, b->fldname)) \
-			return false; \
-	} while (0)
+#define COMPARE_VARDATA(a, b)                                                                                   \
+  (((a) != NULL && (b) != NULL)                                                                                 \
+       ? (varDataLen((a)) == varDataLen((b)) && memcmp(varDataVal((a)), varDataVal((b)), varDataLen((a))) == 0) \
+       : (a) == (b))
 
-#define COMPARE_NODE_FIELD(fldname) \
-	do { \
-		if (!nodesEqualNode(a->fldname, b->fldname)) \
-			return false; \
-	} while (0)
+#define COMPARE_STRING_FIELD(fldname)                          \
+  do {                                                         \
+    if (!COMPARE_STRING(a->fldname, b->fldname)) return false; \
+  } while (0)
 
-#define COMPARE_NODE_LIST_FIELD(fldname) \
-	do { \
-		if (!nodeNodeListEqual(a->fldname, b->fldname)) \
-			return false; \
-	} while (0)
+#define COMPARE_VARDATA_FIELD(fldname)                          \
+  do {                                                          \
+    if (!COMPARE_VARDATA(a->fldname, b->fldname)) return false; \
+  } while (0)
+
+#define COMPARE_OBJECT_FIELD(fldname, equalFunc)          \
+  do {                                                    \
+    if (!equalFunc(a->fldname, b->fldname)) return false; \
+  } while (0)
+
+#define COMPARE_NODE_FIELD(fldname)                            \
+  do {                                                         \
+    if (!nodesEqualNode(a->fldname, b->fldname)) return false; \
+  } while (0)
+
+#define COMPARE_NODE_LIST_FIELD(fldname)                          \
+  do {                                                            \
+    if (!nodeNodeListEqual(a->fldname, b->fldname)) return false; \
+  } while (0)
 
 static bool nodeNodeListEqual(const SNodeList* a, const SNodeList* b) {
   if (a == b) {
@@ -55,7 +65,7 @@ static bool nodeNodeListEqual(const SNodeList* a, const SNodeList* b) {
     return false;
   }
 
-  SNode* na, *nb;
+  SNode *na, *nb;
   FORBOTH(na, a, nb, b) {
     if (!nodesEqualNode(na, nb)) {
       return false;
@@ -64,15 +74,50 @@ static bool nodeNodeListEqual(const SNodeList* a, const SNodeList* b) {
   return true;
 }
 
+static bool dataTypeEqual(SDataType a, SDataType b) {
+  return a.type == b.type && a.bytes == b.bytes && a.precision == b.precision && a.scale == b.scale;
+}
+
 static bool columnNodeEqual(const SColumnNode* a, const SColumnNode* b) {
   COMPARE_STRING_FIELD(dbName);
   COMPARE_STRING_FIELD(tableName);
   COMPARE_STRING_FIELD(colName);
+  if (0 == a->tableId) {
+    COMPARE_STRING_FIELD(tableAlias);
+  }
   return true;
 }
 
 static bool valueNodeEqual(const SValueNode* a, const SValueNode* b) {
+  COMPARE_OBJECT_FIELD(node.resType, dataTypeEqual);
   COMPARE_STRING_FIELD(literal);
+  switch (a->node.resType.type) {
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_DOUBLE:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      COMPARE_SCALAR_FIELD(typeData);
+      break;
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      COMPARE_VARDATA_FIELD(datum.p);
+      break;
+    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_DECIMAL:
+    case TSDB_DATA_TYPE_BLOB:
+      return false;
+    default:
+      break;
+  }
   return true;
 }
 
@@ -95,7 +140,7 @@ static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
   return true;
 }
 
-bool nodesEqualNode(const SNodeptr a, const SNodeptr b) {
+bool nodesEqualNode(const SNode* a, const SNode* b) {
   if (a == b) {
     return true;
   }
@@ -125,7 +170,7 @@ bool nodesEqualNode(const SNodeptr a, const SNodeptr b) {
     case QUERY_NODE_GROUPING_SET:
     case QUERY_NODE_ORDER_BY_EXPR:
     case QUERY_NODE_LIMIT:
-      return false; // todo
+      return false;  // todo
     default:
       break;
   }
