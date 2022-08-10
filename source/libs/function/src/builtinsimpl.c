@@ -4281,9 +4281,9 @@ static int32_t histogramFunctionImpl(SqlFunctionCtx* pCtx, bool isPartial) {
   }
 
   if (!isPartial) {
-    SET_VAL(GET_RES_INFO(pCtx), numOfElems, pInfo->numOfBins);
+    GET_RES_INFO(pCtx)->numOfRes = pInfo->numOfBins;
   } else {
-    SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
+    GET_RES_INFO(pCtx)->numOfRes = 1;
   }
   return TSDB_CODE_SUCCESS;
 }
