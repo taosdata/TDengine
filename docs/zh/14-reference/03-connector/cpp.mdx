@@ -280,7 +280,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 2. 调用 `taos_stmt_prepare()` 解析 INSERT 语句；
 3. 如果 INSERT 语句中预留了表名但没有预留 TAGS，那么调用 `taos_stmt_set_tbname()` 来设置表名；
 4. 如果 INSERT 语句中既预留了表名又预留了 TAGS（例如 INSERT 语句采取的是自动建表的方式），那么调用 `taos_stmt_set_tbname_tags()` 来设置表名和 TAGS 的值；
-5. 调用 `taos_stmt_bind_param_batch()` 以多列的方式设置 VALUES 的值，或者调用 `taos_stmt_bind_param()` 以单行的方式设置 VALUES 的值；
+5. 调用 `taos_stmt_bind_param_batch()` 以多行的方式设置 VALUES 的值，或者调用 `taos_stmt_bind_param()` 以单行的方式设置 VALUES 的值；
 6. 调用 `taos_stmt_add_batch()` 把当前绑定的参数加入批处理；
 7. 可以重复第 3 ～ 6 步，为批处理加入更多的数据行；
 8. 调用 `taos_stmt_execute()` 执行已经准备好的批处理指令；
