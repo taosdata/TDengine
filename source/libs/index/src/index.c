@@ -485,7 +485,6 @@ static void idxMayMergeTempToFinalRslt(SArray* result, TFileValue* tfv, SIdxTRsl
       // handle last iterator
       idxTRsltMergeTo(tr, lv->tableId);
     } else {
-      // temp result saved in help
       tfileValueDestroy(tfv);
     }
   } else {
