@@ -2028,6 +2028,11 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
   // reset elect timer
   syncNodeResetElectTimer(pSyncNode);
 
+  // call back
+  if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpBecomeFollowerCb != NULL) {
+    pSyncNode->pFsm->FpBecomeFollowerCb(pSyncNode->pFsm);
+  }
+
   // trace log
   do {
     int32_t debugStrLen = strlen(debugStr);
@@ -2108,6 +2113,11 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
 
   // start heartbeat timer
   syncNodeStartHeartbeatTimer(pSyncNode);
+
+  // call back
+  if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpBecomeLeaderCb != NULL) {
+    pSyncNode->pFsm->FpBecomeLeaderCb(pSyncNode->pFsm);
+  }
 
   // trace log
   do {
@@ -3100,7 +3110,7 @@ void syncLogRecvAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntries
   syncNodeEventLog(pSyncNode, logBuf);
 }
 
- void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s) {
+void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s) {
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
