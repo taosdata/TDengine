@@ -129,8 +129,20 @@ _err:
   return -1;
 }
 
+static void metaGetEntryUidIdxVal(const SMetaEntry *pEntry, SUidIdxVal *pVal) {
+  pVal->version = pEntry->version;
+  if (pEntry->type == TSDB_TSMA_TABLE) {
+    pVal->suid = pEntry->smaEntry.tsma->indexUid;
+    pVal->skmVer = -1;
+  } else {
+    ASSERT(0);
+  }
+}
+
 static int metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME) {
-  return tdbTbInsert(pMeta->pUidIdx, &pME->uid, sizeof(tb_uid_t), &pME->version, sizeof(int64_t), &pMeta->txn);
+  SUidIdxVal uidIdxVal;
+  metaGetEntryUidIdxVal(pME, &uidIdxVal);
+  return tdbTbInsert(pMeta->pUidIdx, &pME->uid, sizeof(tb_uid_t), &uidIdxVal, sizeof(uidIdxVal), &pMeta->txn);
 }
 
 static int metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME) {
