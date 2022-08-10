@@ -393,6 +393,8 @@ static int32_t stbSplCreatePartWindowNode(SWindowLogicNode* pMergeWindow, SLogic
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pPartWin->node.groupAction = GROUP_ACTION_KEEP;
+
   if (TSDB_CODE_SUCCESS == code) {
     pMergeWindow->node.pTargets = pTargets;
     pMergeWindow->node.pConditions = pConditions;
@@ -722,6 +724,8 @@ static int32_t stbSplCreatePartAggNode(SAggLogicNode* pMergeAgg, SLogicNode** pO
   if (NULL == pPartAgg) {
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
+
+  pPartAgg->node.groupAction = GROUP_ACTION_KEEP;
 
   if (TSDB_CODE_SUCCESS == code && NULL != pGroupKeys) {
     pPartAgg->pGroupKeys = pGroupKeys;
