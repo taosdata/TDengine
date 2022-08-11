@@ -61,6 +61,7 @@ endi
 print =============== select * from stb from memory in designated vgroup
 sql select _wstart, _wend, min(c1),max(c2),max(c1) from stb interval(5m,10s) sliding(5m);
 print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
 if $rows != 1 then
   print rows $rows != 1
   return -1

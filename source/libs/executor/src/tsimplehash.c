@@ -62,7 +62,7 @@ SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn, size_t keyLen, size_t
   }
 
   SSHashObj *pHashObj = (SSHashObj *)taosMemoryCalloc(1, sizeof(SSHashObj));
-  if (pHashObj == NULL) {
+  if (!pHashObj) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
@@ -78,7 +78,7 @@ SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn, size_t keyLen, size_t
   pHashObj->dataLen = dataLen;
 
   pHashObj->hashList = (SHNode **)taosMemoryCalloc(pHashObj->capacity, sizeof(void *));
-  if (pHashObj->hashList == NULL) {
+  if (!pHashObj->hashList) {
     taosMemoryFree(pHashObj);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -87,7 +87,7 @@ SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn, size_t keyLen, size_t
 }
 
 int32_t tSimpleHashGetSize(const SSHashObj *pHashObj) {
-  if (pHashObj == NULL) {
+  if (!pHashObj) {
     return 0;
   }
   return (int32_t)atomic_load_64((int64_t *)&pHashObj->size);
@@ -95,7 +95,7 @@ int32_t tSimpleHashGetSize(const SSHashObj *pHashObj) {
 
 static SHNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, size_t dsize, uint32_t hashVal) {
   SHNode *pNewNode = taosMemoryMalloc(sizeof(SHNode) + keyLen + dsize);
-  if (pNewNode == NULL) {
+  if (!pNewNode) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
@@ -120,7 +120,7 @@ static void taosHashTableResize(SSHashObj *pHashObj) {
 
   int64_t st = taosGetTimestampUs();
   void   *pNewEntryList = taosMemoryRealloc(pHashObj->hashList, sizeof(void *) * newCapacity);
-  if (pNewEntryList == NULL) {
+  if (!pNewEntryList) {
     //    qWarn("hash resize failed due to out of memory, capacity remain:%zu", pHashObj->capacity);
     return;
   }
@@ -133,22 +133,21 @@ static void taosHashTableResize(SSHashObj *pHashObj) {
 
   for (int32_t idx = 0; idx < pHashObj->capacity; ++idx) {
     SHNode *pNode = pHashObj->hashList[idx];
-    if (pNode == NULL) {
+    if (!pNode) {
       continue;
     }
 
-    SHNode *pNext;
+    SHNode *pNext = NULL;
     SHNode *pPrev = NULL;
-
 
     while (pNode != NULL) {
       void    *key = GET_SHASH_NODE_KEY(pNode, pHashObj->dataLen);
-      uint32_t hashVal = (*pHashObj->hashFp)(key, (uint32_t)pHashObj->dataLen);
+      uint32_t hashVal = (*pHashObj->hashFp)(key, (uint32_t)pHashObj->keyLen);
 
       int32_t newIdx = HASH_INDEX(hashVal, pHashObj->capacity);
       pNext = pNode->next;
       if (newIdx != idx) {
-        if (pPrev == NULL) {
+        if (!pPrev) {
           pHashObj->hashList[idx] = pNext;
         } else {
           pPrev->next = pNext;
@@ -172,7 +171,7 @@ static void taosHashTableResize(SSHashObj *pHashObj) {
 }
 
 int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, const void *data) {
-  if (pHashObj == NULL || key == NULL) {
+  if (!pHashObj || !key) {
     return -1;
   }
 
@@ -186,13 +185,14 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, const void *data) {
   int32_t slot = HASH_INDEX(hashVal, pHashObj->capacity);
 
   SHNode *pNode = pHashObj->hashList[slot];
-  if (pNode == NULL) {
-    SHNode *pNewNode = doCreateHashNode(key, pHashObj->keyLen, data, pHashObj->size, hashVal);
-    if (pNewNode == NULL) {
+  if (!pNode) {
+    SHNode *pNewNode = doCreateHashNode(key, pHashObj->keyLen, data, pHashObj->dataLen, hashVal);
+    if (!pNewNode) {
       return -1;
     }
 
     pHashObj->hashList[slot] = pNewNode;
+    atomic_add_fetch_64(&pHashObj->size, 1);
     return 0;
   }
 
@@ -203,9 +203,9 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, const void *data) {
     pNode = pNode->next;
   }
 
-  if (pNode == NULL) {
-    SHNode *pNewNode = doCreateHashNode(key, pHashObj->keyLen, data, pHashObj->size, hashVal);
-    if (pNewNode == NULL) {
+  if (!pNode) {
+    SHNode *pNewNode = doCreateHashNode(key, pHashObj->keyLen, data, pHashObj->dataLen, hashVal);
+    if (!pNewNode) {
       return -1;
     }
     pNewNode->next = pHashObj->hashList[slot];
@@ -234,7 +234,7 @@ static FORCE_INLINE SHNode *doSearchInEntryList(SSHashObj *pHashObj, const void 
 static FORCE_INLINE bool taosHashTableEmpty(const SSHashObj *pHashObj) { return tSimpleHashGetSize(pHashObj) == 0; }
 
 void *tSimpleHashGet(SSHashObj *pHashObj, const void *key) {
-  if (pHashObj == NULL || taosHashTableEmpty(pHashObj) || key == NULL) {
+  if (!pHashObj || taosHashTableEmpty(pHashObj) || !key) {
     return NULL;
   }
 
@@ -242,7 +242,7 @@ void *tSimpleHashGet(SSHashObj *pHashObj, const void *key) {
 
   int32_t slot = HASH_INDEX(hashVal, pHashObj->capacity);
   SHNode *pNode = pHashObj->hashList[slot];
-  if (pNode == NULL) {
+  if (!pNode) {
     return NULL;
   }
 
@@ -256,19 +256,43 @@ void *tSimpleHashGet(SSHashObj *pHashObj, const void *key) {
 }
 
 int32_t tSimpleHashRemove(SSHashObj *pHashObj, const void *key) {
-  // todo
+  if (!pHashObj || !key) {
+    return TSDB_CODE_FAILED;
+  }
+
+  uint32_t hashVal = (*pHashObj->hashFp)(key, (uint32_t)pHashObj->keyLen);
+
+  int32_t slot = HASH_INDEX(hashVal, pHashObj->capacity);
+
+  SHNode *pNode = pHashObj->hashList[slot];
+  SHNode *pPrev = NULL;
+  while (pNode) {
+    if ((*(pHashObj->equalFp))(GET_SHASH_NODE_KEY(pNode, pHashObj->dataLen), key, pHashObj->keyLen) == 0) {
+      if (!pPrev) {
+        pHashObj->hashList[slot] = pNode->next;
+      } else {
+        pPrev->next = pNode->next;
+      }
+      FREE_HASH_NODE(pNode);
+      atomic_sub_fetch_64(&pHashObj->size, 1);
+      break;
+    }
+    pPrev = pNode;
+    pNode = pNode->next;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
 void tSimpleHashClear(SSHashObj *pHashObj) {
-  if (pHashObj == NULL) {
+  if (!pHashObj || taosHashTableEmpty(pHashObj)) {
     return;
   }
 
-  SHNode *pNode, *pNext;
+  SHNode *pNode = NULL, *pNext = NULL;
   for (int32_t i = 0; i < pHashObj->capacity; ++i) {
     pNode = pHashObj->hashList[i];
-    if (pNode == NULL) {
+    if (!pNode) {
       continue;
     }
 
@@ -278,11 +302,11 @@ void tSimpleHashClear(SSHashObj *pHashObj) {
       pNode = pNext;
     }
   }
-  pHashObj->size = 0;
+  atomic_store_64(&pHashObj->size, 0);
 }
 
 void tSimpleHashCleanup(SSHashObj *pHashObj) {
-  if (pHashObj == NULL) {
+  if (!pHashObj) {
     return;
   }
 
@@ -291,7 +315,7 @@ void tSimpleHashCleanup(SSHashObj *pHashObj) {
 }
 
 size_t tSimpleHashGetMemSize(const SSHashObj *pHashObj) {
-  if (pHashObj == NULL) {
+  if (!pHashObj) {
     return 0;
   }
 
@@ -299,11 +323,58 @@ size_t tSimpleHashGetMemSize(const SSHashObj *pHashObj) {
 }
 
 void *tSimpleHashGetKey(const SSHashObj *pHashObj, void *data, size_t *keyLen) {
+#if 0
   int32_t offset = offsetof(SHNode, data);
   SHNode *node = ((SHNode *)(char *)data - offset);
-  if (keyLen != NULL) {
+  if (keyLen) {
     *keyLen = pHashObj->keyLen;
   }
 
+  return POINTER_SHIFT(data, pHashObj->dataLen);
+
   return GET_SHASH_NODE_KEY(node, pHashObj->dataLen);
+#endif
+  if (keyLen) {
+    *keyLen = pHashObj->keyLen;
+  }
+
+  return POINTER_SHIFT(data, pHashObj->dataLen);
+}
+
+void *tSimpleHashIterate(const SSHashObj *pHashObj, void *data, int32_t *iter) {
+  if (!pHashObj) {
+    return NULL;
+  }
+
+  SHNode *pNode = NULL;
+
+  if (!data) {
+    for (int32_t i = 0; i < pHashObj->capacity; ++i) {
+      pNode = pHashObj->hashList[i];
+      if (!pNode) {
+        continue;
+      }
+      *iter = i;
+      return GET_SHASH_NODE_DATA(pNode);
+    }
+    return NULL;
+  }
+
+  pNode = (SHNode *)((char *)data - offsetof(SHNode, data));
+
+  if (pNode->next) {
+    return GET_SHASH_NODE_DATA(pNode->next);
+  }
+
+  ++(*iter);
+  for (int32_t i = *iter; i < pHashObj->capacity; ++i) {
+    pNode = pHashObj->hashList[i];
+    if (!pNode) {
+      continue;
+    }
+    *iter = i;
+    return GET_SHASH_NODE_DATA(pNode);
+  }
+
+  return NULL;
 }
