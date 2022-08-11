@@ -346,7 +346,7 @@ static const SSysTableMeta perfsMeta[] = {
     {TSDB_PERFS_TABLE_TOPICS, topicSchema, tListLen(topicSchema)},
     {TSDB_PERFS_TABLE_CONSUMERS, consumerSchema, tListLen(consumerSchema)},
     {TSDB_PERFS_TABLE_SUBSCRIPTIONS, subscriptionSchema, tListLen(subscriptionSchema)},
-    {TSDB_PERFS_TABLE_OFFSETS, offsetSchema, tListLen(offsetSchema)},
+    // {TSDB_PERFS_TABLE_OFFSETS, offsetSchema, tListLen(offsetSchema)},
     {TSDB_PERFS_TABLE_TRANS, transSchema, tListLen(transSchema)},
     {TSDB_PERFS_TABLE_SMAS, smaSchema, tListLen(smaSchema)},
     {TSDB_PERFS_TABLE_STREAMS, streamSchema, tListLen(streamSchema)},

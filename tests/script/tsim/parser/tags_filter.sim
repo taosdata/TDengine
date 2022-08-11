@@ -99,7 +99,7 @@ if $data01 != 4 then
 endi
 
 sql drop database $db
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then 
   return -1
 endi

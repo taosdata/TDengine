@@ -49,7 +49,7 @@ return
 
 print =============== step2: create database
 sql create database db vgroups 1 replica 3
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then 
   return -1
 endi

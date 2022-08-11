@@ -57,7 +57,7 @@ if $loop_cnt == 100 then
   print ====> db not ready!
 	return -1
 endi
-sql show databases
+sql select * from information_schema.ins_databases
 print ===> rows: $rows
 print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4] $data[2][5] $data[2][6] $data[2][7] $data[2][8] $data[2][9] $data[2][6] $data[2][11] $data[2][12]  $data[2][13]  $data[2][14]  $data[2][15]  $data[2][16]  $data[2][17]  $data[2][18]  $data[2][19]
 if $rows != 3 then
@@ -692,7 +692,7 @@ if $loop_cnt == 100 then
   print ====> db not ready!
 	return -1
 endi
-sql show databases
+sql select * from information_schema.ins_databases
 print ===> rows: $rows
 print $data(db1)[0] $data(db1)[1] $data(db1)[2] $data(db1)[3] $data(db1)[4] $data(db1)[5] $data(db1)[6] $data(db1)[7] $data(db1)[8] $data(db1)[9] $data(db1)[6] $data(db1)[11] $data(db1)[12]  $data(db1)[13]  $data(db1)[14]  $data(db1)[15]  $data(db1)[16]  $data(db1)[17]  $data(db1)[18]  $data(db1)[19]
 if $rows != 4 then

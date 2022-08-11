@@ -269,6 +269,7 @@ typedef struct SSelectStmt {
   bool        hasInterpFunc;
   bool        hasLastRowFunc;
   bool        hasTimeLineFunc;
+  bool        hasUdaf;
   bool        onlyHasKeepOrderFunc;
   bool        groupSort;
 } SSelectStmt;

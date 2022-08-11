@@ -74,7 +74,7 @@ if $rows != 2 then
 endi
 
 sql create database db
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then 
   return -1
 endi
@@ -100,7 +100,7 @@ if $rows != 2 then
   return -1
 endi
 
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then 
   return -1
 endi

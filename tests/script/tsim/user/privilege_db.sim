@@ -7,7 +7,7 @@ print =============== create db
 sql create database d1 vgroups 1;
 sql create database d2 vgroups 1;
 sql create database d3 vgroups 1;
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 5 then 
   return -1
 endi

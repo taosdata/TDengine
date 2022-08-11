@@ -223,7 +223,7 @@ print $data0_9  $data1_9  $data2_9  $data3_9  $data4_9
 
 print ============== step13: alter replica 2
 sql alter database $db replica 2
-sql show databases
+sql select * from information_schema.ins_databases
 print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09 
 print $data10  $data11  $data12  $data13  $data14  $data15  $data16  $data17   $data18  $data19 
 
@@ -253,7 +253,7 @@ sleep 20000
 
 print ============== step15: alter replica 1
 sql alter database $db replica 1
-sql show databases
+sql select * from information_schema.ins_databases
 print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09 
 print $data10  $data11  $data12  $data13  $data14  $data15  $data16  $data17   $data18  $data19 
 
@@ -273,7 +273,7 @@ endi
 
 print ============== step16: alter replica 2
 sql alter database $db replica 2
-sql show databases
+sql select * from information_schema.ins_databases
 print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09 
 print $data10  $data11  $data12  $data13  $data14  $data15  $data16  $data17   $data18  $data19 
 
@@ -301,7 +301,7 @@ endi
 
 print ============== step18: alter replica 3
 sql alter database $db replica 3
-sql show databases
+sql select * from information_schema.ins_databases
 print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09 
 print $data10  $data11  $data12  $data13  $data14  $data15  $data16  $data17   $data18  $data19 
 

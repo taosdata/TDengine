@@ -50,7 +50,7 @@ if $rows != 1 then
 endi
 #sql show modules
 #sql show qnodes
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -148,7 +148,7 @@ if $rows != 1 then
 endi
 #sql show modules
 #sql show qnodes
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi

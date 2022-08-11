@@ -5,7 +5,7 @@ sql connect
 
 print =============== create database
 sql create database db
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -106,7 +106,7 @@ print =============== step2 after wal
 
 print =============== clear
 sql drop database db
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then
   return -1
 endi

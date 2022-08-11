@@ -25,7 +25,7 @@ endi
 print =============== step2: create db
 sql create database d1 vgroups 2 buffer 3
 sql create database d2 vgroups 2 buffer 3
-sql show databases;
+sql select * from information_schema.ins_databases;
 sql show d1.vgroups;
 
 print =============== step3: create show stable

@@ -36,7 +36,7 @@ print ===== step2
 
 print =============== create database
 sql create database test vgroups 1
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -102,7 +102,7 @@ endi
 
 print =============== create database
 sql create database test1 vgroups 4
-sql show databases
+sql select * from information_schema.ins_databases
 
 print ======database=$rows
 

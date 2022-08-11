@@ -41,7 +41,7 @@ $ts = $ts0 + $delta
 $ts = $ts + 1
 sql import into $tb values ( $ts , -2, -2, -2, -2, -2)
 
-sql show databases
+sql select * from information_schema.ins_databases
 
 sql select count(*) from $tb
 $res = $rowNum + 2

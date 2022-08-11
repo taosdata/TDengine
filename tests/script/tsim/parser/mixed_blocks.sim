@@ -50,7 +50,7 @@ while $x < $rowNum
   $x = $x + 1
 endw 
 print ====== tables created
-sql show databases
+sql select * from information_schema.ins_databases
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

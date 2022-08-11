@@ -8,7 +8,7 @@ $dbNamme  = d0
 
 print =============== create database $dbNamme vgroups $vgroups
 sql create database $dbNamme vgroups $vgroups
-sql show databases
+sql select * from information_schema.ins_databases
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 print $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
 #print $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
