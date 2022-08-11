@@ -50,17 +50,10 @@ TDengine 目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后�
 
 ## 安装工具
 
-### Ubuntu 16.04 及以上版本 & Debian：
+### Ubuntu 18.04 及以上版本 & Debian：
 
 ```bash
 sudo apt-get install -y gcc cmake build-essential git libssl-dev
-```
-
-### Ubuntu 14.04：
-
-```bash
-sudo apt-get install -y gcc cmake3 build-essential git binutils-2.26
-export PATH=/usr/lib/binutils-2.26/bin:$PATH
 ```
 
 编译或打包 JDBC 驱动源码，需安装 Java JDK 8 或以上版本和 Apache Maven 2.7 或以上版本。
@@ -89,7 +82,7 @@ taosTools 是用于 TDengine 的辅助工具软件集合。目前它包含 taosB
 sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
 ```
 
-### CentOS 7：
+### CentOS 7.9：
 
 ```bash
 sudo yum install -y gcc gcc-c++ make cmake git openssl-devel
@@ -195,24 +188,12 @@ apt install autoconf
 cmake .. -DJEMALLOC_ENABLED=true
 ```
 
-在 X86-64、X86、arm64、arm32 和 mips64 平台上，TDengine 生成脚本可以自动检测机器架构。也可以手动配置 CPUTYPE 参数来指定 CPU 类型，如 aarch64 或 aarch32 等。
+在 X86-64、X86、arm64 平台上，TDengine 生成脚本可以自动检测机器架构。也可以手动配置 CPUTYPE 参数来指定 CPU 类型，如 aarch64 等。
 
 aarch64：
 
 ```bash
 cmake .. -DCPUTYPE=aarch64 && cmake --build .
-```
-
-aarch32：
-
-```bash
-cmake .. -DCPUTYPE=aarch32 && cmake --build .
-```
-
-mips64：
-
-```bash
-cmake .. -DCPUTYPE=mips64 && cmake --build .
 ```
 
 ### Windows 系统

@@ -17,6 +17,7 @@
 #define _TD_UTIL_BLOOMFILTER_H_
 
 #include "os.h"
+#include "tencode.h"
 #include "thash.h"
 
 #ifdef __cplusplus
@@ -42,6 +43,8 @@ int32_t tBloomFilterNoContain(const SBloomFilter *pBF, const void *keyBuf,
 void tBloomFilterDestroy(SBloomFilter *pBF);
 void tBloomFilterDump(const SBloomFilter *pBF);
 bool tBloomFilterIsFull(const SBloomFilter *pBF);
+int32_t tBloomFilterEncode(const SBloomFilter *pBF, SEncoder* pEncoder);
+SBloomFilter* tBloomFilterDecode(SDecoder* pDecoder);
 
 #ifdef __cplusplus
 }

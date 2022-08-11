@@ -10,10 +10,12 @@ TDengine 支持通过 C/C++ 语言进行 UDF 定义。接下来结合示例讲�
 
 用户可以通过 UDF 实现两类函数： 标量函数和聚合函数。标量函数对每行数据返回一个值，如求绝对值 abs，正弦函数 sin，字符串拼接函数 concat 等。聚合函数对多行数据进行返回一个值，如求平均数 avg，最大值 max 等。
 
-实现udf时，需要实现规定的接口函数。接口函数的名称是 udf 名称，或者是 udf 名称和特定后缀（_start, _finish, _init, _destroy)的连接后。以下列表中的scalarfn，aggfn, udf需要替换成udf函数名。
-- 标量函数需要实现标量接口函数 scalarfn，
+实现 UDF 时，需要实现规定的接口函数
+- 标量函数需要实现标量接口函数 scalarfn 。
 - 聚合函数需要实现聚合接口函数 aggfn_start ， aggfn ， aggfn_finish。
-- 无论标量函数还是聚合函数，如果需要初始化，实现 udf_init；如果需要清理工作，实现udf_destory。
+- 如果需要初始化，实现 udf_init；如果需要清理工作，实现udf_destroy。
+
+接口函数的名称是 UDF 名称，或者是 UDF 名称和特定后缀（_start, _finish, _init, _destroy)的连接。列表中的scalarfn，aggfn, udf需要替换成udf函数名。
 
 ## 实现标量函数
 标量函数实现模板如下
@@ -102,17 +104,19 @@ aggfn为函数名的占位符，需要修改为自己的函数名，如l2norm。
 
 接口函数的名称是 udf 名称，或者是 udf 名称和特定后缀（_start, _finish, _init, _destroy)的连接。以下描述中函数名称中的 scalarfn，aggfn, udf 需要替换成udf函数名。
 
-接口函数返回值表示是否成功，如果错误返回错误代码，错误代码见taoserror.h。参数类型见数据结构定义。
+接口函数返回值表示是否成功，如果错误返回错误代码，错误代码见taoserror.h。
+
+接口函数参数类型见数据结构定义。
 
 ### 标量接口函数
 
  `int32_t scalarfn(SUdfDataBlock* inputDataBlock, SUdfColumn *resultColumn)` 
  
- 其中 udf 是函数名的占位符，以上述模板实现的函数对行数据块进行标量计算。
+ 其中 scalarFn 是函数名的占位符。这个函数对数据块进行标量计算，通过设置resultColumn结构体中的变量设置值
 
-- 其中各参数的具体含义是：
+参数的具体含义是：
   - inputDataBlock: 输入的数据块
-  - resultColumn: 输出列 
+  - resultColumn: 输出列。输出列 
 
 ### 聚合接口函数
 
@@ -121,22 +125,22 @@ aggfn为函数名的占位符，需要修改为自己的函数名，如l2norm。
 `int32_t aggfn(SUdfDataBlock* inputBlock, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf)`
 
 `int32_t aggfn_finish(SUdfInterBuf* interBuf, SUdfInterBuf *result)`
-其中 aggfn 是函数名的占位符。其中各参数的具体含义是：
 
+其中 aggfn 是函数名的占位符。首先调用aggfn_start生成结果buffer，然后相关的数据会被分为多个行数据块，对每个数据块调用 aggfn 用数据块更新中间结果，最后再调用 aggfn_finish 从中间结果产生最终结果，最终结果只能含 0 或 1 条结果数据。
+
+参数的具体含义是：
   - interBuf：中间结果 buffer。
   - inputBlock：输入的数据块。
   - newInterBuf：新的中间结果buffer。
   - result：最终结果。
 
 
-其计算过程为：首先调用aggfn_start生成结果buffer，然后相关的数据会被分为多个行数据块，对每个行数据块调用 aggfn 用数据块更新中间结果，最后再调用 aggfn_finish 从中间结果产生最终结果，最终结果只能含 0 或 1 条结果数据。
-
 ### UDF 初始化和销毁
 `int32_t udf_init()`
 
 `int32_t udf_destroy()`
 
-其中 udf 是函数名的占位符，可以替换成自己的函数名。udf_init 完成初始化工作。 udf_destroy 完成清理工作。如果没有初始化工作，无需定义udf_init函数。如果没有清理工作，无需定义udf_destroy函数。
+其中 udf 是函数名的占位符。udf_init 完成初始化工作。 udf_destroy 完成清理工作。如果没有初始化工作，无需定义udf_init函数。如果没有清理工作，无需定义udf_destroy函数。
 
 
 ## UDF 数据结构
@@ -190,10 +194,10 @@ typedef struct SUdfInterBuf {
 数据结构说明如下：
 
 - SUdfDataBlock 数据块包含行数 numOfRows 和列数 numCols。udfCols[i] (0 <= i <= numCols-1)表示每一列数据，类型为SUdfColumn*。
-- SUdfColumn 包含列的数据类型定义 colMeta 和列的数据colData。
+- SUdfColumn 包含列的数据类型定义 colMeta 和列的数据 colData。
 - SUdfColumnMeta 成员定义同 taos.h 数据类型定义。
-- SUdfColumnData 数据可以变长，varLenCol定义变长数据，fixLenCol定义定长数据。 
-- SUdfInterBuf 定义中间结构buffer，以及buffer中结果个数 numOfResult
+- SUdfColumnData 数据可以变长，varLenCol 定义变长数据，fixLenCol 定义定长数据。 
+- SUdfInterBuf 定义中间结构 buffer，以及 buffer 中结果个数 numOfResult
 
 为了更好的操作以上数据结构，提供了一些便利函数，定义在 taosudf.h。
 

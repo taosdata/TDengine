@@ -270,7 +270,7 @@ class TDTestCase:
         if not vote_act:
             print("=======before_revote_leader_infos ======\n" , before_leader_infos)
             print("=======after_revote_leader_infos ======\n" , after_leader_infos)
-            tdLog.exit(" ===maybe revote not occured , there is no dnode offline ====")
+            tdLog.info(" ===maybe revote not occured , there is no dnode offline ====")
         else:
             for vgroup_info in vote_act:
                 for ind , role in enumerate(vgroup_info):

@@ -2,6 +2,9 @@
 sidebar_label: Docker
 title: 通过 Docker 快速体验 TDengine
 ---
+:::info
+如果您希望对 TDengine 贡献代码或对内部实现感兴趣，请参考我们的 [TDengine GitHub 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
+:::
 
 本节首先介绍如何通过 Docker 快速体验 TDengine，然后介绍如何在 Docker 环境下体验 TDengine 的写入和查询功能。
 
@@ -62,6 +65,10 @@ taos>
 ## 访问 REST 接口
 
 taosAdapter 是 TDengine 中提供 REST 服务的组件。下面这条命令会在容器中同时启动 `taosd` 和 `taosadapter` 两个服务组件。默认 Docker 镜像同时启动 TDengine 后台服务 taosd 和 taosAdatper。
+
+```shell
+docker run -d --name tdengine -p 6041:6041 tdengine/tdengine
+```
 
 可以在宿主机使用 curl 通过 RESTful 端口访问 Docker 容器内的 TDengine server。
 

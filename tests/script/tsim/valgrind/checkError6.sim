@@ -111,6 +111,9 @@ sql select _wstart, count(*) from tb1 session(ts, 1m)
 sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from stb where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
 sql select tbcol5 - tbcol3 from stb
 
+sql select spread( tbcol2 )/44, spread(tbcol2), 0.204545455 * 44 from stb;
+sql select min(tbcol) * max(tbcol) /4, sum(tbcol2) * apercentile(tbcol2, 20), apercentile(tbcol2, 33) + 52/9 from stb;
+
 print =============== step5: explain
 sql explain analyze select ts from stb where -2;
 sql explain analyze select ts from tb1;
