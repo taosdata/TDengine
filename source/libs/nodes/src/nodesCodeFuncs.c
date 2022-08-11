@@ -163,7 +163,7 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowTagsStmt";
     case QUERY_NODE_SHOW_USERS_STMT:
       return "ShowUsersStmt";
-    case QUERY_NODE_SHOW_LICENCE_STMT:
+    case QUERY_NODE_SHOW_LICENCES_STMT:
       return "ShowGrantsStmt";
     case QUERY_NODE_SHOW_VGROUPS_STMT:
       return "ShowVgroupsStmt";
@@ -171,10 +171,6 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowTopicsStmt";
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
       return "ShowConsumersStmt";
-    case QUERY_NODE_SHOW_SUBSCRIBES_STMT:
-      return "ShowSubscribesStmt";
-    case QUERY_NODE_SHOW_SMAS_STMT:
-      return "ShowSmasStmt";
     case QUERY_NODE_SHOW_QUERIES_STMT:
       return "ShowQueriesStmt";
     case QUERY_NODE_SHOW_VNODES_STMT:

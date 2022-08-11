@@ -6,7 +6,7 @@ sql connect
 
 print =============== create database
 sql create database test vgroups 1
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -463,7 +463,7 @@ if $data25 != 3 then
 endi
 
 sql create database test2 vgroups 1
-sql show databases
+sql select * from information_schema.ins_databases
 
 sql use test2
 sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);

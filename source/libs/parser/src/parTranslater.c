@@ -28,6 +28,8 @@
 #define generateDealNodeErrMsg(pCxt, code, ...) \
   (pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__), DEAL_RES_ERROR)
 
+#define SYSTABLE_SHOW_TYPE_OFFSET QUERY_NODE_SHOW_DNODES_STMT
+
 typedef struct STranslateContext {
   SParseContext*   pParseCxt;
   int32_t          errCode;
@@ -50,6 +52,201 @@ typedef struct STranslateContext {
 typedef struct SFullDatabaseName {
   char fullDbName[TSDB_DB_FNAME_LEN];
 } SFullDatabaseName;
+
+typedef struct SSysTableShowAdapter {
+  ENodeType   showType;
+  const char* pDbName;
+  const char* pTableName;
+  int32_t     numOfShowCols;
+  const char* pShowCols[2];
+} SSysTableShowAdapter;
+
+// clang-format off
+static const SSysTableShowAdapter sysTableShowAdapter[] = {
+  {
+    .showType = QUERY_NODE_SHOW_DNODES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_DNODES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_MNODES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_MNODES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_MODULES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_MODULES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_QNODES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_QNODES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_SNODES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_SNODES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_BNODES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_BNODES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_CLUSTER_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_CLUSTER,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_DATABASES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_DATABASES,
+    .numOfShowCols = 1,
+    .pShowCols = {"name"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_FUNCTIONS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_FUNCTIONS,
+    .numOfShowCols = 1,
+    .pShowCols = {"name"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_INDEXES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_INDEXES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_STABLES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_STABLES,
+    .numOfShowCols = 1,
+    .pShowCols = {"stable_name"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_STREAMS_STMT,
+    .pDbName = TSDB_PERFORMANCE_SCHEMA_DB,
+    .pTableName = TSDB_PERFS_TABLE_STREAMS,
+    .numOfShowCols = 1,
+    .pShowCols = {"stream_name"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_TABLES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_TABLES,
+    .numOfShowCols = 1,
+    .pShowCols = {"table_name"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_TAGS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_TAGS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_USERS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_USERS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_LICENCES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_LICENCES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_VGROUPS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_VGROUPS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_TOPICS_STMT,
+    .pDbName = TSDB_PERFORMANCE_SCHEMA_DB,
+    .pTableName = TSDB_PERFS_TABLE_TOPICS,
+    .numOfShowCols = 1,
+    .pShowCols = {"topic_name"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_CONSUMERS_STMT,
+    .pDbName = TSDB_PERFORMANCE_SCHEMA_DB,
+    .pTableName = TSDB_PERFS_TABLE_CONSUMERS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_CONNECTIONS_STMT,
+    .pDbName = TSDB_PERFORMANCE_SCHEMA_DB,
+    .pTableName = TSDB_PERFS_TABLE_CONNECTIONS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_QUERIES_STMT,
+    .pDbName = TSDB_PERFORMANCE_SCHEMA_DB,
+    .pTableName = TSDB_PERFS_TABLE_QUERIES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_APPS_STMT,
+    .pDbName = TSDB_PERFORMANCE_SCHEMA_DB,
+    .pTableName = TSDB_PERFS_TABLE_APPS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_VARIABLES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_CONFIGS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_DNODE_VARIABLES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_DNODE_VARIABLES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_TRANSACTIONS_STMT,
+    .pDbName = TSDB_PERFORMANCE_SCHEMA_DB,
+    .pTableName = TSDB_PERFS_TABLE_TRANS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT,
+    .pDbName = TSDB_PERFORMANCE_SCHEMA_DB,
+    .pTableName = TSDB_PERFS_TABLE_SUBSCRIPTIONS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+};
+// clang-format on
 
 static int32_t  translateSubquery(STranslateContext* pCxt, SNode* pNode);
 static int32_t  translateQuery(STranslateContext* pCxt, SNode* pNode);
@@ -5362,102 +5559,6 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
   return TSDB_CODE_FAILED;
 }
 
-static const char* getSysDbName(ENodeType type) {
-  switch (type) {
-    case QUERY_NODE_SHOW_DATABASES_STMT:
-    case QUERY_NODE_SHOW_TABLES_STMT:
-    case QUERY_NODE_SHOW_STABLES_STMT:
-    case QUERY_NODE_SHOW_USERS_STMT:
-    case QUERY_NODE_SHOW_DNODES_STMT:
-    case QUERY_NODE_SHOW_VGROUPS_STMT:
-    case QUERY_NODE_SHOW_MNODES_STMT:
-    case QUERY_NODE_SHOW_MODULES_STMT:
-    case QUERY_NODE_SHOW_QNODES_STMT:
-    case QUERY_NODE_SHOW_FUNCTIONS_STMT:
-    case QUERY_NODE_SHOW_INDEXES_STMT:
-    case QUERY_NODE_SHOW_BNODES_STMT:
-    case QUERY_NODE_SHOW_SNODES_STMT:
-    case QUERY_NODE_SHOW_LICENCE_STMT:
-    case QUERY_NODE_SHOW_CLUSTER_STMT:
-    case QUERY_NODE_SHOW_VARIABLES_STMT:
-    case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
-    case QUERY_NODE_SHOW_TAGS_STMT:
-      return TSDB_INFORMATION_SCHEMA_DB;
-    case QUERY_NODE_SHOW_CONNECTIONS_STMT:
-    case QUERY_NODE_SHOW_QUERIES_STMT:
-    case QUERY_NODE_SHOW_TOPICS_STMT:
-    case QUERY_NODE_SHOW_STREAMS_STMT:
-    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
-    case QUERY_NODE_SHOW_APPS_STMT:
-    case QUERY_NODE_SHOW_CONSUMERS_STMT:
-    case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
-      return TSDB_PERFORMANCE_SCHEMA_DB;
-    default:
-      break;
-  }
-  return NULL;
-}
-
-static const char* getSysTableName(ENodeType type) {
-  switch (type) {
-    case QUERY_NODE_SHOW_DATABASES_STMT:
-      return TSDB_INS_TABLE_DATABASES;
-    case QUERY_NODE_SHOW_TABLES_STMT:
-      return TSDB_INS_TABLE_TABLES;
-    case QUERY_NODE_SHOW_TAGS_STMT:
-      return TSDB_INS_TABLE_TAGS;
-    case QUERY_NODE_SHOW_STABLES_STMT:
-      return TSDB_INS_TABLE_STABLES;
-    case QUERY_NODE_SHOW_USERS_STMT:
-      return TSDB_INS_TABLE_USERS;
-    case QUERY_NODE_SHOW_DNODES_STMT:
-      return TSDB_INS_TABLE_DNODES;
-    case QUERY_NODE_SHOW_VGROUPS_STMT:
-      return TSDB_INS_TABLE_VGROUPS;
-    case QUERY_NODE_SHOW_MNODES_STMT:
-      return TSDB_INS_TABLE_MNODES;
-    case QUERY_NODE_SHOW_MODULES_STMT:
-      return TSDB_INS_TABLE_MODULES;
-    case QUERY_NODE_SHOW_QNODES_STMT:
-      return TSDB_INS_TABLE_QNODES;
-    case QUERY_NODE_SHOW_FUNCTIONS_STMT:
-      return TSDB_INS_TABLE_FUNCTIONS;
-    case QUERY_NODE_SHOW_INDEXES_STMT:
-      return TSDB_INS_TABLE_INDEXES;
-    case QUERY_NODE_SHOW_STREAMS_STMT:
-      return TSDB_PERFS_TABLE_STREAMS;
-    case QUERY_NODE_SHOW_BNODES_STMT:
-      return TSDB_INS_TABLE_BNODES;
-    case QUERY_NODE_SHOW_SNODES_STMT:
-      return TSDB_INS_TABLE_SNODES;
-    case QUERY_NODE_SHOW_LICENCE_STMT:
-      return TSDB_INS_TABLE_LICENCES;
-    case QUERY_NODE_SHOW_CLUSTER_STMT:
-      return TSDB_INS_TABLE_CLUSTER;
-    case QUERY_NODE_SHOW_CONNECTIONS_STMT:
-      return TSDB_PERFS_TABLE_CONNECTIONS;
-    case QUERY_NODE_SHOW_QUERIES_STMT:
-      return TSDB_PERFS_TABLE_QUERIES;
-    case QUERY_NODE_SHOW_TOPICS_STMT:
-      return TSDB_PERFS_TABLE_TOPICS;
-    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
-      return TSDB_PERFS_TABLE_TRANS;
-    case QUERY_NODE_SHOW_VARIABLES_STMT:
-      return TSDB_INS_TABLE_CONFIGS;
-    case QUERY_NODE_SHOW_APPS_STMT:
-      return TSDB_PERFS_TABLE_APPS;
-    case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
-      return TSDB_INS_TABLE_DNODE_VARIABLES;
-    case QUERY_NODE_SHOW_CONSUMERS_STMT:
-      return TSDB_PERFS_TABLE_CONSUMERS;
-    case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
-      return TSDB_PERFS_TABLE_SUBSCRIPTIONS;
-    default:
-      break;
-  }
-  return NULL;
-}
-
 static SNode* createStarCol() {
   SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   if (NULL == pCol) {
@@ -5467,7 +5568,33 @@ static SNode* createStarCol() {
   return (SNode*)pCol;
 }
 
-static int32_t createSimpleSelectStmt(const char* pDb, const char* pTable, SSelectStmt** pStmt) {
+static SNode* createProjectCol(const char* pProjCol) {
+  SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+  if (NULL == pCol) {
+    return NULL;
+  }
+  strcpy(pCol->colName, pProjCol);
+  return (SNode*)pCol;
+}
+
+static SNodeList* createProjectCols(int32_t ncols, const char* const pCols[]) {
+  SNodeList* pProjections = NULL;
+  if (ncols <= 0) {
+    nodesListMakeStrictAppend(&pProjections, createStarCol());
+    return pProjections;
+  }
+  for (int32_t i = 0; i < ncols; ++i) {
+    int32_t code = nodesListMakeStrictAppend(&pProjections, createProjectCol(pCols[i]));
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyList(pProjections);
+      return NULL;
+    }
+  }
+  return pProjections;
+}
+
+static int32_t createSimpleSelectStmt(const char* pDb, const char* pTable, int32_t numOfProjs,
+                                      const char* const pProjCol[], SSelectStmt** pStmt) {
   SSelectStmt* pSelect = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
   if (NULL == pSelect) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -5484,7 +5611,8 @@ static int32_t createSimpleSelectStmt(const char* pDb, const char* pTable, SSele
   strcpy(pRealTable->table.tableAlias, pTable);
   pSelect->pFromTable = (SNode*)pRealTable;
 
-  if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pSelect->pProjectionList, createStarCol())) {
+  pSelect->pProjectionList = createProjectCols(numOfProjs, pProjCol);
+  if (NULL == pSelect->pProjectionList) {
     nodesDestroyNode((SNode*)pSelect);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -5495,11 +5623,12 @@ static int32_t createSimpleSelectStmt(const char* pDb, const char* pTable, SSele
 }
 
 static int32_t createSelectStmtForShow(ENodeType showType, SSelectStmt** pStmt) {
-  return createSimpleSelectStmt(getSysDbName(showType), getSysTableName(showType), pStmt);
+  const SSysTableShowAdapter* pShow = &sysTableShowAdapter[showType - SYSTABLE_SHOW_TYPE_OFFSET];
+  return createSimpleSelectStmt(pShow->pDbName, pShow->pTableName, pShow->numOfShowCols, pShow->pShowCols, pStmt);
 }
 
 static int32_t createSelectStmtForShowTableDist(SShowTableDistributedStmt* pStmt, SSelectStmt** pOutput) {
-  return createSimpleSelectStmt(pStmt->dbName, pStmt->tableName, pOutput);
+  return createSimpleSelectStmt(pStmt->dbName, pStmt->tableName, 0, NULL, pOutput);
 }
 
 static int32_t createOperatorNode(EOperatorType opType, const char* pColName, SNode* pRight, SNode** pOp) {
@@ -6687,7 +6816,7 @@ static int32_t rewriteFlushDatabase(STranslateContext* pCxt, SQuery* pQuery) {
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
-    case QUERY_NODE_SHOW_LICENCE_STMT:
+    case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_TABLES_STMT:
     case QUERY_NODE_SHOW_STABLES_STMT:

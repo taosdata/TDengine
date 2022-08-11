@@ -112,7 +112,7 @@ class TDTestCase:
         for i in range(self.tbnum):
             tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({tag_values[0]})")
             self.insert_data(self.column_dict,f'{self.stbname}_{i}',self.rowNum)
-        tdSql.query(f'show {self.dbname}.tables')
+        tdSql.query(f'select * from information_schema.ins_tables where db_name = "{self.dbname}"')
         vgroup_list = []
         for i in range(len(tdSql.queryResult)):
             vgroup_list.append(tdSql.queryResult[i][6])

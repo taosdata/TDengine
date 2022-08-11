@@ -31,7 +31,7 @@ step10:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
@@ -122,7 +122,7 @@ sql insert into d2.t2 values(now+3s, 23)
 sql insert into d2.t2 values(now+4s, 22)
 sql insert into d2.t2 values(now+5s, 21)
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 openVnodes $data(1)[2]
 print dnode2 openVnodes $data(2)[2]
 print dnode3 openVnodes $data(3)[2]
@@ -142,7 +142,7 @@ endi
 
 print ========== step2
 sql drop dnode 2
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 openVnodes $data(1)[2]
 print dnode2 openVnodes $data(2)[2]
 print dnode3 openVnodes $data(3)[2]
@@ -174,7 +174,7 @@ step3:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
@@ -196,7 +196,7 @@ if $data(5)[4] != ready then
 endi
 
 sql balance vgroup
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 openVnodes $data(1)[2]
 print dnode3 openVnodes $data(3)[2]
 print dnode4 openVnodes $data(4)[2]
@@ -223,7 +223,7 @@ sql insert into d3.t3 values(now+3s, 33)
 sql insert into d3.t3 values(now+4s, 32)
 sql insert into d3.t3 values(now+5s, 31)
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 openVnodes $data(1)[2]
 print dnode3 openVnodes $data(3)[2]
 print dnode4 openVnodes $data(4)[2]
@@ -253,7 +253,7 @@ step5:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
@@ -279,7 +279,7 @@ if $data(6)[4] != ready then
 endi
 
 sql balance vgroup
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 openVnodes $data(1)[2]
 print dnode3 openVnodes $data(3)[2]
 print dnode4 openVnodes $data(4)[2]
@@ -303,7 +303,7 @@ endi
 
 print ========== step6
 sql drop dnode 3
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 openVnodes $data(1)[2]
 print dnode3 openVnodes $data(3)[2]
 print dnode4 openVnodes $data(4)[2]

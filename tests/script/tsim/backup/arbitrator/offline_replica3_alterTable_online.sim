@@ -106,7 +106,7 @@ $cnt = $cnt + 1
 if $cnt == 20 then
   return -1
 endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 5 then
   sleep 2000
   goto wait_dnode4_offline_0
@@ -177,7 +177,7 @@ $cnt = $cnt + 1
 if $cnt == 20 then
   return -1
 endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 5 then
   sleep 2000
   goto wait_dnode4_ready

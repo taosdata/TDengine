@@ -7,7 +7,7 @@ sql connect
 print =============== create database
 sql create database `database`
 sql create database `DataBase`
-sql show databases
+sql select * from information_schema.ins_databases
 print rows: $rows 
 print $data00  $data01
 print $data10  $data11 
@@ -184,7 +184,7 @@ print =============== stop and restart taosd
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
 
-sql show databases
+sql select * from information_schema.ins_databases
 print rows: $rows 
 print $data00  $data01
 print $data10  $data11 

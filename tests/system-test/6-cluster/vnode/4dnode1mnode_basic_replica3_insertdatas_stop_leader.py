@@ -139,13 +139,13 @@ class TDTestCase:
         return check_status
 
     def check_setup_cluster_status(self):
-        tdSql.query("show mnodes")
+        tdSql.query("select * from information_schema.ins_mnodes")
         for mnode in tdSql.queryResult:
             name = mnode[1]
             info = mnode
             self.mnode_list[name] = info
 
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         for dnode in tdSql.queryResult:
             name = dnode[1]
             info = dnode
@@ -213,7 +213,7 @@ class TDTestCase:
             # newTdSql=tdCom.newTdSql()
 
             status =  ""
-            newTdSql.query("show dnodes")
+            newTdSql.query("select * from information_schema.ins_dnodes")
             dnode_infos = newTdSql.queryResult
             for dnode_info in dnode_infos:
                 id = dnode_info[0]
@@ -235,7 +235,7 @@ class TDTestCase:
         def _get_status():
             # newTdSql=tdCom.newTdSql()
             status =  ""
-            newTdSql.query("show dnodes")
+            newTdSql.query("select * from information_schema.ins_dnodes")
             dnode_infos = newTdSql.queryResult
             for dnode_info in dnode_infos:
                 id = dnode_info[0]
@@ -304,12 +304,12 @@ class TDTestCase:
 
         self.current_thread = threading.Thread(target=self.start_benchmark_inserts, args=(dbname,json_file))
         self.current_thread.start()
-        tdSql.query(" show databases ")
+        tdSql.query(" select * from information_schema.ins_databases ")
 
         # make sure create database ok
         while (tdSql.queryRows!=3):
             time.sleep(0.5)
-            tdSql.query(" show databases ")
+            tdSql.query(" select * from information_schema.ins_databases ")
 
         # # make sure create stable ok
         tdSql.query(" show {}.stables ".format(dbname))
@@ -318,7 +318,7 @@ class TDTestCase:
             tdSql.query(" show {}.stables ".format(dbname))
 
         # stop leader of database when insert 10% rows
-        # os.system("taos -s 'show databases';")
+        # os.system("taos -s 'select * from information_schema.ins_databases';")
         tdSql.query(" select count(*) from {}.{} ".format(dbname,"stb1"))
 
         while not tdSql.queryResult:

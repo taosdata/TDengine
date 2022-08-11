@@ -36,7 +36,7 @@ sql_error alter database $db keep 20,19,18
 sql_error alter database $db keep 20,20,20,20
 sql_error alter database $db keep 365001,365001,365001
 sql alter database $db keep 21
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -44,7 +44,7 @@ if $data27 != 30240m,30240m,30240m then
  return -1
 endi
 sql alter database $db keep 11,12
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -52,7 +52,7 @@ if $data27 != 15840m,17280m,17280m then
  return -1
 endi
 sql alter database $db keep 20,20,20
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -60,7 +60,7 @@ if $data27 != 28800m,28800m,28800m then
  return -1
 endi
 sql alter database $db keep 10,10,10
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -68,7 +68,7 @@ if $data27 != 14400m,14400m,14400m then
  return -1
 endi
 sql alter database $db keep 10,10,11
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -76,7 +76,7 @@ if $data27 != 14400m,14400m,15840m then
  return -1
 endi
 sql alter database $db keep 11,12,13
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -84,7 +84,7 @@ if $data27 != 15840m,17280m,18720m then
  return -1
 endi
 sql alter database $db keep 365000,365000,365000
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -310,7 +310,7 @@ sql_error alter table mt add column c1 int
 sql_error alter table mt drop column c9
 
 #sql drop database $db
-#sql show databases
+#sql select * from information_schema.ins_databases
 #if $rows != 0 then
 #  return -1
 #endi

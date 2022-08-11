@@ -7,7 +7,7 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 sql create dnode $hostname port 7200
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 off: $data(1)[6]
 print dnode2 off: $data(2)[6]
 
@@ -26,7 +26,7 @@ step2:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 if $rows != 2 then
@@ -49,7 +49,7 @@ step3:
 	if $x == 10 then
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 off: $data(1)[6]
 print dnode2 off: $data(2)[6]
 if $data(2)[6] != @status msg timeout@ then
@@ -58,7 +58,7 @@ endi
 
 print ========== step4
 sql drop dnode 2
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 1 then
 	return -1
 endi
@@ -76,7 +76,7 @@ step5:
 		return -1
 	endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 off: $data(1)[6]
 print dnode2 off: $data(3)[6]
 if $data(3)[6] != @dnodeId not match@ then
@@ -97,7 +97,7 @@ step6:
 		return -1
 	endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 off: $data(1)[6]
 print dnode2 off: $data(3)[6]
 print dnode3 off: $data(4)[6]
@@ -119,7 +119,7 @@ step7:
 		return -1
 	endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 off: $data(1)[6]
 print dnode3 off: $data(3)[6]
 print dnode4 off: $data(4)[6]
@@ -142,7 +142,7 @@ step8:
 		return -1
 	endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 off: $data(1)[6]
 print dnode3 off: $data(3)[6]
 print dnode4 off: $data(4)[6]
