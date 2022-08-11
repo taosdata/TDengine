@@ -63,6 +63,10 @@ taos>
 
 taosAdapter 是 TDengine 中提供 REST 服务的组件。下面这条命令会在容器中同时启动 `taosd` 和 `taosadapter` 两个服务组件。默认 Docker 镜像同时启动 TDengine 后台服务 taosd 和 taosAdatper。
 
+```shell
+docker run -d --name tdengine -p 6041:6041 tdengine/tdengine
+```
+
 可以在宿主机使用 curl 通过 RESTful 端口访问 Docker 容器内的 TDengine server。
 
 ```
