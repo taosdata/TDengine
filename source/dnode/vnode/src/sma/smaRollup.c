@@ -636,7 +636,7 @@ static int32_t tdRSmaFetchAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSm
       break;
     }
 
-#if 1
+#if 0
     char flag[10] = {0};
     snprintf(flag, 10, "level %" PRIi8, pItem->level);
     blockDebugShowDataBlocks(pResList, flag);

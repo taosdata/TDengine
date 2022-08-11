@@ -1713,7 +1713,7 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
   char    pBuf[128] = {0};
   int32_t sz = taosArrayGetSize(dataBlocks);
   for (int32_t i = 0; i < sz; i++) {
-    SSDataBlock* pDataBlock = taosArrayGet(dataBlocks, i);
+    SSDataBlock* pDataBlock = taosArrayGetP(dataBlocks, i);
     size_t       numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
 
     int32_t rows = pDataBlock->info.rows;
@@ -1890,6 +1890,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
   *pReq = taosMemoryCalloc(1, bufSize);
   if (!(*pReq)) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    uError("buildSubmitReqFromDataBlock for table:%" PRIi64 " bufSize:%d failed since %s", suid, bufSize, terrstr());
     return TSDB_CODE_FAILED;
   }
   void* pDataBuf = *pReq;
