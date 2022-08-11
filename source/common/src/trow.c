@@ -521,7 +521,6 @@ bool tdSTSRowIterNext(STSRowIter *pIter, SCellVal *pVal) {
     tdSTSRowIterGetTpVal(pIter, pCol->type, pCol->offset - sizeof(TSKEY), pVal);
   } else if (TD_IS_KV_ROW(pIter->pRow)) {
     tdSTSRowIterGetKvVal(pIter, pCol->colId, &pIter->kvIdx, pVal);
-    ASSERT(0);
   } else {
     ASSERT(0);
   }
