@@ -333,19 +333,14 @@ Query OK, 2 row(s) in set (0.001700s)
 
 TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java、Python、Go、Node.js、C# 、RESTful 等，便于用户快速开发应用：
 
-- [Java](https://www.taosdata.com/cn/documentation/connector/java)
-
+- [Java](https://docs.taosdata.com/reference/connector/java/)
 - [C/C++](https://www.taosdata.com/cn/documentation/connector#c-cpp)
-
-- [Python](https://www.taosdata.com/cn/documentation/connector#python)
-
-- [Go](https://www.taosdata.com/cn/documentation/connector#go)
-
-- [RESTful API](https://www.taosdata.com/cn/documentation/connector#restful)
-
-- [Node.js](https://www.taosdata.com/cn/documentation/connector#nodejs)
-
-- [Rust](https://www.taosdata.com/cn/documentation/connector/rust)
+- [Python](https://docs.taosdata.com/reference/connector/python/)
+- [Go](https://docs.taosdata.com/reference/connector/go/)
+- [Node.js](https://docs.taosdata.com/reference/connector/node/)
+- [Rust](https://docs.taosdata.com/reference/connector/rust/)
+- [C#](https://docs.taosdata.com/reference/connector/csharp/)
+- [RESTful API](https://docs.taosdata.com/reference/rest-api/)
 
 ## 第三方连接器
 
@@ -354,6 +349,7 @@ TDengine 社区生态中也有一些非常友好的第三方连接器，可以�
 - [Rust Bindings](https://github.com/songtianyi/tdengine-rust-bindings/tree/master/examples)
 - [.Net Core Connector](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
 - [Lua Connector](https://github.com/taosdata/TDengine/tree/develop/examples/lua)
+- [PHP](https://www.taosdata.com/en/documentation/connector#c-cpp)
 
 # 运行和添加测试例
 
