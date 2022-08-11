@@ -362,13 +362,14 @@ Query OK, 2 row(s) in set (0.001700s)
 
 TDengine provides abundant developing tools for users to develop on TDengine. Follow the links below to find your desired connectors and relevant documentation.
 
-- [Java](https://www.taosdata.com/en/documentation/connector/java)
-- [C/C++](https://www.taosdata.com/en/documentation/connector#c-cpp)
-- [Python](https://www.taosdata.com/en/documentation/connector#python)
-- [Go](https://www.taosdata.com/en/documentation/connector#go)
-- [RESTful API](https://www.taosdata.com/en/documentation/connector#restful)
-- [Node.js](https://www.taosdata.com/en/documentation/connector#nodejs)
-- [Rust](https://www.taosdata.com/en/documentation/connector/rust)
+- [Java](https://docs.taosdata.com/reference/connector/java/)
+- [C/C++](https://docs.taosdata.com/reference/connector/cpp/)
+- [Python](https://docs.taosdata.com/reference/connector/python/)
+- [Go](https://docs.taosdata.com/reference/connector/go/)
+- [Node.js](https://docs.taosdata.com/reference/connector/node/)
+- [Rust](https://docs.taosdata.com/reference/connector/rust/)
+- [C#](https://docs.taosdata.com/reference/connector/csharp/)
+- [RESTful API](https://docs.taosdata.com/reference/rest-api/)
 
 ## Third Party Connectors
 
@@ -377,6 +378,7 @@ The TDengine community has also kindly built some of their own connectors! Follo
 - [Rust Bindings](https://github.com/songtianyi/tdengine-rust-bindings/tree/master/examples)
 - [.Net Core Connector](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
 - [Lua Connector](https://github.com/taosdata/TDengine/tree/develop/tests/examples/lua)
+- [PHP](https://www.taosdata.com/en/documentation/connector#c-cpp)
 
 # How to run the test cases and how to add a new test case
 
