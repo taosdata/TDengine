@@ -280,7 +280,7 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
 static void shellInitArgs(int argc, char *argv[]) {
   for (int i = 1; i < argc; i++) {
     if (strncmp(argv[i], "-p", 2) == 0) {
-      // printf(shell.info.clientVersion, tsOsName, taos_get_client_info());
+      // printf(shell.info.clientVersion, taos_get_client_info());
       if (strlen(argv[i]) == 2) {
         printf("Enter password: ");
         taosSetConsoleEcho(false);
@@ -389,8 +389,8 @@ static int32_t shellCheckArgs() {
 int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shellInitArgs(argc, argv);
   shell.info.clientVersion =
-      "Welcome to the TDengine shell from %s, Client Version:%s\r\n"
-      "Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.\r\n\r\n";
+      "Welcome to the TDengine Command Line Interface, Client Version:%s\r\n"
+      "Copyright (c) 2022 by TDengine, all rights reserved.\r\n\r\n";
   shell.info.promptHeader = TAOS_CONSOLE_PROMPT_HEADER;
   shell.info.promptContinue = TAOS_CONSOLE_PROMPT_CONTINUE;
   shell.info.promptSize = 6;

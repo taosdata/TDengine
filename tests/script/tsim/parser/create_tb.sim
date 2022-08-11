@@ -31,7 +31,7 @@ if $rows != 1 then
   return -1
 endi
 print data00 = $data00
-if $data00 != $tb then 
+if $data00 != $tb then
   return -1
 endi
 sql DROP TABLE $tb
@@ -47,7 +47,7 @@ print =========== create_tb.sim case2: illegal_table_name test
 $illegal_tb1 = 1db
 $illegal_tb2 = d@b
 
-sql_error create table $illegal_db1 (ts timestamp, tcol int) 
+sql_error create table $illegal_db1 (ts timestamp, tcol int)
 sql_error create table $illegal_db2 (ts timestamp, tcol int)
 print illegal_table_name test passed
 
@@ -99,19 +99,19 @@ $tint = tinyint
 $nchar = nchar
 
 sql_error create table $tb (ts timestamp, $tb_ int)
-sql_error create table $tb (ts timestamp, $tbs int) 
-sql_error create table $tb (ts timestamp, $db_ int) 
+sql_error create table $tb (ts timestamp, $tbs int)
+sql_error create table $tb (ts timestamp, $db_ int)
 sql_error create table $tb (ts timestamp, $dbs int)
 sql_error create table $tb (ts timestamp, $ses int)
 sql_error create table $tb (ts timestamp, $int int)
-sql_error create table $tb (ts timestamp, $bint int) 
-sql_error create table $tb (ts timestamp, $binary int) 
-sql create table $tb (ts timestamp, $str int) 
+sql_error create table $tb (ts timestamp, $bint int)
+sql_error create table $tb (ts timestamp, $binary int)
+sql create table $tb (ts timestamp, $str int)
 sql drop table $tb
-sql_error create table $tb (ts timestamp, $tag int) 
+sql_error create table $tb (ts timestamp, $tag int)
 sql_error create table $tb (ts timestamp, $tags int)
-sql_error create table $tb (ts timestamp, $sint int) 
-sql_error create table $tb (ts timestamp, $tint int) 
+sql_error create table $tb (ts timestamp, $sint int)
+sql_error create table $tb (ts timestamp, $tint int)
 sql_error create table $tb (ts timestamp, $nchar int)
 
 # too long column name
@@ -124,23 +124,23 @@ print ========== create_tb.sim case5: chinese_char_in_table_support test
 
 $CN_char = 涛思
 $tb1 = tb1
-sql_error create table $CN_char (ts timestamp, col1 int) 
-#sql show tables 
-#if $rows != 1 then 
+sql_error create table $CN_char (ts timestamp, col1 int)
+#sql show tables
+#if $rows != 1 then
 #  return -1
 #endi
 #print expected: $CN_char
 #print returned: $data00
-#if $data00 != $CN_char then 
+#if $data00 != $CN_char then
 #  return -1
 #endi
 #sql drop table $CN_char
 
-sql_error create table $tb1 (ts timestamp, $CN_char int) 
+sql_error create table $tb1 (ts timestamp, $CN_char int)
 #print expected: $tb1
 #print returned: $data10
 #sql show tables
-#if $rows != 1 then 
+#if $rows != 1 then
 #  return -1
 #endi
 #if $data00 != $tb1 then
@@ -180,8 +180,8 @@ sql_error create table $tbname65 (ts timestamp, col int)
 print table_already_exists test passed
 
 sql drop database $db
-sql select * from information_schema.ins_databases
-if $rows != 2 then 
+sql show databases
+if $rows != 2 then
   return -1
 endi
 

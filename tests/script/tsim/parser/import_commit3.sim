@@ -18,7 +18,7 @@ $stb = $stbPrefix . $i
 
 sql drop database $db -x step1
 step1:
-sql create database $db 
+sql create database $db
 print ====== create tables
 sql use $db
 sql reset query cache
@@ -30,9 +30,9 @@ $x = 0
 while $x < $rowNum
   $xs = $x * $delta
   $ts = $ts0 + $xs
-  sql insert into $tb values ( $ts , $x , $x , $x , $x , $x ) 
+  sql insert into $tb values ( $ts , $x , $x , $x , $x , $x )
   $x = $x + 1
-endw 
+endw
 print ====== tables created
 
 $ts = $ts + 1
@@ -46,8 +46,8 @@ sql select * from information_schema.ins_databases
 sql select count(*) from $tb
 $res = $rowNum + 2
 if $data00 != $res then
-  print expected: $res 
-  print returned: $rows 
+  print expected: $res
+  print returned: $rows
   return -1
 endi
 

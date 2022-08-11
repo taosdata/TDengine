@@ -20,33 +20,27 @@
 
 # TDengine 简介
 
-TDengine 是一款高性能、分布式、支持 SQL 的时序数据库（Time-Series Database）。而且除时序数据库功能外，它还提供缓存、数据订阅、流式计算等功能，最大程度减少研发和运维的复杂度，且核心代码，包括集群功能全部开源（开源协议，AGPL v3.0）。与其他时序数据数据库相比，TDengine 有以下特点：
+TDengine 是一款开源、高性能、云原生的时序数据库 (Time-Series Database, TSDB)。TDengine 能被广泛运用于物联网、工业互联网、车联网、IT 运维、金融等领域。除核心的时序数据库功能外，TDengine 还提供缓存、数据订阅、流式计算等功能，是一极简的时序数据处理平台，最大程度的减小系统设计的复杂度，降低研发和运营成本。TDengine 的主要优势如下：
 
-- **高性能**：通过创新的存储引擎设计，无论是数据写入还是查询，TDengine 的性能比通用数据库快 10 倍以上，也远超其他时序数据库，而且存储空间也大为节省。
+- 高性能：通过创新的存储引擎设计，无论是数据写入还是查询，TDengine 的性能比通用数据库快 10 倍以上，也远超其他时序数据库，存储空间不及通用数据库的1/10。
 
-- **分布式**：通过原生分布式的设计，TDengine 提供了水平扩展的能力，只需要增加节点就能获得更强的数据处理能力，同时通过多副本机制保证了系统的高可用。
+- 云原生：通过原生分布式的设计，充分利用云平台的优势，TDengine 提供了水平扩展能力，具备弹性、韧性和可观测性，支持k8s部署，可运行在公有云、私有云和混合云上。
 
-- **支持 SQL**：TDengine 采用 SQL 作为数据查询语言，减少学习和迁移成本，同时提供 SQL 扩展来处理时序数据特有的分析，而且支持方便灵活的 schemaless 数据写入。
+- 极简时序数据平台：TDengine 内建消息队列、缓存、流式计算等功能，应用无需再集成 Kafka/Redis/HBase/Spark 等软件，大幅降低系统的复杂度，降低应用开发和运营成本。
 
-- **All in One**：将数据库、消息队列、缓存、流式计算等功能融合一起，应用无需再集成 Kafka/Redis/HBase/Spark 等软件，大幅降低应用开发和维护成本。
+- 分析能力：支持 SQL，同时为时序数据特有的分析提供SQL扩展。通过超级表、存储计算分离、分区分片、预计算、自定义函数等技术，TDengine 具备强大的分析能力。
 
-- **零管理**：安装、集群几秒搞定，无任何依赖，不用分库分表，系统运行状态监测能与 Grafana 或其他运维工具无缝集成。
+- 简单易用：无任何依赖，安装、集群几秒搞定；提供REST以及各种语言连接器，与众多第三方工具无缝集成；提供命令行程序，便于管理和即席查询；提供各种运维工具。
 
-- **零学习成本**：采用 SQL 查询语言，支持 Python、Java、C/C++、Go、Rust、Node.js 等多种编程语言，与 MySQL 相似，零学习成本。
-
-- **无缝集成**：不用一行代码，即可与 Telegraf、Grafana、EMQX、Prometheus、StatsD、collectd、Matlab、R 等第三方工具无缝集成。
-
-- **互动 Console**: 通过命令行 console，不用编程，执行 SQL 语句就能做即席查询、各种数据库的操作、管理以及集群的维护.
-
-TDengine 可以广泛应用于物联网、工业互联网、车联网、IT 运维、能源、金融等领域，让大量设备、数据采集器每天产生的高达 TB 甚至 PB 级的数据能得到高效实时的处理，对业务的运行状态进行实时的监测、预警，从大数据中挖掘出商业价值。
+- 核心开源：TDengine 的核心代码包括集群功能全部开源，截止到2022年8月1日，全球超过 135.9k 个运行实例，GitHub Star 18.7k，Fork 4.4k，社区活跃。
 
 # 文档
 
-TDengine 采用传统的关系数据库模型，您可以像使用关系型数据库 MySQL 一样来使用它。但由于引入了超级表，一个采集点一张表的概念，建议您在使用前仔细阅读一遍下面的文档，特别是 [数据模型](https://www.taosdata.com/cn/documentation/architecture) 与 [数据建模](https://www.taosdata.com/cn/documentation/model)。除本文档之外，欢迎 [下载产品白皮书](https://www.taosdata.com/downloads/TDengine%20White%20Paper.pdf)。
+关于完整的使用手册，系统架构和更多细节，请参考 [TDengine 文档](https://docs.taosdata.com) 或者  [English Version](https://docs.tdengine.com)。
 
 # 构建
 
-TDengine 目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后续会支持 Windows、macOS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。任何 OS 的应用也可以选择 RESTful 接口连接服务器 taosd。CPU 支持 X64/ARM64/MIPS64/Alpha64，后续会支持 ARM32、RISC-V 等 CPU 架构。用户可根据需求选择通过[源码](https://www.taosdata.com/cn/getting-started/#通过源码安装)或者[安装包](https://www.taosdata.com/cn/getting-started/#通过安装包安装)来安装。本快速指南仅适用于通过源码安装。
+TDengine 目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后续会支持 Windows、macOS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。任何 OS 的应用也可以选择 RESTful 接口连接服务器 taosd。CPU 支持 X64/ARM64/MIPS64/Alpha64，后续会支持 ARM32、RISC-V 等 CPU 架构。用户可根据需求选择通过源码或者[安装包](https://docs.taosdata.com/get-started/package/)来安装。本快速指南仅适用于通过源码安装。
 
 ## 安装工具
 
@@ -188,24 +182,12 @@ apt install autoconf
 cmake .. -DJEMALLOC_ENABLED=true
 ```
 
-在 X86-64、X86、arm64、arm32 和 mips64 平台上，TDengine 生成脚本可以自动检测机器架构。也可以手动配置 CPUTYPE 参数来指定 CPU 类型，如 aarch64 或 aarch32 等。
+在 X86-64、X86、arm64 平台上，TDengine 生成脚本可以自动检测机器架构。也可以手动配置 CPUTYPE 参数来指定 CPU 类型，如 aarch64 等。
 
 aarch64：
 
 ```bash
 cmake .. -DCPUTYPE=aarch64 && cmake --build .
-```
-
-aarch32：
-
-```bash
-cmake .. -DCPUTYPE=aarch32 && cmake --build .
-```
-
-mips64：
-
-```bash
-cmake .. -DCPUTYPE=mips64 && cmake --build .
 ```
 
 ### Windows 系统
@@ -351,19 +333,14 @@ Query OK, 2 row(s) in set (0.001700s)
 
 TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java、Python、Go、Node.js、C# 、RESTful 等，便于用户快速开发应用：
 
-- [Java](https://www.taosdata.com/cn/documentation/connector/java)
-
+- [Java](https://docs.taosdata.com/reference/connector/java/)
 - [C/C++](https://www.taosdata.com/cn/documentation/connector#c-cpp)
-
-- [Python](https://www.taosdata.com/cn/documentation/connector#python)
-
-- [Go](https://www.taosdata.com/cn/documentation/connector#go)
-
-- [RESTful API](https://www.taosdata.com/cn/documentation/connector#restful)
-
-- [Node.js](https://www.taosdata.com/cn/documentation/connector#nodejs)
-
-- [Rust](https://www.taosdata.com/cn/documentation/connector/rust)
+- [Python](https://docs.taosdata.com/reference/connector/python/)
+- [Go](https://docs.taosdata.com/reference/connector/go/)
+- [Node.js](https://docs.taosdata.com/reference/connector/node/)
+- [Rust](https://docs.taosdata.com/reference/connector/rust/)
+- [C#](https://docs.taosdata.com/reference/connector/csharp/)
+- [RESTful API](https://docs.taosdata.com/reference/rest-api/)
 
 ## 第三方连接器
 
@@ -372,6 +349,7 @@ TDengine 社区生态中也有一些非常友好的第三方连接器，可以�
 - [Rust Bindings](https://github.com/songtianyi/tdengine-rust-bindings/tree/master/examples)
 - [.Net Core Connector](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
 - [Lua Connector](https://github.com/taosdata/TDengine/tree/develop/examples/lua)
+- [PHP](https://www.taosdata.com/en/documentation/connector#c-cpp)
 
 # 运行和添加测试例
 

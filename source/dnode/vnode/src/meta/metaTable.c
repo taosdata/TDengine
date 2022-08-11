@@ -209,8 +209,8 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   return 0;
 
 _err:
-  metaError("vgId:%d, failed to create stb:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
-            pReq->suid, tstrerror(terrno));
+  metaError("vgId:%d, failed to create stb:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name, pReq->suid,
+            tstrerror(terrno));
   return -1;
 }
 
@@ -304,7 +304,8 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
 
   ret = tdbTbcGet(pUidIdxc, NULL, NULL, &pData, &nData);
   if (ret < 0) {
-    ASSERT(0);
+    terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
+    // ASSERT(0);
     return -1;
   }
 
@@ -1195,6 +1196,9 @@ static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME) {
     rcode = -1;
     goto _exit;
   }
+
+  metaDebug("vgId:%d, set schema:(%" PRId64 ") sver:%d since %s", TD_VID(pMeta->pVnode), pME->uid, pSW->version,
+            tstrerror(terrno));
 
 _exit:
   taosMemoryFree(pVal);

@@ -1467,6 +1467,25 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateForbidSuperTableFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  if (!fmIsForbidSuperTableFunc(pFunc->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!isSelectStmt(pCxt->pCurrStmt)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
+                                   "%s is only supported in single table query", pFunc->functionName);
+  }
+  SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+  SNode*       pTable = pSelect->pFromTable;
+  if ((NULL != pTable && (QUERY_NODE_REAL_TABLE != nodeType(pTable) ||
+                          (TSDB_CHILD_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
+                           TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType)))) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
+                                   "%s is only supported in single table query", pFunc->functionName);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static bool isStar(SNode* pNode) {
   return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' == ((SColumnNode*)pNode)->tableAlias[0]) &&
          (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
@@ -1624,6 +1643,9 @@ static int32_t rewriteSystemInfoFunc(STranslateContext* pCxt, SNode** pNode) {
 
 static int32_t translateNoramlFunction(STranslateContext* pCxt, SFunctionNode* pFunc) {
   int32_t code = translateAggFunc(pCxt, pFunc);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateForbidSuperTableFunc(pCxt, pFunc);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateScanPseudoColumnFunc(pCxt, pFunc);
   }

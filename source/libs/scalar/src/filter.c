@@ -3265,7 +3265,7 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pDataStatis, int32_t
     int32_t index = -1;
     SFilterRangeCtx *ctx = info->colRange[k];
     for(int32_t i = 0; i < numOfCols; ++i) {
-      if (pDataStatis[i]->colId == ctx->colId) {
+      if (pDataStatis[i] != NULL && pDataStatis[i]->colId == ctx->colId) {
         index = i;
         break;
       }

@@ -91,7 +91,7 @@ if $data13 != 1 then
   return -1
 endi
 
-sql select _wstart, twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:07:00' interval(1m) 
+sql select _wstart, twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:07:00' interval(1m)
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06
 print $data10 $data11 $data12 $data13 $data14 $data15 $data16
 print $data20 $data21 $data22 $data23 $data24 $data25 $data26
@@ -114,7 +114,7 @@ if $data01 != 2.068333156 then
   return -1
 endi
 
-sql select _wstart, twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:27:00' interval(10m) 
+sql select _wstart, twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:27:00' interval(10m)
 if $rows != 3 then
  return -1
 endi
@@ -190,8 +190,8 @@ if $rows != 0 then
   return -1
 endi
 
-sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:30:00' interval(10m) 
-sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:30:00' interval(10m) 
+sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:30:00' interval(10m)
+sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:30:00' interval(10m)
 
 #todo add test case while column filter exists for twa query
 
@@ -536,7 +536,7 @@ if $data14 != 2 then
   return -1
 endi
 
-sql select _wstart, stddev(k), stddev(b), stddev(c), tbname,a  from m1 partition by tbname, a interval(10s) order by tbname 
+sql select _wstart, stddev(k), stddev(b), stddev(c), tbname,a  from m1 partition by tbname, a interval(10s) order by tbname
 if $rows != 3 then
   return -1
 endi

@@ -73,7 +73,7 @@ sql select * from stb where t1 > 'a'
 print =====================> TD-2685
 sql_error select t1, count(t1) from stb;
 
-## wildcard '%' 
+## wildcard '%'
 #sql select * from stb where t1 like '%'
 #if $rows != 1 then
 #  return -1
@@ -99,8 +99,8 @@ if $data01 != 4 then
 endi
 
 sql drop database $db
-sql select * from information_schema.ins_databases
-if $rows != 2 then 
+sql show databases
+if $rows != 2 then
   return -1
 endi
 

@@ -30,12 +30,12 @@ sql show stables
 if $rows != 1 then
   return -1
 endi
-if $data00 != $stb then 
+if $data00 != $stb then
   return -1
 endi
 
 ### create table on the fly
-sql insert into tb1 using $stb tags (1) values ( $ts0 , 1,1,1,1,'bin',1,1,1,'涛思数据') 
+sql insert into tb1 using $stb tags (1) values ( $ts0 , 1,1,1,1,'bin',1,1,1,'涛思数据')
 sql select * from tb1
 if $rows != 1 then
   return -1
@@ -184,7 +184,7 @@ if $data(3)[8] != 涛思数据3 then
   return -1
 endi
 
-sql select t1, count(*), first(c9) from $stb partition by t1 order by t1 asc slimit 3 
+sql select t1, count(*), first(c9) from $stb partition by t1 order by t1 asc slimit 3
 if $rows != 3 then
   return -1
 endi
@@ -251,7 +251,7 @@ if $data(3)[8] != 涛思数据3 then
   return -1
 endi
 
-sql select t1, count(*), first(c9) from $stb partition by t1 order by t1 asc slimit 3 
+sql select t1, count(*), first(c9) from $stb partition by t1 order by t1 asc slimit 3
 if $rows != 3 then
   return -1
 endi
@@ -289,8 +289,8 @@ if $rows != 1 then
 endi
 
 #sql drop database $db
-#sql select * from information_schema.ins_databases
-#if $rows != 0 then 
+#sql show databases
+#if $rows != 0 then
 #  return -1
 #endi
 

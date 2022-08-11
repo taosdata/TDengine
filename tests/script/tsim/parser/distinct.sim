@@ -34,11 +34,11 @@ while $i < $tbNum
   sql insert into $tb values('2015-08-18 00:18:00', 4);
   sql insert into $tb values('2015-08-18 00:24:00', 5);
   sql insert into $tb values('2015-08-18 00:30:00', 6);
-endw 
+endw
 $i = 0
 $tb = $tbPrefix . $i
 
-print ====== table created  
+print ====== table created
 
 #### select distinct tag
 sql select distinct t1 from $stb
@@ -66,17 +66,17 @@ if $rows != 6 then
 endi
 
 ### select multi normal column
-### select distinct multi column on sub table  
+### select distinct multi column on sub table
 
 sql select distinct ts, c1 from $tb
 if $rows != 6 then
   return -1
 endi
 
-### select distinct 
+### select distinct
 sql drop database $db
-sql select * from information_schema.ins_databases
-if $rows != 2 then 
+sql show databases
+if $rows != 2 then
   return -1
 endi
 
