@@ -382,6 +382,20 @@ SColumnInfoData* getColInfoResult(void* metaHandle, SArray* pTableList, SNode* p
     goto end;
   }
 
+//  int64_t stt = taosGetTimestampUs();
+//  SArray* arrAssist = taosArrayInit(rows, sizeof(SMetaReader));
+//  SArray* uidList = taosArrayInit(rows, sizeof(uint64_t));
+//  for (int32_t i = 0; i < rows; i++) {
+//    STableKeyInfo* info = taosArrayGet(pTableList, i);
+//    taosArrayPush(uidList, &info->uid);
+//  }
+
+//  code = metaGetTableEntryByUidTest(metaHandle, uidList);
+
+//
+//  int64_t stt1 = taosGetTimestampUs();
+//  qDebug("generate tag meta rows:%d, cost:%ld us", rows, stt1-stt);
+
   int64_t st = taosGetTimestampUs();
   for (int32_t i = 0; i < rows; i++) {
     STableKeyInfo* info = taosArrayGet(pTableList, i);
@@ -392,7 +406,7 @@ SColumnInfoData* getColInfoResult(void* metaHandle, SArray* pTableList, SNode* p
     code = metaGetTableEntryByUid(&mr, info->uid);
 //    int64_t stt1 = taosGetTimestampUs();
 //    qDebug("generate tag get meta rows:%d, cost:%ld ms", rows, stt1-stt);
-
+//    SMetaReader *mr = taosArrayGet(arrAssist, i);
     for(int32_t j = 0; j < taosArrayGetSize(pResBlock->pDataBlock); j++){
       SColumnInfoData* pColInfo = (SColumnInfoData*)taosArrayGet(pResBlock->pDataBlock, j);
       STagVal tagVal = {0};
@@ -465,6 +479,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       SIndexMetaArg metaArg = {
           .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = tsdbGetIvtIdx(metaHandle), .suid = tableUid};
 
+      int64_t stt = taosGetTimestampUs();
       SArray*       res = taosArrayInit(8, sizeof(uint64_t));
       SIdxFltStatus status = SFLT_NOT_INDEX;
       code = doFilterTag(pTagIndexCond, &metaArg, res, &status);
@@ -481,6 +496,8 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
         taosArrayPush(pListInfo->pTableList, &info);
       }
       taosArrayDestroy(res);
+      int64_t stt1 = taosGetTimestampUs();
+      qDebug("generate table list, cost:%ld us", stt1-stt);
     } else {
       code = vnodeGetAllTableList(pVnode, tableUid, pListInfo->pTableList);
     }

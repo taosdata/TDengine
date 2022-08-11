@@ -53,6 +53,58 @@ _err:
   return -1;
 }
 
+int metaGetTableEntryByUidTest(void* meta, SArray *uidList) {
+
+  SArray* readerList = taosArrayInit(taosArrayGetSize(uidList), sizeof(SMetaReader));
+  SArray* uidVersion = taosArrayInit(taosArrayGetSize(uidList), sizeof(STbDbKey));
+  SMeta  *pMeta = meta;
+  int64_t version;
+
+  int64_t stt1 = taosGetTimestampUs();
+  for(int i = 0; i < taosArrayGetSize(uidList); i++) {
+    void* ppVal = NULL;
+    int vlen = 0;
+    uint64_t *  uid = taosArrayGet(uidList, i);
+    // query uid.idx
+    if (tdbTbGet(pMeta->pUidIdx, uid, sizeof(*uid), &ppVal, &vlen) < 0) {
+      continue;
+    }
+    version = *(int64_t *)ppVal;
+
+    STbDbKey tbDbKey = {.version = version, .uid = *uid};
+    taosArrayPush(uidVersion, &tbDbKey);
+  }
+  int64_t stt2 = taosGetTimestampUs();
+  qDebug("metaGetTableEntryByUidTest1 rows:%d, cost:%ld us", taosArrayGetSize(uidList), stt2-stt1);
+
+  for(int i = 0; i < taosArrayGetSize(uidVersion); i++) {
+    SMetaReader pReader = {0};
+
+    STbDbKey *tbDbKey = taosArrayGet(uidVersion, i);
+    // query table.db
+    if (tdbTbGet(pMeta->pTbDb, tbDbKey, sizeof(STbDbKey), &pReader.pBuf, &pReader.szBuf) < 0) {
+      continue;
+    }
+    taosArrayPush(readerList, &pReader);
+  }
+  int64_t stt3 = taosGetTimestampUs();
+  qDebug("metaGetTableEntryByUidTest2 rows:%d, cost:%ld us", taosArrayGetSize(uidList), stt3-stt2);
+
+  for(int i = 0; i < taosArrayGetSize(readerList); i++){
+    SMetaReader* pReader  = taosArrayGet(readerList, i);
+    metaReaderInit(pReader, meta, 0);
+    // decode the entry
+    tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
+
+    if (metaDecodeEntry(&pReader->coder, &pReader->me) < 0) {
+    }
+    metaReaderClear(pReader);
+  }
+  int64_t stt4 = taosGetTimestampUs();
+  qDebug("metaGetTableEntryByUidTest3 rows:%d, cost:%ld us", taosArrayGetSize(readerList), stt4-stt3);
+  return 0;
+}
+
 int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   SMeta  *pMeta = pReader->pMeta;
   int64_t version;
