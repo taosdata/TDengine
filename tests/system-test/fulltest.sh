@@ -110,13 +110,14 @@ python3 ./test.py -f 2-query/histogram.py
 python3 ./test.py -f 2-query/histogram.py -R
 python3 ./test.py -f 2-query/hyperloglog.py
 python3 ./test.py -f 2-query/hyperloglog.py -R
+python3 ./test.py -f 2-query/interp.py
+python3 ./test.py -f 2-query/interp.py -R
 python3 ./test.py -f 2-query/irate.py
 # python3 ./test.py -f 2-query/irate.py -R
 python3 ./test.py -f 2-query/join.py
 python3 ./test.py -f 2-query/join.py -R
-
-python3 ./test.py -f 2-query/interp.py
-python3 ./test.py -f 2-query/interp.py -R
+python3 ./test.py -f 2-query/last_row.py
+python3 ./test.py -f 2-query/last_row.py -R
 
 
 
@@ -178,7 +179,6 @@ python3 ./test.py -f 2-query/ttl_comment.py
 python3 ./test.py -f 2-query/twa.py
 python3 ./test.py -f 2-query/queryQnode.py
 python3 ./test.py -f 2-query/max_partition.py
-python3 ./test.py -f 2-query/last_row.py
 python3 ./test.py -f 2-query/tsbsQuery.py
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py
