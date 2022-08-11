@@ -383,15 +383,6 @@ The TDengine community has also kindly built some of their own connectors! Follo
 TDengine's test framework and all test cases are fully open source.
 Please refer to [this document](https://github.com/taosdata/TDengine/blob/develop/tests/How-To-Run-Test-And-How-To-Add-New-Test-Case.md) for how to run test and develop new test case.
 
-# TDengine Roadmap
-
-- Support event-driven stream computing
-- Support user defined functions
-- Support MQTT connection
-- Support OPC connection
-- Support Hadoop, Spark connections
-- Support Tableau and other BI tools
-
 # Contribute to TDengine
 
 Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to the project.
