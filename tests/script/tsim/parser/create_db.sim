@@ -262,7 +262,7 @@ sql_error create database $db comp -1
 sql_error create database $db comp 3
 
 sql_error drop database $db
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then
   return -1
 endi

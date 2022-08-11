@@ -43,7 +43,7 @@ class TDTestCase:
         return buildPath
 
     def five_dnode_two_mnode(self):
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(4,1,'%s:6430'%self.host)
         tdSql.checkData(0,4,'ready')
@@ -101,7 +101,7 @@ class TDTestCase:
         for i in range(4):
             tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
         tdSql.error("create mnode on dnode 2")
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         print(tdSql.queryResult)
         clusterComCheck.checkDnodes(5)
         # restart all taosd

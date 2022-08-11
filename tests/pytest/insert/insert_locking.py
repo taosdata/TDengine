@@ -33,7 +33,7 @@ class TDTestCase:
         tdLog.info("\n\n----------step1 : drop db and create db----------\n")
         tdSql.execute('''drop database if exists db ;''')
         tdSql.execute('''create database db ;''')
-        sql = '''show databases;'''
+        sql = '''select * from information_schema.ins_databases;'''
         tdSql.query(sql)
         tdSql.checkRows(1)
 

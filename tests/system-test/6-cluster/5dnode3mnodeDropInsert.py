@@ -184,7 +184,7 @@ class TDTestCase:
         while count < 10:
             time.sleep(1)
             statusReadyBumber=0
-            tdSql.query("show dnodes;")
+            tdSql.query("select * from information_schema.ins_dnodes;")
             if tdSql.checkRows(dnodenumber) :
                 print("dnode is %d nodes"%dnodenumber)
             for i in range(dnodenumber):
@@ -343,7 +343,7 @@ class TDTestCase:
         rowsPerTable=100
         startTs=1640966400000  # 2022-01-01 00:00:00.000
 
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(4,1,'%s:6430'%self.host)
         tdSql.checkData(0,4,'ready')
@@ -362,7 +362,7 @@ class TDTestCase:
         self.check3mnode()
 
         tdSql.error("create mnode on dnode 2")
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         print(tdSql.queryResult)
         tdLog.debug("stop all of mnode ")
 

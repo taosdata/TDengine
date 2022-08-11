@@ -44,7 +44,7 @@ class TDTestCase:
                 new_dbname.insert(i,j)
                 dbname_1 = ''.join(new_dbname)
                 tdSql.execute(f'create database if not exists `{dbname_1}`')
-                tdSql.query('show databases')
+                tdSql.query('select * from information_schema.ins_databases')
                 tdSql.checkEqual(tdSql.queryResult[2][0],str(dbname_1))
                 tdSql.execute(f'drop database `{dbname_1}`')
         for i in range(len(list(dbname))+1):

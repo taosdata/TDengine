@@ -244,7 +244,7 @@ class TDTestCase:
         else:
             sql3 = "echo 'create table ntbf (ts timestamp, c binary(40)) no this item' >> " + sqlFile
             sql4 = "echo 'insert into ntbf values (\"2021-04-01 08:00:00.000\", \"test taos -f1\")(\"2021-04-01 08:00:01.000\", \"test taos -f2\")' >> " + sqlFile
-        sql5 = "echo show databases >> " + sqlFile
+        sql5 = "echo select * from information_schema.ins_databases >> " + sqlFile
         os.system(sql1)
         os.system(sql2)
         os.system(sql3)
@@ -258,7 +258,7 @@ class TDTestCase:
             tdLog.exit("taos -f fail")
 
         print ("========== check new db ==========")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             #print ("dbseq: %d, dbname: %s"%(i, tdSql.getData(i, 0)))
             if tdSql.getData(i, 0) == newDbName:

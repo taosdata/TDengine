@@ -37,7 +37,7 @@ class TDTestCase:
 
         time.sleep(1)
 
-        ret = tdSql.query('show dnodes')
+        ret = tdSql.query('select * from information_schema.ins_dnodes')
 
         dnodeId = tdSql.getData(0, 0);
         dnodeEndpoint = tdSql.getData(0, 1);

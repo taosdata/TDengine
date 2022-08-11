@@ -68,49 +68,49 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_DNODES,
     .numOfShowCols = 1,
-    .pShowCols = {"endpoint"}
+    .pShowCols = {"*"}
   },
   {
     .showType = QUERY_NODE_SHOW_MNODES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_MNODES,
     .numOfShowCols = 1,
-    .pShowCols = {"endpoint"}
+    .pShowCols = {"*"}
   },
   {
     .showType = QUERY_NODE_SHOW_MODULES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_MODULES,
     .numOfShowCols = 1,
-    .pShowCols = {"endpoint"}
+    .pShowCols = {"*"}
   },
   {
     .showType = QUERY_NODE_SHOW_QNODES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_QNODES,
     .numOfShowCols = 1,
-    .pShowCols = {"endpoint"}
+    .pShowCols = {"*"}
   },
   {
     .showType = QUERY_NODE_SHOW_SNODES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_SNODES,
     .numOfShowCols = 1,
-    .pShowCols = {"endpoint"}
+    .pShowCols = {"*"}
   },
   {
     .showType = QUERY_NODE_SHOW_BNODES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_BNODES,
     .numOfShowCols = 1,
-    .pShowCols = {"endpoint"}
+    .pShowCols = {"*"}
   },
   {
     .showType = QUERY_NODE_SHOW_CLUSTER_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_CLUSTER,
     .numOfShowCols = 1,
-    .pShowCols = {"name"}
+    .pShowCols = {"*"}
   },
   {
     .showType = QUERY_NODE_SHOW_DATABASES_STMT,
@@ -131,7 +131,7 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_INDEXES,
     .numOfShowCols = 1,
-    .pShowCols = {"index_name"}
+    .pShowCols = {"*"}
   },
   {
     .showType = QUERY_NODE_SHOW_STABLES_STMT,

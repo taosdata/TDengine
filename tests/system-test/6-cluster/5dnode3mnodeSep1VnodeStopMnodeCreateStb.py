@@ -114,7 +114,7 @@ class TDTestCase:
         dbNumbers = 1
 
         tdLog.info("first check dnode and mnode")
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(4,1,'%s:6430'%self.host)
         clusterComCheck.checkDnodes(dnodeNumbers)
@@ -130,7 +130,7 @@ class TDTestCase:
         # add some error operations and
         tdLog.info("Confirm the status of the dnode again")
         tdSql.error("create mnode on dnode 2")
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         print(tdSql.queryResult)
         clusterComCheck.checkDnodes(dnodeNumbers)
 

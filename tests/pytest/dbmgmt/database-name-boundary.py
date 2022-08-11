@@ -47,7 +47,7 @@ class TDTestCase:
         tdLog.info('create database %s' % db_name)
         tdSql.execute('create database %s' % db_name)
 
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, db_name.lower())
 
@@ -57,7 +57,7 @@ class TDTestCase:
         tdLog.info('create database %s' % db_name)
         tdSql.execute('create database %s' % db_name)
 
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, db_name.lower())
 

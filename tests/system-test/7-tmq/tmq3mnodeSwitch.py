@@ -40,7 +40,7 @@ class TDTestCase:
     def checkDnodesStatusAndCreateMnode(self,dnodeNumbers):
         count=0
         while count < dnodeNumbers:
-            tdSql.query("show dnodes")
+            tdSql.query("select * from information_schema.ins_dnodes")
             # tdLog.debug(tdSql.queryResult)
             dCnt = 0
             for i in range(dnodeNumbers):

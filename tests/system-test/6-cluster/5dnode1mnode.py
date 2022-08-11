@@ -89,7 +89,7 @@ class TDTestCase:
         tdLog.info(" create cluster done! ")
 
     def five_dnode_one_mnode(self):
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(4,1,'%s:6430'%self.host)
         tdSql.checkData(0,4,'ready')
@@ -121,11 +121,11 @@ class TDTestCase:
         for i in range(4):
             tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
 
-        tdSql.query('show databases;')
+        tdSql.query('select * from information_schema.ins_databases;')
         tdSql.checkData(2,5,'off')
         tdSql.error("alter database db strict 'off'")
         # tdSql.execute('alter database db strict 'on'')
-        # tdSql.query('show databases;')
+        # tdSql.query('select * from information_schema.ins_databases;')
         # tdSql.checkData(2,5,'on')
 
     def getConnection(self, dnode):

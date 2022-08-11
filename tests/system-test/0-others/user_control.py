@@ -649,12 +649,12 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step5: enable info")
         taos1_conn = taos.connect(user=self.__user_list[1], password=f"new{self.__passwd_list[1]}")
-        taos1_conn.query(f"show databases")
+        taos1_conn.query(f"select * from information_schema.ins_databases")
         tdSql.execute(f"alter user {self.__user_list[1]} enable 0")
         tdSql.execute(f"alter user {self.__user_list[2]} enable 0")
         taos1_except = True
         try:
-            taos1_conn.query("show databases")
+            taos1_conn.query("select * from information_schema.ins_databases")
         except BaseException:
             taos1_except = False
         if taos1_except:
@@ -674,13 +674,13 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step6: sysinfo info")
         taos3_conn = taos.connect(user=self.__user_list[3], password=f"new{self.__passwd_list[3]}")
-        taos3_conn.query(f"show dnodes")
+        taos3_conn.query(f"select * from information_schema.ins_dnodes")
         taos3_conn.query(f"show {DBNAME}.vgroups")
         tdSql.execute(f"alter user {self.__user_list[3]} sysinfo 0")
         tdSql.execute(f"alter user {self.__user_list[4]} sysinfo 0")
         taos3_except = True
         try:
-            taos3_conn.query(f"show dnodes")
+            taos3_conn.query(f"select * from information_schema.ins_dnodes")
             taos3_conn.query(f"show {DBNAME}.vgroups")
         except BaseException:
             taos3_except = False

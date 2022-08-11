@@ -77,7 +77,7 @@ endi
 
 print =============== create drop qnode 1
 sql create qnode on dnode 1
-sql show qnodes
+sql select * from information_schema.ins_qnodes
 if $rows != 1 then 
   return -1
 endi
@@ -87,7 +87,7 @@ endi
 sql_error create qnode on dnode 1
 
 sql drop qnode on dnode 1
-sql show qnodes
+sql select * from information_schema.ins_qnodes
 if $rows != 0 then 
   return -1
 endi
@@ -95,7 +95,7 @@ sql_error drop qnode on dnode 1
 
 print =============== create drop qnode 2
 sql create qnode on dnode 2
-sql show qnodes
+sql select * from information_schema.ins_qnodes
 if $rows != 1 then 
   return -1
 endi
@@ -105,7 +105,7 @@ endi
 sql_error create qnode on dnode 2
 
 sql drop qnode on dnode 2
-sql show qnodes
+sql select * from information_schema.ins_qnodes
 if $rows != 0 then 
   return -1
 endi
@@ -114,7 +114,7 @@ sql_error drop qnode on dnode 2
 print =============== create drop qnodes
 sql create qnode on dnode 1
 sql create qnode on dnode 2
-sql show qnodes
+sql select * from information_schema.ins_qnodes
 if $rows != 2 then 
   return -1
 endi
@@ -125,7 +125,7 @@ system sh/exec.sh -n dnode2 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 
-sql show qnodes
+sql select * from information_schema.ins_qnodes
 if $rows != 2 then 
   return -1
 endi

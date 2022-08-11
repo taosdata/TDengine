@@ -62,7 +62,7 @@ class TDTestCase:
             info = mnode
             self.mnode_list[name] = info
 
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         for dnode in tdSql.queryResult:
             name = dnode[1]
             info = dnode
@@ -258,7 +258,7 @@ class TDTestCase:
             # newTdSql=tdCom.newTdSql()
 
             status =  ""
-            newTdSql.query("show dnodes")
+            newTdSql.query("select * from information_schema.ins_dnodes")
             dnode_infos = newTdSql.queryResult
             for dnode_info in dnode_infos:
                 id = dnode_info[0]
@@ -281,7 +281,7 @@ class TDTestCase:
         def _get_status():
             # newTdSql=tdCom.newTdSql()
             status =  ""
-            newTdSql.query("show dnodes")
+            newTdSql.query("select * from information_schema.ins_dnodes")
             dnode_infos = newTdSql.queryResult
             for dnode_info in dnode_infos:
                 id = dnode_info[0]
@@ -452,7 +452,7 @@ class TDTestCase:
             # force stop taosd by kill -9
             self.force_stop_dnode(self.stop_dnode_id)
             self.wait_stop_dnode_OK(newTdSql)
-            os.system(" taos -s 'show dnodes;' ")
+            os.system(" taos -s 'select * from information_schema.ins_dnodes;' ")
             tdDnodes[self.stop_dnode_id-1].starttaosd()
             self.wait_start_dnode_OK(newTdSql)
             end = time.time()
@@ -508,7 +508,7 @@ class TDTestCase:
 
     def force_stop_dnode(self, dnode_id ):
 
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         port = None
         for dnode_info in tdSql.queryResult:
             if dnode_id == dnode_info[0]:

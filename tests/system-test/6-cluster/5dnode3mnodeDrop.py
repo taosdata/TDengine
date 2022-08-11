@@ -244,7 +244,7 @@ class TDTestCase:
 
 
     def five_dnode_three_mnode(self):
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(4,1,'%s:6430'%self.host)
         tdSql.checkData(0,4,'ready')
@@ -267,7 +267,7 @@ class TDTestCase:
 
         tdSql.error("drop mnode on dnode 1")
 
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         tdLog.debug(tdSql.queryResult)
 
         #  drop follower of mnode

@@ -56,7 +56,7 @@ class TDTestCase:
             info = mnode
             self.mnode_list[name] = info
 
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         for dnode in tdSql.queryResult:
             name = dnode[1]
             info = dnode
@@ -166,7 +166,7 @@ class TDTestCase:
         def _get_status():
 
             status =  ""
-            tdSql.query("show dnodes")
+            tdSql.query("select * from information_schema.ins_dnodes")
             dnode_infos = tdSql.queryResult
             for dnode_info in dnode_infos:
                 endpoint = dnode_info[1]
@@ -188,7 +188,7 @@ class TDTestCase:
         def _get_status():
 
             status =  ""
-            tdSql.query("show dnodes")
+            tdSql.query("select * from information_schema.ins_dnodes")
             dnode_infos = tdSql.queryResult
             for dnode_info in dnode_infos:
                 endpoint = dnode_info[1]
@@ -214,7 +214,7 @@ class TDTestCase:
         tdDnodes=cluster.dnodes
         tdDnodes[stop_dnode_id-1].stoptaosd()
         self.wait_stop_dnode_OK()
-        # os.system("taos -s 'show dnodes;'")
+        # os.system("taos -s 'select * from information_schema.ins_dnodes;'")
 
     def Restart_stop_dnode(self):
 
@@ -222,7 +222,7 @@ class TDTestCase:
         stop_dnode_id = self.dnode_list[self.stop_dnode][0]
         tdDnodes[stop_dnode_id-1].starttaosd()
         self.wait_start_dnode_OK()
-        # os.system("taos -s 'show dnodes;'")
+        # os.system("taos -s 'select * from information_schema.ins_dnodes;'")
 
     def check_vgroups_init_done(self,dbname):
 

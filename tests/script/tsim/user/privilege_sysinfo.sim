@@ -54,7 +54,7 @@ sql_error show cluster
 sql_error select * from information_schema.ins_dnodes
 sql_error select * from information_schema.ins_mnodes
 sql_error show snodes
-sql_error show qnodes
+sql_error select * from information_schema.ins_qnodes
 sql_error show bnodes
 sql_error show grants
 sql_error show dnode 1 variables;

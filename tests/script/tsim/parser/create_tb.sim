@@ -180,7 +180,7 @@ sql_error create table $tbname65 (ts timestamp, col int)
 print table_already_exists test passed
 
 sql drop database $db
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then
   return -1
 endi
