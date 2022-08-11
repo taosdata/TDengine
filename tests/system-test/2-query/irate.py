@@ -10,9 +10,6 @@ import random ,math
 
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 143, "cDebugFlag": 143, "uDebugFlag": 143, "rpcDebugFlag": 143, "tmrDebugFlag": 143,
-                     "jniDebugFlag": 143, "simDebugFlag": 143, "dDebugFlag": 143, "dDebugFlag": 143, "vDebugFlag": 143, "mDebugFlag": 143, "qDebugFlag": 143,
-                     "wDebugFlag": 143, "sDebugFlag": 143, "tsdbDebugFlag": 143, "tqDebugFlag": 143, "fsDebugFlag": 143, "udfDebugFlag": 143}
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
@@ -23,16 +20,16 @@ class TDTestCase:
         self.time_step = 1000
 
     def insert_datas_and_check_irate(self ,tbnums , rownums , time_step ):
-
+        dbname = "test"
         tdLog.info(" prepare datas for auto check irate function ")
 
-        tdSql.execute(" create database test ")
-        tdSql.execute(" use test ")
-        tdSql.execute(" create stable stb (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint,\
+        tdSql.execute(f" create database {dbname}")
+        tdSql.execute(f" use {dbname} ")
+        tdSql.execute(f" create stable {dbname}.stb (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint,\
              c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp) tags (t1 int)")
         for tbnum in range(tbnums):
-            tbname = "sub_tb_%d"%tbnum
-            tdSql.execute(" create table %s using stb tags(%d) "%(tbname , tbnum))
+            tbname = f"sub_tb_{tbnum}"
+            tdSql.execute(f" create table {dbname}.{tbname} using {dbname}.stb tags({tbnum}) ")
 
             ts = self.ts
             for row in range(rownums):
@@ -47,10 +44,10 @@ class TDTestCase:
                 c8 = "'binary_val'"
                 c9 = "'nchar_val'"
                 c10 = ts
-                tdSql.execute(f" insert into  {tbname} values ({ts},{c1},{c2},{c3},{c4},{c5},{c6},{c7},{c8},{c9},{c10})")
+                tdSql.execute(f" insert into  {dbname}.{tbname} values ({ts},{c1},{c2},{c3},{c4},{c5},{c6},{c7},{c8},{c9},{c10})")
 
-        tdSql.execute("use test")
-        tbnames = ["stb", "sub_tb_1"]
+        tdSql.execute(f"use {dbname}")
+        tbnames = [f"{dbname}.stb", f"{dbname}.sub_tb_1"]
         support_types = ["BIGINT", "SMALLINT", "TINYINT", "FLOAT", "DOUBLE", "INT"]
         for tbname in tbnames:
             tdSql.query("desc {}".format(tbname))
@@ -58,8 +55,8 @@ class TDTestCase:
             for coltype in coltypes:
                 colname = coltype[0]
                 if coltype[1] in support_types and coltype[-1] != "TAG" :
-                    irate_sql = "select irate({}) from {}".format(colname, tbname)
-                    origin_sql = "select tail({}, 2), cast(ts as bigint) from {} order by ts".format(colname, tbname)
+                    irate_sql = f"select irate({colname}) from {tbname}"
+                    origin_sql = f"select tail({colname}, 2), cast(ts as bigint) from {tbname} order by ts"
 
                     tdSql.query(irate_sql)
                     irate_result = tdSql.queryResult
@@ -77,53 +74,53 @@ class TDTestCase:
                     else:
                         tdLog.exit(" irate work not as expected , sql is %s "% irate_sql)
 
-    def prepare_tag_datas(self):
+    def prepare_tag_datas(self, dbname="testdb"):
         # prepare datas
         tdSql.execute(
-            "create database if not exists testdb keep 3650 duration 1000")
-        tdSql.execute(" use testdb ")
+            f"create database if not exists {dbname} keep 3650 duration 1000")
+        tdSql.execute(f"use {dbname} ")
         tdSql.execute(
-            '''create table stb1
+            f'''create table {dbname}.stb1
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
-            tags (t0 timestamp, t1 int, t2 bigint, t3 smallint, t4 tinyint, t5 float, t6 double, t7 bool, t8 binary(16),t9 nchar(32))
+            tags (t0 timestamp, tag1 int, t2 bigint, t3 smallint, t4 tinyint, t5 float, t6 double, t7 bool, t8 binary(16),t9 nchar(32))
             '''
         )
 
         tdSql.execute(
-            '''
-            create table t1
+            f'''
+            create table {dbname}.t1
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
             '''
         )
         for i in range(4):
             tdSql.execute(
-                f'create table ct{i+1} using stb1 tags ( now(), {1*i}, {11111*i}, {111*i}, {1*i}, {1.11*i}, {11.11*i}, {i%2}, "binary{i}", "nchar{i}" )')
+                f'create table {dbname}.ct{i+1} using {dbname}.stb1 tags ( now(), {1*i}, {11111*i}, {111*i}, {1*i}, {1.11*i}, {11.11*i}, {i%2}, "binary{i}", "nchar{i}" )')
 
         for i in range(9):
             tdSql.execute(
-                f"insert into ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+                f"insert into {dbname}.ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
             )
             tdSql.execute(
-                f"insert into ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+                f"insert into {dbname}.ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
             )
         tdSql.execute(
-            "insert into ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )")
+            f"insert into {dbname}.ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )")
         tdSql.execute(
-            "insert into ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+            f"insert into {dbname}.ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
         tdSql.execute(
-            "insert into ct1 values (now()+15s, 9, -99999, -999, -99, -9.99, NULL, 1, 'binary9', 'nchar9', now()+9a )")
+            f"insert into {dbname}.ct1 values (now()+15s, 9, -99999, -999, -99, -9.99, NULL, 1, 'binary9', 'nchar9', now()+9a )")
         tdSql.execute(
-            "insert into ct1 values (now()+20s, 9, -99999, -999, NULL, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+            f"insert into {dbname}.ct1 values (now()+20s, 9, -99999, -999, NULL, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
 
         tdSql.execute(
-            "insert into ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+            f"insert into {dbname}.ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
         tdSql.execute(
-            "insert into ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+            f"insert into {dbname}.ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
         tdSql.execute(
-            "insert into ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
+            f"insert into {dbname}.ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
 
         tdSql.execute(
-            f'''insert into t1 values
+            f'''insert into {dbname}.t1 values
             ( '2020-04-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( '2020-10-21 01:01:01.000', 1, 11111, 111, 11, 1.11, 11.11, 1, "binary1", "nchar1", now()+1a )
             ( '2020-12-31 01:01:01.000', 2, 22222, 222, 22, 2.22, 22.22, 0, "binary2", "nchar2", now()+2a )
@@ -139,108 +136,100 @@ class TDTestCase:
             '''
         )
 
-    def test_errors(self):
-        tdSql.execute("use testdb")
+    def test_errors(self, dbname="testdb"):
         error_sql_lists = [
-            "select irate from t1",
-            "select irate(-+--+c1) from t1",
-            # "select +-irate(c1) from t1",
-            # "select ++-irate(c1) from t1",
-            # "select ++--irate(c1) from t1",
-            # "select - -irate(c1)*0 from t1",
-            # "select irate(tbname+1) from t1 ",
-            "select irate(123--123)==1 from t1",
-            "select irate(c1) as 'd1' from t1",
-            "select irate(c1 ,c2 ) from t1",
-            "select irate(c1 ,NULL) from t1",
-            "select irate(,) from t1;",
-            "select irate(irate(c1) ab from t1)",
-            "select irate(c1) as int from t1",
-            "select irate from stb1",
-            # "select irate(-+--+c1) from stb1",
-            # "select +-irate(c1) from stb1",
-            # "select ++-irate(c1) from stb1",
-            # "select ++--irate(c1) from stb1",
-            # "select - -irate(c1)*0 from stb1",
-            # "select irate(tbname+1) from stb1 ",
-            "select irate(123--123)==1 from stb1",
-            "select irate(c1) as 'd1' from stb1",
-            "select irate(c1 ,c2 ) from stb1",
-            "select irate(c1 ,NULL) from stb1",
-            "select irate(,) from stb1;",
-            "select irate(abs(c1) ab from stb1)",
-            "select irate(c1) as int from stb1"
+            f"select irate from {dbname}.t1",
+            f"select irate(-+--+c1) from {dbname}.t1",
+            # f"select +-irate(c1) from {dbname}.t1",
+            # f"select ++-irate(c1) from {dbname}.t1",
+            # f"select ++--irate(c1) from {dbname}.t1",
+            # f"select - -irate(c1)*0 from {dbname}.t1",
+            # f"select irate(tbname+1) from {dbname}.t1 ",
+            f"select irate(123--123)==1 from {dbname}.t1",
+            f"select irate(c1) as 'd1' from {dbname}.t1",
+            f"select irate(c1 ,c2 ) from {dbname}.t1",
+            f"select irate(c1 ,NULL) from {dbname}.t1",
+            f"select irate(,) from {dbname}.t1;",
+            f"select irate(irate(c1) ab from {dbname}.t1)",
+            f"select irate(c1) as int from {dbname}.t1",
+            f"select irate from {dbname}.stb1",
+            # f"select irate(-+--+c1) from {dbname}.stb1",
+            # f"select +-irate(c1) from {dbname}.stb1",
+            # f"select ++-irate(c1) from {dbname}.stb1",
+            # f"select ++--irate(c1) from {dbname}.stb1",
+            # f"select - -irate(c1)*0 from {dbname}.stb1",
+            # f"select irate(tbname+1) from {dbname}.stb1 ",
+            f"select irate(123--123)==1 from {dbname}.stb1",
+            f"select irate(c1) as 'd1' from {dbname}.stb1",
+            f"select irate(c1 ,c2 ) from {dbname}.stb1",
+            f"select irate(c1 ,NULL) from {dbname}.stb1",
+            f"select irate(,) from {dbname}.stb1;",
+            f"select irate(abs(c1) ab from {dbname}.stb1)",
+            f"select irate(c1) as int from {dbname}.stb1"
         ]
         for error_sql in error_sql_lists:
             tdSql.error(error_sql)
 
-    def support_types(self):
-        tdSql.execute("use testdb")
-        tbnames = ["stb1", "t1", "ct1", "ct2"]
+    def support_types(self, dbname="testdb"):
+        tbnames = [f"{dbname}.stb1", f"{dbname}.t1", f"{dbname}.ct1", f"{dbname}.ct2"]
         support_types = ["BIGINT", "SMALLINT", "TINYINT", "FLOAT", "DOUBLE", "INT"]
         for tbname in tbnames:
             tdSql.query("desc {}".format(tbname))
             coltypes = tdSql.queryResult
             for coltype in coltypes:
                 colname = coltype[0]
-                irate_sql = "select irate({}) from {}".format(colname, tbname)
+                irate_sql = f"select irate({colname}) from {tbname}"
                 if coltype[1] in support_types:
                     tdSql.query(irate_sql)
                 else:
                     tdSql.error(irate_sql)
 
-    def basic_irate_function(self):
+    def basic_irate_function(self, dbname="testdb"):
 
-        # used for empty table  , ct3 is empty
-        tdSql.query("select irate(c1) from ct3")
+        # used for empty table  , {dbname}.ct3 is empty
+        tdSql.query(f"select irate(c1) from {dbname}.ct3")
         tdSql.checkRows(0)
-        tdSql.query("select irate(c2) from ct3")
+        tdSql.query(f"select irate(c2) from {dbname}.ct3")
         tdSql.checkRows(0)
 
         # used for regular table
-        tdSql.query("select irate(c1) from t1")
+        tdSql.query(f"select irate(c1) from {dbname}.t1")
         tdSql.checkData(0, 0, 0.000000386)
 
         # used for sub table
-        tdSql.query("select irate(abs(c1+c2)) from ct1")
+        tdSql.query(f"select irate(abs(c1+c2)) from {dbname}.ct1")
         tdSql.checkData(0, 0, 0.000000000)
 
 
         # mix with common col
-        tdSql.error("select c1, irate(c1) from ct1")
+        tdSql.error(f"select c1, irate(c1) from {dbname}.ct1")
 
         # mix with common functions
-        tdSql.error("select irate(c1), abs(c1) from ct4 ")
+        tdSql.error(f"select irate(c1), abs(c1) from {dbname}.ct4 ")
 
         # agg functions mix with agg functions
-        tdSql.query("select irate(c1), count(c5) from stb1 partition by tbname order by tbname")
+        tdSql.query(f"select irate(c1), count(c5) from {dbname}.stb1 partition by tbname order by tbname")
         tdSql.checkData(0, 0, 0.000000000)
         tdSql.checkData(1, 0, 0.000000000)
         tdSql.checkData(0, 1, 13)
         tdSql.checkData(1, 1, 9)
 
 
-    def irate_func_filter(self):
-        tdSql.execute("use testdb")
+    def irate_func_filter(self, dbname="testdb"):
         tdSql.query(
-            "select irate(c1+2)/2 from ct4 where c1>5 ")
+            f"select irate(c1+2)/2 from {dbname}.ct4 where c1>5 ")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0.000000514)
 
         tdSql.query(
-            "select irate(c1+c2)/10 from ct4 where c1=5 ")
+            f"select irate(c1+c2)/10 from {dbname}.ct4 where c1=5 ")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0.000000000)
 
         tdSql.query(
-            "select irate(c1+c2)/10 from stb1 where c1 = 5 partition by tbname ")
+            f"select irate(c1+c2)/10 from {dbname}.stb1 where c1 = 5 partition by tbname ")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0.000000000)
-
-
-    def irate_Arithmetic(self):
-        pass
-
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()

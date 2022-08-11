@@ -108,6 +108,12 @@ python3 ./test.py -f 2-query/function_stateduration.py
 python3 ./test.py -f 2-query/function_stateduration.py -R
 python3 ./test.py -f 2-query/histogram.py
 python3 ./test.py -f 2-query/histogram.py -R
+python3 ./test.py -f 2-query/hyperloglog.py
+python3 ./test.py -f 2-query/hyperloglog.py -R
+python3 ./test.py -f 2-query/irate.py
+# python3 ./test.py -f 2-query/irate.py -R
+python3 ./test.py -f 2-query/join.py
+python3 ./test.py -f 2-query/join.py -R
 
 python3 ./test.py -f 2-query/interp.py
 python3 ./test.py -f 2-query/interp.py -R
@@ -124,14 +130,12 @@ python3 ./test.py -f 2-query/rtrim.py
 python3 ./test.py -f 2-query/length.py
 python3 ./test.py -f 2-query/upper.py
 python3 ./test.py -f 2-query/lower.py
-python3 ./test.py -f 2-query/join.py
 python3 ./test.py -f 2-query/join2.py
 python3 ./test.py -f 2-query/substr.py
 python3 ./test.py -f 2-query/union.py
 python3 ./test.py -f 2-query/union1.py
 python3 ./test.py -f 2-query/concat2.py
 python3 ./test.py -f 2-query/spread.py
-python3 ./test.py -f 2-query/hyperloglog.py
 python3 ./test.py -f 2-query/leastsquares.py
 
 
@@ -172,7 +176,6 @@ python3 ./test.py -f 2-query/statecount.py
 python3 ./test.py -f 2-query/tail.py
 python3 ./test.py -f 2-query/ttl_comment.py
 python3 ./test.py -f 2-query/twa.py
-python3 ./test.py -f 2-query/irate.py
 python3 ./test.py -f 2-query/queryQnode.py
 python3 ./test.py -f 2-query/max_partition.py
 python3 ./test.py -f 2-query/last_row.py
