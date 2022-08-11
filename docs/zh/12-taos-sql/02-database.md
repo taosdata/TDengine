@@ -112,9 +112,9 @@ alter_database_options:
 alter_database_option: {
     CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}
   | CACHESIZE value
-  | FSYNC value
+  | WAL_FSYNC_PERIOD value
   | KEEP value
-  | WAL value
+  | WAL_LEVEL value
 }
 ```
 
