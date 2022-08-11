@@ -49,7 +49,7 @@ endi
 system sh/exec.sh -n dnode3 -s stop
 sql_error create mnode on dnode 3
 
-print =============== step3: show mnodes
+print =============== step3: select * from information_schema.ins_mnodes
 
 $x = 0
 step3: 
@@ -58,7 +58,7 @@ step3:
 	if $x == 10 then
 		return -1
 	endi
-sql show mnodes -x step3
+sql select * from information_schema.ins_mnodes -x step3
 print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] 
 print $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] 
 print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4]
@@ -96,7 +96,7 @@ step4:
 	if $x == 10 then
 		return -1
 	endi
-sql show mnodes -x step4
+sql select * from information_schema.ins_mnodes -x step4
 print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] 
 print $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] 
 print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4]
@@ -135,7 +135,7 @@ step5:
 	if $x == 10 then
 		return -1
 	endi
-sql show mnodes -x step5
+sql select * from information_schema.ins_mnodes -x step5
 print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] 
 print $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] 
 print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4]
@@ -173,7 +173,7 @@ step6:
 	if $x == 10 then
 		return -1
 	endi
-sql show mnodes -x step6
+sql select * from information_schema.ins_mnodes -x step6
 print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] 
 print $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] 
 print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4]

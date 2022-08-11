@@ -48,7 +48,7 @@ class TDTestCase:
         return buildPath
 
     def check_setup_cluster_status(self):
-        tdSql.query("show mnodes")
+        tdSql.query("select * from information_schema.ins_mnodes")
         for mnode in tdSql.queryResult:
             name = mnode[1]
             info = mnode
@@ -190,7 +190,7 @@ class TDTestCase:
         # create mnode 
         tdSql.execute("create mnode on dnode 2 ")
         tdSql.execute("create mnode on dnode 3 ")
-        os.system("taos -s 'show mnodes;'")
+        os.system("taos -s 'select * from information_schema.ins_mnodes;'")
         # start writing constantly 
         writing = threading.Thread(target = self.create_db_replica_3_insertdatas, args=(self.db_name , self.replica , self.vgroups , self.tb_nums , self.row_nums))
         writing.start()

@@ -15,7 +15,7 @@ if $data00 != 1 then
   return -1
 endi
 
-sql show mnodes;
+sql select * from information_schema.ins_mnodes;
 if $rows != 1 then 
   return -1
 endi
@@ -62,7 +62,7 @@ if $data14 != ready then
   return -1
 endi
 
-sql show mnodes;
+sql select * from information_schema.ins_mnodes;
 if $rows != 1 then 
   return -1
 endi

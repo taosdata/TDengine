@@ -8,7 +8,7 @@ system sh/exec.sh -n dnode3 -s start
 sql connect
 
 print =============== select * from information_schema.ins_dnodes
-sql show mnodes;
+sql select * from information_schema.ins_mnodes;
 if $rows != 1 then 
   return -1
 endi

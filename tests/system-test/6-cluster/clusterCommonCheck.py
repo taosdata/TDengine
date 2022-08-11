@@ -117,7 +117,7 @@ class ClusterComCheck:
 
         while count < 10:
             time.sleep(1)
-            tdSql.query("show mnodes;")
+            tdSql.query("select * from information_schema.ins_mnodes;")
             if tdSql.checkRows(self.mnodeNums) :
                 tdLog.success("cluster has %d mnodes" %self.mnodeNums )
 
@@ -164,7 +164,7 @@ class ClusterComCheck:
         count=0
         while count < 10:
             time.sleep(1)
-            tdSql.query("show mnodes;")
+            tdSql.query("select * from information_schema.ins_mnodes;")
             if tdSql.checkRows(mnodeNums) :
                 tdLog.success("cluster has %d mnodes" %self.mnodeNums )
             else:
@@ -210,7 +210,7 @@ class ClusterComCheck:
         count=0
         while count < 10:
             time.sleep(1)
-            tdSql.query("show mnodes;")
+            tdSql.query("select * from information_schema.ins_mnodes;")
             if tdSql.checkRows(mnodeNums) :
                 tdLog.success("cluster has %d mnodes" %self.mnodeNums )
             else:

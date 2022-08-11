@@ -48,7 +48,7 @@ class TDTestCase:
         tdSql.checkData(4,1,'%s:6430'%self.host)
         tdSql.checkData(0,4,'ready')
         tdSql.checkData(4,4,'ready')
-        tdSql.query("show mnodes;")
+        tdSql.query("select * from information_schema.ins_mnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'leader')
         tdSql.checkData(0,3,'ready')
@@ -62,7 +62,7 @@ class TDTestCase:
         count=0
         while count < 10:
             time.sleep(1)
-            tdSql.query("show mnodes;")
+            tdSql.query("select * from information_schema.ins_mnodes;")
             tdSql.checkRows(2)
             if  tdSql.queryResult[0][2]=='leader' :
                 if  tdSql.queryResult[1][2]=='follower':

@@ -52,7 +52,7 @@ print =============== check show
 sql_error select * from information_schema.ins_users
 sql_error show cluster
 sql_error select * from information_schema.ins_dnodes
-sql_error show mnodes
+sql_error select * from information_schema.ins_mnodes
 sql_error show snodes
 sql_error show qnodes
 sql_error show bnodes

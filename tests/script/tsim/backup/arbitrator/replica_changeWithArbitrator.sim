@@ -203,7 +203,7 @@ $cnt = $cnt + 1
 if $cnt == 10 then
   return -1
 endi
-sql show mnodes
+sql select * from information_schema.ins_mnodes
 if $rows != 2 then
   sleep 2000
   goto wait_dnode2_master

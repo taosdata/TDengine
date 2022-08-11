@@ -692,7 +692,7 @@ class TDTestCase:
         taos4_conn = taos.connect(user=self.__user_list[4], password=f"new{self.__passwd_list[4]}")
         taos4_except = True
         try:
-            taos4_conn.query(f"show mnodes")
+            taos4_conn.query(f"select * from information_schema.ins_mnodes")
             taos4_conn.query(f"show {DBNAME}.vgroups")
         except BaseException:
             taos4_except = False

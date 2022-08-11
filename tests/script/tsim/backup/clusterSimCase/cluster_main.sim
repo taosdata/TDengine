@@ -16,7 +16,7 @@
 #           5 |         718 | ready      |            2 |      3 | master      |      2 | slave       |
 #Query OK, 4 row(s) in set (0.002749s)
 #
-#taos> show mnodes
+#taos> select * from information_schema.ins_mnodes
 #   -> ;
 #   id   |           end_point            |      role      |       create_time       |
 #=====================================================================================

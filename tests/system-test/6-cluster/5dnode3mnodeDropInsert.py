@@ -209,7 +209,7 @@ class TDTestCase:
         count=0
         while count < 10:
             time.sleep(1)
-            tdSql.query("show mnodes;")
+            tdSql.query("select * from information_schema.ins_mnodes;")
             if tdSql.checkRows(3) :
                 print("mnode is  three nodes")
             if  tdSql.queryResult[0][2]=='leader' :
@@ -232,7 +232,7 @@ class TDTestCase:
             print("three mnodes is not ready in 10s ")
             return -1
 
-        tdSql.query("show mnodes;")
+        tdSql.query("select * from information_schema.ins_mnodes;")
         tdSql.checkRows(3)
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,3,'ready')
@@ -245,7 +245,7 @@ class TDTestCase:
         count=0
         while count < 10:
             time.sleep(1)
-            tdSql.query("show mnodes;")
+            tdSql.query("select * from information_schema.ins_mnodes;")
             if tdSql.checkRows(3) :
                 print("mnode is  three nodes")
             if  tdSql.queryResult[0][2]=='offline' :
@@ -263,7 +263,7 @@ class TDTestCase:
             return -1
         tdSql.error("drop mnode on dnode 1;")
 
-        tdSql.query("show mnodes;")
+        tdSql.query("select * from information_schema.ins_mnodes;")
         tdSql.checkRows(3)
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'offline')
@@ -277,7 +277,7 @@ class TDTestCase:
         count=0
         while count < 40:
             time.sleep(1)
-            tdSql.query("show mnodes;")
+            tdSql.query("select * from information_schema.ins_mnodes;")
             if tdSql.checkRows(3) :
                 print("mnode is  three nodes")
             if  tdSql.queryResult[0][2]=='leader' :
@@ -291,7 +291,7 @@ class TDTestCase:
             return -1
         tdSql.error("drop mnode on dnode 2;")
 
-        tdSql.query("show mnodes;")
+        tdSql.query("select * from information_schema.ins_mnodes;")
         tdSql.checkRows(3)
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'leader')
@@ -307,7 +307,7 @@ class TDTestCase:
         count=0
         while count < 10:
             time.sleep(1)
-            tdSql.query("show mnodes;")
+            tdSql.query("select * from information_schema.ins_mnodes;")
             if tdSql.checkRows(3) :
                 print("mnode is  three nodes")
             if  tdSql.queryResult[0][2]=='leader' :
@@ -320,7 +320,7 @@ class TDTestCase:
             print("stop mnodes  on dnode 3 failed in 10s")
             return -1
         tdSql.error("drop mnode on dnode 3;")
-        tdSql.query("show mnodes;")
+        tdSql.query("select * from information_schema.ins_mnodes;")
         tdSql.checkRows(3)
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'leader')
@@ -348,7 +348,7 @@ class TDTestCase:
         tdSql.checkData(4,1,'%s:6430'%self.host)
         tdSql.checkData(0,4,'ready')
         tdSql.checkData(4,4,'ready')
-        tdSql.query("show mnodes;")
+        tdSql.query("select * from information_schema.ins_mnodes;")
         tdSql.checkRows(1)
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'leader')
@@ -383,11 +383,11 @@ class TDTestCase:
             for i in range(1,3):
                 tdLog.debug("drop mnode on dnode %d"%(i+1))
                 tdSql.execute("drop mnode on dnode %d"%(i+1))
-                tdSql.query("show mnodes;")
+                tdSql.query("select * from information_schema.ins_mnodes;")
                 count=0
                 while count<10:
                     time.sleep(1)
-                    tdSql.query("show mnodes;")
+                    tdSql.query("select * from information_schema.ins_mnodes;")
                     if tdSql.checkRows(2):
                         print("drop mnode %d successfully"%(i+1))
                         break
@@ -397,7 +397,7 @@ class TDTestCase:
                 count=0
                 while count<10:
                     time.sleep(1)
-                    tdSql.query("show mnodes;")
+                    tdSql.query("select * from information_schema.ins_mnodes;")
                     if tdSql.checkRows(3):
                         print("drop mnode %d successfully"%(i+1))
                         break

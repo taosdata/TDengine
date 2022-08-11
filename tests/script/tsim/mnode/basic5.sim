@@ -67,7 +67,7 @@ step31:
 	if $x == 50 then
 		return -1
 	endi
-sql show mnodes
+sql select * from information_schema.ins_mnodes
 $leaderNum = 0
 if $data(1)[2] == leader then
   $leaderNum = 1
@@ -161,7 +161,7 @@ step61:
 	if $x == 10 then
 		return -1
 	endi
-sql show mnodes -x step61
+sql select * from information_schema.ins_mnodes -x step61
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
@@ -215,7 +215,7 @@ step81:
 	if $x == 10 then
 		return -1
 	endi
-sql show mnodes
+sql select * from information_schema.ins_mnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
@@ -271,7 +271,7 @@ step92:
 	if $x == 20 then
 		return -1
 	endi
-sql show mnodes
+sql select * from information_schema.ins_mnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
@@ -301,7 +301,7 @@ stepa:
 	if $x == 10 then
 		return -1
 	endi
-sql show mnodes
+sql select * from information_schema.ins_mnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
