@@ -154,7 +154,7 @@
 #define TK_ACCOUNTS             136
 #define TK_APPS                 137
 #define TK_CONNECTIONS          138
-#define TK_LICENCE              139
+#define TK_LICENCES             139
 #define TK_GRANTS               140
 #define TK_QUERIES              141
 #define TK_SCORES               142

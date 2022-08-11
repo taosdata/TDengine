@@ -1044,7 +1044,7 @@ static const YYCODETYPE yyFallback[] = {
     0,  /*   ACCOUNTS => nothing */
     0,  /*       APPS => nothing */
     0,  /* CONNECTIONS => nothing */
-    0,  /*    LICENCE => nothing */
+    0,  /*   LICENCES => nothing */
     0,  /*     GRANTS => nothing */
     0,  /*    QUERIES => nothing */
     0,  /*     SCORES => nothing */
@@ -1388,7 +1388,7 @@ static const char *const yyTokenName[] = {
   /*  136 */ "ACCOUNTS",
   /*  137 */ "APPS",
   /*  138 */ "CONNECTIONS",
-  /*  139 */ "LICENCE",
+  /*  139 */ "LICENCES",
   /*  140 */ "GRANTS",
   /*  141 */ "QUERIES",
   /*  142 */ "SCORES",
@@ -1843,7 +1843,7 @@ static const char *const yyRuleName[] = {
  /* 205 */ "cmd ::= SHOW ACCOUNTS",
  /* 206 */ "cmd ::= SHOW APPS",
  /* 207 */ "cmd ::= SHOW CONNECTIONS",
- /* 208 */ "cmd ::= SHOW LICENCE",
+ /* 208 */ "cmd ::= SHOW LICENCES",
  /* 209 */ "cmd ::= SHOW GRANTS",
  /* 210 */ "cmd ::= SHOW CREATE DATABASE db_name",
  /* 211 */ "cmd ::= SHOW CREATE TABLE full_table_name",
@@ -2932,7 +2932,7 @@ static const struct {
   {  257,   -2 }, /* (205) cmd ::= SHOW ACCOUNTS */
   {  257,   -2 }, /* (206) cmd ::= SHOW APPS */
   {  257,   -2 }, /* (207) cmd ::= SHOW CONNECTIONS */
-  {  257,   -2 }, /* (208) cmd ::= SHOW LICENCE */
+  {  257,   -2 }, /* (208) cmd ::= SHOW LICENCES */
   {  257,   -2 }, /* (209) cmd ::= SHOW GRANTS */
   {  257,   -4 }, /* (210) cmd ::= SHOW CREATE DATABASE db_name */
   {  257,   -4 }, /* (211) cmd ::= SHOW CREATE TABLE full_table_name */
@@ -3984,9 +3984,9 @@ static YYACTIONTYPE yy_reduce(
       case 207: /* cmd ::= SHOW CONNECTIONS */
 { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CONNECTIONS_STMT); }
         break;
-      case 208: /* cmd ::= SHOW LICENCE */
+      case 208: /* cmd ::= SHOW LICENCES */
       case 209: /* cmd ::= SHOW GRANTS */ yytestcase(yyruleno==209);
-{ pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_LICENCE_STMT); }
+{ pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_LICENCES_STMT); }
         break;
       case 210: /* cmd ::= SHOW CREATE DATABASE db_name */
 { pCxt->pRootNode = createShowCreateDatabaseStmt(pCxt, &yymsp[0].minor.yy361); }

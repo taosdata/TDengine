@@ -118,7 +118,7 @@ static SKeyword keywordTable[] = {
     {"KILL",                 TK_KILL},
     {"LAST",                 TK_LAST},
     {"LAST_ROW",             TK_LAST_ROW},
-    {"LICENCE",              TK_LICENCE},
+    {"LICENCES",             TK_LICENCES},
     {"LIKE",                 TK_LIKE},
     {"LIMIT",                TK_LIMIT},
     {"LINEAR",               TK_LINEAR},
