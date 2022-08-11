@@ -59,20 +59,6 @@ To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in t
 sudo apt-get install -y gcc cmake build-essential git libssl-dev
 ```
 
-To compile and package the JDBC driver source code, you should have a Java jdk-8 or higher and Apache Maven 2.7 or higher installed.
-
-To install openjdk-8:
-
-```bash
-sudo apt-get install -y openjdk-8-jdk
-```
-
-To install Apache Maven:
-
-```bash
-sudo apt-get install -y maven
-```
-
 #### Install build dependencies for taosTools
 
 We provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. From TDengine 2.4.0.0, taosBenchmark and taosdump were not released together with TDengine.
@@ -93,34 +79,10 @@ sudo yum install -y gcc gcc-c++ make cmake3 git openssl-devel
 sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
-To install openjdk-8:
-
-```bash
-sudo yum install -y java-1.8.0-openjdk
-```
-
-To install Apache Maven:
-
-```bash
-sudo yum install -y maven
-```
-
 ### CentOS 8 & Fedora
 
 ```bash
 sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
-```
-
-To install openjdk-8:
-
-```bash
-sudo dnf install -y java-1.8.0-openjdk
-```
-
-To install Apache Maven:
-
-```bash
-sudo dnf install -y maven
 ```
 
 #### Install build dependencies for taosTools on CentOS

@@ -56,20 +56,6 @@ TDengine 目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后�
 sudo apt-get install -y gcc cmake build-essential git libssl-dev
 ```
 
-编译或打包 JDBC 驱动源码，需安装 Java JDK 8 或以上版本和 Apache Maven 2.7 或以上版本。
-
-安装 OpenJDK 8：
-
-```bash
-sudo apt-get install -y openjdk-8-jdk
-```
-
-安装 Apache Maven：
-
-```bash
-sudo apt-get install -y  maven
-```
-
 #### 为 taos-tools 安装编译需要的软件
 
 taosTools 是用于 TDengine 的辅助工具软件集合。目前它包含 taosBenchmark（曾命名为 taosdemo）和 taosdump 两个软件。
@@ -85,37 +71,16 @@ sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-d
 ### CentOS 7.9：
 
 ```bash
-sudo yum install -y gcc gcc-c++ make cmake git openssl-devel
-```
-
-安装 OpenJDK 8：
-
-```bash
-sudo yum install -y java-1.8.0-openjdk
-```
-
-安装 Apache Maven：
-
-```bash
-sudo yum install -y maven
+sudo yum install epel-release
+sudo yum update
+sudo yum install -y gcc gcc-c++ make cmake3 git openssl-devel
+sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
 ### CentOS 8 & Fedora
 
 ```bash
 sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
-```
-
-安装 OpenJDK 8：
-
-```bash
-sudo dnf install -y java-1.8.0-openjdk
-```
-
-安装 Apache Maven：
-
-```bash
-sudo dnf install -y maven
 ```
 
 #### 在 CentOS 上构建 taosTools 安装依赖软件
