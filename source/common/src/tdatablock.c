@@ -1875,15 +1875,15 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
  * @param suid
  * 
  */
-int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema* pTSchema, int32_t vgId,
+int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataBlock, STSchema* pTSchema, int32_t vgId,
                                     tb_uid_t suid) {
-  int32_t sz = taosArrayGetSize(pDataBlocks);
   int32_t bufSize = sizeof(SSubmitReq);
+  int32_t sz = 1;
   for (int32_t i = 0; i < sz; ++i) {
-    SDataBlockInfo* pBlkInfo = &((SSDataBlock*)taosArrayGetP(pDataBlocks, i))->info;
+    const SDataBlockInfo* pBlkInfo = &pDataBlock->info;
 
-    int32_t numOfCols = taosArrayGetSize(pDataBlocks);
-    bufSize += pBlkInfo->rows * (TD_ROW_HEAD_LEN + pBlkInfo->rowSize + BitmapLen(numOfCols));
+    int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
+    bufSize += pBlkInfo->rows * (TD_ROW_HEAD_LEN + pBlkInfo->rowSize + BitmapLen(colNum));
     bufSize += sizeof(SSubmitBlk);
   }
 
@@ -1900,7 +1900,6 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
   tdSRowInit(&rb, pTSchema->version);
 
   for (int32_t i = 0; i < sz; ++i) {
-    SSDataBlock* pDataBlock = taosArrayGetP(pDataBlocks, i);
     int32_t      colNum = taosArrayGetSize(pDataBlock->pDataBlock);
     int32_t      rows = pDataBlock->info.rows;
     //    int32_t      rowSize = pDataBlock->info.rowSize;
