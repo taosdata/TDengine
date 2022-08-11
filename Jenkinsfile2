@@ -38,40 +38,21 @@ def pre_test(){
     sh '''
         cd ${WK}
         git reset --hard
+        git remote prune origin
+        git fetch
         cd ${WKC}
         git reset --hard
         git clean -fxd
+        git remote prune origin
+        git fetch
     '''
     script {
-        if (env.CHANGE_TARGET == 'master') {
-            sh '''
-                cd ${WK}
-                git checkout master
-                cd ${WKC}
-                git checkout master
-            '''
-        } else if(env.CHANGE_TARGET == '2.0') {
-            sh '''
-                cd ${WK}
-                git checkout 2.0
-                cd ${WKC}
-                git checkout 2.0
-            '''
-        } else if(env.CHANGE_TARGET == '3.0') {
-            sh '''
-                cd ${WK}
-                git checkout 3.0
-                cd ${WKC}
-                git checkout 3.0
-            '''
-        } else {
-            sh '''
-                cd ${WK}
-                git checkout develop
-                cd ${WKC}
-                git checkout develop
-            '''
-        }
+        sh '''
+            cd ${WK}
+            git checkout ''' + env.CHANGE_TARGET + '''
+            cd ${WKC}
+            git checkout ''' + env.CHANGE_TARGET + '''
+        '''
     }
     if (env.CHANGE_URL =~ /\/TDengine\//) {
         sh '''
@@ -169,49 +150,24 @@ def pre_test_win(){
     bat '''
         cd %WIN_INTERNAL_ROOT%
         git reset --hard
+        git remote prune origin
+        git fetch
     '''
     bat '''
         cd %WIN_COMMUNITY_ROOT%
         git reset --hard
+        git remote prune origin
+        git fetch
     '''
     script {
-        if (env.CHANGE_TARGET == 'master') {
-            bat '''
-                cd %WIN_INTERNAL_ROOT%
-                git checkout master
-            '''
-            bat '''
-                cd %WIN_COMMUNITY_ROOT%
-                git checkout master
-            '''
-        } else if(env.CHANGE_TARGET == '2.0') {
-            bat '''
-                cd %WIN_INTERNAL_ROOT%
-                git checkout 2.0
-            '''
-            bat '''
-                cd %WIN_COMMUNITY_ROOT%
-                git checkout 2.0
-            '''
-        } else if(env.CHANGE_TARGET == '3.0') {
-            bat '''
-                cd %WIN_INTERNAL_ROOT%
-                git checkout 3.0
-            '''
-            bat '''
-                cd %WIN_COMMUNITY_ROOT%
-                git checkout 3.0
-            '''
-        } else {
-            bat '''
-                cd %WIN_INTERNAL_ROOT%
-                git checkout develop
-            '''
-            bat '''
-                cd %WIN_COMMUNITY_ROOT%
-                git checkout develop
-            '''
-        }
+        bat '''
+            cd %WIN_INTERNAL_ROOT%
+            git checkout ''' + env.CHANGE_TARGET + '''
+        '''
+        bat '''
+            cd %WIN_COMMUNITY_ROOT%
+            git checkout ''' + env.CHANGE_TARGET + '''
+        '''
     }
     script {
         if (env.CHANGE_URL =~ /\/TDengine\//) {
@@ -309,7 +265,6 @@ def pre_test_build_win() {
     '''
     bat '''
         cd %WIN_CONNECTOR_ROOT%
-        python.exe -m pip install --upgrade pip
         python -m pip install .
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
     '''
@@ -328,7 +283,6 @@ def run_win_test() {
     bat '''
         echo "windows test ..."
         cd %WIN_CONNECTOR_ROOT%
-        python.exe -m pip install --upgrade pip
         python -m pip install .
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
         ls -l C:\\Windows\\System32\\taos.dll
