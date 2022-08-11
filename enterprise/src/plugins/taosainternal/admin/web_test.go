@@ -11,9 +11,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
-	"github.com/taosdata/taosadapter/config"
-	"github.com/taosdata/taosadapter/controller/rest"
-	"github.com/taosdata/taosadapter/db"
+	"github.com/taosdata/taosadapter/v3/config"
+	"github.com/taosdata/taosadapter/v3/controller/rest"
+	"github.com/taosdata/taosadapter/v3/db"
 )
 
 var router *gin.Engine
@@ -132,14 +132,19 @@ func TestDownload(t *testing.T) {
 			"pages",
 			"minrows",
 			"maxrows",
-			"wal",
-			"fsync",
 			"comp",
-			"cache_model",
 			"precision",
-			"single_stable_model",
 			"status",
 			"retention",
+			"single_stable",
+			"cachemodel",
+			"cachesize",
+			"wal_level",
+			"wal_fsync_period",
+			"wal_retention_period",
+			"wal_retention_size",
+			"wal_roll_period",
+			"wal_segment_size",
 		},
 		data[0],
 	)

@@ -7,8 +7,8 @@ import (
 
 	_ "taosainternal/admin"
 
-	"github.com/taosdata/taosadapter/log"
-	"github.com/taosdata/taosadapter/system"
+	"github.com/taosdata/taosadapter/v3/log"
+	"github.com/taosdata/taosadapter/v3/system"
 )
 
 var logger = log.GetLogger("main")
