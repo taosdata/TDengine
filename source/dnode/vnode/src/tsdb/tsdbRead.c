@@ -1547,6 +1547,8 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader, STableBlockScanInfo*
   SBlockData*         pBlockData = &pReader->status.fileBlockData;
   int32_t             step = ASCENDING_TRAVERSE(pReader->order) ? 1 : -1;
 
+  int32_t numOfSub = 1;
+
   int64_t st = taosGetTimestampUs();
 
   while (1) {
@@ -1556,6 +1558,8 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader, STableBlockScanInfo*
         pDumpInfo->rowIndex += step;
 
         SBlock* pBlock = getCurrentBlock(&pReader->status.blockIter);
+        numOfSub = pBlock->nSubBlock;
+
         if (pDumpInfo->rowIndex >= pBlock->nRow || pDumpInfo->rowIndex < 0) {
           setBlockAllDumped(pDumpInfo, pBlock, pReader->order);
           break;
@@ -1585,9 +1589,9 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader, STableBlockScanInfo*
   setComposedBlockFlag(pReader, true);
   int64_t et = taosGetTimestampUs();
 
-  tsdbDebug("%p uid:%" PRIu64 ", composed data block created, brange:%" PRIu64 "-%" PRIu64
+  tsdbDebug("%p uid:%" PRIu64 ", composed data block created, subBlock:%d, brange:%" PRIu64 "-%" PRIu64
             " rows:%d, elapsed time:%.2f ms %s",
-            pReader, pBlockScanInfo->uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
+            pReader, pBlockScanInfo->uid, numOfSub, pResBlock->info.window.skey, pResBlock->info.window.ekey,
             pResBlock->info.rows, (et - st) / 1000.0, pReader->idStr);
 
   return TSDB_CODE_SUCCESS;
