@@ -28,7 +28,7 @@ int32_t tdBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBl
     /*int64_t     groupId = *(int64_t*)colDataGetData(pGidCol, row);*/
     int64_t groupId = 0;
     char*   name = buildCtbNameByGroupId(stbFullName, groupId);
-    tqDebug("delete msg: groupId :%ld, name: %s", groupId, name);
+    tqDebug("stream delete msg: groupId :%ld, name: %s", groupId, name);
     SMetaReader mr = {0};
     metaReaderInit(&mr, pVnode->pMeta, 0);
     if (metaGetTableEntryByName(&mr, name) < 0) {
