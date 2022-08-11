@@ -611,65 +611,6 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_closeConnectionIm
   }
 }
 
-JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_subscribeImp(JNIEnv *env, jobject jobj, jlong con,
-                                                                             jboolean restart, jstring jtopic,
-                                                                             jstring jsql, jint jinterval) {
-  jlong sub = 0;
-  TAOS *taos = (TAOS *)con;
-  char *topic = NULL;
-  char *sql = NULL;
-
-  jniGetGlobalMethod(env);
-  jniDebug("jobj:%p, in TSDBJNIConnector_subscribeImp", jobj);
-
-  if (jtopic != NULL) {
-    topic = (char *)(*env)->GetStringUTFChars(env, jtopic, NULL);
-  }
-  if (jsql != NULL) {
-    sql = (char *)(*env)->GetStringUTFChars(env, jsql, NULL);
-  }
-
-  if (topic == NULL || sql == NULL) {
-    jniDebug("jobj:%p, invalid argument: topic or sql is NULL", jobj);
-    return sub;
-  }
-
-  TAOS_SUB *tsub = taos_subscribe(taos, (int)restart, topic, sql, NULL, NULL, jinterval);
-  sub = (jlong)tsub;
-
-  if (sub == 0) {
-    jniDebug("jobj:%p, failed to subscribe: topic:%s", jobj, topic);
-  } else {
-    jniDebug("jobj:%p, successfully subscribe: topic: %s", jobj, topic);
-  }
-
-  (*env)->ReleaseStringUTFChars(env, jtopic, topic);
-  (*env)->ReleaseStringUTFChars(env, jsql, sql);
-
-  return sub;
-}
-
-JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_consumeImp(JNIEnv *env, jobject jobj, jlong sub) {
-  jniDebug("jobj:%p, in TSDBJNIConnector_consumeImp, sub:%lld", jobj, sub);
-  jniGetGlobalMethod(env);
-
-  TAOS_SUB *tsub = (TAOS_SUB *)sub;
-  TAOS_RES *res = taos_consume(tsub);
-
-  if (res == NULL) {
-    jniError("jobj:%p, tsub:%p, taos_consume returns NULL", jobj, tsub);
-    return 0l;
-  }
-
-  return (jlong)res;
-}
-
-JNIEXPORT void JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_unsubscribeImp(JNIEnv *env, jobject jobj, jlong sub,
-                                                                              jboolean keepProgress) {
-  TAOS_SUB *tsub = (TAOS_SUB *)sub;
-  taos_unsubscribe(tsub, keepProgress);
-}
-
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_validateCreateTableSqlImp(JNIEnv *env, jobject jobj,
                                                                                          jlong con, jbyteArray jsql) {
   TAOS *tscon = (TAOS *)con;

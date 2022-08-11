@@ -398,12 +398,26 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
     }
   }
 
-  // 8. TODO generate logs
-  mInfo("rebalance calculation completed, rebalanced vg:");
+  // 8. generate logs
+  mInfo("mq rebalance: calculation completed, rebalanced vg:");
   for (int32_t i = 0; i < taosArrayGetSize(pOutput->rebVgs); i++) {
     SMqRebOutputVg *pOutputRebVg = taosArrayGet(pOutput->rebVgs, i);
-    mInfo("vgId:%d, moved from consumer:%" PRId64 ", to consumer:%" PRId64, pOutputRebVg->pVgEp->vgId,
+    mInfo("mq rebalance: vgId:%d, moved from consumer:%" PRId64 ", to consumer:%" PRId64, pOutputRebVg->pVgEp->vgId,
           pOutputRebVg->oldConsumerId, pOutputRebVg->newConsumerId);
+  }
+  {
+    void *pIter = NULL;
+    while (1) {
+      pIter = taosHashIterate(pOutput->pSub->consumerHash, pIter);
+      if (pIter == NULL) break;
+      SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
+      int32_t        sz = taosArrayGetSize(pConsumerEp->vgs);
+      mInfo("mq rebalance: final cfg: consumer %ld has %d vg", pConsumerEp->consumerId, sz);
+      for (int32_t i = 0; i < sz; i++) {
+        SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, i);
+        mInfo("mq rebalance: final cfg: vg %d to consumer %ld", pVgEp->vgId, pConsumerEp->consumerId);
+      }
+    }
   }
 
   // 9. clear
