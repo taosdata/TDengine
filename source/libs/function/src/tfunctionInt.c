@@ -37,17 +37,6 @@ int32_t getNumOfResult(SqlFunctionCtx* pCtx, int32_t num, SSDataBlock* pResBlock
   int32_t maxRows = 0;
 
   for (int32_t j = 0; j < num; ++j) {
-#if 0
-    int32_t id = pCtx[j].functionId;
-
-    /*
-     * ts, tag, tagprj function can not decide the output number of current query
-     * the number of output result is decided by main output
-     */
-    if (id == FUNCTION_TS || id == FUNCTION_TAG || id == FUNCTION_TAGPRJ) {
-      continue;
-    }
-#endif
     SResultRowEntryInfo *pResInfo = GET_RES_INFO(&pCtx[j]);
     if (pResInfo != NULL && maxRows < pResInfo->numOfRes) {
       maxRows = pResInfo->numOfRes;
