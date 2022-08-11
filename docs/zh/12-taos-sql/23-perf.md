@@ -94,16 +94,16 @@ TDengine 3.0 版本开始提供一个内置数据库 `performance_schema`，其�
 
 ## PERF_TRANS
 
-| #   |     **列名**     | **数据类型** | **说明** |
-| --- | :--------------: | ------------ | -------- |
-| 1   |        id        | INT          |          |
-| 2   |   create_time    | TIMESTAMP    |          |
-| 3   |      stage       | BINARY(12)   |          |
-| 4   |       db1        | BINARY(64)   |          |
-| 5   |       db2        | BINARY(64)   |          |
-| 6   |   failed_times   | INT          |          |
-| 7   |  last_exec_time  | TIMESTAMP    |          |
-| 8   | last_action_info | BINARY(511)  |          |
+| #   |     **列名**     | **数据类型** | **说明**                                                       |
+| --- | :--------------: | ------------ | -------------------------------------------------------------- |
+| 1   |        id        | INT          | 正在进行的事务的编号                                           |
+| 2   |   create_time    | TIMESTAMP    | 事务的创建时间                                                 |
+| 3   |      stage       | BINARY(12)   | 事务的当前阶段，通常为 redoAction、undoAction、commit 三个阶段 |
+| 4   |       db1        | BINARY(64)   | 与此事务存在冲突的数据库一的名称                               |
+| 5   |       db2        | BINARY(64)   | 与此事务存在冲突的数据库二的名称                               |
+| 6   |   failed_times   | INT          | 事务执行失败的总次数                                           |
+| 7   |  last_exec_time  | TIMESTAMP    | 事务上次执行的时间                                             |
+| 8   | last_action_info | BINARY(511)  | 事务上次执行失败的明细信息                                     |
 
 ## PERF_SMAS
 

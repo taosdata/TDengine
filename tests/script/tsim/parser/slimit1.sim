@@ -47,7 +47,7 @@ while $i < $tbNum
 endw
 
 print ================== tables and data created
-  
+
 run tsim/parser/slimit1_query.sim
 
 print ================== restart server to commit data into disk
