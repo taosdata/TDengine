@@ -52,20 +52,6 @@ To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in t
 sudo apt-get install -y gcc cmake build-essential git libssl-dev
 ```
 
-To compile and package the JDBC driver source code, you should have a Java jdk-8 or higher and Apache Maven 2.7 or higher installed.
-
-To install openjdk-8:
-
-```bash
-sudo apt-get install -y openjdk-8-jdk
-```
-
-To install Apache Maven:
-
-```bash
-sudo apt-get install -y maven
-```
-
 #### Install build dependencies for taosTools
 
 We provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. From TDengine 2.4.0.0, taosBenchmark and taosdump were not released together with TDengine.
@@ -86,34 +72,10 @@ sudo yum install -y gcc gcc-c++ make cmake3 git openssl-devel
 sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
-To install openjdk-8:
-
-```bash
-sudo yum install -y java-1.8.0-openjdk
-```
-
-To install Apache Maven:
-
-```bash
-sudo yum install -y maven
-```
-
 ### CentOS 8 & Fedora
 
 ```bash
 sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
-```
-
-To install openjdk-8:
-
-```bash
-sudo dnf install -y java-1.8.0-openjdk
-```
-
-To install Apache Maven:
-
-```bash
-sudo dnf install -y maven
 ```
 
 #### Install build dependencies for taosTools on CentOS
@@ -304,24 +266,6 @@ After building successfully, TDengine can be installed by:
 sudo make install
 ```
 
-To start the service after installation, config `.plist` file first, in a terminal, use:
-
-```bash
-sudo cp ../packaging/macOS/com.taosdata.tdengine.plist /Library/LaunchDaemons
-```
-
-To start the service, in a terminal, use:
-
-```bash
-sudo launchctl load /Library/LaunchDaemons/com.taosdata.tdengine.plist
-```
-
-To stop the service, in a terminal, use:
-
-```bash
-sudo launchctl unload /Library/LaunchDaemons/com.taosdata.tdengine.plist
-```
-
 ## Quick Run
 
 If you don't want to run TDengine as a service, you can run it in current shell. For example, to quickly start a TDengine server after building, run the command below in terminal: (We take Linux as an example, command on Windows will be `taosd.exe`)
@@ -370,15 +314,6 @@ TDengine provides abundant developing tools for users to develop on TDengine. Fo
 - [Rust](https://docs.taosdata.com/reference/connector/rust/)
 - [C#](https://docs.taosdata.com/reference/connector/csharp/)
 - [RESTful API](https://docs.taosdata.com/reference/rest-api/)
-
-## Third Party Connectors
-
-The TDengine community has also kindly built some of their own connectors! Follow the links below to find the source code for them.
-
-- [Rust Bindings](https://github.com/songtianyi/tdengine-rust-bindings/tree/master/examples)
-- [.Net Core Connector](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
-- [Lua Connector](https://github.com/taosdata/TDengine/tree/develop/tests/examples/lua)
-- [PHP](https://www.taosdata.com/en/documentation/connector#c-cpp)
 
 # How to run the test cases and how to add a new test case
 
