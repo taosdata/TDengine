@@ -36,7 +36,7 @@ TDengine is an open source, cloud native time-series database optimized for Inte
 
 # Documentation
 
-For user manual, system design and architecture, engineering blogs, refer to [TDengine Documentation](https://docs.tdengine.com)(中文版请点击[这里](https://docs.taosdata.com))
+For user manual, system design and architecture, please refer to [TDengine Documentation](https://docs.tdengine.com) (中文版请点击[这里](https://docs.taosdata.com))
 
 # Building
 
