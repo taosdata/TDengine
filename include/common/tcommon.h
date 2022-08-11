@@ -103,12 +103,12 @@ typedef struct SDataBlockInfo {
   int16_t     hasVarCol;
   uint32_t    capacity;
   // TODO: optimize and remove following
-  int64_t     version;  // used for stream, and need serialization
-  int64_t     ts;       // used for stream, and need serialization
-  int32_t     childId;  // used for stream, do not serialize
-  EStreamType type;     // used for stream, do not serialize
-  STimeWindow calWin;   // used for stream, do not serialize
-  TSKEY       watermark;// used for stream
+  int64_t     version;    // used for stream, and need serialization
+  int64_t     ts;         // used for stream, and need serialization
+  int32_t     childId;    // used for stream, do not serialize
+  EStreamType type;       // used for stream, do not serialize
+  STimeWindow calWin;     // used for stream, do not serialize
+  TSKEY       watermark;  // used for stream
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
@@ -267,6 +267,15 @@ typedef struct SSortExecInfo {
   int32_t writeBytes;  // write io bytes
   int32_t readBytes;   // read io bytes
 } SSortExecInfo;
+
+// stream special block column
+
+#define START_TS_COLUMN_INDEX           0
+#define END_TS_COLUMN_INDEX             1
+#define UID_COLUMN_INDEX                2
+#define GROUPID_COLUMN_INDEX            3
+#define CALCULATE_START_TS_COLUMN_INDEX 4
+#define CALCULATE_END_TS_COLUMN_INDEX   5
 
 #ifdef __cplusplus
 }

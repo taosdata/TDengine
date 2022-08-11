@@ -194,6 +194,9 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
   ${csudo}rm -f ${bin_link_dir}/${adapterName} || :
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
+  ${csudo}rm -f ${bin_link_dir}/${demoName} || :
+  ${csudo}rm -f ${bin_link_dir}/${benchmarkName} || :
+  ${csudo}rm -f ${bin_link_dir}/${dumpName} || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
 
@@ -205,7 +208,6 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/${adapterName} ] && ${csudo}ln -s ${install_main_dir}/bin/${adapterName} ${bin_link_dir}/${adapterName} || :
   [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${demoName} || :
   [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName} || :
-  [ -x ${install_main_dir}/bin/${tmqName} ] && ${csudo}ln -s ${install_main_dir}/bin/${tmqName} ${bin_link_dir}/${tmqName} || :
   [ -x ${install_main_dir}/bin/${dumpName} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName} || :
   [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
@@ -964,12 +966,17 @@ function installProduct() {
 ## ==============================Main program starts from here============================
 serverFqdn=$(hostname)
 if [ "$verType" == "server" ]; then
-  # Install server and client
-  if [ -x ${bin_dir}/${serverName} ]; then
-    update_flag=1
-    updateProduct
+  # Check default 2.x data file.
+  if [ -x ${data_dir}/dnode/dnodeCfg.json ]; then
+    echo -e "\033[44;31;5mThe default data directory ${data_dir} contains old data of tdengine 2.x, please clear it before installing!\033[0m"
   else
-    installProduct
+    # Install server and client
+    if [ -x ${bin_dir}/${serverName} ]; then
+      update_flag=1
+      updateProduct
+    else
+      installProduct
+    fi
   fi
 elif [ "$verType" == "client" ]; then
   interactiveFqdn=no
