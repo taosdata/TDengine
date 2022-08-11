@@ -3,7 +3,7 @@ title: Schemaless Writing
 description: "The Schemaless write method eliminates the need to create super tables/sub tables in advance and automatically creates the storage structure corresponding to the data, as it is written to the interface."
 ---
 
-In IoT applications, data is collected for many purposes such as intelligent control, business analysis, device monitoring and so on. Due to changes in business or functional requirements or changes in device hardware, the application logic and even the data collected may change. To provide the flexibility needed in such cases and in a rapidly changing IoT landscape, TDengine starting from version 2.2.0.0, provides a series of interfaces for the schemaless writing method. These interfaces eliminate the need to create super tables and subtables in advance by automatically creating the storage structure corresponding to the data as the data is written to the interface. When necessary, schemaless writing will automatically add the required columns to ensure that the data written by the user is stored correctly.
+In IoT applications, data is collected for many purposes such as intelligent control, business analysis, device monitoring and so on. Due to changes in business or functional requirements or changes in device hardware, the application logic and even the data collected may change. To provide the flexibility needed in such cases and in a rapidly changing IoT landscape, TDengine provides a series of interfaces for the schemaless writing method. These interfaces eliminate the need to create super tables and subtables in advance by automatically creating the storage structure corresponding to the data as the data is written to the interface. When necessary, schemaless writing will automatically add the required columns to ensure that the data written by the user is stored correctly.
 
 The schemaless writing method creates super tables and their corresponding subtables. These are completely indistinguishable from the super tables and subtables created directly via SQL. You can write data directly to them via SQL statements. Note that the names of tables created by schemaless writing are based on fixed mapping rules for tag values, so they are not explicitly ideographic and they lack readability.
 
@@ -39,10 +39,10 @@ In the schemaless writing data line protocol, each data item in the field_set ne
 | -------- | -------- | ------------ | -------------- |
 | 1 | none or f64 | double | 8 |
 | 2 | f32 | float | 4 |
-| 3 | i8 | TinyInt | 1 |
-| 4 | i16 | SmallInt | 2 |
-| 5 | i32 | Int | 4 |
-| 6 | i64 or i | Bigint | 8 |
+| 3 | i8/u8 | TinyInt/UTinyInt | 1 |
+| 4 | i16/u16 | SmallInt/USmallInt | 2 |
+| 5 | i32/u32 | Int/UInt | 4 |
+| 6 | i64/i/u64/u | Bigint/Bigint/UBigint/UBigint | 8 |
 
 - `t`, `T`, `true`, `True`, `TRUE`, `f`, `F`, `false`, and `False` will be handled directly as BOOL types.
 
@@ -72,11 +72,11 @@ If the subtable obtained by the parse line protocol does not exist, Schemaless c
 4. If the specified tag or regular column in the data row does not exist, the corresponding tag or regular column is added to the super table (only incremental).
 5. If there are some tag columns or regular columns in the super table that are not specified to take values in a data row, then the values of these columns are set to NULL.
 6. For BINARY or NCHAR columns, if the length of the value provided in a data row exceeds the column type limit, the maximum length of characters allowed to be stored in the column is automatically increased (only incremented and not decremented) to ensure complete preservation of the data.
-7. If the specified data subtable already exists, and the specified tag column takes a value different from the saved value this time, the value in the latest data row overwrites the old tag column take value.
-8. Errors encountered throughout the processing will interrupt the writing process and return an error code.
+7. Errors encountered throughout the processing will interrupt the writing process and return an error code.
+8. In order to improve the efficiency of writing, it is assumed by default that the order of the fields in the same Super is the same (the first data contains all fields, and the following data is in this order). If the order is different, the parameter smlDataFormat needs to be configured to be false. Otherwise, the data is written in the same order, and the data in the library will be abnormal.
 
 :::tip
-All processing logic of schemaless will still follow TDengine's underlying restrictions on data structures, such as the total length of each row of data cannot exceed 48k bytes. See [TAOS SQL Boundary Limits](/taos-sql/limit) for specific constraints in this area.
+All processing logic of schemaless will still follow TDengine's underlying restrictions on data structures, such as the total length of each row of data cannot exceed 16k bytes. See [TAOS SQL Boundary Limits](/taos-sql/limit) for specific constraints in this area.
 :::
 
 ## Time resolution recognition

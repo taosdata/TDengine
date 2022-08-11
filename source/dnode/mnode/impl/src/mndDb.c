@@ -1419,7 +1419,7 @@ const char *mndGetDbStr(const char *src) {
   return pos;
 }
 
-int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
+static int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
   int64_t v = 0;
   switch (unit) {
     case 's':
@@ -1444,7 +1444,7 @@ int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
   return v;
 }
 
-char *buildRetension(SArray *pRetension) {
+static char *buildRetension(SArray *pRetension) {
   size_t size = taosArrayGetSize(pRetension);
   if (size == 0) {
     return NULL;

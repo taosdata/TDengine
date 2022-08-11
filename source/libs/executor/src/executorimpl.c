@@ -3612,11 +3612,16 @@ void destroyExchangeOperatorInfo(void* param, int32_t numOfOutput) {
   taosRemoveRef(exchangeObjRefPool, pExInfo->self);
 }
 
+void freeSourceDataInfo(void *p) {
+  SSourceDataInfo* pInfo = (SSourceDataInfo*)p;
+  taosMemoryFreeClear(pInfo->pRsp);
+}
+
 void doDestroyExchangeOperatorInfo(void* param) {
   SExchangeInfo* pExInfo = (SExchangeInfo*)param;
 
   taosArrayDestroy(pExInfo->pSources);
-  taosArrayDestroy(pExInfo->pSourceDataInfo);
+  taosArrayDestroyEx(pExInfo->pSourceDataInfo, freeSourceDataInfo);
 
   if (pExInfo->pResultBlockList != NULL) {
     taosArrayDestroyEx(pExInfo->pResultBlockList, freeBlock);

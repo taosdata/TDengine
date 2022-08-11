@@ -1,20 +1,9 @@
-use libtaos::*;
-
-fn taos_connect() -> Result<Taos, Error> {
-    TaosCfgBuilder::default()
-        .ip("localhost")
-        .user("root")
-        .pass("taosdata")
-        // .db("log") // remove comment if you want to connect to database log by default.
-        .port(6030u16)
-        .build()
-        .expect("TaosCfg builder error")
-        .connect()
-}
+use taos::*;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Error> {
     #[allow(unused_variables)]
-    let taos = taos_connect().expect("connect error");
-    println!("Connected")
+    let taos = TaosBuilder::from_dsn("taos://")?.build()?;
+    println!("Connected");
+    Ok(())
 }

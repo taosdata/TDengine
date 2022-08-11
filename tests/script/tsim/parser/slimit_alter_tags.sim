@@ -75,7 +75,7 @@ $i = 0
 while $i < 10
   $tb = tb . $i
   $tg_added = ' . $tb
-  $tg_added = $tg_added . ' 
+  $tg_added = $tg_added . '
   sql alter table $tb set tag tg_added = $tg_added
   $i = $i + 1
 endw
