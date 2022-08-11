@@ -23,7 +23,7 @@ sql show databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 28800m,28800m,28800m then 
+if $data27 != 28800m,28800m,28800m then
  return -1
 endi
 
@@ -49,7 +49,7 @@ sql show databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 28800m,28800m,28800m then 
+if $data27 != 28800m,28800m,28800m then
  return -1
 endi
 sql alter database $db keep 10
@@ -57,7 +57,7 @@ sql show databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 14400m,14400m,14400m then 
+if $data27 != 14400m,14400m,14400m then
  return -1
 endi
 sql alter database $db keep 11
@@ -65,7 +65,7 @@ sql show databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 15840m,15840m,15840m then 
+if $data27 != 15840m,15840m,15840m then
  return -1
 endi
 sql alter database $db keep 13
@@ -73,7 +73,7 @@ sql show databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 18720m,18720m,18720m then 
+if $data27 != 18720m,18720m,18720m then
  return -1
 endi
 sql alter database $db keep 365000
@@ -81,7 +81,7 @@ sql show databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 525600000m,525600000m,525600000m then 
+if $data27 != 525600000m,525600000m,525600000m then
  return -1
 endi
 
@@ -94,11 +94,11 @@ if $rows != 1 then
   return -1
 endi
 sql alter table tb drop column c3
-sql select * from tb order by ts desc 
+sql select * from tb order by ts desc
 if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != null then
@@ -130,10 +130,10 @@ sql create table tb using mt tags(1)
 sql insert into tb values (now, 1, 1, 1)
 sql alter table mt drop column c3
 sql select * from tb order by ts desc
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != null then
@@ -231,7 +231,7 @@ if $data02 != null then
 endi
 sql alter table mt add column c2 int
 sql insert into tb (ts, c2) values (now, 3)
-sql select * from tb order by ts desc 
+sql select * from tb order by ts desc
 if $data02 != 3 then
   return -1
 endi
@@ -255,7 +255,7 @@ if $data02 != insert then
   return -1
 endi
 sql alter table mt add column c3 nchar(4)
-sql select * from tb order by ts desc 
+sql select * from tb order by ts desc
 if $data03 != NULL then
   return -1
 endi
@@ -270,7 +270,7 @@ sql insert into tb(ts, c1, c3) using mt(t1) tags(123) values('2018-11-01 16:29:5
 sql insert into tb values ('2018-11-01 16:29:58.000', 2, 'import', 3)
 sql import into tb values ('2018-11-01 16:29:58.000', 2, 'import', 3)
 sql import into tb values ('2018-11-01 16:39:58.000', 2, 'import', 3)
-sql select * from tb order by ts desc 
+sql select * from tb order by ts desc
 if $rows != 4 then
   return -1
 endi

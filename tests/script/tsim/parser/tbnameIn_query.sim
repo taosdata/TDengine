@@ -26,7 +26,7 @@ sql use $db
 sql select count(*) from $stb where tbname in ('ti_tb1', 'ti_tb300') and t1 > 2
 
 # tbname in used on meter
-sql select count(*) from $tb where tbname in ('ti_tb1', 'ti_tb300') 
+sql select count(*) from $tb where tbname in ('ti_tb1', 'ti_tb300')
 
 ## tbname in + group by tag
 print select count(*) from $stb where tbname in ('ti_tb1', 'ti_tb300') group by t1 order by t1 asc
@@ -305,7 +305,7 @@ sql select count(*), t1 from $stb where tbname in ('ti_tb1', 'ti_tb300') and tbn
 #  return -1
 #endi
 #
-# 
+#
 #$limit = $rowNum
 #$offset = $limit / 2
 #$offset = $offset + 10
@@ -410,7 +410,7 @@ sql select count(*), t1 from $stb where tbname in ('ti_tb1', 'ti_tb300') and tbn
 #sql select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, -1, -2) group by t1 order by t1 limit $limit offset $offset
 #if $rows != $tbNum then
 #  return -1
-#endi 
+#endi
 #if $data00 != @18-11-25 19:30:00.000@ then
 #  return -1
 #endi

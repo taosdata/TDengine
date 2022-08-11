@@ -85,18 +85,18 @@ sql insert into abc.tk_subt001 (ts, b, d)       values (now-1m,    'binary_6',  
 sql insert into abc.tk_subt001 (ts, b, d)       values (now-1s,    'binary_7',        1.007)
 sql insert into abc.tk_subt001 (ts, b, d)       values (now-1a,    'binary_8',        1.008)
 sql select * from tk_subt001
-if $rows != 6 then 
+if $rows != 6 then
   print ==== expect rows is 6, but actually is $rows
   return -1
 endi
 
 sql insert into abc.tk_subt002 using tk_mt tags (22, 'subt002x')   values (now+1s, 2001, 'binary_2001', true,  2001.001, 2001.001, 'nchar_2001')
-sql insert into abc.tk_subt002 using tk_mt tags (2, 'subt002')   values (now+1m, 2002, 'binary_2002', false, 2002.001, 2002.001, 'nchar_2002')  
+sql insert into abc.tk_subt002 using tk_mt tags (2, 'subt002')   values (now+1m, 2002, 'binary_2002', false, 2002.001, 2002.001, 'nchar_2002')
 sql insert into abc.tk_subt002 using tk_mt tags (2, 'subt002')   values (now+1h, 2003, 'binary_2003', false, 2003.001, 2003.001, 'nchar_2003')
 sql insert into abc.tk_subt002 using tk_mt tags (2, 'subt002')   values (now+1d, 2004, 'binary_2004', true,  2004.001, 2004.001, 'nchar_2004')
 sql insert into abc.tk_subt002 using tk_mt tags (2, 'subt002')   values (now+1w, 2005, 'binary_2005', false, 2005.001, 2005.001, 'nchar_2005')
 sql select * from tk_subt002
-if $rows != 5 then 
+if $rows != 5 then
   print ==== expect rows is 5, but actually is $rows
   return -1
 endi
@@ -106,7 +106,7 @@ sql insert into abc.tk_subt003 (ts, a, c, e, f) using tk_mt tags (3, 'subt003') 
 sql insert into abc.tk_subt003                                                     values (now-36d, 3006, 'binary_3006', true,  3006.001, 3006.001, 'nchar_3006')
 sql insert into abc.tk_subt003 (ts, a, c, e, f) using tk_mt tags (33, 'subt003x')  values (now-35d, 3007,                false, 3007.001,           'nchar_3007')
 sql select * from tk_subt003
-if $rows != 4 then 
+if $rows != 4 then
   print ==== expect rows is 4, but actually is $rows
   return -1
 endi
