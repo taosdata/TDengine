@@ -166,7 +166,7 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_USERS,
     .numOfShowCols = 1,
-    .pShowCols = {"name"}
+    .pShowCols = {"*"}
   },
   {
     .showType = QUERY_NODE_SHOW_LICENCES_STMT,

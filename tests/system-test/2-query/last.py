@@ -202,7 +202,7 @@ class TDTestCase:
                 f"create table {stbname}_{i} using {stbname} tags('beijing')")
             tdSql.execute(
                 f"insert into {stbname}_{i}(ts) values(%d)" % (self.ts - 1-i))
-        tdSql.query(f'show {dbname}.tables')
+        tdSql.query(f"select * from information_schema.ins_tables where db_name = '{dbname}'")
         vgroup_list = []
         for i in range(len(tdSql.queryResult)):
             vgroup_list.append(tdSql.queryResult[i][6])

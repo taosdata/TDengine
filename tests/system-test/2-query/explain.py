@@ -185,11 +185,11 @@ class TDTestCase:
 
         tdLog.printNoPrefix("===step 0: err case, must return err")
         tdSql.error( f"explain select hyperloglog({INT_COL}) from {dbname}.ct8" )
-        tdSql.error( f"explain select * from information_schema.ins_databases " )
+        tdSql.error( f"explain show databases " )
         tdSql.error( f"explain show {dbname}.stables " )
         tdSql.error( f"explain show {dbname}.tables " )
         tdSql.error( f"explain show {dbname}.vgroups " )
-        tdSql.error( f"explain select * from information_schema.ins_dnodes " )
+        tdSql.error( f"explain show dnodes " )
         tdSql.error( f'''explain select hyperloglog(['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'])
                     from {dbname}.ct1
                     where ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null

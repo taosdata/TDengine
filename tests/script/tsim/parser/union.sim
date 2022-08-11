@@ -365,6 +365,6 @@ endi
 
 sql_error (show tables) union all (show tables)
 sql_error (show stables) union all (show stables)
-sql_error (select * from information_schema.ins_databases) union all (select * from information_schema.ins_databases)
+sql_error (show databases) union all (show databases)
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

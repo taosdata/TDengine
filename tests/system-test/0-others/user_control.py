@@ -196,7 +196,7 @@ class TDTestCase:
         for i in range(self.users_count):
             tdSql.execute(f"create user {users[i]} pass '{passwds[i]}' ")
 
-        tdSql.query("select * from information_schema.ins_users")
+        tdSql.query("show users")
         tdSql.checkRows(self.users_count + 1)
 
     def create_user_err(self):
@@ -586,7 +586,7 @@ class TDTestCase:
 
         # 默认只有 root 用户
         tdLog.printNoPrefix("==========step0: init, user list only has root account")
-        tdSql.query("select * from information_schema.ins_users")
+        tdSql.query("show users")
         tdSql.checkData(0, 0, "root")
         tdSql.checkData(0, 1, "1")
 
@@ -597,7 +597,7 @@ class TDTestCase:
 
         # 查看用户
         tdLog.printNoPrefix("==========step2: show user test")
-        tdSql.query("select * from information_schema.ins_users")
+        tdSql.query("show users")
         tdSql.checkRows(self.users_count + 1)
 
         # 密码登录认证
@@ -619,7 +619,7 @@ class TDTestCase:
         tdDnodes.stop(1)
         tdDnodes.start(1)
 
-        tdSql.query("select * from information_schema.ins_users")
+        tdSql.query("show users")
         tdSql.checkRows(self.users_count + 1)
 
         # 普通用户权限
@@ -632,7 +632,7 @@ class TDTestCase:
             user.error("create use utest1 pass 'utest1pass'")
             # 可以查看用户
             tdLog.printNoPrefix("==========step4.2: normal user can show user")
-            user.query("select * from information_schema.ins_users")
+            user.query("show users")
             assert user.queryRows == self.users_count + 1
             # 不可以修改其他用户的密码
             tdLog.printNoPrefix("==========step4.3: normal user can not alter other user pass")
@@ -649,12 +649,12 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step5: enable info")
         taos1_conn = taos.connect(user=self.__user_list[1], password=f"new{self.__passwd_list[1]}")
-        taos1_conn.query(f"select * from information_schema.ins_databases")
+        taos1_conn.query(f"show databases")
         tdSql.execute(f"alter user {self.__user_list[1]} enable 0")
         tdSql.execute(f"alter user {self.__user_list[2]} enable 0")
         taos1_except = True
         try:
-            taos1_conn.query("select * from information_schema.ins_databases")
+            taos1_conn.query("show databases")
         except BaseException:
             taos1_except = False
         if taos1_except:
@@ -674,13 +674,13 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step6: sysinfo info")
         taos3_conn = taos.connect(user=self.__user_list[3], password=f"new{self.__passwd_list[3]}")
-        taos3_conn.query(f"select * from information_schema.ins_dnodes")
+        taos3_conn.query(f"show dnodes")
         taos3_conn.query(f"show {DBNAME}.vgroups")
         tdSql.execute(f"alter user {self.__user_list[3]} sysinfo 0")
         tdSql.execute(f"alter user {self.__user_list[4]} sysinfo 0")
         taos3_except = True
         try:
-            taos3_conn.query(f"select * from information_schema.ins_dnodes")
+            taos3_conn.query(f"show dnodes")
             taos3_conn.query(f"show {DBNAME}.vgroups")
         except BaseException:
             taos3_except = False
@@ -692,7 +692,7 @@ class TDTestCase:
         taos4_conn = taos.connect(user=self.__user_list[4], password=f"new{self.__passwd_list[4]}")
         taos4_except = True
         try:
-            taos4_conn.query(f"select * from information_schema.ins_mnodes")
+            taos4_conn.query(f"show mnodes")
             taos4_conn.query(f"show {DBNAME}.vgroups")
         except BaseException:
             taos4_except = False
@@ -705,7 +705,7 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step7: super user drop normal user")
         self.test_drop_user()
 
-        tdSql.query("select * from information_schema.ins_users")
+        tdSql.query("show users")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "root")
         tdSql.checkData(0, 1, "1")
@@ -719,7 +719,7 @@ class TDTestCase:
         self.login_err(self.__user_list[1], self.__passwd_list[1])
         self.login_err(self.__user_list[1], f"new{self.__passwd_list[1]}")
 
-        tdSql.query("select * from information_schema.ins_users")
+        tdSql.query("show users")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "root")
         tdSql.checkData(0, 1, "1")
