@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TAGGFUNCTION_H
-#define TDENGINE_TAGGFUNCTION_H
+#ifndef TDENGINE_TFUNCTIONINT_H
+#define TDENGINE_TFUNCTIONINT_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,17 +27,6 @@ extern "C" {
 #include "tvariant.h"
 #include "function.h"
 #include "tudf.h"
-
-#define AVG_FUNCTION_INTER_BUFFER_SIZE 50
-
-#define DATA_SET_FLAG ','  // to denote the output area has data, not null value
-#define DATA_SET_FLAG_SIZE sizeof(DATA_SET_FLAG)
-
-typedef struct SInterpInfoDetail {
-  TSKEY  ts;  // interp specified timestamp
-  int8_t type;
-  int8_t primaryCol;
-} SInterpInfoDetail;
 
 bool topbot_datablock_filter(SqlFunctionCtx *pCtx, const char *minval, const char *maxval);
 
@@ -57,4 +46,4 @@ static FORCE_INLINE void initResultRowEntry(SResultRowEntryInfo *pResInfo, int32
 }
 #endif
 
-#endif  // TDENGINE_TAGGFUNCTION_H
+#endif  // TDENGINE_TFUNCTIONINT_H

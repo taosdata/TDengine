@@ -97,7 +97,7 @@ typedef struct STbUidStore STbUidStore;
 
 int             metaOpen(SVnode* pVnode, SMeta** ppMeta);
 int             metaClose(SMeta* pMeta);
-int             metaBegin(SMeta* pMeta);
+int             metaBegin(SMeta* pMeta, int8_t fromSys);
 int             metaCommit(SMeta* pMeta);
 int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int             metaAlterSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
@@ -157,7 +157,7 @@ int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId);
 int32_t tqProcessCheckAlterInfoReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen);
+int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen, int64_t ver);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen);
@@ -172,7 +172,7 @@ int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tsdbGetStbIdList(SMeta* pMeta, int64_t suid, SArray* list);
 
 SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
-                            const char* stbFullName, int32_t vgId);
+                            const char* stbFullName, int32_t vgId, SBatchDeleteReq* pDeleteReq);
 
 // sma
 int32_t smaInit();
@@ -187,7 +187,7 @@ int32_t smaAsyncPreCommit(SSma* pSma);
 int32_t smaAsyncCommit(SSma* pSma);
 int32_t smaAsyncPostCommit(SSma* pSma);
 int32_t smaDoRetention(SSma* pSma, int64_t now);
-int32_t smaProcessFetch(SSma *pSma, void* pMsg);
+int32_t smaProcessFetch(SSma* pSma, void* pMsg);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
