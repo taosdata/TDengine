@@ -694,6 +694,7 @@ typedef struct SSessionAggOperatorInfo {
 typedef struct SResultWindowInfo {
   SResultRowPosition pos;
   STimeWindow win;
+  uint64_t groupId;
   bool isOutput;
   bool isClosed;
 } SResultWindowInfo;
@@ -1008,8 +1009,6 @@ SResultWindowInfo* getSessionTimeWindow(SStreamAggSupporter* pAggSup, TSKEY star
 SResultWindowInfo* getCurSessionWindow(SStreamAggSupporter* pAggSup, TSKEY startTs,
     TSKEY endTs, uint64_t groupId, int64_t gap, int32_t* pIndex);
 bool isInTimeWindow(STimeWindow* pWin, TSKEY ts, int64_t gap);
-int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pStartTs,
-    TSKEY* pEndTs, int32_t rows, int32_t start, int64_t gap, SHashObj* pStDeleted);
 bool functionNeedToExecute(SqlFunctionCtx* pCtx);
 bool isOverdue(TSKEY ts, STimeWindowAggSupp* pSup);
 bool isCloseWindow(STimeWindow* pWin, STimeWindowAggSupp* pSup);
