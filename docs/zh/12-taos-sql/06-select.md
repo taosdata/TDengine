@@ -152,7 +152,7 @@ taos> SELECT ts, ts AS primary_key_ts FROM d1001;
 获取一个超级表所有的子表名及相关的标签信息：
 
 ```mysql
-SELECT TBNAME, location FROM meters;
+SELECT DISTINCT TBNAME, location FROM meters;
 ```
 
 统计超级表下辖子表数量：
