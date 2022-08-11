@@ -14,7 +14,6 @@
 [![Build status](https://ci.appveyor.com/api/projects/status/kf3pwh2or5afsgl9/branch/master?svg=true)](https://ci.appveyor.com/project/sangshuduo/tdengine-2n8ge/branch/master)
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
-[![tdengine](https://snapcraft.io//tdengine/badge.svg)](https://snapcraft.io/tdengine)
 
 简体中文 | [English](README.md) | 很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
 
@@ -42,11 +41,13 @@ TDengine 可以广泛应用于物联网、工业互联网、车联网、IT 运�
 
 # 文档
 
-TDengine 采用传统的关系数据库模型，您可以像使用关系型数据库 MySQL 一样来使用它。但由于引入了超级表，一个采集点一张表的概念，建议您在使用前仔细阅读一遍下面的文档，特别是 [数据模型](https://www.taosdata.com/cn/documentation/architecture) 与 [数据建模](https://www.taosdata.com/cn/documentation/model)。除本文档之外，欢迎 [下载产品白皮书](https://www.taosdata.com/downloads/TDengine%20White%20Paper.pdf)。
+TDengine 采用传统的关系数据库模型，您可以像使用关系型数据库 MySQL 一样来使用它。但由于引入了超级表，一个采集点一张表的概念，建议您在使用前仔细阅读一遍下面的文档，特别是 [数据模型](https://www.taosdata.com/cn/documentation/architecture) 与 [数据建模](https://www.taosdata.com/cn/documentation/model)。
 
 # 构建
 
-TDengine 目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后续会支持 Windows、macOS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。任何 OS 的应用也可以选择 RESTful 接口连接服务器 taosd。CPU 支持 X64/ARM64/MIPS64/Alpha64，后续会支持 ARM32、RISC-V 等 CPU 架构。用户可根据需求选择通过[源码](https://www.taosdata.com/cn/getting-started/#通过源码安装)或者[安装包](https://www.taosdata.com/cn/getting-started/#通过安装包安装)来安装。本快速指南仅适用于通过源码安装。
+TDengine 目前 3.0 版可以在 Linux、 Windows 等平台上安装和运行。任何 OS 的应用也可以选择 taosAdapter 的 RESTful 接口连接服务端 taosd。CPU 支持 X64/ARM64，后续会支持 MIPS64、Alpha64、ARM32、RISC-V 等 CPU 架构。
+
+用户可根据需求选择通过[源码](https://www.taosdata.com/cn/getting-started/#通过源码安装)或者[安装包](https://www.taosdata.com/cn/getting-started/#通过安装包安装)来安装。本快速指南仅适用于通过源码安装。
 
 ## 安装工具
 
@@ -104,6 +105,12 @@ TDengine 包含数个使用 Go 语言开发的组件，请参考 golang.org 官�
 ```
 go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
+```
+
+默认情况下，内嵌的 http 服务仍然可以从 TDengine 源码构建。当然您也可以使用以下命令选择构建 taosAdapter 作为 RESTful 接口的服务。
+
+```
+cmake .. -DBUILD_HTTP=false
 ```
 
 ### 设置 rust 开发环境
@@ -300,12 +307,6 @@ TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java�
 
 - [Rust](https://www.taosdata.com/cn/documentation/connector/rust)
 
-# 运行和添加测试例
-
-TDengine 的测试框架和所有测试例全部开源。
-
-点击 [这里](https://github.com/taosdata/TDengine/blob/develop/tests/How-To-Run-Test-And-How-To-Add-New-Test-Case.md)，了解如何运行测试例和添加新的测试例。
-
 # 成为社区贡献者
 
 点击 [这里](https://www.taosdata.com/cn/contributor/)，了解如何成为 TDengine 的贡献者。
@@ -313,7 +314,3 @@ TDengine 的测试框架和所有测试例全部开源。
 # 加入技术交流群
 
 TDengine 官方社群「物联网大数据群」对外开放，欢迎您加入讨论。搜索微信号 "tdengine"，加小 T 为好友，即可入群。
-
-# [谁在使用 TDengine](https://github.com/taosdata/TDengine/issues/2432)
-
-欢迎所有 TDengine 用户及贡献者在 [这里](https://github.com/taosdata/TDengine/issues/2432) 分享您在当前工作中开发/使用 TDengine 的故事。
