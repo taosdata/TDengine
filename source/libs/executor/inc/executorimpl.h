@@ -52,13 +52,6 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 
 #define NEEDTO_COMPRESS_QUERY(size) ((size) > tsCompressColData ? 1 : 0)
 
-#define START_TS_COLUMN_INDEX             0
-#define END_TS_COLUMN_INDEX               1
-#define UID_COLUMN_INDEX                  2
-#define GROUPID_COLUMN_INDEX              3
-#define CALCULATE_START_TS_COLUMN_INDEX   4
-#define CALCULATE_END_TS_COLUMN_INDEX     5
-
 enum {
   // when this task starts to execute, this status will set
   TASK_NOT_COMPLETED = 0x1u,
