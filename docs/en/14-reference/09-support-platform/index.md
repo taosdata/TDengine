@@ -5,12 +5,11 @@ description: "List of platforms supported by TDengine server, client, and connec
 
 ## List of supported platforms for TDengine server
 
-|              | **CentOS 7/8** | **Ubuntu 16/18/20** | **Other Linux** |
-| ------------ | -------------- | ------------------- | --------------- |
-| X64          | ●              | ●                   |                 |
-| MIPS64       |                |                     | ●               |
-| ARM64        |                | ○                   | ○               |
-| Alpha64      |                |                     | ○               |
+|                    | **Windows 10/11** | **CentOS 7.9/8** | **Ubuntu 18/20** | **Other Linux** | **UOS** | **Kylin** | **Ningsi V60/V80** | **HUAWEI EulerOS** |
+| ------------------ | ----------------- | ---------------- | ---------------- | --------------- | ------- | --------- | ------------------ | ------------------ |
+| X64                | ●                 | ●                | ●                |                 | ●       | ●         | ●                  |                    |
+| Raspberry Pi ARM64 |                   |                  |                  | ●               |         |           |                    |                    |
+| HUAWEI cloud ARM64 |                   |                  |                  |                 |         |           |                    | ●                  |
 
 Note: ● means officially tested and verified, ○ means unofficially tested and verified.
 
@@ -20,15 +19,15 @@ TDengine's connector can support a wide range of platforms, including X64/X86/AR
 
 The comparison matrix is as follows.
 
-| **CPU**     | **X64 64bit** |           |           | **X86 32bit** | **ARM64** | **ARM32** | **MIPS**  | **Alpha** |
-| ----------- | ------------- | --------- | --------- | ------------- | --------- | --------- | --------- | --------- |
-| **OS**      | **Linux**     | **Win64** | **Win32** | **Win32**     | **Linux** | **Linux** | **Linux** | **Linux** |
-| **C/C++**   | ●             | ●         | ●         | ○             | ●         | ●         | ●         | ●         |
-| **JDBC**    | ●             | ●         | ●         | ○             | ●         | ●         | ●         | ●         |
-| **Python**  | ●             | ●         | ●         | ○             | ●         | ●         | ●         | --        |
-| **Go**      | ●             | ●         | ●         | ○             | ●         | ●         | ○         | --        |
-| **NodeJs**  | ●             | ●         | ○         | ○             | ●         | ●         | ○         | --        |
-| **C#**      | ●             | ●         | ○         | ○             | ○         | ○         | ○         | --        |
-| **RESTful** | ●             | ●         | ●         | ●             | ●         | ●         | ●         | ●         |
+| **CPU**     | **X64 64bit** |           |           | **X86 32bit** | **ARM64** | **MIPS**  | **Alpha** |
+| ----------- | ------------- | --------- | --------- | ------------- | --------- | --------- | --------- |
+| **OS**      | **Linux**     | **Win64** | **Win32** | **Win32**     | **Linux** | **Linux** | **Linux** |
+| **C/C++**   | ●             | ●         | ●         | ○             | ●         | ●         | ●         |
+| **JDBC**    | ●             | ●         | ●         | ○             | ●         | ●         | ●         |
+| **Python**  | ●             | ●         | ●         | ○             | ●         | ●         | --        |
+| **Go**      | ●             | ●         | ●         | ○             | ●         | ○         | --        |
+| **NodeJs**  | ●             | ●         | ○         | ○             | ●         | ○         | --        |
+| **C#**      | ●             | ●         | ○         | ○             | ○         | ○         | --        |
+| **RESTful** | ●             | ●         | ●         | ●             | ●         | ●         | ●         |
 
 Note: ● means the official test is verified, ○ means the unofficial test is verified, -- means not verified.
