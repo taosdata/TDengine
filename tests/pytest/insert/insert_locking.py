@@ -41,7 +41,7 @@ class TDTestCase:
         tdSql.execute('''create stable 
                     db.stable_1 (ts timestamp, payload binary(256)) 
                     tags(t1 binary(16),t2 int);''')
-        sql = '''show db.stables;'''
+        sql = '''select * from information_schema.ins_stables where db_name = 'db';'''
         tdSql.query(sql)
         tdSql.checkRows(1)
 

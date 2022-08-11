@@ -8,7 +8,7 @@ sql create database db
 sql use db
 sql create table db.stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 float, t3 binary(16)) comment "abd"
 
-sql show db.stables
+sql select * from information_schema.ins_stables where db_name = 'db'
 if $rows != 1 then
   return -1
 endi
@@ -33,7 +33,7 @@ sql alter table db.stb add column c3 int
 sql alter table db.stb add column c4 bigint
 sql alter table db.stb add column c5 binary(12)
 
-sql show db.stables
+sql select * from information_schema.ins_stables where db_name = 'db'
 if $rows != 1 then
   return -1
 endi
@@ -54,7 +54,7 @@ sql_error alter table db.stb drop column t3
 sql alter table db.stb drop column c1
 sql alter table db.stb drop column c4
 
-sql show db.stables
+sql select * from information_schema.ins_stables where db_name = 'db'
 if $rows != 1 then
   return -1
 endi
@@ -73,7 +73,7 @@ sql_error alter table db.stb MODIFY column t3 binary(20)
 sql_error alter table db.stb MODIFY column c2 binary(3)
 sql alter table db.stb MODIFY column c2 binary(32)
 
-sql show db.stables
+sql select * from information_schema.ins_stables where db_name = 'db'
 if $rows != 1 then
   return -1
 endi
@@ -98,7 +98,7 @@ sql alter table db.stb add tag t4 bigint
 sql alter table db.stb add tag c1 int  
 sql alter table db.stb add tag t5 binary(12)
 
-sql show db.stables
+sql select * from information_schema.ins_stables where db_name = 'db'
 if $rows != 1 then
   return -1
 endi
@@ -119,7 +119,7 @@ sql_error alter table db.stb drop tag tx
 sql alter table db.stb drop tag c1
 sql alter table db.stb drop tag t5
 
-sql show db.stables
+sql select * from information_schema.ins_stables where db_name = 'db'
 if $rows != 1 then
   return -1
 endi
@@ -139,7 +139,7 @@ sql_error alter table db.stb MODIFY tag t1 binary(20)
 sql_error alter table db.stb MODIFY tag tx binary(20)
 sql alter table db.stb MODIFY tag t3 binary(32)
 
-sql show db.stables
+sql select * from information_schema.ins_stables where db_name = 'db'
 if $rows != 1 then
   return -1
 endi
@@ -161,7 +161,7 @@ print ========== alter common
 sql alter table db.stb comment 'abcde' ;
 sql_error alter table db.stb ttl 10 ;
 
-sql show db.stables;
+sql select * from information_schema.ins_stables where db_name = 'db';
 if $data[0][6] != abcde then
   return -1
 endi

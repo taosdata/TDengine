@@ -118,8 +118,8 @@ sql use db;
 sql create table stb (ts timestamp, c int) tags (t int);
 sql create table t0 using stb tags (0);
 sql insert into t0 values(now, 1);
-sql show db.stables;
-sql show db.tables;
+sql select * from information_schema.ins_stables where db_name = 'db';
+sql select * from information_schema.ins_tables where db_name = 'db';
 sql show db.vgroups;
 
 return

@@ -45,8 +45,8 @@ sql_error drop database db
 sql_error use db
 sql_error alter database db replica 1;
 sql_error show db.vgroups
-sql_error show db.stables
-sql_error show db.tables
+sql_error select * from information_schema.ins_stables where db_name = 'db'
+sql_error select * from information_schema.ins_tables where db_name = 'db'
 
 print =============== check show
 sql_error select * from information_schema.ins_users
