@@ -163,6 +163,7 @@ typedef struct SSyncNode {
   bool changing;
 
   int64_t startTime;
+  int64_t leaderTime;
   int64_t lastReplicateTime;
 
 } SSyncNode;

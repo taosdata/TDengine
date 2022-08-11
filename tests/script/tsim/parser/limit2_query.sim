@@ -286,7 +286,7 @@ if $rows != $limit then
   return -1
 endi
 
- 
+
 $limit = $rowNum
 $offset = $limit / 2
 $offset = $offset + 10
@@ -391,7 +391,7 @@ $offset = $offset - 2
 sql select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, -1, -2) group by t1 order by t1 limit $limit offset $offset
 if $rows != $tbNum then
   return -1
-endi 
+endi
 if $data00 != @18-11-25 19:30:00.000@ then
   return -1
 endi

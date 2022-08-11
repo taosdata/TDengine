@@ -3245,11 +3245,11 @@ _return:
   return code;
 }
 
-bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows) {
+bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pDataStatis, int32_t numOfCols, int32_t numOfRows) {
   if (info->scalarMode) {
     return true;
   }
-  
+
   if (FILTER_EMPTY_RES(info)) {
     return false;
   }
@@ -3265,7 +3265,7 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t 
     int32_t index = -1;
     SFilterRangeCtx *ctx = info->colRange[k];
     for(int32_t i = 0; i < numOfCols; ++i) {
-      if (pDataStatis[i].colId == ctx->colId) {
+      if (pDataStatis[i] != NULL && pDataStatis[i]->colId == ctx->colId) {
         index = i;
         break;
       }
@@ -3281,13 +3281,13 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t 
       break;
     }
 
-    if (pDataStatis[index].numOfNull <= 0) {
+    if (pDataStatis[index]->numOfNull <= 0) {
       if (ctx->isnull && !ctx->notnull && !ctx->isrange) {
         ret = false;
         break;
       }
-    } else if (pDataStatis[index].numOfNull > 0) {
-      if (pDataStatis[index].numOfNull == numOfRows) {
+    } else if (pDataStatis[index]->numOfNull > 0) {
+      if (pDataStatis[index]->numOfNull == numOfRows) {
         if ((ctx->notnull || ctx->isrange) && (!ctx->isnull)) {
           ret = false;
           break;
@@ -3301,7 +3301,7 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t 
       }
     }
 
-    SColumnDataAgg* pDataBlockst = &pDataStatis[index];
+    SColumnDataAgg* pDataBlockst = pDataStatis[index];
 
     SFilterRangeNode *r = ctx->rs;
     float minv = 0;

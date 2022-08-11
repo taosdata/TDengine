@@ -23,7 +23,9 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
         self.setsql = TDSetSql()
-        self.ntbname = 'ntb'
+        self.dbname = 'db'
+        self.stbname = f'{self.dbname}.stb'
+        self.ntbname = f'{self.dbname}.ntb'
         self.rowNum = 10
         self.tbnum = 20
         self.ts = 1537146000000
@@ -96,51 +98,48 @@ class TDTestCase:
                     else:
                         tdSql.checkRows(2*self.tbnum)
     def top_check_stb(self):
-        dbname = tdCom.getLongName(10, "letters")
-        stbname = tdCom.getLongName(5, "letters")
+        
         tag_dict = {
             't0':'int'
         }
         tag_values = [
             f'1'
             ]
-        tdSql.execute(f"create database if not exists {dbname} vgroups 2")
-        tdSql.execute(f'use {dbname}')
-        tdSql.execute(self.setsql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
+        tdSql.execute(f"create database if not exists {self.dbname} vgroups 2")
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,tag_dict))
 
         for i in range(self.tbnum):
-            tdSql.execute(f"create table {stbname}_{i} using {stbname} tags({tag_values[0]})")
-            self.insert_data(self.column_dict,f'{stbname}_{i}',self.rowNum)
-        tdSql.query('show tables')
+            tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({tag_values[0]})")
+            self.insert_data(self.column_dict,f'{self.stbname}_{i}',self.rowNum)
+        tdSql.query(f'show {self.dbname}.tables')
         vgroup_list = []
         for i in range(len(tdSql.queryResult)):
             vgroup_list.append(tdSql.queryResult[i][6])
-
         vgroup_list_set = set(vgroup_list)
         for i in vgroup_list_set:
             vgroups_num = vgroup_list.count(i)
             if vgroups_num >= 2:
                 tdLog.info(f'This scene with {vgroups_num} vgroups is ok!')
-
             else:
                 tdLog.exit(
                     'This scene does not meet the requirements with {vgroups_num} vgroup!\n')
         for i in range(self.tbnum):
-            self.top_check_data(f'{stbname}_{i}','child_table')
-        self.top_check_data(stbname,'stable')
-        tdSql.execute(f'drop database {dbname}')
+            self.top_check_data(f'{self.stbname}_{i}','child_table')
+        self.top_check_data(self.stbname,'stable')
+        tdSql.execute(f'drop database {self.dbname}')
 
     def top_check_ntb(self):
-        tdSql.prepare()
+        tdSql.execute(f"create database if not exists {self.dbname}")
+        tdSql.execute(f'use {self.dbname}')
         tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
         self.insert_data(self.column_dict,self.ntbname,self.rowNum)
         self.top_check_data(self.ntbname,'normal_table')
-        tdSql.execute('drop database db')
+        tdSql.execute(f'drop database {self.dbname}')
 
     def run(self):
         self.top_check_ntb()
         self.top_check_stb()
-
 
     def stop(self):
         tdSql.close()

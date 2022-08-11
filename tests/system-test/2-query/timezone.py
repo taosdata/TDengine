@@ -17,10 +17,11 @@ class TDTestCase:
         self.setsql = TDSetSql()
         self.arithmetic_operators = ['+','-','*','/']
         self.arithmetic_values = [0,1,100,15.5]
+        self.dbname = 'db'
         # name of normal table
-        self.ntbname = 'ntb'
+        self.ntbname = f'{self.dbname}.ntb'
         # name of stable
-        self.stbname = 'stb'
+        self.stbname = f'{self.dbname}.stb'
         # structure of column
         self.column_dict = {
             'ts':'timestamp',
@@ -60,7 +61,6 @@ class TDTestCase:
                 time_zone_1 = os.popen('ls -l /etc/localtime|awk -F/ \'{print $(NF-1) "/" $NF}\'').read().strip()
                 time_zone_2 = os.popen('date "+(%Z, %z)"').read().strip()
                 time_zone = time_zone_1 + " " + time_zone_2
-        print("expected time zone: " + time_zone)
         return time_zone
 
     def tb_type_check(self,tb_type):
@@ -94,7 +94,7 @@ class TDTestCase:
         tdSql.query(f"select * from {tbname} where timezone()='{timezone}'")
         self.tb_type_check(tb_type)
     def timezone_check_ntb(self,timezone):
-        tdSql.prepare()
+        tdSql.execute(f'create database {self.dbname}')
         tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
         for value in self.values_list:
             tdSql.execute(
@@ -102,7 +102,7 @@ class TDTestCase:
         self.data_check(timezone,self.ntbname,'normal_table')
         tdSql.execute('drop database db')
     def timezone_check_stb(self,timezone):
-        tdSql.prepare()
+        tdSql.execute(f'create database {self.dbname}')
         tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
         for i in range(self.tbnum):
             tdSql.execute(f'create table if not exists {self.stbname}_{i} using {self.stbname} tags({self.tag_values[i]})')

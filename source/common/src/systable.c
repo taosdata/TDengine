@@ -74,7 +74,7 @@ static const SSysDbTableSchema clusterSchema[] = {
 static const SSysDbTableSchema userDBSchema[] = {
     {.name = "name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "vgroups", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
+    {.name = "vgroups", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "ntables", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "replica", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "strict", .bytes = TSDB_DB_STRICT_STR_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
@@ -135,12 +135,12 @@ static const SSysDbTableSchema streamSchema[] = {
     {.name = "stream_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "sql", .bytes = TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "status", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "status", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "source_db", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "target_db", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "target_table", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "watermark", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
-    {.name = "trigger", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "trigger", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
 static const SSysDbTableSchema userTblsSchema[] = {
@@ -284,8 +284,7 @@ static const SSysDbTableSchema consumerSchema[] = {
     {.name = "client_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "status", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "topics", .bytes = TSDB_TOPIC_FNAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "end_point", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    /*{.name = "end_point", .bytes = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},*/
     {.name = "up_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "subscribe_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "rebalance_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},

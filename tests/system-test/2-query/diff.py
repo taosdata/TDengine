@@ -83,9 +83,6 @@ class TDTestCase:
             tdSql.execute(f"insert into {dbname}.stb_1 values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)"
                           % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
 
-        tdSql.error(f"select diff(ts) from {dbname}.stb")
-        tdSql.error(f"select diff(ts) from {dbname}.stb_1")
-
         # tdSql.error(f"select diff(col7) from  {dbname}.stb")
 
         tdSql.error(f"select diff(col8) from {dbname}.stb")

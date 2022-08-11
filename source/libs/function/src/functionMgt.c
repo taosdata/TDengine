@@ -116,6 +116,11 @@ EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, STimeWindow*
     return TSDB_CODE_FAILED;
   }
 
+  const char* name = funcMgtBuiltins[funcId].name;
+  if ((strcmp(name, "_group_key") == 0) || (strcmp(name, "_select_value") == 0)) {
+    return FUNC_DATA_REQUIRED_NOT_LOAD;
+  }
+
   if (funcMgtBuiltins[funcId].dynDataRequiredFunc == NULL) {
     return FUNC_DATA_REQUIRED_DATA_LOAD;
   } else {
@@ -206,6 +211,8 @@ bool fmIsMultiRowsFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, F
 bool fmIsKeepOrderFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_KEEP_ORDER_FUNC); }
 
 bool fmIsCumulativeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_CUMULATIVE_FUNC); }
+
+bool fmIsForbidSuperTableFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_STABLE_FUNC); }
 
 bool fmIsInterpFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {

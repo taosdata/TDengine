@@ -13,7 +13,7 @@ sql create table tb1 using st2 tags (1,1.0,"1",1.0,1,1,"1");
 sql create table tb2 using st2 tags (2,2.0,"2",2.0,2,2,"2");
 sql create table tb3 using st2 tags (3,3.0,"3",3.0,3,3,"3");
 sql create table tb4 using st2 tags (4,4.0,"4",4.0,4,4,"4");
- 
+
 sql insert into tb1 values (now-200s,1,1.0,1.0,1,1,1,true,"1","1")
 sql insert into tb1 values (now-100s,2,2.0,2.0,2,2,2,true,"2","2")
 sql insert into tb1 values (now,3,3.0,3.0,3,3,3,true,"3","3")
@@ -47,16 +47,16 @@ sql select tbname, id2 from st2 where id2 between 0.0 and 3.0;
 if $rows != 7 then
   return -1
 endi
-if $data(tb2)[0] != tb2 then 
+if $data(tb2)[0] != tb2 then
   return -1
 endi
-if $data(tb2)[1] != 2.00000 then 
+if $data(tb2)[1] != 2.00000 then
   return -1
 endi
-if $data(tb3)[0] != tb3 then 
+if $data(tb3)[0] != tb3 then
   return -1
 endi
-if $data(tb3)[1] != 3.00000 then 
+if $data(tb3)[1] != 3.00000 then
   return -1
 endi
 
@@ -64,16 +64,16 @@ sql select tbname, id4 from st2 where id2 between 2.0 and 3.0;
 if $rows != 2 then
   return -1
 endi
-if $data(tb2)[0] != tb2 then 
+if $data(tb2)[0] != tb2 then
   return -1
 endi
-if $data(tb2)[1] != 2.000000000 then 
+if $data(tb2)[1] != 2.000000000 then
   return -1
 endi
-if $data(tb3)[0] != tb3 then 
+if $data(tb3)[0] != tb3 then
   return -1
 endi
-if $data(tb3)[1] != 3.000000000 then 
+if $data(tb3)[1] != 3.000000000 then
   return -1
 endi
 
@@ -81,16 +81,16 @@ sql select tbname, id5 from st2 where id5 between 2.0 and 3.0;
 if $rows != 2 then
   return -1
 endi
-if $data(tb2)[0] != tb2 then 
+if $data(tb2)[0] != tb2 then
   return -1
 endi
-if $data(tb2)[1] != 2 then 
+if $data(tb2)[1] != 2 then
   return -1
 endi
-if $data(tb3)[0] != tb3 then 
+if $data(tb3)[0] != tb3 then
   return -1
 endi
-if $data(tb3)[1] != 3 then 
+if $data(tb3)[1] != 3 then
   return -1
 endi
 
@@ -98,16 +98,16 @@ sql select tbname,id6 from st2 where id6 between 2.0 and 3.0;
 if $rows != 2 then
   return -1
 endi
-if $data(tb2)[0] != tb2 then 
+if $data(tb2)[0] != tb2 then
   return -1
 endi
-if $data(tb2)[1] != 2 then 
+if $data(tb2)[1] != 2 then
   return -1
 endi
-if $data(tb3)[0] != tb3 then 
+if $data(tb3)[0] != tb3 then
   return -1
 endi
-if $data(tb3)[1] != 3 then 
+if $data(tb3)[1] != 3 then
   return -1
 endi
 
@@ -115,10 +115,10 @@ sql select * from st2 where f1 between 2 and 3 and f2 between 2.0 and 3.0 and f3
 if $rows != 2 then
   return -1
 endi
-if $data01 != 2 then 
+if $data01 != 2 then
   return -1
 endi
-if $data11 != 3 then 
+if $data11 != 3 then
   return -1
 endi
 

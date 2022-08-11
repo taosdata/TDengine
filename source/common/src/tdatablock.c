@@ -676,9 +676,9 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
  * @return
  */
 size_t blockDataGetSerialMetaSize(uint32_t numOfCols) {
-  // | total rows/total length | block group id | column schema | each column length |
-  return sizeof(int32_t) + sizeof(uint64_t) + numOfCols * (sizeof(int16_t) + sizeof(int32_t)) +
-         numOfCols * sizeof(int32_t);
+  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column length |
+  return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(uint64_t) +
+         numOfCols * (sizeof(int8_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t);
 }
 
 double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
@@ -1329,10 +1329,6 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
       SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
-      if (pSrc->pData == NULL) {
-        continue;
-      }
-
       colDataAssign(pDst, pSrc, pDataBlock->info.rows, &pDataBlock->info);
     }
 
@@ -1581,7 +1577,7 @@ int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
   for (int32_t i = 0; i < sz; i++) {
     SColumnInfoData* pColData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
     tlen += taosEncodeFixedI16(buf, pColData->info.colId);
-    tlen += taosEncodeFixedI16(buf, pColData->info.type);
+    tlen += taosEncodeFixedI8(buf, pColData->info.type);
     tlen += taosEncodeFixedI32(buf, pColData->info.bytes);
     tlen += taosEncodeFixedBool(buf, pColData->hasNull);
 
@@ -1613,7 +1609,7 @@ void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
   for (int32_t i = 0; i < sz; i++) {
     SColumnInfoData data = {0};
     buf = taosDecodeFixedI16(buf, &data.info.colId);
-    buf = taosDecodeFixedI16(buf, &data.info.type);
+    buf = taosDecodeFixedI8(buf, &data.info.type);
     buf = taosDecodeFixedI32(buf, &data.info.bytes);
     buf = taosDecodeFixedBool(buf, &data.hasNull);
 
@@ -2001,6 +1997,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataB
         }
         offset += TYPE_BYTES[pCol->type];  // sum/avg would convert to int64_t/uint64_t/double during aggregation
       }
+      tdSRowEnd(&rb);
       dataLen += TD_ROW_LEN(rb.pBuf);
 #ifdef TD_DEBUG_PRINT_ROW
       tdSRowPrint(rb.pBuf, pTSchema, __func__);
@@ -2070,7 +2067,26 @@ char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId) {
 
 void blockEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols, int8_t needCompress) {
   // todo extract method
+  int32_t* version = (int32_t*)data;
+  *version = 1;
+  data += sizeof(int32_t);
+
   int32_t* actualLen = (int32_t*)data;
+  data += sizeof(int32_t);
+
+  int32_t* rows = (int32_t*)data;
+  *rows = pBlock->info.rows;
+  data += sizeof(int32_t);
+
+  int32_t* cols = (int32_t*)data;
+  *cols = numOfCols;
+  data += sizeof(int32_t);
+
+  // flag segment.
+  // the inital bit is for column info
+  int32_t* flagSegment = (int32_t*)data;
+  *flagSegment = (1<<31);
+
   data += sizeof(int32_t);
 
   uint64_t* groupId = (uint64_t*)data;
@@ -2079,8 +2095,8 @@ void blockEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
 
-    *((int16_t*)data) = pColInfoData->info.type;
-    data += sizeof(int16_t);
+    *((int8_t*)data) = pColInfoData->info.type;
+    data += sizeof(int8_t);
 
     *((int32_t*)data) = pColInfoData->info.bytes;
     data += sizeof(int32_t);
@@ -2126,12 +2142,31 @@ void blockEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_
   *groupId = pBlock->info.groupId;
 }
 
-const char* blockDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t numOfRows, const char* pData) {
+const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
   const char* pStart = pData;
 
+  int32_t version = *(int32_t*) pStart;
+  pStart += sizeof(int32_t);
+  ASSERT(version == 1);
+
+  // total length sizeof(int32_t)
   int32_t dataLen = *(int32_t*)pStart;
   pStart += sizeof(int32_t);
 
+  // total rows sizeof(int32_t)
+  int32_t numOfRows =  *(int32_t*)pStart;
+  pStart += sizeof(int32_t);
+
+  // total columns sizeof(int32_t)
+  int32_t numOfCols = *(int32_t*)pStart;
+  pStart += sizeof(int32_t);
+
+  // has column info segment
+  int32_t flagSeg = *(int32_t*)pStart;
+  int32_t hasColumnInfo = (flagSeg >> 31);
+  pStart += sizeof(int32_t);
+
+  // group id sizeof(uint64_t)
   pBlock->info.groupId = *(uint64_t*)pStart;
   pStart += sizeof(uint64_t);
 
@@ -2143,7 +2178,7 @@ const char* blockDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t numOfRow
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
     pColInfoData->info.type = *(int16_t*)pStart;
-    pStart += sizeof(int16_t);
+    pStart += sizeof(int8_t);
 
     pColInfoData->info.bytes = *(int32_t*)pStart;
     pStart += sizeof(int32_t);
