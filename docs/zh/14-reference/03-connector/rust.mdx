@@ -54,10 +54,11 @@ Rust 连接器仍然在快速开发中，1.0 之前无法保证其向后兼容�
 taos = "*"
 ```
 
-<Tabs defaultValue="native">
+</TabItem>
+
 <TabItem value="native" label="仅原生连接">
 
-在 `Cargo.toml` 文件中添加 [taos][taos]：
+在 `Cargo.toml` 文件中添加 [taos][taos]，并启用 `native` 特性：
 
 ```toml
 [dependencies]
