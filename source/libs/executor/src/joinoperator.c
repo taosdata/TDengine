@@ -132,6 +132,8 @@ void destroyMergeJoinOperator(void* param, int32_t numOfOutput) {
   SJoinOperatorInfo* pJoinOperator = (SJoinOperatorInfo*)param;
   nodesDestroyNode(pJoinOperator->pCondAfterMerge);
 
+  pJoinOperator->pRes = blockDataDestroy(pJoinOperator->pRes);
+
   taosMemoryFreeClear(param);
 }
 

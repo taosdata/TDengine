@@ -34,6 +34,8 @@ typedef struct SStreamTask SStreamTask;
 
 enum {
   STREAM_STATUS__NORMAL = 0,
+  STREAM_STATUS__STOP,
+  STREAM_STATUS__FAILED,
   STREAM_STATUS__RECOVER,
 };
 
@@ -118,7 +120,7 @@ typedef struct {
   int64_t sourceVer;
   int64_t reqId;
 
-  SArray* blocks;  // SArray<SSDataBlock*>
+  SArray* blocks;  // SArray<SSDataBlock>
 } SStreamDataBlock;
 
 typedef struct {

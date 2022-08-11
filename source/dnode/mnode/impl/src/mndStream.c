@@ -197,6 +197,30 @@ void mndReleaseStream(SMnode *pMnode, SStreamObj *pStream) {
   sdbRelease(pSdb, pStream);
 }
 
+static void mndShowStreamStatus(char *dst, SStreamObj *pStream) {
+  int8_t status = atomic_load_8(&pStream->status);
+  if (status == STREAM_STATUS__NORMAL) {
+    strcpy(dst, "normal");
+  } else if (status == STREAM_STATUS__STOP) {
+    strcpy(dst, "stop");
+  } else if (status == STREAM_STATUS__FAILED) {
+    strcpy(dst, "failed");
+  } else if (status == STREAM_STATUS__RECOVER) {
+    strcpy(dst, "recover");
+  }
+}
+
+static void mndShowStreamTrigger(char *dst, SStreamObj *pStream) {
+  int8_t trigger = pStream->trigger;
+  if (trigger == STREAM_TRIGGER_AT_ONCE) {
+    strcpy(dst, "at once");
+  } else if (trigger == STREAM_TRIGGER_WINDOW_CLOSE) {
+    strcpy(dst, "window close");
+  } else if (trigger == STREAM_TRIGGER_MAX_DELAY) {
+    strcpy(dst, "max delay");
+  }
+}
+
 static int32_t mndCheckCreateStreamReq(SCMCreateStreamReq *pCreate) {
   if (pCreate->name[0] == 0 || pCreate->sql == NULL || pCreate->sql[0] == 0 || pCreate->sourceDB[0] == 0 ||
       pCreate->targetStbFullName[0] == 0) {
@@ -837,7 +861,7 @@ int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
         sdbCancelFetch(pSdb, pIter);
         mError("db:%s, failed to drop stream:%s since sourceDbUid:%" PRId64 " not match with targetDbUid:%" PRId64,
                pDb->name, pStream->name, pStream->sourceDbUid, pStream->targetDbUid);
-        terrno = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
+        terrno = TSDB_CODE_MND_STREAM_MUST_BE_DELETED;
         return -1;
       } else {
 #if 0
@@ -926,23 +950,46 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)sql, false);
 
+    char status[20 + VARSTR_HEADER_SIZE] = {0};
+    mndShowStreamStatus(&status[VARSTR_HEADER_SIZE], pStream);
+    varDataSetLen(status, strlen(varDataVal(status)));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pStream->status, true);
+    colDataAppend(pColInfo, numOfRows, (const char *)&status, false);
 
+    char sourceDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    tNameFromString(&n, pStream->sourceDb, T_NAME_ACCT | T_NAME_DB);
+    tNameGetDbName(&n, varDataVal(sourceDB));
+    varDataSetLen(sourceDB, strlen(varDataVal(sourceDB)));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pStream->sourceDb, true);
+    colDataAppend(pColInfo, numOfRows, (const char *)&sourceDB, false);
 
+    char targetDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    tNameFromString(&n, pStream->targetDb, T_NAME_ACCT | T_NAME_DB);
+    tNameGetDbName(&n, varDataVal(targetDB));
+    varDataSetLen(targetDB, strlen(varDataVal(targetDB)));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pStream->targetDb, true);
+    colDataAppend(pColInfo, numOfRows, (const char *)&targetDB, false);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pStream->targetSTbName, true);
+    if (pStream->targetSTbName[0] == 0) {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, NULL, true);
+    } else {
+      char targetSTB[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      tNameFromString(&n, pStream->targetSTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+      strcpy(&targetSTB[VARSTR_HEADER_SIZE], tNameGetTableName(&n));
+      varDataSetLen(targetSTB, strlen(varDataVal(targetSTB)));
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&targetSTB, false);
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pStream->watermark, false);
 
+    char trigger[20 + VARSTR_HEADER_SIZE] = {0};
+    mndShowStreamTrigger(&trigger[VARSTR_HEADER_SIZE], pStream);
+    varDataSetLen(trigger, strlen(varDataVal(trigger)));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pStream->trigger, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&trigger, false);
 
     numOfRows++;
     sdbRelease(pSdb, pStream);

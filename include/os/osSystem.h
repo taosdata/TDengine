@@ -32,6 +32,7 @@ extern "C" {
 typedef struct TdCmd *TdCmdPtr;
 
 TdCmdPtr taosOpenCmd(const char* cmd);
+int64_t  taosGetsCmd(TdCmdPtr pCmd, int32_t maxSize, char *__restrict buf);
 int64_t  taosGetLineCmd(TdCmdPtr pCmd, char** __restrict ptrBuf);
 int32_t  taosEOFCmd(TdCmdPtr pCmd);
 int64_t  taosCloseCmd(TdCmdPtr* ppCmd);
