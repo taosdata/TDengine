@@ -40,7 +40,7 @@ For user manual, system design and architecture, please refer to [TDengine Docum
 
 # Building
 
-At the moment, TDengine server only supports running on Linux systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or build it from the source code. This quick guide is for installation from the source only.
+At the moment, TDengine server supports running on Linux, Windows, and macOS systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or build it from the source code. This quick guide is for installation from the source only.
 
 To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in the project directory.
 
@@ -86,7 +86,7 @@ To build the [taosTools](https://github.com/taosdata/taos-tools) on CentOS, the 
 sudo yum install zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
 ```
 
-Note: Since snappy lacks pkg-config support (refer to [link](https://github.com/google/snappy/pull/86)), it leads a cmake prompt libsnappy not found. But snappy will works well.
+Note: Since snappy lacks pkg-config support (refer to [link](https://github.com/google/snappy/pull/86)), it leads a cmake prompt libsnappy not found. But snappy still works well.
 
 ### Setup golang environment
 
@@ -114,7 +114,7 @@ cd TDengine
 
 The connectors for go & Grafana and some tools have been moved to separated repositories.
 
-You can modify the file ~/.gitconfig to use ssh protocol instead of https for better download speed. You need to upload ssh public key to GitHub first. Please refer to GitHub official documentation for detail.
+You can modify the file ~/.gitconfig to use ssh protocol instead of https for better download speed. You will need to upload ssh public key to GitHub first. Please refer to GitHub official documentation for detail.
 
 ```
 [url "git@github.com:"]
