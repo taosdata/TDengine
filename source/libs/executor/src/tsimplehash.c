@@ -137,13 +137,13 @@ static void taosHashTableResize(SSHashObj *pHashObj) {
       continue;
     }
 
-    SHNode *pNext;
+    SHNode *pNext = NULL;
     SHNode *pPrev = NULL;
 
 
     while (pNode != NULL) {
       void    *key = GET_SHASH_NODE_KEY(pNode, pHashObj->dataLen);
-      uint32_t hashVal = (*pHashObj->hashFp)(key, (uint32_t)pHashObj->dataLen);
+      uint32_t hashVal = (*pHashObj->hashFp)(key, (uint32_t)pHashObj->keyLen);
 
       int32_t newIdx = HASH_INDEX(hashVal, pHashObj->capacity);
       pNext = pNode->next;
@@ -187,12 +187,13 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, const void *data) {
 
   SHNode *pNode = pHashObj->hashList[slot];
   if (pNode == NULL) {
-    SHNode *pNewNode = doCreateHashNode(key, pHashObj->keyLen, data, pHashObj->size, hashVal);
+    SHNode *pNewNode = doCreateHashNode(key, pHashObj->keyLen, data, pHashObj->dataLen, hashVal);
     if (pNewNode == NULL) {
       return -1;
     }
 
     pHashObj->hashList[slot] = pNewNode;
+    atomic_add_fetch_64(&pHashObj->size, 1);
     return 0;
   }
 
@@ -204,7 +205,7 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, const void *data) {
   }
 
   if (pNode == NULL) {
-    SHNode *pNewNode = doCreateHashNode(key, pHashObj->keyLen, data, pHashObj->size, hashVal);
+    SHNode *pNewNode = doCreateHashNode(key, pHashObj->keyLen, data, pHashObj->dataLen, hashVal);
     if (pNewNode == NULL) {
       return -1;
     }
