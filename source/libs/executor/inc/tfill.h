@@ -37,7 +37,6 @@ typedef struct SFillLinearInfo {
   SPoint  start;
   SPoint  end;
   bool    hasNull;
-  bool    fillLastPoint;
   int16_t type;
   int32_t bytes;
 } SFillLinearInfo;
