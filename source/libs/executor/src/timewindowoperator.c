@@ -2434,10 +2434,10 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
         // if its the last point in data block, no need to fill, but reserve this point as the start value and do
         // the interpolation when processing next data block.
         if (pSliceInfo->fillType == TSDB_FILL_LINEAR) {
-          doKeepLinearInfo(pSliceInfo, pBlock, i, false);
           pSliceInfo->current =
               taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
           if (i < pBlock->info.rows - 1) {
+            doKeepLinearInfo(pSliceInfo, pBlock, i, false);
             int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, i + 1);
             if (nextTs > pSliceInfo->current) {
               while (pSliceInfo->current < nextTs && pSliceInfo->current <= pSliceInfo->win.ekey) {
@@ -2475,11 +2475,11 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
         doKeepPrevRows(pSliceInfo, pBlock, i);
 
         if (pSliceInfo->fillType == TSDB_FILL_LINEAR) {
-          doKeepLinearInfo(pSliceInfo, pBlock, i, false);
           // no need to increate pSliceInfo->current here
           //pSliceInfo->current =
           //    taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
           if (i < pBlock->info.rows - 1) {
+            doKeepLinearInfo(pSliceInfo, pBlock, i, false);
             int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, i + 1);
             if (nextTs > pSliceInfo->current) {
               while (pSliceInfo->current < nextTs && pSliceInfo->current <= pSliceInfo->win.ekey) {
@@ -2555,10 +2555,10 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
 
 
           if (pSliceInfo->fillType == TSDB_FILL_LINEAR) {
-            doKeepLinearInfo(pSliceInfo, pBlock, i, false);
             pSliceInfo->current =
                 taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
             if (i < pBlock->info.rows - 1) {
+              doKeepLinearInfo(pSliceInfo, pBlock, i, false);
               int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, i + 1);
               if (nextTs > pSliceInfo->current) {
                 while (pSliceInfo->current < nextTs && pSliceInfo->current <= pSliceInfo->win.ekey) {
