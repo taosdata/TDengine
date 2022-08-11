@@ -13,7 +13,7 @@ class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        tdSql.init(conn.cursor(), False)
         self.tb_nums = 10
         self.row_nums = 20
         self.ts = 1434938400000
