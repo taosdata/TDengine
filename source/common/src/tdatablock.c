@@ -1870,20 +1870,20 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
  * @brief TODO: Assume that the final generated result it less than 3M
  *
  * @param pReq
- * @param pDataBlock
+ * @param pDataBlocks
  * @param vgId
  * @param suid
- *
+ * 
  */
-int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataBlock, STSchema* pTSchema, int32_t vgId,
+int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema* pTSchema, int32_t vgId,
                                     tb_uid_t suid) {
+  int32_t sz = taosArrayGetSize(pDataBlocks);
   int32_t bufSize = sizeof(SSubmitReq);
-  int32_t sz = 1;
   for (int32_t i = 0; i < sz; ++i) {
-    const SDataBlockInfo* pBlkInfo = &pDataBlock->info;
+    SDataBlockInfo* pBlkInfo = &((SSDataBlock*)taosArrayGet(pDataBlocks, i))->info;
 
-    int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
-    bufSize += pBlkInfo->rows * (TD_ROW_HEAD_LEN + pBlkInfo->rowSize + BitmapLen(colNum));
+    int32_t numOfCols = taosArrayGetSize(pDataBlocks);
+    bufSize += pBlkInfo->rows * (TD_ROW_HEAD_LEN + pBlkInfo->rowSize + BitmapLen(numOfCols));
     bufSize += sizeof(SSubmitBlk);
   }
 
@@ -1900,6 +1900,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataB
   tdSRowInit(&rb, pTSchema->version);
 
   for (int32_t i = 0; i < sz; ++i) {
+    SSDataBlock* pDataBlock = taosArrayGet(pDataBlocks, i);
     int32_t      colNum = taosArrayGetSize(pDataBlock->pDataBlock);
     int32_t      rows = pDataBlock->info.rows;
     //    int32_t      rowSize = pDataBlock->info.rowSize;
@@ -1997,7 +1998,6 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataB
         }
         offset += TYPE_BYTES[pCol->type];  // sum/avg would convert to int64_t/uint64_t/double during aggregation
       }
-      tdSRowEnd(&rb);
       dataLen += TD_ROW_LEN(rb.pBuf);
 #ifdef TD_DEBUG_PRINT_ROW
       tdSRowPrint(rb.pBuf, pTSchema, __func__);
