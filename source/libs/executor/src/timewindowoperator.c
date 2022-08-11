@@ -2212,6 +2212,7 @@ static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
           colDataAppend(pDst, rows, (char *)current.val, false);
         }
 
+        taosMemoryFree(current.val);
         pResBlock->info.rows += 1;
         break;
       }
@@ -2624,16 +2625,22 @@ void destroyTimeSliceOperatorInfo(void* param, int32_t numOfOutput) {
     SGroupKeys* pKey = taosArrayGet(pInfo->pPrevRow, i);
     taosMemoryFree(pKey->pData);
   }
+  taosArrayDestroy(pInfo->pPrevRow);
 
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pNextRow); ++i) {
     SGroupKeys* pKey = taosArrayGet(pInfo->pNextRow, i);
     taosMemoryFree(pKey->pData);
   }
-
-  taosArrayDestroy(pInfo->pPrevRow);
   taosArrayDestroy(pInfo->pNextRow);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pLinearInfo); ++i) {
+    SFillLinearInfo* pKey = taosArrayGet(pInfo->pLinearInfo, i);
+    taosMemoryFree(pKey->start.val);
+    taosMemoryFree(pKey->end.val);
+  }
   taosArrayDestroy(pInfo->pLinearInfo);
 
+  taosMemoryFree(pInfo->pFillColInfo);
   taosMemoryFreeClear(param);
 }
 
