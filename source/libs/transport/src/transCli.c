@@ -891,7 +891,6 @@ SCliConn* cliGetConn(SCliMsg* pMsg, SCliThrd* pThrd, bool* ignore) {
     SExHandle* exh = transAcquireExHandle(transGetRefMgt(), refId);
     if (exh == NULL) {
       *ignore = true;
-      destroyCmsg(pMsg);
       return NULL;
     } else {
       conn = exh->handle;
@@ -937,7 +936,16 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
   bool      ignore = false;
   SCliConn* conn = cliGetConn(pMsg, pThrd, &ignore);
   if (ignore == true) {
-    tError("ignore msg");
+    // persist conn already release by server
+    STransMsg resp = {0};
+    resp.code = TSDB_CODE_RPC_BROKEN_LINK;
+    resp.msgType = pMsg->msg.msgType + 1;
+
+    resp.info.ahandle = pMsg && pMsg->ctx ? pMsg->ctx->ahandle : NULL;
+    resp.info.traceId = pMsg->msg.info.traceId;
+
+    pTransInst->cfp(pTransInst->parent, &resp, NULL);
+    destroyCmsg(pMsg);
     return;
   }
 
