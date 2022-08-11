@@ -1645,13 +1645,13 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   while ((pIte = taosHashIterate(pUpdatedMap, pIte)) != NULL) {
     taosArrayPush(pUpdated, pIte);
   }
-  taosHashCleanup(pUpdatedMap);
   taosArraySort(pUpdated, resultrowComparAsc);
 
   finalizeUpdatedResult(pOperator->exprSupp.numOfExprs, pInfo->aggSup.pResultBuf, pUpdated, pSup->rowEntryInfoOffset);
   initMultiResInfoFromArrayList(&pInfo->groupResInfo, pUpdated);
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
   removeDeleteResults(pUpdatedMap, pInfo->pDelWins);
+  taosHashCleanup(pUpdatedMap);
   doBuildDeleteResult(pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
   if (pInfo->pDelRes->info.rows > 0) {
     return pInfo->pDelRes;
