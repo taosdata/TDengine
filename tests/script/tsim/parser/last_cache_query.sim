@@ -9,7 +9,7 @@ sql select last(ts) from tb1
 if $rows != 1 then
   return -1
 endi
-if $data00 != @21-05-12 10:10:12.000@ then 
+if $data00 != @21-05-12 10:10:12.000@ then
   print $data00
   return -1
 endi
@@ -18,7 +18,7 @@ sql select last(f1) from tb1
 if $rows != 1 then
   return -1
 endi
-if $data00 != 6 then 
+if $data00 != 6 then
   print $data00
   return -1
 endi
@@ -27,21 +27,21 @@ sql select last(*) from tb1
 if $rows != 1 then
   return -1
 endi
-if $data00 != @21-05-12 10:10:12.000@ then 
+if $data00 != @21-05-12 10:10:12.000@ then
   print $data00
   return -1
 endi
-if $data01 != 6 then 
+if $data01 != 6 then
   return -1
 endi
-if $data02 != 5.000000000 then 
+if $data02 != 5.000000000 then
   print $data02
   return -1
 endi
-if $data03 != 3 then 
+if $data03 != 3 then
   return -1
 endi
-if $data04 != @70-01-01 07:59:57.000@ then 
+if $data04 != @70-01-01 07:59:57.000@ then
   return -1
 endi
 
@@ -49,28 +49,28 @@ sql select last(tb1.*,ts,f4) from tb1
 if $rows != 1 then
   return -1
 endi
-if $data00 != @21-05-12 10:10:12.000@ then 
+if $data00 != @21-05-12 10:10:12.000@ then
   print $data00
   return -1
 endi
-if $data01 != 6 then 
+if $data01 != 6 then
   return -1
 endi
-if $data02 != 5.000000000 then 
+if $data02 != 5.000000000 then
   print $data02
   return -1
 endi
-if $data03 != 3 then 
+if $data03 != 3 then
   return -1
 endi
-if $data04 != @70-01-01 07:59:57.000@ then 
+if $data04 != @70-01-01 07:59:57.000@ then
   return -1
 endi
-if $data05 != @21-05-12 10:10:12.000@ then 
+if $data05 != @21-05-12 10:10:12.000@ then
   print $data00
   return -1
 endi
-if $data06 != @70-01-01 07:59:57.000@ then 
+if $data06 != @70-01-01 07:59:57.000@ then
   return -1
 endi
 
@@ -79,7 +79,7 @@ sql select last(ts) from tb2
 if $rows != 1 then
   return -1
 endi
-if $data00 != @21-05-11 10:11:15.000@ then 
+if $data00 != @21-05-11 10:11:15.000@ then
   print $data00
   return -1
 endi
@@ -88,7 +88,7 @@ sql select last(f1) from tb2
 if $rows != 1 then
   return -1
 endi
-if $data00 != -6 then 
+if $data00 != -6 then
   print $data00
   return -1
 endi
@@ -97,21 +97,21 @@ sql select last(*) from tb2
 if $rows != 1 then
   return -1
 endi
-if $data00 != @21-05-11 10:11:15.000@ then 
+if $data00 != @21-05-11 10:11:15.000@ then
   print $data00
   return -1
 endi
-if $data01 != -6 then 
+if $data01 != -6 then
   return -1
 endi
-if $data02 != -7.000000000 then 
+if $data02 != -7.000000000 then
   print $data02
   return -1
 endi
-if $data03 != -8 then 
+if $data03 != -8 then
   return -1
 endi
-if $data04 != @70-01-01 07:59:56.999@ then 
+if $data04 != @70-01-01 07:59:56.999@ then
   if $data04 != @70-01-01 07:59:57.-01@ then
     return -1
   endi
@@ -121,30 +121,30 @@ sql select last(tb2.*,ts,f4) from tb2
 if $rows != 1 then
   return -1
 endi
-if $data00 != @21-05-11 10:11:15.000@ then 
+if $data00 != @21-05-11 10:11:15.000@ then
   print $data00
   return -1
 endi
-if $data01 != -6 then 
+if $data01 != -6 then
   return -1
 endi
-if $data02 != -7.000000000 then 
+if $data02 != -7.000000000 then
   print $data02
   return -1
 endi
-if $data03 != -8 then 
+if $data03 != -8 then
   return -1
 endi
-if $data04 != @70-01-01 07:59:56.999@ then 
+if $data04 != @70-01-01 07:59:56.999@ then
   if $data04 != @70-01-01 07:59:57.-01@ then
     return -1
   endi
 endi
-if $data05 != @21-05-11 10:11:15.000@ then 
+if $data05 != @21-05-11 10:11:15.000@ then
   print $data00
   return -1
 endi
-if $data06 != @70-01-01 07:59:56.999@ then 
+if $data06 != @70-01-01 07:59:56.999@ then
   if $data04 != @70-01-01 07:59:57.-01@ then
     return -1
   endi
@@ -155,21 +155,21 @@ sql select last(*) from tbd
 if $rows != 1 then
   return -1
 endi
-if $data00 != @21-05-11 10:12:29.000@ then 
+if $data00 != @21-05-11 10:12:29.000@ then
   print $data00
   return -1
 endi
-if $data01 != NULL then 
+if $data01 != NULL then
   return -1
 endi
-if $data02 != NULL then 
+if $data02 != NULL then
   print $data02
   return -1
 endi
-if $data03 != NULL then 
+if $data03 != NULL then
   return -1
 endi
-if $data04 != NULL then 
+if $data04 != NULL then
   return -1
 endi
 
@@ -184,7 +184,7 @@ sql select last(ts) from st2
 if $rows != 1 then
   return -1
 endi
-if $data00 != @21-05-12 10:10:12.000@ then 
+if $data00 != @21-05-12 10:10:12.000@ then
   print $data00
   return -1
 endi
@@ -193,7 +193,7 @@ sql select last(f1) from st2
 if $rows != 1 then
   return -1
 endi
-if $data00 != 6 then 
+if $data00 != 6 then
   print $data00
   return -1
 endi
@@ -202,21 +202,21 @@ sql select last(*) from st2
 if $rows != 1 then
   return -1
 endi
-if $data00 != @21-05-12 10:10:12.000@ then 
+if $data00 != @21-05-12 10:10:12.000@ then
   print $data00
   return -1
 endi
-if $data01 != 6 then 
+if $data01 != 6 then
   return -1
 endi
-if $data02 != 37.000000000 then 
+if $data02 != 37.000000000 then
   print $data02
   return -1
 endi
-if $data03 != 27 then 
+if $data03 != 27 then
   return -1
 endi
-if $data04 != @70-01-01 07:59:57.000@ then 
+if $data04 != @70-01-01 07:59:57.000@ then
   return -1
 endi
 
@@ -225,28 +225,28 @@ sql select last(st2.*,ts,f4) from st2
 if $rows != 1 then
   return -1
 endi
-if $data00 != @21-05-12 10:10:12.000@ then 
+if $data00 != @21-05-12 10:10:12.000@ then
   print $data00
   return -1
 endi
-if $data01 != 6 then 
+if $data01 != 6 then
   return -1
 endi
-if $data02 != 37.000000000 then 
+if $data02 != 37.000000000 then
   print $data02
   return -1
 endi
-if $data03 != 27 then 
+if $data03 != 27 then
   return -1
 endi
-if $data04 != @70-01-01 07:59:57.000@ then 
+if $data04 != @70-01-01 07:59:57.000@ then
   return -1
 endi
-if $data05 != @21-05-12 10:10:12.000@ then 
+if $data05 != @21-05-12 10:10:12.000@ then
   print $data00
   return -1
 endi
-if $data06 != @70-01-01 07:59:57.000@ then 
+if $data06 != @70-01-01 07:59:57.000@ then
   return -1
 endi
 
@@ -260,99 +260,99 @@ print ===> $data40 $data41 $data42 $data43 $data44 $data45 $data46 $data47 $data
 if $rows != 5 then
   return -1
 endi
-if $data00 != @21-05-12 10:10:12.000@ then 
+if $data00 != @21-05-12 10:10:12.000@ then
   return -1
 endi
-if $data01 != 6 then 
+if $data01 != 6 then
   return -1
 endi
-if $data02 != 5.000000000 then 
+if $data02 != 5.000000000 then
   print $data02
   return -1
 endi
-if $data03 != 21 then 
+if $data03 != 21 then
   return -1
 endi
-if $data04 != @70-01-01 07:59:57.000@ then 
+if $data04 != @70-01-01 07:59:57.000@ then
   return -1
 endi
-if $data05 != 1 then 
+if $data05 != 1 then
   return -1
 endi
-if $data10 != @21-05-11 10:12:23.000@ then 
+if $data10 != @21-05-11 10:12:23.000@ then
   return -1
 endi
-if $data11 != 22 then 
+if $data11 != 22 then
   return -1
 endi
-if $data12 != 23.000000000 then 
+if $data12 != 23.000000000 then
   print $data02
   return -1
 endi
-if $data13 != -8 then 
+if $data13 != -8 then
   return -1
 endi
-if $data14 != @70-01-01 07:59:58.-04@ then 
+if $data14 != @70-01-01 07:59:58.-04@ then
   return -1
 endi
-if $data15 != 2 then 
+if $data15 != 2 then
   return -1
 endi
-if $data20 != @21-05-10 10:12:24.000@ then 
+if $data20 != @21-05-10 10:12:24.000@ then
   return -1
 endi
-if $data21 != 24 then 
+if $data21 != 24 then
   return -1
 endi
 if $data22 != 11.000000000 then
   print expect 11.000000000 actual: $data22
   return -1
 endi
-if $data23 != 25 then 
+if $data23 != 25 then
   return -1
 endi
 if $data24 != @70-01-01 07:59:57.-04@ then =
   return -1
 endi
-if $data25 != 3 then 
+if $data25 != 3 then
   return -1
 endi
-if $data30 != @21-05-11 10:12:25.000@ then 
+if $data30 != @21-05-11 10:12:25.000@ then
   return -1
 endi
-if $data31 != 26 then 
+if $data31 != 26 then
   return -1
 endi
-if $data32 != 17.000000000 then 
+if $data32 != 17.000000000 then
   print $data02
   return -1
 endi
-if $data33 != 27 then 
+if $data33 != 27 then
   return -1
 endi
-if $data34 != @70-01-01 07:59:56.-04@ then 
+if $data34 != @70-01-01 07:59:56.-04@ then
   return -1
 endi
-if $data35 != 4 then 
+if $data35 != 4 then
   return -1
 endi
-if $data40 != @21-05-11 10:12:29.000@ then 
+if $data40 != @21-05-11 10:12:29.000@ then
   return -1
 endi
-if $data41 != 36 then 
+if $data41 != 36 then
   return -1
 endi
-if $data42 != 37.000000000 then 
+if $data42 != 37.000000000 then
   print $data02
   return -1
 endi
-if $data43 != 35 then 
+if $data43 != 35 then
   return -1
 endi
-if $data44 != @70-01-01 07:59:56.-05@ then 
+if $data44 != @70-01-01 07:59:56.-05@ then
   return -1
 endi
-if $data45 != 5 then 
+if $data45 != 5 then
   return -1
 endi
 
@@ -367,21 +367,21 @@ sql select last(*) from tbn;
 if $rows != 1 then
   return -1
 endi
-if $data00 != @21-05-13 10:10:12.000@ then 
+if $data00 != @21-05-13 10:10:12.000@ then
   print $data00
   return -1
 endi
-if $data01 != 6 then 
+if $data01 != 6 then
   return -1
 endi
-if $data02 != 5.000000000 then 
+if $data02 != 5.000000000 then
   print $data02
   return -1
 endi
-if $data03 != 3 then 
+if $data03 != 3 then
   return -1
 endi
-if $data04 != @70-01-01 07:59:57.000@ then 
+if $data04 != @70-01-01 07:59:57.000@ then
   return -1
 endi
 

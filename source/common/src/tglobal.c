@@ -405,9 +405,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfVnodeWriteThreads = TMAX(tsNumOfVnodeWriteThreads, 1);
   if (cfgAddInt32(pCfg, "numOfVnodeWriteThreads", tsNumOfVnodeWriteThreads, 1, 1024, 0) != 0) return -1;
 
-  // tsNumOfVnodeSyncThreads = tsNumOfCores;
-  tsNumOfVnodeSyncThreads = 32;
-  tsNumOfVnodeSyncThreads = TMAX(tsNumOfVnodeSyncThreads, 1);
+  tsNumOfVnodeSyncThreads = tsNumOfCores * 2;
+  tsNumOfVnodeSyncThreads = TMAX(tsNumOfVnodeSyncThreads, 16);
   if (cfgAddInt32(pCfg, "numOfVnodeSyncThreads", tsNumOfVnodeSyncThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfQnodeQueryThreads = tsNumOfCores * 2;

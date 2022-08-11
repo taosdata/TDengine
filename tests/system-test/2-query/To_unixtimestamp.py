@@ -3,6 +3,7 @@ from time import sleep
 from util.log import *
 from util.sql import *
 from util.cases import *
+from util.sqlset import TDSetSql
 
 
 
@@ -12,17 +13,19 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
+        self.setsql = TDSetSql()
+        self.dbname = 'db'
         # name of normal table
-        self.ntbname = 'ntb'
+        self.ntbname = f'{self.dbname}.ntb'
         # name of stable
-        self.stbname = 'stb'
+        self.stbname = f'{self.dbname}.stb'
         # structure of column
         self.column_dict = {
             'ts':'timestamp',
             'c1':'int',
             'c2':'float',
-            'c3':'binary(20)',
-            'c4':'nchar(20)'
+            'c3':'binary(20)'
+            
         }
         # structure of tag
         self.tag_dict = {
@@ -32,69 +35,68 @@ class TDTestCase:
         self.tbnum = 2
         # values of tag,the number of values should equal to tbnum
         self.tag_values = [
-            f'10',
-            f'100'
+            '10',
+            '100'
         ]
         # values of rows, structure should be same as column
         self.values_list = [
-            f'now,10,99.99,"2020-1-1 00:00:00"',
-            f'today(),100,11.111,22.222222'
+            f'now,10,99.99,"abc"',
+            f'today(),100,11.111,"abc"'
 
         ]
-        self.error_param = [1,'now()']
-
+        self.error_param = [1,1.5,'now()']
+    def data_check(self,tbname,values_list,tb_type,tb_num=1):
+        for time in ['1970-01-01T08:00:00+0800','1970-01-01T08:00:00+08:00']:
+            tdSql.query(f"select to_unixtimestamp('{time}') from {tbname}")
+            if tb_type == 'ntb' or tb_type == 'ctb':
+                tdSql.checkRows(len(values_list))
+                for i in range(len(values_list)):
+                    tdSql.checkEqual(tdSql.queryResult[i][0],0)
+            elif tb_type == 'stb':
+                tdSql.checkRows(len(self.values_list)*tb_num)
+        for time in ['1900-01-01T08:00:00+08:00']:
+            tdSql.query(f"select to_unixtimestamp('{time}') from {tbname}")
+            if tb_type == 'ntb' or tb_type == 'ctb':
+                tdSql.checkRows(len(values_list))
+            elif tb_type == 'stb':
+                tdSql.checkRows(len(self.values_list)*tb_num)    
+        for time in ['2020-01-32T08:00:00','2020-13-32T08:00:00','acd']:
+            tdSql.query(f"select to_unixtimestamp('{time}') from {tbname}")
+            if tb_type == 'ntb' or tb_type == 'ctb':
+                tdSql.checkRows(len(values_list))
+                for i in range(len(values_list)):
+                    tdSql.checkEqual(tdSql.queryResult[i][0],None)
+            elif tb_type == 'stb':
+                tdSql.checkRows(len(values_list)*tb_num)
+        for i in self.column_dict.keys():
+            tdSql.query(f"select {i} from {tbname} where to_unixtimestamp('1970-01-01T08:00:00+08:00')=0")
+            if tb_type == 'ntb' or tb_type == 'ctb':
+                tdSql.checkRows(len(values_list))
+            elif tb_type == 'stb':
+                tdSql.checkRows(len(values_list)*tb_num)    
+        for time in self.error_param:
+            tdSql.error(f"select to_unixtimestamp({time}) from {tbname}")
+    def timestamp_change_check_ntb(self):
+        tdSql.execute(f'create database {self.dbname}')
+        tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+        for i in range(len(self.values_list)):
+            tdSql.execute(f'insert into {self.ntbname} values({self.values_list[i]})')
+        self.data_check(self.ntbname,self.values_list,'ntb')
+        tdSql.execute(f'drop database {self.dbname}')
+    def timestamp_change_check_stb(self):
+        tdSql.execute(f'create database {self.dbname}')
+        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
+        for i in range(self.tbnum):
+            tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[i]})')
+            for j in range(len(self.values_list)):
+                tdSql.execute(f'insert into {self.stbname}_{i} values({self.values_list[j]})')
+        for i in range(self.tbnum):
+            self.data_check(f'{self.stbname}_{i}',self.values_list,'ctb')
+        self.data_check(self.stbname,self.values_list,'stb',self.tbnum)
+        tdSql.execute(f'drop database {self.dbname}')
     def run(self):  # sourcery skip: extract-duplicate-method
-        tdSql.prepare()
-        tdLog.printNoPrefix("==========step1:create tables==========")
-        tdSql.execute(
-            '''create table if not exists ntb
-            (ts timestamp, c1 int, c2 float,c3 double,c4 timestamp)
-            '''
-        )
-        tdSql.execute(
-            '''create table if not exists stb
-            (ts timestamp, c1 int, c2 float,c3 double,c4 timestamp) tags(t0 int)
-            '''
-        )
-        tdSql.execute(
-            '''create table if not exists stb_1 using stb tags(100)
-            '''
-        )
-        tdLog.printNoPrefix("==========step2:insert data into ntb==========")
-
-        # RFC3339:2020-01-01T00:00:00+8:00
-        # ISO8601:2020-01-01T00:00:00.000+0800
-        tdSql.execute(
-            'insert into ntb values(now,1,1.55,100.555555,today())("2020-1-1 00:00:00",10,11.11,99.999999,now())(today(),3,3.333,333.333333,now())')
-        tdSql.execute(
-            'insert into stb_1 values(now,1,1.55,100.555555,today())("2020-1-1 00:00:00",10,11.11,99.999999,now())(today(),3,3.333,333.333333,now())')
-        tdSql.query("select to_unixtimestamp('1970-01-01T08:00:00+0800') from ntb")
-        tdSql.checkData(0,0,0)
-        tdSql.checkData(1,0,0)
-        tdSql.checkData(2,0,0)
-        tdSql.checkRows(3)
-        tdSql.query("select to_unixtimestamp('1970-01-01T08:00:00+08:00') from ntb")
-        tdSql.checkData(0,0,0)
-        tdSql.checkRows(3)
-        tdSql.query("select to_unixtimestamp('1900-01-01T08:00:00+08:00') from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select to_unixtimestamp('2020-01-32T08:00:00') from ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,None)
-        tdSql.query("select to_unixtimestamp('2020-13-32T08:00:00') from ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,None)
-        tdSql.query("select to_unixtimestamp('acd') from ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,None)
-        tdSql.error("select to_unixtimestamp(1) from ntb")
-        tdSql.error("select to_unixtimestamp(1.5) from ntb")
-        tdSql.error("select to_unixtimestamp(ts) from ntb")
-
-        tdSql.query("select ts from ntb where to_unixtimestamp('1970-01-01T08:00:00+08:00')=0")
-        tdSql.checkRows(3)
-
-
+        self.timestamp_change_check_ntb()
+        self.timestamp_change_check_stb()
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
