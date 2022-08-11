@@ -5,7 +5,7 @@ system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 sql connect
 
-print =============== show dnodes
+print =============== select * from information_schema.ins_dnodes
 sql show mnodes;
 if $rows != 1 then 
   return -1
@@ -28,7 +28,7 @@ step1:
 	if $x == 20 then
 		return -1
 	endi
-sql show dnodes -x step1
+sql select * from information_schema.ins_dnodes -x step1
 if $data(1)[4] != ready then
   goto step1
 endi

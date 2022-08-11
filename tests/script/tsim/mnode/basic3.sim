@@ -25,7 +25,7 @@ step1:
 	if $x == 10 then
 		return -1
 	endi
-sql show dnodes -x step1
+sql select * from information_schema.ins_dnodes -x step1
 if $data(1)[4] != ready then
   goto step1
 endi
@@ -69,7 +69,7 @@ endi
 
 print =============== step3: create user
 sql create user user1 PASS 'user1'
-sql show users
+sql select * from information_schema.ins_users
 if $rows != 2 then 
   return -1
 endi
@@ -92,7 +92,7 @@ print $data(1)[0] $data(1)[1] $data(1)[2]
 print $data(2)[0] $data(2)[1] $data(2)[2] 
 print $data(3)[0] $data(3)[1] $data(3)[2] 
 
-sql show users
+sql select * from information_schema.ins_users
 if $rows != 2 then 
   return -1
 endi
@@ -104,7 +104,7 @@ step41:
 	if $x == 10 then
 		return -1
 	endi
-sql show dnodes -x step41
+sql select * from information_schema.ins_dnodes -x step41
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
@@ -131,7 +131,7 @@ print $data(1)[0] $data(1)[1] $data(1)[2]
 print $data(2)[0] $data(2)[1] $data(2)[2] 
 print $data(3)[0] $data(3)[1] $data(3)[2] 
 
-sql show users
+sql select * from information_schema.ins_users
 if $rows != 2 then 
   return -1
 endi
@@ -143,7 +143,7 @@ step51:
 	if $x == 10 then
 		return -1
 	endi
-sql show dnodes -x step51
+sql select * from information_schema.ins_dnodes -x step51
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
@@ -170,7 +170,7 @@ print $data(1)[0] $data(1)[1] $data(1)[2]
 print $data(2)[0] $data(2)[1] $data(2)[2] 
 print $data(3)[0] $data(3)[1] $data(3)[2] 
 
-sql show users
+sql select * from information_schema.ins_users
 if $rows != 2 then 
   return -1
 endi
@@ -182,7 +182,7 @@ step61:
 	if $x == 10 then
 		return -1
 	endi
-sql show dnodes -x step61
+sql select * from information_schema.ins_dnodes -x step61
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25

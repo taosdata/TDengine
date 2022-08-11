@@ -18,7 +18,7 @@ createDnode:
 	if $x == 20 then
 	  return -1
 	endi
-sql show dnodes;
+sql select * from information_schema.ins_dnodes;
 if $data4_2 == offline then
   goto createDnode
 endi

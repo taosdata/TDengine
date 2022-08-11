@@ -196,7 +196,7 @@ class TDTestCase:
         for i in range(self.users_count):
             tdSql.execute(f"create user {users[i]} pass '{passwds[i]}' ")
 
-        tdSql.query("show users")
+        tdSql.query("select * from information_schema.ins_users")
         tdSql.checkRows(self.users_count + 1)
 
     def create_user_err(self):
@@ -586,7 +586,7 @@ class TDTestCase:
 
         # 默认只有 root 用户
         tdLog.printNoPrefix("==========step0: init, user list only has root account")
-        tdSql.query("show users")
+        tdSql.query("select * from information_schema.ins_users")
         tdSql.checkData(0, 0, "root")
         tdSql.checkData(0, 1, "1")
 
@@ -597,7 +597,7 @@ class TDTestCase:
 
         # 查看用户
         tdLog.printNoPrefix("==========step2: show user test")
-        tdSql.query("show users")
+        tdSql.query("select * from information_schema.ins_users")
         tdSql.checkRows(self.users_count + 1)
 
         # 密码登录认证
@@ -619,7 +619,7 @@ class TDTestCase:
         tdDnodes.stop(1)
         tdDnodes.start(1)
 
-        tdSql.query("show users")
+        tdSql.query("select * from information_schema.ins_users")
         tdSql.checkRows(self.users_count + 1)
 
         # 普通用户权限
@@ -632,7 +632,7 @@ class TDTestCase:
             user.error("create use utest1 pass 'utest1pass'")
             # 可以查看用户
             tdLog.printNoPrefix("==========step4.2: normal user can show user")
-            user.query("show users")
+            user.query("select * from information_schema.ins_users")
             assert user.queryRows == self.users_count + 1
             # 不可以修改其他用户的密码
             tdLog.printNoPrefix("==========step4.3: normal user can not alter other user pass")
@@ -705,7 +705,7 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step7: super user drop normal user")
         self.test_drop_user()
 
-        tdSql.query("show users")
+        tdSql.query("select * from information_schema.ins_users")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "root")
         tdSql.checkData(0, 1, "1")
@@ -719,7 +719,7 @@ class TDTestCase:
         self.login_err(self.__user_list[1], self.__passwd_list[1])
         self.login_err(self.__user_list[1], f"new{self.__passwd_list[1]}")
 
-        tdSql.query("show users")
+        tdSql.query("select * from information_schema.ins_users")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "root")
         tdSql.checkData(0, 1, "1")

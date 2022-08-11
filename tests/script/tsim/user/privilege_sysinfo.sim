@@ -49,9 +49,9 @@ sql_error show db.stables
 sql_error show db.tables
 
 print =============== check show
-sql_error show users
+sql_error select * from information_schema.ins_users
 sql_error show cluster
-sql_error show dnodes
+sql_error select * from information_schema.ins_dnodes
 sql_error show mnodes
 sql_error show snodes
 sql_error show qnodes

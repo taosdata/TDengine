@@ -5,8 +5,8 @@ system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 sql connect
 
-print =============== show dnodes
-sql show dnodes;
+print =============== select * from information_schema.ins_dnodes
+sql select * from information_schema.ins_dnodes;
 print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6]
 if $rows != 1 then 
   return -1
@@ -35,7 +35,7 @@ print =============== create dnodes
 sql create dnode $hostname port 7200
 sleep 2000
 
-sql show dnodes;
+sql select * from information_schema.ins_dnodes;
 if $rows != 2 then 
   return -1
 endi

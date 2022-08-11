@@ -16,7 +16,7 @@ create1:
 		return -1
 	endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $data4_2 != ready then
 	goto create1
 endi

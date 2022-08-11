@@ -17,7 +17,7 @@ step1:
 	if $x == 5 then
 		return -1
 	endi
-sql show dnodes -x step1
+sql select * from information_schema.ins_dnodes -x step1
 if $data(1)[4] != ready then
   goto step1
 endi
@@ -38,7 +38,7 @@ step2:
 	if $x == 5 then
 		return -1
 	endi
-sql show dnodes -x step2
+sql select * from information_schema.ins_dnodes -x step2
 if $data(1)[4] != ready then
   goto step2
 endi

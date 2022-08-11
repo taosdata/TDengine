@@ -22,7 +22,7 @@ step1:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
@@ -545,7 +545,7 @@ check_dnode_ready3:
 		return -1
 	endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $rows $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6]
 print ===> $rows $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] $data[1][5] $data[1][6]
 print ===> $rows $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4] $data[2][5] $data[2][6]
@@ -626,7 +626,7 @@ check_dnode_ready_2:
 	  print ====> restart and dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $rows $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6]
 print ===> $rows $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] $data[1][5] $data[1][6]
 print ===> $rows $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4] $data[2][5] $data[2][6]

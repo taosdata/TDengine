@@ -693,7 +693,7 @@ if $loop_test == 0 then
   	  print ====> dnode not ready!
   		return -1
   	endi
-  sql show dnodes
+  sql select * from information_schema.ins_dnodes
   print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
   if $data00 != 1 then
     return -1

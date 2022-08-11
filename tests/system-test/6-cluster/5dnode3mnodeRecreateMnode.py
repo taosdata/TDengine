@@ -158,7 +158,7 @@ class TDTestCase:
         # check status of clusters
         clusterComCheck.checkMnodeStatus(3)
         tdSql.execute("create user %s pass '%s' ;"%(username,passwd))
-        tdSql.query("show users")
+        tdSql.query("select * from information_schema.ins_users")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "%s"%username :
                 tdLog.info("create user:%s successfully"%username)

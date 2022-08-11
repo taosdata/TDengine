@@ -136,8 +136,8 @@ if $rows != 4 then
   return -1
 endi
 
-print =============== show dnodes
-sql show dnodes
+print =============== select * from information_schema.ins_dnodes
+sql select * from information_schema.ins_dnodes
 
 if $data00 != 1 then
   return -1
