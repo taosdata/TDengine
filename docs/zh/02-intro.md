@@ -3,7 +3,7 @@ title: 产品简介
 toc_max_heading_level: 2
 ---
 
-TDengine 是一款[开源](https://www.taosdata.com/tdengine/open_source_time-series_database)、[高性能](https://www.taosdata.com/tdengine/fast)、[云原生](https://www.taosdata.com/tdengine/cloud_native_time-series_database]的时序数据库 (Time-Series Database, TSDB)。TDengine 能被广泛运用于物联网、工业互联网、车联网、IT 运维、金融等领域。除核心的时序数据库功能外，TDengine 还提供[缓存](/develop/cache/)、[数据订阅](/develop/subscribe)、[流式计算](/develop/continuous-query)等功能，是一极简的时序数据处理平台，最大程度的减小系统设计的复杂度，降低研发和运营成本。
+TDengine 是一款[开源](https://www.taosdata.com/tdengine/open_source_time-series_database)、[高性能](https://www.taosdata.com/tdengine/fast)、[云原生](https://www.taosdata.com/tdengine/cloud_native_time-series_database)的时序数据库 (Time-Series Database, TSDB)。TDengine 能被广泛运用于物联网、工业互联网、车联网、IT 运维、金融等领域。除核心的时序数据库功能外，TDengine 还提供[缓存](/develop/cache/)、[数据订阅](/develop/subscribe)、[流式计算](/develop/continuous-query)等功能，是一极简的时序数据处理平台，最大程度的减小系统设计的复杂度，降低研发和运营成本。
 
 本章节介绍TDengine的主要功能、竞争优势、适用场景、与其他数据库的对比测试等等，让大家对TDengine有个整体的了解。
 
