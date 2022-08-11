@@ -18,10 +18,10 @@
 #include "function.h"
 #include "query.h"
 #include "querynodes.h"
-#include "taggfunction.h"
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "tdigest.h"
+#include "tfunctionInt.h"
 #include "tglobal.h"
 #include "thistogram.h"
 #include "tpercentile.h"
@@ -312,14 +312,6 @@ typedef struct SGroupKeyInfo {
 #define GET_TS_LIST(x)    ((TSKEY*)((x)->ptsList))
 #define GET_TS_DATA(x, y) (GET_TS_LIST(x)[(y)])
 
-#define DO_UPDATE_TAG_COLUMNS_WITHOUT_TS(ctx)                      \
-  do {                                                             \
-    for (int32_t _i = 0; _i < (ctx)->tagInfo.numOfTagCols; ++_i) { \
-      SqlFunctionCtx* __ctx = (ctx)->tagInfo.pTagCtxList[_i];      \
-      __ctx->fpSet.process(__ctx);                                 \
-    }                                                              \
-  } while (0);
-
 #define DO_UPDATE_SUBSID_RES(ctx, ts)                          \
   do {                                                         \
     for (int32_t _i = 0; _i < (ctx)->subsidiaries.num; ++_i) { \
@@ -506,8 +498,7 @@ int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock,
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
-  cleanupResultRowEntry(pResInfo);
+  pResInfo->isNullRes = (pResInfo->isNullRes == 1) ? 1 : (pResInfo->numOfRes == 0);;
 
   char* in = finalResult;
   colDataAppend(pCol, pBlock->info.rows, in, pResInfo->isNullRes);
@@ -2970,25 +2961,24 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 
 static void firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst) {
   SInputColumnInfoData* pColInfo = &pCtx->input;
-  int32_t               start = pColInfo->startRowIndex;
 
-  pOutput->bytes = pInput->bytes;
-  TSKEY* tsIn = &pInput->ts;
-  TSKEY* tsOut = &pOutput->ts;
-
+  int32_t start = pColInfo->startRowIndex;
   if (pOutput->hasResult) {
     if (isFirst) {
-      if (*tsIn > *tsOut) {
+      if (pInput->ts > pOutput->ts) {
         return;
       }
     } else {
-      if (*tsIn < *tsOut) {
+      if (pInput->ts < pOutput->ts) {
         return;
       }
     }
   }
 
-  *tsOut = *tsIn;
+  pOutput->isNull = pInput->isNull;
+  pOutput->ts = pInput->ts;
+  pOutput->bytes = pInput->bytes;
+
   memcpy(pOutput->buf, pInput->buf, pOutput->bytes);
   saveTupleData(pCtx->pSrcBlock, start, pCtx, pOutput);
 
@@ -3015,7 +3005,6 @@ static int32_t firstLastFunctionMergeImpl(SqlFunctionCtx* pCtx, bool isFirstQuer
   }
 
   SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3116,9 +3105,9 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
   TSKEY startKey = getRowPTs(pInput->pPTS, 0);
   TSKEY endKey = getRowPTs(pInput->pPTS, pInput->totalRows - 1);
 
+#if 0
   int32_t blockDataOrder = (startKey <= endKey) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
 
-#if 0
   // the optimized version only function if all tuples in one block are monotonious increasing or descreasing.
   // this is NOT always works if project operator exists in downstream.
   if (blockDataOrder == TSDB_ORDER_ASC) {
@@ -3158,6 +3147,7 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
   }
 
 #endif
+
   SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }
@@ -3188,6 +3178,8 @@ bool diffFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
 static void doSetPrevVal(SDiffInfo* pDiffInfo, int32_t type, const char* pv) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
+      pDiffInfo->prev.i64 = *(bool*)pv? 1:0;
+      break;
     case TSDB_DATA_TYPE_TINYINT:
       pDiffInfo->prev.i64 = *(int8_t*)pv;
       break;
@@ -3197,6 +3189,7 @@ static void doSetPrevVal(SDiffInfo* pDiffInfo, int32_t type, const char* pv) {
     case TSDB_DATA_TYPE_SMALLINT:
       pDiffInfo->prev.i64 = *(int16_t*)pv;
       break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_BIGINT:
       pDiffInfo->prev.i64 = *(int64_t*)pv;
       break;
@@ -3250,6 +3243,7 @@ static void doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SCo
       pDiffInfo->prev.i64 = v;
       break;
     }
+    case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t v = *(int64_t*)pv;
       int64_t delta = factor * (v - pDiffInfo->prev.i64);  // direct previous may be null
@@ -4281,9 +4275,9 @@ static int32_t histogramFunctionImpl(SqlFunctionCtx* pCtx, bool isPartial) {
   }
 
   if (!isPartial) {
-    SET_VAL(GET_RES_INFO(pCtx), numOfElems, pInfo->numOfBins);
+    GET_RES_INFO(pCtx)->numOfRes = pInfo->numOfBins;
   } else {
-    SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
+    GET_RES_INFO(pCtx)->numOfRes = 1;
   }
   return TSDB_CODE_SUCCESS;
 }

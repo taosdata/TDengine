@@ -129,6 +129,9 @@ typedef struct SSyncFSM {
   void (*FpReConfigCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta cbMeta);
   void (*FpLeaderTransferCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
 
+  void (*FpBecomeLeaderCb)(struct SSyncFSM* pFsm);
+  void (*FpBecomeFollowerCb)(struct SSyncFSM* pFsm);
+
   int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot, void* pReaderParam, void** ppReader);
   int32_t (*FpGetSnapshotInfo)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
 
