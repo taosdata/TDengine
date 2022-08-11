@@ -300,14 +300,6 @@ TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java�
 
 - [Rust](https://www.taosdata.com/cn/documentation/connector/rust)
 
-## 第三方连接器
-
-TDengine 社区生态中也有一些非常友好的第三方连接器，可以通过以下链接访问它们的源码。
-
-- [Rust Bindings](https://github.com/songtianyi/tdengine-rust-bindings/tree/master/examples)
-- [.Net Core Connector](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
-- [Lua Connector](https://github.com/taosdata/TDengine/tree/develop/examples/lua)
-
 # 运行和添加测试例
 
 TDengine 的测试框架和所有测试例全部开源。

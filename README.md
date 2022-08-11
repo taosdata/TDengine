@@ -321,14 +321,6 @@ TDengine provides abundant developing tools for users to develop on TDengine. Fo
 - [Node.js](https://www.taosdata.com/en/documentation/connector#nodejs)
 - [Rust](https://www.taosdata.com/en/documentation/connector/rust)
 
-## Third Party Connectors
-
-The TDengine community has also kindly built some of their own connectors! Follow the links below to find the source code for them.
-
-- [Rust Bindings](https://github.com/songtianyi/tdengine-rust-bindings/tree/master/examples)
-- [.Net Core Connector](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
-- [Lua Connector](https://github.com/taosdata/TDengine/tree/develop/tests/examples/lua)
-
 # How to run the test cases and how to add a new test case
 
 TDengine's test framework and all test cases are fully open source.
