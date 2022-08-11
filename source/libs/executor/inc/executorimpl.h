@@ -741,6 +741,7 @@ typedef struct STimeSliceOperatorInfo {
   SArray*                 pPrevRow;      // SArray<SGroupValue>
   SArray*                 pNextRow;      // SArray<SGroupValue>
   SArray*                 pLinearInfo;   // SArray<SFillLinearInfo>
+  bool                    fillLastPoint;
   bool                    isPrevRowSet;
   bool                    isNextRowSet;
   int32_t                 fillType;      // fill type
@@ -1017,6 +1018,7 @@ bool isInTimeWindow(STimeWindow* pWin, TSKEY ts, int64_t gap);
 int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pStartTs,
     TSKEY* pEndTs, int32_t rows, int32_t start, int64_t gap, SHashObj* pStDeleted);
 bool functionNeedToExecute(SqlFunctionCtx* pCtx);
+bool isOverdue(TSKEY ts, STimeWindowAggSupp* pSup);
 bool isCloseWindow(STimeWindow* pWin, STimeWindowAggSupp* pSup);
 bool isDeletedWindow(STimeWindow* pWin, uint64_t groupId, SAggSupporter* pSup);
 void appendOneRow(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid);

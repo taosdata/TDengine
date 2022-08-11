@@ -204,7 +204,7 @@ typedef struct {
 typedef struct {
   SMqCommitCbParamSet* params;
   STqOffset*           pOffset;
-} SMqCommitCbParam2;
+} SMqCommitCbParam;
 
 tmq_conf_t* tmq_conf_new() {
   tmq_conf_t* conf = taosMemoryCalloc(1, sizeof(tmq_conf_t));
@@ -212,6 +212,7 @@ tmq_conf_t* tmq_conf_new() {
   conf->autoCommit = true;
   conf->autoCommitInterval = 5000;
   conf->resetOffset = TMQ_CONF__RESET_OFFSET__EARLIEAST;
+  conf->hbBgEnable = true;
   return conf;
 }
 
@@ -368,8 +369,8 @@ static int32_t tmqMakeTopicVgKey(char* dst, const char* topicName, int32_t vg) {
   return sprintf(dst, "%s:%d", topicName, vg);
 }
 
-int32_t tmqCommitCb2(void* param, SDataBuf* pBuf, int32_t code) {
-  SMqCommitCbParam2*   pParam = (SMqCommitCbParam2*)param;
+int32_t tmqCommitCb(void* param, SDataBuf* pBuf, int32_t code) {
+  SMqCommitCbParam*    pParam = (SMqCommitCbParam*)param;
   SMqCommitCbParamSet* pParamSet = (SMqCommitCbParamSet*)pParam->params;
   // push into array
 #if 0
@@ -440,7 +441,7 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
   tEncodeSTqOffset(&encoder, pOffset);
 
   // build param
-  SMqCommitCbParam2* pParam = taosMemoryCalloc(1, sizeof(SMqCommitCbParam2));
+  SMqCommitCbParam* pParam = taosMemoryCalloc(1, sizeof(SMqCommitCbParam));
   pParam->params = pParamSet;
   pParam->pOffset = pOffset;
 
@@ -465,7 +466,7 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
   pMsgSendInfo->requestObjRefId = 0;
   pMsgSendInfo->param = pParam;
   pMsgSendInfo->paramFreeFp = taosMemoryFree;
-  pMsgSendInfo->fp = tmqCommitCb2;
+  pMsgSendInfo->fp = tmqCommitCb;
   pMsgSendInfo->msgType = TDMT_VND_MQ_COMMIT_OFFSET;
   // send msg
 
@@ -1313,17 +1314,6 @@ int32_t tmq_seek(tmq_t* tmq, const tmq_topic_vgroup_t* offset) {
 #endif
 
 SMqPollReq* tmqBuildConsumeReqImpl(tmq_t* tmq, int64_t timeout, SMqClientTopic* pTopic, SMqClientVg* pVg) {
-  /*int64_t reqOffset;*/
-  /*if (pVg->currentOffset >= 0) {*/
-  /*reqOffset = pVg->currentOffset;*/
-  /*} else {*/
-  /*if (tmq->resetOffsetCfg == TMQ_CONF__RESET_OFFSET__NONE) {*/
-  /*tscError("unable to poll since no committed offset but reset offset is set to none");*/
-  /*return NULL;*/
-  /*}*/
-  /*reqOffset = tmq->resetOffsetCfg;*/
-  /*}*/
-
   SMqPollReq* pReq = taosMemoryCalloc(1, sizeof(SMqPollReq));
   if (pReq == NULL) {
     return NULL;

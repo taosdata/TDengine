@@ -305,7 +305,7 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
               taosArrayPush(desc.subDesc, &sDesc);
             }
           }
-          
+
           ASSERT(desc.subPlanNum == taosArrayGetSize(desc.subDesc));
 
           taosArrayPush(pReq->query->queryDesc, &desc);
@@ -5767,6 +5767,43 @@ int32_t tDecodeSMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
         taosArrayPush(pRsp->blockTbName, &tbName);
       }
     }
+  }
+  return 0;
+}
+
+int32_t tEncodeSSingleDeleteReq(SEncoder *pEncoder, const SSingleDeleteReq *pReq) {
+  if (tEncodeI64(pEncoder, pReq->uid) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->ts) < 0) return -1;
+  return 0;
+}
+
+int32_t tDecodeSSingleDeleteReq(SDecoder *pDecoder, SSingleDeleteReq *pReq) {
+  if (tDecodeI64(pDecoder, &pReq->uid) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->ts) < 0) return -1;
+  return 0;
+}
+
+int32_t tEncodeSBatchDeleteReq(SEncoder *pEncoder, const SBatchDeleteReq *pReq) {
+  if (tEncodeI64(pEncoder, pReq->suid) < 0) return -1;
+  int32_t sz = taosArrayGetSize(pReq->deleteReqs);
+  if (tEncodeI32(pEncoder, sz) < 0) return -1;
+  for (int32_t i = 0; i < sz; i++) {
+    SSingleDeleteReq *pOneReq = taosArrayGet(pReq->deleteReqs, i);
+    if (tEncodeSSingleDeleteReq(pEncoder, pOneReq) < 0) return -1;
+  }
+  return 0;
+}
+
+int32_t tDecodeSBatchDeleteReq(SDecoder *pDecoder, SBatchDeleteReq *pReq) {
+  if (tDecodeI64(pDecoder, &pReq->suid) < 0) return -1;
+  int32_t sz;
+  if (tDecodeI32(pDecoder, &sz) < 0) return -1;
+  pReq->deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
+  if (pReq->deleteReqs == NULL) return -1;
+  for (int32_t i = 0; i < sz; i++) {
+    SSingleDeleteReq deleteReq;
+    if (tDecodeSSingleDeleteReq(pDecoder, &deleteReq) < 0) return -1;
+    taosArrayPush(pReq->deleteReqs, &deleteReq);
   }
   return 0;
 }

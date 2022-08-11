@@ -172,7 +172,7 @@ int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tsdbGetStbIdList(SMeta* pMeta, int64_t suid, SArray* list);
 
 SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
-                            const char* stbFullName, int32_t vgId);
+                            const char* stbFullName, int32_t vgId, SBatchDeleteReq* pDeleteReq);
 
 // sma
 int32_t smaInit();
