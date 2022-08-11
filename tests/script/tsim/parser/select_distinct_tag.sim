@@ -29,9 +29,9 @@ while $i < $tbNum
   sql create table $tb using $stb tags( $i , 0 )
   sql insert into $tb (ts, c1) values (now, 1);
   $i = $i + 1
-endw 
+endw
 
-print ====== table created  
+print ====== table created
 
 #### select distinct tag
 sql select distinct t1 from $stb
@@ -51,7 +51,7 @@ sql_error select distinct t1, t2 from &stb
 
 sql drop database $db
 sql show databases
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 

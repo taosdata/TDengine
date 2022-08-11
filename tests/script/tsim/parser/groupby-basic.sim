@@ -77,7 +77,7 @@ $ts1 = $tb1 . .ts
 $ts2 = $tb2 . .ts
 
 print ===============================groupby_operation
-print 
+print
 print ==== select count(*), c1 from group_tb0 group by c1
 sql select count(*), c1 from group_tb0 group by c1
 print rows: $rows
@@ -142,7 +142,7 @@ print $data20 $data21 $data22 $data23
 print $data80 $data81 $data82 $data83
 print $data90 $data91 $data92 $data93
 
-return 
+return
 
 sql select sum(c1), c1, avg(c1), min(c1), max(c2) from group_tb0 where c1 < 20 group by c1;
 if $row != 20 then
@@ -581,10 +581,10 @@ endi
 sql create table st (ts timestamp, c int) tags (t1 int, t2 int, t3 int, t4 int);
 sql create table t1 using st tags(1, 1, 1, 1);
 sql create table t2 using st tags(1, 2, 2, 2);
-sql insert into t1 values ('2020-03-27 04:11:16.000', 1)('2020-03-27 04:11:17.000', 2) ('2020-03-27 04:11:18.000', 3) ('2020-03-27 04:11:19.000', 4) ; 
-sql insert into t1 values ('2020-03-27 04:21:16.000', 1)('2020-03-27 04:31:17.000', 2) ('2020-03-27 04:51:18.000', 3) ('2020-03-27 05:10:19.000', 4) ; 
-sql insert into t2 values ('2020-03-27 04:11:16.000', 1)('2020-03-27 04:11:17.000', 2) ('2020-03-27 04:11:18.000', 3) ('2020-03-27 04:11:19.000', 4) ; 
-sql insert into t2 values ('2020-03-27 04:21:16.000', 1)('2020-03-27 04:31:17.000', 2) ('2020-03-27 04:51:18.000', 3) ('2020-03-27 05:10:19.000', 4) ; 
+sql insert into t1 values ('2020-03-27 04:11:16.000', 1)('2020-03-27 04:11:17.000', 2) ('2020-03-27 04:11:18.000', 3) ('2020-03-27 04:11:19.000', 4) ;
+sql insert into t1 values ('2020-03-27 04:21:16.000', 1)('2020-03-27 04:31:17.000', 2) ('2020-03-27 04:51:18.000', 3) ('2020-03-27 05:10:19.000', 4) ;
+sql insert into t2 values ('2020-03-27 04:11:16.000', 1)('2020-03-27 04:11:17.000', 2) ('2020-03-27 04:11:18.000', 3) ('2020-03-27 04:11:19.000', 4) ;
+sql insert into t2 values ('2020-03-27 04:21:16.000', 1)('2020-03-27 04:31:17.000', 2) ('2020-03-27 04:51:18.000', 3) ('2020-03-27 05:10:19.000', 4) ;
 
 print =================>TD-2665
 sql_error create table txx as select avg(c) as t from st;

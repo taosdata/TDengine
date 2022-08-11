@@ -97,10 +97,10 @@ if $data01 != 900 then
   return -1
 endi
 if $data11 != 900 then
-  return -1 
+  return -1
 endi
 if $data21 != 1200 then
-  return -1 
+  return -1
 endi
 
 sql select t2, count(*) from stb partition by t2 order by t2 desc slimit 2 soffset 0
@@ -120,10 +120,10 @@ if $data01 != 1200 then
   return -1
 endi
 if $data11 != 900 then
-  return -1 
+  return -1
 endi
 if $data21 != 900 then
-  return -1 
+  return -1
 endi
 
 sql select count(*) from stb partition by t2 order by t2 asc slimit 2 soffset 1

@@ -23,10 +23,10 @@ sql create database $db
 sql use $db
 sql show databases
 
-if $rows != 3 then 
+if $rows != 3 then
   return -1
 endi
-if $data20 != $db then 
+if $data20 != $db then
   return -1
 endi
 sql drop database $db
@@ -41,7 +41,7 @@ sql show databases
 if $rows != 3 then
   return -1
 endi
-if $data20 != $db then 
+if $data20 != $db then
   return -1
 endi
 sql drop database $db
@@ -101,7 +101,7 @@ $duration = 10
 $keep = 365,365,365
 $rows_db = 1000
 $cache = 16 # 16MB
-$ablocks = 100 
+$ablocks = 100
 $tblocks = 32 # max=512, automatically trimmed when exceeding
 $ctime = 36000 # 10 hours
 $wal = 1 # valid value is 1, 2
@@ -112,16 +112,16 @@ sql show databases
 if $rows != 3 then
   return -1
 endi
-if $data20 != $db then 
+if $data20 != $db then
  return -1
 endi
-if $data24 != $replica then 
+if $data24 != $replica then
  return -1
 endi
-if $data26 != 14400m then 
+if $data26 != 14400m then
  return -1
 endi
-if $data27 != 525600m,525600m,525600m then 
+if $data27 != 525600m,525600m,525600m then
  return -1
 endi
 
@@ -134,7 +134,7 @@ sql_error create database $db replica 4
 
 # day [1, 3650]
 sql_error create database $db day 0
-sql_error create database $db day 3651 
+sql_error create database $db day 3651
 
 # keep [1, infinity]
 sql_error create database $db keep 0
@@ -155,7 +155,7 @@ sql show databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 27360m,27360m,27360m then 
+if $data27 != 27360m,27360m,27360m then
  return -1
 endi
 sql drop database dbk0
@@ -164,7 +164,7 @@ sql show databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 27360m,28800m,28800m then 
+if $data27 != 27360m,28800m,28800m then
  return -1
 endi
 sql drop database dbka
@@ -174,7 +174,7 @@ sql show databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 15840m,15840m,15840m then 
+if $data27 != 15840m,15840m,15840m then
  return -1
 endi
 sql drop database dbk1
@@ -183,7 +183,7 @@ sql show databases
 if $rows != 3 then
   return -1
 endi
-if $data27 !=  15840m,17280m,18720m then 
+if $data27 !=  15840m,17280m,18720m then
  return -1
 endi
 sql drop database dbk2
@@ -192,7 +192,7 @@ sql show databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 15840m,15840m,18720m then 
+if $data27 != 15840m,15840m,18720m then
  return -1
 endi
 sql drop database dbk3
@@ -201,7 +201,7 @@ sql show databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 15840m,18720m,18720m then 
+if $data27 != 15840m,18720m,18720m then
  return -1
 endi
 sql drop database dbk4
@@ -238,7 +238,7 @@ if $rows != 3 then
 endi
 sql show databases
 print wallevel $data20_testwal
-if $data20_testwal != 1 then 
+if $data20_testwal != 1 then
   return -1
 endi
 sql drop database testwal
@@ -249,7 +249,7 @@ if $rows != 3 then
   return -1
 endi
 print wallevel $data13_testwal
-if $data13_testwal != 2 then 
+if $data13_testwal != 2 then
   return -1
 endi
 sql drop database testwal
@@ -263,7 +263,7 @@ sql_error create database $db comp 3
 
 sql_error drop database $db
 sql show databases
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 

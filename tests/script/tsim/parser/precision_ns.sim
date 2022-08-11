@@ -9,7 +9,7 @@ $mtPrefix = m_di_mt
 $ntPrefix = m_di_nt
 $tbNum = 2
 $rowNum = 200
-$futureTs = 300000000000 
+$futureTs = 300000000000
 
 print =============== step1: create database and tables and insert data
 $i = 0
@@ -32,20 +32,20 @@ while $i < $tbNum
   while $x < $rowNum
     $cc = $futureTs + $x * 100 + 43
     $ns = $cc . b
-    sql insert into $tb values (now + $ns , $x ) 
+    sql insert into $tb values (now + $ns , $x )
     $x = $x + 1
-  endw 
+  endw
 
   $i = $i + 1
-endw 
+endw
 
 sql create table $nt (ts timestamp, tbcol int)
 $x = 0
 while $x < $rowNum
     $cc = $futureTs + $x * 100 + 43
     $ns = $cc . b
-    sql insert into $nt values (now + $ns , $x ) 
-    $x = $x + 1  
+    sql insert into $nt values (now + $ns , $x )
+    $x = $x + 1
 endw
 
 print =============== step2: select count(*) from tables
@@ -83,7 +83,7 @@ print =============== step3: check nano second timestamp
 $i = 0
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
-sql insert into $tb values (now-43b , $x ) 
+sql insert into $tb values (now-43b , $x )
 sql select count(*) from $tb where ts<now
 if $data00 != 1 then
   print expected 1, actual: $data00
@@ -101,7 +101,7 @@ sql select count(*) from $mt interval(100000000b) sliding(100000000b)
 print =============== clear
 sql drop database $db
 sql show databases
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 
