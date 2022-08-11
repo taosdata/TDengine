@@ -1880,7 +1880,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
   int32_t sz = taosArrayGetSize(pDataBlocks);
   int32_t bufSize = sizeof(SSubmitReq);
   for (int32_t i = 0; i < sz; ++i) {
-    SDataBlockInfo* pBlkInfo = &((SSDataBlock*)taosArrayGet(pDataBlocks, i))->info;
+    SDataBlockInfo* pBlkInfo = &((SSDataBlock*)taosArrayGetP(pDataBlocks, i))->info;
 
     int32_t numOfCols = taosArrayGetSize(pDataBlocks);
     bufSize += pBlkInfo->rows * (TD_ROW_HEAD_LEN + pBlkInfo->rowSize + BitmapLen(numOfCols));
@@ -1890,7 +1890,6 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
   *pReq = taosMemoryCalloc(1, bufSize);
   if (!(*pReq)) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    uError("buildSubmitReqFromDataBlock for table:%" PRIi64 " bufSize:%d failed since %s", suid, bufSize, terrstr());
     return TSDB_CODE_FAILED;
   }
   void* pDataBuf = *pReq;
@@ -1901,7 +1900,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
   tdSRowInit(&rb, pTSchema->version);
 
   for (int32_t i = 0; i < sz; ++i) {
-    SSDataBlock* pDataBlock = taosArrayGet(pDataBlocks, i);
+    SSDataBlock* pDataBlock = taosArrayGetP(pDataBlocks, i);
     int32_t      colNum = taosArrayGetSize(pDataBlock->pDataBlock);
     int32_t      rows = pDataBlock->info.rows;
     //    int32_t      rowSize = pDataBlock->info.rowSize;
