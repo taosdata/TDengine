@@ -682,6 +682,7 @@ typedef struct SWindowRowsSup {
   TSKEY       prevTs;
   int32_t     startRowIndex;
   int32_t     numOfRows;
+  uint64_t    groupId;
 } SWindowRowsSup;
 
 typedef struct SSessionAggOperatorInfo {
