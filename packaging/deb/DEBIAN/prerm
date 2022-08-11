@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if [ $1 -eq "abort-upgrade" ]; then
+  exit 0
+fi
+
 insmetaPath="/usr/local/taos/script"
 
 csudo=""

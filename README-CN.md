@@ -14,7 +14,6 @@
 [![Build status](https://ci.appveyor.com/api/projects/status/kf3pwh2or5afsgl9/branch/master?svg=true)](https://ci.appveyor.com/project/sangshuduo/tdengine-2n8ge/branch/master)
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
-[![tdengine](https://snapcraft.io//tdengine/badge.svg)](https://snapcraft.io/tdengine)
 
 简体中文 | [English](README.md) | 很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
 
@@ -36,11 +35,13 @@ TDengine 是一款开源、高性能、云原生的时序数据库 (Time-Series 
 
 # 文档
 
-关于完整的使用手册，系统架构和更多细节，请参考 [TDengine 文档](https://docs.taosdata.com) 或者  [English Version](https://docs.tdengine.com)。
+关于完整的使用手册，系统架构和更多细节，请参考 [TDengine 文档](https://docs.taosdata.com) 或者  [English Documents](https://docs.tdengine.com)。
 
 # 构建
 
-TDengine 目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后续会支持 Windows、macOS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。任何 OS 的应用也可以选择 RESTful 接口连接服务器 taosd。CPU 支持 X64/ARM64/MIPS64/Alpha64，后续会支持 ARM32、RISC-V 等 CPU 架构。用户可根据需求选择通过源码或者[安装包](https://docs.taosdata.com/get-started/package/)来安装。本快速指南仅适用于通过源码安装。
+TDengine 目前可以在 Linux、 Windows 等平台上安装和运行。任何 OS 的应用也可以选择 taosAdapter 的 RESTful 接口连接服务端 taosd。CPU 支持 X64/ARM64，后续会支持 MIPS64、Alpha64、ARM32、RISC-V 等 CPU 架构。
+
+用户可根据需求选择通过[源码](https://www.taosdata.com/cn/getting-started/#通过源码安装)或者[安装包](https://www.taosdata.com/cn/getting-started/#通过安装包安装)来安装。本快速指南仅适用于通过源码安装。
 
 ## 安装工具
 
@@ -48,20 +49,6 @@ TDengine 目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后�
 
 ```bash
 sudo apt-get install -y gcc cmake build-essential git libssl-dev
-```
-
-编译或打包 JDBC 驱动源码，需安装 Java JDK 8 或以上版本和 Apache Maven 2.7 或以上版本。
-
-安装 OpenJDK 8：
-
-```bash
-sudo apt-get install -y openjdk-8-jdk
-```
-
-安装 Apache Maven：
-
-```bash
-sudo apt-get install -y  maven
 ```
 
 #### 为 taos-tools 安装编译需要的软件
@@ -79,19 +66,10 @@ sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-d
 ### CentOS 7.9：
 
 ```bash
-sudo yum install -y gcc gcc-c++ make cmake git openssl-devel
-```
-
-安装 OpenJDK 8：
-
-```bash
-sudo yum install -y java-1.8.0-openjdk
-```
-
-安装 Apache Maven：
-
-```bash
-sudo yum install -y maven
+sudo yum install epel-release
+sudo yum update
+sudo yum install -y gcc gcc-c++ make cmake3 git openssl-devel
+sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
 ### CentOS 8 & Fedora
@@ -100,29 +78,29 @@ sudo yum install -y maven
 sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
 ```
 
-安装 OpenJDK 8：
-
-```bash
-sudo dnf install -y java-1.8.0-openjdk
-```
-
-安装 Apache Maven：
-
-```bash
-sudo dnf install -y maven
-```
-
 #### 在 CentOS 上构建 taosTools 安装依赖软件
 
-为了在 CentOS 上构建 [taosTools](https://github.com/taosdata/taos-tools) 需要安装如下依赖软件
+#### For CentOS 7/RHEL
 
-```bash
-sudo yum install zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
+```
+sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
 ```
 
-注意：由于 snappy 缺乏 pkg-config 支持
-（参考 [链接](https://github.com/google/snappy/pull/86)），会导致
-cmake 提示无法发现 libsnappy，实际上工作正常。
+#### For CentOS 8/Rocky Linux
+
+```
+sudo yum install -y epel-release
+sudo yum install -y dnf-plugins-core
+sudo yum config-manager --set-enabled powertools
+sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
+```
+
+注意：由于 snappy 缺乏 pkg-config 支持（参考 [链接](https://github.com/google/snappy/pull/86)），会导致 cmake 提示无法发现 libsnappy，实际上工作正常。
+
+若 powertools 安装失败，可以尝试改用：
+```
+sudo yum config-manager --set-enabled Powertools
+```
 
 ### 设置 golang 开发环境
 
@@ -133,6 +111,12 @@ TDengine 包含数个使用 Go 语言开发的组件，请参考 golang.org 官�
 ```
 go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
+```
+
+默认情况下，内嵌的 http 服务仍然可以从 TDengine 源码构建。当然您也可以使用以下命令选择构建 taosAdapter 作为 RESTful 接口的服务。
+
+```
+cmake .. -DBUILD_HTTP=false
 ```
 
 ### 设置 rust 开发环境
@@ -275,24 +259,6 @@ nmake install
 sudo make install
 ```
 
-安装成功后，如果想以服务形式启动，先配置 `.plist` 文件，在终端中执行：
-
-```bash
-sudo cp ../packaging/macOS/com.taosdata.tdengine.plist /Library/LaunchDaemons
-```
-
-在终端中启动 TDengine 服务：
-
-```bash
-sudo launchctl load /Library/LaunchDaemons/com.taosdata.tdengine.plist
-```
-
-在终端中停止 TDengine 服务：
-
-```bash
-sudo launchctl unload /Library/LaunchDaemons/com.taosdata.tdengine.plist
-```
-
 ## 快速运行
 
 如果不希望以服务方式运行 TDengine，也可以在终端中直接运行它。也即在生成完成后，执行以下命令（在 Windows 下，生成的可执行文件会带有 .exe 后缀，例如会名为 taosd.exe ）：
@@ -342,21 +308,6 @@ TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java�
 - [C#](https://docs.taosdata.com/reference/connector/csharp/)
 - [RESTful API](https://docs.taosdata.com/reference/rest-api/)
 
-## 第三方连接器
-
-TDengine 社区生态中也有一些非常友好的第三方连接器，可以通过以下链接访问它们的源码。
-
-- [Rust Bindings](https://github.com/songtianyi/tdengine-rust-bindings/tree/master/examples)
-- [.Net Core Connector](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
-- [Lua Connector](https://github.com/taosdata/TDengine/tree/develop/examples/lua)
-- [PHP](https://www.taosdata.com/en/documentation/connector#c-cpp)
-
-# 运行和添加测试例
-
-TDengine 的测试框架和所有测试例全部开源。
-
-点击 [这里](https://github.com/taosdata/TDengine/blob/develop/tests/How-To-Run-Test-And-How-To-Add-New-Test-Case.md)，了解如何运行测试例和添加新的测试例。
-
 # 成为社区贡献者
 
 点击 [这里](https://www.taosdata.com/cn/contributor/)，了解如何成为 TDengine 的贡献者。
@@ -364,7 +315,3 @@ TDengine 的测试框架和所有测试例全部开源。
 # 加入技术交流群
 
 TDengine 官方社群「物联网大数据群」对外开放，欢迎您加入讨论。搜索微信号 "tdengine"，加小 T 为好友，即可入群。
-
-# [谁在使用 TDengine](https://github.com/taosdata/TDengine/issues/2432)
-
-欢迎所有 TDengine 用户及贡献者在 [这里](https://github.com/taosdata/TDengine/issues/2432) 分享您在当前工作中开发/使用 TDengine 的故事。

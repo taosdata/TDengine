@@ -26,6 +26,7 @@ TDengine的主要功能如下：
 13. 支持 [REST 接口](/reference/rest-api/)
 14. 支持与[ Grafana 无缝集成](/third-party/grafana)
 15. 支持与 Google Data Studio 无缝集成
+16. 支持 [Kubenetes 部署](/deployment/k8s/)
 
 更多细小的功能，请阅读整个文档。
 
