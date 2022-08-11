@@ -109,6 +109,9 @@ python3 ./test.py -f 2-query/function_stateduration.py -R
 python3 ./test.py -f 2-query/histogram.py
 python3 ./test.py -f 2-query/histogram.py -R
 
+python3 ./test.py -f 2-query/interp.py
+python3 ./test.py -f 2-query/interp.py -R
+
 
 
 python3 ./test.py -f 1-insert/update_data.py
@@ -343,6 +346,7 @@ python3 ./test.py -f 2-query/arcsin.py -Q 2
 python3 ./test.py -f 2-query/arccos.py -Q 2
 python3 ./test.py -f 2-query/arctan.py -Q 2
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py  -Q 2
+python3 ./test.py -f 2-query/interp.py  -Q 2
 
 # python3 ./test.py -f 2-query/nestedQuery.py  -Q 2
 # python3 ./test.py -f 2-query/nestedQuery_str.py  -Q 2
@@ -462,3 +466,4 @@ python3 ./test.py -f 2-query/max_partition.py -Q 3
 python3 ./test.py -f 2-query/last_row.py -Q 3
 python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
 python3 ./test.py -f 2-query/sml.py -Q 3
+python3 ./test.py -f 2-query/interp.py -Q 3

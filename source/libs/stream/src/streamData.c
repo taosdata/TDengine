@@ -124,7 +124,7 @@ void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit) {
   }
 }
 
-SStreamQueueItem* streamAppendQueueItem(SStreamQueueItem* dst, SStreamQueueItem* elem) {
+SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* elem) {
   ASSERT(elem);
   if (dst->type == STREAM_INPUT__DATA_BLOCK && elem->type == STREAM_INPUT__DATA_BLOCK) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)dst;
@@ -171,8 +171,8 @@ void streamFreeQitem(SStreamQueueItem* data) {
       int32_t  ref = atomic_sub_fetch_32(pRef, 1);
       ASSERT(ref >= 0);
       if (ref == 0) {
-        void* data = taosArrayGetP(pMerge->reqs, i);
-        taosMemoryFree(data);
+        void* dataStr = taosArrayGetP(pMerge->reqs, i);
+        taosMemoryFree(dataStr);
         taosMemoryFree(pRef);
       }
     }

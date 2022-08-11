@@ -38,7 +38,7 @@
 #define SHELL_STARTUP  "Check the details of the service status."
 #define SHELL_WIDTH    "Set the default binary display width, default is 30."
 #define SHELL_NET_ROLE "Net role when network connectivity test, options: client|server."
-#define SHELL_PKG_LEN  "Packet length used for net test, default is 1024 bytes."
+#define SHELL_PKT_LEN  "Packet length used for net test, default is 1024 bytes."
 #define SHELL_PKT_NUM  "Packet numbers used for net test, default is 100."
 #define SHELL_VERSION  "Print program version."
 #define SHELL_EMAIL    "<support@taosdata.com>"
@@ -62,7 +62,7 @@ void shellPrintHelp() {
   printf("%s%s%s%s\r\n", indent, "-f,", indent, SHELL_FILE);
   printf("%s%s%s%s\r\n", indent, "-h,", indent, SHELL_HOST);
   printf("%s%s%s%s\r\n", indent, "-k,", indent, SHELL_CHECK);
-  printf("%s%s%s%s\r\n", indent, "-l,", indent, SHELL_PKG_LEN);
+  printf("%s%s%s%s\r\n", indent, "-l,", indent, SHELL_PKT_LEN);
   printf("%s%s%s%s\r\n", indent, "-n,", indent, SHELL_NET_ROLE);
   printf("%s%s%s%s\r\n", indent, "-N,", indent, SHELL_PKT_NUM);
   printf("%s%s%s%s\r\n", indent, "-p,", indent, SHELL_PASSWORD);
@@ -105,11 +105,11 @@ static struct argp_option shellOptions[] = {
     {"startup", 't', 0, 0, SHELL_STARTUP},
     {"display-width", 'w', "WIDTH", 0, SHELL_WIDTH},
     {"netrole", 'n', "NETROLE", 0, SHELL_NET_ROLE},
-    {"pktlen", 'l', "PKTLEN", 0, SHELL_PKG_LEN},
+    {"pktlen", 'l', "PKTLEN", 0, SHELL_PKT_LEN},
 #ifdef WEBSOCKET
     {"dsn", 'E', "DSN", 0, SHELL_DSN},
     {"restful", 'R', 0, 0, SHELL_REST},
-	{"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
+	  {"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
 #endif
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
     {0},
@@ -228,7 +228,7 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
   SShellArgs *pArgs = &shell.args;
 
   for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0 || strcmp(argv[i], "-?") == 0) {
+    if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0 || strcmp(argv[i], "-?") == 0 || strcmp(argv[i], "/?") == 0) {
       shellParseSingleOpt('?', NULL);
       return 0;
     }
