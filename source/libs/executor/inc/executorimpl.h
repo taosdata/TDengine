@@ -741,6 +741,7 @@ typedef struct STimeSliceOperatorInfo {
   SArray*                 pPrevRow;      // SArray<SGroupValue>
   SArray*                 pNextRow;      // SArray<SGroupValue>
   SArray*                 pLinearInfo;   // SArray<SFillLinearInfo>
+  bool                    fillLastPoint;
   bool                    isPrevRowSet;
   bool                    isNextRowSet;
   int32_t                 fillType;      // fill type
