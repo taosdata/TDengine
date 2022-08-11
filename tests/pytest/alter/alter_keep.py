@@ -27,12 +27,12 @@ class TDTestCase:
         tdLog.notice('running Keep Test, Community Version')
         tdLog.notice('running parameter test for keep during create')
         #testing keep parameter during create
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,7,'3650')
         tdSql.execute('drop database db')
 
         tdSql.execute('create database db keep 100')
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,7,'100')
         tdSql.execute('drop database db')
 
@@ -47,7 +47,7 @@ class TDTestCase:
         tdLog.notice('running parameter test for keep during alter')
 
         tdSql.execute('alter database db keep 100')
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,7,'100')
 
         tdSql.error('alter database db keep ')
@@ -55,7 +55,7 @@ class TDTestCase:
         tdSql.error('alter database db keep 10,20')
         tdSql.error('alter database db keep 10,20,30')
         tdSql.error('alter database db keep 20,30,40,50')
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,7,'100')
 
     def alterKeepEnterprise(self):
@@ -63,22 +63,22 @@ class TDTestCase:
         #testing keep parameter during create
         tdLog.notice('running parameter test for keep during create')
 
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,7,'3650,3650,3650')
         tdSql.execute('drop database db')
 
         tdSql.execute('create database db keep 100')
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,7,'100,100,100')
         tdSql.execute('drop database db')
 
         tdSql.execute('create database db keep 20, 30')
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,7,'20,30,30')
         tdSql.execute('drop database db')
 
         tdSql.execute('create database db keep 30,40,50')
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,7,'30,40,50')
         tdSql.execute('drop database db')
 
@@ -95,15 +95,15 @@ class TDTestCase:
         tdLog.notice('running parameter test for keep during alter')
 
         tdSql.execute('alter database db keep 10')
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,7,'10,10,10')
 
         tdSql.execute('alter database db keep 20,30')
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,7,'20,30,30')
 
         tdSql.execute('alter database db keep 100,200,300')
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,7,'100,200,300')
 
         tdSql.error('alter database db keep ')
@@ -113,7 +113,7 @@ class TDTestCase:
         tdSql.error('alter database db keep 100,40,50')
         tdSql.error('alter database db keep 20,100,50')
         tdSql.error('alter database db keep 50,60,20')
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,7,'100,200,300')
 
 
@@ -148,7 +148,7 @@ class TDTestCase:
         #test case for TD-4459 and TD-4445
         tdLog.notice('testing keep will be altered changing from small to big')
         tdSql.execute('alter database db keep 40,40,40')
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,7,'40,40,40')
         tdSql.error('insert into tb values (now-60d, 10)')
         tdSql.execute('insert into tb values (now-30d, 10)')
@@ -160,7 +160,7 @@ class TDTestCase:
             rowNum += 1
             tdSql.execute('alter database db keep 20,20,20')
             tdSql.execute('alter database db keep 40,40,40')
-            tdSql.query('show databases')
+            tdSql.query('select * from information_schema.ins_databases')
             tdSql.checkData(0,7,'40,40,40')
             tdSql.error('insert into tb values (now-60d, 10)')
             tdSql.execute('insert into tb values (now-30d, 10)')
@@ -169,7 +169,7 @@ class TDTestCase:
 
         tdLog.notice('testing keep will be altered changing from big to small')
         tdSql.execute('alter database db keep 10,10,10')
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,7,'10,10,10')
         tdSql.error('insert into tb values (now-15d, 10)')
         tdSql.query('select * from tb')

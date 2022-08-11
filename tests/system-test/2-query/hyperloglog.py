@@ -232,7 +232,7 @@ class TDTestCase:
         self.__create_stable(dbname, stbname,column_dict,tag_dict)
         for i in range(childtable_num):
             tdSql.execute(f"create table {dbname}.{stbname}_{i} using {dbname}.{stbname} tags('beijing')")
-        tdSql.query(f'show {dbname}.tables')
+        tdSql.query(f"select * from information_schema.ins_tables where db_name = '{dbname}'")
         vgroup_list = []
         for i in range(len(tdSql.queryResult)):
             vgroup_list.append(tdSql.queryResult[i][6])

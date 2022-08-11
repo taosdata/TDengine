@@ -8,7 +8,7 @@ sql connect
 
 print =============== create database
 sql create database d1 vgroups 2
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -20,9 +20,9 @@ sleep 200
 system rm -rf ../../sim/dnode1/log
 system sh/exec.sh -n dnode1 -s start
 
-print =============== show databases
+print =============== select * from information_schema.ins_databases
 sql create database d2 vgroups 6
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 4 then
   return -1
 endi

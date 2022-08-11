@@ -236,7 +236,7 @@ class TDTestCase:
 
         # wait db ready
         while 1:
-            tdSql.query("show databases")
+            tdSql.query("select * from information_schema.ins_databases")
             if tdSql.getRows() == 4:
                 print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0),)
                 break
@@ -358,7 +358,7 @@ class TDTestCase:
 
         # wait db ready
         while 1:
-            tdSql.query("show databases")
+            tdSql.query("select * from information_schema.ins_databases")
             if tdSql.getRows() == 4:
                 print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0),)
                 break

@@ -53,7 +53,7 @@ class TDTestCase:
         os.system("%staosdemo -N -y -t %d -n %d" %
                   (binPath, self.numberOfTables, self.numberOfRecords))
 
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(18):
             print(tdSql.getData(0, i) )
         tdSql.checkData(0, 2, self.numberOfTables)

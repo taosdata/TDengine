@@ -50,14 +50,14 @@ class TDTestCase:
         tdSql.checkData(0, 0, "st_vplu")
 
         tdSql.execute("drop database db")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "db_vplu")
 
         tdDnodes.stopAll()
         tdDnodes.start(1)
 
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "db_vplu")
 

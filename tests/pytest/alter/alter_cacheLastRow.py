@@ -41,7 +41,7 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,15,0)
         buildPath = self.getBuildPath()
         if (buildPath == ""):
@@ -68,7 +68,7 @@ class TDTestCase:
         for i in range(5): 
             #switch lastRow to off and check
             tdSql.execute('alter database db cachemodel 'none'') 
-            tdSql.query('show databases')
+            tdSql.query('select * from information_schema.ins_databases')
             tdSql.checkData(0,15,0)
 
             #run last_row(*) query 500 times       
@@ -80,7 +80,7 @@ class TDTestCase:
 
             #switch lastRow to on and check
             tdSql.execute('alter database db cachemodel 'last_row'')
-            tdSql.query('show databases')
+            tdSql.query('select * from information_schema.ins_databases')
             tdSql.checkData(0,15,1)
         
             #run last_row(*) query 500 times 

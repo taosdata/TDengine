@@ -16,7 +16,7 @@ system sh/exec.sh -n dnode2 -s start
 sleep 2000
 
 wait_dnode2_ready:
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 3 then
   sleep 2000
   goto wait_dnode2_ready
