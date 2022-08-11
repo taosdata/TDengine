@@ -273,24 +273,6 @@ After building successfully, TDengine can be installed by:
 sudo make install
 ```
 
-To start the service after installation, config `.plist` file first, in a terminal, use:
-
-```bash
-sudo cp ../packaging/macOS/com.taosdata.tdengine.plist /Library/LaunchDaemons
-```
-
-To start the service, in a terminal, use:
-
-```bash
-sudo launchctl load /Library/LaunchDaemons/com.taosdata.tdengine.plist
-```
-
-To stop the service, in a terminal, use:
-
-```bash
-sudo launchctl unload /Library/LaunchDaemons/com.taosdata.tdengine.plist
-```
-
 ## Quick Run
 
 If you don't want to run TDengine as a service, you can run it in current shell. For example, to quickly start a TDengine server after building, run the command below in terminal: (We take Linux as an example, command on Windows will be `taosd.exe`)

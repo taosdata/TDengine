@@ -246,24 +246,6 @@ nmake install
 sudo make install
 ```
 
-安装成功后，如果想以服务形式启动，先配置 `.plist` 文件，在终端中执行：
-
-```bash
-sudo cp ../packaging/macOS/com.taosdata.tdengine.plist /Library/LaunchDaemons
-```
-
-在终端中启动 TDengine 服务：
-
-```bash
-sudo launchctl load /Library/LaunchDaemons/com.taosdata.tdengine.plist
-```
-
-在终端中停止 TDengine 服务：
-
-```bash
-sudo launchctl unload /Library/LaunchDaemons/com.taosdata.tdengine.plist
-```
-
 ## 快速运行
 
 如果不希望以服务方式运行 TDengine，也可以在终端中直接运行它。也即在生成完成后，执行以下命令（在 Windows 下，生成的可执行文件会带有 .exe 后缀，例如会名为 taosd.exe ）：
