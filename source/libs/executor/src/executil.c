@@ -315,8 +315,6 @@ static EDealRes getColumn(SNode* pNode, void* pContext) {
       SColumnInfo cInfo = {.colId = pSColumnNode->colId, .type = pSColumnNode->node.resType.type, .bytes = pSColumnNode->node.resType.bytes};
       taosArrayPush(pData->cInfoList, &cInfo);
     }
-
-    return DEAL_RES_END;
   }
   return DEAL_RES_CONTINUE;
 }
@@ -388,34 +386,42 @@ SColumnInfoData* getColInfoResult(void* metaHandle, SArray* pTableList, SNode* p
   for (int32_t i = 0; i < rows; i++) {
     STableKeyInfo* info = taosArrayGet(pTableList, i);
 
+//    int64_t stt = taosGetTimestampUs();
     SMetaReader mr = {0};
     metaReaderInit(&mr, metaHandle, 0);
     code = metaGetTableEntryByUid(&mr, info->uid);
-    if (TSDB_CODE_SUCCESS == code) {
-      for(int32_t j = 0; j < taosArrayGetSize(pResBlock->pDataBlock); j++){
-        SColumnInfoData* pColInfo = (SColumnInfoData*)taosArrayGet(pResBlock->pDataBlock, j);
-        STagVal tagVal = {0};
-        tagVal.cid = pColInfo->info.colId;
-        const char* p = metaGetTableTagVal(&mr.me, pColInfo->info.type, &tagVal);
+//    int64_t stt1 = taosGetTimestampUs();
+//    qDebug("generate tag get meta rows:%d, cost:%ld ms", rows, stt1-stt);
 
-        if (IS_VAR_DATA_TYPE(pColInfo->info.type)) {
-          char* tmp = taosMemoryCalloc(tagVal.nData + VARSTR_HEADER_SIZE, 1);
-          memcpy(varDataVal(tmp), tagVal.pData, tagVal.nData);
-          varDataSetLen(tmp, tagVal.nData);
-          colDataAppend(pColInfo, i, tmp, p == NULL);
-          taosMemoryFree(tmp);
-        } else {
-          colDataAppend(pColInfo, i, p, p == NULL);
-        }
+    for(int32_t j = 0; j < taosArrayGetSize(pResBlock->pDataBlock); j++){
+      SColumnInfoData* pColInfo = (SColumnInfoData*)taosArrayGet(pResBlock->pDataBlock, j);
+      STagVal tagVal = {0};
+      tagVal.cid = pColInfo->info.colId;
+//        int64_t t1 = taosGetTimestampUs();
+      const char* p = metaGetTableTagVal(&mr.me, pColInfo->info.type, &tagVal);
+//        int64_t t2 = taosGetTimestampUs();
+//        qDebug("generate tag inner1 rows:%d, cost:%ld ms", rows, t2-t1);
+
+      if (p == NULL){
+        colDataAppend(pColInfo, i, p, true);
+      } else if (IS_VAR_DATA_TYPE(pColInfo->info.type)) {
+        char *tmp = (char*)(tagVal.pData - VARSTR_HEADER_SIZE);
+        varDataSetLen(tmp, tagVal.nData);
+        colDataAppend(pColInfo, i, tmp, p == NULL);
+      } else {
+        colDataAppend(pColInfo, i, p, false);
       }
-
+//        int64_t t3 = taosGetTimestampUs();
+//        qDebug("generate tag inner2 rows:%d, cost:%ld ms", rows, t3-t2);
     }
+//    int64_t stt2 = taosGetTimestampUs();
+//    qDebug("generate tag get block rows:%d, cost:%ld us", rows, stt2-stt1);
     metaReaderClear(&mr);
   }
   pResBlock->info.rows = rows;
 
   int64_t st1 = taosGetTimestampUs();
-  qDebug("generate tag block rows:%d, cost:%lf ms", rows, st1-st);
+  qDebug("generate tag block rows:%d, cost:%ld us", rows, st1-st);
 
   pBlockList = taosArrayInit(2, POINTER_BYTES);
   taosArrayPush(pBlockList, &pResBlock);
@@ -431,7 +437,7 @@ SColumnInfoData* getColInfoResult(void* metaHandle, SArray* pTableList, SNode* p
     terrno = code;
   }
   int64_t st2 = taosGetTimestampUs();
-  qDebug("calculate tag block rows:%d, cost:%lf ms", rows, st2-st1);
+  qDebug("calculate tag block rows:%d, cost:%ld us", rows, st2-st1);
 
 end:
   taosHashCleanup(ctx.colHash);
@@ -489,7 +495,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
     taosArrayPush(pListInfo->pTableList, &info);
   }
 
-  if (pTagCond) {
+  if (pTagCond && taosArrayGetSize(pListInfo->pTableList) > 0) {
     SColumnInfoData* pColInfoData = getColInfoResult(metaHandle, pListInfo->pTableList, pTagCond);
     if(terrno != TDB_CODE_SUCCESS){
       colDataDestroy(pColInfoData);
