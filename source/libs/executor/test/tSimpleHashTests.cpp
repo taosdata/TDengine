@@ -25,10 +25,10 @@
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
-int main(int argc, char **argv) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
+// int main(int argc, char **argv) {
+//   testing::InitGoogleTest(&argc, argv);
+//   return RUN_ALL_TESTS();
+// }
 
 TEST(testCase, tSimpleHashTest) {
   SSHashObj *pHashObj =
@@ -68,6 +68,8 @@ TEST(testCase, tSimpleHashTest) {
     tSimpleHashRemove(pHashObj, (const void *)&i);
     ASSERT_EQ(100 - i, tSimpleHashGetSize(pHashObj));
   }
+
+  tSimpleHashCleanup(pHashObj);
 }
 
 #pragma GCC diagnostic pop
