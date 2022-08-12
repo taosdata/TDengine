@@ -1010,6 +1010,7 @@ if $data31 != 9.000000000 then
   return -1
 endi
 if $data41 != 12.500000000 then
+  print expect 12.500000000, actual: $data41
   return -1
 endi
 if $data51 != 16.000000000 then

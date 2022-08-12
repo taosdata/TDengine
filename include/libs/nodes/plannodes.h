@@ -213,6 +213,8 @@ typedef struct SWindowLogicNode {
 typedef struct SFillLogicNode {
   SLogicNode  node;
   EFillMode   mode;
+  SNodeList*  pFillExprs;
+  SNodeList*  pNotFillExprs;
   SNode*      pWStartTs;
   SNode*      pValues;  // SNodeListNode
   STimeWindow timeRange;
@@ -440,9 +442,10 @@ typedef SIntervalPhysiNode SStreamSemiIntervalPhysiNode;
 typedef struct SFillPhysiNode {
   SPhysiNode  node;
   EFillMode   mode;
+  SNodeList*  pFillExprs;
+  SNodeList*  pNotFillExprs;
   SNode*      pWStartTs;  // SColumnNode
   SNode*      pValues;    // SNodeListNode
-  SNodeList*  pTargets;
   STimeWindow timeRange;
   EOrder      inputTsOrder;
 } SFillPhysiNode;

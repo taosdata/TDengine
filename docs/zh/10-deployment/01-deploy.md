@@ -73,11 +73,6 @@ serverPort            6030
 按照《立即开始》里的步骤，启动第一个数据节点，例如 h1.taosdata.com，然后执行 taos，启动 taos shell，从 shell 里执行命令“SHOW DNODES”，如下所示：
 
 ```
-Welcome to the TDengine shell from Linux, Client Version:3.0.0.0
-Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.
-
-Server is Enterprise trial Edition, ver:3.0.0.0 and will never expire.
-
 taos> show dnodes;
 id | endpoint | vnodes | support_vnodes | status | create_time | note |
 ============================================================================================================================================

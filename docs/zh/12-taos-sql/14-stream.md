@@ -26,10 +26,19 @@ subquery: SELECT [DISTINCT] select_list
     [WHERE condition]
     [PARTITION BY tag_list]
     [window_clause]
-    [group_by_clause]
 ```
 
-不支持 order_by，limit，slimit，fill 语句
+支持会话窗口、状态窗口与滑动窗口，其中，会话窗口与状态窗口搭配超级表时必须与partition by tbname一起使用
+
+```sql
+window_clause: {
+    SESSION(ts_col, tol_val)
+  | STATE_WINDOW(col)
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)]
+}
+```
+
+其中，SESSION 是会话窗口，tol_val 是时间间隔的最大范围。在 tol_val 时间间隔范围内的数据都属于同一个窗口，如果连续的两条数据的时间超过 tol_val，则自动开启下一个窗口。
 
 例如，如下语句创建流式计算，同时自动创建名为 avg_vol 的超级表，此流计算以一分钟为时间窗口、30 秒为前向增量统计这些电表的平均电压，并将来自 meters 表的数据的计算结果写入 avg_vol 表，不同 partition 的数据会分别创建子表并写入不同子表。
 
@@ -88,23 +97,3 @@ T = 最新事件时间 - watermark
 2. 重新计算：从 TSDB 中重新查找对应窗口的所有数据并重新计算得到最新结果
 
 无论在哪种模式下，watermark 都应该被妥善设置，来得到正确结果（直接丢弃模式）或避免频繁触发重算带来的性能开销（重新计算模式）。
-
-## 流式计算与会话窗口（session window）
-
-```sql
-window_clause: {
-    SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col)
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
-}
-```
-
-其中，SESSION 是会话窗口，tol_val 是时间间隔的最大范围。在 tol_val 时间间隔范围内的数据都属于同一个窗口，如果连续的两条数据的时间超过 tol_val，则自动开启下一个窗口。
-
-## 流式计算的暂停与恢复
-
-```sql
-STOP STREAM stream_name;
-
-RESUME STREAM stream_name;
-```
