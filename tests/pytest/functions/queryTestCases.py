@@ -68,7 +68,7 @@ class TDTestCase:
         tdSql.query("show variables")
         tdSql.checkData(26, 1, -1)
 
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         index = tdSql.getData(0, 0)
 
         tdDnodes.stop(index)
@@ -269,7 +269,7 @@ class TDTestCase:
         tdSql.execute("create database  if not exists db")
         tdSql.query("show variables")
         tdSql.checkData(38, 1, 3650)
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(0,7,"3650,3650,3650")
 
         days = tdSql.getData(0, 6)
@@ -288,12 +288,12 @@ class TDTestCase:
         tdSql.error("alter database db keep0 36500")
 
         tdSql.execute("alter database db keep 36500")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(0, 7, "3650,3650,36500")
         tdSql.execute("drop database if exists db")
 
         tdSql.execute("create database  if not exists db1")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(0, 7, "3650,3650,3650")
         tdSql.query("show variables")
         tdSql.checkData(38, 1, 3650)
@@ -311,7 +311,7 @@ class TDTestCase:
         maxTablesPerVnode = 10
         maxVgroupsPerDb = 100
 
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         index = tdSql.getData(0, 0)
 
         tdDnodes.stop(index)
@@ -334,7 +334,7 @@ class TDTestCase:
         for i in  range(100):
             tdSql.execute(f"create table db.t1{i} using db.stb1 tags({i})")
             insert_sql += f" t1{i} values({1604298064000 + i*1000}, {i})"
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         vnode_count = tdSql.getData(0, 2)
         if vnode_count <= 1:
             tdLog.exit("vnode is less than 2")
@@ -443,7 +443,7 @@ class TDTestCase:
         # f50, f51, f52, f53 = tdSql.getData(0,1), tdSql.getData(0,2), tdSql.getData(0,3), tdSql.getData(0,4)
 
         # 关闭服务并获取未开启压缩情况下的数据容量
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         index = tdSql.getData(0, 0)
         tdDnodes.stop(index)
 

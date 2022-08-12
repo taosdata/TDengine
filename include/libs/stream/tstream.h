@@ -34,6 +34,8 @@ typedef struct SStreamTask SStreamTask;
 
 enum {
   STREAM_STATUS__NORMAL = 0,
+  STREAM_STATUS__STOP,
+  STREAM_STATUS__FAILED,
   STREAM_STATUS__RECOVER,
 };
 

@@ -996,7 +996,7 @@ class StateMechine:
             return  # do nothing
 
         # this should show up in the server log, separating steps
-        dbc.execute("show dnodes")
+        dbc.execute("select * from information_schema.ins_dnodes")
 
         # Generic Checks, first based on the start state
         if not Config.getConfig().ignore_errors: # verify state, only if we are asked not to ignore certain errors.
@@ -2042,7 +2042,7 @@ class TaskRestartService(StateTransitionTask):
 
         if Dice.throw(self.CHANCE_TO_RESTART_SERVICE) == 0: # 1 in N chance
             dbc = wt.getDbConn()
-            dbc.execute("show databases") # simple delay, align timing with other workers
+            dbc.execute("select * from information_schema.ins_databases") # simple delay, align timing with other workers
             gSvcMgr.restart()
 
         self._isRunning = False
@@ -2335,7 +2335,7 @@ class ClientManager:
     # def _printLastNumbers(self):  # to verify data durability
     #     dbManager = DbManager()
     #     dbc = dbManager.getDbConn()
-    #     if dbc.query("show databases") <= 1:  # no database (we have a default called "log")
+    #     if dbc.query("select * from information_schema.ins_databases") <= 1:  # no database (we have a default called "log")
     #         return
     #     dbc.execute("use db")
     #     if dbc.query("show tables") == 0:  # no tables

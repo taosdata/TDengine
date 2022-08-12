@@ -5,7 +5,7 @@ sql connect
 
 print =============== create database
 sql create database db
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -238,7 +238,7 @@ check_dnode_ready_0:
 		    return -1
 	  endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
 if $data00 != 1 then
     return -1
@@ -404,7 +404,7 @@ sql_error  select stddev(c7) from t1
 
 print =============== clear
 sql drop database db
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then
   return -1
 endi

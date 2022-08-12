@@ -29,22 +29,22 @@ if $data00 != @18-09-17 08:59:00.000@ then
   return -1
 endi
 if $data01 != 0 then
-  return -1   
-endi  
+  return -1
+endi
 if $data02 != 0 then
-  return -1  
-endi 
+  return -1
+endi
 print data03 = $data03
 if $data03 != 0.00000 then
   print expect 0.00000, actual: $data03
-  return -1  
-endi    
+  return -1
+endi
 if $data04 != 0.000000000 then
   return -1
 endi
 if $data05 != 0 then
   return -1
-endi 
+endi
 if $data06 != 0 then
   return -1
 endi
@@ -66,20 +66,20 @@ if $rows != 1 then
   return -1
 endi
 if $data00 != @18-09-18 01:40:00.000@ then
-  return -1   
-endi  
+  return -1
+endi
 
 if $data01 != 999 then
-  return -1   
+  return -1
 endi
 
 if $data02 != 999 then
-  return -1  
+  return -1
 endi
 
 if $data03 != 999.00000 then
-  return -1  
-endi    
+  return -1
+endi
 
 if $data04 != 999.000000000 then
   return -1
@@ -88,7 +88,7 @@ endi
 #if $data05 != NULL then
 if $data05 != 999 then
   return -1
-endi 
+endi
 #if $data06 != NULL then
 if $data06 != 103 then
   return -1
@@ -108,8 +108,8 @@ endi
 
 ### test if first works for committed data. An 'order by ts desc' clause should be present, and queried data should come from at least 2 file blocks
 $tb = $tbPrefix . 9
-sql select first(ts), first(c1) from $tb where ts < '2018-10-17 10:00:00.000' 
-if $rows != 1 then 
+sql select first(ts), first(c1) from $tb where ts < '2018-10-17 10:00:00.000'
+if $rows != 1 then
   return -1
 endi
 if $data00 != @18-09-17 09:00:00.000@ then
@@ -121,7 +121,7 @@ endi
 
 $tb = $tbPrefix . 9
 sql select first(ts), first(c1) from $tb where ts < '2018-10-17 10:00:00.000'
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 if $data00 != @18-09-17 09:00:00.000@ then

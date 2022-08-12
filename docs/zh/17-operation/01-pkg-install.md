@@ -85,6 +85,9 @@ TDengine is removed successfully!
 ```
 
 </TabItem>
+<TabItem label="Windows 卸载" value="windows">
+TODO
+</TabItem>
 </Tabs>
 
 :::info

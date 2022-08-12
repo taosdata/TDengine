@@ -114,7 +114,7 @@ class DbConn:
 
     def existsDatabase(self, dbName: str):
         ''' Check if a certain database exists '''
-        self.query("show databases")
+        self.query("select * from information_schema.ins_databases")
         dbs = [v[0] for v in self.getQueryResult()] # ref: https://stackoverflow.com/questions/643823/python-list-transformation
         # ret2 = dbName in dbs
         # print("dbs = {}, str = {}, ret2={}, type2={}".format(dbs, dbName,ret2, type(dbName)))
@@ -157,7 +157,7 @@ class DbConn:
     def getResultCols(self):
         raise RuntimeError("Unexpected execution, should be overriden")
 
-# Sample: curl -u root:taosdata -d "show databases" localhost:6020/rest/sql
+# Sample: curl -u root:taosdata -d "select * from information_schema.ins_databases" localhost:6020/rest/sql
 
 
 class DbConnRest(DbConn):

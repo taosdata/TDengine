@@ -15,6 +15,7 @@ target_include_directories(
 target_link_libraries(
     mnode scheduler sdb wal transport cjson sync monitor executor qworker stream parser
 )
+
 IF (TD_GRANT)
   TARGET_LINK_LIBRARIES(mnode grant)
   ADD_DEFINITIONS(-D_GRANT)

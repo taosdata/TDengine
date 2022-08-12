@@ -1192,7 +1192,10 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
       pBuilder->hasNone = true;
     }
 
+    tdSRowEnd(pBuilder);
+
     *gotRow = true;
+    
 #ifdef TD_DEBUG_PRINT_ROW
     STSchema* pSTSchema = tdGetSTSChemaFromSSChema(schema, spd->numOfCols, 1);
     tdSRowPrint(row, pSTSchema, __func__);
@@ -1201,7 +1204,6 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
   }
 
   // *len = pBuilder->extendedRowSize;
-  tdSRowEnd(pBuilder);
   return TSDB_CODE_SUCCESS;
 }
 

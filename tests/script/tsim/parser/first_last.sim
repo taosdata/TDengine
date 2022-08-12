@@ -19,7 +19,7 @@ $stb = $stbPrefix . $i
 sql drop database $db -x step1
 step1:
 
-sql create database $db maxrows 400 
+sql create database $db maxrows 400
 
 sql use $db
 sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 int)
@@ -29,18 +29,18 @@ $ts = $ts0
 while $i < $tbNum
   $tb = $tbPrefix . $i
   sql create table $tb using $stb tags( $i )
-  
+
   $x = 0
   while $x < $rowNum
     $xs = $x * $delta
     $ts = $ts0 + $xs
-    $c6 =  $x / 128 
+    $c6 =  $x / 128
     $c6 = $c6 * 128
     $c6 = $x - $c6
-    sql insert into $tb values ( $ts , $x , $x , $x , $x , $x , $c6 , true, 'BINARY', 'NCHAR' ) 
+    sql insert into $tb values ( $ts , $x , $x , $x , $x , $x , $c6 , true, 'BINARY', 'NCHAR' )
     $x = $x + 1
-  endw 
- 
+  endw
+
   $i = $i + 1
 endw
 

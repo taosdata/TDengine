@@ -7,8 +7,8 @@ system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
 sql connect
 
-print =============== show dnodes
-sql show mnodes;
+print =============== select * from information_schema.ins_dnodes
+sql select * from information_schema.ins_mnodes;
 if $rows != 1 then 
   return -1
 endi
@@ -34,7 +34,7 @@ sleep 3000
 
 print =============== create user
 sql create user user1 PASS 'user1'
-sql show users
+sql select * from information_schema.ins_users
 if $rows != 2 then 
   return -1
 endi

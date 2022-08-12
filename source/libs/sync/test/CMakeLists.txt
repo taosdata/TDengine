@@ -56,6 +56,7 @@ add_executable(syncRaftLogTest3 "")
 add_executable(syncLeaderTransferTest "")
 add_executable(syncReconfigFinishTest "")
 add_executable(syncRestoreFromSnapshot "")
+add_executable(syncRaftCfgIndexTest "")
 
 
 target_sources(syncTest
@@ -289,6 +290,10 @@ target_sources(syncReconfigFinishTest
 target_sources(syncRestoreFromSnapshot
     PRIVATE
     "syncRestoreFromSnapshot.cpp"
+)
+target_sources(syncRaftCfgIndexTest
+    PRIVATE
+    "syncRaftCfgIndexTest.cpp"
 )
 
 
@@ -582,6 +587,11 @@ target_include_directories(syncRestoreFromSnapshot
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncRaftCfgIndexTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
 
 target_link_libraries(syncTest
@@ -813,6 +823,10 @@ target_link_libraries(syncReconfigFinishTest
     gtest_main
 )
 target_link_libraries(syncRestoreFromSnapshot
+    sync
+    gtest_main
+)
+target_link_libraries(syncRaftCfgIndexTest
     sync
     gtest_main
 )

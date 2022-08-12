@@ -132,6 +132,10 @@ fi
 
 #Scripts executed before installation
 %pre
+if [ -f /var/lib/taos/dnode/dnodeCfg.json ]; then
+  echo -e "The default data directory \033[41;37m/var/lib/taos\033[0m contains old data of tdengine 2.x, please clear it before installing!"
+  exit 1
+fi
 csudo=""
 if command -v sudo > /dev/null; then
     csudo="sudo "

@@ -7,7 +7,7 @@ print =============== create db
 sql create database d1 vgroups 1;
 sql create database d2 vgroups 1;
 sql create database d3 vgroups 1;
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 5 then 
   return -1
 endi
@@ -15,7 +15,7 @@ endi
 print =============== create users
 sql create user user1 PASS 'user1'
 sql create user user2 PASS 'user2'
-sql show users
+sql select * from information_schema.ins_users
 if $rows != 3 then 
   return -1
 endi
@@ -71,7 +71,7 @@ sql REVOKE read,write ON *.* from user1;
 
 print =============== create users
 sql create user u1 PASS 'taosdata'
-sql show users
+sql select * from information_schema.ins_users
 if $rows != 4 then 
   return -1
 endi
