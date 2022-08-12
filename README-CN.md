@@ -111,7 +111,7 @@ go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
 ```
 
-默认情况下，内嵌的 http 服务仍然可以从 TDengine 源码构建。当然您也可以使用以下命令选择构建 taosAdapter 作为 RESTful 接口的服务。
+缺省是不会构建 taosAdapter, 但您可以使用以下命令选择构建 taosAdapter 作为 RESTful 接口的服务。
 
 ```
 cmake .. -DBUILD_HTTP=false
