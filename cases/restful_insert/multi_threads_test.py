@@ -32,7 +32,7 @@ class TestMultiThreads(TDCase):
             db_list.append(dbname)
         tlist = self.tdSql.multiThreadFunction(self.tdCom.createDb, db_list)
         self.tdRest.multiThreadRun(tlist)
-        self.tdRest.request(f'show databases')
+        self.tdRest.request(f'select * from information_schema.ins_databases')
         for dbname in db_list:
             # could not use checkEqual because maybe other agent is writing to database such as prometheus
             self.tdSql.checkIn(dbname, self.tdRest.getColNameList())
@@ -127,7 +127,7 @@ class TestMultiThreads(TDCase):
         tlist = self.tdRest.genMultiThreadSeq(sql_list)
         self.tdRest.multiThreadRun(tlist)
 
-        self.tdRest.request(f'show databases')
+        self.tdRest.request(f'select * from information_schema.ins_databases')
         for dbname in db_list:
             # could not use checkEqual because maybe other agent is writing to database such as prometheus
             self.tdSql.checkIn(dbname, self.tdRest.getColNameList())
@@ -155,7 +155,7 @@ class TestMultiThreads(TDCase):
         tlist = self.tdRest.genMultiThreadSeq(drop_list)
         self.tdRest.multiThreadRun(tlist)
 
-        self.tdRest.request(f'show databases')
+        self.tdRest.request(f'select * from information_schema.ins_databases')
         for dbname in db_list:
             # could not use checkEqual because maybe other agent is writing to database such as prometheus
             self.tdSql.checkNotIn(dbname, self.tdRest.getColNameList())
@@ -191,7 +191,7 @@ class TestMultiThreads(TDCase):
         tlist = self.tdRest.genMultiThreadSeq(sql_list)
         self.tdRest.multiThreadRun(tlist)
 
-        self.tdRest.request(f'show databases')
+        self.tdRest.request(f'select * from information_schema.ins_databases')
         self.tdSql.checkNotIn(f'{db}_1', self.tdRest.getColNameList())
 
         self.tdRest.request(f'show {db}.stables')
@@ -239,7 +239,7 @@ class TestMultiThreads(TDCase):
         sql_list.append(f'drop database {dbname}')
         tlist = self.tdRest.genMultiThreadSeq(sql_list)
         self.tdRest.multiThreadRun(tlist)
-        self.tdRest.request(f'show databases')
+        self.tdRest.request(f'select * from information_schema.ins_databases')
         self.tdSql.checkNotIn(dbname, self.tdRest.getColNameList())
         self.tdRest.request(f'drop database if exists {dbname}')
 
@@ -255,7 +255,7 @@ class TestMultiThreads(TDCase):
         sql_list.append(f'create table {dbname}.tb using {dbname}.stb TAGS(1, 1)')
         tlist = self.tdRest.genMultiThreadSeq(sql_list)
         self.tdRest.multiThreadRun(tlist)
-        self.tdRest.request(f'show databases')
+        self.tdRest.request(f'select * from information_schema.ins_databases')
         self.tdSql.checkNotIn(dbname, self.tdRest.getColNameList())
         self.tdRest.request(f'drop database if exists {dbname}')
 
@@ -273,7 +273,7 @@ class TestMultiThreads(TDCase):
         sql_list.append(f'drop stable {dbname}.tb')
         tlist = self.tdRest.genMultiThreadSeq(sql_list)
         self.tdRest.multiThreadRun(tlist)
-        self.tdRest.request(f'show databases')
+        self.tdRest.request(f'select * from information_schema.ins_databases')
         self.tdSql.checkNotIn(dbname, self.tdRest.getColNameList())
         self.tdRest.request(f'drop database if exists {dbname}')
 
@@ -331,7 +331,7 @@ class TestMultiThreads(TDCase):
         sql_list.append(f'drop table {dbname}.stb')
         tlist = self.tdRest.genMultiThreadSeq(sql_list)
         self.tdRest.multiThreadRun(tlist)
-        self.tdRest.request(f'show databases')
+        self.tdRest.request(f'select * from information_schema.ins_databases')
         self.tdSql.checkNotIn(dbname, self.tdRest.getColNameList())
         self.tdRest.request(f'drop database if exists {dbname}')
 

@@ -39,7 +39,7 @@ class TestKeep(TDCase):
         test_param = self.cfg["create_name"]
         dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname)
-        self.tdRest.request('show databases')
+        self.tdRest.request('select * from information_schema.ins_databases')
         db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         # default
         self.tdSql.checkEqual(db_field, self.cfg["default"])
@@ -60,7 +60,7 @@ class TestKeep(TDCase):
             dbname = self.tdCom.get_long_name()
             kv_dict = {"duration": self.common_days_value, test_param: param_value}
             self.tdCom.createDb(dbname, **kv_dict)
-            self.tdRest.request('show databases')
+            self.tdRest.request('select * from information_schema.ins_databases')
             db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
             if param_value==1 or param_value ==365000:
                 self.tdSql.checkEqual(db_field, f'{param_value*24*60}m,{param_value*24*60}m,{param_value*24*60}m')
@@ -97,7 +97,7 @@ class TestKeep(TDCase):
         # keep2 >= keep1 >= keep0 >= days
         kv_dict = {test_param: "36500,36501,36502"}
         self.tdCom.createDb(dbname, **kv_dict)
-        self.tdRest.request('show databases')
+        self.tdRest.request('select * from information_schema.ins_databases')
         #TODO
         db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         self.tdSql.checkEqual(db_field, "52560000m,52561440m,52562880m")
@@ -117,7 +117,7 @@ class TestKeep(TDCase):
         dbname = self.tdCom.get_long_name()
         kv_dict = {test_param: "36500,36501"}
         self.tdCom.createDb(dbname, **kv_dict)
-        self.tdRest.request('show databases')
+        self.tdRest.request('select * from information_schema.ins_databases')
         db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         self.tdSql.checkEqual(db_field, "52560000m,52561440m,52561440m")
         self.tdRest.request(f'show {dbname}.vgroups')
@@ -136,7 +136,7 @@ class TestKeep(TDCase):
         dbname = self.tdCom.get_long_name()
         kv_dict = {"duration": 10, test_param: "10,10,10"}
         self.tdCom.createDb(dbname, **kv_dict)
-        self.tdRest.request('show databases')
+        self.tdRest.request('select * from information_schema.ins_databases')
         #TODO
         db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         self.tdSql.checkEqual(db_field, "14400m,14400m,14400m")

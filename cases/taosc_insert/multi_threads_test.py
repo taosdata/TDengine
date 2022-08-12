@@ -30,7 +30,7 @@ class TestMultiThreads(TDCase):
             db_list.append(dbname)
         tlist = self.tdSql.multiThreadFunction(self.tdCom.createDb, db_list)
         self.tdSql.multiThreadRun(tlist)
-        self.tdSql.query(f'show databases')
+        self.tdSql.query(f'select * from information_schema.ins_databases')
         for dbname in db_list:
             # could not use checkEqual because maybe other agent is writing to database such as prometheus
             self.tdSql.checkIn(dbname, self.tdSql.getColNameList())
@@ -52,7 +52,7 @@ class TestMultiThreads(TDCase):
 
         tlist = self.tdSql.genMultiThreadSeq(sql_list)
         self.tdSql.multiThreadRun(tlist)
-        self.tdSql.query(f'show {dbname}.stables')
+        self.tdSql.query(f'select * from information_schema.ins_stables where db_name = "{dbname}"')
         self.tdSql.checkEqual(sorted(stb_list), sorted(self.tdSql.getColNameList()))
         self.tdSql.execute(f'drop database if exists {dbname}')
 
@@ -72,7 +72,7 @@ class TestMultiThreads(TDCase):
 
         tlist = self.tdSql.genMultiThreadSeq(sql_list)
         self.tdSql.multiThreadRun(tlist)
-        self.tdSql.query(f'show {dbname}.tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{dbname}"')
         self.tdSql.checkEqual(sorted(tb_list), sorted(self.tdSql.getColNameList()))
         self.tdSql.execute(f'drop database if exists {dbname}')
 
@@ -125,16 +125,16 @@ class TestMultiThreads(TDCase):
         tlist = self.tdSql.genMultiThreadSeq(sql_list)
         self.tdSql.multiThreadRun(tlist)
 
-        self.tdSql.query(f'show databases')
+        self.tdSql.query(f'select * from information_schema.ins_databases')
         for dbname in db_list:
             # could not use checkEqual because maybe other agent is writing to database such as prometheus
             self.tdSql.checkIn(dbname, self.tdSql.getColNameList())
 
-        self.tdSql.query(f'show {db}.stables')
+        self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{db}"')
         for stb in stb_list:
             self.tdSql.checkIn(stb, self.tdSql.getColNameList())
 
-        self.tdSql.query(f'show {db}.tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{db}"')
         self.tdSql.checkEqual(sorted(tb_list), sorted(self.tdSql.getColNameList()))
 
         drop_list = list()
@@ -153,16 +153,16 @@ class TestMultiThreads(TDCase):
         tlist = self.tdSql.genMultiThreadSeq(drop_list)
         self.tdSql.multiThreadRun(tlist)
 
-        self.tdSql.query(f'show databases')
+        self.tdSql.query(f'select * from information_schema.ins_databases')
         for dbname in db_list:
             # could not use checkEqual because maybe other agent is writing to database such as prometheus
             self.tdSql.checkNotIn(dbname, self.tdSql.getColNameList())
 
-        self.tdSql.query(f'show {db}.stables')
+        self.tdSql.query(f'select * from information_schema.ins_stables where db_name = "{db}"')
         for stb in stb_list:
             self.tdSql.checkNotIn(stb, self.tdSql.getColNameList())
 
-        self.tdSql.query(f'show {db}.tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name = "{db}"')
         for tb in tb_list:
             self.tdSql.checkNotIn(tb, self.tdSql.getColNameList())
         self.tdSql.execute(f'drop database if exists {dbname}')
@@ -189,13 +189,13 @@ class TestMultiThreads(TDCase):
         tlist = self.tdSql.genMultiThreadSeq(sql_list)
         self.tdSql.multiThreadRun(tlist)
 
-        self.tdSql.query(f'show databases')
+        self.tdSql.query(f'select * from information_schema.ins_databases')
         self.tdSql.checkNotIn(f'{db}_1', self.tdSql.getColNameList())
 
-        self.tdSql.query(f'show {db}.stables')
+        self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{db}"')
         self.tdSql.checkNotIn("stb1", self.tdSql.getColNameList())
 
-        self.tdSql.query(f'show {db}.tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{db}"')
         self.tdSql.checkNotIn("tb2", self.tdSql.getColNameList())
         self.tdSql.execute(f'drop database if exists {db}')
         self.tdSql.execute(f'drop database if exists {db}_1')
@@ -217,7 +217,7 @@ class TestMultiThreads(TDCase):
         sql_list.append(f'drop table {dbname}.tb')
         tlist = self.tdSql.genMultiThreadSeq(sql_list)
         self.tdSql.multiThreadRun(tlist)
-        self.tdSql.query(f'show {dbname}.tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{dbname}"')
         self.tdSql.checkNotIn("tb", self.tdSql.getColNameList())
         self.tdSql.execute(f'drop database if exists {dbname}')
 
@@ -237,7 +237,7 @@ class TestMultiThreads(TDCase):
         sql_list.append(f'drop database {dbname}')
         tlist = self.tdSql.genMultiThreadSeq(sql_list)
         self.tdSql.multiThreadRun(tlist)
-        self.tdSql.query(f'show databases')
+        self.tdSql.query(f'select * from information_schema.ins_databases')
         self.tdSql.checkNotIn(dbname, self.tdSql.getColNameList())
         self.tdSql.execute(f'drop database if exists {dbname}')
 
@@ -253,7 +253,7 @@ class TestMultiThreads(TDCase):
         sql_list.append(f'create table {dbname}.tb using {dbname}.stb TAGS(1, 1)')
         tlist = self.tdSql.genMultiThreadSeq(sql_list)
         self.tdSql.multiThreadRun(tlist)
-        self.tdSql.query(f'show databases')
+        self.tdSql.query(f'select * from information_schema.ins_databases')
         self.tdSql.checkNotIn(dbname, self.tdSql.getColNameList())
         self.tdSql.execute(f'drop database if exists {dbname}')
 
@@ -271,7 +271,7 @@ class TestMultiThreads(TDCase):
         sql_list.append(f'drop stable {dbname}.tb')
         tlist = self.tdSql.genMultiThreadSeq(sql_list)
         self.tdSql.multiThreadRun(tlist)
-        self.tdSql.query(f'show databases')
+        self.tdSql.query(f'select * from information_schema.ins_databases')
         self.tdSql.checkNotIn(dbname, self.tdSql.getColNameList())
         self.tdSql.execute(f'drop database if exists {dbname}')
 
@@ -329,7 +329,7 @@ class TestMultiThreads(TDCase):
         sql_list.append(f'drop table {dbname}.stb')
         tlist = self.tdSql.genMultiThreadSeq(sql_list)
         self.tdSql.multiThreadRun(tlist)
-        self.tdSql.query(f'show databases')
+        self.tdSql.query(f'select * from information_schema.ins_databases')
         self.tdSql.checkNotIn(dbname, self.tdSql.getColNameList())
         self.tdSql.execute(f'drop database if exists {dbname}')
 

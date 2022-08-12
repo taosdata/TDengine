@@ -59,7 +59,7 @@ class TestVgroups(TDCase):
         test_param = self.cfg["create_name"]
         dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname)
-        self.tdSql.query('show databases')
+        self.tdSql.query('select * from information_schema.ins_databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         # default
         self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
@@ -69,7 +69,7 @@ class TestVgroups(TDCase):
             dbname = self.tdCom.get_long_name()
             kv_dict = {test_param: param_value, "buffer": self.buffer_min,'pages':64,'pagesize':1}
             self.tdCom.createDb(dbname, **kv_dict)
-            self.tdSql.query('show databases')
+            self.tdSql.query('select * from information_schema.ins_databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
             # if param_value == self.cfg["boundary"][-1]:

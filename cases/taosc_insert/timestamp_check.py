@@ -27,7 +27,7 @@ class TestTimestamp(TDCase):
             dbname = self.tdCom.get_long_name()
             kv_dict = {"precision": ts}
             self.tdCom.createDb(dbname, **kv_dict)
-            self.tdSql.query('show databases')
+            self.tdSql.query('select * from information_schema.ins_databases')
             res = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(res["precision"], ts)
             self.tdSql.execute(f'create table if not exists {dbname}.stb (ts timestamp, c1 int) tags (t1 int)')

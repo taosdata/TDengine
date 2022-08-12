@@ -57,7 +57,7 @@ class TestVgroups(TDCase):
         test_param = self.cfg["create_name"]
         dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname)
-        self.tdRest.request('show databases')
+        self.tdRest.request('select * from information_schema.ins_databases')
         db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         # default
         self.tdSql.checkEqual(db_field, self.cfg["default"])
@@ -68,7 +68,7 @@ class TestVgroups(TDCase):
             dbname = self.tdCom.get_long_name()
             kv_dict = {test_param: param_value, "buffer": self.buffer_min}
             self.tdCom.createDb(dbname, **kv_dict)
-            self.tdRest.request('show databases')
+            self.tdRest.request('select * from information_schema.ins_databases')
             db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
             self.tdSql.checkEqual(db_field, param_value)
             self.tdSql.checkEqual(self.get_vnode_count(),db_field)

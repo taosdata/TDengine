@@ -25,7 +25,7 @@ class TestDB(TDCase):
         """
         dbname = self.tdCom.get_long_name(self.tdCom.Boundary.DBNAME_MAX_LENGTH)
         self.tdCom.createDb(dbname)
-        self.tdSql.query('show databases')
+        self.tdSql.query('select * from information_schema.ins_databases')
         res = self.tdSql.getOneRow(0, dbname)
         self.tdSql.checkEqual(res[0][0], dbname)
         dbname_exceed = self.tdCom.get_long_name(self.tdCom.Boundary.DBNAME_MAX_LENGTH+1)
@@ -40,7 +40,7 @@ class TestDB(TDCase):
         dbname = f'1{self.tdCom.get_long_name()}'
         dbname_backquote = f'`{dbname}`'
         self.tdCom.createDb(dbname_backquote)
-        self.tdSql.query('show databases')
+        self.tdSql.query('select * from information_schema.ins_databases')
         res = self.tdSql.getOneRow(0, dbname)
         self.tdSql.checkEqual(res[0][0], dbname)
         dbname = self.tdCom.get_long_name(3)
@@ -56,7 +56,7 @@ class TestDB(TDCase):
                 dbname_new = ''.join(d_list_new)
                 dbname_new_backquote = f'`{dbname_new}`'
                 self.tdCom.createDb(dbname_new_backquote)
-                self.tdSql.query('show databases')
+                self.tdSql.query('select * from information_schema.ins_databases')
                 res = self.tdSql.getOneRow(0, dbname_new)
                 self.tdSql.checkEqual(res[0][0], dbname_new)
                 self.tdSql.execute(f'drop database if exists `{dbname_new}`')
@@ -67,7 +67,7 @@ class TestDB(TDCase):
         """
         for dbname in [self.tdCom.get_long_name(10, "letters_mixed"), self.tdCom.get_long_name(5, "letters_mixed").upper()]:
             self.tdCom.createDb(dbname)
-            self.tdSql.query('show databases')
+            self.tdSql.query('select * from information_schema.ins_databases')
             res = self.tdSql.getOneRow(0, dbname.lower())
             self.tdSql.checkEqual(res[0][0], dbname.lower())
             self.tdSql.execute(f'drop database if exists {dbname}')
