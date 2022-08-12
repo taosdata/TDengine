@@ -3647,6 +3647,13 @@ void destroyFillOperatorInfo(void* param, int32_t numOfOutput) {
   SFillOperatorInfo* pInfo = (SFillOperatorInfo*)param;
   pInfo->pFillInfo = taosDestroyFillInfo(pInfo->pFillInfo);
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
+  pInfo->pFinalRes = blockDataDestroy(pInfo->pFinalRes);
+
+  if (pInfo->pNotFillExprInfo != NULL) {
+    destroyExprInfo(pInfo->pNotFillExprInfo, pInfo->numOfNotFillExpr);
+    taosMemoryFree(pInfo->pNotFillExprInfo);
+  }
+
   taosMemoryFreeClear(pInfo->p);
   taosArrayDestroy(pInfo->pColMatchColInfo);
   taosMemoryFreeClear(param);
@@ -3712,7 +3719,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
 
   SSDataBlock* pResBlock = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
   SExprInfo*   pExprInfo = createExprInfo(pPhyFillNode->pFillExprs, NULL, &pInfo->numOfExpr);
-  SExprInfo*   pCopyColumnExprInfo = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &pInfo->numOfNotFillExpr);
+  pInfo->pNotFillExprInfo = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &pInfo->numOfNotFillExpr);
 
   SInterval*   pInterval =
       QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL == downstream->operatorType
@@ -3735,7 +3742,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
                                                  &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
 
   int32_t code =
-      initFillInfo(pInfo, pExprInfo, pInfo->numOfExpr, pCopyColumnExprInfo, pInfo->numOfNotFillExpr, (SNodeListNode*)pPhyFillNode->pValues,
+      initFillInfo(pInfo, pExprInfo, pInfo->numOfExpr, pInfo->pNotFillExprInfo, pInfo->numOfNotFillExpr, (SNodeListNode*)pPhyFillNode->pValues,
                    pPhyFillNode->timeRange, pResultInfo->capacity, pTaskInfo->id.str, pInterval, type, order);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
