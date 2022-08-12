@@ -449,7 +449,7 @@ SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray* uidLi
   qDebug("calculate tag block rows:%d, cost:%ld us", rows, st2-st1);
 
 end:
-  taosArrayDestroy(tags);
+  taosArrayDestroyP(tags, taosMemoryFree);
   taosHashCleanup(ctx.colHash);
   taosArrayDestroy(ctx.cInfoList);
   blockDataDestroy(pResBlock);
