@@ -205,6 +205,7 @@ TMQ支持多种订阅类型：
 <Tabs>
 <TabItem label="C" value="c">
 
+```c
 // A simple demo for asynchronous subscription.
 // compile with:
 // gcc -o tmq tmq.c -ltaos
@@ -483,6 +484,7 @@ int main(int argc, char* argv[]) {
 
   return 0;
 }
+```
 </TabItem>
 
 <TabItem label="Java" value="java">
