@@ -40,7 +40,7 @@ TDengine can be optimized for Internet of Things (IoT), Connected Cars, and Indu
 
 # Documentation
 
-For user manual, system design and architecture, please refer to [TDengine Documentation](https://docs.tdengine.com) ([TDengine 文档](https://docs.taosdata.com))
+For user manual, system design and architecture, please refer to [TDengine Documentation](https://docs.taosdata.com) ([TDengine 文档](https://docs.taosdata.com))
 
 # Building
 
@@ -49,7 +49,7 @@ At the moment, TDengine server supports running on Linux, Windows systems.Any OS
 
 
 
-You can choose to install through source code according to your needs, [container](https://docs.taosdata.com/3.0/get-started/docker/), [installation package](https://docs.taosdata.com/3.0/get-started/package/) or [Kubenetes](https://docs.taosdata.com/3.0/deployment/k8s/) to install. This quick guide only applies to installing from source.
+You can choose to install through source code according to your needs, [container](https://docs.taosdata.com/get-started/docker/), [installation package](https://docs.taosdata.com/get-started/package/) or [Kubenetes](https://docs.taosdata.com/deployment/k8s/) to install. This quick guide only applies to installing from source.
 
    
 
@@ -246,9 +246,9 @@ After building successfully, TDengine can be installed by
 sudo make install
 ```
 
-Users can find more information about directories installed on the system in the [directory and files](https://www.taosdata.com/en/documentation/administrator/#Directory-and-Files) section.  
+Users can find more information about directories installed on the system in the [directory and files](https://docs.taosdata.com/reference/directory/) section.  
 
-Installing from source code will also configure service management for TDengine.Users can also choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) for it.
+Installing from source code will also configure service management for TDengine.Users can also choose to [install from packages](https://docs.taosdata.com/get-started/package/) for it.
 
 To start the service after installation, in a terminal, use:
 
@@ -256,13 +256,13 @@ To start the service after installation, in a terminal, use:
 sudo systemctl start taosd
 ```
 
-Then users can use the TDengine Shell to connect the TDengine server. In a terminal, use:
+Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
 
 ```bash
 taos
 ```
 
-If TDengine shell connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
+If TDengine CLI connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
 
 ## On Windows platform
 
@@ -288,7 +288,7 @@ If you don't want to run TDengine as a service, you can run it in current shell.
 ./build/bin/taosd -c test/cfg
 ```
 
-In another terminal, use the TDengine shell to connect the server:
+In another terminal, use the TDengine CLI to connect the server:
 
 ```bash
 ./build/bin/taos -c test/cfg
@@ -298,7 +298,7 @@ option "-c test/cfg" specifies the system configuration file directory.
 
 # Try TDengine
 
-It is easy to run SQL commands from TDengine shell which is the same as other SQL databases.
+It is easy to run SQL commands from TDengine CLI which is the same as other SQL databases.
 
 ```sql
 CREATE DATABASE demo;

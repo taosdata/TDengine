@@ -41,7 +41,7 @@ TDengine 是一款开源、高性能、云原生的时序数据库 (Time-Series 
 
 TDengine 目前可以在 Linux、 Windows 等平台上安装和运行。任何 OS 的应用也可以选择 taosAdapter 的 RESTful 接口连接服务端 taosd。CPU 支持 X64/ARM64，后续会支持 MIPS64、Alpha64、ARM32、RISC-V 等 CPU 架构。
 
-用户可根据需求选择通过源码、[容器](https://docs.taosdata.com/3.0/get-started/docker/)、[安装包](https://docs.taosdata.com/3.0/get-started/package/)或[Kubenetes](https://docs.taosdata.com/3.0/deployment/k8s/)来安装。本快速指南仅适用于通过源码安装。
+用户可根据需求选择通过源码、[容器](https://docs.taosdata.com/get-started/docker/)、[安装包](https://docs.taosdata.com/get-started/package/)或[Kubenetes](https://docs.taosdata.com/deployment/k8s/)来安装。本快速指南仅适用于通过源码安装。
   
 TDengine 还提供一组辅助工具软件 taosTools，目前它包含 taosBenchmark（曾命名为 taosdemo）和 taosdump 两个软件。默认 TDengine 编译不包含 taosTools, 您可以在编译 TDengine 时使用`cmake .. -DBUILD_TOOLS=true` 来同时编译 taosTools。
 
@@ -229,9 +229,9 @@ cmake .. && cmake --build .
 sudo make install
 ```
 
-用户可以在[文件目录结构](https://www.taosdata.com/cn/documentation/administrator#directories)中了解更多在操作系统中生成的目录或文件。
+用户可以在[文件目录结构](https://docs.taosdata.com/reference/directory/)中了解更多在操作系统中生成的目录或文件。
 
-从源代码安装也会为 TDengine 配置服务管理 ，用户也可以选择[从安装包中安装](https://www.taosdata.com/en/getting-started/#Install-from-Package)。
+从源代码安装也会为 TDengine 配置服务管理 ，用户也可以选择[从安装包中安装](https://docs.taosdata.com/get-started/package/)。
 
 安装成功后，在终端中启动 TDengine 服务：
 
@@ -239,13 +239,13 @@ sudo make install
 sudo systemctl start taosd
 ```
 
-用户可以使用 TDengine Shell 来连接 TDengine 服务，在终端中，输入：
+用户可以使用 TDengine CLI 来连接 TDengine 服务，在终端中，输入：
 
 ```bash
 taos
 ```
 
-如果 TDengine Shell 连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印出错误消息。
+如果 TDengine CLI 连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印出错误消息。
 
 ## Windows 系统
 
@@ -271,7 +271,7 @@ sudo make install
 ./build/bin/taosd -c test/cfg
 ```
 
-在另一个终端，使用 TDengine shell 连接服务器：
+在另一个终端，使用 TDengine CLI 连接服务器：
 
 ```bash
 ./build/bin/taos -c test/cfg
