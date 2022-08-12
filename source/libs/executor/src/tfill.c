@@ -34,27 +34,8 @@
   ((_v1) + ((_v2) - (_v1)) * (((double)(_k)) - ((double)(_k1))) / (((double)(_k2)) - ((double)(_k1))))
 
 #define GET_DEST_SLOT_ID(_p) ((_p)->pExpr->base.resSchema.slotId)
-#define GET_SRC_SLOT_ID(_p)  ((_p)->pExpr->base.pParam[0].pCol->slotId)
 
 static void doSetVal(SColumnInfoData* pDstColInfoData, int32_t rowIndex, const SGroupKeys* pKey);
-
-static void setTagsValue(SFillInfo* pFillInfo, void** data, int32_t genRows) {
-#if 0
-  for (int32_t j = 0; j < pFillInfo->numOfCols; ++j) {
-    SFillColInfo* pCol = &pFillInfo->pFillCol[j];
-    if (TSDB_COL_IS_NORMAL_COL(pCol->flag) || TSDB_COL_IS_UD_COL(pCol->flag)) {
-      continue;
-    }
-
-    SResSchema* pSchema = &pCol->pExpr->base.resSchema;
-    char*       val1 = elePtrAt(data[j], pSchema->bytes, genRows);
-
-    assert(pCol->tagIndex >= 0 && pCol->tagIndex < pFillInfo->numOfTags);
-    SFillTagColInfo* pTag = &pFillInfo->pTags[pCol->tagIndex];
-    assignVal(val1, pTag->tagVal, pSchema->bytes, pSchema->type);
-  }
-#endif
-}
 
 static void setNullRow(SSDataBlock* pBlock, SFillInfo* pFillInfo, int32_t rowIndex) {
   for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
