@@ -72,7 +72,7 @@ Query OK, 2 rows in database (0.009580s)
 
 ## 示例二
 
-依然以示例一中的数据为基础，我们已经采集到了每个智能电表的电流和电压数据，现在要求出功率，并将地域和电表名以符号 "." 拼接，然后以电表名称分组输出到新的数据表中。
+依然以示例一中的数据为基础，我们已经采集到了每个智能电表的电流和电压数据，现在需要求出有功功率和无功功率，并将地域和电表名以符号 "." 拼接，然后以电表名称分组输出到新的数据表中。
 
 ### 创建 DB 和原始数据表
 
@@ -81,7 +81,7 @@ Query OK, 2 rows in database (0.009580s)
 ### 创建流
 
 ```sql
-create stream power_stream into power_stream_output_stb as select ts, concat_ws(".", location, tbname) as meter_location, current*voltage as meter_power from meters partition by tbname;
+create stream power_stream into power_stream_output_stb as select ts, concat_ws(".", location, tbname) as meter_location, current*voltage*cos(phase) as active_power, current*voltage*sin(phase) as reactive_power from meters partition by tbname;
 ```
 
 ### 写入数据
@@ -90,16 +90,16 @@ create stream power_stream into power_stream_output_stb as select ts, concat_ws(
 
 ### 查询以观查结果
 ```sql
-taos> select ts, meter_location, meter_power from power_stream_output_stb;
-           ts            |         meter_location         |        meter_power        |
-=======================================================================================
- 2022-08-12 07:44:47.817 | California.SanFrancisco.d1002  |            2245.400041580 |
- 2022-08-12 08:44:47.826 | California.LosAngeles.d1003    |            2607.800042152 |
- 2022-08-12 09:44:47.833 | California.LosAngeles.d1003    |            2988.199914932 |
- 2022-08-12 03:44:47.791 | California.SanFrancisco.d1001  |            2255.700041771 |
- 2022-08-12 05:44:47.800 | California.SanFrancisco.d1001  |            2746.800083160 |
- 2022-08-12 06:44:47.809 | California.SanFrancisco.d1001  |            2718.300042152 |
- 2022-08-12 10:44:47.840 | California.LosAngeles.d1004    |            2408.400042534 |
- 2022-08-12 11:44:48.379 | California.LosAngeles.d1004    |            2541.500000000 |
-Query OK, 8 rows in database (0.014788s)
+taos> select ts, meter_location, active_power, reactive_power from power_stream_output_stb;
+           ts            |         meter_location         |       active_power        |      reactive_power       |
+===================================================================================================================
+ 2022-08-12 11:25:32.579 | California.LosAngeles.d1003    |            2506.240411679 |             720.680274962 |
+ 2022-08-12 12:25:32.586 | California.LosAngeles.d1003    |            2863.424274422 |             854.482390839 |
+ 2022-08-12 13:25:32.594 | California.LosAngeles.d1004    |            2307.834596289 |             688.687331847 |
+ 2022-08-12 14:25:32.601 | California.LosAngeles.d1004    |            2387.415754896 |             871.474763418 |
+ 2022-08-12 10:25:32.566 | California.SanFrancisco.d1002  |            2175.595991997 |             555.520860397 |
+ 2022-08-12 06:25:32.534 | California.SanFrancisco.d1001  |            2148.178871730 |             688.120784090 |
+ 2022-08-12 08:25:32.546 | California.SanFrancisco.d1001  |            2598.589176205 |             890.081451418 |
+ 2022-08-12 09:25:32.555 | California.SanFrancisco.d1001  |            2588.728381186 |             829.240910475 |
+Query OK, 8 rows in database (0.013775s)
 ```
