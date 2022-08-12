@@ -224,7 +224,11 @@ TODO
 </TabItem>
 
 <TabItem label="Python" value="Python">
+
+```python
 {{#include docs/examples/python/tmq_example.py}}
+```
+
 </TabItem>
 
 <TabItem label="Node.JS" value="Node.JS">
