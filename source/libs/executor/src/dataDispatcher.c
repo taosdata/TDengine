@@ -101,12 +101,14 @@ static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pIn
 }
 
 static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput, SDataDispatchBuf* pBuf) {
+/*
   uint32_t capacity = pDispatcher->pManager->cfg.maxDataBlockNumPerQuery;
   if (taosQueueItemSize(pDispatcher->pDataBlocks) > capacity) {
     qError("SinkNode queue is full, no capacity, max:%d, current:%d, no capacity", capacity,
            taosQueueItemSize(pDispatcher->pDataBlocks));
     return false;
   }
+*/
 
   pBuf->allocSize = sizeof(SDataCacheEntry) + blockGetEncodeSize(pInput->pData);
 

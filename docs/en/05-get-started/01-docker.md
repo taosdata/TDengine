@@ -32,19 +32,6 @@ docker exec -it <container name> bash
 
 然后就可以执行相关的 Linux 命令操作和访问 TDengine
 
-:::info
-
-Docker 工具自身的下载请参考 [Docker 官网文档](https://docs.docker.com/get-docker/)。
-
-安装完毕后可以在命令行终端查看 Docker 版本。如果版本号正常输出，则说明 Docker 环境已经安装成功。
-
-```bash
-$ docker -v
-Docker version 20.10.3, build 48d30b5
-```
-
-:::
-
 ## 运行 TDengine CLI
 
 进入容器，执行 taos 
