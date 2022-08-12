@@ -33,7 +33,8 @@ target_link_libraries (transportTest
   util
   common
   gtest_main
-  transport 
+  transport
+  function
 )
 
 target_link_libraries (transUT
