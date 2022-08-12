@@ -40,7 +40,7 @@ For user manual, system design and architecture, please refer to [TDengine Docum
 
 # Building
 
-At the moment, TDengine server supports running on Linux, Windows systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or build it from the source code. This quick guide is for installation from the source only.
+At the moment, TDengine server supports running on Linux and Windows systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or build it from the source code. This quick guide is for installation from the source only.
 
 To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in the project directory.
 
