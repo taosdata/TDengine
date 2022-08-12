@@ -13,18 +13,21 @@ settings:
             dataDir: /var/lib/taos
             logDir: /var/log/taos
             debugFlag: 143
+            numOfLogLines: 10000000
         - endpoint: node221:6030
           config_dir: /etc/taos
           config: # will write into taos.cfg
             dataDir: /var/lib/taos
             logDir: /var/log/taos
             debugFlag: 143
+            numOfLogLines: 10000000
         - endpoint: node222:6030
           config_dir: /etc/taos
           config: # will write into taos.cfg
             dataDir: /var/lib/taos
             logDir: /var/log/taos
             debugFlag: 143
+            numOfLogLines: 10000000
 
   - name: taospy
     fqdn: [ceph01]
@@ -37,6 +40,7 @@ settings:
         logDir: /var/log/taos
         debugFlag: 143
         asynclog: 0
+        numOfLogLines: 10000000
   - name: taosAdapter
     fqdn: [ceph01]
     spec:
@@ -63,3 +67,4 @@ settings:
         dataDir: /var/lib/taos
         logDir: /var/log/taos
         debugFlag: 143
+        numOfLogLines: 10000000
