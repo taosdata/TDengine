@@ -35,15 +35,17 @@ TDengine 是一款开源、高性能、云原生的时序数据库 (Time-Series 
 
 # 文档
 
-关于完整的使用手册，系统架构和更多细节，请参考 [TDengine 文档](https://docs.taosdata.com) 或者  [English Documents](https://docs.tdengine.com)。
+关于完整的使用手册，系统架构和更多细节，请参考 [TDengine 文档](https://docs.taosdata.com) 或者  [TDengine Documentation](https://docs.tdengine.com)。
 
 # 构建
 
 TDengine 目前可以在 Linux、 Windows 等平台上安装和运行。任何 OS 的应用也可以选择 taosAdapter 的 RESTful 接口连接服务端 taosd。CPU 支持 X64/ARM64，后续会支持 MIPS64、Alpha64、ARM32、RISC-V 等 CPU 架构。
 
-用户可根据需求选择通过源码、[容器](https://docs.taosdata.com/3.0/get-started/docker/)、[安装包](https://docs.taosdata.com/3.0/get-started/package/)或[Kubenetes](https://docs.taosdata.com/3.0/deployment/k8s/)来安装。本快速指南仅适用于通过源码安装。
+用户可根据需求选择通过源码、[容器](https://docs.taosdata.com/get-started/docker/)、[安装包](https://docs.taosdata.com/get-started/package/)或[Kubenetes](https://docs.taosdata.com/deployment/k8s/)来安装。本快速指南仅适用于通过源码安装。
   
 TDengine 还提供一组辅助工具软件 taosTools，目前它包含 taosBenchmark（曾命名为 taosdemo）和 taosdump 两个软件。默认 TDengine 编译不包含 taosTools, 您可以在编译 TDengine 时使用`cmake .. -DBUILD_TOOLS=true` 来同时编译 taosTools。
+
+为了构建TDengine, 请使用 [CMake](https://cmake.org/) 3.0.2 或者更高版本。
 
 ## 安装工具
 
@@ -78,13 +80,15 @@ sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
 
 #### 在 CentOS 上构建 taosTools 安装依赖软件
 
-#### For CentOS 7.9
+
+#### CentOS 7.9
+
 
 ```
 sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
 ```
 
-#### For CentOS 8/Rocky Linux
+#### CentOS 8/Rocky Linux 
 
 ```
 sudo yum install -y epel-release
@@ -129,14 +133,16 @@ TDengine 包含数个使用 Rust 语言开发的组件. 请参考 rust-lang.org 
 git clone https://github.com/taosdata/TDengine.git
 cd TDengine
 ```
-
-Go 连接器和 Grafana 插件已移到其他独立仓库。
 如果使用 https 协议下载比较慢，可以通过修改 ~/.gitconfig 文件添加以下两行设置使用 ssh 协议下载。需要首先上传 ssh 密钥到 GitHub，详细方法请参考 GitHub 官方文档。
 
 ```
 [url "git@github.com:"]
     insteadOf = https://github.com/
 ```
+## 特别说明
+
+[JDBC 连接器](https://github.com/taosdata/taos-connector-jdbc)， [Go 连接器](https://github.com/taosdata/driver-go)，[Python 连接器](https://github.com/taosdata/taos-connector-python)，[Node.js 连接器](https://github.com/taosdata/taos-connector-node)，[C# 连接器](https://github.com/taosdata/taos-connector-dotnet) ，[Rust 连接器](https://github.com/taosdata/taos-connector-rust) 和 [Grafana 插件](https://github.com/taosdata/grafanaplugin)已移到独立仓库。
+
 
 ## 构建 TDengine
 
@@ -223,9 +229,9 @@ cmake .. && cmake --build .
 sudo make install
 ```
 
-用户可以在[文件目录结构](https://www.taosdata.com/cn/documentation/administrator#directories)中了解更多在操作系统中生成的目录或文件。
-从 2.0 版本开始, 从源代码安装也会为 TDengine 配置服务管理。
-用户也可以选择[从安装包中安装](https://www.taosdata.com/en/getting-started/#Install-from-Package)。
+用户可以在[文件目录结构](https://docs.taosdata.com/reference/directory/)中了解更多在操作系统中生成的目录或文件。
+
+从源代码安装也会为 TDengine 配置服务管理 ，用户也可以选择[从安装包中安装](https://docs.taosdata.com/get-started/package/)。
 
 安装成功后，在终端中启动 TDengine 服务：
 
@@ -233,13 +239,13 @@ sudo make install
 sudo systemctl start taosd
 ```
 
-用户可以使用 TDengine Shell 来连接 TDengine 服务，在终端中，输入：
+用户可以使用 TDengine CLI 来连接 TDengine 服务，在终端中，输入：
 
 ```bash
 taos
 ```
 
-如果 TDengine Shell 连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印出错误消息。
+如果 TDengine CLI 连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印出错误消息。
 
 ## Windows 系统
 
@@ -265,7 +271,7 @@ sudo make install
 ./build/bin/taosd -c test/cfg
 ```
 
-在另一个终端，使用 TDengine shell 连接服务器：
+在另一个终端，使用 TDengine CLI 连接服务器：
 
 ```bash
 ./build/bin/taos -c test/cfg
