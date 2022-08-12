@@ -54,7 +54,7 @@ class StreamComputingTest(TDCase):
         self.udf2 = "/tmp/libudf2.so"
         self.offset = 1000
         self.interation = 10
-        self.range_count = 10
+        self.range_count = 5
         self.vgroups = 10
         self.des_table_suffix = "_output"
         self.stream_suffix = "_stream"
@@ -180,8 +180,6 @@ class StreamComputingTest(TDCase):
         if watermark is not None:
             return start_ts + watermark*self.offset + 1
         else:
-            print(start_ts)
-            print(session)
             return start_ts + session*self.offset + 1
 
     def clean_env(self):
@@ -1008,7 +1006,6 @@ class StreamComputingTest(TDCase):
         count = 1
         step_count = 1
         for i in range(1, 20):
-            print(i)
             if i % 2 == 0:
                 step_count += i
                 for j in range(count, step_count):
