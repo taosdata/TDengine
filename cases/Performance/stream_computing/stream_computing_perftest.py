@@ -26,12 +26,6 @@ from taostest.util.remote import Remote
 class StreamComputingPerfTest(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        # ! "hyperloglog(c9)" slow
-        # self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", 
-        #     "avg(c7)", "count(c8)", "spread(c1)", "stddev(c2)", "hyperloglog(c9)", "now"]
-        self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "avg(c7)", "now"]
-        self.output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list)))
-        self.source_select_str = ','.join(self.downsampling_function_list)
         self.stb_name = "stb"
         self.ctb_name = "ctb"
         self.tb_name = "tb"
@@ -214,9 +208,6 @@ class StreamComputingPerfTest(TDCase):
             # self.stb_stream_des_table = f'{self.stb_name}{self.des_table_suffix}'
             # self.ctb_stream_des_table = f'{self.ctb_name}{self.des_table_suffix}'
             # self.tb_stream_des_table = f'{self.tb_name}{self.des_table_suffix}'
-            # self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstartts AS start, {self.source_select_str}  from {self.stb_name} interval({interval})', trigger_mode="at_once")
-            # self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstartts AS start, {self.stb_source_select_str}  from {self.ctb_name} interval({interval})', trigger_mode="at_once")
-            # self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstartts AS start, {self.tb_source_select_str}  from {self.tb_name} interval({interval})', trigger_mode="at_once")
             taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
             result_filename = Insert_file.threads_run_taosBenchmark(taosBenchmark_iplist, json_data, file_name,taosBenchmark_env_setting)
             self.tdSql.query(f'describe {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]}')
@@ -263,7 +254,6 @@ class StreamComputingPerfTest(TDCase):
                     expected_res = self.tdSql.query_data[0][0]
                 else:
                     expected_res = 0
-                end_tag = 0
                 latency = 0
                 while init_res != expected_res:
                     self.tdSql.query(query_sql)
@@ -328,7 +318,7 @@ class StreamComputingPerfTest(TDCase):
                             if "interval" in cfg[cases][json_file]["stream_info"]["source_sql"]:
                                 self.tdSql.query(f'select avg(sp),max(sp),min(sp),apercentile(sp, 50) from (select {order_by_elm},spread(cha) as sp, `tbname` from ((select {select_ts_elm}  , tbname, max(cast({non_prikey_ts_col_name} as bigint)) as cha from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]} partition by tbname interval({cfg[cases][json_file]["stream_info"]["interval"]})) \
                                     union all (select {order_by_elm}, `tbname`, cast(`now` as bigint)  from {cfg[cases][json_file]["stream_info"]["stream_stb"]}) order by {order_by_elm}, `tbname`) partition by {order_by_elm},`tbname` order by {order_by_elm} );')
-                                self.tdSql.query(f'select avg(sp),max(sp),min(sp),apercentile(sp, 50) from (select t1.ts, timediff(t2.`now`, t1.{non_prikey_ts_col_name}) sp from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]} t1, {cfg[cases][json_file]["stream_info"]["stream_stb"]} t2 where t1.ts=t2.ts and t1.tbname = t2.`tbname`);');
+                                # self.tdSql.query(f'select avg(sp),max(sp),min(sp),apercentile(sp, 50) from (select t1.ts, timediff(t2.`now`, t1.{non_prikey_ts_col_name}) sp from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]} t1, {cfg[cases][json_file]["stream_info"]["stream_stb"]} t2 where t1.ts=t2.ts and t1.tbname = t2.`tbname`);');
                             else:
                                 self.tdSql.query(f'select avg(sp),max(sp),min(sp),apercentile(sp, 50) from (select t1.ts, timediff(t2.`now`, t1.{non_prikey_ts_col_name}) sp from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]} t1, {cfg[cases][json_file]["stream_info"]["stream_stb"]} t2 where t1.ts=t2.ts and t1.tbname = t2.`tbname`);');
                                 # self.tdSql.query(f'select avg(sp),max(sp),min(sp),apercentile(sp, 50) from (select {order_by_elm},spread(cha) as sp, `tbname` from ((select {select_ts_elm}  , tbname, max(cast({non_prikey_ts_col_name} as bigint)) as cha from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]} partition by tbname) \
