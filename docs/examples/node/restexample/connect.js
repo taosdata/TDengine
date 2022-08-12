@@ -1,7 +1,7 @@
 const { options, connect } = require("@tdengine/rest");
 
 async function test() {
-  options.path = "/rest/sqlt";
+  options.path = "/rest/sql";
   options.host = "localhost";
   let conn = connect(options);
   let cursor = conn.cursor();
