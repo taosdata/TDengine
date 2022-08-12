@@ -63,7 +63,7 @@ taosTools 是用于 TDengine 的辅助工具软件集合。目前它包含 taosB
 sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
 ```
 
-### CentOS 7.9：
+### CentOS 7.9
 
 ```bash
 sudo yum install epel-release
@@ -72,7 +72,7 @@ sudo yum install -y gcc gcc-c++ make cmake3 git openssl-devel
 sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
-### CentOS 8 & Fedora
+### CentOS 8
 
 ```bash
 sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
@@ -80,13 +80,13 @@ sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
 
 #### 在 CentOS 上构建 taosTools 安装依赖软件
 
-#### For CentOS 7/RHEL
+#### For CentOS 7.9
 
 ```
 sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
 ```
 
-#### For CentOS 8/Rocky Linux
+#### For CentOS 8
 
 ```
 sudo yum install -y epel-release
