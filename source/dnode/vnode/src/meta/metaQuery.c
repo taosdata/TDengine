@@ -59,6 +59,7 @@ int metaGetTableEntryByUidTest(void* meta, SArray *uidList) {
   SArray* uidVersion = taosArrayInit(taosArrayGetSize(uidList), sizeof(STbDbKey));
   SMeta  *pMeta = meta;
   int64_t version;
+  SHashObj *uHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
 
   int64_t stt1 = taosGetTimestampUs();
   for(int i = 0; i < taosArrayGetSize(uidList); i++) {
@@ -73,10 +74,31 @@ int metaGetTableEntryByUidTest(void* meta, SArray *uidList) {
 
     STbDbKey tbDbKey = {.version = version, .uid = *uid};
     taosArrayPush(uidVersion, &tbDbKey);
+    taosHashPut(uHash, uid, sizeof(int64_t), ppVal, sizeof(int64_t));
   }
   int64_t stt2 = taosGetTimestampUs();
   qDebug("metaGetTableEntryByUidTest1 rows:%d, cost:%ld us", taosArrayGetSize(uidList), stt2-stt1);
 
+  TBC        *pCur = NULL;
+  tdbTbcOpen(pMeta->pTbDb, &pCur, NULL);
+  tdbTbcMoveToFirst(pCur);
+  void *pKey = NULL;
+  int   kLen = 0;
+
+  while(1){
+    SMetaReader pReader = {0};
+    int32_t ret = tdbTbcNext(pCur, &pKey, &kLen, &pReader.pBuf, &pReader.szBuf);
+    if (ret < 0) break;
+    STbDbKey *tmp = (STbDbKey*)pKey;
+    int64_t *ver = (int64_t*)taosHashGet(uHash, &tmp->uid, sizeof(int64_t));
+    if(ver == NULL || *ver != tmp->version) continue;
+    taosArrayPush(readerList, &pReader);
+  }
+  tdbTbcClose(pCur);
+
+  taosArrayClear(readerList);
+  int64_t stt3 = taosGetTimestampUs();
+  qDebug("metaGetTableEntryByUidTest2 rows:%d, cost:%ld us", taosArrayGetSize(uidList), stt3-stt2);
   for(int i = 0; i < taosArrayGetSize(uidVersion); i++) {
     SMetaReader pReader = {0};
 
@@ -87,8 +109,8 @@ int metaGetTableEntryByUidTest(void* meta, SArray *uidList) {
     }
     taosArrayPush(readerList, &pReader);
   }
-  int64_t stt3 = taosGetTimestampUs();
-  qDebug("metaGetTableEntryByUidTest2 rows:%d, cost:%ld us", taosArrayGetSize(uidList), stt3-stt2);
+  int64_t stt4 = taosGetTimestampUs();
+  qDebug("metaGetTableEntryByUidTest3 rows:%d, cost:%ld us", taosArrayGetSize(uidList), stt4-stt3);
 
   for(int i = 0; i < taosArrayGetSize(readerList); i++){
     SMetaReader* pReader  = taosArrayGet(readerList, i);
@@ -100,8 +122,8 @@ int metaGetTableEntryByUidTest(void* meta, SArray *uidList) {
     }
     metaReaderClear(pReader);
   }
-  int64_t stt4 = taosGetTimestampUs();
-  qDebug("metaGetTableEntryByUidTest3 rows:%d, cost:%ld us", taosArrayGetSize(readerList), stt4-stt3);
+  int64_t stt5 = taosGetTimestampUs();
+  qDebug("metaGetTableEntryByUidTest4 rows:%d, cost:%ld us", taosArrayGetSize(readerList), stt5-stt4);
   return 0;
 }
 
@@ -801,9 +823,8 @@ SArray *metaGetSmaTbUids(SMeta *pMeta) {
 
 #endif
 
-const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t type, STagVal *val) {
-  ASSERT(pEntry->type == TSDB_CHILD_TABLE);
-  STag *tag = (STag *)pEntry->ctbEntry.pTags;
+const void *metaGetTableTagVal(void *pTag, int16_t type, STagVal *val) {
+  STag *tag = (STag*) pTag;
   if (type == TSDB_DATA_TYPE_JSON) {
     return tag;
   }
@@ -939,4 +960,39 @@ END:
   taosMemoryFree(pCursor);
 
   return ret;
+}
+
+int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SArray *tags) {
+  SMCtbCursor *pCur = metaOpenCtbCursor(pMeta, suid);
+
+  SHashObj *uHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  size_t len = taosArrayGetSize(uidList);
+  if(len > 0){
+    for(int i = 0; i < len; i++){
+      int64_t *uid = taosArrayGet(uidList, i);
+      taosHashPut(uHash, uid, sizeof(int64_t), &i, sizeof(i));
+    }
+  }
+  while (1) {
+    tb_uid_t id = metaCtbCursorNext(pCur);
+    if (id == 0) {
+      break;
+    }
+
+    if(len > 0 && taosHashGet(uHash, &id, sizeof(int64_t)) == NULL){
+      continue;
+    }
+
+    void* tag = taosMemoryMalloc(pCur->vLen);
+    memcpy(tag, pCur->pVal, pCur->vLen);
+    taosArrayPush(tags, &tag);
+
+    if(len == 0){
+      taosArrayPush(uidList, &id);
+    }
+  }
+
+  taosHashCleanup(uHash);
+  metaCloseCtbCursor(pCur);
+  return TSDB_CODE_SUCCESS;
 }

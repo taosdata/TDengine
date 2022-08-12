@@ -864,6 +864,9 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
     metaUpdateTagIdx(pMeta, &ctbEntry);
   }
 
+  SCtbIdxKey ctbIdxKey = {.suid = ctbEntry.ctbEntry.suid, .uid = uid};
+  tdbTbUpsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), ctbEntry.ctbEntry.pTags, ((STag*)(ctbEntry.ctbEntry.pTags))->len, &pMeta->txn);
+
   tDecoderClear(&dc1);
   tDecoderClear(&dc2);
   if (ctbEntry.ctbEntry.pTags) taosMemoryFree((void *)ctbEntry.ctbEntry.pTags);
@@ -1061,7 +1064,7 @@ static int metaUpdateTtlIdx(SMeta *pMeta, const SMetaEntry *pME) {
 
 static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME) {
   SCtbIdxKey ctbIdxKey = {.suid = pME->ctbEntry.suid, .uid = pME->uid};
-  return tdbTbInsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), NULL, 0, &pMeta->txn);
+  return tdbTbInsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), pME->ctbEntry.pTags, ((STag*)(pME->ctbEntry.pTags))->len, &pMeta->txn);
 }
 
 int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_t nTagData, int8_t type, tb_uid_t uid,
