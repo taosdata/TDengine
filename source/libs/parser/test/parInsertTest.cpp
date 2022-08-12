@@ -54,6 +54,7 @@ class InsertTest : public Test {
     cxt_.sqlLen = strlen(sql);
     sqlBuf_[cxt_.sqlLen] = '\0';
     cxt_.pSql = sqlBuf_;
+    cxt_.pUser = "root";
   }
 
   int32_t run() {
@@ -77,7 +78,7 @@ class InsertTest : public Test {
 
     unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
                                                                MockCatalogService::destoryCatalogReq);
-    code_ = buildCatalogReq(metaCache.get(), catalogReq.get());
+    code_ = buildCatalogReq(&cxt_, metaCache.get(), catalogReq.get());
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "buildCatalogReq code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
       return code_;
@@ -88,7 +89,7 @@ class InsertTest : public Test {
 
     metaCache.reset(new SParseMetaCache());
     request = false;
-    code_ = putMetaDataToCache(catalogReq.get(), metaData.get(), metaCache.get());
+    code_ = putMetaDataToCache(catalogReq.get(), metaData.get(), metaCache.get(), true);
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "putMetaDataToCache code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
       return code_;

@@ -225,8 +225,8 @@ class ParserTestBaseImpl {
     DO_WITH_THROW(collectMetaKey, pCxt, pQuery, pMetaCache);
   }
 
-  void doBuildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
-    DO_WITH_THROW(buildCatalogReq, pMetaCache, pCatalogReq);
+  void doBuildCatalogReq(SParseContext* pCxt, const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
+    DO_WITH_THROW(buildCatalogReq, pCxt, pMetaCache, pCatalogReq);
   }
 
   void doGetAllMeta(const SCatalogReq* pCatalogReq, SMetaData* pMetaData) {
@@ -234,7 +234,7 @@ class ParserTestBaseImpl {
   }
 
   void doPutMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache) {
-    DO_WITH_THROW(putMetaDataToCache, pCatalogReq, pMetaData, pMetaCache);
+    DO_WITH_THROW(putMetaDataToCache, pCatalogReq, pMetaData, pMetaCache, false);
   }
 
   void doAuthenticate(SParseContext* pCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
@@ -348,7 +348,7 @@ class ParserTestBaseImpl {
 
       unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
                                                                  MockCatalogService::destoryCatalogReq);
-      doBuildCatalogReq(metaCache.get(), catalogReq.get());
+      doBuildCatalogReq(&cxt, metaCache.get(), catalogReq.get());
 
       string err;
       thread t1([&]() {
