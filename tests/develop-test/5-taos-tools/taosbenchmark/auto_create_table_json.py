@@ -111,7 +111,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 8)
         tdSql.query("select count(*) from db.stb2")
         tdSql.checkData(0, 0, 160)
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(2, 14, "us")
 
         tdSql.execute("reset query cache")
@@ -128,7 +128,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 8)
         tdSql.query("select count(*) from db.stb3")
         tdSql.checkData(0, 0, 160)
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(2, 14, "ns")
 
         tdSql.execute("reset query cache")

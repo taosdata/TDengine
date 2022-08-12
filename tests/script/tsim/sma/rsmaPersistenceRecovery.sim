@@ -12,7 +12,7 @@ print =============== create super table and register rsma
 sql create table if not exists stb (ts timestamp, c1 int, c2 float) tags (city binary(20),district binary(20)) rollup(max) max_delay 5s,5s watermark 2s,3s;
 
 sql show stables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
@@ -20,7 +20,7 @@ print =============== create child table
 sql create table ct1 using stb tags("BeiJing", "ChaoYang");
 
 sql show tables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 

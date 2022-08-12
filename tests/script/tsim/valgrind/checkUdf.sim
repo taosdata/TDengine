@@ -8,7 +8,7 @@ print ======== step1 udf
 system sh/copy_udf.sh
 sql create database udf vgroups 3;
 sql use udf;
-sql show databases;
+sql select * from information_schema.ins_databases;
 
 sql create table t (ts timestamp, f int);
 sql insert into t values(now, 1)(now+1s, 2);

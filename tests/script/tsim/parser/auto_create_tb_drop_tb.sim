@@ -37,9 +37,9 @@ while $t < $tbNum
   while $x < $rowNum
     $xs = $x * $delta
     $ts = $ts0 + $xs
-    sql insert into $tbname using $stb tags( $t1 ) values ( $ts , $x ) 
+    sql insert into $tbname using $stb tags( $t1 ) values ( $ts , $x )
     $x = $x + 1
-  endw 
+  endw
   $t = $t + 1
   $x = 0
 endw
@@ -47,11 +47,11 @@ print ====== tables created
 
 sql drop table tb2
 $x = 0
-while $x < $rowNum 
+while $x < $rowNum
   $ts = $ts + $delta
   $t1 = 'tb . $t
   $t1 = $t1 . '
-  sql insert into tb1 using $stb tags( $t1 ) values ( $ts , $x ) 
+  sql insert into tb1 using $stb tags( $t1 ) values ( $ts , $x )
   $x = $x + 1
 endw
 
@@ -62,7 +62,7 @@ $x = 0
 while $x < 100
   $ts = $ts + $delta
   sql insert into tb2 using stb0 tags('tb2') values ( $ts , 1)
-  sql select * from tb2 
+  sql select * from tb2
   $res = $x + 1
   if $rows != $res then
     return -1

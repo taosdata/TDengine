@@ -1132,9 +1132,11 @@ void syncNodeStart(SSyncNode* pSyncNode) {
     syncNodeBecomeFollower(pSyncNode, "first start");
   }
 
-  int32_t ret = 0;
-  // ret = syncNodeStartPingTimer(pSyncNode);
-  ASSERT(ret == 0);
+  if (pSyncNode->vgId == 1) {
+    int32_t ret = 0;
+    ret = syncNodeStartPingTimer(pSyncNode);
+    ASSERT(ret == 0);
+  }
 }
 
 void syncNodeStartStandBy(SSyncNode* pSyncNode) {
@@ -1146,6 +1148,12 @@ void syncNodeStartStandBy(SSyncNode* pSyncNode) {
   int32_t electMS = TIMER_MAX_MS;
   int32_t ret = syncNodeRestartElectTimer(pSyncNode, electMS);
   ASSERT(ret == 0);
+
+  if (pSyncNode->vgId == 1) {
+    int32_t ret = 0;
+    ret = syncNodeStartPingTimer(pSyncNode);
+    ASSERT(ret == 0);
+  }
 }
 
 void syncNodeClose(SSyncNode* pSyncNode) {

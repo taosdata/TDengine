@@ -3,7 +3,7 @@ sidebar_label: Docker
 title: 通过 Docker 快速体验 TDengine
 ---
 :::info
-如果您希望对 TDengine 贡献代码或对内部实现感兴趣，请参考我们的 [TDengine GitHub 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
+如果您希望为 TDengine 贡献代码或对内部技术实现感兴趣，请参考[TDengine GitHub 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
 :::
 
 本节首先介绍如何通过 Docker 快速体验 TDengine，然后介绍如何在 Docker 环境下体验 TDengine 的写入和查询功能。
@@ -32,18 +32,7 @@ docker exec -it <container name> bash
 
 然后就可以执行相关的 Linux 命令操作和访问 TDengine
 
-:::info
-
-Docker 工具自身的下载请参考 [Docker 官网文档](https://docs.docker.com/get-docker/)。
-
-安装完毕后可以在命令行终端查看 Docker 版本。如果版本号正常输出，则说明 Docker 环境已经安装成功。
-
-```bash
-$ docker -v
-Docker version 20.10.3, build 48d30b5
-```
-
-:::
+注: Docker 工具自身的下载和使用请参考 [Docker 官网文档](https://docs.docker.com/get-docker/)。
 
 ## 运行 TDengine CLI
 
@@ -51,10 +40,6 @@ Docker version 20.10.3, build 48d30b5
 
 ```
 $ taos
-Welcome to the TDengine shell from Linux, Client Version:3.0.0.0
-Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.
-
-Server is Community Edition.
 
 taos> 
 

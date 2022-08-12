@@ -4,6 +4,9 @@ description: "数据订阅与推送服务。写入到 TDengine 中的时序数�
 title: 数据订阅
 ---
 
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+
 为了帮助应用实时获取写入 TDengine 的数据，或者以事件到达顺序处理数据，TDengine提供了类似消息队列产品的数据订阅、消费接口。这样在很多场景下，采用 TDengine 的时序数据处理系统不再需要集成消息队列产品，比如 kafka, 从而简化系统设计的复杂度，降低运营维护成本。
 
 与 kafka 一样，你需要定义 topic, 但 TDengine 的 topic 是基于一个已经存在的超级表、子表或普通表的查询条件，即一个 SELECT 语句。你可以使用 SQL 对标签、表名、列、表达式等条件进行过滤，以及对数据进行标量函数与 UDF 计算（不包括数据聚合）。与其他消息队列软件相比，这是 TDengine 数据订阅功能的最大的优势，它提供了更大的灵活性，数据的颗粒度可以由应用随时调整，而且数据的过滤与预处理交给 TDengine，而不是应用完成，有效的减少传输的数据量与应用的复杂度。
@@ -243,4 +246,37 @@ TMQ支持多种订阅类型：
   show subscriptions;
 ```
 
+## 示例代码
 
+本节展示各种语言的示例代码。
+
+<Tabs>
+<TabItem label="C" value="c">
+TODO
+</TabItem>
+
+<TabItem label="Java" value="java">
+TODO
+</TabItem>
+
+<TabItem label="Go" value="Go">
+TODO
+</TabItem>
+
+<TabItem label="Rust" value="Rust">
+TODO
+</TabItem>
+
+<TabItem label="Python" value="Python">
+TODO
+</TabItem>
+
+<TabItem label="Node.JS" value="Node.JS">
+TODO
+</TabItem>
+
+<TabItem label="C#" value="C#">
+TODO
+</TabItem>
+
+</Tabs>

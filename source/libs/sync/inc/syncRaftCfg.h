@@ -29,7 +29,7 @@ extern "C" {
 
 #define CONFIG_FILE_LEN 2048
 
-#define MAX_CONFIG_INDEX_COUNT 512
+#define MAX_CONFIG_INDEX_COUNT 256
 
 // SRaftCfgIndex ------------------------------------------
 typedef struct SRaftCfgIndex {

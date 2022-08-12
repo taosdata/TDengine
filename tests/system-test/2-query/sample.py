@@ -515,7 +515,7 @@ class TDTestCase:
         #     "condition": "where ts>0 and ts < now interval(1h) fill(next)"
         # }
         # self.checksample(**err45)         # interval
-        tdSql.query("select sample( c1 , 1 )  from t1 where ts>0 and ts < now interval(1h) fill(next)")
+        tdSql.error("select sample( c1 , 1 )  from t1 where ts>0 and ts < now interval(1h) fill(next)")
         err46 = {
             "table_expr": "t1",
             "condition": "group by c6"
@@ -846,7 +846,7 @@ class TDTestCase:
 
 
         tdLog.printNoPrefix("######## check after WAL test:")
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         index = tdSql.getData(0, 0)
         tdDnodes.stop(index)
         tdDnodes.start(index)

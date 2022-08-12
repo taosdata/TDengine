@@ -20,7 +20,7 @@ $stb = $stbPrefix . $i
 
 sql drop database $db -x step1
 step1:
-sql create database $db 
+sql create database $db
 print ====== create tables
 sql use $db
 sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 int)
@@ -34,7 +34,7 @@ while $i < $halfNum
   $tb1 = $tbPrefix . $tbId
   sql create table $tb using $stb tags( $i )
   sql create table $tb1 using $stb tags( $tbId )
- 
+
   $x = 0
   while $x < $rowNum
     $xs = $x * $delta
@@ -48,10 +48,10 @@ while $i < $halfNum
     $nchar = $nchar . '
     sql insert into $tb values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar )  $tb1 values ( $ts , $c , NULL , $c , NULL , $c , $c , true, $binary , $nchar )
     $x = $x + 1
-  endw 
+  endw
 
   $i = $i + 1
-endw 
+endw
 print ====== tables created
 
 sql use $db
@@ -67,43 +67,43 @@ while $loop <= $loops
      print loop: $loop
   endi
   while $i < 10
-    sql select ts from $stb where t1 = $i 
+    sql select ts from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi
-    sql select c1 from $stb where t1 = $i 
+    sql select c1 from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi
-    sql select c2 from $stb where t1 = $i 
+    sql select c2 from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi
-    sql select c3 from $stb where t1 = $i 
+    sql select c3 from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi
-    sql select c4 from $stb where t1 = $i 
+    sql select c4 from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi
-    sql select c5 from $stb where t1 = $i 
+    sql select c5 from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi
-    sql select c6 from $stb where t1 = $i 
+    sql select c6 from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi
-    sql select c7 from $stb where t1 = $i 
+    sql select c7 from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi
-    sql select c8 from $stb where t1 = $i 
+    sql select c8 from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi
-    sql select c9 from $stb where t1 = $i 
+    sql select c9 from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi
@@ -130,44 +130,44 @@ while $loop <= $loops
      print loop: $loop
   endi
   while $i < 10
-    sql select ts from $stb where t1 = $i 
+    sql select ts from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi
-    sql select c1 from $stb where t1 = $i 
+    sql select c1 from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi
-    sql select c2 from $stb where t1 = $i 
+    sql select c2 from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi
-    sql select c3 from $stb where t1 = $i 
+    sql select c3 from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi
-    sql select c4 from $stb where t1 = $i 
+    sql select c4 from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi
-    sql select c5 from $stb where t1 = $i 
+    sql select c5 from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi
-    sql select c6 from $stb where t1 = $i 
+    sql select c6 from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi
-    sql select c7 from $stb where t1 = $i 
+    sql select c7 from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi
-    sql select c8 from $stb where t1 = $i 
+    sql select c8 from $stb where t1 = $i
     if $rows != $rowNum then
       print expect $rowNum, actual: $rows
       return -1
     endi
-    sql select c9 from $stb where t1 = $i 
+    sql select c9 from $stb where t1 = $i
     if $rows != $rowNum then
       return -1
     endi

@@ -41,7 +41,7 @@ class TDTestCase:
     def test_fsync_current(self):
         wal_index = 0
         fsync_index = 0
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryCols):
             if tdSql.cursor.description[i][0] == "wal_level":
                 wal_index = i
@@ -50,35 +50,35 @@ class TDTestCase:
 
         tdSql.execute("drop database if exists db1")
         tdSql.execute("create database db1 wal_level 1")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, wal_index, 1)
 
         tdSql.execute("drop database if exists db1")
         tdSql.execute("create database db1 wal_level 2")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, wal_index, 2)
 
         tdSql.execute("drop database if exists db1")
         tdSql.execute("create database db1 wal_fsync_period 0")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 0)
 
         tdSql.execute("drop database if exists db1")
         tdSql.execute("create database db1 wal_fsync_period 3000")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 3000)
 
         tdSql.execute("drop database if exists db1")
         tdSql.execute("create database db1 wal_fsync_period 180000")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 180000)
@@ -86,7 +86,7 @@ class TDTestCase:
 
         tdSql.execute("drop database if exists db1")
         tdSql.execute("create database db1 wal_level 1 wal_fsync_period 6000")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 6000)
@@ -94,49 +94,49 @@ class TDTestCase:
 
         tdSql.execute("drop database if exists db1")
         tdSql.execute("create database db1 wal_level 2 wal_fsync_period 3000")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 3000)
                 tdSql.checkData(i, wal_index, 2)
 
         tdSql.execute("alter database db1 wal_level 1")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 3000)
                 tdSql.checkData(i, wal_index, 1)
 
         tdSql.execute("alter database db1 wal_level 2")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 3000)
                 tdSql.checkData(i, wal_index, 2)
 
         tdSql.execute("alter database db1 wal_fsync_period 0")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 0)
                 tdSql.checkData(i, wal_index, 2)
 
         tdSql.execute("alter database db1 wal_fsync_period 3000")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 3000)
                 tdSql.checkData(i, wal_index, 2)
 
         tdSql.execute("alter database db1 wal_fsync_period 18000")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 18000)
                 tdSql.checkData(i, wal_index, 2)
 
         tdSql.execute("alter database db1 wal_level 1 wal_fsync_period 3000")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
                 tdSql.checkData(i, fsync_index, 3000)
