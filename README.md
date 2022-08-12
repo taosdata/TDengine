@@ -26,13 +26,13 @@ TDengine is an open source, cloud native time-series database optimized for Inte
 
 - Simplified Solution: Through built-in caching, stream processing and data subscription features, TDengine provides a simplified solution for time-series data processing. It reduces system design complexity and operation costs significantly.
 
-- Cloud Native: Through native distributed design, sharding and partitioning, separation of compute and storage, RAFT, support for kubernetes deployment and full observability, TDengine can be deployed on public, private or hybrid clouds.
-
-- Open Source: TDengine’s core modules, including cluster feature, are all available under open source licenses. It has gathered 18.8k stars on GitHub, an active developer community, and over 137k running instances worldwide.
+- Cloud Native: Through native distributed design, sharding and partitioning, separation of compute and storage, RAFT, support for kubernetes deployment and full observability, TDengine is a cloud native Time-Series Database and can be deployed on public, private or hybrid clouds.
 
 - Ease of Use: For administrators, TDengine significantly reduces the effort to deploy and maintain. For developers, it provides a simple interface, simplified solution and seamless integrations for third party tools. For data users, it gives easy data access. 
 
 - Easy Data Analytics: Through super tables, storage and compute separation, data partitioning by time interval, pre-computation and other means, TDengine makes it easy to explore, format, and get access to data in a highly efficient way. 
+
+- Open Source: TDengine’s core modules, including cluster feature, are all available under open source licenses. It has gathered 18.8k stars on GitHub, an active developer community, and over 137k running instances worldwide.
 
 # Documentation
 
@@ -41,6 +41,8 @@ For user manual, system design and architecture, please refer to [TDengine Docum
 # Building
 
 At the moment, TDengine server supports running on Linux, Windows, and macOS systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or build it from the source code. This quick guide is for installation from the source only.
+
+We provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. By default, TDengine compiling does not include taosTools. You can use 'cmake .. -DBUILD_TOOLS=true' to make them be compiled with TDengine.
 
 To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in the project directory.
 
@@ -53,9 +55,6 @@ sudo apt-get install -y gcc cmake build-essential git libssl-dev
 ```
 
 #### Install build dependencies for taosTools
-
-We provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. From TDengine 2.4.0.0, taosBenchmark and taosdump were not released together with TDengine.
-By default, TDengine compiling does not include taosTools. You can use 'cmake .. -DBUILD_TOOLS=true' to make them be compiled with TDengine.
 
 To build the [taosTools](https://github.com/taosdata/taos-tools) on Ubuntu/Debian, the following packages need to be installed.
 
@@ -172,7 +171,7 @@ cmake .. -DCPUTYPE=aarch64 && cmake --build .
 ### On Windows platform
 
 If you use the Visual Studio 2013, please open a command window by executing "cmd.exe".
-Please specify "amd64" for 64 bits Windows or specify "x86" is for 32 bits Windows when you execute vcvarsall.bat.
+Please specify "amd64" for 64 bits Windows or specify "x86" for 32 bits Windows when you execute vcvarsall.bat.
 
 ```cmd
 mkdir debug && cd debug
@@ -184,7 +183,7 @@ nmake
 If you use the Visual Studio 2019 or 2017:
 
 please open a command window by executing "cmd.exe".
-Please specify "x64" for 64 bits Windows or specify "x86" is for 32 bits Windows when you execute vcvarsall.bat.
+Please specify "x64" for 64 bits Windows or specify "x86" for 32 bits Windows when you execute vcvarsall.bat.
 
 ```cmd
 mkdir debug && cd debug
@@ -236,19 +235,6 @@ taos
 ```
 
 If TDengine shell connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
-
-### Install TDengine by apt-get
-
-If you use Debian or Ubuntu system, you can use 'apt-get' command to install TDengine from official repository. Please use following commands to setup:
-
-```
-wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
-echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
-[Optional] echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
-sudo apt-get update
-apt-cache policy tdengine
-sudo apt-get install tdengine
-```
 
 ## On Windows platform
 
