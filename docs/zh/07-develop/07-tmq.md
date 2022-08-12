@@ -6,8 +6,6 @@ title: 数据订阅
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import Tabs from "@theme/Tabs";
-import TabItem from "@theme/TabItem";
 import Java from "./_sub_java.mdx";
 import Python from "./_sub_python.mdx";
 import Go from "./_sub_go.mdx";
