@@ -8,7 +8,7 @@ description: "支持用户编码的聚合函数和标量函数，在查询中嵌
 
 TDengine 支持通过 C/C++ 语言进行 UDF 定义。接下来结合示例讲解 UDF 的使用方法。
 
-用户可以通过 UDF 实现两类函数： 标量函数和聚合函数。标量函数对每行数据返回一个值，如求绝对值 abs，正弦函数 sin，字符串拼接函数 concat 等。聚合函数对多行数据进行返回一个值，如求平均数 avg，最大值 max 等。
+用户可以通过 UDF 实现两类函数： 标量函数和聚合函数。标量函数对每行数据输出一个值，如求绝对值 abs，正弦函数 sin，字符串拼接函数 concat 等。聚合函数对多行数据进行输出一个值，如求平均数 avg，最大值 max 等。
 
 实现 UDF 时，需要实现规定的接口函数
 - 标量函数需要实现标量接口函数 scalarfn 。
@@ -104,7 +104,7 @@ aggfn为函数名的占位符，需要修改为自己的函数名，如l2norm。
 
 接口函数的名称是 udf 名称，或者是 udf 名称和特定后缀（_start, _finish, _init, _destroy)的连接。以下描述中函数名称中的 scalarfn，aggfn, udf 需要替换成udf函数名。
 
-接口函数返回值表示是否成功，如果错误返回错误代码，错误代码见taoserror.h。
+接口函数返回值表示是否成功，如果错误返回错误代码。定义在taoserror.h，和 taos.h 中的API使用同样的返回结果。例如，TSDB_CODE_SUCCESS 表示成功， TSDB_CODE_UDF_INVALID_INPUT 表示输入无效输入。TSDB_CODE_OUT_OF_MEMORY 表示内存不足。
 
 接口函数参数类型见数据结构定义。
 
