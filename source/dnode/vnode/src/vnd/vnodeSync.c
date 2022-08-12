@@ -688,6 +688,7 @@ static void vnodeBecomeFollower(struct SSyncFSM *pFsm) {
   taosThreadMutexLock(&pVnode->lock);
   if (pVnode->blocked) {
     pVnode->blocked = false;
+    vDebug("vgId:%d, become follower and post block", pVnode->config.vgId);
     tsem_post(&pVnode->syncSem);
   }
   taosThreadMutexUnlock(&pVnode->lock);
@@ -696,6 +697,13 @@ static void vnodeBecomeFollower(struct SSyncFSM *pFsm) {
 static void vnodeBecomeLeader(struct SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
   vDebug("vgId:%d, become leader", pVnode->config.vgId);
+
+  // taosThreadMutexLock(&pVnode->lock);
+  // if (pVnode->blocked) {
+  //   pVnode->blocked = false;
+  //   tsem_post(&pVnode->syncSem);
+  // }
+  // taosThreadMutexUnlock(&pVnode->lock);
 }
 
 static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
