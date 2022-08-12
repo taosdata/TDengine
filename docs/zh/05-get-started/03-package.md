@@ -21,14 +21,14 @@ TDengine 开源版本提供 deb 和 rpm 格式安装包，用户可以根据自�
 
 **安装包仓库**
 
-```
+```bash
 wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
 echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
 ```
 
 如果安装 Beta 版需要安装包仓库
 
-```
+```bash
 echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
 ```
 
