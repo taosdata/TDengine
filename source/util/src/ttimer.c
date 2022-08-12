@@ -606,6 +606,7 @@ void taosTmrCleanUp(void* handle) {
     taosUninitTimer();
 
     taosCleanUpScheduler(tmrQhandle);
+    taosMemoryFreeClear(tmrQhandle);
 
     for (int32_t i = 0; i < tListLen(wheels); i++) {
       time_wheel_t* wheel = wheels + i;
