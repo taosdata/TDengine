@@ -634,10 +634,11 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdCom.cleanTb()
         sql_list = []
         stb_name = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 nchar(10))')
+        # self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 nchar(10))')
         for i in range(count):
             input_sql = self.tdCom.gen_full_type_sql(stb_name=stb_name, t7=f'"{self.tdCom.get_long_name()}"', value=f'"{self.tdCom.get_long_name()}"', id_noexist_tag=True)[0]
             sql_list.append(input_sql)
+        print(sql_list)
         self.tdSql._conn.schemaless_insert(sql_list, TDSmlProtocolType.TELNET.value, None)
         self.tdSql.query('show tables')
         self.tdSql.checkEqual(self.tdSql.query_row, count)

@@ -42,7 +42,8 @@ class TestVgroups(TDCase):
                 return vnode_sum
             elif os.environ.get('DATABASE_REPLICAS') == '3':
                 return vnode_sum / 3
-
+        else:
+            return vnode_sum
     def vgroups_check(self):
         """
         vgroups check
@@ -60,7 +61,7 @@ class TestVgroups(TDCase):
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         # default
         self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
-        self.tdSql.execute(f'drop database {dbname}')
+        self.tdSql.execute(f'drop database if exists {dbname}')
         # boundary
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
@@ -82,7 +83,6 @@ class TestVgroups(TDCase):
         self.tdCom.createDb(dbname1, **kv_dict)
         self.tdSql.query(f'show {dbname1}.vgroups')
         self.tdSql.checkEqual(self.tdSql.query_row, int(self.cfg["boundary"][-1]/4))
-        print(self.get_vnode_count())
         self.tdSql.checkEqual(self.get_vnode_count(), int(self.cfg["boundary"][-1]/4))
         dbname2 = self.tdCom.get_long_name()
         kv_dict = {test_param: self.cfg["boundary"][-1], "buffer": self.buffer_min, "vgroups": int(self.cfg["boundary"][-1]/4) + 1}

@@ -54,6 +54,7 @@ class TestChildTb(TDCase):
         tbname = self.tdCom.get_long_name(3)
         symbol_list = self.tdCom.gen_symbol_list()
         symbol_list.remove('`')
+        symbol_list.remove('.')
         for insert_str in symbol_list:
             d_list = list(tbname)
             for i in range(len(d_list)+1):
