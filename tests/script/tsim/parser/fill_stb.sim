@@ -111,13 +111,15 @@ endi
 if $data12 != -2 then
   return -1
 endi
-if $data13 != -3.00000 then
+if $data13 != -3 then
   return -1
 endi
-if $data14 != -4.000000000 then
+if $data14 != -4.00000 then
+  print expect -4.00000, actual: $data14
   return -1
 endi
-if $data15 != -5 then
+if $data15 != -5.000000000 then
+  print expect -5.000000000, actual: $data15
   return -1
 endi
 if $data31 != -1 then
@@ -126,10 +128,10 @@ endi
 if $data52 != -2 then
   return -1
 endi
-if $data73 != -3.00000 then
+if $data73 != -3 then
   return -1
 endi
-if $data74 != -4.000000000 then
+if $data74 != -4.00000 then
   return -1
 endi
 

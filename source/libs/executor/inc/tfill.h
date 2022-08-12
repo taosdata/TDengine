@@ -28,9 +28,7 @@ struct SSDataBlock;
 
 typedef struct SFillColInfo {
   SExprInfo *pExpr;
-//  int16_t    flag;            // column flag: TAG COLUMN|NORMAL COLUMN
   bool       notFillCol;      // denote if this column needs fill operation
-//  int16_t    tagIndex;        // index of current tag in SFillTagColInfo array list
   SVariant   fillVal;
 } SFillColInfo;
 
@@ -38,6 +36,11 @@ typedef struct {
   SSchema col;
   char*   tagVal;
 } SFillTagColInfo;
+
+typedef struct {
+  int64_t key;
+  SArray* pRowVal;
+} SRowVal;
   
 typedef struct SFillInfo {
   TSKEY     start;                // start timestamp
@@ -53,9 +56,8 @@ typedef struct SFillInfo {
   int32_t   numOfCurrent;         // number of filled rows in current results
   int32_t   numOfCols;            // number of columns, including the tags columns
   SInterval interval;
-
-  SArray   *prev;
-  SArray   *next;
+  SRowVal   prev;
+  SRowVal   next;
   SSDataBlock *pSrcBlock;
   int32_t   alloc;                // data buffer size in rows
 

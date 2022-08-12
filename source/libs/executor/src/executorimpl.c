@@ -3212,8 +3212,8 @@ static void doHandleRemainBlockForNewGroupImpl(SFillOperatorInfo* pInfo, SResult
 static void doHandleRemainBlockFromNewGroup(SFillOperatorInfo* pInfo, SResultInfo* pResultInfo,
                                             SExecTaskInfo* pTaskInfo) {
   if (taosFillHasMoreResults(pInfo->pFillInfo)) {
-    int32_t numOfResultRows = pResultInfo->capacity - pInfo->pRes->info.rows;
-    taosFillResultDataBlock(pInfo->pFillInfo, pInfo->pRes, numOfResultRows);
+    int32_t numOfResultRows = pResultInfo->capacity - pInfo->pFinalRes->info.rows;
+    taosFillResultDataBlock(pInfo->pFillInfo, pInfo->pFinalRes, numOfResultRows);
     pInfo->pRes->info.groupId = pInfo->curGroupId;
     return;
   }
@@ -3229,9 +3229,13 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
 
   SResultInfo* pResultInfo = &pOperator->resultInfo;
-  SSDataBlock* pResBlock = pInfo->pRes;
+  SSDataBlock* pResBlock = pInfo->pFinalRes;
 
   blockDataCleanup(pResBlock);
+  blockDataCleanup(pInfo->pRes);
+
+  int32_t order = TSDB_ORDER_ASC;
+  int32_t scanFlag = MAIN_SCAN;
 
   doHandleRemainBlockFromNewGroup(pInfo, pResultInfo, pTaskInfo);
   if (pResBlock->info.rows > 0) {
@@ -3251,17 +3255,23 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
       taosFillSetStartInfo(pInfo->pFillInfo, 0, pInfo->win.ekey);
     } else {
       blockDataUpdateTsWindow(pBlock, pInfo->primaryTsCol);
-
       SExprSupp* pSup = &pOperator->exprSupp;
+
+      getTableScanInfo(pOperator, &order, &scanFlag);
+      setInputDataBlock(pOperator, pSup->pCtx, pBlock, order, scanFlag, false);
       projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs, NULL);
+      pInfo->pRes->info.groupId = pBlock->info.groupId;
 
-      if (pInfo->curGroupId == 0 || pInfo->curGroupId == pBlock->info.groupId) {
-        pInfo->curGroupId = pBlock->info.groupId;  // the first data block
+      SColumnInfoData* pDst = taosArrayGet(pInfo->pRes->pDataBlock, pInfo->primaryTsCol);
+      SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, pInfo->primarySrcSlotId);
+      colDataAssign(pDst, pSrc, pInfo->pRes->info.rows, &pResBlock->info);
 
-        pInfo->totalInputRows += pBlock->info.rows;
+      if (pInfo->curGroupId == 0 || pInfo->curGroupId == pInfo->pRes->info.groupId) {
+        pInfo->curGroupId = pInfo->pRes->info.groupId;  // the first data block
+        pInfo->totalInputRows += pInfo->pRes->info.rows;
 
-        taosFillSetStartInfo(pInfo->pFillInfo, pBlock->info.rows, pBlock->info.window.ekey);
-        taosFillSetInputDataBlock(pInfo->pFillInfo, pBlock);
+        taosFillSetStartInfo(pInfo->pFillInfo, pInfo->pRes->info.rows, pBlock->info.window.ekey);
+        taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->pRes);
       } else if (pInfo->curGroupId != pBlock->info.groupId) {  // the new group data block
         pInfo->existNewGroupBlock = pBlock;
 
@@ -3649,7 +3659,8 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   blockDataEnsureCapacity(pResBlock, pOperator->resultInfo.capacity);
   initExprSupp(&pOperator->exprSupp, pExprInfo, pInfo->numOfExpr);
 
-  pInfo->primaryTsCol = ((SColumnNode*)pPhyFillNode->pWStartTs)->slotId;
+  pInfo->primaryTsCol = ((STargetNode*)pPhyFillNode->pWStartTs)->slotId;
+  pInfo->primarySrcSlotId = ((SColumnNode*)((STargetNode*)pPhyFillNode->pWStartTs)->pExpr)->slotId;
 
   int32_t numOfOutputCols = 0;
   SArray* pColMatchColInfo = extractColMatchInfo(pPhyFillNode->pFillExprs, pPhyFillNode->node.pOutputDataBlockDesc,
@@ -3663,6 +3674,9 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   }
 
   pInfo->pRes = pResBlock;
+  pInfo->pFinalRes = createOneDataBlock(pResBlock, false);
+  blockDataEnsureCapacity(pInfo->pFinalRes, pOperator->resultInfo.capacity);
+
   pInfo->pCondition = pPhyFillNode->node.pConditions;
   pInfo->pColMatchColInfo = pColMatchColInfo;
   pOperator->name = "FillOperator";
