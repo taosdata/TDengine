@@ -60,22 +60,22 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
     sdbSetApplyInfo(pMnode->pSdb, cbMeta.index, cbMeta.term, cbMeta.lastConfigIndex);
   }
 
-  taosRLockLatch(&pMgmt->lock);
+  taosWLockLatch(&pMgmt->lock);
   if (transId <= 0) {
-    taosRUnLockLatch(&pMgmt->lock);
+    taosWUnLockLatch(&pMgmt->lock);
     mError("trans:%d, invalid commit msg", transId);
   } else if (transId == pMgmt->transId) {
-    taosRUnLockLatch(&pMgmt->lock);
     if (pMgmt->errCode != 0) {
       mError("trans:%d, failed to propose since %s", transId, tstrerror(pMgmt->errCode));
     }
     pMgmt->transId = 0;
+    taosWUnLockLatch(&pMgmt->lock);
     tsem_post(&pMgmt->syncSem);
   } else {
-    taosRUnLockLatch(&pMgmt->lock);
+    taosWUnLockLatch(&pMgmt->lock);
     STrans *pTrans = mndAcquireTrans(pMnode, transId);
     if (pTrans != NULL) {
-      mDebug("trans:%d, execute in mnode which not leader", transId);
+      mInfo("trans:%d, execute in mnode which not leader", transId);
       mndTransExecute(pMnode, pTrans);
       mndReleaseTrans(pMnode, pTrans);
       // sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
@@ -275,9 +275,16 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
 
   pMgmt->errCode = 0;
   taosWLockLatch(&pMgmt->lock);
-  pMgmt->transId = transId;
-  taosWUnLockLatch(&pMgmt->lock);
-  mTrace("trans:%d, will be proposed", pMgmt->transId);
+  if (pMgmt->transId != 0) {
+    mInfo("trans:%d, can't be proposed since trans:%s alrady waiting for confirm", transId, pMgmt->transId);
+    taosWUnLockLatch(&pMgmt->lock);
+    terrno = TSDB_CODE_APP_NOT_READY;
+    return -1;
+  } else {
+    pMgmt->transId = transId;
+    mDebug("trans:%d, will be proposed", pMgmt->transId);
+    taosWUnLockLatch(&pMgmt->lock);
+  }
 
   const bool isWeak = false;
   int32_t    code = syncPropose(pMgmt->sync, &req, isWeak);
