@@ -798,19 +798,35 @@ static bool needFillValue(SNode* pNode) {
   return hasFillCol;
 }
 
-static int32_t partFillExprs(SNodeList* pProjectionList, SNodeList** pFillExprs, SNodeList** pNotFillExprs) {
+static int32_t partFillExprs(SSelectStmt* pSelect, SNodeList** pFillExprs, SNodeList** pNotFillExprs) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pProject = NULL;
-  FOREACH(pProject, pProjectionList) {
+  FOREACH(pProject, pSelect->pProjectionList) {
     if (needFillValue(pProject)) {
       code = nodesListMakeStrictAppend(pFillExprs, nodesCloneNode(pProject));
-    } else {
+    } else if (QUERY_NODE_VALUE != nodeType(pProject)) {
       code = nodesListMakeStrictAppend(pNotFillExprs, nodesCloneNode(pProject));
     }
     if (TSDB_CODE_SUCCESS != code) {
       NODES_DESTORY_LIST(*pFillExprs);
       NODES_DESTORY_LIST(*pNotFillExprs);
       break;
+    }
+  }
+  if (!pSelect->isDistinct) {
+    SNode* pOrderExpr = NULL;
+    FOREACH(pOrderExpr, pSelect->pOrderByList) {
+      SNode* pExpr = ((SOrderByExprNode*)pOrderExpr)->pExpr;
+      if (needFillValue(pExpr)) {
+        code = nodesListMakeStrictAppend(pFillExprs, nodesCloneNode(pExpr));
+      } else if (QUERY_NODE_VALUE != nodeType(pExpr)) {
+        code = nodesListMakeStrictAppend(pNotFillExprs, nodesCloneNode(pExpr));
+      }
+      if (TSDB_CODE_SUCCESS != code) {
+        NODES_DESTORY_LIST(*pFillExprs);
+        NODES_DESTORY_LIST(*pNotFillExprs);
+        break;
+      }
     }
   }
   return code;
@@ -837,7 +853,7 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pFill->node.resultDataOrder = pFill->node.requireDataOrder;
   pFill->inputTsOrder = ORDER_ASC;
 
-  int32_t code = partFillExprs(pSelect->pProjectionList, &pFill->pFillExprs, &pFill->pNotFillExprs);
+  int32_t code = partFillExprs(pSelect, &pFill->pFillExprs, &pFill->pNotFillExprs);
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pFill->pFillExprs, pSelect, SQL_CLAUSE_FILL);
   }

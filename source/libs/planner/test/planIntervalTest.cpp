@@ -51,6 +51,9 @@ TEST_F(PlanIntervalTest, fill) {
 
   run("SELECT COUNT(c1), MAX(c3), COUNT(c1) FROM t1 "
       "WHERE ts > '2022-04-01 00:00:00' and ts < '2022-04-30 23:59:59' INTERVAL(10s) FILL(PREV)");
+
+  run("SELECT COUNT(c1) FROM t1 WHERE ts > '2022-04-01 00:00:00' and ts < '2022-04-30 23:59:59' "
+      "PARTITION BY c2 INTERVAL(10s) FILL(PREV) ORDER BY c2");
 }
 
 TEST_F(PlanIntervalTest, selectFunc) {
