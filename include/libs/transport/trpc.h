@@ -47,8 +47,6 @@ typedef struct SRpcHandleInfo {
   int8_t  persistHandle;  // persist handle or not
   int8_t  hasEpSet;
 
-  STraceId traceId;
-
   // app info
   void *ahandle;  // app handle set by client
   void *wrapper;  // wrapper handle
@@ -58,7 +56,8 @@ typedef struct SRpcHandleInfo {
   void   *rsp;
   int32_t rspLen;
 
-  // conn info
+  STraceId traceId;
+
   SRpcConnInfo conn;
 } SRpcHandleInfo;
 

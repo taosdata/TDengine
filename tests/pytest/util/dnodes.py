@@ -30,7 +30,6 @@ class TDSimClient:
         self.path = path
         self.cfgDict = {
             "numOfLogLines": "100000000",
-            "numOfThreadsPerCore": "2.0",
             "locale": "en_US.UTF-8",
             "charset": "UTF-8",
             "asyncLog": "0",
@@ -40,6 +39,7 @@ class TDSimClient:
             "udebugFlag": "143",
             "jnidebugFlag": "143",
             "qdebugFlag": "143",
+            "supportVnodes": "1024",
             "telemetryReporting": "0",
         }
 
@@ -117,8 +117,6 @@ class TDDnode:
         self.valgrind = 0
         self.remoteIP = ""
         self.cfgDict = {
-            "walLevel": "2",
-            "fsync": "1000",
             "monitor": "0",
             "maxShellConns": "30000",
             "locale": "en_US.UTF-8",
@@ -139,6 +137,7 @@ class TDDnode:
             "qdebugFlag": "143",
             "numOfLogLines": "100000000",
             "statusInterval": "1",
+            "supportVnodes": "1024",
             "telemetryReporting": "0"
         }
 

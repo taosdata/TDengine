@@ -939,21 +939,6 @@ const void *taos_get_raw_block(TAOS_RES *res) {
   return pRequest->body.resInfo.pData;
 }
 
-TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char *topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp,
-                         void *param, int interval) {
-  // TODO
-  return NULL;
-}
-
-TAOS_RES *taos_consume(TAOS_SUB *tsub) {
-  // TODO
-  return NULL;
-}
-
-void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress) {
-  // TODO
-}
-
 int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   if (NULL == taos) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;

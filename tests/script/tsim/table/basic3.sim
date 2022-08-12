@@ -5,7 +5,7 @@ sql connect
 
 print =============== create database
 sql create database db
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then 
   return -1
 endi
@@ -14,7 +14,7 @@ print $data00 $data01 $data02
 
 print =============== create normal table
 sql create table db.n1 (ts timestamp, i int)
-sql show db.tables
+sql select * from information_schema.ins_tables where db_name = 'db'
 if $rows != 1 then 
   return -1
 endi
@@ -23,7 +23,7 @@ print $data00 $data01 $data02
 
 print =============== create super table
 sql create table db.st (ts timestamp, i int) tags (j int)
-sql show db.stables
+sql select * from information_schema.ins_stables where db_name = 'db'
 if $rows != 1 then 
   return -1
 endi
@@ -33,7 +33,7 @@ print $data00 $data01 $data02
 print =============== create child table
 sql create table db.c1 using db.st tags(1)
 sql create table db.c2 using db.st tags(2)
-sql show db.tables
+sql select * from information_schema.ins_tables where db_name = 'db'
 if $rows != 3 then 
   return -1
 endi
@@ -71,7 +71,7 @@ endi
 
 print =============== drop stable
 sql drop table db.st
-sql show db.stables
+sql select * from information_schema.ins_stables where db_name = 'db'
 if $rows != 0 then 
   return -1
 endi

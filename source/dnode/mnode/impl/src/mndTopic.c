@@ -782,6 +782,26 @@ static void mndCancelGetNextTopic(SMnode *pMnode, void *pIter) {
   sdbCancelFetch(pSdb, pIter);
 }
 
+int32_t mndCheckTopicExist(SMnode *pMnode, SDbObj *pDb) {
+  SSdb *pSdb = pMnode->pSdb;
+
+  void        *pIter = NULL;
+  SMqTopicObj *pTopic = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic);
+    if (pIter == NULL) break;
+
+    if (pTopic->dbUid == pDb->uid) {
+      sdbRelease(pSdb, pTopic);
+      terrno = TSDB_CODE_MND_TOPIC_MUST_BE_DELETED;
+      return -1;
+    }
+
+    sdbRelease(pSdb, pTopic);
+  }
+  return 0;
+}
+
 int32_t mndDropTopicByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;

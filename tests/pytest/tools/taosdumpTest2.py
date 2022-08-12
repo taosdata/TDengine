@@ -81,12 +81,12 @@ class TDTestCase:
             binPath)
 
         tdSql.execute("drop database db")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkRows(2)
 
         os.system("%s -i ./taosdumptest/tmp" % binPath)
 
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkRows(3)
         tdSql.checkData(2, 0, 'db')
 
@@ -115,7 +115,7 @@ class TDTestCase:
         os.system("%s -D test -o ./taosdumptest/tmp -y" % binPath)
 
         tdSql.execute("drop database test")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkRows(3)
 
         os.system("%s -i ./taosdumptest/tmp -y" % binPath)

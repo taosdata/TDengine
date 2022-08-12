@@ -242,7 +242,7 @@ static int32_t scanPathOptGetScanOrder(SScanLogicNode* pScan, EScanOrder* pScanO
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     if (FUNCTION_TYPE_FIRST == pFunc->funcType) {
       hasFirst = true;
-    } else if (FUNCTION_TYPE_LAST == pFunc->funcType) {
+    } else if (FUNCTION_TYPE_LAST == pFunc->funcType || FUNCTION_TYPE_LAST_ROW == pFunc->funcType) {
       hasLast = true;
     } else if (FUNCTION_TYPE_SELECT_VALUE != pFunc->funcType) {
       otherFunc = true;
@@ -1615,6 +1615,9 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
     TSWAP(((SPartitionLogicNode*)pNode)->pPartitionKeys, pScan->pGroupTags);
     int32_t code = replaceLogicNode(pLogicSubplan, pNode, (SLogicNode*)pScan);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = adjustLogicNodeDataRequirement((SLogicNode*)pScan, pNode->resultDataOrder);
+    }
     if (TSDB_CODE_SUCCESS == code) {
       NODES_CLEAR_LIST(pNode->pChildren);
       nodesDestroyNode((SNode*)pNode);

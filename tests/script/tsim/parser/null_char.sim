@@ -433,7 +433,7 @@ endi
 
 sql alter table st41 set tag tag_double = ''
 sql alter table st41 set tag tag_double = 'abc'
-sql alter table st41 set tag tag_double = '123abc' 
+sql alter table st41 set tag tag_double = '123abc'
 sql_error alter table st41 set tag tag_double = abc
 
 ################### bigint smallint tinyint
@@ -501,7 +501,7 @@ sql_error alter table st51 set tag tag_tinyint = 'NULL'
 sql alter table st51 set tag tag_tinyint = ''
 sql_error alter table st51 set tag tag_tinyint = abc379
 
-# test end   
+# test end
 #sql drop database $db
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -135,7 +135,7 @@ class TDTestCase:
             tdSql.error(err_sql)
         for cur_sql in self.create_databases_sql_current:
             tdSql.execute(cur_sql)
-            # tdSql.query("show databases")
+            # tdSql.query("select * from information_schema.ins_databases")
         for alter_sql in self.alter_database_sql:
             tdSql.error(alter_sql)
 

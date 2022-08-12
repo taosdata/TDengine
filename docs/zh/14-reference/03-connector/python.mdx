@@ -306,8 +306,7 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 | [bind_row.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-row.py)               | 参数绑定，一次绑定一行  |
 | [insert_lines.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/insert-lines.py)       | InfluxDB 行协议写入     |
 | [json_tag.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/json-tag.py)               | 使用 JSON 类型的标签    |
-| [subscribe-async.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/subscribe-async.py) | 异步订阅                |
-| [subscribe-sync.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/subscribe-sync.py)   | 同步订阅                |
+| [tmq.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/tmq.py)                         | tmq 订阅              |
 
 ## 其它说明 
 
@@ -326,19 +325,7 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 1. https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds
 2. https://www.python.org/dev/peps/pep-0564/
 
-
-## 常见问题
-
-欢迎[提问或报告问题](https://github.com/taosdata/taos-connector-python/issues)。
-
 ## 重要更新
-
-| 连接器版本 | 重要更新                                                                          | 发布日期   |
-| ---------- | --------------------------------------------------------------------------------- | ---------- |
-| 2.3.1      | 1. support TDengine REST API <br/> 2. remove support for Python version below 3.6 | 2022-04-28 |
-| 2.2.5      | support timezone option when connect                                              | 2022-04-13 |
-| 2.2.2      | support sqlalchemy dialect plugin                                                 | 2022-03-28 |
-
 
 [**Release Notes**](https://github.com/taosdata/taos-connector-python/releases)
 
@@ -346,3 +333,7 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 
 - [taos](https://docs.taosdata.com/api/taospy/taos/)
 - [taosrest](https://docs.taosdata.com/api/taospy/taosrest)
+  
+## 常见问题
+
+欢迎[提问或报告问题](https://github.com/taosdata/taos-connector-python/issues)。

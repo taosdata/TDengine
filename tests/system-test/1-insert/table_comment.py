@@ -105,13 +105,13 @@ class TDTestCase:
             tdSql.error(f'alter table {tbname} comment "{comment_info}"')
     def check_comment_info(self,comment_info=None,tb_type=''):
         if tb_type == '' or tb_type == 'normal_table' or tb_type == 'child_table':
-            tdSql.query('show tables')
+            tdSql.query('select * from information_schema.ins_tables where db_name = \'db\'')
             if comment_info == None:
                 tdSql.checkEqual(tdSql.queryResult[0][8],None)
             else :
                 tdSql.checkEqual(tdSql.queryResult[0][8],comment_info)
         elif tb_type == 'stable':
-            tdSql.query('show stables')
+            tdSql.query('select * from information_schema.ins_stables where db_name = \'db\'')
             if comment_info == None:
                 tdSql.checkEqual(tdSql.queryResult[0][6],None)
             else :

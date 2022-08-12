@@ -16,7 +16,7 @@ $stb = $stbPrefix . $i
 
 sql drop database $db -x step1
 step1:
-sql create database $db 
+sql create database $db
 print ====== create tables
 sql use $db
 sql create table tb (ts timestamp, c1 int, c2 timestamp)
