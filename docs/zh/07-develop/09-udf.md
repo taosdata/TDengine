@@ -214,7 +214,7 @@ gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
 这样就准备好了动态链接库 add_one.so 文件，可以供后文创建 UDF 时使用了。为了保证可靠的系统运行，编译器 GCC 推荐使用 7.5 及以上版本。
 
 ## 管理和使用UDF
-关于如何管理和使用UDF，参见[UDF使用说明](../12-taos-sql/26-udf.md)
+编译好的UDF，还需要将其加入到系统才能被正常的SQL调用。关于如何管理和使用UDF，参见[UDF使用说明](../12-taos-sql/26-udf.md)
 
 ## 示例代码
 
