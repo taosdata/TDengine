@@ -85,7 +85,8 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->state.commitTerm = info.state.commitTerm;
   pVnode->pTfs = pTfs;
   pVnode->msgCb = msgCb;
-  pVnode->blockCount = 0;
+  taosInitRWLatch(&pVnode->lock);
+  pVnode->blocked = false;
 
   tsem_init(&pVnode->syncSem, 0, 0);
   tsem_init(&(pVnode->canCommit), 0, 1);
