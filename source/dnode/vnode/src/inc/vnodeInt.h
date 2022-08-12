@@ -308,7 +308,7 @@ struct SVnode {
   SSink*        pSink;
   tsem_t        canCommit;
   int64_t       sync;
-  SRWLatch      lock;
+  TdThreadMutex lock;
   bool          blocked;
   bool          restored;
   tsem_t        syncSem;
