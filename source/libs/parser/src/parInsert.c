@@ -1032,7 +1032,7 @@ static int32_t storeTableMeta(SInsertParseContext* pCxt, SHashObj* pHash, int32_
   CHECK_CODE(getTableVgroup(pCxt, tbNo, pTableName, &vg));
   CHECK_CODE(taosHashPut(pCxt->pVgroupsHashObj, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg)));
 
-  pMeta->uid = 0;
+  pMeta->uid = tbNo;
   pMeta->vgId = vg.vgId;
   pMeta->tableType = TSDB_CHILD_TABLE;
 

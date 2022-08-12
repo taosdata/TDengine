@@ -746,6 +746,9 @@ int32_t putMetaDataToCacheForInsert(const SMetaData* pMetaData, SParseMetaCache*
   int32_t ndbs = taosArrayGetSize(pMetaData->pUser);
   for (int32_t i = 0; i < ndbs; ++i) {
     SMetaRes* pRes = taosArrayGet(pMetaData->pUser, i);
+    if (TSDB_CODE_SUCCESS != pRes->code) {
+      return pRes->code;
+    }
     if (!(*(bool*)pRes->pRes)) {
       return TSDB_CODE_PAR_PERMISSION_DENIED;
     }
