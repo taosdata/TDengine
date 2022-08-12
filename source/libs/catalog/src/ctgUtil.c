@@ -916,7 +916,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog *pCtg, SCtgTaskReq* tReq, SDBVgInfo 
   int32_t vgNum = taosHashGetSize(dbInfo->vgHash);
   if (vgNum <= 0) {
     ctgError("db vgroup cache invalid, db:%s, vgroup number:%d", dbFName, vgNum);
-    CTG_ERR_RET(TSDB_CODE_TSC_DB_NOT_SELECTED);
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
   tableNameHashFp fp = NULL;
@@ -931,6 +931,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog *pCtg, SCtgTaskReq* tReq, SDBVgInfo 
     for (int32_t i = 0; i < tbNum; ++i) {
       vgInfo = taosMemoryMalloc(sizeof(SVgroupInfo));
       if (NULL == vgInfo) {
+        taosHashCancelIterate(dbInfo->vgHash, pIter);
         CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
 
@@ -980,7 +981,6 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog *pCtg, SCtgTaskReq* tReq, SDBVgInfo 
 
     if (NULL == p) {
       ctgError("no hash range found for hash value [%u], db:%s, numOfVgId:%d", hashValue, dbFName, taosHashGetSize(dbInfo->vgHash));
-      ASSERT(0);
       taosArrayDestroy(pVgList);
       CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
