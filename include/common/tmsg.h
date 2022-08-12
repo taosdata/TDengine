@@ -1369,8 +1369,8 @@ typedef struct {
   int32_t numOfCols;
   int64_t skey;
   int64_t ekey;
-  int64_t version;  // for stream
-  TSKEY   watermark;// for stream
+  int64_t version;    // for stream
+  TSKEY   watermark;  // for stream
   char    data[];
 } SRetrieveTableRsp;
 
@@ -1678,9 +1678,10 @@ typedef struct {
   int32_t code;
 } STaskDropRsp;
 
-#define STREAM_TRIGGER_AT_ONCE      1
-#define STREAM_TRIGGER_WINDOW_CLOSE 2
-#define STREAM_TRIGGER_MAX_DELAY    3
+#define STREAM_TRIGGER_AT_ONCE        1
+#define STREAM_TRIGGER_WINDOW_CLOSE   2
+#define STREAM_TRIGGER_MAX_DELAY      3
+#define STREAM_DEFAULT_IGNORE_EXPIRED 0
 
 typedef struct {
   char    name[TSDB_STREAM_FNAME_LEN];
@@ -3079,6 +3080,22 @@ typedef struct SDeleteRes {
 
 int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
 int32_t tDecodeDeleteRes(SDecoder* pCoder, SDeleteRes* pRes);
+
+typedef struct {
+  int64_t uid;
+  int64_t ts;
+} SSingleDeleteReq;
+
+int32_t tEncodeSSingleDeleteReq(SEncoder* pCoder, const SSingleDeleteReq* pReq);
+int32_t tDecodeSSingleDeleteReq(SDecoder* pCoder, SSingleDeleteReq* pReq);
+
+typedef struct {
+  int64_t suid;
+  SArray* deleteReqs;  // SArray<SSingleDeleteReq>
+} SBatchDeleteReq;
+
+int32_t tEncodeSBatchDeleteReq(SEncoder* pCoder, const SBatchDeleteReq* pReq);
+int32_t tDecodeSBatchDeleteReq(SDecoder* pCoder, SBatchDeleteReq* pReq);
 
 typedef struct {
   int32_t msgIdx;

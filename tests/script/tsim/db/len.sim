@@ -10,33 +10,33 @@ sql create database -x step1
 	return -1
 step1:
 
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then 
   return -1
 endi
 
 print =============== step2
 sql create database a
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then 
   return -1
 endi
 
 sql drop database a
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then 
   return -1
 endi
 
 print =============== step3
 sql create database a12345678
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then 
   return -1
 endi
 
 sql drop database a12345678
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then 
   return -1
 endi
@@ -45,7 +45,7 @@ print =============== step4
 sql create database a012345678901201234567890120123456789012a012345678901201234567890120123456789012 -x step4
 	return -1
 step4:
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then 
   return -1
 endi
@@ -53,7 +53,7 @@ endi
 print =============== step5
 sql create database a;1 
 sql drop database a
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then 
   return -1
 endi
@@ -63,7 +63,7 @@ sql create database a'1 -x step6
 	return -1
 step6:
 
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then 
   return -1
 endi
@@ -72,7 +72,7 @@ print =============== step7
 sql create database (a) -x step7
 	return -1
 step7:
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then 
   return -1
 endi
@@ -81,7 +81,7 @@ print =============== step8
 sql create database a.1 -x step8
 	return -1
 step8:
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then 
   return -1
 endi

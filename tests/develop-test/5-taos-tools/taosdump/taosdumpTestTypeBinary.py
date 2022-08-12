@@ -85,7 +85,7 @@ class TDTestCase:
 
         os.system("%staosdump -i %s" % (binPath, self.tmpdir))
 
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkRows(1)
 
         tdSql.execute("use db")

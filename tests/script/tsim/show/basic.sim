@@ -13,7 +13,7 @@ sql connect
 #	  print ====> dnode not ready!
 #		return -1
 #	endi
-#sql show dnodes
+#sql select * from information_schema.ins_dnodes
 #print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
 #if $data00 != 1 then
 #  return -1
@@ -39,18 +39,18 @@ sql create table t0 using stb tags (0)
 sql create table tba (ts timestamp, c1 binary(10), c2 nchar(10));
 
 print =============== run show xxxx
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 2 then 
   return -1
 endi
 
-sql show mnodes
+sql select * from information_schema.ins_mnodes
 if $rows != 1 then 
   return -1
 endi
 #sql show modules
-#sql show qnodes
-sql show databases
+#sql select * from information_schema.ins_qnodes
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -67,7 +67,7 @@ if $rows != 2 then
   return -1
 endi
 #sql show user_table_distributed
-sql show users
+sql select * from information_schema.ins_users
 if $rows != 1 then 
   return -1
 endi
@@ -126,7 +126,7 @@ check_dnode_ready:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
 if $data00 != 1 then
   return -1
@@ -137,18 +137,18 @@ endi
 
 print ==== again run show / select of above
 print =============== run show xxxx
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 2 then 
   return -1
 endi
 
-sql show mnodes
+sql select * from information_schema.ins_mnodes
 if $rows != 1 then 
   return -1
 endi
 #sql show modules
-#sql show qnodes
-sql show databases
+#sql select * from information_schema.ins_qnodes
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -165,7 +165,7 @@ if $rows != 2 then
   return -1
 endi
 #sql show user_table_distributed
-sql show users
+sql select * from information_schema.ins_users
 if $rows != 1 then 
   return -1
 endi
@@ -209,6 +209,8 @@ sql select * from information_schema.ins_vgroups
 if $rows != 3 then 
   return -1
 endi
+
+sql_error select * from performance_schema.PERF_OFFSETS;
 
 sql show create stable stb;
 if $rows != 1 then

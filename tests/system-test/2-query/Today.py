@@ -20,8 +20,9 @@ class TDTestCase:
         self.arithmetic_operators = ['+','-','*','/']
         self.relational_operator = ['<','<=','=','>=','>']
         # prepare data
-        self.ntbname = 'ntb'
-        self.stbname = 'stb'
+        self.dbname = 'db'
+        self.ntbname = f'{self.dbname}.ntb'
+        self.stbname = f'{self.dbname}.stb'
         self.column_dict = {
             'ts':'timestamp',
             'c1':'int',
@@ -96,7 +97,7 @@ class TDTestCase:
                     tdSql.checkRows(num_same*tb_num)
                 elif tb == 'stb':
                     tdSql.checkRows(num_same)
-                for i in [f'{tbname}',f'db.{tbname}']:
+                for i in [f'{tbname}']:
                     for unit in self.time_unit:
                         for symbol in ['+','-']:
                             tdSql.query(f"select today() {symbol}1{unit} from {i}")
@@ -148,20 +149,20 @@ class TDTestCase:
                         tdSql.checkData(i, 0, str(self.today_date))
     def today_check_ntb(self):
         for time_unit in self.db_percision:
-            print(time_unit)
-            tdSql.execute(f'create database db precision "{time_unit}"')
-            tdSql.execute('use db')
+            
+            tdSql.execute(f'create database {self.dbname} precision "{time_unit}"')
+            tdSql.execute(f'use {self.dbname}')
             tdSql.execute(self.set_create_normaltable_sql(self.ntbname,self.column_dict))
             for i in self.values_list:
                 tdSql.execute(
                     f'insert into {self.ntbname} values({i})')
             self.data_check(self.column_dict,self.ntbname,self.values_list,1,'tb',time_unit)
-            tdSql.execute('drop database db')
+            tdSql.execute(f'drop database {self.dbname}')
     def today_check_stb_tb(self):
         for time_unit in self.db_percision:
-            print(time_unit)
-            tdSql.execute(f'create database db precision "{time_unit}"')
-            tdSql.execute('use db')
+            
+            tdSql.execute(f'create database {self.dbname} precision "{time_unit}"')
+            tdSql.execute(f'use {self.dbname}')
             tdSql.execute(self.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
             for i in range(self.tbnum):
                 tdSql.execute(f'create table if not exists {self.stbname}_{i} using {self.stbname} tags({self.tag_values[i]})')
@@ -172,7 +173,7 @@ class TDTestCase:
                 self.data_check(self.column_dict,f'{self.stbname}_{i}',self.values_list,1,'tb',time_unit)
             # check stable
             self.data_check(self.column_dict,self.stbname,self.values_list,self.tbnum,'stb',time_unit)
-            tdSql.execute('drop database db')
+            tdSql.execute(f'drop database {self.dbname}')
 
     def run(self):  # sourcery skip: extract-duplicate-method
 

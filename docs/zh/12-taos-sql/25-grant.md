@@ -8,7 +8,7 @@ title: 权限管理
 ## 创建用户
 
 ```sql
-CREATE USER use_name PASS password;
+CREATE USER use_name PASS 'password';
 ```
 
 创建用户。

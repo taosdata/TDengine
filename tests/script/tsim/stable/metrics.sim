@@ -34,7 +34,7 @@ endi
 print =============== step3
 sql create table $mt (ts timestamp, speed int) TAGS(sp int)
 
-sql show stables
+sql select * from information_schema.ins_stables where db_name = '$@db@'
 if $rows != 1 then
   return -1
 endi
@@ -60,7 +60,7 @@ $i = 2
 $tb = $tbPrefix . $i
 sql create table $tb using $mt tags(3)
 
-sql show tables
+sql select * from information_schema.ins_tables where db_name = '$@db@'
 if $rows != 3 then
   return -1
 endi
@@ -68,7 +68,7 @@ if $data04 != $mt then
   return -1
 endi
 
-sql show stables
+sql select * from information_schema.ins_stables where db_name = '$@db@'
 if $rows != 1 then
   return -1
 endi
@@ -121,7 +121,7 @@ if $rows != 0 then
 endi
 
 sql drop database $db
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then
   return -1
 endi

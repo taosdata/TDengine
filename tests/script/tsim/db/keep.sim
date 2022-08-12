@@ -40,7 +40,7 @@ $num1 = $rows + 40
 print ======== step3 alter db
 sql alter database keepdb keep 60
 sql flush database keepdb
-sql show databases
+sql select * from information_schema.ins_databases
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
 if $data22 != 2 then 
   return -1
@@ -82,7 +82,7 @@ endi
 
 print ======== step6 alter db
 sql alter database keepdb keep 30
-sql show databases
+sql select * from information_schema.ins_databases
 if $data22 != 2 then 
   return -1
 endi
