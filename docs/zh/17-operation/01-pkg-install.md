@@ -86,7 +86,7 @@ TDengine is removed successfully!
 
 </TabItem>
 <TabItem label="Windows 卸载" value="windows">
-TODO
+在 C:\TDengine 目录下，通过运行 unins000.exe 卸载程序来卸载 TDengine。
 </TabItem>
 </Tabs>
 
