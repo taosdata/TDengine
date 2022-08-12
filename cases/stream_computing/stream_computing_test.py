@@ -15,12 +15,10 @@ from copy import deepcopy
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
-import time
 import sys
 import os
 import random
 from taostest.components import TaosD
-
 class StreamComputingTest(TDCase):
     def init(self):
         self.stream_case_env_root = os.path.join(os.environ["TEST_ROOT"], "cases/stream_computing")
@@ -41,7 +39,6 @@ class StreamComputingTest(TDCase):
         self.case_name = None
         self.tbname = None
         self.precision = "ms"
-        self.offset = 1000
         
         self.case_name = str()
         self.dbname = "stream_test"
@@ -52,10 +49,15 @@ class StreamComputingTest(TDCase):
         self.ctb_stream_des_table = str()
         self.tb_stream_des_table = str()
 
+        
+        self.udf1 = "/tmp/libudf1.so"
+        self.udf2 = "/tmp/libudf2.so"
+        self.offset = 1000
+        self.interation = 10
         self.range_count = 10
+        self.vgroups = 10
         self.des_table_suffix = "_output"
         self.stream_suffix = "_stream"
-        self.vgroups = 1
         
         self.update = True
         self.disorder = True
@@ -69,9 +71,6 @@ class StreamComputingTest(TDCase):
         "stddev(c2)", "hyperloglog(c11)", "min(t1)", "max(t2)", "sum(t3)", "first(t4)", "last(t5)", "count(t8)", "spread(t1)", "stddev(t2)"]
         # self.partition_by_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "count(c8)", "spread(c1)",
         # "stddev(c2)", "hyperloglog(c11)", "min(t1)", "max(t2)", "sum(t3)", "first(t4)", "last(t5)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
-        # self.partition_by_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "count(c8)", "spread(c1)", ]
-        # ! TD-16571 histogram
-        # ! TD-16570 last_row(c1)
         # ! now() timezone() to_iso8601(now)
         self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)", 
         "stddev(c2)", "hyperloglog(c11)", "timediff(1, 0, 1h)", "timezone()", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
@@ -85,16 +84,16 @@ class StreamComputingTest(TDCase):
         #     'histogram(c1, "user_input", "[1, 3, 5, 7]", 0)', "now()", "timediff(1, 0, 1h)", "timetruncate(_wstart, 1m)", "timezone()", "today()", "to_iso8601(now)",  'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
         self.stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list)))
         self.stb_source_select_str = ','.join(self.downsampling_function_list)
-        self.tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list[0:16])))
-        self.tb_source_select_str = ','.join(self.downsampling_function_list[0:16])
+        self.tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list[0:15])))
+        self.tb_source_select_str = ','.join(self.downsampling_function_list[0:15])
 
         self.partition_by_stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.partition_by_downsampling_function_list)))
         self.partition_by_stb_source_select_str = ','.join(self.partition_by_downsampling_function_list)
 
         self.udf_stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.udf_function_list)))
         self.udf_stb_source_select_str = ','.join(self.udf_function_list)
-        self.udf_tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.udf_function_list[0:16])))
-        self.udf_tb_source_select_str = ','.join(self.udf_function_list[0:16])
+        self.udf_tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.udf_function_list[0:15])))
+        self.udf_tb_source_select_str = ','.join(self.udf_function_list[0:15])
 
         self.date_time = self.tdCom.genTs(precision=self.precision)[0]
         self.stb_data_filter_sql = f'ts >= {self.date_time}+1s and c1 = 1 or c2 > 1 and c3 != 4 or c4 <= 3 and c9 <> 0 or c10 is not Null or c11 is Null or \
@@ -110,9 +109,7 @@ class StreamComputingTest(TDCase):
         self.tb_filter_des_select_elm = self.stb_filter_des_select_elm.partition(", t1")[0]
 
         self.state_window_range = list()
-        self.interation = 10
-        self.udf1 = "/tmp/libudf1.so"
-        self.udf2 = "/tmp/libudf2.so"
+        
 
 
     def build_udf_so(self):
@@ -451,7 +448,7 @@ class StreamComputingTest(TDCase):
         self.build_udf_so()
         self.tdCom.create_udf(udf2, self.udf2, udf_size)
         # create stb/ctb/tb stream
-        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS start, udf2(c10)  from {self.stb_name} interval({self.dataDict["interval"]}s)')
+        # self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS start, udf2(c10)  from {self.stb_name} interval({self.dataDict["interval"]}s)')
         self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS start, udf2(c10)  from {self.ctb_name} interval({self.dataDict["interval"]}s)')
         self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS start, udf2(c10)  from {self.tb_name} interval({self.dataDict["interval"]}s)')
 
@@ -474,39 +471,9 @@ class StreamComputingTest(TDCase):
                     self.tdCom.insert_rows(tbname=self.tb_name, ts_value=f'{self.date_time}+{count}s', need_null=False)
                 count += 1
             # check result
-            self.tdCom.check_query_data(f'select start, `udf2(c10)` from {self.stb_name}{self.des_table_suffix}', f'select _wstart AS start, udf2(c10) from {self.stb_name} interval({self.dataDict["interval"]}s)')
+            # self.tdCom.check_query_data(f'select start, `udf2(c10)` from {self.stb_name}{self.des_table_suffix}', f'select _wstart AS start, udf2(c10) from {self.stb_name} interval({self.dataDict["interval"]}s)')
             self.tdCom.check_query_data(f'select start, `udf2(c10)` from {self.ctb_name}{self.des_table_suffix}', f'select _wstart AS start, udf2(c10) from {self.ctb_name} interval({self.dataDict["interval"]}s)')
             self.tdCom.check_query_data(f'select start, `udf2(c10)` from {self.tb_name}{self.des_table_suffix}', f'select _wstart AS start, udf2(c10) from {self.tb_name} interval({self.dataDict["interval"]}s)')
-
-
-
-
-        # self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS start, {self.udf_stb_source_select_str}  from {self.stb_name} interval({self.dataDict["interval"]}s)')
-        # self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS start, {self.udf_stb_source_select_str}  from {self.ctb_name} interval({self.dataDict["interval"]}s)')
-        # self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS start, {self.udf_tb_source_select_str}  from {self.tb_name} interval({self.dataDict["interval"]}s)')
-
-        # # insert data
-        # count = 1
-        # step_count = 1
-        # for i in range(1, self.range_count):
-        #     ctb_name = self.tdCom.get_long_name()
-        #     self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
-        #     if i % 2 == 0:
-        #         step_count += i
-        #         for j in range(count, step_count):
-        #             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{j}s')
-        #             self.tdCom.insert_rows(tbname=self.tb_name, ts_value=f'{self.date_time}+{j}s')
-        #         count += i
-        #     else:
-        #         step_count += 1
-        #         for i in range(2):
-        #             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{count}s')
-        #             self.tdCom.insert_rows(tbname=self.tb_name, ts_value=f'{self.date_time}+{count}s')
-        #         count += 1
-        #     # check result
-        #     self.tdCom.check_query_data(f'select start, {self.udf_stb_output_select_str} from {self.stb_name}{self.des_table_suffix}', f'select _wstart AS start, {self.udf_stb_source_select_str}  from {self.stb_name} partition by tbname interval({self.dataDict["interval"]}s)')
-        #     self.tdCom.check_query_data(f'select start, {self.udf_stb_output_select_str} from {self.ctb_name}{self.des_table_suffix}', f'select _wstart AS start, {self.udf_stb_source_select_str}  from {self.ctb_name} partition by tbname interval({self.dataDict["interval"]}s)')
-        #     self.tdCom.check_query_data(f'select start, {self.udf_tb_output_select_str} from {self.tb_name}{self.des_table_suffix}', f'select _wstart AS start, {self.udf_tb_source_select_str}  from {self.tb_name} partition by tbname interval({self.dataDict["interval"]}s)')
 
     def at_once_interval(self, interval):
         self.case_name = sys._getframe().f_code.co_name
@@ -743,48 +710,6 @@ class StreamComputingTest(TDCase):
                         self.tdCom.check_stream(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.stb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s) limit {i+1}', i+1)
                     else:
                         self.tdCom.check_stream(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s) limit {i+1}', i+1)
-        # window_close_ts = self.cal_watermark_window_close_endts(self.date_time, dataDict['interval'], dataDict['watermark'])
-
-        # for num in range(int(window_close_ts/1000-self.date_time/1000)):
-        #     self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=self.date_time+num*1000)
-        #     self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=self.date_time+num*1000)
-        #     for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
-        #         self.tdSql.query(f'select start, {output_select_str} from {tbname}')
-        #         self.tdSql.checkEqual(self.tdSql.query_row, 0)
-        
-        # self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=window_close_ts-1)
-        # self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=window_close_ts-1)
-        # for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
-        #     self.tdSql.query(f'select start, {output_select_str} from {tbname}')
-        #     self.tdSql.checkEqual(self.tdSql.query_row, 0)
-
-        # self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=window_close_ts)
-        # self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=window_close_ts)
-        # # for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
-        # for tbname in [stb_name, ctb_name, tb_name]:
-        #     self.tdCom.check_stream(f'select start, {output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {source_select_str}  from {tbname} interval({dataDict["interval"]}s) limit 1', 1)
-
-        # self.date_time = window_close_ts + 1000
-        # window_close_ts += dataDict['interval']*1000
-        # for num in range(int(window_close_ts/1000-self.date_time/1000)):
-        #     self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=self.date_time+num*1000)
-        #     self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=self.date_time+num*1000)
-        #     for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
-        #         self.tdSql.query(f'select start, {output_select_str} from {tbname}')
-        #         self.tdSql.checkEqual(self.tdSql.query_row, 1)
-        # self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=window_close_ts-1)
-        # self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=window_close_ts-1)
-        # for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
-        #     self.tdSql.query(f'select start, {output_select_str} from {tbname}')
-        #     self.tdSql.checkEqual(self.tdSql.query_row, 1)
-        # self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=window_close_ts)
-        # self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=window_close_ts)
-        # for tbname in [stb_name, ctb_name, tb_name]:
-        #     self.tdCom.check_stream(f'select start, {output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {source_select_str}  from {tbname} interval({dataDict["interval"]}s) limit 2', 2)
-        
-        
-        # self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=window_close_ts)
-        # self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=window_close_ts)
 
     def window_close_session(self, session):
         self.case_name = sys._getframe().f_code.co_name
@@ -1029,11 +954,6 @@ class StreamComputingTest(TDCase):
                 else:
                     self.tdCom.check_stream(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s)', expected_value, max_delay)
 
-
-
-    # TODO split --------- before is new
-
-
     def scalar_function(self):
         # self.prepare_stream_data()
         self.case_name = sys._getframe().f_code.co_name
@@ -1166,52 +1086,6 @@ class StreamComputingTest(TDCase):
         #         self.tdCom.check_stream(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_stb;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_stb;', 4)
         #     else:
         #         self.tdCom.check_stream(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_stb;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_stb;', 4)
-
-    
-
-
-    
-
-    # def disorder_data(self):
-    #     self.case_name = sys._getframe().f_code.co_name
-    #     self.tdSql.execute('create table if not exists disorder_data_stb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool) tags (t1 int, t2 double, t3 varchar(100), t4 bool);')
-    #     self.tdSql.execute('create table disorder_data_ct1 using disorder_data_stb tags(10, 10.1, "Beijing", True);')
-    #     self.tdSql.execute('create table if not exists disorder_data_tb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool);')
-    #     self.tdCom.write_latency(self.case_name)
-    #     # # stb
-    #     # self.tdSql.execute(f'create stream stb_disorder_data_stream into output_disorder_data_stb as select count(*) from disorder_data_stb;')
-    #     # # ctb
-    #     # self.tdSql.execute(f'create stream ctb_disorder_data_stream into output_disorder_data_ctb as select count(*) from disorder_data_ct1;')
-    #     # # tb
-    #     # self.tdSql.execute(f'create stream tb_disorder_data_stream into output_disorder_data_tb as select count(*) from disorder_data_tb;')
-    #     # stb
-    #     self.tdSql.execute(f'create stream stb_disorder_data_stream into output_disorder_data_stb as select * from disorder_data_stb;')
-    #     # ctb
-    #     self.tdSql.execute(f'create stream ctb_disorder_data_stream into output_disorder_data_ctb as select * from disorder_data_ct1;')
-    #     # tb
-    #     self.tdSql.execute(f'create stream tb_disorder_data_stream into output_disorder_data_tb as select * from disorder_data_tb;')
-    #     for tbname in ["disorder_data_ct1", "disorder_data_tb"]:
-    #         self.tdSql.execute(f'insert into {tbname} values (1653547828591, 100, 100.1, "Beijing", True);')
-    #         self.tdSql.execute(f'insert into {tbname} values (1653547828591+1s, -100, -100.1, "Tianjin", False);')
-    #         self.tdSql.execute(f'insert into {tbname} values (1653547828591+2s, 50, 50.3, "HeBei", False);')
-
-    #     self.tdCom.check_stream('select count(*) from output_disorder_data_stb;', 'select count(*) from disorder_data_stb;', 1)
-    #     self.tdCom.check_stream('select count(*) from output_disorder_data_ctb;', 'select count(*) from disorder_data_ct1;', 1)
-    #     self.tdCom.check_stream('select count(*) from output_disorder_data_tb;', 'select count(*) from disorder_data_tb;', 1)
-    #     timestamp = self.tdCom.genTs("ms")[0]
-    #     ts_list = list()
-    #     for i in range(1, 98):
-    #         ts = timestamp - 1000 + i
-    #         ts_list.append(ts)
-    #     random.shuffle(ts_list)
-    #     # ts_counter = 3
-    #     for ts in ts_list:
-    #         # ts_counter += 1
-    #         self.tdSql.execute(f'insert into disorder_data_ct1 values ({ts}, 60, 60.3, "heilongjiang", True)')
-    #         self.tdSql.execute(f'insert into disorder_data_tb values ({ts}, 60, 60.3, "heilongjiang", True)')
-    #         self.tdCom.check_stream('select count(*) from output_disorder_data_stb;', 'select count(*) from disorder_data_stb;', 1)
-    #         self.tdCom.check_stream('select count(*) from output_disorder_data_ctb;', 'select count(*) from disorder_data_ct1;', 1)
-    #         self.tdCom.check_stream('select count(*) from output_disorder_data_tb;', 'select count(*) from disorder_data_tb;', 1)
 
 
     def partitionby_interval(self, interval=None, partition_by_elm="tbname", ignore_expired=False):
@@ -1438,53 +1312,44 @@ class StreamComputingTest(TDCase):
     
 
     def run(self):
-        # self.create_none_db_stream()
-        # self.create_none_source_tb_stream()
-        # self.create_none_source_tb_tag_stream()
-        # # TODO TD-18111
-        # self.create_none_source_tb_col_stream()
-        # self.create_error_source_sql_stream()
-        # self.insert_after_restart()
+        self.create_none_db_stream()
+        self.create_none_source_tb_stream()
+        self.create_none_source_tb_tag_stream()
+        self.create_none_source_tb_col_stream()
+        self.create_error_source_sql_stream()
+        self.insert_after_restart()
         # ! TD-18123
         # self.insert_after_recreate_source_table()
-        # self.query_after_drop_stream_db()
+        self.query_after_drop_stream_db()
 
-
-        # self.range_count = 10
-        # self.update = True
-        self.vgroups = 1
-        # # interval=random.randint(10, 15)
-        # interval = 15
-        # watermark = 17
-        # # watermark=random.randint(20, 30)
-        # # print(interval, watermark)
-        # self.data_filter()
-        # self.life_cycle()
-        # self.scalar_function()
-        # self.stream_tandem()
-        # self.udf_test()
+        self.vgroups = 10
+        self.data_filter()
+        self.life_cycle()
+        self.scalar_function()
+        self.stream_tandem()
+        self.udf_test()
         self.udaf_test(interval=10)
-        # self.at_once_interval(interval=random.randint(10, 15))
-        # # self.alter_source_table(interval=random.randint(10, 15))
-        # self.at_once_state_window(state_window="c1")
+        self.at_once_interval(interval=random.randint(10, 15))
+        # self.alter_source_table(interval=random.randint(10, 15))
+        self.at_once_state_window(state_window="c1")
         # self.at_once_session(session=random.randint(10, 15))
-        # self.at_once_session(session=random.randint(10, 15), ignore_expired=True)
-        # self.window_close_interval(interval=random.randint(10, 15), watermark=None)
-        # self.window_close_interval(interval=random.randint(10, 15), watermark=None, ignore_expired=True)
-        # self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20))
-        # self.window_close_state_window(state_window="c1")
-        # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s")
+        self.at_once_session(session=random.randint(10, 15), ignore_expired=True)
+        self.window_close_interval(interval=random.randint(10, 15), watermark=None)
+        self.window_close_interval(interval=random.randint(10, 15), watermark=None, ignore_expired=True)
+        self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20))
+        self.window_close_state_window(state_window="c1")
+        self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s")
         # * in this case, when vgroups = 10, max_delay must be set upper than 4, root cause not found 
-        # self.watermark_max_delay_interval(interval=random.choice([15]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s")
+        self.watermark_max_delay_interval(interval=random.choice([15]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s")
 
-        # self.watermark_window_close_session(session=random.randint(10, 15), watermark=None)
-        # self.watermark_window_close_session(session=random.randint(10, 15), watermark=random.randint(20, 30))
-        # self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s")
-        # self.watermark_max_delay_session(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s")
-        # self.partitionby_interval(interval=None, partition_by_elm="tbname")
-        # self.partitionby_interval(interval=None, partition_by_elm="tbname", ignore_expired=True)
-        # self.partitionby_interval(interval=10, partition_by_elm="tbname")
-        # self.partitionby_interval(interval=10, partition_by_elm="tbname", ignore_expired=True)
+        self.watermark_window_close_session(session=random.randint(10, 15), watermark=None)
+        self.watermark_window_close_session(session=random.randint(10, 15), watermark=random.randint(20, 30))
+        self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s")
+        self.watermark_max_delay_session(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s")
+        self.partitionby_interval(interval=None, partition_by_elm="tbname")
+        self.partitionby_interval(interval=None, partition_by_elm="tbname", ignore_expired=True)
+        self.partitionby_interval(interval=10, partition_by_elm="tbname")
+        self.partitionby_interval(interval=10, partition_by_elm="tbname", ignore_expired=True)
         # # ! TD-18216
         # self.partitionby_interval(interval=10, partition_by_elm="t1")
 
@@ -1497,23 +1362,17 @@ class StreamComputingTest(TDCase):
         # self.partitionby_interval(interval=10, partition_by_elm="abs(c1)")
         # self.partitionby_interval(interval=None, partition_by_elm="abs(c1)")
 
-
-        
-        
-        # # self.disorder_data()
-        # TODO unfinished
     def cleanup(self):
         pass
 
-    def desc(self) -> str:
+    def desc(self):
         case_description = """
-            vgroups check <jayden>: [TD-14991] : vgroups check;
+            stream computing <jayden>: [TD-16143] : stream computing function test;
             """
         return case_description
 
-    def author(self) -> str:
+    def author(self):
         return "Jayden"
 
     def tags(self):
-        return T.Write.TaoscSql.Database.Create, T.Write.TaoscSql.Database.Alter
-
+        return T.Write.Stream
