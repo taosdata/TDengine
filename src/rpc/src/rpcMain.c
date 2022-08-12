@@ -1830,8 +1830,8 @@ bool rpcSendProbe(int64_t rpcRid, void* pPrevContext, bool *pReqOver) {
   if(pContext->pConn == NULL) {
     tInfo("PROBE rpcRid=0x%" PRIx64 " reqContext->pConn is NULL. The req is finished.", rpcRid);
     if (pReqOver)
-      pReqOver = true;
-      
+      *pReqOver = true;
+
     ret = true;
     goto _END;
   } else if (pContext->pConn != pContext->sendInfo.pConn) {
