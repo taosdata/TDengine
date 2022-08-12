@@ -73,7 +73,7 @@ sudo rpm -ivh TDengine-server-3.0.0.0-Linux-x64.rpm
 
 ```bash
 tar -zxvf TDengine-server-3.0.0.0-Linux-x64.tar.gz
-...
+```
 
 解压后进入相应路径，执行
 
