@@ -18,10 +18,9 @@ import copy
 
 class TestChildTb(TDCase):
     def init(self):
-        super().init()
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest(env_setting=self.env_setting)
-        self.dbname = self.get_default_database()
+        self.dbname = self.tdCom.get_long_name()
         self.api_type = 'restful'
     def child_tbname_length_check(self):
         """
@@ -114,11 +113,10 @@ class TestChildTb(TDCase):
         tbname = self.tdCom.get_long_name()
         test_ttl = 2
         self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
-        self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} using {stbname} tags (127) ttl {test_ttl}')
-        self.tdRest.request(f'show tables')
-        #TODO
-        res = self.tdSql.get_db_field_kv(0, tbname)
-        self.tdSql.checkEqual(int(res["ttl"]), test_ttl)
+        self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{stbname} tags (127) ttl {test_ttl}')
+        self.tdRest.request(f'show {self.dbname}.tables')
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0][7], test_ttl)
+        self.tdRest.request(f'drop table {self.dbname}.{stbname}')
 
     def comment_check(self):
         """
@@ -127,12 +125,11 @@ class TestChildTb(TDCase):
         stbname = self.tdCom.get_long_name()
         tbname = self.tdCom.get_long_name()
         comment = "comment_test"
-        self.tdRest.request(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
-        self.tdRest.request(f'create table if not exists {tbname} using {stbname} tags (127) comment {comment}')
-        self.tdRest.request(f'show tables')
-        #TODO
-        res = self.tdSql.get_db_field_kv(0, tbname)
-        self.tdSql.checkEqual(int(res["table_comment"]), comment)
+        self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
+        self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{stbname} tags (127) comment "{comment}"')
+        self.tdRest.request(f'show {self.dbname}.tables')
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0][8], comment)
+        self.tdRest.request(f'drop table {self.dbname}.{stbname}')
 
     def desc_check(self):
         """
@@ -140,11 +137,11 @@ class TestChildTb(TDCase):
         """
         self.tdCom.cleanTb()
         stbname = self.tdCom.get_long_name(length=192)
-        self.tdRest.request(f'create stable if not exists {stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
+        self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
                 c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(16), c12 nchar(16), c13 bool) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
                 t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t11 binary(16), t12 nchar(16), t13 bool)')
-        self.tdRest.request(f'create table if not exists tb using {stbname} tags (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, "binary", "nchar", True)')
-        self.tdRest.request(f'describe tb')
+        self.tdRest.request(f'create table if not exists {self.dbname}.tb using {self.dbname}.{stbname} tags (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, "binary", "nchar", True)')
+        self.tdRest.request(f'describe {self.dbname}.tb')
         col_name_list, col_type_list, length_list, note_list = self.tdRest.getColNameList(True)
         self.tdSql.checkEqual(col_name_list, ['col_ts', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9', 'c10', 'c11', 'c12', 'c13', 'tag_ts', 't1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9', 't10', 't11', 't12', 't13'])
         self.tdSql.checkEqual(col_type_list, ['TIMESTAMP', 'TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'VARCHAR', 'NCHAR', 'BOOL'])
@@ -156,13 +153,12 @@ class TestChildTb(TDCase):
         mixed invalid symbol
         mixed space
         """
-        dbname = self.tdCom.get_long_name()
-        self.tdRest.request(f'create database if not exists {dbname}')
-        stbname = self.tdCom.get_long_name(length=3)
-        self.tdRest.request(f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
+        
+        stbname = self.tdCom.get_long_name(3)
+        self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
                 c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(16), c12 nchar(16), c13 bool) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
                 t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t13 bool)')
-        base_sql = f'create table if not exists tb using {stbname} tags (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, True)'
+        base_sql = f'create table if not exists {self.dbname}.tb using {self.dbname}.{stbname} tags (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, True)'
 
         symbol_list = self.tdCom.gen_symbol_list()
         symbol_list.remove(' ')
@@ -175,20 +171,22 @@ class TestChildTb(TDCase):
                 d_list_new.insert(i, insert_str)
                 sql_new = ''.join(d_list_new)
                 self.tdRest.error(sql_new)
-        self.tdRest.request(f'drop table if exists {dbname}.`{dbname}`')
-        self.tdRest.request(f'drop database if exists {dbname}')
+        self.tdRest.request(f'drop table if exists {self.dbname}.`{stbname}`')
+        
 
     def run(self):
+        self.tdCom.createDb(self.dbname)
         self.child_tbname_length_check()
         self.child_tbname_with_backquote()
         self.child_tbname_without_backquote()
         self.upper_lower_child_tbname_check()
         # # #! bug
-        # # # self.ttl_check()
-        # # # self.comment_check()
-        # self.desc_check()
+        self.ttl_check()
+        self.comment_check()
+        self.desc_check()
         # ! TD-16445
-        # self.illegal_child_tbsql_check()
+        self.illegal_child_tbsql_check()
+        self.tdSql.execute(f'drop database {self.dbname}')
 
     def desc(self) -> str:
         case_description = """

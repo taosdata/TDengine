@@ -31,6 +31,7 @@ class TestInsertPro(TDCase):
     dbname_field_name = "DBNAME"
     resultfile_field_name = "RESULTFILE"
     childtable_prefix_field_name = "CHILDTABLEPREFIX"
+    query_sql_file_field_name = "QUERYSQLFILE"
     insert_cfg_file_param = "insert-cfg-file"
     insert_tmpl_file_param = "insert-tmpl-file"
     check_result_enabled_param = "check-result"
@@ -40,6 +41,9 @@ class TestInsertPro(TDCase):
     concurrency_param = "concurrency"
     key_param = "key"
     enable_second_round_param = "enable-second-round"
+    query_tmpl_file_param = "query-tmpl-file"
+    query_sql_file_param = "query-sql-file"
+    query_key_param = "query-key"
 
     def init(self):
         self.insert_cfg_file = None
@@ -50,9 +54,16 @@ class TestInsertPro(TDCase):
         self.pre_create_db = False
         self.concurrency = 1
         self.enable_second_round = False
+        self.query_tmpl_file = None
+        self.query_sql_file = None
+        self.query_keys = []
+        self.enable_second_round = False
+        self.enable_second_round = False
+        self.enable_second_round = False
         self.json_config_files = []
         self.result_files = []
         self.threads = []
+        self.insert_done = False
         self.ret = True
         self.tdCreateData = TDCreateData(self.tdSql, self.logger)
         self.tdCommon = TDCom(self.tdSql)
@@ -67,6 +78,8 @@ class TestInsertPro(TDCase):
         print(f"\t--{TestInsertPro.pre_create_db_param}")
         print(f"\t--{TestInsertPro.concurrency_param}")
         print(f"\t--{TestInsertPro.enable_second_round_param}")
+        print(f"\t--{TestInsertPro.query_tmpl_file_param}")
+        print(f"\t--{TestInsertPro.query_key_param}")
 
     # parse case parameters
     def parse_case_param(self):
@@ -77,7 +90,7 @@ class TestInsertPro(TDCase):
             self.logger.debug("case parameters: [{}]".format(self.case_param))
             param_array = self.case_param.split(" ")
             # parse parameters
-            opts, args = getopt.getopt(param_array, "h", ["help", f"{TestInsertPro.insert_cfg_file_param}=", f"{TestInsertPro.insert_tmpl_file_param}=", f"{TestInsertPro.key_param}=", f"{TestInsertPro.check_result_enabled_param}", f"{TestInsertPro.check_performance_param}", f"{TestInsertPro.pre_create_db_param}", f"{TestInsertPro.enable_second_round_param}", f"{TestInsertPro.concurrency_param}="])
+            opts, args = getopt.getopt(param_array, "h", ["help", f"{TestInsertPro.insert_cfg_file_param}=", f"{TestInsertPro.insert_tmpl_file_param}=", f"{TestInsertPro.key_param}=", f"{TestInsertPro.check_result_enabled_param}", f"{TestInsertPro.check_performance_param}", f"{TestInsertPro.pre_create_db_param}", f"{TestInsertPro.enable_second_round_param}", f"{TestInsertPro.concurrency_param}=", f"{TestInsertPro.query_tmpl_file_param}=", f"{TestInsertPro.query_sql_file_param}=", f"{TestInsertPro.query_key_param}="])
             self.logger.debug(str(opts))
             for key, val in opts:
                 self.logger.debug("key: {} value: {}".format(key, val))
@@ -97,6 +110,12 @@ class TestInsertPro(TDCase):
                     self.enable_second_round = True
                 elif key in (f"--{TestInsertPro.concurrency_param}"):
                     self.concurrency = int(val)
+                elif key in (f"--{TestInsertPro.query_tmpl_file_param}"):
+                    self.query_tmpl_file = val
+                elif key in (f"--{TestInsertPro.query_sql_file_param}"):
+                    self.query_sql_file = val
+                elif key in (f"--{TestInsertPro.query_key_param}"):
+                    self.query_keys.append(val)
                 else:
                     self.logger.error("invalid case parameter: {}".format(key))
                     self.set_error_msg("invalid case parameter: {}".format(key))
@@ -121,6 +140,23 @@ class TestInsertPro(TDCase):
                     self.logger.error("{} not exist".format(self.insert_cfg_file))
                     self.set_error_msg("{} not exist".format(self.insert_cfg_file))
                     return False
+            if not self.query_tmpl_file is None:
+                # get full path
+                self.query_tmpl_file = os.path.join(os.environ["TEST_ROOT"], self.query_tmpl_file)
+                # check file existance
+                if not os.path.isfile(self.query_tmpl_file):
+                    self.logger.error("{} not exist".format(self.query_tmpl_file))
+                    self.set_error_msg("{} not exist".format(self.query_tmpl_file))
+                    return False
+            if not self.query_sql_file is None:
+                # get full path
+                self.query_sql_file = os.path.join(os.environ["TEST_ROOT"], self.query_sql_file)
+                # check file existance
+                if not os.path.isfile(self.query_sql_file):
+                    self.logger.error("{} not exist".format(self.query_sql_file))
+                    self.set_error_msg("{} not exist".format(self.query_sql_file))
+                    return False
+                self.query_keys.append(f"{TestInsertPro.query_sql_file_field_name}={self.query_sql_file}")
         except getopt.GetoptError:
             self.logger.error("parameter parse error [{}]".format(self.case_param))
             self.set_error_msg("parameter parse error [{}]".format(self.case_param))
@@ -164,7 +200,7 @@ class TestInsertPro(TDCase):
     # replace configuration
     def replace_config(self, filename, config):
         for key, value in config.items():
-            os.system("sed -i \"s/\<{}\>/{}/g\" {}".format(key, value, filename))
+            os.system("sed -i \"s:\<{}\>:{}:g\" {}".format(key, value, filename))
 
     def run_benchmark(self, node, cmd):
         self.logger.debug(f"thread: {node}, {cmd}")
@@ -182,6 +218,28 @@ class TestInsertPro(TDCase):
         except Exception as e:
             self.logger.error("cmd [{}] exception on [{}]".format(cmd, node))
             self.set_error_msg("cmd [{}] exception on [{}]".format(cmd, node))
+            self.ret = False
+
+    def run_benchmark_query(self, node, cmd):
+        self.logger.debug(f"thread: {node}, {cmd}")
+        result = {}
+        count = 0
+        try:
+            while not self.insert_done:
+                count = count + 1
+                result = self.envMgr._remote.cmd2(node, cmd)
+                if result.failed:
+                    # self.logger.error(str(result))
+                    self.logger.error("{} cmd [{}] failed on [{}]".format(count, cmd, node))
+                    self.logger.error("{} cmd [{}] exit code: [{}]".format(count, cmd, result.exited))
+                    self.set_error_msg("{} cmd [{}] failed on [{}]".format(count, cmd, node))
+                    self.ret = False
+                    break
+                else:
+                    self.logger.info("{} cmd [{}] succeed on [{}]".format(count, cmd, node))
+        except Exception as e:
+            self.logger.error("{} cmd [{}] exception on [{}]".format(count, cmd, node))
+            self.set_error_msg("{} cmd [{}] exception on [{}]".format(count, cmd, node))
             self.ret = False
 
     def run(self) -> bool:
@@ -231,6 +289,8 @@ class TestInsertPro(TDCase):
                 self.logger.debug("{} : {}".format(host, port))
                 rkeys.insert(0, f"{TestInsertPro.host_field_name}={host}")
                 rkeys.insert(1, f"{TestInsertPro.port_field_name}={port}")
+                self.query_keys.insert(0, f"{TestInsertPro.host_field_name}={host}")
+                self.query_keys.insert(1, f"{TestInsertPro.port_field_name}={port}")
                 break
 
         self.json_config_files = []
@@ -272,6 +332,24 @@ class TestInsertPro(TDCase):
             self.result_files.append(insert_config_dict[TestInsertPro.resultfile_field_name])
             self.json_config_files.append(insert_json_file)
 
+        if not self.query_tmpl_file is None:
+            # read config file and generate config dict
+            self.logger.debug(str(self.query_keys))
+            query_config_dict = self.parse_config_file(None, self.query_keys)
+            query_json_template_filename = os.path.basename(self.query_tmpl_file) + f".{second_round}"
+            self.logger.debug("query json template basename: {}".format(query_json_template_filename))
+            query_json_file = os.path.join(tmp_dir, query_json_template_filename)
+            self.logger.debug("query json file: {}".format(query_json_file))
+            # copy query json template to a tmp directory
+            os.system("cp -f {} {}".format(self.query_tmpl_file, query_json_file))
+
+            # replace config settings in json template
+            self.replace_config(query_json_file, query_config_dict)
+            os.system("cat {}".format(query_json_file))
+
+            # put query json file to host
+            self.envMgr._remote.put(query_config_dict[TestInsertPro.host_field_name], query_json_file, "/tmp")
+
         if (not second_round) and self.pre_create_db:
             db_names = []
             for insert_json_file in self.json_config_files:
@@ -292,33 +370,35 @@ class TestInsertPro(TDCase):
                         replica = int(os.environ["DATABASE_REPLICAS"])
                     if not db_name in db_names:
                         db_names.append(db_name)
-                        self.tdCommon.createDb(db_name, True, replica=replica)
-                        #ret = os.system(f"taos -h {host} -P {port} -s \"drop database if exists {db_name};\"")
-                        #if ret != 0:
-                        #    self.logger.error(f"drop database {db_name} failed")
-                        #    self.set_error_msg(f"drop database {db_name} failed")
-                        #    return False
-                        #ret = os.system(f"taos -h {host} -P {port} -s \"create database if not exists {db_name} replica {replica} vgroups {vgroups};\"")
-                        #if ret != 0:
-                        #    self.logger.error(f"create database {db_name} failed")
-                        #    self.set_error_msg(f"create database {db_name} failed")
-                        #    return False
+                        self.tdCommon.createDb(db_name, True, replica=replica, vgroups=vgroups)
 
         # run benchmark insert data
         self.threads = []
+        self.query_threads = []
         thread_interval = 0.25
         stime = float(self.concurrency) * thread_interval
         for i in range (self.concurrency):
             self.logger.debug(f"command delay {stime}")
             config_file = os.path.join("/tmp", os.path.basename(self.json_config_files[i]))
-            cmd = ["ulimit -n 1048576", f"sleep {stime}", f"taosBenchmark -f {config_file}"]
+            cmd = ["ulimit -n 1048576", f"sleep {stime}", f"time taosBenchmark -f {config_file}"]
             t = threading.Thread(target=self.run_benchmark, args=(insert_config_dict[TestInsertPro.host_field_name], cmd))
             self.threads.append(t)
             stime = stime - thread_interval
         for t in self.threads:
             time.sleep(thread_interval)
             t.start()
+        if not self.query_tmpl_file is None:
+            config_file = os.path.join("/tmp", os.path.basename(query_json_file))
+            cmd = ["ulimit -n 1048576", "sleep 5", f"time taosBenchmark -f {config_file}"]
+            t = threading.Thread(target=self.run_benchmark_query, args=(insert_config_dict[TestInsertPro.host_field_name], cmd))
+            self.query_threads.append(t)
+        for t in self.query_threads:
+            time.sleep(thread_interval)
+            t.start()
         for t in self.threads:
+            t.join()
+        self.insert_done = True
+        for t in self.query_threads:
             t.join()
         if self.ret != True:
             return self.ret
@@ -342,7 +422,7 @@ class TestInsertPro(TDCase):
                         self.logger.debug("childtable_count: {}".format(childtable_count))
                         self.logger.debug("insert_rows: {}".format(insert_rows))
                         if childtable_count > 0:
-                            self.tdSql.query("select count(*) from information_schema.user_tables where db_name = '{}' and stable_name = '{}';".format(db_name, stb_name))
+                            self.tdSql.query("select count(*) from information_schema.ins_tables where db_name = '{}' and stable_name = '{}';".format(db_name, stb_name))
                             self.tdSql.checkData(0, 0, childtable_count)
                         if childtable_count * insert_rows > 0:
                             self.tdSql.query("select count(*) from {}.{};".format(db_name, stb_name))
@@ -357,90 +437,135 @@ class TestInsertPro(TDCase):
                                 stb_child_name = self.tdSql.getData(i, 0)
                                 break
                             i = i + 1
-                        if insert_rows > 0:
+                            
+                        self.tdSql.query("describe {}.{};".format(db_name,stb_child_name))
+                        c1 = self.tdSql.getData(1, 0)
+                        c11 = self.tdSql.getData(1, 1)
+                        if (insert_rows > 0) and (c11 != "NCHAR") and (c11 != "BINARY") and (c11 != "VARCHAR"):
                             #sum check
-                            sum_sql1 = "select sum(c1) from {}.{};".format(db_name, stb_child_name);
-                            sum_sql2 = "select sum(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            sum_sql1 = "select sum({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            sum_sql2 = "select sum({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %sum_sql1 ,1,1,'%s' %sum_sql2 ,1,1)
                             #max check
-                            max_sql1 = "select max(c1) from {}.{};".format(db_name, stb_child_name);
-                            max_sql2 = "select max(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            max_sql1 = "select max({}) from {}.{};".format(c1 ,db_name, stb_child_name);
+                            max_sql2 = "select max({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %max_sql1 ,1,1,'%s' %max_sql2 ,1,1)
                             #min check
-                            min_sql1 = "select min(c1) from {}.{};".format(db_name, stb_child_name);
-                            min_sql2 = "select min(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            min_sql1 = "select min({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            min_sql2 = "select min({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %min_sql1 ,1,1,'%s' %min_sql2 ,1,1)
                             #avg check
-                            avg_sql1 = "select avg(c1) from {}.{};".format(db_name, stb_child_name);
-                            avg_sql2 = "select avg(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            avg_sql1 = "select avg({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            avg_sql2 = "select avg({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %avg_sql1 ,1,1,'%s' %avg_sql2 ,1,1)
                             #first check
-                            first_sql1 = "select first(c1) from {}.{};".format(db_name, stb_child_name);
-                            first_sql2 = "select first(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            first_sql1 = "select first({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            first_sql2 = "select first({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %first_sql1 ,1,1,'%s' %first_sql2 ,1,1)
                             #last check
-                            last_sql1 = "select last(c1) from {}.{};".format(db_name, stb_child_name);
-                            last_sql2 = "select last(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            last_sql1 = "select last({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            last_sql2 = "select last({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %last_sql1 ,1,1,'%s' %last_sql2 ,1,1)
                             #last_row check
-                            last_row_sql1 = "select last_row(c1) from {}.{};".format(db_name, stb_child_name);
-                            last_row_sql2 = "select last_row(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            last_row_sql1 = "select last_row({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            last_row_sql2 = "select last_row({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %last_row_sql1 ,1,1,'%s' %last_row_sql2 ,1,1)
                             #top_2 check
-                            top_sql1 = "select top(c1,2) from {}.{};".format(db_name, stb_child_name);
-                            top_sql2 = "select top(c1,2) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            top_sql1 = "select top({},2) from {}.{};".format(c1 , db_name, stb_child_name);
+                            top_sql2 = "select top({},2) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %top_sql1 ,1,1,'%s' %top_sql2 ,1,1)
                             #bottom_2 check
-                            bottom_sql1 = "select bottom(c1,2) from {}.{};".format(db_name, stb_child_name);
-                            bottom_sql2 = "select bottom(c1,2) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            bottom_sql1 = "select bottom({},2) from {}.{};".format(c1 , db_name, stb_child_name);
+                            bottom_sql2 = "select bottom({},2) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %bottom_sql1 ,1,1,'%s' %bottom_sql2 ,1,1)
                             #csum check
-                            csum_sql1 = "select csum(c1) from {}.{};".format(db_name, stb_child_name);
-                            csum_sql2 = "select csum(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            csum_sql1 = "select csum({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            csum_sql2 = "select csum({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %csum_sql1 ,1,1,'%s' %csum_sql2 ,1,1)
                             #mavg check
-                            mavg_sql1 = "select mavg(c1,2) from {}.{};".format(db_name, stb_child_name);
-                            mavg_sql2 = "select mavg(c1,2) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            mavg_sql1 = "select mavg({},2) from {}.{};".format(c1 , db_name, stb_child_name);
+                            mavg_sql2 = "select mavg({},2) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %mavg_sql1 ,1,1,'%s' %mavg_sql2 ,1,1)
                             #spread check
-                            spread_sql1 = "select spread(c1) from {}.{};".format(db_name, stb_child_name);
-                            spread_sql2 = "select spread(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            spread_sql1 = "select spread({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            spread_sql2 = "select spread({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %spread_sql1 ,1,1,'%s' %spread_sql2 ,1,1)
                             #stddev check
-                            stddev_sql1 = "select stddev(c1) from {}.{};".format(db_name, stb_child_name);
-                            stddev_sql2 = "select stddev(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            stddev_sql1 = "select stddev({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            stddev_sql2 = "select stddev({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %stddev_sql1 ,1,1,'%s' %stddev_sql2 ,1,1)
-                            #unique check TD-17597
-                            # unique_sql1 = "select unique(c1) from {}.{};".format(db_name, stb_child_name);
-                            # unique_sql2 = "select unique(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
-                            # self.tdCreateData.dataequal('%s' %unique_sql1 ,1,1,'%s' %unique_sql2 ,1,1)
                             #twa check
-                            twa_sql1 = "select twa(c1) from {}.{};".format(db_name, stb_child_name);
-                            twa_sql2 = "select twa(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            twa_sql1 = "select twa({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            twa_sql2 = "select twa({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %twa_sql1 ,1,1,'%s' %twa_sql2 ,1,1)
                             #abs check
-                            abs_sql1 = "select abs(c1) from {}.{};".format(db_name, stb_child_name);
-                            abs_sql2 = "select abs(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            abs_sql1 = "select abs({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            abs_sql2 = "select abs({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %abs_sql1 ,1,1,'%s' %abs_sql2 ,1,1)
                             #sin check
-                            sin_sql1 = "select sin(c1) from {}.{};".format(db_name, stb_child_name);
-                            sin_sql2 = "select sin(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            sin_sql1 = "select sin({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            sin_sql2 = "select sin({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %sin_sql1 ,1,1,'%s' %sin_sql2 ,1,1)
                             #acos check
-                            acos_sql1 = "select acos(c1) from {}.{};".format(db_name, stb_child_name);
-                            acos_sql2 = "select acos(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            acos_sql1 = "select acos({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            acos_sql2 = "select acos({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %acos_sql1 ,1,1,'%s' %acos_sql2 ,1,1)
                             #ceil check
-                            ceil_sql1 = "select ceil(c1) from {}.{};".format(db_name, stb_child_name);
-                            ceil_sql2 = "select ceil(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            ceil_sql1 = "select ceil({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            ceil_sql2 = "select ceil({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %ceil_sql1 ,1,1,'%s' %ceil_sql2 ,1,1)
                             #log check
-                            log_sql1 = "select log(c1) from {}.{};".format(db_name, stb_child_name);
-                            log_sql2 = "select log(c1) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            log_sql1 = "select log({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            log_sql2 = "select log({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %log_sql1 ,1,1,'%s' %log_sql2 ,1,1)
                             #cast check
-                            cast_sql1 = "select cast(c1 as bigint) from {}.{};".format(db_name, stb_child_name);
-                            cast_sql2 = "select cast(c1 as bigint) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
+                            cast_sql1 = "select cast({} as bigint) from {}.{};".format(c1 , db_name, stb_child_name);
+                            cast_sql2 = "select cast({} as bigint) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %cast_sql1 ,1,1,'%s' %cast_sql2 ,1,1)
+                        elif (insert_rows > 0) and ((c11 != "NCHAR") or (c11 != "BINARY") or (c11 != "VARCHAR")):
+                            #char_length check
+                            char_length_sql1 = "select char_length({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            char_length_sql2 = "select char_length({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %char_length_sql1 ,1,1,'%s' %char_length_sql2 ,1,1)
+                            #length check
+                            length_sql1 = "select length({}) from {}.{};".format(c1 ,db_name, stb_child_name);
+                            length_sql2 = "select length({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %length_sql1 ,1,1,'%s' %length_sql2 ,1,1)
+                            #lower check
+                            lower_sql1 = "select lower({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            lower_sql2 = "select lower({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %lower_sql1 ,1,1,'%s' %lower_sql2 ,1,1)
+                            #lower check
+                            lower_sql1 = "select lower({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            lower_sql2 = "select lower({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %lower_sql1 ,1,1,'%s' %lower_sql2 ,1,1)
+                            #ltrim check
+                            ltrim_sql1 = "select ltrim({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            ltrim_sql2 = "select ltrim({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %ltrim_sql1 ,1,1,'%s' %ltrim_sql2 ,1,1)
+                            #rtrim check
+                            rtrim_sql1 = "select rtrim({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            rtrim_sql2 = "select rtrim({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %rtrim_sql1 ,1,1,'%s' %rtrim_sql2 ,1,1)
+                            #upper check
+                            upper_sql1 = "select upper({}) from {}.{};".format(c1 , db_name, stb_child_name);
+                            upper_sql2 = "select upper({}) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %upper_sql1 ,1,1,'%s' %upper_sql2 ,1,1)
+                            #substr check
+                            substr_sql1 = "select substr({},2) from {}.{};".format(c1 , db_name, stb_child_name);
+                            substr_sql2 = "select substr({},2) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %substr_sql1 ,1,1,'%s' %substr_sql2 ,1,1)
+                            #concat check
+                            concat_sql1 = "select concat({},{}) from {}.{};".format(c1 , c1 ,db_name, stb_child_name);
+                            concat_sql2 = "select concat({},{}) from {}.{} where tbname = '{}';".format(c1 , c1 , db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %concat_sql1 ,1,1,'%s' %concat_sql2 ,1,1)
+                            #concat_ws check
+                            concat_ws_sql1 = "select concat_ws('{}',{},{}) from {}.{};".format(c1 , c1 ,c1 ,db_name, stb_child_name);
+                            concat_ws_sql2 = "select concat_ws('{}',{},{}) from {}.{} where tbname = '{}';".format(c1 , c1 , c1 ,db_name, stb_name, stb_child_name)
+                            self.tdCreateData.dataequal('%s' %concat_ws_sql1 ,1,1,'%s' %concat_ws_sql2 ,1,1)
+                            #cast check
+                            cast_sql1 = "select cast({} as NCHAR(1000)) from {}.{};".format(c1 , db_name, stb_child_name);
+                            cast_sql2 = "select cast({} as NCHAR(1000)) from {}.{} where tbname = '{}';".format(c1 , db_name, stb_name, stb_child_name)
                             self.tdCreateData.dataequal('%s' %cast_sql1 ,1,1,'%s' %cast_sql2 ,1,1)
 
                         if (not self.enable_second_round) or second_round:

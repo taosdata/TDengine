@@ -173,7 +173,14 @@ function run_thread() {
         runcase_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
     fi
     local count=0
-    local script="TEST_ROOT=${workdirs[index]}/TestNG TAOSTEST_LOG_DIR=${log_dir} $TIMEOUT_PREFIX"
+    local script="TEST_ROOT=${workdirs[index]}/TestNG TAOSTEST_LOG_DIR=${log_dir}"
+    if [ ! -z "$DATABASE_REPLICAS" ]; then
+        script="$script DATABASE_REPLICAS=${DATABASE_REPLICAS}"
+    fi
+    if [ ! -z "$DATABASE_QUERY_POLICY" ]; then
+        script="$script DATABASE_QUERY_POLICY=${DATABASE_QUERY_POLICY}"
+    fi
+    script="$script $TIMEOUT_PREFIX"
 
     # script="echo"
     while [ 1 ]; do

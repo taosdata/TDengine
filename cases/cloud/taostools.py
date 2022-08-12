@@ -31,7 +31,7 @@ class TaosTools(TDCase, CloudCase):
         self.logger.info("-------------------Test taosBenchmark---------------------------")
         # 创建 1 张表，写 records 条数据
         records = 10
-        run(['taosBenchmark', '--database', 'benchmark', '-T', '1', '-t', '1', '--records', str(records), '-y'],
+        run(['taosBenchmark', '-d', 'benchmark', '-T', '1', '-t', '1', '--records', str(records), '-y'],
             cwd=self.cwd, check=True, timeout=20)
         count = self.cql.count("benchmark", "meters")
         assert count == records
