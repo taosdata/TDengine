@@ -29,7 +29,7 @@ class TDTestCase:
         self.vgroups = 2
         self.tb_nums = 10
         self.row_nums = 100
-        self.max_vote_time_cost = 10  # seconds
+        self.max_vote_time_cost = 30  # seconds
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
