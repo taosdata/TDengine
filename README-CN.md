@@ -19,7 +19,7 @@
 
 # TDengine 简介
 
-TDengine 是一款开源、高性能、云原生的时序数据库 (Time-Series Database, TSDB)。TDengine 能被广泛运用于物联网、工业互联网、车联网、IT 运维、金融等领域。除核心的时序数据库功能外，TDengine 还提供缓存、数据订阅、流式计算等功能，是一极简的时序数据处理平台，最大程度的减小系统设计的复杂度，降低研发和运营成本。TDengine 的主要优势如下：
+TDengine 是一款开源、高性能、云原生的时序数据库 (Time-Series Database, TSDB)。TDengine 能被广泛运用于物联网、工业互联网、车联网、IT 运维、金融等领域。除核心的时序数据库功能外，TDengine 还提供缓存、数据订阅、流式计算等功能，是一极简的时序数据处理平台，最大程度的减小系统设计的复杂度，降低研发和运营成本。与其他时序数据库相比，TDengine 的主要优势如下：
 
 - 高性能：通过创新的存储引擎设计，无论是数据写入还是查询，TDengine 的性能比通用数据库快 10 倍以上，也远超其他时序数据库，存储空间不及通用数据库的1/10。
 
@@ -41,7 +41,9 @@ TDengine 是一款开源、高性能、云原生的时序数据库 (Time-Series 
 
 TDengine 目前可以在 Linux、 Windows 等平台上安装和运行。任何 OS 的应用也可以选择 taosAdapter 的 RESTful 接口连接服务端 taosd。CPU 支持 X64/ARM64，后续会支持 MIPS64、Alpha64、ARM32、RISC-V 等 CPU 架构。
 
-用户可根据需求选择通过[源码](https://www.taosdata.com/cn/getting-started/#通过源码安装)或者[安装包](https://www.taosdata.com/cn/getting-started/#通过安装包安装)来安装。本快速指南仅适用于通过源码安装。
+用户可根据需求选择通过源码、[容器](https://docs.taosdata.com/3.0/get-started/docker/)、[安装包](https://docs.taosdata.com/3.0/get-started/package/)或[Kubenetes](https://docs.taosdata.com/3.0/deployment/k8s/)来安装。本快速指南仅适用于通过源码安装。
+  
+TDengine 还提供一组辅助工具软件 taosTools，目前它包含 taosBenchmark（曾命名为 taosdemo）和 taosdump 两个软件。默认 TDengine 编译不包含 taosTools, 您可以在编译 TDengine 时使用`cmake .. -DBUILD_TOOLS=true` 来同时编译 taosTools。
 
 ## 安装工具
 
@@ -52,10 +54,6 @@ sudo apt-get install -y gcc cmake build-essential git libssl-dev
 ```
 
 #### 为 taos-tools 安装编译需要的软件
-
-taosTools 是用于 TDengine 的辅助工具软件集合。目前它包含 taosBenchmark（曾命名为 taosdemo）和 taosdump 两个软件。
-
-默认 TDengine 编译不包含 taosTools。您可以在编译 TDengine 时使用`cmake .. -DBUILD_TOOLS=true` 来同时编译 taosTools。
 
 为了在 Ubuntu/Debian 系统上编译 [taos-tools](https://github.com/taosdata/taos-tools) 需要安装如下软件：
 
@@ -104,7 +102,7 @@ sudo yum config-manager --set-enabled Powertools
 
 ### 设置 golang 开发环境
 
-TDengine 包含数个使用 Go 语言开发的组件，请参考 golang.org 官方文档设置 go 开发环境。
+TDengine 包含数个使用 Go 语言开发的组件，比如taosAdapter, 请参考 golang.org 官方文档设置 go 开发环境。
 
 请使用 1.14 及以上版本。对于中国用户，我们建议使用代理来加速软件包下载。
 
@@ -113,7 +111,7 @@ go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
 ```
 
-默认情况下，内嵌的 http 服务仍然可以从 TDengine 源码构建。当然您也可以使用以下命令选择构建 taosAdapter 作为 RESTful 接口的服务。
+缺省是不会构建 taosAdapter, 但您可以使用以下命令选择构建 taosAdapter 作为 RESTful 接口的服务。
 
 ```
 cmake .. -DBUILD_HTTP=false

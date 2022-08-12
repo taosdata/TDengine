@@ -46,8 +46,8 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统
 </TabItem>
 <TabItem label="Deb 安装" value="debinst">
 
-1、从官网下载获得 deb 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.deb；
-2、进入到 TDengine-server-3.0.0.0-Linux-x64.deb 安装包所在目录，执行如下的安装命令：
+1. 从 [发布历史页面](../../releases) 下载获得 deb 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.deb；
+2. 进入到 TDengine-server-3.0.0.0-Linux-x64.deb 安装包所在目录，执行如下的安装命令：
 
 ```bash
 sudo dpkg -i TDengine-server-3.0.0.0-Linux-x64.deb
@@ -57,8 +57,8 @@ sudo dpkg -i TDengine-server-3.0.0.0-Linux-x64.deb
 
 <TabItem label="RPM 安装" value="rpminst">
 
-1、从官网下载获得 rpm 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.rpm；
-2、进入到 TDengine-server-3.0.0.0-Linux-x64.rpm 安装包所在目录，执行如下的安装命令：
+1. 从 [发布历史页面](../../releases) 下载获得 rpm 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.rpm；
+2. 进入到 TDengine-server-3.0.0.0-Linux-x64.rpm 安装包所在目录，执行如下的安装命令：
 
 ```bash
 sudo rpm -ivh TDengine-server-3.0.0.0-Linux-x64.rpm
@@ -68,8 +68,8 @@ sudo rpm -ivh TDengine-server-3.0.0.0-Linux-x64.rpm
 
 <TabItem label="tar.gz 安装" value="tarinst">
 
-1、从官网下载获得 tar.gz 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.tar.gz；
-2、进入到 TDengine-server-3.0.0.0-Linux-x64.tar.gz 安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本：
+1. 从 [发布历史页面](../../releases) 下载获得 tar.gz 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.tar.gz；
+2. 进入到 TDengine-server-3.0.0.0-Linux-x64.tar.gz 安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本：
 
 ```bash
 tar -zxvf TDengine-server-3.0.0.0-Linux-x64.tar.gz
@@ -89,7 +89,9 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 </TabItem>
 
 <TabItem label="Windows 安装" value="windows">
-TODO
+
+1. 从 [发布历史页面](../../releases) 下载获得 exe 安装程序，例如 TDengine-server-3.0.0.0-Windows-x64.exe；
+2. 运行 TDengine-server-3.0.0.0-Windows-x64.exe 来安装 TDengine。
 
 </TabItem>
 </Tabs>
@@ -152,14 +154,14 @@ systemctl 命令汇总：
 
 <TabItem label="Windows 系统" value="windows">
 
-TODO
+安装后，在 C:\TDengine 目录下，运行 taosd.exe 来启动 TDengine 服务进程。
 
 </TabItem>
 </Tabs>
 
 ## TDengine 命令行 (CLI)
 
-为便于检查 TDengine 的状态，执行数据库 (Database) 的各种即席(Ad Hoc)查询，TDengine 提供一命令行应用程序(以下简称为 TDengine CLI) taos。要进入 TDengine 命令行，您只要在安装有 TDengine 的 Linux 终端执行 `taos` 即可。
+为便于检查 TDengine 的状态，执行数据库 (Database) 的各种即席(Ad Hoc)查询，TDengine 提供一命令行应用程序(以下简称为 TDengine CLI) taos。要进入 TDengine 命令行，您只要在安装有 TDengine 的 Linux 终端执行 `taos` 即可，也可以在安装有 TDengine 的 Windows 终端的 C:\TDengine 目录下，运行 taos.exe 来启动 TDengine 命令行。
 
 ```bash
 taos
