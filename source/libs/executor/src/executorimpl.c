@@ -716,7 +716,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         taosArrayDestroy(pBlockList);
       }
     } else {
-      ASSERT(0);
+      return TSDB_CODE_OPS_NOT_SUPPORT;
     }
   }
 
