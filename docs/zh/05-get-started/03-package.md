@@ -46,7 +46,7 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统
 </TabItem>
 <TabItem label="Deb 安装" value="debinst">
 
-1. 从官网下载获得 deb 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.deb；
+1. 从 [发布历史页面](../../releases) 下载获得 deb 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.deb；
 2. 进入到 TDengine-server-3.0.0.0-Linux-x64.deb 安装包所在目录，执行如下的安装命令：
 
 ```bash
@@ -57,7 +57,7 @@ sudo dpkg -i TDengine-server-3.0.0.0-Linux-x64.deb
 
 <TabItem label="RPM 安装" value="rpminst">
 
-1. 从官网下载获得 rpm 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.rpm；
+1. 从 [发布历史页面](../../releases) 下载获得 rpm 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.rpm；
 2. 进入到 TDengine-server-3.0.0.0-Linux-x64.rpm 安装包所在目录，执行如下的安装命令：
 
 ```bash
@@ -68,7 +68,7 @@ sudo rpm -ivh TDengine-server-3.0.0.0-Linux-x64.rpm
 
 <TabItem label="tar.gz 安装" value="tarinst">
 
-1. 从官网下载获得 tar.gz 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.tar.gz；
+1. 从 [发布历史页面](../../releases) 下载获得 tar.gz 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.tar.gz；
 2. 进入到 TDengine-server-3.0.0.0-Linux-x64.tar.gz 安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本：
 
 ```bash
@@ -90,7 +90,7 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 
 <TabItem label="Windows 安装" value="windows">
 
-1. 从官网下载获得 exe 安装程序，例如 TDengine-server-3.0.0.0-Windows-x64.exe；
+1. 从 [发布历史页面](../../releases) 下载获得 exe 安装程序，例如 TDengine-server-3.0.0.0-Windows-x64.exe；
 2. 运行 TDengine-server-3.0.0.0-Windows-x64.exe 来安装 TDengine。
 
 </TabItem>
