@@ -1681,7 +1681,7 @@ typedef struct {
 #define STREAM_TRIGGER_AT_ONCE        1
 #define STREAM_TRIGGER_WINDOW_CLOSE   2
 #define STREAM_TRIGGER_MAX_DELAY      3
-#define STREAM_DEFAULT_IGNORE_EXPIRED 1
+#define STREAM_DEFAULT_IGNORE_EXPIRED 0
 
 typedef struct {
   char    name[TSDB_STREAM_FNAME_LEN];
