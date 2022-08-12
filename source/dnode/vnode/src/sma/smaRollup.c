@@ -139,6 +139,14 @@ void *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree) {
     if (isDeepFree) {
       taosMemoryFreeClear(pInfo->pTSchema);
     }
+
+    if (isDeepFree) {
+      if (pInfo->queue) taosCloseQueue(pInfo->queue);
+      if (pInfo->qall) taosFreeQall(pInfo->qall);
+      pInfo->queue = NULL;
+      pInfo->qall = NULL;
+    }
+
     taosMemoryFree(pInfo);
   }
 
@@ -179,7 +187,7 @@ static int32_t tdUpdateTbUidListImpl(SSma *pSma, tb_uid_t *suid, SArray *tbUids)
 
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pRSmaInfo->taskInfo[i]) {
-      if ((qUpdateQualifiedTableId(pRSmaInfo->taskInfo[i], tbUids, true) < 0)) {
+      if (((terrno = qUpdateQualifiedTableId(pRSmaInfo->taskInfo[i], tbUids, true)) < 0)) {
         tdReleaseRSmaInfo(pSma, pRSmaInfo);
         smaError("vgId:%d, update tbUidList failed for uid:%" PRIi64 " level %d since %s", SMA_VID(pSma), *suid, i,
                  terrstr());
@@ -351,6 +359,12 @@ int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
     goto _err;
   }
   pRSmaInfo->pTSchema = pTSchema;
+  if (!(pRSmaInfo->queue = taosOpenQueue())) {
+    goto _err;
+  }
+  if (!(pRSmaInfo->qall = taosAllocateQall())) {
+    goto _err;
+  }
   pRSmaInfo->suid = suid;
   pRSmaInfo->refId = RSMA_REF_ID(pStat);
   T_REF_INIT_VAL(pRSmaInfo, 1);
@@ -615,7 +629,7 @@ static int32_t tdRSmaFetchAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSm
   while (1) {
     uint64_t ts;
     int32_t  code = qExecTaskOpt(taskInfo, pResList, &ts);
-    if (code < 0) {      
+    if (code < 0) {
       if (code == TSDB_CODE_QRY_IN_EXEC) {
         break;
       } else {
@@ -662,10 +676,9 @@ static int32_t tdRSmaFetchAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSm
         goto _err;
       }
       taosMemoryFreeClear(pReq);
-      
+
       smaDebug("vgId:%d, process submit req for rsma table %" PRIi64 " level %" PRIi8 " version:%" PRIi64,
                SMA_VID(pSma), suid, pItem->level, output->info.version);
-
     }
   }
 
@@ -841,30 +854,45 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, void *pMsg, int32_t inputType) {
   return TSDB_CODE_SUCCESS;
 }
 
+/**
+ * @brief retrieve rsma meta and init
+ *
+ * @param pSma
+ * @param nTables number of tables of rsma
+ * @return int32_t
+ */
 static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables) {
-  SVnode *pVnode = pSma->pVnode;
+  SVnode     *pVnode = pSma->pVnode;
+  SArray     *suidList = NULL;
+  STbUidStore uidStore = {0};
+  SMetaReader mr = {0};
 
-  SArray *suidList = taosArrayInit(1, sizeof(tb_uid_t));
-  if (tsdbGetStbIdList(SMA_META(pSma), 0, suidList) < 0) {
-    taosArrayDestroy(suidList);
+  if (!(suidList = taosArrayInit(1, sizeof(tb_uid_t)))) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  if (vnodeGetStbIdList(pSma->pVnode, 0, suidList) < 0) {
     smaError("vgId:%d, failed to restore rsma env since get stb id list error: %s", TD_VID(pVnode), terrstr());
-    return TSDB_CODE_FAILED;
+    goto _err;
   }
 
   int64_t arrSize = taosArrayGetSize(suidList);
 
-  if (nTables) {
-    *nTables = arrSize;
-  }
-
   if (arrSize == 0) {
+    if (nTables) {
+      *nTables = 0;
+    }
     taosArrayDestroy(suidList);
     smaDebug("vgId:%d, no need to restore rsma env since empty stb id list", TD_VID(pVnode));
     return TSDB_CODE_SUCCESS;
   }
 
-  SMetaReader mr = {0};
+  int64_t nRsmaTables = 0;
   metaReaderInit(&mr, SMA_META(pSma), 0);
+  if (!(uidStore.tbUids = taosArrayInit(1024, sizeof(tb_uid_t)))) {
+    goto _err;
+  }
   for (int64_t i = 0; i < arrSize; ++i) {
     tb_uid_t suid = *(tb_uid_t *)taosArrayGet(suidList, i);
     smaDebug("vgId:%d, rsma restore, suid is %" PRIi64, TD_VID(pVnode), suid);
@@ -877,6 +905,7 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables) {
     ASSERT(mr.me.type == TSDB_SUPER_TABLE);
     ASSERT(mr.me.uid == suid);
     if (TABLE_IS_ROLLUP(mr.me.flags)) {
+      ++nRsmaTables;
       SRSmaParam *param = &mr.me.stbEntry.rsmaParam;
       for (int i = 0; i < TSDB_RETENTION_L2; ++i) {
         smaDebug("vgId:%d, rsma restore, table:%" PRIi64 " level:%d, maxdelay:%" PRIi64 " watermark:%" PRIi64
@@ -887,17 +916,40 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables) {
         smaError("vgId:%d, rsma restore env failed for %" PRIi64 " since %s", TD_VID(pVnode), suid, terrstr());
         goto _err;
       }
+
+      // reload all ctbUids for suid
+      uidStore.suid = suid;
+      if (vnodeGetCtbIdList(pVnode, suid, uidStore.tbUids) < 0) {
+        smaError("vgId:%d, rsma restore, get ctb idlist failed for %" PRIi64 " since %s", TD_VID(pVnode), suid,
+                 terrstr());
+        goto _err;
+      }
+
+      if (tdUpdateTbUidList(pVnode->pSma, &uidStore) < 0) {
+        smaError("vgId:%d, rsma restore, update tb uid list failed for %" PRIi64 " since %s", TD_VID(pVnode), suid,
+                 terrstr());
+        goto _err;
+      }
+
+      taosArrayClear(uidStore.tbUids);
+
       smaDebug("vgId:%d, rsma restore env success for %" PRIi64, TD_VID(pVnode), suid);
     }
   }
 
   metaReaderClear(&mr);
   taosArrayDestroy(suidList);
+  tdUidStoreDestory(&uidStore);
+
+  if (nTables) {
+    *nTables = nRsmaTables;
+  }
 
   return TSDB_CODE_SUCCESS;
 _err:
   metaReaderClear(&mr);
   taosArrayDestroy(suidList);
+  tdUidStoreDestory(&uidStore);
 
   return TSDB_CODE_FAILED;
 }

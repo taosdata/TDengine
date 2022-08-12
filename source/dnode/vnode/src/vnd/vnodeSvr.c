@@ -522,7 +522,9 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pR
   }
 
   tqUpdateTbUidList(pVnode->pTq, tbUids, true);
-  tdUpdateTbUidList(pVnode->pSma, pStore);
+  if (tdUpdateTbUidList(pVnode->pSma, pStore) < 0) {
+    goto _exit;
+  }
   tdUidStoreFree(pStore);
 
   // prepare rsp

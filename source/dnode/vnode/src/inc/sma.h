@@ -122,17 +122,19 @@ struct SRSmaInfoItem {
 };
 
 struct SRSmaInfo {
-  STSchema *pTSchema;
-  int64_t   suid;
-  int64_t   refId;  // refId of SRSmaStat
-  int8_t    delFlag;
+  STSchema   *pTSchema;
+  STaosQueue *queue;  // buffer queue of SubmitReq
+  STaosQall  *qall;
+  int64_t     suid;
+  int64_t     refId;  // refId of SRSmaStat
+  int8_t      delFlag;
   T_REF_DECLARE()
   SRSmaInfoItem items[TSDB_RETENTION_L2];
   void         *taskInfo[TSDB_RETENTION_L2];   // qTaskInfo_t
   void         *iTaskInfo[TSDB_RETENTION_L2];  // immutable
 };
 
-#define RSMA_INFO_HEAD_LEN     32
+#define RSMA_INFO_HEAD_LEN     offsetof(SRSmaInfo, items)
 #define RSMA_INFO_IS_DEL(r)    ((r)->delFlag == 1)
 #define RSMA_INFO_SET_DEL(r)   ((r)->delFlag = 1)
 #define RSMA_INFO_QTASK(r, i)  ((r)->taskInfo[i])
