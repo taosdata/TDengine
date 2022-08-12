@@ -6,6 +6,16 @@ title: 数据订阅
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import Java from "./_sub_java.mdx";
+import Python from "./_sub_python.mdx";
+import Go from "./_sub_go.mdx";
+import Rust from "./_sub_rust.mdx";
+import Node from "./_sub_node.mdx";
+import CSharp from "./_sub_cs.mdx";
+import CDemo from "./_sub_c.mdx";
+
 
 为了帮助应用实时获取写入 TDengine 的数据，或者以事件到达顺序处理数据，TDengine提供了类似消息队列产品的数据订阅、消费接口。这样在很多场景下，采用 TDengine 的时序数据处理系统不再需要集成消息队列产品，比如 kafka, 从而简化系统设计的复杂度，降低运营维护成本。
 
@@ -256,27 +266,27 @@ TODO
 </TabItem>
 
 <TabItem label="Java" value="java">
-TODO
+    <Java />
 </TabItem>
 
 <TabItem label="Go" value="Go">
-TODO
+   <Go/>
 </TabItem>
 
 <TabItem label="Rust" value="Rust">
-TODO
+    <Rust />
 </TabItem>
 
 <TabItem label="Python" value="Python">
-TODO
+    <Python />
 </TabItem>
 
 <TabItem label="Node.JS" value="Node.JS">
-TODO
+   <Node/>
 </TabItem>
 
 <TabItem label="C#" value="C#">
-TODO
+   <CSharp/>
 </TabItem>
 
 </Tabs>
