@@ -319,7 +319,8 @@ bool sendProbeConnMsg(SSqlObj* pSql, int64_t stime, bool *pReqOver) {
   }
   
   bool ret = rpcSendProbe(pSql->rpcRid, pSql->pPrevContext, pReqOver);
-  tscInfo("PROBE 0x%" PRIx64 " send probe msg, ret=%d rpcRid=0x%" PRIx64, pSql->self, ret, pSql->rpcRid);
+  if (!(*pReqOver))
+    tscInfo("PROBE 0x%" PRIx64 " send probe msg, ret=%d rpcRid=0x%" PRIx64, pSql->self, ret, pSql->rpcRid);
   return ret;
 }
 
