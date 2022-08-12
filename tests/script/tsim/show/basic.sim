@@ -210,6 +210,8 @@ if $rows != 3 then
   return -1
 endi
 
+sql_error select * from performance_schema.PERF_OFFSETS;
+
 sql show create stable stb;
 if $rows != 1 then
   return -1

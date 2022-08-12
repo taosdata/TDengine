@@ -170,12 +170,20 @@ static void mndBecomeFollower(struct SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
   mDebug("vgId:1, become follower");
 
-  // clear old leader resource
+  if (pMnode->syncMgmt.transId != 0) {
+    pMnode->syncMgmt.transId = 0;
+    tsem_post(&pMnode->syncMgmt.syncSem);
+  }
 }
 
 static void mndBecomeLeader(struct SSyncFSM *pFsm) {
-  SMnode *pMnode = pFsm->data;
   mDebug("vgId:1, become leader");
+  SMnode *pMnode = pFsm->data;
+
+  if (pMnode->syncMgmt.transId != 0) {
+    pMnode->syncMgmt.transId = 0;
+    tsem_post(&pMnode->syncMgmt.syncSem);
+  }
 }
 
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
