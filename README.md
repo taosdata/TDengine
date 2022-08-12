@@ -89,7 +89,7 @@ Note: Since snappy lacks pkg-config support (refer to [link](https://github.com/
 
 ### Setup golang environment
 
-TDengine includes a few components developed by Go language. Please refer to golang.org official documentation for golang environment setup.
+TDengine includes a few components like taosAdapter developed by Go language. Please refer to golang.org official documentation for golang environment setup.
 
 Please use version 1.14+. For the user in China, we recommend using a proxy to accelerate package downloading.
 
@@ -100,7 +100,7 @@ go env -w GOPROXY=https://goproxy.cn,direct
 
 ### Setup rust environment
 
-TDengine includees a few compoments developed by Rust language. Please refer to rust-lang.org official documentation for rust environment setup.
+TDengine includes a few compoments developed by Rust language. Please refer to rust-lang.org official documentation for rust environment setup.
 
 ## Get the source codes
 
@@ -139,14 +139,7 @@ cmake .. -DBUILD_TOOLS=true
 make
 ```
 
-Note TDengine 2.3.x.0 and later use a component named 'taosAdapter' to play http daemon role by default instead of the http daemon embedded in the early version of TDengine. The taosAdapter is programmed by go language. If you pull TDengine source code to the latest from an existing codebase, please execute 'git submodule update --init --recursive' to pull taosAdapter source code. Please install go language version 1.14 or above for compiling taosAdapter. If you meet difficulties regarding 'go mod', especially you are from China, you can use a proxy to solve the problem.
-
-```
-go env -w GO111MODULE=on
-go env -w GOPROXY=https://goproxy.cn,direct
-```
-
-The embedded http daemon still be built from TDengine source code by default. Or you can use the following command to choose to build taosAdapter.
+Note TDengine 2.3.x.0 and later use a component named 'taosAdapter' to play http daemon role. If you pull TDengine source code to the latest from an existing codebase, please execute 'git submodule update --init --recursive' to pull taosAdapter source code, and use the following command to choose to build taosAdapter.
 
 ```
 cmake .. -DBUILD_HTTP=false
