@@ -619,9 +619,9 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
                 "st123456 1626006833648 9i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64"
                 ]
         self.tdSql._conn.schemaless_insert(lines, TDSmlProtocolType.TELNET.value, None)
-        self.tdSql.query('show stables')
+        self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
-        self.tdSql.query('show tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
         self.tdSql.query('select * from st123456')
         self.tdSql.checkEqual(self.tdSql.query_row, 5)
@@ -640,7 +640,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
             sql_list.append(input_sql)
         print(sql_list)
         self.tdSql._conn.schemaless_insert(sql_list, TDSmlProtocolType.TELNET.value, None)
-        self.tdSql.query('show tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, count)
 
     def batch_error_insert_check(self):
@@ -797,7 +797,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_sql_list()[0]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(input_sql))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 5)
 
     def tcp_keywords_check(self, protocol="telnet-tcp"):
@@ -821,7 +821,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_s_tb_list = self.tdCom.gen_sql_list(stb_name=stb_name, tb_name=tb_name)[1]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 1)
         if self.tdCom.smlChildTableName_value == "ID":
             expected_tb_name = self.tdCom.get_no_id_tbname(stb_name)[0]
@@ -840,7 +840,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_s_tb_a_tag_list = self.tdCom.gen_sql_list(stb_name=stb_name, tb_name=tb_name)[2]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_a_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 1)
         if self.tdCom.smlChildTableName_value == "ID":
             expected_tb_name = self.tdCom.get_no_id_tbname(stb_name)[0]
@@ -859,7 +859,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_s_tb_m_tag_list = self.tdCom.gen_sql_list(stb_name=stb_name, tb_name=tb_name)[3]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_m_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 1)
         if self.tdCom.smlChildTableName_value == "ID":
             expected_tb_name = self.tdCom.get_no_id_tbname(stb_name)[0]
@@ -877,7 +877,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_d_tb_list = self.tdCom.gen_sql_list(stb_name=stb_name)[4]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
 
     def s_stb_d_tb_d_data_mt_insert_multi_thread_check(self):
@@ -894,7 +894,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
                                 (f'{stb_name} 1626006833640 "cujyqvlj" t0=F t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64', 'yzwswz'),  \
                                 (f'{stb_name} 1626006833640 "twjxisat" t0=T t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64', 'yzwswz')]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_m_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def s_stb_d_tb_d_data_at_insert_multi_thread_check(self):
@@ -907,7 +907,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_d_tb_a_tag_list = self.tdCom.gen_sql_list(stb_name=stb_name)[6]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_a_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
 
     def s_stb_s_tb_d_data_d_ts_insert_multi_thread_check(self):
@@ -925,7 +925,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
                                 (f'{stb_name} 1626006833643 "clsajzpp" id={tb_name} t0=F t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="eivaegjk" t8=L"ncharTagValue"', 'dwpthv'), \
                                 (f'{stb_name} 1626006833644 "jitwseso" id={tb_name} t0=T t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="yhlwkddq" t8=L"ncharTagValue"', 'dwpthv')]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_d_ts_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
@@ -946,7 +946,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
                                     (f'{stb_name} 1626006833646 TRUE t0=t t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="binaryTagValue" t8=L"ncharTagValue"', 'lakfkr')]
         # s_stb_s_tb_d_ts_m_tag_list = self.tdCom.gen_sql_list(stb_name=stb_name, tb_name=tb_name)[8]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_d_ts_m_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
@@ -968,7 +968,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
                                     (f'{stb_name} 1626006833644 "ldxxejbd" id={tb_name} t0=False t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="hpxzrdiw" t8=L"ncharTagValue" t11=127i8 t10=L"ncharTagValue"', 'bokaxl'), \
                                     (f'{stb_name} 1626006833645 "tlvzwjes" id={tb_name} t0=False t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="hpxzrdiw" t8=L"ncharTagValue" t11=127i8 t10=L"ncharTagValue"', 'bokaxl')]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_d_ts_a_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
@@ -986,7 +986,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_d_tb_d_ts_list = self.tdCom.gen_sql_list(stb_name=stb_name)[10]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_d_ts_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
 
     def s_stb_d_tb_d_data_d_ts_mt_insert_multi_thread_check(self):
@@ -1003,7 +1003,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
                                     (f'{stb_name} 1626006833645 "laumkwfn" t0=False t1=124i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64', 'pcppkg'), \
                                     (f'{stb_name} 1626006833646 "nyultzxr" t0=false t1=123i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64', 'pcppkg')]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_d_ts_m_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
 
     def test(self):

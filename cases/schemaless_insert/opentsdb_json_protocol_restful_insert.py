@@ -422,9 +422,9 @@ class TestOpentsdbJsonRestfulInsert(TDCase):
                     {"metric": "st123456", "timestamp": {"value": 1626006933640000000, "type": "ns"}, "value": {"value": 8, "type": "double"}, "tags": {"t1": {"value": 4, "type": "double"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}},
                     {"metric": "st123456", "timestamp": {"value": 1626006933641000000, "type": "ns"}, "value": {"value": 9, "type": "double"}, "tags": {"t1": 4, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}}]
         self.tdRest.schemalessApiPost(json.dumps(input_json), url_type="json", precision=None, dbname=self.dbname)
-        self.tdSql.query(f'show {self.dbname}.stables')
+        self.tdSql.query('select * from information_schema.ins_stables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
-        self.tdSql.query(f'show {self.dbname}.tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
         self.tdSql.query(f'select * from {self.dbname}.st123456')
         self.tdSql.checkEqual(self.tdSql.query_row, 5)
@@ -441,7 +441,7 @@ class TestOpentsdbJsonRestfulInsert(TDCase):
             input_json = self.tdCom.gen_full_type_json(stb_name=stb_name, col_value=self.tdCom.gen_ts_col_value(value=self.tdCom.get_long_name(), t_type="binary"), tag_value=self.tdCom.gen_tag_value(t7_value=self.tdCom.get_long_name()), id_noexist_tag=True)[0]
             sql_list.append(input_json)
         res = self.tdRest.schemalessApiPost(json.dumps(sql_list), url_type="json", precision=None, dbname=self.dbname)
-        self.tdSql.query(f'show {self.dbname}.tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, count)
 
     def batch_error_insert_check(self):

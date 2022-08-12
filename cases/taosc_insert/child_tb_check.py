@@ -30,7 +30,7 @@ class TestChildTb(TDCase):
         self.tdSql.execute(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.execute(f'create table if not exists {self.dbname}.{tbname} using {stbname} tags (127)')
         self.tdSql.error(f'create table {self.dbname}.{tbname} using {stbname} tags (127)')
-        self.tdSql.query(f'show tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname)
         tbname_exceed = self.tdCom.get_long_name(self.tdCom.Boundary.CHILD_TBNAME_MAX_LENGTH+1)
         self.tdSql.error(f'create table if not exists {self.dbname}.{tbname} using {tbname_exceed} tags (127)')
@@ -44,7 +44,7 @@ class TestChildTb(TDCase):
         tbname = '1' + self.tdCom.get_long_name()
         self.tdSql.execute(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.execute(f'create table if not exists {self.dbname}.`{tbname}` using {stbname} tags (127)')
-        self.tdSql.query(f'show {self.dbname}.tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname)
         self.tdSql.execute(f'drop table if exists {self.dbname}.`{tbname}`')
         tbname = self.tdCom.get_long_name(3)
@@ -58,7 +58,7 @@ class TestChildTb(TDCase):
                 d_list_new.insert(i, insert_str)
                 tbname_new = ''.join(d_list_new)
                 self.tdSql.execute(f'create table if not exists {self.dbname}.`{tbname_new}` using {stbname} tags (127)')
-                self.tdSql.query(f'show {self.dbname}.tables')
+                self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
                 self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname_new)
                 self.tdSql.execute(f'drop table if exists {self.dbname}.`{tbname_new}`')
 
@@ -92,13 +92,13 @@ class TestChildTb(TDCase):
         self.tdSql.execute(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
         for tbname in [self.tdCom.get_long_name(10, "letters_mixed"), self.tdCom.get_long_name(10, "letters_mixed").upper()]:
             self.tdSql.execute(f'create table if not exists {tbname} using {stbname} tags (127)')
-            self.tdSql.query(f'show {self.dbname}.tables')
+            self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname.lower())
             self.tdSql.execute(f'drop table if exists `{tbname.lower()}`')
 
         for tbname in [self.tdCom.get_long_name(10, "letters_mixed"), self.tdCom.get_long_name(10, "letters_mixed").upper()]:
             self.tdSql.execute(f'create table if not exists {self.dbname}.`{tbname}` using {stbname} tags (127)')
-            self.tdSql.query(f'show {self.dbname}.tables')
+            self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname)
             self.tdSql.execute(f'drop table if exists {self.dbname}.`{tbname}`')
 
@@ -111,7 +111,7 @@ class TestChildTb(TDCase):
         test_ttl = 2
         self.tdSql.execute(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.execute(f'create table if not exists {self.dbname}.{tbname} using {stbname} tags (127) ttl {test_ttl}')
-        self.tdSql.query(f'show {self.dbname}.tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         res = self.tdSql.get_db_field_kv(0, tbname)
         self.tdSql.checkEqual(int(res["ttl"]), test_ttl)
 
@@ -125,7 +125,7 @@ class TestChildTb(TDCase):
         comment = "comment_test"
         self.tdSql.execute(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.execute(f'create table if not exists {self.dbname}.{tbname} using {stbname} tags (127) comment "{comment}"')
-        self.tdSql.query(f'show {self.dbname}.tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         res = self.tdSql.get_db_field_kv(0, tbname)
         self.tdSql.checkEqual(res["table_comment"], comment)
 

@@ -146,7 +146,7 @@ class TestTimestamp(TDCase):
                     self.tdSql.checkEqual(self.tdSql.query_data[0][0], 48)
                 else:
                     self.tdSql.checkEqual(self.tdSql.query_data[0][0], 16)
-            self.tdSql.query(f'show {dbname}.tables')
+            self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
             self.tdSql.checkEqual(self.tdSql.query_row, 18)
             self.tdSql.execute(f'drop database if exists {dbname}')
 

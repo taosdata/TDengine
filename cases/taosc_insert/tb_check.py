@@ -30,7 +30,7 @@ class TestTb(TDCase):
         tbname = self.tdCom.get_long_name(length=self.tdCom.Boundary.TBNAME_MAX_LENGTH)
         self.tdSql.execute(f'create table if not exists {self.dbname}.{tbname} (ts timestamp, c1 int)')
         self.tdSql.error(f'create table {self.dbname}.{tbname} (ts timestamp, c1 int)')
-        self.tdSql.query(f'show {self.dbname}.tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname)
         tbname_exceed = self.tdCom.get_long_name(length=self.tdCom.Boundary.TBNAME_MAX_LENGTH+1)
         self.tdSql.error(f'create table if not exists {self.dbname}.{tbname_exceed} (ts timestamp, c1 int)')
@@ -42,7 +42,7 @@ class TestTb(TDCase):
         self.tdCom.cleanTb()
         tbname = '1' + self.tdCom.get_long_name(self.name_length)
         self.tdSql.execute(f'create table if not exists {self.dbname}.`{tbname}` (ts timestamp, c1 int)')
-        self.tdSql.query(f'show {self.dbname}.tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname)
         self.tdSql.execute(f'drop table if exists {self.dbname}.`{tbname}`')
         tbname = self.tdCom.get_long_name(self.name_length)
@@ -56,7 +56,7 @@ class TestTb(TDCase):
                 d_list_new.insert(i, insert_str)
                 tbname_new = ''.join(d_list_new)
                 self.tdSql.execute(f'create table if not exists {self.dbname}.`{tbname_new}` (ts timestamp, c1 int)')
-                self.tdSql.query('show tables')
+                self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
                 self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname_new)
                 self.tdSql.execute(f'drop table if exists {self.dbname}.`{tbname_new}`')
 
@@ -85,13 +85,13 @@ class TestTb(TDCase):
         """
         for tbname in [self.tdCom.get_long_name(self.name_length, self.letter_type), self.tdCom.get_long_name(self.name_length, self.letter_type).upper()]:
             self.tdSql.execute(f'create table if not exists {self.dbname}.{tbname} (ts timestamp, c1 int)')
-            self.tdSql.query(f'show {self.dbname}.tables')
+            self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname.lower())
             self.tdSql.execute(f'drop table if exists {self.dbname}.`{tbname.lower()}`')
 
         for tbname in [self.tdCom.get_long_name(self.name_length, self.letter_type), self.tdCom.get_long_name(self.name_length, self.letter_type).upper()]:
             self.tdSql.execute(f'create table if not exists {self.dbname}.`{tbname}` (ts timestamp, c1 int)')
-            self.tdSql.query(f'show {self.dbname}.tables')
+            self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname)
             self.tdSql.execute(f'drop table if exists {self.dbname}.`{tbname}`')
 
@@ -128,7 +128,7 @@ class TestTb(TDCase):
         """
         tbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create table if not exists {self.dbname}.{tbname} (ts timestamp, c1 int) comment "{self.comment}"')
-        self.tdSql.query(f'show {self.dbname}.tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         res = self.tdSql.get_db_field_kv(0, tbname)
         self.tdSql.checkEqual(res["table_comment"], self.comment)
 
@@ -138,7 +138,7 @@ class TestTb(TDCase):
         """
         tbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create table if not exists {self.dbname}.{tbname} (ts timestamp, c1 int) ttl {self.test_ttl}')
-        self.tdSql.query(f'show {self.dbname}.tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         res = self.tdSql.get_db_field_kv(0, tbname)
         self.tdSql.checkEqual(int(res["ttl"]), self.test_ttl)
 

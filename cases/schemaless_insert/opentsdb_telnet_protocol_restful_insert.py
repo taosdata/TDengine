@@ -439,9 +439,9 @@ st123456 1626006833648 9i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64'
 
         res = self.tdRest.schemalessApiPost(sql=lines, url_type="telnet", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 200)
-        self.tdRest.request(f'show {self.dbname}.stables')
+        self.tdRest.request(f'select * from information_schema.ins_stables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdRest.resp["rows"], 3)
-        self.tdRest.request(f'show {self.dbname}.tables')
+        self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdRest.resp["rows"], 6)
         self.tdRest.request(f'select * from {self.dbname}.st123456')
         self.tdSql.checkEqual(self.tdRest.resp["rows"], 5)
@@ -459,7 +459,7 @@ st123456 1626006833648 9i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64'
             long_sql += f'{input_sql}\n'
         res = self.tdRest.schemalessApiPost(sql=long_sql, url_type="telnet", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 200)
-        self.tdRest.request(f'show {self.dbname}.tables')
+        self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdRest.resp["rows"], count)
 
     def batch_error_insert_check(self):

@@ -43,12 +43,12 @@ class TestSingle_stable(TDCase):
             if param_value == 0:
                 self.tdSql.execute(f'create table {dbname}.stb1 (ts timestamp, c1 int) tags (t1 int);')
                 self.tdSql.execute(f'create table {dbname}.stb2 (ts timestamp, c1 int) tags (t1 int);')
-                self.tdSql.query(f'show {dbname}.stables')
+                self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{dbname}"')
                 self.tdSql.checkEqual(self.tdSql.query_row, 2)
             elif param_value == 1:
                 self.tdSql.execute(f'create table {dbname}.stb1 (ts timestamp, c1 int) tags (t1 int);')
                 self.tdSql.error(f'create table {dbname}.stb2 (ts timestamp, c1 int) tags (t1 int);')
-                self.tdSql.query(f'show {dbname}.stables')
+                self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{dbname}"')
                 self.tdSql.checkEqual(self.tdSql.query_row, 1)
             self.tdSql.execute(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name()
