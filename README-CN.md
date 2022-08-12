@@ -61,7 +61,7 @@ sudo apt-get install -y gcc cmake build-essential git libssl-dev
 sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
 ```
 
-### CentOS 7.9：
+### CentOS 7.9
 
 ```bash
 sudo yum install epel-release
@@ -78,7 +78,7 @@ sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
 
 #### 在 CentOS 上构建 taosTools 安装依赖软件
 
-#### For CentOS 7/RHEL
+#### For CentOS 7.9
 
 ```
 sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
