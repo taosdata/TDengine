@@ -35,7 +35,7 @@ TDengine 是一款开源、高性能、云原生的时序数据库 (Time-Series 
 
 # 文档
 
-关于完整的使用手册，系统架构和更多细节，请参考 [TDengine 文档](https://docs.taosdata.com) 或者  [English Documents](https://docs.tdengine.com)。
+关于完整的使用手册，系统架构和更多细节，请参考 [TDengine 文档](https://docs.taosdata.com) 或者  [TDengine Documentation](https://docs.tdengine.com)。
 
 # 构建
 
