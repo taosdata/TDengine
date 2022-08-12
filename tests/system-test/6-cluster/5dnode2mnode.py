@@ -43,12 +43,12 @@ class TDTestCase:
         return buildPath
 
     def five_dnode_two_mnode(self):
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(4,1,'%s:6430'%self.host)
         tdSql.checkData(0,4,'ready')
         tdSql.checkData(4,4,'ready')
-        tdSql.query("show mnodes;")
+        tdSql.query("select * from information_schema.ins_mnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'leader')
         tdSql.checkData(0,3,'ready')
@@ -62,7 +62,7 @@ class TDTestCase:
         count=0
         while count < 10:
             time.sleep(1)
-            tdSql.query("show mnodes;")
+            tdSql.query("select * from information_schema.ins_mnodes;")
             tdSql.checkRows(2)
             if  tdSql.queryResult[0][2]=='leader' :
                 if  tdSql.queryResult[1][2]=='follower':
@@ -101,7 +101,7 @@ class TDTestCase:
         for i in range(4):
             tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
         tdSql.error("create mnode on dnode 2")
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         print(tdSql.queryResult)
         clusterComCheck.checkDnodes(5)
         # restart all taosd

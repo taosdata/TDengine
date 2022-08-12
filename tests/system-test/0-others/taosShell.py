@@ -162,8 +162,8 @@ class TDTestCase:
             tdLog.exit("taos -h %s fail"%keyDict['h'])
         else:
             #dataDbName = ["information_schema", "performance_schema", "db", newDbName]
-            tdSql.query("show databases")
-            #tdSql.getResult("show databases")
+            tdSql.query("select * from information_schema.ins_databases")
+            #tdSql.getResult("select * from information_schema.ins_databases")
             for i in range(tdSql.queryRows):
                 if tdSql.getData(i, 0) == newDbName:
                     break
@@ -184,7 +184,7 @@ class TDTestCase:
         if retCode != "TAOS_OK":
             tdLog.exit("taos -P %s fail"%keyDict['P'])
         else:
-            tdSql.query("show databases")
+            tdSql.query("select * from information_schema.ins_databases")
             for i in range(tdSql.queryRows):
                 if tdSql.getData(i, 0) == newDbName:
                     break
@@ -200,7 +200,7 @@ class TDTestCase:
         if retCode != "TAOS_OK":
             tdLog.exit("taos -u %s -p%s fail"%(keyDict['u'], keyDict['p']))
         else:
-            tdSql.query("show databases")
+            tdSql.query("select * from information_schema.ins_databases")
             for i in range(tdSql.queryRows):
                 if tdSql.getData(i, 0) == newDbName:
                     break
@@ -220,7 +220,7 @@ class TDTestCase:
         if retCode != "TAOS_OK":
             tdLog.exit("taos -u %s -a %s"%(keyDict['u'], retVal))
 
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             if tdSql.getData(i, 0) == newDbName:
                 break
@@ -237,7 +237,7 @@ class TDTestCase:
             tdLog.exit("taos -s fail")
 
         print ("========== check new db ==========")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             if tdSql.getData(i, 0) == newDbName:
                 break
@@ -316,7 +316,7 @@ class TDTestCase:
             tdLog.exit("taos -f fail")
 
         print ("========== check new db ==========")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             #print ("dbseq: %d, dbname: %s"%(i, tdSql.getData(i, 0)))
             if tdSql.getData(i, 0) == newDbName:
@@ -384,7 +384,7 @@ class TDTestCase:
         if retCode != "TAOS_OK":
             tdLog.exit("taos -d %s fail"%(keyDict['d']))
         else:
-            tdSql.query("show databases")
+            tdSql.query("select * from information_schema.ins_databases")
             for i in range(tdSql.queryRows):
                 if tdSql.getData(i, 0) == newDbName:
                     break

@@ -218,7 +218,7 @@ class TDTestCase:
         mnodeNums=int(mnodeNums)
         vnodeNumbers = int(dnodeNumbers-mnodeNums)
        
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         tdLog.debug(tdSql.queryResult)
         clusterComCheck.checkDnodes(dnodeNumbers)
 

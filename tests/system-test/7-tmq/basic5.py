@@ -249,7 +249,7 @@ class TDTestCase:
 
         # wait db ready
         while 1:
-            tdSql.query("show databases")
+            tdSql.query("select * from information_schema.ins_databases")
             if tdSql.getRows() == 4:
                 print ('==================================================')
                 print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0))
@@ -393,7 +393,7 @@ class TDTestCase:
 
         # wait db ready
         while 1:
-            tdSql.query("show databases")
+            tdSql.query("select * from information_schema.ins_databases")
             if tdSql.getRows() == 5:
                 print ('==================================================dbname: %s'%parameterDict['dbName'])
                 print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0),tdSql.getData(3,0),tdSql.getData(4,0))

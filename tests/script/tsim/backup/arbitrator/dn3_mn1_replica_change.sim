@@ -59,7 +59,7 @@ step1:
 		return -1
 	endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 $data4_1
 print dnode2 $data4_2
 
@@ -140,7 +140,7 @@ step2:
 		return -1
 	endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 $data4_1
 print dnode2 $data4_2
 print dnode3 $data4_3
@@ -229,7 +229,7 @@ step6:
 		return -1
 	endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 $data4_1
 print dnode2 $data4_2
 print dnode3 $data4_3
@@ -320,7 +320,7 @@ step9:
 	  return -1
 	endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 3 then
   goto step9
 endi

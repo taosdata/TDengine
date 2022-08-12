@@ -102,7 +102,7 @@ if $data00 != $totalRows then
 	return -1
 endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 4 then
   return -1
 endi
@@ -118,7 +118,7 @@ if $loopCnt == 10 then
   return -1
 endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 3 then
   sleep 2000
   goto wait_dnode4_dropped
@@ -153,7 +153,7 @@ endi
 print ============== step4: restart dnode4, but there are not dnode4 in cluster 
 system sh/exec.sh -n dnode4 -s start
 sleep 2000
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 3 then
   return -1
 endi
@@ -161,7 +161,7 @@ endi
 print ============== step5: recreate dnode4 into cluster, result should fail
 sql create dnode $hostname4
 sleep 12000
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 3 then
   return -1
 endi
@@ -191,7 +191,7 @@ if $loopCnt == 10 then
   return -1
 endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 4 then
   sleep 2000
   goto wait_dnode4_ready

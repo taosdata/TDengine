@@ -49,7 +49,7 @@ class TDTestCase:
         tdSql.error('create database db keep "3650"')
         tdSql.error('create database db wal_fsync_period "3650"')
         tdSql.execute('create database db precision "us"')
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,16,'us')
         tdSql.execute('drop database if exists db')
 
@@ -79,7 +79,7 @@ class TDTestCase:
         tdSql.error('alter database db keep ,,60,')
         tdSql.error('alter database db keep \t')
         tdSql.execute('alter database db keep \t50')
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,7,'50,50,50')
 
     def stop(self):

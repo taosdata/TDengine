@@ -27,7 +27,7 @@ step1:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
@@ -78,7 +78,7 @@ sql insert into d4.t4 values(now+4s, 42)
 sql insert into d4.t4 values(now+5s, 41)
 
 print ========== step2.1
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 openVnodes $data(1)[2]
 print dnode2 openVnodes $data(2)[2]
 print dnode3 openVnodes $data(3)[2]
@@ -106,7 +106,7 @@ step3:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
@@ -132,7 +132,7 @@ if $data(5)[4] != ready then
 endi
 
 sql balance vgroup
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 openVnodes $data(1)[2]
 print dnode3 openVnodes $data(2)[2]
 print dnode3 openVnodes $data(3)[2]
@@ -156,7 +156,7 @@ endi
 
 print ========== step4
 sql drop dnode 2
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 openVnodes $data(1)[2]
 print dnode3 openVnodes $data(3)[2]
 print dnode4 openVnodes $data(4)[2]
@@ -178,7 +178,7 @@ system sh/exec.sh -n dnode2 -s stop  -x SIGINT
 
 print ========== step5
 sql drop dnode 3
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print dnode1 openVnodes $data(1)[2]
 print dnode3 openVnodes $data(3)[2]
 print dnode4 openVnodes $data(4)[2]

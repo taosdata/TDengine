@@ -127,8 +127,8 @@ print ============== step6-1: restart dnode1
 system sh/exec.sh -n dnode1 -s start
 sleep 10000
 
-sql show mnodes
-print show mnodes
+sql select * from information_schema.ins_mnodes
+print select * from information_schema.ins_mnodes
 print rows: $rows
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
@@ -144,8 +144,8 @@ print ============== step7: stop dnode2
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 sleep 3000
 
-sql show mnodes
-print show mnodes
+sql select * from information_schema.ins_mnodes
+print select * from information_schema.ins_mnodes
 print rows: $rows
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
@@ -160,8 +160,8 @@ print $data0_9  $data1_9  $data2_9  $data3_9  $data4_9
 print ============== step8: restart dnode2, then wait sync end
 system sh/exec.sh -n dnode2 -s start
 sleep 20000
-sql show mnodes
-print show mnodes
+sql select * from information_schema.ins_mnodes
+print select * from information_schema.ins_mnodes
 print rows: $rows
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
@@ -176,8 +176,8 @@ print $data0_9  $data1_9  $data2_9  $data3_9  $data4_9
 print ============== step9: stop dnode3, then wait sync end
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
 sleep 20000
-sql show mnodes
-print show mnodes
+sql select * from information_schema.ins_mnodes
+print select * from information_schema.ins_mnodes
 print rows: $rows
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
@@ -192,8 +192,8 @@ print $data0_9  $data1_9  $data2_9  $data3_9  $data4_9
 print ============== step10: restart dnode3, then wait sync end
 system sh/exec.sh -n dnode3 -s start
 sleep 20000
-sql show mnodes
-print show mnodes
+sql select * from information_schema.ins_mnodes
+print select * from information_schema.ins_mnodes
 print rows: $rows
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
@@ -212,8 +212,8 @@ sleep 20000
 #print ============== step12: restart dnode4, then wait sync end
 #system sh/exec.sh -n dnode4 -s start
 #sleep 20000
-sql show mnodes
-print show mnodes
+sql select * from information_schema.ins_mnodes
+print select * from information_schema.ins_mnodes
 print rows: $rows
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
@@ -227,7 +227,7 @@ print $data0_9  $data1_9  $data2_9  $data3_9  $data4_9
 
 print ============== step13: alter replica 2
 sql alter database $db replica 2
-sql show databases
+sql select * from information_schema.ins_databases
 print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09 
 print $data10  $data11  $data12  $data13  $data14  $data15  $data16  $data17   $data18  $data19 
 
@@ -257,7 +257,7 @@ sleep 20000
 
 print ============== step15: alter replica 1
 sql alter database $db replica 1
-sql show databases
+sql select * from information_schema.ins_databases
 print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09 
 print $data10  $data11  $data12  $data13  $data14  $data15  $data16  $data17   $data18  $data19 
 
@@ -277,7 +277,7 @@ endi
 
 print ============== step16: alter replica 2
 sql alter database $db replica 2
-sql show databases
+sql select * from information_schema.ins_databases
 print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09 
 print $data10  $data11  $data12  $data13  $data14  $data15  $data16  $data17   $data18  $data19 
 
@@ -305,7 +305,7 @@ endi
 
 print ============== step18: alter replica 3
 sql alter database $db replica 3
-sql show databases
+sql select * from information_schema.ins_databases
 print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09 
 print $data10  $data11  $data12  $data13  $data14  $data15  $data16  $data17   $data18  $data19 
 
