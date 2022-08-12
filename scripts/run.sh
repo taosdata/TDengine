@@ -15,11 +15,12 @@ function usage() {
     echo -e "\t -M docker network map file"
     echo -e "\t -o default timeout value"
     echo -e "\t -E environment file"
+    echo -e "\t -c mnode count"
     echo -e "\t -e enable sub log dir"
     echo -e "\t -h help"
 }
 
-while getopts "m:t:b:l:o:v:d:w:n:N:M:E:esh" opt; do
+while getopts "m:t:b:l:o:v:d:c:w:n:N:M:E:esh" opt; do
     case $opt in
         m)
             config_file=$OPTARG
@@ -41,6 +42,9 @@ while getopts "m:t:b:l:o:v:d:w:n:N:M:E:esh" opt; do
             ;;
         d)
             debug_level=$OPTARG
+            ;;
+        c)
+            mnode_count=$OPTARG
             ;;
         n)
             docker_network_prefix=$OPTARG
@@ -177,6 +181,9 @@ function run_thread() {
     if [ ! -z "$DATABASE_REPLICAS" ]; then
         script="$script DATABASE_REPLICAS=${DATABASE_REPLICAS}"
     fi
+    if [ ! -z "$DATABASE_QUERY_POLICY" ]; then
+        script="$script DATABASE_QUERY_POLICY=${DATABASE_QUERY_POLICY}"
+    fi
     script="$script $TIMEOUT_PREFIX"
 
     # script="echo"
@@ -273,6 +280,9 @@ function run_thread() {
         local taostest_pkg=`ls -r ${workdirs[index]}/taos-test-framework/dist/*.whl 2>/dev/null|head -n1`
         if [ ! -z "$taostest_pkg" ]; then
             cmd="$cmd --taostest-pkg $taostest_pkg"
+        fi
+        if [ ! -z "$mnode_count" ]; then
+            cmd="$cmd --mnode-count $mnode_count"
         fi
         # set network
         if [ -z "${docker_network}" ]; then

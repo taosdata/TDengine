@@ -18,10 +18,10 @@ from taostest.util.rest import TDRest
 
 class TestTb(TDCase):
     def init(self):
-        super().init()
+        
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest(env_setting=self.env_setting)
-        self.dbname = self.get_default_database()
+        self.dbname = self.tdCom.get_long_name()
     def tbname_length_check(self):
         """
         max length: 192
@@ -47,6 +47,7 @@ class TestTb(TDCase):
         tbname = self.tdCom.get_long_name(3)
         symbol_list = self.tdCom.gen_symbol_list()
         symbol_list.remove('`')
+        symbol_list.remove('.')
         for insert_str in symbol_list:
             d_list = list(tbname)
             for i in range(len(d_list)+1):
@@ -119,19 +120,20 @@ class TestTb(TDCase):
                     d_list_new.insert(i, insert_str)
                     sql_new = ''.join(d_list_new)
                     self.tdSql.error(sql_new)
-        self.tdRest.request(f'drop stable if exists `{dbname}`')
+        self.tdRest.request(f'drop table if exists {dbname}.`{stbname}`')
 
     def comment_check(self):
         """
         tb comment check
         """
-        test_param = 'table_comment'
+        test_param = 'comment'
         tbname = self.tdCom.get_long_name()
-        comment = "stb_param_test"
-        self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} (ts timestamp, c1 int) comment "{comment}"')
+        comment = "tb_param_test"
+        self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} (ts timestamp, c1 int) {test_param} "{comment}"')
         self.tdRest.request(f'show {self.dbname}.tables')
-        res = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,tbname)
-        self.tdSql.checkEqual(res, comment)
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0][8], comment)
+        self.tdRest.request(f'drop table {self.dbname}.{tbname}')
+        
 
     def ttl_check(self):
         """
@@ -141,10 +143,10 @@ class TestTb(TDCase):
         test_ttl = 2
         self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} (ts timestamp, c1 int) ttl {test_ttl}')
         self.tdRest.request(f'show {self.dbname}.tables')
-        res = self.tdRest.get_rest_db_field(self.tdRest.resp,'ttl',tbname)
-        self.tdSql.checkEqual(res, test_ttl)
-
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0][7], test_ttl)
+        self.tdRest.request(f'drop table {self.dbname}.{tbname}')
     def run(self):
+        self.tdCom.createDb(self.dbname)
         self.tbname_length_check()
         self.tbname_with_backquote()
         self.tbname_without_backquote()
@@ -152,6 +154,7 @@ class TestTb(TDCase):
         self.illegal_tbsql_check()
         self.comment_check()
         self.ttl_check()
+        self.tdSql.execute(f'drop database {self.dbname}')
 
     def desc(self):
         case_description = """

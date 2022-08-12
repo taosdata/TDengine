@@ -11,6 +11,8 @@
 
 # -*- coding: utf-8 -*-
 
+import copy
+import os
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
@@ -29,13 +31,29 @@ class TestVgroups(TDCase):
         self.endpoint = self.taosd_setting["spec"]["config"]["firstEP"]
 
     def get_vnode_count(self):
-        return int(self._remote.cmd(self.fqdn, [f'ls {self.vnode_dir} | grep -v vnodes.json | grep -v shmfile | wc -l']))
+        vnode_sum = 0
+        
+        for i in self.taosd_setting['spec']['dnodes']:
+            fqdn = i['endpoint'].split(':')[0]
+            vnode_dir = i['config']['dataDir']+ "/vnode"
+            vnode_sum += int(self._remote.cmd(fqdn, [f'ls {vnode_dir} | grep -v vnodes.json | grep -v shmfile | wc -l']))
+            
+        
+        if 'DATABASE_REPLICAS' in str(os.environ.keys()).upper():
+            if os.environ.get('DATABASE_REPLICAS') == '1':
+                return vnode_sum
+            elif os.environ.get('DATABASE_REPLICAS') == '3':
+                return vnode_sum / 3
 
     def vgroups_check(self):
         """
         vgroups check
         """
-        self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1]}, self.endpoint, True)
+        for i in range(len(self.taosd_setting['spec']['dnodes'])):
+            endpoint = self.taosd_setting['spec']['dnodes'][i]['endpoint']
+            taosd_setting = copy.deepcopy(self.taosd_setting)
+            self.taosd.update_cfg('/tmp',taosd_setting , {"supportVnodes": self.cfg["boundary"][-1]}, endpoint, True)
+            
         self.tdCom.drop_all_db()
         test_param = self.cfg["create_name"]
         dbname = self.tdCom.get_long_name()
@@ -48,26 +66,27 @@ class TestVgroups(TDCase):
         # boundary
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
-            kv_dict = {test_param: param_value, "buffer": self.buffer_min}
+            kv_dict = {test_param: param_value, "buffer": self.buffer_min,'pages':64,'pagesize':1}
             self.tdCom.createDb(dbname, **kv_dict)
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
-            if param_value == self.cfg["boundary"][-1]:
-                kv_dict = {test_param: 1, "buffer": self.buffer_min}
-                self.tdSql.error(f'create database if not exists {dbname}_error {test_param} 1 buffer {self.buffer_min}')
+            # if param_value == self.cfg["boundary"][-1]:
+            #     kv_dict = {test_param: 1, "buffer": self.buffer_min}
+            #     self.tdSql.error(f'create database if not exists {dbname}_error {test_param} 1 buffer {self.buffer_min}')
             self.tdSql.execute(f'drop database {dbname}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1} buffer {self.buffer_min}')
         self.tdSql.error(f'create database if not exists {dbname} vgroups {self.cfg["boundary"][-1] + 1} buffer {self.buffer_min}')
         # check logic
         dbname1 = self.tdCom.get_long_name()
-        kv_dict = {test_param: param_value, "buffer": self.buffer_min, "vgroups": int(self.cfg["boundary"][-1]/4)}
+        
+        kv_dict = {test_param: self.cfg["boundary"][-1], "buffer": self.buffer_min, "vgroups": int(self.cfg["boundary"][-1]/4),'pages':64,'pagesize':1}
         self.tdCom.createDb(dbname1, **kv_dict)
         self.tdSql.query(f'show {dbname1}.vgroups')
         self.tdSql.checkEqual(self.tdSql.query_row, int(self.cfg["boundary"][-1]/4))
         self.tdSql.checkEqual(self.get_vnode_count(), int(self.cfg["boundary"][-1]/4))
         dbname2 = self.tdCom.get_long_name()
-        kv_dict = {test_param: param_value, "buffer": self.buffer_min, "vgroups": int(self.cfg["boundary"][-1]/4) + 1}
+        kv_dict = {test_param: self.cfg["boundary"][-1], "buffer": self.buffer_min, "vgroups": int(self.cfg["boundary"][-1]/4) + 1}
         self.tdCom.createDb(dbname2, **kv_dict)
         self.tdSql.query(f'show {dbname2}.vgroups')
         self.tdSql.checkEqual(self.tdSql.query_row, int(self.cfg["boundary"][-1]/4) + 1)

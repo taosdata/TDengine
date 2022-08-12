@@ -45,7 +45,14 @@ class TestDuration(TDCase):
         self.tdSql.checkEqual(db_field, self.cfg["default"])
         self.tdRest.request(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdRest.getOneRow(1, dbname)
-        data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
+        for i in self.taosd_setting['spec']['dnodes']:
+            fqdn = i['endpoint'].split(':')[0]
+            vnode_dir = i['config']['dataDir']+ "/vnode"
+            if self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'):
+                data = json.loads(self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
+                break
+            else:
+                continue
         self.tdSql.checkEqual(db_field, f'{data["config"][self.cfg["vnode_json_key"]]}m')
         self.tdRest.request(f'drop database {dbname}')
         # without unit
@@ -70,7 +77,14 @@ class TestDuration(TDCase):
             self.tdRest.request(f'show {dbname}.vgroups')
              # TODO
             db_vnode_kv_dict = self.tdRest.getOneRow(1, dbname)
-            data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
+            for i in self.taosd_setting['spec']['dnodes']:
+                fqdn = i['endpoint'].split(':')[0]
+                vnode_dir = i['config']['dataDir']+ "/vnode"
+                if self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'):
+                    data = json.loads(self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
+                    break
+                else:
+                    continue
             self.tdSql.checkEqual(db_field, f'{data["config"][self.cfg["vnode_json_key"]]}m')
             self.tdRest.request(f'drop database {dbname}')
         for error_value in self.error_value_list:

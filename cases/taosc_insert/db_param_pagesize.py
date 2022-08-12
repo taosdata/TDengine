@@ -32,27 +32,41 @@ class TestPagesize(TDCase):
         """
         test_param = self.cfg["create_name"]
         dbname = self.tdCom.get_long_name()
-        self.tdCom.createDb(dbname)
+        self.tdCom.createDb(dbname,buffer=3,pages=64)
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         # default
         self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1, dbname)
-        data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
+        for i in self.taosd_setting['spec']['dnodes']:
+                fqdn = i['endpoint'].split(':')[0]
+                vnode_dir = i['config']['dataDir']+ "/vnode"
+                if self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'):
+                    data = json.loads(self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
+                    break
+                else:
+                    continue
         self.tdSql.checkEqual(db_field_kv_dict[test_param], int(data['config'][self.cfg["vnode_json_key"]])/1024)
         self.tdSql.execute(f'drop database {dbname}')
         # boundary
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
-            kv_dict = {test_param: param_value}
+            kv_dict = {test_param: param_value,'buffer':3,'pages':64}
             self.tdCom.createDb(dbname, **kv_dict)
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
             self.tdSql.query(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdSql.getOneRow(1, dbname)
-            data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
+            for i in self.taosd_setting['spec']['dnodes']:
+                fqdn = i['endpoint'].split(':')[0]
+                vnode_dir = i['config']['dataDir']+ "/vnode"
+                if self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'):
+                    data = json.loads(self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
+                    break
+                else:
+                    continue
             self.tdSql.checkEqual(db_field_kv_dict[test_param], int(data['config'][self.cfg["vnode_json_key"]])/1024)
             self.tdSql.execute(f'drop database {dbname}')
 
@@ -61,24 +75,14 @@ class TestPagesize(TDCase):
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][-1] + 1}')
 
         #! alter database pagesize  bug:TD-16324
-        # dbname = self.tdCom.get_long_name()
-        # self.tdCom.createDb(dbname)
-        # self.cfg["boundary"] = [1, 16384]
-        # for param_value in self.cfg["boundary"]:
-        #     dbname = self.tdCom.get_long_name()
-        #     self.tdSql.execute(f'alter database {dbname} {test_param} {param_value}')
-        #     self.tdSql.query('show databases')
-        #     db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        #     self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
-        #     self.tdSql.query(f'show {dbname}.vgroups')
-        #     db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-        #     data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
-        #     self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['szPage'])/1024)
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
+       
         #! bug TD-16166
-        # for i in [self.cfg["boundary"][0]-1,self.cfg["boundary"][-1]+1,100.5,'abc']:
-        #     self.tdSql.error(f'alter database  {dbname} {test_param} {i}')
+        for i in [self.cfg["boundary"][0]-1,self.cfg["boundary"][-1]+1,100.5,'abc']:
+            self.tdSql.error(f'alter database  {dbname} {test_param} {i}')
         
-        # self.tdSql.execute(f'drop database {dbname}')
+        self.tdSql.execute(f'drop database {dbname}')
     def run(self) -> bool:
         self.pagesize_check()
 

@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 
 import json
+import os
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
@@ -37,11 +38,13 @@ class TestReplica(TDCase):
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         # default
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
-        self.tdSql.query(f'show {dbname}.vgroups')
-        db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-        data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
-        self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config'][self.cfg["vnode_json_key"]]))
+        if 'DATABASE_REPLICAS' in os.environ.keys():
+            if os.environ.get('DATABASE_REPLICAS') == 1:
+                self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
+                self.tdSql.query(f'show {dbname}.vgroups')
+                db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
+                data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
+                self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config'][self.cfg["vnode_json_key"]]))
         self.tdSql.execute(f'drop database {dbname}')
         # boundary
         for param_value in self.cfg["boundary"]:
