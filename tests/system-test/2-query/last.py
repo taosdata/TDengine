@@ -37,7 +37,7 @@ class TDTestCase:
 
     def last_check_stb_tb_base(self):
         tdSql.prepare()
-        stbname = tdCom.getLongName(5, "letters")
+        stbname = f'db.{tdCom.getLongName(5, "letters")}'
         column_dict = {
             'col1': 'tinyint',
             'col2': 'smallint',
@@ -61,7 +61,7 @@ class TDTestCase:
         tdSql.execute(f"create table {stbname}_1 using {stbname} tags('beijing')")
         tdSql.execute(f"insert into {stbname}_1(ts) values(%d)" % (self.ts - 1))
 
-        for i in [f'{stbname}_1', f'db.{stbname}_1']:
+        for i in [f'{stbname}_1']:
             tdSql.query(f"select last(*) from {i}")
             tdSql.checkRows(1)
             tdSql.checkData(0, 1, None)
@@ -71,7 +71,7 @@ class TDTestCase:
         #     tdSql.checkRows(1)
         #     tdSql.checkData(0, 1, None)
         for i in column_dict.keys():
-            for j in [f'{stbname}_1', f'db.{stbname}_1', f'{stbname}', f'db.{stbname}']:
+            for j in [f'{stbname}_1', f'{stbname}']:
                 tdSql.query(f"select last({i}) from {j}")
                 tdSql.checkRows(0)
         tdSql.query(f"select last({list(column_dict.keys())[0]}) from {stbname}_1 group by {list(column_dict.keys())[-1]}")
@@ -79,12 +79,12 @@ class TDTestCase:
         for i in range(self.rowNum):
             tdSql.execute(f"insert into {stbname}_1 values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
                           % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
-        for i in [f'{stbname}_1', f'db.{stbname}_1', f'{stbname}', f'db.{stbname}']:
+        for i in [f'{stbname}_1',f'{stbname}']:
             tdSql.query(f"select last(*) from {i}")
             tdSql.checkRows(1)
             tdSql.checkData(0, 1, 10)
         for k, v in column_dict.items():
-            for j in [f'{stbname}_1', f'db.{stbname}_1', f'{stbname}', f'db.{stbname}']:
+            for j in [f'{stbname}_1', f'{stbname}']:
                 tdSql.query(f"select last({k}) from {j}")
                 tdSql.checkRows(1)
                 # tinyint,smallint,int,bigint,tinyint unsigned,smallint unsigned,int unsigned,bigint unsigned
@@ -103,7 +103,7 @@ class TDTestCase:
                 # nchar
                 elif 'nchar' in v.lower():
                     tdSql.checkData(0, 0, f'{self.nchar_str}{self.rowNum}')
-        for i in [f'{stbname}_1', f'db.{stbname}_1', f'{stbname}', f'db.{stbname}']:
+        for i in [f'{stbname}_1', f'{stbname}']:
             tdSql.query(f"select last({list(column_dict.keys())[0]},{list(column_dict.keys())[1]},{list(column_dict.keys())[2]}) from {stbname}_1")
             tdSql.checkData(0, 2, 10)
 
@@ -113,7 +113,7 @@ class TDTestCase:
 
     def last_check_ntb_base(self):
         tdSql.prepare()
-        ntbname = tdCom.getLongName(5, "letters")
+        ntbname = f'db.{tdCom.getLongName(5, "letters")}'
         column_dict = {
             'col1': 'tinyint',
             'col2': 'smallint',
@@ -135,11 +135,8 @@ class TDTestCase:
         tdSql.query(f"select last(*) from {ntbname}")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, None)
-        tdSql.query(f"select last(*) from db.{ntbname}")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, None)
         for i in column_dict.keys():
-            for j in [f'{ntbname}', f'db.{ntbname}']:
+            for j in [f'{ntbname}']:
                 tdSql.query(f"select last({i}) from {j}")
                 tdSql.checkRows(0)
         for i in range(self.rowNum):
@@ -148,11 +145,8 @@ class TDTestCase:
         tdSql.query(f"select last(*) from {ntbname}")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 10)
-        tdSql.query(f"select last(*) from db.{ntbname}")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 10)
         for k, v in column_dict.items():
-            for j in [f'{ntbname}', f'db.{ntbname}']:
+            for j in [f'{ntbname}']:
                 tdSql.query(f"select last({k}) from {j}")
                 tdSql.checkRows(1)
                 # tinyint,smallint,int,bigint,tinyint unsigned,smallint unsigned,int unsigned,bigint unsigned
@@ -178,8 +172,8 @@ class TDTestCase:
     def last_check_stb_distribute(self):
         # prepare data for vgroup 4
         dbname = tdCom.getLongName(10, "letters")
-        stbname = tdCom.getLongName(5, "letters")
-        vgroup_num = 4
+        stbname = f'{dbname}.{tdCom.getLongName(5, "letters")}'
+        vgroup_num = 2
         column_dict = {
             'col1': 'tinyint',
             'col2': 'smallint',
@@ -208,11 +202,7 @@ class TDTestCase:
                 f"create table {stbname}_{i} using {stbname} tags('beijing')")
             tdSql.execute(
                 f"insert into {stbname}_{i}(ts) values(%d)" % (self.ts - 1-i))
-        # for i in [f'{stbname}', f'{dbname}.{stbname}']:
-        #     tdSql.query(f"select last(*) from {i}")
-        #     tdSql.checkRows(1)
-        #     tdSql.checkData(0, 1, None)
-        tdSql.query('show tables')
+        tdSql.query(f"select * from information_schema.ins_tables where db_name = '{dbname}'")
         vgroup_list = []
         for i in range(len(tdSql.queryResult)):
             vgroup_list.append(tdSql.queryResult[i][6])
@@ -222,20 +212,17 @@ class TDTestCase:
             if vgroups_num >= 2:
                 tdLog.info(f'This scene with {vgroups_num} vgroups is ok!')
                 continue
-            # else:
-            #     tdLog.exit(
-            #         f'This scene does not meet the requirements with {vgroups_num} vgroup!\n')
 
         for i in range(self.tbnum):
             for j in range(self.rowNum):
                 tdSql.execute(f"insert into {stbname}_{i} values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
                               % (self.ts + j + i, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 0.1, j + 0.1, j % 2, j + 1, j + 1))
-        for i in [f'{stbname}', f'{dbname}.{stbname}']:
+        for i in [f'{stbname}']:
             tdSql.query(f"select last(*) from {i}")
             tdSql.checkRows(1)
             tdSql.checkData(0, 1, 10)
         for k, v in column_dict.items():
-            for j in [f'{stbname}', f'{dbname}.{stbname}']:
+            for j in [f'{stbname}']:
                 tdSql.query(f"select last({k}) from {j}")
                 tdSql.checkRows(1)
                 # tinyint,smallint,int,bigint,tinyint unsigned,smallint unsigned,int unsigned,bigint unsigned

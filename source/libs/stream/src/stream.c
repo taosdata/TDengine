@@ -104,7 +104,7 @@ int32_t streamSchedExec(SStreamTask* pTask) {
   return 0;
 }
 
-int32_t streamTaskEnqueue(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
+int32_t streamTaskEnqueue(SStreamTask* pTask, const SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
   SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
   int8_t            status;
 
@@ -136,7 +136,6 @@ int32_t streamTaskEnqueue(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg*
   pRsp->pCont = buf;
   pRsp->contLen = sizeof(SMsgHead) + sizeof(SStreamDispatchRsp);
   tmsgSendRsp(pRsp);
-  tFreeStreamDispatchReq(pReq);
   return status == TASK_INPUT_STATUS__NORMAL ? 0 : -1;
 }
 
@@ -183,6 +182,7 @@ int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, S
          pReq->upstreamTaskId);
 
   streamTaskEnqueue(pTask, pReq, pRsp);
+  tFreeStreamDispatchReq(pReq);
 
   if (exec) {
     streamTryExec(pTask);
@@ -229,6 +229,7 @@ int32_t streamProcessRunReq(SStreamTask* pTask) {
   return 0;
 }
 
+#if 0
 int32_t streamProcessRecoverReq(SStreamTask* pTask, SStreamTaskRecoverReq* pReq, SRpcMsg* pRsp) {
   void* buf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamTaskRecoverRsp));
   ((SMsgHead*)buf)->vgId = htonl(pReq->upstreamNodeId);
@@ -245,28 +246,25 @@ int32_t streamProcessRecoverReq(SStreamTask* pTask, SStreamTaskRecoverReq* pReq,
   return 0;
 }
 
-int32_t streamProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp) {
-  if (pRsp->inputStatus == TASK_INPUT_STATUS__NORMAL) {
-    pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
+int32_t streamProcessRecoverRsp(SStreamMeta* pMeta, SStreamTask* pTask, SStreamRecoverDownstreamRsp* pRsp) {
+  streamProcessRunReq(pTask);
 
-    streamProcessRunReq(pTask);
-
-    if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
-      // scan data to recover
-      pTask->inputStatus = TASK_INPUT_STATUS__RECOVER;
-      pTask->taskStatus = TASK_STATUS__RECOVERING;
-      qStreamPrepareRecover(pTask->exec.executor, pTask->startVer, pTask->recoverSnapVer);
-      if (streamPipelineExec(pTask, 100) < 0) {
-        return -1;
-      }
-    } else {
-      pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
-      pTask->taskStatus = TASK_STATUS__NORMAL;
+  if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
+    // scan data to recover
+    pTask->inputStatus = TASK_INPUT_STATUS__RECOVER;
+    pTask->taskStatus = TASK_STATUS__RECOVER_SELF;
+    qStreamPrepareRecover(pTask->exec.executor, pTask->startVer, pTask->recoverSnapVer);
+    if (streamPipelineExec(pTask, 100, true) < 0) {
+      return -1;
     }
+  } else {
+    pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
+    pTask->taskStatus = TASK_STATUS__NORMAL;
   }
 
   return 0;
 }
+#endif
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pRsp) {
   qDebug("task %d receive retrieve req from node %d task %d", pTask->taskId, pReq->srcNodeId, pReq->srcTaskId);

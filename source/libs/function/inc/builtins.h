@@ -49,7 +49,7 @@ typedef struct SBuiltinFuncDefinition {
 } SBuiltinFuncDefinition;
 
 extern const SBuiltinFuncDefinition funcMgtBuiltins[];
-extern const int                    funcMgtBuiltinsNum;
+extern const int32_t                funcMgtBuiltinsNum;
 
 #ifdef __cplusplus
 }

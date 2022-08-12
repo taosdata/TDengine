@@ -218,7 +218,7 @@ if $data00 != 0.016666667 then
 endi
 
 sql select derivative(c1, 1s, 0) from (select * from nest_tb0);
-print $rows $data00 $data10 
+print $rows $data00 $data10
 if $rows != 9999 then
   return -1
 endi

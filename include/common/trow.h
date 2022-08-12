@@ -319,17 +319,13 @@ typedef struct {
   col_id_t  kvIdx;   // [0, nKvCols)
 } STSRowIter;
 
-void    tdSTSRowIterReset(STSRowIter *pIter, STSRow *pRow);
-void    tdSTSRowIterInit(STSRowIter *pIter, STSchema *pSchema);
+void tdSTSRowIterInit(STSRowIter *pIter, STSchema *pSchema);
+void tdSTSRowIterReset(STSRowIter *pIter, STSRow *pRow);
+bool tdSTSRowIterFetch(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCellVal *pVal);
+bool tdSTSRowIterNext(STSRowIter *pIter, SCellVal *pVal);
+
 int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow);
 bool    tdSTSRowGetVal(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCellVal *pVal);
-bool    tdGetTpRowDataOfCol(STSRowIter *pIter, col_type_t colType, int32_t offset, SCellVal *pVal);
-bool    tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId, col_type_t colType, col_id_t *nIdx, SCellVal *pVal);
-bool    tdSTSRowIterNext(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCellVal *pVal);
-bool    tdSTpRowGetVal(STSRow *pRow, col_id_t colId, col_type_t colType, int32_t flen, uint32_t offset, col_id_t colIdx,
-                       SCellVal *pVal);
-bool    tdSKvRowGetVal(STSRow *pRow, col_id_t colId, col_id_t colIdx, SCellVal *pVal);
-void    tdSCellValPrint(SCellVal *pVal, int8_t colType);
 void    tdSRowPrint(STSRow *row, STSchema *pSchema, const char *tag);
 
 #ifdef __cplusplus

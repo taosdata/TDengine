@@ -199,7 +199,6 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
 
     // send msg
     syncNodeAppendEntriesBatch(pSyncNode, pDestId, pMsg);
-    syncAppendEntriesBatchDestroy(pMsg);
 
     // speed up
     if (pMsg->dataCount > 0 && pSyncNode->commitIndex - pMsg->prevLogIndex > SYNC_SLOW_DOWN_RANGE) {
@@ -216,6 +215,8 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
       } while (0);
 #endif
     }
+
+    syncAppendEntriesBatchDestroy(pMsg);
   }
 
   return ret;

@@ -184,7 +184,7 @@ class TDTestCase:
         self.queryjointable()
 
         # after wal and sync, check again
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         index = tdSql.getData(0, 0)
         tdDnodes.stop(index)
         tdDnodes.start(index)

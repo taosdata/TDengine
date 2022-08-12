@@ -319,6 +319,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
              pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
       return TSDB_CODE_SUCCESS;
     } else {
+      qDebug("%s failed to load SMA, since not all columns have SMA", GET_TASKID(pTaskInfo));
       *status = FUNC_DATA_REQUIRED_DATA_LOAD;
     }
   }
@@ -326,20 +327,19 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   ASSERT(*status == FUNC_DATA_REQUIRED_DATA_LOAD);
 
   // try to filter data block according to sma info
-  if (pTableScanInfo->pFilterNode != NULL) {
-    if (!loadSMA) {
-      doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo);
-    }
+  if (pTableScanInfo->pFilterNode != NULL && (!loadSMA)) {
+    bool success = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo);
+    if (success) {
+      size_t size = taosArrayGetSize(pBlock->pDataBlock);
+      bool   keep = doFilterByBlockSMA(pTableScanInfo->pFilterNode, pBlock->pBlockAgg, size, pBlockInfo->rows);
+      if (!keep) {
+        qDebug("%s data block filter out by block SMA, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
+               pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
+        pCost->filterOutBlocks += 1;
+        (*status) = FUNC_DATA_REQUIRED_FILTEROUT;
 
-    bool keep = doFilterByBlockSMA(pTableScanInfo->pFilterNode, pBlock->pBlockAgg, taosArrayGetSize(pBlock->pDataBlock),
-                                   pBlockInfo->rows);
-    if (!keep) {
-      qDebug("%s data block filter out by block SMA, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
-             pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
-      pCost->filterOutBlocks += 1;
-      (*status) = FUNC_DATA_REQUIRED_FILTEROUT;
-
-      return TSDB_CODE_SUCCESS;
+        return TSDB_CODE_SUCCESS;
+      }
     }
   }
 
@@ -1174,10 +1174,15 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
   for (int32_t rowId = 0; rowId < pBlock->info.rows; rowId++) {
     SResultRowInfo dumyInfo;
     dumyInfo.cur.pageId = -1;
-    STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, tsCol[rowId], &pInfo->interval, TSDB_ORDER_ASC);
+    bool isClosed = false;
+    STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};
+    if (isOverdue(tsCol[rowId], &pInfo->twAggSup)) {
+      win = getActiveTimeWindow(NULL, &dumyInfo, tsCol[rowId], &pInfo->interval, TSDB_ORDER_ASC);
+      isClosed = isCloseWindow(&win, &pInfo->twAggSup);
+    }
     // must check update info first.
     bool update = updateInfoIsUpdated(pInfo->pUpdateInfo, pBlock->info.uid, tsCol[rowId]);
-    if ((update || (isSignleIntervalWindow(pInfo) && isCloseWindow(&win, &pInfo->twAggSup) &&
+    if ((update || (isSignleIntervalWindow(pInfo) && isClosed &&
         isDeletedWindow(&win, pBlock->info.groupId, pInfo->sessionSup.pIntervalAggSup))) && out) {
       appendOneRow(pInfo->pUpdateDataRes, tsCol + rowId, tsCol + rowId, &pBlock->info.uid);
     }
@@ -2458,81 +2463,6 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
-#if 0
-  int32_t maxNumOfTables = (int32_t)pResultInfo->capacity;
-
-  STagScanInfo *pInfo = pOperator->info;
-  SSDataBlock  *pRes = pInfo->pRes;
-
-  int32_t count = 0;
-  SArray* pa = GET_TABLEGROUP(pRuntimeEnv, 0);
-
-  int32_t functionId = getExprFunctionId(&pOperator->exprSupp.pExprInfo[0]);
-  if (functionId == FUNCTION_TID_TAG) { // return the tags & table Id
-    assert(pQueryAttr->numOfOutput == 1);
-
-    SExprInfo* pExprInfo = &pOperator->exprSupp.pExprInfo[0];
-    int32_t rsize = pExprInfo->base.resSchema.bytes;
-
-    count = 0;
-
-    int16_t bytes = pExprInfo->base.resSchema.bytes;
-    int16_t type  = pExprInfo->base.resSchema.type;
-
-    for(int32_t i = 0; i < pQueryAttr->numOfTags; ++i) {
-      if (pQueryAttr->tagColList[i].colId == pExprInfo->base.pColumns->info.colId) {
-        bytes = pQueryAttr->tagColList[i].bytes;
-        type = pQueryAttr->tagColList[i].type;
-        break;
-      }
-    }
-
-    SColumnInfoData* pColInfo = taosArrayGet(pRes->pDataBlock, 0);
-
-    while(pInfo->curPos < pInfo->totalTables && count < maxNumOfTables) {
-      int32_t i = pInfo->curPos++;
-      STableQueryInfo *item = taosArrayGetP(pa, i);
-
-      char *output = pColInfo->pData + count * rsize;
-      varDataSetLen(output, rsize - VARSTR_HEADER_SIZE);
-
-      output = varDataVal(output);
-      STableId* id = TSDB_TABLEID(item->pTable);
-
-      *(int16_t *)output = 0;
-      output += sizeof(int16_t);
-
-      *(int64_t *)output = id->uid;  // memory align problem, todo serialize
-      output += sizeof(id->uid);
-
-      *(int32_t *)output = id->tid;
-      output += sizeof(id->tid);
-
-      *(int32_t *)output = pQueryAttr->vgId;
-      output += sizeof(pQueryAttr->vgId);
-
-      char* data = NULL;
-      if (pExprInfo->base.pColumns->info.colId == TSDB_TBNAME_COLUMN_INDEX) {
-        data = tsdbGetTableName(item->pTable);
-      } else {
-        data = tsdbGetTableTagVal(item->pTable, pExprInfo->base.pColumns->info.colId, type, bytes);
-      }
-
-      doSetTagValueToResultBuf(output, data, type, bytes);
-      count += 1;
-    }
-
-    //qDebug("QInfo:0x%"PRIx64" create (tableId, tag) info completed, rows:%d", GET_TASKID(pRuntimeEnv), count);
-  } else if (functionId == FUNCTION_COUNT) {// handle the "count(tbname)" query
-    SColumnInfoData* pColInfo = taosArrayGet(pRes->pDataBlock, 0);
-    *(int64_t*)pColInfo->pData = pInfo->totalTables;
-    count = 1;
-
-    pOperator->status = OP_EXEC_DONE;
-    //qDebug("QInfo:0x%"PRIx64" create count(tbname) query, res:%d rows:1", GET_TASKID(pRuntimeEnv), count);
-  } else {  // return only the tags|table name etc.
-#endif
-
   STagScanInfo* pInfo = pOperator->info;
   SExprInfo*    pExprInfo = &pOperator->exprSupp.pExprInfo[0];
   SSDataBlock*  pRes = pInfo->pRes;
@@ -2610,6 +2540,8 @@ static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
   STagScanInfo* pInfo = (STagScanInfo*)param;
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
 
+  taosArrayDestroy(pInfo->pColMatchInfo);
+  
   taosMemoryFreeClear(param);
 }
 

@@ -19,9 +19,10 @@ class TDTestCase:
         self.db_param_precision = ['ms','us','ns']
         self.time_unit = ['1w','1d','1h','1m','1s','1a','1u','1b']
         self.error_unit = ['2w','2d','2h','2m','2s','2a','2u','1c','#1']
-        self.ntbname = 'ntb'
-        self.stbname = 'stb'
-        self.ctbname = 'ctb'
+        self.dbname = 'db'
+        self.ntbname = f'{self.dbname}.ntb'
+        self.stbname = f'{self.dbname}.stb'
+        self.ctbname = f'{self.dbname}.ctb'
         self.subtractor = 1  # unit:s
     def check_tbtype(self,tb_type):
         if tb_type.lower() == 'ntb': 
@@ -139,9 +140,9 @@ class TDTestCase:
                     tdSql.error(f'select timediff(c0,{self.subtractor},{unit}) from {self.ntbname}')
     def function_check_ntb(self):
         for precision in self.db_param_precision:
-            tdSql.execute('drop database if exists db')
-            tdSql.execute(f'create database db precision "{precision}"')
-            tdSql.execute('use db')
+            tdSql.execute(f'drop database if exists {self.dbname}')
+            tdSql.execute(f'create database {self.dbname} precision "{precision}"')
+            tdSql.execute(f'use {self.dbname}')
             tdSql.execute(f'create table {self.ntbname} (ts timestamp,c0 int)')
             for ts in self.ts_str:
                 tdSql.execute(f'insert into {self.ntbname} values("{ts}",1)')
@@ -151,9 +152,9 @@ class TDTestCase:
             self.data_check(date_time,precision,'ntb')
     def function_check_stb(self):
         for precision in self.db_param_precision:
-            tdSql.execute('drop database if exists db')
-            tdSql.execute(f'create database db precision "{precision}"')
-            tdSql.execute('use db')
+            tdSql.execute(f'drop database if exists {self.dbname}')
+            tdSql.execute(f'create database {self.dbname} precision "{precision}"')
+            tdSql.execute(f'use {self.dbname}')
             tdSql.execute(f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int)')
             tdSql.execute(f'create table {self.ctbname} using {self.stbname} tags(1)')
             for ts in self.ts_str:

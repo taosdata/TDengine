@@ -84,7 +84,7 @@ class TDTestCase:
 
         # check cache_last value for database
 
-        tdSql.query(" show databases ")
+        tdSql.query(" select * from information_schema.ins_databases ")
         databases_infos = tdSql.queryResult
         cache_lasts = {}
         for db_info in databases_infos:
@@ -117,7 +117,7 @@ class TDTestCase:
         abs_vnodePath = os.path.abspath(dataPath)+"/vnode/"
         tdLog.info("abs_vnodePath: %s" % abs_vnodePath)
 
-        tdSql.query(" show dnodes ")
+        tdSql.query(" select * from information_schema.ins_dnodes ")
         dnode_id  = tdSql.queryResult[0][0]
 
         for dbname in cache_lasts.keys():
@@ -144,7 +144,7 @@ class TDTestCase:
     def restart_check_cachemodel_sets(self):
 
         for i in range(3):
-            tdSql.query("show dnodes")
+            tdSql.query("select * from information_schema.ins_dnodes")
             index = tdSql.getData(0, 0)
             tdDnodes.stop(index)
             tdDnodes.start(index)

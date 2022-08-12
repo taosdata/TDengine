@@ -69,7 +69,7 @@ class TDTestCase:
             vnode_tables[vgroup_id[0]]=[]
 
         # check sub_table of per vnode ,make sure sub_table has been distributed
-        tdSql.query("show tables like 'ct%'")
+        tdSql.query(f"select * from information_schema.ins_tables where db_name = 'testdb' and table_name like 'ct%'")
         table_names = tdSql.queryResult
         tablenames = []
         for table_name in table_names:

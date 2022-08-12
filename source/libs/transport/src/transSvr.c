@@ -75,7 +75,6 @@ typedef struct SWorkThrd {
   SAsyncPool*   asyncPool;
   uv_prepare_t* prepare;
   queue         msg;
-  TdThreadMutex msgMtx;
 
   queue conn;
   void* pTransInst;
@@ -499,6 +498,7 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
       tError("unexcept occurred, continue");
       continue;
     }
+
     // release handle to rpc init
     if (msg->type == Quit) {
       (*transAsyncHandle[msg->type])(msg, pThrd);
@@ -743,7 +743,6 @@ static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
   pThrd->pipe->data = pThrd;
 
   QUEUE_INIT(&pThrd->msg);
-  taosThreadMutexInit(&pThrd->msgMtx, NULL);
 
   pThrd->prepare = taosMemoryCalloc(1, sizeof(uv_prepare_t));
   uv_prepare_init(pThrd->loop, pThrd->prepare);

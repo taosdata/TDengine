@@ -33,7 +33,7 @@ if $rows != 1 then
   return -1
 endi
 print data00 = $data00
-if $data00 != $stb then 
+if $data00 != $stb then
   return -1
 endi
 
@@ -84,8 +84,8 @@ endi
 print create/alter/drop stable test passed
 
 sql drop database $db
-sql show databases
-if $rows != 2 then 
+sql select * from information_schema.ins_databases
+if $rows != 2 then
   return -1
 endi
 

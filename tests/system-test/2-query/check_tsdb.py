@@ -67,11 +67,11 @@ class TDTestCase:
             tdDnodes.stop(1)
             tdDnodes.start(1)
             time.sleep(2)
-            tdSql.query("show databases")
+            tdSql.query("select * from information_schema.ins_databases")
 
             status = False
             while status==False:
-                tdSql.query("show databases")
+                tdSql.query("select * from information_schema.ins_databases")
                 for db_info in tdSql.queryResult:
                     if db_info[0]==dbname :
                         if db_info[15]=="ready":

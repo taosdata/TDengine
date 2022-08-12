@@ -24,7 +24,7 @@ while $i < 30
 endw 
 
 print ======== step2
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then 
   return -1
 endi 
@@ -89,7 +89,7 @@ while $i < 10
 endw
 
 print ======== step2
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then
   return -1
 endi

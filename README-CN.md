@@ -14,74 +14,46 @@
 [![Build status](https://ci.appveyor.com/api/projects/status/kf3pwh2or5afsgl9/branch/master?svg=true)](https://ci.appveyor.com/project/sangshuduo/tdengine-2n8ge/branch/master)
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
-[![tdengine](https://snapcraft.io//tdengine/badge.svg)](https://snapcraft.io/tdengine)
 
 简体中文 | [English](README.md) | 很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
 
 # TDengine 简介
 
-TDengine 是一款高性能、分布式、支持 SQL 的时序数据库（Time-Series Database）。而且除时序数据库功能外，它还提供缓存、数据订阅、流式计算等功能，最大程度减少研发和运维的复杂度，且核心代码，包括集群功能全部开源（开源协议，AGPL v3.0）。与其他时序数据数据库相比，TDengine 有以下特点：
+TDengine 是一款开源、高性能、云原生的时序数据库 (Time-Series Database, TSDB)。TDengine 能被广泛运用于物联网、工业互联网、车联网、IT 运维、金融等领域。除核心的时序数据库功能外，TDengine 还提供缓存、数据订阅、流式计算等功能，是一极简的时序数据处理平台，最大程度的减小系统设计的复杂度，降低研发和运营成本。与其他时序数据库相比，TDengine 的主要优势如下：
 
-- **高性能**：通过创新的存储引擎设计，无论是数据写入还是查询，TDengine 的性能比通用数据库快 10 倍以上，也远超其他时序数据库，而且存储空间也大为节省。
+- 高性能：通过创新的存储引擎设计，无论是数据写入还是查询，TDengine 的性能比通用数据库快 10 倍以上，也远超其他时序数据库，存储空间不及通用数据库的1/10。
 
-- **分布式**：通过原生分布式的设计，TDengine 提供了水平扩展的能力，只需要增加节点就能获得更强的数据处理能力，同时通过多副本机制保证了系统的高可用。
+- 云原生：通过原生分布式的设计，充分利用云平台的优势，TDengine 提供了水平扩展能力，具备弹性、韧性和可观测性，支持k8s部署，可运行在公有云、私有云和混合云上。
 
-- **支持 SQL**：TDengine 采用 SQL 作为数据查询语言，减少学习和迁移成本，同时提供 SQL 扩展来处理时序数据特有的分析，而且支持方便灵活的 schemaless 数据写入。
+- 极简时序数据平台：TDengine 内建消息队列、缓存、流式计算等功能，应用无需再集成 Kafka/Redis/HBase/Spark 等软件，大幅降低系统的复杂度，降低应用开发和运营成本。
 
-- **All in One**：将数据库、消息队列、缓存、流式计算等功能融合一起，应用无需再集成 Kafka/Redis/HBase/Spark 等软件，大幅降低应用开发和维护成本。
+- 分析能力：支持 SQL，同时为时序数据特有的分析提供SQL扩展。通过超级表、存储计算分离、分区分片、预计算、自定义函数等技术，TDengine 具备强大的分析能力。
 
-- **零管理**：安装、集群几秒搞定，无任何依赖，不用分库分表，系统运行状态监测能与 Grafana 或其他运维工具无缝集成。
+- 简单易用：无任何依赖，安装、集群几秒搞定；提供REST以及各种语言连接器，与众多第三方工具无缝集成；提供命令行程序，便于管理和即席查询；提供各种运维工具。
 
-- **零学习成本**：采用 SQL 查询语言，支持 Python、Java、C/C++、Go、Rust、Node.js 等多种编程语言，与 MySQL 相似，零学习成本。
-
-- **无缝集成**：不用一行代码，即可与 Telegraf、Grafana、EMQX、Prometheus、StatsD、collectd、Matlab、R 等第三方工具无缝集成。
-
-- **互动 Console**: 通过命令行 console，不用编程，执行 SQL 语句就能做即席查询、各种数据库的操作、管理以及集群的维护.
-
-TDengine 可以广泛应用于物联网、工业互联网、车联网、IT 运维、能源、金融等领域，让大量设备、数据采集器每天产生的高达 TB 甚至 PB 级的数据能得到高效实时的处理，对业务的运行状态进行实时的监测、预警，从大数据中挖掘出商业价值。
+- 核心开源：TDengine 的核心代码包括集群功能全部开源，截止到2022年8月1日，全球超过 135.9k 个运行实例，GitHub Star 18.7k，Fork 4.4k，社区活跃。
 
 # 文档
 
-TDengine 采用传统的关系数据库模型，您可以像使用关系型数据库 MySQL 一样来使用它。但由于引入了超级表，一个采集点一张表的概念，建议您在使用前仔细阅读一遍下面的文档，特别是 [数据模型](https://www.taosdata.com/cn/documentation/architecture) 与 [数据建模](https://www.taosdata.com/cn/documentation/model)。除本文档之外，欢迎 [下载产品白皮书](https://www.taosdata.com/downloads/TDengine%20White%20Paper.pdf)。
+关于完整的使用手册，系统架构和更多细节，请参考 [TDengine 文档](https://docs.taosdata.com) 或者  [English Documents](https://docs.tdengine.com)。
 
 # 构建
 
-TDengine 目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后续会支持 Windows、macOS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。任何 OS 的应用也可以选择 RESTful 接口连接服务器 taosd。CPU 支持 X64/ARM64/MIPS64/Alpha64，后续会支持 ARM32、RISC-V 等 CPU 架构。用户可根据需求选择通过[源码](https://www.taosdata.com/cn/getting-started/#通过源码安装)或者[安装包](https://www.taosdata.com/cn/getting-started/#通过安装包安装)来安装。本快速指南仅适用于通过源码安装。
+TDengine 目前可以在 Linux、 Windows 等平台上安装和运行。任何 OS 的应用也可以选择 taosAdapter 的 RESTful 接口连接服务端 taosd。CPU 支持 X64/ARM64，后续会支持 MIPS64、Alpha64、ARM32、RISC-V 等 CPU 架构。
+
+用户可根据需求选择通过源码、[容器](https://docs.taosdata.com/3.0/get-started/docker/)、[安装包](https://docs.taosdata.com/3.0/get-started/package/)或[Kubenetes](https://docs.taosdata.com/3.0/deployment/k8s/)来安装。本快速指南仅适用于通过源码安装。
+  
+TDengine 还提供一组辅助工具软件 taosTools，目前它包含 taosBenchmark（曾命名为 taosdemo）和 taosdump 两个软件。默认 TDengine 编译不包含 taosTools, 您可以在编译 TDengine 时使用`cmake .. -DBUILD_TOOLS=true` 来同时编译 taosTools。
 
 ## 安装工具
 
-### Ubuntu 16.04 及以上版本 & Debian：
+### Ubuntu 18.04 及以上版本 & Debian：
 
 ```bash
 sudo apt-get install -y gcc cmake build-essential git libssl-dev
 ```
 
-### Ubuntu 14.04：
-
-```bash
-sudo apt-get install -y gcc cmake3 build-essential git binutils-2.26
-export PATH=/usr/lib/binutils-2.26/bin:$PATH
-```
-
-编译或打包 JDBC 驱动源码，需安装 Java JDK 8 或以上版本和 Apache Maven 2.7 或以上版本。
-
-安装 OpenJDK 8：
-
-```bash
-sudo apt-get install -y openjdk-8-jdk
-```
-
-安装 Apache Maven：
-
-```bash
-sudo apt-get install -y  maven
-```
-
 #### 为 taos-tools 安装编译需要的软件
-
-taosTools 是用于 TDengine 的辅助工具软件集合。目前它包含 taosBenchmark（曾命名为 taosdemo）和 taosdump 两个软件。
-
-默认 TDengine 编译不包含 taosTools。您可以在编译 TDengine 时使用`cmake .. -DBUILD_TOOLS=true` 来同时编译 taosTools。
 
 为了在 Ubuntu/Debian 系统上编译 [taos-tools](https://github.com/taosdata/taos-tools) 需要安装如下软件：
 
@@ -89,22 +61,13 @@ taosTools 是用于 TDengine 的辅助工具软件集合。目前它包含 taosB
 sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
 ```
 
-### CentOS 7：
+### CentOS 7.9：
 
 ```bash
-sudo yum install -y gcc gcc-c++ make cmake git openssl-devel
-```
-
-安装 OpenJDK 8：
-
-```bash
-sudo yum install -y java-1.8.0-openjdk
-```
-
-安装 Apache Maven：
-
-```bash
-sudo yum install -y maven
+sudo yum install epel-release
+sudo yum update
+sudo yum install -y gcc gcc-c++ make cmake3 git openssl-devel
+sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
 ### CentOS 8 & Fedora
@@ -113,39 +76,45 @@ sudo yum install -y maven
 sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
 ```
 
-安装 OpenJDK 8：
-
-```bash
-sudo dnf install -y java-1.8.0-openjdk
-```
-
-安装 Apache Maven：
-
-```bash
-sudo dnf install -y maven
-```
-
 #### 在 CentOS 上构建 taosTools 安装依赖软件
 
-为了在 CentOS 上构建 [taosTools](https://github.com/taosdata/taos-tools) 需要安装如下依赖软件
+#### For CentOS 7/RHEL
 
-```bash
-sudo yum install zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
+```
+sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
 ```
 
-注意：由于 snappy 缺乏 pkg-config 支持
-（参考 [链接](https://github.com/google/snappy/pull/86)），会导致
-cmake 提示无法发现 libsnappy，实际上工作正常。
+#### For CentOS 8/Rocky Linux
+
+```
+sudo yum install -y epel-release
+sudo yum install -y dnf-plugins-core
+sudo yum config-manager --set-enabled powertools
+sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
+```
+
+注意：由于 snappy 缺乏 pkg-config 支持（参考 [链接](https://github.com/google/snappy/pull/86)），会导致 cmake 提示无法发现 libsnappy，实际上工作正常。
+
+若 powertools 安装失败，可以尝试改用：
+```
+sudo yum config-manager --set-enabled Powertools
+```
 
 ### 设置 golang 开发环境
 
-TDengine 包含数个使用 Go 语言开发的组件，请参考 golang.org 官方文档设置 go 开发环境。
+TDengine 包含数个使用 Go 语言开发的组件，比如taosAdapter, 请参考 golang.org 官方文档设置 go 开发环境。
 
 请使用 1.14 及以上版本。对于中国用户，我们建议使用代理来加速软件包下载。
 
 ```
 go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
+```
+
+缺省是不会构建 taosAdapter, 但您可以使用以下命令选择构建 taosAdapter 作为 RESTful 接口的服务。
+
+```
+cmake .. -DBUILD_HTTP=false
 ```
 
 ### 设置 rust 开发环境
@@ -195,24 +164,12 @@ apt install autoconf
 cmake .. -DJEMALLOC_ENABLED=true
 ```
 
-在 X86-64、X86、arm64、arm32 和 mips64 平台上，TDengine 生成脚本可以自动检测机器架构。也可以手动配置 CPUTYPE 参数来指定 CPU 类型，如 aarch64 或 aarch32 等。
+在 X86-64、X86、arm64 平台上，TDengine 生成脚本可以自动检测机器架构。也可以手动配置 CPUTYPE 参数来指定 CPU 类型，如 aarch64 等。
 
 aarch64：
 
 ```bash
 cmake .. -DCPUTYPE=aarch64 && cmake --build .
-```
-
-aarch32：
-
-```bash
-cmake .. -DCPUTYPE=aarch32 && cmake --build .
-```
-
-mips64：
-
-```bash
-cmake .. -DCPUTYPE=mips64 && cmake --build .
 ```
 
 ### Windows 系统
@@ -300,24 +257,6 @@ nmake install
 sudo make install
 ```
 
-安装成功后，如果想以服务形式启动，先配置 `.plist` 文件，在终端中执行：
-
-```bash
-sudo cp ../packaging/macOS/com.taosdata.tdengine.plist /Library/LaunchDaemons
-```
-
-在终端中启动 TDengine 服务：
-
-```bash
-sudo launchctl load /Library/LaunchDaemons/com.taosdata.tdengine.plist
-```
-
-在终端中停止 TDengine 服务：
-
-```bash
-sudo launchctl unload /Library/LaunchDaemons/com.taosdata.tdengine.plist
-```
-
 ## 快速运行
 
 如果不希望以服务方式运行 TDengine，也可以在终端中直接运行它。也即在生成完成后，执行以下命令（在 Windows 下，生成的可执行文件会带有 .exe 后缀，例如会名为 taosd.exe ）：
@@ -358,33 +297,14 @@ Query OK, 2 row(s) in set (0.001700s)
 
 TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java、Python、Go、Node.js、C# 、RESTful 等，便于用户快速开发应用：
 
-- [Java](https://www.taosdata.com/cn/documentation/connector/java)
-
+- [Java](https://docs.taosdata.com/reference/connector/java/)
 - [C/C++](https://www.taosdata.com/cn/documentation/connector#c-cpp)
-
-- [Python](https://www.taosdata.com/cn/documentation/connector#python)
-
-- [Go](https://www.taosdata.com/cn/documentation/connector#go)
-
-- [RESTful API](https://www.taosdata.com/cn/documentation/connector#restful)
-
-- [Node.js](https://www.taosdata.com/cn/documentation/connector#nodejs)
-
-- [Rust](https://www.taosdata.com/cn/documentation/connector/rust)
-
-## 第三方连接器
-
-TDengine 社区生态中也有一些非常友好的第三方连接器，可以通过以下链接访问它们的源码。
-
-- [Rust Bindings](https://github.com/songtianyi/tdengine-rust-bindings/tree/master/examples)
-- [.Net Core Connector](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
-- [Lua Connector](https://github.com/taosdata/TDengine/tree/develop/examples/lua)
-
-# 运行和添加测试例
-
-TDengine 的测试框架和所有测试例全部开源。
-
-点击 [这里](https://github.com/taosdata/TDengine/blob/develop/tests/How-To-Run-Test-And-How-To-Add-New-Test-Case.md)，了解如何运行测试例和添加新的测试例。
+- [Python](https://docs.taosdata.com/reference/connector/python/)
+- [Go](https://docs.taosdata.com/reference/connector/go/)
+- [Node.js](https://docs.taosdata.com/reference/connector/node/)
+- [Rust](https://docs.taosdata.com/reference/connector/rust/)
+- [C#](https://docs.taosdata.com/reference/connector/csharp/)
+- [RESTful API](https://docs.taosdata.com/reference/rest-api/)
 
 # 成为社区贡献者
 
@@ -393,7 +313,3 @@ TDengine 的测试框架和所有测试例全部开源。
 # 加入技术交流群
 
 TDengine 官方社群「物联网大数据群」对外开放，欢迎您加入讨论。搜索微信号 "tdengine"，加小 T 为好友，即可入群。
-
-# [谁在使用 TDengine](https://github.com/taosdata/TDengine/issues/2432)
-
-欢迎所有 TDengine 用户及贡献者在 [这里](https://github.com/taosdata/TDengine/issues/2432) 分享您在当前工作中开发/使用 TDengine 的故事。
