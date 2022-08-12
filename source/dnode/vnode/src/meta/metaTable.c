@@ -1065,6 +1065,7 @@ static int metaUpdateTtlIdx(SMeta *pMeta, const SMetaEntry *pME) {
 
 static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME) {
   SCtbIdxKey ctbIdxKey = {.suid = pME->ctbEntry.suid, .uid = pME->uid};
+
   return tdbTbInsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), pME->ctbEntry.pTags, ((STag*)(pME->ctbEntry.pTags))->len, &pMeta->txn);
 }
 
