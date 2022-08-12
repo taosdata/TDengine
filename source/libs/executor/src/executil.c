@@ -474,6 +474,8 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
 
       int64_t stt1 = taosGetTimestampUs();
       qDebug("generate table list, cost:%ld us", stt1-stt);
+    }else if(!pTagCond){
+      vnodeGetCtbIdList(pVnode, pScanNode->suid, res);
     }
   } else {  // Create one table group.
     taosArrayPush(res, &tableUid);
@@ -500,8 +502,6 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
     }
     colDataDestroy(pColInfoData);
     taosMemoryFreeClear(pColInfoData);
-  }else{
-    vnodeGetCtbIdList(pVnode, pScanNode->suid, res);
   }
 
   for (int i = 0; i < taosArrayGetSize(res); i++) {
