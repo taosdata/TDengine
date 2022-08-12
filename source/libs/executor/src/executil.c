@@ -385,7 +385,9 @@ SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray* uidLi
   }
 
   int32_t rows = taosArrayGetSize(uidList);
-
+  if(rows == 0){
+    goto end;
+  }
   int64_t stt1 = taosGetTimestampUs();
   qDebug("generate tag meta rows:%d, cost:%ld us", rows, stt1-stt);
 
@@ -397,8 +399,7 @@ SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray* uidLi
 
   int64_t st = taosGetTimestampUs();
   for (int32_t i = 0; i < rows; i++) {
-    uint64_t* uid = taosArrayGet(uidList, i);
-    void* tag = taosArrayGet(tags, i);
+    void* tag = taosArrayGetP(tags, i);
 //    int64_t stt = taosGetTimestampUs();
 //    int64_t stt1 = taosGetTimestampUs();
 //    qDebug("generate tag get meta rows:%d, cost:%ld ms", rows, stt1-stt);
@@ -498,16 +499,18 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
     }
 
     int32_t i = 0;
-    while (i < taosArrayGetSize(pListInfo->pTableList)) {
+    while (i < taosArrayGetSize(res) && pColInfoData) {
       void* var = POINTER_SHIFT(pColInfoData->pData, i * pColInfoData->info.bytes);
 
       if (*(bool*)var == false) {
-        taosArrayRemove(pListInfo->pTableList, i);
+        taosArrayRemove(res, i);
         continue;
       }
       i++;
     }
     colDataDestroy(pColInfoData);
+  }else{
+    vnodeGetCtbIdList(pVnode, pScanNode->suid, res);
   }
 
   for (int i = 0; i < taosArrayGetSize(res); i++) {

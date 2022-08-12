@@ -87,7 +87,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   }
 
   // open pCtbIdx
-  ret = tdbTbOpen("ctb.idx", sizeof(SCtbIdxKey), 0, ctbIdxKeyCmpr, pMeta->pEnv, &pMeta->pCtbIdx);
+  ret = tdbTbOpen("ctb.idx", sizeof(SCtbIdxKey), -1, ctbIdxKeyCmpr, pMeta->pEnv, &pMeta->pCtbIdx);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta child table index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
