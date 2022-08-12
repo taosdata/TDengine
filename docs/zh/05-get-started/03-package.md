@@ -87,6 +87,11 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 :::
 
 </TabItem>
+
+<TabItem label="Windows 安装" value="windows">
+TODO
+
+</TabItem>
 </Tabs>
 
 :::note
@@ -95,6 +100,9 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 :::
 
 ## 启动
+
+<Tabs>
+<TabItem label="Linux 系统" value="linux">
 
 安装后，请使用 `systemctl` 命令来启动 TDengine 的服务进程。
 
@@ -139,6 +147,15 @@ systemctl 命令汇总：
 - 如果系统中不支持 `systemd`，也可以用手动运行 `/usr/local/taos/bin/taosd` 方式启动 TDengine 服务。
 
 :::
+
+</TabItem>
+
+<TabItem label="Windows 系统" value="windows">
+
+TODO
+
+</TabItem>
+</Tabs>
 
 ## TDengine 命令行 (CLI)
 
