@@ -174,7 +174,8 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
   if (pLimitInfo->limit.limit >= 0 && pLimitInfo->numOfOutputRows + pBlock->info.rows >= pLimitInfo->limit.limit) {
     int32_t keepRows = (int32_t)(pLimitInfo->limit.limit - pLimitInfo->numOfOutputRows);
     blockDataKeepFirstNRows(pBlock, keepRows);
-    if (pLimitInfo->slimit.limit > 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups) {
+    //TODO: optimize it later when partition by + limit
+    if ((pLimitInfo->slimit.limit == -1 && pLimitInfo->currentGroupId == 0)  || pLimitInfo->slimit.limit > 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups) {
       doSetOperatorCompleted(pOperator);
     }
   }
