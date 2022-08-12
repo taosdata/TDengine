@@ -94,7 +94,7 @@ TSDB 中存储的元数据包含属于其所在的 vnode 中表的类型，schem
 
 该模块实现数据的多副本复制，包括 vnode 与 mnode 的数据复制，支持异步和同步两种复制方式，以满足 meta data 与时序数据不同复制的需求。因为它为 mnode 与 vnode 共享，系统为 mnode 副本预留了一个特殊的 vgroup ID:1。因此 vnode group 的 ID 是从 2 开始的。
 
-每个 vnode/mnode 模块实例会有一对应的 sync 模块实例，他们是一一对应的。详细设计请见[TDengine 2.0 数据复制模块设计](/tdinternal/replica/)
+每个 vnode/mnode 模块实例会有一对应的 sync 模块实例，他们是一一对应的。详细设计请见[TDengine 2.0 数据复制模块设计](../replica/)
 
 ## WAL 模块
 

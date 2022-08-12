@@ -36,7 +36,7 @@ docker exec -it <container name> bash
 
 然后就可以执行相关的 Linux 命令操作和访问 TDengine
 
-详细操作方法请参照 [通过 Docker 快速体验 TDengine](/train-faq/docker)。
+详细操作方法请参照 [通过 Docker 快速体验 TDengine](../../train-faq/docker)。
 
 :::info
 从 2.4.0.10 开始，除 taosd 以外，Docker 镜像还包含：taos、taosAdapter、taosdump、taosBenchmark、TDinsight 安装脚本和示例代码。启动 Docker 容器时，将同时启动 taosAdapter 和 taosd，实现对 RESTful 的支持。
