@@ -1856,6 +1856,7 @@ bool rpcSendProbe(int64_t rpcRid, void* pPrevContext, bool *pReqOver) {
   if (!doRpcSendProbe(pContext->pConn)) {
     tError("PROBE rpcRid=0x%" PRIx64 " fd=%d rpc send probe data error.", rpcRid, fd);
   }
+  ret = true;
 
 _END:
   // put back req context
