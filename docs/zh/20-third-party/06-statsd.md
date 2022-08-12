@@ -39,9 +39,6 @@ $ echo "foo:1|c" | nc -u -w0 127.0.0.1 8125
 使用 TDengine CLI 验证从 StatsD 向 TDengine 写入数据并能够正确读出：
 
 ```
-Welcome to the TDengine shell from Linux, Client Version:2.4.0.0
-Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
-
 taos> show databases;
               name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
 ====================================================================================================================================================================================================================================================================================

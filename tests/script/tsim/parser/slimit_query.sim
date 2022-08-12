@@ -128,7 +128,7 @@ endi
 
 ## [TBASE-604]
 #sql_error select count(tbname) from slm_stb0 partition by t1
-#sql show databases
+#sql select * from information_schema.ins_databases
 
 ## [TBASE-605]
 sql select * from slm_stb0 where t2 >= 2 and t3 <= 9 partition by tbname slimit 40 limit 1;

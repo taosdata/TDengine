@@ -240,7 +240,7 @@ class TDTestCase:
 
         tsql.execute("create database %s vgroups %d"%(dbname,vgroups))
         print("db has been created")
-        # tsql.getResult("show databases")
+        # tsql.getResult("select * from information_schema.ins_databases")
         # print(tdSql.queryResult)
         tsql.execute("use %s" %dbname)
 
@@ -282,7 +282,7 @@ class TDTestCase:
     def test_case1(self):
         self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 1, 2, 1*10)
         tdSql.execute("use db1;")
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         dnodeId=tdSql.getData(0,0)
         print(dnodeId)
         tdLog.debug("create qnode on dnode %s"%dnodeId)
@@ -296,7 +296,7 @@ class TDTestCase:
         tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
         unionallQnode=tdSql.queryResult
 
-        # tdSql.query("show qnodes;")
+        # tdSql.query("select * from information_schema.ins_qnodes;")
         # qnodeId=tdSql.getData(0,0)
         tdLog.debug("drop qnode on dnode %s"%dnodeId)
         tdSql.execute("drop qnode on dnode %s"%dnodeId)
@@ -330,7 +330,7 @@ class TDTestCase:
         tdSql.execute("reset query cache")
 
         tdSql.execute("use db1;")
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         dnodeId=tdSql.getData(0,0)
         tdLog.debug("create qnode on dnode %s"%dnodeId)
 
@@ -344,7 +344,7 @@ class TDTestCase:
         tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
         assert unionallQnode==tdSql.queryResult
 
-        # tdSql.query("show qnodes;")
+        # tdSql.query("select * from information_schema.ins_qnodes;")
         # qnodeId=tdSql.getData(0,0)
         tdLog.debug("drop qnode on dnode %s"%dnodeId)
         tdSql.execute("drop qnode on dnode %s"%dnodeId)
@@ -377,7 +377,7 @@ class TDTestCase:
         tdSql.execute("reset query cache")
 
         tdSql.execute("use db1;")
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         dnodeId=tdSql.getData(0,0)
         tdLog.debug("create qnode on dnode %s"%dnodeId)
 
@@ -405,7 +405,7 @@ class TDTestCase:
         tdSql.execute("reset query cache")
 
         tdSql.execute("use db1;")
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         dnodeId=tdSql.getData(0,0)
         tdSql.query("select max(c1) from stb10;")
         assert maxQnode==tdSql.getData(0,0)
@@ -419,7 +419,7 @@ class TDTestCase:
     # test case : queryPolicy = 2
     def test_case2(self):
         self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 10, 2, 1*10)
-        tdSql.query("show qnodes")
+        tdSql.query("select * from information_schema.ins_qnodes")
         if tdSql.queryRows == 1 :
             tdLog.debug("drop qnode on dnode 1")
             tdSql.execute("drop qnode on dnode 1")
@@ -455,7 +455,7 @@ class TDTestCase:
         tdLog.debug("create qnode on dnode 1")
         tdSql.execute("create qnode on dnode 1")
         tdSql.execute("use db1;")
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         dnodeId=tdSql.getData(0,0)
         print(dnodeId)
 
@@ -468,7 +468,7 @@ class TDTestCase:
         tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
         unionallQnode=tdSql.queryResult
 
-        # tdSql.query("show qnodes;")
+        # tdSql.query("select * from information_schema.ins_qnodes;")
         # qnodeId=tdSql.getData(0,0)
         tdLog.debug("drop qnode on dnode %s"%dnodeId)
 

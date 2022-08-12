@@ -51,10 +51,6 @@ Docker version 20.10.3, build 48d30b5
 
 ```
 $ taos
-Welcome to the TDengine shell from Linux, Client Version:3.0.0.0
-Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.
-
-Server is Community Edition.
 
 taos> 
 

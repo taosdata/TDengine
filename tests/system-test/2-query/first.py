@@ -125,7 +125,7 @@ class TDTestCase:
             tdSql.query(f"select first(*) from {i}")
             tdSql.checkRows(1)
             tdSql.checkData(0, 1, None)
-        tdSql.query(f'show {dbname}.tables')
+        tdSql.query(f"select * from information_schema.ins_tables where db_name = '{dbname}'")
         vgroup_list = []
         for i in range(len(tdSql.queryResult)):
             vgroup_list.append(tdSql.queryResult[i][6])

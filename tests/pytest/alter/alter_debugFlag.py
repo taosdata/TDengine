@@ -37,7 +37,7 @@ class TDTestCase:
             if randomFlag != 131 and randomFlag != 135 and randomFlag != 143:
                 tdSql.error("alter local %s %d" % (flag, randomFlag))
         
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         dnodeId = tdSql.getData(0, 0)
 
         for flag in flagList:
