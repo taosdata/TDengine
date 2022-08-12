@@ -5,6 +5,10 @@ if (DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
 endif()
 
+IF (TD_GRANT)
+  ADD_DEFINITIONS(-D_GRANT)
+ENDIF ()
+
 target_include_directories(
     common
     PUBLIC "${TD_SOURCE_DIR}/include/common"

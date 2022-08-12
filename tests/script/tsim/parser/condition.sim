@@ -4,7 +4,7 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 
 sql drop database if exists cdb
-sql create database if not exists cdb 
+sql create database if not exists cdb
 sql use cdb
 sql create table stb1 (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(10), t3 double)
 sql create table tb1 using stb1 tags(1,'1',1.0)
@@ -37,7 +37,7 @@ sql insert into tb4 values ('2021-05-05 18:19:19',44,44.0,44,44,44,44.0,false,'4
 sql insert into tb5 values ('2021-05-05 18:19:20',51,51.0,51,51,51,51.0,true ,'51','51')
 sql insert into tb5 values ('2021-05-05 18:19:21',52,52.0,52,52,52,52.0,true ,'52','52')
 sql insert into tb5 values ('2021-05-05 18:19:22',53,53.0,53,53,53,53.0,false,'53','53')
-sql insert into tb5 values ('2021-05-05 18:19:23',54,54.0,54,54,54,54.0,false,'54','54')  
+sql insert into tb5 values ('2021-05-05 18:19:23',54,54.0,54,54,54,54.0,false,'54','54')
 sql insert into tb6 values ('2021-05-05 18:19:24',61,61.0,61,61,61,61.0,true ,'61','61')
 sql insert into tb6 values ('2021-05-05 18:19:25',62,62.0,62,62,62,62.0,true ,'62','62')
 sql insert into tb6 values ('2021-05-05 18:19:26',63,63.0,63,63,63,63.0,false,'63','63')

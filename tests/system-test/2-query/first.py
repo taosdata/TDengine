@@ -32,9 +32,10 @@ class TDTestCase:
         self.ts = 1537146000000
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
-    
+
     def first_check_base(self):
-        tdSql.prepare()
+        dbname = "db"
+        tdSql.prepare(dbname)
         column_dict = {
             'col1': 'tinyint',
             'col2': 'smallint',
@@ -50,30 +51,25 @@ class TDTestCase:
             'col12': 'binary(20)',
             'col13': 'nchar(20)'
         }
-        tdSql.execute('''create table stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 
+        tdSql.execute(f'''create table {dbname}.stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned,
                     col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20)) tags(loc nchar(20))''')
-        tdSql.execute("create table stb_1 using stb tags('beijing')")
-        tdSql.execute("insert into stb_1(ts) values(%d)" % (self.ts - 1))
+        tdSql.execute(f"create table {dbname}.stb_1 using {dbname}.stb tags('beijing')")
+        tdSql.execute(f"insert into {dbname}.stb_1(ts) values({self.ts - 1})")
         column_list = ['col1','col2','col3','col4','col5','col6','col7','col8','col9','col10','col11','col12','col13']
-        for i in ['stb_1','db.stb_1','stb_1','db.stb_1']:
-            tdSql.query(f"select first(*) from {i}")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 1, None)
-        #!bug TD-16561
-        for i in ['stb','db.stb']:
-            tdSql.query(f"select first(*) from {i}")
+        for i in ['stb_1','stb']:
+            tdSql.query(f"select first(*) from {dbname}.{i}")
             tdSql.checkRows(1)
             tdSql.checkData(0, 1, None)
         for i in column_list:
-            for j in ['stb_1','db.stb_1','stb_1','db.stb_1']:
-                tdSql.query(f"select first({i}) from {j}")
+            for j in ['stb_1']:
+                tdSql.query(f"select first({i}) from {dbname}.{j}")
                 tdSql.checkRows(0)
         for i in range(self.rowNum):
-            tdSql.execute(f"insert into stb_1 values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
+            tdSql.execute(f"insert into {dbname}.stb_1 values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
                           % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
         for k, v in column_dict.items():
-            for j in ['stb_1', 'db.stb_1', 'stb', 'db.stb']:
-                tdSql.query(f"select first({k}) from {j}")
+            for j in ['stb_1', 'stb']:
+                tdSql.query(f"select first({k}) from {dbname}.{j}")
                 tdSql.checkRows(1)
                 # tinyint,smallint,int,bigint,tinyint unsigned,smallint unsigned,int unsigned,bigint unsigned
                 if v == 'tinyint' or v == 'smallint' or v == 'int' or v == 'bigint' or v == 'tinyint unsigned' or v == 'smallint unsigned'\
@@ -92,9 +88,9 @@ class TDTestCase:
                 elif 'nchar' in v:
                     tdSql.checkData(0, 0, f'{self.nchar_str}1')
         #!bug TD-16569
-        tdSql.query("select first(*),last(*) from stb where ts < 23 interval(1s)")
+        tdSql.query(f"select first(*),last(*) from {dbname}.stb where ts < 23 interval(1s)")
         tdSql.checkRows(0)
-        tdSql.execute('drop database db')
+        tdSql.execute(f'drop database {dbname}')
     def first_check_stb_distribute(self):
         # prepare data for vgroup 4
         dbname = tdCom.getLongName(10, "letters")
@@ -119,17 +115,17 @@ class TDTestCase:
         tdSql.execute(f"create database if not exists {dbname} vgroups {vgroup}")
         tdSql.execute(f'use {dbname}')
         # build 20 child tables,every table insert 10 rows
-        tdSql.execute(f'''create table {stbname}(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 
+        tdSql.execute(f'''create table {dbname}.{stbname}(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned,
                     col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20)) tags(loc nchar(20))''')
         for i in range(child_table_num):
-            tdSql.execute(f"create table {stbname}_{i} using {stbname} tags('beijing')")
-            tdSql.execute(f"insert into {stbname}_{i}(ts) values(%d)" % (self.ts - 1-i))
+            tdSql.execute(f"create table {dbname}.{stbname}_{i} using {dbname}.{stbname} tags('beijing')")
+            tdSql.execute(f"insert into {dbname}.{stbname}_{i}(ts) values(%d)" % (self.ts - 1-i))
         #!bug TD-16561
-        for i in [f'{stbname}', f'{dbname}.{stbname}']:
+        for i in [f'{dbname}.{stbname}']:
             tdSql.query(f"select first(*) from {i}")
             tdSql.checkRows(1)
             tdSql.checkData(0, 1, None)
-        tdSql.query('show tables')
+        tdSql.query(f"select * from information_schema.ins_tables where db_name = '{dbname}'")
         vgroup_list = []
         for i in range(len(tdSql.queryResult)):
             vgroup_list.append(tdSql.queryResult[i][6])
@@ -142,15 +138,15 @@ class TDTestCase:
                 tdLog.info(f'This scene with {vgroups_num} vgroups is ok!')
                 continue
             else:
-                tdLog.exit('This scene does not meet the requirements with {vgroups_num} vgroup!\n')
-        
+                tdLog.exit(f'This scene does not meet the requirements with {vgroups_num} vgroup!\n')
+
         for i in range(child_table_num):
             for j in range(self.rowNum):
-                tdSql.execute(f"insert into {stbname}_{i} values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
+                tdSql.execute(f"insert into {dbname}.{stbname}_{i} values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
                           % (self.ts + j + i, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 0.1, j + 0.1, j % 2, j + 1, j + 1))
-        
+
         for k, v in column_dict.items():
-            for j in [f'{stbname}_{i}', f'{dbname}.{stbname}_{i}', f'{stbname}', f'{dbname}.{stbname}']:
+            for j in [f'{dbname}.{stbname}_{i}', f'{dbname}.{stbname}']:
                 tdSql.query(f"select first({k}) from {j}")
                 tdSql.checkRows(1)
                 # tinyint,smallint,int,bigint,tinyint unsigned,smallint unsigned,int unsigned,bigint unsigned
@@ -170,18 +166,15 @@ class TDTestCase:
                 elif 'nchar' in v:
                     tdSql.checkData(0, 0, f'{self.nchar_str}1')
         #!bug TD-16569
-        tdSql.query(f"select first(*),last(*) from {stbname} where ts < 23 interval(1s)")
+        tdSql.query(f"select first(*),last(*) from {dbname}.{stbname} where ts < 23 interval(1s)")
         tdSql.checkRows(0)
         tdSql.execute(f'drop database {dbname}')
-        
-        
-        
-        pass
+
     def run(self):
         self.first_check_base()
         self.first_check_stb_distribute()
-        
-                
+
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

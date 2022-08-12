@@ -26,19 +26,19 @@ class ClusterTestcase:
         ctest = ClusterTest(nodes.node1.hostName)
         tdSql.init(ctest.conn.cursor(), False)
                 
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         count = tdSql.queryRows;
 
         nodes.stopAllTaosd()
         nodes.node1.startTaosd()
-        tdSql.error("show databases")
+        tdSql.error("select * from information_schema.ins_databases")
 
         nodes.node2.startTaosd()
-        tdSql.error("show databases")
+        tdSql.error("select * from information_schema.ins_databases")
 
         nodes.node3.startTaosd()
         tdLog.sleep(10)
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkRows(count)
 
 ct = ClusterTestcase()

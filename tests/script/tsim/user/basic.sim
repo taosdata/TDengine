@@ -4,7 +4,7 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 
 print =============== step0
-sql show users
+sql select * from information_schema.ins_users
 if $data(root)[1] != 1 then
   return -1
 endi
@@ -40,7 +40,7 @@ sql_error REVOKE read,write ON *.* from root;
 
 print =============== step1: sysinfo create
 sql CREATE USER u1 PASS 'taosdata' SYSINFO 0;
-sql show users
+sql select * from information_schema.ins_users
 if $rows != 2 then 
   return -1
 endi
@@ -55,7 +55,7 @@ if $data(u1)[3] != 0 then
 endi
 
 sql CREATE USER u2 PASS 'taosdata' SYSINFO 1;
-sql show users
+sql select * from information_schema.ins_users
 if $rows != 3 then 
   return -1
 endi
@@ -71,7 +71,7 @@ endi
 
 print =============== step2: sysinfo alter
 sql ALTER USER u1 SYSINFO 1
-sql show users
+sql select * from information_schema.ins_users
 if $data(u1)[1] != 0 then
   return -1
 endi
@@ -83,7 +83,7 @@ if $data(u1)[3] != 1 then
 endi
 
 sql ALTER USER u1 SYSINFO 0
-sql show users
+sql select * from information_schema.ins_users
 if $data(u1)[1] != 0 then
   return -1
 endi
@@ -98,14 +98,14 @@ sql ALTER USER u1 SYSINFO 0
 sql ALTER USER u1 SYSINFO 0
 
 sql drop user u1
-sql show users
+sql select * from information_schema.ins_users
 if $rows != 2 then 
   return -1
 endi
 
 print =============== step3: enable alter
 sql ALTER USER u2 enable 0
-sql show users
+sql select * from information_schema.ins_users
 if $rows != 2 then 
   return -1
 endi
@@ -120,7 +120,7 @@ if $data(u2)[3] != 1 then
 endi
 
 sql ALTER USER u2 enable 1
-sql show users
+sql select * from information_schema.ins_users
 if $data(u2)[1] != 0 then
   return -1
 endi
@@ -139,7 +139,7 @@ system sh/exec.sh -n dnode1 -s stop
 system sh/exec.sh -n dnode1 -s start
 
 print =============== step4: enable privilege
-sql show users
+sql select * from information_schema.ins_users
 if $rows != 2 then 
   return -1
 endi

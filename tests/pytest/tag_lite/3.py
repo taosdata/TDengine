@@ -1311,9 +1311,9 @@ class TDTestCase:
         # TSIM: sql drop database $db
         tdLog.info('drop database db')
         tdSql.execute('drop database db')
-        # TSIM: sql show databases
-        tdLog.info('show databases')
-        tdSql.query('show databases')
+        # TSIM: sql select * from information_schema.ins_databases
+        tdLog.info('select * from information_schema.ins_databases')
+        tdSql.query('select * from information_schema.ins_databases')
         # TSIM: if $rows != 0 then
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)

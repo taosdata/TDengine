@@ -3,7 +3,7 @@ sidebar_label: Docker
 title: 通过 Docker 快速体验 TDengine
 ---
 :::info
-如果您希望对 TDengine 贡献代码或对内部实现感兴趣，请参考我们的 [TDengine GitHub 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
+如果您希望为 TDengine 贡献代码或对内部技术实现感兴趣，请参考[TDengine GitHub 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
 :::
 
 本节首先介绍如何通过 Docker 快速体验 TDengine，然后介绍如何在 Docker 环境下体验 TDengine 的写入和查询功能。
@@ -32,81 +32,24 @@ docker exec -it <container name> bash
 
 然后就可以执行相关的 Linux 命令操作和访问 TDengine
 
-:::info
-
-Docker 工具自身的下载请参考 [Docker 官网文档](https://docs.docker.com/get-docker/)。
-
-安装完毕后可以在命令行终端查看 Docker 版本。如果版本号正常输出，则说明 Docker 环境已经安装成功。
-
-```bash
-$ docker -v
-Docker version 20.10.3, build 48d30b5
-```
-
-:::
+注: Docker 工具自身的下载和使用请参考 [Docker 官网文档](https://docs.docker.com/get-docker/)。
 
 ## 运行 TDengine CLI
 
-有两种方式在 Docker 环境下使用 TDengine CLI (taos) 访问 TDengine. 
-- 进入容器后，执行 taos 
-- 在宿主机使用容器映射到主机的端口进行访问 `taos -h <hostname> -P <port>`
+进入容器，执行 taos 
 
 ```
 $ taos
-Welcome to the TDengine shell from Linux, Client Version:3.0.0.0
-Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.
-
-Server is Community Edition.
 
 taos> 
 
 ```
 
-## 访问 REST 接口
-
-taosAdapter 是 TDengine 中提供 REST 服务的组件。下面这条命令会在容器中同时启动 `taosd` 和 `taosadapter` 两个服务组件。默认 Docker 镜像同时启动 TDengine 后台服务 taosd 和 taosAdatper。
-
-```shell
-docker run -d --name tdengine -p 6041:6041 tdengine/tdengine
-```
-
-可以在宿主机使用 curl 通过 RESTful 端口访问 Docker 容器内的 TDengine server。
-
-```
-curl -L -u root:taosdata -d "show databases" 127.0.0.1:6041/rest/sql
-```
-
-输出示例如下：
-
-```
-{"code":0,"column_meta":[["name","VARCHAR",64],["create_time","TIMESTAMP",8],["vgroups","SMALLINT",2],["ntables","BIGINT",8],["replica","TINYINT",1],["strict","VARCHAR",4],["duration","VARCHAR",10],["keep","VARCHAR",32],["buffer","INT",4],["pagesize","INT",4],["pages","INT",4],["minrows","INT",4],["maxrows","INT",4],["wal","TINYINT",1],["fsync","INT",4],["comp","TINYINT",1],["cacheModel","VARCHAR",11],["precision","VARCHAR",2],["single_stable","BOOL",1],["status","VARCHAR",10],["retention","VARCHAR",60]],"data":[["information_schema",null,null,14,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,"ready"],["performance_schema",null,null,3,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,"ready"]],"rows":2}
-```
-
-这条命令，通过 REST API 访问 TDengine server，这时连接的是从容器映射到主机的 6041 端口。
-
-TDengine REST API 详情请参考[官方文档](/reference/rest-api/)。
-
-## 单独启动 REST 服务
-
-如果想只启动 `taosadapter`：
-
-```bash
-docker run -d --network=host --name tdengine-taosa -e TAOS_FIRST_EP=tdengine-taosd tdengine/tdengine:3.0.0.0 taosadapter
-```
-
-只启动 `taosd`：
-
-```bash
-docker run -d --network=host --name tdengine-taosd -e TAOS_DISABLE_ADAPTER=true tdengine/tdengine:3.0.0.0
-```
-
-注意以上为容器使用 host 方式网络配置进行单独部署 taosAdapter 的命令行参数。其他网络访问方式请设置 hostname、 DNS 等必要的网络配置。
-
 ## 写入数据
 
 可以使用 TDengine 的自带工具 taosBenchmark 快速体验 TDengine 的写入。
 
-假定启动容器时已经将容器的6030端口映射到了宿主机的6030端口，则可以直接在宿主机命令行启动 taosBenchmark，也可以进入容器后执行：
+进入容器，启动 taosBenchmark：
 
    ```bash
    $ taosBenchmark
@@ -121,7 +64,7 @@ docker run -d --network=host --name tdengine-taosd -e TAOS_DISABLE_ADAPTER=true 
 
 ## 体验查询
 
-使用上述 taosBenchmark 插入数据后，可以在 TDengine CLI 输入查询命令，体验查询速度。可以直接在宿主机上也可以进入容器后运行。
+使用上述 taosBenchmark 插入数据后，可以在 TDengine CLI 输入查询命令，体验查询速度。。
 
 查询超级表下记录总条数：
 
@@ -152,3 +95,7 @@ taos> select avg(current), max(voltage), min(phase) from test.meters where group
 ```sql
 taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 ```
+
+## 其它
+
+更多关于在 Docker 环境下使用 TDengine 的细节，请参考 [在 Docker 下使用 TDengine](../../reference/docker)

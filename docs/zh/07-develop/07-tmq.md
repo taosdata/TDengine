@@ -4,6 +4,9 @@ description: "数据订阅与推送服务。写入到 TDengine 中的时序数�
 title: 数据订阅
 ---
 
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+
 为了帮助应用实时获取写入 TDengine 的数据，或者以事件到达顺序处理数据，TDengine提供了类似消息队列产品的数据订阅、消费接口。这样在很多场景下，采用 TDengine 的时序数据处理系统不再需要集成消息队列产品，比如 kafka, 从而简化系统设计的复杂度，降低运营维护成本。
 
 与 kafka 一样，你需要定义 topic, 但 TDengine 的 topic 是基于一个已经存在的超级表、子表或普通表的查询条件，即一个 SELECT 语句。你可以使用 SQL 对标签、表名、列、表达式等条件进行过滤，以及对数据进行标量函数与 UDF 计算（不包括数据聚合）。与其他消息队列软件相比，这是 TDengine 数据订阅功能的最大的优势，它提供了更大的灵活性，数据的颗粒度可以由应用随时调整，而且数据的过滤与预处理交给 TDengine，而不是应用完成，有效的减少传输的数据量与应用的复杂度。
@@ -51,7 +54,7 @@ DLL_EXPORT void           tmq_conf_destroy(tmq_conf_t *conf);
 DLL_EXPORT void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param);
 ```
 
-这些 API 的文档请见 [C/C++ Connector](/reference/connector/cpp)，下面介绍一下它们的具体用法（超级表和子表结构请参考“数据建模”一节），完整的示例代码可以在 [tmq.c](https://github.com/taosdata/TDengine/blob/3.0/examples/c/tmq.c) 看到。
+这些 API 的文档请见 [C/C++ Connector](/reference/connector/cpp)，下面介绍一下它们的具体用法（超级表和子表结构请参考“数据建模”一节），完整的示例代码请见下面C语言的示例代码。
 
 ## 写入数据
 
@@ -62,13 +65,9 @@ drop database if exists tmqdb;
 create database tmqdb;
 create table tmqdb.stb (ts timestamp, c1 int, c2 float, c3 varchar(16) tags(t1 int, t3 varchar(16));
 create table tmqdb.ctb0 using tmqdb.stb tags(0, "subtable0");
-create table tmqdb.ctb1 using tmqdb.stb tags(1, "subtable1");
-create table tmqdb.ctb2 using tmqdb.stb tags(2, "subtable2");
-create table tmqdb.ctb3 using tmqdb.stb tags(3, "subtable3");       
+create table tmqdb.ctb1 using tmqdb.stb tags(1, "subtable1");       
 insert into tmqdb.ctb0 values(now, 0, 0, 'a0')(now+1s, 0, 0, 'a00');
 insert into tmqdb.ctb1 values(now, 1, 1, 'a1')(now+1s, 11, 11, 'a11');
-insert into tmqdb.ctb2 values(now, 2, 2, 'a1')(now+1s, 22, 22, 'a22');
-insert into tmqdb.ctb3 values(now, 3, 3, 'a1')(now+1s, 33, 33, 'a33');
 ```
 
 ## 创建topic：
@@ -130,7 +129,6 @@ TMQ支持多种订阅类型：
 
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
   tmq_conf_destroy(conf);
-  return tmq;
 ```
 
 上述配置中包括consumer group ID，如果多个 consumer 指定的 consumer group ID一样，则自动形成一个consumer group，共享消费进度。
@@ -143,66 +141,23 @@ TMQ支持多种订阅类型：
 ```sql
   tmq_list_t* topicList = tmq_list_new();
   tmq_list_append(topicList, "topicName");
-  return topicList;
 ```
 
 ## 启动订阅并开始消费
 
-```sql
+```
   /* 启动订阅 */
   tmq_subscribe(tmq, topicList);
   tmq_list_destroy(topicList);
   
   /* 循环poll消息 */
-  int32_t totalRows = 0;
-  int32_t msgCnt = 0;
-  int32_t timeOut = 5000;
   while (running) {
     TAOS_RES* tmqmsg = tmq_consumer_poll(tmq, timeOut);
-    if (tmqmsg) {
-      msgCnt++;
-      totalRows += msg_process(tmqmsg);
-      taos_free_result(tmqmsg);
-    } else {
-      break;
-	}
-  }
-  
-  fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
+    msg_process(tmqmsg);
+  }  
 ```
 
-这里是一个 **while** 循环，每调用一次tmq_consumer_poll()，获取一个消息，该消息与普通查询返回的结果集完全相同，可以使用相同的解析API完成消息内容的解析：
-
-```sql
- static int32_t msg_process(TAOS_RES* msg) {
-  char buf[1024];
-  int32_t rows = 0;
-
-  const char* topicName = tmq_get_topic_name(msg);
-  const char* dbName    = tmq_get_db_name(msg);
-  int32_t     vgroupId  = tmq_get_vgroup_id(msg);
-
-  printf("topic: %s\n", topicName);
-  printf("db: %s\n", dbName);
-  printf("vgroup id: %d\n", vgroupId);
-
-  while (1) {
-    TAOS_ROW row = taos_fetch_row(msg);
-    if (row == NULL) break;
-
-    TAOS_FIELD* fields      = taos_fetch_fields(msg);
-    int32_t     numOfFields = taos_field_count(msg);
-    int32_t*    length      = taos_fetch_lengths(msg);
-    int32_t     precision   = taos_result_precision(msg);
-    const char* tbName      = tmq_get_table_name(msg);
-    rows++; 
-    taos_print_row(buf, row, fields, numOfFields);
-    printf("row content from %s: %s\n", (tbName != NULL ? tbName : "null table"), buf);
-  }
-
-  return rows;
-}
-```
+这里是一个 **while** 循环，每调用一次tmq_consumer_poll()，获取一个消息，该消息与普通查询返回的结果集完全相同，可以使用相同的解析API完成消息内容的解析。
 
 ## 结束消费
 
@@ -243,4 +198,45 @@ TMQ支持多种订阅类型：
   show subscriptions;
 ```
 
+## 示例代码
 
+本节展示各种语言的示例代码。
+
+<Tabs>
+<TabItem label="C" value="c">
+
+```c
+{{#include examples/c/tmq.c}}
+```
+</TabItem>
+
+<TabItem label="Java" value="java">
+
+TODO
+</TabItem>
+
+<TabItem label="Go" value="Go">
+TODO
+</TabItem>
+
+<TabItem label="Rust" value="Rust">
+TODO
+</TabItem>
+
+<TabItem label="Python" value="Python">
+
+```python
+{{#include docs/examples/python/tmq_example.py}}
+```
+
+</TabItem>
+
+<TabItem label="Node.JS" value="Node.JS">
+TODO
+</TabItem>
+
+<TabItem label="C#" value="C#">
+TODO
+</TabItem>
+
+</Tabs>

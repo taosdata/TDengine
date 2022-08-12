@@ -119,7 +119,7 @@ if $loopCnt == 10 then
   return -1
 endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 3 then
   sleep 2000
   goto wait_dnode3_offline
@@ -187,7 +187,7 @@ if $loopCnt == 10 then
   return -1
 endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 3 then
   sleep 2000
   goto wait_dnode3_ready

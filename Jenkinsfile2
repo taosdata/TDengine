@@ -265,6 +265,7 @@ def pre_test_build_win() {
     '''
     bat '''
         cd %WIN_CONNECTOR_ROOT%
+        python.exe -m pip install --upgrade pip
         python -m pip install .
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
     '''
@@ -283,6 +284,7 @@ def run_win_test() {
     bat '''
         echo "windows test ..."
         cd %WIN_CONNECTOR_ROOT%
+        python.exe -m pip install --upgrade pip
         python -m pip install .
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
         ls -l C:\\Windows\\System32\\taos.dll
