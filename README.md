@@ -20,6 +20,7 @@ English | [简体中文](README-CN.md) | We are hiring, check [here](https://tde
 
 # What is TDengine？
 
+
 TDengine is an open source, high performance , cloud native time-series database (Time-Series Database, TSDB).
 
 TDengine can be optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT, IT operation and maintenance, finance and other fields. In addition to the core time series database functions, TDengine also provides functions such as caching, data subscription, and streaming computing. It is a minimalist time series data processing platform that minimizes the complexity of system design and reduces R&D and operating costs. Compared with other time series databases, the main advantages of TDengine are as follows:
