@@ -318,7 +318,7 @@ if [ "$verMode" == "cluster" ]; then
 fi
 
 # Copy release note
-cp ${script_dir}/release_note ${install_dir}
+# cp ${script_dir}/release_note ${install_dir}
 
 # exit 1
 
