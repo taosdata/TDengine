@@ -240,7 +240,8 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       }
 
       // for stream interval
-      if (pBlock->info.type == STREAM_RETRIEVE) {
+      if (pBlock->info.type == STREAM_RETRIEVE || pBlock->info.type == STREAM_DELETE_RESULT ||
+          pBlock->info.type == STREAM_DELETE_DATA) {
         // printDataBlock1(pBlock, "project1");
         return pBlock;
       }
