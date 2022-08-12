@@ -93,7 +93,7 @@ sql_error select _block_dist() from (select * from $mt)
 
 print =============== clear
 sql drop database $db
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then 
   return -1
 endi

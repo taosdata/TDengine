@@ -96,12 +96,12 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
   return true;
 }
 
-static void* pTaskQueue = NULL;
+static SSchedQueue pTaskQueue = {0};
 
 int32_t initTaskQueue() {
   int32_t queueSize = tsMaxShellConns * 2;
-  pTaskQueue = taosInitScheduler(queueSize, tsNumOfTaskQueueThreads, "tsc");
-  if (NULL == pTaskQueue) {
+  void *p = taosInitScheduler(queueSize, tsNumOfTaskQueueThreads, "tsc", &pTaskQueue);
+  if (NULL == p) {
     qError("failed to init task queue");
     return -1;
   }
@@ -111,7 +111,7 @@ int32_t initTaskQueue() {
 }
 
 int32_t cleanupTaskQueue() {
-  taosCleanUpScheduler(pTaskQueue);
+  taosCleanUpScheduler(&pTaskQueue);
   return 0;
 }
 
@@ -134,7 +134,7 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) 
   schedMsg.thandle = execParam;
   schedMsg.msg = code;
 
-  taosScheduleTask(pTaskQueue, &schedMsg);
+  taosScheduleTask(&pTaskQueue, &schedMsg);
   return 0;
 }
 
@@ -415,7 +415,7 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t metaSize = (pSrc->tableInfo.numOfColumns + pSrc->tableInfo.numOfTags) * sizeof(SSchema);
+  int32_t metaSize = sizeof(STableMeta) + (pSrc->tableInfo.numOfColumns + pSrc->tableInfo.numOfTags) * sizeof(SSchema);
   *pDst = taosMemoryMalloc(metaSize);
   if (NULL == *pDst) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -462,3 +462,5 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+

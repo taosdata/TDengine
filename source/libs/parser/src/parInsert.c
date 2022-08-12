@@ -18,10 +18,10 @@
 #include "parInt.h"
 #include "parToken.h"
 #include "parUtil.h"
+#include "query.h"
 #include "tglobal.h"
 #include "ttime.h"
 #include "ttypes.h"
-#include "query.h"
 
 #define NEXT_TOKEN(pSql, sToken)                \
   do {                                          \
@@ -1189,15 +1189,13 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
   if (!isParseBindParam) {
     // set the null value for the columns that do not assign values
     if ((spd->numOfBound < spd->numOfCols) && TD_IS_TP_ROW(row)) {
-      for (int32_t i = 0; i < spd->numOfCols; ++i) {
-        if (spd->cols[i].valStat == VAL_STAT_NONE) {  // the primary TS key is not VAL_STAT_NONE
-          tdAppendColValToTpRow(pBuilder, TD_VTYPE_NONE, getNullValue(schema[i].type), true, schema[i].type, i,
-                                spd->cols[i].toffset);
-        }
-      }
+      pBuilder->hasNone = true;
     }
 
+    tdSRowEnd(pBuilder);
+
     *gotRow = true;
+    
 #ifdef TD_DEBUG_PRINT_ROW
     STSchema* pSTSchema = tdGetSTSChemaFromSSChema(schema, spd->numOfCols, 1);
     tdSRowPrint(row, pSTSchema, __func__);
@@ -1266,7 +1264,8 @@ static int32_t parseValuesClause(SInsertParseContext* pCxt, STableDataBlocks* da
 
   SSubmitBlk* pBlocks = (SSubmitBlk*)(dataBuf->pData);
   if (TSDB_CODE_SUCCESS != setBlockInfo(pBlocks, dataBuf, numOfRows)) {
-    return buildInvalidOperationMsg(&pCxt->msg, "too many rows in sql, total number of rows should be less than INT32_MAX");
+    return buildInvalidOperationMsg(&pCxt->msg,
+                                    "too many rows in sql, total number of rows should be less than INT32_MAX");
   }
 
   dataBuf->numOfTables = 1;
@@ -1338,7 +1337,8 @@ static int32_t parseDataFromFile(SInsertParseContext* pCxt, SToken filePath, STa
 
   SSubmitBlk* pBlocks = (SSubmitBlk*)(dataBuf->pData);
   if (TSDB_CODE_SUCCESS != setBlockInfo(pBlocks, dataBuf, numOfRows)) {
-    return buildInvalidOperationMsg(&pCxt->msg, "too many rows in sql, total number of rows should be less than INT32_MAX");
+    return buildInvalidOperationMsg(&pCxt->msg,
+                                    "too many rows in sql, total number of rows should be less than INT32_MAX");
   }
 
   dataBuf->numOfTables = 1;
@@ -1537,6 +1537,13 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery, SParseMetaCache
   if (pContext->pStmtCb && *pQuery) {
     (*pContext->pStmtCb->getExecInfoFn)(pContext->pStmtCb->pStmt, &context.pVgroupsHashObj,
                                         &context.pTableBlockHashObj);
+    if (NULL == context.pVgroupsHashObj) {
+      context.pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+    }
+    if (NULL == context.pTableBlockHashObj) {
+      context.pTableBlockHashObj =
+          taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    }
   } else {
     context.pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
     context.pTableBlockHashObj =
@@ -1968,13 +1975,9 @@ int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, in
     }
     // set the null value for the columns that do not assign values
     if ((spd->numOfBound < spd->numOfCols) && TD_IS_TP_ROW(row)) {
-      for (int32_t i = 0; i < spd->numOfCols; ++i) {
-        if (spd->cols[i].valStat == VAL_STAT_NONE) {  // the primary TS key is not VAL_STAT_NONE
-          tdAppendColValToTpRow(pBuilder, TD_VTYPE_NONE, getNullValue(pSchema[i].type), true, pSchema[i].type, i,
-                                spd->cols[i].toffset);
-        }
-      }
+      pBuilder->hasNone = true;
     }
+    tdSRowEnd(pBuilder);
 #ifdef TD_DEBUG_PRINT_ROW
     STSchema* pSTSchema = tdGetSTSChemaFromSSChema(pSchema, spd->numOfCols, 1);
     tdSRowPrint(row, pSTSchema, __func__);
@@ -2051,14 +2054,11 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
 
     // set the null value for the columns that do not assign values
     if (rowEnd && (spd->numOfBound < spd->numOfCols) && TD_IS_TP_ROW(row)) {
-      for (int32_t i = 0; i < spd->numOfCols; ++i) {
-        if (spd->cols[i].valStat == VAL_STAT_NONE) {  // the primary TS key is not VAL_STAT_NONE
-          tdAppendColValToTpRow(pBuilder, TD_VTYPE_NONE, getNullValue(pSchema[i].type), true, pSchema[i].type, i,
-                                spd->cols[i].toffset);
-        }
-      }
+      pBuilder->hasNone = true;
     }
-
+    if (rowEnd) {
+      tdSRowEnd(pBuilder);
+    }
 #ifdef TD_DEBUG_PRINT_ROW
     if (rowEnd) {
       STSchema* pSTSchema = tdGetSTSChemaFromSSChema(pSchema, spd->numOfCols, 1);
@@ -2073,7 +2073,8 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
 
     SSubmitBlk* pBlocks = (SSubmitBlk*)(pDataBlock->pData);
     if (TSDB_CODE_SUCCESS != setBlockInfo(pBlocks, pDataBlock, bind->num)) {
-      return buildInvalidOperationMsg(&pBuf, "too many rows in sql, total number of rows should be less than INT32_MAX");
+      return buildInvalidOperationMsg(&pBuf,
+                                      "too many rows in sql, total number of rows should be less than INT32_MAX");
     }
   }
 
@@ -2430,14 +2431,10 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
 
     // set the null value for the columns that do not assign values
     if ((spd->numOfBound < spd->numOfCols) && TD_IS_TP_ROW(row)) {
-      for (int32_t i = 0; i < spd->numOfCols; ++i) {
-        if (spd->cols[i].valStat == VAL_STAT_NONE) {  // the primary TS key is not VAL_STAT_NONE
-          tdAppendColValToTpRow(pBuilder, TD_VTYPE_NONE, getNullValue(pSchema[i].type), true, pSchema[i].type, i,
-                                spd->cols[i].toffset);
-        }
-      }
+      pBuilder->hasNone = true;
     }
 
+    tdSRowEnd(pBuilder);
     pDataBlock->size += extendedRowSize;
   }
 

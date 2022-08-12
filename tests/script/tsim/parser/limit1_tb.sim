@@ -229,7 +229,7 @@ sql select sum(c1), avg(c2), stddev(c3), max(c4), min(c5), count(c6), first(c7),
 if $rows != 1 then
   return -1
 endi
-$val = 45 * $rowNum 
+$val = 45 * $rowNum
 $val = $val / 10
 if $data00 != $val then
   return -1
@@ -263,6 +263,9 @@ sql select sum(c1), avg(c2), stddev(c3), max(c4), min(c5), count(c6), first(c7),
 if $rows != 0 then
   return -1
 endi
+
+print select sum(c1), avg(c2), stddev(c3), max(c4), min(c5), count(c6), first(c7), last(c8), last(c9) from $tb where ts >= $ts0 and ts <= $tsu and c1>1 and c2<9 and c3>2 and c4<8 and c5>4 and c6<6 limit 1 offset 0
+
 sql select sum(c1), avg(c2), stddev(c3), max(c4), min(c5), count(c6), first(c7), last(c8), last(c9) from $tb where ts >= $ts0 and ts <= $tsu and c1>1 and c2<9 and c3>2 and c4<8 and c5>4 and c6<6 limit 1 offset 0
 if $rows != 1 then
   return -1
@@ -270,6 +273,7 @@ endi
 $val = $rowNum / 10
 $val = $val * 5
 if $data00 != $val then
+  print $data00, expect $val
   return -1
 endi
 if $data01 != 5.000000000 then
@@ -475,7 +479,7 @@ endi
 
 ### aggregation + limit offset (with interval)
 sql select max(c1), max(c2), max(c3), max(c4), max(c5), max(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) limit 5
-if $rows != 5 then 
+if $rows != 5 then
   return -1
 endi
 if $data01 != 0 then
@@ -689,7 +693,7 @@ if $data11 != 3 then
 endi
 if $data21 != 3 then
   return -1
-endi 
+endi
 if $data31 != 2 then
   return -1
 endi
@@ -801,7 +805,7 @@ if $data02 != 3 then
 endi
 if $data03 != 5 then
   return -1
-endi 
+endi
 if $data04 != 3.00000 then
   return -1
 endi

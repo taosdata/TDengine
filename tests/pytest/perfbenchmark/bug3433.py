@@ -224,7 +224,7 @@ class TDTestCase:
         self.inserttable(file_create_table)
 
         tdLog.printNoPrefix("==========step2:check database and stable records")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(0, 2, 2000)
         tdSql.execute("use db")
         tdSql.query("show stables")

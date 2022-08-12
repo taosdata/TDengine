@@ -121,6 +121,7 @@ typedef struct SProjectLogicNode {
   SLogicNode node;
   SNodeList* pProjections;
   char       stmtName[TSDB_TABLE_NAME_LEN];
+  bool       ignoreGroupId;
 } SProjectLogicNode;
 
 typedef struct SIndefRowsFuncLogicNode {
@@ -346,6 +347,7 @@ typedef struct SProjectPhysiNode {
   SPhysiNode node;
   SNodeList* pProjections;
   bool       mergeDataBlock;
+  bool       ignoreGroupId;
 } SProjectPhysiNode;
 
 typedef struct SIndefRowsFuncPhysiNode {
@@ -380,6 +382,7 @@ typedef struct SAggPhysiNode {
   SNodeList* pExprs;  // these are expression list of group_by_clause and parameter expression of aggregate function
   SNodeList* pGroupKeys;
   SNodeList* pAggFuncs;
+  bool       mergeDataBlock;
 } SAggPhysiNode;
 
 typedef struct SDownstreamSourceNode {
@@ -418,6 +421,7 @@ typedef struct SWinodwPhysiNode {
   int8_t     igExpired;
   EOrder     inputTsOrder;
   EOrder     outputTsOrder;
+  bool       mergeDataBlock;
 } SWinodwPhysiNode;
 
 typedef struct SIntervalPhysiNode {

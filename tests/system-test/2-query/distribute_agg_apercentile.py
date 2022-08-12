@@ -69,7 +69,7 @@ class TDTestCase:
 
 
         # check sub_table of per vnode ,make sure sub_table has been distributed
-        tdSql.query(f"show {dbname}.tables like 'ct%'")
+        tdSql.query(f"select * from information_schema.ins_tables where db_name = '{dbname}' and table_name like 'ct%'")
         table_names = tdSql.queryResult
         tablenames = []
         for table_name in table_names:
@@ -86,7 +86,7 @@ class TDTestCase:
     def distribute_agg_query(self, dbname="testdb"):
         # basic filter
         tdSql.query(f"select apercentile(c1 , 20) from {dbname}.stb1 where c1 is null")
-        tdSql.checkRows(0)
+        tdSql.checkRows(1)
 
         tdSql.query(f"select apercentile(c1 , 20) from {dbname}.stb1 where t1=1")
         tdSql.checkData(0,0,2.800000000)

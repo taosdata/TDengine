@@ -10,7 +10,7 @@ sql create table d1.t2 (ts timestamp, i int);
 sql create table d1.t3 (ts timestamp, i int);
 sql create table d1.t4 (ts timestamp, i int);
 
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then 
   return -1
 endi
@@ -46,7 +46,7 @@ endi
 print =============== drop table 
 sql drop table d1.t1
 
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then 
   return -1
 endi
@@ -83,7 +83,7 @@ sql drop table d1.t2
 sql drop table d1.t3
 sql drop table d1.t4
 
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then 
   return -1
 endi

@@ -42,7 +42,7 @@ int vnodeBegin(SVnode *pVnode) {
 
   pVnode->state.commitID++;
   // begin meta
-  if (metaBegin(pVnode->pMeta) < 0) {
+  if (metaBegin(pVnode->pMeta, 0) < 0) {
     vError("vgId:%d, failed to begin meta since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
@@ -222,6 +222,8 @@ int vnodeCommit(SVnode *pVnode) {
 
   vnodeBufPoolUnRef(pVnode->inUse);
   pVnode->inUse = NULL;
+
+  pVnode->state.commitTerm = pVnode->state.applyTerm;
 
   // save info
   info.config = pVnode->config;

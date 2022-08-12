@@ -390,6 +390,7 @@ static int32_t logicProjectCopy(const SProjectLogicNode* pSrc, SProjectLogicNode
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pProjections);
   COPY_CHAR_ARRAY_FIELD(stmtName);
+  COPY_SCALAR_FIELD(ignoreGroupId);
   return TSDB_CODE_SUCCESS;
 }
 

@@ -75,22 +75,20 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
   int32_t        code = 0;
   bool           qcontinue = true;
-  SSDataBlock   *pRes = NULL;
   uint64_t       useconds = 0;
   int32_t        i = 0;
   int32_t        execNum = 0;
   qTaskInfo_t    taskHandle = ctx->taskHandle;
   DataSinkHandle sinkHandle = ctx->sinkHandle;
 
+  SArray* pResList = taosArrayInit(4, POINTER_BYTES);
   while (true) {
     QW_TASK_DLOG("start to execTask, loopIdx:%d", i++);
-
-    pRes = NULL;
 
     // if *taskHandle is NULL, it's killed right now
     if (taskHandle) {
       qwDbgSimulateSleep();
-      code = qExecTask(taskHandle, &pRes, &useconds);
+      code = qExecTaskOpt(taskHandle, pResList, &useconds);
       if (code) {
         if (code != TSDB_CODE_OPS_NOT_SUPPORT) {
           QW_TASK_ELOG("qExecTask failed, code:%x - %s", code, tstrerror(code));
@@ -103,9 +101,8 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
 
     ++execNum;
 
-    if (NULL == pRes) {
+    if (taosArrayGetSize(pResList) == 0) {
       QW_TASK_DLOG("qExecTask end with empty res, useconds:%" PRIu64, useconds);
-
       dsEndPut(sinkHandle, useconds);
 
       QW_ERR_RET(qwHandleTaskComplete(QW_FPARAMS(), ctx));
@@ -117,18 +114,19 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
       break;
     }
 
-    int32_t rows = pRes->info.rows;
+    for(int32_t j = 0; j < taosArrayGetSize(pResList); ++j) {
+      SSDataBlock *pRes = taosArrayGetP(pResList, j);
+      ASSERT(pRes->info.rows > 0);
 
-    ASSERT(pRes->info.rows > 0);
+      SInputData inputData = {.pData = pRes};
+      code = dsPutDataBlock(sinkHandle, &inputData, &qcontinue);
+      if (code) {
+        QW_TASK_ELOG("dsPutDataBlock failed, code:%x - %s", code, tstrerror(code));
+        QW_ERR_RET(code);
+      }
 
-    SInputData inputData = {.pData = pRes};
-    code = dsPutDataBlock(sinkHandle, &inputData, &qcontinue);
-    if (code) {
-      QW_TASK_ELOG("dsPutDataBlock failed, code:%x - %s", code, tstrerror(code));
-      QW_ERR_RET(code);
+      QW_TASK_DLOG("data put into sink, rows:%d, continueExecTask:%d", pRes->info.rows, qcontinue);
     }
-
-    QW_TASK_DLOG("data put into sink, rows:%d, continueExecTask:%d", rows, qcontinue);
 
     if (!qcontinue) {
       if (queryStop) {
@@ -151,6 +149,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
     }
   }
 
+  taosArrayDestroy(pResList);
   QW_RET(code);
 }
 
@@ -203,56 +202,87 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
   SRetrieveTableRsp *rsp = NULL;
   bool               queryEnd = false;
   int32_t            code = 0;
+  SOutputData        output = {0};
 
-  dsGetDataLength(ctx->sinkHandle, &len, &queryEnd);
+  *dataLen = 0;
 
-  if (len < 0) {
-    QW_TASK_ELOG("invalid length from dsGetDataLength, length:%d", len);
-    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
-  }
+  while (true) {
+    dsGetDataLength(ctx->sinkHandle, &len, &queryEnd);
 
-  if (len == 0) {
-    if (queryEnd) {
-      code = dsGetDataBlock(ctx->sinkHandle, pOutput);
-      if (code) {
-        QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));
-        QW_ERR_RET(code);
-      }
-
-      QW_TASK_DLOG_E("no data in sink and query end");
-
-      qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC);
-      QW_ERR_RET(qwMallocFetchRsp(len, &rsp));
-
-      *rspMsg = rsp;
-      *dataLen = 0;
-      return TSDB_CODE_SUCCESS;
+    if (len < 0) {
+      QW_TASK_ELOG("invalid length from dsGetDataLength, length:%d", len);
+      QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
     }
 
-    pOutput->bufStatus = DS_BUF_EMPTY;
+    if (len == 0) {
+      if (queryEnd) {
+        code = dsGetDataBlock(ctx->sinkHandle, &output);
+        if (code) {
+          QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));
+          QW_ERR_RET(code);
+        }
 
-    return TSDB_CODE_SUCCESS;
+        QW_TASK_DLOG("no more data in sink and query end, fetched blocks %d rows %d", pOutput->numOfBlocks, pOutput->numOfRows);
+
+        qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC);
+        if (NULL == rsp) {
+          QW_ERR_RET(qwMallocFetchRsp(len, &rsp));
+          *pOutput = output;
+        } else {
+          pOutput->queryEnd = output.queryEnd;
+          pOutput->bufStatus = output.bufStatus;
+          pOutput->useconds = output.useconds;
+        }
+
+        break;
+      }
+
+      pOutput->bufStatus = DS_BUF_EMPTY;
+
+      break;
+    }
+
+    // Got data from sink
+    QW_TASK_DLOG("there are data in sink, dataLength:%d", len);
+
+    *dataLen += len;
+
+    QW_ERR_RET(qwMallocFetchRsp(*dataLen, &rsp));
+
+    output.pData = rsp->data + *dataLen - len;
+    code = dsGetDataBlock(ctx->sinkHandle, &output);
+    if (code) {
+      QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));
+      QW_ERR_RET(code);
+    }
+
+    pOutput->queryEnd = output.queryEnd;
+    pOutput->precision = output.precision;
+    pOutput->bufStatus = output.bufStatus;
+    pOutput->useconds = output.useconds;
+    pOutput->compressed = output.compressed;
+    pOutput->numOfCols = output.numOfCols;
+    pOutput->numOfRows += output.numOfRows;
+    pOutput->numOfBlocks++;
+
+    if (DS_BUF_EMPTY == pOutput->bufStatus && pOutput->queryEnd) {
+      QW_TASK_DLOG("task all data fetched and done, fetched blocks %d rows %d", pOutput->numOfBlocks, pOutput->numOfRows);
+      qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC);
+      break;
+    }
+
+    if (0 == ctx->level) {
+      QW_TASK_DLOG("task fetched blocks %d rows %d, level %d", pOutput->numOfBlocks, pOutput->numOfRows, ctx->level);
+      break;
+    }
+
+    if (pOutput->numOfRows >= QW_MIN_RES_ROWS) {
+      QW_TASK_DLOG("task fetched blocks %d rows %d reaches the min rows", pOutput->numOfBlocks, pOutput->numOfRows);
+      break;
+    }
   }
 
-  // Got data from sink
-  QW_TASK_DLOG("there are data in sink, dataLength:%d", len);
-
-  *dataLen = len;
-
-  QW_ERR_RET(qwMallocFetchRsp(len, &rsp));
   *rspMsg = rsp;
-
-  pOutput->pData = rsp->data;
-  code = dsGetDataBlock(ctx->sinkHandle, pOutput);
-  if (code) {
-    QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));
-    QW_ERR_RET(code);
-  }
-
-  if (DS_BUF_EMPTY == pOutput->bufStatus && pOutput->queryEnd) {
-    QW_TASK_DLOG_E("task all data fetched, done");
-    qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC);
-  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -508,7 +538,7 @@ _return:
 }
 
 
-int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, const char* sql) {
+int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char* sql) {
   int32_t        code = 0;
   bool           queryRsped = false;
   SSubplan      *plan = NULL;
@@ -536,6 +566,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, const char* sql) {
   }
 
   code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, sql, OPTR_EXEC_MODEL_BATCH);
+  sql = NULL;
   if (code) {
     QW_TASK_ELOG("qCreateExecTask failed, code:%x - %s", code, tstrerror(code));
     QW_ERR_JRET(code);
@@ -551,6 +582,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, const char* sql) {
 
   // queryRsped = true;
 
+  ctx->level = plan->level;
   atomic_store_ptr(&ctx->taskHandle, pTaskInfo);
   atomic_store_ptr(&ctx->sinkHandle, sinkHandle);
 
@@ -561,6 +593,8 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, const char* sql) {
 
 _return:
 
+  taosMemoryFree(sql);
+  
   input.code = code;
   input.msgType = qwMsg->msgType;
   code = qwHandlePostPhaseEvents(QW_FPARAMS(), QW_PHASE_POST_QUERY, &input, NULL);

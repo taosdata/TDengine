@@ -141,6 +141,10 @@ static void inline vnodeHandleWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   }
   if (rsp.info.handle != NULL) {
     tmsgSendRsp(&rsp);
+  } else {
+    if (rsp.pCont) {
+      rpcFreeCont(rsp.pCont);
+    }
   }
 }
 
@@ -299,6 +303,10 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
     vnodePostBlockMsg(pVnode, pMsg);
     if (rsp.info.handle != NULL) {
       tmsgSendRsp(&rsp);
+    } else {
+      if (rsp.pCont) {
+        rpcFreeCont(rsp.pCont);
+      }
     }
 
     vGTrace("vgId:%d, msg:%p is freed, code:0x%x index:%" PRId64, vgId, pMsg, rsp.code, pMsg->info.conn.applyIndex);
@@ -664,6 +672,18 @@ static void vnodeRestoreFinish(struct SSyncFSM *pFsm) {
   vDebug("vgId:%d, sync restore finished", pVnode->config.vgId);
 }
 
+static void vnodeBecomeFollower(struct SSyncFSM *pFsm) {
+  SVnode *pVnode = pFsm->data;
+  vDebug("vgId:%d, become follower", pVnode->config.vgId);
+
+  // clear old leader resource
+}
+
+static void vnodeBecomeLeader(struct SSyncFSM *pFsm) {
+  SVnode *pVnode = pFsm->data;
+  vDebug("vgId:%d, become leader", pVnode->config.vgId);
+}
+
 static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pVnode;
@@ -673,6 +693,8 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpGetSnapshotInfo = vnodeSyncGetSnapshot;
   pFsm->FpRestoreFinishCb = vnodeRestoreFinish;
   pFsm->FpLeaderTransferCb = vnodeLeaderTransfer;
+  pFsm->FpBecomeLeaderCb = vnodeBecomeLeader;
+  pFsm->FpBecomeFollowerCb = vnodeBecomeFollower;
   pFsm->FpReConfigCb = vnodeSyncReconfig;
   pFsm->FpSnapshotStartRead = vnodeSnapshotStartRead;
   pFsm->FpSnapshotStopRead = vnodeSnapshotStopRead;
@@ -722,10 +744,13 @@ void vnodeSyncClose(SVnode *pVnode) { syncStop(pVnode->sync); }
 
 bool vnodeIsLeader(SVnode *pVnode) {
   if (!syncIsReady(pVnode->sync)) {
+    vDebug("vgId:%d, vnode not ready, state:%s, restore:%d", pVnode->config.vgId, syncGetMyRoleStr(pVnode->sync),
+           syncRestoreFinish(pVnode->sync));
     return false;
   }
 
   if (!pVnode->restored) {
+    vDebug("vgId:%d, vnode not restored", pVnode->config.vgId);
     terrno = TSDB_CODE_APP_NOT_READY;
     return false;
   }

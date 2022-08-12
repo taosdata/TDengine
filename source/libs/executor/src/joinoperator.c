@@ -132,6 +132,8 @@ void destroyMergeJoinOperator(void* param, int32_t numOfOutput) {
   SJoinOperatorInfo* pJoinOperator = (SJoinOperatorInfo*)param;
   nodesDestroyNode(pJoinOperator->pCondAfterMerge);
 
+  pJoinOperator->pRes = blockDataDestroy(pJoinOperator->pRes);
+
   taosMemoryFreeClear(param);
 }
 
@@ -256,7 +258,7 @@ static int32_t mergeJoinJoinDownstreamTsRanges(SOperatorInfo* pOperator, int64_t
 
   SArray* rightRowLocations = taosArrayInit(8, sizeof(SRowLocation));
   SArray* rightCreatedBlocks = taosArrayInit(8, POINTER_BYTES);
-
+  int32_t code = TSDB_CODE_SUCCESS;
   mergeJoinGetDownStreamRowsEqualTimeStamp(pOperator, 0, pJoinInfo->leftCol.slotId, pJoinInfo->pLeft,
                                            pJoinInfo->leftPos, timestamp, leftRowLocations, leftCreatedBlocks);
   mergeJoinGetDownStreamRowsEqualTimeStamp(pOperator, 1, pJoinInfo->rightCol.slotId, pJoinInfo->pRight,
@@ -264,14 +266,20 @@ static int32_t mergeJoinJoinDownstreamTsRanges(SOperatorInfo* pOperator, int64_t
 
   size_t leftNumJoin = taosArrayGetSize(leftRowLocations);
   size_t rightNumJoin = taosArrayGetSize(rightRowLocations);
-  for (int32_t i = 0; i < leftNumJoin; ++i) {
-    for (int32_t j = 0; j < rightNumJoin; ++j) {
-      SRowLocation* leftRow = taosArrayGet(leftRowLocations, i);
-      SRowLocation* rightRow = taosArrayGet(rightRowLocations, j);
-      mergeJoinJoinLeftRight(pOperator, pRes, *nRows, leftRow->pDataBlock, leftRow->pos, rightRow->pDataBlock,
-                             rightRow->pos);
-      ++*nRows;
-    }
+  code = blockDataEnsureCapacity(pRes, *nRows + leftNumJoin * rightNumJoin);
+  if (code != TSDB_CODE_SUCCESS) {
+      qError("%s can not ensure block capacity for join. left: %zu, right: %zu", GET_TASKID(pOperator->pTaskInfo), leftNumJoin, rightNumJoin);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+      for (int32_t i = 0; i < leftNumJoin; ++i) {
+          for (int32_t j = 0; j < rightNumJoin; ++j) {
+              SRowLocation *leftRow = taosArrayGet(leftRowLocations, i);
+              SRowLocation *rightRow = taosArrayGet(rightRowLocations, j);
+              mergeJoinJoinLeftRight(pOperator, pRes, *nRows, leftRow->pDataBlock, leftRow->pos, rightRow->pDataBlock,
+                                     rightRow->pos);
+              ++*nRows;
+          }
+      }
   }
 
   for (int i = 0; i < taosArrayGetSize(rightCreatedBlocks); ++i) {

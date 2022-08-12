@@ -25,6 +25,15 @@ class ParserShowToUseTest : public ParserDdlTest {};
 // todo SHOW apps
 // todo SHOW connections
 
+TEST_F(ParserShowToUseTest, showCluster) {
+  useDb("root", "test");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SELECT_STMT); });
+
+  run("SHOW CLUSTER");
+}
+
 TEST_F(ParserShowToUseTest, showConsumers) {
   useDb("root", "test");
 

@@ -555,7 +555,7 @@ static void taosTmrModuleInit(void) {
     return;
   }
 
-  tmrQhandle = taosInitScheduler(10000, taosTmrThreads, "tmr");
+  tmrQhandle = taosInitScheduler(10000, taosTmrThreads, "tmr", NULL);
   taosInitTimer(taosTimerLoopFunc, MSECONDS_PER_TICK);
 
   tmrDebug("timer module is initialized, number of threads: %d", taosTmrThreads);
@@ -606,6 +606,7 @@ void taosTmrCleanUp(void* handle) {
     taosUninitTimer();
 
     taosCleanUpScheduler(tmrQhandle);
+    taosMemoryFreeClear(tmrQhandle);
 
     for (int32_t i = 0; i < tListLen(wheels); i++) {
       time_wheel_t* wheel = wheels + i;

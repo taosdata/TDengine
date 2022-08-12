@@ -489,7 +489,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   smaObj.uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
   ASSERT(smaObj.uid != 0);
   char resultTbName[TSDB_TABLE_FNAME_LEN + 16] = {0};
-  snprintf(resultTbName, TSDB_TABLE_FNAME_LEN + 16, "td.tsma.rst.tb.%s", pCreate->name);
+  snprintf(resultTbName, TSDB_TABLE_FNAME_LEN + 16, "%s_td_tsma_rst_tb",pCreate->name);
   memcpy(smaObj.dstTbName, resultTbName, TSDB_TABLE_FNAME_LEN);
   smaObj.dstTbUid = mndGenerateUid(smaObj.dstTbName, TSDB_TABLE_FNAME_LEN);
   smaObj.stbUid = pStb->uid;
@@ -602,6 +602,9 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   if (mndScheduleStream(pMnode, &streamObj) != 0) goto _OVER;
   if (mndPersistStream(pMnode, pTrans, &streamObj) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+
+  mDebug("mndSma: create sma index %s %" PRIi64 " on stb:%" PRIi64 ", dstSuid:%" PRIi64 " dstTb:%s dstVg:%d",
+         pCreate->name, smaObj.uid, smaObj.stbUid, smaObj.dstTbUid, smaObj.dstTbName, smaObj.dstVgId);
 
   code = 0;
 

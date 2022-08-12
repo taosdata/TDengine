@@ -117,10 +117,9 @@ typedef struct {
 struct STQ {
   SVnode*   pVnode;
   char*     path;
-  SHashObj* pushMgr;       // consumerId -> STqHandle*
-  SHashObj* handles;       // subKey -> STqHandle
-  SHashObj* pStreamTasks;  // taksId -> SStreamTask
-  SHashObj* pAlterInfo;    // topic -> SAlterCheckInfo
+  SHashObj* pushMgr;     // consumerId -> STqHandle*
+  SHashObj* handles;     // subKey -> STqHandle
+  SHashObj* pAlterInfo;  // topic -> SAlterCheckInfo
 
   STqOffsetStore* pOffsetStore;
 
@@ -129,9 +128,7 @@ struct STQ {
 
   TTB* pAlterInfoStore;
 
-  TDB* pStreamStore;
-  TTB* pTaskDb;
-  TTB* pTaskState;
+  SStreamMeta* pStreamMeta;
 };
 
 typedef struct {
@@ -187,6 +184,9 @@ static FORCE_INLINE void tqOffsetResetToLog(STqOffsetVal* pOffsetVal, int64_t ve
   pOffsetVal->type = TMQ_OFFSET__LOG;
   pOffsetVal->version = ver;
 }
+
+// tqStream
+int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask);
 
 #ifdef __cplusplus
 }

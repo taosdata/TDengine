@@ -86,6 +86,11 @@ target_link_libraries(
     PUBLIC stream
     PUBLIC index
 )
+
+IF (TD_GRANT)
+  TARGET_LINK_LIBRARIES(vnode PUBLIC grant)
+ENDIF ()
+
 target_compile_definitions(vnode PUBLIC -DMETA_REFACT)
 
 if(${BUILD_WITH_INVERTEDINDEX})

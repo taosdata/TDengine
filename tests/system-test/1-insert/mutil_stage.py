@@ -176,7 +176,7 @@ class TDTestCase:
             self.cfg_str_list(filename=self.taos_cfg_path, update_list=cfg_case)
             tdDnodes.starttaosd(1)
             time.sleep(2)
-            tdSql.error(f"show databases")
+            tdSql.error(f"select * from information_schema.ins_databases")
 
         for cfg_case in self.__current_cfg:
             self.del_old_datadir(filename=self.taos_cfg_path)
@@ -184,7 +184,7 @@ class TDTestCase:
             tdDnodes.deploy(1)
             self.cfg_str_list(filename=self.taos_cfg_path, update_list=cfg_case)
             tdDnodes.start(1)
-            tdSql.query(f"show databases")
+            tdSql.query(f"select * from information_schema.ins_databases")
 
     def __create_tb(self, stb=STBNAME, ctb_pre = CTB_PRE, ctb_num=20, ntb_pre=NTB_PRE, ntbnum=1, dbname=DBNAME):
         tdLog.printNoPrefix("==========step: create table")

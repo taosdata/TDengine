@@ -45,6 +45,8 @@ SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn, size_t keyLen, size_t
  */
 int32_t tSimpleHashGetSize(const SSHashObj *pHashObj);
 
+int32_t tSimpleHashPrint(const SSHashObj *pHashObj);
+
 /**
  * put element into hash table, if the element with the same key exists, update it
  * @param pHashObj
@@ -97,6 +99,15 @@ size_t tSimpleHashGetMemSize(const SSHashObj *pHashObj);
  * @return
  */
 void *tSimpleHashGetKey(const SSHashObj* pHashObj, void *data, size_t* keyLen);
+
+/**
+ * Create the hash table iterator
+ * @param pHashObj
+ * @param data
+ * @param iter
+ * @return void*
+ */
+void *tSimpleHashIterate(const SSHashObj *pHashObj, void *data, int32_t *iter);
 
 #ifdef __cplusplus
 }

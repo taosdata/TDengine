@@ -283,7 +283,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
 
   int32_t code = qExecCommand(pQuery->pRoot, &pRsp);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
-    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, false);
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
   }
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
@@ -1308,8 +1308,8 @@ int32_t doProcessMsgFromServer(void* param) {
   char      tbuf[40] = {0};
   TRACE_TO_STR(trace, tbuf);
 
-  tscDebug("processMsgFromServer handle %p, message: %s, code: %s, gtid: %s", pMsg->info.handle,
-           TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code), tbuf);
+  tscDebug("processMsgFromServer handle %p, message: %s, size:%d, code: %s, gtid: %s", pMsg->info.handle,
+           TMSG_INFO(pMsg->msgType), pMsg->contLen, tstrerror(pMsg->code), tbuf);
 
   if (pSendInfo->requestObjRefId != 0) {
     SRequestObj* pRequest = (SRequestObj*)taosAcquireRef(clientReqRefPool, pSendInfo->requestObjRefId);
@@ -1571,10 +1571,18 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols) {
+  int32_t cols = *(int32_t*) (p + sizeof(int32_t) * 3);
+  ASSERT(numOfCols == cols);
+
+  return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t)*3 + sizeof(uint64_t) + numOfCols * (sizeof(int8_t) + sizeof(int32_t));
+}
+
 static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, int32_t numOfRows) {
   char* p = (char*)pResultInfo->pData;
 
-  int32_t  len = sizeof(int32_t) + sizeof(uint64_t) + numOfCols * (sizeof(int16_t) + sizeof(int32_t));
+  // version + length + numOfRows + numOfCol + groupId + flag_segment + column_info
+  int32_t  len = getVersion1BlockMetaSize(p, numOfCols);
   int32_t* colLength = (int32_t*)(p + len);
   len += sizeof(int32_t) * numOfCols;
 
@@ -1642,7 +1650,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
   char* p1 = pResultInfo->convertJson;
 
   int32_t totalLen = 0;
-  int32_t len = sizeof(int32_t) + sizeof(uint64_t) + numOfCols * (sizeof(int16_t) + sizeof(int32_t));
+  int32_t len = getVersion1BlockMetaSize(p, numOfCols);
   memcpy(p1, p, len);
 
   p += len;
@@ -1739,7 +1747,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
     pStart1 += colLen1;
   }
 
-  *(int32_t*)(pResultInfo->convertJson) = totalLen;
+  *(int32_t*)(pResultInfo->convertJson + 4) = totalLen;
   pResultInfo->pData = pResultInfo->convertJson;
   return TSDB_CODE_SUCCESS;
 }
@@ -1762,7 +1770,22 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
 
   char* p = (char*)pResultInfo->pData;
 
+  // version:
+  int32_t blockVersion = *(int32_t*)p;
+  p += sizeof(int32_t);
+
   int32_t dataLen = *(int32_t*)p;
+  p += sizeof(int32_t);
+
+  int32_t rows = *(int32_t*)p;
+  p += sizeof(int32_t);
+
+  int32_t cols = *(int32_t*)p;
+  p += sizeof(int32_t);
+
+  ASSERT(rows == numOfRows && cols == numOfCols);
+
+  int32_t hasColumnSeg = *(int32_t*)p;
   p += sizeof(int32_t);
 
   uint64_t groupId = *(uint64_t*)p;
@@ -1771,7 +1794,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   // check fields
   for (int32_t i = 0; i < numOfCols; ++i) {
     int16_t type = *(int16_t*)p;
-    p += sizeof(int16_t);
+    p += sizeof(int8_t);
 
     int32_t bytes = *(int32_t*)p;
     p += sizeof(int32_t);
@@ -1922,7 +1945,7 @@ _OVER:
   return code;
 }
 
-int32_t appendTbToReq(SArray* pList, int32_t pos1, int32_t len1, int32_t pos2, int32_t len2, const char* str,
+int32_t appendTbToReq(SHashObj* pHash, int32_t pos1, int32_t len1, int32_t pos2, int32_t len2, const char* str,
                       int32_t acctId, char* db) {
   SName name;
 
@@ -1957,20 +1980,33 @@ int32_t appendTbToReq(SArray* pList, int32_t pos1, int32_t len1, int32_t pos2, i
     return -1;
   }
 
-  taosArrayPush(pList, &name);
+  char dbFName[TSDB_DB_FNAME_LEN];
+  sprintf(dbFName, "%d.%.*s", acctId, dbLen, dbName);
+
+  STablesReq* pDb = taosHashGet(pHash, dbFName, strlen(dbFName));
+  if (pDb) {
+    taosArrayPush(pDb->pTables, &name);
+  } else {
+    STablesReq db;
+    db.pTables = taosArrayInit(20, sizeof(SName));
+    strcpy(db.dbFName, dbFName);
+    taosArrayPush(db.pTables, &name);
+    taosHashPut(pHash, dbFName, strlen(dbFName), &db, sizeof(db));
+  }
 
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq) {
-  *pReq = taosArrayInit(10, sizeof(SName));
-  if (NULL == *pReq) {
+  SHashObj* pHash = taosHashInit(3, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  if (NULL == pHash) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
   bool    inEscape = false;
   int32_t code = 0;
+  void *pIter = NULL;
 
   int32_t vIdx = 0;
   int32_t vPos[2];
@@ -1985,7 +2021,7 @@ int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, 
         vLen[vIdx] = i - vPos[vIdx];
       }
 
-      code = appendTbToReq(*pReq, vPos[0], vLen[0], vPos[1], vLen[1], tbList, acctId, dbName);
+      code = appendTbToReq(pHash, vPos[0], vLen[0], vPos[1], vLen[1], tbList, acctId, dbName);
       if (code) {
         goto _return;
       }
@@ -2035,7 +2071,7 @@ int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, 
         vLen[vIdx] = i - vPos[vIdx];
       }
 
-      code = appendTbToReq(*pReq, vPos[0], vLen[0], vPos[1], vLen[1], tbList, acctId, dbName);
+      code = appendTbToReq(pHash, vPos[0], vLen[0], vPos[1], vLen[1], tbList, acctId, dbName);
       if (code) {
         goto _return;
       }
@@ -2067,14 +2103,31 @@ int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, 
     goto _return;
   }
 
+  int32_t dbNum = taosHashGetSize(pHash);
+  *pReq = taosArrayInit(dbNum, sizeof(STablesReq));
+  pIter = taosHashIterate(pHash, NULL);
+  while (pIter) {
+    STablesReq* pDb = (STablesReq*)pIter;
+    taosArrayPush(*pReq, pDb);
+    pIter = taosHashIterate(pHash, pIter);
+  }
+
+  taosHashCleanup(pHash);
+
   return TSDB_CODE_SUCCESS;
 
 _return:
 
   terrno = TSDB_CODE_TSC_INVALID_OPERATION;
 
-  taosArrayDestroy(*pReq);
-  *pReq = NULL;
+  pIter = taosHashIterate(pHash, NULL);
+  while (pIter) {
+    STablesReq* pDb = (STablesReq*)pIter;
+    taosArrayDestroy(pDb->pTables);
+    pIter = taosHashIterate(pHash, pIter);
+  }
+
+  taosHashCleanup(pHash);
 
   return terrno;
 }

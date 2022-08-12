@@ -47,11 +47,12 @@ STaosError errors[] = {
 
 // rpc
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_AUTH_FAILURE,             "Authentication failure")
-TAOS_DEFINE_ERROR(TSDB_CODE_RPC_REDIRECT,                 "Redirect")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_REDIRECT,                 "Database not ready, need retry")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NETWORK_UNAVAIL,          "Unable to establish connection")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_FQDN_ERROR,               "Unable to resolve FQDN")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_PORT_EADDRINUSE,          "Port already in use")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_BROKEN_LINK,              "Conn is broken")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_TIMEOUT,                  "Conn read timeout")
 
 //common & util
 TAOS_DEFINE_ERROR(TSDB_CODE_TIME_UNSYNCED,                "Client and server's time is not synchronized")
@@ -280,11 +281,12 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC,            "Invalid topic")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC_QUERY,      "Topic with invalid query")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC_OPTION,     "Topic with invalid option")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_CONSUMER_NOT_EXIST,       "Consumer not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_OPTION_UNCHNAGED,   "Consumer unchanged")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_OPTION_UNCHNAGED,   "Topic unchanged")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST,      "Subcribe not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_OFFSET_NOT_EXIST,         "Offset not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_CONSUMER_NOT_READY,       "Consumer not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_SUBSCRIBED,         "Topic subscribed cannot be dropped")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_MUST_BE_DELETED,    "Topic must be dropped first")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_CGROUP_USED,              "Consumer group being used by some consumer")
 
 // mnode-stream
@@ -612,6 +614,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_STAT,              "Invalid rsma state"
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_QTASKINFO_CREATE,          "Rsma qtaskinfo creation error")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FILE_CORRUPTED,            "Rsma file corrupted")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_REMOVE_EXISTS,             "Rsma remove exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FETCH_MSG_MSSED_UP,        "Rsma fetch msg is messed up")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_EMPTY_INFO,                "Rsma info is empty")
 
 //index
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Index is rebuilding")
@@ -619,6 +623,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Invalid index file"
 
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_CONSUMER_MISMATCH,          "Consumer mismatch")
 
 #ifdef TAOS_ERROR_C
 };

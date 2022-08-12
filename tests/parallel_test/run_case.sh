@@ -49,11 +49,15 @@ if [ $ent -eq 0 ]; then
     export PATH=$PATH:/home/TDengine/debug/build/bin
     export LD_LIBRARY_PATH=/home/TDengine/debug/build/lib
     ln -s /home/TDengine/debug/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
+    ln -s /home/TDengine/debug/build/lib/libtaos.so /usr/lib/libtaos.so.1 2>/dev/null
+    ln -s /home/TDengine/include/client/taos.h /usr/include/taos.h 2>/dev/null
     CONTAINER_TESTDIR=/home/TDengine
 else
     export PATH=$PATH:/home/TDinternal/debug/build/bin
     export LD_LIBRARY_PATH=/home/TDinternal/debug/build/lib
     ln -s /home/TDinternal/debug/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
+    ln -s /home/TDinternal/debug/build/lib/libtaos.so /usr/lib/libtaos.so.1 2>/dev/null
+    ln -s /home/TDinternal/community/include/client/taos.h /usr/include/taos.h 2>/dev/null
     CONTAINER_TESTDIR=/home/TDinternal/community
 fi
 mkdir -p /var/lib/taos/subscribe

@@ -359,11 +359,11 @@ typedef enum ELogicConditionType {
 #define TSDB_DEFAULT_DB_SCHEMALESS      TSDB_DB_SCHEMALESS_OFF
 
 #define TSDB_DB_MIN_WAL_RETENTION_PERIOD     -1
-#define TSDB_DEFAULT_DB_WAL_RETENTION_PERIOD 0
+#define TSDB_DEFAULT_DB_WAL_RETENTION_PERIOD (24 * 60 * 60 * 2)
 #define TSDB_DB_MIN_WAL_RETENTION_SIZE       -1
-#define TSDB_DEFAULT_DB_WAL_RETENTION_SIZE   0
+#define TSDB_DEFAULT_DB_WAL_RETENTION_SIZE   -1
 #define TSDB_DB_MIN_WAL_ROLL_PERIOD          0
-#define TSDB_DEFAULT_DB_WAL_ROLL_PERIOD      0
+#define TSDB_DEFAULT_DB_WAL_ROLL_PERIOD      (24 * 60 * 60 * 1)
 #define TSDB_DB_MIN_WAL_SEGMENT_SIZE         0
 #define TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE     0
 
@@ -396,7 +396,7 @@ typedef enum ELogicConditionType {
 #ifdef WINDOWS
 #define TSDB_MAX_RPC_THREADS 4  // windows pipe only support 4 connections.
 #else
-#define TSDB_MAX_RPC_THREADS 5
+#define TSDB_MAX_RPC_THREADS 10
 #endif
 
 #define TSDB_QUERY_TYPE_NON_TYPE      0x00u  // none type
