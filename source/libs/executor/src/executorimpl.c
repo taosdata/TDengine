@@ -4249,8 +4249,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     ASSERT(0);
   }
   taosMemoryFree(ops);
-
-  pOptr->resultDataBlockId = pPhyNode->pOutputDataBlockDesc->dataBlockId;
+  if (pOptr) pOptr->resultDataBlockId = pPhyNode->pOutputDataBlockDesc->dataBlockId;
   return pOptr;
 }
 
