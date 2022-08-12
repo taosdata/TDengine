@@ -81,7 +81,7 @@ sudo yum install -y gcc gcc-c++ make cmake3 git openssl-devel
 sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
-### CentOS 8 
+### CentOS 8 & Fedora
 
 ```bash
 sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
@@ -96,7 +96,7 @@ sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
 sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
 ```
 
-#### CentOS 8 
+#### CentOS 8/Rocky Linux 
 
 ```
 sudo yum install -y epel-release
