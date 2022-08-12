@@ -80,7 +80,9 @@ sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
 
 #### 在 CentOS 上构建 taosTools 安装依赖软件
 
+
 #### CentOS 7.9
+
 
 ```
 sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel

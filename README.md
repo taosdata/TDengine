@@ -44,7 +44,9 @@ For user manual, system design and architecture, please refer to [TDengine Docum
 
 # Building
 
+
 At the moment, TDengine server supports running on Linux, Windows systems.Any OS application can also choose the RESTful interface of taosAdapter to connect the taosd service . TDengine supports X64/ARM64 CPU , and it will support MIPS64, Alpha64, ARM32, RISC-V and other CPU architectures in the future.
+
 
 
 You can choose to install through source code according to your needs, [container](https://docs.taosdata.com/3.0/get-started/docker/), [installation package](https://docs.taosdata.com/3.0/get-started/package/) or [Kubenetes](https://docs.taosdata.com/3.0/deployment/k8s/) to install. This quick guide only applies to installing from source.
