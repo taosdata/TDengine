@@ -487,9 +487,9 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4
 st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641000000'
         res = self.tdRest.schemalessApiPost(sql=lines, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 204)
-        self.tdRest.request(f'show {self.dbname}.stables')
+        self.tdRest.request(f'select * from information_schema.ins_stables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdRest.resp["rows"], 3)
-        self.tdRest.request(f'show {self.dbname}.tables')
+        self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdRest.resp["rows"], 6)
         self.tdRest.request(f'select * from {self.dbname}.st123456')
         self.tdSql.checkEqual(self.tdRest.resp["rows"], 5)
@@ -508,7 +508,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
             long_sql += f'{input_sql}\n'
         res = self.tdRest.schemalessApiPost(sql=long_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 204)
-        self.tdRest.request(f'show {self.dbname}.tables')
+        self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdRest.resp["rows"], count)
 
     def batch_error_insert_check(self):

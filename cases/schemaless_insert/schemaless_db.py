@@ -32,13 +32,13 @@ class TestSchemalessDB(TDCase):
         self.tdCom.createDb(dbname=dbname2, precision="us", schemaless=1)
         dbname3 = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdCom.createDb(dbname=dbname3, precision="us", schemaless=0)
-        self.tdSql.query('show databases')
+        self.tdSql.query('select * from information_schema.ins_databases')
         db_field_kv = self.tdSql.get_db_field_kv(0, dbname1)
         self.tdSql.checkEqual(db_field_kv["schemaless"], False)
-        self.tdSql.query('show databases')
+        self.tdSql.query('select * from information_schema.ins_databases')
         db_field_kv = self.tdSql.get_db_field_kv(0, dbname2)
         self.tdSql.checkEqual(db_field_kv["schemaless"], True)
-        self.tdSql.query('show databases')
+        self.tdSql.query('select * from information_schema.ins_databases')
         db_field_kv = self.tdSql.get_db_field_kv(0, dbname3)
         self.tdSql.checkEqual(db_field_kv["schemaless"], False)
 
@@ -50,10 +50,10 @@ class TestSchemalessDB(TDCase):
         
         self.tdSql.execute(f'alter database {dbname1} schemaless 1')
         self.tdSql.execute(f'alter database {dbname2} schemaless 0')
-        self.tdSql.query('show databases')
+        self.tdSql.query('select * from information_schema.ins_databases')
         db_field_kv = self.tdSql.get_db_field_kv(0, dbname1)
         self.tdSql.checkEqual(db_field_kv["schemaless"], True)
-        self.tdSql.query('show databases')
+        self.tdSql.query('select * from information_schema.ins_databases')
         db_field_kv = self.tdSql.get_db_field_kv(0, dbname2)
         self.tdSql.checkEqual(db_field_kv["schemaless"], False)
 
@@ -88,7 +88,7 @@ class TestSchemalessDB(TDCase):
             if sml_type == "influxdb":
                 input_sql, stbname1 = self.tdCom.gen_full_type_sql()
                 self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-                self.tdSql.query(f'show {dbname}.tables')
+                self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{dbname}"')
                 tb1 = self.tdSql.query_data[0][0]
                 self.tdSql.error(f"create table {dbname}.stb (ts timestamp, c1 int) tags (t1 int)")
                 self.tdSql.error(f"create table {dbname}.tb (ts timestamp, c1 int)")
@@ -104,7 +104,7 @@ class TestSchemalessDB(TDCase):
             elif sml_type == "opentsdb_telnet":
                 input_sql, stbname2 = self.tdCom.gen_full_type_sql()
                 self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
-                self.tdSql.query(f'show {dbname}.tables')
+                self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{dbname}"')
                 tb2 = self.tdSql.query_data[0][0]
                 self.tdSql.error(f"create table {dbname}.stb (ts timestamp, c1 int) tags (t1 int)")
                 self.tdSql.error(f"create table {dbname}.tb (ts timestamp, c1 int)")
@@ -120,7 +120,7 @@ class TestSchemalessDB(TDCase):
             elif sml_type == "opentsdb_json":
                 input_json, stbname3 = self.tdCom.gen_full_type_json(value_type="default")
                 self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-                self.tdSql.query(f'show {dbname}.tables')
+                self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{dbname}"')
                 tb3 = self.tdSql.query_data[0][0]
                 self.tdSql.error(f"create table {dbname}.stb (ts timestamp, c1 int) tags (t1 int)")
                 self.tdSql.error(f"create table {dbname}.tb (ts timestamp, c1 int)")
@@ -142,7 +142,7 @@ class TestSchemalessDB(TDCase):
             if sml_type == "influxdb":
                 input_sql, stbname1 = self.tdCom.gen_full_type_sql()
                 self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-                self.tdSql.query(f'show {dbname}.tables')
+                self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{dbname}"')
                 tb1 = self.tdSql.query_data[0][0]
                 for sql in [f"create table {dbname}.stb (ts timestamp, c1 int) tags (t1 int)",
                             f"create table {dbname}.tb (ts timestamp, c1 int)",
@@ -155,7 +155,7 @@ class TestSchemalessDB(TDCase):
                             f'alter table {dbname}.{stbname1} add column c21 tinyint;',
                             f'alter table {dbname}.{stbname1} rename column c21 c22;']:
                     self._remote.cmd(self.taosd_settings["fqdn"][0], [f'taos -s "{sql}"'])
-                for sql in [f'show {dbname}.stables', f'show {dbname}.tables', f'select * from {dbname}.{tb1}']:
+                for sql in [f'select * from information_schema.ins_stables where db_name =  "{dbname}"', f'select * from information_schema.ins_tables where db_name =  "{dbname}"', f'select * from {dbname}.{tb1}']:
                     self.tdSql.query(sql)
                     self.tdSql.checkEqual(len(self.tdSql.query_data), 1)
                 self.tdSql.execute(f'drop table {dbname}.{tb1}')
@@ -163,7 +163,7 @@ class TestSchemalessDB(TDCase):
             elif sml_type == "opentsdb_telnet":
                 input_sql, stbname2 = self.tdCom.gen_full_type_sql()
                 self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
-                self.tdSql.query(f'show {dbname}.tables')
+                self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{dbname}"')
                 tb2 = self.tdSql.query_data[0][0]
                 for sql in [f"create table {dbname}.stb (ts timestamp, c1 int) tags (t1 int)",
                             f"create table {dbname}.tb (ts timestamp, c1 int)",
@@ -176,7 +176,7 @@ class TestSchemalessDB(TDCase):
                             f'alter table {dbname}.{stbname2} add column c21 tinyint;',
                             f'alter table {dbname}.{stbname2} rename column c21 c22;']:
                     self._remote.cmd(self.taosd_settings["fqdn"][0], [f'taos -s "{sql}"'])
-                for sql in [f'show {dbname}.stables', f'show {dbname}.tables', f'select * from {dbname}.{tb2}']:
+                for sql in [f'select * from information_schema.ins_stables where db_name =  "{dbname}"', f'select * from information_schema.ins_tables where db_name =  "{dbname}"', f'select * from {dbname}.{tb2}']:
                     self.tdSql.query(sql)
                     self.tdSql.checkEqual(len(self.tdSql.query_data), 1)
                 self.tdSql.execute(f'drop table {dbname}.{tb2}')
@@ -184,7 +184,7 @@ class TestSchemalessDB(TDCase):
             elif sml_type == "opentsdb_json":
                 input_json, stbname3 = self.tdCom.gen_full_type_json(value_type="default")
                 self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-                self.tdSql.query(f'show {dbname}.tables')
+                self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{dbname}"')
                 tb3 = self.tdSql.query_data[0][0]
                 for sql in [f"create table {dbname}.stb (ts timestamp, c1 int) tags (t1 int)",
                             f"create table {dbname}.tb (ts timestamp, c1 int)",
@@ -197,7 +197,7 @@ class TestSchemalessDB(TDCase):
                             f'alter table {dbname}.{stbname3} add column c21 tinyint;',
                             f'alter table {dbname}.{stbname3} rename column c21 c22;']:
                     self._remote.cmd(self.taosd_settings["fqdn"][0], [f'taos -s "{sql}"'])
-                for sql in [f'show {dbname}.stables', f'show {dbname}.tables', f'select * from {dbname}.{tb3}']:
+                for sql in [f'select * from information_schema.ins_stables where db_name =  "{dbname}"', f'select * from information_schema.ins_tables where db_name =  "{dbname}"', f'select * from {dbname}.{tb3}']:
                     self.tdSql.query(sql)
                     self.tdSql.checkEqual(len(self.tdSql.query_data), 1)
                 self.tdSql.execute(f'drop table {dbname}.{tb3}')

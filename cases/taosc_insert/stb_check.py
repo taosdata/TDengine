@@ -26,7 +26,7 @@ class TestStb(TDCase):
         stbname = self.tdCom.get_long_name(self.tdCom.Boundary.STBNAME_MAX_LENGTH)
         self.tdSql.execute(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.error(f'create stable {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
-        self.tdSql.query(f'show {self.dbname}.stables')
+        self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], stbname)
         stbname_exceed = self.tdCom.get_long_name(self.tdCom.Boundary.STBNAME_MAX_LENGTH+1)
         self.tdSql.error(f'create stable if not exists {self.dbname}.{stbname_exceed} (ts timestamp, c1 int) tags (t1 int)')
@@ -39,7 +39,7 @@ class TestStb(TDCase):
         
         stbname = '1' + self.tdCom.get_long_name()
         self.tdSql.execute(f'create stable if not exists {self.dbname}.`{stbname}` (ts timestamp, c1 int) tags (t1 int)')
-        self.tdSql.query(f'show {self.dbname}.stables')
+        self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], stbname)
         self.tdSql.execute(f'drop table if exists {self.dbname}.`{stbname}`')
         stbname = self.tdCom.get_long_name(3)
@@ -53,7 +53,7 @@ class TestStb(TDCase):
                 d_list_new.insert(i, insert_str)
                 stbname_new = ''.join(d_list_new)
                 self.tdSql.execute(f'create stable if not exists {self.dbname}.`{stbname_new}` (ts timestamp, c1 int) tags (t1 int)')
-                self.tdSql.query(f'show {self.dbname}.stables')
+                self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{self.dbname}"')
                 self.tdSql.checkEqual(self.tdSql.query_data[0][0], stbname_new)
                 self.tdSql.execute(f'drop table if exists {self.dbname}.`{stbname_new}`')
         
@@ -83,13 +83,13 @@ class TestStb(TDCase):
         
         for stbname in [self.tdCom.get_long_name(10, "letters_mixed"), self.tdCom.get_long_name(10, "letters_mixed").upper()]:
             self.tdSql.execute(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
-            self.tdSql.query(f'show {self.dbname}.stables')
+            self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{self.dbname}"')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], stbname.lower())
             self.tdSql.execute(f'drop stable if exists {self.dbname}.`{stbname.lower()}`')
 
         for stbname in [self.tdCom.get_long_name(10, "letters_mixed"), self.tdCom.get_long_name(10, "letters_mixed").upper()]:
             self.tdSql.execute(f'create stable if not exists {self.dbname}.`{stbname}` (ts timestamp, c1 int) tags (t1 int)')
-            self.tdSql.query(f'show {self.dbname}.stables')
+            self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{self.dbname}"')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], stbname)
             self.tdSql.execute(f'drop stable if exists {self.dbname}.`{stbname}`')
         

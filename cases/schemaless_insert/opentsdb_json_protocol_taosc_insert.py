@@ -195,7 +195,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdCom.cleanTb()
         input_json = [{"metric": "test_1", "timestamp": {"value": 1626006833639000, "type": "us"}, "value": True, "tags": {"t0": True, "id": "abcde"}}]
         self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-        self.tdSql.query("show tables")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], "abcde")
 
     def tag_name_length_check(self):
@@ -675,9 +675,9 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
                         {"metric": "st123456", "timestamp": {"value": 1626006833939007, "type": "us"}, "value": {"value": 9, "type": "double"}, "tags": {"t1": 4, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}}]
 
         self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-        self.tdSql.query('show stables')
+        self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
-        self.tdSql.query('show tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
         self.tdSql.query('select * from stb_name')
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
@@ -696,7 +696,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
             input_json = self.tdCom.gen_full_type_json(stb_name=stb_name, col_value=self.tdCom.gen_ts_col_value(value=self.tdCom.get_long_name(), t_type="binary", value_type=value_type), tag_value=self.tdCom.gen_tag_value(t7_value=self.tdCom.get_long_name(), value_type=value_type), id_noexist_tag=True)[0]
             sql_list.append(input_json)
         self.tdSql._conn.schemaless_insert([json.dumps(sql_list)], TDSmlProtocolType.JSON.value, None)
-        self.tdSql.query('show tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, count)
 
     def batch_error_insert_check(self):
@@ -826,7 +826,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdCom.cleanTb()
         input_json = self.tdCom.gen_json_list(value_type=value_type)[0]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(input_json))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 5)
 
     def s_stb_s_tb_d_data_insert_multi_thread_check(self, value_type="obj"):
@@ -839,7 +839,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdCom.check_res(input_json, stb_name)
         s_stb_s_tb_list = self.tdCom.gen_json_list(stb_name=stb_name, tb_name=tb_name, value_type=value_type)[1]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 1)
         if self.tdCom.smlChildTableName_value == "ID":
             expected_tb_name = self.tdCom.get_no_id_tbname(stb_name)[0]
@@ -857,7 +857,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdCom.check_res(input_json, stb_name)
         s_stb_s_tb_a_tag_list = self.tdCom.gen_json_list(stb_name=stb_name, tb_name=tb_name, value_type=value_type)[2]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_a_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
         if self.tdCom.smlChildTableName_value == "ID":
             expected_tb_name = self.tdCom.get_no_id_tbname(stb_name)[0]
@@ -875,7 +875,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdCom.check_res(input_json, stb_name)
         s_stb_s_tb_m_tag_list = self.tdCom.gen_json_list(stb_name=stb_name, tb_name=tb_name, value_type=value_type)[3]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_m_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
         if self.tdCom.smlChildTableName_value == "ID":
             expected_tb_name = self.tdCom.get_no_id_tbname(stb_name)[0]
@@ -892,7 +892,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdCom.check_res(input_json, stb_name)
         s_stb_d_tb_list = self.tdCom.gen_json_list(stb_name=stb_name, value_type=value_type)[4]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
 
     def s_stb_d_tb_d_data_mt_insert_multi_thread_check(self):
@@ -908,7 +908,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
                                 ({"metric": stb_name, "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": "cujyqvlj", "tags": {"t0": {"value": False, "type": "bool"}, "t1": {"value": 127, "type": "tinyint"}, "t2": {"value": 32767, "type": "smallint"}, "t3": {"value": 2147483647, "type": "int"}, "t4": {"value": 9223372036854775807, "type": "bigint"}, "t5": {"value": 11.12345, "type": "float"}, "t6": {"value": 22.123456789, "type": "double"}}}, 'yzwswz'),
                                 ({"metric": stb_name, "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": "twjxisat", "tags": {"t0": {"value": False, "type": "bool"}, "t1": {"value": 127, "type": "tinyint"}, "t2": {"value": 32767, "type": "smallint"}, "t3": {"value": 2147483647, "type": "int"}, "t4": {"value": 9223372036854775807, "type": "bigint"}, "t5": {"value": 11.12345, "type": "float"}, "t6": {"value": 22.123456789, "type": "double"}}}, 'yzwswz')]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_m_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
 
     def s_stb_d_tb_d_data_at_insert_multi_thread_check(self, value_type="obj"):
@@ -920,7 +920,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdCom.check_res(input_json, stb_name)
         s_stb_d_tb_a_tag_list = self.tdCom.gen_json_list(stb_name=stb_name, value_type=value_type)[6]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_a_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
 
     def s_stb_s_tb_d_data_d_ts_insert_multi_thread_check(self):
@@ -937,7 +937,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
                                 ({"metric": stb_name, "timestamp": {"value": 1626006833639004000, "type": "ns"}, "value": "clsajzpp", "tags": {"id": tb_name, "t0": {"value": False, "type": "bool"}, "t1": {"value": 127, "type": "tinyint"}, "t2": {"value": 32767, "type": "smallint"}, "t3": {"value": 2147483647, "type": "int"}, "t4": {"value": 9223372036854775807, "type": "bigint"}, "t5": {"value": 11.12345, "type": "float"}, "t6": {"value": 22.123456789, "type": "double"}, "t7": {"value": "eivaegjk", "type": "binary"}, "t8": {"value": "ncharTagValue", "type": "nchar"}}}, 'yzwswz'),
                                 ({"metric": stb_name, "timestamp": {"value": 1626006833639005000, "type": "ns"}, "value": "jitwseso", "tags": {"id": tb_name, "t0": {"value": True, "type": "bool"}, "t1": {"value": 127, "type": "tinyint"}, "t2": {"value": 32767, "type": "smallint"}, "t3": {"value": 2147483647, "type": "int"}, "t4": {"value": 9223372036854775807, "type": "bigint"}, "t5": {"value": 11.12345, "type": "float"}, "t6": {"value": 22.123456789, "type": "double"}, "t7": {"value": "yhlwkddq", "type": "binary"}, "t8": {"value": "ncharTagValue", "type": "nchar"}}}, 'yzwswz')]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_d_ts_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 1) if self.tdCom.smlChildTableName_value == "ID" else self.tdSql.checkEqual(self.tdSql.query_row, 6)
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
@@ -950,14 +950,13 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         tb_name = self.tdCom.get_long_name()
         input_json, stb_name = self.tdCom.gen_full_type_json(tb_name=tb_name, col_value=self.tdCom.gen_ts_col_value(value="ncharTagValue", t_type="nchar"))
         self.tdCom.check_res(input_json, stb_name)
-        print(input_json)
         s_stb_s_tb_d_ts_m_tag_list = [({'metric': stb_name, 'timestamp': {'value': 1626006833639001000, 'type': 'ns'}, 'value': 'pjndapjb', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'tuzsfrom', 'type': 'binary'}, 'id': tb_name}}, 'punftb'),
                                     ({'metric': stb_name, 'timestamp': {'value': 1626006833639002000, 'type': 'ns'}, 'value': 'llqzvgvw', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'tuzsfrom', 'type': 'binary'}, 'id': tb_name}}, 'punftb'),
                                     ({'metric': stb_name, 'timestamp': {'value': 1626006833639006000, 'type': 'ns'}, 'value': 'tclbosqc', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'tuzsfrom', 'type': 'binary'}, 'id': tb_name}}, 'punftb'),
                                     ({'metric': stb_name, 'timestamp': {'value': 1626006833639007000, 'type': 'ns'}, 'value': 'rlpuzodt', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'tuzsfrom', 'type': 'binary'}, 'id': tb_name}}, 'punftb'),
                                     ({'metric': stb_name, 'timestamp': {'value': 1626006833639008000, 'type': 'ns'}, 'value': 'rhnikvfq', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'tuzsfrom', 'type': 'binary'}, 'id': tb_name}}, 'punftb')]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_d_ts_m_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
@@ -978,7 +977,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
                                     ({'metric': stb_name, 'timestamp': {'value': 1626006833639006000, 'type': 'ns'}, 'value': 'rlpuzodt', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'tuzsfrom', 'type': 'binary'}, 't8': {'value': 'ncharTagValue', 'type': 'nchar'}, 't11': {'value': 127, 'type': 'tinyint'}, 't10': {'value': 'ncharTagValue', 'type': 'nchar'}, 'id': tb_name}}, 'punftb'), 
                                     ({'metric': stb_name, 'timestamp': {'value': 1626006833639007000, 'type': 'ns'}, 'value': {'value': 'rhnikvfq', 'type': 'nchar'}, 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'afcibyeb', 'type': 'binary'}, 't8': {'value': 'ncharTagValue', 'type': 'nchar'}, 't11': {'value': 127, 'type': 'tinyint'}, 't10': {'value': 'ncharTagValue', 'type': 'nchar'}, 'id': tb_name}}, 'punftb')]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_d_ts_a_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 4)
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
@@ -995,7 +994,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdCom.check_res(input_json, stb_name)
         s_stb_d_tb_d_ts_list = self.tdCom.gen_json_list(stb_name=stb_name, value_type=value_type)[10]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_d_ts_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
 
     def s_stb_d_tb_d_data_d_ts_mt_insert_multi_thread_check(self, value_type="obj"):
@@ -1011,7 +1010,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
                                     ({'metric': stb_name, 'timestamp': {'value': 1626006833639006000, 'type': 'ns'}, 'value': {'value': 'rlpuzodt', 'type': 'nchar'}, 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}}}, 'punftb'),
                                     ({'metric': stb_name, 'timestamp': {'value': 1626006833639007000, 'type': 'ns'}, 'value': {'value': 'rhnikvfq', 'type': 'nchar'}, 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}}}, 'punftb')]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_d_ts_m_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def test(self):

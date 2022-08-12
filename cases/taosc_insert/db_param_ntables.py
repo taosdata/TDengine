@@ -26,7 +26,7 @@ class TestNtables(TDCase):
         test_param = self.cfg["create_name"]
         dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname)
-        self.tdSql.query('show databases')
+        self.tdSql.query('select * from information_schema.ins_databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         # default
         self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])

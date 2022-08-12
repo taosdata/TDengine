@@ -37,7 +37,7 @@ class TestKeep(TDCase):
 
         dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname)
-        self.tdSql.query('show databases')
+        self.tdSql.query('select * from information_schema.ins_databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         # default
         self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
@@ -59,7 +59,7 @@ class TestKeep(TDCase):
             dbname = self.tdCom.get_long_name()
             kv_dict = {"duration": self.common_days_value, test_param: param_value}
             self.tdCom.createDb(dbname, **kv_dict)
-            self.tdSql.query('show databases')
+            self.tdSql.query('select * from information_schema.ins_databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             if param_value==1 or param_value ==365000:
                 self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{param_value*24*60}m,{param_value*24*60}m,{param_value*24*60}m')
@@ -96,7 +96,7 @@ class TestKeep(TDCase):
         # keep2 >= keep1 >= keep0 >= days
         kv_dict = {test_param: "36500,36501,36502"}
         self.tdCom.createDb(dbname, **kv_dict)
-        self.tdSql.query('show databases')
+        self.tdSql.query('select * from information_schema.ins_databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         self.tdSql.checkEqual(db_field_kv_dict[test_param], "52560000m,52561440m,52562880m")
         self.tdSql.query(f'show {dbname}.vgroups')
@@ -115,7 +115,7 @@ class TestKeep(TDCase):
         dbname = self.tdCom.get_long_name()
         kv_dict = {test_param: "36500,36501"}
         self.tdCom.createDb(dbname, **kv_dict)
-        self.tdSql.query('show databases')
+        self.tdSql.query('select * from information_schema.ins_databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         self.tdSql.checkEqual(db_field_kv_dict[test_param], "52560000m,52561440m,52561440m")
         self.tdSql.query(f'show {dbname}.vgroups')
@@ -134,7 +134,7 @@ class TestKeep(TDCase):
         dbname = self.tdCom.get_long_name()
         kv_dict = {"duration": 10, test_param: "10,10,10"}
         self.tdCom.createDb(dbname, **kv_dict)
-        self.tdSql.query('show databases')
+        self.tdSql.query('select * from information_schema.ins_databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         self.tdSql.checkEqual(db_field_kv_dict[test_param], "14400m,14400m,14400m")
         self.tdSql.query(f'show {dbname}.vgroups')

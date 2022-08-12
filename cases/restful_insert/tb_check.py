@@ -29,7 +29,7 @@ class TestTb(TDCase):
         tbname = self.tdCom.get_long_name(length=self.tdCom.Boundary.TBNAME_MAX_LENGTH, mode="letters")
         self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} (ts timestamp, c1 int)')
         self.tdRest.error(f'create table {self.dbname}.{tbname} (ts timestamp, c1 int)')
-        self.tdRest.request(f'show {self.dbname}.tables')
+        self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], tbname)
         dbname_exceed = self.tdCom.get_long_name(length=self.tdCom.Boundary.TBNAME_MAX_LENGTH+1, mode="letters")
         self.tdSql.error(f'create table if not exists {dbname_exceed} (ts timestamp, c1 int)')
@@ -41,7 +41,7 @@ class TestTb(TDCase):
         self.tdCom.cleanTb()
         tbname = '1' + self.tdCom.get_long_name(5)
         self.tdRest.request(f'create table if not exists {self.dbname}.`{tbname}` (ts timestamp, c1 int)')
-        self.tdRest.request(f'show {self.dbname}.tables')
+        self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], tbname)
         self.tdRest.request(f'drop table if exists {self.dbname}.`{tbname}`')
         tbname = self.tdCom.get_long_name(3)
@@ -55,7 +55,7 @@ class TestTb(TDCase):
                 d_list_new.insert(i, insert_str)
                 tbname_new = ''.join(d_list_new)
                 self.tdRest.request(f'create table if not exists {self.dbname}.`{tbname_new}` (ts timestamp, c1 int)')
-                self.tdRest.request(f'show {self.dbname}.tables')
+                self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
                 self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], tbname_new)
                 self.tdRest.request(f'drop table if exists {self.dbname}.`{tbname_new}`')
 
@@ -84,13 +84,13 @@ class TestTb(TDCase):
         """
         for tbname in [self.tdCom.get_long_name(length=5, mode="letters_mixed"), self.tdCom.get_long_name(length=5, mode="letters_mixed").upper()]:
             self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} (ts timestamp, c1 int)')
-            self.tdRest.request(f'show {self.dbname}.tables')
+            self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
             self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], tbname.lower())
             self.tdRest.request(f'drop table if exists {self.dbname}.`{tbname.lower()}`')
 
         for tbname in [self.tdCom.get_long_name(length=5, mode="letters_mixed"), self.tdCom.get_long_name(length=5, mode="letters_mixed").upper()]:
             self.tdRest.request(f'create table if not exists {self.dbname}.`{tbname}` (ts timestamp, c1 int)')
-            self.tdRest.request(f'show {self.dbname}.tables')
+            self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
             self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], tbname)
             self.tdRest.request(f'drop table if exists {self.dbname}.`{tbname}`')
 
@@ -130,7 +130,7 @@ class TestTb(TDCase):
         tbname = self.tdCom.get_long_name()
         comment = "tb_param_test"
         self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} (ts timestamp, c1 int) {test_param} "{comment}"')
-        self.tdRest.request(f'show {self.dbname}.tables')
+        self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdRest.resp['data'][0][8], comment)
         self.tdRest.request(f'drop table {self.dbname}.{tbname}')
         
@@ -142,7 +142,7 @@ class TestTb(TDCase):
         tbname = self.tdCom.get_long_name()
         test_ttl = 2
         self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} (ts timestamp, c1 int) ttl {test_ttl}')
-        self.tdRest.request(f'show {self.dbname}.tables')
+        self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdRest.resp['data'][0][7], test_ttl)
         self.tdRest.request(f'drop table {self.dbname}.{tbname}')
     def run(self):

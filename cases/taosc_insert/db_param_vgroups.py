@@ -44,7 +44,8 @@ class TestVgroups(TDCase):
                 return vnode_sum
             elif os.environ.get('DATABASE_REPLICAS') == '3':
                 return vnode_sum / 3
-
+        else:
+            return vnode_sum
     def vgroups_check(self):
         """
         vgroups check
@@ -58,17 +59,17 @@ class TestVgroups(TDCase):
         test_param = self.cfg["create_name"]
         dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname)
-        self.tdSql.query('show databases')
+        self.tdSql.query('select * from information_schema.ins_databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         # default
         self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
-        self.tdSql.execute(f'drop database {dbname}')
+        self.tdSql.execute(f'drop database if exists {dbname}')
         # boundary
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
             kv_dict = {test_param: param_value, "buffer": self.buffer_min,'pages':64,'pagesize':1}
             self.tdCom.createDb(dbname, **kv_dict)
-            self.tdSql.query('show databases')
+            self.tdSql.query('select * from information_schema.ins_databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
             # if param_value == self.cfg["boundary"][-1]:

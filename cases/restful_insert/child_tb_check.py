@@ -32,8 +32,7 @@ class TestChildTb(TDCase):
         self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{stbname} tags (127)')
         self.tdRest.error(f'create table {self.dbname}.{tbname} using {self.dbname}.{stbname} tags (127)')
-        self.tdRest.request(f'show {self.dbname}.tables')
-        print(self.tdRest.resp)
+        self.tdRest.request(f'select * from information_schema.ins_tables where db_name = "{self.dbname}"')
         self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], tbname)
         tbname_exceed = self.tdCom.get_long_name(length=self.tdCom.Boundary.CHILD_TBNAME_MAX_LENGTH+1)
         self.tdRest.error(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{tbname_exceed} tags (127)')
@@ -47,7 +46,7 @@ class TestChildTb(TDCase):
         tbname = '1' + self.tdCom.get_long_name()
         self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdRest.request(f'create table if not exists {self.dbname}.`{tbname}` using {self.dbname}.{stbname} tags (127)')
-        self.tdRest.request(f'show {self.dbname}.tables')
+        self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], tbname)
         self.tdRest.request(f'drop table if exists {self.dbname}.`{tbname}`')
         tbname = self.tdCom.get_long_name(3)
@@ -61,7 +60,7 @@ class TestChildTb(TDCase):
                 d_list_new.insert(i, insert_str)
                 tbname_new = ''.join(d_list_new)
                 self.tdRest.request(f'create table if not exists {self.dbname}.`{tbname_new}` using {self.dbname}.{stbname} tags (127)')
-                self.tdRest.request(f'show {self.dbname}.tables')
+                self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
                 self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], tbname_new)
                 self.tdRest.request(f'drop table if exists {self.dbname}.`{tbname_new}`')
 
@@ -95,13 +94,13 @@ class TestChildTb(TDCase):
         self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
         for tbname in [self.tdCom.get_long_name(10, "letters_mixed"), self.tdCom.get_long_name(10, "letters_mixed").upper()]:
             self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{stbname} tags (127)')
-            self.tdRest.request(f'show {self.dbname}.tables')
+            self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
             self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], tbname.lower())
             self.tdRest.request(f'drop table if exists {self.dbname}.`{tbname.lower()}`')
 
         for tbname in [self.tdCom.get_long_name(10, "letters_mixed"), self.tdCom.get_long_name(10, "letters_mixed").upper()]:
             self.tdRest.request(f'create table if not exists {self.dbname}.`{tbname}` using {self.dbname}.{stbname} tags (127)')
-            self.tdRest.request(f'show {self.dbname}.tables')
+            self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
             self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], tbname)
             self.tdRest.request(f'drop table if exists {self.dbname}.`{tbname}`')
 
@@ -114,7 +113,7 @@ class TestChildTb(TDCase):
         test_ttl = 2
         self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{stbname} tags (127) ttl {test_ttl}')
-        self.tdRest.request(f'show {self.dbname}.tables')
+        self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdRest.resp['data'][0][7], test_ttl)
         self.tdRest.request(f'drop table {self.dbname}.{stbname}')
 
@@ -127,7 +126,7 @@ class TestChildTb(TDCase):
         comment = "comment_test"
         self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdRest.request(f'create table if not exists {self.dbname}.{tbname} using {self.dbname}.{stbname} tags (127) comment "{comment}"')
-        self.tdRest.request(f'show {self.dbname}.tables')
+        self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdRest.resp['data'][0][8], comment)
         self.tdRest.request(f'drop table {self.dbname}.{stbname}')
 

@@ -643,9 +643,9 @@ class TestInfluxdbLineTaoscInsert(TDCase):
                 "st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641000000"
                 ]
         self.tdSql._conn.schemaless_insert(lines, TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-        self.tdSql.query('show stables')
+        self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
-        self.tdSql.query('show tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
         self.tdSql.query('select * from st123456')
         self.tdSql.checkEqual(self.tdSql.query_row, 5)
@@ -664,7 +664,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             input_sql = self.tdCom.gen_full_type_sql(stb_name=stb_name, t7=f'"{self.tdCom.get_long_name()}"', c7=f'"{self.tdCom.get_long_name()}"', id_noexist_tag=True)[0]
             sql_list.append(input_sql)
         self.tdSql._conn.schemaless_insert(sql_list, TDSmlProtocolType.LINE.value, None)
-        self.tdSql.query('show tables')
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, count)
 
     def batch_error_insert_check(self):
@@ -822,7 +822,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_sql_list()[0]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(input_sql))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 5)
 
     def s_stb_s_tb_d_data_insert_multi_thread_check(self):
@@ -836,7 +836,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_s_tb_list = self.tdCom.gen_sql_list(stb_name=stb_name, tb_name=tb_name)[1]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 1)
         self.tdSql.query(f"select * from {stb_name};")
         self.tdSql.checkEqual(self.tdSql.query_row, 1)
@@ -852,7 +852,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_s_tb_a_col_a_tag_list = self.tdCom.gen_sql_list(stb_name=stb_name, tb_name=tb_name)[2]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_a_col_a_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
         self.tdSql.query(f"select * from {stb_name};")
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
@@ -868,7 +868,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_s_tb_m_col_m_tag_list = self.tdCom.gen_sql_list(stb_name=stb_name, tb_name=tb_name)[3]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_m_col_m_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
         self.tdSql.query(f"select * from {stb_name};")
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
@@ -883,7 +883,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_d_tb_list = self.tdCom.gen_sql_list(stb_name=stb_name)[4]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
 
     def s_stb_d_tb_d_data_ac_mt_insert_multi_thread_check(self):
@@ -902,7 +902,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
                                         (f'{stb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="yvqnhgmn",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=T 1626006833639000000', 'hpxbys')]
 
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_a_col_m_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def s_stb_d_tb_d_data_at_mc_insert_multi_thread_check(self):
@@ -915,7 +915,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_d_tb_a_tag_m_col_list = self.tdCom.gen_sql_list(stb_name=stb_name)[6]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_a_tag_m_col_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
 
     def s_stb_s_tb_d_data_d_ts_insert_multi_thread_check(self):
@@ -934,7 +934,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
                                 (f'{stb_name},id={tb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="tgqkvsws",t8=L"ncharTagValue" c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="vgzadjsh",c8=L"ncharColValue",c9=7u64 1626006833639004000', 'sfzqdz')]
 
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_d_ts_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
@@ -957,7 +957,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         #     self.tdSql._conn.schemaless_insert([input_sql[0]], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_d_ts_a_col_m_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
@@ -981,7 +981,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
                                             (f'{stb_name},id={tb_name},t0=False,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="xsajdfjc",t8=L"ncharTagValue",t11=127i8,t10=L"ncharTagValue" c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 1626006833639003000', 'rgqcfb'), \
                                             (f'{stb_name},id={tb_name},t0=False,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="xsajdfjc",t8=L"ncharTagValue",t11=127i8,t10=L"ncharTagValue" c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 1626006833639004000', 'rgqcfb')]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_d_ts_a_tag_m_col_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
@@ -1002,7 +1002,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_d_tb_d_ts_list = self.tdCom.gen_sql_list(stb_name=stb_name)[10]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_d_ts_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
 
     def s_stb_d_tb_d_data_d_ts_ac_mt_insert_multi_thread_check(self):
@@ -1019,7 +1019,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
                                             (f'{stb_name},t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="fzseicnt",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=F 0', 'ynnlov'), \
                                             (f'{stb_name},t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="zwgurhdp",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=False 0', 'ynnlov')]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_d_ts_a_col_m_tag_list))
-        self.tdSql.query(f"show tables;")
+        self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def test(self):

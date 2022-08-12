@@ -27,7 +27,7 @@ class TestTimestamp(TDCase):
             dbname = self.tdCom.get_long_name()
             kv_dict = {"precision": ts}
             self.tdCom.createDb(dbname, **kv_dict)
-            self.tdSql.query('show databases')
+            self.tdSql.query('select * from information_schema.ins_databases')
             res = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(res["precision"], ts)
             self.tdSql.execute(f'create table if not exists {dbname}.stb (ts timestamp, c1 int) tags (t1 int)')
@@ -146,7 +146,7 @@ class TestTimestamp(TDCase):
                     self.tdSql.checkEqual(self.tdSql.query_data[0][0], 48)
                 else:
                     self.tdSql.checkEqual(self.tdSql.query_data[0][0], 16)
-            self.tdSql.query(f'show {dbname}.tables')
+            self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
             self.tdSql.checkEqual(self.tdSql.query_row, 18)
             self.tdSql.execute(f'drop database if exists {dbname}')
 

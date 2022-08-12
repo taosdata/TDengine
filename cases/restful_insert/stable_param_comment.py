@@ -26,7 +26,7 @@ class TestComp(TDCase):
         self.tdCom.createDb(self.dbname)
         self.tdRest.request(
             f'create table {self.dbname}.{self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment}"')
-        self.tdRest.request(f"show {self.dbname}.stables")
+        self.tdRest.request(f"select * from information_schema.ins_stables where db_name =  '{self.dbname}'")
         stb_kv_list = self.tdRest.getOneRow(0, self.stbname)
         self.tdSql.checkEqual(stb_kv_list[0][6], comment)
         self.tdRest.request(f'drop database {self.dbname}')
@@ -45,7 +45,7 @@ class TestComp(TDCase):
         self.tdRest.request(
             f'create table {self.dbname}.{self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment_init}"')
         self.tdRest.request(f'alter table {self.dbname}.{self.stbname} comment "{comment}"')
-        self.tdRest.request(f"show {self.dbname}.stables")
+        self.tdRest.request(f"select * from information_schema.ins_stables where db_name =  '{self.dbname}'")
         stb_kv_list = self.tdRest.getOneRow(0, self.stbname)
         self.tdSql.checkEqual(stb_kv_list[0][6], comment)
         self.tdRest.request(f'drop database {self.dbname}')
@@ -62,7 +62,7 @@ class TestComp(TDCase):
         self.tdCom.createDb(self.dbname)
         self.tdRest.request(
             f'create table {self.dbname}.{self.stbname} (ts timestamp,c0 int) tags(t0 int)')
-        self.tdRest.request(f"show {self.dbname}.stables")
+        self.tdRest.request(f"select * from information_schema.ins_stables where db_name =  '{self.dbname}'")
         stb_kv_list = self.tdRest.getOneRow(0, self.stbname)
         self.tdSql.checkEqual(stb_kv_list[0][6], None)
         self.tdRest.request(f'drop database {self.dbname}')

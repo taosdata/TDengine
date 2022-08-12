@@ -25,7 +25,7 @@ class TestComp(TDCase):
         self.tdSql.execute(f'use {self.dbname}')
         self.tdSql.execute(
             f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment}"')
-        self.tdSql.query("show stables")
+        self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{self.dbname}"')
         stb_kv_list = self.tdSql.getOneRow(0, self.stbname)
         self.tdSql.checkEqual(stb_kv_list[0][6], comment)
         self.tdSql.execute(f'drop database {self.dbname}')
@@ -46,7 +46,7 @@ class TestComp(TDCase):
         self.tdSql.execute(
             f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment_init}"')
         self.tdSql.execute(f'alter table {self.stbname} comment "{comment}"')
-        self.tdSql.query("show stables")
+        self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{self.dbname}"')
         stb_kv_list = self.tdSql.getOneRow(0, self.stbname)
         self.tdSql.checkEqual(stb_kv_list[0][6], comment)
         self.tdSql.execute(f'drop database {self.dbname}')
@@ -65,7 +65,7 @@ class TestComp(TDCase):
         self.tdSql.execute(f'use {self.dbname}')
         self.tdSql.execute(
             f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int)')
-        self.tdSql.query("show stables")
+        self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{self.dbname}"')
         stb_kv_list = self.tdSql.getOneRow(0, self.stbname)
         self.tdSql.checkEqual(stb_kv_list[0][6], None)
         self.tdSql.execute(f'drop database {self.dbname}')

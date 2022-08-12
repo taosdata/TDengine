@@ -27,7 +27,7 @@ class TestDB(TDCase):
         """
         dbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["DBNAME_MAX_LENGTH"], mode="letters")
         self.tdCom.createDb(dbname)
-        self.tdRest.request('show databases')
+        self.tdRest.request('select * from information_schema.ins_databases')
         res = self.tdRest.getOneRow(0, dbname)
         self.tdSql.checkEqual(res[0][0], dbname)
         dbname_exceed = self.tdCom.get_long_name(length=self.tdCom.boundary_config["DBNAME_MAX_LENGTH"]+1, mode="letters")
@@ -42,7 +42,7 @@ class TestDB(TDCase):
         dbname = '1' + self.tdCom.get_long_name() 
         
         self.tdCom.createDb(f'`{dbname}`')
-        self.tdRest.request('show databases')
+        self.tdRest.request('select * from information_schema.ins_databases')
         res = self.tdRest.getOneRow(0, dbname)
         self.tdSql.checkEqual(res[0][0], dbname)
         dbname = self.tdCom.get_long_name(3)
@@ -57,7 +57,7 @@ class TestDB(TDCase):
                 d_list_new.insert(i, insert_str)
                 dbname_new = ''.join(d_list_new)
                 self.tdCom.createDb(f'`{dbname_new}`')
-                self.tdRest.request('show databases')
+                self.tdRest.request('select * from information_schema.ins_databases')
                 res = self.tdRest.getOneRow(0, dbname_new)
                 self.tdSql.checkEqual(res[0][0], dbname_new)
                 self.tdRest.request(f'drop database if exists `{dbname_new}`')
@@ -68,7 +68,7 @@ class TestDB(TDCase):
         """
         for dbname in [self.tdCom.get_long_name(length=10, mode="letters_mixed"), self.tdCom.get_long_name(length=5, mode="letters_mixed").upper()]:
             self.tdCom.createDb(dbname)
-            self.tdRest.request('show databases')
+            self.tdRest.request('select * from information_schema.ins_databases')
             res = self.tdRest.getOneRow(0, dbname.lower())
             self.tdSql.checkEqual(res[0][0], dbname.lower())
             self.tdRest.request(f'drop database if exists {dbname}')

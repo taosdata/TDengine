@@ -27,7 +27,7 @@ class TestSingle_stable(TDCase):
         get_param = self.cfg["query_name"]
         dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname)
-        self.tdSql.query('show databases')
+        self.tdSql.query('select * from information_schema.ins_databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         # default
         self.tdSql.checkEqual(db_field_kv_dict[get_param], self.cfg["default"])
@@ -37,18 +37,18 @@ class TestSingle_stable(TDCase):
             dbname = self.tdCom.get_long_name()
             kv_dict = {test_param: param_value}
             self.tdCom.createDb(dbname, **kv_dict)
-            self.tdSql.query('show databases')
+            self.tdSql.query('select * from information_schema.ins_databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[get_param], param_value)
             if param_value == 0:
                 self.tdSql.execute(f'create table {dbname}.stb1 (ts timestamp, c1 int) tags (t1 int);')
                 self.tdSql.execute(f'create table {dbname}.stb2 (ts timestamp, c1 int) tags (t1 int);')
-                self.tdSql.query(f'show {dbname}.stables')
+                self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{dbname}"')
                 self.tdSql.checkEqual(self.tdSql.query_row, 2)
             elif param_value == 1:
                 self.tdSql.execute(f'create table {dbname}.stb1 (ts timestamp, c1 int) tags (t1 int);')
                 self.tdSql.error(f'create table {dbname}.stb2 (ts timestamp, c1 int) tags (t1 int);')
-                self.tdSql.query(f'show {dbname}.stables')
+                self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{dbname}"')
                 self.tdSql.checkEqual(self.tdSql.query_row, 1)
             self.tdSql.execute(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name()

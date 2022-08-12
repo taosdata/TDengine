@@ -36,7 +36,7 @@ class TestCachelast(TDCase):
         get_param = self.cfg["query_name"]
         dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname)
-        self.tdRest.request('show databases')
+        self.tdRest.request('select * from information_schema.ins_databases')
         #TODO
         db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,get_param,dbname)
         # default
@@ -58,7 +58,7 @@ class TestCachelast(TDCase):
             dbname = self.tdCom.get_long_name()
             kv_dict = {test_param: f'"{param_value}"'}
             self.tdCom.createDb(dbname, **kv_dict)
-            self.tdRest.request('show databases')
+            self.tdRest.request('select * from information_schema.ins_databases')
             db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,get_param,dbname)
             self.tdSql.checkEqual(db_field, str(param_value).lower())
             self.tdSql.query(f'show {dbname}.vgroups')
