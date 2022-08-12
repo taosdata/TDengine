@@ -129,7 +129,12 @@ class TestTagColLimit(TDCase):
                 self.tdSql.checkEqual(col_key_list, ['col_ts', col_key_name])
             else:
                 self.tdSql.checkEqual(col_key_list, ['col_ts', col_key_name, tag_key_name])
-
+    def max_sql_length_check(self):
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
+        self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 binary({self.tdCom.Boundary.BINARY_MAX_LENGTH}), c2 binary({self.tdCom.Boundary.BINARY_MAX_LENGTH}), c3 binary({self.tdCom.Boundary.BINARY_MAX_LENGTH}), c4 binary(12)) tags (t1 bool)')
+        self.tdSql.error(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 binary({self.tdCom.Boundary.BINARY_MAX_LENGTH}), c2 binary({self.tdCom.Boundary.BINARY_MAX_LENGTH}), c3 binary({self.tdCom.Boundary.BINARY_MAX_LENGTH}), c4 binary(22)) tags (t1 bool)')
+        self.tdSql.execute(f'drop database if exists {dbname}')
     def run(self):
         self.tag_max_count_check()
         self.stb_col_max_count_check()
@@ -137,6 +142,7 @@ class TestTagColLimit(TDCase):
         self.stb_sensitive_check()
         self.tb_sensitive_check()
         self.tag_col_name_length_check()
+        self.max_sql_length_check()
 
     def cleanup(self):
         pass
@@ -144,6 +150,7 @@ class TestTagColLimit(TDCase):
     def desc(self):
         case_description = """
             tag_max_count_check <jayden>: [TD-13419] : tag_max_count_check;\n
+            max_sql_length_check <jayden>: [TD-13419] : max_sql_length_check;\n
             stb_col_max_count_check <jayden>: [TD-13419] : col_max_count_check;\n
             tb_col_max_count_check <jayden>: [TD-13419] : col_max_count_check;\n
             stb_sensitive_check <jayden>: [TD-13419] : stb_sensitive_check;\n
