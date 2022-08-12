@@ -69,9 +69,10 @@ class TDCreateData():
         self.tdSql.execute('''drop database if exists %s ;''' %database)
 
     def show_local_variables(self):
-        self.tdSql.query('''show local variables;''')
-        for i in range(self.tdSql.query_row):
-            self.logger.info("%s - %s"% (self.tdSql.query_data[i][0], self.tdSql.query_data[i][1]))
+        # self.tdSql.query('''show local variables;''')
+        # for i in range(self.tdSql.query_row):
+        #     self.logger.info("%s - %s"% (self.tdSql.query_data[i][0], self.tdSql.query_data[i][1]))
+        pass
 
     def dropandcreateDB_random(self,database,n):
         self.ts = 1630000000000
