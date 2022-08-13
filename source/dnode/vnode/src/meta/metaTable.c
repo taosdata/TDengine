@@ -298,14 +298,14 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     tdbTbcClose(pUidIdxc);
 
     terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
-    // ASSERT(0);
     return -1;
   }
 
   ret = tdbTbcGet(pUidIdxc, NULL, NULL, &pData, &nData);
   if (ret < 0) {
+    tdbTbcClose(pUidIdxc);
+
     terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
-    // ASSERT(0);
     return -1;
   }
 
