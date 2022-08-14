@@ -359,7 +359,7 @@ typedef struct SStreamOptions {
   int8_t    triggerType;
   SNode*    pDelay;
   SNode*    pWatermark;
-  bool      ignoreExpired;
+  int8_t    ignoreExpired;
 } SStreamOptions;
 
 typedef struct SCreateStreamStmt {

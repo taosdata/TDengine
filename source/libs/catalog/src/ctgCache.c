@@ -581,6 +581,20 @@ _return:
 }
 
 int32_t ctgChkAuthFromCache(SCatalog* pCtg, char* user, char* dbFName, AUTH_TYPE type, bool *inCache, bool *pass) {
+  char *p = strchr(dbFName, '.');
+  if (p) {
+    ++p;
+  } else {
+    p = dbFName;
+  }
+  
+  if (IS_SYS_DBNAME(p)) {
+    *inCache = true;
+    *pass = true;
+    ctgDebug("sysdb %s, pass", dbFName);
+    return TSDB_CODE_SUCCESS;
+  }
+
   SCtgUserAuth *pUser = (SCtgUserAuth *)taosHashGet(pCtg->userCache, user, strlen(user));
   if (NULL == pUser) {
     ctgDebug("user not in cache, user:%s", user);
