@@ -17,6 +17,7 @@
 
 #define RSMA_QTASKINFO_BUFSIZE  32768
 #define RSMA_QTASKINFO_HEAD_LEN (sizeof(int32_t) + sizeof(int8_t) + sizeof(int64_t))  // len + type + suid
+#define RSMA_QTASKEXEC_BUFSIZ   1  // * 1048576                                           // 8 MB
 
 SSmaMgmt smaMgmt = {
     .inited = 0,
@@ -27,17 +28,18 @@ SSmaMgmt smaMgmt = {
 #define TD_RSMAINFO_DEL_FILE      "rsmainfo.del"
 typedef struct SRSmaQTaskInfoItem SRSmaQTaskInfoItem;
 typedef struct SRSmaQTaskInfoIter SRSmaQTaskInfoIter;
+typedef struct SRSmaExecQItem     SRSmaExecQItem;
 
 static int32_t    tdUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t *uid);
 static int32_t    tdUpdateTbUidListImpl(SSma *pSma, tb_uid_t *suid, SArray *tbUids);
 static int32_t    tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat *pStat, SRSmaInfo *pRSmaInfo,
                                           int8_t idx);
-static int32_t    tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t inputType, SRSmaInfo *pInfo, tb_uid_t suid,
-                                    int8_t level);
+static int32_t    tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t msgSize, int32_t inputType, SRSmaInfo *pInfo,
+                                    tb_uid_t suid, int8_t level);
 static SRSmaInfo *tdAcquireRSmaInfoBySuid(SSma *pSma, int64_t suid);
 static void       tdReleaseRSmaInfo(SSma *pSma, SRSmaInfo *pInfo);
 static int32_t    tdRSmaFetchAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSmaInfoItem *pItem, STSchema *pTSchema,
-                                             int64_t suid, int8_t blkType);
+                                             int64_t suid);
 static void       tdRSmaFetchTrigger(void *param, void *tmrId);
 static int32_t    tdRSmaFetchSend(SSma *pSma, SRSmaInfo *pInfo, int8_t level);
 static int32_t    tdRSmaQTaskInfoIterInit(SRSmaQTaskInfoIter *pIter, STFile *pTFile);
@@ -74,6 +76,11 @@ struct SRSmaQTaskInfoIter {
   // ------------
   char   *qBuf;  // for iterator
   int32_t nBufPos;
+};
+
+struct SRSmaExecQItem {
+  void *pRSmaInfo;
+  void *qall;
 };
 
 void tdRSmaQTaskInfoGetFileName(int32_t vgId, int64_t version, char *outputName) {
@@ -143,8 +150,12 @@ void *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree) {
     if (isDeepFree) {
       if (pInfo->queue) taosCloseQueue(pInfo->queue);
       if (pInfo->qall) taosFreeQall(pInfo->qall);
+      if (pInfo->iQueue) taosCloseQueue(pInfo->iQueue);
+      if (pInfo->iQall) taosFreeQall(pInfo->iQall);
       pInfo->queue = NULL;
       pInfo->qall = NULL;
+      pInfo->iQueue = NULL;
+      pInfo->iQall = NULL;
     }
 
     taosMemoryFree(pInfo);
@@ -362,7 +373,16 @@ int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
   if (!(pRSmaInfo->queue = taosOpenQueue())) {
     goto _err;
   }
+  smaError("vgId:%d init bufSize:%" PRIi64 ", qMemSize:%" PRIi64, SMA_VID(pSma), atomic_load_64(&pStat->qBufSize),
+           taosQueueMemorySize(pRSmaInfo->queue));
+
   if (!(pRSmaInfo->qall = taosAllocateQall())) {
+    goto _err;
+  }
+  if (!(pRSmaInfo->iQueue = taosOpenQueue())) {
+    goto _err;
+  }
+  if (!(pRSmaInfo->iQall = taosAllocateQall())) {
     goto _err;
   }
   pRSmaInfo->suid = suid;
@@ -433,8 +453,7 @@ int32_t tdProcessRSmaDrop(SSma *pSma, SVDropStbReq *pReq) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SSmaStat  *pStat = SMA_ENV_STAT(pSmaEnv);
-  SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pStat);
+  SRSmaStat *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pSmaEnv);
 
   SRSmaInfo *pRSmaInfo = tdAcquireRSmaInfoBySuid(pSma, pReq->suid);
 
@@ -619,7 +638,7 @@ _end:
 }
 
 static int32_t tdRSmaFetchAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSmaInfoItem *pItem, STSchema *pTSchema,
-                                          int64_t suid, int8_t blkType) {
+                                          int64_t suid) {
   SArray *pResList = taosArrayInit(1, POINTER_BYTES);
   if (pResList == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -690,8 +709,50 @@ _err:
   return TSDB_CODE_FAILED;
 }
 
-static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t inputType, SRSmaInfo *pInfo, tb_uid_t suid,
-                                 int8_t level) {
+/**
+ * @brief Copy msg to rsmaQueueBuffer
+ *
+ * @param pSma
+ * @param pMsg
+ * @param inputType
+ * @param pInfo
+ * @param suid
+ * @return int32_t
+ */
+static int32_t tdExecuteRSmaImplAsync(SSma *pSma, const void *pMsg, int32_t inputType, SRSmaInfo *pInfo,
+                                      tb_uid_t suid) {
+  const SSubmitReq *pReq = (const SSubmitReq *)pMsg;
+
+  void *qItem = taosAllocateQitem(pReq->length, DEF_QITEM);
+  if (!qItem) {
+    return TSDB_CODE_FAILED;
+  }
+
+  memcpy(qItem, pMsg, pReq->header.contLen);
+
+  taosWriteQitem(pInfo->queue, qItem);
+
+  SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pSma);
+  int64_t    size = atomic_fetch_add_64(&pRSmaStat->qBufSize, taosQueueMemorySize(pInfo->queue));
+  smaError("vgId:%d originSize:%" PRIi64 ", after push size is:%" PRIi64, SMA_VID(pSma), size,
+           atomic_load_64(&pRSmaStat->qBufSize));
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+ * @brief sync mode
+ *
+ * @param pSma
+ * @param pMsg
+ * @param msgSize
+ * @param inputType
+ * @param pInfo
+ * @param suid
+ * @param level
+ * @return int32_t
+ */
+static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t msgSize, int32_t inputType, SRSmaInfo *pInfo,
+                                 tb_uid_t suid, int8_t level) {
   int32_t idx = level - 1;
   if (!pInfo || !RSMA_INFO_QTASK(pInfo, idx)) {
     smaDebug("vgId:%d, no qTaskInfo to execute rsma %" PRIi8 " task for suid:%" PRIu64, SMA_VID(pSma), level, suid);
@@ -705,14 +766,13 @@ static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t inputType
   smaDebug("vgId:%d, execute rsma %" PRIi8 " task for qTaskInfo:%p suid:%" PRIu64, SMA_VID(pSma), level,
            RSMA_INFO_QTASK(pInfo, idx), suid);
 
-  if (qSetMultiStreamInput(RSMA_INFO_QTASK(pInfo, idx), pMsg, 1, inputType) < 0) {  // INPUT__DATA_SUBMIT
+  if (qSetMultiStreamInput(RSMA_INFO_QTASK(pInfo, idx), pMsg, msgSize, inputType) < 0) {  // INPUT__DATA_SUBMIT
     smaError("vgId:%d, rsma %" PRIi8 " qSetStreamInput failed since %s", SMA_VID(pSma), level, tstrerror(terrno));
     return TSDB_CODE_FAILED;
   }
 
   SRSmaInfoItem *pItem = RSMA_INFO_ITEM(pInfo, idx);
-  tdRSmaFetchAndSubmitResult(pSma, RSMA_INFO_QTASK(pInfo, idx), pItem, pInfo->pTSchema, suid,
-                             STREAM_INPUT__DATA_SUBMIT);
+  tdRSmaFetchAndSubmitResult(pSma, RSMA_INFO_QTASK(pInfo, idx), pItem, pInfo->pTSchema, suid);
   atomic_store_8(&pItem->triggerStat, TASK_TRIGGER_STAT_ACTIVE);
 
   if (smaMgmt.tmrHandle) {
@@ -752,8 +812,15 @@ static SRSmaInfo *tdAcquireRSmaInfoBySuid(SSma *pSma, int64_t suid) {
       taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
       return NULL;
     }
+    if (!pRSmaInfo->taskInfo[0]) {
+      if (tdCloneRSmaInfo(pSma, pRSmaInfo) < 0) {
+        taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
+        return NULL;
+      }
+    }
     tdRefRSmaInfo(pSma, pRSmaInfo);
     taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
+    ASSERT(pRSmaInfo->suid == suid);
     return pRSmaInfo;
   }
   taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
@@ -762,41 +829,9 @@ static SRSmaInfo *tdAcquireRSmaInfoBySuid(SSma *pSma, int64_t suid) {
     return NULL;
   }
 
-  // clone the SRSmaInfo from iRsmaInfoHash to rsmaInfoHash if in committing stat
-  SRSmaInfo *pCowRSmaInfo = NULL;
-  // lock
-  taosWLockLatch(SMA_ENV_LOCK(pEnv));
-  if (!(pCowRSmaInfo = taosHashGet(RSMA_INFO_HASH(pStat), &suid, sizeof(tb_uid_t)))) {  // 2-phase lock
-    void *iRSmaInfo = taosHashGet(RSMA_IMU_INFO_HASH(pStat), &suid, sizeof(tb_uid_t));
-    if (iRSmaInfo) {
-      SRSmaInfo *pIRSmaInfo = *(SRSmaInfo **)iRSmaInfo;
-      if (pIRSmaInfo && !RSMA_INFO_IS_DEL(pIRSmaInfo)) {
-        if (tdCloneRSmaInfo(pSma, &pCowRSmaInfo, pIRSmaInfo) < 0) {
-          // unlock
-          taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
-          smaError("vgId:%d, clone rsma info failed for suid:%" PRIu64 " since %s", SMA_VID(pSma), suid, terrstr());
-          return NULL;
-        }
-        smaDebug("vgId:%d, clone rsma info succeed for suid:%" PRIu64, SMA_VID(pSma), suid);
-        if (taosHashPut(RSMA_INFO_HASH(pStat), &suid, sizeof(tb_uid_t), &pCowRSmaInfo, sizeof(pCowRSmaInfo)) < 0) {
-          // unlock
-          taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
-          smaError("vgId:%d, clone rsma info failed for suid:%" PRIu64 " since %s", SMA_VID(pSma), suid, terrstr());
-          return NULL;
-        }
-      }
-    }
-  } else {
-    pCowRSmaInfo = *(SRSmaInfo **)pCowRSmaInfo;
-    ASSERT(!pCowRSmaInfo);
-  }
-
-  if (pCowRSmaInfo) {
-    tdRefRSmaInfo(pSma, pCowRSmaInfo);
-  }
   // unlock
   taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
-  return pCowRSmaInfo;
+  return pRSmaInfo;
 }
 
 static FORCE_INLINE void tdReleaseRSmaInfo(SSma *pSma, SRSmaInfo *pInfo) {
@@ -805,10 +840,47 @@ static FORCE_INLINE void tdReleaseRSmaInfo(SSma *pSma, SRSmaInfo *pInfo) {
   }
 }
 
+/**
+ * @brief async mode
+ *
+ * @param pSma
+ * @param pMsg
+ * @param inputType
+ * @param suid
+ * @return int32_t
+ */
+static int32_t tdExecuteRSmaAsync(SSma *pSma, const void *pMsg, int32_t inputType, tb_uid_t suid) {
+  SRSmaInfo *pRSmaInfo = tdAcquireRSmaInfoBySuid(pSma, suid);
+  if (!pRSmaInfo) {
+    smaDebug("vgId:%d, execute rsma, no rsma info for suid:%" PRIu64, SMA_VID(pSma), suid);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (inputType == STREAM_INPUT__DATA_SUBMIT) {
+    if (tdExecuteRSmaImplAsync(pSma, pMsg, inputType, pRSmaInfo, suid) < 0) {
+      tdReleaseRSmaInfo(pSma, pRSmaInfo);
+      return TSDB_CODE_FAILED;
+    }
+  }
+
+  tdReleaseRSmaInfo(pSma, pRSmaInfo);
+  return TSDB_CODE_SUCCESS;
+}
+
+#if 0
+/**
+ * @brief sync mode
+ * 
+ * @param pSma 
+ * @param pMsg 
+ * @param inputType 
+ * @param suid 
+ * @return int32_t 
+ */
 static int32_t tdExecuteRSma(SSma *pSma, const void *pMsg, int32_t inputType, tb_uid_t suid) {
   SRSmaInfo *pRSmaInfo = tdAcquireRSmaInfoBySuid(pSma, suid);
   if (!pRSmaInfo) {
-    smaError("vgId:%d, execute rsma, no rsma info for suid:%" PRIu64, SMA_VID(pSma), suid);
+    smaDebug("vgId:%d, execute rsma, no rsma info for suid:%" PRIu64, SMA_VID(pSma), suid);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -819,6 +891,47 @@ static int32_t tdExecuteRSma(SSma *pSma, const void *pMsg, int32_t inputType, tb
 
   tdReleaseRSmaInfo(pSma, pRSmaInfo);
   return TSDB_CODE_SUCCESS;
+}
+#endif
+
+static int32_t tdRSmaExecCheck(SSma *pSma) {
+  SRSmaStat *pRsmaStat = SMA_RSMA_STAT(pSma);
+  int64_t    bufSize = atomic_load_64(&pRsmaStat->qBufSize);
+
+  if ((pRsmaStat->execStat == 1) || (bufSize < RSMA_QTASKEXEC_BUFSIZ)) {
+    smaError("vgId:%d, return directly as execStat:%" PRIi8 ", bufSize:%" PRIi64, SMA_VID(pSma), pRsmaStat->execStat,
+             bufSize);
+    return TSDB_CODE_SUCCESS;
+  }
+  smaError("vgId:%d, go on exec as execStat:%" PRIi8 ", bufSize:%" PRIi64, SMA_VID(pSma), pRsmaStat->execStat, bufSize);
+
+  pRsmaStat->execStat = 1;
+
+  SRSmaExecMsg fetchMsg;
+  int32_t      contLen = sizeof(SMsgHead);
+  void        *pBuf = rpcMallocCont(0 + contLen);
+
+  ((SMsgHead *)pBuf)->vgId = SMA_VID(pSma);
+  ((SMsgHead *)pBuf)->contLen = sizeof(SMsgHead);
+
+  SRpcMsg rpcMsg = {
+      .code = 0,
+      .msgType = TDMT_VND_EXEC_RSMA,
+      .pCont = pBuf,
+      .contLen = contLen,
+  };
+
+  if ((terrno = tmsgPutToQueue(&pSma->pVnode->msgCb, QUERY_QUEUE, &rpcMsg)) != 0) {
+    smaError("vgId:%d, failed to put rsma exec msg into query-queue since %s", SMA_VID(pSma), terrstr());
+    goto _err;
+  }
+
+  smaDebug("vgId:%d, success to put rsma fetch msg into query-queue", SMA_VID(pSma));
+
+  return TSDB_CODE_SUCCESS;
+_err:
+  pRsmaStat->execStat = 0;
+  return TSDB_CODE_FAILED;
 }
 
 int32_t tdProcessRSmaSubmit(SSma *pSma, void *pMsg, int32_t inputType) {
@@ -839,16 +952,18 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, void *pMsg, int32_t inputType) {
     tdFetchSubmitReqSuids(pMsg, &uidStore);
 
     if (uidStore.suid != 0) {
-      tdExecuteRSma(pSma, pMsg, inputType, uidStore.suid);
+      tdExecuteRSmaAsync(pSma, pMsg, inputType, uidStore.suid);
 
       void *pIter = taosHashIterate(uidStore.uidHash, NULL);
       while (pIter) {
         tb_uid_t *pTbSuid = (tb_uid_t *)taosHashGetKey(pIter, NULL);
-        tdExecuteRSma(pSma, pMsg, inputType, *pTbSuid);
+        tdExecuteRSmaAsync(pSma, pMsg, inputType, *pTbSuid);
         pIter = taosHashIterate(uidStore.uidHash, pIter);
       }
 
       tdUidStoreDestory(&uidStore);
+
+      tdRSmaExecCheck(pSma);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -1282,7 +1397,7 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
     }
 
     for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
-      qTaskInfo_t taskInfo = RSMA_INFO_QTASK(pRSmaInfo, i);
+      qTaskInfo_t taskInfo = RSMA_INFO_IQTASK(pRSmaInfo, i);
       if (!taskInfo) {
         smaDebug("vgId:%d, rsma, table %" PRIi64 " level %d qTaskInfo is NULL", vid, pRSmaInfo->suid, i + 1);
         continue;
@@ -1452,7 +1567,7 @@ _end:
  * @param level
  * @return int32_t
  */
-int32_t tdRSmaFetchSend(SSma *pSma, SRSmaInfo *pInfo, int8_t level) {
+static int32_t tdRSmaFetchSend(SSma *pSma, SRSmaInfo *pInfo, int8_t level) {
   SRSmaFetchMsg fetchMsg = {.suid = pInfo->suid, .level = level};
   int32_t       ret = 0;
   int32_t       contLen = 0;
@@ -1479,7 +1594,7 @@ int32_t tdRSmaFetchSend(SSma *pSma, SRSmaInfo *pInfo, int8_t level) {
       .code = 0,
       .msgType = TDMT_VND_FETCH_RSMA,
       .pCont = pBuf,
-      .contLen = contLen,
+      .contLen = contLen + sizeof(SMsgHead),
   };
 
   if ((terrno = tmsgPutToQueue(&pSma->pVnode->msgCb, QUERY_QUEUE, &rpcMsg)) != 0) {
@@ -1541,7 +1656,7 @@ int32_t smaProcessFetch(SSma *pSma, void *pMsg) {
   if ((terrno = qSetMultiStreamInput(taskInfo, &dataBlock, 1, STREAM_INPUT__DATA_BLOCK)) < 0) {
     goto _err;
   }
-  if (tdRSmaFetchAndSubmitResult(pSma, taskInfo, pItem, pInfo->pTSchema, pInfo->suid, STREAM_INPUT__DATA_BLOCK) < 0) {
+  if (tdRSmaFetchAndSubmitResult(pSma, taskInfo, pItem, pInfo->pTSchema, pInfo->suid) < 0) {
     goto _err;
   }
 
@@ -1555,6 +1670,128 @@ int32_t smaProcessFetch(SSma *pSma, void *pMsg) {
 _err:
   tdReleaseRSmaInfo(pSma, pInfo);
   tDecoderClear(&decoder);
+  smaError("vgId:%d, failed to process rsma fetch msg since %s", SMA_VID(pSma), terrstr());
+  return TSDB_CODE_FAILED;
+}
+
+static void tdFreeRSmaSubmitItems(SArray *pItems) {
+  for (int32_t i = 0; i < taosArrayGetSize(pItems); ++i) {
+    taosFreeQitem(*(void **)taosArrayGet(pItems, i));
+  }
+}
+
+int32_t tdRSmaProcessExecImpl(SSma *pSma) {
+  SSmaEnv   *pEnv = SMA_RSMA_ENV(pSma);
+  SRSmaStat *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pEnv);
+  SHashObj  *infoHash = NULL;
+  SArray    *pSubmitQArr = NULL;
+  SArray    *pSubmitArr = NULL;
+
+  if (!pRSmaStat || !(infoHash = RSMA_INFO_HASH(pRSmaStat))) {
+    terrno = TSDB_CODE_RSMA_INVALID_STAT;
+    goto _err;
+  }
+
+  taosRLockLatch(SMA_ENV_LOCK(pEnv));
+  if (atomic_load_64(&pRSmaStat->qBufSize) < RSMA_QTASKEXEC_BUFSIZ) {
+    taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
+    return TSDB_CODE_SUCCESS;
+  }
+  taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
+
+  if (!(pSubmitQArr = taosArrayInit(taosHashGetSize(infoHash), sizeof(SRSmaExecQItem)))) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  if (!(pSubmitArr = taosArrayInit(1024, POINTER_BYTES))) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  SRSmaExecQItem qItem = {0};
+  taosWLockLatch(SMA_ENV_LOCK(pEnv));
+  void *pIter = taosHashIterate(infoHash, NULL);
+  while (pIter) {
+    SRSmaInfo *pInfo = *(SRSmaInfo **)pIter;
+    if (taosQueueItemSize(pInfo->queue)) {
+      taosReadAllQitems(pInfo->queue, pInfo->qall);
+      qItem.qall = &pInfo->qall;
+      qItem.pRSmaInfo = pIter;
+      taosArrayPush(pSubmitQArr, &qItem);
+    }
+    ASSERT(taosQueueItemSize(pInfo->queue) == 0);
+    pIter = taosHashIterate(infoHash, pIter);
+  }
+
+  atomic_store_64(&pRSmaStat->qBufSize, 0);
+  taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
+  smaError("vgId:%d after exec qBufSize is:%" PRIi64, SMA_VID(pSma), atomic_load_64(&pRSmaStat->qBufSize));
+
+  int32_t qSize = taosArrayGetSize(pSubmitQArr);
+  for (int32_t i = 0; i < qSize; ++i) {
+    SRSmaExecQItem *pItem = taosArrayGet(pSubmitQArr, i);
+    while (1) {
+      void *msg = NULL;
+      taosGetQitem(*(STaosQall **)pItem->qall, (void **)&msg);
+      if (msg) {
+        if (taosArrayPush(pSubmitArr, &msg) < 0) {
+          tdFreeRSmaSubmitItems(pSubmitArr);
+          goto _err;
+        }
+      } else {
+        break;
+      }
+    }
+
+    int32_t size = taosArrayGetSize(pSubmitArr);
+    if (size > 0) {
+      SRSmaInfo *pInfo = *(SRSmaInfo **)pItem->pRSmaInfo;
+      for (int32_t i = 1; i <= TSDB_RETENTION_L2; ++i) {
+        if (tdExecuteRSmaImpl(pSma, *(SSubmitReq**)pSubmitArr->pData, size, STREAM_INPUT__DATA_SUBMIT, pInfo, pInfo->suid, i) < 0) {
+          tdFreeRSmaSubmitItems(pSubmitArr);
+          goto _err;
+        }
+      }
+      tdFreeRSmaSubmitItems(pSubmitArr);
+      taosArrayClear(pSubmitArr);
+    }
+  }
+
+  taosArrayDestroy(pSubmitArr);
+  taosArrayDestroy(pSubmitQArr);
+  return TSDB_CODE_SUCCESS;
+_err:
+  taosArrayDestroy(pSubmitArr);
+  taosArrayDestroy(pSubmitQArr);
+  return TSDB_CODE_FAILED;
+}
+
+/**
+ * @brief exec rsma level 1data, fetch result of level 2/3 and submit
+ *
+ * @param pSma
+ * @param pMsg
+ * @return int32_t
+ */
+int32_t smaProcessExec(SSma *pSma, void *pMsg) {
+  SRpcMsg   *pRpcMsg = (SRpcMsg *)pMsg;
+  SRSmaStat *pRsmaStat = SMA_RSMA_STAT(pSma);
+
+  if (!pRpcMsg || pRpcMsg->contLen < sizeof(SMsgHead)) {
+    terrno = TSDB_CODE_RSMA_FETCH_MSG_MSSED_UP;
+    goto _err;
+  }
+
+  if (tdRSmaProcessExecImpl(pSma) < 0) {
+    goto _err;
+  }
+
+  pRsmaStat->execStat = 0;
+  smaWarn("vgId:%d, success to process rsma exec msg", SMA_VID(pSma));
+  return TSDB_CODE_SUCCESS;
+_err:
+  pRsmaStat->execStat = 0;
   smaError("vgId:%d, failed to process rsma fetch msg since %s", SMA_VID(pSma), terrstr());
   return TSDB_CODE_FAILED;
 }

@@ -315,9 +315,9 @@ void *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType) {
 int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
   if (pSmaStat) {
     if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
-      tdDestroyTSmaStat(SMA_TSMA_STAT(pSmaStat));
+      tdDestroyTSmaStat(SMA_STAT_TSMA(pSmaStat));
     } else if (smaType == TSDB_SMA_TYPE_ROLLUP) {
-      SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pSmaStat);
+      SRSmaStat *pRSmaStat = &pSmaStat->rsmaStat;
       int32_t    vid = SMA_VID(pRSmaStat->pSma);
       int64_t    refId = RSMA_REF_ID(pRSmaStat);
       if (taosRemoveRef(smaMgmt.rsetId, RSMA_REF_ID(pRSmaStat)) < 0) {

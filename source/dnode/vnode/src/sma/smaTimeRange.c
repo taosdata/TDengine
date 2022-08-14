@@ -175,7 +175,7 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
   }
 
   tdRefSmaStat(pSma, pStat);
-  pTsmaStat = SMA_TSMA_STAT(pStat);
+  pTsmaStat = SMA_STAT_TSMA(pStat);
 
   if (!pTsmaStat->pTSma) {
     STSma *pTSma = metaGetSmaInfoByIndex(SMA_META(pSma), indexUid);

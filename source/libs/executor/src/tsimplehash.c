@@ -15,6 +15,7 @@
 
 #include "tsimplehash.h"
 #include "taoserror.h"
+#include "tlog.h"
 
 #define SHASH_DEFAULT_LOAD_FACTOR 0.75
 #define HASH_MAX_CAPACITY         (1024 * 1024 * 16)
@@ -106,27 +107,27 @@ static SHNode *doCreateHashNode(const void *key, size_t keyLen, const void *data
   return pNewNode;
 }
 
-static void taosHashTableResize(SSHashObj *pHashObj) {
+static void tSimpleHashTableResize(SSHashObj *pHashObj) {
   if (!SHASH_NEED_RESIZE(pHashObj)) {
     return;
   }
 
   int32_t newCapacity = (int32_t)(pHashObj->capacity << 1u);
   if (newCapacity > HASH_MAX_CAPACITY) {
-    //    uDebug("current capacity:%zu, maximum capacity:%d, no resize applied due to limitation is reached",
-    //           pHashObj->capacity, HASH_MAX_CAPACITY);
+    uDebug("current capacity:%zu, maximum capacity:%" PRIu64 ", no resize applied due to limitation is reached",
+           pHashObj->capacity, HASH_MAX_CAPACITY);
     return;
   }
 
   int64_t st = taosGetTimestampUs();
   void   *pNewEntryList = taosMemoryRealloc(pHashObj->hashList, sizeof(void *) * newCapacity);
   if (!pNewEntryList) {
-    //    qWarn("hash resize failed due to out of memory, capacity remain:%zu", pHashObj->capacity);
+    uWarn("hash resize failed due to out of memory, capacity remain:%zu", pHashObj->capacity);
     return;
   }
 
   size_t inc = newCapacity - pHashObj->capacity;
-  memset((char *)pNewEntryList + pHashObj->capacity * sizeof(void *), 0, inc);
+  memset((char *)pNewEntryList + pHashObj->capacity * sizeof(void *), 0, inc * sizeof(void *));
 
   pHashObj->hashList = pNewEntryList;
   pHashObj->capacity = newCapacity;
@@ -179,7 +180,7 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, cons
 
   // need the resize process, write lock applied
   if (SHASH_NEED_RESIZE(pHashObj)) {
-    taosHashTableResize(pHashObj);
+    tSimpleHashTableResize(pHashObj);
   }
 
   int32_t slot = HASH_INDEX(hashVal, pHashObj->capacity);
