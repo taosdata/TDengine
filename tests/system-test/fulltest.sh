@@ -111,7 +111,7 @@ python3 ./test.py -f 2-query/histogram.py -R
 python3 ./test.py -f 2-query/hyperloglog.py
 python3 ./test.py -f 2-query/hyperloglog.py -R
 python3 ./test.py -f 2-query/irate.py
-python3 ./test.py -f 2-query/irate.py -R
+# python3 ./test.py -f 2-query/irate.py -R
 python3 ./test.py -f 2-query/join.py
 python3 ./test.py -f 2-query/join.py -R
 
