@@ -200,11 +200,11 @@ tmq_conf_destroy(conf);
 
 对于 Java 程序，使用如下配置项：
 
-| 参数名称                      | 类型   | 参数说明                                                                                                                        |
-| ----------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| `bootstrap.servers`           | string | 连接地址，如 `localhost:6030`                                                                                                   |
-| `value.deserializer`          | string | 值解析方法，使用此方法应实现 `com.taosdata.jdbc.tmq.Deserializer` 接口或是继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer` 类 |
-| `value.deserializer.encoding` | string | 字指定字符串解析的字符集，默认为 UTF-8                                                                                          |  |
+| 参数名称                      | 类型   | 参数说明                                                                                                                      |
+| ----------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `bootstrap.servers`           | string | 连接地址，如 `localhost:6030`                                                                                                 |
+| `value.deserializer`          | string | 值解析方法，使用此方法应实现 `com.taosdata.jdbc.tmq.Deserializer` 接口或继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer` 类 |
+| `value.deserializer.encoding` | string | 指定字符串解析的字符集                                                                                                        |  |
 
 需要注意：此处使用 `bootstrap.servers` 替代 `td.connect.ip` 和 `td.connect.port`，以提供与 Kafka 一致的接口。
 
