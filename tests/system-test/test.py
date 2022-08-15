@@ -194,7 +194,7 @@ if __name__ == "__main__":
             processID = subprocess.check_output(psCmd, shell=True)
 
         for port in range(6030, 6041):
-            usePortPID = "lsof -i tcp:%d | grep LISTEn | awk '{print $2}'" % port
+            usePortPID = "lsof -i tcp:%d | grep LISTEN | awk '{print $2}'" % port
             processID = subprocess.check_output(usePortPID, shell=True)
 
             if processID:
@@ -206,11 +206,13 @@ if __name__ == "__main__":
             time.sleep(2)
 
         if restful:
-            toBeKilled = "taosadapter"
+            toBeKilled = "taosadapt"
 
-            killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1" % toBeKilled
+            # killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1" % toBeKilled
+            killCmd = f"pkill {toBeKilled}"
 
             psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
+            # psCmd = f"pgrep {toBeKilled}"
             processID = subprocess.check_output(psCmd, shell=True)
 
             while(processID):
@@ -218,15 +220,15 @@ if __name__ == "__main__":
                 time.sleep(1)
                 processID = subprocess.check_output(psCmd, shell=True)
 
-            for port in range(6030, 6041):
-                usePortPID = "lsof -i tcp:%d | grep LISTEn | awk '{print $2}'" % port
-                processID = subprocess.check_output(usePortPID, shell=True)
+            port = 6041
+            usePortPID = f"lsof -i tcp:{port} | grep LISTEN | awk '{{print $2}}'"
+            processID = subprocess.check_output(usePortPID, shell=True)
 
-                if processID:
-                    killCmd = "kill -TERM %s" % processID
-                    os.system(killCmd)
-                fuserCmd = "fuser -k -n tcp %d" % port
-                os.system(fuserCmd)
+            if processID:
+                killCmd = f"kill -TERM {processID}"
+                os.system(killCmd)
+            fuserCmd = f"fuser -k -n tcp {port}"
+            os.system(fuserCmd)
 
             tdLog.info('stop taosadapter')
 
