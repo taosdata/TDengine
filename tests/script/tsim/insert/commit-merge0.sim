@@ -63,7 +63,7 @@ reboot_and_check:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
 
-print =============== insert duplicated records to memory - loop $reboot_max - $reboot_cnt 
+print =============== insert duplicated records to memory - loop $reboot_max - $reboot_cnt
 sql use db
 sql insert into ct1 values ('2022-05-01 18:30:27.001', 0.0);
 sql insert into ct4 values ('2022-04-28 18:30:27.002', 0.0);
@@ -91,7 +91,7 @@ sql insert into ct4 values ('2018-05-01 18:30:27.023', NULL) ;
 sql insert into ct4 values ('2021-03-01 18:30:27.024', NULL) ;
 sql insert into ct4 values ('2022-08-01 18:30:27.025', NULL) ;
 
-print =============== select * from ct1 - merge memory and file - loop $reboot_max - $reboot_cnt 
+print =============== select * from ct1 - merge memory and file - loop $reboot_max - $reboot_cnt
 sql select * from ct1;
 if $rows != 13 then
   print rows = $rows != 13
@@ -163,8 +163,8 @@ if $data[12][1] != -99.990000000 then
     print $data[12][1] != -99.990000000
     return -1
 endi
- 
-print =============== select * from ct4 - merge memory and file - loop $reboot_max - $reboot_cnt 
+
+print =============== select * from ct4 - merge memory and file - loop $reboot_max - $reboot_cnt
 sql select * from ct4;
 if $rows != 12 then
   print rows = $rows != 12

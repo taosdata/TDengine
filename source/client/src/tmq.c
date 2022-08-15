@@ -381,6 +381,9 @@ int32_t tmqCommitCb(void* param, SDataBuf* pBuf, int32_t code) {
   }
 #endif
 
+  taosMemoryFree(pParam->pOffset);
+  if (pBuf->pData) taosMemoryFree(pBuf->pData);
+
   /*tscDebug("receive offset commit cb of %s on vgId:%d, offset is %" PRId64, pParam->pOffset->subKey, pParam->->vgId,
    * pOffset->version);*/
 
@@ -401,6 +404,8 @@ int32_t tmqCommitCb(void* param, SDataBuf* pBuf, int32_t code) {
     } else {
       tsem_post(&pParamSet->rspSem);
     }
+
+    taosMemoryFree(pParamSet);
 
 #if 0
     taosArrayDestroyP(pParamSet->successfulOffsets, taosMemoryFree);
@@ -611,12 +616,12 @@ int32_t tmqCommitInner(tmq_t* tmq, const TAOS_RES* msg, int8_t automatic, int8_t
     }
   }
 
-#if 0
   if (!async) {
+#if 0
     taosArrayDestroyP(pParamSet->successfulOffsets, taosMemoryFree);
     taosArrayDestroyP(pParamSet->failedOffsets, taosMemoryFree);
-  }
 #endif
+  }
 
   return 0;
 }
@@ -1216,6 +1221,7 @@ END:
   } else {
     taosMemoryFree(pParam);
   }
+  taosMemoryFree(pMsg->pData);
   return code;
 }
 
