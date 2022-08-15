@@ -83,7 +83,7 @@ Maven 项目中，在 pom.xml 中添加以下依赖：
 <dependency>
  <groupId>com.taosdata.jdbc</groupId>
  <artifactId>taos-jdbcdriver</artifactId>
- <version>2.0.**</version>
+ <version>3.0.0</version>
 </dependency>
 ```
 
@@ -712,7 +712,7 @@ while(true) {
 }
 ```
 
-`poll` 方法返回一个结果集，其中包含从上次 `poll` 到目前为止的所有新数据。请务必按需选择合理的调用 `poll` 的频率（如例子中的 `Duration.ofMillis(100)`），否则会给服务端造成不必要的压力。
+`poll` 每次调用获取一个消息。
 
 #### 关闭订阅
 
@@ -900,7 +900,13 @@ public static void main(String[] args) throws Exception {
 
    **解决方法**：重新安装 64 位 JDK。
 
-4. 其它问题请参考 [FAQ](../../../train-faq/faq)
+4. java.lang.NoSuchMethodError: setByteArray
+
+  **原因**：taos-jdbcdriver 3.* 版本仅支持 TDengine 3.0 及以上版本。
+
+  **解决方法**： 使用 taos-jdbcdriver 2.* 版本连接 TDengine 2.* 版本。
+
+其它问题请参考 [FAQ](../../../train-faq/faq)
 
 ## API 参考
 

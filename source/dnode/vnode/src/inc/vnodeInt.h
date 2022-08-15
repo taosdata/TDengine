@@ -144,6 +144,7 @@ int32_t     tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb
 STsdbReader tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
                                 void* pMemRef);
 int32_t     tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
+int32_t     tsdbGetStbIdList(SMeta* pMeta, int64_t suid, SArray* list);
 
 // tq
 int     tqInit();
@@ -170,9 +171,8 @@ int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
 
-
-SSubmitReq* tdBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
-                            const char* stbFullName, int32_t vgId, SBatchDeleteReq* pDeleteReq);
+SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
+                            const char* stbFullName, SBatchDeleteReq* pDeleteReq);
 
 // sma
 int32_t smaInit();

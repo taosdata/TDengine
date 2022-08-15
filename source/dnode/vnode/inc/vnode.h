@@ -129,19 +129,19 @@ typedef struct STsdbReader STsdbReader;
 #define LASTROW_RETRIEVE_TYPE_ALL    0x1
 #define LASTROW_RETRIEVE_TYPE_SINGLE 0x2
 
-int32_t tsdbSetTableId(STsdbReader *pReader, int64_t uid);
-int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, SArray *pTableList, STsdbReader **ppReader,
-                       const char *idstr);
-void    tsdbReaderClose(STsdbReader *pReader);
-bool    tsdbNextDataBlock(STsdbReader *pReader);
-void    tsdbRetrieveDataBlockInfo(STsdbReader *pReader, SDataBlockInfo *pDataBlockInfo);
-int32_t tsdbRetrieveDatablockSMA(STsdbReader *pReader, SColumnDataAgg ***pBlockStatis, bool *allHave);
-SArray *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
-int32_t tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond);
-int32_t tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
-int64_t tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
-void   *tsdbGetIdx(SMeta *pMeta);
-void   *tsdbGetIvtIdx(SMeta *pMeta);
+int32_t  tsdbSetTableId(STsdbReader *pReader, int64_t uid);
+int32_t  tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, SArray *pTableList, STsdbReader **ppReader,
+                        const char *idstr);
+void     tsdbReaderClose(STsdbReader *pReader);
+bool     tsdbNextDataBlock(STsdbReader *pReader);
+void     tsdbRetrieveDataBlockInfo(STsdbReader *pReader, SDataBlockInfo *pDataBlockInfo);
+int32_t  tsdbRetrieveDatablockSMA(STsdbReader *pReader, SColumnDataAgg ***pBlockStatis, bool *allHave);
+SArray  *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
+int32_t  tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond);
+int32_t  tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
+int64_t  tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
+void    *tsdbGetIdx(SMeta *pMeta);
+void    *tsdbGetIvtIdx(SMeta *pMeta);
 uint64_t getReaderMaxVersion(STsdbReader *pReader);
 
 int32_t tsdbLastRowReaderOpen(void *pVnode, int32_t type, SArray *pTableIdList, int32_t numOfCols, void **pReader);
