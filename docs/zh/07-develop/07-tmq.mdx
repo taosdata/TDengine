@@ -218,7 +218,7 @@ properties.setProperty("td.connect.user", "root");
 properties.setProperty("td.connect.pass", "taosdata");
 properties.setProperty("auto.offset.reset", "earliest");
 properties.setProperty("msg.with.table.name", "true");
-properties.setProperty("value.deserializer.encoding", "com.taos.example.MetersDeserializer");
+properties.setProperty("value.deserializer", "com.taos.example.MetersDeserializer");
 
 TaosConsumer<Meters> consumer = new TaosConsumer<>(properties);
 
