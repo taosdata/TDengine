@@ -25,8 +25,7 @@ int32_t tdBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBl
   SColumnInfoData* pGidCol = taosArrayGet(pDataBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   for (int32_t row = 0; row < totRow; row++) {
     int64_t ts = *(int64_t*)colDataGetData(pTsCol, row);
-    /*int64_t     groupId = *(int64_t*)colDataGetData(pGidCol, row);*/
-    int64_t groupId = 0;
+    int64_t groupId = *(int64_t*)colDataGetData(pGidCol, row);
     char*   name = buildCtbNameByGroupId(stbFullName, groupId);
     tqDebug("stream delete msg: groupId :%ld, name: %s", groupId, name);
     SMetaReader mr = {0};
@@ -49,8 +48,8 @@ int32_t tdBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBl
   return 0;
 }
 
-SSubmitReq* tdBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* pTSchema, bool createTb,
-                            int64_t suid, const char* stbFullName, int32_t vgId, SBatchDeleteReq* pDeleteReq) {
+SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* pTSchema, bool createTb,
+                            int64_t suid, const char* stbFullName, SBatchDeleteReq* pDeleteReq) {
   SSubmitReq* ret = NULL;
   SArray*     schemaReqs = NULL;
   SArray*     schemaReqSz = NULL;
@@ -153,7 +152,7 @@ SSubmitReq* tdBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
   // assign data
   // TODO
   ret = rpcMallocCont(cap);
-  ret->header.vgId = vgId;
+  ret->header.vgId = pVnode->config.vgId;
   ret->length = sizeof(SSubmitReq);
   ret->numOfBlocks = htonl(sz);
 
@@ -234,8 +233,8 @@ void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
 
   ASSERT(pTask->tbSink.pTSchema);
   deleteReq.deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
-  SSubmitReq* pReq = tdBlockToSubmit(pVnode, pRes, pTask->tbSink.pTSchema, true, pTask->tbSink.stbUid,
-                                     pTask->tbSink.stbFullName, pVnode->config.vgId, &deleteReq);
+  SSubmitReq* pReq = tqBlockToSubmit(pVnode, pRes, pTask->tbSink.pTSchema, true, pTask->tbSink.stbUid,
+                                     pTask->tbSink.stbFullName, &deleteReq);
 
   tqDebug("vgId:%d, task %d convert blocks over, put into write-queue", TD_VID(pVnode), pTask->taskId);
 
