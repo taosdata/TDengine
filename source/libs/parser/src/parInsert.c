@@ -1464,10 +1464,16 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     }
 
     STableDataBlocks* dataBuf = NULL;
-    CHECK_CODE(getDataBlockFromList(pCxt->pTableBlockHashObj, &pCxt->pTableMeta->uid, sizeof(pCxt->pTableMeta->uid),
-                                    TSDB_DEFAULT_PAYLOAD_SIZE, sizeof(SSubmitBlk),
-                                    getTableInfo(pCxt->pTableMeta).rowSize, pCxt->pTableMeta, &dataBuf, NULL,
-                                    &pCxt->createTblReq));
+    if (pCxt->pComCxt->async) {
+      CHECK_CODE(getDataBlockFromList(pCxt->pTableBlockHashObj, &pCxt->pTableMeta->uid, sizeof(pCxt->pTableMeta->uid),
+                                      TSDB_DEFAULT_PAYLOAD_SIZE, sizeof(SSubmitBlk),
+                                      getTableInfo(pCxt->pTableMeta).rowSize, pCxt->pTableMeta, &dataBuf, NULL,
+                                      &pCxt->createTblReq));
+    } else {
+      CHECK_CODE(getDataBlockFromList(pCxt->pTableBlockHashObj, tbFName, strlen(tbFName), TSDB_DEFAULT_PAYLOAD_SIZE,
+                                      sizeof(SSubmitBlk), getTableInfo(pCxt->pTableMeta).rowSize, pCxt->pTableMeta,
+                                      &dataBuf, NULL, &pCxt->createTblReq));
+    }
 
     if (NULL != pBoundColsStart) {
       char* pCurrPos = pCxt->pSql;
