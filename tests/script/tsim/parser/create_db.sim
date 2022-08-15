@@ -21,12 +21,12 @@ $mt = $mtPrefix . $i
 sql_error createdatabase $db
 sql create database $db
 sql use $db
-sql show databases
+sql select * from information_schema.ins_databases
 
-if $rows != 3 then 
+if $rows != 3 then
   return -1
 endi
-if $data20 != $db then 
+if $data20 != $db then
   return -1
 endi
 sql drop database $db
@@ -36,12 +36,12 @@ print =========== create_db.sim case1: case insensitivity test
 sql_error CREATEDATABASE $db
 sql CREATE DATABASE $db
 sql use $db
-sql show databases
+sql select * from information_schema.ins_databases
 
 if $rows != 3 then
   return -1
 endi
-if $data20 != $db then 
+if $data20 != $db then
   return -1
 endi
 sql drop database $db
@@ -64,7 +64,7 @@ $CN_db3 = db数据库1
 sql_error create database $CN_db1
 sql_error create database $CN_db2
 sql_error create database $CN_db3
-#sql show databases
+#sql select * from information_schema.ins_databases
 #if $rows != 3 then
 #  return -1
 #endi
@@ -86,7 +86,7 @@ print case_chinese_char_in_db_name test passed
 print create_db.sim case4: db_already_exists
 sql create database db0
 sql create database db0
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -101,27 +101,27 @@ $duration = 10
 $keep = 365,365,365
 $rows_db = 1000
 $cache = 16 # 16MB
-$ablocks = 100 
+$ablocks = 100
 $tblocks = 32 # max=512, automatically trimmed when exceeding
 $ctime = 36000 # 10 hours
 $wal = 1 # valid value is 1, 2
 $comp = 1 # max=32, automatically trimmed when exceeding
 
 sql create database $db replica $replica duration $duration keep $keep maxrows $rows_db wal_level $wal comp $comp
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data20 != $db then 
+if $data20 != $db then
  return -1
 endi
-if $data24 != $replica then 
+if $data24 != $replica then
  return -1
 endi
-if $data26 != 14400m then 
+if $data26 != 14400m then
  return -1
 endi
-if $data27 != 525600m,525600m,525600m then 
+if $data27 != 525600m,525600m,525600m then
  return -1
 endi
 
@@ -134,7 +134,7 @@ sql_error create database $db replica 4
 
 # day [1, 3650]
 sql_error create database $db day 0
-sql_error create database $db day 3651 
+sql_error create database $db day 3651
 
 # keep [1, infinity]
 sql_error create database $db keep 0
@@ -151,57 +151,57 @@ sql_error create database $db keep 8
 sql_error create database $db keep 12,11
 sql_error create database $db keep 365001,365001,365001
 sql create database dbk0 keep 19
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 27360m,27360m,27360m then 
+if $data27 != 27360m,27360m,27360m then
  return -1
 endi
 sql drop database dbk0
 sql create database dbka keep 19,20
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 27360m,28800m,28800m then 
+if $data27 != 27360m,28800m,28800m then
  return -1
 endi
 sql drop database dbka
 
 sql create database dbk1 keep 11,11,11
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 15840m,15840m,15840m then 
+if $data27 != 15840m,15840m,15840m then
  return -1
 endi
 sql drop database dbk1
 sql create database dbk2 keep 11,12,13
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 !=  15840m,17280m,18720m then 
+if $data27 !=  15840m,17280m,18720m then
  return -1
 endi
 sql drop database dbk2
 sql create database dbk3 keep 11,11,13
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 15840m,15840m,18720m then 
+if $data27 != 15840m,15840m,18720m then
  return -1
 endi
 sql drop database dbk3
 sql create database dbk4 keep 11,13,13
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 15840m,18720m,18720m then 
+if $data27 != 15840m,18720m,18720m then
  return -1
 endi
 sql drop database dbk4
@@ -226,30 +226,30 @@ sql_error create database $db ctime 40961
 
 # wal {0, 2}
 sql_error create database testwal wal_level 0
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then
   return -1
 endi
 
 sql create database testwal wal_level 1
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-sql show databases
-print wallevel $data13_testwal
-if $data13_testwal != 1 then 
+sql select * from information_schema.ins_databases
+print wallevel $data20_testwal
+if $data20_testwal != 1 then
   return -1
 endi
 sql drop database testwal
 
 sql create database testwal wal_level 2
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
 print wallevel $data13_testwal
-if $data13_testwal != 2 then 
+if $data13_testwal != 2 then
   return -1
 endi
 sql drop database testwal
@@ -262,8 +262,8 @@ sql_error create database $db comp -1
 sql_error create database $db comp 3
 
 sql_error drop database $db
-sql show databases
-if $rows != 2 then 
+sql select * from information_schema.ins_databases
+if $rows != 2 then
   return -1
 endi
 

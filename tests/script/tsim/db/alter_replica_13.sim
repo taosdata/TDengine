@@ -20,7 +20,7 @@ step1:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 if $rows != 2 then
@@ -35,7 +35,7 @@ endi
 
 print =============== step2: create database
 sql create database db vgroups 1
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then 
   return -1
 endi
@@ -43,13 +43,13 @@ if $data(db)[4] != 1 then
   return -1
 endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $data(2)[2] != 1 then
   return -1
 endi
 
 # vnodes
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $data(2)[2] != 1 then
   return -1
 endi
@@ -81,7 +81,7 @@ step3:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> rows: $rows 
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15

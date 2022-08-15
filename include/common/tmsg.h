@@ -296,13 +296,13 @@ void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 #define COL_IDX_ON   ((int8_t)0x2)
 #define COL_SET_NULL ((int8_t)0x10)
 #define COL_SET_VAL  ((int8_t)0x20)
-typedef struct SSchema {
+struct SSchema {
   int8_t   type;
   int8_t   flags;
   col_id_t colId;
   int32_t  bytes;
   char     name[TSDB_COL_NAME_LEN];
-} SSchema;
+};
 
 #define COL_IS_SET(FLG)  (((FLG) & (COL_SET_VAL | COL_SET_NULL)) != 0)
 #define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
@@ -648,7 +648,7 @@ typedef struct {
   };
   bool output;  // TODO remove it later
 
-  int16_t type;
+  int8_t  type;
   int32_t bytes;
   uint8_t precision;
   uint8_t scale;
@@ -1364,12 +1364,13 @@ typedef struct {
   int8_t  compressed;
   int8_t  streamBlockType;
   int32_t compLen;
+  int32_t numOfBlocks;
   int32_t numOfRows;
   int32_t numOfCols;
   int64_t skey;
   int64_t ekey;
-  int64_t version;  // for stream
-  TSKEY   watermark;// for stream
+  int64_t version;    // for stream
+  TSKEY   watermark;  // for stream
   char    data[];
 } SRetrieveTableRsp;
 
@@ -1677,9 +1678,10 @@ typedef struct {
   int32_t code;
 } STaskDropRsp;
 
-#define STREAM_TRIGGER_AT_ONCE      1
-#define STREAM_TRIGGER_WINDOW_CLOSE 2
-#define STREAM_TRIGGER_MAX_DELAY    3
+#define STREAM_TRIGGER_AT_ONCE        1
+#define STREAM_TRIGGER_WINDOW_CLOSE   2
+#define STREAM_TRIGGER_MAX_DELAY      3
+#define STREAM_DEFAULT_IGNORE_EXPIRED 0
 
 typedef struct {
   char    name[TSDB_STREAM_FNAME_LEN];
@@ -3078,6 +3080,22 @@ typedef struct SDeleteRes {
 
 int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
 int32_t tDecodeDeleteRes(SDecoder* pCoder, SDeleteRes* pRes);
+
+typedef struct {
+  int64_t uid;
+  int64_t ts;
+} SSingleDeleteReq;
+
+int32_t tEncodeSSingleDeleteReq(SEncoder* pCoder, const SSingleDeleteReq* pReq);
+int32_t tDecodeSSingleDeleteReq(SDecoder* pCoder, SSingleDeleteReq* pReq);
+
+typedef struct {
+  int64_t suid;
+  SArray* deleteReqs;  // SArray<SSingleDeleteReq>
+} SBatchDeleteReq;
+
+int32_t tEncodeSBatchDeleteReq(SEncoder* pCoder, const SBatchDeleteReq* pReq);
+int32_t tDecodeSBatchDeleteReq(SDecoder* pCoder, SBatchDeleteReq* pReq);
 
 typedef struct {
   int32_t msgIdx;

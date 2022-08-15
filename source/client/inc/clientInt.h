@@ -101,10 +101,6 @@ typedef struct SQueryExecMetric {
   int64_t rsp;     // receive response from server, us
 } SQueryExecMetric;
 
-typedef struct SHeartBeatInfo {
-  void* pTimer;  // timer, used to send request msg to mnode
-} SHeartBeatInfo;
-
 struct SAppInstInfo {
   int64_t            numOfConns;
   SCorEpSet          mgmtEp;
@@ -255,6 +251,8 @@ void    syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
 SRequestObj* execQuery(uint64_t connId, const char* sql, int sqlLen, bool validateOnly);
 TAOS_RES*    taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly);
 void         taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly);
+
+int32_t      getVersion1BlockMetaSize(const char* p, int32_t numOfCols);
 
 static FORCE_INLINE SReqResultInfo* tmqGetCurResInfo(TAOS_RES* res) {
   SMqRspObj* msg = (SMqRspObj*)res;

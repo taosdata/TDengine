@@ -25,7 +25,7 @@ step1:
 	  print ====> dnode not online!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 if $rows != 5 then
@@ -126,7 +126,7 @@ step4:
 	  print ====> dnode not online!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 if $rows != 5 then
@@ -151,8 +151,8 @@ endi
 print =============== step5: drop dnode2
 sql drop dnode 2
 
-print show dnodes; 
-sql show dnodes;
+print select * from information_schema.ins_dnodes; 
+sql select * from information_schema.ins_dnodes;
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25

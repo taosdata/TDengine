@@ -9,7 +9,7 @@ description: TDengine Java 连接器基于标准 JDBC API 实现, 并提供原�
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器，Java 开发人员可以通过它开发存取 TDengine 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口，并提供两种形式的连接器。一种是通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能，一种是通过 taosAdapter 提供的 REST 接口连接 TDengine 实例（2.4.0.0 及更高版本）。REST 连接实现的功能集合和原生连接有少量不同。
+`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器，Java 开发人员可以通过它开发存取 TDengine 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口，并提供两种形式的连接器。一种是通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能，一种是通过 taosAdapter 提供的 REST 接口连接 TDengine 实例。REST 连接实现的功能集合和原生连接有少量不同。
 
 ![TDengine Database Connector Java](tdengine-jdbc-connector.webp)
 
@@ -41,19 +41,19 @@ REST 连接支持所有能运行 Java 的平台。
 
 TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
 
-| TDengine DataType | JDBCType （driver 版本 < 2.0.24） | JDBCType （driver 版本 >= 2.0.24） |
-| ----------------- | --------------------------------- | ---------------------------------- |
-| TIMESTAMP         | java.lang.Long                    | java.sql.Timestamp                 |
-| INT               | java.lang.Integer                 | java.lang.Integer                  |
-| BIGINT            | java.lang.Long                    | java.lang.Long                     |
-| FLOAT             | java.lang.Float                   | java.lang.Float                    |
-| DOUBLE            | java.lang.Double                  | java.lang.Double                   |
-| SMALLINT          | java.lang.Short                   | java.lang.Short                    |
-| TINYINT           | java.lang.Byte                    | java.lang.Byte                     |
-| BOOL              | java.lang.Boolean                 | java.lang.Boolean                  |
-| BINARY            | java.lang.String                  | byte array                         |
-| NCHAR             | java.lang.String                  | java.lang.String                   |
-| JSON              | -                                 | java.lang.String                   |
+| TDengine DataType | JDBCType  |
+| ----------------- | ---------------------------------- |
+| TIMESTAMP         | java.sql.Timestamp                 |
+| INT               | java.lang.Integer                  |
+| BIGINT            | java.lang.Long                     |
+| FLOAT             | java.lang.Float                    |
+| DOUBLE            | java.lang.Double                   |
+| SMALLINT          | java.lang.Short                    |
+| TINYINT           | java.lang.Byte                     |
+| BOOL              | java.lang.Boolean                  |
+| BINARY            | byte array                         |
+| NCHAR             | java.lang.String                   |
+| JSON              | java.lang.String                   |
 
 **注意**：JSON 类型仅在 tag 中支持。
 
@@ -83,7 +83,7 @@ Maven 项目中，在 pom.xml 中添加以下依赖：
 <dependency>
  <groupId>com.taosdata.jdbc</groupId>
  <artifactId>taos-jdbcdriver</artifactId>
- <version>2.0.**</version>
+ <version>3.0.0</version>
 </dependency>
 ```
 
@@ -198,7 +198,7 @@ url 中的配置参数如下：
 
 - user：登录 TDengine 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
-- batchfetch: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。逐行拉取结果集使用 HTTP 方式进行数据传输。从 taos-jdbcdriver-2.0.38 和 TDengine 2.4.0.12 版本开始，JDBC REST 连接增加批量拉取数据功能。taos-jdbcdriver 与 TDengine 之间通过 WebSocket 连接进行数据传输。相较于 HTTP，WebSocket 可以使 JDBC REST 连接支持大数据量查询，并提升查询性能。
+- batchfetch: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。逐行拉取结果集使用 HTTP 方式进行数据传输。从 taos-jdbcdriver-2.0.38 开始，JDBC REST 连接增加批量拉取数据功能。taos-jdbcdriver 与 TDengine 之间通过 WebSocket 连接进行数据传输。相较于 HTTP，WebSocket 可以使 JDBC REST 连接支持大数据量查询，并提升查询性能。
 - charset: 当开启批量拉取数据时，指定解析字符串数据的字符集。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 - httpConnectTimeout: 连接超时时间，单位 ms， 默认值为 5000。
@@ -216,7 +216,7 @@ url 中的配置参数如下：
 INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('California.SanFrancisco') VALUES(now, 24.6);
 ```
 
-- 从 taos-jdbcdriver-2.0.36 和 TDengine 2.2.0.0 版本开始，如果在 url 中指定了 dbname，那么，JDBC REST 连接会默认使用/rest/sql/dbname 作为 restful 请求的 url，在 SQL 中不需要指定 dbname。例如：url 为 jdbc:TAOS-RS://127.0.0.1:6041/test，那么，可以执行 sql：insert into t1 using weather(ts, temperature) tags('California.SanFrancisco') values(now, 24.6);
+- 从 taos-jdbcdriver-2.0.36 开始，如果在 url 中指定了 dbname，那么，JDBC REST 连接会默认使用/rest/sql/dbname 作为 restful 请求的 url，在 SQL 中不需要指定 dbname。例如：url 为 jdbc:TAOS-RS://127.0.0.1:6041/test，那么，可以执行 sql：insert into t1 using weather(ts, temperature) tags('California.SanFrancisco') values(now, 24.6);
 
 :::
 
@@ -358,11 +358,11 @@ JDBC 连接器可能报错的错误码包括 3 种：JDBC driver 本身的报错
 具体的错误码请参考：
 
 - [TDengine Java Connector](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
-- [TDengine_ERROR_CODE](../error-code)
+<!-- - [TDengine_ERROR_CODE](../error-code) -->
 
 ### 通过参数绑定写入数据
 
-从 2.1.2.0 版本开始，TDengine 的 JDBC 原生连接实现大幅改进了参数绑定方式对数据写入（INSERT）场景的支持。采用这种方式写入数据时，能避免 SQL 语法解析的资源消耗，从而在很多情况下显著提升写入性能。
+TDengine 的 JDBC 原生连接实现大幅改进了参数绑定方式对数据写入（INSERT）场景的支持。采用这种方式写入数据时，能避免 SQL 语法解析的资源消耗，从而在很多情况下显著提升写入性能。
 
 **注意**：
 
@@ -630,7 +630,7 @@ public void setNString(int columnIndex, ArrayList<String> list, int size) throws
 
 ### 无模式写入
 
-从 2.2.0.0 版本开始，TDengine 增加了对无模式写入功能。无模式写入兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议和 OpenTSDB 的 JSON 格式协议。详情请参见[无模式写入](/reference/schemaless/)。
+TDengine 支持无模式写入功能。无模式写入兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议和 OpenTSDB 的 JSON 格式协议。详情请参见[无模式写入](../../schemaless)。
 
 **注意**：
 
@@ -712,7 +712,7 @@ while(true) {
 }
 ```
 
-`poll` 方法返回一个结果集，其中包含从上次 `poll` 到目前为止的所有新数据。请务必按需选择合理的调用 `poll` 的频率（如例子中的 `Duration.ofMillis(100)`），否则会给服务端造成不必要的压力。
+`poll` 每次调用获取一个消息。请按需选择合理的调用 `poll` 的频率（如例子中的 `Duration.ofMillis(100)`），否则会给服务端造成不必要的压力。
 
 #### 关闭订阅
 
@@ -859,20 +859,6 @@ public static void main(String[] args) throws Exception {
 
 > 更多 druid 使用问题请查看[官方说明](https://github.com/alibaba/druid)。
 
-**注意事项：**
-
-- TDengine `v1.6.4.1` 版本开始提供了一个专门用于心跳检测的函数 `select server_status()`，所以在使用连接池时推荐使用 `select server_status()` 进行 Validation Query。
-
-如下所示，`select server_status()` 执行成功会返回 `1`。
-
-```sql
-taos> select server_status();
-server_status()|
-================
-1              |
-Query OK, 1 row(s) in set (0.000141s)
-```
-
 ### 更多示例程序
 
 示例程序源码位于 `TDengine/examples/JDBC` 下:
@@ -914,7 +900,13 @@ Query OK, 1 row(s) in set (0.000141s)
 
    **解决方法**：重新安装 64 位 JDK。
 
-4. 其它问题请参考 [FAQ](/train-faq/faq)
+4. java.lang.NoSuchMethodError: setByteArray
+
+  **原因**：taos-jdbcdriver 3.* 版本仅支持 TDengine 3.0 及以上版本。
+
+  **解决方法**： 使用 taos-jdbcdriver 2.* 版本连接 TDengine 2.* 版本。
+
+其它问题请参考 [FAQ](../../../train-faq/faq)
 
 ## API 参考
 

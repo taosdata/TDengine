@@ -1571,10 +1571,18 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols) {
+  int32_t cols = *(int32_t*) (p + sizeof(int32_t) * 3);
+  ASSERT(numOfCols == cols);
+
+  return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t)*3 + sizeof(uint64_t) + numOfCols * (sizeof(int8_t) + sizeof(int32_t));
+}
+
 static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, int32_t numOfRows) {
   char* p = (char*)pResultInfo->pData;
 
-  int32_t  len = sizeof(int32_t) + sizeof(uint64_t) + numOfCols * (sizeof(int16_t) + sizeof(int32_t));
+  // version + length + numOfRows + numOfCol + groupId + flag_segment + column_info
+  int32_t  len = getVersion1BlockMetaSize(p, numOfCols);
   int32_t* colLength = (int32_t*)(p + len);
   len += sizeof(int32_t) * numOfCols;
 
@@ -1642,7 +1650,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
   char* p1 = pResultInfo->convertJson;
 
   int32_t totalLen = 0;
-  int32_t len = sizeof(int32_t) + sizeof(uint64_t) + numOfCols * (sizeof(int16_t) + sizeof(int32_t));
+  int32_t len = getVersion1BlockMetaSize(p, numOfCols);
   memcpy(p1, p, len);
 
   p += len;
@@ -1739,7 +1747,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
     pStart1 += colLen1;
   }
 
-  *(int32_t*)(pResultInfo->convertJson) = totalLen;
+  *(int32_t*)(pResultInfo->convertJson + 4) = totalLen;
   pResultInfo->pData = pResultInfo->convertJson;
   return TSDB_CODE_SUCCESS;
 }
@@ -1762,7 +1770,22 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
 
   char* p = (char*)pResultInfo->pData;
 
+  // version:
+  int32_t blockVersion = *(int32_t*)p;
+  p += sizeof(int32_t);
+
   int32_t dataLen = *(int32_t*)p;
+  p += sizeof(int32_t);
+
+  int32_t rows = *(int32_t*)p;
+  p += sizeof(int32_t);
+
+  int32_t cols = *(int32_t*)p;
+  p += sizeof(int32_t);
+
+  ASSERT(rows == numOfRows && cols == numOfCols);
+
+  int32_t hasColumnSeg = *(int32_t*)p;
   p += sizeof(int32_t);
 
   uint64_t groupId = *(uint64_t*)p;
@@ -1771,7 +1794,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   // check fields
   for (int32_t i = 0; i < numOfCols; ++i) {
     int16_t type = *(int16_t*)p;
-    p += sizeof(int16_t);
+    p += sizeof(int8_t);
 
     int32_t bytes = *(int32_t*)p;
     p += sizeof(int32_t);

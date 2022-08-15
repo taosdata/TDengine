@@ -288,16 +288,16 @@ class TDTestCase:
         datacheck = self.table1_checkall(sql)
         tdSql.checkRows(4)
 
-        tdSql.query("show db.stables like 'stable_1%' ")
+        tdSql.query("select * from information_schema.ins_stables where db_name = 'db' like 'stable_1%' ")
         tdSql.checkRows(1)
-        tdSql.query("show db.tables like 'table%' ")
+        tdSql.query("select * from information_schema.ins_tables where db_name = 'db' like 'table%' ")
         tdSql.checkRows(2)
 
         self.cr_tb1 = "create_table_1~!@#$%^&*()-_+=[]{}':,<.>/?stST13579"
         tdSql.execute(
             "create table db.`%s` as select avg(`%s`) from db.`%s` where ts > now interval(1m) sliding(30s);" %
             (self.cr_tb1, self.col_bigint, self.stb1))
-        tdSql.query("show db.tables like 'create_table_%' ")
+        tdSql.query("select * from information_schema.ins_tables where db_name = 'db' like 'create_table_%' ")
         tdSql.checkRows(1)
 
         print(r"==============drop\ add\ change\ modify column or tag")
@@ -696,7 +696,7 @@ class TDTestCase:
             tdLog.exit(e)
 
         tdSql.error("select * from db.`%s`" % self.tb1)
-        tdSql.query("show db.stables like 'stable_1%' ")
+        tdSql.query("select * from information_schema.ins_stables where db_name = 'db' like 'stable_1%' ")
         tdSql.checkRows(1)
 
         try:
@@ -785,7 +785,7 @@ class TDTestCase:
         tdSql.execute(
             "create table `%s` as select * from `%s` ;" %
             (self.cr_tb2, self.stb2))
-        tdSql.query("show db.tables like 'create_table_%' ")
+        tdSql.query("select * from information_schema.ins_tables where db_name = 'db' like 'create_table_%' ")
         tdSql.checkRows(1)
 
         print("==============step3,#create regular_table; insert regular_table; show regular_table; select regular_table; drop regular_table")

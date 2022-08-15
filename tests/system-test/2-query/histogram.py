@@ -1,16 +1,16 @@
-import datetime
+from datetime import datetime
 import re
 import json
 
-from dataclasses import dataclass, field
-from typing import List, Any, Tuple
+from dataclasses import dataclass
+from typing import Any
 
 from util.log import tdLog
 from util.sql import tdSql
 from util.cases import tdCases
 from util.dnodes import tdDnodes
 from util.constant import *
-from util.common import is_json
+from util.common import *
 
 PRIMARY_COL = "ts"
 
@@ -41,7 +41,7 @@ TAG_COL = [INT_TAG]
 
 # insert data args：
 TIME_STEP = 10000
-NOW = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
+NOW = int(datetime.timestamp(datetime.now()) * 1000)
 
 # init db/table
 DBNAME  = "db"
@@ -51,27 +51,9 @@ NTBNAME = "nt1"
 
 
 @dataclass
-class DataSet:
-    ts_data     : List[int]     = field(default_factory=list)
-    int_data    : List[int]     = field(default_factory=list)
-    bint_data   : List[int]     = field(default_factory=list)
-    sint_data   : List[int]     = field(default_factory=list)
-    tint_data   : List[int]     = field(default_factory=list)
-    int_un_data : List[int]     = field(default_factory=list)
-    bint_un_data: List[int]     = field(default_factory=list)
-    sint_un_data: List[int]     = field(default_factory=list)
-    tint_un_data: List[int]     = field(default_factory=list)
-    float_data  : List[float]   = field(default_factory=list)
-    double_data : List[float]   = field(default_factory=list)
-    bool_data   : List[int]     = field(default_factory=list)
-    binary_data : List[str]     = field(default_factory=list)
-    nchar_data  : List[str]     = field(default_factory=list)
-
-
-@dataclass
 class Hsgschema:
     func_type           : str           = "SELECT"
-    from_clause         : str           = STBNAME
+    from_clause         : str           = f"{STBNAME}"
     where_clause        : str           = None
     group_clause        : str           = None
     having_clause       : str           = None
@@ -157,23 +139,18 @@ class Hsgschema:
         elif isinstance(self.bin_type,str) and self.bin_type.upper().strip() == "LOG_BIN":
             self.bin_desc = self.log_bin
 
-# from ...pytest.util.sql import *
-# from ...pytest.util.constant import *
 
 class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
-        self.precision = "ms"
-        self.sma_count = 0
-        self.sma_created_index = []
 
     def __create_hsg(self, sma:Hsgschema):
         return  f"""{sma.histogram_flag}({sma.col}, '{sma.bin_type}', '{sma.bin_desc}', {sma.normalized})"""
 
-    def __gen_sql(self, sma:Hsgschema):
-        sql = f"{sma.func_type} {self.__create_hsg(sma)} from {sma.from_clause} "
+    def __gen_sql(self, sma:Hsgschema, dbname=DBNAME):
+        sql = f"{sma.func_type} {self.__create_hsg(sma)} from {dbname}.{sma.from_clause} "
         if sma.where_clause:
             sql += f" where {sma.where_clause}"
         if sma.partition_clause:
@@ -184,15 +161,15 @@ class TDTestCase:
                 sql += f" having {sma.having_clause}"
         return sql
 
-    def __gen_no_hsg_sql(self, sma:Hsgschema):
-        return f"{sma.func_type} {sma.col} from {sma.from_clause}"
+    def __gen_no_hsg_sql(self, sma:Hsgschema, dbname=DBNAME):
+        return f"{sma.func_type} {sma.col} from {dbname}.{sma.from_clause}"
 
-    def __hsg_check(self, sma:Hsgschema):
+    def __hsg_check(self, sma:Hsgschema, dbname=DBNAME):
         if not sma.histogram_flag:
             return False
         if not sma.col or (not isinstance(sma.col, str) and not isinstance(sma.col, int) and not isinstance(sma.col, float)):
             return False
-        if tdSql.is_err_sql(self.__gen_no_hsg_sql(sma)):
+        if tdSql.is_err_sql(self.__gen_no_hsg_sql(sma, dbname)):
             return False
         if any ([not sma.bin_type,  not isinstance(sma.bin_type, str) ]):
             return False
@@ -221,7 +198,6 @@ class TDTestCase:
                 if not isinstance(user_raw[-1], int) and not isinstance(user_raw[-1], float):
                     return False
             sma.bin_count = len(user_raw) - 1
-
         if sma.bin_type.upper().strip() == "LINEAR_BIN":
             if not is_json(sma.bin_desc):
                 return False
@@ -273,15 +249,15 @@ class TDTestCase:
             if isinstance(sma.col, str) and func in sma.col.upper().strip():
                 return False
 
-        tdSql.execute(self.__gen_no_hsg_sql(sma))
+        tdSql.execute(self.__gen_no_hsg_sql(sma, dbname))
         if tdSql.cursor.istype(0, "BINARY") or tdSql.cursor.istype(0, "NCHAR") or tdSql.cursor.istype(0, "BOOL") or tdSql.cursor.istype(0, "TIMESTAMP"):
             return False
 
         return True
 
-    def hsg_check(self, sma:Hsgschema):
+    def hsg_check(self, sma:Hsgschema, dbname=DBNAME):
         if self.__hsg_check(sma):
-            tdSql.query(self.__gen_sql(sma))
+            tdSql.query(self.__gen_sql(sma, dbname))
             tdSql.checkRows(sma.bin_count)
             sum_rate = 0
             if sma.normalized and (not sma.bin_infinity or sma.bin_type.upper().strip() == "USER_INPUT"):
@@ -294,7 +270,7 @@ class TDTestCase:
                     tdLog.success(f"summary of result count is {sum_rate}!")
 
         else:
-            tdSql.error(self.__gen_sql(sma))
+            tdSql.error(self.__gen_sql(sma, dbname))
 
     @property
     def __hsg_querysql(self):
@@ -307,6 +283,8 @@ class TDTestCase:
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="", bin_desc="[0,3,6,9]", normalized=0 ) )
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="USER_INPUT", user_input="", normalized=0 ) )
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="USER_INPUT", user_input="[0,3,6,9]", normalized="" ) )
+        err_sqls.append( Hsgschema( col=INT_COL, bin_type="USER_INPUT", user_input="[0,3,6,9]", normalized="", from_clause=NTBNAME ) )
+        err_sqls.append( Hsgschema( col=INT_COL, bin_type="USER_INPUT", user_input="[0,3,6,9]", normalized="", from_clause=CTBNAME ) )
 
         ## case 1.2: format check
         err_sqls.append( Hsgschema(col=(INT_COL, BINT_COL), bin_type="USER_INPUT", user_input="[0,3,6,9]" ) )
@@ -405,129 +383,107 @@ class TDTestCase:
 
         return err_sqls, cur_sqls
 
-    def test_histogram(self,ctb_num=20):
+    def test_histogram(self, dbname=DBNAME, ctb_num :int=20):
         err_sqls , cur_sqls = self.__hsg_querysql
         for err_sql in err_sqls:
-            self.hsg_check(err_sql)
+            self.hsg_check(err_sql, dbname)
         for cur_sql in cur_sqls:
-            self.hsg_check(cur_sql)
+            self.hsg_check(cur_sql, dbname)
 
-        tdSql.query("SELECT HISTOGRAM(c_int, 'USER_INPUT', '[0,3,6,9]', 0) from stb1 where c_int < 10 ")
+        tdSql.query(f"SELECT HISTOGRAM(c_int, 'USER_INPUT', '[0,3,6,9]', 0) from {dbname}.stb1 where c_int < 10 ")
         tdSql.checkData(0, 0, f'{{"lower_bin":0, "upper_bin":3, "count":{ ( ctb_num - 2 ) * 3 }}}')
         tdSql.checkData(1, 0, f'{{"lower_bin":3, "upper_bin":6, "count":{ ( ctb_num - 2 ) * 3 }}}')
-        tdSql.checkData(2, 0, f'{{"lower_bin":6, "upper_bin":9, "count":{ ( ctb_num - 2 ) * 3 }}}')
+        tdSql.checkData(2, 0, f'{{"lower_bin":6, "upper_bin":9, "count":{ ( ctb_num - 2 ) * 3 + 1}}}')
 
-        tdSql.query("SELECT HISTOGRAM(c_int, 'USER_INPUT', '[0,3,6,9]', 0) from ct1 where c_int < 10")
+        tdSql.query(f"SELECT HISTOGRAM(c_int, 'USER_INPUT', '[0,3,6,9]', 0) from {dbname}.ct1 where c_int < 10")
+        tdSql.checkData(0, 0, '{"lower_bin":0, "upper_bin":3, "count":0}')
+        tdSql.checkData(1, 0, '{"lower_bin":3, "upper_bin":6, "count":0}')
+        tdSql.checkData(2, 0, '{"lower_bin":6, "upper_bin":9, "count":1}')
+
+        tdSql.query(f"SELECT HISTOGRAM(c_int, 'USER_INPUT', '[0,3,6,9]', 0) from {dbname}.nt1 where c_int < 10")
         tdSql.checkData(0, 0, '{"lower_bin":0, "upper_bin":3, "count":3}')
         tdSql.checkData(1, 0, '{"lower_bin":3, "upper_bin":6, "count":3}')
         tdSql.checkData(2, 0, '{"lower_bin":6, "upper_bin":9, "count":3}')
 
-        tdSql.query("SELECT HISTOGRAM(c_int, 'USER_INPUT', '[0,3,6,9]', 0) from nt1 where c_int < 10")
-        tdSql.checkData(0, 0, '{"lower_bin":0, "upper_bin":3, "count":3}')
-        tdSql.checkData(1, 0, '{"lower_bin":3, "upper_bin":6, "count":3}')
-        tdSql.checkData(2, 0, '{"lower_bin":6, "upper_bin":9, "count":3}')
+    def all_test(self, dbname=DBNAME):
+        self.test_histogram(dbname)
 
-    def all_test(self):
-        self.test_histogram()
-
-    def __create_tb(self, stb=STBNAME, ctb_num=20, ntbnum=1):
+    def __create_tb(self, stb=STBNAME, ctb_num=20, ntbnum=1, dbname=DBNAME):
         tdLog.printNoPrefix("==========step: create table")
-        create_stb_sql = f'''create table {stb}(
-                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+        create_stb_sql = f'''create table {dbname}.{stb}(
+                {PRIMARY_COL} timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
                 {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
                 {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
             ) tags ({INT_TAG} int)
             '''
-        for i in range(ntbnum):
+        tdSql.execute(create_stb_sql)
 
-            create_ntb_sql = f'''create table nt{i+1}(
-                    ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+        for i in range(ntbnum):
+            create_ntb_sql = f'''create table {dbname}.nt{i+1}(
+                    {PRIMARY_COL} timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
                     {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
                     {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
                     {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
                     {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
                 )
                 '''
-        tdSql.execute(create_stb_sql)
-        tdSql.execute(create_ntb_sql)
+            tdSql.execute(create_ntb_sql)
 
         for i in range(ctb_num):
-            tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
+            tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.{stb} tags ( {i+1} )')
 
-    def __data_set(self, rows):
-        data_set = DataSet()
+    def __insert_data(self, rows, ctb_num=20, dbname=DBNAME, star_time=NOW):
+        tdLog.printNoPrefix("==========step: start inser data into tables now.....")
+        # from ...pytest.util.common import DataSet
+        data = DataSet()
+        data.get_order_set(rows, bint_step=2)
+
+        null_data = '''null, null, null, null, null, null, null, null, null, null, null, null, null, null'''
+        # zero_data = "0, 0, 0, 0, 0, 0, 0, 'binary_0', 'nchar_0', 0, 0, 0, 0, 0"s
 
         for i in range(rows):
-            data_set.ts_data.append(NOW + 1 * (rows - i))
-            data_set.int_data.append(rows - i)
-            data_set.bint_data.append(11111 * (rows - i))
-            data_set.sint_data.append(111 * (rows - i) % 32767)
-            data_set.tint_data.append(11 * (rows - i) % 127)
-            data_set.int_un_data.append(rows - i)
-            data_set.bint_un_data.append(11111 * (rows - i))
-            data_set.sint_un_data.append(111 * (rows - i) % 32767)
-            data_set.tint_un_data.append(11 * (rows - i) % 127)
-            data_set.float_data.append(1.11 * (rows - i))
-            data_set.double_data.append(1100.0011 * (rows - i))
-            data_set.bool_data.append((rows - i) % 2)
-            data_set.binary_data.append(f'binary{(rows - i)}')
-            data_set.nchar_data.append(f'nchar_测试_{(rows - i)}')
-
-        return data_set
-
-    def __insert_data(self, ctbnum=20):
-        tdLog.printNoPrefix("==========step: start inser data into tables now.....")
-        data = self.__data_set(rows=self.rows)
-
-        # now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
-        null_data = '''null, null, null, null, null, null, null, null, null, null, null, null, null, null'''
-        zero_data = "0, 0, 0, 0, 0, 0, 0, 'binary_0', 'nchar_0', 0, 0, 0, 0, 0"
-
-        for i in range(self.rows):
             row_data = f'''
                 {data.int_data[i]}, {data.bint_data[i]}, {data.sint_data[i]}, {data.tint_data[i]}, {data.float_data[i]}, {data.double_data[i]},
-                {data.bool_data[i]}, '{data.binary_data[i]}', '{data.nchar_data[i]}', {data.ts_data[i]}, {data.tint_un_data[i]},
-                {data.sint_un_data[i]}, {data.int_un_data[i]}, {data.bint_un_data[i]}
+                {data.bool_data[i]}, '{data.vchar_data[i]}', '{data.nchar_data[i]}', {data.ts_data[i]}, {data.utint_data[i]},
+                {data.usint_data[i]}, {data.uint_data[i]}, {data.ubint_data[i]}
             '''
             neg_row_data = f'''
                 {-1 * data.int_data[i]}, {-1 * data.bint_data[i]}, {-1 * data.sint_data[i]}, {-1 * data.tint_data[i]}, {-1 * data.float_data[i]}, {-1 * data.double_data[i]},
-                {data.bool_data[i]}, '{data.binary_data[i]}', '{data.nchar_data[i]}', {data.ts_data[i]}, {1 * data.tint_un_data[i]},
-                {1 * data.sint_un_data[i]}, {1 * data.int_un_data[i]}, {1 * data.bint_un_data[i]}
+                {data.bool_data[i]}, '{data.vchar_data[i]}', '{data.nchar_data[i]}', {data.ts_data[i]}, {1 * data.utint_data[i]},
+                {1 * data.usint_data[i]}, {1 * data.uint_data[i]}, {1 * data.ubint_data[i]}
             '''
 
+            for j in range(ctb_num):
+                if j == 2:
+                    tdSql.execute( f"insert into {dbname}.ct{j+1} values ( {star_time - j * i * TIME_STEP}, {neg_row_data} )" )
+                else:
+                    tdSql.execute( f"insert into {dbname}.ct{j+1} values ( {star_time - j * i * TIME_STEP}, {row_data} )" )
+
             tdSql.execute(
-                f"insert into ct1 values ( {NOW - i * TIME_STEP}, {row_data} )")
-            tdSql.execute(
-                f"insert into ct2 values ( {NOW - i * int(TIME_STEP * 0.6)}, {neg_row_data} )")
-            tdSql.execute(
-                f"insert into nt1 values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )")
-
-            for j in range(ctbnum-3):
-                tdSql.execute(
-                f"insert into ct{j+4} values ( {NOW - i * int(TIME_STEP * 0.8) }, {row_data} )")
+                f"insert into {dbname}.nt1 values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )")
 
         tdSql.execute(
-            f"insert into ct2 values ( {NOW + int(TIME_STEP * 0.6)}, {null_data} )")
+            f"insert into {dbname}.ct2 values ( {NOW + int(TIME_STEP * 0.6)}, {null_data} )")
         tdSql.execute(
-            f"insert into ct2 values ( {NOW - (self.rows + 1) * int(TIME_STEP * 0.6)}, {null_data} )")
+            f"insert into {dbname}.ct2 values ( {NOW - int(TIME_STEP * 0.6 * rows * ctb_num)}, {null_data} )")
         tdSql.execute(
-            f"insert into ct2 values ( {NOW - self.rows * int(TIME_STEP * 0.29) }, {null_data} )")
+            f"insert into {dbname}.ct2 values ( {NOW - int(TIME_STEP * 0.29 * rows * ctb_num) }, {null_data} )")
 
         tdSql.execute(
-            f"insert into ct4 values ( {NOW + int(TIME_STEP * 0.8)}, {null_data} )")
+            f"insert into {dbname}.ct4 values ( {NOW + int(TIME_STEP * 0.8)}, {null_data} )")
         tdSql.execute(
-            f"insert into ct4 values ( {NOW - (self.rows + 1) * int(TIME_STEP * 0.8)}, {null_data} )")
+            f"insert into {dbname}.ct4 values ( {NOW - int(TIME_STEP * 0.8 * rows * ctb_num)}, {null_data} )")
         tdSql.execute(
-            f"insert into ct4 values ( {NOW - self.rows * int(TIME_STEP * 0.39)}, {null_data} )")
+            f"insert into {dbname}.ct4 values ( {NOW - int(TIME_STEP * 0.39 * rows * ctb_num)}, {null_data} )")
 
         tdSql.execute(
-            f"insert into {NTBNAME} values ( {NOW + int(TIME_STEP * 1.2)}, {null_data} )")
+            f"insert into {dbname}.{NTBNAME} values ( {NOW + int(TIME_STEP * 1.2)}, {null_data} )")
         tdSql.execute(
-            f"insert into {NTBNAME} values ( {NOW - (self.rows + 1) * int(TIME_STEP * 1.2)}, {null_data} )")
+            f"insert into {dbname}.{NTBNAME} values ( {NOW - (self.rows + 1) * int(TIME_STEP * 1.2)}, {null_data} )")
         tdSql.execute(
-            f"insert into {NTBNAME} values ( {NOW - self.rows * int(TIME_STEP * 0.59)}, {null_data} )")
+            f"insert into {dbname}.{NTBNAME} values ( {NOW - self.rows * int(TIME_STEP * 0.59)}, {null_data} )")
 
     def run(self):
         self.rows = 10
@@ -537,24 +493,22 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step1:create table in normal database")
         tdSql.prepare()
         self.__create_tb()
-        self.__insert_data()
+        self.__insert_data(self.rows)
         self.all_test()
 
-        tdLog.printNoPrefix("==========step2:create table in normal database")
-        tdSql.execute("create database db1 vgroups 2")
-        tdSql.execute("use db1")
-        self.__create_tb()
-        self.__insert_data()
-        self.all_test()
+        tdLog.printNoPrefix("==========step2:create table in normal database db1")
+        tdSql.prepare(dbname="db1", **{"vgroups":2})
+        self.__create_tb(dbname="db1")
+        self.__insert_data(self.rows, dbname="db1")
+        self.all_test(dbname="db1")
 
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdSql.execute("flush database db")
+        tdSql.execute("flush database db1")
+
 
         tdLog.printNoPrefix("==========step3:after wal, all check again ")
-        tdSql.execute("use db")
-        self.all_test()
-        tdSql.execute("use db1")
-        self.all_test()
+        self.all_test(dbname="db")
+        self.all_test(dbname="db1")
 
     def stop(self):
         tdSql.close()

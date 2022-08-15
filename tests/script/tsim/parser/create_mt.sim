@@ -30,7 +30,7 @@ sql show stables
 if $rows != 1 then
   return -1
 endi
-if $data00 != $mt then 
+if $data00 != $mt then
   return -1
 endi
 sql_error DROP METRIC $mt
@@ -75,7 +75,7 @@ sql_error create table $mt (ts timestamp, col $i_tinyint ) tags (tag1 int)
 sql_error create table $mt (ts timestamp, col $i_nchar ) tags (tag1 int)
 
 # correct using of nchar
-sql create table $mt (ts timestamp, col nchar(10)) tags (tag1 int) 
+sql create table $mt (ts timestamp, col nchar(10)) tags (tag1 int)
 sql show stables
 if $rows != 1 then
   return -1
@@ -115,7 +115,7 @@ endi
 if $data00 != $mt then
   return -1
 endi
-sql drop table $mt 
+sql drop table $mt
 print illegal_data_type_in_tags test passed
 
 # illegal_tag_name test
@@ -141,12 +141,12 @@ $stables = stables
 sql_error create table $mt (ts timestamp, col1 int) tags ( $tb_ int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $tbs int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $db_ int)
-sql_error create table $mt (ts timestamp, col1 int) tags ( $dbs int) 
+sql_error create table $mt (ts timestamp, col1 int) tags ( $dbs int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $ses int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $int int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $bint int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $binary int)
-sql create table $mt (ts timestamp, col1 int) tags ( $str int) 
+sql create table $mt (ts timestamp, col1 int) tags ( $str int)
 sql drop table $mt
 sql_error create table $mt (ts timestamp, col1 int) tags ( $tag int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $tags int)
@@ -184,7 +184,7 @@ sql drop table $tb
 
 sql_error create table $tb using $mt tags (abc)
 #the case below might need more consideration
-sql_error create table $tb using $mt tags ('abc')  
+sql_error create table $tb using $mt tags ('abc')
 sql drop table if exists $tb
 sql reset query cache
 sql_error create table $tb using $mt tags (1e1)
@@ -202,12 +202,12 @@ $mt2 = mt2
 #sql_error create table $mt1 (ts timestamp, $CN_char int) tags (tag1 int)
 #sql_error create table $mt2 (ts timestamp, col1 int) tags ( $CN_char int)
 #sql show metrics
-#if $rows != 3 then 
+#if $rows != 3 then
 #  return -1
 #endi
 ##print expected: $CN_char
 ##print returned: $data00
-#if $data00 != $CN_char then 
+#if $data00 != $CN_char then
 #  return -1
 #endi
 ##print expected: $mt1
@@ -240,8 +240,8 @@ $mt2 = mt2
 print chinese_char_in_metrics test passed
 
 sql drop database $db
-sql show databases
-if $rows != 2 then 
+sql select * from information_schema.ins_databases
+if $rows != 2 then
   return -1
 endi
 

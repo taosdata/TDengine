@@ -391,7 +391,7 @@ static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *
 
       assert(TAOS_LRU_ENTRY_IN_CACHE(old));
       TAOS_LRU_ENTRY_SET_IN_CACHE(old, false);
-      if (!TAOS_LRU_ENTRY_HAS_REFS(e)) {
+      if (!TAOS_LRU_ENTRY_HAS_REFS(old)) {
         taosLRUCacheShardLRURemove(shard, old);
         assert(shard->usage >= old->totalCharge);
         shard->usage -= old->totalCharge;
