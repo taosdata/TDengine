@@ -198,19 +198,15 @@ tmq_conf_destroy(conf);
 </TabItem>
 <TabItem value="java" label="Java">
 
-对于 Java 程序，额外支持以下配置项：
+对于 Java 程序，使用如下配置项：
 
-| 参数名称                    | 类型    | 参数说明                                                                                                                        |
-| --------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| value.deserializer          | boolean | 值解析方法，使用此方法应实现 `com.taosdata.jdbc.tmq.Deserializer` 接口或是继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer` 类 |
-| value.deserializer.encoding | string  | 值解析所使用的反序列化方式                                                                                                      |  |
+| 参数名称                      | 类型    | 参数说明                                                                                                                        |
+| ----------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `bootstrap.servers`           | string  | 连接地址，如 `localhost:6030`                                                                                                   |
+| `value.deserializer`          | boolean | 值解析方法，使用此方法应实现 `com.taosdata.jdbc.tmq.Deserializer` 接口或是继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer` 类 |
+| `value.deserializer.encoding` | string  | 值解析所使用的反序列化方式                                                                                                      |  |
 
-```java
-  import com.taosdata.jdbc.tmq.ReferenceDeserializer;
-
-  public class MetersDeserializer extends ReferenceDeserializer<Meters> {
-  }
-```
+需要注意：此处使用 `bootstrap.servers` 替代 `td.connect.ip` 和 `td.connect.port`，以提供与 Kafka 一致的接口。
 
 ```java
 Properties properties = new Properties();
@@ -225,6 +221,12 @@ properties.setProperty("msg.with.table.name", "true");
 properties.setProperty("value.deserializer.encoding", "com.taos.example.MetersDeserializer");
 
 TaosConsumer<Meters> consumer = new TaosConsumer<>(properties);
+
+/* value deserializer definition. */
+import com.taosdata.jdbc.tmq.ReferenceDeserializer;
+
+public class MetersDeserializer extends ReferenceDeserializer<Meters> {
+}
 ```
 
 </TabItem>
