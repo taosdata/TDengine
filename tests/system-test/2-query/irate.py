@@ -78,9 +78,7 @@ class TDTestCase:
         # prepare datas
         tdSql.execute(
             f"create database if not exists {dbname} keep 3650 duration 1000")
-        
         tdSql.execute(f"use {dbname} ")
-        time.sleep(2)
         tdSql.execute(
             f'''create table {dbname}.stb1
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
