@@ -82,7 +82,7 @@ class TDTestCase:
         tdSql.execute(f"use {dbname} ")
         time.sleep(2)
         tdSql.execute(
-            f'''create stable {dbname}.stb1
+            f'''create table {dbname}.stb1
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
             tags (t0 timestamp, tag1 int, t2 bigint, t3 smallint, t4 tinyint, t5 float, t6 double, t7 bool, t8 binary(16),t9 nchar(32))
             '''
