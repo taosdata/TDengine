@@ -17,7 +17,7 @@
 
 #define RSMA_QTASKINFO_BUFSIZE  32768
 #define RSMA_QTASKINFO_HEAD_LEN (sizeof(int32_t) + sizeof(int8_t) + sizeof(int64_t))  // len + type + suid
-#define RSMA_QTASKEXEC_BUFSIZ   1  // * 1048576                                           // 8 MB
+#define RSMA_QTASKEXEC_BUFSIZ   10 * 1048576                                           // 8 MB
 
 SSmaMgmt smaMgmt = {
     .inited = 0,
@@ -373,8 +373,6 @@ int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
   if (!(pRSmaInfo->queue = taosOpenQueue())) {
     goto _err;
   }
-  smaError("vgId:%d init bufSize:%" PRIi64 ", qMemSize:%" PRIi64, SMA_VID(pSma), atomic_load_64(&pStat->qBufSize),
-           taosQueueMemorySize(pRSmaInfo->queue));
 
   if (!(pRSmaInfo->qall = taosAllocateQall())) {
     goto _err;
@@ -723,7 +721,7 @@ static int32_t tdExecuteRSmaImplAsync(SSma *pSma, const void *pMsg, int32_t inpu
                                       tb_uid_t suid) {
   const SSubmitReq *pReq = (const SSubmitReq *)pMsg;
 
-  void *qItem = taosAllocateQitem(pReq->length, DEF_QITEM);
+  void *qItem = taosAllocateQitem(pReq->header.contLen, DEF_QITEM);
   if (!qItem) {
     return TSDB_CODE_FAILED;
   }
@@ -733,9 +731,8 @@ static int32_t tdExecuteRSmaImplAsync(SSma *pSma, const void *pMsg, int32_t inpu
   taosWriteQitem(pInfo->queue, qItem);
 
   SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pSma);
-  int64_t    size = atomic_fetch_add_64(&pRSmaStat->qBufSize, taosQueueMemorySize(pInfo->queue));
-  smaError("vgId:%d originSize:%" PRIi64 ", after push size is:%" PRIi64, SMA_VID(pSma), size,
-           atomic_load_64(&pRSmaStat->qBufSize));
+  atomic_fetch_add_64(&pRSmaStat->qBufSize, taosQueueMemorySize(pInfo->queue));
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -899,11 +896,8 @@ static int32_t tdRSmaExecCheck(SSma *pSma) {
   int64_t    bufSize = atomic_load_64(&pRsmaStat->qBufSize);
 
   if ((pRsmaStat->execStat == 1) || (bufSize < RSMA_QTASKEXEC_BUFSIZ)) {
-    smaError("vgId:%d, return directly as execStat:%" PRIi8 ", bufSize:%" PRIi64, SMA_VID(pSma), pRsmaStat->execStat,
-             bufSize);
     return TSDB_CODE_SUCCESS;
   }
-  smaError("vgId:%d, go on exec as execStat:%" PRIi8 ", bufSize:%" PRIi64, SMA_VID(pSma), pRsmaStat->execStat, bufSize);
 
   pRsmaStat->execStat = 1;
 
@@ -1726,7 +1720,6 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma) {
 
   atomic_store_64(&pRSmaStat->qBufSize, 0);
   taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
-  smaError("vgId:%d after exec qBufSize is:%" PRIi64, SMA_VID(pSma), atomic_load_64(&pRSmaStat->qBufSize));
 
   int32_t qSize = taosArrayGetSize(pSubmitQArr);
   for (int32_t i = 0; i < qSize; ++i) {
@@ -1748,7 +1741,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma) {
     if (size > 0) {
       SRSmaInfo *pInfo = *(SRSmaInfo **)pItem->pRSmaInfo;
       for (int32_t i = 1; i <= TSDB_RETENTION_L2; ++i) {
-        if (tdExecuteRSmaImpl(pSma, *(SSubmitReq**)pSubmitArr->pData, size, STREAM_INPUT__DATA_SUBMIT, pInfo, pInfo->suid, i) < 0) {
+        if (tdExecuteRSmaImpl(pSma, pSubmitArr->pData, size, STREAM_INPUT__MERGED_SUBMIT, pInfo, pInfo->suid, i) < 0) {
           tdFreeRSmaSubmitItems(pSubmitArr);
           goto _err;
         }

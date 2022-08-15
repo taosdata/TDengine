@@ -22,7 +22,6 @@
 #include "tbuffer.h"
 #include "tcommon.h"
 #include "tpagedbuf.h"
-#include "tsimplehash.h"
 
 #define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)     \
   do {                                               \
@@ -103,7 +102,7 @@ static FORCE_INLINE void setResultBufPageDirty(SDiskbasedBuf* pBuf, SResultRowPo
   setBufPageDirty(pPage, true);
 }
 
-void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t order);
+void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order);
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
 
 void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);

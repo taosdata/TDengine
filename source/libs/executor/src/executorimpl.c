@@ -250,7 +250,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
   SET_RES_WINDOW_KEY(pSup->keyBuf, pData, bytes, groupId);
 
   SResultRowPosition* p1 =
-      (SResultRowPosition*)tSimpleHashGet(pSup->pResultRowHashTable, pSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
+      (SResultRowPosition*)taosHashGet(pSup->pResultRowHashTable, pSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
 
   SResultRow* pResult = NULL;
 
@@ -292,7 +292,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
 
     // add a new result set for a new group
     SResultRowPosition pos = {.pageId = pResult->pageId, .offset = pResult->offset};
-    tSimpleHashPut(pSup->pResultRowHashTable, pSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes), &pos,
+    taosHashPut(pSup->pResultRowHashTable, pSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes), &pos,
                 sizeof(SResultRowPosition));
   }
 
@@ -301,7 +301,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
 
   // too many time window in query
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_BATCH &&
-      tSimpleHashGetSize(pSup->pResultRowHashTable) > MAX_INTERVAL_TIME_WINDOW) {
+      taosHashGetSize(pSup->pResultRowHashTable) > MAX_INTERVAL_TIME_WINDOW) {
     longjmp(pTaskInfo->env, TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW);
   }
 
@@ -3017,7 +3017,7 @@ int32_t aggEncodeResultRow(SOperatorInfo* pOperator, char** result, int32_t* len
   }
   SOptrBasicInfo* pInfo = (SOptrBasicInfo*)(pOperator->info);
   SAggSupporter*  pSup = (SAggSupporter*)POINTER_SHIFT(pOperator->info, sizeof(SOptrBasicInfo));
-  int32_t         size = tSimpleHashGetSize(pSup->pResultRowHashTable);
+  int32_t         size = taosHashGetSize(pSup->pResultRowHashTable);
   size_t          keyLen = sizeof(uint64_t) * 2;  // estimate the key length
   int32_t         totalSize =
       sizeof(int32_t) + sizeof(int32_t) + size * (sizeof(int32_t) + keyLen + sizeof(int32_t) + pSup->resultRowSize);
@@ -3045,10 +3045,9 @@ int32_t aggEncodeResultRow(SOperatorInfo* pOperator, char** result, int32_t* len
   setBufPageDirty(pPage, true);
   releaseBufPage(pSup->pResultBuf, pPage);
 
-  int32_t iter = 0;
-  void*   pIter = tSimpleHashIterate(pSup->pResultRowHashTable, NULL, &iter);
+  void* pIter = taosHashIterate(pSup->pResultRowHashTable, NULL);
   while (pIter) {
-    void*               key = tSimpleHashGetKey(pIter, &keyLen);
+    void*               key = taosHashGetKey(pIter, &keyLen);
     SResultRowPosition* p1 = (SResultRowPosition*)pIter;
 
     pPage = (SFilePage*)getBufPage(pSup->pResultBuf, p1->pageId);
@@ -3080,7 +3079,7 @@ int32_t aggEncodeResultRow(SOperatorInfo* pOperator, char** result, int32_t* len
     memcpy(*result + offset, pRow, pSup->resultRowSize);
     offset += pSup->resultRowSize;
 
-    pIter = tSimpleHashIterate(pSup->pResultRowHashTable, pIter, &iter);
+    pIter = taosHashIterate(pSup->pResultRowHashTable, pIter);
   }
 
   *(int32_t*)(*result) = offset;
@@ -3115,7 +3114,7 @@ int32_t aggDecodeResultRow(SOperatorInfo* pOperator, char* result) {
 
     // add a new result set for a new group
     SResultRowPosition pos = {.pageId = resultRow->pageId, .offset = resultRow->offset};
-    tSimpleHashPut(pSup->pResultRowHashTable, result + offset, keyLen, &pos, sizeof(SResultRowPosition));
+    taosHashPut(pSup->pResultRowHashTable, result + offset, keyLen, &pos, sizeof(SResultRowPosition));
 
     offset += keyLen;
     int32_t valueLen = *(int32_t*)(result + offset);
@@ -3454,8 +3453,7 @@ int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t n
 
   pAggSup->resultRowSize = getResultRowSize(pCtx, numOfOutput);
   pAggSup->keyBuf = taosMemoryCalloc(1, keyBufSize + POINTER_BYTES + sizeof(int64_t));
-  // pAggSup->pResultRowHashTable = taosHashInit(10, hashFn, true, HASH_NO_LOCK);
-  pAggSup->pResultRowHashTable = tSimpleHashInit(100000, hashFn);
+  pAggSup->pResultRowHashTable = taosHashInit(10, hashFn, true, HASH_NO_LOCK);
 
   if (pAggSup->keyBuf == NULL || pAggSup->pResultRowHashTable == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -3481,7 +3479,7 @@ int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t n
 
 void cleanupAggSup(SAggSupporter* pAggSup) {
   taosMemoryFreeClear(pAggSup->keyBuf);
-  tSimpleHashCleanup(pAggSup->pResultRowHashTable);
+  taosHashCleanup(pAggSup->pResultRowHashTable);
   destroyDiskbasedBuf(pAggSup->pResultBuf);
 }
 
