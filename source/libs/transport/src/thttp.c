@@ -115,18 +115,30 @@ _OVER:
 }
 
 #ifdef USE_UV
+
+
+static void clientSentCb(uv_write_t* req, int32_t status) {
+  if (status < 0) {
+    terrno = TAOS_SYSTEM_ERROR(status);
+    uError("failed to send data %s", uv_strerror(status));
+  } else {
+    uError("succ to send data %s", uv_strerror(status));
+  }
+  uv_close((uv_handle_t*)req->handle, NULL);
+}
 static void clientConnCb(uv_connect_t* req, int32_t status) {
   if (status < 0) {
     terrno = TAOS_SYSTEM_ERROR(status);
     uError("connection error %s", uv_strerror(status));
     uv_close((uv_handle_t*)req->handle, NULL);
+    taosMemoryFree(req);
     return;
   }
+
   uv_buf_t* wb = req->data;
-  assert(wb != NULL);
   uv_write_t write_req;
-  uv_write(&write_req, req->handle, wb, 2, NULL);
-  uv_close((uv_handle_t*)req->handle, NULL);
+  uv_write(&write_req, req->handle, wb, 2, clientSentCb);
+  taosMemoryFree(req);
 }
 
 int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32_t contLen, EHttpCompFlag flag) {
@@ -156,20 +168,19 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
       flag = HTTP_FLAT;
     }
   }
+  terrno = 0;
 
   char    header[1024] = {0};
   int32_t headLen = taosBuildHttpHeader(server, contLen, header, sizeof(header), flag);
 
   uv_buf_t wb[2];
-  wb[0] = uv_buf_init((char*)header, headLen);
-  wb[1] = uv_buf_init((char*)pCont, contLen);
+  wb[0] = uv_buf_init((char*)header, headLen); // stack var 
+  wb[1] = uv_buf_init((char*)pCont, contLen); //  heap var 
 
   connect->data = wb;
-  terrno = 0;
   uv_tcp_connect(connect, &socket_tcp, (const struct sockaddr*)&dest, clientConnCb);
   uv_run(loop, UV_RUN_DEFAULT);
   uv_loop_close(loop);
-  taosMemoryFree(connect);
   return terrno;
 }
 

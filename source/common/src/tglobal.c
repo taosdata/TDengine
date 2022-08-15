@@ -75,7 +75,7 @@ int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 
 // telem
-bool     tsEnableTelem = false;
+bool     tsEnableTelem = true;
 int32_t  tsTelemInterval = 86400;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.taosdata.com";
 uint16_t tsTelemPort = 80;
