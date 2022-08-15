@@ -875,8 +875,8 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
       pSyncNode->changing = true;
     }
 
-    // not restored
-    if (!pSyncNode->restoreFinish) {
+    // not restored, vnode enable
+    if (!pSyncNode->restoreFinish && pSyncNode->vgId != 1) {
       ret = -1;
       terrno = TSDB_CODE_SYN_PROPOSE_NOT_READY;
       sError("vgId:%d, failed to sync propose since not ready, type:%s, last:%ld, cmt:%ld", pSyncNode->vgId,
