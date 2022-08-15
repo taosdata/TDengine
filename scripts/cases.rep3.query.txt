@@ -40,8 +40,12 @@ taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/n
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_stddev_2.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_stddev_3.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_top_bottom.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_table_only_stable_groupby.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/table_numeric_table_only_stable_groupby.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_twa.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_irate.py --keep --containers
+#taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_interp.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/table_numeric_twa.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/table_numeric_irate.py --keep --containers
+#taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/table_numeric_interp.py --keep --containers
 
 
 # 200 seconds (at most)
