@@ -85,7 +85,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->state.commitTerm = info.state.commitTerm;
   pVnode->pTfs = pTfs;
   pVnode->msgCb = msgCb;
-  taosInitRWLatch(&pVnode->lock);
+  taosThreadMutexInit(&pVnode->lock, NULL);
   pVnode->blocked = false;
 
   tsem_init(&pVnode->syncSem, 0, 0);
@@ -200,6 +200,7 @@ void vnodeClose(SVnode *pVnode) {
     tsem_destroy(&pVnode->syncSem);
     taosThreadCondDestroy(&pVnode->poolNotEmpty);
     taosThreadMutexDestroy(&pVnode->mutex);
+    taosThreadMutexDestroy(&pVnode->lock);
     taosMemoryFree(pVnode);
   }
 }

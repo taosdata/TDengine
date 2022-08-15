@@ -885,15 +885,15 @@ if $data10 != @20-01-01 01:01:10.000@ then
   return -1
 endi
 
-if $data11 != 1.000000000 then
+if $data11 != 99.000000000 then
   return -1
 endi
 
-if $data12 != 1.000000000 then
+if $data12 != 91.000000000 then
   return -1
 endi
 
-if $data13 != -87.000000000 then
+if $data13 != 90.000000000 then
   return -1
 endi
 
@@ -917,15 +917,15 @@ if $data70 != @20-01-01 01:02:10.000@ then
   return -1
 endi
 
-if $data71 != 1.000000000 then
+if $data71 != 99.000000000 then
   return -1
 endi
 
-if $data72 != 1.000000000 then
+if $data72 != 91.000000000 then
   return -1
 endi
 
-if $data73 != -87.000000000 then
+if $data73 != 90.000000000 then
   return -1
 endi
 
@@ -994,19 +994,19 @@ if $data10 != @20-01-01 01:01:10.000@ then
   return -1
 endi
 
-if $data11 != 1.000000000 then
+if $data11 != 99.000000000 then
   return -1
 endi
 
-if $data12 != 1.000000000 then
+if $data12 != 91.000000000 then
   return -1
 endi
 
-if $data13 != -87.000000000 then
+if $data13 != 90.000000000 then
   return -1
 endi
 
-if $data14 != 86 then
+if $data14 != 89 then
   return -1
 endi
 
