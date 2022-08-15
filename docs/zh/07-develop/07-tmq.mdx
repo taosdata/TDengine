@@ -185,14 +185,14 @@ TMQ支持多种订阅类型：
 | enable.heartbeat.background  | 合法值：true, false            | 开启后台心跳，即 consumer 不会因为长时间不 poll 而认为离线                                                          |
 | experimental.snapshot.enable | 合法值：true, false            | 从 wal 开始消费，还是从 tsbs 开始消费                                                                       |
 | msg.with.table.name          | 合法值：true, false            | 从消息中能否解析表名                                                                                     |
-| value.deserializer          | value 值解析方法                | 此方法应实现 com.taosdata.jdbc.tmq.Deserializer 接口或是继承 com.taosdata.jdbc.tmq.ReferenceDeserializer 类 |
-| value.deserializer.encoding          | value 中使用字符编码集             |                                                                                                |
+| value.deserializer          | 指定 value 解析方法                | 此方法应实现 com.taosdata.jdbc.tmq.Deserializer 接口或是继承 com.taosdata.jdbc.tmq.ReferenceDeserializer 类 |
+| value.deserializer.encoding          | 指定 value 解析使用的字符编码集             |                                                                                                |
 
 ```java
-import com.taosdata.jdbc.tmq.ReferenceDeserializer;
+  import com.taosdata.jdbc.tmq.ReferenceDeserializer;
 
-public class MetersDeserializer extends ReferenceDeserializer<Meters> {
-}
+  public class MetersDeserializer extends ReferenceDeserializer<Meters> {
+  }
 ```
 
 ```java
