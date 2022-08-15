@@ -25,16 +25,16 @@ $ts = $ts0
 while $i < 10
   $tb = tb . $i
   sql create table $tb using $stb tags( $i )
- 
+
   $x = 0
   while $x < $rowNum
     $xs = $x * $delta
     $ts = $ts0 + $xs
-    sql insert into $tb values ( $ts , $x ) 
+    sql insert into $tb values ( $ts , $x )
     $x = $x + 1
-  endw 
+  endw
   $i = $i + 1
-endw 
+endw
 print ====== tables created
 
 print ================== restart server to commit data into disk
@@ -46,18 +46,18 @@ sql use $db
 sql drop table tb5
 $i = 0
 while $i < 4
-  
+
   $tb = tb . $i
   $x = 0
   while $x < $rowNum
     $xs = $x * $delta
     $ts = $ts0 + $xs
-    sql insert into $tb values ( $ts , $x ) 
+    sql insert into $tb values ( $ts , $x )
     $x = $x + 1
-  endw 
+  endw
 
   $i = $i + 1
-endw 
+endw
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

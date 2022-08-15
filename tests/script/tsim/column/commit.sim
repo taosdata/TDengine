@@ -10,12 +10,12 @@ sql create table d3.mt (ts timestamp, c000 int, c001 int, c002 int, c003 int, c0
 sql create table d3.t1 using d3.mt tags(1, 2, '3', 4, 5, 6)
 
 sql show tables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
 sql show stables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
@@ -33,50 +33,50 @@ sql insert into d3.t1 values (now+1d,9 , 9 , 9 , 9 , 9 , 9 , 9 , 9 , 9 , 9 , 9 ,
 
 print =============== step3
 sql select * from d3.mt
-if $rows != 10 then 
+if $rows != 10 then
   return -1
 endi
 
 sql select * from d3.mt where c001 = 1
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
 sql select * from d3.mt where c002 = 2 and c003 = 2
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
 sql select count(c001), count(c248), avg(c001), avg(c248), sum(c001), max(c001), min(c248), avg(c235), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*) from d3.mt
 print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07  $data08 $data09
-if $data00 != 10 then 
+if $data00 != 10 then
   return -1
 endi
-if $data01 != 10 then 
+if $data01 != 10 then
   return -1
 endi
-if $data02 != 4.500000000 then 
+if $data02 != 4.500000000 then
   return -1
 endi
-if $data03 != 4.500000000 then 
+if $data03 != 4.500000000 then
   return -1
 endi
-if $data04 != 45 then 
+if $data04 != 45 then
   return -1
 endi
-if $data05 != 9 then 
+if $data05 != 9 then
   return -1
 endi
-if $data06 != 0 then 
+if $data06 != 0 then
   return -1
 endi
-if $data07 != 4.500000000 then 
+if $data07 != 4.500000000 then
   return -1
 endi
-if $data08 != 10 then 
+if $data08 != 10 then
   return -1
 endi
-if $data09 != 10 then 
+if $data09 != 10 then
   return -1
 endi
 
@@ -86,17 +86,17 @@ system sh/exec.sh -n dnode1 -s start
 
 print =============== step5
 sql select * from d3.mt
-if $rows != 10 then 
+if $rows != 10 then
   return -1
 endi
 
 sql select * from d3.mt where c001 = 1
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
 sql select * from d3.mt where c002 = 2 and c003 = 2
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
@@ -107,34 +107,34 @@ endi
 
 sql select count(c001), count(c248), avg(c001), avg(c248), sum(c001), max(c001), min(c248), avg(c128), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*), count(*) from d3.mt
 print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07  $data08 $data09
-if $data00 != 10 then 
+if $data00 != 10 then
   return -1
 endi
-if $data01 != 10 then 
+if $data01 != 10 then
   return -1
 endi
-if $data02 != 4.500000000 then 
+if $data02 != 4.500000000 then
   return -1
 endi
-if $data03 != 4.500000000 then 
+if $data03 != 4.500000000 then
   return -1
 endi
-if $data04 != 45 then 
+if $data04 != 45 then
   return -1
 endi
-if $data05 != 9 then 
+if $data05 != 9 then
   return -1
 endi
-if $data06 != 0 then 
+if $data06 != 0 then
   return -1
 endi
-if $data07 != 4.500000000 then 
+if $data07 != 4.500000000 then
   return -1
 endi
-if $data08 != 10 then 
+if $data08 != 10 then
   return -1
 endi
-if $data09 != 10 then 
+if $data09 != 10 then
   return -1
 endi
 

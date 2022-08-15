@@ -26,19 +26,19 @@ $i = 0
 while $i < $tbNum
   $tb = $tbPrefix . $i
   sql create table $tb using $mt tags( $i )
-  
+
   $x = 0
   while $x < $rowNum
     $cc = $x * 60000
     $ms = 1601481600000 + $cc
 
     $tinyint = $x / 128
-    sql insert into $tb values ($ms , $x , $x , $x , $x , $tinyint , $x , $x , $x , $x ) 
+    sql insert into $tb values ($ms , $x , $x , $x , $x , $tinyint , $x , $x , $x , $x )
     $x = $x + 1
-  endw 
- 
+  endw
+
   $i = $i + 1
-endw 
+endw
 
 print =============== step2
 $i = 1
@@ -46,7 +46,7 @@ $tb = $tbPrefix . $i
 
 sql select diff(c1) from $tb
 print ===> $data10
-if $data10 != 1 then 
+if $data10 != 1 then
   return -1
 endi
 sql select diff(c2) from $tb
@@ -56,22 +56,22 @@ if $data10 != 1.000000000 then
 endi
 sql select diff(c3) from $tb
 print ===> $data10
-if $data10 != 1 then 
+if $data10 != 1 then
   return -1
 endi
 sql select diff(c4) from $tb
 print ===> $data10
-if $data10 != 1 then 
+if $data10 != 1 then
   return -1
 endi
 sql select diff(c5) from $tb
 print ===> $data10
-if $data10 != 0 then 
+if $data10 != 0 then
   return -1
 endi
 sql select diff(c6) from $tb
 print ===> $data10
-if $data10 != 1.000000000 then 
+if $data10 != 1.000000000 then
   return -1
 endi
 
@@ -90,7 +90,7 @@ sql_error select diff(c1) from m_di_tb1 where c2 like '2%'
 print =============== step3
 sql select diff(c1) from $tb where c1 > 5
 print ===> $data10
-if $data10 != 1 then 
+if $data10 != 1 then
   return -1
 endi
 sql select diff(c2) from $tb where c2 > 5
@@ -100,38 +100,38 @@ if $data10 != 1.000000000 then
 endi
 sql select diff(c3) from $tb where c3 > 5
 print ===> $data10
-if $data10 != 1 then 
+if $data10 != 1 then
   return -1
 endi
 sql select diff(c4) from $tb where c4 > 5
 print ===> $data10
-if $data10 != 1 then 
+if $data10 != 1 then
   return -1
 endi
 sql select diff(c5) from $tb where c5 > 5
 print ===> $data10
-if $data10 != 0 then 
+if $data10 != 0 then
   return -1
 endi
 sql select diff(c6) from $tb where c6 > 5
 print ===> $data10
-if $data10 != 1.000000000 then 
+if $data10 != 1.000000000 then
   return -1
 endi
 
 print =============== step4
 sql select diff(c1) from $tb where c1 > 5 and c2 < $rowNum
 print ===> $data10
-if $data10 != 1 then 
+if $data10 != 1 then
   return -1
 endi
 
 sql select diff(c1) from $tb where c9 like '%9' and c1 <= 20
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 print ===> $data10
-if $data00 != 10 then 
+if $data00 != 10 then
   return -1
 endi
 
@@ -148,7 +148,7 @@ step6:
 print =============== clear
 #sql drop database $db
 #sql select * from information_schema.ins_databases
-#if $rows != 2 then 
+#if $rows != 2 then
 #  return -1
 #endi
 
