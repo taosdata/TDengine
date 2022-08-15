@@ -25,17 +25,17 @@ $i = 0
 while $i < $tbNum
   $tb = $tbPrefix . $i
   sql create table $tb using $mt tags( $i )
-  
+
   $x = 2
   $ms = 1000
   while $x < $rowNum
     $ms = $ms + 1000
-    sql insert into $tb values ($ms , $x ) 
+    sql insert into $tb values ($ms , $x )
     $x = $x + 1
-  endw 
- 
+  endw
+
   $i = $i + 1
-endw 
+endw
 
 print =============== step2
 $i = 1
@@ -63,7 +63,7 @@ endi
 
 print =============== step5
 sql select leastsquares(tbcol, 1, 1) as b from $tb interval(1m)
-print ===> $data00 
+print ===> $data00
 if $data00 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
@@ -81,14 +81,14 @@ if $data00 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
 print ===> $rows
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
 print =============== clear
 sql drop database $db
 sql select * from information_schema.ins_databases
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 
