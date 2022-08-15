@@ -1193,7 +1193,7 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
     tdSRowEnd(pBuilder);
 
     *gotRow = true;
-    
+
 #ifdef TD_DEBUG_PRINT_ROW
     STSchema* pSTSchema = tdGetSTSChemaFromSSChema(schema, spd->numOfCols, 1);
     tdSRowPrint(row, pSTSchema, __func__);
@@ -1365,6 +1365,20 @@ static void destroyInsertParseContext(SInsertParseContext* pCxt) {
   destroyBlockArrayList(pCxt->pVgDataBlocks);
 }
 
+static int32_t parseTableName(SInsertParseContext* pCxt, SToken* pTbnameToken, SName* pName, char* pDbFName,
+                              char* pTbFName) {
+  int32_t code = createSName(pName, pTbnameToken, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg);
+  if (TSDB_CODE_SUCCESS == code) {
+    tNameExtractFullName(pName, pTbFName);
+    code = taosHashPut(pCxt->pTableNameHashObj, pTbFName, strlen(pTbFName), pName, sizeof(SName));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tNameGetFullDbName(pName, pDbFName);
+    code = taosHashPut(pCxt->pDbFNameHashObj, pDbFName, strlen(pDbFName), pDbFName, TSDB_DB_FNAME_LEN);
+  }
+  return code;
+}
+
 //   tb_name
 //       [USING stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)]
 //       [(field1_name, ...)]
@@ -1418,13 +1432,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     NEXT_TOKEN(pCxt->pSql, sToken);
 
     if (!pCxt->pComCxt->async || TK_USING == sToken.type) {
-      CHECK_CODE(createSName(&name, &tbnameToken, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg));
-
-      tNameExtractFullName(&name, tbFName);
-      CHECK_CODE(taosHashPut(pCxt->pTableNameHashObj, tbFName, strlen(tbFName), &name, sizeof(SName)));
-
-      tNameGetFullDbName(&name, dbFName);
-      CHECK_CODE(taosHashPut(pCxt->pDbFNameHashObj, dbFName, strlen(dbFName), dbFName, sizeof(dbFName)));
+      CHECK_CODE(parseTableName(pCxt, &tbnameToken, &name, dbFName, tbFName));
     }
 
     bool existedUsing = false;
@@ -1445,6 +1453,9 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     }
 
     if (TK_USING == sToken.type) {
+      if (pCxt->pComCxt->async) {
+        CHECK_CODE(parseTableName(pCxt, &tbnameToken, &name, dbFName, tbFName));
+      }
       CHECK_CODE(parseUsingClause(pCxt, tbNum, &name, tbFName));
       NEXT_TOKEN(pCxt->pSql, sToken);
       autoCreateTbl = true;
