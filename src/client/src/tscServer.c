@@ -282,7 +282,7 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
 }
 
 // if return true, send probe connection msg to sever ok
-bool sendProbeConnMsg(SSqlObj* pSql, int64_t stime) {
+bool sendProbeConnMsg(SSqlObj* pSql, int64_t stime, bool *pReqOver) {
   if(stime == 0) {
     // not start , no need probe
     tscInfo("PROBE 0x%" PRIx64 " not start, no need probe.", pSql->self);
@@ -318,8 +318,9 @@ bool sendProbeConnMsg(SSqlObj* pSql, int64_t stime) {
     return true;
   }
   
-  bool ret = rpcSendProbe(pSql->rpcRid, pSql->pPrevContext);
-  tscInfo("PROBE 0x%" PRIx64 " send probe msg, ret=%d rpcRid=0x%" PRIx64, pSql->self, ret, pSql->rpcRid);
+  bool ret = rpcSendProbe(pSql->rpcRid, pSql->pPrevContext, pReqOver);
+  if (!(*pReqOver))
+    tscInfo("PROBE 0x%" PRIx64 " send probe msg, ret=%d rpcRid=0x%" PRIx64, pSql->self, ret, pSql->rpcRid);
   return ret;
 }
 
@@ -335,15 +336,21 @@ void checkBrokenQueries(STscObj *pTscObj) {
     }
 
     bool kill = false;
+    bool reqOver = false;
     int32_t numOfSub = pSql->subState.numOfSub;
     tscInfo("PROBE 0x%" PRIx64 " start checking sql alive, numOfSub=%d sql=%s stime=%" PRId64 " alive=%" PRId64 " rpcRid=0x%" PRIx64 \
                       ,pSql->self, numOfSub, pSql->sqlstr == NULL ? "" : pSql->sqlstr, pSql->stime, pSql->lastAlive, pSql->rpcRid);
     if (numOfSub == 0) {
       // no sub sql
-      if(!sendProbeConnMsg(pSql, pSql->stime)) {
+      if(!sendProbeConnMsg(pSql, pSql->stime, &reqOver)) {
         // need kill
         tscInfo("PROBE 0x%" PRIx64 " need break link done. rpcRid=0x%" PRIx64, pSql->self, pSql->rpcRid);
         kill = true;
+      }
+
+      if (reqOver) {
+        // current request is finished over, so upate alive to now
+        pSql->lastAlive = taosGetTimestampMs();
       }
     } else {
       // lock subs
@@ -354,11 +361,16 @@ void checkBrokenQueries(STscObj *pTscObj) {
           SSqlObj *pSubSql = pSql->pSubs[i];
           if(pSubSql) {
             tscInfo("PROBE 0x%" PRIx64 " sub sql app is 0x%" PRIx64, pSql->self, pSubSql->self);
-            if(!sendProbeConnMsg(pSubSql, pSql->stime)) {
+            if(!sendProbeConnMsg(pSubSql, pSql->stime, &reqOver)) {
               // need kill
               tscInfo("PROBE 0x%" PRIx64 " i=%d sub app=0x%" PRIx64 " need break link done. rpcRid=0x%" PRIx64, pSql->self, i, pSubSql->self, pSubSql->rpcRid);
               kill = true;
               break;
+            }
+
+            if (reqOver) {
+              // current request is finished over, so upate alive to now
+              pSubSql->lastAlive = taosGetTimestampMs();
             }
           }
         }
