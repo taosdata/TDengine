@@ -17,9 +17,9 @@ sql use $db
 
 sql create table $tb (ts timestamp, speed int)
 
-#commit to file will trigger if insert 82 rows 
+#commit to file will trigger if insert 82 rows
 
-$N = 82 
+$N = 82
 
 print =============== step 1
 $x = $N
@@ -28,14 +28,14 @@ while $x > $y
   $z = $x * 60000
   $ms = 1601481600000 - $z
 
-  $xt = - . $x 
-  sql insert into $tb values ($ms , -$x ) 
+  $xt = - . $x
+  sql insert into $tb values ($ms , -$x )
   $x = $x - 1
-endw 
+endw
 
 sql select * from $tb
-print sql select * from $tb -> $rows points 
-if $rows != $y then 
+print sql select * from $tb -> $rows points
+if $rows != $y then
   return -1
 endi
 
@@ -45,12 +45,12 @@ while $x < $y
   $z = $x * 60000
   $ms = 1601481600000 + $z
 
-  sql insert into $tb values ($ms , $x ) 
+  sql insert into $tb values ($ms , $x )
   $x = $x + 1
-endw 
+endw
 sql select * from $tb
-print sql select * from $tb -> $rows points 
-if $rows != $N then 
+print sql select * from $tb -> $rows points
+if $rows != $N then
   return -1
 endi
 
@@ -69,100 +69,100 @@ $end2 = 1601481600000
 $end3 = 1601481600000 +  $step
 
 sql select * from $tb where ts < $start1 and ts > $end1
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
 sql select * from $tb where ts < $start1 and ts > $end2
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
 sql select * from $tb where ts < $start1 and ts > $end3
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
 sql select * from $tb where ts < $start2 and ts > $end1
 print select * from $tb where ts < $start2 and ts > $end1 ->  $rows points
-if $rows != $result1 then 
+if $rows != $result1 then
   return -1
 endi
 
 sql select * from $tb where ts < $start2 and ts > $end2
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
 sql select * from $tb where ts < $start2 and ts > $end3
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
 sql select * from $tb where ts < $start3 and ts > $end1
-print sql select * from $tb where ts < $start3 and ts > $end1 -> $rows points 
-if $rows != $result2 then 
+print sql select * from $tb where ts < $start3 and ts > $end1 -> $rows points
+if $rows != $result2 then
   return -1
 endi
 
 sql select * from $tb where ts < $start3 and ts > $end2
-print sql select * from $tb where ts < $start3 and ts > $end2 -> $rows points 
-if $rows != $result1 then 
+print sql select * from $tb where ts < $start3 and ts > $end2 -> $rows points
+if $rows != $result1 then
   return -1
 endi
 
 sql select * from $tb where ts < $start3 and ts > $end3
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
-print ================= order by ts desc  
+print ================= order by ts desc
 
 sql select * from $tb where ts < $start1 and ts > $end1 order by ts desc
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
 sql select * from $tb where ts < $start1 and ts > $end2 order by ts desc
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
 sql select * from $tb where ts < $start1 and ts > $end3 order by ts desc
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
-sql select * from $tb where ts < $start2 and ts > $end1 order by ts desc  
+sql select * from $tb where ts < $start2 and ts > $end1 order by ts desc
 print select * from $tb where ts < $start2 and ts > $end1  order by ts desc  ->  $rows points
-if $rows != $result1 then 
+if $rows != $result1 then
   return -1
 endi
 
 sql select * from $tb where ts < $start2 and ts > $end2  order by ts desc
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
 sql select * from $tb where ts < $start2 and ts > $end3 order by ts desc
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
-sql select * from $tb where ts < $start3 and ts > $end1 order by ts desc  
-print sql select * from $tb where ts < $start3 and ts > $end1  order by ts desc  -> $rows points 
-if $rows != $result2 then 
+sql select * from $tb where ts < $start3 and ts > $end1 order by ts desc
+print sql select * from $tb where ts < $start3 and ts > $end1  order by ts desc  -> $rows points
+if $rows != $result2 then
   return -1
 endi
 
-sql select * from $tb where ts < $start3 and ts > $end2 order by ts desc  
-print sql select * from $tb where ts < $start3 and ts > $end2  order by ts desc  -> $rows points 
-if $rows != $result1 then 
+sql select * from $tb where ts < $start3 and ts > $end2 order by ts desc
+print sql select * from $tb where ts < $start3 and ts > $end2  order by ts desc  -> $rows points
+if $rows != $result1 then
   return -1
 endi
 
 sql select * from $tb where ts < $start3 and ts > $end3   order by ts desc
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -170,7 +170,7 @@ clear:
 
 sql drop database $db
 sql select * from information_schema.ins_databases
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 
