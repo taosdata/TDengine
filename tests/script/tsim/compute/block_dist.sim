@@ -27,25 +27,25 @@ $i = 0
 while $i < $tbNum
   $tb = $tbPrefix . $i
   sql create table $tb using $mt tags( $i )
-  
+
   $x = 0
   while $x < $rowNum
     $cc = $x * 60000
     $ms = 1601481600000 + $cc
-    sql insert into $tb values ($ms , $x ) 
+    sql insert into $tb values ($ms , $x )
     $x = $x + 1
-  endw 
- 
+  endw
+
   $i = $i + 1
-endw 
+endw
 
 sql create table $nt (ts timestamp, tbcol int)
 $x = 0
 while $x < $rowNum
     $cc = $x * 60000
     $ms = 1601481600000 + $cc
-    sql insert into $nt values ($ms , $x ) 
-    $x = $x + 1  
+    sql insert into $nt values ($ms , $x )
+    $x = $x + 1
 endw
 
 sql flush database $db
@@ -94,7 +94,7 @@ sql_error select _block_dist() from (select * from $mt)
 print =============== clear
 sql drop database $db
 sql select * from information_schema.ins_databases
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 

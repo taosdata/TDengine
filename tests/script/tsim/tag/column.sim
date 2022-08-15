@@ -31,7 +31,7 @@ sql create table $tb using $mt tags(  0,  '0' )
 
 $i = 1
 $tb = $tbPrefix . $i
-sql create table $tb using $mt tags(  1,   '1'  )  
+sql create table $tb using $mt tags(  1,   '1'  )
 
 $i = 2
 $tb = $tbPrefix . $i
@@ -66,25 +66,25 @@ sql insert into $tb values(now, '3',  '3')
 
 print =============== step4
 sql select * from $mt where tgcol2 = '1'
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
 print =============== step5
 sql select * from $mt
-if $rows != 4 then 
+if $rows != 4 then
   return -1
 endi
 
 sql select * from $mt where tgcol = 1
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
 print =============== clear
 sql drop database $db
 sql select * from information_schema.ins_databases
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 

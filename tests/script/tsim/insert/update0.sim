@@ -11,7 +11,7 @@ print =============== create super table
 sql create table if not exists stb (ts timestamp, c1 int) tags (city binary(20),district binary(20));
 
 sql show stables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
@@ -20,7 +20,7 @@ sql create table ct1 using stb tags("BeiJing", "ChaoYang")
 sql create table ct2 using stb tags("BeiJing", "HaiDian")
 
 sql show tables
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 
@@ -43,7 +43,7 @@ print $data30 $data31
 print $data40 $data41
 print $data50 $data51
 
-if $rows != 6 then 
+if $rows != 6 then
   print rows $rows != 6
   return -1
 endi
@@ -74,7 +74,7 @@ print $data00 $data01
 print $data10 $data11
 print $data20 $data21
 
-if $rows != 3 then 
+if $rows != 3 then
   print rows $rows != 3
   return -1
 endi
@@ -107,7 +107,7 @@ print $data30 $data31
 print $data40 $data41
 print $data50 $data51
 
-if $rows != 6 then 
+if $rows != 6 then
   print rows $rows != 6
   return -1
 endi
@@ -133,7 +133,7 @@ print $data00 $data01
 print $data10 $data11
 print $data20 $data21
 
-if $rows != 3 then 
+if $rows != 3 then
   print rows $rows != 3
   return -1
 endi
@@ -166,7 +166,7 @@ print $data30 $data31
 print $data40 $data41
 print $data50 $data51
 
-if $rows != 6 then 
+if $rows != 6 then
   print rows $rows != 6
   return -1
 endi
@@ -198,7 +198,7 @@ print $data20 $data21
 print $data30 $data31
 print $data40 $data41
 
-if $rows != 5 then 
+if $rows != 5 then
   print rows $rows != 5
   return -1
 endi
