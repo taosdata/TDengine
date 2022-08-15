@@ -26,22 +26,22 @@ description: "TDengine 3.0 版本的语法变更说明"
 | - | :-------: | :--------: | :------- |
 | 1 | ALTER ACCOUNT | 废除 | 2.x中为企业版功能，3.0不再支持。语法暂时保留了，执行报“This statement is no longer supported”错误。
 | 2 | ALTER ALL DNODES | 新增 | 修改所有DNODE的参数。
-| 3 | ALTER DATABASE | 调整	| 废除<li>QUORUM：写入需要的副本确认数。3.0版本使用STRICT来指定强一致还是弱一致。3.0.0版本STRICT暂不支持修改。<li>BLOCKS：VNODE使用的内存块数。3.0版本使用BUFFER来表示VNODE写入内存池的大小。<li>UPDATE：更新操作的支持模式。3.0版本所有数据库都支持部分列更新。<li>CACHELAST：缓存最新一行数据的模式。3.0版本用CACHEMODEL代替。<li>COMP：3.0版本暂不支持修改。<br>新增<li>CACHEMODEL：表示是否在内存中缓存子表的最近数据。<li>CACHESIZE：表示缓存子表最近数据的内存大小。<li>WAL_FSYNC_PERIOD：代替原FSYNC参数。<li>WAL_LEVEL：代替原WAL参数。<br>调整<li>REPLICA：3.0.0版本暂不支持修改。<li>KEEP：3.0版本新增支持带单位的设置方式。
-| 4 | ALTER STABLE | 调整 | 废除<li>CHANGE TAG：修改标签列的名称。3.0版本使用RENAME TAG代替。<br>新增<li>RENAME TAG：代替原CHANGE TAG子句。<li>COMMENT：修改超级表的注释。
-| 5 | ALTER TABLE | 调整 | 废除<li>CHANGE TAG：修改标签列的名称。3.0版本使用RENAME TAG代替。<br>新增<li>RENAME TAG：代替原CHANGE TAG子句。<li>COMMENT：修改表的注释。<li>TTL：修改表的生命周期。
-| 6 | ALTER USER | 调整 | 废除<li>PRIVILEGE：修改用户权限。3.0版本使用GRANT和REVOKE来授予和回收权限。<br>新增<li>ENABLE：启用或停用此用户。<li>SYSINFO：修改用户是否可查看系统信息。
+| 3 | ALTER DATABASE | 调整	| 废除<ul><li>QUORUM：写入需要的副本确认数。3.0版本使用STRICT来指定强一致还是弱一致。3.0.0版本STRICT暂不支持修改。</li><li>BLOCKS：VNODE使用的内存块数。3.0版本使用BUFFER来表示VNODE写入内存池的大小。</li><li>UPDATE：更新操作的支持模式。3.0版本所有数据库都支持部分列更新。</li><li>CACHELAST：缓存最新一行数据的模式。3.0版本用CACHEMODEL代替。</li><li>COMP：3.0版本暂不支持修改。<br/>新增</li><li>CACHEMODEL：表示是否在内存中缓存子表的最近数据。</li><li>CACHESIZE：表示缓存子表最近数据的内存大小。</li><li>WAL_FSYNC_PERIOD：代替原FSYNC参数。</li><li>WAL_LEVEL：代替原WAL参数。<br/>调整</li><li>REPLICA：3.0.0版本暂不支持修改。</li><li>KEEP：3.0版本新增支持带单位的设置方式。</li></ul>
+| 4 | ALTER STABLE | 调整 | 废除<ul><li>CHANGE TAG：修改标签列的名称。3.0版本使用RENAME TAG代替。<br/>新增</li><li>RENAME TAG：代替原CHANGE TAG子句。</li><li>COMMENT：修改超级表的注释。</li></ul>
+| 5 | ALTER TABLE | 调整 | 废除<ul><li>CHANGE TAG：修改标签列的名称。3.0版本使用RENAME TAG代替。<br/>新增</li><li>RENAME TAG：代替原CHANGE TAG子句。</li><li>COMMENT：修改表的注释。</li><li>TTL：修改表的生命周期。</li></ul>
+| 6 | ALTER USER | 调整 | 废除<ul><li>PRIVILEGE：修改用户权限。3.0版本使用GRANT和REVOKE来授予和回收权限。<br/>新增</li><li>ENABLE：启用或停用此用户。</li><li>SYSINFO：修改用户是否可查看系统信息。</li></ul>
 | 7 | BALANCE VGROUP | 新增 | 集群存储负载均衡。3.0.0版本暂不支持。
 | 8 | COMPACT VNODES | 暂不支持 | 整理指定VNODE的数据。3.0.0版本暂不支持。
 | 9 | CREATE ACCOUNT | 废除 | 2.x中为企业版功能，3.0不再支持。语法暂时保留了，执行报“This statement is no longer supported”错误。
-| 10 | CREATE DATABASE | 调整 | 废除<li>BLOCKS：VNODE使用的内存块数。3.0版本使用BUFFER来表示VNODE写入内存池的大小。<li>CACHE：VNODE使用的内存块的大小。3.0版本使用BUFFER来表示VNODE写入内存池的大小。<li>CACHELAST：缓存最新一行数据的模式。3.0版本用CACHEMODEL代替。<li>DAYS：数据文件存储数据的时间跨度。3.0版本使用DURATION代替。<li>FSYNC：当 WAL 设置为 2 时，执行 fsync 的周期。3.0版本使用WAL_FSYNC_PERIOD代替。<li>QUORUM：写入需要的副本确认数。3.0版本使用STRICT来指定强一致还是弱一致。<li>UPDATE：更新操作的支持模式。3.0版本所有数据库都支持部分列更新。<li>WAL：WAL 级别。3.0版本使用WAL_LEVEL代替。<br>新增<li>BUFFER：一个 VNODE 写入内存池大小。<li>CACHEMODEL：表示是否在内存中缓存子表的最近数据。<li>CACHESIZE：表示缓存子表最近数据的内存大小。<li>DURATION：代替原DAYS参数。新增支持带单位的设置方式。<li>PAGES：一个 VNODE 中元数据存储引擎的缓存页个数。<li>PAGESIZE：一个 VNODE 中元数据存储引擎的页大小。<li>RETENTIONS：表示数据的聚合周期和保存时长。<li>STRICT：表示数据同步的一致性要求。<li>SINGLE_STABLE：表示此数据库中是否只可以创建一个超级表。<li>VGROUPS：数据库中初始VGROUP的数目。<li>WAL_FSYNC_PERIOD：代替原FSYNC参数。<li>WAL_LEVEL：代替原WAL参数。<li>WAL_RETENTION_PERIOD：wal文件的额外保留策略，用于数据订阅。<li>WAL_RETENTION_SIZE：wal文件的额外保留策略，用于数据订阅。<li>WAL_ROLL_PERIOD：wal文件切换时长。<li>WAL_SEGMENT_SIZE：wal单个文件大小。<br>调整<li>KEEP：3.0版本新增支持带单位的设置方式。
-| 11 | CREATE DNODE | 调整 | 新增主机名和端口号分开指定语法<li>CREATE DNODE dnode_host_name PORT port_val
+| 10 | CREATE DATABASE | 调整 | 废除<ul><li>BLOCKS：VNODE使用的内存块数。3.0版本使用BUFFER来表示VNODE写入内存池的大小。</li><li>CACHE：VNODE使用的内存块的大小。3.0版本使用BUFFER来表示VNODE写入内存池的大小。</li><li>CACHELAST：缓存最新一行数据的模式。3.0版本用CACHEMODEL代替。</li><li>DAYS：数据文件存储数据的时间跨度。3.0版本使用DURATION代替。</li><li>FSYNC：当 WAL 设置为 2 时，执行 fsync 的周期。3.0版本使用WAL_FSYNC_PERIOD代替。</li><li>QUORUM：写入需要的副本确认数。3.0版本使用STRICT来指定强一致还是弱一致。</li><li>UPDATE：更新操作的支持模式。3.0版本所有数据库都支持部分列更新。</li><li>WAL：WAL 级别。3.0版本使用WAL_LEVEL代替。<br/>新增</li><li>BUFFER：一个 VNODE 写入内存池大小。</li><li>CACHEMODEL：表示是否在内存中缓存子表的最近数据。</li><li>CACHESIZE：表示缓存子表最近数据的内存大小。</li><li>DURATION：代替原DAYS参数。新增支持带单位的设置方式。</li><li>PAGES：一个 VNODE 中元数据存储引擎的缓存页个数。</li><li>PAGESIZE：一个 VNODE 中元数据存储引擎的页大小。</li><li>RETENTIONS：表示数据的聚合周期和保存时长。</li><li>STRICT：表示数据同步的一致性要求。</li><li>SINGLE_STABLE：表示此数据库中是否只可以创建一个超级表。</li><li>VGROUPS：数据库中初始VGROUP的数目。</li><li>WAL_FSYNC_PERIOD：代替原FSYNC参数。</li><li>WAL_LEVEL：代替原WAL参数。</li><li>WAL_RETENTION_PERIOD：wal文件的额外保留策略，用于数据订阅。</li><li>WAL_RETENTION_SIZE：wal文件的额外保留策略，用于数据订阅。</li><li>WAL_ROLL_PERIOD：wal文件切换时长。</li><li>WAL_SEGMENT_SIZE：wal单个文件大小。<br/>调整</li><li>KEEP：3.0版本新增支持带单位的设置方式。</li></ul>
+| 11 | CREATE DNODE | 调整 | 新增主机名和端口号分开指定语法<ul><li>CREATE DNODE dnode_host_name PORT port_val</li></ul>
 | 12 | CREATE INDEX	| 新增 | 创建SMA索引。
 | 13 | CREATE MNODE	| 新增 | 创建管理节点。
 | 14 | CREATE QNODE	| 新增 | 创建查询节点。
 | 15 | CREATE SNODE	| 新增 | 创建流计算节点。3.0.0版本暂不支持。
-| 16 | CREATE STABLE | 调整	| 新增表参数语法<li>COMMENT：表注释。
+| 16 | CREATE STABLE | 调整	| 新增表参数语法<li>COMMENT：表注释。</li>
 | 17 | CREATE STREAM | 新增 | 创建流。
-| 18 | CREATE TABLE | 调整 | 新增表参数语法<li>COMMENT：表注释。<li>WATERMARK：指定窗口的关闭时间。<li>MAX_DELAY：用于控制推送计算结果的最大延迟。<li>ROLLUP：指定的聚合函数，提供基于多层级的降采样聚合结果。<li>SMA：提供基于数据块的自定义预计算功能。<li>TTL：用来指定表的生命周期的参数。
+| 18 | CREATE TABLE | 调整 | 新增表参数语法<ul><li>COMMENT：表注释。</li><li>WATERMARK：指定窗口的关闭时间。</li><li>MAX_DELAY：用于控制推送计算结果的最大延迟。</li><li>ROLLUP：指定的聚合函数，提供基于多层级的降采样聚合结果。</li><li>SMA：提供基于数据块的自定义预计算功能。</li><li>TTL：用来指定表的生命周期的参数。</li></ul>
 | 18 | CREATE TOPIC | 新增 | 创建订阅主题。
 | 19 | DROP ACCOUNT | 废除 | 2.x中为企业版功能，3.0不再支持。语法暂时保留了，执行报“This statement is no longer supported”错误。
 | 20 | DROP BNODE | 新增 | 删除backup节点。3.0.0版本暂不支持。
@@ -61,7 +61,7 @@ description: "TDengine 3.0 版本的语法变更说明"
 | 34 | MERGE VGROUP | 新增 | 合并VGROUP。
 | 35 | REDISTRIBUTE VGROUP | 新增 | 调整VGROUP的数据分布。3.0.0版本暂不支持。
 | 36 | REVOKE | 新增 | 回收用户权限。
-| 37 | SELECT	| 调整 | <li>SELECT关闭隐式结果列，输出列均需要由SELECT子句来指定。<li>DISTINCT功能全面支持。2.x版本只支持对标签列去重，并且不可以和JOIN、GROUP BY等子句混用。<li>JOIN功能增强。增加支持：JOIN后WHERE条件中有OR条件；JOIN后的多表运算；JOIN后的多表GROUP BY。<li>FROM后子查询功能大幅增强。不限制子查询嵌套层数；支持子查询和UNION ALL混合使用；移除其他一些之前版本的语法限制。<li>WHERE后可以使用任意的标量表达式。<li>GROUP BY功能增强。支持任意标量表达式及其组合的分组。<li>SESSION可以用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。<li>STATE_WINDOW可以用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。<li>ORDER BY功能大幅增强。不再必须和GROUP BY子句一起使用；不再有排序表达式个数的限制；增加支持NULLS FIRST/LAST语法功能；支持符合语法语义的任意表达式。<li>新增PARTITION BY语法。替代原来的GROUP BY tags。
+| 37 | SELECT	| 调整 | <ul><li>SELECT关闭隐式结果列，输出列均需要由SELECT子句来指定。</li><li>DISTINCT功能全面支持。2.x版本只支持对标签列去重，并且不可以和JOIN、GROUP BY等子句混用。</li><li>JOIN功能增强。增加支持：JOIN后WHERE条件中有OR条件；JOIN后的多表运算；JOIN后的多表GROUP BY。</li><li>FROM后子查询功能大幅增强。不限制子查询嵌套层数；支持子查询和UNION ALL混合使用；移除其他一些之前版本的语法限制。</li><li>WHERE后可以使用任意的标量表达式。</li><li>GROUP BY功能增强。支持任意标量表达式及其组合的分组。</li><li>SESSION可以用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。</li><li>STATE_WINDOW可以用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。</li><li>ORDER BY功能大幅增强。不再必须和GROUP BY子句一起使用；不再有排序表达式个数的限制；增加支持NULLS FIRST/LAST语法功能；支持符合语法语义的任意表达式。</li><li>新增PARTITION BY语法。替代原来的GROUP BY tags。</li></ul>
 | 38 | SHOW ACCOUNTS | 废除 | 2.x中为企业版功能，3.0不再支持。语法暂时保留了，执行报“This statement is no longer supported”错误。
 | 39 | SHOW APPS |新增 | 显示接入集群的应用（客户端）信息。
 | 40 | SHOW BNODES |新增 | 显示当前系统中存在的 BNODE 的信息。3.0.0版本暂不支持。
