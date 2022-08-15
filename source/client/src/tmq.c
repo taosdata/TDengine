@@ -381,14 +381,15 @@ int32_t tmqCommitCb(void* param, SDataBuf* pBuf, int32_t code) {
   }
 #endif
 
+  taosMemoryFree(pParam->pOffset);
+  if (pBuf->pData) taosMemoryFree(pBuf->pData);
+
   /*tscDebug("receive offset commit cb of %s on vgId:%d, offset is %" PRId64, pParam->pOffset->subKey, pParam->->vgId,
    * pOffset->version);*/
 
   // count down waiting rsp
   int32_t waitingRspNum = atomic_sub_fetch_32(&pParamSet->waitingRspNum, 1);
   ASSERT(waitingRspNum >= 0);
-
-  taosMemoryFree(pParam);
 
   if (waitingRspNum == 0) {
     // if no more waiting rsp
@@ -1220,6 +1221,7 @@ END:
   } else {
     taosMemoryFree(pParam);
   }
+  taosMemoryFree(pMsg->pData);
   return code;
 }
 
