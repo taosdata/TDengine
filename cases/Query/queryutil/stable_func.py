@@ -368,7 +368,7 @@ class TDFunction():
             func_stable_special = self.int_cloumn_regular_only_1() 
         elif i == 32: #IRATE
             func_stable_special = self.int_cloumn_regular_only_2()    
-        elif i == 33: #TNTERP
+        elif i == 33: #INTERP
             func_stable_special = self.int_cloumn_regular_only_3() 
         elif i == 4:
             func_stable_special = self.floor_ceil_round()
