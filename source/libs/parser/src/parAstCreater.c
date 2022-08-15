@@ -1628,6 +1628,7 @@ SNode* createStreamOptions(SAstCreateContext* pCxt) {
   SStreamOptions* pOptions = (SStreamOptions*)nodesMakeNode(QUERY_NODE_STREAM_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
   pOptions->triggerType = STREAM_TRIGGER_AT_ONCE;
+  pOptions->ignoreExpired = STREAM_DEFAULT_IGNORE_EXPIRED;
   return (SNode*)pOptions;
 }
 

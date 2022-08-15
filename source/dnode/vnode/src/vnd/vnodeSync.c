@@ -28,14 +28,14 @@ static inline bool vnodeIsMsgWeak(tmsg_t type) { return false; }
 static inline void vnodeWaitBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
   if (vnodeIsMsgBlock(pMsg->msgType)) {
     const STraceId *trace = &pMsg->info.traceId;
-    taosWLockLatch(&pVnode->lock);
+    taosThreadMutexLock(&pVnode->lock);
     if (!pVnode->blocked) {
       vGTrace("vgId:%d, msg:%p wait block, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
       pVnode->blocked = true;
-      taosWUnLockLatch(&pVnode->lock);
+      taosThreadMutexUnlock(&pVnode->lock);
       tsem_wait(&pVnode->syncSem);
     } else {
-      taosWUnLockLatch(&pVnode->lock);
+      taosThreadMutexUnlock(&pVnode->lock);
     }
   }
 }
@@ -43,13 +43,13 @@ static inline void vnodeWaitBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
 static inline void vnodePostBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
   if (vnodeIsMsgBlock(pMsg->msgType)) {
     const STraceId *trace = &pMsg->info.traceId;
-    taosWLockLatch(&pVnode->lock);
+    taosThreadMutexLock(&pVnode->lock);
     if (pVnode->blocked) {
       vGTrace("vgId:%d, msg:%p post block, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
       pVnode->blocked = false;
       tsem_post(&pVnode->syncSem);
     }
-    taosWUnLockLatch(&pVnode->lock);
+    taosThreadMutexUnlock(&pVnode->lock);
   }
 }
 
@@ -685,17 +685,25 @@ static void vnodeBecomeFollower(struct SSyncFSM *pFsm) {
   vDebug("vgId:%d, become follower", pVnode->config.vgId);
 
   // clear old leader resource
-  taosWLockLatch(&pVnode->lock);
+  taosThreadMutexLock(&pVnode->lock);
   if (pVnode->blocked) {
     pVnode->blocked = false;
+    vDebug("vgId:%d, become follower and post block", pVnode->config.vgId);
     tsem_post(&pVnode->syncSem);
   }
-  taosWUnLockLatch(&pVnode->lock);
+  taosThreadMutexUnlock(&pVnode->lock);
 }
 
 static void vnodeBecomeLeader(struct SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
   vDebug("vgId:%d, become leader", pVnode->config.vgId);
+
+  // taosThreadMutexLock(&pVnode->lock);
+  // if (pVnode->blocked) {
+  //   pVnode->blocked = false;
+  //   tsem_post(&pVnode->syncSem);
+  // }
+  // taosThreadMutexUnlock(&pVnode->lock);
 }
 
 static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
