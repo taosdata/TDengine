@@ -148,8 +148,8 @@ TMQ支持多种订阅类型：
 | td.connect.user              | | 用于连接，同taos_connect的参数      |                                   |
 | td.connect.pass              | | 用于连接，同taos_connect的参数      |                                   |
 | td.connect.port              | | 用于连接，同taos_connect的参数      |                                   |
-| enable.heartbeat.background  |开启后台心跳，即consumer不会因为长时间不poll而认为离线 | 合法值：true, false            |  |
-| experimental.snapshot.enable |从wal开始消费，还是从tsbs开始消费 | 合法值：true, false            |        |
+| enable.heartbeat.background  |开启后台心跳，即consumer不会因为长时间不poll而认为离线 | 合法值：true, false            |
+| experimental.snapshot.enable |从wal开始消费，还是从tsbs开始消费 | 合法值：true, false            |
 | msg.with.table.name          | 从消息中能否解析表名 | 合法值：true, false            |
 
 ```sql
