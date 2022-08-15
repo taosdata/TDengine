@@ -1784,7 +1784,7 @@ bool doRpcSendProbe(SRpcConn *pConn) {
 }
 
 // send server syn
-bool rpcSendProbe(int64_t rpcRid, void* pPrevContext) {
+bool rpcSendProbe(int64_t rpcRid, void* pPrevContext, bool *pReqOver) {
   // return false can kill query
   bool ret = false;
   if(rpcRid < 0) {
@@ -1807,7 +1807,9 @@ bool rpcSendProbe(int64_t rpcRid, void* pPrevContext) {
 
   // conn same
   if(pContext->pConn == NULL) {
-    tInfo("PROBE rpcRid=0x%" PRIx64 " connect obj is NULL. ", rpcRid);
+    tInfo("PROBE rpcRid=0x%" PRIx64 " connect obj is NULL. req is response and done.", rpcRid);
+    if(pReqOver)
+      *pReqOver = true;
     ret = true;
     goto _END;
   } else if (pContext->pConn != pContext->sendInfo.pConn) {
@@ -1829,7 +1831,10 @@ bool rpcSendProbe(int64_t rpcRid, void* pPrevContext) {
   }
 
   // send syn
-  ret = doRpcSendProbe(pContext->pConn);
+  if (!doRpcSendProbe(pContext->pConn)) {
+    tError("PROBE rpcRid=0x%" PRIx64 " fd=%d rpc send probe data error.", rpcRid, fd);
+  }
+  ret = true;
 
 _END:
   // put back req context
