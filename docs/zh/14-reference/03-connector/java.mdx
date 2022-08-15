@@ -765,11 +765,11 @@ public abstract class ConsumerLoop {
         shutdownLatch.await();
     }
 
-    static class ResultDeserializer extends ReferenceDeserializer<ResultBean> {
+    public static class ResultDeserializer extends ReferenceDeserializer<ResultBean> {
 
     }
 
-    static class ResultBean {
+    public static class ResultBean {
         private Timestamp ts;
         private int speed;
 
