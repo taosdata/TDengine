@@ -57,7 +57,7 @@ class TDCreateData():
     def drop_db(self,database):
         #delete:
         table_list = ['stable_1','stable_2','stable_null_data','stable_null_childtable','stable_1','stable_2','regular_table_1','stable_1_1','regular_table_2',\
-            'regular_table_3','regular_table_1','regular_table_2','regular_table_null','stable_2_1','stable_2_2','stable_2_6','stable_2_6','stable_1_6',]
+            'regular_table_3','regular_table_1','regular_table_2','regular_table_null','stable_2_1','stable_2_2','stable_2_2','stable_1_3','stable_1_4',]
         for i in table_list:
             self.tdSql.execute("delete from {}.{};".format(database, i))
             self.tdSql.execute("flush database {};".format(database))
@@ -763,11 +763,49 @@ class TDCreateData():
 
     def explain_sql(self,sql):   
         #执行sql解析  
-        sql1 = sql  
+        ratio = random.uniform(0.001,1)
+        sql_verbose_true = sql  
+        sql_verbose_false = sql 
+        
+        sql_ratio = sql 
+        sql_ratio_verbose_true = sql 
+        sql_ratio_verbose_false = sql 
+        
+        sql_analyze = sql 
+        sql_analyze_verbose_true = sql 
+        sql_analyze_verbose_false = sql 
+        
+        sql_analyze_ratio = sql 
+        sql_analyze_ratio_verbose_true = sql 
+        sql_analyze_ratio_verbose_false = sql 
+        
         sql = "explain " + sql 
         self.tdSql.query(sql) 
-        # sql1 = "explain verbose true " + sql1 
-        # self.tdSql.query(sql1) 
+        # sql_verbose_true = "explain verbose true " + sql_verbose_true 
+        # self.tdSql.query(sql_verbose_true) 
+        # sql_verbose_false = "explain verbose false " + sql_verbose_false 
+        # self.tdSql.query(sql_verbose_false)
+        
+        # sql_ratio = "explain ratio {}".format(ratio) + sql_ratio 
+        # self.tdSql.query(sql_ratio) 
+        # sql_ratio_verbose_true = "explain ratio 0.05 verbose true " + sql_ratio_verbose_true 
+        # self.tdSql.query(sql_ratio_verbose_true) 
+        # sql_ratio_verbose_false = "explain ratio 0.05 verbose false " + sql_ratio_verbose_false 
+        # self.tdSql.query(sql_ratio_verbose_false)
+        
+        # sql_analyze = "explain analyze " + sql_analyze 
+        # self.tdSql.query(sql_analyze)
+        # sql_analyze_verbose_true = "explain analyze verbose false " + sql_analyze_verbose_true 
+        # self.tdSql.query(sql_analyze_verbose_true)
+        # sql_analyze_verbose_false = "explain analyze verbose false " + sql_analyze_verbose_false 
+        # self.tdSql.query(sql_analyze_verbose_false)
+        
+        # sql_analyze_ratio = "explain analyze ratio {}".format(ratio) + sql_analyze_ratio 
+        # self.tdSql.query(sql_analyze_ratio)
+        # sql_analyze_ratio_verbose_true = "explain analyze ratio {} verbose false ".format(ratio) + sql_analyze_ratio_verbose_true 
+        # self.tdSql.query(sql_analyze_ratio_verbose_true)
+        # sql_analyze_ratio_verbose_false = "explain analyze ratio {} verbose false ".format(ratio) + sql_analyze_ratio_verbose_false 
+        # self.tdSql.query(sql_analyze_ratio_verbose_false)
         
     def taos_f(self,service_host,testcasePath,testcaseFilename):   
         #执行taos_f 导入解析            
