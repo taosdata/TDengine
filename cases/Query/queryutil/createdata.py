@@ -56,8 +56,8 @@ class TDCreateData():
         
     def drop_db(self,database):
         #delete:
-        table_list = ['stable_1','stable_2','regular_table_1','stable_1_1','regular_table_2']
-        #table_list = ['stable_1','stable_2']
+        table_list = ['stable_1','stable_2','stable_null_data','stable_null_childtable','stable_1','stable_2','regular_table_1','stable_1_1','regular_table_2',\
+            'regular_table_3','regular_table_1','regular_table_2','regular_table_null','stable_2_1','stable_2_2','stable_2_6','stable_2_6','stable_1_6',]
         for i in table_list:
             self.tdSql.execute("delete from {}.{};".format(database, i))
             self.tdSql.execute("flush database {};".format(database))
@@ -69,10 +69,9 @@ class TDCreateData():
         self.tdSql.execute('''drop database if exists %s ;''' %database)
 
     def show_local_variables(self):
-        # self.tdSql.query('''show local variables;''')
-        # for i in range(self.tdSql.query_row):
-        #     self.logger.info("%s - %s"% (self.tdSql.query_data[i][0], self.tdSql.query_data[i][1]))
-        pass
+        self.tdSql.query('''show local variables;''')
+        for i in range(self.tdSql.query_row):
+            self.logger.info("%s - %s"% (self.tdSql.query_data[i][0], self.tdSql.query_data[i][1]))
 
     def dropandcreateDB_random(self,database,n):
         self.ts = 1630000000000
@@ -763,9 +762,12 @@ class TDCreateData():
 
 
     def explain_sql(self,sql):   
-        #执行sql解析    
+        #执行sql解析  
+        sql1 = sql  
         sql = "explain " + sql 
         self.tdSql.query(sql) 
+        sql1 = "explain verbose true " + sql1 
+        self.tdSql.query(sql1) 
         
     def taos_f(self,service_host,testcasePath,testcaseFilename):   
         #执行taos_f 导入解析            
