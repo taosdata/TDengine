@@ -10,7 +10,7 @@ namespace TDengineExample
         {
             IntPtr conn = GetConnection();
             // run query
-            IntPtr res = TDengine.Query(conn, "SELECT * FROM test.meters LIMIT 2");
+            IntPtr res = TDengine.Query(conn, "SELECT * FROM meters LIMIT 2");
             if (TDengine.ErrorNo(res) != 0)
             {
                 Console.WriteLine("Failed to query since: " + TDengine.Error(res));

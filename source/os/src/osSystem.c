@@ -248,6 +248,16 @@ TdCmdPtr taosOpenCmd(const char* cmd) {
 #endif
 }
 
+int64_t taosGetsCmd(TdCmdPtr pCmd, int32_t maxSize, char *__restrict buf) {
+  if (pCmd == NULL || buf == NULL) {
+    return -1;
+  }
+  if (fgets(buf, maxSize, (FILE*)pCmd) == NULL) {
+    return -1;
+  }
+  return strlen(buf);
+}
+
 int64_t taosGetLineCmd(TdCmdPtr pCmd, char** __restrict ptrBuf) {
   if (pCmd == NULL || ptrBuf == NULL) {
     return -1;

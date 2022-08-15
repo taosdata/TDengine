@@ -62,7 +62,7 @@ if $data01 != 9223372036854770000 then
 endi
 
 sql drop database $db
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then 
   return -1
 endi

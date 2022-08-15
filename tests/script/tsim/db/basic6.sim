@@ -16,7 +16,7 @@ $tb = $tbPrefix . $i
 print =============== step1
 # quorum  presicion 
 sql create database $db vgroups 8 replica 1 duration 2 keep 10 minrows 80 maxrows 10000 wal_level 2 wal_fsync_period 1000 comp 0 cachemodel 'last_value' precision 'us'
-sql show databases
+sql select * from information_schema.ins_databases
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 
 if $rows != 3 then
@@ -50,14 +50,14 @@ endi
 print =============== step2
 sql_error create database $db
 sql create database if not exists $db
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
 
 print =============== step3
 sql drop database $db
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then
   return -1
 endi 
@@ -67,7 +67,7 @@ sql_error drop database $db
 
 print =============== step5
 sql create database $db replica 1 duration 15 keep 1500
-sql show databases
+sql select * from information_schema.ins_databases
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
 if $data20 != $db then
   return -1
@@ -81,8 +81,6 @@ endi
 if $data26 != 21600m then
   return -1
 endi
-
-return
 
 print =============== step6
 $i = $i + 1
@@ -251,7 +249,7 @@ if $rows != 5 then
   return -1
 endi
 
-sql select * from $stb
+sql select * from $st
 if $rows != 5 then 
   return -1
 endi
@@ -306,13 +304,13 @@ if $rows != 5 then
   return -1
 endi
 
-sql select * from $stb
+sql select * from $st
 if $rows != 5 then 
   return -1
 endi
 
 sql drop database $db
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then
   return -1
 endi

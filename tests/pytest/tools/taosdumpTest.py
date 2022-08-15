@@ -99,14 +99,14 @@ class TDTestCase:
 
         tdSql.execute("drop database db")
         tdSql.execute("drop database db1")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkRows(2)
 
         os.system("%s -i ./taosdumptest/tmp1" % binPath)
         os.system("%s -i ./taosdumptest/tmp2" % binPath)
 
         tdSql.execute("use db")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkRows(4)
         dbresult = tdSql.queryResult
         # 6--duration,7--keep0,keep1,keep

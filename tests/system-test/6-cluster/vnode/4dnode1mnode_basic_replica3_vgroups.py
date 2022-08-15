@@ -29,7 +29,7 @@ class TDTestCase:
         self.vgroups = 2
         self.tb_nums = 10
         self.row_nums = 100
-        self.max_vote_time_cost = 10  # seconds
+        self.max_vote_time_cost = 30  # seconds
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -47,13 +47,13 @@ class TDTestCase:
         return buildPath
 
     def check_setup_cluster_status(self):
-        tdSql.query("show mnodes")
+        tdSql.query("select * from information_schema.ins_mnodes")
         for mnode in tdSql.queryResult:
             name = mnode[1]
             info = mnode
             self.mnode_list[name] = info
 
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         for dnode in tdSql.queryResult:
             name = dnode[1]
             info = dnode

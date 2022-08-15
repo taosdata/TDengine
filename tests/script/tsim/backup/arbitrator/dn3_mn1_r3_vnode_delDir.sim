@@ -104,7 +104,7 @@ if $loopCnt == 10 then
   return -1
 endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 5 then
   sleep 2000
   goto wait_dnode4_offline_0
@@ -171,7 +171,7 @@ if $loopCnt == 10 then
   return -1
 endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 5 then
   sleep 2000
   goto wait_dnode4_reready
@@ -238,7 +238,7 @@ if $loopCnt == 10 then
   return -1
 endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 5 then
   sleep 2000
   goto wait_dnode23_offline
@@ -282,7 +282,7 @@ if $loopCnt == 10 then
   return -1
 endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 5 then
   sleep 2000
   goto wait_dnode23_reready

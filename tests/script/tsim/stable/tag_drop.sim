@@ -9,7 +9,7 @@ sql create table db.stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 bin
 sql create table db.ctb using db.stb tags(101, "102")
 sql insert into db.ctb values(now, 1, "2")
 
-sql show db.stables
+sql select * from information_schema.ins_stables where db_name = 'db'
 if $rows != 1 then
   return -1
 endi
@@ -29,7 +29,7 @@ if $data[0][6] != abd then
   return -1
 endi
 
-sql show db.tables
+sql select * from information_schema.ins_tables where db_name = 'db'
 if $rows != 1 then
   return -1
 endi
@@ -78,7 +78,7 @@ sql_error alter table db.stb drop tag c2 int
 print ========== step1 drop tag t2
 sql alter table db.stb drop tag t2
 
-sql show db.stables
+sql select * from information_schema.ins_stables where db_name = 'db'
 if $data[0][4] != 1 then
   return -1
 endi
@@ -112,7 +112,7 @@ endi
 print ========== step2 add tag t3
 sql alter table db.stb add tag t3 int
 
-sql show db.stables
+sql select * from information_schema.ins_stables where db_name = 'db'
 if $data[0][4] != 2 then
   return -1
 endi
@@ -300,7 +300,7 @@ endi
 print ========== step7 drop tag t1
 sql alter table db.stb drop tag t1
 
-sql show db.stables
+sql select * from information_schema.ins_stables where db_name = 'db'
 if $data[0][4] != 3 then
   return -1
 endi

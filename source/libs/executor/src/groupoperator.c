@@ -727,7 +727,7 @@ static void destroyPartitionOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFree(pInfo->columnOffset);
 
   cleanupExprSupp(&pInfo->scalarSup);
-  
+  destroyDiskbasedBuf(pInfo->pBuf);
   taosMemoryFreeClear(param);
 }
 

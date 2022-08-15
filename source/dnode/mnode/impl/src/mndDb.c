@@ -995,11 +995,13 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   mDebug("trans:%d, used to drop db:%s", pTrans->id, pDb->name);
   mndTransSetDbName(pTrans, pDb->name, NULL);
 
+  if (mndCheckTopicExist(pMnode, pDb) < 0) goto _OVER;
+
   if (mndSetDropDbRedoLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
-  if (mndDropOffsetByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
-  if (mndDropSubByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
-  if (mndDropTopicByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
+  /*if (mndDropOffsetByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
+  /*if (mndDropSubByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
+  /*if (mndDropTopicByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
   if (mndDropStreamByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndDropSmasByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto _OVER;
@@ -1417,7 +1419,7 @@ const char *mndGetDbStr(const char *src) {
   return pos;
 }
 
-int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
+static int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
   int64_t v = 0;
   switch (unit) {
     case 's':
@@ -1442,7 +1444,7 @@ int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
   return v;
 }
 
-char *buildRetension(SArray *pRetension) {
+static char *buildRetension(SArray *pRetension) {
   size_t size = taosArrayGetSize(pRetension);
   if (size == 0) {
     return NULL;
@@ -1706,7 +1708,10 @@ static void setPerfSchemaDbCfg(SDbObj *pDbObj) {
 static bool mndGetTablesOfDbFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
   SVgObj  *pVgroup = pObj;
   int32_t *numOfTables = p1;
-  *numOfTables += pVgroup->numOfTables;
+  int64_t  uid = *(int64_t *)p2;
+  if (pVgroup->dbUid == uid) {
+    *numOfTables += pVgroup->numOfTables;
+  }
   return true;
 }
 
@@ -1747,7 +1752,7 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb) == 0) {
       int32_t numOfTables = 0;
-      sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, NULL, NULL);
+      sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, &pDb->uid, NULL);
       mndDumpDbInfoData(pMnode, pBlock, pDb, pShow, numOfRows, numOfTables, false, objStatus, sysinfo);
       numOfRows++;
     }

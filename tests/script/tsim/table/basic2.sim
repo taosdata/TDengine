@@ -19,7 +19,7 @@ if $rows != 2 then
 endi
 
 print =============== show
-sql show databases
+sql select * from information_schema.ins_databases
 if $data22 != 2 then 
   return -1
 endi

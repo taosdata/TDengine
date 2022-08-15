@@ -45,12 +45,12 @@ while $x < $rowNum
   $nchar = 'nchar . $c
   $nchar = $nchar . '
   $c = 0 - $x
-  sql insert into $tb1 values ( $ts , $x , $x , $x , $x , true, $binary , $nchar ) 
-  sql insert into $tb2 values ( $ts , $c , $c , $c , $c , true, $binary , $nchar ) 
+  sql insert into $tb1 values ( $ts , $x , $x , $x , $x , true, $binary , $nchar )
+  sql insert into $tb2 values ( $ts , $c , $c , $c , $c , true, $binary , $nchar )
   $x = $x + 1
-endw 
+endw
 print ====== tables created
-sql show databases
+sql select * from information_schema.ins_databases
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -69,10 +69,10 @@ while $x < $rowNum
   $nchar = 'nchar . $c
   $nchar = $nchar . '
   $c = 0 - $x
-  sql insert into $tb1 values ( $ts , $x , $x , $x , $x , true, $binary , $nchar ) 
-  sql insert into $tb2 values ( $ts , $c , $c , $c , $c , true, $binary , $nchar ) 
+  sql insert into $tb1 values ( $ts , $x , $x , $x , $x , true, $binary , $nchar )
+  sql insert into $tb2 values ( $ts , $c , $c , $c , $c , true, $binary , $nchar )
   $x = $x + 1
-endw 
+endw
 
 #### query a STable and using where clause to filter out all the data from tb2 and make the query only return first/last of tb1
 sql select first(ts,c1), last(ts,c1), spread(c1), t1 from $stb where c1 > 0 group by t1
@@ -92,6 +92,7 @@ if $data03 != 319 then
   return -1
 endi
 if $data04 != 318.000000000 then
+  print expect 318.000000000, actual: $data04
   return -1
 endi
 if $data05 != 1 then

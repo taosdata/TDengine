@@ -94,7 +94,7 @@ sql create table a.1  (ts timestamp, speed int) -x step8
 step8:
 
 sql drop database $db
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then 
   return -1
 endi

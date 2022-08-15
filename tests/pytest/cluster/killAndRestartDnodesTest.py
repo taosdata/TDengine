@@ -30,7 +30,7 @@ class ClusterTestcase:
         tdSql.init(ctest.conn.cursor(), False)
 
         nodes.node1.stopTaosd()
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         tdSql.checkRows(3)
         tdSql.checkData(0, 4, "offline")
         tdSql.checkData(1, 4, "ready")    
@@ -43,7 +43,7 @@ class ClusterTestcase:
         tdSql.checkData(2, 4, "ready")
 
         nodes.node2.stopTaosd()
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         tdSql.checkRows(3)
         tdSql.checkData(0, 4, "ready")
         tdSql.checkData(1, 4, "offline")    
@@ -56,7 +56,7 @@ class ClusterTestcase:
         tdSql.checkData(2, 4, "ready")
 
         nodes.node3.stopTaosd()
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         tdSql.checkRows(3)
         tdSql.checkData(0, 4, "ready")
         tdSql.checkData(1, 4, "ready")    
