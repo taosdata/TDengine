@@ -169,8 +169,8 @@ CREATE TOPIC topic_name [WITH META] AS DATABASE db_name;
 |      `enable.auto.commit`      | boolean | 启用自动提交                                             | 合法值：`true`, `false`。                   |
 |   `auto.commit.interval.ms`    | integer | 以毫秒为单位的自动提交时间间隔                           |
 | `enable.heartbeat.background`  | boolean | 启用后台心跳，启用后即使长时间不 poll 消息也不会造成离线 |                                             |
-| `experimental.snapshot.enable` | boolean | 从 wal 开始消费，还是从 tsbs 开始消费                    |                                             |
-|     `msg.with.table.name`      | boolean | 从消息中能否解析表名                                     |
+| `experimental.snapshot.enable` | boolean | 从 WAL 开始消费，还是从 TSBS 开始消费                    |                                             |
+|     `msg.with.table.name`      | boolean | 是否允许从消息中解析表名                                 |
 
 对于不同编程语言，其设置方式如下：
 
