@@ -766,8 +766,8 @@ class TDCreateData():
         sql1 = sql  
         sql = "explain " + sql 
         self.tdSql.query(sql) 
-        sql1 = "explain verbose true " + sql1 
-        self.tdSql.query(sql1) 
+        # sql1 = "explain verbose true " + sql1 
+        # self.tdSql.query(sql1) 
         
     def taos_f(self,service_host,testcasePath,testcaseFilename):   
         #执行taos_f 导入解析            
