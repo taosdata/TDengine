@@ -728,6 +728,8 @@ void vnodeSyncStart(SVnode *pVnode) {
 
 void vnodeSyncClose(SVnode *pVnode) { syncStop(pVnode->sync); }
 
+bool vnodeIsRoleLeader(SVnode *pVnode) { return syncGetMyRole(pVnode->sync) == TAOS_SYNC_STATE_LEADER; }
+
 bool vnodeIsLeader(SVnode *pVnode) {
   if (!syncIsReady(pVnode->sync)) {
     vDebug("vgId:%d, vnode not ready, state:%s, restore:%d", pVnode->config.vgId, syncGetMyRoleStr(pVnode->sync),

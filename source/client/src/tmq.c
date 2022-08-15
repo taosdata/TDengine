@@ -388,6 +388,8 @@ int32_t tmqCommitCb(void* param, SDataBuf* pBuf, int32_t code) {
   int32_t waitingRspNum = atomic_sub_fetch_32(&pParamSet->waitingRspNum, 1);
   ASSERT(waitingRspNum >= 0);
 
+  taosMemoryFree(pParam);
+
   if (waitingRspNum == 0) {
     // if no more waiting rsp
     if (pParamSet->async) {
@@ -401,6 +403,8 @@ int32_t tmqCommitCb(void* param, SDataBuf* pBuf, int32_t code) {
     } else {
       tsem_post(&pParamSet->rspSem);
     }
+
+    taosMemoryFree(pParamSet);
 
 #if 0
     taosArrayDestroyP(pParamSet->successfulOffsets, taosMemoryFree);
@@ -611,12 +615,12 @@ int32_t tmqCommitInner(tmq_t* tmq, const TAOS_RES* msg, int8_t automatic, int8_t
     }
   }
 
-#if 0
   if (!async) {
+#if 0
     taosArrayDestroyP(pParamSet->successfulOffsets, taosMemoryFree);
     taosArrayDestroyP(pParamSet->failedOffsets, taosMemoryFree);
-  }
 #endif
+  }
 
   return 0;
 }
