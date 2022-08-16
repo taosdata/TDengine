@@ -6,7 +6,7 @@ description: "TDengine 3.0 版本的语法变更说明"
 
 ## SQL 基本元素变更
 
-| # | **元素**  | **<div style={{width: 100}}>差异性</div>** | **说明** |
+| # | **元素**  | <div style={{width: 100}}>**差异性**</div> | **说明** |
 | - | :------- | :-------- | :------- |
 | 1 | VARCHAR | 新增 | BINARY类型的别名。
 | 2 | TIMESTAMP字面量 | 新增 | 新增支持 TIMESTAMP 'timestamp format' 语法。
