@@ -4918,6 +4918,16 @@ int32_t mavgFunction(SqlFunctionCtx* pCtx) {
   return numOfElems;
 }
 
+static SSampleInfo* getSampleOutputInfo(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SSampleInfo*         pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  pInfo->data = (char*)pInfo + sizeof(SSampleInfo);
+  pInfo->tuplePos = (STuplePos*)((char*)pInfo + sizeof(SSampleInfo) + pInfo->samples * pInfo->colBytes);
+
+  return pInfo;
+}
+
 bool getSampleFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pCol = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
   SValueNode*  pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
@@ -4972,7 +4982,7 @@ static void doReservoirSample(SqlFunctionCtx* pCtx, SSampleInfo* pInfo, char* da
 
 int32_t sampleFunction(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  SSampleInfo*         pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SSampleInfo*         pInfo = getSampleOutputInfo(pCtx);
 
   SInputColumnInfoData* pInput = &pCtx->input;
 
@@ -4998,7 +5008,7 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
 int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
 
-  SSampleInfo* pInfo = GET_ROWCELL_INTERBUF(pEntryInfo);
+  SSampleInfo* pInfo = getSampleOutputInfo(pCtx);
   pEntryInfo->complete = true;
 
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;

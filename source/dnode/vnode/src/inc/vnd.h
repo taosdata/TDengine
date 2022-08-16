@@ -80,7 +80,7 @@ int32_t vnodeQueryOpen(SVnode* pVnode);
 void    vnodeQueryClose(SVnode* pVnode);
 int32_t vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
 int     vnodeGetTableCfg(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
-int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg);
+int32_t vnodeGetBatchMeta(SVnode* pVnode, SRpcMsg* pMsg);
 
 // vnodeCommit.c
 int32_t vnodeBegin(SVnode* pVnode);
@@ -98,6 +98,8 @@ void    vnodeSyncStart(SVnode* pVnode);
 void    vnodeSyncClose(SVnode* pVnode);
 void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg);
 bool    vnodeIsLeader(SVnode* pVnode);
+bool    vnodeIsReadyForRead(SVnode* pVnode);
+bool    vnodeIsRoleLeader(SVnode* pVnode);
 
 #ifdef __cplusplus
 }

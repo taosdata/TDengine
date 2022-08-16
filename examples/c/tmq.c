@@ -45,10 +45,9 @@ static int32_t msg_process(TAOS_RES* msg) {
     int32_t     numOfFields = taos_field_count(msg);
     int32_t*    length = taos_fetch_lengths(msg);
     int32_t     precision = taos_result_precision(msg);
-    const char* tbName = tmq_get_table_name(msg);
     rows++;
     taos_print_row(buf, row, fields, numOfFields);
-    printf("row content from %s: %s\n", (tbName != NULL ? tbName : "table null"), buf);
+    printf("row content: %s\n", buf);
   }
 
   return rows;
@@ -167,7 +166,7 @@ int32_t create_topic() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create topic topicname as select ts, c1, c2, c3 from tmqdb.stb where c1 > 1");
+  pRes = taos_query(pConn, "create topic topicname as select ts, c1, c2, c3, tbname from tmqdb.stb where c1 > 1");
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic topicname, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -199,9 +198,7 @@ tmq_t* build_consumer() {
   if (TMQ_CONF_OK != code) return NULL;
   code = tmq_conf_set(conf, "auto.offset.reset", "earliest");
   if (TMQ_CONF_OK != code) return NULL;
-  code = tmq_conf_set(conf, "experimental.snapshot.enable", "true");
-  if (TMQ_CONF_OK != code) return NULL;
-  code = tmq_conf_set(conf, "msg.with.table.name", "true");
+  code = tmq_conf_set(conf, "experimental.snapshot.enable", "false");
   if (TMQ_CONF_OK != code) return NULL;
 
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
@@ -220,14 +217,7 @@ tmq_list_t* build_topic_list() {
   return topicList;
 }
 
-void basic_consume_loop(tmq_t* tmq, tmq_list_t* topicList) {
-  int32_t code;
-
-  if ((code = tmq_subscribe(tmq, topicList))) {
-    fprintf(stderr, "%% Failed to tmq_subscribe(): %s\n", tmq_err2str(code));
-    return;
-  }
-
+void basic_consume_loop(tmq_t* tmq) {
   int32_t totalRows = 0;
   int32_t msgCnt = 0;
   int32_t timeout = 5000;
@@ -237,8 +227,8 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topicList) {
       msgCnt++;
       totalRows += msg_process(tmqmsg);
       taos_free_result(tmqmsg);
-      /*} else {*/
-      /*break;*/
+    } else {
+      break;
     }
   }
 
@@ -267,14 +257,12 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
-  basic_consume_loop(tmq, topic_list);
-
-  code = tmq_unsubscribe(tmq);
-  if (code) {
-    fprintf(stderr, "%% Failed to unsubscribe: %s\n", tmq_err2str(code));
-  } else {
-    fprintf(stderr, "%% unsubscribe\n");
+  if ((code = tmq_subscribe(tmq, topic_list))) {
+    fprintf(stderr, "%% Failed to tmq_subscribe(): %s\n", tmq_err2str(code));
   }
+  tmq_list_destroy(topic_list);
+
+  basic_consume_loop(tmq);
 
   code = tmq_consumer_close(tmq);
   if (code) {

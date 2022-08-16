@@ -18,6 +18,7 @@ script_dir=$(dirname $(readlink -f "$0"))
 
 clientName="taos"
 serverName="taosd"
+udfdName="udfd"
 configFile="taos.cfg"
 productName="TDengine"
 emailName="taosdata.com"
@@ -192,6 +193,7 @@ function install_bin() {
   # Remove links
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
+  ${csudo}rm -f ${bin_link_dir}/${udfdName} || :
   ${csudo}rm -f ${bin_link_dir}/${adapterName} || :
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
   ${csudo}rm -f ${bin_link_dir}/${demoName} || :
@@ -205,6 +207,7 @@ function install_bin() {
   #Make link
   [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} || :
   [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} || :
+  [ -x ${install_main_dir}/bin/${udfdName} ] && ${csudo}ln -s ${install_main_dir}/bin/${udfdName} ${bin_link_dir}/${udfdName} || :
   [ -x ${install_main_dir}/bin/${adapterName} ] && ${csudo}ln -s ${install_main_dir}/bin/${adapterName} ${bin_link_dir}/${adapterName} || :
   [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${demoName} || :
   [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName} || :
@@ -742,7 +745,7 @@ function is_version_compatible() {
   fi
 
   exist_version=$(${installDir}/bin/${serverName} -V | head -1 | cut -d ' ' -f 3)
-  vercomp $exist_version "2.0.16.0"
+  vercomp $exist_version "3.0.0.0"
   case $? in
   2)
     prompt_force=1

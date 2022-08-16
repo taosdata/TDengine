@@ -103,7 +103,7 @@ SELECT d1001.* FROM d1001,d1003 WHERE d1001.ts = d1003.ts;
 在超级表和子表的查询中可以指定 _标签列_，且标签列的值会与普通列的数据一起返回。
 
 ```sql
-ELECT location, groupid, current FROM d1001 LIMIT 2;
+SELECT location, groupid, current FROM d1001 LIMIT 2;
 ```
 
 ### 结果去重
