@@ -461,12 +461,13 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 
 
   if(rpcSendRequest(pObj->pRpcObj->pDnodeConn, &pSql->epSet, &rpcMsg, &pSql->rpcRid)) {
-    if(pSql->cmd.command < TSDB_SQL_HB)
+    if(pSql->cmd.command == TSDB_SQL_SELECT)
       rpcSaveSendInfo(pSql->rpcRid, &pSql->pPrevContext);
     return TSDB_CODE_SUCCESS;
   }
 
-  return TSDB_CODE_SUCCESS;
+  tscError("0x%"PRIx64" rpc send data failed. msg=%s", pSql->self, taosMsg[pSql->cmd.msgType]);
+  return TSDB_CODE_TSC_SEND_DATA_FAILED;
 }
 
 // handle three situation

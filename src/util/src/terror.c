@@ -125,6 +125,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE,    "Invalid line protocol
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_PRECISION_TYPE,   "Invalid timestamp precision type")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_RES_TOO_MANY,             "Result set too large to be output")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_TOO_MANY_SML_LINES,       "Too many lines in batch")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SEND_DATA_FAILED,         "Client send request data failed")
 
 // mnode
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MSG_NOT_PROCESSED,        "Message not processed")
