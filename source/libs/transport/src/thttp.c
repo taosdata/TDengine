@@ -189,7 +189,7 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   }
   terrno = 0;
 
-  char    header[1024] = {0};
+  char    header[2048] = {0};
   int32_t headLen = taosBuildHttpHeader(server, contLen, header, sizeof(header), flag);
 
   uv_buf_t *wb = taosMemoryCalloc(2, sizeof(uv_buf_t));
@@ -206,7 +206,6 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   
   uv_loop_t* loop = uv_default_loop();
   uv_tcp_init(loop, &cli->tcp);
-
   // set up timeout to avoid stuck;
   int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 2);
   uv_tcp_open((uv_tcp_t*)&cli->tcp, fd);
