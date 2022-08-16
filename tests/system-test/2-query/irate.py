@@ -69,7 +69,7 @@ class TDTestCase:
                         comput_irate_value = origin_result[1][0]*1000/( origin_result[1][-1] - origin_result[0][-1])
                     else:
                         comput_irate_value = (origin_result[1][0] - origin_result[0][0])*1000/( origin_result[1][-1] - origin_result[0][-1])
-                    if abs(comput_irate_value - irate_value) <= 0.001:
+                    if abs(comput_irate_value - irate_value) <= 0.0000001:
                         tdLog.info(" irate work as expected , sql is %s "% irate_sql)
                     else:
                         tdLog.exit(" irate work not as expected , sql is %s "% irate_sql)
@@ -78,11 +78,9 @@ class TDTestCase:
         # prepare datas
         tdSql.execute(
             f"create database if not exists {dbname} keep 3650 duration 1000")
-        
         tdSql.execute(f"use {dbname} ")
-        time.sleep(2)
         tdSql.execute(
-            f'''create stable {dbname}.stb1
+            f'''create table {dbname}.stb1
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
             tags (t0 timestamp, tag1 int, t2 bigint, t3 smallint, t4 tinyint, t5 float, t6 double, t7 bool, t8 binary(16),t9 nchar(32))
             '''
