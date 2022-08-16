@@ -18,7 +18,7 @@
 #include "tlog.h"
 #include "tglobal.h"
 
-static void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary) {
+void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary) {
   tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
   tsDiskCfg[index].level = level;
   tsDiskCfg[index].primary = primary;
@@ -35,7 +35,7 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
     taosAddDataDir(0, pItem->str, 0, 1);
     tstrncpy(tsDataDir, pItem->str, PATH_MAX);
     if (taosMulMkDir(tsDataDir) != 0) {
-      uError("failed to create dataDir:%s since %s", tsDataDir, terrstr());
+      uError("failed to create dataDir:%s", tsDataDir);
       return -1;
     }
   } else {
@@ -48,7 +48,7 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
         tstrncpy(tsDataDir, pCfg->dir, PATH_MAX);
       }
       if (taosMulMkDir(pCfg->dir) != 0) {
-        uError("failed to create tfsDir:%s since %s", tsDataDir, terrstr());
+        uError("failed to create tfsDir:%s", tsDataDir);
         return -1;
       }
     }
@@ -59,7 +59,7 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
       taosAddDataDir(tsDiskCfgNum, pItem->str, 0, 1);
       tstrncpy(tsDataDir, pItem->str, PATH_MAX);
       if (taosMulMkDir(tsDataDir) != 0) {
-        uError("failed to create tfsDir:%s since %s", tsDataDir, terrstr());
+        uError("failed to create tfsDir:%s", tsDataDir);
         return -1;
       }
       tsDiskCfgNum++;
