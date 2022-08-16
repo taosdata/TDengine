@@ -69,6 +69,7 @@ cp %{_compiledir}/../packaging/tools/set_core.sh    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/../packaging/tools/taosd-dump-cfg.gdb    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taos                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
+cp %{_compiledir}/build/bin/udfd                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosBenchmark           %{buildroot}%{homepath}/bin
 
 if [ -f %{_compiledir}/build/bin/taosadapter ]; then
@@ -204,6 +205,7 @@ if [ $1 -eq 0 ];then
     # Remove all links
     ${csudo}rm -f ${bin_link_dir}/taos       || :
     ${csudo}rm -f ${bin_link_dir}/taosd      || :
+    ${csudo}rm -f ${bin_link_dir}/udfd       || :
     ${csudo}rm -f ${bin_link_dir}/taosadapter       || :
     ${csudo}rm -f ${cfg_link_dir}/*          || :
     ${csudo}rm -f ${inc_link_dir}/taos.h     || :
