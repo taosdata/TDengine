@@ -215,9 +215,9 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   if (ret != 0) {
     uError("http-report failed to connect to server, reason:%s, dst:%s:%d", uv_strerror(ret), cli->addr, cli->port);
     destroyHttpClient(cli);
-  } else {
-    uv_run(loop, UV_RUN_DEFAULT);
-  }
+  } 
+  
+  uv_run(loop, UV_RUN_DEFAULT);
   uv_loop_close(loop);
   return terrno;
 }
