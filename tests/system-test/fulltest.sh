@@ -132,6 +132,12 @@ python3 ./test.py -f 2-query/max.py
 python3 ./test.py -f 2-query/max.py -R
 python3 ./test.py -f 2-query/min.py
 python3 ./test.py -f 2-query/min.py -R
+python3 ./test.py -f 2-query/Now.py
+python3 ./test.py -f 2-query/Now.py -R
+python3 ./test.py -f 2-query/percentile.py
+python3 ./test.py -f 2-query/percentile.py -R
+python3 ./test.py -f 2-query/pow.py
+python3 ./test.py -f 2-query/pow.py -R
 
 
 python3 ./test.py -f 1-insert/update_data.py
@@ -151,7 +157,6 @@ python3 ./test.py -f 2-query/spread.py
 
 
 python3 ./test.py -f 2-query/timezone.py
-python3 ./test.py -f 2-query/Now.py
 python3 ./test.py -f 2-query/Today.py
 python3 ./test.py -f 2-query/To_iso8601.py
 python3 ./test.py -f 2-query/To_unixtimestamp.py
@@ -160,10 +165,8 @@ python3 ./test.py -f 2-query/Timediff.py
 python3 ./test.py -f 2-query/json_tag.py
 
 python3 ./test.py -f 2-query/top.py
-python3 ./test.py -f 2-query/percentile.py
 python3 ./test.py -f 2-query/round.py
 python3 ./test.py -f 2-query/log.py
-python3 ./test.py -f 2-query/pow.py
 python3 ./test.py -f 2-query/sqrt.py
 python3 ./test.py -f 2-query/sin.py
 python3 ./test.py -f 2-query/tan.py
