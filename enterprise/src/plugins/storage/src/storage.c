@@ -59,7 +59,7 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
       taosAddDataDir(tsDiskCfgNum, pItem->str, 0, 1);
       tstrncpy(tsDataDir, pItem->str, PATH_MAX);
       if (taosMulMkDir(tsDataDir) != 0) {
-        uError("failed to create tfsDir:%s since %s", tsDataDir, terrstr());
+        uError("failed to create tfsDir:%s", tsDataDir);
         return -1;
       }
       tsDiskCfgNum++;
