@@ -622,6 +622,7 @@ int32_t* taosGetErrno();
 //tmq
 #define TSDB_CODE_TMQ_INVALID_MSG                TAOS_DEF_ERROR_CODE(0, 0x4000)
 #define TSDB_CODE_TMQ_CONSUMER_MISMATCH          TAOS_DEF_ERROR_CODE(0, 0x4001)
+#define TSDB_CODE_TMQ_CONSUMER_CLOSED            TAOS_DEF_ERROR_CODE(0, 0x4002)
 
 #ifdef __cplusplus
 }

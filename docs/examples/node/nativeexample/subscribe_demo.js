@@ -28,7 +28,8 @@ function runConsumer() {
         console.log(msg.topicPartition);
         console.log(msg.block);
         console.log(msg.fields)
-        consumer.commit(msg);
+        // fixme(@xiaolei): commented temp, should be fixed.
+        //consumer.commit(msg);
         console.log(`=======consumer ${i} done`)
     }
 
