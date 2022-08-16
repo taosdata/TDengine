@@ -55,7 +55,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_BROKEN_LINK,              "Conn is broken")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_TIMEOUT,                  "Conn read timeout")
 
 //common & util
-TAOS_DEFINE_ERROR(TSDB_CODE_TIME_UNSYNCED,                "Client and server's time is not synchronized")
+TAOS_DEFINE_ERROR(TSDB_CODE_TIME_UNSYNCED,                "client and server time is not synchronized")
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_NOT_READY,                "Database not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_OPS_NOT_SUPPORT,              "Operation not supported")
 TAOS_DEFINE_ERROR(TSDB_CODE_MEMORY_CORRUPTED,             "Memory corrupted")

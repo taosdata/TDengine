@@ -61,7 +61,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   int32_t delta = abs(now - connectRsp.svrTimestamp);
   if (delta > timestampDeltaLimit) {
     code = TSDB_CODE_TIME_UNSYNCED;
-    tscError("time diff:%ds is too big", delta);
+    tscError("time diff: %d(s) is too big, err: %s", delta, tstrerror(code));
     taosMemoryFree(pMsg->pData);
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);

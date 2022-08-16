@@ -120,16 +120,16 @@ _OVER:
 static void clientSentCb(uv_write_t* req, int32_t status) {
   if (status < 0) {
     terrno = TAOS_SYSTEM_ERROR(status);
-    uError("failed to send data %s", uv_strerror(status));
+    uError("http-report failed to send data %s", uv_strerror(status));
   } else {
-    uError("succ to send data");
+    uInfo("http-report succ to send data");
   }
   uv_close((uv_handle_t*)req->handle, NULL);
 }
 static void clientConnCb(uv_connect_t* req, int32_t status) {
   if (status < 0) {
     terrno = TAOS_SYSTEM_ERROR(status);
-    uError("conn error %s", uv_strerror(status));
+    uError("http-report conn error %s", uv_strerror(status));
     uv_close((uv_handle_t*)req->handle, NULL);
     taosMemoryFree(req);
     return;
@@ -145,7 +145,7 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   uint32_t ipv4 = taosGetIpv4FromFqdn(server);
   if (ipv4 == 0xffffffff) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to get http server:%s ip since %s", server, terrstr());
+    uError("http-report failed to get http server:%s ip since %s", server, terrstr());
     return -1;
   }
 

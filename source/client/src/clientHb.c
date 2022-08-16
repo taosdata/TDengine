@@ -171,7 +171,8 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
       pTscObj->pAppInfo->totalDnodes = pRsp->query->totalDnodes;
       pTscObj->pAppInfo->onlineDnodes = pRsp->query->onlineDnodes;
       pTscObj->connId = pRsp->query->connId;
-      tscTrace("conn %p hb rsp, dnodes %d/%d", pTscObj->connId, pTscObj->pAppInfo->onlineDnodes, pTscObj->pAppInfo->totalDnodes);
+      tscTrace("conn %p hb rsp, dnodes %d/%d", pTscObj->connId, pTscObj->pAppInfo->onlineDnodes,
+               pTscObj->pAppInfo->totalDnodes);
 
       if (pRsp->query->killRid) {
         tscDebug("request rid %" PRIx64 " need to be killed now", pRsp->query->killRid);
@@ -275,7 +276,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   int32_t delta = abs(now - pRsp.svrTimestamp);
   if (delta > timestampDeltaLimit) {
     code = TSDB_CODE_TIME_UNSYNCED;
-    tscError("time diff: %ds is too big", delta);
+    tscError("time diff: %d(s) is too big, err: %s", delta, tstrerror(code));
   }
 
   int32_t rspNum = taosArrayGetSize(pRsp.rsps);
@@ -293,7 +294,8 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
 
   if (code != 0) {
     (*pInst)->onlineDnodes = ((*pInst)->totalDnodes ? 0 : -1);
-    tscDebug("hb rsp error %s, update server status %d/%d", tstrerror(code), (*pInst)->onlineDnodes, (*pInst)->totalDnodes);
+    tscDebug("hb rsp error %s, update server status %d/%d", tstrerror(code), (*pInst)->onlineDnodes,
+             (*pInst)->totalDnodes);
   }
 
   if (rspNum) {
@@ -722,7 +724,7 @@ static void *hbThreadFunc(void *param) {
       pInfo->msgInfo.len = tlen;
       pInfo->msgType = TDMT_MND_HEARTBEAT;
       pInfo->param = strdup(pAppHbMgr->key);
-      pInfo->paramFreeFp = taosMemoryFree;      
+      pInfo->paramFreeFp = taosMemoryFree;
       pInfo->requestId = generateRequestId();
       pInfo->requestObjRefId = 0;
 
