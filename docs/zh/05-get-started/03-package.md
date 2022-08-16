@@ -7,7 +7,13 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import PkgListV3 from "/components/PkgListV3";
 
+TDengine 完整的软件包包括服务端（taosd）、用于与第三方系统对接并提供 RESTful 接口的 taosAdapter、应用驱动（taosc）、命令行程序 (CLI，taos) 和一些工具软件，目前服务端 taosd 和 taosAdapter 仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。应用驱动 taosc 与 TDengine CLI 可以在 Windows 或 Linux 上安装和运行。TDengine 除了提供多种语言的连接器之外，还通过 [taosAdapter](../reference/taosadapter/) 提供 [RESTful 接口](../reference/rest-api/)。
+
 在 Linux 系统上，TDengine 开源版本提供 deb 和 rpm 格式安装包，用户可以根据自己的运行环境选择合适的安装包。其中 deb 支持 Debian/Ubuntu 及衍生系统，rpm 支持 CentOS/RHEL/SUSE 及衍生系统。同时我们也为企业用户提供 tar.gz 格式安装包，也支持通过 `apt-get` 工具从线上进行安装。TDengine 也提供 Windows x64 平台的安装包。您也可以[用Docker立即体验](../../get-started/docker/)。如果您希望对 TDengine 贡献代码或对内部实现感兴趣，请参考我们的 [TDengine GitHub 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
+
+为方便使用，标准的服务端安装包包含了 taos、taosd、taosAdapter、taosdump、taosBenchmark、TDinsight 安装脚本和示例代码；如果您只需要用到服务端程序和客户端连接的 C/C++ 语言支持，也可以仅下载 lite 版本的安装包。
+
+在安装包格式上，我们提供 tar.gz, rpm 和 deb 格式，为企业客户提供 tar.gz 格式安装包，以方便在特定操作系统上使用。需要注意的是，rpm 和 deb 包不含 taosdump 和 TDinsight 安装脚本，这些工具需要通过安装 taosTool 包获得。
 
 ## 安装
 
