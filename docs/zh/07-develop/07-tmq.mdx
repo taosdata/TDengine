@@ -107,6 +107,7 @@ class TaosConsumer():
     def close(self)
     
     def __del__(self)
+
 ```
 </TabItem>
 <TabItem label="Go" value="Go">
@@ -126,6 +127,7 @@ func (c *Consumer) Subscribe(topics []string) error
 
 func (c *Consumer) Unsubscribe() error
 ```
+
 </TabItem>
 
 <TabItem value="C#" label="C#">
@@ -152,6 +154,7 @@ void Commit(ConsumeResult consumerResult)
 void Close()
 
 ```
+
 </TabItem>
 
 </Tabs>
@@ -393,6 +396,7 @@ var cfg = new ConsumerConfig
 var consumer = new ConsumerBuilder(cfg).Build();
 
 ```
+
 </TabItem>
 
 </Tabs>
@@ -441,7 +445,6 @@ if err != nil {
 
 </TabItem>
 
-
 <TabItem value="C#" label="C#">
 
 ```C#
@@ -454,14 +457,11 @@ consumer.Subscribe(topics);
 
 </TabItem>
 
-
 <TabItem value="Python" label="Python">
 ```python
 consumer = TaosConsumer('topic_ctb_column', group_id='vg2')
 ```
 </TabItem>
-
-
 
 </Tabs>
 
@@ -504,7 +504,6 @@ for msg in consumer:
 ```
 </TabItem>
 
-
 <TabItem value="Go" label="Go">
 
 ```go
@@ -536,7 +535,6 @@ while (true)
 
 </TabItem>
 </Tabs>
-
 
 ## 结束消费
 
@@ -966,5 +964,3 @@ for msg in consumer:
 </TabItem>
 
 </Tabs>
-
- 
