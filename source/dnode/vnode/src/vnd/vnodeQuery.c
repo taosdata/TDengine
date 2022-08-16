@@ -473,7 +473,7 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
     int numOfCols = 0;
     vnodeGetStbColumnNum(pVnode, id, &numOfCols);
 
-    *num += ctbNum * numOfCols;
+    *num += ctbNum * (numOfCols - 1);
   }
 
   metaCloseStbCursor(pCur);

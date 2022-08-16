@@ -16,7 +16,7 @@ sql create table tb1 using st2 tags (1,1.0,"1",1.0,1,1,"1");
 sql create table tb2 using st2 tags (2,2.0,"2",2.0,2,2,"2");
 sql create table tb3 using st2 tags (3,3.0,"3",3.0,3,3,"3");
 sql create table tb4 using st2 tags (4,4.0,"4",4.0,4,4,"4");
- 
+
 sql insert into tb1 values (now-200s,1,1.0,1.0,1,1,1,true ,"1","1")
 sql insert into tb1 values (now-150s,1,1.0,1.0,1,1,1,false,"1","1")
 sql insert into tb1 values (now-100s,2,2.0,2.0,2,2,2,true ,"2","2")
@@ -30,28 +30,28 @@ sql select count(*),f1 from st2 group by f1 having count(f1) > 0 order by f1;
 if $rows != 4 then
   return -1
 endi
-if $data00 != 2 then 
+if $data00 != 2 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data10 != 2 then 
+if $data10 != 2 then
   return -1
 endi
-if $data11 != 2 then 
+if $data11 != 2 then
   return -1
 endi
-if $data20 != 2 then 
+if $data20 != 2 then
   return -1
 endi
-if $data21 != 3 then 
+if $data21 != 3 then
   return -1
 endi
-if $data30 != 2 then 
+if $data30 != 2 then
   return -1
 endi
-if $data31 != 4 then 
+if $data31 != 4 then
   return -1
 endi
 
@@ -59,28 +59,28 @@ sql select count(*),f1 from st2 group by f1 having count(*) > 0 order by f1;
 if $rows != 4 then
   return -1
 endi
-if $data00 != 2 then 
+if $data00 != 2 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data10 != 2 then 
+if $data10 != 2 then
   return -1
 endi
-if $data11 != 2 then 
+if $data11 != 2 then
   return -1
 endi
-if $data20 != 2 then 
+if $data20 != 2 then
   return -1
 endi
-if $data21 != 3 then 
+if $data21 != 3 then
   return -1
 endi
-if $data30 != 2 then 
+if $data30 != 2 then
   return -1
 endi
-if $data31 != 4 then 
+if $data31 != 4 then
   return -1
 endi
 
@@ -88,28 +88,28 @@ sql select count(*),f1 from st2 group by f1 having count(f2) > 0 order by f1;
 if $rows != 4 then
   return -1
 endi
-if $data00 != 2 then 
+if $data00 != 2 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data10 != 2 then 
+if $data10 != 2 then
   return -1
 endi
-if $data11 != 2 then 
+if $data11 != 2 then
   return -1
 endi
-if $data20 != 2 then 
+if $data20 != 2 then
   return -1
 endi
-if $data21 != 3 then 
+if $data21 != 3 then
   return -1
 endi
-if $data30 != 2 then 
+if $data30 != 2 then
   return -1
 endi
-if $data31 != 4 then 
+if $data31 != 4 then
   return -1
 endi
 
@@ -119,16 +119,16 @@ sql select last(f1) from st2 group by f1 having count(f2) > 0 order by f1;;
 if $rows != 4 then
   return -1
 endi
-if $data00 != 1 then 
+if $data00 != 1 then
   return -1
 endi
-if $data10 != 2 then 
+if $data10 != 2 then
   return -1
 endi
-if $data20 != 3 then 
+if $data20 != 3 then
   return -1
 endi
-if $data30 != 4 then 
+if $data30 != 4 then
   return -1
 endi
 
@@ -140,16 +140,16 @@ sql select avg(f1),count(f1) from st2 group by f1 having avg(f1) > 2 order by f1
 if $rows != 2 then
   return -1
 endi
-if $data00 != 3.000000000 then 
+if $data00 != 3.000000000 then
   return -1
 endi
-if $data01 != 2 then 
+if $data01 != 2 then
   return -1
 endi
-if $data10 != 4.000000000 then 
+if $data10 != 4.000000000 then
   return -1
 endi
-if $data11 != 2 then 
+if $data11 != 2 then
   return -1
 endi
 
@@ -157,16 +157,16 @@ sql select avg(f1),count(f1) from st2 group by f1 having avg(f1) > 2 and sum(f1)
 if $rows != 2 then
   return -1
 endi
-if $data00 != 3.000000000 then 
+if $data00 != 3.000000000 then
   return -1
 endi
-if $data01 != 2 then 
+if $data01 != 2 then
   return -1
 endi
-if $data10 != 4.000000000 then 
+if $data10 != 4.000000000 then
   return -1
 endi
-if $data11 != 2 then 
+if $data11 != 2 then
   return -1
 endi
 
@@ -174,22 +174,22 @@ sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having avg(f1) > 2 and
 if $rows != 2 then
   return -1
 endi
-if $data00 != 3.000000000 then 
+if $data00 != 3.000000000 then
   return -1
 endi
-if $data01 != 2 then 
+if $data01 != 2 then
   return -1
 endi
-if $data02 != 6 then 
+if $data02 != 6 then
   return -1
 endi
-if $data10 != 4.000000000 then 
+if $data10 != 4.000000000 then
   return -1
 endi
-if $data11 != 2 then 
+if $data11 != 2 then
   return -1
 endi
-if $data12 != 8 then 
+if $data12 != 8 then
   return -1
 endi
 
@@ -197,22 +197,22 @@ sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having avg(f1) > 2 ord
 if $rows != 2 then
   return -1
 endi
-if $data00 != 3.000000000 then 
+if $data00 != 3.000000000 then
   return -1
 endi
-if $data01 != 2 then 
+if $data01 != 2 then
   return -1
 endi
-if $data02 != 6 then 
+if $data02 != 6 then
   return -1
 endi
-if $data10 != 4.000000000 then 
+if $data10 != 4.000000000 then
   return -1
 endi
-if $data11 != 2 then 
+if $data11 != 2 then
   return -1
 endi
-if $data12 != 8 then 
+if $data12 != 8 then
   return -1
 endi
 
@@ -220,40 +220,40 @@ sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having sum(f1) > 0 ord
 if $rows != 4 then
   return -1
 endi
-if $data00 != 1.000000000 then 
+if $data00 != 1.000000000 then
   return -1
 endi
-if $data01 != 2 then 
+if $data01 != 2 then
   return -1
 endi
-if $data02 != 2 then 
+if $data02 != 2 then
   return -1
 endi
-if $data10 != 2.000000000 then 
+if $data10 != 2.000000000 then
   return -1
 endi
-if $data11 != 2 then 
+if $data11 != 2 then
   return -1
 endi
-if $data12 != 4 then 
+if $data12 != 4 then
   return -1
 endi
-if $data20 != 3.000000000 then 
+if $data20 != 3.000000000 then
   return -1
 endi
-if $data21 != 2 then 
+if $data21 != 2 then
   return -1
 endi
-if $data22 != 6 then 
+if $data22 != 6 then
   return -1
 endi
-if $data30 != 4.000000000 then 
+if $data30 != 4.000000000 then
   return -1
 endi
-if $data31 != 2 then 
+if $data31 != 2 then
   return -1
 endi
-if $data32 != 8 then 
+if $data32 != 8 then
   return -1
 endi
 
@@ -261,13 +261,13 @@ sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having sum(f1) > 2 and
 if $rows != 1 then
   return -1
 endi
-if $data00 != 2.000000000 then 
+if $data00 != 2.000000000 then
   return -1
 endi
-if $data01 != 2 then 
+if $data01 != 2 then
   return -1
 endi
-if $data02 != 4 then 
+if $data02 != 4 then
   return -1
 endi
 
@@ -276,22 +276,22 @@ sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having 1 <= sum(f1) an
 if $rows != 2 then
   return -1
 endi
-if $data00 != 1.000000000 then 
+if $data00 != 1.000000000 then
   return -1
 endi
-if $data01 != 2 then 
+if $data01 != 2 then
   return -1
 endi
-if $data02 != 2 then 
+if $data02 != 2 then
   return -1
 endi
-if $data10 != 2.000000000 then 
+if $data10 != 2.000000000 then
   return -1
 endi
-if $data11 != 2 then 
+if $data11 != 2 then
   return -1
 endi
-if $data12 != 4 then 
+if $data12 != 4 then
   return -1
 endi
 
@@ -299,16 +299,16 @@ sql select avg(f1),count(f1),sum(f1),twa(f1),tbname from st2 group by tbname hav
 if $rows != 1 then
   return -1
 endi
-if $data00 != 2.500000000 then 
+if $data00 != 2.500000000 then
   return -1
 endi
-if $data01 != 8 then 
+if $data01 != 8 then
   return -1
 endi
-if $data02 != 20 then 
+if $data02 != 20 then
   return -1
 endi
-if $data04 != tb1 then 
+if $data04 != tb1 then
   return -1
 endi
 
@@ -318,16 +318,16 @@ sql select avg(f1),count(f1),sum(f1),twa(f1),tbname from st2 group by tbname hav
 if $rows != 1 then
   return -1
 endi
-if $data00 != 2.500000000 then 
+if $data00 != 2.500000000 then
   return -1
 endi
-if $data01 != 8 then 
+if $data01 != 8 then
   return -1
 endi
-if $data02 != 20 then 
+if $data02 != 20 then
   return -1
 endi
-if $data04 != tb1 then 
+if $data04 != tb1 then
   return -1
 endi
 
@@ -337,40 +337,40 @@ sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having sum(f1) > 0 ord
 if $rows != 4 then
   return -1
 endi
-if $data00 != 1.000000000 then 
+if $data00 != 1.000000000 then
   return -1
 endi
-if $data01 != 2 then 
+if $data01 != 2 then
   return -1
 endi
-if $data02 != 2 then 
+if $data02 != 2 then
   return -1
 endi
-if $data10 != 2.000000000 then 
+if $data10 != 2.000000000 then
   return -1
 endi
-if $data11 != 2 then 
+if $data11 != 2 then
   return -1
 endi
-if $data12 != 4 then 
+if $data12 != 4 then
   return -1
 endi
-if $data20 != 3.000000000 then 
+if $data20 != 3.000000000 then
   return -1
 endi
-if $data21 != 2 then 
+if $data21 != 2 then
   return -1
 endi
-if $data22 != 6 then 
+if $data22 != 6 then
   return -1
 endi
-if $data30 != 4.000000000 then 
+if $data30 != 4.000000000 then
   return -1
 endi
-if $data31 != 2 then 
+if $data31 != 2 then
   return -1
 endi
-if $data32 != 8 then 
+if $data32 != 8 then
   return -1
 endi
 
@@ -378,31 +378,31 @@ sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having sum(f1) > 3 ord
 if $rows != 3 then
   return -1
 endi
-if $data00 != 2.000000000 then 
+if $data00 != 2.000000000 then
   return -1
 endi
-if $data01 != 2 then 
+if $data01 != 2 then
   return -1
 endi
-if $data02 != 4 then 
+if $data02 != 4 then
   return -1
 endi
-if $data10 != 3.000000000 then 
+if $data10 != 3.000000000 then
   return -1
 endi
-if $data11 != 2 then 
+if $data11 != 2 then
   return -1
 endi
-if $data12 != 6 then 
+if $data12 != 6 then
   return -1
 endi
-if $data20 != 4.000000000 then 
+if $data20 != 4.000000000 then
   return -1
 endi
-if $data21 != 2 then 
+if $data21 != 2 then
   return -1
 endi
-if $data22 != 8 then 
+if $data22 != 8 then
   return -1
 endi
 
@@ -411,119 +411,119 @@ sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having sum(f1) > 1 ord
 if $rows != 4 then
   return -1
 endi
-if $data00 != 1.000000000 then 
+if $data00 != 1.000000000 then
   return -1
 endi
-if $data01 != 2 then 
+if $data01 != 2 then
   return -1
 endi
-if $data02 != 2 then 
+if $data02 != 2 then
   return -1
 endi
-if $data10 != 2.000000000 then 
+if $data10 != 2.000000000 then
   return -1
 endi
-if $data11 != 2 then 
+if $data11 != 2 then
   return -1
 endi
-if $data12 != 4 then 
+if $data12 != 4 then
   return -1
 endi
-if $data20 != 3.000000000 then 
+if $data20 != 3.000000000 then
   return -1
 endi
-if $data21 != 2 then 
+if $data21 != 2 then
   return -1
 endi
-if $data22 != 6 then 
+if $data22 != 6 then
   return -1
 endi
-if $data30 != 4.000000000 then 
+if $data30 != 4.000000000 then
   return -1
 endi
-if $data31 != 2 then 
+if $data31 != 2 then
   return -1
 endi
-if $data32 != 8 then 
+if $data32 != 8 then
   return -1
 endi
 
 sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having sum(f1) > 3 or sum(f1) > 1 order by f1;
-if $rows != 4 then 
+if $rows != 4 then
   return -1
 endi
-if $data00 != 1.000000000 then 
+if $data00 != 1.000000000 then
   return -1
 endi
-if $data01 != 2 then 
+if $data01 != 2 then
   return -1
 endi
-if $data02 != 2 then 
+if $data02 != 2 then
   return -1
 endi
-if $data10 != 2.000000000 then 
+if $data10 != 2.000000000 then
   return -1
 endi
-if $data11 != 2 then 
+if $data11 != 2 then
   return -1
 endi
-if $data12 != 4 then 
+if $data12 != 4 then
   return -1
 endi
-if $data20 != 3.000000000 then 
+if $data20 != 3.000000000 then
   return -1
 endi
-if $data21 != 2 then 
+if $data21 != 2 then
   return -1
 endi
-if $data22 != 6 then 
+if $data22 != 6 then
   return -1
 endi
-if $data30 != 4.000000000 then 
+if $data30 != 4.000000000 then
   return -1
 endi
-if $data31 != 2 then 
+if $data31 != 2 then
   return -1
 endi
-if $data32 != 8 then 
+if $data32 != 8 then
   return -1
 endi
 
 sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having sum(f1) > 3 or sum(f1) > 4 order by f1;
-if $rows != 3 then 
+if $rows != 3 then
   return -1
 endi
-if $data00 != 2.000000000 then 
+if $data00 != 2.000000000 then
   return -1
 endi
-if $data01 != 2 then 
+if $data01 != 2 then
   return -1
 endi
-if $data02 != 4 then 
+if $data02 != 4 then
   return -1
 endi
-if $data10 != 3.000000000 then 
+if $data10 != 3.000000000 then
   return -1
 endi
-if $data11 != 2 then 
+if $data11 != 2 then
   return -1
 endi
-if $data12 != 6 then 
+if $data12 != 6 then
   return -1
 endi
-if $data20 != 4.000000000 then 
+if $data20 != 4.000000000 then
   return -1
 endi
-if $data21 != 2 then 
+if $data21 != 2 then
   return -1
 endi
-if $data22 != 8 then 
+if $data22 != 8 then
   return -1
 endi
 
 ############or issue
 sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having sum(f1) > 3 and avg(f1) > 4 order by f1;
-if $rows != 0 then                                                                                                                                                                             
+if $rows != 0 then
   return -1
 endi
 
@@ -635,7 +635,7 @@ endi
 if $data01 != 2 then
   return -1
 endi
-if $data02 != 2 then                                                                                                                                                                           
+if $data02 != 2 then
   return -1
 endi
 if $data03 != 0.000000000 then
@@ -735,18 +735,18 @@ endi
 if $data23 != 0.000000000 then
   return -1
 endi
-if $data30 != 4.000000000 then                                                                                                                                                                 
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data31 != 2 then                                                                                                                                                                           
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data32 != 8 then                                                                                                                                                                           
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data33 != 0.000000000 then                                                                                                                                                                 
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
+if $data30 != 4.000000000 then
+  return -1
+endi
+if $data31 != 2 then
+  return -1
+endi
+if $data32 != 8 then
+  return -1
+endi
+if $data33 != 0.000000000 then
+  return -1
+endi
 
 
 sql_error select avg(f1),count(st2.*),sum(f1),stddev(f1) from st2 group by f1 having (LEASTSQUARES(f1) < 1);
@@ -777,27 +777,27 @@ if $data03 != 0.000000000 then
 endi
 if $data10 != 3.000000000 then
   return -1
-endi                                                                                                                                                                                           
-if $data11 != 2 then                                                                                                                                                                           
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data12 != 6 then                                                                                                                                                                           
-  return -1                                                                                                                                                                                    
 endi
-if $data13 != 0.000000000 then                                                                                                                                                                 
-  return -1                                                                                                                                                                                    
-endi 
+if $data11 != 2 then
+  return -1
+endi
+if $data12 != 6 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
 if $data20 != 4.000000000 then
   return -1
-endi                                                                                                                                                                                           
-if $data21 != 2 then                                                                                                                                                                           
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data22 != 8 then                                                                                                                                                                           
-  return -1                                                                                                                                                                                    
 endi
-if $data23 != 0.000000000 then                                                                                                                                                                 
-  return -1                                                                                                                                                                                    
+if $data21 != 2 then
+  return -1
+endi
+if $data22 != 8 then
+  return -1
+endi
+if $data23 != 0.000000000 then
+  return -1
 endi
 
 sql select avg(f1),count(st2.*),sum(f1),stddev(f1) from st2 group by f1 having min(f1) > 2 order by f1;
@@ -818,16 +818,16 @@ if $data03 != 0.000000000 then
 endi
 if $data10 != 4.000000000 then
   return -1
-endi                                                                                                                                                                                           
-if $data11 != 2 then                                                                                                                                                                           
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data12 != 8 then                                                                                                                                                                           
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data13 != 0.000000000 then                                                                                                                                                                 
-  return -1                                                                                                                                                                                    
-endi  
+endi
+if $data11 != 2 then
+  return -1
+endi
+if $data12 != 8 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
 
 sql select avg(f1),count(st2.*),sum(f1),stddev(f1),min(f1) from st2 group by f1 having min(f1) > 2 order by f1;
 if $rows != 2 then
@@ -900,27 +900,27 @@ if $data14 != 4 then
 endi
 
 sql select avg(f1),count(st2.*),sum(f1),stddev(f1),min(f1),max(f1) from st2 group by f1 having max(f1) != 2 order by f1;
-if $rows != 3 then                                                                                                                                                                             
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data00 != 1.000000000 then                                                                                                                                                                 
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data01 != 2 then                                                                                                                                                                           
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data02 != 2 then                                                                                                                                                                           
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data03 != 0.000000000 then                                                                                                                                                                 
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data04 != 1 then                                                                                                                                                                           
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data05 != 1 then                                                                                                                                                                           
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 1.000000000 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != 2 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data04 != 1 then
+  return -1
+endi
+if $data05 != 1 then
+  return -1
+endi
 if $data10 != 3.000000000 then
   return -1
 endi
@@ -928,7 +928,7 @@ if $data11 != 2 then
   return -1
 endi
 if $data12 != 6 then
-  return -1                                                                                                                                                                                    
+  return -1
 endi
 if $data13 != 0.000000000 then
   return -1
@@ -946,7 +946,7 @@ if $data21 != 2 then
   return -1
 endi
 if $data22 != 8 then
-  return -1                                                                                                                                                                                    
+  return -1
 endi
 if $data23 != 0.000000000 then
   return -1
@@ -990,7 +990,7 @@ if $data12 != 6 then
   return -1
 endi
 if $data13 != 0.000000000 then
-  return -1                                                                                                                                                                                    
+  return -1
 endi
 if $data14 != 3 then
   return -1
@@ -1013,9 +1013,9 @@ endi
 if $data24 != 4 then
   return -1
 endi
-if $data25 != 4 then                                                                                                                                                                           
-  return -1                                                                                                                                                                                    
-endi 
+if $data25 != 4 then
+  return -1
+endi
 
 
 
@@ -1080,12 +1080,12 @@ endi
 if $data24 != 4 then
   return -1
 endi
-if $data25 != 4 then                                                                                                                                                                           
-  return -1                                                                                                                                                                                    
-endi  
-if $data26 != 4 then                                                                                                                                                                           
-  return -1                                                                                                                                                                                    
-endi  
+if $data25 != 4 then
+  return -1
+endi
+if $data26 != 4 then
+  return -1
+endi
 
 
 
@@ -1121,18 +1121,18 @@ if $data30 != 4.000000000 then
 endi
 
 sql select aPERCENTILE(f1,20) from st2 group by f1 having apercentile(f1,1) > 1 order by f1;
-if $rows != 3 then                                                                                                                                                                             
+if $rows != 3 then
   return -1
 endi
-if $data00 != 2.000000000 then                                                                                                                                                                 
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
-if $data10 != 3.000000000 then                                                                                                                                                                 
-  return -1                                                                                                                                                                                    
-endi                                                                                                                                                                                           
+if $data00 != 2.000000000 then
+  return -1
+endi
+if $data10 != 3.000000000 then
+  return -1
+endi
 if $data20 != 4.000000000 then
-  return -1                                                                                                                                                                                    
-endi 
+  return -1
+endi
 
 sql select aPERCENTILE(f1,20) from st2 group by f1 having apercentile(f1,1) > 1 and apercentile(f1,1) < 50 order by f1;
 if $rows != 3 then
@@ -1195,7 +1195,7 @@ if $data10 != 2.000000000 then
 endi
 if $data20 != 3.000000000 then
   return -1
-endi 
+endi
 if $data30 != 4.000000000 then
   return -1
 endi
@@ -1204,7 +1204,7 @@ sql select avg(f1),spread(f2) from st2 group by f1 order by f1;
 if $rows != 4 then
   return -1
 endi
-if $data00 != 1.000000000 then                                                                                                                                                                 
+if $data00 != 1.000000000 then
   return -1
 endi
 if $data01 != 0.000000000 then
@@ -1213,7 +1213,7 @@ endi
 if $data10 != 2.000000000 then
   return -1
 endi
-if $data11 != 0.000000000 then                                                                                                                                                                 
+if $data11 != 0.000000000 then
   return -1
 endi
 if $data20 != 3.000000000 then
@@ -1222,7 +1222,7 @@ endi
 if $data21 != 0.000000000 then
   return -1
 endi
-if $data30 != 4.000000000 then                                                                                                                                                                 
+if $data30 != 4.000000000 then
   return -1
 endi
 if $data31 != 0.000000000 then
@@ -1239,13 +1239,13 @@ endi
 if $data01 != 0.000000000 then
   return -1
 endi
-if $data02 != 0.000000000 then                                                                                                                                                                 
-  return -1                                                                                                                                                                                    
-endi 
-if $data03 != 0.000000000 then                                                                                                                                                                 
-  return -1                                                                                                                                                                                    
-endi 
-if $data10 != 2.000000000 then                                                                                                                                                                 
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data10 != 2.000000000 then
   return -1
 endi
 if $data11 != 0.000000000 then
@@ -1257,7 +1257,7 @@ endi
 if $data13 != 0.000000000 then
   return -1
 endi
-if $data20 != 3.000000000 then                                                                                                                                                                 
+if $data20 != 3.000000000 then
   return -1
 endi
 if $data21 != 0.000000000 then
@@ -1283,9 +1283,9 @@ if $data33 != 0.000000000 then
 endi
 
 sql select avg(f1), spread(f1), spread(f2), spread(st2.f1) from st2 group by f1 having spread(f1) != 0 order by f1;
-if $rows != 0 then                                                                                                                                                                             
-  return -1                                                                                                                                                                                    
-endi 
+if $rows != 0 then
+  return -1
+endi
 
 sql select avg(f1), spread(f1), spread(f2), spread(st2.f1) from st2 group by f1 having spread(f1) + 1 > 0;
 
@@ -1438,7 +1438,7 @@ if $data01 != 0.000000000 then
 endi
 if $data02 != 0.000000000 then
   return -1
-endi      
+endi
 if $data03 != 0.000000000 then
   return -1
 endi
@@ -1529,7 +1529,7 @@ if $data13 != 0.000000000 then
 endi
 
 sql select avg(f1), spread(f1), spread(f2), spread(st2.f1) from st2 where f2 > 2 group by f1 having avg(f1) > 0 order by f1;
-if $rows != 2 then                                                                                                                                                                             
+if $rows != 2 then
   return -1
 endi
 if $data00 != 3.000000000 then
@@ -1558,7 +1558,7 @@ if $data13 != 0.000000000 then
 endi
 
 sql select avg(f1), spread(f1), spread(f2), spread(st2.f1) from st2 where f3 > 2 group by f1 having avg(f1) > 0 order by f1;
-if $rows != 2 then                                                                                                                                                                             
+if $rows != 2 then
   return -1
 endi
 if $data00 != 3.000000000 then
@@ -1624,7 +1624,7 @@ endi
 if $data02 != 0.000000000 then
   return -1
 endi
-if $data03 != 0.000000000 then                                                                                                                                                                 
+if $data03 != 0.000000000 then
   return -1
 endi
 
@@ -1643,7 +1643,7 @@ endi
 if $data02 != 0.000000000 then
   return -1
 endi
-if $data03 != 0.000000000 then                                                                                                                                                                 
+if $data03 != 0.000000000 then
   return -1
 endi
 
@@ -1660,7 +1660,7 @@ endi
 if $data02 != 0.000000000 then
   return -1
 endi
-if $data03 != 0.000000000 then                                                                                                                                                                 
+if $data03 != 0.000000000 then
   return -1
 endi
 

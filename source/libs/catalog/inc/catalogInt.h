@@ -279,6 +279,7 @@ typedef struct SCtgMsgCtx {
   void* lastOut;
   void* out;
   char* target;
+  SHashObj* pBatchs;  
 } SCtgMsgCtx;
 
 
@@ -315,7 +316,6 @@ typedef struct SCtgTask {
   SRWLatch        lock;
   SArray*         pParents;
   SCtgSubRes      subRes;
-  SHashObj*       pBatchs;
 } SCtgTask;
 
 typedef struct SCtgTaskReq {

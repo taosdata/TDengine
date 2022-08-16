@@ -108,8 +108,41 @@ void tBloomFilterDestroy(SBloomFilter *pBF) {
   taosMemoryFree(pBF);
 }
 
-void tBloomFilterDump(const struct SBloomFilter *pBF) {
-// ToDo
+int32_t tBloomFilterEncode(const SBloomFilter *pBF, SEncoder* pEncoder) {
+  if (tEncodeU32(pEncoder, pBF->hashFunctions) < 0) return -1;
+  if (tEncodeU64(pEncoder, pBF->expectedEntries) < 0) return -1;
+  if (tEncodeU64(pEncoder, pBF->numUnits) < 0) return -1;
+  if (tEncodeU64(pEncoder, pBF->numBits) < 0) return -1;
+  if (tEncodeU64(pEncoder, pBF->size) < 0) return -1;
+  for (uint64_t i = 0; i < pBF->numUnits; i++) {
+    uint64_t* pUnits = (uint64_t*)pBF->buffer;
+    if (tEncodeU64(pEncoder, pUnits[i]) < 0) return -1;
+  }
+  if (tEncodeDouble(pEncoder, pBF->errorRate) < 0) return -1;
+  return 0;
+}
+
+SBloomFilter* tBloomFilterDecode(SDecoder* pDecoder) {
+  SBloomFilter *pBF = taosMemoryCalloc(1, sizeof(SBloomFilter));
+  pBF->buffer = NULL;
+  if (tDecodeU32(pDecoder, &pBF->hashFunctions) < 0) goto _error;
+  if (tDecodeU64(pDecoder, &pBF->expectedEntries) < 0) goto _error;
+  if (tDecodeU64(pDecoder, &pBF->numUnits) < 0) goto _error;
+  if (tDecodeU64(pDecoder, &pBF->numBits) < 0) goto _error;
+  if (tDecodeU64(pDecoder, &pBF->size) < 0) goto _error;
+  pBF->buffer = taosMemoryCalloc(pBF->numUnits, sizeof(uint64_t));
+  for (int32_t i = 0; i < pBF->numUnits; i++) {
+    uint64_t* pUnits = (uint64_t*)pBF->buffer;
+    if (tDecodeU64(pDecoder, pUnits + i) < 0) goto _error;
+  }
+  if (tDecodeDouble(pDecoder, &pBF->errorRate) < 0) goto _error;
+  pBF->hashFn1 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP);
+  pBF->hashFn2 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_NCHAR);
+  return pBF;
+
+_error:
+  tBloomFilterDestroy(pBF);
+  return NULL;
 }
 
 bool tBloomFilterIsFull(const SBloomFilter *pBF) {

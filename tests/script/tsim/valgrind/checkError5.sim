@@ -4,7 +4,7 @@ system sh/cfg.sh -n dnode1 -c debugflag -v 131
 system sh/exec.sh -n dnode1 -s start -v
 sql connect
 
-print =============== step1: create drop show dnodes
+print =============== step1: create drop select * from information_schema.ins_dnodes
 $x = 0
 step1:
 	$x = $x + 1
@@ -13,7 +13,7 @@ step1:
 	  print ---> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ---> $data00 $data01 $data02 $data03 $data04 $data05
 if $rows != 1 then
   return -1
@@ -68,13 +68,13 @@ sql select * from tb order by ts desc
 
 print =============== step5: alter stb and insert data
 sql create table stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 float, t3 binary(16)) comment "abd"
-sql show db.stables
+sql select * from information_schema.ins_stables where db_name = 'db'
 sql describe stb
 sql_error alter table stb add column ts int
 
 sql create table db.ctb using db.stb tags(101, 102, "103")
 sql insert into db.ctb values(now, 1, "2")
-sql show db.tables
+sql select * from information_schema.ins_tables where db_name = 'db'
 sql select * from db.stb
 sql select * from tb
 

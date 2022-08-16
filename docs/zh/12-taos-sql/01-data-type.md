@@ -34,7 +34,7 @@ CREATE DATABASE db_name PRECISION 'ns';
 | 7   |  DOUBLE   | 8         | 双精度浮点型，有效位数 15-16，范围 [-1.7E308, 1.7E308]      |
 | 8   |  BINARY   | 自定义    | 记录单字节字符串，建议只用于处理 ASCII 可见字符，中文等多字节字符需使用 nchar。 |
 | 9   | SMALLINT  | 2         | 短整型， 范围 [-32768, 32767]         |
-| 10 | SMALLINT UNSIGNED | 2| 无符号短整型，范围 [0, 655357] |
+| 10 | SMALLINT UNSIGNED | 2| 无符号短整型，范围 [0, 65535] |
 | 11   |  TINYINT  | 1         | 单字节整型，范围 [-128, 127]   |
 | 12 | TINYINT UNSIGNED | 1 | 无符号单字节整型，范围 [0, 255] |
 | 13   |   BOOL    | 1         | 布尔型，{true, false}     |

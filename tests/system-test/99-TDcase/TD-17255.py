@@ -19,7 +19,7 @@ class TDTestCase:
         self.vgroups    = 2
         self.ctbNum     = 100
         self.rowsPerTbl = 10000
-        
+
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
@@ -49,7 +49,7 @@ class TDTestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        
+
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
         tdLog.info("create stb")
@@ -61,7 +61,7 @@ class TDTestCase:
         tmqCom.insert_data_interlaceByMultiTbl(tsql=tdSql,dbName=paraDict["dbName"],ctbPrefix=paraDict["ctbPrefix"],
                                                ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
                                                startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
-        
+
         tdLog.info("restart taosd to ensure that the data falls into the disk")
         # tdDnodes.stop(1)
         # tdDnodes.start(1)
@@ -93,7 +93,7 @@ class TDTestCase:
         # paraDict['vgroups'] = self.vgroups
         # paraDict['ctbNum'] = self.ctbNum
         # paraDict['rowsPerTbl'] = self.rowsPerTbl
-        
+
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
         tdLog.info("create stb")
@@ -107,12 +107,12 @@ class TDTestCase:
                                                startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
 
         tdLog.info("create topics from stb1")
-        topicFromStb1 = 'topic_stb1'                
+        topicFromStb1 = 'topic_stb1'
         queryString = "select ts, c1, c2 from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        
+
         consumerId     = 0
         expectrowcnt   = paraDict["rowsPerTbl"] * paraDict["ctbNum"]
         topicList      = topicFromStb1
@@ -126,7 +126,7 @@ class TDTestCase:
 
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
-        
+
         # time.sleep(3)
         tmqCom.getStartCommitNotifyFromTmqsim()
         tdLog.info("================= restart dnode ===========================")
@@ -143,7 +143,7 @@ class TDTestCase:
 
         tdSql.query(queryString)
         totalRowsInserted = tdSql.getRows()
-        
+
         if totalConsumeRows != totalRowsInserted:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, totalRowsInserted))
             tdLog.exit("tmq consume rows error!")
@@ -153,7 +153,7 @@ class TDTestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def tmqCase2(self):
-        tdLog.printNoPrefix("======== test case 2: ")  
+        tdLog.printNoPrefix("======== test case 2: ")
         paraDict = {'dbName':     'dbt',
                     'dropFlag':   1,
                     'event':      '',
@@ -177,7 +177,7 @@ class TDTestCase:
         # paraDict['vgroups'] = self.vgroups
         # paraDict['ctbNum'] = self.ctbNum
         # paraDict['rowsPerTbl'] = self.rowsPerTbl
-        
+
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
         tdLog.info("create stb")
@@ -190,12 +190,12 @@ class TDTestCase:
                                                ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
                                                startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
         tdLog.info("create topics from stb1")
-        topicFromStb1 = 'topic_stb1'                
+        topicFromStb1 = 'topic_stb1'
         queryString = "select ts, c1, c2 from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
-        
+
         consumerId     = 0
         expectrowcnt   = paraDict["rowsPerTbl"] * paraDict["ctbNum"] * 2
         topicList      = topicFromStb1
@@ -212,7 +212,7 @@ class TDTestCase:
 
         tdLog.info("create some new child table and insert data ")
         tmqCom.insert_data_with_autoCreateTbl(tdSql,paraDict["dbName"],paraDict["stbName"],"ctb",paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"])
-        
+
         tmqCom.getStartCommitNotifyFromTmqsim()
         tdLog.info("================= restart dnode ===========================")
         tdDnodes.stop(1)
@@ -228,7 +228,7 @@ class TDTestCase:
 
         tdSql.query(queryString)
         totalRowsInserted = tdSql.getRows()
-        
+
         if totalConsumeRows != totalRowsInserted:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, totalRowsInserted))
             tdLog.exit("tmq consume rows error!")
@@ -239,7 +239,7 @@ class TDTestCase:
 
     # 自动建表完成数据插入，启动消费
     def tmqCase3(self):
-        tdLog.printNoPrefix("======== test case 3: ")   
+        tdLog.printNoPrefix("======== test case 3: ")
         paraDict = {'dbName':     'dbt',
                     'dropFlag':   1,
                     'event':      '',
@@ -263,7 +263,7 @@ class TDTestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        
+
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
         tdLog.info("create stb")
@@ -272,12 +272,12 @@ class TDTestCase:
         tmqCom.insert_data_with_autoCreateTbl(tdSql,paraDict["dbName"],paraDict["stbName"],"ctb",paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"])
 
         tdLog.info("create topics from stb1")
-        topicFromStb1 = 'topic_stb1'                
+        topicFromStb1 = 'topic_stb1'
         queryString = "select ts, c1, c2 from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
         tdLog.info("create topic sql: %s"%sqlString)
-        tdSql.execute(sqlString)        
-        
+        tdSql.execute(sqlString)
+
         consumerId     = 0
         expectrowcnt   = paraDict["rowsPerTbl"] * paraDict["ctbNum"]
         topicList      = topicFromStb1
@@ -306,7 +306,7 @@ class TDTestCase:
 
         tdSql.query(queryString)
         totalRowsInserted = tdSql.getRows()
-        
+
         if totalConsumeRows != totalRowsInserted:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, totalRowsInserted))
             tdLog.exit("tmq consume rows error!")
@@ -320,7 +320,7 @@ class TDTestCase:
         tdSql.prepare()
 
         self.tmqCase1()
-        self.tmqCase2() 
+        self.tmqCase2()
         self.tmqCase3()
 
     def stop(self):

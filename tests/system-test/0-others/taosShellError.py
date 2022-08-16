@@ -258,7 +258,7 @@ class TDTestCase:
             tdLog.exit("taos -f fail")
 
         print ("========== check new db ==========")
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             #print ("dbseq: %d, dbname: %s"%(i, tdSql.getData(i, 0)))
             if tdSql.getData(i, 0) == newDbName:

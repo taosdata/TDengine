@@ -182,6 +182,7 @@ void taos_free_result(TAOS_RES *res) {
 
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
+    tscDebug("0x%" PRIx64 " taos_free_result start to free query", pRequest->requestId);
     destroyRequest(pRequest);
   } else if (TD_RES_TMQ(res)) {
     SMqRspObj *pRsp = (SMqRspObj *)res;
@@ -191,6 +192,7 @@ void taos_free_result(TAOS_RES *res) {
     if (pRsp->rsp.withSchema) taosArrayDestroyP(pRsp->rsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
     pRsp->resInfo.pRspMsg = NULL;
     doFreeReqResultInfo(&pRsp->resInfo);
+    taosMemoryFree(pRsp);
   } else if (TD_RES_TMQ_META(res)) {
     SMqMetaRspObj *pRspObj = (SMqMetaRspObj *)res;
     taosMemoryFree(pRspObj->metaRsp.metaRsp);
@@ -482,7 +484,7 @@ void taos_stop_query(TAOS_RES *res) {
   int32_t numOfFields = taos_num_fields(pRequest);
   // It is not a query, no need to stop.
   if (numOfFields == 0) {
-    tscDebug("request %" PRIx64 " no need to be killed since not query", pRequest->requestId);
+    tscDebug("request 0x%" PRIx64 " no need to be killed since not query", pRequest->requestId);
     return;
   }
 
@@ -657,12 +659,17 @@ typedef struct SqlParseWrapper {
   SQuery        *pQuery;
 } SqlParseWrapper;
 
+static void destoryTablesReq(void *p) {
+  STablesReq *pRes = (STablesReq *)p;
+  taosArrayDestroy(pRes->pTables);
+}
+
 static void destorySqlParseWrapper(SqlParseWrapper *pWrapper) {
   taosArrayDestroy(pWrapper->catalogReq.pDbVgroup);
   taosArrayDestroy(pWrapper->catalogReq.pDbCfg);
   taosArrayDestroy(pWrapper->catalogReq.pDbInfo);
-  taosArrayDestroy(pWrapper->catalogReq.pTableMeta);
-  taosArrayDestroy(pWrapper->catalogReq.pTableHash);
+  taosArrayDestroyEx(pWrapper->catalogReq.pTableMeta, destoryTablesReq);
+  taosArrayDestroyEx(pWrapper->catalogReq.pTableHash, destoryTablesReq);
   taosArrayDestroy(pWrapper->catalogReq.pUdf);
   taosArrayDestroy(pWrapper->catalogReq.pIndex);
   taosArrayDestroy(pWrapper->catalogReq.pUser);
@@ -847,7 +854,7 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
   }
 
   pRequest->code =
-      setQueryResultFromRsp(pResultInfo, (SRetrieveTableRsp *)pResultInfo->pData, pResultInfo->convertUcs4, false);
+      setQueryResultFromRsp(pResultInfo, (SRetrieveTableRsp *)pResultInfo->pData, pResultInfo->convertUcs4, true);
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
     pRequest->code = code;
@@ -931,21 +938,6 @@ const void *taos_get_raw_block(TAOS_RES *res) {
   SRequestObj *pRequest = res;
 
   return pRequest->body.resInfo.pData;
-}
-
-TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char *topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp,
-                         void *param, int interval) {
-  // TODO
-  return NULL;
-}
-
-TAOS_RES *taos_consume(TAOS_SUB *tsub) {
-  // TODO
-  return NULL;
-}
-
-void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress) {
-  // TODO
 }
 
 int taos_load_table_info(TAOS *taos, const char *tableNameList) {

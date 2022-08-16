@@ -30,7 +30,7 @@ while $i < $tbNum
   $t1 = ' . $tb
   $t1 = $t1 . '
   sql create table $tb using $stb tags( $t1 )
- 
+
   $x = 0
   while $x < $rowNum
     $xs = $x * $delta
@@ -41,15 +41,15 @@ while $i < $tbNum
     $binary = binary . $c
     $nchar = '涛思nchar . $c
     $nchar = $nchar . '
-    sql insert into $tb values ( $ts , $ts , $c ) 
+    sql insert into $tb values ( $ts , $ts , $c )
     $x = $x + 1
-  endw 
+  endw
   $ts = $ts + $delta
   sql insert into $tb values ( $ts , NULL, NULL )
   $i = $i + 1
 endw
 print ====== $db tables created
-  
+
 run tsim/parser/timestamp_query.sim
 
 print ================== restart server to commit data into disk

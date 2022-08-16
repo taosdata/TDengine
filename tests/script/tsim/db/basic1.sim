@@ -5,7 +5,7 @@ sql connect
 
 print =============== create database
 sql create database d1 vgroups 2
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -39,7 +39,7 @@ endi
 
 print =============== drop database
 sql drop database d1
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then
   return -1
 endi
@@ -48,7 +48,7 @@ print =============== more databases
 sql create database d2 vgroups 2
 sql create database d3 vgroups 3
 sql create database d4 vgroups 4
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 5 then
   return -1
 endi
@@ -110,7 +110,7 @@ endi
 print =============== drop database
 sql drop database d2
 sql drop database d3
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -136,8 +136,8 @@ if $rows != 4 then
   return -1
 endi
 
-print =============== show dnodes
-sql show dnodes
+print =============== select * from information_schema.ins_dnodes
+sql select * from information_schema.ins_dnodes
 
 if $data00 != 1 then
   return -1
@@ -152,8 +152,8 @@ print =============== restart
 system sh/exec.sh -n dnode1 -s stop -x SIGKILL
 system sh/exec.sh -n dnode1 -s start
 
-print =============== show databases
-sql show databases
+print =============== select * from information_schema.ins_databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi

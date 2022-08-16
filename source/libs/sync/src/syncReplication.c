@@ -199,10 +199,27 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
 
     // send msg
     syncNodeAppendEntriesBatch(pSyncNode, pDestId, pMsg);
+
+    // speed up
+    if (pMsg->dataCount > 0 && pSyncNode->commitIndex - pMsg->prevLogIndex > SYNC_SLOW_DOWN_RANGE) {
+      ret = 1;
+
+#if 0
+      do {
+        char     logBuf[128];
+        char     host[64];
+        uint16_t port;
+        syncUtilU642Addr(pDestId->addr, host, sizeof(host), &port);
+        snprintf(logBuf, sizeof(logBuf), "maybe speed up for %s:%d, pre-index:%ld", host, port, pMsg->prevLogIndex);
+        syncNodeEventLog(pSyncNode, logBuf);
+      } while (0);
+#endif
+    }
+
     syncAppendEntriesBatchDestroy(pMsg);
   }
 
-  return 0;
+  return ret;
 }
 
 int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
@@ -287,7 +304,7 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
   return ret;
 }
 
-int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
+int32_t syncNodeReplicate(SSyncNode* pSyncNode, bool isTimer) {
   // start replicate
   int32_t ret = 0;
 
@@ -309,7 +326,39 @@ int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
       break;
   }
 
-  syncNodeRestartHeartbeatTimer(pSyncNode);
+  // start delay
+  int64_t timeNow = taosGetTimestampMs();
+  int64_t startDelay = timeNow - pSyncNode->startTime;
+
+  // replicate delay
+  int64_t replicateDelay = timeNow - pSyncNode->lastReplicateTime;
+  pSyncNode->lastReplicateTime = timeNow;
+
+  if (ret > 0 && isTimer && startDelay > SYNC_SPEED_UP_AFTER_MS) {
+    // speed up replicate
+    int32_t ms =
+        pSyncNode->heartbeatTimerMS < SYNC_SPEED_UP_HB_TIMER ? pSyncNode->heartbeatTimerMS : SYNC_SPEED_UP_HB_TIMER;
+    syncNodeRestartNowHeartbeatTimerMS(pSyncNode, ms);
+
+#if 0
+    do {
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "replicate speed up");
+      syncNodeEventLog(pSyncNode, logBuf);
+    } while (0);
+#endif
+
+  } else {
+    syncNodeRestartHeartbeatTimer(pSyncNode);
+
+#if 0
+    do {
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "replicate slow down");
+      syncNodeEventLog(pSyncNode, logBuf);
+    } while (0);
+#endif
+  }
 
   return ret;
 }

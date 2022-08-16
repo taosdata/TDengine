@@ -128,7 +128,7 @@ $db = $dbPrefix . $i
 sql create database $db
 sql use $db
 
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 7 then 
   return -1
 endi
@@ -139,7 +139,7 @@ while $i < 5
   sql drop database $db 
   $i = $i + 1
 endw
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then 
   return -1
 endi

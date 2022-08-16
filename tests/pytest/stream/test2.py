@@ -14,7 +14,7 @@ class TDTestCase:
         #for i in range(100):
             tdSql.prepare()
             dbname = tdCom.getLongName(10, "letters")
-            tdSql.execute('show databases')
+            tdSql.execute('select * from information_schema.ins_databases')
             tdSql.execute('drop database if exists ttxkbrzmpo')
             tdSql.execute('create database if not exists ttxkbrzmpo vgroups 1')
             tdSql.execute('use ttxkbrzmpo')

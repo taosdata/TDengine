@@ -195,7 +195,7 @@ static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, 
 
   int32_t   code = TSDB_CODE_SUCCESS;
   SHashObj* pHash = taosArrayGetP(pCxt->pLocationHelper, pDataBlockDesc->dataBlockId);
-  int16_t   nextSlotId = taosHashGetSize(pHash), slotId = 0;
+  int16_t   nextSlotId = LIST_LENGTH(pDataBlockDesc->pSlots), slotId = 0;
   SNode*    pNode = NULL;
   FOREACH(pNode, pList) {
     SNode*      pExpr = QUERY_NODE_ORDER_BY_EXPR == nodeType(pNode) ? ((SOrderByExprNode*)pNode)->pExpr : pNode;
@@ -311,6 +311,10 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
 
 static int32_t setNodeSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, int16_t rightDataBlockId, SNode* pNode,
                              SNode** pOutput) {
+  if (NULL == pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SNode* pRes = nodesCloneNode(pNode);
   if (NULL == pRes) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -332,6 +336,10 @@ static int32_t setNodeSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, i
 
 static int32_t setListSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, int16_t rightDataBlockId,
                              const SNodeList* pList, SNodeList** pOutput) {
+  if (NULL == pList) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SNodeList* pRes = nodesCloneList(pList);
   if (NULL == pRes) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -825,6 +833,8 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pAgg->mergeDataBlock = (GROUP_ACTION_KEEP == pAggLogicNode->node.groupAction ? false : true);
+
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pGroupKeys = NULL;
   SNodeList* pAggFuncs = NULL;
@@ -983,7 +993,7 @@ static bool projectCanMergeDataBlock(SProjectLogicNode* pProject) {
     return true;
   }
   if (1 != LIST_LENGTH(pProject->node.pChildren)) {
-    return false;
+    return true;
   }
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
   return DATA_ORDER_LEVEL_GLOBAL == pChild->resultDataOrder ? true : false;
@@ -998,6 +1008,7 @@ static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChild
   }
 
   pProject->mergeDataBlock = projectCanMergeDataBlock(pProjectLogicNode);
+  pProject->ignoreGroupId = pProjectLogicNode->ignoreGroupId;
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (0 == LIST_LENGTH(pChildren)) {
@@ -1091,6 +1102,7 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   pWindow->igExpired = pWindowLogicNode->igExpired;
   pWindow->inputTsOrder = pWindowLogicNode->inputTsOrder;
   pWindow->outputTsOrder = pWindowLogicNode->outputTsOrder;
+  pWindow->mergeDataBlock = (GROUP_ACTION_KEEP == pWindowLogicNode->node.groupAction ? false : true);
 
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pFuncs = NULL;
@@ -1368,13 +1380,22 @@ static int32_t createFillPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   pFill->inputTsOrder = pFillNode->inputTsOrder;
 
   SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
-  int32_t code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFillNode->node.pTargets, &pFill->pTargets);
+  int32_t code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFillNode->pFillExprs, &pFill->pFillExprs);
   if (TSDB_CODE_SUCCESS == code) {
-    code = addDataBlockSlots(pCxt, pFill->pTargets, pFill->node.pOutputDataBlockDesc);
+    code = addDataBlockSlots(pCxt, pFill->pFillExprs, pFill->node.pOutputDataBlockDesc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFillNode->pNotFillExprs, &pFill->pNotFillExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addDataBlockSlots(pCxt, pFill->pNotFillExprs, pFill->node.pOutputDataBlockDesc);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
     code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pFillNode->pWStartTs, &pFill->pWStartTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addDataBlockSlot(pCxt, &pFill->pWStartTs, pFill->node.pOutputDataBlockDesc);
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pFillNode->pValues) {

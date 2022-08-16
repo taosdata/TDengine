@@ -392,6 +392,29 @@ bool syncIsReady(int64_t rid) {
   return b;
 }
 
+bool syncIsReadyForRead(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return false;
+  }
+  ASSERT(rid == pSyncNode->rid);
+
+  // TODO: last not noop?
+  SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
+  bool b = (pSyncNode->state == TAOS_SYNC_STATE_LEADER) && (pSyncNode->commitIndex >= lastIndex - SYNC_MAX_READ_RANGE);
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+
+  // if false, set error code
+  if (false == b) {
+    if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+      terrno = TSDB_CODE_SYN_NOT_LEADER;
+    } else {
+      terrno = TSDB_CODE_APP_NOT_READY;
+    }
+  }
+  return b;
+}
+
 bool syncIsRestoreFinish(int64_t rid) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
@@ -495,6 +518,18 @@ const char* syncGetMyRoleStr(int64_t rid) {
   return s;
 }
 
+bool syncRestoreFinish(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return false;
+  }
+  ASSERT(rid == pSyncNode->rid);
+  bool restoreFinish = pSyncNode->restoreFinish;
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return restoreFinish;
+}
+
 SyncTerm syncGetMyTerm(int64_t rid) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
@@ -505,6 +540,30 @@ SyncTerm syncGetMyTerm(int64_t rid) {
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return term;
+}
+
+SyncIndex syncGetLastIndex(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return SYNC_INDEX_INVALID;
+  }
+  ASSERT(rid == pSyncNode->rid);
+  SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return lastIndex;
+}
+
+SyncIndex syncGetCommitIndex(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return SYNC_INDEX_INVALID;
+  }
+  ASSERT(rid == pSyncNode->rid);
+  SyncIndex cmtIndex = pSyncNode->commitIndex;
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return cmtIndex;
 }
 
 SyncGroupId syncGetVgId(int64_t rid) {
@@ -816,6 +875,15 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
       pSyncNode->changing = true;
     }
 
+    // not restored, vnode enable
+    if (!pSyncNode->restoreFinish && pSyncNode->vgId != 1) {
+      ret = -1;
+      terrno = TSDB_CODE_SYN_PROPOSE_NOT_READY;
+      sError("vgId:%d, failed to sync propose since not ready, type:%s, last:%ld, cmt:%ld", pSyncNode->vgId,
+             TMSG_INFO(pMsg->msgType), syncNodeGetLastIndex(pSyncNode), pSyncNode->commitIndex);
+      goto _END;
+    }
+
     SRespStub stub;
     stub.createTime = taosGetTimestampMs();
     stub.rpcMsg = *pMsg;
@@ -1086,6 +1154,11 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   // start raft
   // syncNodeBecomeFollower(pSyncNode);
 
+  int64_t timeNow = taosGetTimestampMs();
+  pSyncNode->startTime = timeNow;
+  pSyncNode->leaderTime = timeNow;
+  pSyncNode->lastReplicateTime = timeNow;
+
   syncNodeEventLog(pSyncNode, "sync open");
 
   return pSyncNode;
@@ -1115,9 +1188,11 @@ void syncNodeStart(SSyncNode* pSyncNode) {
     syncNodeBecomeFollower(pSyncNode, "first start");
   }
 
-  int32_t ret = 0;
-  // ret = syncNodeStartPingTimer(pSyncNode);
-  ASSERT(ret == 0);
+  if (pSyncNode->vgId == 1) {
+    int32_t ret = 0;
+    ret = syncNodeStartPingTimer(pSyncNode);
+    ASSERT(ret == 0);
+  }
 }
 
 void syncNodeStartStandBy(SSyncNode* pSyncNode) {
@@ -1129,6 +1204,12 @@ void syncNodeStartStandBy(SSyncNode* pSyncNode) {
   int32_t electMS = TIMER_MAX_MS;
   int32_t ret = syncNodeRestartElectTimer(pSyncNode, electMS);
   ASSERT(ret == 0);
+
+  if (pSyncNode->vgId == 1) {
+    int32_t ret = 0;
+    ret = syncNodeStartPingTimer(pSyncNode);
+    ASSERT(ret == 0);
+  }
 }
 
 void syncNodeClose(SSyncNode* pSyncNode) {
@@ -1303,7 +1384,7 @@ int32_t syncNodeResetElectTimer(SSyncNode* pSyncNode) {
   return ret;
 }
 
-int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
+static int32_t syncNodeDoStartHeartbeatTimer(SSyncNode* pSyncNode) {
   int32_t ret = 0;
   if (syncEnvIsStart()) {
     taosTmrReset(pSyncNode->FpHeartbeatTimerCB, pSyncNode->heartbeatTimerMS, pSyncNode, gSyncEnv->pTimerManager,
@@ -1322,21 +1403,21 @@ int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
   return ret;
 }
 
-int32_t syncNodeStartNowHeartbeatTimer(SSyncNode* pSyncNode) {
-  int32_t ret = 0;
-  if (syncEnvIsStart()) {
-    taosTmrReset(pSyncNode->FpHeartbeatTimerCB, 1, pSyncNode, gSyncEnv->pTimerManager, &pSyncNode->pHeartbeatTimer);
-    atomic_store_64(&pSyncNode->heartbeatTimerLogicClock, pSyncNode->heartbeatTimerLogicClockUser);
-  } else {
-    sError("vgId:%d, start heartbeat timer error, sync env is stop", pSyncNode->vgId);
-  }
+int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
+  pSyncNode->heartbeatTimerMS = pSyncNode->hbBaseLine;
+  int32_t ret = syncNodeDoStartHeartbeatTimer(pSyncNode);
+  return ret;
+}
 
-  do {
-    char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "start heartbeat timer, ms:%d", 1);
-    syncNodeEventLog(pSyncNode, logBuf);
-  } while (0);
+int32_t syncNodeStartHeartbeatTimerMS(SSyncNode* pSyncNode, int32_t ms) {
+  pSyncNode->heartbeatTimerMS = ms;
+  int32_t ret = syncNodeDoStartHeartbeatTimer(pSyncNode);
+  return ret;
+}
 
+int32_t syncNodeStartHeartbeatTimerNow(SSyncNode* pSyncNode) {
+  pSyncNode->heartbeatTimerMS = 1;
+  int32_t ret = syncNodeDoStartHeartbeatTimer(pSyncNode);
   return ret;
 }
 
@@ -1357,9 +1438,15 @@ int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode) {
   return 0;
 }
 
-int32_t syncNodeRestartNowHeartbeatTimer(SSyncNode* pSyncNode) {
+int32_t syncNodeRestartHeartbeatTimerNow(SSyncNode* pSyncNode) {
   syncNodeStopHeartbeatTimer(pSyncNode);
-  syncNodeStartNowHeartbeatTimer(pSyncNode);
+  syncNodeStartHeartbeatTimerNow(pSyncNode);
+  return 0;
+}
+
+int32_t syncNodeRestartNowHeartbeatTimerMS(SSyncNode* pSyncNode, int32_t ms) {
+  syncNodeStopHeartbeatTimer(pSyncNode);
+  syncNodeStartHeartbeatTimerMS(pSyncNode, ms);
   return 0;
 }
 
@@ -1931,9 +2018,6 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
 
       // Raft 3.6.2 Committing entries from previous terms
       syncNodeAppendNoop(pSyncNode);
-#if 0  // simon
-      syncNodeReplicate(pSyncNode);
-#endif
       syncMaybeAdvanceCommitIndex(pSyncNode);
 
     } else {
@@ -1996,6 +2080,8 @@ void syncNodeUpdateTermWithoutStepDown(SSyncNode* pSyncNode, SyncTerm term) {
   }
 }
 
+void syncNodeLeaderChangeRsp(SSyncNode* pSyncNode) { syncRespCleanRsp(pSyncNode->pSyncRespMgr); }
+
 void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
   // maybe clear leader cache
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
@@ -2008,6 +2094,14 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
 
   // reset elect timer
   syncNodeResetElectTimer(pSyncNode);
+
+  // send rsp to client
+  syncNodeLeaderChangeRsp(pSyncNode);
+
+  // call back
+  if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpBecomeFollowerCb != NULL) {
+    pSyncNode->pFsm->FpBecomeFollowerCb(pSyncNode->pFsm);
+  }
 
   // trace log
   do {
@@ -2044,6 +2138,8 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
 //     /\ UNCHANGED <<messages, currentTerm, votedFor, candidateVars, logVars>>
 //
 void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
+  pSyncNode->leaderTime = taosGetTimestampMs();
+
   // reset restoreFinish
   pSyncNode->restoreFinish = false;
 
@@ -2090,6 +2186,11 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   // start heartbeat timer
   syncNodeStartHeartbeatTimer(pSyncNode);
 
+  // call back
+  if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpBecomeLeaderCb != NULL) {
+    pSyncNode->pFsm->FpBecomeLeaderCb(pSyncNode->pFsm);
+  }
+
   // trace log
   do {
     int32_t debugStrLen = strlen(debugStr);
@@ -2115,9 +2216,6 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
 
   // Raft 3.6.2 Committing entries from previous terms
   syncNodeAppendNoop(pSyncNode);
-#if 0  // simon
-  syncNodeReplicate(pSyncNode);
-#endif
   syncMaybeAdvanceCommitIndex(pSyncNode);
 }
 
@@ -2409,6 +2507,9 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
 
 static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
   SSyncNode* pSyncNode = (SSyncNode*)param;
+
+  syncNodeEventLog(pSyncNode, "eq hb timer");
+
   if (pSyncNode->replicaNum > 1) {
     if (atomic_load_64(&pSyncNode->heartbeatTimerLogicClockUser) <=
         atomic_load_64(&pSyncNode->heartbeatTimerLogicClock)) {
@@ -2485,7 +2586,7 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     int32_t code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
     ASSERT(code == 0);
-    syncNodeReplicate(ths);
+    syncNodeReplicate(ths, false);
   }
 
   syncEntryDestory(pEntry);
@@ -2558,7 +2659,7 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncI
 
     // if mulit replica, start replicate right now
     if (ths->replicaNum > 1) {
-      syncNodeReplicate(ths);
+      syncNodeReplicate(ths, false);
 
       // pre commit
       syncNodePreCommit(ths, pEntry, 0);
@@ -2627,7 +2728,7 @@ int32_t syncNodeOnClientRequestBatchCb(SSyncNode* ths, SyncClientRequestBatch* p
 
   if (ths->replicaNum > 1) {
     // if multi replica, start replicate right now
-    syncNodeReplicate(ths);
+    syncNodeReplicate(ths, false);
 
   } else if (ths->replicaNum == 1) {
     // one replica
@@ -2665,7 +2766,22 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
     syncNodeEventLog(ths, "I am not follower, can not do leader transfer");
     return 0;
   }
-  syncNodeEventLog(ths, "do leader transfer");
+
+  if (!ths->restoreFinish) {
+    syncNodeEventLog(ths, "restore not finish, can not do leader transfer");
+    return 0;
+  }
+
+  if (ths->vgId > 1) {
+    syncNodeEventLog(ths, "I am vnode, can not do leader transfer");
+    return 0;
+  }
+
+  do {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "do leader transfer, index:%ld", pEntry->index);
+    syncNodeEventLog(ths, logBuf);
+  } while (0);
 
   bool sameId = syncUtilSameId(&(pSyncLeaderTransfer->newLeaderId), &(ths->myRaftId));
   bool sameNodeInfo = strcmp(pSyncLeaderTransfer->newNodeInfo.nodeFqdn, ths->myNodeInfo.nodeFqdn) == 0 &&
@@ -2910,8 +3026,11 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
             }
             ths->restoreFinish = true;
 
+            int64_t restoreDelay = taosGetTimestampMs() - ths->leaderTime;
+
             char eventLog[128];
-            snprintf(eventLog, sizeof(eventLog), "restore finish, index:%" PRId64, pEntry->index);
+            snprintf(eventLog, sizeof(eventLog), "restore finish, index:%ld, elapsed:%ld ms, ", pEntry->index,
+                     restoreDelay);
             syncNodeEventLog(ths, eventLog);
           }
         }
@@ -3066,7 +3185,7 @@ void syncLogRecvAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntries
   syncNodeEventLog(pSyncNode, logBuf);
 }
 
- void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s) {
+void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s) {
   char     host[64];
   uint16_t port;
   syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);

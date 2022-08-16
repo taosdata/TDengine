@@ -12,7 +12,7 @@ print =============== create super table and register rsma
 sql create table if not exists stb (ts timestamp, c1 int, c2 float) tags (city binary(20),district binary(20)) rollup(max) max_delay 5s,5s watermark 2s,3s;
 
 sql show stables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
@@ -20,7 +20,7 @@ print =============== create child table
 sql create table ct1 using stb tags("BeiJing", "ChaoYang");
 
 sql show tables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
@@ -29,8 +29,8 @@ sql insert into ct1 values(now, 10, 10.0);
 sql insert into ct1 values(now+1s, 1, 1.0);
 sql insert into ct1 values(now+2s, 100, 100.0);
 
-print =============== wait maxdelay 5+1 seconds for results
-sleep 6000
+print =============== wait maxdelay 5+2 seconds for results
+sleep 7000
 
 print =============== select * from retention level 2 from memory
 sql select * from ct1;
@@ -135,8 +135,8 @@ print =============== insert after rsma qtaskinfo recovery
 sql insert into ct1 values(now, 50, 500.0);
 sql insert into ct1 values(now+1s, 40, 40.0);
 
-print =============== wait maxdelay 5+1 seconds for results
-sleep 6000
+print =============== wait maxdelay 5+2 seconds for results
+sleep 7000
 
 print =============== select * from retention level 2 from file and memory after rsma qtaskinfo recovery
 sql select * from ct1;

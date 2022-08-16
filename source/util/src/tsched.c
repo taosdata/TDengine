@@ -22,30 +22,16 @@
 
 #define DUMP_SCHEDULER_TIME_WINDOW 30000  // every 30sec, take a snap shot of task queue.
 
-typedef struct {
-  char          label[TSDB_LABEL_LEN];
-  tsem_t        emptySem;
-  tsem_t        fullSem;
-  TdThreadMutex queueMutex;
-  int32_t       fullSlot;
-  int32_t       emptySlot;
-  int32_t       queueSize;
-  int32_t       numOfThreads;
-  TdThread     *qthread;
-  SSchedMsg    *queue;
-  bool          stop;
-  void         *pTmrCtrl;
-  void         *pTimer;
-} SSchedQueue;
-
 static void *taosProcessSchedQueue(void *param);
 static void  taosDumpSchedulerStatus(void *qhandle, void *tmrId);
 
-void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *label) {
-  SSchedQueue *pSched = (SSchedQueue *)taosMemoryCalloc(sizeof(SSchedQueue), 1);
-  if (pSched == NULL) {
-    uError("%s: no enough memory for pSched", label);
-    return NULL;
+void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *label, SSchedQueue *pSched) {
+  if (NULL == pSched) {
+    pSched = (SSchedQueue *)taosMemoryCalloc(sizeof(SSchedQueue), 1);
+    if (pSched == NULL) {
+      uError("%s: no enough memory for pSched", label);
+      return NULL;
+    }
   }
 
   pSched->queue = (SSchedMsg *)taosMemoryCalloc(sizeof(SSchedMsg), queueSize);
@@ -86,7 +72,7 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
     return NULL;
   }
 
-  pSched->stop = false;
+  atomic_store_8(&pSched->stop, 0);
   for (int32_t i = 0; i < numOfThreads; ++i) {
     TdThreadAttr attr;
     taosThreadAttrInit(&attr);
@@ -107,7 +93,7 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
 }
 
 void *taosInitSchedulerWithInfo(int32_t queueSize, int32_t numOfThreads, const char *label, void *tmrCtrl) {
-  SSchedQueue *pSched = taosInitScheduler(queueSize, numOfThreads, label);
+  SSchedQueue *pSched = taosInitScheduler(queueSize, numOfThreads, label, NULL);
 
   if (tmrCtrl != NULL && pSched != NULL) {
     pSched->pTmrCtrl = tmrCtrl;
@@ -131,7 +117,7 @@ void *taosProcessSchedQueue(void *scheduler) {
       uFatal("wait %s fullSem failed(%s)", pSched->label, strerror(errno));
       ASSERT(0);
     }
-    if (pSched->stop) {
+    if (atomic_load_8(&pSched->stop)) {
       break;
     }
 
@@ -172,6 +158,11 @@ void taosScheduleTask(void *queueScheduler, SSchedMsg *pMsg) {
     return;
   }
 
+  if (atomic_load_8(&pSched->stop)) {
+    uError("sched is already stopped, msg:%p is dropped", pMsg);
+    return;
+  }
+
   if ((ret = tsem_wait(&pSched->emptySem)) != 0) {
     uFatal("wait %s emptySem failed(%s)", pSched->label, strerror(errno));
     ASSERT(0);
@@ -202,7 +193,10 @@ void taosCleanUpScheduler(void *param) {
 
   uDebug("start to cleanup %s schedQsueue", pSched->label);
   
-  pSched->stop = true;
+  atomic_store_8(&pSched->stop, 1);
+
+  taosMsleep(200);
+  
   for (int32_t i = 0; i < pSched->numOfThreads; ++i) {
     if (taosCheckPthreadValid(pSched->qthread[i])) {
       tsem_post(&pSched->fullSem);
@@ -226,7 +220,7 @@ void taosCleanUpScheduler(void *param) {
 
   if (pSched->queue) taosMemoryFree(pSched->queue);
   if (pSched->qthread) taosMemoryFree(pSched->qthread);
-  taosMemoryFree(pSched);  // fix memory leak
+  //taosMemoryFree(pSched);
 }
 
 // for debug purpose, dump the scheduler status every 1min.

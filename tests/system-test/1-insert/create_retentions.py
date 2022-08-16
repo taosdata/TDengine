@@ -135,7 +135,7 @@ class TDTestCase:
             tdSql.error(err_sql)
         for cur_sql in self.create_databases_sql_current:
             tdSql.execute(cur_sql)
-            # tdSql.query("show databases")
+            # tdSql.query("select * from information_schema.ins_databases")
         for alter_sql in self.alter_database_sql:
             tdSql.error(alter_sql)
 
@@ -187,7 +187,7 @@ class TDTestCase:
             tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.{stb} tags ( {i+1} )')
 
     def __insert_data(self, rows, ctb_num=20, dbname=DBNAME, rsma=False, rsma_type="sum"):
-        tdLog.printNoPrefix("==========step: start inser data into tables now.....")
+        tdLog.printNoPrefix("==========step: start insert data into tables now.....")
         # from ...pytest.util.common import DataSet
         data = DataSet()
         data.get_order_set(rows)

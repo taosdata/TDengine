@@ -238,7 +238,7 @@ class TDTestCase:
 
         tsql.execute("create database %s vgroups %d"%(dbname,vgroups))
         print("db has been created")
-        # tsql.getResult("show databases")
+        # tsql.getResult("select * from information_schema.ins_databases")
         # print(tdSql.queryResult)
         tsql.execute("use %s" %dbname)
 

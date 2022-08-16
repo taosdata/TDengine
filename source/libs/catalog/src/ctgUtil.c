@@ -438,6 +438,14 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
   }
 }
 
+void ctgFreeTbMetasMsgCtx(SCtgMsgCtx* pCtx) {
+  ctgFreeMsgCtx(pCtx);
+  if (pCtx->lastOut) {
+    ctgFreeSTableMetaOutput((STableMetaOutput*)pCtx->lastOut);
+    pCtx->lastOut = NULL;
+  }
+}
+
 void ctgFreeSTableMetaOutput(STableMetaOutput* pOutput) {
   if (NULL == pOutput) {
     return;
@@ -641,7 +649,7 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       taosArrayDestroy(taskCtx->pFetchs);
       // NO NEED TO FREE pNames
 
-      taosArrayDestroyEx(pTask->msgCtxs, (FDelete)ctgFreeMsgCtx);
+      taosArrayDestroyEx(pTask->msgCtxs, (FDelete)ctgFreeTbMetasMsgCtx);
       
       if (pTask->msgCtx.lastOut) {
         ctgFreeSTableMetaOutput((STableMetaOutput*)pTask->msgCtx.lastOut);
@@ -875,6 +883,32 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog *pCtg, SDBVgInfo *dbInfo, const SName
   CTG_RET(code);
 }
 
+int32_t ctgHashValueComp(void const *lp, void const *rp) {
+  uint32_t *key = (uint32_t *)lp;
+  SVgroupInfo *pVg = *(SVgroupInfo **)rp;
+
+  if (*key < pVg->hashBegin) {
+    return -1;
+  } else if (*key > pVg->hashEnd) {
+    return 1;
+  }
+
+  return 0;
+}
+
+int ctgVgInfoComp(const void* lp, const void* rp) {
+  SVgroupInfo *pLeft = *(SVgroupInfo **)lp;
+  SVgroupInfo *pRight = *(SVgroupInfo **)rp;
+  if (pLeft->hashBegin < pRight->hashBegin) {
+    return -1;
+  } else if (pLeft->hashBegin > pRight->hashBegin) {
+    return 1;
+  }
+
+  return 0;
+}
+
+
 int32_t ctgGetVgInfosFromHashValue(SCatalog *pCtg, SCtgTaskReq* tReq, SDBVgInfo *dbInfo, SCtgTbHashsCtx *pCtx, char* dbFName, SArray* pNames, bool update) {
   int32_t code = 0;
   SCtgTask* pTask = tReq->pTask;
@@ -882,7 +916,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog *pCtg, SCtgTaskReq* tReq, SDBVgInfo 
   int32_t vgNum = taosHashGetSize(dbInfo->vgHash);
   if (vgNum <= 0) {
     ctgError("db vgroup cache invalid, db:%s, vgroup number:%d", dbFName, vgNum);
-    CTG_ERR_RET(TSDB_CODE_TSC_DB_NOT_SELECTED);
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
   tableNameHashFp fp = NULL;
@@ -897,6 +931,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog *pCtg, SCtgTaskReq* tReq, SDBVgInfo 
     for (int32_t i = 0; i < tbNum; ++i) {
       vgInfo = taosMemoryMalloc(sizeof(SVgroupInfo));
       if (NULL == vgInfo) {
+        taosHashCancelIterate(dbInfo->vgHash, pIter);
         CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
 
@@ -915,8 +950,18 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog *pCtg, SCtgTaskReq* tReq, SDBVgInfo 
       }
     }
 
+    taosHashCancelIterate(dbInfo->vgHash, pIter);
     return TSDB_CODE_SUCCESS;
   }
+
+  SArray* pVgList = taosArrayInit(vgNum, POINTER_BYTES);
+  void *pIter = taosHashIterate(dbInfo->vgHash, NULL);
+  while (pIter) {
+    taosArrayPush(pVgList, &pIter);
+    pIter = taosHashIterate(dbInfo->vgHash, pIter);
+  }
+
+  taosArraySort(pVgList, ctgVgInfoComp);
 
   char tbFullName[TSDB_TABLE_FNAME_LEN];
   sprintf(tbFullName, "%s.", dbFName);
@@ -932,25 +977,19 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog *pCtg, SCtgTaskReq* tReq, SDBVgInfo 
 
     uint32_t hashValue = (*fp)(tbFullName, (uint32_t)tbNameLen);
 
-    void *pIter = taosHashIterate(dbInfo->vgHash, NULL);
-    while (pIter) {
-      vgInfo = pIter;
-      if (hashValue >= vgInfo->hashBegin && hashValue <= vgInfo->hashEnd) {
-        taosHashCancelIterate(dbInfo->vgHash, pIter);
-        break;
-      }
-      
-      pIter = taosHashIterate(dbInfo->vgHash, pIter);
-      vgInfo = NULL;
-    }
+    SVgroupInfo **p = taosArraySearch(pVgList, &hashValue, ctgHashValueComp, TD_EQ);
 
-    if (NULL == vgInfo) {
+    if (NULL == p) {
       ctgError("no hash range found for hash value [%u], db:%s, numOfVgId:%d", hashValue, dbFName, taosHashGetSize(dbInfo->vgHash));
+      taosArrayDestroy(pVgList);
       CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
+    vgInfo = *p;
+
     SVgroupInfo* pNewVg = taosMemoryMalloc(sizeof(SVgroupInfo));
     if (NULL == pNewVg) {
+      taosArrayDestroy(pVgList);
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
@@ -968,6 +1007,8 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog *pCtg, SCtgTaskReq* tReq, SDBVgInfo 
       taosArrayPush(pCtx->pResList, &res);
     }    
   }
+
+  taosArrayDestroy(pVgList);
 
   CTG_RET(code);
 }

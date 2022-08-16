@@ -6,7 +6,7 @@ sql connect
 
 print =============== create database
 sql create database test vgroups 1
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -450,7 +450,7 @@ if $data26 != 14 then
 endi
 
 sql create database test1 vgroups 1
-sql show databases
+sql select * from information_schema.ins_databases
 
 print $data00 $data01 $data02
 

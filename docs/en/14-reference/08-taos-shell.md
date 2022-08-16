@@ -47,27 +47,28 @@ If the displayed content is followed by `...` you can use this command to change
 
 You can change the behavior of TDengine CLI by specifying command-line parameters. The following parameters are commonly used.
 
-- -h, --host=HOST: FQDN of the server where the TDengine server is to be connected. Default is to connect to the local service
-- -P, --port=PORT: Specify the port number to be used by the server. Default is `6030`
-- -u, --user=USER: the user name to use when connecting. Default is `root`
-- -p, --password=PASSWORD: the password to use when connecting to the server. Default is `taosdata`
+- -h HOST: FQDN of the server where the TDengine server is to be connected. Default is to connect to the local service
+- -P PORT: Specify the port number to be used by the server. Default is `6030`
+- -u USER: the user name to use when connecting. Default is `root`
+- -p PASSWORD: the password to use when connecting to the server. Default is `taosdata`
 - -?, --help: print out all command-line arguments 
 
 And many more parameters.
 
-- -c, --config-dir: Specify the directory where configuration file exists. The default is `/etc/taos`, and the default name of the configuration file in this directory is `taos.cfg`
-- -C, --dump-config: Print the configuration parameters of `taos.cfg` in the default directory or specified by -c
-- -d, --database=DATABASE: Specify the database to use when connecting to the server
-- -D, --directory=DIRECTORY: Import the SQL script file in the specified path
-- -f, --file=FILE: Execute the SQL script file in non-interactive mode
-- -k, --check=CHECK: Specify the table to be checked
-- -l, --pktlen=PKTLEN: Test package size to be used for network testing
-- -n, --netrole=NETROLE: test scope for network connection test, default is `startup`. The value can be `client`, `server`, `rpc`, `startup`, `sync`, `speed`, or `fqdn`.
-- -r, --raw-time: output the timestamp format as unsigned 64-bits integer (uint64_t in C language)
-- -s, --commands=COMMAND: execute SQL commands in non-interactive mode
-- -S, --pkttype=PKTTYPE: Specify the packet type used for network testing. The default is TCP, can be specified as either TCP or UDP when `speed` is specified to `netrole` parameter
-- -T, --thread=THREADNUM: The number of threads to import data in multi-threaded mode
-- -s, --commands: Run TDengine CLI commands without entering the terminal
+- -a AUTHSTR: The auth string to use when connecting to the server
+- -A: Generate auth string from password
+- -c CONFIGDIR: Specify the directory where configuration file exists. The default is `/etc/taos`, and the default name of the configuration file in this directory is `taos.cfg`
+- -C: Print the configuration parameters of `taos.cfg` in the default directory or specified by -c
+- -d DATABASE: Specify the database to use when connecting to the server
+- -f FILE: Execute the SQL script file in non-interactive mode
+- -k: Check the service status, 0: unavailable，1: network ok，2: service ok，3: service degraded，4: exiting
+- -l PKTLEN: Test package length to be used for network testing
+- -n NETROLE: test scope for network connection test, default is `client`. The value can be `client`, `server`
+- -N PKTNUM: Test package numbers to be used for network testing
+- -r: output the timestamp format as unsigned 64-bits integer (uint64_t in C language)
+- -s COMMAND: execute SQL commands in non-interactive mode
+- -t: Check the details of the service status，status same as -k
+- -w DISPLAYWIDTH: 客户端列显示宽度
 - -z, --timezone=TIMEZONE: Specify time zone. Default is the value of current configuration file
 - -V, --version: Print out the current version number
 

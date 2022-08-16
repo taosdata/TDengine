@@ -56,8 +56,8 @@ lrwxrwxrwx  1 root root   13 Feb 22 09:34 log -> /var/log/taos/
 
 ```
 $ sudo dpkg -r tdengine
-(Reading database ... 137504 files and directories currently installed.)
-Removing tdengine (2.4.0.7) ...
+(Reading database ... 120119 files and directories currently installed.)
+Removing tdengine (3.0.0.10002) ...
 TDengine is removed successfully!
 
 ```
@@ -81,12 +81,12 @@ TDengine is removed successfully!
 
 ```
 $ rmtaos
-Nginx for TDengine is running, stopping it...
 TDengine is removed successfully!
-
-taosKeeper is removed successfully!
 ```
 
+</TabItem>
+<TabItem label="Windows 卸载" value="windows">
+在 C:\TDengine 目录下，通过运行 unins000.exe 卸载程序来卸载 TDengine。
 </TabItem>
 </Tabs>
 

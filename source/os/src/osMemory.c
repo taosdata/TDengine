@@ -302,6 +302,7 @@ void *taosMemoryStrDup(const char *ptr) {
 }
 
 void taosMemoryFree(void *ptr) {
+  if (NULL == ptr) return;
 #ifdef USE_TD_MEMORY
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
   if (pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL) {

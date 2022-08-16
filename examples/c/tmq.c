@@ -21,17 +21,17 @@
 #include "taos.h"
 
 static int  running = 1;
-static char dbName[64]    = "tmqdb";
-static char stbName[64]   = "stb";
+static char dbName[64] = "tmqdb";
+static char stbName[64] = "stb";
 static char topicName[64] = "topicname";
 
 static int32_t msg_process(TAOS_RES* msg) {
-  char buf[1024];
+  char    buf[1024];
   int32_t rows = 0;
 
   const char* topicName = tmq_get_topic_name(msg);
-  const char* dbName    = tmq_get_db_name(msg);
-  int32_t     vgroupId  = tmq_get_vgroup_id(msg);
+  const char* dbName = tmq_get_db_name(msg);
+  int32_t     vgroupId = tmq_get_vgroup_id(msg);
 
   printf("topic: %s\n", topicName);
   printf("db: %s\n", dbName);
@@ -41,14 +41,13 @@ static int32_t msg_process(TAOS_RES* msg) {
     TAOS_ROW row = taos_fetch_row(msg);
     if (row == NULL) break;
 
-    TAOS_FIELD* fields      = taos_fetch_fields(msg);
+    TAOS_FIELD* fields = taos_fetch_fields(msg);
     int32_t     numOfFields = taos_field_count(msg);
-    int32_t*    length      = taos_fetch_lengths(msg);
-    int32_t     precision   = taos_result_precision(msg);
-    const char* tbName      = tmq_get_table_name(msg);
-	rows++; 
+    int32_t*    length = taos_fetch_lengths(msg);
+    int32_t     precision = taos_result_precision(msg);
+    rows++;
     taos_print_row(buf, row, fields, numOfFields);
-    printf("row content from %s: %s\n", (tbName != NULL ? tbName : "null table"), buf);
+    printf("row content: %s\n", buf);
   }
 
   return rows;
@@ -80,7 +79,8 @@ static int32_t init_env() {
 
   // create super table
   printf("create super table\n");
-  pRes = taos_query(pConn, "create table tmqdb.stb (ts timestamp, c1 int, c2 float, c3 varchar(16)) tags(t1 int, t3 varchar(16))");
+  pRes = taos_query(
+      pConn, "create table tmqdb.stb (ts timestamp, c1 int, c2 float, c3 varchar(16)) tags(t1 int, t3 varchar(16))");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table stb, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -166,8 +166,7 @@ int32_t create_topic() {
   }
   taos_free_result(pRes);
 
-  //  pRes = taos_query(pConn, "create topic topic_ctb_column with meta as database abc1");
-  pRes = taos_query(pConn, "create topic topicname as select ts, c1, c2, c3 from tmqdb.stb where c1 > 1");
+  pRes = taos_query(pConn, "create topic topicname as select ts, c1, c2, c3, tbname from tmqdb.stb where c1 > 1");
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic topicname, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -184,26 +183,26 @@ void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
 
 tmq_t* build_consumer() {
   tmq_conf_res_t code;
-  tmq_conf_t* conf = tmq_conf_new();
+  tmq_conf_t*    conf = tmq_conf_new();
   code = tmq_conf_set(conf, "enable.auto.commit", "true");
   if (TMQ_CONF_OK != code) return NULL;
   code = tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
   if (TMQ_CONF_OK != code) return NULL;
   code = tmq_conf_set(conf, "group.id", "cgrpName");
   if (TMQ_CONF_OK != code) return NULL;
+  code = tmq_conf_set(conf, "client.id", "user defined name");
+  if (TMQ_CONF_OK != code) return NULL;
   code = tmq_conf_set(conf, "td.connect.user", "root");
   if (TMQ_CONF_OK != code) return NULL;
   code = tmq_conf_set(conf, "td.connect.pass", "taosdata");
   if (TMQ_CONF_OK != code) return NULL;
-  code = tmq_conf_set(conf, "auto.offset.reset", "earliest");	
+  code = tmq_conf_set(conf, "auto.offset.reset", "earliest");
   if (TMQ_CONF_OK != code) return NULL;
-  code = tmq_conf_set(conf, "experimental.snapshot.enable", "true");
+  code = tmq_conf_set(conf, "experimental.snapshot.enable", "false");
   if (TMQ_CONF_OK != code) return NULL;
-  code = tmq_conf_set(conf, "msg.with.table.name", "true");
-  if (TMQ_CONF_OK != code) return NULL;
-  
-  tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);	
-  
+
+  tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
+
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
   tmq_conf_destroy(conf);
   return tmq;
@@ -211,35 +210,28 @@ tmq_t* build_consumer() {
 
 tmq_list_t* build_topic_list() {
   tmq_list_t* topicList = tmq_list_new();
-  int32_t code = tmq_list_append(topicList, "topicname");
+  int32_t     code = tmq_list_append(topicList, "topicname");
   if (code) {
     return NULL;
   }
   return topicList;
 }
 
-void basic_consume_loop(tmq_t* tmq, tmq_list_t* topicList) {
-  int32_t code;
-
-  if ((code = tmq_subscribe(tmq, topicList))) {
-    fprintf(stderr, "%% Failed to tmq_subscribe(): %s\n", tmq_err2str(code));
-    return;
-  }
-
+void basic_consume_loop(tmq_t* tmq) {
   int32_t totalRows = 0;
   int32_t msgCnt = 0;
-  int32_t consumeDelay = 5000;
+  int32_t timeout = 5000;
   while (running) {
-    TAOS_RES* tmqmsg = tmq_consumer_poll(tmq, consumeDelay);
+    TAOS_RES* tmqmsg = tmq_consumer_poll(tmq, timeout);
     if (tmqmsg) {
       msgCnt++;
       totalRows += msg_process(tmqmsg);
       taos_free_result(tmqmsg);
     } else {
       break;
-	}
+    }
   }
-  
+
   fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
 }
 
@@ -256,32 +248,28 @@ int main(int argc, char* argv[]) {
 
   tmq_t* tmq = build_consumer();
   if (NULL == tmq) {
-  	fprintf(stderr, "%% build_consumer() fail!\n");
+    fprintf(stderr, "%% build_consumer() fail!\n");
     return -1;
   }
 
   tmq_list_t* topic_list = build_topic_list();
   if (NULL == topic_list) {
     return -1;
-  }  
-  
-  basic_consume_loop(tmq, topic_list);
+  }
 
-  code = tmq_unsubscribe(tmq);
-  if (code) {
-    fprintf(stderr, "%% Failed to unsubscribe: %s\n", tmq_err2str(code));
+  if ((code = tmq_subscribe(tmq, topic_list))) {
+    fprintf(stderr, "%% Failed to tmq_subscribe(): %s\n", tmq_err2str(code));
   }
-  else {
-    fprintf(stderr, "%% unsubscribe\n");
-  }
+  tmq_list_destroy(topic_list);
+
+  basic_consume_loop(tmq);
 
   code = tmq_consumer_close(tmq);
   if (code) {
     fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(code));
-  }
-  else {
+  } else {
     fprintf(stderr, "%% Consumer closed\n");
   }
-  
+
   return 0;
 }

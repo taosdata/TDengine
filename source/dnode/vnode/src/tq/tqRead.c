@@ -324,7 +324,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader) {
     for (int32_t i = 0; i < colActual; i++) {
       SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
       SCellVal         sVal = {0};
-      if (!tdSTSRowIterNext(&iter, pColData->info.colId, pColData->info.type, &sVal)) {
+      if (!tdSTSRowIterFetch(&iter, pColData->info.colId, pColData->info.type, &sVal)) {
         break;
       }
       if (colDataAppend(pColData, curRow, sVal.val, sVal.valType != TD_VTYPE_NORM) < 0) {
@@ -412,7 +412,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
     }
   }
   while (1) {
-    pIter = taosHashIterate(pTq->pStreamTasks, pIter);
+    pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
     if (pIter == NULL) break;
     SStreamTask* pTask = *(SStreamTask**)pIter;
     if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
