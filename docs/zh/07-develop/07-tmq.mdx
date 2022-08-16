@@ -90,6 +90,7 @@ void close() throws SQLException;
 </TabItem>
 
 <TabItem value="Python" label="Python">
+
 ```python
 class TaosConsumer():
     def __init__(self, *topics, **configs)
@@ -108,7 +109,9 @@ class TaosConsumer():
     
     def __del__(self)
 ```
+
 </TabItem>
+
 <TabItem label="Go" value="Go">
 
 ```go
@@ -126,11 +129,12 @@ func (c *Consumer) Subscribe(topics []string) error
 
 func (c *Consumer) Unsubscribe() error
 ```
+
 </TabItem>
 
 <TabItem value="C#" label="C#">
 
-```C#
+```csharp
 ConsumerBuilder(IEnumerable<KeyValuePair<string, string>> config)
 
 virtual IConsumer Build()
@@ -150,8 +154,28 @@ void Unsubscribe()
 void Commit(ConsumeResult consumerResult)
 
 void Close()
-
 ```
+
+</TabItem>
+
+<TabItem label="Node.JS" value="Node.JS">
+
+```node
+function TMQConsumer(config)
+
+function subscribe(topic)
+
+function consume(timeout)
+
+function subscription()
+
+function unsubscribe()
+
+function commit(msg)
+
+function close()
+```
+
 </TabItem>
 
 </Tabs>
@@ -372,7 +396,7 @@ if err != nil {
 
 <TabItem value="C#" label="C#">
 
-```C#
+```csharp
 using TDengineTMQ;
 
 // 根据需要，设置消费组 (GourpId)、自动提交 (EnableAutoCommit)、
@@ -393,6 +417,29 @@ var cfg = new ConsumerConfig
 var consumer = new ConsumerBuilder(cfg).Build();
 
 ```
+
+</TabItem>
+
+<TabItem label="Node.JS" value="Node.JS">
+
+``` node
+// 根据需要，设置消费组 (group.id)、自动提交 (enable.auto.commit)、
+// 自动提交时间间隔 (auto.commit.interval.ms)、用户名 (td.connect.user)、密码 (td.connect.pass) 等参数 
+
+let consumer = taos.consumer({
+  'enable.auto.commit': 'true',
+  'auto.commit.interval.ms','1000',
+  'group.id': 'tg2',
+  'td.connect.user': 'root',
+  'td.connect.pass': 'taosdata',
+  'auto.offset.reset','earliest',
+  'msg.with.table.name': 'true',
+  'td.connect.ip','127.0.0.1',
+  'td.connect.port','6030'  
+  });
+
+```
+
 </TabItem>
 
 </Tabs>
@@ -441,10 +488,9 @@ if err != nil {
 
 </TabItem>
 
-
 <TabItem value="C#" label="C#">
 
-```C#
+```csharp
 // 创建订阅 topics 列表
 List<String> topics = new List<string>();
 topics.add("tmq_topic");
@@ -454,14 +500,23 @@ consumer.Subscribe(topics);
 
 </TabItem>
 
-
 <TabItem value="Python" label="Python">
 ```python
 consumer = TaosConsumer('topic_ctb_column', group_id='vg2')
 ```
 </TabItem>
 
+<TabItem label="Node.JS" value="Node.JS">
 
+```node
+// 创建订阅 topics 列表
+let topics = ['topic_test']
+
+// 启动订阅
+consumer.subscribe(topics);
+```
+
+</TabItem>
 
 </Tabs>
 
@@ -504,7 +559,6 @@ for msg in consumer:
 ```
 </TabItem>
 
-
 <TabItem value="Go" label="Go">
 
 ```go
@@ -523,7 +577,7 @@ for {
 
 <TabItem value="C#" label="C#">
 
-```C#
+```csharp
 // 消费数据
 while (true)
 {
@@ -535,8 +589,22 @@ while (true)
 ```
 
 </TabItem>
-</Tabs>
 
+<TabItem label="Node.JS" value="Node.JS">
+
+```node
+while(true){
+   msg = consumer.consume(200);
+   // process message(consumeResult)
+   console.log(msg.topicPartition);
+   console.log(msg.block);
+   console.log(msg.fields)
+   }
+```
+
+</TabItem>
+
+</Tabs>
 
 ## 结束消费
 
@@ -586,12 +654,22 @@ consumer.Close()
 </TabItem>
 <TabItem value="C#" label="C#">
 
-```C#
+```csharp
 // 取消订阅
 consumer.Unsubscribe();
 
 // 关闭消费
 consumer.Close();
+```
+</TabItem>
+
+<TabItem label="Node.JS" value="Node.JS">
+
+```node
+consumer.unsubscribe();
+consumer.close();
+```
+
 </TabItem>
 
 </Tabs>
@@ -966,5 +1044,3 @@ for msg in consumer:
 </TabItem>
 
 </Tabs>
-
- 

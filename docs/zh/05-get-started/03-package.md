@@ -11,10 +11,6 @@ import PkgListV3 from "/components/PkgListV3";
 
 ## 安装
 
-:::info
-下载其他组件、最新 Beta 版及之前版本的安装包，请点击[发布历史页面](../../releases) 
-:::
-
 <Tabs>
 <TabItem label="Deb 安装" value="debinst">
 
@@ -99,6 +95,10 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统
 ::::
 </TabItem>
 </Tabs>
+
+:::info
+下载其他组件、最新 Beta 版及之前版本的安装包，请点击[发布历史页面](../../releases) 
+:::
 
 :::note
 当安装第一个节点时，出现 Enter FQDN：提示的时候，不需要输入任何内容。只有当安装第二个或以后更多的节点时，才需要输入已有集群中任何一个可用节点的 FQDN，支持该新节点加入集群。当然也可以不输入，而是在新节点启动前，配置到新节点的配置文件中。
