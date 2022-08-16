@@ -220,9 +220,6 @@ int vnodeCommit(SVnode *pVnode) {
   vInfo("vgId:%d, start to commit, commit ID:%" PRId64 " version:%" PRId64, TD_VID(pVnode), pVnode->state.commitID,
         pVnode->state.applied);
 
-  vnodeBufPoolUnRef(pVnode->inUse);
-  pVnode->inUse = NULL;
-
   pVnode->state.commitTerm = pVnode->state.applyTerm;
 
   // save info
@@ -248,7 +245,7 @@ int vnodeCommit(SVnode *pVnode) {
   }
 
   if (VND_IS_RSMA(pVnode)) {
-    smaAsyncCommit(pVnode->pSma);
+    smaAsyncCommit(pVnode->pSma);  // would write L2/L3 data into BufPool
 
     if (tsdbCommit(VND_RSMA0(pVnode)) < 0) {
       ASSERT(0);
@@ -268,6 +265,9 @@ int vnodeCommit(SVnode *pVnode) {
       return -1;
     }
   }
+  
+  vnodeBufPoolUnRef(pVnode->inUse);
+  pVnode->inUse = NULL;
 
   if (tqCommit(pVnode->pTq) < 0) {
     ASSERT(0);

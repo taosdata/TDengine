@@ -297,10 +297,9 @@ static int32_t tdProcessRSmaSyncPostCommitImpl(SSma *pSma) {
 }
 
 /**
- * @brief Rsma async commit implementation
+ * @brief Rsma async commit implementation(only do some necessary light weighted task)
  *  1) set rsma stat TASK_TRIGGER_STAT_PAUSED
  *  2) Wait all running fetch task finish to fetch and put submitMsg into level 2/3 wQueue(blocking level 1 write)
- *  3)
  *
  * @param pSma
  * @return int32_t
@@ -334,12 +333,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
     }
   }
 
-  // step 3: consume the SubmitReq in buffer
-  if (tdRSmaProcessExecImpl(pSma) < 0) {
-    return TSDB_CODE_FAILED;
-  }
-
-  // step 4:  swap rsmaInfoHash and iRsmaInfoHash
+  // step 3:  swap queue/qall and iQueue/iQal
   // lock
   taosWLockLatch(SMA_ENV_LOCK(pEnv));
 
@@ -379,9 +373,32 @@ static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // perform persist task for qTaskInfo
   SRSmaStat *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pSmaEnv);
-  tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat));
+
+  // step 1: consume the SubmitReq in buffer
+  int32_t nLoops = 0;
+  smaDebug("vgId:%d start to wait for rsma qtask free, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
+  while (pRSmaStat->execStat == 1) {
+    taosMsleep(15);
+    if ((++nLoops & 63) == 0) {
+      smaWarn("vgId:%d 1s waited for rsma exec stat = 0, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
+      sched_yield();
+    }
+  }
+  pRSmaStat->execStat = 1;
+  smaDebug("vgId:%d end to wait for rsma qtask free, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
+
+  if (tdRSmaProcessExecImpl(pSma, 1) < 0) {
+    pRSmaStat->execStat = 0;
+    return TSDB_CODE_FAILED;
+  }
+
+  // step 2: perform persist task for qTaskInfo operator
+  if (tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat)) < 0) {
+    pRSmaStat->execStat = 0;
+    return TSDB_CODE_FAILED;
+  }
+  pRSmaStat->execStat = 0;
 
   return TSDB_CODE_SUCCESS;
 }
