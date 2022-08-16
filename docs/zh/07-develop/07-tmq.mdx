@@ -238,6 +238,9 @@ public class MetersDeserializer extends ReferenceDeserializer<Meters> {
 
 一个 consumer 支持同时订阅多个 topic。
 
+<Tabs defaultValue="java" groupId="lang">
+<TabItem value="c" label="C">
+
 ```c
 // 创建订阅 topics 列表
 tmq_list_t* topicList = tmq_list_new();
@@ -248,7 +251,22 @@ tmq_list_destroy(topicList);
   
 ```
 
+</TabItem>
+<TabItem value="java" label="Java">
+
+```java
+List<String> topics = new ArrayList<>();
+topics.add("tmq_topic");
+consumer.subscribe(topics);
+```
+
+</TabItem>
+
+</Tabs>
+
 ## 消费
+
+以下代码展示了不同语言下如何对 TMQ 消息进行消费。
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="c" label="C">
@@ -267,10 +285,6 @@ while (running) {
 <TabItem value="java" label="Java">
 
 ```java
-List<String> topics = new ArrayList<>();
-topics.add("tmq_topic");
-consumer.subscribe(topics);
-
 while(running){
   ConsumerRecords<Meters> meters = consumer.poll(Duration.ofMillis(100));
     for (Meters meter : meters) {
@@ -283,6 +297,8 @@ while(running){
 </Tabs>
 
 ## 结束消费
+
+消费结束后，应当取消订阅。
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="c" label="C">
