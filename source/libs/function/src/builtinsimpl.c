@@ -1210,7 +1210,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
         int64_t val = GET_INT64_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          pBuf->v = val;
+          *(int64_t*)&pBuf->v = val;
           if (pCtx->subsidiaries.num > 0) {
             index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             doSaveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
@@ -1223,7 +1223,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
         uint64_t val = GET_UINT64_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          pBuf->v = val;
+          *(uint64_t*)&pBuf->v = val;
           if (pCtx->subsidiaries.num > 0) {
             index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             doSaveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
@@ -1231,11 +1231,11 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         }
       } else if (type == TSDB_DATA_TYPE_DOUBLE) {
         double prev = 0;
-        GET_TYPED_DATA(prev, int64_t, type, &pBuf->v);
+        GET_TYPED_DATA(prev, double, type, &pBuf->v);
 
         double val = GET_DOUBLE_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          pBuf->v = val;
+          *(double*)&pBuf->v = val;
           if (pCtx->subsidiaries.num > 0) {
             index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             doSaveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
@@ -1243,11 +1243,11 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         }
       } else if (type == TSDB_DATA_TYPE_FLOAT) {
         double prev = 0;
-        GET_TYPED_DATA(prev, int64_t, type, &pBuf->v);
+        GET_TYPED_DATA(prev, double, type, &pBuf->v);
 
         double val = GET_DOUBLE_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          pBuf->v = val;
+          *(double*)&pBuf->v = val;
         }
 
         if (pCtx->subsidiaries.num > 0) {
