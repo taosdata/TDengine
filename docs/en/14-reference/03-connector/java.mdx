@@ -130,7 +130,7 @@ The configuration parameters in the URL are as follows:
 - charset: The character set used by the client, the default value is the system character set.
 - locale: Client locale, by default, use the system's current locale.
 - timezone: The time zone used by the client, the default value is the system's current time zone.
-- batchfetch: true: pulls result sets in batches when executing queries; false: pulls result sets row by row. The default value is: false. Enabling batch pulling and obtaining a batch of data can improve query performance when the query data volume is large.
+- batchfetch: true: pulls result sets in batches when executing queries; false: pulls result sets row by row. The default value is: true. Enabling batch pulling and obtaining a batch of data can improve query performance when the query data volume is large.
 - batchErrorIgnore:true: When executing statement executeBatch, if there is a SQL execution failure in the middle, the following SQL will continue to be executed. false: No more statements after the failed SQL are executed. The default value is: false.
 
 For more information about JDBC native connections, see [Video Tutorial](https://www.taosdata.com/blog/2020/11/11/1955.html).
