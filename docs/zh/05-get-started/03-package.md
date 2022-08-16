@@ -11,36 +11,11 @@ import PkgListV3 from "/components/PkgListV3";
 
 ## 安装
 
+:::info
+下载其他组件、最新 Beta 版及之前版本的安装包，请点击[发布历史页面](../../releases) 
+:::
+
 <Tabs>
-<TabItem value="apt-get" label="apt-get">
-可以使用 apt-get 工具从官方仓库安装。
-
-**安装包仓库**
-
-```bash
-wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
-echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
-```
-
-如果安装 Beta 版需要安装包仓库
-
-```bash
-wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
-echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
-```
-
-**使用 apt-get 命令安装**
-
-```bash
-sudo apt-get update
-apt-cache policy tdengine
-sudo apt-get install tdengine
-```
-
-:::tip
-apt-get 方式只适用于 Debian 或 Ubuntu 系统
-::::
-</TabItem>
 <TabItem label="Deb 安装" value="debinst">
 
 1. 从 [发布历史页面](../../releases) 下载获得 deb 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.deb；
@@ -80,10 +55,7 @@ sudo ./install.sh
 ```
 
 :::info
-
-下载其他组件、最新 Beta 版及之前版本的安装包，请点击[发布历史页面](../../releases) 
 install.sh 安装脚本在执行过程中，会通过命令行交互界面询问一些配置信息。如果希望采取无交互安装方式，那么可以用 -e no 参数来执行 install.sh 脚本。运行 `./install.sh -h` 指令可以查看所有参数的详细说明信息。
-
 :::
 
 </TabItem>
@@ -95,6 +67,35 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 1. 从 [发布历史页面](../../releases) 下载获得 exe 安装程序，例如 TDengine-server-3.0.0.0-Windows-x64.exe；
 2. 运行 TDengine-server-3.0.0.0-Windows-x64.exe 来安装 TDengine。
 
+</TabItem>
+<TabItem value="apt-get" label="apt-get">
+可以使用 apt-get 工具从官方仓库安装。
+
+**安装包仓库**
+
+```bash
+wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
+echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
+```
+
+如果安装 Beta 版需要安装包仓库
+
+```bash
+wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
+echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
+```
+
+**使用 apt-get 命令安装**
+
+```bash
+sudo apt-get update
+apt-cache policy tdengine
+sudo apt-get install tdengine
+```
+
+:::tip
+apt-get 方式只适用于 Debian 或 Ubuntu 系统
+::::
 </TabItem>
 </Tabs>
 
