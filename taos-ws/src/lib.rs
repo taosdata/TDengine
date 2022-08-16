@@ -4,9 +4,7 @@ use std::fmt::{Debug, Display};
 use infra::WsConnReq;
 use once_cell::sync::OnceCell;
 
-#[cfg(feature = "async")]
 use asyn::WsTaos;
-use sync::WsClient;
 
 use taos_query::{
     block_in_place_or_global, common::RawMeta, AsyncQueryable, DsnError, IntoDsn, Queryable,
@@ -15,10 +13,12 @@ use taos_query::{
 
 mod infra;
 
-#[cfg(feature = "async")]
 pub mod asyn;
-pub mod stmt;
-pub mod sync; // todo: if use name `async`, rust-analyzer does not recognize the tests.
+
+mod stmt;
+pub use stmt::Stmt;
+
+pub mod sync;
 
 // pub mod tmq;
 pub mod consumer;
@@ -81,9 +81,7 @@ impl TBuilder for TaosBuilder {
     fn build(&self) -> Result<Self::Target, Self::Error> {
         Ok(Taos {
             dsn: self.clone(),
-            #[cfg(feature = "async")]
             async_client: OnceCell::new(),
-            sync_client: OnceCell::new(),
         })
     }
 }
@@ -97,8 +95,8 @@ impl TaosBuilder {
         ) {
             ("ws" | "http", _) => "ws",
             ("wss" | "https", _) => "wss",
-            ("taos" | "tmq", Some("ws" | "http") | None) => "ws",
-            ("taos" | "tmq", Some("wss" | "https")) => "wss",
+            ("taos" | "taosws" | "tmq", Some("ws" | "http") | None) => "ws",
+            ("taos" | "taosws" | "tmq", Some("wss" | "https")) => "wss",
             _ => Err(DsnError::InvalidDriver(dsn.to_string()))?,
         };
         let token = dsn.params.remove("token");
@@ -172,55 +170,14 @@ impl TaosBuilder {
 #[derive(Debug)]
 pub struct Taos {
     dsn: TaosBuilder,
-    #[cfg(feature = "async")]
     async_client: OnceCell<WsTaos>,
-    sync_client: OnceCell<WsClient>,
 }
 
 unsafe impl Send for Taos {}
 unsafe impl Sync for Taos {}
 
-// impl Queryable for Taos {
-//     type Error = sync::Error;
-
-//     type ResultSet = sync::ResultSet;
-
-//     fn query<T: AsRef<str>>(&self, sql: T) -> std::result::Result<Self::ResultSet, Self::Error> {
-//         if let Some(ws) = self.sync_client.get() {
-//             ws.s_query(sql.as_ref())
-//         } else {
-//             let sync_client = WsClient::from_wsinfo(&self.dsn)?;
-//             self.sync_client
-//                 .get_or_init(|| sync_client)
-//                 .s_query(sql.as_ref())
-//         }
-//     }
-
-//     fn exec<T: AsRef<str>>(&self, sql: T) -> std::result::Result<usize, Self::Error> {
-//         log::info!("execute sql: {}", sql.as_ref());
-//         if let Some(ws) = self.sync_client.get() {
-//             ws.s_exec(sql.as_ref())
-//         } else {
-//             let sync_client = WsClient::from_wsinfo(&self.dsn)?;
-//             self.sync_client
-//                 .get_or_init(|| sync_client)
-//                 .s_exec(sql.as_ref())
-//         }
-//     }
-
-//     fn write_meta(&self, raw: RawMeta) -> Result<(), Self::Error> {
-//         if let Some(ws) = self.sync_client.get() {
-//             ws.write_meta(raw)
-//         } else {
-//             let sync_client = WsClient::from_wsinfo(&self.dsn)?;
-//             self.sync_client.get_or_init(|| sync_client).write_meta(raw)
-//         }
-//     }
-// }
-
 pub use asyn::ResultSet;
 
-#[cfg(feature = "async")]
 #[async_trait::async_trait]
 impl taos_query::AsyncQueryable for Taos {
     type Error = asyn::Error;
@@ -294,7 +251,7 @@ mod tests {
         std::env::set_var("RUST_LOG", "debug");
         pretty_env_logger::init();
         use taos_query::{Fetchable, Queryable};
-        let client = TaosBuilder::from_dsn("ws://localhost:6041/")?.build()?;
+        let client = TaosBuilder::from_dsn("taosws://localhost:6041/")?.build()?;
         let db = "ws_sync_json";
         assert_eq!(client.exec(format!("drop database if exists {db}"))?, 0);
         assert_eq!(client.exec(format!("create database {db} keep 36500"))?, 0);

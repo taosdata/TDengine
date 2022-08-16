@@ -7,7 +7,8 @@ use tokio::sync::watch;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::stmt::sync::{WsSyncStmt, WsSyncStmtClient};
+use crate::stmt::Stmt;
+// use crate::stmt::sync::{WsSyncStmt, WsSyncStmtClient};
 use crate::{infra::*, stmt, TaosBuilder};
 
 use std::cell::UnsafeCell;
@@ -49,17 +50,10 @@ pub struct WsClient {
     sender: MsgSender,
     queries: Arc<HashMap<ReqId, QuerySender>>,
     fetches: Arc<HashMap<ResId, FetchSender>>,
-    stmt: OnceCell<WsSyncStmtClient>,
+    // stmt: OnceCell<WsSyncStmtClient>,
     rt: Arc<tokio::runtime::Runtime>,
     close_signal: watch::Sender<bool>,
     alive: Arc<AtomicBool>,
-}
-
-impl Drop for WsClient {
-    fn drop(&mut self) {
-        log::debug!("dropping client");
-        // send close signal to reader/writer spawned tasks.
-    }
 }
 
 #[derive(Debug)]
@@ -105,7 +99,7 @@ pub enum Error {
     #[error("Connection reset or closed by server")]
     ConnClosed,
     #[error(transparent)]
-    StmtError(#[from] stmt::Error),
+    AsyncError(#[from] super::asyn::Error),
 }
 
 #[repr(C)]
@@ -264,11 +258,10 @@ impl WsClient {
                     },
 
                     _ = close_recv.changed() => {
-                        log::error!("close sender task");
+                        log::debug!("close sender task");
                         break;
                     }
                 }
-                // match msg_receiver.recv().await {}
             }
             alive1.fetch_and(false, std::sync::atomic::Ordering::SeqCst);
         });
@@ -406,7 +399,7 @@ impl WsClient {
             version,
             sender: msg_sender,
             rt: Arc::new(rt),
-            stmt: OnceCell::<WsSyncStmtClient>::new(),
+            // stmt: OnceCell::<WsSyncStmtClient>::new(),
             info: info.clone(),
             close_signal,
             alive,
@@ -541,18 +534,16 @@ impl WsClient {
         &self.version
     }
 
-    pub fn stmt_init(&self) -> Result<WsSyncStmt> {
+    pub fn stmt_init(&self) -> Result<Stmt> {
         if !self.alive.load(std::sync::atomic::Ordering::SeqCst) {
             Err(taos_error::Error::new(
                 Code::new(WS_ERROR_NO::CONN_CLOSED as _),
                 "connection closed",
             ))?;
         }
-        // let rt = rt.clone();
-        let client = self
-            .stmt
-            .get_or_try_init(|| WsSyncStmtClient::new(&self.info))?;
-        Ok(client.stmt_init()?)
+        let mut client = self.rt.block_on(Stmt::from_wsinfo(&self.info))?;
+        self.rt.block_on(client.stmt_init())?;
+        Ok(client)
     }
 
     // pub fn s_stmt(&self) -> Result<>

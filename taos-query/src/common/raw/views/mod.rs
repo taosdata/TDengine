@@ -4,6 +4,7 @@ pub use bool_view::BoolView;
 
 mod tinyint_view;
 
+use itertools::Itertools;
 pub use tinyint_view::TinyIntView;
 
 mod smallint_view;
@@ -57,7 +58,12 @@ pub(crate) use offsets::*;
 mod lengths;
 pub(crate) use lengths::*;
 
-use crate::common::{BorrowedValue, Column, Ty};
+mod from;
+
+use crate::{
+    common::{BorrowedValue, Column, Ty},
+    prelude::InlinableWrite,
+};
 
 use std::{ffi::c_void, fmt::Debug, io::Write, iter::FusedIterator};
 
@@ -164,6 +170,63 @@ impl<'a> IntoIterator for &'a ColumnView {
 }
 
 impl ColumnView {
+    pub fn from_millis_timestamp(values: Vec<impl Into<Option<i64>>>) -> Self {
+        ColumnView::Timestamp(TimestampView::from_millis(values))
+    }
+    pub fn from_bools(values: Vec<impl Into<Option<bool>>>) -> Self {
+        ColumnView::Bool(BoolView::from_iter(values))
+    }
+    pub fn from_tiny_ints(values: Vec<impl Into<Option<i8>>>) -> Self {
+        ColumnView::TinyInt(TinyIntView::from_iter(values))
+    }
+    pub fn from_small_ints(values: Vec<impl Into<Option<i16>>>) -> Self {
+        ColumnView::SmallInt(SmallIntView::from_iter(values))
+    }
+    pub fn from_ints(values: Vec<impl Into<Option<i32>>>) -> Self {
+        ColumnView::Int(IntView::from_iter(values))
+    }
+    pub fn from_big_ints(values: Vec<impl Into<Option<i64>>>) -> Self {
+        ColumnView::BigInt(BigIntView::from_iter(values))
+    }
+    pub fn from_unsigned_tiny_ints(values: Vec<impl Into<Option<u8>>>) -> Self {
+        ColumnView::UTinyInt(UTinyIntView::from_iter(values))
+    }
+    pub fn from_unsigned_small_ints(values: Vec<impl Into<Option<u16>>>) -> Self {
+        ColumnView::USmallInt(USmallIntView::from_iter(values))
+    }
+    pub fn from_unsigned_ints(values: Vec<impl Into<Option<u32>>>) -> Self {
+        ColumnView::UInt(UIntView::from_iter(values))
+    }
+    pub fn from_unsigned_big_ints(values: Vec<impl Into<Option<u64>>>) -> Self {
+        ColumnView::UBigInt(UBigIntView::from_iter(values))
+    }
+    pub fn from_floats(values: Vec<impl Into<Option<f32>>>) -> Self {
+        ColumnView::Float(FloatView::from_iter(values))
+    }
+    pub fn from_doubles(values: Vec<impl Into<Option<f64>>>) -> Self {
+        ColumnView::Double(DoubleView::from_iter(values))
+    }
+    pub fn from_varchar<
+        S: AsRef<str>,
+        T: Into<Option<S>>,
+        I: ExactSizeIterator<Item = T>,
+        V: IntoIterator<Item = T, IntoIter = I>,
+    >(
+        iter: V,
+    ) -> Self {
+        ColumnView::VarChar(VarCharView::from_iter(iter))
+    }
+    pub fn from_nchar<
+        S: AsRef<str>,
+        T: Into<Option<S>>,
+        I: ExactSizeIterator<Item = T>,
+        V: IntoIterator<Item = T, IntoIter = I>,
+    >(
+        iter: V,
+    ) -> Self {
+        ColumnView::NChar(NCharView::from_iter(iter))
+    }
+
     /// It's equal to the cols
     pub fn len(&self) -> usize {
         match self {
@@ -314,7 +377,7 @@ impl ColumnView {
         }
     }
 
-    pub(super) fn write_raw_into<W: Write>(&self, wtr: W) -> std::io::Result<usize> {
+    pub(super) fn write_raw_into<W: Write>(&self, wtr: &mut W) -> std::io::Result<usize> {
         match self {
             ColumnView::Bool(view) => view.write_raw_into(wtr),
             ColumnView::TinyInt(view) => view.write_raw_into(wtr),
@@ -333,4 +396,74 @@ impl ColumnView {
             ColumnView::Json(view) => view.write_raw_into(wtr),
         }
     }
+
+    fn as_ty(&self) -> Ty {
+        match self {
+            ColumnView::Bool(_) => Ty::Bool,
+            ColumnView::TinyInt(_) => Ty::TinyInt,
+            ColumnView::SmallInt(_) => Ty::SmallInt,
+            ColumnView::Int(_) => Ty::Int,
+            ColumnView::BigInt(_) => Ty::BigInt,
+            ColumnView::Float(_) => Ty::Float,
+            ColumnView::Double(_) => Ty::Double,
+            ColumnView::VarChar(_) => Ty::VarChar,
+            ColumnView::Timestamp(_) => Ty::Timestamp,
+            ColumnView::NChar(_) => Ty::NChar,
+            ColumnView::UTinyInt(_) => Ty::UTinyInt,
+            ColumnView::USmallInt(_) => Ty::USmallInt,
+            ColumnView::UInt(_) => Ty::UInt,
+            ColumnView::UBigInt(_) => Ty::UBigInt,
+            ColumnView::Json(_) => Ty::Json,
+        }
+    }
+}
+
+pub fn views_to_raw_block(views: &[ColumnView]) -> Vec<u8> {
+    let nrows = views.first().map(|v| v.len()).unwrap_or(0);
+    let ncols = views.len();
+
+    let mut bytes = Vec::new();
+    // len
+    bytes.write_u32_le(0).unwrap();
+    // group id
+    bytes.write_u64_le(0).unwrap();
+    let schemas = views
+        .iter()
+        .map(|view| {
+            let ty = view.as_ty();
+            ColSchema {
+                ty,
+                len: ty.fixed_length() as _,
+            }
+        })
+        .collect_vec();
+    let schema_bytes = unsafe {
+        std::slice::from_raw_parts(
+            schemas.as_ptr() as *const u8,
+            ncols * std::mem::size_of::<ColSchema>(),
+        )
+    };
+    bytes.write(schema_bytes).unwrap();
+    let length_offset = bytes.len();
+    bytes.resize(bytes.len() + ncols * std::mem::size_of::<u32>(), 0);
+
+    let lengths = unsafe {
+        std::slice::from_raw_parts_mut(
+            bytes.as_mut_ptr().offset(length_offset as isize) as *mut u32,
+            views.len(),
+        )
+    };
+    for (i, view) in views.iter().enumerate() {
+        let n = view.write_raw_into(&mut bytes).unwrap();
+        if view.as_ty().is_var_type() {
+            lengths[i] = (n - nrows * 4) as _;
+        } else {
+            lengths[i] = (nrows * view.as_ty().fixed_length()) as _;
+        }
+    }
+    unsafe {
+        *(bytes.as_mut_ptr() as *mut u32) = bytes.len() as _;
+    }
+
+    bytes
 }

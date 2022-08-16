@@ -15,9 +15,9 @@ thiserror = "*"
 
 [dev-dependencies]
 itertools = "0.10.3"
+pretty_env_logger = "0"
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
-
 [features]
 default = ["ws", "native"]
 ws = ["taos-ws"]

@@ -473,7 +473,6 @@ impl RawBlock {
 
                     let offsets = Offsets::from(bytes.slice(o1..o2));
                     let data = bytes.slice(o2..data_offset);
-                    // dbg!()
 
                     ColumnView::NChar(NCharView {
                         offsets,
@@ -504,7 +503,6 @@ impl RawBlock {
             columns.push(column);
             debug_assert!(data_offset <= len);
         }
-        // dbg!(&columns);
         RawBlock {
             layout,
             version: Version::V3,
@@ -518,7 +516,6 @@ impl RawBlock {
             database: None,
             table: None,
             fields: Vec::new(),
-            // raw_fields: Vec::new(),
             columns,
         }
     }

@@ -1,9 +1,14 @@
-use crate::{err_or, ffi::*, into_c_str::IntoCStr, RawRes, RawTaos, ResultSet};
+use crate::{err_or, ffi::*, into_c_str::IntoCStr, RawRes, RawTaos, ResultSet, TaosBuilder};
 
 use std::ffi::CStr;
 
+use itertools::Itertools;
 use taos_error::{Code, Error};
-use taos_query::common::Ty;
+use taos_query::{
+    common::{itypes::ITimestamp, ColumnView, Ty},
+    stmt::Bindable,
+    Fetchable, Queryable, TBuilder,
+};
 
 use crate::types::*;
 
@@ -11,7 +16,125 @@ mod bind;
 mod multi;
 
 #[derive(Debug)]
-pub struct RawStmt(*mut TAOS_STMT);
+pub struct Stmt {
+    raw: RawStmt,
+}
+
+impl Bindable<super::Taos> for Stmt {
+    type Error = super::Error;
+
+    fn init(taos: &super::Taos) -> Result<Self, Self::Error> {
+        Ok(Self {
+            raw: RawStmt::from_raw_taos(&taos.raw),
+        })
+    }
+
+    fn prepare<S: AsRef<str>>(&mut self, sql: S) -> Result<&mut Self, Self::Error> {
+        self.raw.prepare(sql.as_ref())?;
+        Ok(self)
+    }
+
+    fn set_tbname<S: AsRef<str>>(&mut self, sql: S) -> Result<&mut Self, Self::Error> {
+        self.raw.set_tbname(sql.as_ref())?;
+        Ok(self)
+    }
+
+    fn set_tags(&mut self, tags: &[taos_query::common::Value]) -> Result<&mut Self, Self::Error> {
+        let tags = tags
+            .into_iter()
+            .map(|v| TaosBind::from_value(v))
+            .collect_vec();
+        self.raw.set_tags(&tags)?;
+        Ok(self)
+    }
+
+    fn bind(
+        &mut self,
+        params: &[taos_query::common::ColumnView],
+    ) -> Result<&mut Self, Self::Error> {
+        let params = params.into_iter().map(|c| c.into()).collect_vec();
+        self.raw.bind_param_batch(&params)?;
+        Ok(self)
+    }
+
+    fn add_batch(&mut self) -> Result<&mut Self, Self::Error> {
+        self.raw.add_batch()?;
+        Ok(self)
+    }
+
+    fn execute(&mut self) -> Result<usize, Self::Error> {
+        self.raw.execute().map_err(Into::into)
+    }
+
+    fn result_set(&mut self) -> Result<<super::Taos as Queryable>::ResultSet, Self::Error> {
+        self.raw.use_result().map_err(Into::into)
+    }
+
+    fn affected_rows(&self) -> usize {
+        self.raw.affected_rows() as _
+    }
+}
+
+#[test]
+fn test_bindable() -> anyhow::Result<()> {
+    let taos = TaosBuilder::default().build()?;
+    taos.exec_many([
+        "drop database if exists test_bindable",
+        "create database test_bindable keep 36500",
+        "use test_bindable",
+        "create table tb1 (ts timestamp, c1 bool, c2 tinyint, c3 smallint, c4 int, c5 bigint,
+            c6 tinyint unsigned, c7 smallint unsigned, c8 int unsigned, c9 bigint unsigned,
+            c10 float, c11 double, c12 varchar(100), c13 nchar(100))",
+    ])?;
+    let mut stmt = Stmt::init(&taos)?;
+    stmt.prepare("insert into tb1 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")?;
+    let params = vec![
+        ColumnView::from_millis_timestamp(vec![0]),
+        ColumnView::from_bools(vec![true]),
+        ColumnView::from_tiny_ints(vec![0]),
+        ColumnView::from_small_ints(vec![0]),
+        ColumnView::from_ints(vec![0]),
+        ColumnView::from_big_ints(vec![0]),
+        ColumnView::from_unsigned_tiny_ints(vec![0]),
+        ColumnView::from_unsigned_small_ints(vec![0]),
+        ColumnView::from_unsigned_ints(vec![0]),
+        ColumnView::from_unsigned_big_ints(vec![0]),
+        ColumnView::from_floats(vec![0.0]),
+        ColumnView::from_doubles(vec![0.]),
+        ColumnView::from_varchar(vec!["ABC"]),
+        ColumnView::from_nchar(vec!["涛思数据"]),
+    ];
+    let rows = stmt.bind(&params)?.add_batch()?.execute()?;
+    assert_eq!(rows, 1);
+
+    let rows: Vec<(
+        String,
+        bool,
+        i8,
+        i16,
+        i32,
+        i64,
+        u8,
+        u16,
+        u32,
+        u64,
+        f32,
+        f64,
+        String,
+        String,
+    )> = taos
+        .query("select * from tb1")?
+        .deserialize()
+        .try_collect()?;
+    let row = &rows[0];
+    assert_eq!(row.12, "ABC");
+    assert_eq!(row.13, "涛思数据");
+
+    Ok(())
+}
+
+#[derive(Debug)]
+pub(crate) struct RawStmt(*mut TAOS_STMT);
 
 impl Drop for RawStmt {
     fn drop(&mut self) {
@@ -107,8 +230,11 @@ impl RawStmt {
     }
 
     #[inline]
-    pub fn execute(&self) -> Result<(), Error> {
-        err_or!(self, taos_stmt_execute(self.as_ptr()))
+    pub fn execute(&self) -> Result<usize, Error> {
+        let cur = self.affected_rows();
+        err_or!(self, taos_stmt_execute(self.as_ptr()))?;
+        let new = self.affected_rows();
+        Ok((new - cur) as usize)
     }
 
     #[inline]

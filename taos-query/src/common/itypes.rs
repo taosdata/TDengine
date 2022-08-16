@@ -27,11 +27,34 @@ pub struct ITimestamp(pub i64);
 #[derive(Debug, Deref, DerefMut, Clone, Deserialize, Serialize)]
 pub struct IVarChar(String);
 
+impl AsRef<str> for IVarChar {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+impl AsRef<[u8]> for IVarChar {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
 /// Alias of [IVarChar].
 pub type IBinary = IVarChar;
 
 #[derive(Debug, Deref, DerefMut, Clone, From, Deserialize, Serialize)]
 pub struct INChar(String);
+
+impl AsRef<str> for INChar {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+impl AsRef<[u8]> for INChar {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
 #[derive(Debug, Deref, DerefMut, Clone, From, Deserialize, Serialize)]
 pub struct IVarBinary(Vec<u8>);
 
@@ -52,6 +75,24 @@ impl From<&str> for IVarChar {
     }
 }
 
+impl From<IVarChar> for String {
+    fn from(v: IVarChar) -> Self {
+        v.0
+    }
+}
+
+impl From<INChar> for String {
+    fn from(v: INChar) -> Self {
+        v.0
+    }
+}
+
+// impl From<IJson> for String {
+//     fn from(v: IJson) -> Self {
+//         v.0.to_string()
+//     }
+// }
+
 impl IVarChar {
     pub const fn new() -> Self {
         Self(String::new())
@@ -69,6 +110,10 @@ pub trait IsValue: Sized {
 
     fn is_primitive(&self) -> bool {
         std::mem::size_of::<Self>() == Self::TY.fixed_length()
+    }
+
+    fn fixed_length(&self) -> usize {
+        std::mem::size_of::<Self>()
     }
 
     fn as_timestamp(&self) -> i64 {

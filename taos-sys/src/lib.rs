@@ -45,6 +45,7 @@ use query::RawRes;
 
 pub use taos_query::prelude::*;
 pub use types::TaosMultiBind;
+pub use stmt::Stmt;
 
 #[macro_export(local_inner_macros)]
 macro_rules! err_or {

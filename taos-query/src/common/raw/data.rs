@@ -1,22 +1,9 @@
-use std::{
-    borrow::Cow,
-    ffi::c_void,
-    fmt::{Display, Write},
-};
+use std::{borrow::Cow, ffi::c_void};
 
 use bytes::Bytes;
 
-use itertools::Itertools;
-use serde::{Deserialize, Serialize};
-use serde_repr::{Deserialize_repr, Serialize_repr};
+use crate::util::{Inlinable, InlinableRead};
 
-use crate::{
-    common::{Field, Ty},
-    // prelude::AsyncInlinable,
-    util::{Inlinable, InlinableRead},
-};
-
-const RAW_TYPE_OFFSET: usize = std::mem::size_of::<u32>();
 const RAW_PTR_OFFSET: usize = std::mem::size_of::<u32>() + std::mem::size_of::<u16>();
 
 /// C-struct for raw data, just a data view from native library.
@@ -82,9 +69,7 @@ impl RawDataInner {
             RawDataInner::Data(bytes) => unsafe { bytes.as_ptr().offset(RAW_PTR_OFFSET as _) as _ },
         }
     }
-    fn into_bytes(self) -> Self {
-        Self::Data(self.as_bytes().into_owned())
-    }
+
     fn as_bytes(&self) -> Cow<Bytes> {
         match self {
             Self::Raw(raw) => Cow::Owned(raw.to_bytes()),

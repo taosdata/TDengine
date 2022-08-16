@@ -5,7 +5,7 @@ use bytes::{Bytes, BytesMut};
 
 /// A [i32] slice offsets, which will represent the value is NULL (if offset is `-1`) or not.
 #[derive(Clone)]
-pub struct Offsets(Bytes);
+pub struct Offsets(pub(super) Bytes);
 
 impl<T: Into<Bytes>> From<T> for Offsets {
     fn from(value: T) -> Self {

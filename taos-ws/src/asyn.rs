@@ -118,7 +118,6 @@ pub enum Error {
     DeError(#[from] DeError),
     #[error("{0}")]
     WsError(#[from] WsError),
-
     #[error(transparent)]
     IoError(#[from] std::io::Error),
 }
@@ -751,7 +750,7 @@ async fn test_client() -> anyhow::Result<()> {
         v: i32,
     }
 
-    let values: Vec<A> = rs.deserialize_stream().try_collect().await?;
+    let values: Vec<A> = rs.deserialize().try_collect().await?;
 
     dbg!(values);
 
@@ -840,7 +839,7 @@ async fn ws_write_raw_block() -> anyhow::Result<()> {
         v: Option<bool>,
     }
 
-    let values: Vec<A> = rs.deserialize_stream().try_collect().await?;
+    let values: Vec<A> = rs.deserialize().try_collect().await?;
 
     dbg!(values);
 

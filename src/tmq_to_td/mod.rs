@@ -1,5 +1,5 @@
 use anyhow::Result;
-use taos::{tmq::Consumer, *};
+use taos::{Consumer, *};
 
 use crate::tmq::check_tmq_dsn;
 
@@ -26,7 +26,7 @@ async fn sync(id: usize, consumer: Consumer, taos: Taos) -> Result<()> {
                 }
             }
         }
-        // consumer.commit(offset).await?;
+        consumer.commit(offset).await?;
     }
     Ok(())
 }

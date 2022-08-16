@@ -123,14 +123,18 @@ fn column_to_arrow(column: &ColumnView) -> ArrayRef {
     }
 }
 
-pub async fn query_to_parquet(mut from: Dsn, to: Dsn) -> Result<()> {
+pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()> {
     let sql = from.params.remove("query").unwrap();
     let taos = TaosBuilder::from_dsn(from)?.build()?;
     let mut rs = taos.query(&sql).await?;
 
     log::info!("sql: {sql}, fields: {}", rs.num_of_fields());
 
-    let file = to.fragment.expect("csv file not found");
+    let file = to.fragment.expect("parquet file must be input");
+    if std::path::Path::new(&file).exists() && !force {
+        anyhow::bail!("Parquet file {} exists, please check or use `-y`", file);
+    }
+
     let schema = Arc::new(fields_to_arrow(rs.fields(), rs.precision()));
     log::debug!("schema: {}", &schema);
     let schema_ref = schema.clone();
@@ -138,6 +142,7 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn) -> Result<()> {
         .set_compression(parquet::basic::Compression::ZSTD)
         .build();
     let file = std::fs::File::create(&file).unwrap();
+
     let mut writer = ArrowWriter::try_new(file, schema, Some(props)).unwrap();
 
     let mut rows = rs.blocks();
@@ -212,7 +217,7 @@ async fn test() -> Result<()> {
         2
     );
 
-    query_to_parquet(from, to.clone()).await?;
+    query_to_parquet(from, to.clone(), true).await?;
 
     std::fs::remove_file(&to.fragment.unwrap())?;
     Ok(())

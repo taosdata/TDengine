@@ -2,6 +2,9 @@ use std::fmt::Debug;
 
 use bytes::{Bytes, BytesMut};
 
+const fn null_bits_len(len: usize) -> usize {
+    (len + 7) / 8
+}
 /// A bitmap for nulls.
 #[derive(Debug, Clone)]
 pub struct NullBits(pub(crate) Bytes);
@@ -11,10 +14,35 @@ impl<T: Into<Bytes>> From<T> for NullBits {
         NullBits(v.into())
     }
 }
-impl NullBits {
-    pub const fn new() -> Self {
-        Self(Bytes::new())
+
+impl FromIterator<bool> for NullBits {
+    fn from_iter<T: IntoIterator<Item = bool>>(iter: T) -> Self {
+        let bools = iter.into_iter().collect::<Vec<_>>();
+        let len = null_bits_len(bools.len());
+        let mut inner = Vec::with_capacity(len);
+        inner.resize(len, 0);
+        let nulls = NullBits(inner.into());
+        bools.into_iter().enumerate().for_each(|(i, is_null)| {
+            if is_null {
+                unsafe { nulls.set_null_unchecked(i) };
+            }
+        });
+        nulls
     }
+}
+
+impl NullBits {
+    pub const fn new(bytes: Bytes) -> Self {
+        Self(bytes)
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        let len = null_bits_len(capacity);
+        let mut inner = Vec::with_capacity(len);
+        inner.resize(len, 0u8);
+        Self::new(inner.into())
+    }
+
     pub unsafe fn is_null_unchecked(&self, row: usize) -> bool {
         const BIT_LOC_SHIFT: usize = 3;
         const BIT_POS_SHIFT: usize = 7;
@@ -26,6 +54,14 @@ impl NullBits {
             >> (BIT_POS_SHIFT - (row & BIT_POS_SHIFT)) as u8)
             & 0x1
             == 1
+    }
+
+    pub unsafe fn set_null_unchecked(&self, index: usize) {
+        const BIT_LOC_SHIFT: usize = 3;
+        const BIT_POS_SHIFT: usize = 7;
+        let loc = self.0.as_ptr().offset((index >> BIT_LOC_SHIFT) as isize) as *mut u8;
+        *loc |= 1 << (BIT_POS_SHIFT - (index & BIT_POS_SHIFT));
+        debug_assert!(self.is_null_unchecked(index));
     }
 }
 
@@ -49,7 +85,7 @@ impl<'a> Iterator for NullsIter<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Default)]
 pub struct NullsMut(BytesMut);
 
 impl<T: Into<BytesMut>> From<T> for NullsMut {

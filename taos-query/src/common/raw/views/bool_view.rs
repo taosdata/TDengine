@@ -2,7 +2,7 @@ use std::{ffi::c_void, io::Write};
 
 use crate::common::{BorrowedValue, Ty};
 
-use super::{NullBits, NullsIter};
+use super::{NullBits, NullsIter, NullsMut};
 
 use bytes::Bytes;
 
@@ -106,7 +106,7 @@ impl BoolView {
     }
 
     /// Write column data as raw bytes.
-    pub(crate) fn write_raw_into<W: Write>(&self, mut wtr: W) -> std::io::Result<usize> {
+    pub(crate) fn write_raw_into<W: Write>(&self, wtr: &mut W) -> std::io::Result<usize> {
         let nulls = self.nulls.0.as_ref();
         wtr.write_all(nulls)?;
         wtr.write_all(&self.data)?;
@@ -146,5 +146,25 @@ impl<'a> Iterator for BoolViewIter<'a> {
 impl<'a> ExactSizeIterator for BoolViewIter<'a> {
     fn len(&self) -> usize {
         self.view.len() - self.row
+    }
+}
+
+impl<A: Into<Option<bool>>> FromIterator<A> for BoolView {
+    fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
+        let (nulls, mut values): (Vec<bool>, Vec<_>) = iter
+            .into_iter()
+            .map(|v| match v.into() {
+                Some(v) => (false, v),
+                None => (true, false),
+            })
+            .unzip();
+        Self {
+            nulls: NullBits::from_iter(nulls),
+            data: Bytes::from({
+                let (ptr, len, cap) = (values.as_mut_ptr(), values.len(), values.capacity());
+                std::mem::forget(values);
+                unsafe { Vec::from_raw_parts(ptr as *mut u8, len, cap) }
+            }),
+        }
     }
 }

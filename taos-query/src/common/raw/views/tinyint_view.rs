@@ -6,7 +6,9 @@ use super::{NullBits, NullsIter};
 
 use bytes::Bytes;
 
-type Target = i8;
+type Item = i8;
+type View = TinyIntView;
+const ITEM_SIZE: usize = std::mem::size_of::<Item>();
 
 #[derive(Debug, Clone)]
 pub struct TinyIntView {
@@ -21,8 +23,8 @@ impl TinyIntView {
     }
 
     /// Raw slice of target type.
-    pub fn as_raw_slice(&self) -> &[Target] {
-        unsafe { std::slice::from_raw_parts(self.data.as_ptr() as *const Target, self.len()) }
+    pub fn as_raw_slice(&self) -> &[Item] {
+        unsafe { std::slice::from_raw_parts(self.data.as_ptr() as *const Item, self.len()) }
     }
 
     /// Build a nulls vector.
@@ -54,7 +56,7 @@ impl TinyIntView {
     }
 
     /// Get nullable value at `row` index.
-    pub fn get(&self, row: usize) -> Option<Target> {
+    pub fn get(&self, row: usize) -> Option<Item> {
         if row < self.len() {
             unsafe { self.get_unchecked(row) }
         } else {
@@ -63,7 +65,7 @@ impl TinyIntView {
     }
 
     /// Get nullable value at `row` index.
-    pub unsafe fn get_unchecked(&self, row: usize) -> Option<Target> {
+    pub unsafe fn get_unchecked(&self, row: usize) -> Option<Item> {
         if self.nulls.is_null_unchecked(row) {
             None
         } else {
@@ -71,7 +73,7 @@ impl TinyIntView {
         }
     }
 
-    pub unsafe fn get_ref_unchecked(&self, row: usize) -> Option<*const Target> {
+    pub unsafe fn get_ref_unchecked(&self, row: usize) -> Option<*const Item> {
         if self.nulls.is_null_unchecked(row) {
             None
         } else {
@@ -89,14 +91,14 @@ impl TinyIntView {
         if self.nulls.is_null_unchecked(row) {
             (
                 Ty::TinyInt,
-                std::mem::size_of::<Target>() as _,
+                std::mem::size_of::<Item>() as _,
                 std::ptr::null(),
             )
         } else {
             (
                 Ty::TinyInt,
-                std::mem::size_of::<Target>() as _,
-                self.as_raw_slice().get_unchecked(row) as *const Target as _,
+                std::mem::size_of::<Item>() as _,
+                self.as_raw_slice().get_unchecked(row) as *const Item as _,
             )
         }
     }
@@ -107,7 +109,7 @@ impl TinyIntView {
     }
 
     /// Convert data to a vector of all nullable values.
-    pub fn to_vec(&self) -> Vec<Option<Target>> {
+    pub fn to_vec(&self) -> Vec<Option<Item>> {
         self.iter().collect()
     }
 
@@ -126,7 +128,7 @@ pub struct TinyIntViewIter<'a> {
 }
 
 impl<'a> Iterator for TinyIntViewIter<'a> {
-    type Item = Option<Target>;
+    type Item = Option<Item>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.row < self.view.len() {
@@ -154,3 +156,24 @@ impl<'a> ExactSizeIterator for TinyIntViewIter<'a> {
         self.view.len() - self.row
     }
 }
+
+impl<A: Into<Option<Item>>> FromIterator<A> for View {
+    fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
+        let (nulls, mut values): (Vec<bool>, Vec<_>) = iter
+            .into_iter()
+            .map(|v| match v.into() {
+                Some(v) => (false, v),
+                None => (true, Item::default()),
+            })
+            .unzip();
+        Self {
+            nulls: NullBits::from_iter(nulls),
+            data: Bytes::from({
+                let (ptr, len, cap) = (values.as_mut_ptr(), values.len(), values.capacity());
+                std::mem::forget(values);
+                unsafe { Vec::from_raw_parts(ptr as *mut u8, len * ITEM_SIZE, cap * ITEM_SIZE) }
+            }),
+        }
+    }
+}
+

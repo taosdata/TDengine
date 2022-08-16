@@ -1,7 +1,15 @@
 use futures::{SinkExt, StreamExt};
+use itertools::Itertools;
 use scc::HashMap;
 
-use taos_query::{AsyncFetchable, AsyncQueryable, DeError, DsnError, IntoDsn, TBuilder};
+use taos_query::common::views::views_to_raw_block;
+use taos_query::common::ColumnView;
+use taos_query::prelude::InlinableWrite;
+use taos_query::stmt::Bindable;
+use taos_query::{
+    block_in_place_or_global, AsyncFetchable, AsyncQueryable, DeError, DsnError, IntoDsn, RawBlock,
+    TBuilder,
+};
 use thiserror::Error;
 use tokio::sync::{oneshot, watch};
 
@@ -10,7 +18,7 @@ use tokio_tungstenite::tungstenite::Error as WsError;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 
 use crate::infra::ToMessage;
-use crate::TaosBuilder;
+use crate::{Taos, TaosBuilder};
 use messages::*;
 
 use std::fmt::Debug;
@@ -28,45 +36,137 @@ type StmtReceiver = std::sync::mpsc::Receiver<StmtResult>;
 
 type WsSender = tokio::sync::mpsc::Sender<Message>;
 
-pub mod sync;
+trait ToJsonValue {
+    fn to_json_value(&self) -> serde_json::Value;
+}
 
-pub struct WsStmtClient {
+impl ToJsonValue for ColumnView {
+    fn to_json_value(&self) -> serde_json::Value {
+        match self {
+            ColumnView::Bool(view) => serde_json::json!(view.to_vec()),
+            ColumnView::TinyInt(view) => serde_json::json!(view.to_vec()),
+            ColumnView::SmallInt(view) => serde_json::json!(view.to_vec()),
+            ColumnView::Int(view) => serde_json::json!(view.to_vec()),
+            ColumnView::BigInt(view) => serde_json::json!(view.to_vec()),
+            ColumnView::Float(view) => serde_json::json!(view.to_vec()),
+            ColumnView::Double(view) => serde_json::json!(view.to_vec()),
+            ColumnView::VarChar(view) => serde_json::json!(view.to_vec()),
+            ColumnView::Timestamp(view) => serde_json::json!(view
+                .iter()
+                .map(|ts| ts.map(|ts| ts.to_datetime_with_tz()))
+                .collect_vec()),
+            ColumnView::NChar(view) => serde_json::json!(view.to_vec()),
+            ColumnView::UTinyInt(view) => serde_json::json!(view.to_vec()),
+            ColumnView::USmallInt(view) => serde_json::json!(view.to_vec()),
+            ColumnView::UInt(view) => serde_json::json!(view.to_vec()),
+            ColumnView::UBigInt(view) => serde_json::json!(view.to_vec()),
+            ColumnView::Json(view) => serde_json::json!(view.to_vec()),
+        }
+    }
+}
+
+impl Bindable<super::Taos> for Stmt {
+    type Error = Error;
+
+    fn init(taos: &super::Taos) -> StdResult<Self, Self::Error> {
+        let mut dsn = taos.dsn.clone();
+        let database: Option<String> =
+            <Taos as taos_query::Queryable>::query_one(taos, "select database()")?;
+        dsn.database = database;
+        let mut stmt = block_in_place_or_global(Self::from_wsinfo(&dsn))?;
+        block_in_place_or_global(stmt.stmt_init())?;
+        Ok(stmt)
+    }
+
+    fn prepare<S: AsRef<str>>(&mut self, sql: S) -> StdResult<&mut Self, Self::Error> {
+        block_in_place_or_global(self.stmt_prepare(sql.as_ref()))?;
+        Ok(self)
+    }
+
+    fn set_tbname<S: AsRef<str>>(&mut self, sql: S) -> StdResult<&mut Self, Self::Error> {
+        block_in_place_or_global(self.stmt_set_tbname(sql.as_ref()))?;
+        Ok(self)
+    }
+
+    fn set_tags(
+        &mut self,
+        tags: &[taos_query::common::Value],
+    ) -> StdResult<&mut Self, Self::Error> {
+        let tags = tags
+            .into_iter()
+            .map(|tag| tag.to_json_value())
+            .collect_vec();
+        block_in_place_or_global(self.stmt_set_tags(tags))?;
+        Ok(self)
+    }
+
+    fn bind(
+        &mut self,
+        params: &[taos_query::common::ColumnView],
+    ) -> StdResult<&mut Self, Self::Error> {
+        let columns = params
+            .into_iter()
+            .map(|view| view.to_json_value())
+            .collect_vec();
+        block_in_place_or_global(self.stmt_bind_block(params))?;
+        Ok(self)
+    }
+
+    fn add_batch(&mut self) -> StdResult<&mut Self, Self::Error> {
+        block_in_place_or_global(self.stmt_add_batch())?;
+        Ok(self)
+    }
+
+    fn execute(&mut self) -> StdResult<usize, Self::Error> {
+        Ok(block_in_place_or_global(self.stmt_exec())?)
+    }
+
+    fn affected_rows(&self) -> usize {
+        self.affected_rows
+    }
+}
+
+pub struct Stmt {
     req_id: Arc<AtomicU64>,
+    timeout: Duration,
     ws: WsSender,
     close_signal: watch::Sender<bool>,
     queries: Arc<HashMap<ReqId, oneshot::Sender<StdResult<StmtId, taos_error::Error>>>>,
     fetches: Arc<HashMap<StmtId, StmtSender>>,
+    receiver: Option<StmtReceiver>,
+    args: Option<StmtArgs>,
+    affected_rows: usize,
 }
 
-pub struct WsAsyncStmt {
-    /// Message sending timeout, default is 5min.
-    timeout: Duration,
-    ws: WsSender,
-    fetches: Arc<HashMap<StmtId, StmtSender>>,
-    receiver: StmtReceiver,
-    args: StmtArgs,
-}
-impl Debug for WsAsyncStmt {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("WsAsyncStmt")
-            .field("ws", &"...")
-            .field("fetches", &"...")
-            .field("receiver", &self.receiver)
-            .field("args", &self.args)
-            .finish()
-    }
-}
+// pub struct WsAsyncStmt {
+//     /// Message sending timeout, default is 5min.
+//     timeout: Duration,
+//     ws: WsSender,
+//     fetches: Arc<HashMap<StmtId, StmtSender>>,
+//     receiver: StmtReceiver,
+//     args: StmtArgs,
+// }
+// impl Debug for WsAsyncStmt {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         f.debug_struct("WsAsyncStmt")
+//             .field("ws", &"...")
+//             .field("fetches", &"...")
+//             .field("receiver", &self.receiver)
+//             .field("args", &self.args)
+//             .finish()
+//     }
+// }
 
-impl Drop for WsAsyncStmt {
-    fn drop(&mut self) {
-        self.fetches.remove(&self.args.stmt_id);
-        let args = self.args;
-        let ws = self.ws.clone();
-        let _ = taos_query::block_in_place_or_global(ws.send(StmtSend::Close(args).to_msg()));
-    }
-}
+// impl Drop for WsAsyncStmt {
+//     fn drop(&mut self) {
+//         self.fetches.remove(&self.args.stmt_id);
+//         let args = self.args;
+//         let ws = self.ws.clone();
+//         let _ = taos_query::block_in_place_or_global(ws.send(StmtSend::Close(args).to_msg()));
+//     }
+// }
 
-impl Debug for WsStmtClient {
+impl Debug for Stmt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("WsClient")
             .field("req_id", &self.req_id)
@@ -74,55 +174,57 @@ impl Debug for WsStmtClient {
             .finish()
     }
 }
-#[derive(Debug, Error)]
-pub enum Error {
-    #[error("{0}")]
-    Dsn(#[from] DsnError),
-    #[error("{0}")]
-    FetchError(#[from] oneshot::error::RecvError),
-    #[error("{0}")]
-    SendError(#[from] tokio::sync::mpsc::error::SendError<Message>),
-    #[error(transparent)]
-    SendTimeoutError(#[from] tokio::sync::mpsc::error::SendTimeoutError<Message>),
-    #[error("{0}")]
-    StdSendError(#[from] std::sync::mpsc::SendError<tokio_tungstenite::tungstenite::Message>),
-    #[error("{0}")]
-    RecvError(#[from] std::sync::mpsc::RecvError),
-    #[error("{0}")]
-    RecvTimeout(#[from] std::sync::mpsc::RecvTimeoutError),
-    #[error("{0}")]
-    DeError(#[from] DeError),
-    #[error("{0}")]
-    WsError(#[from] WsError),
-    #[error("{0}")]
-    TaosError(#[from] taos_error::Error),
-}
 
-impl Error {
-    pub const fn errno(&self) -> taos_error::Code {
-        match self {
-            Error::TaosError(error) => error.code(),
-            _ => taos_error::Code::Failed,
-        }
-    }
-    pub fn errstr(&self) -> String {
-        match self {
-            Error::TaosError(error) => error.message().to_string(),
-            _ => format!("{}", self),
-        }
-    }
-}
+use super::asyn::Error;
+// #[derive(Debug, Error)]
+// pub enum Error {
+//     #[error("{0}")]
+//     Dsn(#[from] DsnError),
+//     #[error("{0}")]
+//     FetchError(#[from] oneshot::error::RecvError),
+//     #[error("{0}")]
+//     SendError(#[from] tokio::sync::mpsc::error::SendError<Message>),
+//     #[error(transparent)]
+//     SendTimeoutError(#[from] tokio::sync::mpsc::error::SendTimeoutError<Message>),
+//     #[error("{0}")]
+//     StdSendError(#[from] std::sync::mpsc::SendError<tokio_tungstenite::tungstenite::Message>),
+//     #[error("{0}")]
+//     RecvError(#[from] std::sync::mpsc::RecvError),
+//     #[error("{0}")]
+//     RecvTimeout(#[from] std::sync::mpsc::RecvTimeoutError),
+//     #[error("{0}")]
+//     DeError(#[from] DeError),
+//     #[error("{0}")]
+//     WsError(#[from] WsError),
+//     #[error("{0}")]
+//     TaosError(#[from] taos_error::Error),
+// }
+
+// impl Error {
+//     pub const fn errno(&self) -> taos_error::Code {
+//         match self {
+//             Error::TaosError(error) => error.code(),
+//             _ => taos_error::Code::Failed,
+//         }
+//     }
+//     pub fn errstr(&self) -> String {
+//         match self {
+//             Error::TaosError(error) => error.message().to_string(),
+//             _ => format!("{}", self),
+//         }
+//     }
+// }
 
 type Result<T> = std::result::Result<T, Error>;
 
-impl Drop for WsStmtClient {
+impl Drop for Stmt {
     fn drop(&mut self) {
         // send close signal to reader/writer spawned tasks.
         let _ = self.close_signal.send(true);
     }
 }
 
-impl WsStmtClient {
+impl Stmt {
     pub(crate) async fn from_wsinfo(info: &TaosBuilder) -> Result<Self> {
         let (ws, _) = connect_async(info.to_stmt_url()).await?;
         let req_id = 0;
@@ -254,9 +356,13 @@ impl WsStmtClient {
         Ok(Self {
             req_id: Arc::new(AtomicU64::new(req_id + 1)),
             queries,
+            timeout: Duration::from_secs(5),
             fetches,
             ws,
             close_signal: tx,
+            receiver: None,
+            args: None,
+            affected_rows: 0,
         })
     }
     /// Build TDengine websocket client from dsn.
@@ -275,7 +381,7 @@ impl WsStmtClient {
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
     }
 
-    pub async fn stmt_init(&self) -> Result<WsAsyncStmt> {
+    pub async fn stmt_init(&mut self) -> Result<&mut Self> {
         let req_id = self.req_id();
         let action = StmtSend::Init { req_id };
         let (tx, rx) = oneshot::channel();
@@ -290,88 +396,136 @@ impl WsStmtClient {
 
         let _ = self.fetches.insert(stmt_id, sender);
 
-        Ok(WsAsyncStmt {
-            timeout: Duration::from_secs(300),
-            ws: self.ws.clone(),
-            fetches: self.fetches.clone(),
-            receiver: receiver,
-            args,
-        })
+        self.args = Some(args);
+        self.receiver = Some(receiver);
+        Ok(self)
     }
 
-    pub async fn s_stmt(&self, sql: &str) -> Result<WsAsyncStmt> {
+    pub async fn s_stmt(&mut self, sql: &str) -> Result<&mut Self> {
         let stmt = self.stmt_init().await?;
-        stmt.prepare(sql).await?;
+        stmt.stmt_prepare(sql).await?;
         Ok(stmt)
     }
-}
 
-impl WsAsyncStmt {
     pub fn set_timeout(&mut self, timeout: Duration) -> &mut Self {
         self.timeout = timeout;
         self
     }
-    pub async fn prepare(&self, sql: &str) -> Result<()> {
+    pub async fn stmt_prepare(&mut self, sql: &str) -> Result<()> {
         let prepare = StmtSend::Prepare {
-            args: self.args,
+            args: self.args.unwrap(),
             sql: sql.to_string(),
         };
         self.ws.send(prepare.to_msg()).await?;
-        let _ = self.receiver.recv_timeout(self.timeout)??;
+        let _ = self
+            .receiver
+            .as_ref()
+            .unwrap()
+            .recv_timeout(self.timeout)??;
         Ok(())
     }
-    pub async fn add_batch(&self) -> Result<()> {
+    pub async fn stmt_add_batch(&mut self) -> Result<()> {
         log::debug!("add batch");
-        let message = StmtSend::AddBatch(self.args);
+        let message = StmtSend::AddBatch(self.args.unwrap());
         self.ws.send(message.to_msg()).await?;
-        let _ = self.receiver.recv_timeout(self.timeout)??;
+        let _ = self
+            .receiver
+            .as_ref()
+            .unwrap()
+            .recv_timeout(self.timeout)??;
         Ok(())
     }
-    pub async fn bind(&self, columns: Vec<serde_json::Value>) -> Result<()> {
+    pub async fn stmt_bind(&mut self, columns: Vec<serde_json::Value>) -> Result<()> {
         let message = StmtSend::Bind {
-            args: self.args,
+            args: self.args.unwrap(),
             columns: columns,
         };
         {
             log::debug!("bind with: {message:?}");
+            log::debug!("bind string: {}", message.to_msg());
             self.ws.send(message.to_msg()).await?;
         }
         log::debug!("begin receive");
-        let _ = self.receiver.recv_timeout(self.timeout)??;
+        let _ = self
+            .receiver
+            .as_ref()
+            .unwrap()
+            .recv_timeout(self.timeout)??;
+        Ok(())
+    }
+
+    pub async fn stmt_bind_block(&mut self, columns: &[ColumnView]) -> Result<()> {
+        let args = self.args.unwrap();
+
+        let mut bytes = Vec::new();
+        // p0 uin64  req_id
+        // p0+8 uint64 stmt_id
+        // p0+16 uint64 (1 (set tag) 2 (bind))
+        // p0+24 uint64 rows
+        // p0+32 uint64 cols
+        // p0+40 raw block
+        bytes.write_u64_le(args.req_id)?;
+        bytes.write_u64_le(args.stmt_id)?;
+        bytes.write_u64_le(2)?; // bind: 2
+        bytes.write_u64_le(columns.len() as u64)?;
+        let rows = columns.first().map(|c| c.len()).unwrap_or_default() as u64;
+        bytes.write_u64_le(rows)?;
+
+        let block = views_to_raw_block(columns);
+
+        bytes.extend(&block);
+
+        self.ws.send(Message::Binary(bytes)).await?;
+        let _ = self
+            .receiver
+            .as_ref()
+            .unwrap()
+            .recv_timeout(self.timeout)??;
+
         Ok(())
     }
 
     /// Call bind and add batch.
-    pub async fn bind_all(&self, columns: Vec<serde_json::Value>) -> Result<()> {
-        self.bind(columns).await?;
-        self.add_batch().await
+    pub async fn bind_all(&mut self, columns: Vec<serde_json::Value>) -> Result<()> {
+        self.stmt_bind(columns).await?;
+        self.stmt_add_batch().await
     }
 
-    pub async fn set_tbname(&self, name: &str) -> Result<()> {
+    pub async fn stmt_set_tbname(&mut self, name: &str) -> Result<()> {
         let message = StmtSend::SetTableName {
-            args: self.args,
+            args: self.args.unwrap(),
             name: name.to_string(),
         };
         self.ws.send_timeout(message.to_msg(), self.timeout).await?;
-        let _ = self.receiver.recv_timeout(self.timeout)??;
+        let _ = self
+            .receiver
+            .as_ref()
+            .unwrap()
+            .recv_timeout(self.timeout)??;
         Ok(())
     }
 
-    pub async fn set_tags(&self, tags: Vec<serde_json::Value>) -> Result<()> {
+    pub async fn stmt_set_tags(&mut self, tags: Vec<serde_json::Value>) -> Result<()> {
         let message = StmtSend::SetTags {
-            args: self.args,
+            args: self.args.unwrap(),
             tags: tags,
         };
         self.ws.send_timeout(message.to_msg(), self.timeout).await?;
-        let _ = self.receiver.recv_timeout(self.timeout)?;
+        let _ = self.receiver.as_ref().unwrap().recv_timeout(self.timeout)?;
         Ok(())
     }
 
-    pub async fn exec(&self) -> Result<usize> {
+    pub async fn stmt_exec(&mut self) -> Result<usize> {
         log::debug!("exec");
-        let message = StmtSend::Exec(self.args);
+        let message = StmtSend::Exec(self.args.unwrap());
         self.ws.send_timeout(message.to_msg(), self.timeout).await?;
-        if let Some(affected) = self.receiver.recv_timeout(self.timeout)?? {
+        if let Some(affected) = self
+            .receiver
+            .as_ref()
+            .unwrap()
+            .recv_timeout(self.timeout)??
+        {
+            self.affected_rows += affected;
             Ok(affected)
         } else {
             panic!("")
@@ -384,7 +538,7 @@ mod tests {
     use serde_json::json;
     use taos_query::{Dsn, TBuilder};
 
-    use crate::{stmt::WsStmtClient, TaosBuilder};
+    use crate::{stmt::Stmt, TaosBuilder};
 
     // !Websocket tests should always use `multi_thread`
     #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
@@ -399,7 +553,7 @@ mod tests {
 
         std::env::set_var("RUST_LOG", "debug");
         pretty_env_logger::init();
-        let client = WsStmtClient::from_dsn("taos+ws://localhost:6041/stmt").await?;
+        let mut client = Stmt::from_dsn("taos+ws://localhost:6041/stmt").await?;
         let stmt = client.s_stmt("insert into stmt.ctb values(?, ?)").await?;
 
         stmt.bind_all(vec![
@@ -410,7 +564,7 @@ mod tests {
             json!([2, 3]),
         ])
         .await?;
-        let res = stmt.exec().await?;
+        let res = stmt.stmt_exec().await?;
 
         assert_eq!(res, 2);
         Ok(())
@@ -431,16 +585,16 @@ mod tests {
 
         std::env::set_var("RUST_LOG", "debug");
         pretty_env_logger::init();
-        let client = WsStmtClient::from_dsn("taos+ws://localhost:6041/stmt_s").await?;
+        let mut client = Stmt::from_dsn("taos+ws://localhost:6041/stmt_s").await?;
         let stmt = client
             .s_stmt("insert into ? using stb tags(?) values(?, ?)")
             .await?;
 
-        stmt.set_tbname("tb1").await?;
+        stmt.stmt_set_tbname("tb1").await?;
 
         // stmt.set_tags(vec![json!({"name": "value"})]).await?;
 
-        stmt.set_tags(vec![json!(1)]).await?;
+        stmt.stmt_set_tags(vec![json!(1)]).await?;
 
         stmt.bind_all(vec![
             json!([
@@ -450,7 +604,7 @@ mod tests {
             json!([2, 3]),
         ])
         .await?;
-        let res = stmt.exec().await?;
+        let res = stmt.stmt_exec().await?;
 
         assert_eq!(res, 2);
         taos.exec("drop database stmt_s").await?;

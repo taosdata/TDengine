@@ -1,5 +1,7 @@
 mod _priv {
-    pub use crate::common::{BorrowedValue, Field, Precision, RawBlock, RawMeta, Ty, Value, ColumnView};
+    pub use crate::common::{
+        BorrowedValue, ColumnView, Field, Precision, RawBlock, RawMeta, Ty, Value,
+    };
     pub use crate::util::{Inlinable, InlinableRead, InlinableWrite};
     pub use crate::TBuilder;
     #[cfg(feature = "r2d2")]
@@ -14,7 +16,6 @@ mod _priv {
 pub use crate::tmq::{AsAsyncConsumer, IsAsyncData, IsAsyncMeta};
 pub use _priv::*;
 pub use futures::stream::{Stream, StreamExt, TryStreamExt};
-// pub use r#async::{AsyncBindable, AsyncFetchable, AsyncQueryable, AsyncInlinable};
 pub use r#async::*;
 
 pub mod sync {
@@ -23,7 +24,6 @@ pub mod sync {
     pub use crate::stmt::Bindable;
     pub use crate::tmq::{AsConsumer, IsMeta};
 
-    use itertools::Itertools;
     use serde::de::DeserializeOwned;
 
     pub use mdsn::{Address, Dsn, DsnError, IntoDsn};
@@ -242,13 +242,13 @@ pub mod sync {
                 .map_err(Into::into)
         }
 
-        /// Topics information by `show topics` sql.
+        /// Topics information by `SELECT * FROM performance_schema.perf_topics` sql.
         ///
         /// ## Compatibility
         ///
         /// This is a 3.x-only API.
         fn topics(&self) -> Result<Vec<Topic>, Self::Error> {
-            self.query("show topics")?
+            self.query("SELECT * FROM performance_schema.perf_topics")?
                 .deserialize()
                 .try_collect()
                 .map_err(Into::into)
@@ -266,16 +266,16 @@ pub mod sync {
 
 mod r#async {
     use itertools::Itertools;
-    use serde::{de::DeserializeOwned, Deserialize};
+    use serde::de::DeserializeOwned;
     use std::pin::Pin;
     use std::task::{Context, Poll};
     use std::{fmt::Debug, marker::PhantomData};
 
     use crate::common::*;
     use crate::helpers::*;
+    pub use crate::stmt::Bindable;
 
     pub use super::_priv::*;
-    pub use crate::stmt::AsyncBindable;
     pub use crate::util::AsyncInlinable;
     pub use crate::util::AsyncInlinableRead;
     pub use crate::util::AsyncInlinableWrite;
@@ -442,7 +442,7 @@ mod r#async {
                 .try_collect()
         }
 
-        fn deserialize_stream<R>(&mut self) -> AsyncDeserialized<'_, Self, R>
+        fn deserialize<R>(&mut self) -> AsyncDeserialized<'_, Self, R>
         where
             R: serde::de::DeserializeOwned,
         {
@@ -513,7 +513,7 @@ mod r#async {
             log::debug!("query one with sql: {}", sql.as_ref());
             self.query(sql)
                 .await?
-                .deserialize_stream::<O>()
+                .deserialize::<O>()
                 .take(1)
                 .collect::<Vec<_>>()
                 .await
@@ -551,22 +551,22 @@ mod r#async {
             Ok(self
                 .query("show databases")
                 .await?
-                .deserialize_stream()
+                .deserialize()
                 .try_collect()
                 .await?)
         }
 
-        /// Topics information by `show topics` sql.
+        /// Topics information by `SELECT * FROM performance_schema.perf_topics` sql.
         ///
         /// ## Compatibility
         ///
         /// This is a 3.x-only API.
         async fn topics(&self) -> Result<Vec<Topic>, Self::Error> {
-            log::debug!("query one with sql: show topics");
+            log::debug!("query one with sql: SELECT * FROM performance_schema.perf_topics");
             Ok(self
-                .query("show topics")
+                .query("SELECT * FROM performance_schema.perf_topics")
                 .await?
-                .deserialize_stream()
+                .deserialize()
                 .try_collect()
                 .await?)
         }
@@ -576,7 +576,7 @@ mod r#async {
             Ok(Describe(
                 self.query(format!("describe {table}"))
                     .await?
-                    .deserialize_stream()
+                    .deserialize()
                     .try_collect()
                     .await?,
             ))

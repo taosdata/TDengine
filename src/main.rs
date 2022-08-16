@@ -215,7 +215,7 @@ async fn main() -> Result<()> {
             query_to_csv(args.from, args.to).await?;
         }
         ("taos", "parquet") => {
-            query_to_parquet(args.from, args.to).await?;
+            query_to_parquet(args.from, args.to, args.yes_i_really_mean_it).await?;
         }
         ("tmq", "csv") => {
             // tmq table to csv, write table records to csv format.

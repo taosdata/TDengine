@@ -5,7 +5,7 @@ use derive_more::Deref;
 pub use field::*;
 pub use taos_query::common::{Precision, Ty};
 
-use taos_query::common::{itypes::*, BorrowedColumn, Column, ColumnView};
+use taos_query::common::{itypes::*, BorrowedColumn, Column, ColumnView, Value};
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -104,7 +104,7 @@ impl BindFrom for TaosBindV3 {
 
     fn from_primitive<T: IsValue>(v: &T) -> Self {
         let mut param = TaosMultiBind::new(T::TY);
-        param.buffer_length = T::TY.fixed_length();
+        param.buffer_length = v.fixed_length();
         param.buffer = box_into_raw(v.clone()) as *const T as _;
         param.length = box_into_raw(param.buffer_length) as _;
         param.is_null = box_into_raw(0) as _;
@@ -210,6 +210,30 @@ pub trait BindFrom: Sized {
     fn from_binary(v: &str) -> Self {
         Self::from_varchar(v)
     }
+    fn from_value(v: &Value) -> Self {
+        match v {
+            Value::Null => todo!(),
+            Value::Bool(_) => todo!(),
+            Value::TinyInt(_) => todo!(),
+            Value::SmallInt(_) => todo!(),
+            Value::Int(_) => todo!(),
+            Value::BigInt(_) => todo!(),
+            Value::Float(_) => todo!(),
+            Value::Double(_) => todo!(),
+            Value::VarChar(_) => todo!(),
+            Value::Timestamp(_) => todo!(),
+            Value::NChar(_) => todo!(),
+            Value::UTinyInt(_) => todo!(),
+            Value::USmallInt(_) => todo!(),
+            Value::UInt(_) => todo!(),
+            Value::UBigInt(_) => todo!(),
+            Value::Json(_) => todo!(),
+            Value::VarBinary(_) => todo!(),
+            Value::Decimal(_) => todo!(),
+            Value::Blob(_) => todo!(),
+            Value::MediumBlob(_) => todo!(),
+        }
+    }
 }
 
 fn box_into_raw<T>(v: T) -> *mut T {
@@ -256,7 +280,7 @@ impl BindFrom for TaosBindV2 {
 
     fn from_primitive<T: IsValue>(v: &T) -> Self {
         let mut param = Self::new(T::TY);
-        param.buffer_length = T::TY.fixed_length();
+        param.buffer_length = v.fixed_length();
         param.buffer = v as *const T as _;
         param.length = box_into_raw(param.buffer_length) as _;
         param
@@ -272,99 +296,6 @@ impl Drop for TaosBindV2 {
 pub trait ToMultiBind {
     fn to_multi_bind(&self) -> TaosMultiBind;
 }
-
-// impl<T> From<T> for TaosBind
-// where
-//     T: IValue + Any,
-// {
-//     fn from(value: T) -> Self {
-//         match T::TY {
-//             Ty::Null => Self::null(),
-//             Ty::Bool => {
-//                 let inner = value.into_inner();
-//                 let inner: &bool = unsafe { std::mem::transmute(&inner) };
-//                 Self::from_bool(*inner)
-//             }
-//             Ty::TinyInt => {
-//                 let inner = value.into_inner();
-//                 let inner: &i8 = unsafe { std::mem::transmute(&inner) };
-//                 Self::from_tiny_int(*inner)
-//             }
-//             Ty::SmallInt => {
-//                 let inner = value.into_inner();
-//                 let inner: &i16 = unsafe { std::mem::transmute(&inner) };
-//                 Self::from_small_int(*inner)
-//             }
-//             Ty::Int => {
-//                 let inner = value.into_inner();
-//                 let inner: &i32 = unsafe { std::mem::transmute(&inner) };
-//                 Self::from_int(*inner)
-//             }
-//             Ty::BigInt => {
-//                 let inner = value.into_inner();
-//                 let inner: &i64 = unsafe { std::mem::transmute(&inner) };
-//                 Self::from_big_int(*inner)
-//             }
-
-//             Ty::UTinyInt => {
-//                 let inner = value.into_inner();
-//                 let inner: &u8 = unsafe { std::mem::transmute(&inner) };
-//                 Self::from_tiny_int_unsigned(*inner)
-//             }
-//             Ty::USmallInt => {
-//                 let inner = value.into_inner();
-//                 let inner: &u16 = unsafe { std::mem::transmute(&inner) };
-//                 Self::from_small_int_unsigned(*inner)
-//             }
-//             Ty::UInt => {
-//                 let inner = value.into_inner();
-//                 let inner: &u32 = unsafe { std::mem::transmute(&inner) };
-//                 Self::from_int_unsigned(*inner)
-//             }
-//             Ty::UBigInt => {
-//                 let inner = value.into_inner();
-//                 let inner: &u64 = unsafe { std::mem::transmute(&inner) };
-//                 Self::from_big_int_unsigned(*inner)
-//             }
-//             Ty::Float => {
-//                 let inner = value.into_inner();
-//                 let inner: &f32 = unsafe { std::mem::transmute(&inner) };
-//                 Self::from_float(*inner)
-//             }
-//             Ty::Double => {
-//                 let inner = value.into_inner();
-//                 let inner: &f64 = unsafe { std::mem::transmute(&inner) };
-//                 Self::from_double(*inner)
-//             }
-//             Ty::Timestamp => {
-//                 let inner = value.into_inner();
-//                 let inner: &i64 = unsafe { std::mem::transmute(&inner) };
-//                 Self::from_timestamp(*inner)
-//             }
-//             Ty::VarChar => {
-//                 let inner = value.into_inner();
-//                 let inner: &String = unsafe { std::mem::transmute(&inner) };
-//                 Self::from_varchar(inner)
-//             }
-//             Ty::NChar => {
-//                 let inner = value.into_inner();
-//                 let inner: &String = unsafe { std::mem::transmute(&inner) };
-//                 Self::from_nchar(inner)
-//             }
-//             Ty::Json => todo!(),
-//             _ => Self::null(),
-//         }
-//     }
-// }
-
-// impl<T> From<Vec<T>> for TaosMultiBind
-// where
-//     T: IValue,
-// {
-//     fn from(_: Vec<T>) -> Self {
-//         todo!()
-//     }
-// }
 
 impl TaosMultiBind {
     pub(crate) fn nulls(n: usize) -> Self {
@@ -442,7 +373,7 @@ impl TaosMultiBind {
     pub(crate) fn from_string_vec(values: &[Option<impl AsRef<str>>]) -> Self {
         let values: Vec<_> = values
             .iter()
-            .map(|f| f.as_ref().map(|s| dbg!(s.as_ref().as_bytes())))
+            .map(|f| f.as_ref().map(|s| s.as_ref().as_bytes()))
             .collect();
         let mut s = Self::from_binary_vec(&values);
         s.buffer_type = Ty::NChar as _;
@@ -467,11 +398,11 @@ impl TaosMultiBind {
 impl Drop for TaosMultiBind {
     fn drop(&mut self) {
         let ty = Ty::from(self.buffer_type as u8);
-        // if ty == Ty::VarChar || ty == Ty::NChar {
-        //     let len = self.buffer_length * self.num as usize;
-        //     unsafe { Vec::from_raw_parts(self.buffer as *mut u8, len, len as _) };
-        //     unsafe { Vec::from_raw_parts(self.length as *mut i32, self.num as _, self.num as _) };
-        // }
+        if ty == Ty::VarChar || ty == Ty::NChar {
+            let len = self.buffer_length * self.num as usize;
+            unsafe { Vec::from_raw_parts(self.buffer as *mut u8, len, len as _) };
+            unsafe { Vec::from_raw_parts(self.length as *mut i32, self.num as _, self.num as _) };
+        }
         unsafe { Vec::from_raw_parts(self.is_null as *mut i8, self.num as _, self.num as _) };
     }
 }
@@ -622,33 +553,3 @@ impl<'b> From<&'b ColumnView> for TaosMultiBind {
         }
     }
 }
-// impl<'b, 'c> From<&'c BorrowedColumn<'b>> for MultiBind<'c> {
-//     fn from(col: &'c BorrowedColumn<'b>) -> Self {
-//         match col {
-//             BorrowedColumn::Null(n) => MultiBind::nulls(*n),
-//             BorrowedColumn::Bool(nulls, values) => MultiBind::from_primitives(nulls, values),
-//             BorrowedColumn::TinyInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-//             BorrowedColumn::SmallInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-//             BorrowedColumn::Int(nulls, values) => MultiBind::from_primitives(nulls, values),
-//             BorrowedColumn::BigInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-//             BorrowedColumn::UTinyInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-//             BorrowedColumn::USmallInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-//             BorrowedColumn::UInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-//             BorrowedColumn::UBigInt(nulls, values) => MultiBind::from_primitives(nulls, values),
-//             BorrowedColumn::Float(nulls, values) => MultiBind::from_primitives(nulls, values),
-//             BorrowedColumn::Double(nulls, values) => MultiBind::from_primitives(nulls, values),
-//             BorrowedColumn::Timestamp(nulls, values) => {
-//                 MultiBind::from_raw_timestamps(nulls, values)
-//             }
-//             BorrowedColumn::Binary(values) => MultiBind::from_binary_vec(values),
-//             BorrowedColumn::NChar(values) => MultiBind::from_string_vec(values),
-//             _ => unreachable!(),
-//         }
-//     }
-// }
-
-// impl<T> From<Vec<T>> for TaosMultiBind {
-//     fn from(_: Vec<T>) -> Self {
-//         todo!()
-//     }
-// }

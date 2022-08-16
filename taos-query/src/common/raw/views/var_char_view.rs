@@ -3,6 +3,7 @@ use std::{ffi::c_void, fmt::Debug};
 use super::Offsets;
 use crate::{
     common::{BorrowedValue, Ty},
+    prelude::InlinableWrite,
     util::InlineStr,
 };
 
@@ -97,6 +98,40 @@ impl VarCharView {
         wtr.write_all(offsets)?;
         wtr.write_all(&self.data)?;
         Ok(offsets.len() + self.data.len())
+    }
+
+    pub fn from_iter<
+        S: AsRef<str>,
+        T: Into<Option<S>>,
+        I: ExactSizeIterator<Item = T>,
+        V: IntoIterator<Item = T, IntoIter = I>,
+    >(
+        iter: V,
+    ) -> Self {
+        let mut offsets = Vec::new();
+        let mut data = Vec::new();
+
+        for i in iter.into_iter().map(|v| v.into()) {
+            if let Some(s) = i {
+                let s: &str = s.as_ref();
+                offsets.push(data.len() as i32);
+                data.write_inlined_str::<2>(&s).unwrap();
+            } else {
+                offsets.push(-1);
+            }
+        }
+        let offsets_bytes = unsafe {
+            Vec::from_raw_parts(
+                offsets.as_mut_ptr() as *mut u8,
+                offsets.len() * 4,
+                offsets.capacity() * 4,
+            )
+        };
+        std::mem::forget(offsets);
+        VarCharView {
+            offsets: Offsets(offsets_bytes.into()),
+            data: data.into(),
+        }
     }
 }
 

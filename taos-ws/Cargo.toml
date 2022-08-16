@@ -7,36 +7,28 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1"
-# backtrace = "0.3"
+async-trait = { version = "0.1.56" }
+bytes = "1.1.0"
+futures = { version = "0.3" }
 itertools = "0.10.3"
 log = "0.4"
 once_cell = "1"
-bytes = "1.1.0"
-# parking_lot = "0.12.1"
+scc = "0.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
-serde_with = "2.0.0"
 serde_repr = "0.1.8"
-thiserror = "1"
-# tungstenite = { version = "0.17", features = ["native-tls-vendored"] }
-
+serde_with = "2.0.0"
 taos-error = { path = "../taos-error" }
-taos-query = { path = "../taos-query", default-features = false }
-
-async-trait = { version = "0.1.56", optional = true }
-futures = { version = "0.3" }
-
-scc = "0.8"
+taos-query = { path = "../taos-query" }
+thiserror = "1"
 tokio = { version = "1", features = ["full"] }
-#tokio-tungstenite = { version = "0.17.1", features = ["__rustls-tls"] }
 tokio-tungstenite = { version = "0.17", features = ["native-tls"] }
 
 [dev-dependencies]
 pretty_env_logger = "*"
 
 [features]
-default = ["async", "tmq"]
+default = ["tmq"]
 native-tls-vendored = ["tokio-tungstenite/native-tls-vendored"]
-async = ["async-trait", "taos-query/async"]
 sync = []
-tmq = ["async"]
+tmq = []

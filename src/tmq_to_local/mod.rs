@@ -7,7 +7,7 @@ use anyhow::Result;
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
-use taos::{tmq::Consumer, *};
+use taos::{Consumer, *};
 use tokio::io::*;
 
 use crate::{
@@ -19,8 +19,8 @@ use crate::{
 pub(crate) struct Topic {
     name: String,
     database: String,
-    sql: String,
     vgroups: usize,
+    sql: String,
 }
 
 async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
@@ -28,6 +28,7 @@ async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
         Code::Failed,
         format!("requires topic or database in source dsn: {from}"),
     ))?;
+    dbg!(&from, &database);
 
     let source = TaosBuilder::from_dsn(&from)?.build()?;
     let source_topics = source.topics().await?;
@@ -220,11 +221,12 @@ impl LocalConfig {
     }
 }
 
-pub async fn tmq_to_local(from: Dsn, to: Dsn, jobs: usize, force: bool) -> Result<()> {
-    let (from, topics) = check_tmq_dsn(from).await?;
+pub async fn tmq_to_local(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> Result<()> {
+    let (mut from, topics) = check_tmq_dsn(from).await?;
+    let mut from_params = from.drain_params();
 
-    let (mut from, mut from_params) = from.split_params();
-    let (mut to, to_params) = to.split_params();
+    // let (mut from, mut from_params) = from.split_params();
+    let to_params = to.drain_params();
 
     if to.fragment.is_none() {
         anyhow::bail!(
@@ -330,5 +332,29 @@ pub async fn tmq_to_local(from: Dsn, to: Dsn, jobs: usize, force: bool) -> Resul
     for handle in handles {
         handle.await??;
     }
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_tmq_to_local() -> anyhow::Result<()> {
+    std::env::set_var("RUST_LOG", "debug");
+    pretty_env_logger::init();
+    let taos = TaosBuilder::from_dsn("taos://")?.build()?;
+    taos.exec_many([
+        "DROP TOPIC IF EXISTS tmq_to_local",
+        "DROP DATABASE IF EXISTS tmq_to_local",
+        "CREATE DATABASE tmq_to_local",
+        "USE tmq_to_local",
+        "CREATE STABLE stb1 (ts TIMESTAMP, v1 BOOL) TAGS(j1 json)",
+        "CREATE TOPIC tmq_to_local WITH META AS DATABASE tmq_to_local",
+    ])
+    .await?;
+    tmq_to_local(
+        "tmq:///tmq_to_local".parse()?,
+        "local:./tmq_to_local_out".parse()?,
+        1,
+        true,
+    )
+    .await?;
     Ok(())
 }

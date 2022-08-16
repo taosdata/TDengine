@@ -22,7 +22,7 @@ exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
 
 [dependencies]
 anyhow = "1"
-arrow = "19"
+arrow = "20.0.0"
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bitflags = "1"
@@ -33,11 +33,11 @@ config = "0.13.1"
 csv-async = { version = "1.2.4", features = ["tokio"] }
 futures = "0.3"
 log = "0.4"
-parquet = { version = "19" }
+parquet = { version = "20.0.0" }
 pretty_env_logger = "0.4"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
-taos = { path = "./taos" }
+taos = { path = "../taos-connector-rust" }
 tokio = { version = "1", features = ["full"] }
 toml = "0.5.9"
 zstd = "0.11.2"

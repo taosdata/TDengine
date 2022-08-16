@@ -76,6 +76,11 @@ impl JsonView {
         wtr.write_all(&self.data)?;
         Ok(offsets.len() + self.data.len())
     }
+
+
+    pub fn from_iter<S: Into<String>, T: Into<Option<S>>, I: ExactSizeIterator<Item = T>>(iter: I) -> Self {
+        todo!()
+    }
 }
 
 pub struct VarCharIter<'a> {
