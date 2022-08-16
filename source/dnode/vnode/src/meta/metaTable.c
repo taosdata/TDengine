@@ -180,14 +180,14 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
       metaReaderClear(&mr);
       return 0;
     } else {
-      terrno = TSDB_CODE_TDB_STB_ALREADY_EXIST;
+      terrno = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
       metaReaderClear(&mr);
       return -1;
     }
     /*
 // TODO: just for pass case
 #if 0
-    terrno = TSDB_CODE_TDB_STB_ALREADY_EXIST;
+    terrno = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
     metaReaderClear(&mr);
     return -1;
 #else
