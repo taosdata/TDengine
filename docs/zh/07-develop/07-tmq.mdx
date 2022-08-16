@@ -90,6 +90,7 @@ void close() throws SQLException;
 </TabItem>
 
 <TabItem value="Python" label="Python">
+
 ```python
 class TaosConsumer():
     def __init__(self, *topics, **configs)
@@ -108,7 +109,9 @@ class TaosConsumer():
     
     def __del__(self)
 ```
+
 </TabItem>
+
 <TabItem label="Go" value="Go">
 
 ```go
@@ -126,6 +129,7 @@ func (c *Consumer) Subscribe(topics []string) error
 
 func (c *Consumer) Unsubscribe() error
 ```
+
 </TabItem>
 
 <TabItem value="C#" label="C#">
@@ -150,8 +154,8 @@ void Unsubscribe()
 void Commit(ConsumeResult consumerResult)
 
 void Close()
-
 ```
+
 </TabItem>
 
 </Tabs>
@@ -393,6 +397,7 @@ var cfg = new ConsumerConfig
 var consumer = new ConsumerBuilder(cfg).Build();
 
 ```
+
 </TabItem>
 
 </Tabs>
@@ -441,7 +446,6 @@ if err != nil {
 
 </TabItem>
 
-
 <TabItem value="C#" label="C#">
 
 ```C#
@@ -454,14 +458,11 @@ consumer.Subscribe(topics);
 
 </TabItem>
 
-
 <TabItem value="Python" label="Python">
 ```python
 consumer = TaosConsumer('topic_ctb_column', group_id='vg2')
 ```
 </TabItem>
-
-
 
 </Tabs>
 
@@ -504,7 +505,6 @@ for msg in consumer:
 ```
 </TabItem>
 
-
 <TabItem value="Go" label="Go">
 
 ```go
@@ -520,7 +520,6 @@ for {
 ```
 
 </TabItem>
-</Tabs>
 
 <TabItem value="C#" label="C#">
 
@@ -537,7 +536,6 @@ while (true)
 
 </TabItem>
 </Tabs>
-
 
 ## 结束消费
 
@@ -575,6 +573,9 @@ consumer.unsubscribe();
 
 /* 关闭消费 */
 consumer.close();
+
+</TabItem>
+
 <TabItem value="Go" label="Go">
 
 ```go
@@ -590,6 +591,7 @@ consumer.Unsubscribe();
 
 // 关闭消费
 consumer.Close();
+```
 </TabItem>
 
 </Tabs>

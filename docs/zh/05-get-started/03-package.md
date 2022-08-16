@@ -11,14 +11,11 @@ import PkgListV3 from "/components/PkgListV3";
 
 ## 安装
 
-:::info
-下载其他组件、最新 Beta 版及之前版本的安装包，请点击[发布历史页面](../../releases) 
-:::
-
 <Tabs>
 <TabItem label="Deb 安装" value="debinst">
 
-1. 从 [发布历史页面](../../releases) 下载获得 deb 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.deb；
+1. 从列表中下载获得 deb 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.deb；
+<PkgListV3 type={6}/>
 2. 进入到 TDengine-server-3.0.0.0-Linux-x64.deb 安装包所在目录，执行如下的安装命令：
 
 ```bash
@@ -29,7 +26,8 @@ sudo dpkg -i TDengine-server-3.0.0.0-Linux-x64.deb
 
 <TabItem label="RPM 安装" value="rpminst">
 
-1. 从 [发布历史页面](../../releases) 下载获得 rpm 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.rpm；
+1. 从列表中下载获得 rpm 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.rpm；
+<PkgListV3 type={5}/>
 2. 进入到 TDengine-server-3.0.0.0-Linux-x64.rpm 安装包所在目录，执行如下的安装命令：
 
 ```bash
@@ -60,11 +58,10 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 
 </TabItem>
 
-<TabItem label="Windows 安装" value="windows">
-           
-<PkgListV3 type={3}/>
+<TabItem label="Windows 安装" value="windows">           
 
-1. 从 [发布历史页面](../../releases) 下载获得 exe 安装程序，例如 TDengine-server-3.0.0.0-Windows-x64.exe；
+1. 从列表中下载获得 exe 安装程序，例如 TDengine-server-3.0.0.0-Windows-x64.exe；
+<PkgListV3 type={3}/>
 2. 运行 TDengine-server-3.0.0.0-Windows-x64.exe 来安装 TDengine。
 
 </TabItem>
@@ -98,6 +95,10 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统
 ::::
 </TabItem>
 </Tabs>
+
+:::info
+下载其他组件、最新 Beta 版及之前版本的安装包，请点击[发布历史页面](../../releases) 
+:::
 
 :::note
 当安装第一个节点时，出现 Enter FQDN：提示的时候，不需要输入任何内容。只有当安装第二个或以后更多的节点时，才需要输入已有集群中任何一个可用节点的 FQDN，支持该新节点加入集群。当然也可以不输入，而是在新节点启动前，配置到新节点的配置文件中。
