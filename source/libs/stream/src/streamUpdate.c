@@ -13,33 +13,31 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tstreamUpdate.h"
-#include "tencode.h"
-#include "ttime.h"
 #include "query.h"
+#include "tencode.h"
+#include "tstreamUpdate.h"
+#include "ttime.h"
 
-#define DEFAULT_FALSE_POSITIVE 0.01
-#define DEFAULT_BUCKET_SIZE    1310720
-#define DEFAULT_MAP_CAPACITY   1310720
-#define DEFAULT_MAP_SIZE       (DEFAULT_MAP_CAPACITY * 10)
-#define ROWS_PER_MILLISECOND   1
-#define MAX_NUM_SCALABLE_BF    100000
-#define MIN_NUM_SCALABLE_BF    10
-#define DEFAULT_PREADD_BUCKET  1
-#define MAX_INTERVAL           MILLISECOND_PER_MINUTE
-#define MIN_INTERVAL           (MILLISECOND_PER_SECOND * 10)
-#define DEFAULT_EXPECTED_ENTRIES    10000
+#define DEFAULT_FALSE_POSITIVE   0.01
+#define DEFAULT_BUCKET_SIZE      1310720
+#define DEFAULT_MAP_CAPACITY     1310720
+#define DEFAULT_MAP_SIZE         (DEFAULT_MAP_CAPACITY * 10)
+#define ROWS_PER_MILLISECOND     1
+#define MAX_NUM_SCALABLE_BF      100000
+#define MIN_NUM_SCALABLE_BF      10
+#define DEFAULT_PREADD_BUCKET    1
+#define MAX_INTERVAL             MILLISECOND_PER_MINUTE
+#define MIN_INTERVAL             (MILLISECOND_PER_SECOND * 10)
+#define DEFAULT_EXPECTED_ENTRIES 10000
 
-static int64_t adjustExpEntries(int64_t entries) {
-  return TMIN(DEFAULT_EXPECTED_ENTRIES, entries);
-}
+static int64_t adjustExpEntries(int64_t entries) { return TMIN(DEFAULT_EXPECTED_ENTRIES, entries); }
 
 static void windowSBfAdd(SUpdateInfo *pInfo, uint64_t count) {
   if (pInfo->numSBFs < count) {
     count = pInfo->numSBFs;
   }
   for (uint64_t i = 0; i < count; ++i) {
-    int64_t rows = adjustExpEntries(pInfo->interval * ROWS_PER_MILLISECOND);
+    int64_t      rows = adjustExpEntries(pInfo->interval * ROWS_PER_MILLISECOND);
     SScalableBf *tsSBF = tScalableBfInit(rows, DEFAULT_FALSE_POSITIVE);
     taosArrayPush(pInfo->pTsSBFs, &tsSBF);
   }
@@ -78,7 +76,7 @@ static int64_t adjustInterval(int64_t interval, int32_t precision) {
 
 static int64_t adjustWatermark(int64_t adjInterval, int64_t originInt, int64_t watermark) {
   if (watermark <= adjInterval) {
-    watermark = TMAX(originInt/adjInterval, 1) * adjInterval;
+    watermark = TMAX(originInt / adjInterval, 1) * adjInterval;
   } else if (watermark > MAX_NUM_SCALABLE_BF * adjInterval) {
     watermark = MAX_NUM_SCALABLE_BF * adjInterval;
   }/* else if (watermark < MIN_NUM_SCALABLE_BF * adjInterval) {
@@ -158,11 +156,17 @@ static SScalableBf *getSBf(SUpdateInfo *pInfo, TSKEY ts) {
   return res;
 }
 
+bool updateInfoIsTableInserted(SUpdateInfo *pInfo, int64_t tbUid) {
+  void *pVal = taosHashGet(pInfo->pMap, &tbUid, sizeof(int64_t));
+  if (pVal || taosHashGetSize(pInfo->pMap) >= DEFAULT_MAP_SIZE) return true;
+  return false;
+}
+
 bool updateInfoIsUpdated(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts) {
-  int32_t      res = TSDB_CODE_FAILED;
-  TSKEY* pMapMaxTs = taosHashGet(pInfo->pMap, &tableId, sizeof(uint64_t));
-  uint64_t     index = ((uint64_t)tableId) % pInfo->numBuckets;
-  TSKEY maxTs = *(TSKEY *)taosArrayGet(pInfo->pTsBuckets, index);
+  int32_t  res = TSDB_CODE_FAILED;
+  TSKEY   *pMapMaxTs = taosHashGet(pInfo->pMap, &tableId, sizeof(uint64_t));
+  uint64_t index = ((uint64_t)tableId) % pInfo->numBuckets;
+  TSKEY    maxTs = *(TSKEY *)taosArrayGet(pInfo->pTsBuckets, index);
   if (ts < maxTs - pInfo->watermark) {
     // this window has been closed.
     if (pInfo->pCloseWinSBF) {
@@ -178,42 +182,47 @@ bool updateInfoIsUpdated(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts) {
   }
 
   int32_t size = taosHashGetSize(pInfo->pMap);
-  if ( (!pMapMaxTs && size < DEFAULT_MAP_SIZE) || (pMapMaxTs && *pMapMaxTs < ts)) {
+  if ((!pMapMaxTs && size < DEFAULT_MAP_SIZE) || (pMapMaxTs && *pMapMaxTs < ts)) {
     taosHashPut(pInfo->pMap, &tableId, sizeof(uint64_t), &ts, sizeof(TSKEY));
     return false;
   }
 
-  if ( !pMapMaxTs && maxTs < ts ) {
+  if (!pMapMaxTs && maxTs < ts) {
     taosArraySet(pInfo->pTsBuckets, index, &ts);
     return false;
   }
 
   if (ts < pInfo->minTS) {
-    qDebug("===stream===Update. tableId:%" PRIu64 ", maxTs:%" PRIu64 ", mapMaxTs:%" PRIu64 ", ts:%" PRIu64 , tableId, maxTs, *pMapMaxTs, ts);
+    qDebug("===stream===Update. tableId:%" PRIu64 ", maxTs:%" PRIu64 ", mapMaxTs:%" PRIu64 ", ts:%" PRIu64, tableId,
+           maxTs, *pMapMaxTs, ts);
     return true;
   } else if (res == TSDB_CODE_SUCCESS) {
     return false;
   }
-  qDebug("===stream===Update. tableId:%" PRIu64 ", maxTs:%" PRIu64 ", mapMaxTs:%" PRIu64 ", ts:%" PRIu64 , tableId, maxTs, *pMapMaxTs, ts);
+  qDebug("===stream===Update. tableId:%" PRIu64 ", maxTs:%" PRIu64 ", mapMaxTs:%" PRIu64 ", ts:%" PRIu64, tableId,
+         maxTs, *pMapMaxTs, ts);
   // check from tsdb api
   return true;
 }
 
-void updateInfoSetScanRange(SUpdateInfo *pInfo, STimeWindow* pWin, uint64_t groupId, uint64_t version) {
-  qDebug("===stream===groupId:%" PRIu64 ", startTs:%" PRIu64 ", endTs:%" PRIu64 ", version:%" PRIu64 , groupId, pWin->skey, pWin->ekey, version);
+void updateInfoSetScanRange(SUpdateInfo *pInfo, STimeWindow *pWin, uint64_t groupId, uint64_t version) {
+  qDebug("===stream===groupId:%" PRIu64 ", startTs:%" PRIu64 ", endTs:%" PRIu64 ", version:%" PRIu64, groupId,
+         pWin->skey, pWin->ekey, version);
   pInfo->scanWindow = *pWin;
   pInfo->scanGroupId = groupId;
   pInfo->maxVersion = version;
 }
 
-bool updateInfoIgnore(SUpdateInfo *pInfo, STimeWindow* pWin, uint64_t groupId, uint64_t version) {
+bool updateInfoIgnore(SUpdateInfo *pInfo, STimeWindow *pWin, uint64_t groupId, uint64_t version) {
   if (!pInfo) {
     return false;
   }
-  qDebug("===stream===check groupId:%" PRIu64 ", startTs:%" PRIu64 ", endTs:%" PRIu64 ", version:%" PRIu64 , groupId, pWin->skey, pWin->ekey, version);
-  if (pInfo->scanGroupId == groupId && pInfo->scanWindow.skey <= pWin->skey &&
-      pWin->ekey <= pInfo->scanWindow.ekey && version <= pInfo->maxVersion ) {
-    qDebug("===stream===ignore groupId:%" PRIu64 ", startTs:%" PRIu64 ", endTs:%" PRIu64 ", version:%" PRIu64 , groupId, pWin->skey, pWin->ekey, version);
+  qDebug("===stream===check groupId:%" PRIu64 ", startTs:%" PRIu64 ", endTs:%" PRIu64 ", version:%" PRIu64, groupId,
+         pWin->skey, pWin->ekey, version);
+  if (pInfo->scanGroupId == groupId && pInfo->scanWindow.skey <= pWin->skey && pWin->ekey <= pInfo->scanWindow.ekey &&
+      version <= pInfo->maxVersion) {
+    qDebug("===stream===ignore groupId:%" PRIu64 ", startTs:%" PRIu64 ", endTs:%" PRIu64 ", version:%" PRIu64, groupId,
+           pWin->skey, pWin->ekey, version);
     return true;
   }
   return false;
@@ -261,7 +270,7 @@ int32_t updateInfoSerialize(void *buf, int32_t bufLen, const SUpdateInfo *pInfo)
   int32_t size = taosArrayGetSize(pInfo->pTsBuckets);
   if (tEncodeI32(&encoder, size) < 0) return -1;
   for (int32_t i = 0; i < size; i++) {
-    TSKEY* pTs = (TSKEY*)taosArrayGet(pInfo->pTsBuckets, i);
+    TSKEY *pTs = (TSKEY *)taosArrayGet(pInfo->pTsBuckets, i);
     if (tEncodeI64(&encoder, *pTs) < 0) return -1;
   }
 
@@ -270,7 +279,7 @@ int32_t updateInfoSerialize(void *buf, int32_t bufLen, const SUpdateInfo *pInfo)
   int32_t sBfSize = taosArrayGetSize(pInfo->pTsSBFs);
   if (tEncodeI32(&encoder, sBfSize) < 0) return -1;
   for (int32_t i = 0; i < sBfSize; i++) {
-    SScalableBf* pSBf = taosArrayGetP(pInfo->pTsSBFs, i);
+    SScalableBf *pSBf = taosArrayGetP(pInfo->pTsSBFs, i);
     if (tScalableBfEncode(pSBf, &encoder) < 0) return -1;
   }
 
@@ -278,17 +287,17 @@ int32_t updateInfoSerialize(void *buf, int32_t bufLen, const SUpdateInfo *pInfo)
   if (tEncodeI64(&encoder, pInfo->interval) < 0) return -1;
   if (tEncodeI64(&encoder, pInfo->watermark) < 0) return -1;
   if (tEncodeI64(&encoder, pInfo->minTS) < 0) return -1;
-  
+
   if (tScalableBfEncode(pInfo->pCloseWinSBF, &encoder) < 0) return -1;
 
   int32_t mapSize = taosHashGetSize(pInfo->pMap);
   if (tEncodeI32(&encoder, mapSize) < 0) return -1;
-  void*  pIte = NULL;
+  void  *pIte = NULL;
   size_t keyLen = 0;
   while ((pIte = taosHashIterate(pInfo->pMap, pIte)) != NULL) {
-    void* key = taosHashGetKey(pIte, &keyLen);
-    if (tEncodeU64(&encoder, *(uint64_t*)key) < 0) return -1;
-    if (tEncodeI64(&encoder, *(TSKEY*)pIte) < 0) return -1;
+    void *key = taosHashGetKey(pIte, &keyLen);
+    if (tEncodeU64(&encoder, *(uint64_t *)key) < 0) return -1;
+    if (tEncodeI64(&encoder, *(TSKEY *)pIte) < 0) return -1;
   }
 
   if (tEncodeI64(&encoder, pInfo->scanWindow.skey) < 0) return -1;
@@ -311,7 +320,7 @@ int32_t updateInfoDeserialize(void *buf, int32_t bufLen, SUpdateInfo *pInfo) {
 
   int32_t size = 0;
   if (tDecodeI32(&decoder, &size) < 0) return -1;
-  pInfo->pTsBuckets =  taosArrayInit(size, sizeof(TSKEY));
+  pInfo->pTsBuckets = taosArrayInit(size, sizeof(TSKEY));
   TSKEY ts = INT64_MIN;
   for (int32_t i = 0; i < size; i++) {
     if (tDecodeI64(&decoder, &ts) < 0) return -1;
@@ -324,7 +333,7 @@ int32_t updateInfoDeserialize(void *buf, int32_t bufLen, SUpdateInfo *pInfo) {
   if (tDecodeI32(&decoder, &sBfSize) < 0) return -1;
   pInfo->pTsSBFs = taosArrayInit(sBfSize, sizeof(void *));
   for (int32_t i = 0; i < sBfSize; i++) {
-    SScalableBf* pSBf = tScalableBfDecode(&decoder);
+    SScalableBf *pSBf = tScalableBfDecode(&decoder);
     if (!pSBf) return -1;
     taosArrayPush(pInfo->pTsSBFs, &pSBf);
   }
@@ -337,11 +346,11 @@ int32_t updateInfoDeserialize(void *buf, int32_t bufLen, SUpdateInfo *pInfo) {
 
   int32_t mapSize = 0;
   if (tDecodeI32(&decoder, &mapSize) < 0) return -1;
-  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT);
   pInfo->pMap = taosHashInit(mapSize, hashFn, true, HASH_NO_LOCK);
   uint64_t uid = 0;
   ts = INT64_MIN;
-  for(int32_t i = 0; i < mapSize; i++) {
+  for (int32_t i = 0; i < mapSize; i++) {
     if (tDecodeU64(&decoder, &uid) < 0) return -1;
     if (tDecodeI64(&decoder, &ts) < 0) return -1;
     taosHashPut(pInfo->pMap, &uid, sizeof(uint64_t), &ts, sizeof(TSKEY));

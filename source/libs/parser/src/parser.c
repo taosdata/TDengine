@@ -185,7 +185,7 @@ int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq
     code = parseSqlSyntax(pCxt, pQuery, &metaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildCatalogReq(&metaCache, pCatalogReq);
+    code = buildCatalogReq(pCxt, &metaCache, pCatalogReq);
   }
   destoryParseMetaCache(&metaCache, true);
   terrno = code;
@@ -195,7 +195,7 @@ int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq
 int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
                             const struct SMetaData* pMetaData, SQuery* pQuery) {
   SParseMetaCache metaCache = {0};
-  int32_t         code = putMetaDataToCache(pCatalogReq, pMetaData, &metaCache);
+  int32_t         code = putMetaDataToCache(pCatalogReq, pMetaData, &metaCache, NULL == pQuery->pRoot);
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL == pQuery->pRoot) {
       code = parseInsertSql(pCxt, &pQuery, &metaCache);
