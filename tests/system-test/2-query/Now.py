@@ -9,12 +9,13 @@ class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(),True)
+        tdSql.init(conn.cursor())
         self.setsql = TDSetSql()
+        self.dbname = 'db'
         # name of normal table
-        self.ntbname = 'ntb'
+        self.ntbname = f'{self.dbname}.ntb'
         # name of stable
-        self.stbname = 'stb'
+        self.stbname = f'{self.dbname}.stb'
         # structure of column
         self.column_dict = {
             'ts':'timestamp',
@@ -72,19 +73,19 @@ class TDTestCase:
 
     def now_check_ntb(self):
         for time_unit in self.db_percision:
-            tdSql.execute(f'create database db precision "{time_unit}"')
-            tdSql.execute('use db')
+            tdSql.execute(f'create database {self.dbname} precision "{time_unit}"')
+            tdSql.execute(f'use {self.dbname}')
             tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
             for value in self.values_list:
                 tdSql.execute(
                     f'insert into {self.ntbname} values({value})')
             self.data_check(self.ntbname,'normal table')
-            tdSql.execute('drop database db')
+            tdSql.execute(f'drop database {self.dbname}')
 
     def now_check_stb(self):
         for time_unit in self.db_percision:
-            tdSql.execute(f'create database db precision "{time_unit}"')
-            tdSql.execute('use db')
+            tdSql.execute(f'create database {self.dbname} precision "{time_unit}"')
+            tdSql.execute(f'use {self.dbname}')
             tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
             for i in range(self.tbnum):
                 tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[0]})")
@@ -93,7 +94,7 @@ class TDTestCase:
             for i in range(self.tbnum):
                 self.data_check(f'{self.stbname}_{i}','child table')
             self.data_check(self.stbname,'stable')
-            tdSql.execute('drop database db')
+            tdSql.execute(f'drop database {self.dbname}')
     def run(self):  # sourcery skip: extract-duplicate-method
 
         self.now_check_ntb()

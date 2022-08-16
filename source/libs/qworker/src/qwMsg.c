@@ -12,14 +12,16 @@
 int32_t qwMallocFetchRsp(int32_t length, SRetrieveTableRsp **rsp) {
   int32_t msgSize = sizeof(SRetrieveTableRsp) + length;
 
-  SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)rpcMallocCont(msgSize);
+  SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)rpcReallocCont(*rsp, msgSize);
   if (NULL == pRsp) {
     qError("rpcMallocCont %d failed", msgSize);
     QW_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  memset(pRsp, 0, sizeof(SRetrieveTableRsp));
-
+  if (NULL == *rsp) {
+    memset(pRsp, 0, sizeof(SRetrieveTableRsp));
+  }
+  
   *rsp = pRsp;
 
   return TSDB_CODE_SUCCESS;
@@ -35,6 +37,7 @@ void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, bool qComplete)
   rsp->compLen = htonl(len);
   rsp->numOfRows = htonl(input->numOfRows);
   rsp->numOfCols = htonl(input->numOfCols);
+  rsp->numOfBlocks = htonl(input->numOfBlocks);
 }
 
 void qwFreeFetchRsp(void *msg) {

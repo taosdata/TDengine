@@ -502,7 +502,7 @@ _err:
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx) {
   int32_t  code = 0;
   int64_t  offset = pReader->pSet->pHeadF->offset;
-  int64_t  size = pReader->pSet->pHeadF->loffset - offset;
+  int64_t  size = pReader->pSet->pHeadF->size - offset;
   int64_t  n;
   uint32_t delimiter;
 
@@ -564,8 +564,8 @@ _err:
 
 int32_t tsdbReadBlockL(SDataFReader *pReader, SArray *aBlockL) {
   int32_t  code = 0;
-  int64_t  offset = pReader->pSet->pHeadF->loffset;
-  int64_t  size = pReader->pSet->pHeadF->size - offset;
+  int64_t  offset = pReader->pSet->pLastF->offset;
+  int64_t  size = pReader->pSet->pLastF->size - offset;
   int64_t  n;
   uint32_t delimiter;
 
@@ -579,13 +579,13 @@ int32_t tsdbReadBlockL(SDataFReader *pReader, SArray *aBlockL) {
   if (code) goto _err;
 
   // seek
-  if (taosLSeekFile(pReader->pHeadFD, offset, SEEK_SET) < 0) {
+  if (taosLSeekFile(pReader->pLastFD, offset, SEEK_SET) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
   // read
-  n = taosReadFile(pReader->pHeadFD, pReader->pBuf1, size);
+  n = taosReadFile(pReader->pLastFD, pReader->pBuf1, size);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -1292,13 +1292,13 @@ _err:
 
 int32_t tsdbWriteBlockL(SDataFWriter *pWriter, SArray *aBlockL) {
   int32_t    code = 0;
-  SHeadFile *pHeadFile = &pWriter->fHead;
+  SLastFile *pLastFile = &pWriter->fLast;
   int64_t    size;
   int64_t    n;
 
   // check
   if (taosArrayGetSize(aBlockL) == 0) {
-    pHeadFile->loffset = pHeadFile->size;
+    pLastFile->offset = pLastFile->size;
     goto _exit;
   }
 
@@ -1324,19 +1324,19 @@ int32_t tsdbWriteBlockL(SDataFWriter *pWriter, SArray *aBlockL) {
   ASSERT(n + sizeof(TSCKSUM) == size);
 
   // write
-  n = taosWriteFile(pWriter->pHeadFD, pWriter->pBuf1, size);
+  n = taosWriteFile(pWriter->pLastFD, pWriter->pBuf1, size);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
   // update
-  pHeadFile->loffset = pHeadFile->size;
-  pHeadFile->size += size;
+  pLastFile->offset = pLastFile->size;
+  pLastFile->size += size;
 
 _exit:
   tsdbTrace("vgId:%d tsdb write blockl, loffset:%" PRId64 " size:%" PRId64, TD_VID(pWriter->pTsdb->pVnode),
-            pHeadFile->loffset, size);
+            pLastFile->offset, size);
   return code;
 
 _err:

@@ -11,7 +11,7 @@ sql create table t2 (ts timestamp, i int);
 sql create table t3 (ts timestamp, i int);
 sql create table t4 (ts timestamp, i int);
 
-sql show databases
+sql select * from information_schema.ins_databases
 print rows: $rows 
 print $data00 $data01 $data02 $data03
 print $data10 $data11 $data12 $data13
@@ -43,7 +43,7 @@ sql create table t1 (ts timestamp, i int);
 sql create table t2 (ts timestamp, i int);
 sql create table t3 (ts timestamp, i int);
 
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 4 then
   return -1
 endi

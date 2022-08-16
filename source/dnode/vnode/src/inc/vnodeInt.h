@@ -144,6 +144,7 @@ int32_t     tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb
 STsdbReader tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
                                 void* pMemRef);
 int32_t     tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
+int32_t     tsdbGetStbIdList(SMeta* pMeta, int64_t suid, SArray* list);
 
 // tq
 int     tqInit();
@@ -157,7 +158,7 @@ int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId);
 int32_t tqProcessCheckAlterInfoReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen);
+int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen, int64_t ver);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen);
@@ -169,10 +170,9 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tsdbGetStbIdList(SMeta* pMeta, int64_t suid, SArray* list);
 
-SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
-                            const char* stbFullName, int32_t vgId);
+SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
+                            const char* stbFullName, SBatchDeleteReq* pDeleteReq);
 
 // sma
 int32_t smaInit();
@@ -308,7 +308,8 @@ struct SVnode {
   SSink*        pSink;
   tsem_t        canCommit;
   int64_t       sync;
-  int32_t       blockCount;
+  TdThreadMutex lock;
+  bool          blocked;
   bool          restored;
   tsem_t        syncSem;
   SQHandle*     pQuery;

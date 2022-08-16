@@ -15,7 +15,7 @@ sql create database db
 #### test the value of all data types in four cases: static create table, insert column value, synamic create table, alter tag value
 
 ######## case 0: smallint
-print ========== smallint 
+print ========== smallint
 sql create table mt_smallint (ts timestamp, c smallint) tags (tagname smallint)
 
 ## case 00: static create table for test tag values
@@ -89,7 +89,7 @@ if $rows != 1 then
 endi
 if $data01 != NULL then
   return -1
-endi 
+endi
 sql insert into st_smallint_1  values (now, NULL)
 sql select * from st_smallint_1
 if $rows != 1 then
@@ -97,7 +97,7 @@ if $rows != 1 then
 endi
 if $data01 != NULL then
   return -1
-endi  
+endi
 sql insert into st_smallint_6  values (now, 32767)
 sql select * from st_smallint_6
 if $rows != 1 then
@@ -105,7 +105,7 @@ if $rows != 1 then
 endi
 if $data01 != 32767 then
   return -1
-endi 
+endi
 sql insert into st_smallint_7  values (now, -32767)
 sql select * from st_smallint_7
 if $rows != 1 then
@@ -113,15 +113,15 @@ if $rows != 1 then
 endi
 if $data01 != -32767 then
   return -1
-endi  
-sql insert into st_smallint_8  values (now, +100) 
+endi
+sql insert into st_smallint_8  values (now, +100)
 sql select * from st_smallint_8
 if $rows != 1 then
   return -1
 endi
 if $data01 != 100 then
   return -1
-endi   
+endi
 sql insert into st_smallint_9  values (now, "-098")
 sql select * from st_smallint_9
 if $rows != 1 then
@@ -129,7 +129,7 @@ if $rows != 1 then
 endi
 if $data01 != -98 then
   return -1
-endi 
+endi
 sql insert into st_smallint_10 values (now, '0')
 sql select * from st_smallint_10
 if $rows != 1 then
@@ -137,15 +137,15 @@ if $rows != 1 then
 endi
 if $data01 != 0 then
   return -1
-endi 
-sql insert into st_smallint_11 values (now, -0)  
+endi
+sql insert into st_smallint_11 values (now, -0)
 sql select * from st_smallint_11
 if $rows != 1 then
   return -1
 endi
 if $data01 != 0 then
   return -1
-endi 
+endi
 sql insert into st_smallint_12 values (now, "+056")
 sql select * from st_smallint_12
 if $rows != 1 then
@@ -153,7 +153,7 @@ if $rows != 1 then
 endi
 if $data01 != 56 then
   return -1
-endi 
+endi
 
 sql insert into st_smallint_13 values (now, +056)
 sql select * from st_smallint_13
@@ -162,7 +162,7 @@ if $rows != 1 then
 endi
 if $data01 != 56 then
   return -1
-endi 
+endi
 
 sql insert into st_smallint_14 values (now, -056)
 sql select * from st_smallint_14
@@ -171,7 +171,7 @@ if $rows != 1 then
 endi
 if $data01 != -56 then
   return -1
-endi 
+endi
 
 ## case 02: dynamic create table for test tag values
 sql insert into st_smallint_16 using mt_smallint tags (NULL)   values (now, NULL)
@@ -183,7 +183,7 @@ sql select * from st_smallint_16
 if $data01 != NULL then
   return -1
 endi
-    
+
 sql insert into st_smallint_17 using mt_smallint tags (NULL)   values (now, NULL)
 sql show tags from st_smallint_17
 if $data05 != NULL then
@@ -192,7 +192,7 @@ endi
 sql select * from st_smallint_17
 if $data01 != NULL then
   return -1
-endi  
+endi
 sql insert into st_smallint_18 using mt_smallint tags ('NULL') values (now, 'NULL')
 sql show tags from st_smallint_18
 if $data05 != NULL then
@@ -237,7 +237,7 @@ endi
 sql select * from st_smallint_22
 if $data01 != 32767 then
   return -1
-endi 
+endi
 sql insert into st_smallint_23 using mt_smallint tags (-32767)  values (now, -32767)
 sql show tags from st_smallint_23
 if $data05 != -32767 then
@@ -246,7 +246,7 @@ endi
 sql select * from st_smallint_23
 if $data01 != -32767 then
   return -1
-endi  
+endi
 sql insert into st_smallint_24 using mt_smallint tags (10)    values (now, 10)
 sql show tags from st_smallint_24
 if $data05 != 10 then
@@ -255,7 +255,7 @@ endi
 sql select * from st_smallint_24
 if $data01 != 10 then
   return -1
-endi    
+endi
 sql insert into st_smallint_25 using mt_smallint tags ("-0") values (now, "-0")
 sql show tags from st_smallint_25
 if $data05 != 0 then
@@ -264,7 +264,7 @@ endi
 sql select * from st_smallint_25
 if $data01 != 0 then
   return -1
-endi 
+endi
 sql insert into st_smallint_26 using mt_smallint tags ('123') values (now, '123')
 sql show tags from st_smallint_26
 if $data05 != 123 then
@@ -273,7 +273,7 @@ endi
 sql select * from st_smallint_26
 if $data01 != 123 then
   return -1
-endi 
+endi
 sql insert into st_smallint_27 using mt_smallint tags (+056) values (now, +00056)
 sql show tags from st_smallint_27
 if $data05 != 56 then
@@ -282,7 +282,7 @@ endi
 sql select * from st_smallint_27
 if $data01 != 56 then
   return -1
-endi 
+endi
 sql insert into st_smallint_28 using mt_smallint tags (-056) values (now, -0056)
 sql show tags from st_smallint_28
 if $data05 != -56 then
@@ -291,7 +291,7 @@ endi
 sql select * from st_smallint_28
 if $data01 != -56 then
   return -1
-endi 
+endi
 
 ## case 03: alter tag values
 #sql alter table st_smallint_0 set tag tagname=32767
@@ -342,12 +342,12 @@ sql_error create table st_smallint_e0 using mt_smallint tags (3276899)
 sql_error create table st_smallint_e0 using mt_smallint tags (-3276833)
 #sql_error create table st_smallint_e0 using mt_smallint tags (12.80)   truncate integer part
 #sql_error create table st_smallint_e0 using mt_smallint tags (-11.80)
-sql_error create table st_smallint_e0 using mt_smallint tags (123abc)  
+sql_error create table st_smallint_e0 using mt_smallint tags (123abc)
 sql_error create table st_smallint_e0 using mt_smallint tags ("123abc")
-sql_error create table st_smallint_e0 using mt_smallint tags (abc)     
-sql_error create table st_smallint_e0 using mt_smallint tags ("abc")   
-sql_error create table st_smallint_e0 using mt_smallint tags (" ")     
-sql create table st_smallint_e0_1 using mt_smallint tags ('')      
+sql_error create table st_smallint_e0 using mt_smallint tags (abc)
+sql_error create table st_smallint_e0 using mt_smallint tags ("abc")
+sql_error create table st_smallint_e0 using mt_smallint tags (" ")
+sql create table st_smallint_e0_1 using mt_smallint tags ('')
 
 sql create table st_smallint_e0  using mt_smallint tags (123)
 sql create table st_smallint_e1  using mt_smallint tags (123)
@@ -363,31 +363,31 @@ sql create table st_smallint_e10 using mt_smallint tags (123)
 sql create table st_smallint_e11 using mt_smallint tags (123)
 sql create table st_smallint_e12 using mt_smallint tags (123)
 
-sql_error insert into st_smallint_e0  values (now, 32768)     
-sql insert into st_smallint_e1  values (now, -32768)    
-sql_error insert into st_smallint_e2  values (now, 42768)    
-sql_error insert into st_smallint_e3  values (now, -32769)   
-#sql_error insert into st_smallint_e4  values (now, 12.80)   
-#sql_error insert into st_smallint_e5  values (now, -11.80)  
-sql_error insert into st_smallint_e6  values (now, 123abc)  
+sql_error insert into st_smallint_e0  values (now, 32768)
+sql insert into st_smallint_e1  values (now, -32768)
+sql_error insert into st_smallint_e2  values (now, 42768)
+sql_error insert into st_smallint_e3  values (now, -32769)
+#sql_error insert into st_smallint_e4  values (now, 12.80)
+#sql_error insert into st_smallint_e5  values (now, -11.80)
+sql_error insert into st_smallint_e6  values (now, 123abc)
 sql_error insert into st_smallint_e7  values (now, "123abc")
-sql_error insert into st_smallint_e9  values (now, abc)     
-sql_error insert into st_smallint_e10 values (now, "abc")   
-sql_error insert into st_smallint_e11 values (now, " ")     
-sql insert into st_smallint_e12 values (now, '')      
+sql_error insert into st_smallint_e9  values (now, abc)
+sql_error insert into st_smallint_e10 values (now, "abc")
+sql_error insert into st_smallint_e11 values (now, " ")
+sql insert into st_smallint_e12 values (now, '')
 
-sql_error insert into st_smallint_e13 using mt_smallint tags (033) values (now, 32768)     
-sql insert into st_smallint_e14_1 using mt_smallint tags (033) values (now, -32768)    
-sql_error insert into st_smallint_e15 using mt_smallint tags (033) values (now, 32968)    
-sql_error insert into st_smallint_e16 using mt_smallint tags (033) values (now, -33768)   
-#sql_error insert into st_smallint_e17 using mt_smallint tags (033) values (now, 12.80)   
-#sql_error insert into st_smallint_e18 using mt_smallint tags (033) values (now, -11.80)  
-sql_error insert into st_smallint_e19 using mt_smallint tags (033) values (now, 123abc)  
+sql_error insert into st_smallint_e13 using mt_smallint tags (033) values (now, 32768)
+sql insert into st_smallint_e14_1 using mt_smallint tags (033) values (now, -32768)
+sql_error insert into st_smallint_e15 using mt_smallint tags (033) values (now, 32968)
+sql_error insert into st_smallint_e16 using mt_smallint tags (033) values (now, -33768)
+#sql_error insert into st_smallint_e17 using mt_smallint tags (033) values (now, 12.80)
+#sql_error insert into st_smallint_e18 using mt_smallint tags (033) values (now, -11.80)
+sql_error insert into st_smallint_e19 using mt_smallint tags (033) values (now, 123abc)
 sql_error insert into st_smallint_e20 using mt_smallint tags (033) values (now, "123abc")
-sql_error insert into st_smallint_e22 using mt_smallint tags (033) values (now, abc)     
-sql_error insert into st_smallint_e23 using mt_smallint tags (033) values (now, "abc")   
-sql_error insert into st_smallint_e24 using mt_smallint tags (033) values (now, " ")     
-sql insert into st_smallint_e25_1 using mt_smallint tags (033) values (now, '')  
+sql_error insert into st_smallint_e22 using mt_smallint tags (033) values (now, abc)
+sql_error insert into st_smallint_e23 using mt_smallint tags (033) values (now, "abc")
+sql_error insert into st_smallint_e24 using mt_smallint tags (033) values (now, " ")
+sql insert into st_smallint_e25_1 using mt_smallint tags (033) values (now, '')
 
 sql_error insert into st_smallint_e13 using mt_smallint tags (32768)      values (now, -033)
 sql insert into st_smallint_e14 using mt_smallint tags (-32768)     values (now, -033)
@@ -416,15 +416,15 @@ sql insert into st_smallint_e23 using mt_smallint tags (033) values (now, 00062)
 sql insert into st_smallint_e24 using mt_smallint tags (033) values (now, 00062)
 sql insert into st_smallint_e25 using mt_smallint tags (033) values (now, 00062)
 
-sql_error alter table st_smallint_e13 set tag tagname=32768     
-sql alter table st_smallint_e14 set tag tagname=-32768    
-sql_error alter table st_smallint_e15 set tag tagname=52768    
-sql_error alter table st_smallint_e16 set tag tagname=-32778 
-sql_error alter table st_smallint_e19 set tag tagname=123abc  
-sql_error alter table st_smallint_e20 set tag tagname="123abc" 
-sql_error alter table st_smallint_e22 set tag tagname=abc     
-sql_error alter table st_smallint_e23 set tag tagname="abc"   
-sql_error alter table st_smallint_e24 set tag tagname=" "     
-sql alter table st_smallint_e25 set tag tagname=''      
+sql_error alter table st_smallint_e13 set tag tagname=32768
+sql alter table st_smallint_e14 set tag tagname=-32768
+sql_error alter table st_smallint_e15 set tag tagname=52768
+sql_error alter table st_smallint_e16 set tag tagname=-32778
+sql_error alter table st_smallint_e19 set tag tagname=123abc
+sql_error alter table st_smallint_e20 set tag tagname="123abc"
+sql_error alter table st_smallint_e22 set tag tagname=abc
+sql_error alter table st_smallint_e23 set tag tagname="abc"
+sql_error alter table st_smallint_e24 set tag tagname=" "
+sql alter table st_smallint_e25 set tag tagname=''
 
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT

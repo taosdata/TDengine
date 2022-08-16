@@ -35,6 +35,7 @@ typedef struct {
   int32_t minRow;
   int32_t maxRow;
   int8_t  cmprAlg;
+  SArray *aTbDataP;
   STsdbFS fs;
   // --------------
   TSKEY   nextKey;  // reset by each table commit
@@ -465,9 +466,9 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   if (pRSet) {
     wSet.diskId = pRSet->diskId;
     wSet.fid = pCommitter->commitFid;
-    fHead = (SHeadFile){.commitID = pCommitter->commitID, .offset = 0, .size = 0, .loffset = 0};
+    fHead = (SHeadFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
     fData = *pRSet->pDataF;
-    fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0};
+    fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
     fSma = *pRSet->pSmaF;
   } else {
     SDiskID did = {0};
@@ -478,9 +479,9 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
 
     wSet.diskId = did;
     wSet.fid = pCommitter->commitFid;
-    fHead = (SHeadFile){.commitID = pCommitter->commitID, .offset = 0, .size = 0, .loffset = 0};
+    fHead = (SHeadFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
     fData = (SDataFile){.commitID = pCommitter->commitID, .size = 0};
-    fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0};
+    fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
     fSma = (SSmaFile){.commitID = pCommitter->commitID, .size = 0};
   }
   code = tsdbDataFWriterOpen(&pCommitter->dWriter.pWriter, pTsdb, &wSet);
@@ -1212,8 +1213,8 @@ static int32_t tsdbCommitFileData(SCommitter *pCommitter) {
   if (code) goto _err;
 
   // commit file data impl
-  for (int32_t iTbData = 0; iTbData < taosArrayGetSize(pMemTable->aTbData); iTbData++) {
-    STbData *pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
+  for (int32_t iTbData = 0; iTbData < taosArrayGetSize(pCommitter->aTbDataP); iTbData++) {
+    STbData *pTbData = (STbData *)taosArrayGetP(pCommitter->aTbDataP, iTbData);
 
     // move commit until current (suid, uid)
     code = tsdbMoveCommitData(pCommitter, *(TABLEID *)pTbData);
@@ -1270,6 +1271,11 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
   pCommitter->minRow = pTsdb->pVnode->config.tsdbCfg.minRows;
   pCommitter->maxRow = pTsdb->pVnode->config.tsdbCfg.maxRows;
   pCommitter->cmprAlg = pTsdb->pVnode->config.tsdbCfg.compression;
+  pCommitter->aTbDataP = tsdbMemTableGetTbDataArray(pTsdb->imem);
+  if (pCommitter->aTbDataP == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
 
   code = tsdbFSCopy(pTsdb, &pCommitter->fs);
   if (code) goto _err;
@@ -1395,13 +1401,13 @@ static int32_t tsdbCommitDel(SCommitter *pCommitter) {
   int32_t  iDelIdx = 0;
   int32_t  nDelIdx = taosArrayGetSize(pCommitter->aDelIdx);
   int32_t  iTbData = 0;
-  int32_t  nTbData = taosArrayGetSize(pMemTable->aTbData);
+  int32_t  nTbData = taosArrayGetSize(pCommitter->aTbDataP);
   STbData *pTbData;
   SDelIdx *pDelIdx;
 
   ASSERT(nTbData > 0);
 
-  pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
+  pTbData = (STbData *)taosArrayGetP(pCommitter->aTbDataP, iTbData);
   pDelIdx = (iDelIdx < nDelIdx) ? (SDelIdx *)taosArrayGet(pCommitter->aDelIdx, iDelIdx) : NULL;
   while (true) {
     if (pTbData == NULL && pDelIdx == NULL) break;
@@ -1427,7 +1433,7 @@ static int32_t tsdbCommitDel(SCommitter *pCommitter) {
     if (code) goto _err;
 
     iTbData++;
-    pTbData = (iTbData < nTbData) ? (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData) : NULL;
+    pTbData = (iTbData < nTbData) ? (STbData *)taosArrayGetP(pCommitter->aTbDataP, iTbData) : NULL;
     continue;
 
   _commit_disk_del:
@@ -1443,7 +1449,7 @@ static int32_t tsdbCommitDel(SCommitter *pCommitter) {
     if (code) goto _err;
 
     iTbData++;
-    pTbData = (iTbData < nTbData) ? (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData) : NULL;
+    pTbData = (iTbData < nTbData) ? (STbData *)taosArrayGetP(pCommitter->aTbDataP, iTbData) : NULL;
     iDelIdx++;
     pDelIdx = (iDelIdx < nDelIdx) ? (SDelIdx *)taosArrayGet(pCommitter->aDelIdx, iDelIdx) : NULL;
     continue;
@@ -1491,6 +1497,7 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
 
   tsdbUnrefMemTable(pMemTable);
   tsdbFSDestroy(&pCommitter->fs);
+  taosArrayDestroy(pCommitter->aTbDataP);
 
   tsdbInfo("vgId:%d, tsdb end commit", TD_VID(pTsdb->pVnode));
   return code;

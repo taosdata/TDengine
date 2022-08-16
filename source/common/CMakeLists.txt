@@ -5,6 +5,15 @@ if (DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
 endif()
 
+IF (TD_GRANT)
+  ADD_DEFINITIONS(-D_GRANT)
+ENDIF ()
+
+IF (TD_STORAGE)
+  ADD_DEFINITIONS(-D_STORAGE)
+  TARGET_LINK_LIBRARIES(common PRIVATE storage)
+ENDIF ()
+
 target_include_directories(
     common
     PUBLIC "${TD_SOURCE_DIR}/include/common"

@@ -1639,22 +1639,22 @@ void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
           break;
         }
         case TSDB_DATA_TYPE_FLOAT: {
-          pColAgg->sum += colVal.value.f;
-          if (pColAgg->min > colVal.value.f) {
-            pColAgg->min = colVal.value.f;
+          *(double*)(&pColAgg->sum) += colVal.value.f;
+          if (*(double*)(&pColAgg->min) > colVal.value.f) {
+            *(double*)(&pColAgg->min) = colVal.value.f;
           }
-          if (pColAgg->max < colVal.value.f) {
-            pColAgg->max = colVal.value.f;
+          if (*(double*)(&pColAgg->max) < colVal.value.f) {
+            *(double*)(&pColAgg->max) = colVal.value.f;
           }
           break;
         }
         case TSDB_DATA_TYPE_DOUBLE: {
-          pColAgg->sum += colVal.value.d;
-          if (pColAgg->min > colVal.value.d) {
-            pColAgg->min = colVal.value.d;
+          *(double*)(&pColAgg->sum) += colVal.value.d;
+          if (*(double*)(&pColAgg->min) > colVal.value.d) {
+            *(double*)(&pColAgg->min) = colVal.value.d;
           }
-          if (pColAgg->max < colVal.value.d) {
-            pColAgg->max = colVal.value.d;
+          if (*(double*)(&pColAgg->max) < colVal.value.d) {
+            *(double*)(&pColAgg->max) = colVal.value.d;
           }
           break;
         }

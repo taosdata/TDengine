@@ -33,7 +33,7 @@ class TDTestCase:
         tdLog.info("\n\n----------step1 : drop db and create db----------\n")
         tdSql.execute('''drop database if exists db ;''')
         tdSql.execute('''create database db ;''')
-        sql = '''show databases;'''
+        sql = '''select * from information_schema.ins_databases;'''
         tdSql.query(sql)
         tdSql.checkRows(1)
 
@@ -41,7 +41,7 @@ class TDTestCase:
         tdSql.execute('''create stable 
                     db.stable_1 (ts timestamp, payload binary(256)) 
                     tags(t1 binary(16),t2 int);''')
-        sql = '''show db.stables;'''
+        sql = '''select * from information_schema.ins_stables where db_name = 'db';'''
         tdSql.query(sql)
         tdSql.checkRows(1)
 

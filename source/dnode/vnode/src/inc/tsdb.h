@@ -194,11 +194,12 @@ int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, in
 int32_t tsdbReadAndCheck(TdFilePtr pFD, int64_t offset, uint8_t **ppOut, int32_t size, int8_t toCheck);
 // tsdbMemTable ==============================================================================================
 // SMemTable
-int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
-void    tsdbMemTableDestroy(SMemTable *pMemTable);
-void    tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, STbData **ppTbData);
-void    tsdbRefMemTable(SMemTable *pMemTable);
-void    tsdbUnrefMemTable(SMemTable *pMemTable);
+int32_t  tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
+void     tsdbMemTableDestroy(SMemTable *pMemTable);
+STbData *tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid);
+void     tsdbRefMemTable(SMemTable *pMemTable);
+void     tsdbUnrefMemTable(SMemTable *pMemTable);
+SArray  *tsdbMemTableGetTbDataArray(SMemTable *pMemTable);
 // STbDataIter
 int32_t  tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
 void    *tsdbTbDataIterDestroy(STbDataIter *pIter);
@@ -359,6 +360,7 @@ struct STbData {
   SDelData    *pHead;
   SDelData    *pTail;
   SMemSkipList sl;
+  STbData     *next;
 };
 
 struct SMemTable {
@@ -372,7 +374,11 @@ struct SMemTable {
   int64_t          maxVersion;
   int64_t          nRow;
   int64_t          nDel;
-  SArray          *aTbData;  // SArray<STbData*>
+  struct {
+    int32_t   nTbData;
+    int32_t   nBucket;
+    STbData **aBucket;
+  };
 };
 
 struct TSDBROW {
@@ -534,7 +540,6 @@ struct SHeadFile {
   int64_t commitID;
   int64_t size;
   int64_t offset;
-  int64_t loffset;
 };
 
 struct SDataFile {
@@ -549,6 +554,7 @@ struct SLastFile {
 
   int64_t commitID;
   int64_t size;
+  int64_t offset;
 };
 
 struct SSmaFile {

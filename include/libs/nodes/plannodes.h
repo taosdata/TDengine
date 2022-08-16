@@ -213,6 +213,8 @@ typedef struct SWindowLogicNode {
 typedef struct SFillLogicNode {
   SLogicNode  node;
   EFillMode   mode;
+  SNodeList*  pFillExprs;
+  SNodeList*  pNotFillExprs;
   SNode*      pWStartTs;
   SNode*      pValues;  // SNodeListNode
   STimeWindow timeRange;
@@ -380,6 +382,7 @@ typedef struct SAggPhysiNode {
   SNodeList* pExprs;  // these are expression list of group_by_clause and parameter expression of aggregate function
   SNodeList* pGroupKeys;
   SNodeList* pAggFuncs;
+  bool       mergeDataBlock;
 } SAggPhysiNode;
 
 typedef struct SDownstreamSourceNode {
@@ -418,6 +421,7 @@ typedef struct SWinodwPhysiNode {
   int8_t     igExpired;
   EOrder     inputTsOrder;
   EOrder     outputTsOrder;
+  bool       mergeDataBlock;
 } SWinodwPhysiNode;
 
 typedef struct SIntervalPhysiNode {
@@ -438,9 +442,10 @@ typedef SIntervalPhysiNode SStreamSemiIntervalPhysiNode;
 typedef struct SFillPhysiNode {
   SPhysiNode  node;
   EFillMode   mode;
+  SNodeList*  pFillExprs;
+  SNodeList*  pNotFillExprs;
   SNode*      pWStartTs;  // SColumnNode
   SNode*      pValues;    // SNodeListNode
-  SNodeList*  pTargets;
   STimeWindow timeRange;
   EOrder      inputTsOrder;
 } SFillPhysiNode;

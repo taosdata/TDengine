@@ -5,7 +5,7 @@ system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 sql connect
 
-print =============== show dnodes
+print =============== select * from information_schema.ins_dnodes
 sql create dnode $hostname port 7200
 
 $x = 0
@@ -16,7 +16,7 @@ step1:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
@@ -31,8 +31,8 @@ if $data(2)[4] != ready then
   goto step1
 endi
 
-print =============== show dnodes
-sql show dnodes;
+print =============== select * from information_schema.ins_dnodes
+sql select * from information_schema.ins_dnodes;
 if $rows != 2 then 
   return -1
 endi
@@ -62,7 +62,7 @@ if $data14 != ready then
   return -1
 endi
 
-sql show mnodes;
+sql select * from information_schema.ins_mnodes;
 if $rows != 1 then 
   return -1
 endi

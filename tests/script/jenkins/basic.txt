@@ -7,7 +7,7 @@
 ./test.sh -f tsim/user/privilege_db.sim
 ./test.sh -f tsim/user/privilege_sysinfo.sim
 
-# ---- db
+# ---- db ----
 ./test.sh -f tsim/db/alter_option.sim
 # unsupport ./test.sh -f tsim/db/alter_replica_13.sim
 # unsupport ./test.sh -f tsim/db/alter_replica_31.sim
@@ -316,6 +316,7 @@
 ./test.sh -f tsim/valgrind/checkError5.sim
 ./test.sh -f tsim/valgrind/checkError6.sim
 ./test.sh -f tsim/valgrind/checkError7.sim
+./test.sh -f tsim/valgrind/checkError8.sim
 ./test.sh -f tsim/valgrind/checkUdf.sim
 
 # --- vnode ----
@@ -332,8 +333,8 @@
 ./test.sh -f tsim/vnode/stable_replica3_vnode3.sim
 
 # --- sync
-#./test.sh -f tsim/sync/3Replica1VgElect.sim
-#./test.sh -f tsim/sync/3Replica5VgElect.sim
+./test.sh -f tsim/sync/3Replica1VgElect.sim
+./test.sh -f tsim/sync/3Replica5VgElect.sim
 ./test.sh -f tsim/sync/oneReplica1VgElect.sim
 ./test.sh -f tsim/sync/oneReplica5VgElect.sim
 

@@ -5,36 +5,92 @@ title: 使用安装包立即开始
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
+import PkgListV3 from "/components/PkgListV3";
 
-:::info
-如果您希望对 TDengine 贡献代码或对内部实现感兴趣，请参考我们的 [TDengine GitHub 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
+TDengine 完整的软件包包括服务端（taosd）、用于与第三方系统对接并提供 RESTful 接口的 taosAdapter、应用驱动（taosc）、命令行程序 (CLI，taos) 和一些工具软件，目前服务端 taosd 和 taosAdapter 仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。应用驱动 taosc 与 TDengine CLI 可以在 Windows 或 Linux 上安装和运行。TDengine 除了提供多种语言的连接器之外，还通过 [taosAdapter](../reference/taosadapter/) 提供 [RESTful 接口](../reference/rest-api/)。
 
-:::
+在 Linux 系统上，TDengine 开源版本提供 deb 和 rpm 格式安装包，用户可以根据自己的运行环境选择合适的安装包。其中 deb 支持 Debian/Ubuntu 及衍生系统，rpm 支持 CentOS/RHEL/SUSE 及衍生系统。同时我们也为企业用户提供 tar.gz 格式安装包，也支持通过 `apt-get` 工具从线上进行安装。TDengine 也提供 Windows x64 平台的安装包。您也可以[用Docker立即体验](../../get-started/docker/)。如果您希望对 TDengine 贡献代码或对内部实现感兴趣，请参考我们的 [TDengine GitHub 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
 
-TDengine 开源版本提供 deb 和 rpm 格式安装包，用户可以根据自己的运行环境选择合适的安装包。其中 deb 支持 Debian/Ubuntu 及衍生系统，rpm 支持 CentOS/RHEL/SUSE 及衍生系统。同时我们也为企业用户提供 tar.gz 格式安装包。也支持通过 `apt-get` 工具从线上进行安装。
+为方便使用，标准的服务端安装包包含了 taos、taosd、taosAdapter、taosdump、taosBenchmark、TDinsight 安装脚本和示例代码；如果您只需要用到服务端程序和客户端连接的 C/C++ 语言支持，也可以仅下载 lite 版本的安装包。
+
+在安装包格式上，我们提供 tar.gz, rpm 和 deb 格式，为企业客户提供 tar.gz 格式安装包，以方便在特定操作系统上使用。需要注意的是，rpm 和 deb 包不含 taosdump 和 TDinsight 安装脚本，这些工具需要通过安装 taosTool 包获得。
 
 ## 安装
 
 <Tabs>
+<TabItem label="Deb 安装" value="debinst">
+
+1. 从列表中下载获得 deb 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.deb；
+<PkgListV3 type={6}/>
+2. 进入到 TDengine-server-3.0.0.0-Linux-x64.deb 安装包所在目录，执行如下的安装命令：
+
+```bash
+sudo dpkg -i TDengine-server-3.0.0.0-Linux-x64.deb
+```
+
+</TabItem>
+
+<TabItem label="RPM 安装" value="rpminst">
+
+1. 从列表中下载获得 rpm 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.rpm；
+<PkgListV3 type={5}/>
+2. 进入到 TDengine-server-3.0.0.0-Linux-x64.rpm 安装包所在目录，执行如下的安装命令：
+
+```bash
+sudo rpm -ivh TDengine-server-3.0.0.0-Linux-x64.rpm
+```
+
+</TabItem>
+
+<TabItem label="tar.gz 安装" value="tarinst">
+
+1. 从列表中下载获得 tar.gz 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.tar.gz；
+<PkgListV3 type={0}/>
+2. 进入到 TDengine-server-3.0.0.0-Linux-x64.tar.gz 安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本：
+
+```bash
+tar -zxvf TDengine-server-3.0.0.0-Linux-x64.tar.gz
+```
+
+解压后进入相应路径，执行
+
+```bash
+sudo ./install.sh
+```
+
+:::info
+install.sh 安装脚本在执行过程中，会通过命令行交互界面询问一些配置信息。如果希望采取无交互安装方式，那么可以用 -e no 参数来执行 install.sh 脚本。运行 `./install.sh -h` 指令可以查看所有参数的详细说明信息。
+:::
+
+</TabItem>
+
+<TabItem label="Windows 安装" value="windows">           
+
+1. 从列表中下载获得 exe 安装程序，例如 TDengine-server-3.0.0.0-Windows-x64.exe；
+<PkgListV3 type={3}/>
+2. 运行 TDengine-server-3.0.0.0-Windows-x64.exe 来安装 TDengine。
+
+</TabItem>
 <TabItem value="apt-get" label="apt-get">
 可以使用 apt-get 工具从官方仓库安装。
 
 **安装包仓库**
 
-```
+```bash
 wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
 echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
 ```
 
 如果安装 Beta 版需要安装包仓库
 
-```
+```bash
+wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
 echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
 ```
 
 **使用 apt-get 命令安装**
 
-```
+```bash
 sudo apt-get update
 apt-cache policy tdengine
 sudo apt-get install tdengine
@@ -44,133 +100,11 @@ sudo apt-get install tdengine
 apt-get 方式只适用于 Debian 或 Ubuntu 系统
 ::::
 </TabItem>
-<TabItem label="Deb 安装" value="debinst">
-
-1、从官网下载获得 deb 安装包，例如 TDengine-server-3.0.0.10002-Linux-x64.deb；
-2、进入到 TDengine-server-3.0.0.10002-Linux-x64.deb 安装包所在目录，执行如下的安装命令：
-
-```
-$ sudo dpkg -i TDengine-server-3.0.0.10002-Linux-x64.deb
-Selecting previously unselected package tdengine.
-(Reading database ... 119653 files and directories currently installed.)
-Preparing to unpack TDengine-server-3.0.0.10002-Linux-x64.deb ...
-Unpacking tdengine (3.0.0.10002) ...
-Setting up tdengine (3.0.0.10002) ...
-Start to install TDengine...
-
-System hostname is: v3cluster-0002
-
-Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join
-OR leave it blank to build one:
-
-Enter your email address for priority support or enter empty to skip: 
-Created symlink /etc/systemd/system/multi-user.target.wants/taosd.service → /etc/systemd/system/taosd.service.
-
-To configure TDengine : edit /etc/taos/taos.cfg
-To start TDengine     : sudo systemctl start taosd
-To access TDengine    : taos -h v3cluster-0002 to login into TDengine server
-
-
-TDengine is installed successfully!
-
-```
-
-</TabItem>
-
-<TabItem label="RPM 安装" value="rpminst">
-
-1、从官网下载获得 rpm 安装包，例如 TDengine-server-3.0.0.10002-Linux-x64.rpm；
-2、进入到 TDengine-server-3.0.0.10002-Linux-x64.rpm 安装包所在目录，执行如下的安装命令：
-
-```
-$ sudo rpm -ivh TDengine-server-3.0.0.10002-Linux-x64.rpm
-Preparing...                          ################################# [100%]
-Stop taosd service success!
-Updating / installing...
-   1:tdengine-3.0.0.10002-3           ################################# [100%]
-Start to install TDengine...
-
-System hostname is: chenhaoran01
-
-Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join
-OR leave it blank to build one:
-
-Enter your email address for priority support or enter empty to skip: 
-Created symlink from /etc/systemd/system/multi-user.target.wants/taosd.service to /etc/systemd/system/taosd.service.
-
-To configure TDengine : edit /etc/taos/taos.cfg
-To start TDengine     : sudo systemctl start taosd
-To access TDengine    : taos -h chenhaoran01 to login into TDengine server
-
-
-TDengine is installed successfully!
-
-```
-
-</TabItem>
-
-<TabItem label="tar.gz 安装" value="tarinst">
-
-1、从官网下载获得 tar.gz 安装包，例如 TDengine-server-3.0.0.10002-Linux-x64.tar.gz；
-2、进入到 TDengine-server-3.0.0.10002-Linux-x64.tar.gz 安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本：
-
-```
-$ tar -zxvf TDengine-server-3.0.0.10002-Linux-x64.tar.gz
-TDengine-server-3.0.0.10002/
-TDengine-server-3.0.0.10002/driver/
-TDengine-server-3.0.0.10002/driver/libtaos.so.3.0.0.10002
-TDengine-server-3.0.0.10002/driver/vercomp.txt
-TDengine-server-3.0.0.10002/release_note
-TDengine-server-3.0.0.10002/taos.tar.gz
-TDengine-server-3.0.0.10002/install.sh
-...
-
-$ ll
-total 56832
-drwxr-xr-x 3 root root     4096 Aug  8 10:29 ./
-drwxrwxrwx 6 root root     4096 Aug  5 16:45 ../
-drwxr-xr-x 4 root root     4096 Aug  4 18:03 TDengine-server-3.0.0.10002/
--rwxr-xr-x 1 root root 58183066 Aug  8 10:28 TDengine-server-3.0.0.10002-Linux-x64.tar.gz*
-
-$ cd TDengine-server-3.0.0.10002/
-
- $ ll
-total 51612
-drwxr-xr-x  4 root root     4096 Aug  4 18:03 ./
-drwxr-xr-x  3 root root     4096 Aug  8 10:29 ../
-drwxr-xr-x  2 root root     4096 Aug  4 18:03 driver/
-drwxr-xr-x 11 root root     4096 Aug  4 18:03 examples/
--rwxr-xr-x  1 root root    30980 Aug  4 18:03 install.sh*
--rw-r--r--  1 root root     6724 Aug  4 18:03 release_note
--rw-r--r--  1 root root 52793079 Aug  4 18:03 taos.tar.gz
-
-$ sudo ./install.sh
-
-Start to install TDengine...
-Created symlink /etc/systemd/system/multi-user.target.wants/taosd.service → /etc/systemd/system/taosd.service.
-
-System hostname is: v3cluster-0002
-
-Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join
-OR leave it blank to build one:
-
-Enter your email address for priority support or enter empty to skip: 
-
-To configure TDengine : edit /etc/taos/taos.cfg
-To configure taosadapter (if has) : edit /etc/taos/taosadapter.toml
-To start TDengine     : sudo systemctl start taosd
-To access TDengine    : taos -h v3cluster-0002 to login into TDengine server
-
-TDengine is installed successfully!
-```
+</Tabs>
 
 :::info
-install.sh 安装脚本在执行过程中，会通过命令行交互界面询问一些配置信息。如果希望采取无交互安装方式，那么可以用 -e no 参数来执行 install.sh 脚本。运行 `./install.sh -h` 指令可以查看所有参数的详细说明信息。
-
+下载其他组件、最新 Beta 版及之前版本的安装包，请点击[发布历史页面](../../releases) 
 :::
-
-</TabItem>
-</Tabs>
 
 :::note
 当安装第一个节点时，出现 Enter FQDN：提示的时候，不需要输入任何内容。只有当安装第二个或以后更多的节点时，才需要输入已有集群中任何一个可用节点的 FQDN，支持该新节点加入集群。当然也可以不输入，而是在新节点启动前，配置到新节点的配置文件中。
@@ -178,6 +112,9 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 :::
 
 ## 启动
+
+<Tabs>
+<TabItem label="Linux 系统" value="linux">
 
 安装后，请使用 `systemctl` 命令来启动 TDengine 的服务进程。
 
@@ -223,9 +160,18 @@ systemctl 命令汇总：
 
 :::
 
+</TabItem>
+
+<TabItem label="Windows 系统" value="windows">
+
+安装后，在 C:\TDengine 目录下，运行 taosd.exe 来启动 TDengine 服务进程。
+
+</TabItem>
+</Tabs>
+
 ## TDengine 命令行 (CLI)
 
-为便于检查 TDengine 的状态，执行数据库 (Database) 的各种即席(Ad Hoc)查询，TDengine 提供一命令行应用程序(以下简称为 TDengine CLI) taos。要进入 TDengine 命令行，您只要在安装有 TDengine 的 Linux 终端执行 `taos` 即可。
+为便于检查 TDengine 的状态，执行数据库 (Database) 的各种即席(Ad Hoc)查询，TDengine 提供一命令行应用程序(以下简称为 TDengine CLI) taos。要进入 TDengine 命令行，您只要在安装有 TDengine 的 Linux 终端执行 `taos` 即可，也可以在安装有 TDengine 的 Windows 终端的 C:\TDengine 目录下，运行 taos.exe 来启动 TDengine 命令行。
 
 ```bash
 taos
