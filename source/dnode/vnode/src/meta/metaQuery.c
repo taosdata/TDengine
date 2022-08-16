@@ -53,79 +53,79 @@ _err:
   return -1;
 }
 
-int metaGetTableEntryByUidTest(void* meta, SArray *uidList) {
-
-  SArray* readerList = taosArrayInit(taosArrayGetSize(uidList), sizeof(SMetaReader));
-  SArray* uidVersion = taosArrayInit(taosArrayGetSize(uidList), sizeof(STbDbKey));
-  SMeta  *pMeta = meta;
-  int64_t version;
-  SHashObj *uHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-
-  int64_t stt1 = taosGetTimestampUs();
-  for(int i = 0; i < taosArrayGetSize(uidList); i++) {
-    void* ppVal = NULL;
-    int vlen = 0;
-    uint64_t *  uid = taosArrayGet(uidList, i);
-    // query uid.idx
-    if (tdbTbGet(pMeta->pUidIdx, uid, sizeof(*uid), &ppVal, &vlen) < 0) {
-      continue;
-    }
-    version = *(int64_t *)ppVal;
-
-    STbDbKey tbDbKey = {.version = version, .uid = *uid};
-    taosArrayPush(uidVersion, &tbDbKey);
-    taosHashPut(uHash, uid, sizeof(int64_t), ppVal, sizeof(int64_t));
-  }
-  int64_t stt2 = taosGetTimestampUs();
-  qDebug("metaGetTableEntryByUidTest1 rows:%d, cost:%ld us", taosArrayGetSize(uidList), stt2-stt1);
-
-  TBC        *pCur = NULL;
-  tdbTbcOpen(pMeta->pTbDb, &pCur, NULL);
-  tdbTbcMoveToFirst(pCur);
-  void *pKey = NULL;
-  int   kLen = 0;
-
-  while(1){
-    SMetaReader pReader = {0};
-    int32_t ret = tdbTbcNext(pCur, &pKey, &kLen, &pReader.pBuf, &pReader.szBuf);
-    if (ret < 0) break;
-    STbDbKey *tmp = (STbDbKey*)pKey;
-    int64_t *ver = (int64_t*)taosHashGet(uHash, &tmp->uid, sizeof(int64_t));
-    if(ver == NULL || *ver != tmp->version) continue;
-    taosArrayPush(readerList, &pReader);
-  }
-  tdbTbcClose(pCur);
-
-  taosArrayClear(readerList);
-  int64_t stt3 = taosGetTimestampUs();
-  qDebug("metaGetTableEntryByUidTest2 rows:%d, cost:%ld us", taosArrayGetSize(uidList), stt3-stt2);
-  for(int i = 0; i < taosArrayGetSize(uidVersion); i++) {
-    SMetaReader pReader = {0};
-
-    STbDbKey *tbDbKey = taosArrayGet(uidVersion, i);
-    // query table.db
-    if (tdbTbGet(pMeta->pTbDb, tbDbKey, sizeof(STbDbKey), &pReader.pBuf, &pReader.szBuf) < 0) {
-      continue;
-    }
-    taosArrayPush(readerList, &pReader);
-  }
-  int64_t stt4 = taosGetTimestampUs();
-  qDebug("metaGetTableEntryByUidTest3 rows:%d, cost:%ld us", taosArrayGetSize(uidList), stt4-stt3);
-
-  for(int i = 0; i < taosArrayGetSize(readerList); i++){
-    SMetaReader* pReader  = taosArrayGet(readerList, i);
-    metaReaderInit(pReader, meta, 0);
-    // decode the entry
-    tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
-
-    if (metaDecodeEntry(&pReader->coder, &pReader->me) < 0) {
-    }
-    metaReaderClear(pReader);
-  }
-  int64_t stt5 = taosGetTimestampUs();
-  qDebug("metaGetTableEntryByUidTest4 rows:%d, cost:%ld us", taosArrayGetSize(readerList), stt5-stt4);
-  return 0;
-}
+//int metaGetTableEntryByUidTest(void* meta, SArray *uidList) {
+//
+//  SArray* readerList = taosArrayInit(taosArrayGetSize(uidList), sizeof(SMetaReader));
+//  SArray* uidVersion = taosArrayInit(taosArrayGetSize(uidList), sizeof(STbDbKey));
+//  SMeta  *pMeta = meta;
+//  int64_t version;
+//  SHashObj *uHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+//
+//  int64_t stt1 = taosGetTimestampUs();
+//  for(int i = 0; i < taosArrayGetSize(uidList); i++) {
+//    void* ppVal = NULL;
+//    int vlen = 0;
+//    uint64_t *  uid = taosArrayGet(uidList, i);
+//    // query uid.idx
+//    if (tdbTbGet(pMeta->pUidIdx, uid, sizeof(*uid), &ppVal, &vlen) < 0) {
+//      continue;
+//    }
+//    version = *(int64_t *)ppVal;
+//
+//    STbDbKey tbDbKey = {.version = version, .uid = *uid};
+//    taosArrayPush(uidVersion, &tbDbKey);
+//    taosHashPut(uHash, uid, sizeof(int64_t), ppVal, sizeof(int64_t));
+//  }
+//  int64_t stt2 = taosGetTimestampUs();
+//  qDebug("metaGetTableEntryByUidTest1 rows:%d, cost:%ld us", taosArrayGetSize(uidList), stt2-stt1);
+//
+//  TBC        *pCur = NULL;
+//  tdbTbcOpen(pMeta->pTbDb, &pCur, NULL);
+//  tdbTbcMoveToFirst(pCur);
+//  void *pKey = NULL;
+//  int   kLen = 0;
+//
+//  while(1){
+//    SMetaReader pReader = {0};
+//    int32_t ret = tdbTbcNext(pCur, &pKey, &kLen, &pReader.pBuf, &pReader.szBuf);
+//    if (ret < 0) break;
+//    STbDbKey *tmp = (STbDbKey*)pKey;
+//    int64_t *ver = (int64_t*)taosHashGet(uHash, &tmp->uid, sizeof(int64_t));
+//    if(ver == NULL || *ver != tmp->version) continue;
+//    taosArrayPush(readerList, &pReader);
+//  }
+//  tdbTbcClose(pCur);
+//
+//  taosArrayClear(readerList);
+//  int64_t stt3 = taosGetTimestampUs();
+//  qDebug("metaGetTableEntryByUidTest2 rows:%d, cost:%ld us", taosArrayGetSize(uidList), stt3-stt2);
+//  for(int i = 0; i < taosArrayGetSize(uidVersion); i++) {
+//    SMetaReader pReader = {0};
+//
+//    STbDbKey *tbDbKey = taosArrayGet(uidVersion, i);
+//    // query table.db
+//    if (tdbTbGet(pMeta->pTbDb, tbDbKey, sizeof(STbDbKey), &pReader.pBuf, &pReader.szBuf) < 0) {
+//      continue;
+//    }
+//    taosArrayPush(readerList, &pReader);
+//  }
+//  int64_t stt4 = taosGetTimestampUs();
+//  qDebug("metaGetTableEntryByUidTest3 rows:%d, cost:%ld us", taosArrayGetSize(uidList), stt4-stt3);
+//
+//  for(int i = 0; i < taosArrayGetSize(readerList); i++){
+//    SMetaReader* pReader  = taosArrayGet(readerList, i);
+//    metaReaderInit(pReader, meta, 0);
+//    // decode the entry
+//    tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
+//
+//    if (metaDecodeEntry(&pReader->coder, &pReader->me) < 0) {
+//    }
+//    metaReaderClear(pReader);
+//  }
+//  int64_t stt5 = taosGetTimestampUs();
+//  qDebug("metaGetTableEntryByUidTest4 rows:%d, cost:%ld us", taosArrayGetSize(readerList), stt5-stt4);
+//  return 0;
+//}
 
 int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   SMeta  *pMeta = pReader->pMeta;

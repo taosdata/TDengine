@@ -396,7 +396,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
     blockDataAppendColInfo(pResBlock, &colInfo);
   }
 
-  int64_t stt = taosGetTimestampUs();
+//  int64_t stt = taosGetTimestampUs();
   tags = taosArrayInit(8, POINTER_BYTES);
   code = metaGetTableTags(metaHandle, suid, uidList, tags);
   if (code != TSDB_CODE_SUCCESS) {
@@ -408,8 +408,8 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   if(rows == 0){
     goto end;
   }
-  int64_t stt1 = taosGetTimestampUs();
-  qDebug("generate tag meta rows:%d, cost:%ld us", rows, stt1-stt);
+//  int64_t stt1 = taosGetTimestampUs();
+//  qDebug("generate tag meta rows:%d, cost:%ld us", rows, stt1-stt);
 
   code = blockDataEnsureCapacity(pResBlock, rows);
   if (code != TSDB_CODE_SUCCESS) {
@@ -417,7 +417,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
     goto end;
   }
 
-  int64_t st = taosGetTimestampUs();
+//  int64_t st = taosGetTimestampUs();
   for (int32_t i = 0; i < rows; i++) {
     void* tag = taosArrayGetP(tags, i);
     int64_t* uid = taosArrayGet(uidList, i);
@@ -451,8 +451,8 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   }
   pResBlock->info.rows = rows;
 
-  int64_t st1 = taosGetTimestampUs();
-  qDebug("generate tag block rows:%d, cost:%ld us", rows, st1-st);
+//  int64_t st1 = taosGetTimestampUs();
+//  qDebug("generate tag block rows:%d, cost:%ld us", rows, st1-st);
 
   pBlockList = taosArrayInit(2, POINTER_BYTES);
   taosArrayPush(pBlockList, &pResBlock);
@@ -467,8 +467,8 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   if(code != TSDB_CODE_SUCCESS){
     terrno = code;
   }
-  int64_t st2 = taosGetTimestampUs();
-  qDebug("calculate tag block rows:%d, cost:%ld us", rows, st2-st1);
+//  int64_t st2 = taosGetTimestampUs();
+//  qDebug("calculate tag block rows:%d, cost:%ld us", rows, st2-st1);
 
 end:
   taosArrayDestroyP(tags, taosMemoryFree);
@@ -497,15 +497,15 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       SIndexMetaArg metaArg = {
           .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = tsdbGetIvtIdx(metaHandle), .suid = tableUid};
 
-      int64_t stt = taosGetTimestampUs();
+//      int64_t stt = taosGetTimestampUs();
       SIdxFltStatus status = SFLT_NOT_INDEX;
       code = doFilterTag(pTagIndexCond, &metaArg, res, &status);
       if (code != 0 || status == SFLT_NOT_INDEX) {
         qError("failed to get tableIds from index, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
       }
 
-      int64_t stt1 = taosGetTimestampUs();
-      qDebug("generate table list, cost:%ld us", stt1-stt);
+//      int64_t stt1 = taosGetTimestampUs();
+//      qDebug("generate table list, cost:%ld us", stt1-stt);
     }else if(!pTagCond){
       vnodeGetCtbIdList(pVnode, pScanNode->suid, res);
     }
