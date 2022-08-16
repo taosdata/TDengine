@@ -361,6 +361,7 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
     }
   }
 
+  ASSERT(pIter == NULL);
   // 7. handle unassigned vg
   if (taosHashGetSize(pOutput->pSub->consumerHash) != 0) {
     // if has consumer, assign all left vg
@@ -379,8 +380,8 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
         ASSERT(pIter);
         pConsumerEp = (SMqConsumerEp *)pIter;
         ASSERT(pConsumerEp->consumerId > 0);
-        if (taosArrayGetSize(pConsumerEp->vgs) == minVgCnt + 1) {
-          continue;
+        if (taosArrayGetSize(pConsumerEp->vgs) == minVgCnt) {
+          break;
         }
       }
       pRebVg = (SMqRebOutputVg *)pRemovedIter;
