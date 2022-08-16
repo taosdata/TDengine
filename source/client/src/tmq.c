@@ -56,8 +56,8 @@ struct tmq_conf_t {
   int8_t  autoCommit;
   int8_t  resetOffset;
   int8_t  withTbName;
-  int8_t  ssEnable;
-  int32_t ssBatchSize;
+  int8_t  snapEnable;
+  int32_t snapBatchSize;
 
   bool hbBgEnable;
 
@@ -287,14 +287,19 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
 
   if (strcmp(key, "experimental.snapshot.enable") == 0) {
     if (strcmp(value, "true") == 0) {
-      conf->ssEnable = true;
+      conf->snapEnable = true;
       return TMQ_CONF_OK;
     } else if (strcmp(value, "false") == 0) {
-      conf->ssEnable = false;
+      conf->snapEnable = false;
       return TMQ_CONF_OK;
     } else {
       return TMQ_CONF_INVALID;
     }
+  }
+
+  if (strcmp(key, "experimental.snapshot.batch.size") == 0) {
+    conf->snapBatchSize = atoi(value);
+    return TMQ_CONF_OK;
   }
 
   if (strcmp(key, "enable.heartbeat.background") == 0) {
@@ -307,11 +312,6 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     } else {
       return TMQ_CONF_INVALID;
     }
-    return TMQ_CONF_OK;
-  }
-
-  if (strcmp(key, "experimental.snapshot.batch.size") == 0) {
-    conf->ssBatchSize = atoi(value);
     return TMQ_CONF_OK;
   }
 
@@ -889,7 +889,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   strcpy(pTmq->clientId, conf->clientId);
   strcpy(pTmq->groupId, conf->groupId);
   pTmq->withTbName = conf->withTbName;
-  pTmq->useSnapshot = conf->ssEnable;
+  pTmq->useSnapshot = conf->snapEnable;
   pTmq->autoCommit = conf->autoCommit;
   pTmq->autoCommitInterval = conf->autoCommitInterval;
   pTmq->commitCb = conf->commitCb;

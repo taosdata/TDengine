@@ -89,8 +89,7 @@ void close() throws SQLException;
 
 </TabItem>
 
-</TabItem>
-<TabItem value="python" label="python">
+<TabItem value="Python" label="Python">
 ```python
 class TaosConsumer():
     DEFAULT_CONFIG = {
@@ -191,7 +190,25 @@ class TaosConsumer():
             tmq_consumer_close(self._tmq)
 ```
 </TabItem>
+<TabItem label="Go" value="Go">
 
+```go
+func NewConsumer(conf *Config) (*Consumer, error)
+
+func (c *Consumer) Close() error
+
+func (c *Consumer) Commit(ctx context.Context, message unsafe.Pointer) error
+
+func (c *Consumer) FreeMessage(message unsafe.Pointer)
+
+func (c *Consumer) Poll(timeout time.Duration) (*Result, error)
+
+func (c *Consumer) Subscribe(topics []string) error
+
+func (c *Consumer) Unsubscribe() error
+```
+
+</TabItem>
 </Tabs>
 
 ## 写入数据
@@ -335,8 +352,7 @@ public class MetersDeserializer extends ReferenceDeserializer<Meters> {
 
 </TabItem>
 
-</TabItem>
-<TabItem value="python" label="Python">
+<TabItem value="Python" label="Python">
 
 |            参数名称            |  类型   | 参数说明                                                 | 备注                                        |
 | :----------------------------: | :-----: | -------------------------------------------------------- | ------------------------------------------- |
@@ -355,6 +371,56 @@ public class MetersDeserializer extends ReferenceDeserializer<Meters> {
 
 </TabItem>
 
+<TabItem label="Go" value="Go">
+
+```go
+config := tmq.NewConfig()
+defer config.Destroy()
+err = config.SetGroupID("test")
+if err != nil {
+  panic(err)
+}
+err = config.SetAutoOffsetReset("earliest")
+if err != nil {
+  panic(err)
+}
+err = config.SetConnectIP("127.0.0.1")
+if err != nil {
+  panic(err)
+}
+err = config.SetConnectUser("root")
+if err != nil {
+  panic(err)
+}
+err = config.SetConnectPass("taosdata")
+if err != nil {
+  panic(err)
+}
+err = config.SetConnectPort("6030")
+if err != nil {
+  panic(err)
+}
+err = config.SetMsgWithTableName(true)
+if err != nil {
+  panic(err)
+}
+err = config.EnableHeartBeat()
+if err != nil {
+  panic(err)
+}
+err = config.EnableAutoCommit(func(result *wrapper.TMQCommitCallbackResult) {
+  if result.ErrCode != 0 {
+    errStr := wrapper.TMQErr2Str(result.ErrCode)
+    err := errors.NewError(int(result.ErrCode), errStr)
+    panic(err)
+  }
+})
+if err != nil {
+  panic(err)
+}
+```
+
+</TabItem>
 </Tabs>
 
 上述配置中包括 consumer group ID，如果多个 consumer 指定的 consumer group ID 一样，则自动形成一个 consumer group，共享消费进度。
@@ -386,9 +452,22 @@ consumer.subscribe(topics);
 ```
 
 </TabItem>
+<TabItem value="Go" label="Go">
+
+```go
+consumer, err := tmq.NewConsumer(config)
+if err != nil {
+ panic(err)
+}
+err = consumer.Subscribe([]string{"example_tmq_topic"})
+if err != nil {
+ panic(err)
+}
+```
 
 </TabItem>
-<TabItem value="python" label="Python">
+
+<TabItem value="Python" label="Python">
 ```python
 consumer = TaosConsumer('topic_ctb_column', group_id='vg2')
 ```
@@ -428,8 +507,7 @@ while(running){
 
 </TabItem>
 
-</TabItem>
-<TabItem value="python" label="Python">
+<TabItem value="Python" label="Python">
 ```python
 for msg in consumer:
     for row in msg:
@@ -438,6 +516,21 @@ for msg in consumer:
 </TabItem>
 
 
+<TabItem value="Go" label="Go">
+
+```go
+for {
+ result, err := consumer.Poll(time.Second)
+ if err != nil {
+  panic(err)
+ }
+ fmt.Println(result)
+ consumer.Commit(context.Background(), result.Message)
+ consumer.FreeMessage(result.Message)
+}
+```
+
+</TabItem>
 </Tabs>
 
 ## 结束消费
@@ -468,8 +561,7 @@ consumer.close();
 
 </TabItem>
 
-</TabItem>
-<TabItem value="python" label="Python">
+<TabItem value="Python" label="Python">
 
 ```python
 /* 取消订阅 */
@@ -477,6 +569,10 @@ consumer.unsubscribe();
 
 /* 关闭消费 */
 consumer.close();
+<TabItem value="Go" label="Go">
+
+```go
+consumer.Close()
 ```
 
 </TabItem>
@@ -828,64 +924,14 @@ int main(int argc, char* argv[]) {
 
 ```python
 import taos
+from taos.tmq import TaosConsumer
+
+import taos
 from taos.tmq import *
-
-conn = taos.connect()
-
-# create database
-conn.execute("drop database if exists py_tmq")
-conn.execute("create database if not exists py_tmq vgroups 2")
-
-# create table and stables
-conn.select_db("py_tmq")
-conn.execute("create stable if not exists stb1 (ts timestamp, c1 int, c2 float, c3 binary(10)) tags(t1 int)")
-conn.execute("create table if not exists tb1 using stb1 tags(1)")
-conn.execute("create table if not exists tb2 using stb1 tags(2)")
-conn.execute("create table if not exists tb3 using stb1 tags(3)")
-
-# create topic
-conn.execute("drop topic if exists topic_ctb_column")
-conn.execute("create topic if not exists topic_ctb_column as select ts, c1, c2, c3 from stb1")
-
-# set consumer configure options
-conf = TaosTmqConf()
-conf.set("group.id", "tg2")
-conf.set("td.connect.user", "root")
-conf.set("td.connect.pass", "taosdata")
-conf.set("enable.auto.commit", "true")
-conf.set("msg.with.table.name", "true")
-
-def tmq_commit_cb_print(tmq, resp, offset, param=None):
-    print(f"commit: {resp}, tmq: {tmq}, offset: {offset}, param: {param}")
-    
-conf.set_auto_commit_cb(tmq_commit_cb_print, None)
-
-# build consumer
-tmq = conf.new_consumer()
-
-# build topic list
-topic_list = TaosTmqList()
-topic_list.append("topic_ctb_column")
-
-# subscribe consumer
-tmq.subscribe(topic_list)
-
-# check subscriptions
-sub_list = tmq.subscription()
-print("subscribed topics: ",sub_list)
-
-# start subscribe
-while 1:
-    res = tmq.poll(1000)
-    if res:
-        topic = res.get_topic_name()
-        vg = res.get_vgroup_id()
-        db = res.get_db_name()
-        print(f"topic: {topic}\nvgroup id: {vg}\ndb: {db}")
-        for row in res:
-            print(row)
-            tb = res.get_table_name()
-            print(f"from table: {tb}")
+consumer = TaosConsumer('topic_ctb_column', group_id='vg2')
+for msg in consumer:
+    for row in msg:
+        print(row)
 
 ```
 
