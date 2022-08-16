@@ -17,7 +17,7 @@
 #include "tmsg.h"
 #include "tq.h"
 
-int32_t tdBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBlock* pDataBlock,
+int32_t tqBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBlock* pDataBlock,
                          SBatchDeleteReq* deleteReq) {
   ASSERT(pDataBlock->info.type == STREAM_DELETE_RESULT);
   int32_t          totRow = pDataBlock->info.rows;
@@ -68,9 +68,10 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
       SSDataBlock* pDataBlock = taosArrayGet(pBlocks, i);
       if (pDataBlock->info.type == STREAM_DELETE_RESULT) {
         int32_t padding1 = 0;
-        void*   padding2 = taosMemoryMalloc(1);
+        void*   padding2 = NULL;
         taosArrayPush(schemaReqSz, &padding1);
         taosArrayPush(schemaReqs, &padding2);
+        continue;
       }
 
       STagVal tagVal = {
@@ -138,8 +139,7 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
       continue;
     }
     int32_t rows = pDataBlock->info.rows;
-    // TODO min
-    int32_t rowSize = pDataBlock->info.rowSize;
+    /*int32_t rowSize = pDataBlock->info.rowSize;*/
     int32_t maxLen = TD_ROW_MAX_BYTES_FROM_SCHEMA(pTSchema);
 
     int32_t schemaLen = 0;
@@ -150,7 +150,6 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
   }
 
   // assign data
-  // TODO
   ret = rpcMallocCont(cap);
   ret->header.vgId = pVnode->config.vgId;
   ret->length = sizeof(SSubmitReq);
@@ -161,13 +160,12 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
     SSDataBlock* pDataBlock = taosArrayGet(pBlocks, i);
     if (pDataBlock->info.type == STREAM_DELETE_RESULT) {
       pDeleteReq->suid = suid;
-      tdBuildDeleteReq(pVnode, stbFullName, pDataBlock, pDeleteReq);
+      tqBuildDeleteReq(pVnode, stbFullName, pDataBlock, pDeleteReq);
       continue;
     }
 
     blkHead->numOfRows = htonl(pDataBlock->info.rows);
     blkHead->sversion = htonl(pTSchema->version);
-    // TODO
     blkHead->suid = htobe64(suid);
     // uid is assigned by vnode
     blkHead->uid = 0;
