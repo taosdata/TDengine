@@ -539,6 +539,7 @@ void* getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInf
     taosArrayPush(p->pPageList, &pageId);
 
     *(int32_t *) pPage = 0;
+    taosArrayDestroy(gi.pPageList);
   } else {
     int32_t* curId = taosArrayGetLast(p->pPageList);
     pPage = getBufPage(pInfo->pBuf, *curId);
