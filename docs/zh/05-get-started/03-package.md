@@ -65,9 +65,8 @@ sudo rpm -ivh TDengine-server-3.0.0.0-Linux-x64.rpm
 
 <TabItem label="tar.gz 安装" value="tarinst">
 
+1. 从列表中下载获得 tar.gz 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.tar.gz；
 <PkgListV3 type={0}/>
-
-1. 从 [发布历史页面](../../releases) 下载获得 tar.gz 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.tar.gz；
 2. 进入到 TDengine-server-3.0.0.0-Linux-x64.tar.gz 安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本：
 
 ```bash
@@ -81,6 +80,9 @@ sudo ./install.sh
 ```
 
 :::info
+
+下载其他组件、最新 Beta 版及之前版本的安装包，请点击[发布历史页面](../../releases) 
+
 install.sh 安装脚本在执行过程中，会通过命令行交互界面询问一些配置信息。如果希望采取无交互安装方式，那么可以用 -e no 参数来执行 install.sh 脚本。运行 `./install.sh -h` 指令可以查看所有参数的详细说明信息。
 
 :::
