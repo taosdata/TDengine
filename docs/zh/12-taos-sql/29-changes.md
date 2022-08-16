@@ -6,8 +6,8 @@ description: "TDengine 3.0 版本的语法变更说明"
 
 ## SQL 基本元素变更
 
-| # | **元素**  | **差异性** | **说明** |
-| - | :------- | :--------: | :------- |
+| # | **元素**  | ****<div style={{width: 100}}>差异性</div>**** | **说明** |
+| - | :------- | :-------- | :------- |
 | 1 | VARCHAR | 新增 | BINARY类型的别名。
 | 2 | TIMESTAMP字面量 | 新增 | 新增支持 TIMESTAMP 'timestamp format' 语法。
 | 3 | _ROWTS伪列 | 新增 | 表示时间戳主键。是_C0伪列的别名。
@@ -22,8 +22,8 @@ description: "TDengine 3.0 版本的语法变更说明"
 
 在 TDengine 中，普通表的数据模型中可使用以下数据类型。
 
-| # | **语句**  | **差异性** | **说明** |
-| - | :------- | :--------: | :------- |
+| # | **语句**  | **<div style={{width: 100}}>差异性</div>** | **说明** |
+| - | :------- | :-------- | :------- |
 | 1 | ALTER ACCOUNT | 废除 | 2.x中为企业版功能，3.0不再支持。语法暂时保留了，执行报“This statement is no longer supported”错误。
 | 2 | ALTER ALL DNODES | 新增 | 修改所有DNODE的参数。
 | 3 | ALTER DATABASE | 调整	| 废除<ul><li>QUORUM：写入需要的副本确认数。3.0版本使用STRICT来指定强一致还是弱一致。3.0.0版本STRICT暂不支持修改。</li><li>BLOCKS：VNODE使用的内存块数。3.0版本使用BUFFER来表示VNODE写入内存池的大小。</li><li>UPDATE：更新操作的支持模式。3.0版本所有数据库都支持部分列更新。</li><li>CACHELAST：缓存最新一行数据的模式。3.0版本用CACHEMODEL代替。</li><li>COMP：3.0版本暂不支持修改。<br/>新增</li><li>CACHEMODEL：表示是否在内存中缓存子表的最近数据。</li><li>CACHESIZE：表示缓存子表最近数据的内存大小。</li><li>WAL_FSYNC_PERIOD：代替原FSYNC参数。</li><li>WAL_LEVEL：代替原WAL参数。<br/>调整</li><li>REPLICA：3.0.0版本暂不支持修改。</li><li>KEEP：3.0版本新增支持带单位的设置方式。</li></ul>
@@ -80,8 +80,8 @@ description: "TDengine 3.0 版本的语法变更说明"
 
 ## SQL 函数变更
 
-| # | **函数**  | **差异性** | **说明** |
-| - | :------- | :--------: | :------- |
+| # | **函数**  | **<div style={{width: 100}}>差异性</div>** | **说明** |
+| - | :------- | :-------- | :------- |
 | 1 | TWA	| 增强 | 可以直接用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。
 | 2 | IRATE | 增强 | 可以直接用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。
 | 3 | LEASTSQUARES | 增强 | 可以用于超级表了。
