@@ -167,6 +167,8 @@ int32_t tsGrantHBInterval = 60;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) { return 0; }
+#else
+int32_t taosSetTfsCfg(SConfig *pCfg);
 #endif
 
 struct SConfig *taosGetCfg() {
