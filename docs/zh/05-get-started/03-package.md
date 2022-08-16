@@ -5,6 +5,7 @@ title: 使用安装包立即开始
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
+import PkgListV3 from "/components/PkgListV3";
 
 在 Linux 系统上，TDengine 开源版本提供 deb 和 rpm 格式安装包，用户可以根据自己的运行环境选择合适的安装包。其中 deb 支持 Debian/Ubuntu 及衍生系统，rpm 支持 CentOS/RHEL/SUSE 及衍生系统。同时我们也为企业用户提供 tar.gz 格式安装包，也支持通过 `apt-get` 工具从线上进行安装。TDengine 也提供 Windows x64 平台的安装包。您也可以[用Docker立即体验](../../get-started/docker/)。如果您希望对 TDengine 贡献代码或对内部实现感兴趣，请参考我们的 [TDengine GitHub 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
 
@@ -64,6 +65,8 @@ sudo rpm -ivh TDengine-server-3.0.0.0-Linux-x64.rpm
 
 <TabItem label="tar.gz 安装" value="tarinst">
 
+<PkgListV3 type={0}/>
+
 1. 从 [发布历史页面](../../releases) 下载获得 tar.gz 安装包，例如 TDengine-server-3.0.0.0-Linux-x64.tar.gz；
 2. 进入到 TDengine-server-3.0.0.0-Linux-x64.tar.gz 安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本：
 
@@ -85,6 +88,8 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 </TabItem>
 
 <TabItem label="Windows 安装" value="windows">
+           
+<PkgListV3 type={0}/>
 
 1. 从 [发布历史页面](../../releases) 下载获得 exe 安装程序，例如 TDengine-server-3.0.0.0-Windows-x64.exe；
 2. 运行 TDengine-server-3.0.0.0-Windows-x64.exe 来安装 TDengine。
