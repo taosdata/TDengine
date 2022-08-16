@@ -764,7 +764,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   ASSERT(c == 0);
 
   tdbTbcGet(pUidIdxc, NULL, NULL, &pData, &nData);
-  oversion = *(int64_t *)pData;
+  oversion = ((SUidIdxVal *)pData)[0].version;
 
   // search table.db
   TBC     *pTbDbc = NULL;
