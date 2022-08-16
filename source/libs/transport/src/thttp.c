@@ -197,10 +197,10 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   wb[1] = uv_buf_init((char*)pCont, contLen); //  heap var 
 
   SHttpClient *cli = taosMemoryCalloc(1, sizeof(SHttpClient)); 
-  cli->buf = wb;
   cli->conn.data = cli; 
   cli->tcp.data = cli;
   cli->req.data = cli;
+  cli->buf = wb;
   cli->addr = tstrdup(server);
   cli->port = port;
   
