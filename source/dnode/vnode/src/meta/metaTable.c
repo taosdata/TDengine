@@ -176,6 +176,15 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   // validate req
   metaReaderInit(&mr, pMeta, 0);
   if (metaGetTableEntryByName(&mr, pReq->name) == 0) {
+    if (mr.me.type == TSDB_SUPER_TABLE) {
+      metaReaderClear(&mr);
+      return 0;
+    } else {
+      terrno = TSDB_CODE_TDB_STB_ALREADY_EXIST;
+      metaReaderClear(&mr);
+      return -1;
+    }
+    /*
 // TODO: just for pass case
 #if 0
     terrno = TSDB_CODE_TDB_STB_ALREADY_EXIST;
@@ -185,6 +194,7 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     metaReaderClear(&mr);
     return 0;
 #endif
+    */
   }
   metaReaderClear(&mr);
 
