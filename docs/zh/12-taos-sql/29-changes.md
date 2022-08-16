@@ -6,7 +6,7 @@ description: "TDengine 3.0 版本的语法变更说明"
 
 ## SQL 基本元素变更
 
-| # | **元素**  | ****<div style={{width: 100}}>差异性</div>**** | **说明** |
+| # | **元素**  | **<div style={{width: 60}}>差异性</div>** | **说明** |
 | - | :------- | :-------- | :------- |
 | 1 | VARCHAR | 新增 | BINARY类型的别名。
 | 2 | TIMESTAMP字面量 | 新增 | 新增支持 TIMESTAMP 'timestamp format' 语法。
@@ -22,7 +22,7 @@ description: "TDengine 3.0 版本的语法变更说明"
 
 在 TDengine 中，普通表的数据模型中可使用以下数据类型。
 
-| # | **语句**  | **<div style={{width: 100}}>差异性</div>** | **说明** |
+| # | **语句**  | **<div style={{width: 60}}>差异性</div>** | **说明** |
 | - | :------- | :-------- | :------- |
 | 1 | ALTER ACCOUNT | 废除 | 2.x中为企业版功能，3.0不再支持。语法暂时保留了，执行报“This statement is no longer supported”错误。
 | 2 | ALTER ALL DNODES | 新增 | 修改所有DNODE的参数。
@@ -80,7 +80,7 @@ description: "TDengine 3.0 版本的语法变更说明"
 
 ## SQL 函数变更
 
-| # | **函数**  | **<div style={{width: 100}}>差异性</div>** | **说明** |
+| # | **函数**  | ** <div style={{width: 60}}>差异性</div> ** | **说明** |
 | - | :------- | :-------- | :------- |
 | 1 | TWA	| 增强 | 可以直接用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。
 | 2 | IRATE | 增强 | 可以直接用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。
