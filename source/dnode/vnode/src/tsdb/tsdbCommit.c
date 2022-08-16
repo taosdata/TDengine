@@ -466,9 +466,9 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   if (pRSet) {
     wSet.diskId = pRSet->diskId;
     wSet.fid = pCommitter->commitFid;
-    fHead = (SHeadFile){.commitID = pCommitter->commitID, .offset = 0, .size = 0, .loffset = 0};
+    fHead = (SHeadFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
     fData = *pRSet->pDataF;
-    fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0};
+    fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
     fSma = *pRSet->pSmaF;
   } else {
     SDiskID did = {0};
@@ -479,9 +479,9 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
 
     wSet.diskId = did;
     wSet.fid = pCommitter->commitFid;
-    fHead = (SHeadFile){.commitID = pCommitter->commitID, .offset = 0, .size = 0, .loffset = 0};
+    fHead = (SHeadFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
     fData = (SDataFile){.commitID = pCommitter->commitID, .size = 0};
-    fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0};
+    fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
     fSma = (SSmaFile){.commitID = pCommitter->commitID, .size = 0};
   }
   code = tsdbDataFWriterOpen(&pCommitter->dWriter.pWriter, pTsdb, &wSet);

@@ -540,7 +540,6 @@ struct SHeadFile {
   int64_t commitID;
   int64_t size;
   int64_t offset;
-  int64_t loffset;
 };
 
 struct SDataFile {
@@ -555,6 +554,7 @@ struct SLastFile {
 
   int64_t commitID;
   int64_t size;
+  int64_t offset;
 };
 
 struct SSmaFile {
