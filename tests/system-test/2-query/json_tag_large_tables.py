@@ -35,7 +35,7 @@ class TDTestCase:
         self.testcaseFilename = os.path.split(__file__)[-1]
         # os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
+        tdSql.init(conn.cursor(), False)
 
     def run(self):
         # tdSql.prepare()
@@ -47,24 +47,24 @@ class TDTestCase:
         i = 0
         # add 100000 table
         tdSql.execute("create table if not exists jsons1(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json)")
-        while i <= 10 0000:
+        while i <= 100000:
             sql = """insert into jsons1_{%d} using jsons1 tags('{"tag1":{%d}}') values(1591060618000, 1, false, 'json1', '你是') (1591060608000, 23, true, '等等', 'json')"""%(i, i)
             tdSql.execute(sql)
             i = i + 1
 
-        // do query
-        i = 0        
-        while i <= 10 0000:
+        # do query
+        i = 0
+        while i <= 100000:
             sql = """select count(*) from jsons1 where jtag->'tag1' = %d"""%(i)
             tdSql.query(sql)
             if 1 != tdSql.getRows():
                 print("err: %s"%(sql))
-        
-        while i <= 10000000
+
+        while i <= 10000000:
             sql = """insert into jsons1_{%d} using jsons1 tags('{"tag1":{%d}}') values(1591060618000, 1, false, 'json1', '你是') (1591060608000, 23, true, '等等', 'json')"""%(i, i)
             tdSql.execute(sql)
             i = i + 1
-        
+
         i = 0
         # drop super table
         tdSql.execute("create table if not exists jsons1(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json)")
@@ -76,7 +76,7 @@ class TDTestCase:
         tdSql.execute('drop stable jsons1')
 
 
-        # drop database 
+        # drop database
         i = 0
         tdSql.execute("create table if not exists jsons1(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json)")
         while i <= 100000:
@@ -84,10 +84,10 @@ class TDTestCase:
             tdSql.execute(sql)
             i = i + 1
         tdSql.execute('drop database db')
-        
+
 
         # test duplicate key using the first one. elimate empty key
-        #tdSql.execute("CREATE TABLE if not exists jsons1_8 using jsons1 tags('{\"tag1\":null, \"tag1\":true, \"tag1\":45, \"1tag$\":2, \" \":90, \"\":32}')") tdSql.query("select jtag from jsons1_8") tdSql.checkRows(0); 
+        #tdSql.execute("CREATE TABLE if not exists jsons1_8 using jsons1 tags('{\"tag1\":null, \"tag1\":true, \"tag1\":45, \"1tag$\":2, \" \":90, \"\":32}')") tdSql.query("select jtag from jsons1_8") tdSql.checkRows(0);
         #tdSql.query("select ts,jtag from jsons1 order by ts limit 2,3")
         #tdSql.checkData(0, 0, '2020-06-02 09:17:08.000')
         #tdSql.checkData(0, 1, '{"tag1":5,"tag2":"beijing"}')
@@ -704,4 +704,3 @@ class TDTestCase:
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())
-

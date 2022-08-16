@@ -275,12 +275,8 @@ typedef struct SStreamTask {
   int32_t nodeId;
   SEpSet  epSet;
 
-  // used for task source and sink,
-  // while task agg should have processedVer for each child
   int64_t recoverSnapVer;
   int64_t startVer;
-  int64_t checkpointVer;
-  int64_t processedVer;
 
   // children info
   SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>

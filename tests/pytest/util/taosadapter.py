@@ -238,19 +238,23 @@ class TAdapter:
 
         if self.running != 0:
             psCmd = f"ps -ef|grep -w {toBeKilled}| grep -v grep | awk '{{print $2}}'"
+            # psCmd = f"pgrep {toBeKilled}"
             processID = subprocess.check_output(
-                psCmd, shell=True).decode("utf-8")
+                psCmd, shell=True)
 
             while(processID):
-                killCmd = f"kill {signal} {processID} > /dev/null 2>&1"
+                killCmd = f"pkill {signal} {processID} > /dev/null 2>&1"
                 os.system(killCmd)
                 time.sleep(1)
                 processID = subprocess.check_output(
                     psCmd, shell=True).decode("utf-8")
             if not platform.system().lower() == 'windows':
-                for port in range(6030, 6041):
-                    fuserCmd = f"fuser -k -n tcp {port} > /dev/null"
-                    os.system(fuserCmd)
+                port = 6041
+                fuserCmd = f"fuser -k -n tcp {port} > /dev/null"
+                os.system(fuserCmd)
+                # for port in range(6030, 6041):
+                    # fuserCmd = f"fuser -k -n tcp {port} > /dev/null"
+                    # os.system(fuserCmd)
 
         self.running = 0
         tdLog.debug(f"taosadapter is stopped by kill {signal}")
