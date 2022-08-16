@@ -122,14 +122,14 @@ static void clientSentCb(uv_write_t* req, int32_t status) {
     terrno = TAOS_SYSTEM_ERROR(status);
     uError("failed to send data %s", uv_strerror(status));
   } else {
-    uError("succ to send data %s", uv_strerror(status));
+    uError("succ to send data");
   }
   uv_close((uv_handle_t*)req->handle, NULL);
 }
 static void clientConnCb(uv_connect_t* req, int32_t status) {
   if (status < 0) {
     terrno = TAOS_SYSTEM_ERROR(status);
-    uError("connection error %s", uv_strerror(status));
+    uError("conn error %s", uv_strerror(status));
     uv_close((uv_handle_t*)req->handle, NULL);
     taosMemoryFree(req);
     return;
