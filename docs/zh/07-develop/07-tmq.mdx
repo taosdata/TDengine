@@ -88,6 +88,25 @@ void close() throws SQLException;
 ```
 
 </TabItem>
+<TabItem label="Go" value="Go">
+
+```go
+func NewConsumer(conf *Config) (*Consumer, error)
+
+func (c *Consumer) Close() error
+
+func (c *Consumer) Commit(ctx context.Context, message unsafe.Pointer) error
+
+func (c *Consumer) FreeMessage(message unsafe.Pointer)
+
+func (c *Consumer) Poll(timeout time.Duration) (*Result, error)
+
+func (c *Consumer) Subscribe(topics []string) error
+
+func (c *Consumer) Unsubscribe() error
+```
+
+</TabItem>
 </Tabs>
 
 ## 写入数据
@@ -230,6 +249,56 @@ public class MetersDeserializer extends ReferenceDeserializer<Meters> {
 ```
 
 </TabItem>
+<TabItem label="Go" value="Go">
+
+```go
+config := tmq.NewConfig()
+defer config.Destroy()
+err = config.SetGroupID("test")
+if err != nil {
+  panic(err)
+}
+err = config.SetAutoOffsetReset("earliest")
+if err != nil {
+  panic(err)
+}
+err = config.SetConnectIP("127.0.0.1")
+if err != nil {
+  panic(err)
+}
+err = config.SetConnectUser("root")
+if err != nil {
+  panic(err)
+}
+err = config.SetConnectPass("taosdata")
+if err != nil {
+  panic(err)
+}
+err = config.SetConnectPort("6030")
+if err != nil {
+  panic(err)
+}
+err = config.SetMsgWithTableName(true)
+if err != nil {
+  panic(err)
+}
+err = config.EnableHeartBeat()
+if err != nil {
+  panic(err)
+}
+err = config.EnableAutoCommit(func(result *wrapper.TMQCommitCallbackResult) {
+  if result.ErrCode != 0 {
+    errStr := wrapper.TMQErr2Str(result.ErrCode)
+    err := errors.NewError(int(result.ErrCode), errStr)
+    panic(err)
+  }
+})
+if err != nil {
+  panic(err)
+}
+```
+
+</TabItem>
 </Tabs>
 
 上述配置中包括 consumer group ID，如果多个 consumer 指定的 consumer group ID 一样，则自动形成一个 consumer group，共享消费进度。
@@ -258,6 +327,20 @@ tmq_list_destroy(topicList);
 List<String> topics = new ArrayList<>();
 topics.add("tmq_topic");
 consumer.subscribe(topics);
+```
+
+</TabItem>
+<TabItem value="Go" label="Go">
+
+```go
+consumer, err := tmq.NewConsumer(config)
+if err != nil {
+ panic(err)
+}
+err = consumer.Subscribe([]string{"example_tmq_topic"})
+if err != nil {
+ panic(err)
+}
 ```
 
 </TabItem>
@@ -294,6 +377,21 @@ while(running){
 ```
 
 </TabItem>
+<TabItem value="Go" label="Go">
+
+```go
+for {
+ result, err := consumer.Poll(time.Second)
+ if err != nil {
+  panic(err)
+ }
+ fmt.Println(result)
+ consumer.Commit(context.Background(), result.Message)
+ consumer.FreeMessage(result.Message)
+}
+```
+
+</TabItem>
 </Tabs>
 
 ## 结束消费
@@ -320,6 +418,13 @@ consumer.unsubscribe();
 
 /* 关闭消费 */
 consumer.close();
+```
+
+</TabItem>
+<TabItem value="Go" label="Go">
+
+```go
+consumer.Close()
 ```
 
 </TabItem>
