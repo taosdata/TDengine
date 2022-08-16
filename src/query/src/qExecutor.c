@@ -1541,7 +1541,7 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   while (1) {
     int32_t prevEndPos = (forwardStep - 1) * step + startPos;
     startPos = getNextQualifiedWindow(pQueryAttr, &nextWin, &pSDataBlock->info, tsCols, binarySearchForKey, prevEndPos);
-    if (startPos < 0) {
+    if (startPos < 0 || startPos >= pSDataBlock->info.rows) {
       break;
     }
 
