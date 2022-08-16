@@ -89,7 +89,7 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 
 <TabItem label="Windows 安装" value="windows">
            
-<PkgListV3 type={1}/>
+<PkgListV3 type={3}/>
 
 1. 从 [发布历史页面](../../releases) 下载获得 exe 安装程序，例如 TDengine-server-3.0.0.0-Windows-x64.exe；
 2. 运行 TDengine-server-3.0.0.0-Windows-x64.exe 来安装 TDengine。
