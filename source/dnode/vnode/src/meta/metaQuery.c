@@ -63,7 +63,7 @@ int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
     return -1;
   }
 
-  version = *(int64_t *)pReader->pBuf;
+  version = ((SUidIdxVal *)pReader->pBuf)[0].version;
   return metaGetTableEntryByVersion(pReader, version, uid);
 }
 
@@ -160,7 +160,7 @@ int metaTbCursorNext(SMTbCursor *pTbCur) {
 
     tDecoderClear(&pTbCur->mr.coder);
 
-    metaGetTableEntryByVersion(&pTbCur->mr, *(int64_t *)pTbCur->pVal, *(tb_uid_t *)pTbCur->pKey);
+    metaGetTableEntryByVersion(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey);
     if (pTbCur->mr.me.type == TSDB_SUPER_TABLE) {
       continue;
     }
@@ -185,7 +185,7 @@ _query:
     goto _err;
   }
 
-  version = *(int64_t *)pData;
+  version = ((SUidIdxVal *)pData)[0].version;
 
   tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = uid, .version = version}, sizeof(STbDbKey), &pData, &nData);
   SMetaEntry me = {0};
@@ -887,4 +887,42 @@ END:
   taosMemoryFree(pCursor);
 
   return ret;
+}
+
+int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo) {
+  int32_t code = 0;
+  void   *pData = NULL;
+  int     nData = 0;
+
+  metaRLock(pMeta);
+
+  // search cache
+  if (metaCacheGet(pMeta, uid, pInfo) == 0) {
+    metaULock(pMeta);
+    goto _exit;
+  }
+
+  // search TDB
+  if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData) < 0) {
+    // not found
+    metaULock(pMeta);
+    code = TSDB_CODE_NOT_FOUND;
+    goto _exit;
+  }
+
+  metaULock(pMeta);
+
+  pInfo->uid = uid;
+  pInfo->suid = ((SUidIdxVal *)pData)->suid;
+  pInfo->version = ((SUidIdxVal *)pData)->version;
+  pInfo->skmVer = ((SUidIdxVal *)pData)->skmVer;
+
+  // upsert the cache
+  metaWLock(pMeta);
+  metaCacheUpsert(pMeta, pInfo);
+  metaULock(pMeta);
+
+_exit:
+  tdbFree(pData);
+  return code;
 }
