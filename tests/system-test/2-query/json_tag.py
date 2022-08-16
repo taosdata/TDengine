@@ -216,7 +216,7 @@ class TDTestCase:
 
         # test where with json tag
         tdSql.query("select * from jsons1_1 where jtag is not null")
-        tdSql.query("select * from jsons1 where jtag='{\"tag1\":11,\"tag2\":\"\"}'")
+        tdSql.error("select * from jsons1 where jtag='{\"tag1\":11,\"tag2\":\"\"}'")
         tdSql.error("select * from jsons1 where jtag->'tag1'={}")
 
         # test json error

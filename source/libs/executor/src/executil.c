@@ -433,8 +433,10 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
         tagVal.cid = pColInfo->info.colId;
         const char* p = metaGetTableTagVal(tag, pColInfo->info.type, &tagVal);
 
-        if (p == NULL){
+        if (p == NULL || (pColInfo->info.type == TSDB_DATA_TYPE_JSON && ((STag*)p)->nTag == 0)){
           colDataAppend(pColInfo, i, p, true);
+        } else if (pColInfo->info.type == TSDB_DATA_TYPE_JSON) {
+          colDataAppend(pColInfo, i, p, false);
         } else if (IS_VAR_DATA_TYPE(pColInfo->info.type)) {
           char *tmp = taosMemoryMalloc(tagVal.nData + VARSTR_HEADER_SIZE);
           varDataSetLen(tmp, tagVal.nData);
