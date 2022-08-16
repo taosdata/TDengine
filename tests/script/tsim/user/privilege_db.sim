@@ -8,7 +8,7 @@ sql create database d1 vgroups 1;
 sql create database d2 vgroups 1;
 sql create database d3 vgroups 1;
 sql select * from information_schema.ins_databases
-if $rows != 5 then 
+if $rows != 5 then
   return -1
 endi
 
@@ -16,11 +16,11 @@ print =============== create users
 sql create user user1 PASS 'user1'
 sql create user user2 PASS 'user2'
 sql select * from information_schema.ins_users
-if $rows != 3 then 
+if $rows != 3 then
   return -1
 endi
 
-print =============== test read 
+print =============== test read
 sql_error GRANT read ON d1.* to a;
 sql_error GRANT read ON d0.* to user1;
 
@@ -32,7 +32,7 @@ sql REVOKE read ON d1.* from user1;
 sql REVOKE read ON d2.* from user1;
 sql REVOKE read ON *.* from user1;
 
-print =============== test write 
+print =============== test write
 sql_error GRANT write ON d1.* to a;
 sql_error GRANT write ON d0.* to user1;
 
@@ -44,7 +44,7 @@ sql REVOKE write ON d1.* from user1;
 sql REVOKE write ON d2.* from user1;
 sql REVOKE write ON *.* from user1;
 
-print =============== test all 
+print =============== test all
 sql_error GRANT all ON d1.* to a;
 sql_error GRANT all ON d0.* to user1;
 
@@ -56,7 +56,7 @@ sql REVOKE all ON d1.* from user1;
 sql REVOKE all ON d2.* from user1;
 sql REVOKE all ON *.* from user1;
 
-print =============== test read write 
+print =============== test read write
 sql_error GRANT read,write ON d1.* to a;
 sql_error GRANT read,write ON d0.* to user1;
 
@@ -72,7 +72,7 @@ sql REVOKE read,write ON *.* from user1;
 print =============== create users
 sql create user u1 PASS 'taosdata'
 sql select * from information_schema.ins_users
-if $rows != 4 then 
+if $rows != 4 then
   return -1
 endi
 
