@@ -90,6 +90,7 @@ void close() throws SQLException;
 </TabItem>
 
 <TabItem value="Python" label="Python">
+
 ```python
 class TaosConsumer():
     def __init__(self, *topics, **configs)
@@ -107,9 +108,10 @@ class TaosConsumer():
     def close(self)
     
     def __del__(self)
-
 ```
+
 </TabItem>
+
 <TabItem label="Go" value="Go">
 
 ```go
@@ -152,7 +154,6 @@ void Unsubscribe()
 void Commit(ConsumeResult consumerResult)
 
 void Close()
-
 ```
 
 </TabItem>
@@ -590,6 +591,7 @@ consumer.Unsubscribe();
 
 // 关闭消费
 consumer.Close();
+```
 </TabItem>
 
 </Tabs>
