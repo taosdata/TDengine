@@ -2,11 +2,6 @@ use anyhow::Result;
 use futures::TryStreamExt;
 use taos::{AsyncFetchable, AsyncQueryable, Dsn, TBuilder, Taos, TaosBuilder};
 
-struct TableLike {
-    taos: Taos,
-    sql: String,
-}
-
 pub async fn query_to_csv(mut from: Dsn, to: Dsn) -> Result<()> {
     let sql = from.params.remove("query").unwrap();
     let taos = TaosBuilder::from_dsn(from)?.build()?;

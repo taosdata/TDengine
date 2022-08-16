@@ -208,7 +208,7 @@ pub async fn local_to_taos(from: Dsn, to: Dsn, jobs: usize, force: bool) -> Resu
 }
 
 #[tokio::test]
-async fn test_local_to_taos() -> anyhow::Result<()> {
+async fn test() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "debug");
     pretty_env_logger::init();
     let out = Path::new("local_to_taos_out");
@@ -243,5 +243,8 @@ async fn test_local_to_taos() -> anyhow::Result<()> {
     assert_eq!(count, 3, "restored");
 
     std::fs::remove_dir_all(out)?;
+
+    taos.exec_many(["DROP DATABASE local_to_taos"]).await?;
+
     Ok(())
 }
