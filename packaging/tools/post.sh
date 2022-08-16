@@ -118,6 +118,7 @@ function install_bin() {
     # Remove links
     ${csudo}rm -f ${bin_link_dir}/taos     || :
     ${csudo}rm -f ${bin_link_dir}/taosd    || :
+    ${csudo}rm -f ${bin_link_dir}/udfd     || :
     ${csudo}rm -f ${bin_link_dir}/taosadapter     || :
     ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
     ${csudo}rm -f ${bin_link_dir}/taosdemo || :
@@ -130,6 +131,7 @@ function install_bin() {
     #Make link
     [ -x ${bin_dir}/taos ] && ${csudo}ln -s ${bin_dir}/taos ${bin_link_dir}/taos             || :
     [ -x ${bin_dir}/taosd ] && ${csudo}ln -s ${bin_dir}/taosd ${bin_link_dir}/taosd          || :
+    [ -x ${bin_dir}/udfd ] && ${csudo}ln -s ${bin_dir}/udfd ${bin_link_dir}/udfd             || :
     [ -x ${bin_dir}/taosadapter ] && ${csudo}ln -s ${bin_dir}/taosadapter ${bin_link_dir}/taosadapter             || :
     [ -x ${bin_dir}/taosBenchmark ] && ${csudo}ln -sf ${bin_dir}/taosBenchmark ${bin_link_dir}/taosdemo || :
     [ -x ${bin_dir}/taosBenchmark ] && ${csudo}ln -sf ${bin_dir}/taosBenchmark ${bin_link_dir}/taosBenchmark || :
