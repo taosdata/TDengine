@@ -526,6 +526,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   cliReleaseUnfinishedMsg(conn);
   transQueueClear(&conn->cliMsgs);
   transCtxCleanup(&conn->ctx);
+  transClearBuffer(&conn->readBuf);
   conn->status = ConnInPool;
 
   if (conn->list == NULL) {
