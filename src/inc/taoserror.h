@@ -117,6 +117,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_TSC_RES_TOO_MANY              TAOS_DEF_ERROR_CODE(0, 0x0227)  //"Result set too large to be output")
 #define TSDB_CODE_TSC_INVALID_SCHEMA_VERSION    TAOS_DEF_ERROR_CODE(0, 0x0228)  //"invalid table schema version")
 #define TSDB_CODE_TSC_TOO_MANY_SML_LINES        TAOS_DEF_ERROR_CODE(0, 0x0229)  //"too many lines in batch")
+#define TSDB_CODE_TSC_SEND_DATA_FAILED          TAOS_DEF_ERROR_CODE(0, 0x0230)  //"Client send request data error"
 
 // mnode
 #define TSDB_CODE_MND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0300)  //"Message not processed"
