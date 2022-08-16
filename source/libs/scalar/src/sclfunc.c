@@ -642,7 +642,6 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     int32_t charLen = (type == TSDB_DATA_TYPE_VARCHAR) ? len : len / TSDB_NCHAR_SIZE;
     trimFn(input, output, type, charLen);
 
-    varDataSetLen(output, len);
     colDataAppend(pOutputData, i, output, false);
     output += varDataTLen(output);
   }

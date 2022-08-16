@@ -20,25 +20,25 @@ $x = 0
 while $x < 10
   $cc = $x * 60000
   $ms = 1601481600000 + $cc
-  
-  sql insert into $tb values ($ms , $x ) 
+
+  sql insert into $tb values ($ms , $x )
   $x = $x + 1
-endw 
+endw
 
 print =============== step 2
 $x = 0
 while $x < 5
   $cc = $x * 60000
   $ms = 1551481600000 + $cc
-  
-  sql insert into $tb values ($ms , $x ) 
+
+  sql insert into $tb values ($ms , $x )
   $x = $x + 1
-endw 
+endw
 
 sql select * from $tb
 
 print $rows points data are retrieved
-if $rows != 15 then 
+if $rows != 15 then
   return -1
 endi
 

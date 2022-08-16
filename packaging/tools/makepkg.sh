@@ -85,6 +85,7 @@ else
       ${build_dir}/bin/${clientName} \
       ${taostools_bin_files} \
       ${build_dir}/bin/taosadapter \
+      ${build_dir}/bin/udfd \
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
       ${script_dir}/startPre.sh \
@@ -318,7 +319,7 @@ if [ "$verMode" == "cluster" ]; then
 fi
 
 # Copy release note
-cp ${script_dir}/release_note ${install_dir}
+# cp ${script_dir}/release_note ${install_dir}
 
 # exit 1
 

@@ -273,7 +273,7 @@ endif(${BUILD_WITH_NURAFT})
 
 # pthread
 if(${BUILD_PTHREAD})
-    set(CMAKE_BUILD_TYPE release)
+    set(CMAKE_BUILD_TYPE debug)
     add_definitions(-DPTW32_STATIC_LIB)
     add_subdirectory(pthread EXCLUDE_FROM_ALL)
     set_target_properties(libpthreadVC3 PROPERTIES OUTPUT_NAME pthread)
