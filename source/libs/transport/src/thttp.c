@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #ifdef USE_UV
 #include <uv.h>
+#include "transComm.h"
 #endif
 // clang-format off
 #include "zlib.h"
@@ -117,49 +118,67 @@ _OVER:
 #ifdef USE_UV
 
 
+
+typedef struct SHttpClient {
+  uv_connect_t conn; 
+  uv_tcp_t   tcp;
+  uv_write_t req; 
+  uv_buf_t   *buf;
+  char     *addr;
+  uint16_t port;
+} SHttpClient;
+
+static void destroyHttpClient(SHttpClient *cli) {
+  taosMemoryFree(cli->buf);
+  taosMemoryFree(cli->addr);
+  taosMemoryFree(cli);
+} 
+static void clientCloseCb(uv_handle_t* handle) {
+  SHttpClient *cli = handle->data;
+  destroyHttpClient(cli);
+} 
 static void clientSentCb(uv_write_t* req, int32_t status) {
-  if (status < 0) {
+  SHttpClient *cli = req->data; 
+  if (status != 0) {
     terrno = TAOS_SYSTEM_ERROR(status);
     uError("http-report failed to send data %s", uv_strerror(status));
   } else {
     uInfo("http-report succ to send data");
   }
-  uv_close((uv_handle_t*)req->handle, NULL);
+  uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
+  
 }
 static void clientConnCb(uv_connect_t* req, int32_t status) {
-  if (status < 0) {
+  SHttpClient *cli = req->data;
+  if (status != 0) {
     terrno = TAOS_SYSTEM_ERROR(status);
-    uError("http-report conn error %s", uv_strerror(status));
-    uv_close((uv_handle_t*)req->handle, NULL);
-    taosMemoryFree(req);
+    uError("http-report failed to conn to server, reason:%s, dst:%s:%d", uv_strerror(status), cli->addr, cli->port);
+    uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
     return;
   }
-
-  uv_buf_t* wb = req->data;
-  uv_write_t write_req;
-  uv_write(&write_req, req->handle, wb, 2, clientSentCb);
-  taosMemoryFree(req);
+  uv_write(&cli->req, (uv_stream_t *)&cli->tcp, cli->buf, 2, clientSentCb);
 }
 
-int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32_t contLen, EHttpCompFlag flag) {
+
+static int32_t taosBuildDstAddr(const char  *server, uint16_t port, struct sockaddr_in *dest) {
   uint32_t ipv4 = taosGetIpv4FromFqdn(server);
   if (ipv4 == 0xffffffff) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("http-report failed to get http server:%s ip since %s", server, terrstr());
     return -1;
   }
-
   char ipv4Buf[128] = {0};
+
   tinet_ntoa(ipv4Buf, ipv4);
-
+  uv_ip4_addr(ipv4Buf, port, dest);
+  return 0;
+  
+} 
+int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32_t contLen, EHttpCompFlag flag) {
   struct sockaddr_in dest = {0};
-  uv_ip4_addr(ipv4Buf, port, &dest);
-
-  uv_tcp_t   socket_tcp = {0};
-  uv_loop_t* loop = uv_default_loop();
-  uv_tcp_init(loop, &socket_tcp);
-  uv_connect_t* connect = (uv_connect_t*)taosMemoryMalloc(sizeof(uv_connect_t));
-
+  if (taosBuildDstAddr(server, port, &dest) < 0) {
+    return -1;
+  }
   if (flag == HTTP_GZIP) {
     int32_t dstLen = taosCompressHttpRport(pCont, contLen);
     if (dstLen > 0) {
@@ -173,13 +192,32 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   char    header[1024] = {0};
   int32_t headLen = taosBuildHttpHeader(server, contLen, header, sizeof(header), flag);
 
-  uv_buf_t wb[2];
+  uv_buf_t *wb = taosMemoryCalloc(2, sizeof(uv_buf_t));
   wb[0] = uv_buf_init((char*)header, headLen); // stack var 
   wb[1] = uv_buf_init((char*)pCont, contLen); //  heap var 
 
-  connect->data = wb;
-  uv_tcp_connect(connect, &socket_tcp, (const struct sockaddr*)&dest, clientConnCb);
-  uv_run(loop, UV_RUN_DEFAULT);
+  SHttpClient *cli = taosMemoryCalloc(1, sizeof(SHttpClient)); 
+  cli->buf = wb;
+  cli->conn.data = cli; 
+  cli->tcp.data = cli;
+  cli->req.data = cli;
+  cli->addr = tstrdup(server);
+  cli->port = port;
+  
+  uv_loop_t* loop = uv_default_loop();
+  uv_tcp_init(loop, &cli->tcp);
+
+  // set up timeout to avoid stuck;
+  int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 2);
+  uv_tcp_open((uv_tcp_t*)&cli->tcp, fd);
+
+  int32_t ret =uv_tcp_connect(&cli->conn, &cli->tcp, (const struct sockaddr*)&dest, clientConnCb); 
+  if (ret != 0) {
+    uError("http-report failed to connect to server, reason:%s, dst:%s:%d", uv_strerror(ret), cli->addr, cli->port);
+    destroyHttpClient(cli);
+  } else {
+    uv_run(loop, UV_RUN_DEFAULT);
+  }
   uv_loop_close(loop);
   return terrno;
 }
