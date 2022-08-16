@@ -41,7 +41,7 @@ taosKeeper
 执行以下命令即可快速体验 taosKeeper。当不指定 taosKeeper 配置文件时，优先使用 `/etc/taos/keeper.toml` 配置，否则将使用默认配置。 
 
 ```shell
-$ taoskeeper -c <keeper config file>
+taoskeeper -c <keeper config file>
 ```
 
 **下面是配置文件的示例：**
@@ -92,12 +92,10 @@ taosKeeper 作为 TDengine 监控指标的导出工具，可以将 TDengine 产�
 #### 查看监控结果集
 
 ```shell
-$ taos;
-
-// 如上示例，使用 log 库作为监控日志存储位置
-$ use log;
-
-$ select * from cluster_info limit 1;
+$ taos
+# 
+> use log;
+> select * from cluster_info limit 1;
 ```
 
 结果示例：
@@ -112,7 +110,7 @@ Query OK, 1 rows in database (0.036162s)
 #### 导出监控指标
 
 ```shell
-$ curl http://127.0.0.1:6043/metrics
+curl http://127.0.0.1:6043/metrics
 ```
 
 部分结果集：
