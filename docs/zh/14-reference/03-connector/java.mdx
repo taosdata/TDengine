@@ -712,7 +712,7 @@ while(true) {
 }
 ```
 
-`poll` 每次调用获取一个消息。请按需选择合理的调用 `poll` 的频率（如例子中的 `Duration.ofMillis(100)`），否则会给服务端造成不必要的压力。
+`poll` 每次调用获取一个消息。
 
 #### 关闭订阅
 
@@ -765,11 +765,11 @@ public abstract class ConsumerLoop {
         shutdownLatch.await();
     }
 
-    static class ResultDeserializer extends ReferenceDeserializer<ResultBean> {
+    public static class ResultDeserializer extends ReferenceDeserializer<ResultBean> {
 
     }
 
-    static class ResultBean {
+    public static class ResultBean {
         private Timestamp ts;
         private int speed;
 

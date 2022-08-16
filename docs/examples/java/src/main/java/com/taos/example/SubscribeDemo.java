@@ -68,6 +68,7 @@ public class SubscribeDemo {
                         System.out.println(meter);
                     }
                 }
+                consumer.unsubscribe();
             }
         } catch (ClassNotFoundException | SQLException e) {
             e.printStackTrace();

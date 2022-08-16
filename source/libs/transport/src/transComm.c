@@ -77,7 +77,7 @@ void transFreeMsg(void* msg) {
   }
   taosMemoryFree((char*)msg - sizeof(STransMsgHead));
 }
-int transGetSockDebugInfo(struct sockaddr* sockname, char* dst) {
+int transSockInfo2Str(struct sockaddr* sockname, char* dst) {
   struct sockaddr_in addr = *(struct sockaddr_in*)sockname;
 
   char buf[20] = {0};

@@ -21,7 +21,7 @@ while $x < 10000
   $ms = $x . s
   sql insert into tb values (now + $ms , '1' )
   $x = $x + 1
-endw 
+endw
 
 sql select * from tb
 

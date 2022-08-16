@@ -293,7 +293,7 @@ int transSendResponse(const STransMsg* msg);
 int transRegisterMsg(const STransMsg* msg);
 int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
 
-int transGetSockDebugInfo(struct sockaddr* sockname, char* dst);
+int transSockInfo2Str(struct sockaddr* sockname, char* dst);
 
 int64_t transAllocHandle();
 

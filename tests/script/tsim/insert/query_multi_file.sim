@@ -15,18 +15,18 @@ step1:
 sql create database $db
 sql use $db
 
-sql create table $tb (ts timestamp, speed int) 
+sql create table $tb (ts timestamp, speed int)
 
 $N = 20000
 
 $x = 0
 
 while $x < $N
-  $ms = $x . s 
+  $ms = $x . s
   #print insert into $tb values (now + $ms , $x )
   sql insert into $tb values (now + $ms , $x ) -x error_insert
   $x = $x + 1
-endw 
+endw
 error_insert:
 
 sql select * from $tb
@@ -37,7 +37,7 @@ endi
 
 sql drop database $db
 sql select * from information_schema.ins_databases
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 

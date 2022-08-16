@@ -826,11 +826,11 @@ void cliConnCb(uv_connect_t* req, int status) {
 
   int addrlen = sizeof(peername);
   uv_tcp_getpeername((uv_tcp_t*)pConn->stream, &peername, &addrlen);
-  transGetSockDebugInfo(&peername, pConn->dst);
+  transSockInfo2Str(&peername, pConn->dst);
 
   addrlen = sizeof(sockname);
   uv_tcp_getsockname((uv_tcp_t*)pConn->stream, &sockname, &addrlen);
-  transGetSockDebugInfo(&sockname, pConn->src);
+  transSockInfo2Str(&sockname, pConn->src);
 
   tTrace("%s conn %p connect to server successfully", CONN_GET_INST_LABEL(pConn), pConn);
   assert(pConn->stream == req->handle);

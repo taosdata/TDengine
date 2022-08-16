@@ -698,7 +698,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       transUnrefSrvHandle(pConn);
       return;
     }
-    transGetSockDebugInfo(&peername, pConn->dst);
+    transSockInfo2Str(&peername, pConn->dst);
 
     addrlen = sizeof(sockname);
     if (0 != uv_tcp_getsockname(pConn->pTcp, (struct sockaddr*)&sockname, &addrlen)) {
@@ -706,7 +706,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       transUnrefSrvHandle(pConn);
       return;
     }
-    transGetSockDebugInfo(&sockname, pConn->src);
+    transSockInfo2Str(&sockname, pConn->src);
     struct sockaddr_in addr = *(struct sockaddr_in*)&sockname;
 
     pConn->clientIp = addr.sin_addr.s_addr;
