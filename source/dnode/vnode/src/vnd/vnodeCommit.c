@@ -268,9 +268,6 @@ int vnodeCommit(SVnode *pVnode) {
       return -1;
     }
   }
-  
-  vnodeBufPoolUnRef(pVnode->inUse);
-  pVnode->inUse = NULL;
 
   if (tqCommit(pVnode->pTq) < 0) {
     ASSERT(0);
