@@ -192,6 +192,24 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
   return true;
 }
 
+static int32_t countTrailingSpaces(const SValueNode* pVal, bool isLtrim) {
+  int32_t numOfSpaces = 0;
+  int32_t len = varDataLen(pVal->datum.p);
+  char*   str = varDataVal(pVal->datum.p);
+
+  int32_t startPos = isLtrim ? 0 : len - 1;
+  int32_t step = isLtrim ? 1 : -1;
+  for (int32_t i = startPos; i < len || i >= 0; i + step) {
+    if (!isspace(str[i])) {
+      break;
+    }
+    numOfSpaces++;
+  }
+
+  return numOfSpaces;
+
+}
+
 void static addTimezoneParam(SNodeList* pList) {
   char      buf[6] = {0};
   time_t    t = taosTime(NULL);
@@ -291,6 +309,37 @@ static int32_t translateInOutStr(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 
   pFunc->node.resType = (SDataType){.bytes = pPara1->resType.bytes, .type = pPara1->resType.type};
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateTrimStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isLtrim) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SExprNode* pPara1 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  if (!IS_VAR_DATA_TYPE(pPara1->resType.type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  int32_t numOfSpaces = 0;
+  SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 0);
+  if (nodeType(pParamNode1) != QUERY_NODE_VALUE) {
+    SValueNode* pValue = (SValueNode*)pParamNode1;
+    numOfSpaces = countTrailingSpaces(pValue, isLtrim);
+  }
+
+
+  int32_t resBytes = pPara1->resType.bytes - numOfSpaces;
+  pFunc->node.resType = (SDataType){.bytes = resBytes, .type = pPara1->resType.type};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateLtrim(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateTrimStr(pFunc, pErrBuf, len, true);
+}
+
+static int32_t translateRtrim(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateTrimStr(pFunc, pErrBuf, len, false);
 }
 
 static int32_t translateLogarithm(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
