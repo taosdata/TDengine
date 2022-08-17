@@ -155,13 +155,16 @@ int     tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
 int     tqCommit(STQ*);
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
 int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId);
-int32_t tqProcessCheckAlterInfoReq(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen, int64_t ver);
+// tq-mq
+int32_t tqProcessAddCheckInfoReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessDelCheckInfoReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessVgChangeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessVgDeleteReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen);
+// tq-stream
+int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessTaskDropReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* data, int64_t ver);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec);
