@@ -1672,8 +1672,8 @@ void vectorBitOr(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, 
       colDataAppendInt8(pOut->columnData, i, (int8_t*)&result);\
     }else{\
       bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);\
-      colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);                                      \
-    }                                          \
+      colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);\
+    }\
     if(freeLeft) taosMemoryFreeClear(pLeftData);\
     if(freeRight) taosMemoryFreeClear(pRightData);\
   }

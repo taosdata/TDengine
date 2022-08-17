@@ -292,6 +292,9 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       }
 
       SColumnInfoData *columnData = (SColumnInfoData *)taosArrayGet(block->pDataBlock, ref->slotId);
+#if TAG_FILTER_DEBUG
+      qDebug("tagfilter column info, slotId:%d, colId:%d, type:%d", ref->slotId, columnData->info.colId, columnData->info.type);
+#endif
       param->numOfRows = block->info.rows;
       param->columnData = columnData;
       break;

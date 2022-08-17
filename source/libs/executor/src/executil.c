@@ -334,7 +334,13 @@ static EDealRes getColumn(SNode** pNode, void* pContext) {
     taosHashPut(pData->colHash, &pSColumnNode->colId, sizeof(pSColumnNode->colId), pNode, sizeof((*pNode)));
     pSColumnNode->slotId = pData->index++;
     SColumnInfo cInfo = {.colId = pSColumnNode->colId, .type = pSColumnNode->node.resType.type, .bytes = pSColumnNode->node.resType.bytes};
+#if TAG_FILTER_DEBUG
+    qDebug("tagfilter build column info, slotId:%d, colId:%d, type:%d", pSColumnNode->slotId, cInfo.colId, cInfo.type);
+#endif
     taosArrayPush(pData->cInfoList, &cInfo);
+  }else{
+    SColumnNode* col = *(SColumnNode**)data;
+    pSColumnNode->slotId = col->slotId;
   }
 
   return DEAL_RES_CONTINUE;
@@ -431,7 +437,9 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
         char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
         metaGetTableNameByUid(metaHandle, *uid, str);
         colDataAppend(pColInfo, i, str, false);
+#if TAG_FILTER_DEBUG
         qDebug("tagfilter uid:%ld, tbname:%s", *uid, str+2);
+#endif
       }else{
         STagVal tagVal = {0};
         tagVal.cid = pColInfo->info.colId;
@@ -442,13 +450,23 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
         } else if (pColInfo->info.type == TSDB_DATA_TYPE_JSON) {
           colDataAppend(pColInfo, i, p, false);
         } else if (IS_VAR_DATA_TYPE(pColInfo->info.type)) {
-          char *tmp = taosMemoryMalloc(tagVal.nData + VARSTR_HEADER_SIZE);
+          char *tmp = taosMemoryCalloc(tagVal.nData + VARSTR_HEADER_SIZE + 1, 1);
           varDataSetLen(tmp, tagVal.nData);
           memcpy(tmp + VARSTR_HEADER_SIZE, tagVal.pData, tagVal.nData);
           colDataAppend(pColInfo, i, tmp, false);
+#if TAG_FILTER_DEBUG
+          qDebug("tagfilter varch:%s", tmp+2);
+#endif
           taosMemoryFree(tmp);
         } else {
           colDataAppend(pColInfo, i, (const char*)&tagVal.i64, false);
+#if TAG_FILTER_DEBUG
+          if(pColInfo->info.type == TSDB_DATA_TYPE_INT){
+            qDebug("tagfilter int:%d", *(int*)(&tagVal.i64));
+          }else if(pColInfo->info.type == TSDB_DATA_TYPE_DOUBLE){
+            qDebug("tagfilter double:%f", *(double *)(&tagVal.i64));
+          }
+#endif
         }
       }
     }
