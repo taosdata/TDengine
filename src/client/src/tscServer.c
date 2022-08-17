@@ -460,7 +460,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   }
 
 
-  if(rpcSendRequest(pObj->pRpcObj->pDnodeConn, &pSql->epSet, &rpcMsg, &pSql->rpcRid)) {
+  if(rpcSendRequest(pObj->pRpcObj->pDnodeConn, &pSql->epSet, &rpcMsg, &pSql->rpcRid) != BOOL_FALSE) {
     if(pSql->cmd.command == TSDB_SQL_SELECT)
       rpcSaveSendInfo(pSql->rpcRid, &pSql->pPrevContext);
     return TSDB_CODE_SUCCESS;

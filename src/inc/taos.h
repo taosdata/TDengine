@@ -49,6 +49,12 @@ typedef void **TAOS_ROW;
 #define TSDB_DATA_TYPE_JSON       15    // json string
 
 typedef enum {
+  BOOL_FALSE = 0,
+  BOOL_TRUE  = 1,
+  BOOL_ASYNC = 2  //request is processed by async for another thread, not now true or false
+} TBOOL;
+
+typedef enum {
   TSDB_OPTION_LOCALE,
   TSDB_OPTION_CHARSET,
   TSDB_OPTION_TIMEZONE,
