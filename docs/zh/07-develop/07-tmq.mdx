@@ -1116,22 +1116,7 @@ int main(int argc, char* argv[]) {
 </TabItem>
 
 <TabItem label="Python" value="Python">
-
-```python
-import taos
-from taos.tmq import TaosConsumer
-
-import taos
-from taos.tmq import *
-consumer = TaosConsumer('topic_ctb_column', group_id='vg2')
-for msg in consumer:
-    for row in msg:
-        print(row)
-
-```
-
-[查看源码](https://github.com/taosdata/TDengine/blob/develop/docs/examples/python/tmq_example.py)
-
+    <Python />
 </TabItem>
 
 <TabItem label="Node.JS" value="Node.JS">
