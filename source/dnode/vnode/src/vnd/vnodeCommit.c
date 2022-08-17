@@ -222,6 +222,13 @@ int vnodeCommit(SVnode *pVnode) {
 
   pVnode->state.commitTerm = pVnode->state.applyTerm;
 
+  // preCommit
+  // smaSyncPreCommit(pVnode->pSma);
+  smaAsyncPreCommit(pVnode->pSma);
+
+  vnodeBufPoolUnRef(pVnode->inUse);
+  pVnode->inUse = NULL;
+
   // save info
   info.config = pVnode->config;
   info.state.committed = pVnode->state.applied;
@@ -234,10 +241,6 @@ int vnodeCommit(SVnode *pVnode) {
   }
   walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
 
-  // preCommit
-  // smaSyncPreCommit(pVnode->pSma);
-  smaAsyncPreCommit(pVnode->pSma);
-
   // commit each sub-system
   if (metaCommit(pVnode->pMeta) < 0) {
     ASSERT(0);
@@ -245,7 +248,7 @@ int vnodeCommit(SVnode *pVnode) {
   }
 
   if (VND_IS_RSMA(pVnode)) {
-    smaAsyncCommit(pVnode->pSma);  // would write L2/L3 data into BufPool
+    smaAsyncCommit(pVnode->pSma);
 
     if (tsdbCommit(VND_RSMA0(pVnode)) < 0) {
       ASSERT(0);
