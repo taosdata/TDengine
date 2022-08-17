@@ -104,29 +104,21 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitMsgIter *pMsgI
   STbData   *pTbData = NULL;
   tb_uid_t   suid = pMsgIter->suid;
   tb_uid_t   uid = pMsgIter->uid;
-  int32_t    sverNew;
 
-  // check if table exists (todo: refact)
-  SMetaReader mr = {0};
-  // SMetaEntry  me = {0};
-  metaReaderInit(&mr, pTsdb->pVnode->pMeta, 0);
-  if (metaGetTableEntryByUid(&mr, pMsgIter->uid) < 0) {
-    metaReaderClear(&mr);
-    code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  SMetaInfo info;
+  code = metaGetInfo(pTsdb->pVnode->pMeta, uid, &info);
+  if (code) {
+    code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
     goto _err;
   }
-  if (pRsp->tblFName) strcat(pRsp->tblFName, mr.me.name);
-
-  if (mr.me.type == TSDB_NORMAL_TABLE) {
-    sverNew = mr.me.ntbEntry.schemaRow.version;
-  } else {
-    tDecoderClear(&mr.coder);
-
-    metaGetTableEntryByUid(&mr, mr.me.ctbEntry.suid);
-    sverNew = mr.me.stbEntry.schemaRow.version;
+  if (info.suid != suid) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _err;
   }
-  metaReaderClear(&mr);
-  pRsp->sver = sverNew;
+  if (info.suid) {
+    metaGetInfo(pTsdb->pVnode->pMeta, info.suid, &info);
+  }
+  pRsp->sver = info.skmVer;
 
   // create/get STbData to op
   code = tsdbGetOrCreateTbData(pMemTable, suid, uid, &pTbData);
@@ -153,7 +145,17 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   SVBufPool *pPool = pTsdb->pVnode->inUse;
   TSDBKEY    lastKey = {.version = version, .ts = eKey};
 
-  // check if table exists (todo)
+  // check if table exists
+  SMetaInfo info;
+  code = metaGetInfo(pTsdb->pVnode->pMeta, uid, &info);
+  if (code) {
+    code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
+    goto _err;
+  }
+  if (info.suid != suid) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _err;
+  }
 
   code = tsdbGetOrCreateTbData(pMemTable, suid, uid, &pTbData);
   if (code) {
