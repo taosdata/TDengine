@@ -123,6 +123,7 @@ int32_t tGetBlockL(uint8_t *p, void *ph);
 int32_t tPutBlockIdx(uint8_t *p, void *ph);
 int32_t tGetBlockIdx(uint8_t *p, void *ph);
 int32_t tCmprBlockIdx(void const *lhs, void const *rhs);
+int32_t tCmprBlockL(void const *lhs, void const *rhs);
 // SColdata
 void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn);
 void    tColDataReset(SColData *pColData);
@@ -342,9 +343,6 @@ struct STbData {
   tb_uid_t     uid;
   TSKEY        minKey;
   TSKEY        maxKey;
-  int64_t      minVersion;
-  int64_t      maxVersion;
-  int32_t      maxSkmVer;
   SDelData    *pHead;
   SDelData    *pTail;
   SMemSkipList sl;
@@ -358,8 +356,6 @@ struct SMemTable {
   volatile int32_t nRef;
   TSKEY            minKey;
   TSKEY            maxKey;
-  int64_t          minVersion;
-  int64_t          maxVersion;
   int64_t          nRow;
   int64_t          nDel;
   struct {

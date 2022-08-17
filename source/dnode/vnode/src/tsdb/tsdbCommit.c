@@ -290,23 +290,19 @@ _err:
   return code;
 }
 
-static int32_t tsdbCommitterUpdateTableSchema(SCommitter *pCommitter, int64_t suid, int64_t uid, int32_t sver) {
+static int32_t tsdbCommitterUpdateTableSchema(SCommitter *pCommitter, int64_t suid, int64_t uid) {
   int32_t code = 0;
 
-  if (pCommitter->skmTable.pTSchema) {
-    if (pCommitter->skmTable.suid == suid) {
-      if (suid == 0) {
-        if (pCommitter->skmTable.uid == uid && sver == pCommitter->skmTable.pTSchema->version) goto _exit;
-      } else {
-        if (sver == pCommitter->skmTable.pTSchema->version) goto _exit;
-      }
-    }
+  if (suid) {
+    if (pCommitter->skmTable.suid == suid) goto _exit;
+  } else {
+    if (pCommitter->skmTable.uid == uid) goto _exit;
   }
 
   pCommitter->skmTable.suid = suid;
   pCommitter->skmTable.uid = uid;
   tTSchemaDestroy(pCommitter->skmTable.pTSchema);
-  code = metaGetTbTSchemaEx(pCommitter->pTsdb->pVnode->pMeta, suid, uid, sver, &pCommitter->skmTable.pTSchema);
+  code = metaGetTbTSchemaEx(pCommitter->pTsdb->pVnode->pMeta, suid, uid, -1, &pCommitter->skmTable.pTSchema);
   if (code) goto _exit;
 
 _exit:
@@ -360,7 +356,7 @@ static int32_t tsdbCommitterNextLastRow(SCommitter *pCommitter) {
       int64_t  suid = pBlockL->suid;
       int64_t  uid = pBlockL->maxUid;
 
-      code = tsdbCommitterUpdateTableSchema(pCommitter, suid, uid, 1 /*TODO*/);
+      code = tsdbCommitterUpdateTableSchema(pCommitter, suid, uid);
       if (code) goto _exit;
 
       code = tBlockDataInit(pBlockDatal, suid, suid ? 0 : uid, pCommitter->skmTable.pTSchema);
@@ -978,7 +974,7 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData) {
     pBlock = NULL;
   }
 
-  code = tsdbCommitterUpdateTableSchema(pCommitter, pTbData->suid, pTbData->uid, pTbData->maxSkmVer /*TODO*/);
+  code = tsdbCommitterUpdateTableSchema(pCommitter, pTbData->suid, pTbData->uid);
   if (code) goto _err;
 
   tMapDataReset(&pCommitter->dWriter.mBlock);
@@ -1160,7 +1156,7 @@ static int32_t tsdbMoveCommitData(SCommitter *pCommitter, TABLEID toTable) {
 
     // set block data schema if need
     if (pBlockDataW->suid == 0 && pBlockDataW->uid == 0) {
-      code = tsdbCommitterUpdateTableSchema(pCommitter, suid, uid, 1 /*TOOD*/);
+      code = tsdbCommitterUpdateTableSchema(pCommitter, suid, uid);
       if (code) goto _err;
 
       code = tBlockDataInit(pBlockDataW, suid, suid ? 0 : uid, pCommitter->skmTable.pTSchema);
