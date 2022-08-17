@@ -1672,8 +1672,9 @@ void vectorBitOr(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, 
       colDataAppendInt8(pOut->columnData, i, (int8_t*)&result);\
     }else{\
       bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);\
-      colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);\
-    }\
+      colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);                                      \
+      if(GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_BIGINT){qDebug("tagfilter left:%d, right:%d, res:%d", *(int64_t*)(pLeftData), *(int64_t*)(pRightData), res);}    \
+    }                                          \
     if(freeLeft) taosMemoryFreeClear(pLeftData);\
     if(freeRight) taosMemoryFreeClear(pRightData);\
   }

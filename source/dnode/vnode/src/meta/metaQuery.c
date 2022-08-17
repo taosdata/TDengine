@@ -965,10 +965,11 @@ END:
 int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SArray *tags) {
   SMCtbCursor *pCur = metaOpenCtbCursor(pMeta, suid);
 
-  SHashObj *uHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-  size_t    len = taosArrayGetSize(uidList);
-  if (len > 0) {
-    for (int i = 0; i < len; i++) {
+  SHashObj *uHash = NULL;
+  size_t len = taosArrayGetSize(uidList);   // len > 0 means there already have uids
+  if(len > 0){
+    uHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    for(int i = 0; i < len; i++){
       int64_t *uid = taosArrayGet(uidList, i);
       taosHashPut(uHash, uid, sizeof(int64_t), &i, sizeof(i));
     }
@@ -985,12 +986,21 @@ int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SArray *t
 
     void *tag = taosMemoryMalloc(pCur->vLen);
     memcpy(tag, pCur->pVal, pCur->vLen);
-    taosArrayPush(tags, &tag);
 
     if (len == 0) {
       taosArrayPush(uidList, &id);
+      taosArrayPush(tags, &tag);
+    }else{
+      taosHashPut(uHash, &id, sizeof(int64_t), &tag, POINTER_BYTES);
     }
   }
+
+  for(int i = 0; i < len; i++){
+    int64_t *uid = taosArrayGet(uidList, i);
+    void **tag = taosHashGet(uHash, uid, POINTER_BYTES);
+    taosArrayPush(tags, tag);
+  }
+
 
   taosHashCleanup(uHash);
   metaCloseCtbCursor(pCur);

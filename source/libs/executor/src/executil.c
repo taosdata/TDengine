@@ -321,6 +321,8 @@ static EDealRes getColumn(SNode** pNode, void* pContext) {
       pSColumnNode->node.resType.bytes = TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE;
       nodesDestroyNode(*pNode);
       *pNode = (SNode*)pSColumnNode;
+    }else{
+      return DEAL_RES_CONTINUE;
     }
   }else{
     return DEAL_RES_CONTINUE;
@@ -423,11 +425,16 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
     int64_t* uid = taosArrayGet(uidList, i);
     for(int32_t j = 0; j < taosArrayGetSize(pResBlock->pDataBlock); j++){
       SColumnInfoData* pColInfo = (SColumnInfoData*)taosArrayGet(pResBlock->pDataBlock, j);
+
+      char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      metaGetTableNameByUid(metaHandle, *uid, str);
+      colDataAppend(pColInfo, i, str, false);
+
       if(pColInfo->info.colId == -1){     // tbname
-        char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-        metaGetTableNameByUid(metaHandle, *uid, str);
-        colDataAppend(pColInfo, i, str, false);
-        qDebug("tbnameget uid:%ld, tbname:%s", *uid, str+2);
+//        char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+//        metaGetTableNameByUid(metaHandle, *uid, str);
+//        colDataAppend(pColInfo, i, str, false);
+//        qDebug("tagfilter uid:%ld, tbname:%s", *uid, str+2);
       }else{
         STagVal tagVal = {0};
         tagVal.cid = pColInfo->info.colId;
@@ -445,6 +452,16 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
           taosMemoryFree(tmp);
         } else {
           colDataAppend(pColInfo, i, (const char*)&tagVal.i64, false);
+
+          if(pColInfo->info.type == TSDB_DATA_TYPE_TINYINT){
+            int8_t tint = *(int8_t*)(&tagVal.i64);
+            qDebug("tagfilter uid:%ld, tbname:%s, tint:%d", *uid, str+2, tint);
+
+          }else if(pColInfo->info.type == TSDB_DATA_TYPE_INT){
+            int nint = *(int*)(&tagVal.i64);
+            qDebug("tagfilter uid:%ld, tbname:%s nint:+%d", *uid, str+2, nint);
+
+          }
         }
       }
     }
@@ -529,7 +546,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       void* var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
 
       int64_t* uid = taosArrayGet(res, i);
-      qDebug("tbnameget get uid:%ld, res:%d", *uid, *(bool*)var);
+      qDebug("tagfilter get uid:%ld, res:%d", *uid, *(bool*)var);
       if (*(bool*)var == false) {
         taosArrayRemove(res, i);
         j++;
@@ -545,7 +562,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   for (int i = 0; i < taosArrayGetSize(res); i++) {
     STableKeyInfo info = {.uid = *(uint64_t*)taosArrayGet(res, i), .groupId = 0};
     taosArrayPush(pListInfo->pTableList, &info);
-    qDebug("tbnameget get uid:%ld", info.uid);
+    qDebug("tagfilter get uid:%ld", info.uid);
   }
 
   taosArrayDestroy(res);
