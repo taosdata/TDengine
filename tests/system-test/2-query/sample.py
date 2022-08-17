@@ -860,9 +860,15 @@ class TDTestCase:
         tdSql.checkRows(1000)
 
         # bug need fix
+<<<<<<< HEAD
         tdSql.query(f"select c1 ,t1, sample(c1,2) from db.stb1 partition by c1 ")
         tdSql.query(f"select sample(c1,2) from db.stb1 partition by c1 ")
         # tdSql.query(f"select c1 ,ind, sample(c1,2) from {dbname}.sample_db.st partition by c1 ")
+=======
+        tdSql.query("select c1 ,t1, sample(c1,2) from db.stb1 partition by c1 ")
+        tdSql.query("select sample(c1,2) from db.stb1 partition by c1 ")
+        tdSql.query("select c1 ,ind, sample(c1,2) from sample_db.st partition by c1 ")
+>>>>>>> 3.0
 
     def run(self):
         import traceback

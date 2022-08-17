@@ -113,7 +113,7 @@ python3 ./test.py -f 2-query/hyperloglog.py -R
 python3 ./test.py -f 2-query/interp.py
 python3 ./test.py -f 2-query/interp.py -R
 python3 ./test.py -f 2-query/irate.py
-# python3 ./test.py -f 2-query/irate.py -R
+python3 ./test.py -f 2-query/irate.py -R
 python3 ./test.py -f 2-query/join.py
 python3 ./test.py -f 2-query/join.py -R
 python3 ./test.py -f 2-query/last_row.py
@@ -183,7 +183,12 @@ python3 ./test.py -f 2-query/tan.py
 
 python3 ./test.py -f 2-query/elapsed.py
 python3 ./test.py -f 2-query/csum.py
+<<<<<<< HEAD
 #python3 ./test.py -f 2-query/mavg.py
+=======
+python3 ./test.py -f 2-query/mavg.py
+python3 ./test.py -f 2-query/sample.py
+>>>>>>> 3.0
 python3 ./test.py -f 2-query/function_diff.py
 python3 ./test.py -f 2-query/unique.py
 python3 ./test.py -f 2-query/stateduration.py
@@ -370,7 +375,7 @@ python3 ./test.py -f 2-query/interp.py  -Q 2
 python3 ./test.py -f 2-query/avg.py   -Q 2
 # python3 ./test.py -f 2-query/elapsed.py  -Q 2
 python3 ./test.py -f 2-query/csum.py  -Q 2
-#python3 ./test.py -f 2-query/mavg.py  -Q 2
+python3 ./test.py -f 2-query/mavg.py  -Q 2
 python3 ./test.py -f 2-query/sample.py  -Q 2
 python3 ./test.py -f 2-query/function_diff.py  -Q 2
 python3 ./test.py -f 2-query/unique.py  -Q 2
@@ -457,7 +462,7 @@ python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q  3
 # python3 ./test.py -f 2-query/avg.py -Q  3
 # python3 ./test.py -f 2-query/elapsed.py -Q  3
 python3 ./test.py -f 2-query/csum.py -Q  3
-#python3 ./test.py -f 2-query/mavg.py -Q  3
+python3 ./test.py -f 2-query/mavg.py -Q  3
 python3 ./test.py -f 2-query/sample.py -Q  3
 python3 ./test.py -f 2-query/function_diff.py -Q  3
 python3 ./test.py -f 2-query/unique.py -Q  3

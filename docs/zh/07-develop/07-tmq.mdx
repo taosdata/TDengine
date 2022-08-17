@@ -90,6 +90,7 @@ void close() throws SQLException;
 </TabItem>
 
 <TabItem value="Python" label="Python">
+
 ```python
 class TaosConsumer():
     def __init__(self, *topics, **configs)
@@ -108,7 +109,9 @@ class TaosConsumer():
     
     def __del__(self)
 ```
+
 </TabItem>
+
 <TabItem label="Go" value="Go">
 
 ```go
@@ -126,11 +129,64 @@ func (c *Consumer) Subscribe(topics []string) error
 
 func (c *Consumer) Unsubscribe() error
 ```
+
+</TabItem>
+
+<TabItem label="Rust" value="Rust">
+
+```rust
+impl TBuilder for TmqBuilder
+  fn from_dsn<D: IntoDsn>(dsn: D) -> Result<Self, Self::Error>
+  fn build(&self) -> Result<Self::Target, Self::Error>
+
+impl AsAsyncConsumer for Consumer
+  async fn subscribe<T: Into<String>, I: IntoIterator<Item = T> + Send>(
+        &mut self,
+        topics: I,
+    ) -> Result<(), Self::Error>;
+  fn stream(
+        &self,
+    ) -> Pin<
+        Box<
+            dyn '_
+                + Send
+                + futures::Stream<
+                    Item = Result<(Self::Offset, MessageSet<Self::Meta, Self::Data>), Self::Error>,
+                >,
+        >,
+    >;
+  async fn commit(&self, offset: Self::Offset) -> Result<(), Self::Error>;
+
+  async fn unsubscribe(self);
+```
+
+可在 <https://docs.rs/taos> 上查看详细 API 说明。
+
+</TabItem>
+
+<TabItem label="Node.JS" value="Node.JS">
+
+```js
+function TMQConsumer(config)
+
+function subscribe(topic)
+
+function consume(timeout)
+
+function subscription()
+
+function unsubscribe()
+
+function commit(msg)
+
+function close()
+```
+
 </TabItem>
 
 <TabItem value="C#" label="C#">
 
-```C#
+```csharp
 ConsumerBuilder(IEnumerable<KeyValuePair<string, string>> config)
 
 virtual IConsumer Build()
@@ -150,10 +206,9 @@ void Unsubscribe()
 void Commit(ConsumeResult consumerResult)
 
 void Close()
-
 ```
-</TabItem>
 
+</TabItem>
 </Tabs>
 
 ## 写入数据
@@ -297,28 +352,6 @@ public class MetersDeserializer extends ReferenceDeserializer<Meters> {
 
 </TabItem>
 
-<TabItem value="Python" label="Python">
-
-Python 使用以下配置项创建一个 Consumer 实例。
-
-|            参数名称            |  类型   | 参数说明                                                 | 备注                                        |
-| :----------------------------: | :-----: | -------------------------------------------------------- | ------------------------------------------- |
-|        `td_connect_ip`         | string  | 用于创建连接，同 `taos_connect`                          |                                             |
-|       `td_connect_user`        | string  | 用于创建连接，同 `taos_connect`                          |                                             |
-|       `td_connect_pass`        | string  | 用于创建连接，同 `taos_connect`                          |                                             |
-|       `td_connect_port`        | string  | 用于创建连接，同 `taos_connect`                          |                                             |
-|           `group_id`           | string  | 消费组 ID，同一消费组共享消费进度                        | **必填项**。最大长度：192。                 |
-|          `client_id`           | string  | 客户端 ID                                                | 最大长度：192。                             |
-|      `auto_offset_reset`       | string  | 消费组订阅的初始位置                                     | 可选：`earliest`, `latest`, `none`(default) |
-|      `enable_auto_commit`      | string  | 启用自动提交                                             | 合法值：`true`, `false`。                   |
-|   `auto_commit_interval_ms`    | string  | 以毫秒为单位的自动提交时间间隔                           |                                             |
-| `enable_heartbeat_background`  | string  | 启用后台心跳，启用后即使长时间不 poll 消息也不会造成离线 | 合法值：`true`, `false`                     |
-| `experimental_snapshot_enable` | string  | 从 WAL 开始消费，还是从 TSBS 开始消费                    | 合法值：`true`, `false`                     |
-|     `msg_with_table_name`      | string  | 是否允许从消息中解析表名                                 | 合法值：`true`, `false`                     |
-|      `timeout`                 | int     | 消费者拉去的超时时间                                    |                                            |
-
-</TabItem>
-
 <TabItem label="Go" value="Go">
 
 ```go
@@ -370,9 +403,67 @@ if err != nil {
 
 </TabItem>
 
+<TabItem label="Rust" value="Rust">
+
+```rust
+let mut dsn: Dsn = "taos://".parse()?;
+dsn.set("group.id", "group1");
+dsn.set("client.id", "test");
+dsn.set("auto.offset.reset", "earliest");
+
+let tmq = TmqBuilder::from_dsn(dsn)?;
+
+let mut consumer = tmq.build()?;
+```
+
+</TabItem>
+
+<TabItem value="Python" label="Python">
+
+Python 使用以下配置项创建一个 Consumer 实例。
+
+|            参数名称            |  类型  | 参数说明                                                 | 备注                                        |
+| :----------------------------: | :----: | -------------------------------------------------------- | ------------------------------------------- |
+|        `td_connect_ip`         | string | 用于创建连接，同 `taos_connect`                          |                                             |
+|       `td_connect_user`        | string | 用于创建连接，同 `taos_connect`                          |                                             |
+|       `td_connect_pass`        | string | 用于创建连接，同 `taos_connect`                          |                                             |
+|       `td_connect_port`        | string | 用于创建连接，同 `taos_connect`                          |                                             |
+|           `group_id`           | string | 消费组 ID，同一消费组共享消费进度                        | **必填项**。最大长度：192。                 |
+|          `client_id`           | string | 客户端 ID                                                | 最大长度：192。                             |
+|      `auto_offset_reset`       | string | 消费组订阅的初始位置                                     | 可选：`earliest`, `latest`, `none`(default) |
+|      `enable_auto_commit`      | string | 启用自动提交                                             | 合法值：`true`, `false`。                   |
+|   `auto_commit_interval_ms`    | string | 以毫秒为单位的自动提交时间间隔                           |                                             |
+| `enable_heartbeat_background`  | string | 启用后台心跳，启用后即使长时间不 poll 消息也不会造成离线 | 合法值：`true`, `false`                     |
+| `experimental_snapshot_enable` | string | 从 WAL 开始消费，还是从 TSBS 开始消费                    | 合法值：`true`, `false`                     |
+|     `msg_with_table_name`      | string | 是否允许从消息中解析表名                                 | 合法值：`true`, `false`                     |
+|           `timeout`            |  int   | 消费者拉去的超时时间                                     |                                             |
+
+</TabItem>
+
+<TabItem label="Node.JS" value="Node.JS">
+
+```js
+// 根据需要，设置消费组 (group.id)、自动提交 (enable.auto.commit)、
+// 自动提交时间间隔 (auto.commit.interval.ms)、用户名 (td.connect.user)、密码 (td.connect.pass) 等参数 
+
+let consumer = taos.consumer({
+  'enable.auto.commit': 'true',
+  'auto.commit.interval.ms','1000',
+  'group.id': 'tg2',
+  'td.connect.user': 'root',
+  'td.connect.pass': 'taosdata',
+  'auto.offset.reset','earliest',
+  'msg.with.table.name': 'true',
+  'td.connect.ip','127.0.0.1',
+  'td.connect.port','6030'  
+  });
+```
+
+</TabItem>
+
 <TabItem value="C#" label="C#">
 
-```C#
+```csharp
 using TDengineTMQ;
 
 // 根据需要，设置消费组 (GourpId)、自动提交 (EnableAutoCommit)、
@@ -393,6 +484,7 @@ var cfg = new ConsumerConfig
 var consumer = new ConsumerBuilder(cfg).Build();
 
 ```
+
 </TabItem>
 
 </Tabs>
@@ -440,11 +532,37 @@ if err != nil {
 ```
 
 </TabItem>
+<TabItem value="Rust" label="Rust">
 
+```rust
+consumer.subscribe(["tmq_meters"]).await?;
+```
+
+</TabItem>
+
+<TabItem value="Python" label="Python">
+
+```python
+consumer = TaosConsumer('topic_ctb_column', group_id='vg2')
+```
+
+</TabItem>
+
+<TabItem label="Node.JS" value="Node.JS">
+
+```js
+// 创建订阅 topics 列表
+let topics = ['topic_test']
+
+// 启动订阅
+consumer.subscribe(topics);
+```
+
+</TabItem>
 
 <TabItem value="C#" label="C#">
 
-```C#
+```csharp
 // 创建订阅 topics 列表
 List<String> topics = new List<string>();
 topics.add("tmq_topic");
@@ -453,15 +571,6 @@ consumer.Subscribe(topics);
 ```
 
 </TabItem>
-
-
-<TabItem value="Python" label="Python">
-```python
-consumer = TaosConsumer('topic_ctb_column', group_id='vg2')
-```
-</TabItem>
-
-
 
 </Tabs>
 
@@ -496,15 +605,6 @@ while(running){
 
 </TabItem>
 
-<TabItem value="Python" label="Python">
-```python
-for msg in consumer:
-    for row in msg:
-        print(row)
-```
-</TabItem>
-
-
 <TabItem value="Go" label="Go">
 
 ```go
@@ -520,11 +620,68 @@ for {
 ```
 
 </TabItem>
-</Tabs>
+
+<TabItem value="Rust" label="Rust">
+
+```rust
+{
+    let mut stream = consumer.stream();
+
+    while let Some((offset, message)) = stream.try_next().await? {
+        // get information from offset
+
+        // the topic
+        let topic = offset.topic();
+        // the vgroup id, like partition id in kafka.
+        let vgroup_id = offset.vgroup_id();
+        println!("* in vgroup id {vgroup_id} of topic {topic}\n");
+
+        if let Some(data) = message.into_data() {
+            while let Some(block) = data.fetch_raw_block().await? {
+                // one block for one table, get table name if needed
+                let name = block.table_name();
+                let records: Vec<Record> = block.deserialize().try_collect()?;
+                println!(
+                    "** table: {}, got {} records: {:#?}\n",
+                    name.unwrap(),
+                    records.len(),
+                    records
+                );
+            }
+        }
+        consumer.commit(offset).await?;
+    }
+}
+```
+
+</TabItem>
+<TabItem value="Python" label="Python">
+
+```python
+for msg in consumer:
+    for row in msg:
+        print(row)
+```
+
+</TabItem>
+
+<TabItem label="Node.JS" value="Node.JS">
+
+```js
+while(true){
+  msg = consumer.consume(200);
+  // process message(consumeResult)
+  console.log(msg.topicPartition);
+  console.log(msg.block);
+  console.log(msg.fields)
+}
+```
+
+</TabItem>
 
 <TabItem value="C#" label="C#">
 
-```C#
+```csharp
 // 消费数据
 while (true)
 {
@@ -536,8 +693,8 @@ while (true)
 ```
 
 </TabItem>
-</Tabs>
 
+</Tabs>
 
 ## 结束消费
 
@@ -567,14 +724,7 @@ consumer.close();
 
 </TabItem>
 
-<TabItem value="Python" label="Python">
 
-```python
-/* 取消订阅 */
-consumer.unsubscribe();
-
-/* 关闭消费 */
-consumer.close();
 <TabItem value="Go" label="Go">
 
 ```go
@@ -582,14 +732,43 @@ consumer.Close()
 ```
 
 </TabItem>
+
+<TabItem value="Rust" label="Rust">
+
+```rust
+consumer.unsubscribe().await;
+```
+
+</TabItem>
+
+<TabItem value="Python" label="Python">
+
+```py
+# 取消订阅
+consumer.unsubscribe()
+# 关闭消费
+consumer.close()
+```
+
+</TabItem>
+<TabItem label="Node.JS" value="Node.JS">
+
+```js
+consumer.unsubscribe();
+consumer.close();
+```
+
+</TabItem>
+
 <TabItem value="C#" label="C#">
 
-```C#
+```csharp
 // 取消订阅
 consumer.Unsubscribe();
 
 // 关闭消费
 consumer.Close();
+```
 </TabItem>
 
 </Tabs>
@@ -628,300 +807,9 @@ SHOW SUBSCRIPTIONS;
 以下是各语言的完整示例代码。
 
 <Tabs defaultValue="java" groupId="lang">
+
 <TabItem label="C" value="c">
-
-```c
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- */
-
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#include "taos.h"
-
-static int  running = 1;
-static char dbName[64] = "tmqdb";
-static char stbName[64] = "stb";
-static char topicName[64] = "topicname";
-
-static int32_t msg_process(TAOS_RES* msg) {
-  char    buf[1024];
-  int32_t rows = 0;
-
-  const char* topicName = tmq_get_topic_name(msg);
-  const char* dbName = tmq_get_db_name(msg);
-  int32_t     vgroupId = tmq_get_vgroup_id(msg);
-
-  printf("topic: %s\n", topicName);
-  printf("db: %s\n", dbName);
-  printf("vgroup id: %d\n", vgroupId);
-
-  while (1) {
-    TAOS_ROW row = taos_fetch_row(msg);
-    if (row == NULL) break;
-
-    TAOS_FIELD* fields = taos_fetch_fields(msg);
-    int32_t     numOfFields = taos_field_count(msg);
-    int32_t*    length = taos_fetch_lengths(msg);
-    int32_t     precision = taos_result_precision(msg);
-    const char* tbName = tmq_get_table_name(msg);
-    rows++;
-    taos_print_row(buf, row, fields, numOfFields);
-    printf("row content from %s: %s\n", (tbName != NULL ? tbName : "table null"), buf);
-  }
-
-  return rows;
-}
-
-static int32_t init_env() {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  if (pConn == NULL) {
-    return -1;
-  }
-
-  TAOS_RES* pRes;
-  // drop database if exists
-  printf("create database\n");
-  pRes = taos_query(pConn, "drop database if exists tmqdb");
-  if (taos_errno(pRes) != 0) {
-    printf("error in drop tmqdb, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  // create database
-  pRes = taos_query(pConn, "create database tmqdb");
-  if (taos_errno(pRes) != 0) {
-    printf("error in create tmqdb, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  // create super table
-  printf("create super table\n");
-  pRes = taos_query(
-      pConn, "create table tmqdb.stb (ts timestamp, c1 int, c2 float, c3 varchar(16)) tags(t1 int, t3 varchar(16))");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create super table stb, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  // create sub tables
-  printf("create sub tables\n");
-  pRes = taos_query(pConn, "create table tmqdb.ctb0 using tmqdb.stb tags(0, 'subtable0')");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create super table ctb0, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create table tmqdb.ctb1 using tmqdb.stb tags(1, 'subtable1')");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create super table ctb1, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create table tmqdb.ctb2 using tmqdb.stb tags(2, 'subtable2')");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create super table ctb2, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create table tmqdb.ctb3 using tmqdb.stb tags(3, 'subtable3')");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create super table ctb3, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  // insert data
-  printf("insert data into sub tables\n");
-  pRes = taos_query(pConn, "insert into tmqdb.ctb0 values(now, 0, 0, 'a0')(now+1s, 0, 0, 'a00')");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to insert into ctb0, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "insert into tmqdb.ctb1 values(now, 1, 1, 'a1')(now+1s, 11, 11, 'a11')");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to insert into ctb0, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "insert into tmqdb.ctb2 values(now, 2, 2, 'a1')(now+1s, 22, 22, 'a22')");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to insert into ctb0, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "insert into tmqdb.ctb3 values(now, 3, 3, 'a1')(now+1s, 33, 33, 'a33')");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to insert into ctb0, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  taos_close(pConn);
-  return 0;
-}
-
-int32_t create_topic() {
-  printf("create topic\n");
-  TAOS_RES* pRes;
-  TAOS*     pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  if (pConn == NULL) {
-    return -1;
-  }
-
-  pRes = taos_query(pConn, "use tmqdb");
-  if (taos_errno(pRes) != 0) {
-    printf("error in use tmqdb, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create topic topicname as select ts, c1, c2, c3 from tmqdb.stb where c1 > 1");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create topic topicname, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  taos_close(pConn);
-  return 0;
-}
-
-void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
-  printf("tmq_commit_cb_print() code: %d, tmq: %p, param: %p\n", code, tmq, param);
-}
-
-tmq_t* build_consumer() {
-  tmq_conf_res_t code;
-  tmq_conf_t*    conf = tmq_conf_new();
-  code = tmq_conf_set(conf, "enable.auto.commit", "true");
-  if (TMQ_CONF_OK != code) return NULL;
-  code = tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
-  if (TMQ_CONF_OK != code) return NULL;
-  code = tmq_conf_set(conf, "group.id", "cgrpName");
-  if (TMQ_CONF_OK != code) return NULL;
-  code = tmq_conf_set(conf, "client.id", "user defined name");
-  if (TMQ_CONF_OK != code) return NULL;
-  code = tmq_conf_set(conf, "td.connect.user", "root");
-  if (TMQ_CONF_OK != code) return NULL;
-  code = tmq_conf_set(conf, "td.connect.pass", "taosdata");
-  if (TMQ_CONF_OK != code) return NULL;
-  code = tmq_conf_set(conf, "auto.offset.reset", "earliest");
-  if (TMQ_CONF_OK != code) return NULL;
-  code = tmq_conf_set(conf, "experimental.snapshot.enable", "true");
-  if (TMQ_CONF_OK != code) return NULL;
-  code = tmq_conf_set(conf, "msg.with.table.name", "true");
-  if (TMQ_CONF_OK != code) return NULL;
-
-  tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
-
-  tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
-  tmq_conf_destroy(conf);
-  return tmq;
-}
-
-tmq_list_t* build_topic_list() {
-  tmq_list_t* topicList = tmq_list_new();
-  int32_t     code = tmq_list_append(topicList, "topicname");
-  if (code) {
-    return NULL;
-  }
-  return topicList;
-}
-
-void basic_consume_loop(tmq_t* tmq, tmq_list_t* topicList) {
-  int32_t code;
-
-  if ((code = tmq_subscribe(tmq, topicList))) {
-    fprintf(stderr, "%% Failed to tmq_subscribe(): %s\n", tmq_err2str(code));
-    return;
-  }
-
-  int32_t totalRows = 0;
-  int32_t msgCnt = 0;
-  int32_t timeout = 5000;
-  while (running) {
-    TAOS_RES* tmqmsg = tmq_consumer_poll(tmq, timeout);
-    if (tmqmsg) {
-      msgCnt++;
-      totalRows += msg_process(tmqmsg);
-      taos_free_result(tmqmsg);
-      /*} else {*/
-      /*break;*/
-    }
-  }
-
-  fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
-}
-
-int main(int argc, char* argv[]) {
-  int32_t code;
-
-  if (init_env() < 0) {
-    return -1;
-  }
-
-  if (create_topic() < 0) {
-    return -1;
-  }
-
-  tmq_t* tmq = build_consumer();
-  if (NULL == tmq) {
-    fprintf(stderr, "%% build_consumer() fail!\n");
-    return -1;
-  }
-
-  tmq_list_t* topic_list = build_topic_list();
-  if (NULL == topic_list) {
-    return -1;
-  }
-
-  basic_consume_loop(tmq, topic_list);
-
-  code = tmq_unsubscribe(tmq);
-  if (code) {
-    fprintf(stderr, "%% Failed to unsubscribe: %s\n", tmq_err2str(code));
-  } else {
-    fprintf(stderr, "%% unsubscribe\n");
-  }
-
-  code = tmq_consumer_close(tmq);
-  if (code) {
-    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(code));
-  } else {
-    fprintf(stderr, "%% Consumer closed\n");
-  }
-
-  return 0;
-}
-
-```
-
-[查看源码](https://github.com/taosdata/TDengine/blob/develop/examples/c/tmq.c)
+  <CDemo>
 </TabItem>
 
 <TabItem label="Java" value="java">
@@ -937,22 +825,7 @@ int main(int argc, char* argv[]) {
 </TabItem>
 
 <TabItem label="Python" value="Python">
-
-```python
-import taos
-from taos.tmq import TaosConsumer
-
-import taos
-from taos.tmq import *
-consumer = TaosConsumer('topic_ctb_column', group_id='vg2')
-for msg in consumer:
-    for row in msg:
-        print(row)
-
-```
-
-[查看源码](https://github.com/taosdata/TDengine/blob/develop/docs/examples/python/tmq_example.py)
-
+    <Python />
 </TabItem>
 
 <TabItem label="Node.JS" value="Node.JS">
