@@ -25,7 +25,7 @@ taosKeeper 安装方式：
 <!-- taosKeeper 需要在操作系统终端执行，该工具支持两种配置方式：[命令行参数](#命令行参数启动) 和 [配置文件](#配置文件启动)。命令行参数优先级高于配置文件参数。-->
 taosKeeper 需要在操作系统终端执行，该工具支持 [配置文件启动](#配置文件启动)。
 
-**在运行 taosKeeper 之前要确保 TDengine 集群与 taosAdapter 已经在正确运行。** 并且 TDengine 已经开启监控服务，具体请参考[TDengine 监控配置](../config/#监控相关)。
+**在运行 taosKeeper 之前要确保 TDengine 集群与 taosAdapter 已经在正确运行。** 并且 TDengine 已经开启监控服务，具体请参考：[TDengine 监控配置](../config/#监控相关)。
 
 <!--
 ### 命令行参数启动
