@@ -98,6 +98,7 @@ typedef void* queue[2];
 #define TRANS_RETRY_INTERVAL    15    // retry interval (ms)
 #define TRANS_CONN_TIMEOUT      3     // connect timeout (s)
 #define TRANS_READ_TIMEOUT      3000  // read timeout  (ms)
+#define TRANS_PACKET_LIMIT      1024 * 1024 * 512
 
 typedef SRpcMsg      STransMsg;
 typedef SRpcCtx      STransCtx;

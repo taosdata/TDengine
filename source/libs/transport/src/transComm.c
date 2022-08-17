@@ -112,15 +112,20 @@ int transClearBuffer(SConnBuffer* buf) {
 }
 
 int transDumpFromBuffer(SConnBuffer* connBuf, char** buf) {
+  static const int HEADSIZE = sizeof(STransMsgHead);
+
   SConnBuffer* p = connBuf;
   if (p->left != 0) {
     return -1;
   }
   int total = connBuf->total;
-  *buf = taosMemoryCalloc(1, total);
-  memcpy(*buf, p->buf, total);
-
-  transResetBuffer(connBuf);
+  if (total >= HEADSIZE) {
+    *buf = taosMemoryCalloc(1, total);
+    memcpy(*buf, p->buf, total);
+    transResetBuffer(connBuf);
+  } else {
+    total = -1;
+  }
   return total;
 }
 
