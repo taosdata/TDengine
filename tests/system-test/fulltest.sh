@@ -113,7 +113,7 @@ python3 ./test.py -f 2-query/hyperloglog.py -R
 python3 ./test.py -f 2-query/interp.py
 python3 ./test.py -f 2-query/interp.py -R
 python3 ./test.py -f 2-query/irate.py
-# python3 ./test.py -f 2-query/irate.py -R
+python3 ./test.py -f 2-query/irate.py -R
 python3 ./test.py -f 2-query/join.py
 python3 ./test.py -f 2-query/join.py -R
 python3 ./test.py -f 2-query/last_row.py
