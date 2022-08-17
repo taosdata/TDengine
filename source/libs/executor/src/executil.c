@@ -368,7 +368,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* pBlockList = NULL;
   SSDataBlock* pResBlock = NULL;
-  SArray* tags = NULL;
+  SHashObj * tags = NULL;
   SScalarParam output = {0};
 
   tagFilterAssist ctx = {0};
@@ -399,7 +399,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   }
 
 //  int64_t stt = taosGetTimestampUs();
-  tags = taosArrayInit(8, POINTER_BYTES);
+  tags = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   code = metaGetTableTags(metaHandle, suid, uidList, tags);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
@@ -421,8 +421,9 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
 
 //  int64_t st = taosGetTimestampUs();
   for (int32_t i = 0; i < rows; i++) {
-    void* tag = taosArrayGetP(tags, i);
     int64_t* uid = taosArrayGet(uidList, i);
+    void* tag = taosHashGet(tags, uid, sizeof(int64_t));
+    ASSERT(tag);
     for(int32_t j = 0; j < taosArrayGetSize(pResBlock->pDataBlock); j++){
       SColumnInfoData* pColInfo = (SColumnInfoData*)taosArrayGet(pResBlock->pDataBlock, j);
 
@@ -474,7 +475,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
 //  qDebug("calculate tag block rows:%d, cost:%ld us", rows, st2-st1);
 
 end:
-  taosArrayDestroyP(tags, taosMemoryFree);
+  taosHashCleanup(tags);
   taosHashCleanup(ctx.colHash);
   taosArrayDestroy(ctx.cInfoList);
   blockDataDestroy(pResBlock);
