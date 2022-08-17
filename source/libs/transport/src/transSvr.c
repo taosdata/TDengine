@@ -183,15 +183,14 @@ static void uvHandleActivityTimeout(uv_timer_t* handle) {
   tDebug("%p timeout since no activity", conn);
 }
 
-static void uvHandleReq(SSvrConn* pConn) {
+static bool uvHandleReq(SSvrConn* pConn) {
   STrans* pTransInst = pConn->pTransInst;
 
   STransMsgHead* msg = NULL;
   int            msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&msg);
   if (msgLen <= 0) {
-    tError("%s conn %p alread read complete packet", transLabel(pTransInst), pConn);
-    transUnrefSrvHandle(pConn);
-    return;
+    tError("%s conn %p read invalid packet", transLabel(pTransInst), pConn);
+    return false;
   }
 
   STransMsgHead* pHead = (STransMsgHead*)msg;
@@ -207,7 +206,7 @@ static void uvHandleReq(SSvrConn* pConn) {
   //  uv_queue_work(((SWorkThrd*)pConn->hostThrd)->loop, wreq, uvWorkDoTask, uvWorkAfterTask);
 
   if (uvRecvReleaseReq(pConn, pHead)) {
-    return;
+    return true;
   }
 
   STransMsg transMsg;
@@ -262,6 +261,7 @@ static void uvHandleReq(SSvrConn* pConn) {
   transReleaseExHandle(transGetRefMgt(), pConn->refId);
 
   (*pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
+  return true;
 }
 
 void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
@@ -275,7 +275,10 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     if (pBuf->len <= TRANS_PACKET_LIMIT) {
       while (transReadComplete(pBuf)) {
         tTrace("%s conn %p alread read complete packet", transLabel(pTransInst), conn);
-        uvHandleReq(conn);
+        if (uvHandleReq(conn) == false) {
+          destroyConn(conn, true);
+          break;
+        }
       }
       return;
     } else {
@@ -374,6 +377,7 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   pHead->ahandle = (uint64_t)pMsg->info.ahandle;
   pHead->traceId = pMsg->info.traceId;
   pHead->hasEpSet = pMsg->info.hasEpSet;
+  pHead->magicNum = htonl(TRANS_MAGIC_NUM);
 
   if (pConn->status == ConnNormal) {
     pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);

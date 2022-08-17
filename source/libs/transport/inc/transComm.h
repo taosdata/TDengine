@@ -100,6 +100,10 @@ typedef void* queue[2];
 #define TRANS_READ_TIMEOUT      3000  // read timeout  (ms)
 #define TRANS_PACKET_LIMIT      1024 * 1024 * 512
 
+#define TRANS_MAGIC_NUM 0x5f375a86
+
+#define TRANS_NOVALID_PACKET(src) ((src) != TRANS_MAGIC_NUM ? 1 : 0)
+
 typedef SRpcMsg      STransMsg;
 typedef SRpcCtx      STransCtx;
 typedef SRpcCtxVal   STransCtxVal;
@@ -152,6 +156,7 @@ typedef struct {
   char hasEpSet : 2;  // contain epset or not, 0(default): no epset, 1: contain epset
 
   char     user[TSDB_UNI_LEN];
+  uint32_t magicNum;
   STraceId traceId;
   uint64_t ahandle;  // ahandle assigned by client
   uint32_t code;     // del later
@@ -204,6 +209,7 @@ typedef struct SConnBuffer {
   int   cap;
   int   left;
   int   total;
+  int   invalid;
 } SConnBuffer;
 
 typedef void (*AsyncCB)(uv_async_t* handle);
