@@ -28,9 +28,9 @@ int32_t metaCreateTSma(SMeta *pMeta, int64_t version, SSmaCfg *pCfg) {
   int         vLen = 0;
   const void *pKey = NULL;
   const void *pVal = NULL;
-  void *      pBuf = NULL;
+  void       *pBuf = NULL;
   int32_t     szBuf = 0;
-  void *      p = NULL;
+  void       *p = NULL;
   SMetaReader mr = {0};
 
   // validate req
@@ -83,8 +83,8 @@ int32_t metaDropTSma(SMeta *pMeta, int64_t indexUid) {
 
 static int metaSaveSmaToDB(SMeta *pMeta, const SMetaEntry *pME) {
   STbDbKey tbDbKey;
-  void *   pKey = NULL;
-  void *   pVal = NULL;
+  void    *pKey = NULL;
+  void    *pVal = NULL;
   int      kLen = 0;
   int      vLen = 0;
   SEncoder coder = {0};
@@ -130,7 +130,8 @@ _err:
 }
 
 static int metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME) {
-  return tdbTbInsert(pMeta->pUidIdx, &pME->uid, sizeof(tb_uid_t), &pME->version, sizeof(int64_t), &pMeta->txn);
+  SUidIdxVal uidIdxVal = {.suid = pME->smaEntry.tsma->indexUid, .version = pME->version, .skmVer = 0};
+  return tdbTbInsert(pMeta->pUidIdx, &pME->uid, sizeof(tb_uid_t), &uidIdxVal, sizeof(uidIdxVal), &pMeta->txn);
 }
 
 static int metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME) {
