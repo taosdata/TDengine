@@ -165,9 +165,9 @@ int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback) {
   STQ*           pTq = pWriter->pTq;
 
   if (rollback) {
-    ASSERT(0);
+    tdbAbort(pWriter->pTq->pMetaDB, &pWriter->txn);
   } else {
-    code = tdbCommit(pWriter->pTq->pMetaStore, &pWriter->txn);
+    code = tdbCommit(pWriter->pTq->pMetaDB, &pWriter->txn);
     if (code) goto _err;
   }
 

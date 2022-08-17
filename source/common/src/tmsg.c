@@ -4262,7 +4262,6 @@ int32_t tDeserializeSServerStatusRsp(void *buf, int32_t bufLen, SServerStatusRsp
   tDecoderClear(&decoder);
   return 0;
 }
-
 int32_t tEncodeSMqOffset(SEncoder *encoder, const SMqOffset *pOffset) {
   if (tEncodeI32(encoder, pOffset->vgId) < 0) return -1;
   if (tEncodeI64(encoder, pOffset->offset) < 0) return -1;
@@ -4300,7 +4299,6 @@ int32_t tDecodeSMqCMCommitOffsetReq(SDecoder *decoder, SMqCMCommitOffsetReq *pRe
   tEndDecode(decoder);
   return 0;
 }
-
 int32_t tSerializeSExplainRsp(void *buf, int32_t bufLen, SExplainRsp *pRsp) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -5590,7 +5588,6 @@ int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
   return 0;
 }
 
-#if 1
 int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
   if (pVal->type == TMQ_OFFSET__RESET_NONE) {
     snprintf(buf, maxLen, "offset(reset to none)");
@@ -5609,7 +5606,6 @@ int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
   }
   return 0;
 }
-#endif
 
 bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
   if (pLeft->type == pRight->type) {
@@ -5643,7 +5639,7 @@ int32_t tDecodeSTqOffset(SDecoder *pDecoder, STqOffset *pOffset) {
   return 0;
 }
 
-int32_t tEncodeSCheckAlterInfo(SEncoder *pEncoder, const SCheckAlterInfo *pInfo) {
+int32_t tEncodeSTqCheckInfo(SEncoder *pEncoder, const STqCheckInfo *pInfo) {
   if (tEncodeCStr(pEncoder, pInfo->topic) < 0) return -1;
   if (tEncodeI64(pEncoder, pInfo->ntbUid) < 0) return -1;
   int32_t sz = taosArrayGetSize(pInfo->colIdList);
@@ -5655,7 +5651,7 @@ int32_t tEncodeSCheckAlterInfo(SEncoder *pEncoder, const SCheckAlterInfo *pInfo)
   return pEncoder->pos;
 }
 
-int32_t tDecodeSCheckAlterInfo(SDecoder *pDecoder, SCheckAlterInfo *pInfo) {
+int32_t tDecodeSTqCheckInfo(SDecoder *pDecoder, STqCheckInfo *pInfo) {
   if (tDecodeCStrTo(pDecoder, pInfo->topic) < 0) return -1;
   if (tDecodeI64(pDecoder, &pInfo->ntbUid) < 0) return -1;
   int32_t sz;
