@@ -567,9 +567,13 @@ static int32_t tsdbCommitLastBlock(SCommitter *pCommitter) {
   // info
   blockL.suid = pBlockData->suid;
   blockL.nRow = pBlockData->nRow;
+  blockL.minKey = TSKEY_MAX;
+  blockL.maxKey = TSKEY_MIN;
   blockL.minVer = VERSION_MAX;
   blockL.maxVer = VERSION_MIN;
   for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
+    blockL.minKey = TMIN(blockL.minKey, pBlockData->aTSKEY[iRow]);
+    blockL.maxKey = TMAX(blockL.maxKey, pBlockData->aTSKEY[iRow]);
     blockL.minVer = TMIN(blockL.minVer, pBlockData->aVersion[iRow]);
     blockL.maxVer = TMAX(blockL.maxVer, pBlockData->aVersion[iRow]);
   }

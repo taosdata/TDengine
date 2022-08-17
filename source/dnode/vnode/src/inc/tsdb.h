@@ -302,13 +302,6 @@ size_t tsdbCacheGetCapacity(SVnode *pVnode);
 int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pSchema);
 
 // structs =======================
-typedef struct {
-  int   minFid;
-  int   midFid;
-  int   maxFid;
-  TSKEY minKey;
-} SRtn;
-
 struct STsdbFS {
   SDelFile *pDelFile;
   SArray   *aDFileSet;  // SArray<SDFileSet>
@@ -336,18 +329,13 @@ struct SMemSkipListNode {
   SMemSkipListNode *forwards[0];
 };
 typedef struct SMemSkipList {
-  uint32_t          seed;
   int64_t           size;
+  uint32_t          seed;
   int8_t            maxLevel;
   int8_t            level;
   SMemSkipListNode *pHead;
   SMemSkipListNode *pTail;
 } SMemSkipList;
-
-struct SDelDataInfo {
-  tb_uid_t suid;
-  tb_uid_t uid;
-};
 
 struct STbData {
   tb_uid_t     suid;
@@ -448,6 +436,8 @@ struct SBlockL {
   int64_t    suid;
   int64_t    minUid;
   int64_t    maxUid;
+  TSKEY      minKey;
+  TSKEY      maxKey;
   int64_t    minVer;
   int64_t    maxVer;
   int32_t    nRow;

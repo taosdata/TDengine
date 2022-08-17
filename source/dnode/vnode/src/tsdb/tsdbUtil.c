@@ -284,6 +284,8 @@ int32_t tPutBlockL(uint8_t *p, void *ph) {
   n += tPutI64(p ? p + n : p, pBlockL->suid);
   n += tPutI64(p ? p + n : p, pBlockL->minUid);
   n += tPutI64(p ? p + n : p, pBlockL->maxUid);
+  n += tPutI64v(p ? p + n : p, pBlockL->minKey);
+  n += tPutI64v(p ? p + n : p, pBlockL->maxKey);
   n += tPutI64v(p ? p + n : p, pBlockL->minVer);
   n += tPutI64v(p ? p + n : p, pBlockL->maxVer);
   n += tPutI32v(p ? p + n : p, pBlockL->nRow);
@@ -301,6 +303,8 @@ int32_t tGetBlockL(uint8_t *p, void *ph) {
   n += tGetI64(p + n, &pBlockL->suid);
   n += tGetI64(p + n, &pBlockL->minUid);
   n += tGetI64(p + n, &pBlockL->maxUid);
+  n += tGetI64v(p + n, &pBlockL->minKey);
+  n += tGetI64v(p + n, &pBlockL->maxKey);
   n += tGetI64v(p + n, &pBlockL->minVer);
   n += tGetI64v(p + n, &pBlockL->maxVer);
   n += tGetI32v(p + n, &pBlockL->nRow);
@@ -1651,25 +1655,25 @@ void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
           break;
         }
         case TSDB_DATA_TYPE_FLOAT: {
-          *(double*)(&pColAgg->sum) += colVal.value.f;
-          if (!minAssigned || *(double*)(&pColAgg->min) > colVal.value.f) {
-            *(double*)(&pColAgg->min) = colVal.value.f;
+          *(double *)(&pColAgg->sum) += colVal.value.f;
+          if (!minAssigned || *(double *)(&pColAgg->min) > colVal.value.f) {
+            *(double *)(&pColAgg->min) = colVal.value.f;
             minAssigned = true;
           }
-          if (!maxAssigned || *(double*)(&pColAgg->max) < colVal.value.f) {
-            *(double*)(&pColAgg->max) = colVal.value.f;
+          if (!maxAssigned || *(double *)(&pColAgg->max) < colVal.value.f) {
+            *(double *)(&pColAgg->max) = colVal.value.f;
             maxAssigned = true;
           }
           break;
         }
         case TSDB_DATA_TYPE_DOUBLE: {
-          *(double*)(&pColAgg->sum) += colVal.value.d;
-          if (!minAssigned || *(double*)(&pColAgg->min) > colVal.value.d) {
-            *(double*)(&pColAgg->min) = colVal.value.d;
+          *(double *)(&pColAgg->sum) += colVal.value.d;
+          if (!minAssigned || *(double *)(&pColAgg->min) > colVal.value.d) {
+            *(double *)(&pColAgg->min) = colVal.value.d;
             minAssigned = true;
           }
-          if (!maxAssigned || *(double*)(&pColAgg->max) < colVal.value.d) {
-            *(double*)(&pColAgg->max) = colVal.value.d;
+          if (!maxAssigned || *(double *)(&pColAgg->max) < colVal.value.d) {
+            *(double *)(&pColAgg->max) = colVal.value.d;
             maxAssigned = true;
           }
           break;
