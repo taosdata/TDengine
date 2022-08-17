@@ -146,6 +146,8 @@ python3 ./test.py -f 2-query/rtrim.py
 # python3 ./test.py -f 2-query/rtrim.py -R
 python3 ./test.py -f 2-query/sample.py
 python3 ./test.py -f 2-query/sample.py -R
+python3 ./test.py -f 2-query/sin.py
+# python3 ./test.py -f 2-query/sin.py -R
 
 
 python3 ./test.py -f 1-insert/update_data.py
@@ -174,7 +176,6 @@ python3 ./test.py -f 2-query/json_tag.py
 python3 ./test.py -f 2-query/top.py
 python3 ./test.py -f 2-query/log.py
 python3 ./test.py -f 2-query/sqrt.py
-python3 ./test.py -f 2-query/sin.py
 python3 ./test.py -f 2-query/tan.py
 # python3 ./test.py -f 2-query/nestedQuery.py
 # TD-15983 subquery output duplicate name column.
@@ -183,12 +184,7 @@ python3 ./test.py -f 2-query/tan.py
 
 python3 ./test.py -f 2-query/elapsed.py
 python3 ./test.py -f 2-query/csum.py
-<<<<<<< HEAD
-#python3 ./test.py -f 2-query/mavg.py
-=======
 python3 ./test.py -f 2-query/mavg.py
-python3 ./test.py -f 2-query/sample.py
->>>>>>> 3.0
 python3 ./test.py -f 2-query/function_diff.py
 python3 ./test.py -f 2-query/unique.py
 python3 ./test.py -f 2-query/stateduration.py
@@ -375,7 +371,7 @@ python3 ./test.py -f 2-query/interp.py  -Q 2
 python3 ./test.py -f 2-query/avg.py   -Q 2
 # python3 ./test.py -f 2-query/elapsed.py  -Q 2
 python3 ./test.py -f 2-query/csum.py  -Q 2
-python3 ./test.py -f 2-query/mavg.py  -Q 2
+#python3 ./test.py -f 2-query/mavg.py  -Q 2
 python3 ./test.py -f 2-query/sample.py  -Q 2
 python3 ./test.py -f 2-query/function_diff.py  -Q 2
 python3 ./test.py -f 2-query/unique.py  -Q 2
@@ -462,7 +458,7 @@ python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q  3
 # python3 ./test.py -f 2-query/avg.py -Q  3
 # python3 ./test.py -f 2-query/elapsed.py -Q  3
 python3 ./test.py -f 2-query/csum.py -Q  3
-python3 ./test.py -f 2-query/mavg.py -Q  3
+#python3 ./test.py -f 2-query/mavg.py -Q  3
 python3 ./test.py -f 2-query/sample.py -Q  3
 python3 ./test.py -f 2-query/function_diff.py -Q  3
 python3 ./test.py -f 2-query/unique.py -Q  3
