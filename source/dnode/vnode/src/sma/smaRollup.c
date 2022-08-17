@@ -1709,7 +1709,7 @@ static int32_t tdRSmaConsumeAndFetch(SSma *pSma, int64_t suid, int8_t level, SAr
     atomic_fetch_sub_64(&pRSmaStat->qBufSize, qMemSize);
 
     taosArrayClear(pSubmitArr);
-    
+
     while (1) {
       void *msg = NULL;
       taosGetQitem(pInfo->qall, (void **)&msg);

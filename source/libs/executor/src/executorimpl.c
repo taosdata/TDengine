@@ -3315,7 +3315,7 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
 
       taosFillSetStartInfo(pInfo->pFillInfo, 0, pInfo->win.ekey);
     } else {
-      blockDataUpdateTsWindow(pBlock, pInfo->primaryTsCol);
+      blockDataUpdateTsWindow(pBlock, pInfo->primarySrcSlotId);
       doApplyScalarCalculation(pOperator, pBlock, order, scanFlag);
 
       if (pInfo->curGroupId == 0 || pInfo->curGroupId == pInfo->pRes->info.groupId) {

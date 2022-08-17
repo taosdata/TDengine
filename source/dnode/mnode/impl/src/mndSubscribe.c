@@ -356,31 +356,44 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
       taosArrayPush(pConsumerEp->vgs, &pRebVg->pVgEp);
       pRebVg->newConsumerId = pConsumerEp->consumerId;
       taosArrayPush(pOutput->rebVgs, pRebVg);
-      mInfo("mq rebalance: add vgId:%d to consumer:%" PRId64 ",(second scan)", pRebVg->pVgEp->vgId,
+      mInfo("mq rebalance: add vgId:%d to consumer:%" PRId64 " (second scan) (not enough)", pRebVg->pVgEp->vgId,
             pConsumerEp->consumerId);
     }
   }
 
+  ASSERT(pIter == NULL);
   // 7. handle unassigned vg
   if (taosHashGetSize(pOutput->pSub->consumerHash) != 0) {
     // if has consumer, assign all left vg
     while (1) {
+      SMqConsumerEp *pConsumerEp = NULL;
       pRemovedIter = taosHashIterate(pHash, pRemovedIter);
-      if (pRemovedIter == NULL) break;
-      pIter = taosHashIterate(pOutput->pSub->consumerHash, pIter);
-      ASSERT(pIter);
+      if (pRemovedIter == NULL) {
+        if (pIter != NULL) {
+          taosHashCancelIterate(pOutput->pSub->consumerHash, pIter);
+          pIter = NULL;
+        }
+        break;
+      }
+      while (1) {
+        pIter = taosHashIterate(pOutput->pSub->consumerHash, pIter);
+        ASSERT(pIter);
+        pConsumerEp = (SMqConsumerEp *)pIter;
+        ASSERT(pConsumerEp->consumerId > 0);
+        if (taosArrayGetSize(pConsumerEp->vgs) == minVgCnt) {
+          break;
+        }
+      }
       pRebVg = (SMqRebOutputVg *)pRemovedIter;
-      SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
-      ASSERT(pConsumerEp->consumerId > 0);
       taosArrayPush(pConsumerEp->vgs, &pRebVg->pVgEp);
       pRebVg->newConsumerId = pConsumerEp->consumerId;
       if (pRebVg->newConsumerId == pRebVg->oldConsumerId) {
-        mInfo("mq rebalance: skip vg %d for same consumer:%" PRId64 ",(second scan)", pRebVg->pVgEp->vgId,
+        mInfo("mq rebalance: skip vg %d for same consumer:%" PRId64 " (second scan)", pRebVg->pVgEp->vgId,
               pConsumerEp->consumerId);
         continue;
       }
       taosArrayPush(pOutput->rebVgs, pRebVg);
-      mInfo("mq rebalance: add vgId:%d to consumer:%" PRId64 ",(second scan)", pRebVg->pVgEp->vgId,
+      mInfo("mq rebalance: add vgId:%d to consumer:%" PRId64 " (second scan) (unassigned)", pRebVg->pVgEp->vgId,
             pConsumerEp->consumerId);
     }
   } else {
@@ -571,7 +584,7 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
       /*ASSERT(pTopic);*/
       if (pTopic == NULL) {
-        mError("rebalance %s failed since topic %s was dropped, abort", pRebInfo->key, topic);
+        mError("mq rebalance %s failed since topic %s not exist, abort", pRebInfo->key, topic);
         continue;
       }
       taosRLockLatch(&pTopic->lock);
@@ -601,7 +614,7 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
 
     // TODO replace assert with error check
     if (mndPersistRebResult(pMnode, pMsg, &rebOutput) < 0) {
-      mError("persist rebalance output error, possibly vnode splitted or dropped");
+      mError("mq rebalance persist rebalance output error, possibly vnode splitted or dropped");
     }
     taosArrayDestroy(pRebInfo->lostConsumers);
     taosArrayDestroy(pRebInfo->newConsumers);

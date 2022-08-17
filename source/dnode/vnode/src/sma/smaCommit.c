@@ -359,7 +359,6 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
     return TSDB_CODE_FAILED;
   }
 
-
   // step 4:  swap queue/qall and iQueue/iQall
   // lock
   taosWLockLatch(SMA_ENV_LOCK(pEnv));
@@ -382,7 +381,6 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   // unlock
   taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
 
-
   // step 5: others
   pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
 
@@ -402,7 +400,6 @@ static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma) {
   }
 
   SRSmaStat *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pSmaEnv);
-
 
   // perform persist task for qTaskInfo operator
   if (tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat)) < 0) {
