@@ -192,7 +192,7 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   // validate req
   void *pData = NULL;
   int   nData = 0;
-  if (tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name), &pData, &nData) == 0) {
+  if (tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &pData, &nData) == 0) {
     tb_uid_t uid = *(tb_uid_t *)pData;
     tdbFree(pData);
     SMetaInfo info;
