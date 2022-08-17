@@ -342,9 +342,6 @@ struct STbData {
   tb_uid_t     uid;
   TSKEY        minKey;
   TSKEY        maxKey;
-  int64_t      minVersion;
-  int64_t      maxVersion;
-  int32_t      maxSkmVer;
   SDelData    *pHead;
   SDelData    *pTail;
   SMemSkipList sl;
@@ -358,8 +355,6 @@ struct SMemTable {
   volatile int32_t nRef;
   TSKEY            minKey;
   TSKEY            maxKey;
-  int64_t          minVersion;
-  int64_t          maxVersion;
   int64_t          nRow;
   int64_t          nDel;
   struct {

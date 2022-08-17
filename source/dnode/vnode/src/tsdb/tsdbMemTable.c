@@ -46,8 +46,6 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
   pMemTable->nRef = 1;
   pMemTable->minKey = TSKEY_MAX;
   pMemTable->maxKey = TSKEY_MIN;
-  pMemTable->minVersion = VERSION_MAX;
-  pMemTable->maxVersion = VERSION_MIN;
   pMemTable->nRow = 0;
   pMemTable->nDel = 0;
   pMemTable->nTbData = 0;
@@ -180,10 +178,6 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
     pTbData->pTail = pDelData;
   }
 
-  // update the state of pMemTable and other (todo)
-
-  pMemTable->minVersion = TMIN(pMemTable->minVersion, version);
-  pMemTable->maxVersion = TMAX(pMemTable->maxVersion, version);
   pMemTable->nDel++;
 
   if (TSDB_CACHE_LAST_ROW(pMemTable->pTsdb->pVnode->config) && tsdbKeyCmprFn(&lastKey, &pTbData->maxKey) >= 0) {
@@ -368,9 +362,6 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   pTbData->uid = uid;
   pTbData->minKey = TSKEY_MAX;
   pTbData->maxKey = TSKEY_MIN;
-  pTbData->minVersion = VERSION_MAX;
-  pTbData->maxVersion = VERSION_MIN;
-  pTbData->maxSkmVer = -1;
   pTbData->pHead = NULL;
   pTbData->pTail = NULL;
   pTbData->sl.seed = taosRand();
@@ -615,15 +606,9 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
     tsdbCacheInsertLast(pMemTable->pTsdb->lruCache, pTbData->uid, pLastRow, pMemTable->pTsdb);
   }
 
-  pTbData->minVersion = TMIN(pTbData->minVersion, version);
-  pTbData->maxVersion = TMAX(pTbData->maxVersion, version);
-  pTbData->maxSkmVer = TMAX(pTbData->maxSkmVer, pMsgIter->sversion);
-
   // SMemTable
   pMemTable->minKey = TMIN(pMemTable->minKey, pTbData->minKey);
   pMemTable->maxKey = TMAX(pMemTable->maxKey, pTbData->maxKey);
-  pMemTable->minVersion = TMIN(pMemTable->minVersion, pTbData->minVersion);
-  pMemTable->maxVersion = TMAX(pMemTable->maxVersion, pTbData->maxVersion);
   pMemTable->nRow += nRow;
 
   pRsp->numOfRows = nRow;

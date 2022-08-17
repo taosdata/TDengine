@@ -429,18 +429,65 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
 }
 
 int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver, STSchema **ppTSchema) {
-  int32_t   code = 0;
-  STSchema *pTSchema = NULL;
-  SSkmDbKey skmDbKey = {.uid = suid ? suid : uid, .sver = sver};
+  int32_t code = 0;
+
   void     *pData = NULL;
   int       nData = 0;
+  SSkmDbKey skmDbKey;
+  if (sver <= 0) {
+    SMetaInfo info;
+    if (metaGetInfo(pMeta, suid ? suid : uid, &info) == 0) {
+      sver = info.skmVer;
+    } else {
+      TBC *pSkmDbC = NULL;
+      int  c;
 
-  // query
+      skmDbKey.uid = suid ? suid : uid;
+      skmDbKey.sver = INT32_MAX;
+
+      tdbTbcOpen(pMeta->pSkmDb, &pSkmDbC, NULL);
+      metaRLock(pMeta);
+
+      if (tdbTbcMoveTo(pSkmDbC, &skmDbKey, sizeof(skmDbKey), &c) < 0) {
+        metaULock(pMeta);
+        tdbTbcClose(pSkmDbC);
+        code = TSDB_CODE_NOT_FOUND;
+        goto _exit;
+      }
+
+      ASSERT(c);
+
+      if (c < 0) {
+        tdbTbcMoveToPrev(pSkmDbC);
+      }
+
+      const void *pKey = NULL;
+      int32_t     nKey = 0;
+      tdbTbcGet(pSkmDbC, &pKey, &nKey, NULL, NULL);
+
+      if (((SSkmDbKey *)pKey)->uid != uid) {
+        metaULock(pMeta);
+        tdbTbcClose(pSkmDbC);
+        code = TSDB_CODE_NOT_FOUND;
+        goto _exit;
+      }
+
+      sver = ((SSkmDbKey *)pKey)->sver;
+
+      metaULock(pMeta);
+      tdbTbcClose(pSkmDbC);
+    }
+  }
+
+  ASSERT(sver > 0);
+
+  skmDbKey.uid = suid ? suid : uid;
+  skmDbKey.sver = sver;
   metaRLock(pMeta);
-  if (tdbTbGet(pMeta->pSkmDb, &skmDbKey, sizeof(skmDbKey), &pData, &nData) < 0) {
-    code = TSDB_CODE_NOT_FOUND;
+  if (tdbTbGet(pMeta->pSkmDb, &skmDbKey, sizeof(SSkmDbKey), &pData, &nData) < 0) {
     metaULock(pMeta);
-    goto _err;
+    code = TSDB_CODE_NOT_FOUND;
+    goto _exit;
   }
   metaULock(pMeta);
 
@@ -462,15 +509,13 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
     SSchema *pSchema = pSchemaWrapper->pSchema + i;
     tdAddColToSchema(&sb, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes);
   }
-  pTSchema = tdGetSchemaFromBuilder(&sb);
+  STSchema *pTSchema = tdGetSchemaFromBuilder(&sb);
   tdDestroyTSchemaBuilder(&sb);
 
   *ppTSchema = pTSchema;
   taosMemoryFree(pSchemaWrapper->pSchema);
-  return code;
 
-_err:
-  *ppTSchema = NULL;
+_exit:
   return code;
 }
 
