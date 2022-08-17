@@ -1467,6 +1467,10 @@ void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
   SColVal  colVal;
   SColVal *pColVal = &colVal;
 
+  memset(pColAgg, 0, sizeof(*pColAgg));
+  bool minAssigned = false;
+  bool maxAssigned = false;
+
   *pColAgg = (SColumnDataAgg){.colId = pColData->cid};
   for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
     tColDataGetValue(pColData, iVal, pColVal);
@@ -1481,72 +1485,86 @@ void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
           break;
         case TSDB_DATA_TYPE_TINYINT: {
           pColAgg->sum += colVal.value.i8;
-          if (pColAgg->min > colVal.value.i8) {
+          if (!minAssigned || pColAgg->min > colVal.value.i8) {
             pColAgg->min = colVal.value.i8;
+            minAssigned = true;
           }
-          if (pColAgg->max < colVal.value.i8) {
+          if (!maxAssigned || pColAgg->max < colVal.value.i8) {
             pColAgg->max = colVal.value.i8;
+            maxAssigned = true;
           }
           break;
         }
         case TSDB_DATA_TYPE_SMALLINT: {
           pColAgg->sum += colVal.value.i16;
-          if (pColAgg->min > colVal.value.i16) {
+          if (!minAssigned || pColAgg->min > colVal.value.i16) {
             pColAgg->min = colVal.value.i16;
+            minAssigned = true;
           }
-          if (pColAgg->max < colVal.value.i16) {
+          if (!maxAssigned || pColAgg->max < colVal.value.i16) {
             pColAgg->max = colVal.value.i16;
+            maxAssigned = true;
           }
           break;
         }
         case TSDB_DATA_TYPE_INT: {
           pColAgg->sum += colVal.value.i32;
-          if (pColAgg->min > colVal.value.i32) {
+          if (!minAssigned || pColAgg->min > colVal.value.i32) {
             pColAgg->min = colVal.value.i32;
+            minAssigned = true;
           }
-          if (pColAgg->max < colVal.value.i32) {
+          if (!maxAssigned || pColAgg->max < colVal.value.i32) {
             pColAgg->max = colVal.value.i32;
+            maxAssigned = true;
           }
           break;
         }
         case TSDB_DATA_TYPE_BIGINT: {
           pColAgg->sum += colVal.value.i64;
-          if (pColAgg->min > colVal.value.i64) {
+          if (!minAssigned || pColAgg->min > colVal.value.i64) {
             pColAgg->min = colVal.value.i64;
+            minAssigned = true;
           }
-          if (pColAgg->max < colVal.value.i64) {
+          if (!maxAssigned || pColAgg->max < colVal.value.i64) {
             pColAgg->max = colVal.value.i64;
+            maxAssigned = true;
           }
           break;
         }
         case TSDB_DATA_TYPE_FLOAT: {
           *(double*)(&pColAgg->sum) += colVal.value.f;
-          if (*(double*)(&pColAgg->min) > colVal.value.f) {
+          if (!minAssigned || *(double*)(&pColAgg->min) > colVal.value.f) {
             *(double*)(&pColAgg->min) = colVal.value.f;
+            minAssigned = true;
           }
-          if (*(double*)(&pColAgg->max) < colVal.value.f) {
+          if (!maxAssigned || *(double*)(&pColAgg->max) < colVal.value.f) {
             *(double*)(&pColAgg->max) = colVal.value.f;
+            maxAssigned = true;
           }
           break;
         }
         case TSDB_DATA_TYPE_DOUBLE: {
           *(double*)(&pColAgg->sum) += colVal.value.d;
-          if (*(double*)(&pColAgg->min) > colVal.value.d) {
+          if (!minAssigned || *(double*)(&pColAgg->min) > colVal.value.d) {
             *(double*)(&pColAgg->min) = colVal.value.d;
+            minAssigned = true;
           }
-          if (*(double*)(&pColAgg->max) < colVal.value.d) {
+          if (!maxAssigned || *(double*)(&pColAgg->max) < colVal.value.d) {
             *(double*)(&pColAgg->max) = colVal.value.d;
+            maxAssigned = true;
           }
           break;
         }
         case TSDB_DATA_TYPE_VARCHAR:
           break;
         case TSDB_DATA_TYPE_TIMESTAMP: {
-          if (pColAgg->min > colVal.value.i64) {
+          if (!minAssigned || pColAgg->min > colVal.value.i64) {
             pColAgg->min = colVal.value.i64;
+            minAssigned = true;
           }
-          if (pColAgg->max < colVal.value.i64) {
+          if (!maxAssigned || pColAgg->max < colVal.value.i64) {
             pColAgg->max = colVal.value.i64;
+            maxAssigned = true;
           }
           break;
         }
@@ -1554,41 +1572,49 @@ void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
           break;
         case TSDB_DATA_TYPE_UTINYINT: {
           pColAgg->sum += colVal.value.u8;
-          if (pColAgg->min > colVal.value.u8) {
+          if (!minAssigned || pColAgg->min > colVal.value.u8) {
             pColAgg->min = colVal.value.u8;
+            minAssigned = true;
           }
-          if (pColAgg->max < colVal.value.u8) {
+          if (!maxAssigned || pColAgg->max < colVal.value.u8) {
             pColAgg->max = colVal.value.u8;
+            maxAssigned = true;
           }
           break;
         }
         case TSDB_DATA_TYPE_USMALLINT: {
           pColAgg->sum += colVal.value.u16;
-          if (pColAgg->min > colVal.value.u16) {
+          if (!minAssigned || pColAgg->min > colVal.value.u16) {
             pColAgg->min = colVal.value.u16;
+            minAssigned = true;
           }
-          if (pColAgg->max < colVal.value.u16) {
+          if (!maxAssigned || pColAgg->max < colVal.value.u16) {
             pColAgg->max = colVal.value.u16;
+            maxAssigned = true;
           }
           break;
         }
         case TSDB_DATA_TYPE_UINT: {
           pColAgg->sum += colVal.value.u32;
-          if (pColAgg->min > colVal.value.u32) {
+          if (!minAssigned || pColAgg->min > colVal.value.u32) {
             pColAgg->min = colVal.value.u32;
+            minAssigned = true;
           }
-          if (pColAgg->max < colVal.value.u32) {
+          if (!minAssigned || pColAgg->max < colVal.value.u32) {
             pColAgg->max = colVal.value.u32;
+            maxAssigned = true;
           }
           break;
         }
         case TSDB_DATA_TYPE_UBIGINT: {
           pColAgg->sum += colVal.value.u64;
-          if (pColAgg->min > colVal.value.u64) {
+          if (!minAssigned || pColAgg->min > colVal.value.u64) {
             pColAgg->min = colVal.value.u64;
+            minAssigned = true;
           }
-          if (pColAgg->max < colVal.value.u64) {
+          if (!maxAssigned || pColAgg->max < colVal.value.u64) {
             pColAgg->max = colVal.value.u64;
+            maxAssigned = true;
           }
           break;
         }

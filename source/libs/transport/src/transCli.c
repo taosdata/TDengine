@@ -336,6 +336,7 @@ void cliHandleResp(SCliConn* conn) {
   if (cliRecvReleaseReq(conn, pHead)) {
     return;
   }
+
   if (CONN_NO_PERSIST_BY_APP(conn)) {
     pMsg = transQueuePop(&conn->cliMsgs);
 
@@ -1395,7 +1396,7 @@ int transReleaseCliHandle(void* handle) {
   }
 
   STransMsg tmsg = {.info.handle = handle};
-  // TRACE_SET_MSGID(&tmsg.info.traceId, tGenIdPI64());
+  TRACE_SET_MSGID(&tmsg.info.traceId, tGenIdPI64());
 
   SCliMsg* cmsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cmsg->msg = tmsg;

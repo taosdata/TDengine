@@ -25,30 +25,31 @@ extern "C" {
 #endif
 
 typedef struct SUpdateInfo {
-  SArray *pTsBuckets;
-  uint64_t numBuckets;
-  SArray *pTsSBFs;
-  uint64_t numSBFs;
-  int64_t interval;
-  int64_t watermark;
-  TSKEY minTS;
-  SScalableBf* pCloseWinSBF;
-  SHashObj* pMap;
-  STimeWindow scanWindow;
-  uint64_t scanGroupId;
-  uint64_t maxVersion;
+  SArray      *pTsBuckets;
+  uint64_t     numBuckets;
+  SArray      *pTsSBFs;
+  uint64_t     numSBFs;
+  int64_t      interval;
+  int64_t      watermark;
+  TSKEY        minTS;
+  SScalableBf *pCloseWinSBF;
+  SHashObj    *pMap;
+  STimeWindow  scanWindow;
+  uint64_t     scanGroupId;
+  uint64_t     maxVersion;
 } SUpdateInfo;
 
-SUpdateInfo *updateInfoInitP(SInterval* pInterval, int64_t watermark);
+SUpdateInfo *updateInfoInitP(SInterval *pInterval, int64_t watermark);
 SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t watermark);
-bool updateInfoIsUpdated(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts);
-void updateInfoSetScanRange(SUpdateInfo *pInfo, STimeWindow* pWin, uint64_t groupId, uint64_t version);
-bool updateInfoIgnore(SUpdateInfo *pInfo, STimeWindow* pWin, uint64_t groupId, uint64_t version);
-void updateInfoDestroy(SUpdateInfo *pInfo);
-void updateInfoAddCloseWindowSBF(SUpdateInfo *pInfo);
-void updateInfoDestoryColseWinSBF(SUpdateInfo *pInfo);
-int32_t updateInfoSerialize(void *buf, int32_t bufLen, const SUpdateInfo *pInfo);
-int32_t updateInfoDeserialize(void *buf, int32_t bufLen, SUpdateInfo *pInfo);
+bool         updateInfoIsUpdated(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts);
+bool         updateInfoIsTableInserted(SUpdateInfo *pInfo, int64_t tbUid);
+void         updateInfoSetScanRange(SUpdateInfo *pInfo, STimeWindow *pWin, uint64_t groupId, uint64_t version);
+bool         updateInfoIgnore(SUpdateInfo *pInfo, STimeWindow *pWin, uint64_t groupId, uint64_t version);
+void         updateInfoDestroy(SUpdateInfo *pInfo);
+void         updateInfoAddCloseWindowSBF(SUpdateInfo *pInfo);
+void         updateInfoDestoryColseWinSBF(SUpdateInfo *pInfo);
+int32_t      updateInfoSerialize(void *buf, int32_t bufLen, const SUpdateInfo *pInfo);
+int32_t      updateInfoDeserialize(void *buf, int32_t bufLen, SUpdateInfo *pInfo);
 
 #ifdef __cplusplus
 }

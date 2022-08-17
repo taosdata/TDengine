@@ -76,17 +76,16 @@ if $data03 != NULL then
   return -1
 endi
 
-sql insert into mt_unsigned_1 values(now, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-sql insert into mt_unsigned_1 values(now+1s, 1, 2, 3, 4, 5, 6, 7, 8, 9);
-
-sql_error insert into mt_unsigned_1 values(now, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-sql_error insert into mt_unsigned_1 values(now, NULL, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-sql_error insert into mt_unsigned_1 values(now, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL, NULL);
-sql_error insert into mt_unsigned_1 values(now, NULL, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL);
-sql insert into mt_unsigned_1 values(now, 255, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-sql insert into mt_unsigned_1 values(now, NULL, 65535, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-sql insert into mt_unsigned_1 values(now, NULL, NULL, 4294967295, NULL, NULL, NULL, NULL, NULL, NULL);
-sql insert into mt_unsigned_1 values(now, NULL, NULL, NULL, 18446744073709551615, NULL, NULL, NULL, NULL, NULL);
+sql insert into mt_unsigned_1 values(now+1s, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+sql insert into mt_unsigned_1 values(now+2s, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+sql_error insert into mt_unsigned_1 values(now+3s, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+sql_error insert into mt_unsigned_1 values(now+4s, NULL, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+sql_error insert into mt_unsigned_1 values(now+5s, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL, NULL);
+sql_error insert into mt_unsigned_1 values(now+6s, NULL, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL);
+sql insert into mt_unsigned_1 values(now+7s, 255, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+sql insert into mt_unsigned_1 values(now+8s, NULL, 65535, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+sql insert into mt_unsigned_1 values(now+9s, NULL, NULL, 4294967295, NULL, NULL, NULL, NULL, NULL, NULL);
+sql insert into mt_unsigned_1 values(now+10s, NULL, NULL, NULL, 18446744073709551615, NULL, NULL, NULL, NULL, NULL);
 
 sql select count(a),count(b),count(c),count(d), count(e) from mt_unsigned_1
 if $rows != 1 then
