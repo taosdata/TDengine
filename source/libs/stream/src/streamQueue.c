@@ -38,7 +38,9 @@ void streamQueueClose(SStreamQueue* queue) {
     if (qItem) {
       taosFreeQitem(qItem);
     } else {
-      return;
+      break;
     }
   }
+  taosFreeQall(queue->qall);
+  taosCloseQueue(queue->queue);
 }
