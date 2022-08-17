@@ -2154,7 +2154,9 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
 
 static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock) {
   int32_t rows = pResBlock->info.rows;
-
+  if (rows >= pResBlock->info.capacity) {
+    return;
+  }
   // todo set the correct primary timestamp column
 
   // output the result
