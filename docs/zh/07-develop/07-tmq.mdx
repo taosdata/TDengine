@@ -88,6 +88,30 @@ void close() throws SQLException;
 ```
 
 </TabItem>
+
+<TabItem value="Python" label="Python">
+
+```python
+class TaosConsumer():
+    def __init__(self, *topics, **configs)
+
+    def __iter__(self)
+
+    def __next__(self)
+
+    def sync_next(self)
+    
+    def subscription(self)
+
+    def unsubscribe(self)
+
+    def close(self)
+    
+    def __del__(self)
+```
+
+</TabItem>
+
 <TabItem label="Go" value="Go">
 
 ```go
@@ -104,6 +128,84 @@ func (c *Consumer) Poll(timeout time.Duration) (*Result, error)
 func (c *Consumer) Subscribe(topics []string) error
 
 func (c *Consumer) Unsubscribe() error
+```
+
+</TabItem>
+
+<TabItem label="Rust" value="Rust">
+
+```rust
+impl TBuilder for TmqBuilder
+  fn from_dsn<D: IntoDsn>(dsn: D) -> Result<Self, Self::Error>
+  fn build(&self) -> Result<Self::Target, Self::Error>
+
+impl AsAsyncConsumer for Consumer
+  async fn subscribe<T: Into<String>, I: IntoIterator<Item = T> + Send>(
+        &mut self,
+        topics: I,
+    ) -> Result<(), Self::Error>;
+  fn stream(
+        &self,
+    ) -> Pin<
+        Box<
+            dyn '_
+                + Send
+                + futures::Stream<
+                    Item = Result<(Self::Offset, MessageSet<Self::Meta, Self::Data>), Self::Error>,
+                >,
+        >,
+    >;
+  async fn commit(&self, offset: Self::Offset) -> Result<(), Self::Error>;
+
+  async fn unsubscribe(self);
+```
+
+可在 <https://docs.rs/taos> 上查看详细 API 说明。
+
+</TabItem>
+
+<TabItem label="Node.JS" value="Node.JS">
+
+```js
+function TMQConsumer(config)
+
+function subscribe(topic)
+
+function consume(timeout)
+
+function subscription()
+
+function unsubscribe()
+
+function commit(msg)
+
+function close()
+```
+
+</TabItem>
+
+<TabItem value="C#" label="C#">
+
+```csharp
+ConsumerBuilder(IEnumerable<KeyValuePair<string, string>> config)
+
+virtual IConsumer Build()
+
+Consumer(ConsumerBuilder builder)
+
+void Subscribe(IEnumerable<string> topics)
+
+void Subscribe(string topic) 
+
+ConsumeResult Consume(int millisecondsTimeout)
+
+List<string> Subscription()
+
+void Unsubscribe()
+ 
+void Commit(ConsumeResult consumerResult)
+
+void Close()
 ```
 
 </TabItem>
@@ -249,6 +351,7 @@ public class MetersDeserializer extends ReferenceDeserializer<Meters> {
 ```
 
 </TabItem>
+
 <TabItem label="Go" value="Go">
 
 ```go
@@ -299,6 +402,91 @@ if err != nil {
 ```
 
 </TabItem>
+
+<TabItem label="Rust" value="Rust">
+
+```rust
+let mut dsn: Dsn = "taos://".parse()?;
+dsn.set("group.id", "group1");
+dsn.set("client.id", "test");
+dsn.set("auto.offset.reset", "earliest");
+
+let tmq = TmqBuilder::from_dsn(dsn)?;
+
+let mut consumer = tmq.build()?;
+```
+
+</TabItem>
+
+<TabItem value="Python" label="Python">
+
+Python 使用以下配置项创建一个 Consumer 实例。
+
+|            参数名称            |  类型  | 参数说明                                                 | 备注                                        |
+| :----------------------------: | :----: | -------------------------------------------------------- | ------------------------------------------- |
+|        `td_connect_ip`         | string | 用于创建连接，同 `taos_connect`                          |                                             |
+|       `td_connect_user`        | string | 用于创建连接，同 `taos_connect`                          |                                             |
+|       `td_connect_pass`        | string | 用于创建连接，同 `taos_connect`                          |                                             |
+|       `td_connect_port`        | string | 用于创建连接，同 `taos_connect`                          |                                             |
+|           `group_id`           | string | 消费组 ID，同一消费组共享消费进度                        | **必填项**。最大长度：192。                 |
+|          `client_id`           | string | 客户端 ID                                                | 最大长度：192。                             |
+|      `auto_offset_reset`       | string | 消费组订阅的初始位置                                     | 可选：`earliest`, `latest`, `none`(default) |
+|      `enable_auto_commit`      | string | 启用自动提交                                             | 合法值：`true`, `false`。                   |
+|   `auto_commit_interval_ms`    | string | 以毫秒为单位的自动提交时间间隔                           |                                             |
+| `enable_heartbeat_background`  | string | 启用后台心跳，启用后即使长时间不 poll 消息也不会造成离线 | 合法值：`true`, `false`                     |
+| `experimental_snapshot_enable` | string | 从 WAL 开始消费，还是从 TSBS 开始消费                    | 合法值：`true`, `false`                     |
+|     `msg_with_table_name`      | string | 是否允许从消息中解析表名                                 | 合法值：`true`, `false`                     |
+|           `timeout`            |  int   | 消费者拉去的超时时间                                     |                                             |
+
+</TabItem>
+
+<TabItem label="Node.JS" value="Node.JS">
+
+```js
+// 根据需要，设置消费组 (group.id)、自动提交 (enable.auto.commit)、
+// 自动提交时间间隔 (auto.commit.interval.ms)、用户名 (td.connect.user)、密码 (td.connect.pass) 等参数 
+
+let consumer = taos.consumer({
+  'enable.auto.commit': 'true',
+  'auto.commit.interval.ms','1000',
+  'group.id': 'tg2',
+  'td.connect.user': 'root',
+  'td.connect.pass': 'taosdata',
+  'auto.offset.reset','earliest',
+  'msg.with.table.name': 'true',
+  'td.connect.ip','127.0.0.1',
+  'td.connect.port','6030'  
+  });
+```
+
+</TabItem>
+
+<TabItem value="C#" label="C#">
+
+```csharp
+using TDengineTMQ;
+
+// 根据需要，设置消费组 (GourpId)、自动提交 (EnableAutoCommit)、
+// 自动提交时间间隔 (AutoCommitIntervalMs)、用户名 (TDConnectUser)、密码 (TDConnectPasswd) 等参数
+var cfg = new ConsumerConfig
+ {
+    EnableAutoCommit = "true"
+    AutoCommitIntervalMs = "1000"
+    GourpId = "TDengine-TMQ-C#",
+    TDConnectUser = "root",
+    TDConnectPasswd = "taosdata",
+    AutoOffsetReset = "earliest"
+    MsgWithTableName = "true",
+    TDConnectIp = "127.0.0.1",
+    TDConnectPort = "6030"
+ };
+
+var consumer = new ConsumerBuilder(cfg).Build();
+
+```
+
+</TabItem>
+
 </Tabs>
 
 上述配置中包括 consumer group ID，如果多个 consumer 指定的 consumer group ID 一样，则自动形成一个 consumer group，共享消费进度。
@@ -344,6 +532,45 @@ if err != nil {
 ```
 
 </TabItem>
+<TabItem value="Rust" label="Rust">
+
+```rust
+consumer.subscribe(["tmq_meters"]).await?;
+```
+
+</TabItem>
+
+<TabItem value="Python" label="Python">
+
+```python
+consumer = TaosConsumer('topic_ctb_column', group_id='vg2')
+```
+
+</TabItem>
+
+<TabItem label="Node.JS" value="Node.JS">
+
+```js
+// 创建订阅 topics 列表
+let topics = ['topic_test']
+
+// 启动订阅
+consumer.subscribe(topics);
+```
+
+</TabItem>
+
+<TabItem value="C#" label="C#">
+
+```csharp
+// 创建订阅 topics 列表
+List<String> topics = new List<string>();
+topics.add("tmq_topic");
+// 启动订阅
+consumer.Subscribe(topics);
+```
+
+</TabItem>
 
 </Tabs>
 
@@ -377,6 +604,7 @@ while(running){
 ```
 
 </TabItem>
+
 <TabItem value="Go" label="Go">
 
 ```go
@@ -392,6 +620,80 @@ for {
 ```
 
 </TabItem>
+
+<TabItem value="Rust" label="Rust">
+
+```rust
+{
+    let mut stream = consumer.stream();
+
+    while let Some((offset, message)) = stream.try_next().await? {
+        // get information from offset
+
+        // the topic
+        let topic = offset.topic();
+        // the vgroup id, like partition id in kafka.
+        let vgroup_id = offset.vgroup_id();
+        println!("* in vgroup id {vgroup_id} of topic {topic}\n");
+
+        if let Some(data) = message.into_data() {
+            while let Some(block) = data.fetch_raw_block().await? {
+                // one block for one table, get table name if needed
+                let name = block.table_name();
+                let records: Vec<Record> = block.deserialize().try_collect()?;
+                println!(
+                    "** table: {}, got {} records: {:#?}\n",
+                    name.unwrap(),
+                    records.len(),
+                    records
+                );
+            }
+        }
+        consumer.commit(offset).await?;
+    }
+}
+```
+
+</TabItem>
+<TabItem value="Python" label="Python">
+
+```python
+for msg in consumer:
+    for row in msg:
+        print(row)
+```
+
+</TabItem>
+
+<TabItem label="Node.JS" value="Node.JS">
+
+```js
+while(true){
+  msg = consumer.consume(200);
+  // process message(consumeResult)
+  console.log(msg.topicPartition);
+  console.log(msg.block);
+  console.log(msg.fields)
+}
+```
+
+</TabItem>
+
+<TabItem value="C#" label="C#">
+
+```csharp
+// 消费数据
+while (true)
+{
+    var consumerRes = consumer.Consume(100);
+    // process ConsumeResult
+    ProcessMsg(consumerRes);
+    consumer.Commit(consumerRes);
+}
+```
+
+</TabItem>
+
 </Tabs>
 
 ## 结束消费
@@ -421,6 +723,8 @@ consumer.close();
 ```
 
 </TabItem>
+
+
 <TabItem value="Go" label="Go">
 
 ```go
@@ -428,6 +732,45 @@ consumer.Close()
 ```
 
 </TabItem>
+
+<TabItem value="Rust" label="Rust">
+
+```rust
+consumer.unsubscribe().await;
+```
+
+</TabItem>
+
+<TabItem value="Python" label="Python">
+
+```py
+# 取消订阅
+consumer.unsubscribe()
+# 关闭消费
+consumer.close()
+```
+
+</TabItem>
+<TabItem label="Node.JS" value="Node.JS">
+
+```js
+consumer.unsubscribe();
+consumer.close();
+```
+
+</TabItem>
+
+<TabItem value="C#" label="C#">
+
+```csharp
+// 取消订阅
+consumer.Unsubscribe();
+
+// 关闭消费
+consumer.Close();
+```
+</TabItem>
+
 </Tabs>
 
 ## 删除 *topic*
@@ -776,64 +1119,14 @@ int main(int argc, char* argv[]) {
 
 ```python
 import taos
+from taos.tmq import TaosConsumer
+
+import taos
 from taos.tmq import *
-
-conn = taos.connect()
-
-# create database
-conn.execute("drop database if exists py_tmq")
-conn.execute("create database if not exists py_tmq vgroups 2")
-
-# create table and stables
-conn.select_db("py_tmq")
-conn.execute("create stable if not exists stb1 (ts timestamp, c1 int, c2 float, c3 binary(10)) tags(t1 int)")
-conn.execute("create table if not exists tb1 using stb1 tags(1)")
-conn.execute("create table if not exists tb2 using stb1 tags(2)")
-conn.execute("create table if not exists tb3 using stb1 tags(3)")
-
-# create topic
-conn.execute("drop topic if exists topic_ctb_column")
-conn.execute("create topic if not exists topic_ctb_column as select ts, c1, c2, c3 from stb1")
-
-# set consumer configure options
-conf = TaosTmqConf()
-conf.set("group.id", "tg2")
-conf.set("td.connect.user", "root")
-conf.set("td.connect.pass", "taosdata")
-conf.set("enable.auto.commit", "true")
-conf.set("msg.with.table.name", "true")
-
-def tmq_commit_cb_print(tmq, resp, offset, param=None):
-    print(f"commit: {resp}, tmq: {tmq}, offset: {offset}, param: {param}")
-    
-conf.set_auto_commit_cb(tmq_commit_cb_print, None)
-
-# build consumer
-tmq = conf.new_consumer()
-
-# build topic list
-topic_list = TaosTmqList()
-topic_list.append("topic_ctb_column")
-
-# subscribe consumer
-tmq.subscribe(topic_list)
-
-# check subscriptions
-sub_list = tmq.subscription()
-print("subscribed topics: ",sub_list)
-
-# start subscribe
-while 1:
-    res = tmq.poll(1000)
-    if res:
-        topic = res.get_topic_name()
-        vg = res.get_vgroup_id()
-        db = res.get_db_name()
-        print(f"topic: {topic}\nvgroup id: {vg}\ndb: {db}")
-        for row in res:
-            print(row)
-            tb = res.get_table_name()
-            print(f"from table: {tb}")
+consumer = TaosConsumer('topic_ctb_column', group_id='vg2')
+for msg in consumer:
+    for row in msg:
+        print(row)
 
 ```
 
