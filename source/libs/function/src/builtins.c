@@ -199,7 +199,7 @@ static int32_t countTrailingSpaces(const SValueNode* pVal, bool isLtrim) {
 
   int32_t startPos = isLtrim ? 0 : len - 1;
   int32_t step = isLtrim ? 1 : -1;
-  for (int32_t i = startPos; i < len || i >= 0; i + step) {
+  for (int32_t i = startPos; i < len || i >= 0; i += step) {
     if (!isspace(str[i])) {
       break;
     }
