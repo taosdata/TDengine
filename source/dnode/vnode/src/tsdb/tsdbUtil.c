@@ -196,6 +196,25 @@ int32_t tCmprBlockIdx(void const *lhs, void const *rhs) {
   return 0;
 }
 
+int32_t tCmprBlockL(void const *lhs, void const *rhs) {
+  SBlockIdx *lBlockIdx = (SBlockIdx *)lhs;
+  SBlockL   *rBlockL = (SBlockL *)rhs;
+
+  if (lBlockIdx->suid < rBlockL->suid) {
+    return -1;
+  } else if (lBlockIdx->suid > rBlockL->suid) {
+    return 1;
+  }
+
+  if (lBlockIdx->uid < rBlockL->minUid) {
+    return -1;
+  } else if (lBlockIdx->uid > rBlockL->maxUid) {
+    return 1;
+  }
+
+  return 0;
+}
+
 // SBlock ======================================================
 void tBlockReset(SBlock *pBlock) {
   *pBlock = (SBlock){.minKey = TSDBKEY_MAX, .maxKey = TSDBKEY_MIN, .minVer = VERSION_MAX, .maxVer = VERSION_MIN};

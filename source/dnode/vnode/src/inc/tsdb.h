@@ -123,6 +123,7 @@ int32_t tGetBlockL(uint8_t *p, void *ph);
 int32_t tPutBlockIdx(uint8_t *p, void *ph);
 int32_t tGetBlockIdx(uint8_t *p, void *ph);
 int32_t tCmprBlockIdx(void const *lhs, void const *rhs);
+int32_t tCmprBlockL(void const *lhs, void const *rhs);
 // SColdata
 void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn);
 void    tColDataReset(SColData *pColData);
