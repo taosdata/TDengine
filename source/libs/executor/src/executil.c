@@ -426,15 +426,11 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
     for(int32_t j = 0; j < taosArrayGetSize(pResBlock->pDataBlock); j++){
       SColumnInfoData* pColInfo = (SColumnInfoData*)taosArrayGet(pResBlock->pDataBlock, j);
 
-      char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      metaGetTableNameByUid(metaHandle, *uid, str);
-      colDataAppend(pColInfo, i, str, false);
-
       if(pColInfo->info.colId == -1){     // tbname
-//        char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-//        metaGetTableNameByUid(metaHandle, *uid, str);
-//        colDataAppend(pColInfo, i, str, false);
-//        qDebug("tagfilter uid:%ld, tbname:%s", *uid, str+2);
+        char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+        metaGetTableNameByUid(metaHandle, *uid, str);
+        colDataAppend(pColInfo, i, str, false);
+        qDebug("tagfilter uid:%ld, tbname:%s", *uid, str+2);
       }else{
         STagVal tagVal = {0};
         tagVal.cid = pColInfo->info.colId;
@@ -452,16 +448,6 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
           taosMemoryFree(tmp);
         } else {
           colDataAppend(pColInfo, i, (const char*)&tagVal.i64, false);
-
-          if(pColInfo->info.type == TSDB_DATA_TYPE_TINYINT){
-            int8_t tint = *(int8_t*)(&tagVal.i64);
-            qDebug("tagfilter uid:%ld, tbname:%s, tint:%d", *uid, str+2, tint);
-
-          }else if(pColInfo->info.type == TSDB_DATA_TYPE_INT){
-            int nint = *(int*)(&tagVal.i64);
-            qDebug("tagfilter uid:%ld, tbname:%s nint:+%d", *uid, str+2, nint);
-
-          }
         }
       }
     }
