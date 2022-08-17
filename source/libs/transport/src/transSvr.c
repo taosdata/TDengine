@@ -276,6 +276,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
       while (transReadComplete(pBuf)) {
         tTrace("%s conn %p alread read complete packet", transLabel(pTransInst), conn);
         if (pBuf->invalid) {
+          tTrace("%s conn %p alread read invalid packet", transLabel(pTransInst), conn);
           destroyConn(conn, true);
           break;
         } else {
@@ -600,7 +601,7 @@ static bool uvRecvReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
       (*pTransInst->cfp)(pTransInst->parent, &(pConn->regArg.msg), NULL);
       memset(&pConn->regArg, 0, sizeof(pConn->regArg));
     }
-    uvStartSendResp(srvMsg);
+    uvStartSendRespInternal(srvMsg);
     return true;
   }
   return false;
@@ -872,6 +873,7 @@ static int reallocConnRef(SSvrConn* conn) {
 }
 static void uvDestroyConn(uv_handle_t* handle) {
   SSvrConn* conn = handle->data;
+
   if (conn == NULL) {
     return;
   }
@@ -887,9 +889,8 @@ static void uvDestroyConn(uv_handle_t* handle) {
     SSvrMsg* msg = transQueueGet(&conn->srvMsgs, i);
     destroySmsg(msg);
   }
-
-  transReqQueueClear(&conn->wreqQueue);
   transQueueDestroy(&conn->srvMsgs);
+  transReqQueueClear(&conn->wreqQueue);
 
   QUEUE_REMOVE(&conn->queue);
   taosMemoryFree(conn->pTcp);
