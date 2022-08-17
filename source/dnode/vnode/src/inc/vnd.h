@@ -99,6 +99,7 @@ void    vnodeSyncStart(SVnode* pVnode);
 void    vnodeSyncClose(SVnode* pVnode);
 void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg);
 bool    vnodeIsLeader(SVnode* pVnode);
+bool    vnodeIsReadyForRead(SVnode* pVnode);
 bool    vnodeIsRoleLeader(SVnode* pVnode);
 
 #ifdef __cplusplus

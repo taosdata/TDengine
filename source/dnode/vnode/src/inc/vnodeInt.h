@@ -130,6 +130,14 @@ int             metaTtlSmaller(SMeta* pMeta, uint64_t time, SArray* uidList);
 int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
 
+typedef struct SMetaInfo {
+  int64_t uid;
+  int64_t suid;
+  int64_t version;
+  int32_t skmVer;
+} SMetaInfo;
+int32_t metaGetInfo(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo);
+
 // tsdb
 int         tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg);
 int         tsdbClose(STsdb** pTsdb);
