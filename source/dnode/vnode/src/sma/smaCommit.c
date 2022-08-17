@@ -121,7 +121,7 @@ static int32_t tdProcessRSmaSyncPreCommitImpl(SSma *pSma) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SSmaStat *pStat = SMA_ENV_STAT(pSmaEnv);
+  SSmaStat  *pStat = SMA_ENV_STAT(pSmaEnv);
   SRSmaStat *pRSmaStat = SMA_STAT_RSMA(pStat);
 
   // step 1: set rsma stat paused
@@ -333,7 +333,34 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
     }
   }
 
-  // step 3:  swap queue/qall and iQueue/iQal
+  /**
+   * @brief step 3: consume the SubmitReq in buffer
+   *  1) This is high cost task and should not put in asyncPreCommit originally.
+   *  2) But, if put in asyncCommit, would trigger taskInfo cloning frequently.
+   */
+  nLoops = 0;
+  smaInfo("vgId:%d, start to wait for rsma qtask free, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
+
+  int8_t old;
+  while (1) {
+    old = atomic_val_compare_exchange_8(&pRSmaStat->execStat, 0, 1);
+    if (old == 0) break;
+    if (++nLoops > 1000) {
+      sched_yield();
+      nLoops = 0;
+      smaDebug("vgId:%d, wait for rsma qtask free, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
+    }
+  }
+
+  smaInfo("vgId:%d, end to wait for rsma qtask free, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
+
+  if (tdRSmaProcessExecImpl(pSma, RSMA_EXEC_COMMIT) < 0) {
+    atomic_store_8(&pRSmaStat->execStat, 0);
+    return TSDB_CODE_FAILED;
+  }
+
+
+  // step 4:  swap queue/qall and iQueue/iQall
   // lock
   taosWLockLatch(SMA_ENV_LOCK(pEnv));
 
@@ -351,11 +378,12 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   }
 
   atomic_store_64(&pRSmaStat->qBufSize, 0);
-
+  atomic_store_8(&pRSmaStat->execStat, 0);
   // unlock
   taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
 
-  // step 4: others
+
+  // step 5: others
   pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
 
   return TSDB_CODE_SUCCESS;
@@ -375,36 +403,17 @@ static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma) {
 
   SRSmaStat *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pSmaEnv);
 
-  // step 1: consume the SubmitReq in buffer
-  int32_t nLoops = 0;
-  smaDebug("vgId:%d start to wait for rsma qtask free, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
-  while (pRSmaStat->execStat == 1) {
-    taosMsleep(15);
-    if ((++nLoops & 63) == 0) {
-      smaWarn("vgId:%d 1s waited for rsma exec stat = 0, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
-      sched_yield();
-    }
-  }
-  pRSmaStat->execStat = 1;
-  smaDebug("vgId:%d end to wait for rsma qtask free, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
 
-  if (tdRSmaProcessExecImpl(pSma, 1) < 0) {
-    pRSmaStat->execStat = 0;
-    return TSDB_CODE_FAILED;
-  }
-
-  // step 2: perform persist task for qTaskInfo operator
+  // perform persist task for qTaskInfo operator
   if (tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat)) < 0) {
-    pRSmaStat->execStat = 0;
     return TSDB_CODE_FAILED;
   }
-  pRSmaStat->execStat = 0;
 
   return TSDB_CODE_SUCCESS;
 }
 
 /**
- * @brief Migrate rsmaInfo from iRsmaInfo to rsmaInfo if rsmaInfoHash not empty.
+ * @brief Migrate rsmaInfo from iRsmaInfo to rsmaInfo if rsma infoHash not empty.
  *
  * @param pSma
  * @return int32_t
@@ -424,13 +433,13 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
 
   void *pIter = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), NULL);
   while (pIter) {
-    tb_uid_t *pSuid = (tb_uid_t *)taosHashGetKey(pIter, NULL);
+    tb_uid_t  *pSuid = (tb_uid_t *)taosHashGetKey(pIter, NULL);
     SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)pIter;
     if (RSMA_INFO_IS_DEL(pRSmaInfo)) {
       int32_t refVal = T_REF_VAL_GET(pRSmaInfo);
       if (refVal == 0) {
-        if(!rsmaDeleted) {
-          if((rsmaDeleted = taosArrayInit(1, sizeof(tb_uid_t)))){
+        if (!rsmaDeleted) {
+          if ((rsmaDeleted = taosArrayInit(1, sizeof(tb_uid_t)))) {
             taosArrayPush(rsmaDeleted, pSuid);
           }
         }
@@ -461,22 +470,20 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
     pIter = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), pIter);
   }
 
-  if (taosArrayGetSize(rsmaDeleted) > 0) {
-    for (int32_t i = 0; i < taosArrayGetSize(rsmaDeleted); ++i) {
-      tb_uid_t *pSuid = taosArrayGet(rsmaDeleted, i);
-      void     *pRSmaInfo = taosHashGet(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t));
-      if ((pRSmaInfo = *(SRSmaInfo **)pRSmaInfo)) {
-        tdFreeRSmaInfo(pSma, pRSmaInfo, true);
-        smaDebug(
-            "vgId:%d, rsma async post commit, free rsma info since already deleted and ref is 0 for "
-            "table:%" PRIi64,
-            SMA_VID(pSma), *pSuid);
-      }
-      taosHashRemove(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t));
+  for (int32_t i = 0; i < taosArrayGetSize(rsmaDeleted); ++i) {
+    tb_uid_t *pSuid = taosArrayGet(rsmaDeleted, i);
+    void     *pRSmaInfo = taosHashGet(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t));
+    if ((pRSmaInfo = *(SRSmaInfo **)pRSmaInfo)) {
+      tdFreeRSmaInfo(pSma, pRSmaInfo, true);
+      smaDebug(
+          "vgId:%d, rsma async post commit, free rsma info since already deleted and ref is 0 for "
+          "table:%" PRIi64,
+          SMA_VID(pSma), *pSuid);
     }
-    // remove suid in files
-    taosArrayDestroy(rsmaDeleted);
+    taosHashRemove(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t));
   }
+  taosArrayDestroy(rsmaDeleted);
+  // TODO: remove suid in files?
 
   // unlock
   taosWUnLockLatch(SMA_ENV_LOCK(pEnv));

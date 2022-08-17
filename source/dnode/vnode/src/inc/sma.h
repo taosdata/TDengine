@@ -96,9 +96,9 @@ struct SRSmaStat {
   int8_t           commitStat;        // 0 not in committing, 1 in committing
   int8_t           execStat;          // 0 not in exec , 1 in exec
   SArray          *aTaskFile;         // qTaskFiles committed recently(for recovery/snapshot r/w)
-  SHashObj        *rsmaInfoHash;      // key: stbUid, value: SRSmaInfo;
+  SHashObj        *infoHash;          // key: suid, value: SRSmaInfo
+  SHashObj        *fetchHash;         // key: suid, value: L1 or L2 or L1|L2
 };
-
 
 struct SSmaStat {
   union {
@@ -108,13 +108,14 @@ struct SSmaStat {
   T_REF_DECLARE()
 };
 
-#define SMA_STAT_TSMA(s)      (&(s)->tsmaStat)
-#define SMA_STAT_RSMA(s)      (&(s)->rsmaStat)
-#define RSMA_INFO_HASH(r)     ((r)->rsmaInfoHash)
-#define RSMA_TRIGGER_STAT(r)  (&(r)->triggerStat)
-#define RSMA_COMMIT_STAT(r)   (&(r)->commitStat)
-#define RSMA_REF_ID(r)        ((r)->refId)
-#define RSMA_FS_LOCK(r)       (&(r)->lock)
+#define SMA_STAT_TSMA(s)     (&(s)->tsmaStat)
+#define SMA_STAT_RSMA(s)     (&(s)->rsmaStat)
+#define RSMA_INFO_HASH(r)    ((r)->infoHash)
+#define RSMA_FETCH_HASH(r)   ((r)->fetchHash)
+#define RSMA_TRIGGER_STAT(r) (&(r)->triggerStat)
+#define RSMA_COMMIT_STAT(r)  (&(r)->commitStat)
+#define RSMA_REF_ID(r)       ((r)->refId)
+#define RSMA_FS_LOCK(r)      (&(r)->lock)
 
 struct SRSmaInfoItem {
   int8_t  level;
@@ -142,7 +143,7 @@ struct SRSmaInfo {
 #define RSMA_INFO_IS_DEL(r)    ((r)->delFlag == 1)
 #define RSMA_INFO_SET_DEL(r)   ((r)->delFlag = 1)
 #define RSMA_INFO_QTASK(r, i)  ((r)->taskInfo[i])
-#define RSMA_INFO_IQTASK(r, i)  ((r)->iTaskInfo[i])
+#define RSMA_INFO_IQTASK(r, i) ((r)->iTaskInfo[i])
 #define RSMA_INFO_ITEM(r, i)   (&(r)->items[i])
 
 enum {
@@ -166,6 +167,12 @@ enum {
   RSMA_RESTORE_REBOOT = 1,
   RSMA_RESTORE_SYNC = 2,
 };
+
+typedef enum {
+  RSMA_EXEC_OVERFLOW = 1,  // triggered by queue buf overflow
+  RSMA_EXEC_TIMEOUT = 2,   // triggered by timer
+  RSMA_EXEC_COMMIT = 3,    // triggered by commit
+} ERsmaExecType;
 
 void  tdDestroySmaEnv(SSmaEnv *pSmaEnv);
 void *tdFreeSmaEnv(SSmaEnv *pSmaEnv);
@@ -240,7 +247,7 @@ static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
 int32_t        tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
-int32_t        tdRSmaProcessExecImpl(SSma *pSma, int8_t type);
+int32_t        tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type);
 
 int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
 int32_t tdProcessRSmaRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer);
