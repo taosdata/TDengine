@@ -138,6 +138,14 @@ python3 ./test.py -f 2-query/percentile.py
 python3 ./test.py -f 2-query/percentile.py -R
 python3 ./test.py -f 2-query/pow.py
 python3 ./test.py -f 2-query/pow.py -R
+python3 ./test.py -f 2-query/query_cols_tags_and_or.py
+python3 ./test.py -f 2-query/query_cols_tags_and_or.py -R
+python3 ./test.py -f 2-query/round.py
+python3 ./test.py -f 2-query/round.py -R
+python3 ./test.py -f 2-query/rtrim.py
+# python3 ./test.py -f 2-query/rtrim.py -R
+python3 ./test.py -f 2-query/sample.py
+python3 ./test.py -f 2-query/sample.py -R
 
 
 python3 ./test.py -f 1-insert/update_data.py
@@ -145,7 +153,6 @@ python3 ./test.py -f 1-insert/update_data.py
 python3 ./test.py -f 1-insert/delete_data.py
 
 python3 ./test.py -f 2-query/varchar.py
-python3 ./test.py -f 2-query/rtrim.py
 python3 ./test.py -f 2-query/upper.py
 python3 ./test.py -f 2-query/lower.py
 python3 ./test.py -f 2-query/join2.py
@@ -165,12 +172,10 @@ python3 ./test.py -f 2-query/Timediff.py
 python3 ./test.py -f 2-query/json_tag.py
 
 python3 ./test.py -f 2-query/top.py
-python3 ./test.py -f 2-query/round.py
 python3 ./test.py -f 2-query/log.py
 python3 ./test.py -f 2-query/sqrt.py
 python3 ./test.py -f 2-query/sin.py
 python3 ./test.py -f 2-query/tan.py
-python3 ./test.py -f 2-query/query_cols_tags_and_or.py
 # python3 ./test.py -f 2-query/nestedQuery.py
 # TD-15983 subquery output duplicate name column.
 # Please Xiangyang Guo modify the following script
@@ -179,7 +184,6 @@ python3 ./test.py -f 2-query/query_cols_tags_and_or.py
 python3 ./test.py -f 2-query/elapsed.py
 python3 ./test.py -f 2-query/csum.py
 #python3 ./test.py -f 2-query/mavg.py
-python3 ./test.py -f 2-query/sample.py
 python3 ./test.py -f 2-query/function_diff.py
 python3 ./test.py -f 2-query/unique.py
 python3 ./test.py -f 2-query/stateduration.py
