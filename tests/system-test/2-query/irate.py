@@ -69,7 +69,7 @@ class TDTestCase:
                         comput_irate_value = origin_result[1][0]*1000/( origin_result[1][-1] - origin_result[0][-1])
                     else:
                         comput_irate_value = (origin_result[1][0] - origin_result[0][0])*1000/( origin_result[1][-1] - origin_result[0][-1])
-                    if abs(comput_irate_value - irate_value) <= 0.0000001:
+                    if abs(comput_irate_value - irate_value) <= 0.001:  # set as 0.001 avoid floating point precision calculation errors
                         tdLog.info(" irate work as expected , sql is %s "% irate_sql)
                     else:
                         tdLog.exit(" irate work not as expected , sql is %s "% irate_sql)
