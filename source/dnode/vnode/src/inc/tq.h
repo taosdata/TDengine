@@ -117,16 +117,15 @@ typedef struct {
 struct STQ {
   SVnode*   pVnode;
   char*     path;
-  SHashObj* pushMgr;     // consumerId -> STqHandle*
-  SHashObj* handles;     // subKey -> STqHandle
-  SHashObj* pAlterInfo;  // topic -> SAlterCheckInfo
+  SHashObj* pPushMgr;    // consumerId -> STqHandle*
+  SHashObj* pHandle;     // subKey -> STqHandle
+  SHashObj* pCheckInfo;  // topic -> SAlterCheckInfo
 
   STqOffsetStore* pOffsetStore;
 
-  TDB* pMetaStore;
+  TDB* pMetaDB;
   TTB* pExecStore;
-
-  TTB* pAlterInfoStore;
+  TTB* pCheckStore;
 
   SStreamMeta* pStreamMeta;
 };
@@ -155,6 +154,9 @@ int32_t tqMetaClose(STQ* pTq);
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
 int32_t tqMetaDeleteHandle(STQ* pTq, const char* key);
 int32_t tqMetaRestoreHandle(STQ* pTq);
+int32_t tqMetaSaveCheckInfo(STQ* pTq, const char* key, const void* value, int32_t vLen);
+int32_t tqMetaDeleteCheckInfo(STQ* pTq, const char* key);
+int32_t tqMetaRestoreCheckInfo(STQ* pTq);
 
 typedef struct {
   int32_t size;
