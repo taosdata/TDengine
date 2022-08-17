@@ -323,7 +323,10 @@ static int32_t translateTrimStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len
 
   int32_t numOfSpaces = 0;
   SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (nodeType(pParamNode1) != QUERY_NODE_VALUE) {
+  // for select trim functions with constant value from table,
+  // need to set the proper result result schema bytes to avoid
+  // trailing garbage characters
+  if (nodeType(pParamNode1) == QUERY_NODE_VALUE) {
     SValueNode* pValue = (SValueNode*)pParamNode1;
     numOfSpaces = countTrailingSpaces(pValue, isLtrim);
   }
