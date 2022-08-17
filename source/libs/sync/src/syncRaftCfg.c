@@ -19,6 +19,149 @@
 #include "syncUtil.h"
 
 // file must already exist!
+SRaftCfgIndex *raftCfgIndexOpen(const char *path) {
+  SRaftCfgIndex *pRaftCfgIndex = taosMemoryMalloc(sizeof(SRaftCfg));
+  snprintf(pRaftCfgIndex->path, sizeof(pRaftCfgIndex->path), "%s", path);
+
+  pRaftCfgIndex->pFile = taosOpenFile(pRaftCfgIndex->path, TD_FILE_READ | TD_FILE_WRITE);
+  ASSERT(pRaftCfgIndex->pFile != NULL);
+
+  taosLSeekFile(pRaftCfgIndex->pFile, 0, SEEK_SET);
+
+  int32_t bufLen = MAX_CONFIG_INDEX_COUNT * 16;
+  char   *pBuf = taosMemoryMalloc(bufLen);
+  memset(pBuf, 0, bufLen);
+  int64_t len = taosReadFile(pRaftCfgIndex->pFile, pBuf, bufLen);
+  ASSERT(len > 0);
+
+  int32_t ret = raftCfgIndexFromStr(pBuf, pRaftCfgIndex);
+  ASSERT(ret == 0);
+
+  taosMemoryFree(pBuf);
+
+  return pRaftCfgIndex;
+}
+
+int32_t raftCfgIndexClose(SRaftCfgIndex *pRaftCfgIndex) {
+  if (pRaftCfgIndex != NULL) {
+    int64_t ret = taosCloseFile(&(pRaftCfgIndex->pFile));
+    ASSERT(ret == 0);
+    taosMemoryFree(pRaftCfgIndex);
+  }
+  return 0;
+}
+
+int32_t raftCfgIndexPersist(SRaftCfgIndex *pRaftCfgIndex) {
+  ASSERT(pRaftCfgIndex != NULL);
+
+  char *s = raftCfgIndex2Str(pRaftCfgIndex);
+  taosLSeekFile(pRaftCfgIndex->pFile, 0, SEEK_SET);
+
+  int64_t ret = taosWriteFile(pRaftCfgIndex->pFile, s, strlen(s) + 1);
+  ASSERT(ret == strlen(s) + 1);
+
+  taosMemoryFree(s);
+  taosFsyncFile(pRaftCfgIndex->pFile);
+  return 0;
+}
+
+int32_t raftCfgIndexAddConfigIndex(SRaftCfgIndex *pRaftCfgIndex, SyncIndex configIndex) {
+  ASSERT(pRaftCfgIndex->configIndexCount <= MAX_CONFIG_INDEX_COUNT);
+  (pRaftCfgIndex->configIndexArr)[pRaftCfgIndex->configIndexCount] = configIndex;
+  ++(pRaftCfgIndex->configIndexCount);
+  return 0;
+}
+
+cJSON *raftCfgIndex2Json(SRaftCfgIndex *pRaftCfgIndex) {
+  cJSON *pRoot = cJSON_CreateObject();
+
+  cJSON_AddNumberToObject(pRoot, "configIndexCount", pRaftCfgIndex->configIndexCount);
+  cJSON *pIndexArr = cJSON_CreateArray();
+  cJSON_AddItemToObject(pRoot, "configIndexArr", pIndexArr);
+  for (int i = 0; i < pRaftCfgIndex->configIndexCount; ++i) {
+    char buf64[128];
+    snprintf(buf64, sizeof(buf64), "%" PRId64, (pRaftCfgIndex->configIndexArr)[i]);
+    cJSON *pIndexObj = cJSON_CreateObject();
+    cJSON_AddStringToObject(pIndexObj, "index", buf64);
+    cJSON_AddItemToArray(pIndexArr, pIndexObj);
+  }
+
+  cJSON *pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SRaftCfgIndex", pRoot);
+  return pJson;
+}
+
+char *raftCfgIndex2Str(SRaftCfgIndex *pRaftCfgIndex) {
+  cJSON *pJson = raftCfgIndex2Json(pRaftCfgIndex);
+  char  *serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+int32_t raftCfgIndexFromJson(const cJSON *pRoot, SRaftCfgIndex *pRaftCfgIndex) {
+  cJSON *pJson = cJSON_GetObjectItem(pRoot, "SRaftCfgIndex");
+
+  cJSON *pJsonConfigIndexCount = cJSON_GetObjectItem(pJson, "configIndexCount");
+  pRaftCfgIndex->configIndexCount = cJSON_GetNumberValue(pJsonConfigIndexCount);
+
+  cJSON *pIndexArr = cJSON_GetObjectItem(pJson, "configIndexArr");
+  int    arraySize = cJSON_GetArraySize(pIndexArr);
+  ASSERT(arraySize == pRaftCfgIndex->configIndexCount);
+
+  memset(pRaftCfgIndex->configIndexArr, 0, sizeof(pRaftCfgIndex->configIndexArr));
+  for (int i = 0; i < arraySize; ++i) {
+    cJSON *pIndexObj = cJSON_GetArrayItem(pIndexArr, i);
+    ASSERT(pIndexObj != NULL);
+
+    cJSON *pIndex = cJSON_GetObjectItem(pIndexObj, "index");
+    ASSERT(cJSON_IsString(pIndex));
+    (pRaftCfgIndex->configIndexArr)[i] = atoll(pIndex->valuestring);
+  }
+
+  return 0;
+}
+
+int32_t raftCfgIndexFromStr(const char *s, SRaftCfgIndex *pRaftCfgIndex) {
+  cJSON *pRoot = cJSON_Parse(s);
+  ASSERT(pRoot != NULL);
+
+  int32_t ret = raftCfgIndexFromJson(pRoot, pRaftCfgIndex);
+  ASSERT(ret == 0);
+
+  cJSON_Delete(pRoot);
+  return 0;
+}
+
+int32_t raftCfgIndexCreateFile(const char *path) {
+  TdFilePtr pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE);
+  if (pFile == NULL) {
+    int32_t     err = terrno;
+    const char *errStr = tstrerror(err);
+    int32_t     sysErr = errno;
+    const char *sysErrStr = strerror(errno);
+    sError("create raft cfg index file error, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", err, err, errStr, sysErr,
+           sysErrStr);
+    ASSERT(0);
+
+    return -1;
+  }
+
+  SRaftCfgIndex raftCfgIndex;
+  memset(raftCfgIndex.configIndexArr, 0, sizeof(raftCfgIndex.configIndexArr));
+  raftCfgIndex.configIndexCount = 1;
+  raftCfgIndex.configIndexArr[0] = -1;
+
+  char   *s = raftCfgIndex2Str(&raftCfgIndex);
+  int64_t ret = taosWriteFile(pFile, s, strlen(s) + 1);
+  ASSERT(ret == strlen(s) + 1);
+
+  taosMemoryFree(s);
+  taosCloseFile(&pFile);
+  return 0;
+}
+
+// ---------------------------------------
+// file must already exist!
 SRaftCfg *raftCfgOpen(const char *path) {
   SRaftCfg *pCfg = taosMemoryMalloc(sizeof(SRaftCfg));
   snprintf(pCfg->path, sizeof(pCfg->path), "%s", path);
@@ -359,5 +502,32 @@ void raftCfgLog(SRaftCfg *pCfg) {
 void raftCfgLog2(char *s, SRaftCfg *pCfg) {
   char *serialized = raftCfg2Str(pCfg);
   sTrace("raftCfgLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+  taosMemoryFree(serialized);
+}
+
+// ---------
+void raftCfgIndexPrint(SRaftCfgIndex *pCfg) {
+  char *serialized = raftCfgIndex2Str(pCfg);
+  printf("raftCfgIndexPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void raftCfgIndexPrint2(char *s, SRaftCfgIndex *pCfg) {
+  char *serialized = raftCfgIndex2Str(pCfg);
+  printf("raftCfgIndexPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void raftCfgIndexLog(SRaftCfgIndex *pCfg) {
+  char *serialized = raftCfgIndex2Str(pCfg);
+  sTrace("raftCfgIndexLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  taosMemoryFree(serialized);
+}
+
+void raftCfgIndexLog2(char *s, SRaftCfgIndex *pCfg) {
+  char *serialized = raftCfgIndex2Str(pCfg);
+  sTrace("raftCfgIndexLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
   taosMemoryFree(serialized);
 }

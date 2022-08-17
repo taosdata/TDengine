@@ -630,7 +630,7 @@ static int32_t meta_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
 
   {
     tmq_raw_data raw = {0};
-    int32_t code = tmq_get_raw_meta(msg, &raw);
+    int32_t code = tmq_get_raw(msg, &raw);
 	
     if(code == TSDB_CODE_SUCCESS){
 	  int retCode = queryDB(pInfo->taos, "use metadb");
@@ -641,7 +641,7 @@ static int32_t meta_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
 	  }	  
 	  taosFprintfFile(g_fp, "raw:%p\n", &raw);
 	
-      taos_write_raw_meta(pInfo->taos, raw);
+      tmq_write_raw(pInfo->taos, raw);
     }
 	
     char* result = tmq_get_json_meta(msg);

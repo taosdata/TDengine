@@ -184,6 +184,7 @@ static FORCE_INLINE void colDataAppendDouble(SColumnInfoData* pColumnInfoData, u
 int32_t getJsonValueLen(const char* data);
 
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull);
+int32_t colDataAppendNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, uint32_t numOfRows);
 int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int32_t* capacity,
                         const SColumnInfoData* pSource, int32_t numOfRow2);
 int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows,
@@ -238,15 +239,16 @@ SColumnInfoData  createColumnInfoData(int16_t type, int32_t bytes, int16_t colId
 SColumnInfoData* bdGetColumnInfoData(const SSDataBlock* pBlock, int32_t index);
 
 void blockEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols, int8_t needCompress);
-const char* blockDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t numOfRows, const char* pData);
+const char* blockDecode(SSDataBlock* pBlock, const char* pData);
 
 void blockDebugShowDataBlock(SSDataBlock* pBlock, const char* flag);
 void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag);
 // for debug
 char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf);
 
-int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema* pTSchema, int32_t vgId,
+int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataBlocks, STSchema* pTSchema, int32_t vgId,
                                     tb_uid_t suid);
+
 
 char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId);
 

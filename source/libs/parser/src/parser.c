@@ -85,13 +85,13 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
   if (IS_VAR_DATA_TYPE(pVal->node.resType.type)) {
     taosMemoryFreeClear(pVal->datum.p);
   }
-  
+
   if (pParam->is_null && 1 == *(pParam->is_null)) {
     pVal->node.resType.type = TSDB_DATA_TYPE_NULL;
     pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
     return TSDB_CODE_SUCCESS;
   }
-  
+
   int32_t inputSize = (NULL != pParam->length ? *(pParam->length) : tDataTypes[pParam->buffer_type].bytes);
   pVal->node.resType.type = pParam->buffer_type;
   pVal->node.resType.bytes = inputSize;
@@ -185,9 +185,9 @@ int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq
     code = parseSqlSyntax(pCxt, pQuery, &metaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildCatalogReq(&metaCache, pCatalogReq);
+    code = buildCatalogReq(pCxt, &metaCache, pCatalogReq);
   }
-  destoryParseMetaCache(&metaCache);
+  destoryParseMetaCache(&metaCache, true);
   terrno = code;
   return code;
 }
@@ -195,7 +195,7 @@ int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq
 int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
                             const struct SMetaData* pMetaData, SQuery* pQuery) {
   SParseMetaCache metaCache = {0};
-  int32_t         code = putMetaDataToCache(pCatalogReq, pMetaData, &metaCache);
+  int32_t         code = putMetaDataToCache(pCatalogReq, pMetaData, &metaCache, NULL == pQuery->pRoot);
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL == pQuery->pRoot) {
       code = parseInsertSql(pCxt, &pQuery, &metaCache);
@@ -203,7 +203,7 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
       code = analyseSemantic(pCxt, pQuery, &metaCache);
     }
   }
-  destoryParseMetaCache(&metaCache);
+  destoryParseMetaCache(&metaCache, false);
   terrno = code;
   return code;
 }

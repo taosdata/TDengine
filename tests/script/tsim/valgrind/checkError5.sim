@@ -4,7 +4,7 @@ system sh/cfg.sh -n dnode1 -c debugflag -v 131
 system sh/exec.sh -n dnode1 -s start -v
 sql connect
 
-print =============== step1: create drop show dnodes
+print =============== step1: create drop select * from information_schema.ins_dnodes
 $x = 0
 step1:
 	$x = $x + 1
@@ -13,7 +13,7 @@ step1:
 	  print ---> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ---> $data00 $data01 $data02 $data03 $data04 $data05
 if $rows != 1 then
   return -1
@@ -68,13 +68,13 @@ sql select * from tb order by ts desc
 
 print =============== step5: alter stb and insert data
 sql create table stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 float, t3 binary(16)) comment "abd"
-sql show db.stables
+sql select * from information_schema.ins_stables where db_name = 'db'
 sql describe stb
 sql_error alter table stb add column ts int
 
 sql create table db.ctb using db.stb tags(101, 102, "103")
 sql insert into db.ctb values(now, 1, "2")
-sql show db.tables
+sql select * from information_schema.ins_tables where db_name = 'db'
 sql select * from db.stb
 sql select * from tb
 
@@ -100,10 +100,45 @@ sql select * from db.stb
 sql select * from db.stb
 sql_error create table db.ctb2 using db.stb tags(101, "102")
 sql create table db.ctb2 using db.stb tags(101, 102, "103", 104)
-sql insert into db.ctb2 values(now, 1, 2, 3)
+sql insert into db.ctb2 values(now, 1, 2, 3) 
 
 print =============== step6: query data
 sql select * from db.stb where tbname = 'ctb2';
+sql alter table ctb2 set tag t1=1;
+sql alter table ctb2 set tag t3='3';
+sql select * from db.stb where t1 = 1;
+
+print =============== step7: normal table
+sql create database d1 replica 1 duration 7 keep 50 
+sql use d1
+sql create table tb (ts timestamp, a int)
+sql insert into tb values(now-28d, -28)
+sql alter table tb add column b smallint
+sql insert into tb values(now-25d, -25, 0)
+sql alter table tb add column c tinyint
+sql insert into tb values(now-22d, -22, 3, 0)
+sql alter table tb add column d int
+sql insert into tb values(now-19d, -19, 6, 0, 0)
+sql alter table tb add column e bigint
+sql insert into tb values(now-16d, -16, 9, 0, 0, 0)
+sql alter table tb add column f float
+sql insert into tb values(now-13d, -13, 12, 0, 0, 0, 0)
+sql alter table tb add column g double
+sql insert into tb values(now-10d, -10, 15, 0, 0, 0, 0, 0)
+sql alter table tb add column h binary(10)
+sql insert into tb values(now-7d, -7, 18, 0, 0, 0, 0, 0, '0')
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from d1.tb;
+sql alter table tb drop column a
+sql insert into tb values(now-4d, 1, 1, 1, 1, 1, 1, '1')
+sql alter table tb drop column b
+sql insert into tb values(now-3d, 1, 1, 1, 1, 1, '1')
+sql alter table tb drop column c
+sql insert into tb values(now-2d, 1, 1, 1, 1, '1')
+sql alter table tb drop column d
+sql insert into tb values(now-1d, 1, 1, 1, '1')
+sql alter table tb drop column e
+sql insert into tb values(now, 1, 1, '1')
+sql select count(h) from tb
 
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

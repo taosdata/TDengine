@@ -42,7 +42,7 @@ class TDTestCase:
         self.comment_flag_list = [True,False]
 
     def __set_and_alter_comment(self,tb_type='',comment_flag= False):
-        
+
         column_sql = ''
         tag_sql = ''
         for k,v in self.column_dict.items():
@@ -78,7 +78,7 @@ class TDTestCase:
                         tdSql.execute(f'create {operation} {self.stbname} ({column_sql[:-1]}) tags({tag_sql[:-1]}) comment "{comment_info}"')
                         self.check_comment_info(comment_info,'stable')
                         self.alter_comment(self.stbname,'stable')
-                        tdSql.execute(f'drop table {self.stbname}')   
+                        tdSql.execute(f'drop table {self.stbname}')
         elif tb_type == 'child_table':
             tdSql.execute(f'create table if not exists {self.stbname} ({column_sql[:-1]}) tags({tag_sql[:-1]})')
             if comment_flag == False:
@@ -105,13 +105,13 @@ class TDTestCase:
             tdSql.error(f'alter table {tbname} comment "{comment_info}"')
     def check_comment_info(self,comment_info=None,tb_type=''):
         if tb_type == '' or tb_type == 'normal_table' or tb_type == 'child_table':
-            tdSql.query('show tables')
+            tdSql.query('select * from information_schema.ins_tables where db_name = \'db\'')
             if comment_info == None:
                 tdSql.checkEqual(tdSql.queryResult[0][8],None)
             else :
                 tdSql.checkEqual(tdSql.queryResult[0][8],comment_info)
         elif tb_type == 'stable':
-            tdSql.query('show stables')
+            tdSql.query('select * from information_schema.ins_stables where db_name = \'db\'')
             if comment_info == None:
                 tdSql.checkEqual(tdSql.queryResult[0][6],None)
             else :
@@ -122,7 +122,7 @@ class TDTestCase:
             for flag in comment_flag:
                 self.__set_and_alter_comment(tb,flag)
         tdSql.execute('drop database db')
-        
+
     def run(self):
         self.comment_check_case(self.table_type_list,self.comment_flag_list)
 

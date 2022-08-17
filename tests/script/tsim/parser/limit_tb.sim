@@ -218,7 +218,7 @@ sql select sum(c1), avg(c2), stddev(c3), max(c4), min(c5), count(c6), first(c7),
 if $rows != 1 then
   return -1
 endi
-$val = 45 * $rowNum 
+$val = 45 * $rowNum
 $val = $val / 10
 print $data05
 print $rowNum
@@ -445,7 +445,7 @@ if $rows != 0 then
   return -1
 endi
 
-sql select diff(c1) from $tb where c1 > 5 limit 2 offset 1
+sql select ts, diff(c1) from $tb where c1 > 5 limit 2 offset 1
 if $rows != 2 then
   return -1
 endi
@@ -464,7 +464,7 @@ endi
 
 ### aggregation + limit offset (with interval)
 sql select max(c1), max(c2), max(c3), max(c4), max(c5), max(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) limit 5
-if $rows != 5 then 
+if $rows != 5 then
   return -1
 endi
 if $data01 != 0 then
@@ -684,7 +684,7 @@ if $data11 != 3 then
 endi
 if $data21 != 3 then
   return -1
-endi 
+endi
 
 sql select twa(c1), twa(c2), twa(c3), twa(c4), twa(c5), twa(c6) from $tb where ts >= $ts0 and ts <= $tsu limit 3 offset 1
 if $rows != 0 then
@@ -728,7 +728,7 @@ sql select last(c1), last(c2), last(c3), last(c4), last(c5), last(c6) from $tb w
 if $rows != 0 then
   return -1
 endi
-sql select last(c1), last(c2), last(c3), last(c4), last(c5), last(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 3 offset 1
+sql select _wstart, last(c1), last(c2), last(c3), last(c4), last(c5), last(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 3 offset 1
 if $rows != 3 then
   return -1
 endi
@@ -742,7 +742,7 @@ if $data23 != 9.00000 then
   return -1
 endi
 
-sql select first(ts), first(c1), last(c2), first(c3), last(c4), first(c5), last(c6), first(c8), last(c9) from $tb where ts >= $ts0 and ts <= $tsu and c1 > 0 interval(30m) limit 3 offset 0
+sql select _wstart, first(ts), first(c1), last(c2), first(c3), last(c4), first(c5), last(c6), first(c8), last(c9) from $tb where ts >= $ts0 and ts <= $tsu and c1 > 0 interval(30m) limit 3 offset 0
 if $rows != 3 then
   return -1
 endi
@@ -777,7 +777,7 @@ if $data29 != nchar8 then
   return -1
 endi
 
-sql select first(ts), first(c1), last(c2), first(c3), last(c4), first(c5), last(c6), first(c8), last(c9) from $tb where ts >= $ts0 and ts <= $tsu and c1 > 0 interval(30m) limit 3 offset 1
+sql select _wstart, first(ts), first(c1), last(c2), first(c3), last(c4), first(c5), last(c6), first(c8), last(c9) from $tb where ts >= $ts0 and ts <= $tsu and c1 > 0 interval(30m) limit 3 offset 1
 if $rows != 3 then
   return -1
 endi
@@ -789,7 +789,7 @@ if $data02 != 3 then
 endi
 if $data03 != 5 then
   return -1
-endi 
+endi
 if $data04 != 3.00000 then
   return -1
 endi

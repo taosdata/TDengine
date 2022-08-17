@@ -23,7 +23,7 @@ OpenTSDB 行协议同样采用一行字符串来表示一行数据。OpenTSDB �
 
 - metric 将作为超级表名。
 - timestamp 本行数据对应的时间戳。根据时间戳的长度自动识别时间精度。支持秒和毫秒两种时间精度
-- value 度量值，必须为一个数值。对应的列名也是 “value”。
+- value 度量值，必须为一个数值。对应的列名是 “_value”。
 - 最后一部分是标签集， 用空格分隔不同标签， 所有标签自动转化为 nchar 数据类型;
 
 例如：
@@ -45,9 +45,6 @@ meters.current 1648432611250 11.3 location=California.LosAngeles groupid=3
   </TabItem>
   <TabItem label="Go" value="go">
     <GoTelnet />
-  </TabItem>
-  <TabItem label="Rust" value="rust">
-    <RustTelnet />
   </TabItem>
   <TabItem label="Node.js" value="nodejs">
     <NodeTelnet />
@@ -74,7 +71,7 @@ taos> show stables;
 Query OK, 2 row(s) in set (0.002544s)
 
 taos> select tbname, * from `meters.current`;
-             tbname             |           ts            |           value           | groupid |            location            |
+             tbname             |           _ts            |           _value           | groupid |            location            |
 ==================================================================================================================================
  t_0e7bcfa21a02331c06764f275... | 2022-03-28 09:56:51.249 |              10.800000000 | 3       | California.LosAngeles                |
  t_0e7bcfa21a02331c06764f275... | 2022-03-28 09:56:51.250 |              11.300000000 | 3       | California.LosAngeles                |

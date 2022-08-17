@@ -19,6 +19,7 @@
 #include "scheduler.h"
 #include "tdatablock.h"
 #include "tglobal.h"
+#include "tgrant.h"
 
 extern SConfig* tsCfg;
 
@@ -191,6 +192,26 @@ char* buildRetension(SArray* pRetension) {
   return p1;
 }
 
+static const char* cacheModelStr(int8_t cacheModel) {
+  switch (cacheModel) {
+    case TSDB_CACHE_MODEL_NONE:
+      return TSDB_CACHE_MODEL_NONE_STR;
+    case TSDB_CACHE_MODEL_LAST_ROW:
+      return TSDB_CACHE_MODEL_LAST_ROW_STR;
+    case TSDB_CACHE_MODEL_LAST_VALUE:
+      return TSDB_CACHE_MODEL_LAST_VALUE_STR;
+    case TSDB_CACHE_MODEL_BOTH:
+      return TSDB_CACHE_MODEL_BOTH_STR;
+    default:
+      break;
+  }
+  return TSDB_CACHE_MODEL_NONE_STR;
+}
+
+static const char* strictStr(int8_t strict) {
+  return TSDB_DB_STRICT_ON == strict ? TSDB_DB_STRICT_ON_STR : TSDB_DB_STRICT_OFF_STR;
+}
+
 static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, SDbCfgInfo* pCfg) {
   blockDataEnsureCapacity(pBlock, 1);
   pBlock->info.rows = 1;
@@ -221,14 +242,15 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, S
 
   char* retentions = buildRetension(pCfg->pRetensions);
 
-  len += sprintf(buf2 + VARSTR_HEADER_SIZE,
-                 "CREATE DATABASE `%s` BUFFER %d CACHEMODEL %d COMP %d DURATION %dm "
-                 "FSYNC %d MAXROWS %d MINROWS %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d PRECISION '%s' REPLICA %d "
-                 "STRICT %d WAL %d VGROUPS %d SINGLE_STABLE %d",
-                 dbFName, pCfg->buffer, pCfg->cacheLast, pCfg->compression, pCfg->daysPerFile, pCfg->fsyncPeriod,
-                 pCfg->maxRows, pCfg->minRows, pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2, pCfg->pages,
-                 pCfg->pageSize, prec, pCfg->replications, pCfg->strict, pCfg->walLevel, pCfg->numOfVgroups,
-                 1 == pCfg->numOfStables);
+  len += sprintf(
+      buf2 + VARSTR_HEADER_SIZE,
+      "CREATE DATABASE `%s` BUFFER %d CACHEMODEL '%s' COMP %d DURATION %dm "
+      "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d PRECISION '%s' REPLICA %d "
+      "STRICT '%s' WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d",
+      dbFName, pCfg->buffer, cacheModelStr(pCfg->cacheLast), pCfg->compression, pCfg->daysPerFile, pCfg->walFsyncPeriod,
+      pCfg->maxRows, pCfg->minRows, pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2, pCfg->pages,
+      pCfg->pageSize, prec, pCfg->replications, strictStr(pCfg->strict), pCfg->walLevel, pCfg->numOfVgroups,
+      1 == pCfg->numOfStables);
 
   if (retentions) {
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, " RETENTIONS %s", retentions);
@@ -382,21 +404,21 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-void appendTableOptions(char* buf, int32_t* len, STableCfg* pCfg) {
+void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STableCfg* pCfg) {
   if (pCfg->commentLen > 0) {
     *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " COMMENT '%s'", pCfg->pComment);
   } else if (0 == pCfg->commentLen) {
     *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " COMMENT ''");
   }
 
-  if (pCfg->watermark1 > 0) {
+  if (NULL != pDbCfg->pRetensions && pCfg->watermark1 > 0) {
     *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " WATERMARK %" PRId64 "a", pCfg->watermark1);
     if (pCfg->watermark2 > 0) {
       *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", %" PRId64 "a", pCfg->watermark2);
     }
   }
 
-  if (pCfg->delay1 > 0) {
+  if (NULL != pDbCfg->pRetensions && pCfg->delay1 > 0) {
     *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " MAX_DELAY %" PRId64 "a", pCfg->delay1);
     if (pCfg->delay2 > 0) {
       *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", %" PRId64 "a", pCfg->delay2);
@@ -404,7 +426,7 @@ void appendTableOptions(char* buf, int32_t* len, STableCfg* pCfg) {
   }
 
   int32_t funcNum = taosArrayGetSize(pCfg->pFuncs);
-  if (funcNum > 0) {
+  if (NULL != pDbCfg->pRetensions && funcNum > 0) {
     *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " ROLLUP(");
     for (int32_t i = 0; i < funcNum; ++i) {
       char* pFunc = taosArrayGet(pCfg->pFuncs, i);
@@ -418,7 +440,7 @@ void appendTableOptions(char* buf, int32_t* len, STableCfg* pCfg) {
   }
 }
 
-static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, char* tbName, STableCfg* pCfg) {
+static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* pDbCfg, char* tbName, STableCfg* pCfg) {
   int32_t code = 0;
   blockDataEnsureCapacity(pBlock, 1);
   pBlock->info.rows = 1;
@@ -438,7 +460,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, char* tbName,
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ") TAGS (");
     appendTagFields(buf2, &len, pCfg);
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ")");
-    appendTableOptions(buf2, &len, pCfg);
+    appendTableOptions(buf2, &len, pDbCfg, pCfg);
   } else if (TSDB_CHILD_TABLE == pCfg->tableType) {
     len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE TABLE `%s` USING `%s` (", tbName, pCfg->stbName);
     appendTagNameFields(buf2, &len, pCfg);
@@ -448,7 +470,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, char* tbName,
       return code;
     }
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ")");
-    appendTableOptions(buf2, &len, pCfg);
+    appendTableOptions(buf2, &len, pDbCfg, pCfg);
   } else {
     len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE TABLE `%s` (", tbName);
     appendColumnFields(buf2, &len, pCfg);
@@ -464,7 +486,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, char* tbName,
 
 static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp) {
   SSDataBlock* pBlock = buildCreateTbResultDataBlock();
-  int32_t      code = setCreateTBResultIntoDataBlock(pBlock, pStmt->tableName, pStmt->pCfg);
+  int32_t      code = setCreateTBResultIntoDataBlock(pBlock, pStmt->pDbCfg, pStmt->tableName, pStmt->pTableCfg);
   if (code) {
     return code;
   }
@@ -472,7 +494,7 @@ static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt, SRetrieveTableRs
 }
 
 static int32_t execShowCreateSTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp) {
-  STableCfg* pCfg = (STableCfg*)pStmt->pCfg;
+  STableCfg* pCfg = (STableCfg*)pStmt->pTableCfg;
   if (TSDB_SUPER_TABLE != pCfg->tableType) {
     terrno = TSDB_CODE_TSC_NOT_STABLE_ERROR;
     return terrno;
@@ -517,6 +539,13 @@ static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
     goto _return;
   }
 
+  bool forbidden = false;
+  taosLocalCfgForbiddenToChange(pStmt->config, &forbidden);
+  if (forbidden) {
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    return terrno;
+  }
+
   if (cfgSetItem(tsCfg, pStmt->config, pStmt->value, CFG_STYPE_ALTER_CMD)) {
     return terrno;
   }
@@ -556,7 +585,7 @@ int32_t setLocalVariablesResultIntoDataBlock(SSDataBlock* pBlock) {
 
   for (int32_t i = 0, c = 0; i < numOfCfg; ++i, c = 0) {
     SConfigItem* pItem = taosArrayGet(tsCfg->array, i);
-
+    GRANT_CFG_SKIP;
     char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, c++);

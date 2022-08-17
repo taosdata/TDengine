@@ -53,7 +53,13 @@ typedef struct SExprNode {
   bool      orderAlias;
 } SExprNode;
 
-typedef enum EColumnType { COLUMN_TYPE_COLUMN = 1, COLUMN_TYPE_TAG, COLUMN_TYPE_TBNAME } EColumnType;
+typedef enum EColumnType {
+  COLUMN_TYPE_COLUMN = 1,
+  COLUMN_TYPE_TAG,
+  COLUMN_TYPE_TBNAME,
+  COLUMN_TYPE_WINDOW_PC,
+  COLUMN_TYPE_GROUP_KEY
+} EColumnType;
 
 typedef struct SColumnNode {
   SExprNode   node;  // QUERY_NODE_COLUMN
@@ -253,8 +259,10 @@ typedef struct SSelectStmt {
   char        stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t     precision;
   int32_t     selectFuncNum;
+  int32_t     returnRows;  // EFuncReturnRows
   bool        isEmptyResult;
   bool        isTimeLineResult;
+  bool        isSubquery;
   bool        hasAggFuncs;
   bool        hasRepeatScanFuncs;
   bool        hasIndefiniteRowsFunc;
@@ -267,6 +275,8 @@ typedef struct SSelectStmt {
   bool        hasInterpFunc;
   bool        hasLastRowFunc;
   bool        hasTimeLineFunc;
+  bool        hasUdaf;
+  bool        onlyHasKeepOrderFunc;
   bool        groupSort;
 } SSelectStmt;
 
@@ -289,6 +299,7 @@ typedef enum ESqlClause {
   SQL_CLAUSE_WHERE,
   SQL_CLAUSE_PARTITION_BY,
   SQL_CLAUSE_WINDOW,
+  SQL_CLAUSE_FILL,
   SQL_CLAUSE_GROUP_BY,
   SQL_CLAUSE_HAVING,
   SQL_CLAUSE_DISTINCT,
@@ -374,6 +385,7 @@ typedef struct SQuery {
   int8_t         precision;
   SCmdMsgInfo*   pCmdMsg;
   int32_t        msgType;
+  SArray*        pTargetTableList;
   SArray*        pTableList;
   SArray*        pDbList;
   bool           showRewrite;
@@ -415,8 +427,6 @@ void    nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 
 char*   nodesGetFillModeString(EFillMode mode);
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);
-int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** pTagIndexCond, SNode** pTagCond,
-                           SNode** pOtherCond);
 
 #ifdef __cplusplus
 }

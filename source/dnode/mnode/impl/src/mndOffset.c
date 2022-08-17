@@ -15,10 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #include "mndOffset.h"
-#include "mndPrivilege.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndTopic.h"
@@ -281,7 +281,7 @@ static int32_t mndSetDropOffsetRedoLogs(SMnode *pMnode, STrans *pTrans, SMqOffse
 }
 
 int32_t mndDropOffsetByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
-  int32_t code = -1;
+  int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
 
   void         *pIter = NULL;
@@ -297,14 +297,14 @@ int32_t mndDropOffsetByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
 
     if (mndSetDropOffsetCommitLogs(pMnode, pTrans, pOffset) < 0) {
       sdbRelease(pSdb, pOffset);
-      goto END;
+      sdbCancelFetch(pSdb, pIter);
+      code = -1;
+      break;
     }
 
     sdbRelease(pSdb, pOffset);
   }
 
-  code = 0;
-END:
   return code;
 }
 

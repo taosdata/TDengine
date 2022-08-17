@@ -47,7 +47,7 @@ class TDTestCase:
 
     pollDelay = 20
     showMsg   = 1
-    showRow   = 1  
+    showRow   = 1
 
     hostname = socket.gethostname()
 
@@ -59,7 +59,7 @@ class TDTestCase:
     def tmqCase12(self):
         tdLog.printNoPrefix("======== test case 12: ")
         tdLog.info("step 1: create database, stb, ctb and insert data")
-        
+
         tmqCom.initConsumerTable(self.cdbName)
 
         tdCom.create_database(tdSql,self.paraDict["dbName"],self.paraDict["dropFlag"])
@@ -76,20 +76,20 @@ class TDTestCase:
         tmqCom.insert_data_2(tdSql,self.paraDict["dbName"],self.paraDict["ctbPrefix"],self.paraDict["ctbNum"],self.paraDict["rowsPerTbl"],self.paraDict["batchNum"],self.paraDict["startTs"],self.paraDict["ctbStartIdx"])
 
         tdLog.info("create topics from db")
-        topicName1 = 'topic_%s'%(self.paraDict['dbName'])        
+        topicName1 = 'topic_%s'%(self.paraDict['dbName'])
         tdSql.execute("create topic %s as database %s" %(topicName1, self.paraDict['dbName']))
-        
+
         topicList = topicName1
         keyList = '%s,%s,%s,%s'%(self.groupId,self.autoCommit,self.autoCommitInterval,self.autoOffset)
         self.expectrowcnt = self.paraDict["rowsPerTbl"] * self.paraDict["ctbNum"] * 2
         tmqCom.insertConsumerInfo(self.consumerId, self.expectrowcnt,topicList,keyList,self.ifcheckdata,self.ifManualCommit)
-        
-        tdLog.info("start consume processor")  
+
+        tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(self.pollDelay,self.paraDict["dbName"],self.showMsg, self.showRow,self.cdbName)
 
         tdLog.info("After waiting for a period of time, drop one stable")
-        time.sleep(3)              
-        tdSql.execute("drop table %s.%s" %(self.paraDict['dbName'], self.paraDict['stbName']))        
+        time.sleep(3)
+        tdSql.execute("drop table %s.%s" %(self.paraDict['dbName'], self.paraDict['stbName']))
 
         tdLog.info("wait result from consumer, then check it")
         expectRows = 1
@@ -98,7 +98,7 @@ class TDTestCase:
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
-        
+
         if not (totalConsumeRows >= self.expectrowcnt/2 and totalConsumeRows <= self.expectrowcnt):
             tdLog.info("act consume rows: %d, expect consume rows: between %d and %d"%(totalConsumeRows, self.expectrowcnt/2, self.expectrowcnt))
             tdLog.exit("tmq consume rows error!")

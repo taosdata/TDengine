@@ -20,7 +20,7 @@ class TDTestCase:
     updatecfgDict = {'ttlUnit':5,'ttlPushInterval':3}
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())      
+        tdSql.init(conn.cursor())
         self.ntbname = 'ntb'
         self.stbname = 'stb'
         self.tbnum = 10

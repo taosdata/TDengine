@@ -2,7 +2,7 @@ from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
 import taos
 import sys
 import time
-import os 
+import os
 
 from util.log import *
 from util.sql import *
@@ -15,13 +15,13 @@ from test import tdDnodes
 sys.path.append("./6-cluster")
 
 from clusterCommonCreate import *
-from clusterCommonCheck import * 
+from clusterCommonCheck import *
 import time
 import socket
 import subprocess
 from multiprocessing import Process
 
-        
+
 class TDTestCase:
 
     def init(self,conn ,logSql):
@@ -68,10 +68,10 @@ class TDTestCase:
                     'showRow':    1}
         dnodenumbers=int(dnodenumbers)
         mnodeNums=int(mnodeNums)
-        dbNumbers = int(dnodenumbers * restartNumber)
-        
+        dbNumbers = 1
+
         tdLog.info("first check dnode and mnode")
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(4,1,'%s:6430'%self.host)
         clusterComCheck.checkDnodes(dnodenumbers)
@@ -84,10 +84,10 @@ class TDTestCase:
         tdSql.execute("create mnode on dnode 3")
         clusterComCheck.checkMnodeStatus(3)
 
-        # add some error operations and 
+        # add some error operations and
         tdLog.info("Confirm the status of the dnode again")
         tdSql.error("create mnode on dnode 2")
-        tdSql.query("show dnodes;")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         # print(tdSql.queryResult)
         clusterComCheck.checkDnodes(dnodenumbers)
         # restart all taosd
@@ -99,18 +99,18 @@ class TDTestCase:
         tdLog.info("check  whether 2 mnode status is  offline")
         clusterComCheck.check3mnode2off()
         # tdSql.error("create user user1 pass '123';")
-        
+
         tdLog.info("start two follower")
         tdDnodes[1].starttaosd()
         tdDnodes[2].starttaosd()
 
-        clusterComCheck.checkMnodeStatus(3)
+        clusterComCheck.checkMnodeStatus(mnodeNums)
 
 
-    def run(self): 
+    def run(self):
         # print(self.master_dnode.cfgDict)
         self.fiveDnodeThreeMnode(dnodenumbers=5,mnodeNums=3,restartNumber=1)
- 
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")

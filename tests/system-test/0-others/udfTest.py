@@ -512,7 +512,7 @@ class TDTestCase:
         "select c1,c2, udf1(c1,c2) from stb1 group by c1,c2" ,
         "select num1,num2,num3,udf1(num1,num2,num3) from tb" ,
         "select c1,c6,udf1(c1,c6) from stb1 order by ts" ,
-        "select abs(udf1(c1,c6,c1,c6)) , abs(ceil(c1)) from stb1 where c1 is not null  order by ts;" 
+        "select abs(udf1(c1,c6,c1,c6)) , abs(ceil(c1)) from stb1 where c1 is not null  order by ts;"
         ]
         udf2_sqls = ["select udf2(sub1.c1), udf2(sub2.c2) from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null" ,
         "select udf2(c1) from stb1 group by 1-udf1(c1)" ,

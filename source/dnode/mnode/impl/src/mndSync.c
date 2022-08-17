@@ -60,18 +60,24 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
     sdbSetApplyInfo(pMnode->pSdb, cbMeta.index, cbMeta.term, cbMeta.lastConfigIndex);
   }
 
+  taosWLockLatch(&pMgmt->lock);
   if (transId <= 0) {
+    taosWUnLockLatch(&pMgmt->lock);
     mError("trans:%d, invalid commit msg", transId);
   } else if (transId == pMgmt->transId) {
     if (pMgmt->errCode != 0) {
-      mError("trans:%d, failed to propose since %s", transId, tstrerror(pMgmt->errCode));
+      mError("trans:%d, failed to propose since %s, post sem", transId, tstrerror(pMgmt->errCode));
+    } else {
+      mInfo("trans:%d, is proposed and post sem", transId, tstrerror(pMgmt->errCode));
     }
     pMgmt->transId = 0;
+    taosWUnLockLatch(&pMgmt->lock);
     tsem_post(&pMgmt->syncSem);
   } else {
+    taosWUnLockLatch(&pMgmt->lock);
     STrans *pTrans = mndAcquireTrans(pMnode, transId);
     if (pTrans != NULL) {
-      mDebug("trans:%d, execute in mnode which not leader", transId);
+      mInfo("trans:%d, execute in mnode which not leader", transId);
       mndTransExecute(pMnode, pTrans);
       mndReleaseTrans(pMnode, pTrans);
       // sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
@@ -115,13 +121,18 @@ void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbM
   mInfo("trans:-1, sync reconfig is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64, pMgmt->transId,
         cbMeta.code, cbMeta.index, cbMeta.term);
 
+  taosWLockLatch(&pMgmt->lock);
   if (pMgmt->transId == -1) {
     if (pMgmt->errCode != 0) {
-      mError("trans:-1, failed to propose sync reconfig since %s", tstrerror(pMgmt->errCode));
+      mError("trans:-1, failed to propose sync reconfig since %s, post sem", tstrerror(pMgmt->errCode));
+    } else {
+      mInfo("trans:-1, sync reconfig is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64 " post sem",
+            pMgmt->transId, cbMeta.code, cbMeta.index, cbMeta.term);
     }
     pMgmt->transId = 0;
     tsem_post(&pMgmt->syncSem);
   }
+  taosWUnLockLatch(&pMgmt->lock);
 }
 
 int32_t mndSnapshotStartRead(struct SSyncFSM *pFsm, void *pParam, void **ppReader) {
@@ -149,7 +160,7 @@ int32_t mndSnapshotStartWrite(struct SSyncFSM *pFsm, void *pParam, void **ppWrit
 
 int32_t mndSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool isApply, SSnapshot *pSnapshot) {
   mInfo("stop to apply snapshot to sdb, apply:%d, index:%" PRId64 " term:%" PRIu64 " config:%" PRId64, isApply,
-        pSnapshot->lastApplyIndex, pSnapshot->lastApplyTerm, pSnapshot->lastApplyIndex);
+        pSnapshot->lastApplyIndex, pSnapshot->lastApplyTerm, pSnapshot->lastConfigIndex);
   SMnode *pMnode = pFsm->data;
   return sdbStopWrite(pMnode->pSdb, pWriter, isApply, pSnapshot->lastApplyIndex, pSnapshot->lastApplyTerm,
                       pSnapshot->lastConfigIndex);
@@ -166,6 +177,23 @@ void mndLeaderTransfer(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cb
   mDebug("vgId:1, mnode leader transfer finish");
 }
 
+static void mndBecomeFollower(struct SSyncFSM *pFsm) {
+  SMnode *pMnode = pFsm->data;
+  mDebug("vgId:1, become follower and post sem");
+
+  taosWLockLatch(&pMnode->syncMgmt.lock);
+  if (pMnode->syncMgmt.transId != 0) {
+    pMnode->syncMgmt.transId = 0;
+    tsem_post(&pMnode->syncMgmt.syncSem);
+  }
+  taosWUnLockLatch(&pMnode->syncMgmt.lock);
+}
+
+static void mndBecomeLeader(struct SSyncFSM *pFsm) {
+  mDebug("vgId:1, become leader");
+  SMnode *pMnode = pFsm->data;
+}
+
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pMnode;
@@ -175,6 +203,8 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   pFsm->FpRestoreFinishCb = mndRestoreFinish;
   pFsm->FpLeaderTransferCb = mndLeaderTransfer;
   pFsm->FpReConfigCb = mndReConfig;
+  pFsm->FpBecomeLeaderCb = mndBecomeLeader;
+  pFsm->FpBecomeFollowerCb = mndBecomeFollower;
   pFsm->FpGetSnapshot = mndSyncGetSnapshot;
   pFsm->FpGetSnapshotInfo = mndSyncGetSnapshotInfo;
   pFsm->FpSnapshotStartRead = mndSnapshotStartRead;
@@ -188,6 +218,8 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
 
 int32_t mndInitSync(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  taosInitRWLatch(&pMgmt->lock);
+  pMgmt->transId = 0;
 
   SSyncInfo syncInfo = {.vgId = 1, .FpSendMsg = mndSyncSendMsg, .FpEqMsg = mndSyncEqMsg};
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", pMnode->path, TD_DIRSEP);
@@ -216,8 +248,12 @@ int32_t mndInitSync(SMnode *pMnode) {
 
   // decrease election timer
   setPingTimerMS(pMgmt->sync, 5000);
-  setElectTimerMS(pMgmt->sync, 600);
-  setHeartbeatTimerMS(pMgmt->sync, 300);
+  setElectTimerMS(pMgmt->sync, 3000);
+  setHeartbeatTimerMS(pMgmt->sync, 500);
+  /*
+    setElectTimerMS(pMgmt->sync, 600);
+    setHeartbeatTimerMS(pMgmt->sync, 300);
+  */
 
   mDebug("mnode-sync is opened, id:%" PRId64, pMgmt->sync);
   return 0;
@@ -240,11 +276,21 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   memcpy(req.pCont, pRaw, req.contLen);
 
   pMgmt->errCode = 0;
-  pMgmt->transId = transId;
-  mTrace("trans:%d, will be proposed", pMgmt->transId);
+  taosWLockLatch(&pMgmt->lock);
+  if (pMgmt->transId != 0) {
+    mError("trans:%d, can't be proposed since trans:%s alrady waiting for confirm", transId, pMgmt->transId);
+    taosWUnLockLatch(&pMgmt->lock);
+    terrno = TSDB_CODE_APP_NOT_READY;
+    return -1;
+  } else {
+    pMgmt->transId = transId;
+    mDebug("trans:%d, will be proposed", pMgmt->transId);
+    taosWUnLockLatch(&pMgmt->lock);
+  }
 
   const bool isWeak = false;
   int32_t    code = syncPropose(pMgmt->sync, &req, isWeak);
+
   if (code == 0) {
     tsem_wait(&pMgmt->syncSem);
   } else if (code == -1 && terrno == TSDB_CODE_SYN_NOT_LEADER) {
@@ -272,10 +318,12 @@ void mndSyncStart(SMnode *pMnode) {
 }
 
 void mndSyncStop(SMnode *pMnode) {
+  taosWLockLatch(&pMnode->syncMgmt.lock);
   if (pMnode->syncMgmt.transId != 0) {
     pMnode->syncMgmt.transId = 0;
     tsem_post(&pMnode->syncMgmt.syncSem);
   }
+  taosWUnLockLatch(&pMnode->syncMgmt.lock);
 }
 
 bool mndIsMaster(SMnode *pMnode) {

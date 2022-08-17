@@ -89,6 +89,14 @@ int32_t fmGetFuncInfo(SFunctionNode* pFunc, char* pMsg, int32_t msgLen) {
   return TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION;
 }
 
+EFuncReturnRows fmGetFuncReturnRows(SFunctionNode* pFunc) {
+  if (NULL != funcMgtBuiltins[pFunc->funcId].estimateReturnRowsFunc) {
+    return funcMgtBuiltins[pFunc->funcId].estimateReturnRowsFunc(pFunc);
+  }
+  return (fmIsIndefiniteRowsFunc(pFunc->funcId) || fmIsMultiRowsFunc(pFunc->funcId)) ? FUNC_RETURN_ROWS_INDEFINITE
+                                                                                     : FUNC_RETURN_ROWS_NORMAL;
+}
+
 bool fmIsBuiltinFunc(const char* pFunc) {
   return NULL != taosHashGet(gFunMgtService.pFuncNameHashTable, pFunc, strlen(pFunc));
 }
@@ -101,6 +109,23 @@ EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWin
     return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
   return funcMgtBuiltins[pFunc->funcId].dataRequiredFunc(pFunc, pTimeWindow);
+}
+
+EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, STimeWindow* pTimeWindow) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return TSDB_CODE_FAILED;
+  }
+
+  const char* name = funcMgtBuiltins[funcId].name;
+  if ((strcmp(name, "_group_key") == 0) || (strcmp(name, "_select_value") == 0)) {
+    return FUNC_DATA_REQUIRED_NOT_LOAD;
+  }
+
+  if (funcMgtBuiltins[funcId].dynDataRequiredFunc == NULL) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  } else {
+    return funcMgtBuiltins[funcId].dynDataRequiredFunc(pRes, pTimeWindow);
+  }
 }
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
@@ -185,6 +210,10 @@ bool fmIsMultiRowsFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, F
 
 bool fmIsKeepOrderFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_KEEP_ORDER_FUNC); }
 
+bool fmIsCumulativeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_CUMULATIVE_FUNC); }
+
+bool fmIsForbidSuperTableFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_STABLE_FUNC); }
+
 bool fmIsInterpFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
@@ -197,6 +226,25 @@ bool fmIsLastRowFunc(int32_t funcId) {
     return false;
   }
   return FUNCTION_TYPE_LAST_ROW == funcMgtBuiltins[funcId].type;
+}
+
+bool fmIsNotNullOutputFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_LAST == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_LAST_PARTIAL == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_LAST_MERGE == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_FIRST == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_FIRST_PARTIAL == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_FIRST_MERGE == funcMgtBuiltins[funcId].type;
+}
+
+bool fmIsSelectValueFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_SELECT_VALUE == funcMgtBuiltins[funcId].type;
 }
 
 void fmFuncMgtDestroy() {

@@ -227,8 +227,7 @@ typedef struct SSubmitBlk {
   int32_t sversion;   // data schema version
   int32_t dataLen;    // data part length, not including the SSubmitBlk head
   int32_t schemaLen;  // schema length, if length is 0, no schema exists
-  int16_t numOfRows;  // total number of rows in current submit block
-  int16_t padding;    // TODO just for padding here
+  int32_t numOfRows;  // total number of rows in current submit block
   char    data[];
 } SSubmitBlk;
 
@@ -256,7 +255,7 @@ typedef struct {
   int32_t sversion;   // data schema version
   int32_t dataLen;    // data part length, not including the SSubmitBlk head
   int32_t schemaLen;  // schema length, if length is 0, no schema exists
-  int16_t numOfRows;  // total number of rows in current submit block
+  int32_t numOfRows;  // total number of rows in current submit block
   // head of SSubmitBlk
   int32_t     numOfBlocks;
   const void* pMsg;
@@ -297,13 +296,13 @@ void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 #define COL_IDX_ON   ((int8_t)0x2)
 #define COL_SET_NULL ((int8_t)0x10)
 #define COL_SET_VAL  ((int8_t)0x20)
-typedef struct SSchema {
+struct SSchema {
   int8_t   type;
   int8_t   flags;
   col_id_t colId;
   int32_t  bytes;
   char     name[TSDB_COL_NAME_LEN];
-} SSchema;
+};
 
 #define COL_IS_SET(FLG)  (((FLG) & (COL_SET_VAL | COL_SET_NULL)) != 0)
 #define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
@@ -337,8 +336,10 @@ static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* p
 }
 
 static FORCE_INLINE void tDeleteSSchemaWrapper(SSchemaWrapper* pSchemaWrapper) {
-  taosMemoryFree(pSchemaWrapper->pSchema);
-  taosMemoryFree(pSchemaWrapper);
+  if (pSchemaWrapper) {
+    taosMemoryFree(pSchemaWrapper->pSchema);
+    taosMemoryFree(pSchemaWrapper);
+  }
 }
 
 static FORCE_INLINE int32_t taosEncodeSSchema(void** buf, const SSchema* pSchema) {
@@ -647,7 +648,7 @@ typedef struct {
   };
   bool output;  // TODO remove it later
 
-  int16_t type;
+  int8_t  type;
   int32_t bytes;
   uint8_t precision;
   uint8_t scale;
@@ -737,7 +738,7 @@ typedef struct {
   int32_t daysToKeep2;
   int32_t minRows;
   int32_t maxRows;
-  int32_t fsyncPeriod;
+  int32_t walFsyncPeriod;
   int8_t  walLevel;
   int8_t  precision;  // time resolution
   int8_t  compression;
@@ -748,6 +749,10 @@ typedef struct {
   int8_t  ignoreExist;
   int32_t numOfRetensions;
   SArray* pRetensions;  // SRetention
+  int32_t walRetentionPeriod;
+  int64_t walRetentionSize;
+  int32_t walRollPeriod;
+  int64_t walSegmentSize;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -764,7 +769,7 @@ typedef struct {
   int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
-  int32_t fsyncPeriod;
+  int32_t walFsyncPeriod;
   int8_t  walLevel;
   int8_t  strict;
   int8_t  cacheLast;
@@ -855,7 +860,7 @@ typedef struct {
   int32_t daysToKeep2;
   int32_t minRows;
   int32_t maxRows;
-  int32_t fsyncPeriod;
+  int32_t walFsyncPeriod;
   int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;
@@ -1133,7 +1138,7 @@ typedef struct {
   int32_t  daysToKeep2;
   int32_t  minRows;
   int32_t  maxRows;
-  int32_t  fsyncPeriod;
+  int32_t  walFsyncPeriod;
   uint32_t hashBegin;
   uint32_t hashEnd;
   int8_t   hashMethod;
@@ -1150,6 +1155,10 @@ typedef struct {
   int32_t  numOfRetensions;
   SArray*  pRetensions;  // SRetention
   void*    pTsma;
+  int32_t  walRetentionPeriod;
+  int64_t  walRetentionSize;
+  int32_t  walRollPeriod;
+  int64_t  walSegmentSize;
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -1184,7 +1193,7 @@ typedef struct {
   int32_t  daysToKeep0;
   int32_t  daysToKeep1;
   int32_t  daysToKeep2;
-  int32_t  fsyncPeriod;
+  int32_t  walFsyncPeriod;
   int8_t   walLevel;
   int8_t   strict;
   int8_t   cacheLast;
@@ -1355,11 +1364,13 @@ typedef struct {
   int8_t  compressed;
   int8_t  streamBlockType;
   int32_t compLen;
+  int32_t numOfBlocks;
   int32_t numOfRows;
   int32_t numOfCols;
   int64_t skey;
   int64_t ekey;
-  int64_t version;  // for stream
+  int64_t version;    // for stream
+  TSKEY   watermark;  // for stream
   char    data[];
 } SRetrieveTableRsp;
 
@@ -1396,7 +1407,7 @@ typedef struct STableScanAnalyzeInfo {
   uint32_t skipBlocks;
   uint32_t filterOutBlocks;
   double   elapsedTime;
-  uint64_t filterTime;
+  double   filterTime;
 } STableScanAnalyzeInfo;
 
 int32_t tSerializeSExplainRsp(void* buf, int32_t bufLen, SExplainRsp* pRsp);
@@ -1667,9 +1678,10 @@ typedef struct {
   int32_t code;
 } STaskDropRsp;
 
-#define STREAM_TRIGGER_AT_ONCE      1
-#define STREAM_TRIGGER_WINDOW_CLOSE 2
-#define STREAM_TRIGGER_MAX_DELAY    3
+#define STREAM_TRIGGER_AT_ONCE        1
+#define STREAM_TRIGGER_WINDOW_CLOSE   2
+#define STREAM_TRIGGER_MAX_DELAY      3
+#define STREAM_DEFAULT_IGNORE_EXPIRED 0
 
 typedef struct {
   char    name[TSDB_STREAM_FNAME_LEN];
@@ -1977,6 +1989,7 @@ typedef struct SVCreateTbReq {
   union {
     struct {
       char*    name;  // super table name
+      uint8_t  tagNum;
       tb_uid_t suid;
       SArray*  tagName;
       uint8_t* pTag;
@@ -2214,6 +2227,7 @@ typedef struct SAppClusterSummary {
   uint64_t insertBytes;  // submit to tsdb since launched.
 
   uint64_t fetchBytes;
+  uint64_t numOfQueryReq;
   uint64_t queryElapsedTime;
   uint64_t numOfSlowQueries;
   uint64_t totalRequests;
@@ -2541,10 +2555,14 @@ typedef struct {
   char    topic[TSDB_TOPIC_FNAME_LEN];
   int64_t ntbUid;
   SArray* colIdList;  // SArray<int16_t>
-} SCheckAlterInfo;
+} STqCheckInfo;
 
-int32_t tEncodeSCheckAlterInfo(SEncoder* pEncoder, const SCheckAlterInfo* pInfo);
-int32_t tDecodeSCheckAlterInfo(SDecoder* pDecoder, SCheckAlterInfo* pInfo);
+int32_t tEncodeSTqCheckInfo(SEncoder* pEncoder, const STqCheckInfo* pInfo);
+int32_t tDecodeSTqCheckInfo(SDecoder* pDecoder, STqCheckInfo* pInfo);
+
+typedef struct {
+  char topic[TSDB_TOPIC_FNAME_LEN];
+} STqDelCheckInfoReq;
 
 typedef struct {
   int32_t vgId;
@@ -2644,6 +2662,31 @@ typedef struct {
   int32_t vgId;
   SEpSet  epSet;
 } SVgEpSet;
+
+typedef struct {
+  int64_t suid;
+  int8_t  level;
+} SRSmaFetchMsg;
+
+static FORCE_INLINE int32_t tEncodeSRSmaFetchMsg(SEncoder* pCoder, const SRSmaFetchMsg* pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeI64(pCoder, pReq->suid) < 0) return -1;
+  if (tEncodeI8(pCoder, pReq->level) < 0) return -1;
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+static FORCE_INLINE int32_t tDecodeSRSmaFetchMsg(SDecoder* pCoder, SRSmaFetchMsg* pReq) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeI64(pCoder, &pReq->suid) < 0) return -1;
+  if (tDecodeI8(pCoder, &pReq->level) < 0) return -1;
+
+  tEndDecode(pCoder);
+  return 0;
+}
 
 typedef struct {
   int8_t         version;       // for compatibility(default 0)
@@ -3035,10 +3078,58 @@ typedef struct SDeleteRes {
   int64_t  skey;
   int64_t  ekey;
   int64_t  affectedRows;
+  char     tableFName[TSDB_TABLE_NAME_LEN];
+  char     tsColName[TSDB_COL_NAME_LEN];
 } SDeleteRes;
 
 int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
 int32_t tDecodeDeleteRes(SDecoder* pCoder, SDeleteRes* pRes);
+
+typedef struct {
+  int64_t uid;
+  int64_t ts;
+} SSingleDeleteReq;
+
+int32_t tEncodeSSingleDeleteReq(SEncoder* pCoder, const SSingleDeleteReq* pReq);
+int32_t tDecodeSSingleDeleteReq(SDecoder* pCoder, SSingleDeleteReq* pReq);
+
+typedef struct {
+  int64_t suid;
+  SArray* deleteReqs;  // SArray<SSingleDeleteReq>
+} SBatchDeleteReq;
+
+int32_t tEncodeSBatchDeleteReq(SEncoder* pCoder, const SBatchDeleteReq* pReq);
+int32_t tDecodeSBatchDeleteReq(SDecoder* pCoder, SBatchDeleteReq* pReq);
+
+typedef struct {
+  int32_t msgIdx;
+  int32_t msgType;
+  int32_t msgLen;
+  void*   msg;
+} SBatchMsg;
+
+typedef struct {
+  SMsgHead  header;
+  int32_t   msgNum;
+  SBatchMsg msg[];
+} SBatchReq;
+
+typedef struct {
+  int32_t reqType;
+  int32_t msgIdx;
+  int32_t msgLen;
+  int32_t rspCode;
+  void*   msg;
+} SBatchRsp;
+
+static FORCE_INLINE void tFreeSBatchRsp(void* p) {
+  if (NULL == p) {
+    return;
+  }
+
+  SBatchRsp* pRsp = (SBatchRsp*)p;
+  taosMemoryFree(pRsp->msg);
+}
 
 #pragma pack(pop)
 

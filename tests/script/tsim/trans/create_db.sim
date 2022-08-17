@@ -18,7 +18,7 @@ step1:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 if $rows != 2 then
@@ -32,7 +32,7 @@ if $data(2)[4] != ready then
 endi
 
 print =============== kill dnode2
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGKILL
 
 print =============== create database
 sql show transactions
@@ -73,7 +73,7 @@ step2:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 if $rows != 2 then
@@ -88,7 +88,7 @@ endi
 
 sql show transactions
 if $rows != 0 then
-  return -1
+  goto step2
 endi
 
 sql_error create database d1 vgroups 2;
@@ -124,12 +124,12 @@ if $system_content != Windows_NT then
     return -1
   endi
 
-  sql show databases ;
+  sql select * from information_schema.ins_databases ;
   if $rows != 4 then
     return -1
   endi
-  print d2 ==> $data(d2)[19]
-  if $data(d2)[19] != creating then
+  print d2 ==> $data(d2)[15]
+  if $data(d2)[15] != creating then
     return -1
   endi
 
@@ -156,7 +156,7 @@ step3:
 	  print ====> dnode not ready!
 		return -1
 	endi
-  sql show dnodes
+  sql select * from information_schema.ins_dnodes
   print ===> $data00 $data01 $data02 $data03 $data04 $data05
   print ===> $data10 $data11 $data12 $data13 $data14 $data15
   if $rows != 2 then

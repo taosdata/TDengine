@@ -346,6 +346,7 @@ void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker wa
       if (NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
         nodesWalkExpr(((SIntervalWindowNode*)pSelect->pWindow)->pFill, walker, pContext);
       }
+    case SQL_CLAUSE_FILL:
       nodesWalkExprs(pSelect->pGroupByList, walker, pContext);
     case SQL_CLAUSE_GROUP_BY:
       nodesWalkExpr(pSelect->pHaving, walker, pContext);
@@ -379,6 +380,7 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
       if (NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
         nodesRewriteExpr(&(((SIntervalWindowNode*)pSelect->pWindow)->pFill), rewriter, pContext);
       }
+    case SQL_CLAUSE_FILL:
       nodesRewriteExprs(pSelect->pGroupByList, rewriter, pContext);
     case SQL_CLAUSE_GROUP_BY:
       nodesRewriteExpr(&(pSelect->pHaving), rewriter, pContext);
@@ -468,7 +470,7 @@ static EDealRes dispatchPhysiPlan(SNode* pNode, ETraversalOrder order, FNodeWalk
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN: {
-      SJoinPhysiNode* pJoin = (SJoinPhysiNode*)pNode;
+      SSortMergeJoinPhysiNode* pJoin = (SSortMergeJoinPhysiNode*)pNode;
       res = walkPhysiNode((SPhysiNode*)pNode, order, walker, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkPhysiPlan(pJoin->pMergeCondition, order, walker, pContext);

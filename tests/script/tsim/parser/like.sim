@@ -21,12 +21,12 @@ sql insert into $table1 values(now-1m, "tablexname")
 sql insert into $table1 values(now-2m, "tablexxx")
 sql insert into $table1 values(now-2m, "table")
 
-sql select b from $table1 
+sql select b from $table1
 if $rows != 4 then
   return -1
 endi
 
-sql select b from $table1 where b like 'table_name' 
+sql select b from $table1 where b like 'table_name'
 if $rows != 2 then
   return -1
 endi
@@ -37,17 +37,17 @@ if $rows != 1 then
 endi
 
 sql show tables;
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 
 sql show tables like 'table_name'
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 
 sql show tables like 'table\_name'
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 

@@ -17,6 +17,7 @@
 #ifdef USE_UV
 #include <uv.h>
 #endif
+// clang-format off
 #include "zlib.h"
 #include "thttp.h"
 #include "taoserror.h"
@@ -174,7 +175,7 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
 
 #else
 int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32_t contLen, EHttpCompFlag flag) {
-  int32_t code = -1;
+  int32_t     code = -1;
   TdSocketPtr pSocket = NULL;
 
   uint32_t ip = taosGetIpv4FromFqdn(server);
@@ -231,4 +232,5 @@ SEND_OVER:
   return code;
 }
 
+// clang-format on
 #endif

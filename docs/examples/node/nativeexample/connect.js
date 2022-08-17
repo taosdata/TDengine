@@ -1,13 +1,13 @@
-const taos = require("td2.0-connector");
-
+//A cursor also needs to be initialized in order to interact with TDengine from Node.js.
+const taos = require("@tdengine/client");
 var conn = taos.connect({
-  host: "localhost",
-  port: 6030,
+  host: "127.0.0.1",
   user: "root",
   password: "taosdata",
+  config: "/etc/taos",
+  port: 0,
 });
-conn.close();
+var cursor = conn.cursor(); // Initializing a new cursor
 
-// run with: node connect.js
-// output:
-// Successfully connected to TDengine
+//Close a connection
+conn.close();

@@ -32,6 +32,22 @@ TEST_F(PlanGroupByTest, basic) {
   run("SELECT c1 + c3, SUM(c4 * c5) FROM t1 WHERE CONCAT(c2, 'wwww') = 'abcwww' GROUP BY c1 + c3");
 
   run("SELECT SUM(CEIL(c1)) FROM t1 GROUP BY CEIL(c1)");
+
+  run("SELECT COUNT(*) FROM st1");
+
+  run("SELECT c1 FROM st1 GROUP BY c1");
+
+  run("SELECT COUNT(*) FROM st1 GROUP BY c1");
+
+  run("SELECT SUM(c1) FROM st1 GROUP BY c2 HAVING SUM(c1) IS NOT NULL");
+}
+
+TEST_F(PlanGroupByTest, withPartitionBy) {
+  useDb("root", "test");
+
+  run("SELECT LAST(ts), TBNAME FROM st1 PARTITION BY TBNAME");
+
+  run("SELECT COUNT(*) FROM st1 PARTITION BY c2 GROUP BY c1");
 }
 
 TEST_F(PlanGroupByTest, withOrderBy) {
@@ -43,14 +59,12 @@ TEST_F(PlanGroupByTest, withOrderBy) {
   // run("SELECT COUNT(*), SUM(c1) a FROM t1 ORDER BY a");
 }
 
-TEST_F(PlanGroupByTest, aggFunc) {
+TEST_F(PlanGroupByTest, multiResFunc) {
   useDb("root", "test");
 
   run("SELECT LAST(*), FIRST(*) FROM t1");
 
   run("SELECT LAST(*), FIRST(*) FROM t1 GROUP BY c1");
-
-  run("SELECT SUM(10), COUNT(c1) FROM t1 GROUP BY c2");
 }
 
 TEST_F(PlanGroupByTest, selectFunc) {
@@ -66,18 +80,4 @@ TEST_F(PlanGroupByTest, selectFunc) {
   // select function along with the columns of select row, and with GROUP BY clause
   run("SELECT MAX(c1), c2 FROM t1 GROUP BY c3");
   run("SELECT MAX(c1), t1.* FROM t1 GROUP BY c3");
-}
-
-TEST_F(PlanGroupByTest, stable) {
-  useDb("root", "test");
-
-  run("SELECT COUNT(*) FROM st1");
-
-  run("SELECT c1 FROM st1 GROUP BY c1");
-
-  run("SELECT COUNT(*) FROM st1 GROUP BY c1");
-
-  run("SELECT COUNT(*) FROM st1 PARTITION BY c2 GROUP BY c1");
-
-  run("SELECT SUM(c1) FROM st1 GROUP BY c2 HAVING SUM(c1) IS NOT NULL");
 }

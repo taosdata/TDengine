@@ -642,7 +642,6 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     int32_t charLen = (type == TSDB_DATA_TYPE_VARCHAR) ? len : len / TSDB_NCHAR_SIZE;
     trimFn(input, output, type, charLen);
 
-    varDataSetLen(output, len);
     colDataAppend(pOutputData, i, output, false);
     output += varDataTLen(output);
   }
@@ -1727,15 +1726,10 @@ int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
 
   char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   metaGetTableNameByUid(pInput->param, uid, str);
-
-  for(int32_t i = 0; i < pInput->numOfRows; ++i) {
-    colDataAppend(pOutput->columnData, pOutput->numOfRows + i, str, false);
-  }
-
+  colDataAppendNItems(pOutput->columnData, pOutput->numOfRows, str, pInput->numOfRows);
   pOutput->numOfRows += pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
-
 
 /** Aggregation functions **/
 int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {

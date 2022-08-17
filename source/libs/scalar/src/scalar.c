@@ -140,13 +140,23 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
       SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
 
+    colDataDestroy(out.columnData);
+    taosMemoryFreeClear(out.columnData);
+    out.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+
     cell = cell->pNext;
   }
 
   *data = pObj;
+
+  colDataDestroy(out.columnData);
+  taosMemoryFreeClear(out.columnData);
   return TSDB_CODE_SUCCESS;
 
 _return:
+
+  colDataDestroy(out.columnData);
+  taosMemoryFreeClear(out.columnData);
   taosHashCleanup(pObj);
   SCL_RET(code);
 }
@@ -735,22 +745,22 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
+  res->node.resType.type = output.columnData->info.type;
+  res->node.resType.bytes = output.columnData->info.bytes;
+  res->node.resType.scale = output.columnData->info.scale;
+  res->node.resType.precision = output.columnData->info.precision;
   if (colDataIsNull_s(output.columnData, 0)) {
     res->isNull = true;
-    //res->node.resType.type = TSDB_DATA_TYPE_NULL;
-    //res->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
   } else {
-    res->node.resType.type = output.columnData->info.type;
-    res->node.resType.bytes = output.columnData->info.bytes;
-    res->node.resType.scale = output.columnData->info.scale;
-    res->node.resType.precision = output.columnData->info.precision;
     int32_t type = output.columnData->info.type;
     if (type == TSDB_DATA_TYPE_JSON){
       int32_t len = getJsonValueLen(output.columnData->pData);
       res->datum.p = taosMemoryCalloc(len, 1);
       memcpy(res->datum.p, output.columnData->pData, len);
     } else if (IS_VAR_DATA_TYPE(type)) {
-      res->datum.p = taosMemoryCalloc(res->node.resType.bytes + VARSTR_HEADER_SIZE + 1, 1);
+      //res->datum.p = taosMemoryCalloc(res->node.resType.bytes + VARSTR_HEADER_SIZE + 1, 1);
+      res->datum.p = taosMemoryCalloc(varDataTLen(output.columnData->pData), 1);
+      res->node.resType.bytes = varDataTLen(output.columnData->pData);
       memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
     } else {
       nodesSetValueNodeValue(res, output.columnData->pData);
@@ -826,16 +836,11 @@ EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
+  res->node.resType = node->node.resType;
   if (colDataIsNull_s(output.columnData, 0)) {
-    if(node->node.resType.type != TSDB_DATA_TYPE_JSON){
-      res->node.resType.type = TSDB_DATA_TYPE_NULL;
-      res->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
-    }else{
-      res->node.resType = node->node.resType;
-      res->isNull = true;
-    }
-  } else {
+    res->isNull = true;
     res->node.resType = node->node.resType;
+  } else {
     int32_t type = output.columnData->info.type;
     if (IS_VAR_DATA_TYPE(type)) {  // todo refactor
       res->datum.p = output.columnData->pData;

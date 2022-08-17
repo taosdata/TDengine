@@ -41,19 +41,20 @@ Please refer to [Version Support List](/reference/connector#version-support).
 
 TDengine currently supports timestamp, number, character, Boolean type, and the corresponding type conversion with Java is as follows:
 
-| TDengine DataType | JDBCType (driver version < 2.0.24) | JDBCType (driver version > = 2.0.24) |
-| ----------------- | ---------------------------------- | ------------------------------------ |
-| TIMESTAMP         | java.lang.Long                     | java.sql.Timestamp                   |
-| INT               | java.lang.Integer                  | java.lang.Integer                    |
-| BIGINT            | java.lang.Long                     | java.lang.Long                       |
-| FLOAT             | java.lang.Float                    | java.lang.Float                      |
-| DOUBLE            | java.lang.Double                   | java.lang.Double                     |
-| SMALLINT          | java.lang.Short                    | java.lang.Short                      |
-| TINYINT           | java.lang.Byte                     | java.lang.Byte                       |
-| BOOL              | java.lang.Boolean                  | java.lang.Boolean                    |
-| BINARY            | java.lang.String                   | byte array                           |
-| NCHAR             | java.lang.String                   | java.lang.String                     |
-| JSON              | -                                  | java.lang.String                     |
+
+| TDengine DataType | JDBCType  |
+| ----------------- | ---------------------------------- |
+| TIMESTAMP         | java.sql.Timestamp                 |
+| INT               | java.lang.Integer                  |
+| BIGINT            | java.lang.Long                     |
+| FLOAT             | java.lang.Float                    |
+| DOUBLE            | java.lang.Double                   |
+| SMALLINT          | java.lang.Short                    |
+| TINYINT           | java.lang.Byte                     |
+| BOOL              | java.lang.Boolean                  |
+| BINARY            | byte array                         |
+| NCHAR             | java.lang.String                   |
+| JSON              | java.lang.String                   |
 
 **Note**: Only TAG supports JSON types
 
@@ -81,7 +82,7 @@ Add following dependency in the `pom.xml` file of your Maven project:
 <dependency>
  <groupId>com.taosdata.jdbc</groupId>
  <artifactId>taos-jdbcdriver</artifactId>
- <version>2.0.**</version>
+ <version>3.0.0</version>
 </dependency>
 ```
 
@@ -129,7 +130,7 @@ The configuration parameters in the URL are as follows:
 - charset: The character set used by the client, the default value is the system character set.
 - locale: Client locale, by default, use the system's current locale.
 - timezone: The time zone used by the client, the default value is the system's current time zone.
-- batchfetch: true: pulls result sets in batches when executing queries; false: pulls result sets row by row. The default value is: false. Enabling batch pulling and obtaining a batch of data can improve query performance when the query data volume is large.
+- batchfetch: true: pulls result sets in batches when executing queries; false: pulls result sets row by row. The default value is: true. Enabling batch pulling and obtaining a batch of data can improve query performance when the query data volume is large.
 - batchErrorIgnore:true: When executing statement executeBatch, if there is a SQL execution failure in the middle, the following SQL will continue to be executed. false: No more statements after the failed SQL are executed. The default value is: false.
 
 For more information about JDBC native connections, see [Video Tutorial](https://www.taosdata.com/blog/2020/11/11/1955.html).
@@ -845,7 +846,13 @@ Please refer to: [JDBC example](https://github.com/taosdata/TDengine/tree/develo
 
    **Cause**: Currently, TDengine only supports 64-bit JDK.
 
-   **Solution**: Reinstall the 64-bit JDK. 4.
+   **Solution**: Reinstall the 64-bit JDK.
+
+4. java.lang.NoSuchMethodError: setByteArray
+
+  **Cause**: taos-jdbcdriver version 3.* only supports TDengine 3.0 or above.
+
+  **Solution**: connect TDengine 2.* using taos-jdbcdriver 2.* version.
 
 For other questions, please refer to [FAQ](/train-faq/faq)
 

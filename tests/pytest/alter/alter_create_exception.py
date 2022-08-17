@@ -47,16 +47,16 @@ class TDTestCase:
         tdSql.error('create database db comp "1.4"')
         tdSql.error("create database db blocks '10'")
         tdSql.error('create database db keep "3650"')
-        tdSql.error('create database db fsync "3650"')
+        tdSql.error('create database db wal_fsync_period "3650"')
         tdSql.execute('create database db precision "us"')
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,16,'us')
         tdSql.execute('drop database if exists db')
 
         #checking float input exception for create
-        tdSql.error("create database db fsync 7.3")
-        tdSql.error("create database db fsync 0.0")
-        tdSql.error("create database db fsync -5.32")
+        tdSql.error("create database db wal_fsync_period 7.3")
+        tdSql.error("create database db wal_fsync_period 0.0")
+        tdSql.error("create database db wal_fsync_period -5.32")
         tdSql.error('create database db comp 7.2')
         tdSql.error("create database db blocks 5.87")
         tdSql.error('create database db keep 15.4')
@@ -79,7 +79,7 @@ class TDTestCase:
         tdSql.error('alter database db keep ,,60,')
         tdSql.error('alter database db keep \t')
         tdSql.execute('alter database db keep \t50')
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,7,'50,50,50')
 
     def stop(self):

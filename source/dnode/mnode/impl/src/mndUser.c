@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "mndUser.h"
-#include "mndPrivilege.h"
 #include "mndDb.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "tbase64.h"
@@ -408,7 +408,7 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
   return 0;
 }
 
-static SHashObj *mndDupDbHash(SHashObj *pOld) {
+SHashObj *mndDupDbHash(SHashObj *pOld) {
   SHashObj *pNew =
       taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (pNew == NULL) {
@@ -660,38 +660,6 @@ _OVER:
 
   mndReleaseUser(pMnode, pUser);
   return code;
-}
-
-static int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp) {
-  memcpy(pRsp->user, pUser->user, TSDB_USER_LEN);
-  pRsp->superAuth = pUser->superUser;
-  pRsp->version = pUser->authVersion;
-  taosRLockLatch(&pUser->lock);
-  pRsp->readDbs = mndDupDbHash(pUser->readDbs);
-  pRsp->writeDbs = mndDupDbHash(pUser->writeDbs);
-  taosRUnLockLatch(&pUser->lock);
-  pRsp->createdDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  if (NULL == pRsp->createdDbs) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  SSdb *pSdb = pMnode->pSdb;
-  void *pIter = NULL;
-  while (1) {
-    SDbObj *pDb = NULL;
-    pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb);
-    if (pIter == NULL) break;
-
-    if (strcmp(pDb->createUser, pUser->user) == 0) {
-      int32_t len = strlen(pDb->name) + 1;
-      taosHashPut(pRsp->createdDbs, pDb->name, len, pDb->name, len);
-    }
-
-    sdbRelease(pSdb, pDb);
-  }
-
-  return 0;
 }
 
 static int32_t mndProcessGetUserAuthReq(SRpcMsg *pReq) {

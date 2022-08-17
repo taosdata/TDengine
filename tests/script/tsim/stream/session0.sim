@@ -5,15 +5,15 @@ sleep 50
 sql connect
 
 print =============== create database
-sql create database test vgroups 1
-sql show databases
+sql create database test vgroups 1;
+sql select * from information_schema.ins_databases;
 if $rows != 3 then
   return -1
 endi
 
 print $data00 $data01 $data02
 
-sql use test
+sql use test;
 
 
 sql create table t1(ts timestamp, a int, b int , c int, d double,id int);
@@ -152,27 +152,27 @@ if $data03 != 4 then
 endi
 
 if $data04 != 1.000000000 then
-  print ======$data04
+  print ======data04=$data04
   return -1
 endi
 
 if $data05 != 1.154700538 then
-  print ======$data05
+  print ======data05=$data05
   return -1
 endi
 
 if $data06 != 4 then
-  print ======$data06
+  print ======data06=$data06
   return -1
 endi
 
 if $data07 != 1.000000000 then
-  print ======$data07
+  print ======data07=$data07
   return -1
 endi
 
 if $data08 != 13 then
-  print ======$data08
+  print ======data08=$data08
   return -1
 endi
 

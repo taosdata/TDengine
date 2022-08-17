@@ -3,7 +3,7 @@ from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
 import taos
 import sys
 import time
-import os 
+import os
 
 from util.log import *
 from util.sql import *
@@ -28,9 +28,9 @@ class TDTestCase:
         self.ts = 1483200000000
         self.ts_step =1000
         self.db_name ='testdb'
-        self.replica = 3 
+        self.replica = 3
         self.vgroups = 1
-        self.tb_nums = 10 
+        self.tb_nums = 10
         self.row_nums = 100
         self.stop_dnode_id = None
         self.loop_restart_times = 10
@@ -114,9 +114,9 @@ class TDTestCase:
         elif isinstance(data, str):
             tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                        (sql, row, col, tdSql.queryResult[row][col], data))
-        elif isinstance(data, datetime.date):
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (sql, row, col, tdSql.queryResult[row][col], data))
+        # elif isinstance(data, datetime.date):
+        #     tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
+        #                (sql, row, col, tdSql.queryResult[row][col], data))
         elif isinstance(data, float):
             tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                        (sql, row, col, tdSql.queryResult[row][col], data))
@@ -139,13 +139,13 @@ class TDTestCase:
         return check_status
 
     def check_setup_cluster_status(self):
-        tdSql.query("show mnodes")
+        tdSql.query("select * from information_schema.ins_mnodes")
         for mnode in tdSql.queryResult:
             name = mnode[1]
             info = mnode
             self.mnode_list[name] = info
 
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         for dnode in tdSql.queryResult:
             name = dnode[1]
             info = dnode
@@ -163,169 +163,57 @@ class TDTestCase:
                 is_leader=True
 
         if count==1 and is_leader:
-            tdLog.info("===== depoly cluster success with 1 mnode as leader =====")
+            tdLog.notice("===== depoly cluster success with 1 mnode as leader =====")
         else:
             tdLog.exit("===== depoly cluster fail with 1 mnode as leader =====")
 
         for k ,v in self.dnode_list.items():
             if k == mnode_name:
                 if v[3]==0:
-                    tdLog.info("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
+                    tdLog.notice("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
                 else:
                     tdLog.exit("===== depoly cluster mnode only fail at {} , support_vnodes is {} ".format(mnode_name,v[3]))
             else:
                 continue
 
-    def create_db_check_vgroups(self):
 
-        tdSql.execute("drop database if exists test")
-        tdSql.execute("create database if not exists test replica 1 duration 300")
-        tdSql.execute("use test")
-        tdSql.execute(
-        '''create table stb1
-        (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
-        tags (t1 int)
-        '''
-        )
-        tdSql.execute(
-            '''
-            create table t1
-            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
-            '''
-        )
-        
-        for i in range(5):
-            tdSql.execute("create table sub_tb_{} using stb1 tags({})".format(i,i))
-        tdSql.query("show stables")
-        tdSql.checkRows(1)
-        tdSql.query("show tables")
-        tdSql.checkRows(6)
-
-        tdSql.query("show test.vgroups;")
-        vgroups_infos = {}  # key is id: value is info list
-        for vgroup_info in tdSql.queryResult:
-            vgroup_id = vgroup_info[0]
-            tmp_list = []
-            for role in vgroup_info[3:-4]:
-                if role in ['leader','follower']:
-                    tmp_list.append(role)
-            vgroups_infos[vgroup_id]=tmp_list
-
-        for k , v in vgroups_infos.items():
-            if len(v) ==1 and v[0]=="leader":
-                tdLog.info(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
-            else:
-                tdLog.exit(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
-
-    def create_database(self, dbname, replica_num ,vgroup_nums ):
-        drop_db_sql = "drop database if exists {}".format(dbname)
-        create_db_sql = "create database {} replica {} vgroups {}".format(dbname,replica_num,vgroup_nums)
-
-        tdLog.info(" ==== create database {} and insert rows begin =====".format(dbname))
-        tdSql.execute(drop_db_sql)
-        tdSql.execute(create_db_sql)
-        tdSql.execute("use {}".format(dbname))
-       
-    def create_stable_insert_datas(self,dbname ,stablename , tb_nums , row_nums):
-        tdSql.execute("use {}".format(dbname))
-        tdSql.execute(
-        '''create table {}
-        (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(32),c9 nchar(32), c10 timestamp)
-        tags (t1 int)
-        '''.format(stablename)
-        )
-    
-        for i in range(tb_nums):                   
-            sub_tbname = "sub_{}_{}".format(stablename,i)
-            tdSql.execute("create table {} using {} tags({})".format(sub_tbname, stablename ,i))
-            # insert datas about new database
-
-            for row_num in range(row_nums):
-                ts = self.ts + self.ts_step*row_num
-                tdSql.execute(f"insert into {sub_tbname} values ({ts}, {row_num} ,{row_num}, 10 ,1 ,{row_num} ,{row_num},true,'bin_{row_num}','nchar_{row_num}',now) ")
-
-        tdLog.info(" ==== stable {} insert rows execute end =====".format(stablename))
-    
-    def append_rows_of_exists_tables(self,dbname ,stablename , tbname , append_nums ):
-        
-        tdSql.execute("use {}".format(dbname))
-     
-        for row_num in range(append_nums):
-            tdSql.execute(f"insert into {tbname} values (now, {row_num} ,{row_num}, 10 ,1 ,{row_num} ,{row_num},true,'bin_{row_num}','nchar_{row_num}',now) ")
-            # print(f"insert into {tbname} values (now, {row_num} ,{row_num}, 10 ,1 ,{row_num} ,{row_num},true,'bin_{row_num}','nchar_{row_num}',now) ")
-        tdLog.info(" ==== append new rows of table {} belongs to  stable {} execute end =====".format(tbname,stablename))
-        os.system("taos -s 'select count(*) from {}.{}';".format(dbname,stablename))
-
-    def check_insert_rows(self, dbname, stablename , tb_nums , row_nums, append_rows):
-    
-        tdSql.execute("use {}".format(dbname))
-        
-        tdSql.query("select count(*) from {}.{}".format(dbname,stablename))
-
-        while not tdSql.queryResult:
-            time.sleep(0.1)
-            tdSql.query("select count(*) from {}.{}".format(dbname,stablename))
-
-        status_OK = self.mycheckData("select count(*) from {}.{}".format(dbname,stablename) ,0 , 0 , tb_nums*row_nums+append_rows)
-        
-        count = 0 
-        while not status_OK :
-            if count > self.try_check_times:
-                os.system("taos -s ' show {}.vgroups; '".format(dbname))
-                tdLog.exit(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
-                break
-            time.sleep(0.1)
-            tdSql.query("select count(*) from {}.{}".format(dbname,stablename))
-            while not tdSql.queryResult:
-                time.sleep(0.1)
-                tdSql.query("select count(*) from {}.{}".format(dbname,stablename))
-            status_OK = self.mycheckData("select count(*) from {}.{}".format(dbname,stablename) ,0 , 0 , tb_nums*row_nums+append_rows)
-            tdLog.info(" ==== check insert rows first failed , this is {}_th retry check rows of database {}".format(count , dbname))
-            count += 1
-        
-
-        tdSql.query("select distinct tbname from {}.{}".format(dbname,stablename))
-        while not tdSql.queryResult:
-            time.sleep(0.1)
-            tdSql.query("select distinct tbname from {}.{}".format(dbname,stablename))
-        status_OK = self.mycheckRows("select distinct tbname from {}.{}".format(dbname,stablename) ,tb_nums)
-        count = 0 
-        while not status_OK :
-            if count > self.try_check_times:
-                os.system("taos -s ' show {}.vgroups;'".format(dbname))
-                tdLog.exit(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
-                break
-            time.sleep(0.1)
-            tdSql.query("select distinct tbname from {}.{}".format(dbname,stablename))
-            while not tdSql.queryResult:
-                time.sleep(0.1)
-                tdSql.query("select distinct tbname from {}.{}".format(dbname,stablename))
-            status_OK = self.mycheckRows("select distinct tbname from {}.{}".format(dbname,stablename) ,tb_nums)
-            tdLog.info(" ==== check insert tbnames first failed , this is {}_th retry check tbnames of database {}".format(count , dbname))
-            count += 1
-    def _get_stop_dnode_id(self,dbname):
-        newTdSql=tdCom.newTdSql()
-        newTdSql.query("show {}.vgroups".format(dbname))
-        vgroup_infos = newTdSql.queryResult
+    def _get_stop_dnode_id(self,dbname ,dnode_role):
+        tdSql.query("show {}.vgroups".format(dbname))
+        vgroup_infos = tdSql.queryResult
+        status = False
         for vgroup_info in vgroup_infos:
-            leader_infos = vgroup_info[3:-4] 
+            if "error" not in vgroup_info:
+                status = True
+            else:
+                status = False
+        while status!=True :
+            time.sleep(0.1)
+            tdSql.query("show {}.vgroups".format(dbname))
+            vgroup_infos = tdSql.queryResult
+            for vgroup_info in vgroup_infos:
+                if "error" not in vgroup_info:
+                    status = True
+                else:
+                    status = False
+            # print(status)
+        for vgroup_info in vgroup_infos:
+            leader_infos = vgroup_info[3:-4]
             # print(vgroup_info)
             for ind ,role in enumerate(leader_infos):
-                if role =='leader':
+                if role == dnode_role:
                     # print(ind,leader_infos)
                     self.stop_dnode_id = leader_infos[ind-1]
                     break
 
-
         return self.stop_dnode_id
 
-    def wait_stop_dnode_OK(self):
+    def wait_stop_dnode_OK(self , newTdSql):
     
         def _get_status():
-            newTdSql=tdCom.newTdSql()
+            # newTdSql=tdCom.newTdSql()
 
             status =  ""
-            newTdSql.query("show dnodes")
+            newTdSql.query("select * from information_schema.ins_dnodes")
             dnode_infos = newTdSql.queryResult
             for dnode_info in dnode_infos:
                 id = dnode_info[0]
@@ -333,21 +221,21 @@ class TDTestCase:
                 if id == self.stop_dnode_id:
                     status = dnode_status
                     break
-            return status 
+            return status
 
         status = _get_status()
         while status !="offline":
             time.sleep(0.1)
             status = _get_status()
-            # tdLog.info("==== stop dnode has not been stopped , endpoint is {}".format(self.stop_dnode))
-        tdLog.info("==== stop_dnode has stopped , id is {}".format(self.stop_dnode_id))
+            # tdLog.notice("==== stop dnode has not been stopped , endpoint is {}".format(self.stop_dnode))
+        tdLog.notice("==== stop_dnode has stopped , id is {}".format(self.stop_dnode_id))
 
-    def wait_start_dnode_OK(self):
+    def wait_start_dnode_OK(self,newTdSql):
     
         def _get_status():
-            newTdSql=tdCom.newTdSql()
+            # newTdSql=tdCom.newTdSql()
             status =  ""
-            newTdSql.query("show dnodes")
+            newTdSql.query("select * from information_schema.ins_dnodes")
             dnode_infos = newTdSql.queryResult
             for dnode_info in dnode_infos:
                 id = dnode_info[0]
@@ -355,17 +243,17 @@ class TDTestCase:
                 if id == self.stop_dnode_id:
                     status = dnode_status
                     break
-            return status 
+            return status
 
         status = _get_status()
         while status !="ready":
             time.sleep(0.1)
             status = _get_status()
-            # tdLog.info("==== stop dnode has not been stopped , endpoint is {}".format(self.stop_dnode))
-        tdLog.info("==== stop_dnode has restart , id is {}".format(self.stop_dnode_id))
+            # tdLog.notice("==== stop dnode has not been stopped , endpoint is {}".format(self.stop_dnode))
+        tdLog.notice("==== stop_dnode has restart , id is {}".format(self.stop_dnode_id))
 
     def get_leader_infos(self ,dbname):
-    
+
         newTdSql=tdCom.newTdSql()
         newTdSql.query("show {}.vgroups".format(dbname))
         vgroup_infos = newTdSql.queryResult
@@ -382,173 +270,106 @@ class TDTestCase:
         if not vote_act:
             print("=======before_revote_leader_infos ======\n" , before_leader_infos)
             print("=======after_revote_leader_infos ======\n" , after_leader_infos)
-            tdLog.exit(" ===maybe revote not occured , there is no dnode offline ====")
+            tdLog.info(" ===maybe revote not occured , there is no dnode offline ====")
         else:
             for vgroup_info in vote_act:
-                for ind , role in enumerate(vgroup_info):  
+                for ind , role in enumerate(vgroup_info):
                     if role==self.stop_dnode_id:
 
                         if vgroup_info[ind+1] =="offline" and "leader" in vgroup_info:
-                            tdLog.info(" === revote leader ok , leader is {} now   ====".format(vgroup_info[list(vgroup_info).index("leader")-1]))
+                            tdLog.notice(" === revote leader ok , leader is {} now   ====".format(vgroup_info[list(vgroup_info).index("leader")-1]))
                             check_status = True
                         elif vgroup_info[ind+1] !="offline":
-                            tdLog.info(" === dnode {} should be offline ".format(self.stop_dnode_id))
+                            tdLog.notice(" === dnode {} should be offline ".format(self.stop_dnode_id))
                         else:
                             continue
                         break
         return check_status
 
-    def sync_run_case(self):
+    def start_benchmark_inserts(self,dbname , json_file):
+        benchmark_build_path = self.getBuildPath() + '/build/bin/taosBenchmark'
+        tdLog.notice("==== start taosBenchmark insert datas of database {} ==== ".format(dbname))
+        os.system(" {} -f {} >>/dev/null 2>&1 ".format(benchmark_build_path , json_file))
+
+    def stop_leader_when_Benchmark_inserts(self,dbname , total_rows , json_file ):
+
+        newTdSql=tdCom.newTdSql()
+        
         # stop follower and insert datas , update tables and create new stables
         tdDnodes=cluster.dnodes
-        for loop in range(self.loop_restart_times):
-            db_name = "sync_db_{}".format(loop)
-            stablename = 'stable_{}'.format(loop)
-            self.create_database(dbname = db_name ,replica_num= self.replica  , vgroup_nums= 1)
-            self.create_stable_insert_datas(dbname = db_name , stablename = stablename , tb_nums= 10 ,row_nums= 10 )
-            self.stop_dnode_id = self._get_stop_dnode_id(db_name)
-            
-            # check rows of datas
-            
-            self.check_insert_rows(db_name ,stablename ,tb_nums=10 , row_nums= 10 ,append_rows=0)
+        tdSql.execute(" drop database if exists {} ".format(dbname))
+        tdSql.execute(" create database {} replica {} vgroups {}".format(dbname , self.replica , self.vgroups))
 
-            # get leader info before stop 
-            before_leader_infos = self.get_leader_infos(db_name)
+        # start insert datas using taosBenchmark ,expect insert 10000 rows
 
-            # begin stop dnode 
-            
-            tdDnodes[self.stop_dnode_id-1].stoptaosd()
+        self.current_thread = threading.Thread(target=self.start_benchmark_inserts, args=(dbname,json_file))
+        self.current_thread.start()
+        tdSql.query(" select * from information_schema.ins_databases ")
 
-            self.wait_stop_dnode_OK()
+        # make sure create database ok
+        while (tdSql.queryRows!=3):
+            time.sleep(0.5)
+            tdSql.query(" select * from information_schema.ins_databases ")
 
-            # vote leaders check
+        # # make sure create stable ok
+        tdSql.query(" show {}.stables ".format(dbname))
+        while (tdSql.queryRows!=1):
+            time.sleep(0.5)
+            tdSql.query(" show {}.stables ".format(dbname))
 
-            # get leader info after stop 
-            after_leader_infos = self.get_leader_infos(db_name)
-             
-            revote_status = self.check_revote_leader_success(db_name ,before_leader_infos , after_leader_infos)
+        # stop leader of database when insert 10% rows
+        # os.system("taos -s 'select * from information_schema.ins_databases';")
+        tdSql.query(" select count(*) from {}.{} ".format(dbname,"stb1"))
 
-            # append rows of stablename when dnode stop make sure revote leaders
+        while not tdSql.queryResult:
+            tdSql.query(" select count(*) from {}.{} ".format(dbname,"stb1"))
+        tdLog.debug(" === current insert  {} rows in database {} === ".format(tdSql.queryResult[0][0] , dbname))
 
-            while not revote_status:
-                after_leader_infos = self.get_leader_infos(db_name)
-                revote_status = self.check_revote_leader_success(db_name ,before_leader_infos , after_leader_infos)
+        while (tdSql.queryResult[0][0] < total_rows/10):
+            if tdSql.queryResult:
+                tdLog.debug(" === current insert  {} rows in database {} === ".format(tdSql.queryResult[0][0] , dbname))
+            time.sleep(0.01)
+            tdSql.query(" select count(*) from {}.{} ".format(dbname,"stb1"))
 
+        tdLog.debug(" === database {} has write {} rows at least ====".format(dbname,total_rows/10))
 
-            if revote_status:
-                tbname = "sub_{}_{}".format(stablename , 0)
-                tdLog.info(" ==== begin  append rows of exists table {} when dnode {} offline ====".format(tbname , self.stop_dnode_id))
-                self.append_rows_of_exists_tables(db_name ,stablename , tbname , 100 )
-                tdLog.info(" ==== check  append rows of exists table {} when dnode {} offline ====".format(tbname , self.stop_dnode_id))
-                self.check_insert_rows(db_name ,stablename ,tb_nums=10 , row_nums= 10 ,append_rows=100)
+        self.stop_dnode_id = self._get_stop_dnode_id(dbname ,"leader")
 
-                # create new stables
-                tdLog.info(" ==== create new stable {} when  dnode {} offline ====".format('new_stb1' , self.stop_dnode_id))
-                self.create_stable_insert_datas(dbname = db_name , stablename = 'new_stb1' , tb_nums= 10 ,row_nums= 10 )
-                tdLog.info(" ==== check new stable {} when  dnode {} offline ====".format('new_stb1' , self.stop_dnode_id))
-                self.check_insert_rows(db_name ,'new_stb1' ,tb_nums=10 , row_nums= 10 ,append_rows=0)
-            else:
-                tdLog.info("===== leader of database {} is not ok , append rows fail =====".format(db_name))
+        # prepare stop leader of database
+        before_leader_infos = self.get_leader_infos(dbname)
 
-            # begin start dnode 
-            start = time.time()
-            tdDnodes[self.stop_dnode_id-1].starttaosd()
-            self.wait_start_dnode_OK()
-            end = time.time()
-            time_cost = int(end -start)
-            if time_cost > self.max_restart_time:
-                tdLog.exit(" ==== restart dnode {} cost too much time , please check ====".format(self.stop_dnode_id))
-                
-            # create new stables again 
-            tdLog.info(" ==== create new stable {} when  dnode {} restart ====".format('new_stb2' , self.stop_dnode_id))
-            self.create_stable_insert_datas(dbname = db_name , stablename = 'new_stb2' , tb_nums= 10 ,row_nums= 10 )
-            tdLog.info(" ==== check new stable {} when  dnode {} restart ====".format('new_stb2' , self.stop_dnode_id))
-            self.check_insert_rows(db_name ,'new_stb2' ,tb_nums=10 , row_nums= 10 ,append_rows=0)
-    
-    def unsync_run_case(self):
+        tdDnodes[self.stop_dnode_id-1].stoptaosd()
+        # self.current_thread.join()
+        after_leader_infos = self.get_leader_infos(dbname)
 
-        def _restart_dnode_of_db_unsync(dbname):
-            
-            tdDnodes=cluster.dnodes
-            self.stop_dnode_id = self._get_stop_dnode_id(dbname)
-            # begin restart dnode
+        start = time.time()
+        revote_status = self.check_revote_leader_success(dbname ,before_leader_infos , after_leader_infos)
+        while not revote_status:
+            after_leader_infos = self.get_leader_infos(dbname)
+            revote_status = self.check_revote_leader_success(dbname ,before_leader_infos , after_leader_infos)
+        end = time.time()
+        time_cost = end - start
+        tdLog.debug(" ==== revote leader of database {} cost time {}  ====".format(dbname , time_cost))
 
-            tdDnodes[self.stop_dnode_id-1].stoptaosd()
+        self.current_thread.join()
+        tdDnodes[self.stop_dnode_id-1].starttaosd()
+        self.wait_start_dnode_OK(newTdSql)
+        
 
-            tbname = "sub_{}_{}".format(stablename , 0)
-            tdLog.info(" ==== begin  append rows of exists table {} when dnode {} offline ====".format(tbname , self.stop_dnode_id))
-            self.append_rows_of_exists_tables(db_name ,stablename , tbname , 100 )
-            tdLog.info(" ==== check  append rows of exists table {} when dnode {} offline ====".format(tbname , self.stop_dnode_id))
-            self.check_insert_rows(db_name ,stablename ,tb_nums=10 , row_nums= 10 ,append_rows=100)
-
-            # create new stables
-            tdLog.info(" ==== create new stable {} when  dnode {} offline ====".format('new_stb1' , self.stop_dnode_id))
-            self.create_stable_insert_datas(dbname = db_name , stablename = 'new_stb1' , tb_nums= 10 ,row_nums= 10 )
-            tdLog.info(" ==== check new stable {} when  dnode {} offline ====".format('new_stb1' , self.stop_dnode_id))
-            self.check_insert_rows(db_name ,'new_stb1' ,tb_nums=10 , row_nums= 10 ,append_rows=0)
-
-            # create new stables again 
-            tdLog.info(" ==== create new stable {} when  dnode {} restart ====".format('new_stb2' , self.stop_dnode_id))
-            self.create_stable_insert_datas(dbname = db_name , stablename = 'new_stb2' , tb_nums= 10 ,row_nums= 10 )
-            tdLog.info(" ==== check new stable {} when  dnode {} restart ====".format('new_stb2' , self.stop_dnode_id))
-            self.check_insert_rows(db_name ,'new_stb2' ,tb_nums=10 , row_nums= 10 ,append_rows=0)
-
-            # # get leader info before stop 
-            # before_leader_infos = self.get_leader_infos(db_name)
-            # self.wait_stop_dnode_OK()
-
-            # check revote leader when restart servers
-            # # get leader info after stop 
-            # after_leader_infos = self.get_leader_infos(db_name)
-            # revote_status = self.check_revote_leader_success(db_name ,before_leader_infos , after_leader_infos)
-            # # append rows of stablename when dnode stop make sure revote leaders
-            # while not revote_status:
-            #     after_leader_infos = self.get_leader_infos(db_name)
-            #     revote_status = self.check_revote_leader_success(db_name ,before_leader_infos , after_leader_infos)
-            tdDnodes[self.stop_dnode_id-1].starttaosd()
-            start = time.time()
-            self.wait_start_dnode_OK()
-            end = time.time()
-            time_cost = int(end-start)
-            
-            if time_cost > self.max_restart_time:
-                tdLog.exit(" ==== restart dnode {} cost too much time , please check ====".format(self.stop_dnode_id))
-            
-
-        def _create_threading(dbname):
-            self.current_thread = threading.Thread(target=_restart_dnode_of_db_unsync, args=(dbname,))
-            return self.current_thread
-            
-
-        '''
-        in this mode  , it will be extra threading control start or stop dnode  , insert will always going with not care follower online or alive 
-        '''
-        for loop in range(self.loop_restart_times):
-            db_name = "unsync_db_{}".format(loop)
-            stablename = 'stable_{}'.format(loop)
-            self.create_database(dbname = db_name ,replica_num= self.replica  , vgroup_nums= 1)
-            self.create_stable_insert_datas(dbname = db_name , stablename = stablename , tb_nums= 10 ,row_nums= 10 )
-
-            tdLog.info(" ===== restart dnode of database {}  in an unsync threading  ===== ".format(db_name))
-
-            # create sync threading and start it 
-            self.current_thread = _create_threading(db_name)
-            self.current_thread.start()
-
-            # check rows of datas
-            self.check_insert_rows(db_name ,stablename ,tb_nums=10 , row_nums= 10 ,append_rows=0)
+        tdSql.query(" select count(*) from {}.{} ".format(dbname,"stb1"))
+        tdLog.debug(" ==== expected insert  {} rows of database {}  , really is {}".format(total_rows, dbname , tdSql.queryResult[0][0]))
 
 
-            self.current_thread.join()
 
-
-    def run(self): 
+    def run(self):
 
         # basic insert and check of cluster
-        self.check_setup_cluster_status()
-        self.create_db_check_vgroups()
-        self.sync_run_case()
-        # self.unsync_run_case()
+        # self.check_setup_cluster_status()
+        json = os.path.dirname(__file__) + '/insert_10W_rows.json'
+        self.stop_leader_when_Benchmark_inserts('db_1' , 100000 ,json)
+        # tdLog.notice( " ===== start insert 100W rows  ==== ")
+        # json = os.path.dirname(__file__) + '/insert_100W_rows.json'
+        # self.stop_leader_when_Benchmark_inserts('db_2' , 1000000 ,json)
 
     def stop(self):
         tdSql.close()

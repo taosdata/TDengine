@@ -15,11 +15,8 @@
 
 #include "tsdb.h"
 
-static int tsdbSetKeepCfg(STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg);
-
-// implementation
-
-static int tsdbSetKeepCfg(STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg) {
+int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
+  STsdbKeepCfg *pKeepCfg = &pTsdb->keepCfg;
   pKeepCfg->precision = pCfg->precision;
   pKeepCfg->days = pCfg->days;
   pKeepCfg->keep0 = pCfg->keep0;
@@ -56,7 +53,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   pTsdb->pVnode = pVnode;
   taosThreadRwlockInit(&pTsdb->rwLock, NULL);
   if (!pKeepCfg) {
-    tsdbSetKeepCfg(&pTsdb->keepCfg, &pVnode->config.tsdbCfg);
+    tsdbSetKeepCfg(pTsdb, &pVnode->config.tsdbCfg);
   } else {
     memcpy(&pTsdb->keepCfg, pKeepCfg, sizeof(STsdbKeepCfg));
   }
@@ -74,7 +71,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
     goto _err;
   }
 
-  tsdbDebug("vgId:%d, tsdb is opened for %s, days:%d, keep:%d,%d,%d", TD_VID(pVnode), pTsdb->path, pTsdb->keepCfg.days,
+  tsdbDebug("vgId:%d, tsdb is opened at %s, days:%d, keep:%d,%d,%d", TD_VID(pVnode), pTsdb->path, pTsdb->keepCfg.days,
             pTsdb->keepCfg.keep0, pTsdb->keepCfg.keep1, pTsdb->keepCfg.keep2);
 
   *ppTsdb = pTsdb;

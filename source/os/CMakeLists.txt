@@ -41,7 +41,7 @@ target_link_libraries(
 )
 if(TD_WINDOWS)
     target_link_libraries(
-        os PUBLIC ws2_32 iconv msvcregex wcwidth winmm
+        os PUBLIC ws2_32 iconv msvcregex wcwidth winmm crashdump
     )
 elseif(TD_DARWIN_64)
     target_link_libraries(

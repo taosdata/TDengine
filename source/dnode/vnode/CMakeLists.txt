@@ -24,6 +24,7 @@ target_sources(
     "src/meta/metaCommit.c"
     "src/meta/metaEntry.c"
     "src/meta/metaSnapshot.c"
+    "src/meta/metaCache.c"
 
     # sma
     "src/sma/smaEnv.c"
@@ -31,6 +32,7 @@ target_sources(
     "src/sma/smaOpen.c"
     "src/sma/smaCommit.c"
     "src/sma/smaRollup.c"
+    "src/sma/smaSnapshot.c"
     "src/sma/smaTimeRange.c"
 
     # tsdb
@@ -57,6 +59,8 @@ target_sources(
     "src/tq/tqPush.c"
     "src/tq/tqSink.c"
     "src/tq/tqCommit.c"
+    "src/tq/tqSnapshot.c"
+    "src/tq/tqOffsetSnapshot.c"
 )
 target_include_directories(
     vnode
@@ -83,6 +87,11 @@ target_link_libraries(
     PUBLIC stream
     PUBLIC index
 )
+
+IF (TD_GRANT)
+  TARGET_LINK_LIBRARIES(vnode PUBLIC grant)
+ENDIF ()
+
 target_compile_definitions(vnode PUBLIC -DMETA_REFACT)
 
 if(${BUILD_WITH_INVERTEDINDEX})

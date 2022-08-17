@@ -24,7 +24,7 @@ sql create table tbb using st2 tags (5);
 sql create table tbc using st2 tags (5);
 sql create table tbd using st2 tags (5);
 sql create table tbe using st2 tags (5);
- 
+
 sql insert into tb1 values ("2021-05-09 10:10:10", 1, 2.0, '3',  -1000)
 sql insert into tb1 values ("2021-05-10 10:10:11", 4, 5.0, NULL, -2000)
 sql insert into tb1 values ("2021-05-12 10:10:12", 6,NULL, NULL, -3000)

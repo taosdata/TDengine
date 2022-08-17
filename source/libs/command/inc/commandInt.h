@@ -19,6 +19,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// clang-format off
 #include "nodes.h"
 #include "plannodes.h"
 #include "ttime.h"
@@ -28,6 +30,7 @@ extern "C" {
 //newline area
 #define EXPLAIN_TAG_SCAN_FORMAT "Tag Scan on %s"
 #define EXPLAIN_TBL_SCAN_FORMAT "Table Scan on %s"
+#define EXPLAIN_TBL_MERGE_SCAN_FORMAT "Table Merge Scan on %s"
 #define EXPLAIN_SYSTBL_SCAN_FORMAT "System Table Scan on %s"
 #define EXPLAIN_DISTBLK_SCAN_FORMAT "Block Dist Scan on %s"
 #define EXPLAIN_LASTROW_SCAN_FORMAT "Last Row Scan on %s"
@@ -40,12 +43,14 @@ extern "C" {
 #define EXPLAIN_GROUP_SORT_FORMAT "Group Sort"
 #define EXPLAIN_INTERVAL_FORMAT "Interval on Column %s"
 #define EXPLAIN_MERGE_INTERVAL_FORMAT "Merge Interval on Column %s"
+#define EXPLAIN_MERGE_ALIGNED_INTERVAL_FORMAT "Merge Aligned Interval on Column %s"
 #define EXPLAIN_FILL_FORMAT "Fill"
 #define EXPLAIN_SESSION_FORMAT "Session"
 #define EXPLAIN_STATE_WINDOW_FORMAT "StateWindow on Column %s"
 #define EXPLAIN_PARITION_FORMAT "Partition on Column %s"
 #define EXPLAIN_ORDER_FORMAT "Order: %s"
 #define EXPLAIN_FILTER_FORMAT "Filter: "
+#define EXPLAIN_MERGEBLOCKS_FORMAT "Merge ResBlocks: %s"
 #define EXPLAIN_FILL_VALUE_FORMAT "Fill Values: "
 #define EXPLAIN_ON_CONDITIONS_FORMAT "Join Cond: "
 #define EXPLAIN_TIMERANGE_FORMAT "Time Range: [%" PRId64 ", %" PRId64 "]"
@@ -53,16 +58,22 @@ extern "C" {
 #define EXPLAIN_TIME_WINDOWS_FORMAT "Time Window: interval=%" PRId64 "%c offset=%" PRId64 "%c sliding=%" PRId64 "%c"
 #define EXPLAIN_WINDOW_FORMAT "Window: gap=%" PRId64
 #define EXPLAIN_RATIO_TIME_FORMAT "Ratio: %f"
-#define EXPLAIN_MERGE_FORMAT "Merge"
+#define EXPLAIN_MERGE_FORMAT "SortMerge"
 #define EXPLAIN_MERGE_KEYS_FORMAT "Merge Key: "
+#define EXPLAIN_IGNORE_GROUPID_FORMAT "Ignore Group Id: %s"
+#define EXPLAIN_PARTITION_KETS_FORMAT "Partition Key: "
+#define EXPLAIN_INTERP_FORMAT "Interp"
 
 #define EXPLAIN_PLANNING_TIME_FORMAT "Planning Time: %.3f ms"
 #define EXPLAIN_EXEC_TIME_FORMAT "Execution Time: %.3f ms"
 
 //append area
+#define EXPLAIN_LIMIT_FORMAT "limit=%" PRId64
+#define EXPLAIN_SLIMIT_FORMAT "slimit=%" PRId64
 #define EXPLAIN_LEFT_PARENTHESIS_FORMAT " ("
 #define EXPLAIN_RIGHT_PARENTHESIS_FORMAT ")"
 #define EXPLAIN_BLANK_FORMAT " "
+#define EXPLAIN_COMMA_FORMAT ", "
 #define EXPLAIN_COST_FORMAT "cost=%.2f..%.2f"
 #define EXPLAIN_ROWS_FORMAT "rows=%" PRIu64
 #define EXPLAIN_COLUMNS_FORMAT "columns=%d"
@@ -76,6 +87,11 @@ extern "C" {
 #define EXPLAIN_EXECINFO_FORMAT "cost=%.3f..%.3f rows=%" PRIu64
 #define EXPLAIN_MODE_FORMAT "mode=%s"
 #define EXPLAIN_STRING_TYPE_FORMAT "%s"
+#define EXPLAIN_INPUT_ORDER_FORMAT "input_order=%s"
+#define EXPLAIN_OUTPUT_ORDER_TYPE_FORMAT "output_order=%s"
+#define EXPLAIN_OFFSET_FORMAT "offset=%d"
+#define EXPLAIN_SOFFSET_FORMAT "soffset=%d"
+#define EXPLAIN_PARTITIONS_FORMAT "partitions=%d"
 
 #define COMMAND_RESET_LOG "resetLog"
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"
@@ -121,7 +137,7 @@ typedef struct SExplainCtx {
   SHashObj    *groupHash;     // Hash<SExplainGroup>
 } SExplainCtx;
 
-#define EXPLAIN_ORDER_STRING(_order) ((TSDB_ORDER_ASC == _order) ? "Ascending" : "Descending")
+#define EXPLAIN_ORDER_STRING(_order) ((ORDER_ASC == _order) ? "asc" : "desc")
 #define EXPLAIN_JOIN_STRING(_type) ((JOIN_TYPE_INNER == _type) ? "Inner join" : "Join")
 
 #define INVERAL_TIME_FROM_PRECISION_TO_UNIT(_t, _u, _p) (((_u) == 'n' || (_u) == 'y') ? (_t) : (convertTimeFromPrecisionToUnit(_t, _p, _u)))
@@ -141,6 +157,21 @@ typedef struct SExplainCtx {
 
 #define EXPLAIN_SUM_ROW_NEW(...) tlen = snprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, __VA_ARGS__)
 #define EXPLAIN_SUM_ROW_END() do { varDataSetLen(tbuf, tlen); tlen += VARSTR_HEADER_SIZE; } while (0)
+
+#define EXPLAIN_ROW_APPEND_LIMIT_IMPL(_pLimit, sl) do {                                            \
+  if (_pLimit) {                                                                                   \
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);                                                      \
+    SLimitNode* pLimit = (SLimitNode*)_pLimit;                                                     \
+    EXPLAIN_ROW_APPEND(((sl) ? EXPLAIN_SLIMIT_FORMAT : EXPLAIN_LIMIT_FORMAT), pLimit->limit);      \
+    if (pLimit->offset) {                                                                          \
+      EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);                                                    \
+      EXPLAIN_ROW_APPEND(((sl) ? EXPLAIN_SOFFSET_FORMAT : EXPLAIN_OFFSET_FORMAT), pLimit->offset);\
+    }                                                                                              \
+  }                                                                                                \
+} while (0)
+
+#define EXPLAIN_ROW_APPEND_LIMIT(_pLimit) EXPLAIN_ROW_APPEND_LIMIT_IMPL(_pLimit, false)
+#define EXPLAIN_ROW_APPEND_SLIMIT(_pLimit) EXPLAIN_ROW_APPEND_LIMIT_IMPL(_pLimit, true)
 
 #ifdef __cplusplus
 }

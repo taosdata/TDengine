@@ -40,7 +40,7 @@ $num1 = $rows + 40
 print ======== step3 alter db
 sql alter database keepdb keep 60
 sql flush database keepdb
-sql show databases
+sql select * from information_schema.ins_databases
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
 if $data22 != 2 then 
   return -1
@@ -63,11 +63,9 @@ print ===> rows $rows last $data01
 if $rows >= 80 then
 	return -1
 endi
-if $rows <= 50 then
+if $rows <= 45 then
 	return -1
 endi
-
-return
 
 print ======== step5 stop dnode
 system sh/exec.sh -n dnode2 -s stop -x SIGKILL
@@ -78,13 +76,13 @@ print ===> rows $rows last $data01
 if $rows >= 80 then
 	return -1
 endi
-if $rows <= 50 then
+if $rows <= 45 then
 	return -1
 endi
 
 print ======== step6 alter db
 sql alter database keepdb keep 30
-sql show databases
+sql select * from information_schema.ins_databases
 if $data22 != 2 then 
   return -1
 endi
@@ -109,8 +107,8 @@ print ======== step8 insert data
 $x = 81
 while $x < 121
   $time = $x . d
-  sql insert into tb values (now - $time , $x ) -x step4
-  step4:
+  sql insert into tb values (now - $time , $x ) -x step8
+  step8:
   $x = $x + 1
 endw 
 

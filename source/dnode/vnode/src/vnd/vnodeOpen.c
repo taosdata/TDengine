@@ -23,13 +23,13 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
 
   // check config
   if (vnodeCheckCfg(pCfg) < 0) {
-    vError("vgId:%d, failed to create vnode since: %s", pCfg->vgId, tstrerror(terrno));
+    vError("vgId:%d, failed to create vnode since:%s", pCfg->vgId, tstrerror(terrno));
     return -1;
   }
 
   // create vnode env
   if (tfsMkdirAt(pTfs, path, (SDiskID){0}) < 0) {
-    vError("vgId:%d, failed to create vnode since: %s", pCfg->vgId, tstrerror(terrno));
+    vError("vgId:%d, failed to create vnode since:%s", pCfg->vgId, tstrerror(terrno));
     return -1;
   }
 
@@ -85,7 +85,8 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->state.commitTerm = info.state.commitTerm;
   pVnode->pTfs = pTfs;
   pVnode->msgCb = msgCb;
-  pVnode->blockCount = 0;
+  taosThreadMutexInit(&pVnode->lock, NULL);
+  pVnode->blocked = false;
 
   tsem_init(&pVnode->syncSem, 0, 0);
   tsem_init(&(pVnode->canCommit), 0, 1);
@@ -199,6 +200,7 @@ void vnodeClose(SVnode *pVnode) {
     tsem_destroy(&pVnode->syncSem);
     taosThreadCondDestroy(&pVnode->poolNotEmpty);
     taosThreadMutexDestroy(&pVnode->mutex);
+    taosThreadMutexDestroy(&pVnode->lock);
     taosMemoryFree(pVnode);
   }
 }

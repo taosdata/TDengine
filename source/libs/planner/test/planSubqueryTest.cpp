@@ -64,6 +64,12 @@ TEST_F(PlanSubqeuryTest, innerFill) {
       "WHERE ts > '2022-04-06 00:00:00'");
 }
 
+TEST_F(PlanSubqeuryTest, innerOrderBy) {
+  useDb("root", "test");
+
+  run("SELECT c2 FROM (SELECT c2 FROM st1 ORDER BY c1, _rowts)");
+}
+
 TEST_F(PlanSubqeuryTest, outerInterval) {
   useDb("root", "test");
 
@@ -72,4 +78,10 @@ TEST_F(PlanSubqeuryTest, outerInterval) {
   run("SELECT COUNT(*) + SUM(c1) FROM (SELECT * FROM st1) INTERVAL(5s)");
 
   run("SELECT COUNT(*) FROM (SELECT ts, TOP(c1, 10) FROM st1s1) INTERVAL(5s)");
+}
+
+TEST_F(PlanSubqeuryTest, outerPartition) {
+  useDb("root", "test");
+
+  run("SELECT c1, COUNT(*) FROM (SELECT ts, c1 FROM st1) PARTITION BY c1");
 }

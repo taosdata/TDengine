@@ -24,9 +24,6 @@ curl -u root:taosdata -d "show databases" localhost:6041/rest/sql
 ```shell
 $ docker exec -it tdengine taos
 
-Welcome to the TDengine shell from Linux, Client Version:2.4.0.0
-Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
-
 taos> show databases;
               name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
 ====================================================================================================================================================================================================================================================================================
@@ -46,9 +43,6 @@ docker run -d --name tdengine --network host tdengine/tdengine
 
 ```shell
 $ taos
-
-Welcome to the TDengine shell from Linux, Client Version:2.4.0.0
-Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
 
 taos> show dnodes;
    id   |           end_point            | vnodes | cores  |   status   | role  |       create_time       |      offline reason      |
@@ -147,7 +141,7 @@ import (
     "fmt"
     "time"
 
-    _ "github.com/taosdata/driver-go/v2/taosSql"
+    _ "github.com/taosdata/driver-go/v3/taosSql"
 )
 
 type config struct {
@@ -352,9 +346,6 @@ password:             taosdata
 
    ```shell
    $ docker-compose exec td-1 taos -s "show dnodes"
-
-   Welcome to the TDengine shell from Linux, Client Version:2.4.0.0
-   Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
 
    taos> show dnodes
       id   |           end_point            | vnodes | cores  |   status   | role  |       create_time       |      offline reason      |

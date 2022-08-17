@@ -371,7 +371,9 @@ class ThreadCoordinator:
             if isinstance(err, CrashGenError): # our own transition failure
                 Logging.info("State transition error")
                 # TODO: saw an error here once, let's print out stack info for err?
-                traceback.print_stack()
+                traceback.print_stack() # Stack frame to here.
+                Logging.info("Caused by:")
+                traceback.print_exception(*sys.exc_info()) # Ref: https://www.geeksforgeeks.org/how-to-print-exception-stack-trace-in-python/
                 transitionFailed = True
                 self._te = None  # Not running any more
                 self._execStats.registerFailure("State transition error: {}".format(err))
@@ -741,7 +743,8 @@ class AnyState:
                 sCnt += 1
                 if (sCnt >= 2):
                     raise CrashGenError(
-                        "Unexpected more than 1 success with task: {}, in task set: {}".format(
+                        "Unexpected more than 1 success at state: {}, with task: {}, in task set: {}".format(
+                            self.__class__.__name__,
                             cls.__name__, # verified just now that isinstance(task, cls)
                             [c.__class__.__name__ for c in tasks]
                         ))
@@ -756,8 +759,11 @@ class AnyState:
             if task.isSuccess():
                 sCnt += 1
         if (exists and sCnt <= 0):
-            raise CrashGenError("Unexpected zero success for task type: {}, from tasks: {}"
-                .format(cls, tasks))
+            raise CrashGenError("Unexpected zero success at state: {}, with task: {}, in task set: {}".format(
+                            self.__class__.__name__,
+                            cls.__name__, # verified just now that isinstance(task, cls)
+                            [c.__class__.__name__ for c in tasks]
+                        ))
 
     def assertNoTask(self, tasks, cls):
         for task in tasks:
@@ -809,8 +815,6 @@ class StateEmpty(AnyState):
         ]
 
     def verifyTasksToState(self, tasks, newState):
-        if Config.getConfig().ignore_errors: # if we are asked to ignore certain errors, let's not verify CreateDB success.
-            return
         if (self.hasSuccess(tasks, TaskCreateDb)
                 ):  # at EMPTY, if there's succes in creating DB
             if (not self.hasTask(tasks, TaskDropDb)):  # and no drop_db tasks
@@ -992,19 +996,20 @@ class StateMechine:
             return  # do nothing
 
         # this should show up in the server log, separating steps
-        dbc.execute("show dnodes")
+        dbc.execute("select * from information_schema.ins_dnodes")
 
         # Generic Checks, first based on the start state
-        if self._curState.canCreateDb():
-            self._curState.assertIfExistThenSuccess(tasks, TaskCreateDb)
-            # self.assertAtMostOneSuccess(tasks, CreateDbTask) # not really, in
-            # case of multiple creation and drops
+        if not Config.getConfig().ignore_errors: # verify state, only if we are asked not to ignore certain errors.
+            if self._curState.canCreateDb():
+                self._curState.assertIfExistThenSuccess(tasks, TaskCreateDb)
+                # self.assertAtMostOneSuccess(tasks, CreateDbTask) # not really, in
+                # case of multiple creation and drops
 
-        if self._curState.canDropDb():
-            if gSvcMgr == None: # only if we are running as client-only
-                self._curState.assertIfExistThenSuccess(tasks, TaskDropDb)
-            # self.assertAtMostOneSuccess(tasks, DropDbTask) # not really in
-            # case of drop-create-drop
+            if self._curState.canDropDb():
+                if gSvcMgr == None: # only if we are running as client-only
+                    self._curState.assertIfExistThenSuccess(tasks, TaskDropDb)
+                # self.assertAtMostOneSuccess(tasks, DropDbTask) # not really in
+                # case of drop-create-drop
 
         # if self._state.canCreateFixedTable():
             # self.assertIfExistThenSuccess(tasks, CreateFixedTableTask) # Not true, DB may be dropped
@@ -1026,7 +1031,8 @@ class StateMechine:
         newState = self._findCurrentState(dbc)
         Logging.debug("[STT] New DB state determined: {}".format(newState))
         # can old state move to new state through the tasks?
-        self._curState.verifyTasksToState(tasks, newState)
+        if not Config.getConfig().ignore_errors: # verify state, only if we are asked not to ignore certain errors.
+            self._curState.verifyTasksToState(tasks, newState)
         self._curState = newState
 
     def pickTaskType(self):
@@ -1114,7 +1120,7 @@ class Database:
     @classmethod
     def setupLastTick(cls):
         # start time will be auto generated , start at 10 years ago  local time 
-        local_time = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-16]
+        local_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-16]
         local_epoch_time = [int(i) for i in local_time.split("-")]
         #local_epoch_time will be such as : [2022, 7, 18]
 
@@ -1327,12 +1333,15 @@ class Task():
 
                 # TDengine 3.0 Error Codes:
                 0x0333, # Object is creating # TODO: this really is NOT an acceptable error
+                0x0369, # Tag already exists
+                0x0388, # Database not exist
                 0x03A0, # STable already exists
                 0x03A1, # STable [does] not exist
                 0x03AA, # Tag already exists
                 0x0603, # Table already exists
-                0x2603, # Table does not exist
+                0x2603, # Table does not exist, replaced by 2662 below
                 0x260d, # Tags number not matched
+                0x2662, # Table does not exist #TODO: what about 2603 above?
 
 
 
@@ -2033,7 +2042,7 @@ class TaskRestartService(StateTransitionTask):
 
         if Dice.throw(self.CHANCE_TO_RESTART_SERVICE) == 0: # 1 in N chance
             dbc = wt.getDbConn()
-            dbc.execute("show databases") # simple delay, align timing with other workers
+            dbc.execute("select * from information_schema.ins_databases") # simple delay, align timing with other workers
             gSvcMgr.restart()
 
         self._isRunning = False
@@ -2229,16 +2238,14 @@ class TaskAddData(StateTransitionTask):
 class ThreadStacks: # stack info for all threads
     def __init__(self):
         self._allStacks = {}
-        allFrames = sys._current_frames() # All current stack frames
+        allFrames = sys._current_frames() # All current stack frames, keyed with "ident"
         for th in threading.enumerate():  # For each thread
-            if th.ident is None:
-                continue          
-            stack = traceback.extract_stack(allFrames[th.ident]) # Get stack for a thread
-            shortTid = th.ident % 10000
+            stack = traceback.extract_stack(allFrames[th.ident]) #type: ignore # Get stack for a thread
+            shortTid = th.native_id % 10000 #type: ignore                      
             self._allStacks[shortTid] = stack # Was using th.native_id
 
     def print(self, filteredEndName = None, filterInternal = False):
-        for tIdent, stack in self._allStacks.items(): # for each thread, stack frames top to bottom
+        for shortTid, stack in self._allStacks.items(): # for each thread, stack frames top to bottom
             lastFrame = stack[-1]
             if filteredEndName: # we need to filter out stacks that match this name                
                 if lastFrame.name == filteredEndName : # end did not match
@@ -2250,7 +2257,9 @@ class ThreadStacks: # stack info for all threads
                     '__init__']: # the thread that extracted the stack
                     continue # ignore
             # Now print
-            print("\n<----- Thread Info for LWP/ID: {} (most recent call last) <-----".format(tIdent))
+            print("\n<----- Thread Info for LWP/ID: {} (most recent call last) <-----".format(shortTid))
+            lastSqlForThread = DbConn.fetchSqlForThread(shortTid)
+            print("Last SQL statement attempted from thread {} is: {}".format(shortTid, lastSqlForThread))
             stackFrame = 0
             for frame in stack: # was using: reversed(stack)
                 # print(frame)
@@ -2326,7 +2335,7 @@ class ClientManager:
     # def _printLastNumbers(self):  # to verify data durability
     #     dbManager = DbManager()
     #     dbc = dbManager.getDbConn()
-    #     if dbc.query("show databases") <= 1:  # no database (we have a default called "log")
+    #     if dbc.query("select * from information_schema.ins_databases") <= 1:  # no database (we have a default called "log")
     #         return
     #     dbc.execute("use db")
     #     if dbc.query("show tables") == 0:  # no tables

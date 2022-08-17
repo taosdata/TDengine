@@ -28,12 +28,12 @@ SRpcMsg *createRpcMsg(int32_t i, int32_t dataLen) {
 }
 
 SyncClientRequestBatch *createMsg() {
-  SRpcMsg rpcMsgArr[5];
-  memset(rpcMsgArr, 0, sizeof(rpcMsgArr));
+  SRpcMsg *rpcMsgPArr[5];
+  memset(rpcMsgPArr, 0, sizeof(rpcMsgPArr));
   for (int32_t i = 0; i < 5; ++i) {
     SRpcMsg *pRpcMsg = createRpcMsg(i, 20);
-    rpcMsgArr[i] = *pRpcMsg;
-    taosMemoryFree(pRpcMsg);
+    rpcMsgPArr[i] = pRpcMsg;
+    //taosMemoryFree(pRpcMsg);
   }
 
   SRaftMeta raftArr[5];
@@ -43,7 +43,7 @@ SyncClientRequestBatch *createMsg() {
     raftArr[i].isWeak = i % 2;
   }
 
-  SyncClientRequestBatch *pMsg = syncClientRequestBatchBuild(rpcMsgArr, raftArr, 5, 1234);
+  SyncClientRequestBatch *pMsg = syncClientRequestBatchBuild(rpcMsgPArr, raftArr, 5, 1234);
   return pMsg;
 }
 

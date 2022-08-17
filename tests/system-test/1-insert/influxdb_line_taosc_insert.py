@@ -26,13 +26,13 @@ from util.common import tdCom
 import platform
 import io
 if platform.system().lower() == 'windows':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf8') 
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf8')
 
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        self._conn = conn 
+        self._conn = conn
 
     def createDb(self, name="test", db_update_tag=0):
         if db_update_tag == 0:
@@ -67,7 +67,7 @@ class TDTestCase:
         td_ts = time.strftime("%Y-%m-%d %H:%M:%S.{}".format(ulsec), time.localtime(ts))
         return td_ts
         #return repr(datetime.datetime.strptime(td_ts, "%Y-%m-%d %H:%M:%S.%f"))
-    
+
     def dateToTs(self, datetime_input):
         return int(time.mktime(time.strptime(datetime_input, "%Y-%m-%d %H:%M:%S.%f")))
 
@@ -274,7 +274,7 @@ class TDTestCase:
         input_sql = self.gen_influxdb_line(stb_name, tb_name, id, t0, t1, t2, t3, t4, t5, t6, t7, t8, c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, ts,
             id_noexist_tag, id_change_tag, id_double_tag, ct_add_tag, ct_am_tag, ct_ma_tag, ct_min_tag, c_multi_tag, t_multi_tag, c_blank_tag, t_blank_tag, chinese_tag)
         return input_sql, stb_name
-    
+
     def genMulTagColStr(self, gen_type, count):
         """
         gen_type must be "tag"/"col"
@@ -370,10 +370,10 @@ class TDTestCase:
         for t_type in full_type_list:
             input_sql, stb_name = self.genFullTypeSql(c0=t_type, t0=t_type)
             self.resCmp(input_sql, stb_name)
-        
+
     def symbolsCheckCase(self):
         """
-            check symbols = `~!@#$%^&*()_-+={[}]\|:;'\",<.>/? 
+            check symbols = `~!@#$%^&*()_-+={[}]\|:;'\",<.>/?
         """
         '''
             please test :
@@ -395,7 +395,7 @@ class TDTestCase:
         for ts in ts_list:
             input_sql, stb_name = self.genFullTypeSql(ts=ts)
             self.resCmp(input_sql, stb_name, ts=ts)
-    
+
     def idSeqCheckCase(self):
         """
             check id.index in tags
@@ -404,7 +404,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(id_change_tag=True)
         self.resCmp(input_sql, stb_name)
-    
+
     def idUpperCheckCase(self):
         """
             check id param
@@ -444,7 +444,7 @@ class TDTestCase:
                 self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
-            
+
     def idIllegalNameCheckCase(self):
         """
             test illegal id name
@@ -490,7 +490,7 @@ class TDTestCase:
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
-    
+
     def illegalTsCheckCase(self):
         """
             check ts format like 16260068336390us19
@@ -575,11 +575,11 @@ class TDTestCase:
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-        # binary 
+        # binary
         stb_name = tdCom.getLongName(7, "letters")
         input_sql = f'{stb_name},t0=t,t1="{tdCom.getLongName(16374, "letters")}" c0=f 1626006833639000000'
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-        
+
         input_sql = f'{stb_name},t0=t,t1="{tdCom.getLongName(16375, "letters")}" c0=f 1626006833639000000'
         try:
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
@@ -647,7 +647,7 @@ class TDTestCase:
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-        # f32       
+        # f32
         for c5 in [f"{-3.4028234663852885981170418348451692544*(10**38)}f32", f"{3.4028234663852885981170418348451692544*(10**38)}f32"]:
             input_sql, stb_name = self.genFullTypeSql(c5=c5)
             self.resCmp(input_sql, stb_name)
@@ -671,11 +671,11 @@ class TDTestCase:
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-        # # # binary 
+        # # # binary
         # stb_name = tdCom.getLongName(7, "letters")
         # input_sql = f'{stb_name},t0=t c0=f,c1="{tdCom.getLongName(16374, "letters")}" 1626006833639000000'
         # self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-        
+
         # input_sql = f'{stb_name},t0=t c0=f,c1="{tdCom.getLongName(16375, "letters")}" 1626006833639000000'
         # try:
         #     self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
@@ -715,13 +715,13 @@ class TDTestCase:
 
         # i8 i16 i32 i64 f32 f64
         for input_sql in [
-                self.genFullTypeSql(t1="1s2i8")[0], 
+                self.genFullTypeSql(t1="1s2i8")[0],
                 self.genFullTypeSql(t2="1s2i16")[0],
                 self.genFullTypeSql(t3="1s2i32")[0],
                 self.genFullTypeSql(t4="1s2i64")[0],
                 self.genFullTypeSql(t5="11.1s45f32")[0],
-                self.genFullTypeSql(t6="11.1s45f64")[0], 
-                self.genFullTypeSql(c1="1s2i8")[0], 
+                self.genFullTypeSql(t6="11.1s45f64")[0],
+                self.genFullTypeSql(c1="1s2i8")[0],
                 self.genFullTypeSql(c2="1s2i16")[0],
                 self.genFullTypeSql(c3="1s2i32")[0],
                 self.genFullTypeSql(c4="1s2i64")[0],
@@ -746,14 +746,14 @@ class TDTestCase:
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-        # check accepted binary and nchar symbols 
+        # check accepted binary and nchar symbols
         # # * ~!@#$¥%^&*()-+={}|[]、「」:;
         for symbol in list('~!@#$¥%^&*()-+={}|[]、「」:;'):
             input_sql1 = f'{stb_name},t0=t c0=f,c1="abc{symbol}aaa" 1626006833639000000'
             input_sql2 = f'{stb_name},t0=t,t1="abc{symbol}aaa" c0=f 1626006833639000000'
             self._conn.schemaless_insert([input_sql1], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
             # self._conn.schemaless_insert([input_sql2], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-        
+
     def duplicateIdTagColInsertCheckCase(self):
         """
             check duplicate Id Tag Col
@@ -810,7 +810,7 @@ class TDTestCase:
         self.resCmp(input_sql, stb_name)
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         self.resCmp(input_sql, stb_name)
-    
+
     @tdCom.smlPass
     def tagColBinaryNcharLengthCheckCase(self):
         """
@@ -829,7 +829,7 @@ class TDTestCase:
             check column and tag count add, stb and tb duplicate
             * tag: alter table ...
             * col: when update==0 and ts is same, unchange
-            * so this case tag&&value will be added, 
+            * so this case tag&&value will be added,
             * col is added without value when update==0
             * col is added with value when update==1
         """
@@ -897,7 +897,7 @@ class TDTestCase:
         # * every binary and nchar must be length+2, so here is two tag, max length could not larger than 16384-2*2
         input_sql = f'{stb_name},t0=t,t1="{tdCom.getLongName(16374, "letters")}",t2="{tdCom.getLongName(5, "letters")}" c0=f 1626006833639000000'
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-        
+
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
         input_sql = f'{stb_name},t0=t,t1="{tdCom.getLongName(16374, "letters")}",t2="{tdCom.getLongName(6, "letters")}" c0=f 1626006833639000000'
@@ -922,7 +922,7 @@ class TDTestCase:
             tdSql.checkNotEqual(err.errno, 0)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(3)
-    
+
     # * tag nchar max is 16374/4, col+ts nchar max  49151
     def tagColNcharMaxLengthCheckCase(self):
         """
@@ -977,7 +977,7 @@ class TDTestCase:
                 "st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641000000"
                 ]
         self._conn.schemaless_insert(lines, TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-    
+
     def multiInsertCheckCase(self, count):
         """
             test multi insert
@@ -1073,7 +1073,7 @@ class TDTestCase:
         self.multiThreadRun(self.genMultiThreadSeq(input_sql))
         tdSql.query(f"show tables;")
         tdSql.checkRows(5)
-    
+
     def sStbStbDdataInsertMultiThreadCheckCase(self):
         """
             thread input same stb tb, different data, result keep first data
@@ -1107,7 +1107,7 @@ class TDTestCase:
         tdSql.checkEqual(tb_name, expected_tb_name)
         tdSql.query(f"select * from {stb_name};")
         tdSql.checkRows(1)
-    
+
     def sStbStbDdataMtcInsertMultiThreadCheckCase(self):
         """
             thread input same stb tb, different data, minus columes and tags,  result keep first data
@@ -1217,7 +1217,7 @@ class TDTestCase:
         tdSql.checkRows(6)
         for c in ["c7", "c8", "c9"]:
             tdSql.query(f"select * from {stb_name} where {c} is NULL")
-            tdSql.checkRows(5)        
+            tdSql.checkRows(5)
         for t in ["t10", "t11"]:
             tdSql.query(f"select * from {stb_name} where {t} is not NULL;")
             tdSql.checkRows(6)

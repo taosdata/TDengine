@@ -28,13 +28,13 @@ extern "C" {
 #include "trpc.h"
 #include "ttimer.h"
 
-#define TIMER_MAX_MS 0x7FFFFFFF
-#define ENV_TICK_TIMER_MS 1000
-#define PING_TIMER_MS 5000
-#define ELECT_TIMER_MS_MIN 1300
-#define ELECT_TIMER_MS_MAX (ELECT_TIMER_MS_MIN * 2)
+#define TIMER_MAX_MS         0x7FFFFFFF
+#define ENV_TICK_TIMER_MS    1000
+#define PING_TIMER_MS        5000
+#define ELECT_TIMER_MS_MIN   5000
+#define ELECT_TIMER_MS_MAX   (ELECT_TIMER_MS_MIN * 2)
 #define ELECT_TIMER_MS_RANGE (ELECT_TIMER_MS_MAX - ELECT_TIMER_MS_MIN)
-#define HEARTBEAT_TIMER_MS 900
+#define HEARTBEAT_TIMER_MS   900
 
 #define EMPTY_RAFT_ID ((SRaftId){.addr = 0, .vgId = 0})
 

@@ -31,6 +31,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid column name: %s";
     case TSDB_CODE_PAR_TABLE_NOT_EXIST:
       return "Table does not exist: %s";
+    case TSDB_CODE_PAR_GET_META_ERROR:
+      return "Fail to get table info, error: %s";
     case TSDB_CODE_PAR_AMBIGUOUS_COLUMN:
       return "Column ambiguously defined: %s";
     case TSDB_CODE_PAR_WRONG_VALUE_TYPE:
@@ -92,15 +94,13 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG:
       return "sliding value no larger than the interval value";
     case TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL:
-      return "sliding value can not less than 1% of interval value";
+      return "sliding value can not less than 1%% of interval value";
     case TSDB_CODE_PAR_ONLY_ONE_JSON_TAG:
       return "Only one tag if there is a json tag";
     case TSDB_CODE_PAR_INCORRECT_NUM_OF_COL:
       return "Query block has incorrect number of result columns";
     case TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL:
       return "Incorrect TIMESTAMP value: %s";
-    case TSDB_CODE_PAR_INVALID_DAYS_VALUE:
-      return "Invalid days value, should be keep2 >= keep1 >= keep0 >= days";
     case TSDB_CODE_PAR_OFFSET_LESS_ZERO:
       return "soffset/offset can not be less than 0";
     case TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_BY:
@@ -474,6 +474,26 @@ static int32_t buildDbReq(SHashObj* pDbsHash, SArray** pDbs) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t buildTableReqFromDb(SHashObj* pDbsHash, SArray** pDbs) {
+  if (NULL != pDbsHash) {
+    if (NULL == *pDbs) {
+      *pDbs = taosArrayInit(taosHashGetSize(pDbsHash), sizeof(STablesReq));
+      if (NULL == *pDbs) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
+    SParseTablesMetaReq* p = taosHashIterate(pDbsHash, NULL);
+    while (NULL != p) {
+      STablesReq req = {0};
+      strcpy(req.dbFName, p->dbFName);
+      buildTableReq(p->pTables, &req.pTables);
+      taosArrayPush(*pDbs, &req);
+      p = taosHashIterate(pDbsHash, p);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t buildUserAuthReq(SHashObj* pUserAuthHash, SArray** pUserAuth) {
   if (NULL != pUserAuthHash) {
     *pUserAuth = taosArrayInit(taosHashGetSize(pUserAuthHash), sizeof(SUserAuthInfo));
@@ -512,13 +532,68 @@ static int32_t buildUdfReq(SHashObj* pUdfHash, SArray** pUdf) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
-  int32_t code = buildTableReq(pMetaCache->pTableMeta, &pCatalogReq->pTableMeta);
+static int32_t buildCatalogReqForInsert(SParseContext* pCxt, const SParseMetaCache* pMetaCache,
+                                        SCatalogReq* pCatalogReq) {
+  int32_t ndbs = taosHashGetSize(pMetaCache->pInsertTables);
+  pCatalogReq->pTableMeta = taosArrayInit(ndbs, sizeof(STablesReq));
+  if (NULL == pCatalogReq->pTableMeta) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCatalogReq->pTableHash = taosArrayInit(ndbs, sizeof(STablesReq));
+  if (NULL == pCatalogReq->pTableHash) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCatalogReq->pUser = taosArrayInit(ndbs, sizeof(SUserAuthInfo));
+  if (NULL == pCatalogReq->pUser) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pCxt->pTableMetaPos = taosArrayInit(pMetaCache->sqlTableNum, sizeof(int32_t));
+  pCxt->pTableVgroupPos = taosArrayInit(pMetaCache->sqlTableNum, sizeof(int32_t));
+
+  int32_t               metaReqNo = 0;
+  int32_t               vgroupReqNo = 0;
+  SInsertTablesMetaReq* p = taosHashIterate(pMetaCache->pInsertTables, NULL);
+  while (NULL != p) {
+    STablesReq req = {0};
+    strcpy(req.dbFName, p->dbFName);
+    TSWAP(req.pTables, p->pTableMetaReq);
+    taosArrayPush(pCatalogReq->pTableMeta, &req);
+
+    req.pTables = NULL;
+    TSWAP(req.pTables, p->pTableVgroupReq);
+    taosArrayPush(pCatalogReq->pTableHash, &req);
+
+    int32_t ntables = taosArrayGetSize(p->pTableMetaPos);
+    for (int32_t i = 0; i < ntables; ++i) {
+      taosArrayInsert(pCxt->pTableMetaPos, *(int32_t*)taosArrayGet(p->pTableMetaPos, i), &metaReqNo);
+      ++metaReqNo;
+    }
+
+    ntables = taosArrayGetSize(p->pTableVgroupPos);
+    for (int32_t i = 0; i < ntables; ++i) {
+      taosArrayInsert(pCxt->pTableVgroupPos, *(int32_t*)taosArrayGet(p->pTableVgroupPos, i), &vgroupReqNo);
+      ++vgroupReqNo;
+    }
+
+    SUserAuthInfo auth = {0};
+    strcpy(auth.user, pCxt->pUser);
+    strcpy(auth.dbFName, p->dbFName);
+    auth.type = AUTH_TYPE_WRITE;
+    taosArrayPush(pCatalogReq->pUser, &auth);
+
+    p = taosHashIterate(pMetaCache->pInsertTables, p);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t buildCatalogReqForQuery(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
+  int32_t code = buildTableReqFromDb(pMetaCache->pTableMeta, &pCatalogReq->pTableMeta);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildDbReq(pMetaCache->pDbVgroup, &pCatalogReq->pDbVgroup);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildTableReq(pMetaCache->pTableVgroup, &pCatalogReq->pTableHash);
+    code = buildTableReqFromDb(pMetaCache->pTableVgroup, &pCatalogReq->pTableHash);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildDbReq(pMetaCache->pDbCfg, &pCatalogReq->pDbCfg);
@@ -540,6 +615,13 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
   }
   pCatalogReq->dNodeRequired = pMetaCache->dnodeRequired;
   return code;
+}
+
+int32_t buildCatalogReq(SParseContext* pCxt, const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
+  if (NULL != pMetaCache->pInsertTables) {
+    return buildCatalogReqForInsert(pCxt, pMetaCache, pCatalogReq);
+  }
+  return buildCatalogReqForQuery(pMetaCache, pCatalogReq);
 }
 
 static int32_t putMetaDataToHash(const char* pKey, int32_t len, const SArray* pData, int32_t index, SHashObj** pHash) {
@@ -587,6 +669,24 @@ static int32_t putDbDataToCache(const SArray* pDbReq, const SArray* pDbData, SHa
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t putDbTableDataToCache(const SArray* pDbReq, const SArray* pTableData, SHashObj** pTable) {
+  int32_t ndbs = taosArrayGetSize(pDbReq);
+  int32_t tableNo = 0;
+  for (int32_t i = 0; i < ndbs; ++i) {
+    STablesReq* pReq = taosArrayGet(pDbReq, i);
+    int32_t     ntables = taosArrayGetSize(pReq->pTables);
+    for (int32_t j = 0; j < ntables; ++j) {
+      char fullName[TSDB_TABLE_FNAME_LEN];
+      tNameExtractFullName(taosArrayGet(pReq->pTables, j), fullName);
+      if (TSDB_CODE_SUCCESS != putMetaDataToHash(fullName, strlen(fullName), pTableData, tableNo, pTable)) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      ++tableNo;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t putUserAuthToCache(const SArray* pUserAuthReq, const SArray* pUserAuthData, SHashObj** pUserAuth) {
   int32_t nvgs = taosArrayGetSize(pUserAuthReq);
   for (int32_t i = 0; i < nvgs; ++i) {
@@ -611,13 +711,14 @@ static int32_t putUdfToCache(const SArray* pUdfReq, const SArray* pUdfData, SHas
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache) {
-  int32_t code = putTableDataToCache(pCatalogReq->pTableMeta, pMetaData->pTableMeta, &pMetaCache->pTableMeta);
+int32_t putMetaDataToCacheForQuery(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData,
+                                   SParseMetaCache* pMetaCache) {
+  int32_t code = putDbTableDataToCache(pCatalogReq->pTableMeta, pMetaData->pTableMeta, &pMetaCache->pTableMeta);
   if (TSDB_CODE_SUCCESS == code) {
     code = putDbDataToCache(pCatalogReq->pDbVgroup, pMetaData->pDbVgroup, &pMetaCache->pDbVgroup);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = putTableDataToCache(pCatalogReq->pTableHash, pMetaData->pTableHash, &pMetaCache->pTableVgroup);
+    code = putDbTableDataToCache(pCatalogReq->pTableHash, pMetaData->pTableHash, &pMetaCache->pTableVgroup);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = putDbDataToCache(pCatalogReq->pDbCfg, pMetaData->pDbCfg, &pMetaCache->pDbCfg);
@@ -641,6 +742,30 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMet
   return code;
 }
 
+int32_t putMetaDataToCacheForInsert(const SMetaData* pMetaData, SParseMetaCache* pMetaCache) {
+  int32_t ndbs = taosArrayGetSize(pMetaData->pUser);
+  for (int32_t i = 0; i < ndbs; ++i) {
+    SMetaRes* pRes = taosArrayGet(pMetaData->pUser, i);
+    if (TSDB_CODE_SUCCESS != pRes->code) {
+      return pRes->code;
+    }
+    if (!(*(bool*)pRes->pRes)) {
+      return TSDB_CODE_PAR_PERMISSION_DENIED;
+    }
+  }
+  pMetaCache->pTableMetaData = pMetaData->pTableMeta;
+  pMetaCache->pTableVgroupData = pMetaData->pTableHash;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache,
+                           bool insertValuesStmt) {
+  if (insertValuesStmt) {
+    return putMetaDataToCacheForInsert(pMetaData, pMetaCache);
+  }
+  return putMetaDataToCacheForQuery(pCatalogReq, pMetaData, pMetaCache);
+}
+
 static int32_t reserveTableReqInCacheImpl(const char* pTbFName, int32_t len, SHashObj** pTables) {
   if (NULL == *pTables) {
     *pTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
@@ -657,14 +782,38 @@ static int32_t reserveTableReqInCache(int32_t acctId, const char* pDb, const cha
   return reserveTableReqInCacheImpl(fullName, len, pTables);
 }
 
+static int32_t reserveTableReqInDbCacheImpl(int32_t acctId, const char* pDb, const char* pTable, SHashObj* pDbs) {
+  SParseTablesMetaReq req = {0};
+  int32_t             len = snprintf(req.dbFName, sizeof(req.dbFName), "%d.%s", acctId, pDb);
+  int32_t             code = reserveTableReqInCache(acctId, pDb, pTable, &req.pTables);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = taosHashPut(pDbs, req.dbFName, len, &req, sizeof(SParseTablesMetaReq));
+  }
+  return code;
+}
+
+static int32_t reserveTableReqInDbCache(int32_t acctId, const char* pDb, const char* pTable, SHashObj** pDbs) {
+  if (NULL == *pDbs) {
+    *pDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    if (NULL == *pDbs) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  char                 fullName[TSDB_DB_FNAME_LEN];
+  int32_t              len = snprintf(fullName, sizeof(fullName), "%d.%s", acctId, pDb);
+  SParseTablesMetaReq* pReq = taosHashGet(*pDbs, fullName, len);
+  if (NULL == pReq) {
+    return reserveTableReqInDbCacheImpl(acctId, pDb, pTable, *pDbs);
+  }
+  return reserveTableReqInCache(acctId, pDb, pTable, &pReq->pTables);
+}
+
 int32_t reserveTableMetaInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
-  return reserveTableReqInCache(acctId, pDb, pTable, &pMetaCache->pTableMeta);
+  return reserveTableReqInDbCache(acctId, pDb, pTable, &pMetaCache->pTableMeta);
 }
 
 int32_t reserveTableMetaInCacheExt(const SName* pName, SParseMetaCache* pMetaCache) {
-  char fullName[TSDB_TABLE_FNAME_LEN];
-  tNameExtractFullName(pName, fullName);
-  return reserveTableReqInCacheImpl(fullName, strlen(fullName), &pMetaCache->pTableMeta);
+  return reserveTableReqInDbCache(pName->acctId, pName->dbname, pName->tname, &pMetaCache->pTableMeta);
 }
 
 int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta) {
@@ -711,13 +860,11 @@ int32_t getDbVgInfoFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, 
 }
 
 int32_t reserveTableVgroupInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
-  return reserveTableReqInCache(acctId, pDb, pTable, &pMetaCache->pTableVgroup);
+  return reserveTableReqInDbCache(acctId, pDb, pTable, &pMetaCache->pTableVgroup);
 }
 
 int32_t reserveTableVgroupInCacheExt(const SName* pName, SParseMetaCache* pMetaCache) {
-  char fullName[TSDB_TABLE_FNAME_LEN];
-  tNameExtractFullName(pName, fullName);
-  return reserveTableReqInCacheImpl(fullName, strlen(fullName), &pMetaCache->pTableVgroup);
+  return reserveTableReqInDbCache(pName->acctId, pName->dbname, pName->tname, &pMetaCache->pTableVgroup);
 }
 
 int32_t getTableVgroupFromCache(SParseMetaCache* pMetaCache, const SName* pName, SVgroupInfo* pVgroup) {
@@ -919,10 +1066,100 @@ int32_t getDnodeListFromCache(SParseMetaCache* pMetaCache, SArray** pDnodes) {
   return TSDB_CODE_SUCCESS;
 }
 
-void destoryParseMetaCache(SParseMetaCache* pMetaCache) {
-  taosHashCleanup(pMetaCache->pTableMeta);
+static int32_t reserveTableReqInCacheForInsert(const SName* pName, ECatalogReqType reqType, int32_t tableNo,
+                                               SInsertTablesMetaReq* pReq) {
+  switch (reqType) {
+    case CATALOG_REQ_TYPE_META:
+      taosArrayPush(pReq->pTableMetaReq, pName);
+      taosArrayPush(pReq->pTableMetaPos, &tableNo);
+      break;
+    case CATALOG_REQ_TYPE_VGROUP:
+      taosArrayPush(pReq->pTableVgroupReq, pName);
+      taosArrayPush(pReq->pTableVgroupPos, &tableNo);
+      break;
+    case CATALOG_REQ_TYPE_BOTH:
+      taosArrayPush(pReq->pTableMetaReq, pName);
+      taosArrayPush(pReq->pTableMetaPos, &tableNo);
+      taosArrayPush(pReq->pTableVgroupReq, pName);
+      taosArrayPush(pReq->pTableVgroupPos, &tableNo);
+      break;
+    default:
+      break;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t reserveTableReqInDbCacheForInsert(const SName* pName, ECatalogReqType reqType, int32_t tableNo,
+                                                 SHashObj* pDbs) {
+  SInsertTablesMetaReq req = {.pTableMetaReq = taosArrayInit(4, sizeof(SName)),
+                              .pTableMetaPos = taosArrayInit(4, sizeof(int32_t)),
+                              .pTableVgroupReq = taosArrayInit(4, sizeof(SName)),
+                              .pTableVgroupPos = taosArrayInit(4, sizeof(int32_t))};
+  tNameGetFullDbName(pName, req.dbFName);
+  int32_t code = reserveTableReqInCacheForInsert(pName, reqType, tableNo, &req);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = taosHashPut(pDbs, pName->dbname, strlen(pName->dbname), &req, sizeof(SInsertTablesMetaReq));
+  }
+  return code;
+}
+
+int32_t reserveTableMetaInCacheForInsert(const SName* pName, ECatalogReqType reqType, int32_t tableNo,
+                                         SParseMetaCache* pMetaCache) {
+  if (NULL == pMetaCache->pInsertTables) {
+    pMetaCache->pInsertTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    if (NULL == pMetaCache->pInsertTables) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  pMetaCache->sqlTableNum = tableNo;
+  SInsertTablesMetaReq* pReq = taosHashGet(pMetaCache->pInsertTables, pName->dbname, strlen(pName->dbname));
+  if (NULL == pReq) {
+    return reserveTableReqInDbCacheForInsert(pName, reqType, tableNo, pMetaCache->pInsertTables);
+  }
+  return reserveTableReqInCacheForInsert(pName, reqType, tableNo, pReq);
+}
+
+int32_t getTableMetaFromCacheForInsert(SArray* pTableMetaPos, SParseMetaCache* pMetaCache, int32_t tableNo,
+                                       STableMeta** pMeta) {
+  int32_t   reqIndex = *(int32_t*)taosArrayGet(pTableMetaPos, tableNo);
+  SMetaRes* pRes = taosArrayGet(pMetaCache->pTableMetaData, reqIndex);
+  if (TSDB_CODE_SUCCESS == pRes->code) {
+    *pMeta = pRes->pRes;
+    if (NULL == *pMeta) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return pRes->code;
+}
+
+int32_t getTableVgroupFromCacheForInsert(SArray* pTableVgroupPos, SParseMetaCache* pMetaCache, int32_t tableNo,
+                                         SVgroupInfo* pVgroup) {
+  int32_t   reqIndex = *(int32_t*)taosArrayGet(pTableVgroupPos, tableNo);
+  SMetaRes* pRes = taosArrayGet(pMetaCache->pTableVgroupData, reqIndex);
+  if (TSDB_CODE_SUCCESS == pRes->code) {
+    memcpy(pVgroup, pRes->pRes, sizeof(SVgroupInfo));
+  }
+  return pRes->code;
+}
+
+void destoryParseTablesMetaReqHash(SHashObj* pHash) {
+  SParseTablesMetaReq* p = taosHashIterate(pHash, NULL);
+  while (NULL != p) {
+    taosHashCleanup(p->pTables);
+    p = taosHashIterate(pHash, p);
+  }
+  taosHashCleanup(pHash);
+}
+
+void destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request) {
+  if (request) {
+    destoryParseTablesMetaReqHash(pMetaCache->pTableMeta);
+    destoryParseTablesMetaReqHash(pMetaCache->pTableVgroup);
+  } else {
+    taosHashCleanup(pMetaCache->pTableMeta);
+    taosHashCleanup(pMetaCache->pTableVgroup);
+  }
   taosHashCleanup(pMetaCache->pDbVgroup);
-  taosHashCleanup(pMetaCache->pTableVgroup);
   taosHashCleanup(pMetaCache->pDbCfg);
   taosHashCleanup(pMetaCache->pDbInfo);
   taosHashCleanup(pMetaCache->pUserAuth);

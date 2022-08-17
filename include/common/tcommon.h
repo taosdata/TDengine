@@ -40,6 +40,7 @@ enum {
   || x == TDMT_VND_CREATE_TABLE   \
   || x == TDMT_VND_ALTER_TABLE    \
   || x == TDMT_VND_DROP_TABLE     \
+  || x == TDMT_VND_DELETE         \
 )
 // clang-format on
 
@@ -55,7 +56,6 @@ enum {
   STREAM_INPUT__DATA_SUBMIT = 1,
   STREAM_INPUT__DATA_BLOCK,
   STREAM_INPUT__MERGED_SUBMIT,
-  // STREAM_INPUT__TABLE_SCAN,
   STREAM_INPUT__TQ_SCAN,
   STREAM_INPUT__DATA_RETRIEVE,
   STREAM_INPUT__GET_RES,
@@ -103,10 +103,12 @@ typedef struct SDataBlockInfo {
   int16_t     hasVarCol;
   uint32_t    capacity;
   // TODO: optimize and remove following
-  int64_t     version;  // used for stream, and need serialization
-  int32_t     childId;  // used for stream, do not serialize
-  EStreamType type;     // used for stream, do not serialize
-  STimeWindow calWin;   // used for stream, do not serialize
+  int64_t     version;    // used for stream, and need serialization
+  int64_t     ts;         // used for stream, and need serialization
+  int32_t     childId;    // used for stream, do not serialize
+  EStreamType type;       // used for stream, do not serialize
+  STimeWindow calWin;     // used for stream, do not serialize
+  TSKEY       watermark;  // used for stream
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
@@ -154,10 +156,9 @@ typedef struct SQueryTableDataCond {
   int32_t      numOfCols;
   SColumnInfo* colList;
   int32_t      type;  // data block load type:
-                      //  int32_t      numOfTWindows;
-  STimeWindow twindows;
-  int64_t     startVersion;
-  int64_t     endVersion;
+  STimeWindow  twindows;
+  int64_t      startVersion;
+  int64_t      endVersion;
 } SQueryTableDataCond;
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
@@ -266,6 +267,15 @@ typedef struct SSortExecInfo {
   int32_t writeBytes;  // write io bytes
   int32_t readBytes;   // read io bytes
 } SSortExecInfo;
+
+// stream special block column
+
+#define START_TS_COLUMN_INDEX           0
+#define END_TS_COLUMN_INDEX             1
+#define UID_COLUMN_INDEX                2
+#define GROUPID_COLUMN_INDEX            3
+#define CALCULATE_START_TS_COLUMN_INDEX 4
+#define CALCULATE_END_TS_COLUMN_INDEX   5
 
 #ifdef __cplusplus
 }

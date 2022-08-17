@@ -49,7 +49,7 @@ void* MndTestSma::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
   createReq.daysToKeep2 = 3650 * 1440;
   createReq.minRows = 100;
   createReq.maxRows = 4096;
-  createReq.fsyncPeriod = 3000;
+  createReq.walFsyncPeriod = 3000;
   createReq.walLevel = 1;
   createReq.precision = 0;
   createReq.compression = 2;
@@ -259,7 +259,7 @@ TEST_F(MndTestSma, 02_Create_Show_Meta_Drop_Restart_BSma) {
     pReq = BuildCreateBSmaStbReq(stbname, &contLen);
     pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -275,7 +275,7 @@ TEST_F(MndTestSma, 02_Create_Show_Meta_Drop_Restart_BSma) {
     pReq = BuildDropStbReq(stbname, &contLen);
     pRsp = test.SendReq(TDMT_MND_DROP_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 0);
   }
 

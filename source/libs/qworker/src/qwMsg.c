@@ -12,14 +12,16 @@
 int32_t qwMallocFetchRsp(int32_t length, SRetrieveTableRsp **rsp) {
   int32_t msgSize = sizeof(SRetrieveTableRsp) + length;
 
-  SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)rpcMallocCont(msgSize);
+  SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)rpcReallocCont(*rsp, msgSize);
   if (NULL == pRsp) {
     qError("rpcMallocCont %d failed", msgSize);
     QW_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  memset(pRsp, 0, sizeof(SRetrieveTableRsp));
-
+  if (NULL == *rsp) {
+    memset(pRsp, 0, sizeof(SRetrieveTableRsp));
+  }
+  
   *rsp = pRsp;
 
   return TSDB_CODE_SUCCESS;
@@ -35,6 +37,7 @@ void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, bool qComplete)
   rsp->compLen = htonl(len);
   rsp->numOfRows = htonl(input->numOfRows);
   rsp->numOfCols = htonl(input->numOfCols);
+  rsp->numOfBlocks = htonl(input->numOfBlocks);
 }
 
 void qwFreeFetchRsp(void *msg) {
@@ -82,8 +85,9 @@ int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t c
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendExplainRsp(SRpcHandleInfo *pConn, SExplainExecInfo *execInfo, int32_t num) {
-  SExplainRsp rsp = {.numOfPlans = num, .subplanInfo = execInfo};
+int32_t qwBuildAndSendExplainRsp(SRpcHandleInfo *pConn, SArray* pExecList) {
+  SExplainExecInfo* pInfo = taosArrayGet(pExecList, 0);
+  SExplainRsp rsp = {.numOfPlans = taosArrayGetSize(pExecList), .subplanInfo = pInfo};
 
   int32_t contLen = tSerializeSExplainRsp(NULL, 0, &rsp);
   void *  pRsp = rpcMallocCont(contLen);
@@ -96,10 +100,9 @@ int32_t qwBuildAndSendExplainRsp(SRpcHandleInfo *pConn, SExplainExecInfo *execIn
       .code = 0,
       .info = *pConn,
   };
+
   rpcRsp.info.ahandle = NULL;
-
   tmsgSendRsp(&rpcRsp);
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -231,7 +234,6 @@ int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   int32_t code = tmsgPutToQueue(&mgmt->msgCb, QUERY_QUEUE, &pNewMsg);
   if (TSDB_CODE_SUCCESS != code) {
     QW_SCH_TASK_ELOG("put query continue msg to queue failed, vgId:%d, code:%s", mgmt->nodeId, tstrerror(code));
-    rpcFreeCont(req);
     QW_ERR_RET(code);
   }
 
@@ -388,10 +390,13 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   
   char * sql = strndup(msg->msg, msg->sqlLen);
   QW_SCH_TASK_DLOG("processQuery start, node:%p, type:%s, handle:%p, SQL:%s", node, TMSG_INFO(pMsg->msgType), pMsg->info.handle, sql);
-  QW_ERR_RET(qwProcessQuery(QW_FPARAMS(), &qwMsg, sql));
-  QW_SCH_TASK_DLOG("processQuery end, node:%p", node);
+  QW_ERR_JRET(qwProcessQuery(QW_FPARAMS(), &qwMsg, sql));
 
-  return TSDB_CODE_SUCCESS;
+_return:
+
+  QW_SCH_TASK_DLOG("processQuery end, node:%p, code:%d", node, code);
+
+  return code;
 }
 
 int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {

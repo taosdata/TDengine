@@ -63,11 +63,11 @@ extern int32_t metaDebugFlag;
 extern int32_t udfDebugFlag;
 extern int32_t smaDebugFlag;
 extern int32_t idxDebugFlag;
+extern int32_t tdbDebugFlag;
 
 int32_t taosInitLog(const char *logName, int32_t maxFiles);
 void    taosCloseLog();
 void    taosResetLog();
-void    taosSetAllDebugFlag(int32_t flag);
 void    taosDumpData(uint8_t *msg, int32_t len);
 
 void taosPrintLog(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...)

@@ -125,7 +125,10 @@ int32_t syncUtilRand(int32_t max) { return taosRand() % max; }
 
 int32_t syncUtilElectRandomMS(int32_t min, int32_t max) {
   ASSERT(min > 0 && max > 0 && max >= min);
-  return min + syncUtilRand(max - min);
+  int32_t rdm = min + syncUtilRand(max - min);
+
+  // sDebug("random min:%d, max:%d, rdm:%d", min, max, rdm);
+  return rdm;
 }
 
 int32_t syncUtilQuorum(int32_t replicaNum) { return replicaNum / 2 + 1; }

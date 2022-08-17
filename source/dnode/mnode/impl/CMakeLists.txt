@@ -1,4 +1,11 @@
 aux_source_directory(src MNODE_SRC)
+IF (TD_PRIVILEGE)
+  ADD_DEFINITIONS(-D_PRIVILEGE)
+ENDIF ()
+IF (TD_PRIVILEGE)
+  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/privilege/src/privilege.c)
+ENDIF ()
+
 add_library(mnode STATIC ${MNODE_SRC})
 target_include_directories(
     mnode
@@ -11,8 +18,6 @@ target_link_libraries(
 
 IF (TD_GRANT)
   TARGET_LINK_LIBRARIES(mnode grant)
-ENDIF ()
-IF (TD_GRANT)
   ADD_DEFINITIONS(-D_GRANT)
 ENDIF ()
 

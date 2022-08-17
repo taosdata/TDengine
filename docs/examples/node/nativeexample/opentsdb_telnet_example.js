@@ -1,4 +1,4 @@
-const taos = require("td2.0-connector");
+const taos = require("@tdengine/client");
 
 const conn = taos.connect({
   host: "localhost",

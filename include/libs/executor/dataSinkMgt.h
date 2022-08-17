@@ -38,6 +38,8 @@ typedef struct SDeleterRes {
   int64_t  skey;
   int64_t  ekey;
   int64_t  affectedRows;
+  char     tableName[TSDB_TABLE_NAME_LEN];
+  char     tsColName[TSDB_COL_NAME_LEN];
 } SDeleterRes;
 
 typedef struct SDeleterParam {
@@ -65,6 +67,7 @@ typedef struct SInputData {
 } SInputData;
 
 typedef struct SOutputData {
+  int32_t numOfBlocks;
   int32_t numOfRows;
   int32_t numOfCols;
   int8_t  compressed;

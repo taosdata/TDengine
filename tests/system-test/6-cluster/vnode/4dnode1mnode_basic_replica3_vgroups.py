@@ -3,7 +3,7 @@ from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
 import taos
 import sys
 import time
-import os 
+import os
 
 from util.log import *
 from util.sql import *
@@ -25,11 +25,11 @@ class TDTestCase:
         self.dnode_list = {}
         self.ts = 1483200000000
         self.db_name ='testdb'
-        self.replica = 1 
+        self.replica = 1
         self.vgroups = 2
-        self.tb_nums = 10 
+        self.tb_nums = 10
         self.row_nums = 100
-        self.max_vote_time_cost = 10  # seconds
+        self.max_vote_time_cost = 30  # seconds
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -47,13 +47,13 @@ class TDTestCase:
         return buildPath
 
     def check_setup_cluster_status(self):
-        tdSql.query("show mnodes")
+        tdSql.query("select * from information_schema.ins_mnodes")
         for mnode in tdSql.queryResult:
             name = mnode[1]
             info = mnode
             self.mnode_list[name] = info
 
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         for dnode in tdSql.queryResult:
             name = dnode[1]
             info = dnode
@@ -71,14 +71,14 @@ class TDTestCase:
                 is_leader=True
 
         if count==1 and is_leader:
-            tdLog.info("===== depoly cluster success with 1 mnode as leader =====")
+            tdLog.notice("===== depoly cluster success with 1 mnode as leader =====")
         else:
             tdLog.exit("===== depoly cluster fail with 1 mnode as leader =====")
 
         for k ,v in self.dnode_list.items():
             if k == mnode_name:
                 if v[3]==0:
-                    tdLog.info("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
+                    tdLog.notice("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
                 else:
                     tdLog.exit("===== depoly cluster mnode only fail at {} , support_vnodes is {} ".format(mnode_name,v[3]))
             else:
@@ -101,7 +101,7 @@ class TDTestCase:
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
             '''
         )
-        
+
         for i in range(5):
             tdSql.execute("create table sub_tb_{} using stb1 tags({})".format(i,i))
         tdSql.query("show stables")
@@ -121,7 +121,7 @@ class TDTestCase:
 
         for k , v in vgroups_infos.items():
             if len(v) ==1 and v[0]=="leader":
-                tdLog.info(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
+                tdLog.notice(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
             else:
                 tdLog.exit(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
 
@@ -134,7 +134,7 @@ class TDTestCase:
             vgroup_id = vgroup_info[0]
             vgroup_status = []
             for ind , role in enumerate(vgroup_info[3:-4]):
-                
+
                 if ind%2==0:
                     continue
                 else:
@@ -151,48 +151,48 @@ class TDTestCase:
         while not status:
             time.sleep(0.1)
             status = self.check_vgroups_init_done(dbname)
-            
-            # tdLog.info("=== database {} show vgroups vote the leader is in progress ===".format(dbname))
+
+            # tdLog.notice("=== database {} show vgroups vote the leader is in progress ===".format(dbname))
         end = time.time()
         cost_time = end - start
-        tdLog.info(" ==== database %s vote the leaders success , cost time is %.3f second ====="%(dbname,cost_time) )
+        tdLog.notice(" ==== database %s vote the leaders success , cost time is %.3f second ====="%(dbname,cost_time) )
         # os.system("taos -s 'show {}.vgroups;'".format(dbname))
         if cost_time >= self.max_vote_time_cost:
             tdLog.exit(" ==== database %s vote the leaders cost too large time , cost time is %.3f second ===="%(dbname,cost_time) )
-        
-        
+
+
         return cost_time
-        
+
     def test_init_vgroups_time_costs(self):
 
-        tdLog.info(" ====start check time cost about vgroups vote leaders ==== ")
-        tdLog.info(" ==== current max time cost is set value : {} =======".format(self.max_vote_time_cost))
+        tdLog.notice(" ====start check time cost about vgroups vote leaders ==== ")
+        tdLog.notice(" ==== current max time cost is set value : {} =======".format(self.max_vote_time_cost))
 
-        # create database replica 3 vgroups 1 
+        # create database replica 3 vgroups 1
 
         db1 = 'db_1'
         create_db_replica_3_vgroups_1 = "create database {} replica 3 vgroups 1".format(db1)
-        tdLog.info('=======database {} replica 3 vgroups 1 ======'.format(db1))
+        tdLog.notice('=======database {} replica 3 vgroups 1 ======'.format(db1))
         tdSql.execute(create_db_replica_3_vgroups_1)
         self.vote_leader_time_costs(db1)
 
         # create database replica 3 vgroups 10
         db2 = 'db_2'
         create_db_replica_3_vgroups_10 = "create database {} replica 3 vgroups 10".format(db2)
-        tdLog.info('=======database {} replica 3 vgroups 10 ======'.format(db2))
+        tdLog.notice('=======database {} replica 3 vgroups 10 ======'.format(db2))
         tdSql.execute(create_db_replica_3_vgroups_10)
         self.vote_leader_time_costs(db2)
 
         # create database replica 3 vgroups 100
         db3 = 'db_3'
         create_db_replica_3_vgroups_100 = "create database {} replica 3 vgroups 100".format(db3)
-        tdLog.info('=======database {} replica 3 vgroups 100 ======'.format(db3))
+        tdLog.notice('=======database {} replica 3 vgroups 100 ======'.format(db3))
         tdSql.execute(create_db_replica_3_vgroups_100)
         self.vote_leader_time_costs(db3)
-        
 
-   
-    def run(self): 
+
+
+    def run(self):
         self.check_setup_cluster_status()
         self.test_init_vgroups_time_costs()
 

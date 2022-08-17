@@ -24,7 +24,7 @@ step1:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
@@ -59,13 +59,13 @@ if $loop_cnt == 100 then
   print ====> db not ready!
 	return -1
 endi
-sql show databases
+sql select * from information_schema.ins_databases
 print ===> rows: $rows
 print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4] $data[2][5] $data[2][6] $data[2][7] $data[2][8] $data[2][9] $data[2][6] $data[2][11] $data[2][12]  $data[2][13]  $data[2][14]  $data[2][15]  $data[2][16]  $data[2][17]  $data[2][18]  $data[2][19]
 if $rows != 3 then
   return -1
 endi
-if $data[2][19] != ready then
+if $data[2][15] != ready then
   goto check_db_ready
 endi
 

@@ -102,7 +102,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep2, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.minRows, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.maxRows, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.fsyncPeriod, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walFsyncPeriod, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.walLevel, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.precision, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.compression, _OVER)
@@ -120,6 +120,10 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
     SDB_SET_INT8(pRaw, dataPos, pRetension->keepUnit, _OVER)
   }
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.schemaless, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walRetentionPeriod, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pDb->cfg.walRetentionSize, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walRollPeriod, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pDb->cfg.walSegmentSize, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -175,7 +179,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep2, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.minRows, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.maxRows, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.fsyncPeriod, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walFsyncPeriod, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.walLevel, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.precision, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.compression, _OVER)
@@ -199,6 +203,10 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
     }
   }
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.schemaless, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walRetentionPeriod, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pDb->cfg.walRetentionSize, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walRollPeriod, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pDb->cfg.walSegmentSize, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pDb->lock);
@@ -241,7 +249,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.daysToKeep0 = pNew->cfg.daysToKeep0;
   pOld->cfg.daysToKeep1 = pNew->cfg.daysToKeep1;
   pOld->cfg.daysToKeep2 = pNew->cfg.daysToKeep2;
-  pOld->cfg.fsyncPeriod = pNew->cfg.fsyncPeriod;
+  pOld->cfg.walFsyncPeriod = pNew->cfg.walFsyncPeriod;
   pOld->cfg.walLevel = pNew->cfg.walLevel;
   pOld->cfg.strict = pNew->cfg.strict;
   pOld->cfg.cacheLast = pNew->cfg.cacheLast;
@@ -304,7 +312,7 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->minRows < TSDB_MIN_MINROWS_FBLOCK || pCfg->minRows > TSDB_MAX_MINROWS_FBLOCK) return -1;
   if (pCfg->maxRows < TSDB_MIN_MAXROWS_FBLOCK || pCfg->maxRows > TSDB_MAX_MAXROWS_FBLOCK) return -1;
   if (pCfg->minRows > pCfg->maxRows) return -1;
-  if (pCfg->fsyncPeriod < TSDB_MIN_FSYNC_PERIOD || pCfg->fsyncPeriod > TSDB_MAX_FSYNC_PERIOD) return -1;
+  if (pCfg->walFsyncPeriod < TSDB_MIN_FSYNC_PERIOD || pCfg->walFsyncPeriod > TSDB_MAX_FSYNC_PERIOD) return -1;
   if (pCfg->walLevel < TSDB_MIN_WAL_LEVEL || pCfg->walLevel > TSDB_MAX_WAL_LEVEL) return -1;
   if (pCfg->precision < TSDB_MIN_PRECISION && pCfg->precision > TSDB_MAX_PRECISION) return -1;
   if (pCfg->compression < TSDB_MIN_COMP_LEVEL || pCfg->compression > TSDB_MAX_COMP_LEVEL) return -1;
@@ -318,6 +326,10 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
     terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
     return -1;
   }
+  if (pCfg->walRetentionPeriod < TSDB_DB_MIN_WAL_RETENTION_PERIOD) return -1;
+  if (pCfg->walRetentionSize < TSDB_DB_MIN_WAL_RETENTION_SIZE) return -1;
+  if (pCfg->walRollPeriod < TSDB_DB_MIN_WAL_ROLL_PERIOD) return -1;
+  if (pCfg->walSegmentSize < TSDB_DB_MIN_WAL_SEGMENT_SIZE) return -1;
 
   terrno = 0;
   return terrno;
@@ -335,7 +347,7 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->daysToKeep2 < 0) pCfg->daysToKeep2 = pCfg->daysToKeep1;
   if (pCfg->minRows < 0) pCfg->minRows = TSDB_DEFAULT_MINROWS_FBLOCK;
   if (pCfg->maxRows < 0) pCfg->maxRows = TSDB_DEFAULT_MAXROWS_FBLOCK;
-  if (pCfg->fsyncPeriod < 0) pCfg->fsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
+  if (pCfg->walFsyncPeriod < 0) pCfg->walFsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
   if (pCfg->walLevel < 0) pCfg->walLevel = TSDB_DEFAULT_WAL_LEVEL;
   if (pCfg->precision < 0) pCfg->precision = TSDB_DEFAULT_PRECISION;
   if (pCfg->compression < 0) pCfg->compression = TSDB_DEFAULT_COMP_LEVEL;
@@ -345,6 +357,12 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->cacheLastSize <= 0) pCfg->cacheLastSize = TSDB_DEFAULT_CACHE_SIZE;
   if (pCfg->numOfRetensions < 0) pCfg->numOfRetensions = 0;
   if (pCfg->schemaless < 0) pCfg->schemaless = TSDB_DB_SCHEMALESS_OFF;
+  if (pCfg->walRetentionPeriod < 0 && pCfg->walRetentionPeriod != -1)
+    pCfg->walRetentionPeriod = TSDB_DEFAULT_DB_WAL_RETENTION_PERIOD;
+  if (pCfg->walRetentionSize < 0 && pCfg->walRetentionSize != -1)
+    pCfg->walRetentionSize = TSDB_DEFAULT_DB_WAL_RETENTION_SIZE;
+  if (pCfg->walRollPeriod < 0) pCfg->walRollPeriod = TSDB_DEFAULT_DB_WAL_ROLL_PERIOD;
+  if (pCfg->walSegmentSize < 0) pCfg->walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
 }
 
 static int32_t mndSetCreateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
@@ -448,7 +466,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .daysToKeep2 = pCreate->daysToKeep2,
       .minRows = pCreate->minRows,
       .maxRows = pCreate->maxRows,
-      .fsyncPeriod = pCreate->fsyncPeriod,
+      .walFsyncPeriod = pCreate->walFsyncPeriod,
       .walLevel = pCreate->walLevel,
       .precision = pCreate->precision,
       .compression = pCreate->compression,
@@ -457,6 +475,10 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .cacheLast = pCreate->cacheLast,
       .hashMethod = 1,
       .schemaless = pCreate->schemaless,
+      .walRetentionPeriod = pCreate->walRetentionPeriod,
+      .walRetentionSize = pCreate->walRetentionSize,
+      .walRollPeriod = pCreate->walRollPeriod,
+      .walSegmentSize = pCreate->walSegmentSize,
   };
 
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
@@ -620,8 +642,8 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     terrno = 0;
   }
 
-  if (pAlter->fsyncPeriod >= 0 && pAlter->fsyncPeriod != pDb->cfg.fsyncPeriod) {
-    pDb->cfg.fsyncPeriod = pAlter->fsyncPeriod;
+  if (pAlter->walFsyncPeriod >= 0 && pAlter->walFsyncPeriod != pDb->cfg.walFsyncPeriod) {
+    pDb->cfg.walFsyncPeriod = pAlter->walFsyncPeriod;
     terrno = 0;
   }
 
@@ -811,7 +833,7 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
   cfgRsp.daysToKeep2 = pDb->cfg.daysToKeep2;
   cfgRsp.minRows = pDb->cfg.minRows;
   cfgRsp.maxRows = pDb->cfg.maxRows;
-  cfgRsp.fsyncPeriod = pDb->cfg.fsyncPeriod;
+  cfgRsp.walFsyncPeriod = pDb->cfg.walFsyncPeriod;
   cfgRsp.walLevel = pDb->cfg.walLevel;
   cfgRsp.precision = pDb->cfg.precision;
   cfgRsp.compression = pDb->cfg.compression;
@@ -973,11 +995,13 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   mDebug("trans:%d, used to drop db:%s", pTrans->id, pDb->name);
   mndTransSetDbName(pTrans, pDb->name, NULL);
 
+  if (mndCheckTopicExist(pMnode, pDb) < 0) goto _OVER;
+
   if (mndSetDropDbRedoLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
-  if (mndDropOffsetByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
-  if (mndDropSubByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
-  if (mndDropTopicByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
+  /*if (mndDropOffsetByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
+  /*if (mndDropSubByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
+  /*if (mndDropTopicByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
   if (mndDropStreamByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndDropSmasByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto _OVER;
@@ -1395,7 +1419,7 @@ const char *mndGetDbStr(const char *src) {
   return pos;
 }
 
-int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
+static int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
   int64_t v = 0;
   switch (unit) {
     case 's':
@@ -1420,7 +1444,7 @@ int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
   return v;
 }
 
-char *buildRetension(SArray *pRetension) {
+static char *buildRetension(SArray *pRetension) {
   size_t size = taosArrayGetSize(pRetension);
   if (size == 0) {
     return NULL;
@@ -1473,8 +1497,34 @@ static const char *getCacheModelStr(int8_t cacheModel) {
   return "unknown";
 }
 
-static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, int32_t rows, int64_t numOfTables,
-                           bool sysDb, ESdbStatus objStatus, bool sysinfo) {
+bool mndIsDbReady(SMnode *pMnode, SDbObj *pDb) {
+  if (pDb->cfg.replications == 1) return true;
+
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  bool  isReady = true;
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    if (pVgroup->dbUid == pDb->uid && pVgroup->replica > 1) {
+      bool hasLeader = false;
+      for (int32_t i = 0; i < pVgroup->replica; ++i) {
+        if (pVgroup->vnodeGid[i].role == TAOS_SYNC_STATE_LEADER) {
+          hasLeader = true;
+        }
+      }
+      if (!hasLeader) isReady = false;
+    }
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  return isReady;
+}
+
+static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, int32_t rows,
+                              int64_t numOfTables, bool sysDb, ESdbStatus objStatus, bool sysinfo) {
   int32_t cols = 0;
   int32_t bytes = pShow->pMeta->pSchemas[cols].bytes;
   char   *buf = taosMemoryMalloc(bytes);
@@ -1487,8 +1537,16 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
   }
 
   char *statusStr = "ready";
-  if (objStatus == SDB_STATUS_CREATING) statusStr = "creating";
-  if (objStatus == SDB_STATUS_DROPPING) statusStr = "dropping";
+  if (objStatus == SDB_STATUS_CREATING) {
+    statusStr = "creating";
+  } else if (objStatus == SDB_STATUS_DROPPING) {
+    statusStr = "dropping";
+  } else {
+    if (!sysDb && !mndIsDbReady(pMnode, pDb)) {
+      statusStr = "unsynced";
+    }
+  }
+
   char statusVstr[24] = {0};
   STR_WITH_SIZE_TO_VARSTR(statusVstr, statusStr, strlen(statusStr));
 
@@ -1499,7 +1557,7 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
         colDataAppend(pColInfo, rows, buf, false);
       } else if (i == 3) {
         colDataAppend(pColInfo, rows, (const char *)&numOfTables, false);
-      } else if (i == 20) {
+      } else if (i == 15) {
         colDataAppend(pColInfo, rows, statusVstr, false);
       } else {
         colDataAppendNULL(pColInfo, rows);
@@ -1561,19 +1619,7 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.maxRows, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false);
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.fsyncPeriod, false);
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
-
-    const char *cacheModelStr = getCacheModelStr(pDb->cfg.cacheLast);
-    char        cacheModelVstr[24] = {0};
-    STR_WITH_SIZE_TO_VARSTR(cacheModelVstr, cacheModelStr, strlen(cacheModelStr));
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)cacheModelVstr, false);
 
     const char *precStr = NULL;
     switch (pDb->cfg.precision) {
@@ -1596,19 +1642,46 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     colDataAppend(pColInfo, rows, (const char *)precVstr, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false);
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)statusVstr, false);
 
     char *rentensionVstr = buildRetension(pDb->cfg.pRetensions);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (rentensionVstr == NULL) {
       colDataAppendNULL(pColInfo, rows);
     } else {
       colDataAppend(pColInfo, rows, (const char *)rentensionVstr, false);
       taosMemoryFree(rentensionVstr);
     }
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false);
+
+    const char *cacheModelStr = getCacheModelStr(pDb->cfg.cacheLast);
+    char        cacheModelVstr[24] = {0};
+    STR_WITH_SIZE_TO_VARSTR(cacheModelVstr, cacheModelStr, strlen(cacheModelStr));
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)cacheModelVstr, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.cacheLastSize, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walFsyncPeriod, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walRetentionPeriod, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walRetentionSize, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walRollPeriod, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walSegmentSize, false);
   }
 
   taosMemoryFree(buf);
@@ -1635,7 +1708,10 @@ static void setPerfSchemaDbCfg(SDbObj *pDbObj) {
 static bool mndGetTablesOfDbFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
   SVgObj  *pVgroup = pObj;
   int32_t *numOfTables = p1;
-  *numOfTables += pVgroup->numOfTables;
+  int64_t  uid = *(int64_t *)p2;
+  if (pVgroup->dbUid == uid) {
+    *numOfTables += pVgroup->numOfTables;
+  }
   return true;
 }
 
@@ -1654,13 +1730,17 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   if (!pShow->sysDbRsp) {
     SDbObj infoschemaDb = {0};
     setInformationSchemaDbCfg(&infoschemaDb);
-    dumpDbInfoData(pBlock, &infoschemaDb, pShow, numOfRows, 14, true, 0, 1);
+    size_t numOfTables = 0;
+    getInfosDbMeta(NULL, &numOfTables);
+    mndDumpDbInfoData(pMnode, pBlock, &infoschemaDb, pShow, numOfRows, numOfTables, true, 0, 1);
 
     numOfRows += 1;
 
     SDbObj perfschemaDb = {0};
     setPerfSchemaDbCfg(&perfschemaDb);
-    dumpDbInfoData(pBlock, &perfschemaDb, pShow, numOfRows, 3, true, 0, 1);
+    numOfTables = 0;
+    getPerfDbMeta(NULL, &numOfTables);
+    mndDumpDbInfoData(pMnode, pBlock, &perfschemaDb, pShow, numOfRows, numOfTables, true, 0, 1);
 
     numOfRows += 1;
     pShow->sysDbRsp = true;
@@ -1672,8 +1752,8 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb) == 0) {
       int32_t numOfTables = 0;
-      sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, NULL, NULL);
-      dumpDbInfoData(pBlock, pDb, pShow, numOfRows, numOfTables, false, objStatus, sysinfo);
+      sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, &pDb->uid, NULL);
+      mndDumpDbInfoData(pMnode, pBlock, pDb, pShow, numOfRows, numOfTables, false, objStatus, sysinfo);
       numOfRows++;
     }
 

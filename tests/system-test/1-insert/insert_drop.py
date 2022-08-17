@@ -37,8 +37,8 @@ class TDTestCase:
         sql_list.append(f'drop database test;')
         tlist = self.genMultiThreadSeq(sql_list)
         self.multiThreadRun(tlist)
-        tdSql.query(f'show databases')
-        
+        tdSql.query(f'select * from information_schema.ins_databases')
+
 
     def stop(self):
         tdSql.close()

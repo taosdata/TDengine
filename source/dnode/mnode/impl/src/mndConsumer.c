@@ -131,8 +131,9 @@ static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
   mInfo("receive consumer recover msg, consumer id %" PRId64 ", status %s", pRecoverMsg->consumerId,
         mndConsumerStatusName(pConsumer->status));
 
-  if (pConsumer->status != MQ_CONSUMER_STATUS__READY) {
+  if (pConsumer->status != MQ_CONSUMER_STATUS__LOST_REBD) {
     mndReleaseConsumer(pMnode, pConsumer);
+    terrno = TSDB_CODE_MND_CONSUMER_NOT_READY;
     return -1;
   }
 
@@ -275,6 +276,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   int32_t status = atomic_load_32(&pConsumer->status);
 
   if (status == MQ_CONSUMER_STATUS__LOST_REBD) {
+    mInfo("try to recover consumer %ld", consumerId);
     SMqConsumerRecoverMsg *pRecoverMsg = rpcMallocCont(sizeof(SMqConsumerRecoverMsg));
 
     pRecoverMsg->consumerId = consumerId;
@@ -305,15 +307,14 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
 
   ASSERT(strcmp(pReq->cgroup, pConsumer->cgroup) == 0);
 
-#if 1
   atomic_store_32(&pConsumer->hbStatus, 0);
-#endif
 
   // 1. check consumer status
   int32_t status = atomic_load_32(&pConsumer->status);
 
 #if 1
   if (status == MQ_CONSUMER_STATUS__LOST_REBD) {
+    mInfo("try to recover consumer %ld", consumerId);
     SMqConsumerRecoverMsg *pRecoverMsg = rpcMallocCont(sizeof(SMqConsumerRecoverMsg));
 
     pRecoverMsg->consumerId = consumerId;
@@ -326,6 +327,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
 #endif
 
   if (status != MQ_CONSUMER_STATUS__READY) {
+    mInfo("consumer %ld not ready, status: %s", consumerId, mndConsumerStatusName(status));
     terrno = TSDB_CODE_MND_CONSUMER_NOT_READY;
     return -1;
   }
@@ -878,14 +880,14 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
     pShow->pIter = sdbFetch(pSdb, SDB_CONSUMER, pShow->pIter, (void **)&pConsumer);
     if (pShow->pIter == NULL) break;
     if (taosArrayGetSize(pConsumer->assignedTopics) == 0) {
-      mDebug("showing consumer %ld no assigned topic, skip", pConsumer->consumerId);
+      mDebug("showing consumer %" PRId64 " no assigned topic, skip", pConsumer->consumerId);
       sdbRelease(pSdb, pConsumer);
       continue;
     }
 
     taosRLockLatch(&pConsumer->lock);
 
-    mDebug("showing consumer %ld", pConsumer->consumerId);
+    mDebug("showing consumer %" PRId64, pConsumer->consumerId);
 
     int32_t topicSz = taosArrayGetSize(pConsumer->assignedTopics);
     bool    hasTopic = true;
@@ -939,13 +941,9 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
         colDataAppend(pColInfo, numOfRows, NULL, true);
       }
 
-      // pid
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pConsumer->pid, true);
-
       // end point
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pConsumer->ep, true);
+      /*pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);*/
+      /*colDataAppend(pColInfo, numOfRows, (const char *)&pConsumer->ep, true);*/
 
       // up time
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

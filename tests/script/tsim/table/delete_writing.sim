@@ -3,10 +3,6 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-print ========= start dnodes
-system sh/exec.sh -n dnode1 -s start
-sql connect
-
 sql create database db 
 sql create table db.tb (ts timestamp, i int)
 sql insert into db.tb values(now, 1)

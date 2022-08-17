@@ -60,7 +60,7 @@ if [ "$pagMode" == "lite" ]; then
   strip ${build_dir}/bin/${serverName}
   strip ${build_dir}/bin/${clientName}
   # lite version doesn't include taosadapter,  which will lead to no restful interface
-  bin_files="${build_dir}/bin/${serverName} ${build_dir}/bin/${clientName} ${script_dir}/remove.sh ${script_dir}/startPre.sh ${build_dir}/bin/taosBenchmark  ${build_dir}/bin/tmq_sim"
+  bin_files="${build_dir}/bin/${serverName} ${build_dir}/bin/${clientName} ${script_dir}/remove.sh ${script_dir}/startPre.sh ${build_dir}/bin/taosBenchmark "
   taostools_bin_files=""
 else
 
@@ -78,7 +78,6 @@ else
 
   taostools_bin_files=" ${build_dir}/bin/taosdump \
       ${build_dir}/bin/taosBenchmark \
-      ${build_dir}/bin/tmq_sim \
       ${build_dir}/bin/TDinsight.sh \
       $tdinsight_caches"
 
@@ -86,6 +85,7 @@ else
       ${build_dir}/bin/${clientName} \
       ${taostools_bin_files} \
       ${build_dir}/bin/taosadapter \
+      ${build_dir}/bin/udfd \
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
       ${script_dir}/startPre.sh \
@@ -319,7 +319,7 @@ if [ "$verMode" == "cluster" ]; then
 fi
 
 # Copy release note
-cp ${script_dir}/release_note ${install_dir}
+# cp ${script_dir}/release_note ${install_dir}
 
 # exit 1
 

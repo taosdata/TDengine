@@ -3,7 +3,7 @@ from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
 import taos
 import sys
 import time
-import os 
+import os
 
 from util.log import *
 from util.sql import *
@@ -41,13 +41,13 @@ class TDTestCase:
         return buildPath
 
     def check_setup_cluster_status(self):
-        tdSql.query("show mnodes")
+        tdSql.query("select * from information_schema.ins_mnodes")
         for mnode in tdSql.queryResult:
             name = mnode[1]
             info = mnode
             self.mnode_list[name] = info
 
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         for dnode in tdSql.queryResult:
             name = dnode[1]
             info = dnode
@@ -65,14 +65,14 @@ class TDTestCase:
                 is_leader=True
 
         if count==1 and is_leader:
-            tdLog.info("===== depoly cluster success with 1 mnode as leader =====")
+            tdLog.notice("===== depoly cluster success with 1 mnode as leader =====")
         else:
             tdLog.exit("===== depoly cluster fail with 1 mnode as leader =====")
 
         for k ,v in self.dnode_list.items():
             if k == mnode_name:
                 if v[3]==0:
-                    tdLog.info("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
+                    tdLog.notice("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
                 else:
                     tdLog.exit("===== depoly cluster mnode only fail at {} , support_vnodes is {} ".format(mnode_name,v[3]))
             else:
@@ -95,7 +95,7 @@ class TDTestCase:
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
             '''
         )
-        
+
         for i in range(5):
             tdSql.execute("create table sub_tb_{} using stb1 tags({})".format(i,i))
         tdSql.query("show stables")
@@ -115,7 +115,7 @@ class TDTestCase:
 
         for k , v in vgroups_infos.items():
             if len(v) ==1 and v[0]=="leader":
-                tdLog.info(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
+                tdLog.notice(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
             else:
                 tdLog.exit(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
 
@@ -126,7 +126,7 @@ class TDTestCase:
         return taos.connect(host=host, port=int(port), config=config_dir)
 
 
-    def run(self): 
+    def run(self):
         self.check_setup_cluster_status()
         self.create_db_check_vgroups()
 

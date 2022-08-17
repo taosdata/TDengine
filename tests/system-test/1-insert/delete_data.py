@@ -50,9 +50,9 @@ class TDTestCase:
             'col11': 'bool',
             'col12': f'binary({self.str_length})',
             'col13': f'nchar({self.str_length})',
-            
+
         }
-        
+
         self.tinyint_val = random.randint(constant.TINYINT_MIN,constant.TINYINT_MAX)
         self.smallint_val = random.randint(constant.SMALLINT_MIN,constant.SMALLINT_MAX)
         self.int_val = random.randint(constant.INT_MIN,constant.INT_MAX)
@@ -100,15 +100,15 @@ class TDTestCase:
             elif col_type.lower() == 'bigint unsigned':
                 tdSql.execute(f'insert into {tbname} values({self.ts+i},{base_data["bigint unsigned"]})')
             elif col_type.lower() == 'bool':
-                tdSql.execute(f'insert into {tbname} values({self.ts+i},{base_data["bool"]})')    
+                tdSql.execute(f'insert into {tbname} values({self.ts+i},{base_data["bool"]})')
             elif col_type.lower() == 'float':
-                tdSql.execute(f'insert into {tbname} values({self.ts+i},{base_data["float"]})')      
+                tdSql.execute(f'insert into {tbname} values({self.ts+i},{base_data["float"]})')
             elif col_type.lower() == 'double':
                 tdSql.execute(f'insert into {tbname} values({self.ts+i},{base_data["double"]})')
             elif 'binary' in col_type.lower():
                 tdSql.execute(f'''insert into {tbname} values({self.ts+i},"{base_data['binary']}")''')
             elif 'nchar' in col_type.lower():
-                tdSql.execute(f'''insert into {tbname} values({self.ts+i},"{base_data['nchar']}")''')        
+                tdSql.execute(f'''insert into {tbname} values({self.ts+i},"{base_data['nchar']}")''')
     def delete_all_data(self,tbname,col_type,row_num,base_data,dbname,tb_type,tb_num=1):
         tdSql.execute(f'delete from {tbname}')
         tdSql.execute(f'flush database {dbname}')
@@ -164,7 +164,7 @@ class TDTestCase:
         elif 'nchar' in column_type.lower():
             tdSql.checkEqual(tdSql.queryResult[0][0],base_data['nchar'])
         else:
-            tdSql.checkEqual(tdSql.queryResult[0][0],base_data[column_type])  
+            tdSql.checkEqual(tdSql.queryResult[0][0],base_data[column_type])
     def delete_rows(self,dbname,tbname,col_name,col_type,base_data,row_num,tb_type,tb_num=1):
         for i in range(row_num):
             tdSql.execute(f'delete from {tbname} where ts>{self.ts+i}')
@@ -189,7 +189,7 @@ class TDTestCase:
             elif tb_type == 'stb':
                 tdSql.checkRows(i*tb_num)
                 for j in range(tb_num):
-                    self.insert_base_data(col_type,f'{tbname}_{j}',row_num,base_data)    
+                    self.insert_base_data(col_type,f'{tbname}_{j}',row_num,base_data)
         for i in range(row_num):
             tdSql.execute(f'delete from {tbname} where ts<={self.ts+i}')
             tdSql.execute(f'flush database {dbname}')
@@ -240,7 +240,7 @@ class TDTestCase:
                 tdSql.error(f'''delete from {tbname} where {error_list} {column_name} ="{base_data['nchar']}"''')
             else:
                 tdSql.error(f'delete from {tbname} where {error_list} {column_name} = {base_data[column_type]}')
-           
+
     def delete_data_ntb(self):
         tdSql.execute(f'create database if not exists {self.dbname}')
         tdSql.execute(f'use {self.dbname}')

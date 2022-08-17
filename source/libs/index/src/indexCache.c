@@ -45,7 +45,7 @@ static int32_t cacheSearchLessEqual(void* cache, SIndexTerm* ct, SIdxTRslt* tr, 
 static int32_t cacheSearchGreaterThan(void* cache, SIndexTerm* ct, SIdxTRslt* tr, STermValueType* s);
 static int32_t cacheSearchGreaterEqual(void* cache, SIndexTerm* ct, SIdxTRslt* tr, STermValueType* s);
 static int32_t cacheSearchRange(void* cache, SIndexTerm* ct, SIdxTRslt* tr, STermValueType* s);
-/*comm func of compare, used in (LE/LT/GE/GT compare)*/
+/*comm compare func, used in (LE/LT/GE/GT compare)*/
 static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* ct, SIdxTRslt* tr, STermValueType* s, RangeType type);
 static int32_t cacheSearchTerm_JSON(void* cache, SIndexTerm* ct, SIdxTRslt* tr, STermValueType* s);
 static int32_t cacheSearchEqual_JSON(void* cache, SIndexTerm* ct, SIdxTRslt* tr, STermValueType* s);
@@ -94,7 +94,6 @@ static int32_t cacheSearchTerm(void* cache, SIndexTerm* term, SIdxTRslt* tr, STe
     if (0 == strcmp(c->colVal, pCt->colVal) && strlen(pCt->colVal) == strlen(c->colVal)) {
       if (c->operaType == ADD_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->del, tr->add, c->uid)
-        // taosArrayPush(result, &c->uid);
         *s = kTypeValue;
       } else if (c->operaType == DEL_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->add, tr->del, c->uid)

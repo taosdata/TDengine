@@ -742,7 +742,9 @@ static int32_t mndProcessAlterMnodeReq(SRpcMsg *pReq) {
     return code;
   } else {
     pMgmt->errCode = 0;
+    taosWLockLatch(&pMgmt->lock);
     pMgmt->transId = -1;
+    taosWUnLockLatch(&pMgmt->lock);
     tsem_wait(&pMgmt->syncSem);
     mInfo("alter mnode sync result:0x%x %s", pMgmt->errCode, tstrerror(pMgmt->errCode));
     terrno = pMgmt->errCode;

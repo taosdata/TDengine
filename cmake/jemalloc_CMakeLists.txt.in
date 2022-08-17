@@ -1,0 +1,14 @@
+
+# jemalloc
+ExternalProject_Add(jemalloc
+        GIT_REPOSITORY https://github.com/jemalloc/jemalloc.git
+        GIT_TAG 5.3.0
+        SOURCE_DIR "${TD_CONTRIB_DIR}/jemalloc"
+        BINARY_DIR ""
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+        GIT_SHALLOW true
+        GIT_PROGRESS true
+        )

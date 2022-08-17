@@ -64,17 +64,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers);
  * @param SReadHandle
  * @return
  */
-qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols,
-                                     SSchemaWrapper** pSchema);
-
-/**
- * Set the input data block for the stream scan.
- * @param tinfo
- * @param input
- * @param type
- * @return
- */
-int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type, bool assignUid);
+qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols, SSchemaWrapper** pSchema);
 
 /**
  * Set multiple input data blocks for the stream scan.
@@ -84,7 +74,14 @@ int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type, bool
  * @param type
  * @return
  */
-int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type, bool assignUid);
+int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type);
+
+/**
+ * @brief Cleanup SSDataBlock for StreamScanInfo
+ * 
+ * @param tinfo 
+ */
+void tdCleanupStreamInputDataBlock(qTaskInfo_t tinfo);
 
 /**
  * Update the table id list, add or remove.
@@ -106,7 +103,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
  * @return
  */
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pPlan,
-                        qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, const char* sql, EOPTR_EXEC_MODEL model);
+                        qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, char* sql, EOPTR_EXEC_MODEL model);
 
 /**
  *
@@ -126,7 +123,8 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* table
  * @param handle
  * @return
  */
-int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds);
+int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds);
+int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pBlock, uint64_t* useconds);
 
 /**
  * kill the ongoing query and free the query handle and corresponding resources automatically
@@ -165,7 +163,7 @@ int32_t qGetQualifiedTableIdList(void* pTableList, const char* tagCond, int32_t 
 
 void qProcessRspMsg(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 
-int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, int32_t* resNum, SExplainExecInfo** pRes);
+int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, SArray* pExecInfoList/*,int32_t* resNum, SExplainExecInfo** pRes*/);
 
 int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len);
 

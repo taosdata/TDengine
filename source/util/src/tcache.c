@@ -35,7 +35,7 @@ typedef struct SCacheNode {
   uint64_t           addedTime;   // the added time when this element is added or updated into cache
   uint64_t           lifespan;    // life duration when this element should be remove from cache
   int64_t            expireTime;  // expire time
-  uint64_t           signature;
+  void*              signature;
   struct STrashElem *pTNodeHeader;    // point to trash node head
   uint16_t           keyLen : 15;     // max key size: 32kb
   bool               inTrashcan : 1;  // denote if it is in trash or not
@@ -208,7 +208,7 @@ static void taosTrashcanEmpty(SCacheObj *pCacheObj, bool force);
  * @param pNode          data node
  */
 static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheNode *pNode) {
-  if (pNode->signature != (uint64_t)pNode) {
+  if (pNode->signature != pNode) {
     uError("key:%s, %p data is invalid, or has been released", pNode->key, pNode);
     return;
   }
@@ -226,7 +226,7 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheNode *
 }
 
 static FORCE_INLINE STrashElem *doRemoveElemInTrashcan(SCacheObj *pCacheObj, STrashElem *pElem) {
-  if (pElem->pData->signature != (uint64_t)pElem->pData) {
+  if (pElem->pData->signature != pElem->pData) {
     uWarn("key:sig:0x%" PRIx64 " %p data has been released, ignore", pElem->pData->signature, pElem->pData);
     return NULL;
   }
@@ -266,6 +266,7 @@ static void pushfrontNodeInEntryList(SCacheEntry *pEntry, SCacheNode *pNode) {
   pNode->pNext = pEntry->next;
   pEntry->next = pNode;
   pEntry->num += 1;
+  ASSERT((pEntry->next && pEntry->num > 0) || (NULL == pEntry->next && pEntry->num == 0));
 }
 
 static void removeNodeInEntryList(SCacheEntry *pe, SCacheNode *prev, SCacheNode *pNode) {
@@ -278,6 +279,7 @@ static void removeNodeInEntryList(SCacheEntry *pe, SCacheNode *prev, SCacheNode 
 
   pNode->pNext = NULL;
   pe->num -= 1;
+  ASSERT((pe->next && pe->num > 0) || (NULL == pe->next && pe->num == 0));  
 }
 
 static FORCE_INLINE SCacheEntry *doFindEntry(SCacheObj *pCacheObj, const void *key, size_t keyLen) {
@@ -492,7 +494,7 @@ void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data) {
   if (pCacheObj == NULL || data == NULL) return NULL;
 
   SCacheNode *ptNode = (SCacheNode *)((char *)data - sizeof(SCacheNode));
-  if (ptNode->signature != (uint64_t)ptNode) {
+  if (ptNode->signature != ptNode) {
     uError("cache:%s, key: %p the data from cache is invalid", pCacheObj->name, ptNode);
     return NULL;
   }
@@ -509,7 +511,7 @@ void *taosCacheTransferData(SCacheObj *pCacheObj, void **data) {
   if (pCacheObj == NULL || data == NULL || (*data) == NULL) return NULL;
 
   SCacheNode *ptNode = (SCacheNode *)((char *)(*data) - sizeof(SCacheNode));
-  if (ptNode->signature != (uint64_t)ptNode) {
+  if (ptNode->signature != ptNode) {
     uError("cache:%s, key: %p the data from cache is invalid", pCacheObj->name, ptNode);
     return NULL;
   }
@@ -537,7 +539,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   // It happens when there is only one object in the cache, and two threads which has referenced this object
   // start to free the it simultaneously [TD-1569].
   SCacheNode *pNode = (SCacheNode *)((char *)(*data) - sizeof(SCacheNode));
-  if (pNode->signature != (uint64_t)pNode) {
+  if (pNode->signature != pNode) {
     uError("cache:%s, %p, release invalid cache data", pCacheObj->name, pNode);
     return;
   }
@@ -657,15 +659,18 @@ void doTraverseElems(SCacheObj *pCacheObj, bool (*fp)(void *param, SCacheNode *p
 
     taosWLockLatch(&pEntry->latch);
 
+    SCacheNode **pPre = &pEntry->next;
     SCacheNode *pNode = pEntry->next;
     while (pNode != NULL) {
       SCacheNode *next = pNode->pNext;
 
       if (fp(pSup, pNode)) {
+        pPre = &pNode->pNext;
         pNode = pNode->pNext;
       } else {
-        pEntry->next = next;
+        *pPre = next;
         pEntry->num -= 1;
+        ASSERT((pEntry->next && pEntry->num > 0) || (NULL == pEntry->next && pEntry->num == 0));
 
         atomic_sub_fetch_ptr(&pCacheObj->numOfElems, 1);
         pNode = next;
@@ -723,7 +728,7 @@ SCacheNode *taosCreateCacheNode(const char *key, size_t keyLen, const char *pDat
   pNewNode->addedTime = (uint64_t)taosGetTimestampMs();
   pNewNode->lifespan = duration;
   pNewNode->expireTime = pNewNode->addedTime + pNewNode->lifespan;
-  pNewNode->signature = (uint64_t)pNewNode;
+  pNewNode->signature = pNewNode;
   pNewNode->size = (uint32_t)sizeInBytes;
 
   return pNewNode;

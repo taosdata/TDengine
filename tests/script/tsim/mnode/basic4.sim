@@ -17,7 +17,7 @@ step1:
 	if $x == 5 then
 		return -1
 	endi
-sql show dnodes -x step1
+sql select * from information_schema.ins_dnodes -x step1
 if $data(1)[4] != ready then
   goto step1
 endi
@@ -38,7 +38,7 @@ step2:
 	if $x == 5 then
 		return -1
 	endi
-sql show dnodes -x step2
+sql select * from information_schema.ins_dnodes -x step2
 if $data(1)[4] != ready then
   goto step2
 endi
@@ -49,7 +49,7 @@ endi
 system sh/exec.sh -n dnode3 -s stop
 sql_error create mnode on dnode 3
 
-print =============== step3: show mnodes
+print =============== step3: select * from information_schema.ins_mnodes
 
 $x = 0
 step3: 
@@ -58,15 +58,19 @@ step3:
 	if $x == 10 then
 		return -1
 	endi
-sql show mnodes -x step3
+sql select * from information_schema.ins_mnodes -x step3
 print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] 
 print $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] 
 print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4]
 
-if $data(1)[2] != leader then
-  goto step3
+$leaderNum = 0
+if $data(1)[2] == leader then
+  $leaderNum = 1
 endi
-if $data(2)[2] != follower then
+if $data(2)[2] == leader then
+  $leaderNum = 1
+endi
+if  $leaderNum == 0 then
   goto step3
 endi
 if $data(3)[2] != offline then
@@ -92,15 +96,19 @@ step4:
 	if $x == 10 then
 		return -1
 	endi
-sql show mnodes -x step4
+sql select * from information_schema.ins_mnodes -x step4
 print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] 
 print $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] 
 print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4]
 
-if $data(1)[2] != leader then
-  goto step4
+$leaderNum = 0
+if $data(1)[2] == leader then
+  $leaderNum = 1
 endi
-if $data(2)[2] != follower then
+if $data(2)[2] == leader then
+  $leaderNum = 1
+endi
+if  $leaderNum == 0 then
   goto step4
 endi
 if $data(3)[2] != follower then
@@ -127,15 +135,19 @@ step5:
 	if $x == 10 then
 		return -1
 	endi
-sql show mnodes -x step5
+sql select * from information_schema.ins_mnodes -x step5
 print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] 
 print $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] 
 print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4]
 
-if $data(1)[2] != leader then
-  goto step5
+$leaderNum = 0
+if $data(1)[2] == leader then
+  $leaderNum = 1
 endi
-if $data(2)[2] != follower then
+if $data(2)[2] == leader then
+  $leaderNum = 1
+endi
+if  $leaderNum == 0 then
   goto step5
 endi
 if $data(3)[2] != offline then
@@ -161,7 +173,7 @@ step6:
 	if $x == 10 then
 		return -1
 	endi
-sql show mnodes -x step6
+sql select * from information_schema.ins_mnodes -x step6
 print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] 
 print $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] 
 print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4]
@@ -169,10 +181,14 @@ print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4]
 if $rows != 2 then 
   goto step6
 endi
-if $data(1)[2] != leader then
-  goto step6
+$leaderNum = 0
+if $data(1)[2] == leader then
+  $leaderNum = 1
 endi
-if $data(2)[2] != follower then
+if $data(2)[2] == leader then
+  $leaderNum = 1
+endi
+if  $leaderNum == 0 then
   goto step6
 endi
 if $data(3)[2] != null then

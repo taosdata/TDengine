@@ -193,20 +193,11 @@ class TDTestCase:
         tdSql.query("select c1 , DERIVATIVE(c1,2,1) from stb partition by c1 order by c1")
         tdSql.checkRows(90)
         # bug need fix
-        # tdSql.checkData(0,1,None)
+        tdSql.checkData(0,1,None)
 
 
-
-
-
-
-
-        # bug need fix
-        # tdSql.query(" select tbname , max(c1) from stb partition by tbname order by tbname slimit 5 soffset 0 ")
-        # tdSql.checkRows(5)
-
-        # tdSql.query(" select tbname , max(c1) from stb partition by tbname order by tbname slimit 5 soffset 1 ")
-        # tdSql.checkRows(5)
+        tdSql.query(" select tbname , max(c1) from stb partition by tbname order by tbname slimit 5 soffset 0 ")
+        tdSql.checkRows(10)
 
         tdSql.query(" select tbname , max(c1) from sub_stb_1 partition by tbname interval(10s) sliding(5s) ")
 

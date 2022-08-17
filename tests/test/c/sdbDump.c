@@ -79,8 +79,6 @@ void dumpDb(SSdb *pSdb, SJson *json) {
     tjsonAddIntegerToObject(item, "daysToKeep2", pObj->cfg.daysToKeep2);
     tjsonAddIntegerToObject(item, "minRows", pObj->cfg.minRows);
     tjsonAddIntegerToObject(item, "maxRows", pObj->cfg.maxRows);
-    tjsonAddIntegerToObject(item, "fsyncPeriod", pObj->cfg.fsyncPeriod);
-    tjsonAddIntegerToObject(item, "walLevel", pObj->cfg.walLevel);
     tjsonAddIntegerToObject(item, "precision", pObj->cfg.precision);
     tjsonAddIntegerToObject(item, "compression", pObj->cfg.compression);
     tjsonAddIntegerToObject(item, "replications", pObj->cfg.replications);
@@ -89,7 +87,13 @@ void dumpDb(SSdb *pSdb, SJson *json) {
     tjsonAddIntegerToObject(item, "hashMethod", pObj->cfg.hashMethod);
     tjsonAddIntegerToObject(item, "numOfRetensions", pObj->cfg.numOfRetensions);
     tjsonAddIntegerToObject(item, "schemaless", pObj->cfg.schemaless);
-
+    tjsonAddIntegerToObject(item, "walLevel", pObj->cfg.walLevel);
+    tjsonAddIntegerToObject(item, "walFsyncPeriod", pObj->cfg.walFsyncPeriod);
+    tjsonAddIntegerToObject(item, "walRetentionPeriod", pObj->cfg.walRetentionPeriod);
+    tjsonAddIntegerToObject(item, "walRetentionSize", pObj->cfg.walRetentionSize);
+    tjsonAddIntegerToObject(item, "walRollPeriod", pObj->cfg.walRollPeriod);
+    tjsonAddIntegerToObject(item, "walSegmentSize", pObj->cfg.walSegmentSize);
+    
     sdbRelease(pSdb, pObj);
   }
 }

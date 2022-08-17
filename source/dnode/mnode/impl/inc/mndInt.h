@@ -87,10 +87,11 @@ typedef struct {
 typedef struct {
   tsem_t   syncSem;
   int64_t  sync;
-  bool     standby;
   SReplica replica;
   int32_t  errCode;
   int32_t  transId;
+  SRWLatch lock;
+  int8_t   standby;
   int8_t   leaderTransferFinish;
 } SSyncMgmt;
 

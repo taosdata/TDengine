@@ -14,6 +14,7 @@
  */
 
 #include "tq.h"
+#include "vnd.h"
 
 #if 0
 void tqTmrRspFunc(void* param, void* tmrId) {
@@ -136,31 +137,6 @@ int32_t tqSendExecReq(STQ* pTq, STqHandle* pHandle) {
   return 0;
 }
 
-int32_t tqEnqueueAll(STQ* pTq, SSubmitReq* pReq) {
-  void*              pIter = NULL;
-  SStreamDataSubmit* pSubmit = streamDataSubmitNew(pReq);
-  if (pSubmit == NULL) {
-    return -1;
-  }
-
-  while (1) {
-    pIter = taosHashIterate(pTq->handles, pIter);
-    if (pIter == NULL) break;
-    STqHandle* pHandle = (STqHandle*)pIter;
-    if (tqEnqueue(pHandle, pSubmit) < 0) {
-      continue;
-    }
-    int8_t execStatus = atomic_load_8(&pHandle->pushHandle.execStatus);
-    if (execStatus == TASK_EXEC_STATUS__IDLE || execStatus == TASK_EXEC_STATUS__CLOSING) {
-      tqSendExecReq(pTq, pHandle);
-    }
-  }
-
-  streamDataSubmitRefDec(pSubmit);
-
-  return 0;
-}
-
 int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver, SRpcHandleInfo handleInfo) {
   if (msgType != TDMT_VND_SUBMIT) return 0;
   void*       pIter = NULL;
@@ -223,7 +199,7 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
     memset(&pHandle->pushHandle.rpcInfo, 0, sizeof(SRpcHandleInfo));
     taosWUnLockLatch(&pHandle->pushHandle.lock);
 
-    tqDebug("vgId:%d offset %" PRId64 " from consumer:%" PRId64 ", (epoch %d) send rsp, block num: %d, reqOffset:%" PRId64 ", rspOffset:%" PRId64,
+    tqDebug("vgId:%d, offset %" PRId64 " from consumer:%" PRId64 ", (epoch %d) send rsp, block num: %d, reqOffset:%" PRId64 ", rspOffset:%" PRId64,
             TD_VID(pTq->pVnode), fetchOffset, pHandle->pushHandle.consumerId, pHandle->pushHandle.epoch, rsp.blockNum,
             rsp.reqOffset, rsp.rspOffset);
 
@@ -237,10 +213,8 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 #endif
 
 int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
-  walApplyVer(pTq->pVnode->pWal, ver);
-
-  if (msgType == TDMT_VND_SUBMIT) {
-    if (taosHashGetSize(pTq->pStreamTasks) == 0) return 0;
+  if (vnodeIsRoleLeader(pTq->pVnode) && msgType == TDMT_VND_SUBMIT) {
+    if (taosHashGetSize(pTq->pStreamMeta->pTasks) == 0) return 0;
 
     void* data = taosMemoryMalloc(msgLen);
     if (data == NULL) {
@@ -252,7 +226,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
     SSubmitReq* pReq = (SSubmitReq*)data;
     pReq->version = ver;
 
-    tqProcessStreamTrigger(pTq, data);
+    tqProcessStreamTrigger(pTq, data, ver);
   }
 
   return 0;

@@ -240,7 +240,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
 
   if (strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0) {
     mGError("user:%s, failed to login from %s since invalid pass, input:%s", pReq->info.conn.user, ip, connReq.passwd);
-    code = TSDB_CODE_RPC_AUTH_FAILURE;
+    code = TSDB_CODE_MND_AUTH_FAILURE;
     goto _OVER;
   }
 
@@ -312,7 +312,7 @@ static int32_t mndSaveQueryList(SConnObj *pConn, SQueryHbReqBasic *pBasic) {
   pConn->numOfQueries = pBasic->queryDesc ? taosArrayGetSize(pBasic->queryDesc) : 0;
   pBasic->queryDesc = NULL;
 
-  mDebug("queries updated in conn %d, num:%d", pConn->id, pConn->numOfQueries);
+  mDebug("queries updated in conn %u, num:%d", pConn->id, pConn->numOfQueries);
 
   taosWUnLockLatch(&pConn->queryLock);
 
@@ -687,6 +687,7 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   int32_t   numOfRows = 0;
   int32_t   cols = 0;
   SConnObj *pConn = NULL;
+  int32_t   keepTime = tsShellActivityTimer * 3;
 
   if (pShow->pIter == NULL) {
     SProfileMgmt *pMgmt = &pMnode->profileMgmt;
@@ -698,6 +699,10 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     if (pConn == NULL) {
       pShow->pIter = NULL;
       break;
+    }
+
+    if ((taosGetTimestampMs() - pConn->lastAccessTimeMs) > (keepTime * 1000)) {
+      continue;
     }
 
     cols = 0;

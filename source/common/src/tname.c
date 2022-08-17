@@ -20,34 +20,6 @@
 
 #define VALID_NAME_TYPE(x) ((x) == TSDB_DB_NAME_T || (x) == TSDB_TABLE_NAME_T)
 
-bool tscValidateTableNameLength(size_t len) { return len < TSDB_TABLE_NAME_LEN; }
-
-#if 0
-// TODO refactor
-SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFilters) {
-  if (numOfFilters == 0 || src == NULL) {
-    assert(src == NULL);
-    return NULL;
-  }
-
-  SColumnFilterInfo* pFilter = taosMemoryCalloc(1, numOfFilters * sizeof(SColumnFilterInfo));
-
-  memcpy(pFilter, src, sizeof(SColumnFilterInfo) * numOfFilters);
-  for (int32_t j = 0; j < numOfFilters; ++j) {
-    if (pFilter[j].filterstr) {
-      size_t len = (size_t) pFilter[j].len + 1 * TSDB_NCHAR_SIZE;
-      pFilter[j].pz = (int64_t) taosMemoryCalloc(1, len);
-
-      memcpy((char*)pFilter[j].pz, (char*)src[j].pz, (size_t) pFilter[j].len);
-    }
-  }
-
-  assert(src->filterstr == 0 || src->filterstr == 1);
-  assert(!(src->lowerRelOptr == 0 && src->upperRelOptr == 0));
-
-  return pFilter;
-}
-#endif
 #if 0
 int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, int64_t intervalTime, char timeUnit, int16_t precision) {
   if (slidingTime == 0) {
@@ -190,10 +162,7 @@ int32_t tNameGetDbName(const SName* name, char* dst) {
   return 0;
 }
 
-const char* tNameGetDbNameP(const SName* name) {
-  return &name->dbname[0];
-}
-
+const char* tNameGetDbNameP(const SName* name) { return &name->dbname[0]; }
 
 int32_t tNameGetFullDbName(const SName* name, char* dst) {
   assert(name != NULL && dst != NULL);
@@ -239,7 +208,6 @@ int32_t tNameAddTbName(SName* dst, const char* tbName, size_t nameLen) {
   tstrncpy(dst->tname, tbName, nameLen + 1);
   return 0;
 }
-
 
 int32_t tNameSetAcctId(SName* dst, int32_t acctId) {
   assert(dst != NULL);
@@ -368,7 +336,7 @@ void buildChildTableName(RandTableName* rName) {
   char temp[8] = {0};
   rName->childTableName[0] = 't';
   rName->childTableName[1] = '_';
-  for(int i = 0; i < 16; i++){
+  for (int i = 0; i < 16; i++) {
     sprintf(temp, "%02x", context.digest[i]);
     strcat(rName->childTableName, temp);
   }

@@ -17,7 +17,7 @@
 
 typedef struct SSmaStat SSmaStat;
 
-#define SMA_MGMT_REF_NUM         10240
+#define SMA_MGMT_REF_NUM 10240
 
 extern SSmaMgmt smaMgmt;
 
@@ -171,7 +171,7 @@ int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat) {
 
 int32_t tdRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
   if (!pRSmaInfo) return 0;
-
+  
   int ref = T_REF_INC(pRSmaInfo);
   smaDebug("vgId:%d, ref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
   return 0;
@@ -183,9 +183,6 @@ int32_t tdUnRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
   int ref = T_REF_DEC(pRSmaInfo);
   smaDebug("vgId:%d, unref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
 
-  if (ref == 0) {
-    tdRemoveRSmaInfoBySuid(pSma, pRSmaInfo->suid);
-  }
   return 0;
 }
 
@@ -295,6 +292,9 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
         nLoops = 0;
       }
     }
+
+    // step 4: free pStat
+    taosMemoryFreeClear(pStat);
   }
 }
 
@@ -321,12 +321,13 @@ int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
       tdDestroyTSmaStat(SMA_TSMA_STAT(pSmaStat));
     } else if (smaType == TSDB_SMA_TYPE_ROLLUP) {
       SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pSmaStat);
+      int32_t    vid = SMA_VID(pRSmaStat->pSma);
+      int64_t    refId = RSMA_REF_ID(pRSmaStat);
       if (taosRemoveRef(smaMgmt.rsetId, RSMA_REF_ID(pRSmaStat)) < 0) {
-        smaError("vgId:%d, remove refId:%" PRIi64 " from rsmaRef:%" PRIi32 " failed since %s", SMA_VID(pRSmaStat->pSma),
-                 RSMA_REF_ID(pRSmaStat), smaMgmt.rsetId, terrstr());
+        smaError("vgId:%d, remove refId:%" PRIi64 " from rsmaRef:%" PRIi32 " failed since %s", vid, refId,
+                 smaMgmt.rsetId, terrstr());
       } else {
-        smaDebug("vgId:%d, remove refId:%" PRIi64 " from rsmaRef:%" PRIi32 " succeed", SMA_VID(pRSmaStat->pSma),
-                 RSMA_REF_ID(pRSmaStat), smaMgmt.rsetId);
+        smaDebug("vgId:%d, remove refId:%" PRIi64 " from rsmaRef:%" PRIi32 " succeed", vid, refId, smaMgmt.rsetId);
       }
     } else {
       ASSERT(0);
@@ -373,7 +374,7 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
       }
       break;
     default:
-      smaError("vgId:%d undefined smaType:%", SMA_VID(pSma), smaType);
+      smaError("vgId:%d, undefined smaType:%", SMA_VID(pSma), smaType);
       return TSDB_CODE_FAILED;
   }
 

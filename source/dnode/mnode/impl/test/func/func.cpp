@@ -46,7 +46,7 @@ void MndTestFunc::SetBufSize(SCreateFuncReq* pReq, int32_t size) {
 }
 
 TEST_F(MndTestFunc, 01_Show_Func) {
-  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "user_functions", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "ins_functions", "");
   EXPECT_EQ(test.GetShowRows(), 0);
 }
 
@@ -159,7 +159,7 @@ TEST_F(MndTestFunc, 02_Create_Func) {
     }
   }
 
-  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "user_functions", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "ins_functions", "");
   EXPECT_EQ(test.GetShowRows(), 1);
 }
 
@@ -270,7 +270,7 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "user_functions", "");
+    test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "ins_functions", "");
     EXPECT_EQ(test.GetShowRows(), 2);
   }
 
@@ -435,13 +435,13 @@ TEST_F(MndTestFunc, 04_Drop_Func) {
     ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "user_functions", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "ins_functions", "");
   EXPECT_EQ(test.GetShowRows(), 1);
 
   // restart
   test.Restart();
 
-  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "user_functions", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "ins_functions", "");
   EXPECT_EQ(test.GetShowRows(), 1);
 }
 

@@ -113,7 +113,7 @@ $totalMsgOfStb = $ctbNum * $rowsPerCtb
 $expectmsgcnt  = $totalMsgOfStb
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 $consumerId    = 1
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
+sql insert into consumeinfo values (now+1s , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from stb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -w $cdbName -s start
@@ -228,7 +228,7 @@ $totalMsgOfCtb = $rowsPerCtb
 $expectmsgcnt  = $totalMsgOfCtb
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 $consumerId    = 1
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
+sql insert into consumeinfo values (now+1s , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from ctb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -s start
@@ -330,7 +330,7 @@ $totalMsgOfNtb = $rowsPerCtb
 $expectmsgcnt  = $totalMsgOfNtb
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 $consumerId    = 1
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
+sql insert into consumeinfo values (now+1s , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from ntb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -s start

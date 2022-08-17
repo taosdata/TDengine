@@ -103,7 +103,7 @@ void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
   createReq.daysToKeep2 = 3650;
   createReq.minRows = 100;
   createReq.maxRows = 4096;
-  createReq.fsyncPeriod = 3000;
+  createReq.walFsyncPeriod = 3000;
   createReq.walLevel = 1;
   createReq.precision = 0;
   createReq.compression = 2;

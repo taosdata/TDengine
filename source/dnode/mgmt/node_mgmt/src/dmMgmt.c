@@ -215,6 +215,7 @@ void dmCleanupDnode(SDnode *pDnode) {
   dmClearVars(pDnode);
   rpcCleanup();
   indexCleanup();
+  taosConvDestroy();
   dDebug("dnode is closed, ptr:%p", pDnode);
 }
 

@@ -3,6 +3,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 system sh/deploy.sh -n dnode4 -i 4
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 0
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
@@ -22,7 +23,7 @@ step1:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> rows: $rows 
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
@@ -44,9 +45,11 @@ if $data(4)[4] != ready then
   goto step1
 endi
 
+return
+
 print =============== step2: create database
 sql create database db vgroups 1 replica 3
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then 
   return -1
 endi
@@ -54,7 +57,7 @@ if $data(db)[4] != 3 then
   return -1
 endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $data(2)[2] != 1 then
   return -1
 endi
@@ -66,7 +69,7 @@ if $data(4)[2] != 1 then
 endi
 
 # vnodes
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $data(2)[2] != 1 then
   return -1
 endi
@@ -115,8 +118,8 @@ sql use db;
 sql create table stb (ts timestamp, c int) tags (t int);
 sql create table t0 using stb tags (0);
 sql insert into t0 values(now, 1);
-sql show db.stables;
-sql show db.tables;
+sql select * from information_schema.ins_stables where db_name = 'db';
+sql select * from information_schema.ins_tables where db_name = 'db';
 sql show db.vgroups;
 
 return

@@ -162,6 +162,26 @@ _err:
 #endif
 }
 
+TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions) {
+  TdFilePtr fp = taosOpenFile(path, tdFileOptions);
+  if (!fp) {
+    if (errno == ENOENT) {
+      // Try to create directory recursively
+      char *s = strdup(path);
+      if (taosMulMkDir(taosDirName(s)) != 0) {
+        taosMemoryFree(s);
+        return NULL;
+      }
+      taosMemoryFree(s);
+      fp = taosOpenFile(path, tdFileOptions);
+      if (!fp) {
+        return NULL;
+      }
+    }
+  }
+  return fp;
+}
+
 int32_t taosRemoveFile(const char *path) { return remove(path); }
 
 int32_t taosRenameFile(const char *oldName, const char *newName) {
@@ -683,7 +703,11 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   int64_t sentbytes;
 
   while (leftbytes > 0) {
+  #ifdef _TD_ARM_32
+    sentbytes = sendfile(pFileOut->fd, pFileIn->fd, (long int*)offset, leftbytes);
+  #else
     sentbytes = sendfile(pFileOut->fd, pFileIn->fd, offset, leftbytes);
+  #endif
     if (sentbytes == -1) {
       if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
         continue;

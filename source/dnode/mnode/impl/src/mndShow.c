@@ -66,21 +66,21 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_SNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, len) == 0) {
     type = TSDB_MGMT_TABLE_CLUSTER;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_DATABASES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_DATABASES, len) == 0) {
     type = TSDB_MGMT_TABLE_DB;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_FUNCTIONS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_FUNCTIONS, len) == 0) {
     type = TSDB_MGMT_TABLE_FUNC;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_INDEXES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_INDEXES, len) == 0) {
     type = TSDB_MGMT_TABLE_INDEX;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_STABLES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_STABLES, len) == 0) {
     type = TSDB_MGMT_TABLE_STB;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TABLES, len) == 0) {
     type = TSDB_MGMT_TABLE_TABLE;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TAGS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TAGS, len) == 0) {
     type = TSDB_MGMT_TABLE_TAG;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TABLE_DISTRIBUTED, len) == 0) {
     //    type = TSDB_MGMT_TABLE_DIST;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_USERS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USERS, len) == 0) {
     type = TSDB_MGMT_TABLE_USER;
   } else if (strncasecmp(name, TSDB_INS_TABLE_LICENCES, len) == 0) {
     type = TSDB_MGMT_TABLE_GRANTS;
@@ -238,7 +238,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   } else {
     memcpy(pReq->info.conn.user, TSDB_DEFAULT_USER, strlen(TSDB_DEFAULT_USER) + 1);
   }
-  if (mndCheckShowPrivilege(pMnode, pReq->info.conn.user, pShow->type, retrieveReq.db) != 0) {
+  if (retrieveReq.db[0] && mndCheckShowPrivilege(pMnode, pReq->info.conn.user, pShow->type, retrieveReq.db) != 0) {
     return -1;
   }
 

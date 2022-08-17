@@ -62,12 +62,13 @@ static void indexDestroy(void* sIdx);
 
 void indexInit() {
   // refactor later
-  indexQhandle = taosInitScheduler(INDEX_QUEUE_SIZE, INDEX_NUM_OF_THREADS, "index");
+  indexQhandle = taosInitScheduler(INDEX_QUEUE_SIZE, INDEX_NUM_OF_THREADS, "index", NULL);
   indexRefMgt = taosOpenRef(1000, indexDestroy);
 }
 void indexCleanup() {
   // refacto later
   taosCleanUpScheduler(indexQhandle);
+  taosMemoryFreeClear(indexQhandle);
   taosCloseRef(indexRefMgt);
 }
 
@@ -220,7 +221,7 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
     char      buf[128] = {0};
     ICacheKey key = {.suid = p->suid, .colName = p->colName, .nColName = strlen(p->colName), .colType = p->colType};
     int32_t   sz = idxSerialCacheKey(&key, buf);
-    indexDebug("w suid: %" PRIu64 ", colName: %s, colType: %d", key.suid, key.colName, key.colType);
+    indexDebug("w suid:%" PRIu64 ", colName:%s, colType:%d", key.suid, key.colName, key.colType);
 
     IndexCache** cache = taosHashGet(index->colObj, buf, sz);
     assert(*cache != NULL);
@@ -395,7 +396,7 @@ static int idxTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result) 
   char      buf[128] = {0};
   ICacheKey key = {
       .suid = term->suid, .colName = term->colName, .nColName = strlen(term->colName), .colType = term->colType};
-  indexDebug("r suid: %" PRIu64 ", colName: %s, colType: %d", key.suid, key.colName, key.colType);
+  indexDebug("r suid:%" PRIu64 ", colName:%s, colType:%d", key.suid, key.colName, key.colType);
   int32_t sz = idxSerialCacheKey(&key, buf);
 
   taosThreadMutexLock(&sIdx->mtx);
@@ -485,7 +486,6 @@ static void idxMayMergeTempToFinalRslt(SArray* result, TFileValue* tfv, SIdxTRsl
       // handle last iterator
       idxTRsltMergeTo(tr, lv->tableId);
     } else {
-      // temp result saved in help
       tfileValueDestroy(tfv);
     }
   } else {

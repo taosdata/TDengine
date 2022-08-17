@@ -1,9 +1,10 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c debugflag -v 131
 system sh/exec.sh -n dnode1 -s start -v
 sql connect
 
-print =============== step1: create drop show dnodes
+print =============== step1: create drop select * from information_schema.ins_dnodes
 $x = 0
 step1:
 	$x = $x + 1
@@ -12,7 +13,7 @@ step1:
 	  print ---> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ---> $data00 $data01 $data02 $data03 $data04 $data05
 if $rows != 1 then
   return -1
@@ -28,7 +29,7 @@ $rowNum = 10
 print =============== step2: prepare data
 sql create database db vgroups 2
 sql use db
-sql create table if not exists stb (ts timestamp, tbcol int, tbcol2 float, tbcol3 double) tags (tgcol int unsigned)
+sql create table if not exists stb (ts timestamp, tbcol int, tbcol2 float, tbcol3 double, tbcol4 binary(30), tbcol5 binary(30)) tags (tgcol int unsigned)
 
 $i = 0
 while $i < $tbNum
@@ -38,26 +39,30 @@ while $i < $tbNum
   while $x < $rowNum
     $cc = $x * 60000
     $ms = 1601481600000 + $cc
-    sql insert into $tb values ($ms , $x , $x , $x ) 
+    sql insert into $tb values ($ms , $x , $x , $x , "abcd1234=-+*" , "123456 0" ) 
     $x = $x + 1
   endw 
+
+  $cc = $x * 60000
+  $ms = 1601481600000 + $cc
+  sql insert into $tb values ($ms , NULL , NULL , NULL , NULL , NULL ) 
   $i = $i + 1
 endw 
 
-print =============== step3: avg
-sql select avg(tbcol) from tb1
-sql select avg(tbcol) from tb1 where ts <= 1601481840000
-sql select avg(tbcol) as b from tb1
-sql select avg(tbcol) as b from tb1 interval(1d)
-sql select avg(tbcol) as b from tb1 where ts <= 1601481840000s interval(1m)
-sql select avg(tbcol) as c from stb
-sql select avg(tbcol) as c from stb where ts <= 1601481840000
-sql select avg(tbcol) as c from stb where tgcol < 5 and ts <= 1601481840000
-sql select avg(tbcol) as c from stb interval(1m)
-sql select avg(tbcol) as c from stb interval(1d)
-sql select avg(tbcol) as b from stb where ts <= 1601481840000s interval(1m)
-sql select avg(tbcol) as c from stb group by tgcol
-sql select avg(tbcol) as b from stb where ts <= 1601481840000s partition by tgcol interval(1m)
+print =============== step3: tb
+
+sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 1 soffset 1;
+sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 2 soffset 4 limit 10 offset 1;
+sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 1 soffset 1;
+sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 2 soffset 4 limit 10 offset 1;
+sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 1 soffset 1;
+sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 2 soffset 4 limit 10 offset 1;
+sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 1 soffset 1;
+sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 2 soffset 4 limit 10 offset 1;
+sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 1 soffset 1;
+sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 2 soffset 4 limit 10 offset 1;
+
+sleep 1000
 
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

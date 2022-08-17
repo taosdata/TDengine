@@ -21,6 +21,10 @@ extern "C" {
 #endif
 
 #include "os.h"
+#include "taoserror.h"
+#ifdef GRANTS_CFG
+#include "tgrantCfg.h"
+#endif
 
 typedef enum {
   TSDB_GRANT_ALL,
@@ -36,9 +40,37 @@ typedef enum {
   TSDB_GRANT_CONNS,
   TSDB_GRANT_STREAMS,
   TSDB_GRANT_CPU_CORES,
+  TSDB_GRANT_STABLE,
+  TSDB_GRANT_TABLE,
 } EGrantType;
 
 int32_t grantCheck(EGrantType grant);
+
+#ifndef GRANTS_CFG
+#define GRANTS_SCHEMA static const SSysDbTableSchema grantsSchema[] = {                          \
+    {.name = "version", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},        \
+    {.name = "expire_time", .bytes = 19 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},   \
+    {.name = "expired", .bytes = 5 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},        \
+    {.name = "storage", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},       \
+    {.name = "timeseries", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},    \
+    {.name = "databases", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},     \
+    {.name = "users", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},         \
+    {.name = "accounts", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},      \
+    {.name = "dnodes", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},        \
+    {.name = "connections", .bytes = 11 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},   \
+    {.name = "streams", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},        \
+    {.name = "cpu_cores", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},      \
+    {.name = "speed", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},          \
+    {.name = "querytime", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},      \
+}
+#define GRANT_CFG_ADD
+#define GRANT_CFG_SET
+#define GRANT_CFG_GET
+#define GRANT_CFG_CHECK
+#define GRANT_CFG_SKIP
+#define GRANT_CFG_DECLARE
+#define GRANT_CFG_EXTERN
+#endif
 
 #ifdef __cplusplus
 }

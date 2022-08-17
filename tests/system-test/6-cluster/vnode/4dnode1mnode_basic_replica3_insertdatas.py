@@ -3,7 +3,7 @@ from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
 import taos
 import sys
 import time
-import os 
+import os
 
 from util.log import *
 from util.sql import *
@@ -26,9 +26,9 @@ class TDTestCase:
         self.dnode_list = {}
         self.ts = 1483200000000
         self.db_name ='testdb'
-        self.replica = 3 
+        self.replica = 3
         self.vgroups = 2
-        self.tb_nums = 10 
+        self.tb_nums = 10
         self.row_nums = 100
 
     def getBuildPath(self):
@@ -47,13 +47,13 @@ class TDTestCase:
         return buildPath
 
     def check_setup_cluster_status(self):
-        tdSql.query("show mnodes")
+        tdSql.query("select * from information_schema.ins_mnodes")
         for mnode in tdSql.queryResult:
             name = mnode[1]
             info = mnode
             self.mnode_list[name] = info
 
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         for dnode in tdSql.queryResult:
             name = dnode[1]
             info = dnode
@@ -71,14 +71,14 @@ class TDTestCase:
                 is_leader=True
 
         if count==1 and is_leader:
-            tdLog.info("===== depoly cluster success with 1 mnode as leader =====")
+            tdLog.notice("===== depoly cluster success with 1 mnode as leader =====")
         else:
             tdLog.exit("===== depoly cluster fail with 1 mnode as leader =====")
 
         for k ,v in self.dnode_list.items():
             if k == mnode_name:
                 if v[3]==0:
-                    tdLog.info("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
+                    tdLog.notice("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
                 else:
                     tdLog.exit("===== depoly cluster mnode only fail at {} , support_vnodes is {} ".format(mnode_name,v[3]))
             else:
@@ -101,7 +101,7 @@ class TDTestCase:
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
             '''
         )
-        
+
         for i in range(5):
             tdSql.execute("create table sub_tb_{} using stb1 tags({})".format(i,i))
         tdSql.query("show stables")
@@ -121,7 +121,7 @@ class TDTestCase:
 
         for k , v in vgroups_infos.items():
             if len(v) ==1 and v[0]=="leader":
-                tdLog.info(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
+                tdLog.notice(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
             else:
                 tdLog.exit(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
 
@@ -129,7 +129,7 @@ class TDTestCase:
         drop_db_sql = "drop database if exists {}".format(dbname)
         create_db_sql = "create database {} replica {} vgroups {}".format(dbname,replica_num,vgroup_nums)
 
-        tdLog.info(" ==== create database {} and insert rows begin =====".format(dbname))
+        tdLog.notice(" ==== create database {} and insert rows begin =====".format(dbname))
         tdSql.execute(drop_db_sql)
         tdSql.execute(create_db_sql)
         tdSql.execute("use {}".format(dbname))
@@ -145,7 +145,7 @@ class TDTestCase:
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(32),c9 nchar(32), c10 timestamp)
             '''
         )
-        
+
         for i in range(tb_nums):
             sub_tbname = "sub_tb_{}".format(i)
             tdSql.execute("create table {} using stb1 tags({})".format(sub_tbname,i))
@@ -155,7 +155,7 @@ class TDTestCase:
                 ts = self.ts + 1000*row_num
                 tdSql.execute(f"insert into {sub_tbname} values ({ts}, {row_num} ,{row_num}, 10 ,1 ,{row_num} ,{row_num},true,'bin_{row_num}','nchar_{row_num}',now) ")
 
-        tdLog.info(" ==== create database {} and insert rows execute end =====".format(dbname))
+        tdLog.notice(" ==== create database {} and insert rows execute end =====".format(dbname))
 
     def check_insert_status(self, dbname, tb_nums , row_nums):
         tdSql.execute("use {}".format(dbname))
@@ -164,7 +164,7 @@ class TDTestCase:
         tdSql.query("select distinct tbname from {}.{}".format(dbname,'stb1'))
         tdSql.checkRows(tb_nums)
 
-    def run(self): 
+    def run(self):
         self.check_setup_cluster_status()
         self.create_db_check_vgroups()
         self.create_db_replica_3_insertdatas(self.db_name , self.replica , self.vgroups , self.tb_nums , self.row_nums)

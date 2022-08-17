@@ -25,11 +25,5 @@ sql (select database()) union all (select database())
 if $rows != 2 then
   return -1
 endi
-if $data00 != @union_db0@ then
-  return -1
-endi
-if $data10 != @union_db0@ then
-  return -1
-endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

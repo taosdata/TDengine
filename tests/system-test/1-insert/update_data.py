@@ -47,7 +47,7 @@ class TDTestCase:
             'col13': f'nchar({self.str_length})',
             'col_ts'  : 'timestamp'
         }
-           
+
     def data_check(self,tbname,col_name,col_type,value):
         tdSql.query(f'select {col_name} from {tbname}')
         if col_type.lower() == 'float' or col_type.lower() == 'double':
@@ -121,9 +121,9 @@ class TDTestCase:
                         tdSql.error(f'insert into {stbname} values({self.ts},{error_value})')
             elif col_type.lower() == 'tinyint unsigned':
                 for error_value in [constant.TINYINT_UN_MIN-1,constant.TINYINT_UN_MAX+1,random.uniform(constant.FLOAT_MIN,constant.FLOAT_MAX),tdCom.getLongName(self.str_length),True,False]:
-                    tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')   
+                    tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')
                     if tb_type == 'ctb':
-                        tdSql.error(f'insert into {stbname} values({self.ts},{error_value})')  
+                        tdSql.error(f'insert into {stbname} values({self.ts},{error_value})')
             elif col_type.lower() == 'smallint unsigned':
                 for error_value in [constant.SMALLINT_UN_MIN-1,constant.SMALLINT_UN_MAX+1,random.uniform(constant.FLOAT_MIN,constant.FLOAT_MAX),tdCom.getLongName(self.str_length),True,False]:
                     tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')
@@ -136,9 +136,9 @@ class TDTestCase:
                         tdSql.error(f'insert into {stbname} values({self.ts},{error_value})')
             elif col_type.lower() == 'bigint unsigned':
                 for error_value in [constant.BIGINT_UN_MIN-1,constant.BIGINT_UN_MAX+1,random.uniform(constant.FLOAT_MIN,constant.FLOAT_MAX),tdCom.getLongName(self.str_length),True,False]:
-                    tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')    
+                    tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')
                     if tb_type == 'ctb':
-                        tdSql.error(f'insert into {stbname} values({self.ts},{error_value})')       
+                        tdSql.error(f'insert into {stbname} values({self.ts},{error_value})')
             tdSql.execute(f'drop table {tbname}')
             if tb_type == 'ctb':
                 tdSql.execute(f'drop table {stbname}')
@@ -182,9 +182,9 @@ class TDTestCase:
             elif col_type.lower() == 'bigint unsigned':
                 self.update_and_check_data(tbname,col_name,col_type,up_unbigint,dbname)
             elif col_type.lower() == 'bool':
-                self.update_and_check_data(tbname,col_name,col_type,up_bool,dbname)    
+                self.update_and_check_data(tbname,col_name,col_type,up_bool,dbname)
             elif col_type.lower() == 'float':
-                self.update_and_check_data(tbname,col_name,col_type,up_float,dbname)      
+                self.update_and_check_data(tbname,col_name,col_type,up_float,dbname)
             elif col_type.lower() == 'double':
                 self.update_and_check_data(tbname,col_name,col_type,up_double,dbname)
             elif 'binary' in col_type.lower():
@@ -248,7 +248,7 @@ class TDTestCase:
             self.update_check()
             self.update_check_error()
             # i+=1
-        
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

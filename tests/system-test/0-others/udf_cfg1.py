@@ -190,7 +190,7 @@ class TDTestCase:
         tdSql.execute("use db ")
         tdSql.error("select num1 , udf1(num1) ,num2 ,udf1(num2),num3 ,udf1(num3),num4 ,udf1(num4) from tb")
         tdSql.error("select c1 , udf1(c1) ,c2 ,udf1(c2), c3 ,udf1(c3), c4 ,udf1(c4) from stb1 order by c1")
-        
+
         # aggregate functions
         tdSql.error("select udf2(num1) ,udf2(num2), udf2(num3) from tb")
 

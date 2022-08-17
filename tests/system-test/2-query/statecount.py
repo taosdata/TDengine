@@ -105,8 +105,6 @@ class TDTestCase:
             "select statecount(c1 ,'GT',1) , min(c1) from t1",
             "select statecount(c1 ,'GT',1) , spread(c1) from t1",
             "select statecount(c1 ,'GT',1) , diff(c1) from t1",
-            "select statecount(c1 ,'GT',1) , abs(c1) from t1",
-            "select statecount(c1 ,'GT',1) , c1 from t1",
         ]
         for error_sql in error_sql_lists:
             tdSql.error(error_sql)
@@ -227,17 +225,56 @@ class TDTestCase:
         tdSql.query("select statecount(c6,'GT',1) from ct4")
         tdSql.checkRows(12)
 
-        tdSql.error("select statecount(c6,'GT',1),tbname from ct1")
-        tdSql.error("select statecount(c6,'GT',1),t1 from ct1")
+        tdSql.query("select statecount(c6,'GT',1),tbname from ct1")
+        tdSql.checkRows(13)
+        tdSql.query("select statecount(c6,'GT',1),t1 from ct1")
+        tdSql.checkRows(13)
 
         # unique with common col
-        tdSql.error("select statecount(c6,'GT',1) ,ts  from ct1")
-        tdSql.error("select statecount(c6,'GT',1) ,c1  from ct1")
+        tdSql.query("select statecount(c6,'GT',1) ,ts from ct1")
+        tdSql.checkRows(13)
+        tdSql.query("select ts, statecount(c6,'GT',1) from ct1")
+        tdSql.checkRows(13)
+        tdSql.query("select statecount(c6,'GT',1) ,c1 from ct1")
+        tdSql.checkRows(13)
+        tdSql.query("select c1, statecount(c6,'GT',1) from ct1")
+        tdSql.checkRows(13)
+        tdSql.query("select ts, c1, c2, c3, statecount(c6,'GT',1) from ct1")
+        tdSql.checkRows(13)
+        tdSql.query("select statecount(c6,'GT',1), ts, c1, c2, c3 from ct1")
+        tdSql.checkRows(13)
+        tdSql.query("select ts, c1, c2, c3, statecount(c6,'GT',1), ts, c4, c5, c6 from ct1")
+        tdSql.checkRows(13)
+
+        tdSql.query("select stateduration(c6,'GT',1) ,ts from ct1")
+        tdSql.checkRows(13)
+        tdSql.query("select ts, stateduration(c6,'GT',1) from ct1")
+        tdSql.checkRows(13)
+        tdSql.query("select stateduration(c6,'GT',1) ,c1 from ct1")
+        tdSql.checkRows(13)
+        tdSql.query("select c1, stateduration(c6,'GT',1) from ct1")
+        tdSql.checkRows(13)
+        tdSql.query("select ts, c1, c2, c3, stateduration(c6,'GT',1) from ct1")
+        tdSql.checkRows(13)
+        tdSql.query("select stateduration(c6,'GT',1), ts, c1, c2, c3 from ct1")
+        tdSql.checkRows(13)
+        tdSql.query("select ts, c1, c2, c3, stateduration(c6,'GT',1), ts, c4, c5, c6 from ct1")
+        tdSql.checkRows(13)
 
         # unique with scalar function
-        tdSql.error("select statecount(c6,'GT',1) ,abs(c1)  from ct1")
+        tdSql.query("select statecount(c6,'GT',1) , abs(c1)  from ct1")
+        tdSql.checkRows(13)
+        tdSql.query("select statecount(c6,'GT',1) , abs(c2)+2 from ct1")
+        tdSql.checkRows(13)
+
         tdSql.error("select statecount(c6,'GT',1) , unique(c2) from ct1")
-        tdSql.error("select statecount(c6,'GT',1) , abs(c2)+2 from ct1")
+
+        tdSql.query("select stateduration(c6,'GT',1) , abs(c1)  from ct1")
+        tdSql.checkRows(13)
+        tdSql.query("select stateduration(c6,'GT',1) , abs(c2)+2 from ct1")
+        tdSql.checkRows(13)
+
+        tdSql.error("select stateduration(c6,'GT',1) , unique(c2) from ct1")
 
 
         # unique with aggregate function

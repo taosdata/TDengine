@@ -101,10 +101,6 @@ typedef struct SQueryExecMetric {
   int64_t rsp;     // receive response from server, us
 } SQueryExecMetric;
 
-typedef struct SHeartBeatInfo {
-  void* pTimer;  // timer, used to send request msg to mnode
-} SHeartBeatInfo;
-
 struct SAppInstInfo {
   int64_t            numOfConns;
   SCorEpSet          mgmtEp;
@@ -222,12 +218,15 @@ typedef struct SRequestObj {
   int32_t              code;
   SArray*              dbList;
   SArray*              tableList;
+  SArray*              targetTableList;
   SQueryExecMetric     metric;
   SRequestSendRecvBody body;
-  bool                 syncQuery;    // todo refactor: async query object
-  bool                 stableQuery;  // todo refactor
-  bool                 validateOnly; // todo refactor
+  int32_t              stmtType;
+  bool                 syncQuery;     // todo refactor: async query object
+  bool                 stableQuery;   // todo refactor
+  bool                 validateOnly;  // todo refactor
   bool                 killed;
+  bool                 inRetry;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
 } SRequestObj;
@@ -252,6 +251,8 @@ void    syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
 SRequestObj* execQuery(uint64_t connId, const char* sql, int sqlLen, bool validateOnly);
 TAOS_RES*    taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly);
 void         taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly);
+
+int32_t      getVersion1BlockMetaSize(const char* p, int32_t numOfCols);
 
 static FORCE_INLINE SReqResultInfo* tmqGetCurResInfo(TAOS_RES* res) {
   SMqRspObj* msg = (SMqRspObj*)res;
@@ -325,7 +326,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 STscObj* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
                                uint16_t port, int connType);
 
-SRequestObj* launchQuery(uint64_t connId, const char* sql, int sqlLen, bool validateOnly);
+SRequestObj* launchQuery(uint64_t connId, const char* sql, int sqlLen, bool validateOnly, bool inRetry);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);
 

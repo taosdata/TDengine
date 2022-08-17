@@ -18,7 +18,7 @@ from util.dnodes import *
 def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key1='', value1=''):
     if len(key) == 0:
         tdLog.exit("taos test key is null!")
-    
+
     if platform.system().lower() == 'windows':
         taosCmd = buildPath + '\\build\\bin\\taos.exe '
         taosCmd = taosCmd.replace('\\','\\\\')
@@ -158,34 +158,34 @@ class TDTestCase:
         if "2: service ok" in retVal:
             tdLog.info("taos -k success")
         else:
-            tdLog.info(retVal)  
+            tdLog.info(retVal)
             tdLog.exit("taos -k fail 1")
 
         # stop taosd
         tdDnodes.stop(1)
         #sleep(10)
         #tdDnodes.start(1)
-        #sleep(5) 
+        #sleep(5)
         retCode, retVal = taos_command(buildPath, "k", '', "", keyDict['c'], sqlString)
         if "0: unavailable" in retVal:
             tdLog.info("taos -k success")
         else:
-            tdLog.info(retVal)  
+            tdLog.info(retVal)
             tdLog.exit("taos -k fail 2")
 
         # restart taosd
         tdDnodes.start(1)
-        #sleep(5) 
+        #sleep(5)
         retCode, retVal = taos_command(buildPath, "k", '', "", keyDict['c'], sqlString)
         if "2: service ok" in retVal:
             tdLog.info("taos -k success")
         else:
-            tdLog.info(retVal)  
+            tdLog.info(retVal)
             tdLog.exit("taos -k fail 3")
 
         tdLog.printNoPrefix("================================ parameter: -n")
         # stop taosd
-        tdDnodes.stop(1)        
+        tdDnodes.stop(1)
 
         try:
             role   = 'server'
@@ -220,7 +220,7 @@ class TDTestCase:
             #print(child.after.decode())
             if i == 0:
                 tdLog.exit('taos -n server fail!')
-            
+
             expectString1 = 'response is received, size:' + pktLen
             expectSTring2 = pktNum + '/' + pktNum
             if expectString1 in retResult and expectSTring2 in retResult:

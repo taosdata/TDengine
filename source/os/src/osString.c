@@ -48,7 +48,7 @@ char *strsep(char **stringp, const char *delim) {
   /* NOTREACHED */
 }
 /* Duplicate a string, up to at most size characters */
-char *strndup(const char *s, size_t size) {
+char *strndup(const char *s, int size) {
   size_t l;
   char * s2;
   l = strlen(s);
@@ -62,7 +62,7 @@ char *strndup(const char *s, size_t size) {
 }
 /* Copy no more than N characters of SRC to DEST, returning the address of
    the terminating '\0' in DEST, if any, or else DEST + N.  */
-char *stpncpy(char *dest, const char *src, size_t n) {
+char *stpncpy(char *dest, const char *src, int n) {
   size_t size = strnlen(src, n);
   memcpy(dest, src, size);
   dest += size;
@@ -134,21 +134,95 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
 #endif
 }
 
+typedef struct {
+  iconv_t conv;
+  int8_t  inUse;
+} SConv;
+
+SConv *gConv = NULL;
+int32_t convUsed = 0;
+int32_t gConvMaxNum = 0;
+
+void taosConvInit(void) {
+  gConvMaxNum = 512;
+  gConv = taosMemoryCalloc(gConvMaxNum, sizeof(SConv));
+  for (int32_t i = 0; i < gConvMaxNum; ++i) {
+    gConv[i].conv = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
+    if ((iconv_t)-1 == gConv[i].conv || (iconv_t)0 == gConv[i].conv) {
+      ASSERT(0);
+    }
+  }
+}
+
+void taosConvDestroy() {
+  for (int32_t i = 0; i < gConvMaxNum; ++i) {
+    iconv_close(gConv[i].conv);
+  }
+  taosMemoryFreeClear(gConv);
+  gConvMaxNum = -1;
+}
+
+iconv_t taosAcquireConv(int32_t *idx) {
+  if (gConvMaxNum <= 0) {
+    *idx = -1;
+    return iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
+  }
+  
+  while (true) {
+    int32_t used = atomic_add_fetch_32(&convUsed, 1);
+    if (used > gConvMaxNum) {
+      used = atomic_sub_fetch_32(&convUsed, 1);
+      sched_yield();
+      continue;
+    }
+    
+    break;
+  }
+
+  int32_t startId = taosGetSelfPthreadId() % gConvMaxNum;
+  while (true) {
+    if (gConv[startId].inUse) {
+      startId = (startId + 1) % gConvMaxNum;
+      continue;
+    }
+
+    int8_t old = atomic_val_compare_exchange_8(&gConv[startId].inUse, 0, 1);
+    if (0 == old) {
+      break;
+    }
+  }
+
+  *idx = startId;
+  return gConv[startId].conv;
+}
+
+void taosReleaseConv(int32_t idx, iconv_t conv) {
+  if (idx < 0) {
+    iconv_close(conv);
+    return;
+  }
+
+  atomic_store_8(&gConv[idx].inUse, 0);
+  atomic_sub_fetch_32(&convUsed, 1);
+}
+
 bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len) {
 #ifdef DISALLOW_NCHAR_WITHOUT_ICONV
   printf("Nchar cannot be read and written without iconv, please install iconv library and recompile TDengine.\n");
   return -1;
 #else
   memset(ucs4, 0, ucs4_max_len);
-  iconv_t cd = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
+
+  int32_t idx = -1;
+  iconv_t conv = taosAcquireConv(&idx);
   size_t  ucs4_input_len = mbsLength;
   size_t  outLeft = ucs4_max_len;
-  if (iconv(cd, (char **)&mbs, &ucs4_input_len, (char **)&ucs4, &outLeft) == -1) {
-    iconv_close(cd);
+  if (iconv(conv, (char **)&mbs, &ucs4_input_len, (char **)&ucs4, &outLeft) == -1) {
+    taosReleaseConv(idx, conv);
     return false;
   }
 
-  iconv_close(cd);
+  taosReleaseConv(idx, conv);
   if (len != NULL) {
     *len = (int32_t)(ucs4_max_len - outLeft);
     if (*len < 0) {

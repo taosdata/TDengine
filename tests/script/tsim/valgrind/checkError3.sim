@@ -4,7 +4,7 @@ system sh/cfg.sh -n dnode1 -c debugflag -v 131
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-print =============== step1: create drop show dnodes
+print =============== step1: create drop select * from information_schema.ins_dnodes
 $x = 0
 step1:
 	$x = $x + 1
@@ -13,7 +13,7 @@ step1:
 	  print ---> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ---> $data00 $data01 $data02 $data03 $data04 $data05
 if $rows != 1 then
   return -1
@@ -24,7 +24,7 @@ endi
 
 print =============== step2: create db
 sql create database d1 vgroups 3 buffer 3
-sql show databases
+sql select * from information_schema.ins_databases
 sql use d1
 sql show vgroups
 
@@ -37,6 +37,7 @@ sql show stables
 if $rows != 4 then 
   return -1
 endi
+sql show stables like 'stb'
 
 print =============== step4: ccreate child table
 sql create table c1 using stb tags(true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)

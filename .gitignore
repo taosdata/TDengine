@@ -22,6 +22,7 @@ mac/
 .mypy_cache
 *.tmp
 *.swp
+*.swo
 *.orig
 src/connector/nodejs/node_modules/
 src/connector/nodejs/out/
@@ -47,6 +48,12 @@ pysim/
 *.out
 *DS_Store
 tests/script/api/batchprepare
+taosadapter
+taosadapter-debug
+tools/taos-tools/*
+tools/taosws-rs/*
+tools/taosadapter/*
+tools/upx*
 
 # Doxygen Generated files
 html/
@@ -111,3 +118,12 @@ contrib/*
 !contrib/test
 sql
 debug*/
+.env
+tools/README
+tools/LICENSE
+tools/README.1ST
+tools/THANKS
+tools/NEWS
+tools/COPYING
+tools/BUGS
+tools/taos-tools
