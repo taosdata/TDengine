@@ -14,13 +14,11 @@ TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/
 
 - TDengine 集群已经部署并正常运行
 - taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
-- taosKeeper TDengine 可以通过 taosKeeper 将监控数据写入指定数据库中。此项仅在连接 TDengine 3.0 及以上版本需要。taosKeeper 部署细节请参考：[TaosKeeper](../../reference/taosKeeper)
 
 记录以下信息：
 
 - TDengine 集群 REST API 地址，如：`http://tdengine.local:6041`。
 - TDengine 集群认证信息，可使用用户名及密码。
-- taosKeeper 配置监控日志写入的数据库名称。此项仅在连接 TDengine 3.0 及以上版本需要。
 
 ## 安装 Grafana
 
@@ -195,7 +193,7 @@ docker run -d \
 
 如上图所示，在 Query 中选中 `TDengine` 数据源，在下方查询框可输入相应 SQL 进行查询，具体说明如下：
 
-- INPUT SQL：输入要查询的语句（该 SQL 语句的结果集应为两列多行），例如：`select avg(mem_system) from log.dn where ts >= $from and ts < $to interval($interval)` ，其中，from、to 和 interval 为 TDengine 插件的内置变量，表示从 Grafana 插件面板获取的查询范围和时间间隔。除了内置变量外，`也支持可以使用自定义模板变量`。当 TDengine 服务端版本为 3.0 版本时 SQL 修改为 `select avg(mem_system) from $logdb.dnodes_info where ts >= $from and ts < $to interval($interval)` ，其中，logdb 为 taosKeeper 配置的数据库名称。
+- INPUT SQL：输入要查询的语句（该 SQL 语句的结果集应为两列多行），例如：`select _wstart, avg(mem_system) from log.dnodes_info where ts >= $from and ts < $to interval($interval)` ，其中，from、to 和 interval 为 TDengine 插件的内置变量，表示从 Grafana 插件面板获取的查询范围和时间间隔。除了内置变量外，`也支持可以使用自定义模板变量`。
 - ALIAS BY：可设置当前查询别名。
 - GENERATE SQL： 点击该按钮会自动替换相应变量，并生成最终执行的语句。
 
