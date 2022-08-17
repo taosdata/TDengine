@@ -64,41 +64,7 @@ class TDTestCase:
             '''
         )
 
-    def check_result_auto_pow2(self ,origin_query , pow_query):
-
-        pow_result = tdSql.getResult(pow_query)
-        origin_result = tdSql.getResult(origin_query)
-
-        auto_result =[]
-
-        for row in origin_result:
-            row_check = []
-            for elem in row:
-                if elem == None:
-                    elem = None
-                else:
-                    elem = math.pow(elem,2)
-                row_check.append(elem)
-            auto_result.append(row_check)
-
-        check_status = True
-
-        for row_index , row in enumerate(pow_result):
-            for col_index , elem in enumerate(row):
-                if auto_result[row_index][col_index]  is None  and  elem :
-                    check_status = False
-                elif auto_result[row_index][col_index] is not  None  and (auto_result[row_index][col_index] - elem > 0.001):
-                    print(auto_result[row_index][col_index],",  elem: ", elem )
-                    check_status = False
-                else:
-                    pass
-        if not check_status:
-            tdLog.notice("pow function value has not as expected , sql is \"%s\" "%pow_query )
-            sys.exit(1)
-        else:
-            tdLog.info("pow value check pass , it work as expected ,sql is \"%s\"   "%pow_query )
-
-    def check_result_auto_pow1(self ,origin_query , pow_query):
+    def check_result_auto_pow(self ,base , origin_query , pow_query):
         pow_result = tdSql.getResult(pow_query)
         origin_result = tdSql.getResult(origin_query)
 
@@ -110,59 +76,15 @@ class TDTestCase:
                 if elem == None:
                     elem = None
                 else :
-                    elem = pow(elem ,1)
+                    elem = float(pow(elem ,base))
                 row_check.append(elem)
             auto_result.append(row_check)
 
-        check_status = True
+        tdSql.query(pow_query)
         for row_index , row in enumerate(pow_result):
             for col_index , elem in enumerate(row):
-                if auto_result[row_index][col_index] == None  and not (auto_result[row_index][col_index] == None and elem == None):
-                    check_status = False
-                elif auto_result[row_index][col_index] != None  and (auto_result[row_index][col_index] - elem > 0.00000001):
-                    print(auto_result[row_index][col_index],",  elem: ", elem )
-                    check_status = False
-                else:
-                    pass
-        if not check_status:
-            tdLog.notice("pow function value has not as expected , sql is \"%s\" "%pow_query )
-            sys.exit(1)
-        else:
-            tdLog.info("pow value check pass , it work as expected ,sql is \"%s\"   "%pow_query )
-
-    def check_result_auto_pow__10(self ,origin_query , pow_query):
-        pow_result = tdSql.getResult(pow_query)
-        origin_result = tdSql.getResult(origin_query)
-
-        auto_result =[]
-
-        for row in origin_result:
-            row_check = []
-            for elem in row:
-                if elem == None:
-                    elem = None
-                elif elem == 0:
-                    elem = None
-                else:
-                    elem = pow(elem ,-10)
-                row_check.append(elem)
-            auto_result.append(row_check)
-
-        check_status = True
-        for row_index , row in enumerate(pow_result):
-            for col_index , elem in enumerate(row):
-                if auto_result[row_index][col_index] == None  and not (auto_result[row_index][col_index] == None and elem == None):
-                    check_status = False
-                elif auto_result[row_index][col_index] != None  and (auto_result[row_index][col_index] - elem > 0.00000001):
-                    print(auto_result[row_index][col_index],",  elem: ", elem )
-                    check_status = False
-                else:
-                    pass
-        if not check_status:
-            tdLog.notice("pow function value has not as expected , sql is \"%s\" "%pow_query )
-            sys.exit(1)
-        else:
-            tdLog.info("pow value check pass , it work as expected ,sql is \"%s\"   "%pow_query )
+                tdSql.checkData(row_index,col_index ,auto_result[row_index][col_index])
+                
 
     def test_errors(self, dbname="db"):
         error_sql_lists = [
@@ -311,9 +233,9 @@ class TDTestCase:
         tdSql.checkData(3, 4, 33)
         tdSql.checkData(5, 5, None)
 
-        self.check_result_auto_pow2( f"select c1, c2, c3 , c4, c5 from {dbname}.t1", f"select pow(c1 ,2), pow(c2 ,2) ,pow(c3, 2), pow(c4 ,2), pow(c5 ,2) from {dbname}.t1")
-        self.check_result_auto_pow1( f"select c1, c2, c3 , c4, c5 from {dbname}.t1", f"select pow(c1 ,1), pow(c2 ,1) ,pow(c3, 1), pow(c4 ,1), pow(c5 ,1) from {dbname}.t1")
-        self.check_result_auto_pow__10( f"select c1, c2, c3 , c4, c5 from {dbname}.t1", f"select pow(c1 ,-10), pow(c2 ,-10) ,pow(c3, -10), pow(c4 ,-10), pow(c5 ,-10) from {dbname}.t1")
+        self.check_result_auto_pow( 2, f"select c1,  c3 , c4, c5 from {dbname}.t1", f"select pow(c1 ,2) , pow(c3, 2), pow(c4 ,2), pow(c5 ,2) from {dbname}.t1")
+        self.check_result_auto_pow( 1,f"select c1,  c3 , c4, c5 from {dbname}.t1", f"select pow(c1 ,1) , pow(c3, 1), pow(c4 ,1), pow(c5 ,1) from {dbname}.t1")
+        self.check_result_auto_pow( 10,f"select c1,  c3 , c4, c5 from {dbname}.t1", f"select pow(c1 ,10) ,pow(c3, 10), pow(c4 ,10), pow(c5 ,10) from {dbname}.t1")
 
         # used for sub table
         tdSql.query(f"select c1 ,pow(c1 ,2) from {dbname}.ct1")
@@ -332,8 +254,8 @@ class TDTestCase:
         tdSql.checkData(4 , 2, 7573.273783071)
 
 
-        self.check_result_auto_pow2( f"select c1, c2, c3 , c4, c5 from {dbname}.ct1", f"select pow(c1,2), pow(c2,2) ,pow(c3,2), pow(c4,2), pow(c5,2) from {dbname}.ct1")
-        self.check_result_auto_pow__10( f"select c1, c2, c3 , c4, c5 from {dbname}.ct1", f"select pow(c1,-10), pow(c2,-10) ,pow(c3,-10), pow(c4,-10), pow(c5,-10) from {dbname}.ct1")
+        self.check_result_auto_pow( 2, f"select c1,  c3 , c4, c5 from {dbname}.ct1", f"select pow(c1,2), pow(c3,2), pow(c4,2), pow(c5,2) from {dbname}.ct1")
+        self.check_result_auto_pow( 10, f"select c1, c3 , c4, c5 from {dbname}.ct1", f"select pow(c1,10), pow(c3,10), pow(c4,10), pow(c5,10) from {dbname}.ct1")
 
         # nest query for pow functions
         tdSql.query(f"select c1  , pow(c1,2) ,pow(pow(c1,2),2) , pow(pow(pow(c1,2),2),2) from {dbname}.ct1;")
@@ -568,13 +490,13 @@ class TDTestCase:
         tdSql.error(
                 f"insert into {dbname}.sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        self.check_result_auto_pow2( f"select c1, c2, c3 , c4, c5 from {dbname}.sub1_bound ", f"select pow(c1,2), pow(c2,2) ,pow(c3,2), pow(c4,2), pow(c5,2) from {dbname}.sub1_bound")
-        self.check_result_auto_pow__10( f"select c1, c2, c3 , c4, c5  from {dbname}.sub1_bound ", f"select pow(c1,-10), pow(c2,-10) ,pow(c3,-10), pow(c4,-10), pow(c5,-10) from {dbname}.sub1_bound")
+        self.check_result_auto_pow(2, f"select c1,  c3 , c4, c5 from {dbname}.sub1_bound ", f"select pow(c1,2), pow(c3,2), pow(c4,2), pow(c5,2) from {dbname}.sub1_bound")
+        self.check_result_auto_pow(3, f"select c1, c3 , c4, c5  from {dbname}.sub1_bound ", f"select pow(c1,3), pow(c3,3), pow(c4,3), pow(c5,3) from {dbname}.sub1_bound")
 
-        self.check_result_auto_pow2( f"select c1, c2, c3 , c3, c2 ,c1 from {dbname}.sub1_bound ", f"select pow(c1,2), pow(c2,2) ,pow(c3,2), pow(c3,2), pow(c2,2) ,pow(c1,2) from {dbname}.sub1_bound")
+        self.check_result_auto_pow(2, f"select c1, c3 , c3, c2 ,c1 from {dbname}.sub1_bound ", f"select pow(c1,2), pow(c3,2), pow(c3,2), pow(c2,2) ,pow(c1,2) from {dbname}.sub1_bound")
 
 
-        self.check_result_auto_pow2(f"select abs(abs(abs(abs(abs(abs(abs(abs(abs(c1)))))))))  nest_col_func from {dbname}.sub1_bound" , f"select pow(abs(c1) ,2) from {dbname}.sub1_bound" )
+        self.check_result_auto_pow(2, f"select abs(abs(abs(abs(abs(abs(abs(abs(abs(c1)))))))))  nest_col_func from {dbname}.sub1_bound" , f"select pow(abs(c1) ,2) from {dbname}.sub1_bound" )
 
         # check basic elem for table per row
         tdSql.query(f"select pow(abs(c1),2) ,pow(abs(c2),2) , pow(abs(c3),2) , pow(abs(c4),2), pow(abs(c5),2), pow(abs(c6),2) from {dbname}.sub1_bound ")
@@ -604,15 +526,15 @@ class TDTestCase:
 
 
     def support_super_table_test(self, dbname="db"):
-        self.check_result_auto_pow2( f"select c5 from {dbname}.stb1 order by ts " , f"select pow(c5,2) from {dbname}.stb1 order by ts" )
-        self.check_result_auto_pow2( f"select c5 from {dbname}.stb1 order by tbname " , f"select pow(c5,2) from {dbname}.stb1 order by tbname" )
-        self.check_result_auto_pow2( f"select c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select pow(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
-        self.check_result_auto_pow2( f"select c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select pow(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_pow(2, f"select c5 from {dbname}.stb1 order by ts " , f"select pow(c5,2) from {dbname}.stb1 order by ts" )
+        self.check_result_auto_pow(2, f"select c5 from {dbname}.stb1 order by tbname " , f"select pow(c5,2) from {dbname}.stb1 order by tbname" )
+        self.check_result_auto_pow(2, f"select c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select pow(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_pow(2, f"select c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select pow(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
 
-        self.check_result_auto_pow2( f"select t1,c5 from {dbname}.stb1 order by ts " , f"select pow(t1,2), pow(c5,2) from {dbname}.stb1 order by ts" )
-        self.check_result_auto_pow2( f"select t1,c5 from {dbname}.stb1 order by tbname " , f"select pow(t1,2) ,pow(c5,2) from {dbname}.stb1 order by tbname" )
-        self.check_result_auto_pow2( f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select pow(t1,2) ,pow(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
-        self.check_result_auto_pow2( f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select pow(t1,2) , pow(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_pow(2, f"select t1,c5 from {dbname}.stb1 order by ts " , f"select pow(t1,2), pow(c5,2) from {dbname}.stb1 order by ts" )
+        self.check_result_auto_pow(2, f"select t1,c5 from {dbname}.stb1 order by tbname " , f"select pow(t1,2) ,pow(c5,2) from {dbname}.stb1 order by tbname" )
+        self.check_result_auto_pow(2, f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select pow(t1,2) ,pow(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_pow(2, f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select pow(t1,2) , pow(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
