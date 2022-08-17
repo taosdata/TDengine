@@ -125,7 +125,7 @@ python3 ./test.py -f 2-query/leastsquares.py -R
 python3 ./test.py -f 2-query/length.py
 python3 ./test.py -f 2-query/length.py -R
 python3 ./test.py -f 2-query/ltrim.py
-# python3 ./test.py -f 2-query/ltrim.py -R
+python3 ./test.py -f 2-query/ltrim.py -R
 python3 ./test.py -f 2-query/max_partition.py
 python3 ./test.py -f 2-query/max_partition.py -R
 python3 ./test.py -f 2-query/max.py
@@ -143,11 +143,19 @@ python3 ./test.py -f 2-query/query_cols_tags_and_or.py -R
 python3 ./test.py -f 2-query/round.py
 python3 ./test.py -f 2-query/round.py -R
 python3 ./test.py -f 2-query/rtrim.py
-# python3 ./test.py -f 2-query/rtrim.py -R
+python3 ./test.py -f 2-query/rtrim.py -R
 python3 ./test.py -f 2-query/sample.py
 python3 ./test.py -f 2-query/sample.py -R
 python3 ./test.py -f 2-query/sin.py
 # python3 ./test.py -f 2-query/sin.py -R
+python3 ./test.py -f 2-query/smaTest.py
+python3 ./test.py -f 2-query/smaTest.py -R
+python3 ./test.py -f 2-query/sml.py
+python3 ./test.py -f 2-query/sml.py -R
+python3 ./test.py -f 2-query/spread.py
+python3 ./test.py -f 2-query/spread.py -R
+python3 ./test.py -f 2-query/sqrt.py
+# python3 ./test.py -f 2-query/sqrt.py -R
 
 
 python3 ./test.py -f 1-insert/update_data.py
@@ -162,7 +170,6 @@ python3 ./test.py -f 2-query/substr.py
 python3 ./test.py -f 2-query/union.py
 python3 ./test.py -f 2-query/union1.py
 python3 ./test.py -f 2-query/concat2.py
-python3 ./test.py -f 2-query/spread.py
 
 
 python3 ./test.py -f 2-query/timezone.py
@@ -175,7 +182,6 @@ python3 ./test.py -f 2-query/json_tag.py
 
 python3 ./test.py -f 2-query/top.py
 python3 ./test.py -f 2-query/log.py
-python3 ./test.py -f 2-query/sqrt.py
 python3 ./test.py -f 2-query/tan.py
 # python3 ./test.py -f 2-query/nestedQuery.py
 # TD-15983 subquery output duplicate name column.
