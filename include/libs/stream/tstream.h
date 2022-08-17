@@ -216,7 +216,6 @@ typedef struct {
   void*     vnode;
   FTbSink*  tbSinkFunc;
   STSchema* pTSchema;
-  SHashObj* pHash;  // groupId to tbuid
 } STaskSinkTb;
 
 typedef void FSmaSink(void* vnode, int64_t smaId, const SArray* data);

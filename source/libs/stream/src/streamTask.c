@@ -156,5 +156,13 @@ void tFreeSStreamTask(SStreamTask* pTask) {
   if (pTask->outputQueue) streamQueueClose(pTask->outputQueue);
   if (pTask->exec.qmsg) taosMemoryFree(pTask->exec.qmsg);
   if (pTask->exec.executor) qDestroyTask(pTask->exec.executor);
+  taosArrayDestroy(pTask->childEpInfo);
+  if (pTask->outputType == TASK_OUTPUT__TABLE) {
+    tDeleteSSchemaWrapper(pTask->tbSink.pSchemaWrapper);
+    taosMemoryFree(pTask->tbSink.pTSchema);
+  }
+  if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    taosArrayDestroy(pTask->shuffleDispatcher.dbInfo.pVgroupInfos);
+  }
   taosMemoryFree(pTask);
 }

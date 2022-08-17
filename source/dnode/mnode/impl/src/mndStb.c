@@ -2044,7 +2044,12 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
 
-    if (pStream->smaId == 0 && pStream->targetStbUid == suid) {
+    if (pStream->smaId != 0) {
+      sdbRelease(pSdb, pStream);
+      continue;
+    }
+
+    if (pStream->targetStbUid == suid) {
       sdbRelease(pSdb, pStream);
       return -1;
     }

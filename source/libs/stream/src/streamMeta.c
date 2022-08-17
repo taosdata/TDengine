@@ -15,6 +15,7 @@
 
 #include "executor.h"
 #include "tstream.h"
+#include "ttimer.h"
 
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc) {
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
@@ -166,13 +167,20 @@ int32_t streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
       /*return -1;*/
     }
 
+    if (pTask->triggerParam != 0) {
+      taosTmrStop(pTask->timer);
+    }
+
     while (1) {
       int8_t schedStatus =
           atomic_val_compare_exchange_8(&pTask->schedStatus, TASK_SCHED_STATUS__INACTIVE, TASK_SCHED_STATUS__DROPPING);
       if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
         tFreeSStreamTask(pTask);
         break;
+      } else if (schedStatus == TASK_SCHED_STATUS__DROPPING) {
+        break;
       }
+      taosMsleep(10);
     }
   }
 
