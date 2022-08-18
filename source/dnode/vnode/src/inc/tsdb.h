@@ -260,7 +260,7 @@ void    tsdbUntakeReadSnap(STsdb *pTsdb, STsdbReadSnap *pSnap);
 
 // tsdbCache
 int32_t tsdbOpenCache(STsdb *pTsdb);
-void    tsdbCloseCache(SLRUCache *pCache);
+void    tsdbCloseCache(STsdb *pTsdb);
 int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb *pTsdb);
 int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, STSRow *row, bool dup);
 int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHandle **h);
@@ -298,6 +298,7 @@ struct STsdb {
   SMemTable     *imem;
   STsdbFS        fs;
   SLRUCache     *lruCache;
+  TdThreadMutex  lruMutex;
 };
 
 struct TSDBKEY {
