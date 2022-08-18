@@ -76,6 +76,12 @@ static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
 #define realloc u_realloc
 #endif
 
+#define T_LONG_JMP(_obj, _c) \
+  do {                       \
+    assert((_c) != -1);      \
+    longjmp((_obj), (_c));   \
+  } while (0);
+
 #define CLEAR_QUERY_STATUS(q, st)   ((q)->status &= (~(st)))
 #define QUERY_IS_INTERVAL_QUERY(_q) ((_q)->interval.interval > 0)
 
