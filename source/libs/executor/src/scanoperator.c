@@ -2213,9 +2213,18 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
       colDataAppend(pColInfoData, numOfRows, n, false);
 
       if (++numOfRows >= pOperator->resultInfo.capacity) {
-        break;
+        p->info.rows = numOfRows;
+        pInfo->pRes->info.rows = numOfRows;
+
+        relocateColumnData(pInfo->pRes, pInfo->scanCols, p->pDataBlock, false);
+        doFilterResult(pInfo);
+
+        blockDataCleanup(p);
+        if (pInfo->pRes->info.rows > 0)
+          break;
       }
     }
+    blockDataDestroy(p);
 
     // todo temporarily free the cursor here, the true reason why the free is not valid needs to be found
     if (ret != 0) {
@@ -2223,14 +2232,6 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
       pInfo->pCur = NULL;
       doSetOperatorCompleted(pOperator);
     }
-
-    p->info.rows = numOfRows;
-    pInfo->pRes->info.rows = numOfRows;
-
-    relocateColumnData(pInfo->pRes, pInfo->scanCols, p->pDataBlock, false);
-    doFilterResult(pInfo);
-
-    blockDataDestroy(p);
 
     pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
     return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
