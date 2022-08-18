@@ -63,6 +63,7 @@ void    vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId);
 int32_t vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen);
 int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
 int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list);
+int32_t vnodeGetStbIdList(SVnode *pVnode, int64_t suid, SArray* list);
 void   *vnodeGetIdx(SVnode *pVnode);
 void   *vnodeGetIvtIdx(SVnode *pVnode);
 
@@ -91,9 +92,11 @@ typedef struct SMetaEntry  SMetaEntry;
 void        metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
 void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
+int32_t     metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj *tags);
 int32_t     metaReadNext(SMetaReader *pReader);
-const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t type, STagVal *tagVal);
+const void *metaGetTableTagVal(void *tag, int16_t type, STagVal *tagVal);
 int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
+bool        metaIsTableExist(SMeta  *pMeta, tb_uid_t uid);
 
 typedef struct SMetaFltParam {
   tb_uid_t suid;

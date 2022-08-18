@@ -440,7 +440,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int
     } else {  // these are tags
       STagVal tagVal = {0};
       tagVal.cid = pExpr->base.pParam[0].pCol->colId;
-      const char* p = metaGetTableTagVal(&mr.me, pColInfoData->info.type, &tagVal);
+      const char* p = metaGetTableTagVal(mr.me.ctbEntry.pTags, pColInfoData->info.type, &tagVal);
 
       char* data = NULL;
       if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON && p != NULL) {
@@ -2507,7 +2507,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
       } else {  // it is a tag value
         STagVal val = {0};
         val.cid = pExprInfo[j].base.pParam[0].pCol->colId;
-        const char* p = metaGetTableTagVal(&mr.me, pDst->info.type, &val);
+        const char* p = metaGetTableTagVal(mr.me.ctbEntry.pTags, pDst->info.type, &val);
 
         char* data = NULL;
         if (pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL) {

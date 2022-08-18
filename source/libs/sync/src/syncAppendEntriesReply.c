@@ -64,6 +64,10 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
 
   ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
 
+  // update time
+  syncIndexMgrSetStartTime(ths->pNextIndex, &(pMsg->srcId), pMsg->startTime);
+  syncIndexMgrSetRecvTime(ths->pNextIndex, &(pMsg->srcId), taosGetTimestampMs());
+
   SyncIndex beforeNextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
   SyncIndex beforeMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
 
@@ -169,6 +173,10 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
   }
 
   ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
+
+  // update time
+  syncIndexMgrSetStartTime(ths->pNextIndex, &(pMsg->srcId), pMsg->startTime);
+  syncIndexMgrSetRecvTime(ths->pNextIndex, &(pMsg->srcId), taosGetTimestampMs());
 
   SyncIndex beforeNextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
   SyncIndex beforeMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
@@ -329,6 +337,10 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
   }
 
   ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
+
+  // update time
+  syncIndexMgrSetStartTime(ths->pNextIndex, &(pMsg->srcId), pMsg->startTime);
+  syncIndexMgrSetRecvTime(ths->pNextIndex, &(pMsg->srcId), taosGetTimestampMs());
 
   SyncIndex beforeNextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
   SyncIndex beforeMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));

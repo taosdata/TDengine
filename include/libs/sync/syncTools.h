@@ -423,6 +423,7 @@ typedef struct SyncAppendEntriesReply {
   SyncTerm  privateTerm;
   bool      success;
   SyncIndex matchIndex;
+  int64_t   startTime;
 } SyncAppendEntriesReply;
 
 SyncAppendEntriesReply* syncAppendEntriesReplyBuild(int32_t vgId);
