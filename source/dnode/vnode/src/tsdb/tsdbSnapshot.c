@@ -41,9 +41,9 @@ struct STsdbSnapReader {
   SArray*      aDelData;  // SArray<SDelData>
 };
 
-#if 0
 static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
   int32_t code = 0;
+#if 0
   STsdb*  pTsdb = pReader->pTsdb;
 
   while (true) {
@@ -166,6 +166,7 @@ _exit:
 _err:
   tsdbError("vgId:%d, vnode snapshot tsdb read data for %s failed since %s", TD_VID(pTsdb->pVnode), pTsdb->path,
             tstrerror(code));
+#endif
   return code;
 }
 
@@ -180,7 +181,7 @@ static int32_t tsdbSnapReadDel(STsdbSnapReader* pReader, uint8_t** ppData) {
     }
 
     // open
-    code = tsdbDelFReaderOpen(&pReader->pDelFReader, pDelFile, pTsdb, NULL);
+    code = tsdbDelFReaderOpen(&pReader->pDelFReader, pDelFile, pTsdb);
     if (code) goto _err;
 
     // read index
@@ -253,11 +254,9 @@ _err:
             tstrerror(code));
   return code;
 }
-#endif
 
 int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, int8_t type, STsdbSnapReader** ppReader) {
-  int32_t code = 0;
-#if 0
+  int32_t          code = 0;
   STsdbSnapReader* pReader = NULL;
 
   // alloc
@@ -320,13 +319,11 @@ _err:
   tsdbError("vgId:%d, vnode snapshot tsdb reader open for %s failed since %s", TD_VID(pTsdb->pVnode), pTsdb->path,
             tstrerror(code));
   *ppReader = NULL;
-#endif
   return code;
 }
 
 int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
-  int32_t code = 0;
-#if 0
+  int32_t          code = 0;
   STsdbSnapReader* pReader = *ppReader;
 
   if (pReader->pDataFReader) {
@@ -349,13 +346,11 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
 
   taosMemoryFree(pReader);
   *ppReader = NULL;
-#endif
   return code;
 }
 
 int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData) {
   int32_t code = 0;
-#if 0
 
   *ppData = NULL;
 
@@ -394,7 +389,6 @@ _exit:
 _err:
   tsdbError("vgId:%d, vnode snapshot tsdb read for %s failed since %s", TD_VID(pReader->pTsdb->pVnode),
             pReader->pTsdb->path, tstrerror(code));
-#endif
   return code;
 }
 
