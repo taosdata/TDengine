@@ -198,15 +198,16 @@ static bool uvHandleReq(SSvrConn* pConn) {
   pHead->msgLen = htonl(pHead->msgLen);
   memcpy(pConn->user, pHead->user, strlen(pHead->user));
 
+  if (uvRecvReleaseReq(pConn, pHead)) {
+    return true;
+  }
+
   // TODO(dengyihao): time-consuming task throwed into BG Thread
   //  uv_work_t* wreq = taosMemoryMalloc(sizeof(uv_work_t));
   //  wreq->data = pConn;
   //  uv_read_stop((uv_stream_t*)pConn->pTcp);
   //  transRefSrvHandle(pConn);
   //  uv_queue_work(((SWorkThrd*)pConn->hostThrd)->loop, wreq, uvWorkDoTask, uvWorkAfterTask);
-  if (uvRecvReleaseReq(pConn, pHead)) {
-    return true;
-  }
 
   STransMsg transMsg;
   memset(&transMsg, 0, sizeof(transMsg));
@@ -274,14 +275,16 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     if (pBuf->len <= TRANS_PACKET_LIMIT) {
       while (transReadComplete(pBuf)) {
         tTrace("%s conn %p alread read complete packet", transLabel(pTransInst), conn);
-        if (uvHandleReq(conn) == false) {
+        if (pBuf->invalid) {
+          tTrace("%s conn %p alread read invalid packet", transLabel(pTransInst), conn);
           destroyConn(conn, true);
           return;
+        } else {
+          if (false == uvHandleReq(conn)) break;
         }
       }
       return;
     } else {
-      tError("%s conn %p read unexpected packet, exceed limit", transLabel(pTransInst), conn);
       destroyConn(conn, true);
       return;
     }
@@ -872,6 +875,7 @@ static int reallocConnRef(SSvrConn* conn) {
 }
 static void uvDestroyConn(uv_handle_t* handle) {
   SSvrConn* conn = handle->data;
+
   if (conn == NULL) {
     return;
   }
@@ -887,9 +891,8 @@ static void uvDestroyConn(uv_handle_t* handle) {
     SSvrMsg* msg = transQueueGet(&conn->srvMsgs, i);
     destroySmsg(msg);
   }
-
-  transReqQueueClear(&conn->wreqQueue);
   transQueueDestroy(&conn->srvMsgs);
+  transReqQueueClear(&conn->wreqQueue);
 
   QUEUE_REMOVE(&conn->queue);
   taosMemoryFree(conn->pTcp);
