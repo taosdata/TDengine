@@ -16,10 +16,10 @@
 #define _DEFAULT_SOURCE
 // clang-format off
 #include <uv.h>
+#include "zlib.h"
 #include "thttp.h"
 #include "taoserror.h"
 #include "tlog.h"
-#include "zlib.h"
 
 typedef struct SHttpClient {
   uv_connect_t conn;
@@ -196,8 +196,8 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   uv_loop_t* loop = uv_default_loop();
   uv_tcp_init(loop, &cli->tcp);
   // set up timeout to avoid stuck;
-  //int32_t fd = taosCreateSocketWithTimeout(5);
-  //uv_tcp_open((uv_tcp_t*)&cli->tcp, fd);
+  int32_t fd = taosCreateSocketWithTimeout(5);
+  uv_tcp_open((uv_tcp_t*)&cli->tcp, fd);
 
   int32_t ret = uv_tcp_connect(&cli->conn, &cli->tcp, (const struct sockaddr*)&dest, clientConnCb);
   if (ret != 0) {
