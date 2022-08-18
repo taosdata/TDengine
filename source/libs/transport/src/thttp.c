@@ -199,6 +199,7 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   int32_t fd = taosCreateSocketWithTimeout(5);
   uv_tcp_open((uv_tcp_t*)&cli->tcp, fd);
 
+
   int32_t ret = uv_tcp_connect(&cli->conn, &cli->tcp, (const struct sockaddr*)&dest, clientConnCb);
   if (ret != 0) {
     uError("http-report failed to connect to server, reason:%s, dst:%s:%d", uv_strerror(ret), cli->addr, cli->port);
