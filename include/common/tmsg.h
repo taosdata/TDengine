@@ -2664,7 +2664,7 @@ typedef struct {
 } SVgEpSet;
 
 typedef struct {
-  // padding
+  int32_t padding;
 } SRSmaExecMsg;
 
 typedef struct {

@@ -220,8 +220,6 @@ int vnodeCommit(SVnode *pVnode) {
   vInfo("vgId:%d, start to commit, commit ID:%" PRId64 " version:%" PRId64, TD_VID(pVnode), pVnode->state.commitID,
         pVnode->state.applied);
 
-  pVnode->state.commitTerm = pVnode->state.applyTerm;
-
   // preCommit
   // smaSyncPreCommit(pVnode->pSma);
   smaAsyncPreCommit(pVnode->pSma);
@@ -229,6 +227,8 @@ int vnodeCommit(SVnode *pVnode) {
   vnodeBufPoolUnRef(pVnode->inUse);
   pVnode->inUse = NULL;
 
+  pVnode->state.commitTerm = pVnode->state.applyTerm;
+  
   // save info
   info.config = pVnode->config;
   info.state.committed = pVnode->state.applied;

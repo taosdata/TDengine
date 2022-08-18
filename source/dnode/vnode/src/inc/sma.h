@@ -118,17 +118,19 @@ struct SSmaStat {
 #define RSMA_FS_LOCK(r)      (&(r)->lock)
 
 struct SRSmaInfoItem {
-  int8_t  level;
-  int8_t  triggerStat;
-  int32_t maxDelay;
-  tmr_h   tmrId;
+  int8_t   level;
+  int8_t   triggerStat;
+  uint16_t interval;  // second
+  int32_t  maxDelay;
+  tmr_h    tmrId;
 };
 
 struct SRSmaInfo {
   STSchema *pTSchema;
   int64_t   suid;
   int64_t   refId;  // refId of SRSmaStat
-  int8_t    delFlag;
+  uint64_t  delFlag : 1;
+  uint64_t  lastReceived : 63;  // second
   T_REF_DECLARE()
   SRSmaInfoItem items[TSDB_RETENTION_L2];
   void         *taskInfo[TSDB_RETENTION_L2];   // qTaskInfo_t
