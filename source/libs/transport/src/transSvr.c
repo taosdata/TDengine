@@ -284,6 +284,9 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
         }
       }
       return;
+    } else {
+      destroyConn(conn, true);
+      return;
     }
   }
   if (nread == 0) {
