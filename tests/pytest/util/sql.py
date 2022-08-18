@@ -225,25 +225,21 @@ class TDSql:
                 # suppose user want to check nanosecond timestamp if a longer data passed
                 if (len(data) >= 28):
                     if pd.to_datetime(self.queryResult[row][col]) == pd.to_datetime(data):
-                        tdLog.info("sql:%s, row:%d col:%d data:%d == expect:%s" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
+                        tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
                 else:
                     if self.queryResult[row][col] == _parse_datetime(data):
-                        tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
+                        tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
                 return
 
             if str(self.queryResult[row][col]) == str(data):
-                tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
+                tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
                 return
+
             elif isinstance(data, float):
                 if abs(data) >= 1 and abs((self.queryResult[row][col] - data) / data) <= 0.000001:
-                    tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
-                                (self.sql, row, col, self.queryResult[row][col], data))
+                    tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
                 elif abs(data) < 1 and abs(self.queryResult[row][col] - data) <= 0.000001:
-                    tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
-                                (self.sql, row, col, self.queryResult[row][col], data))
+                    tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
                 else:
                     caller = inspect.getframeinfo(inspect.stack()[1][0])
                     args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
