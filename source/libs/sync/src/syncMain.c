@@ -2284,7 +2284,7 @@ bool syncNodeHasSnapshot(SSyncNode* pSyncNode) {
 
 // return max(logLastIndex, snapshotLastIndex)
 // if no snapshot and log, return -1
-SyncIndex syncNodeGetLastIndex(SSyncNode* pSyncNode) {
+SyncIndex syncNodeGetLastIndex(const SSyncNode* pSyncNode) {
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
   if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
     pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
@@ -2773,10 +2773,26 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
     return 0;
   }
 
-  if (ths->vgId > 1) {
-    syncNodeEventLog(ths, "I am vnode, can not do leader transfer");
+  if (pEntry->term < ths->pRaftStore->currentTerm) {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "little term:%lu, can not do leader transfer", pEntry->term);
+    syncNodeEventLog(ths, logBuf);
     return 0;
   }
+
+  if (pEntry->index < syncNodeGetLastIndex(ths)) {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "little index:%ld, can not do leader transfer", pEntry->index);
+    syncNodeEventLog(ths, logBuf);
+    return 0;
+  }
+
+  /*
+    if (ths->vgId > 1) {
+      syncNodeEventLog(ths, "I am vnode, can not do leader transfer");
+      return 0;
+    }
+  */
 
   do {
     char logBuf[128];
