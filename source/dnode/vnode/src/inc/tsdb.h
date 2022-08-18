@@ -502,6 +502,7 @@ struct SDelIdx {
 
 struct SDiskDataHdr {
   uint32_t delimiter;
+  uint32_t fmtVer;
   int64_t  suid;
   int64_t  uid;
   int32_t  szUid;

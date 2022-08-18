@@ -1426,6 +1426,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
 
   // ================= DATA ====================
   SDiskDataHdr hdr = {.delimiter = TSDB_FILE_DLMT,
+                      .fmtVer = 0,
                       .suid = pBlockData->suid,
                       .uid = pBlockData->uid,
                       .nRow = pBlockData->nRow,
