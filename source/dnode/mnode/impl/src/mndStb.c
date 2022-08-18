@@ -266,6 +266,15 @@ _OVER:
   return pRow;
 }
 
+void mndFreeStb(SStbObj *pStb) {
+  taosArrayDestroy(pStb->pFuncs);
+  taosMemoryFreeClear(pStb->pColumns);
+  taosMemoryFreeClear(pStb->pTags);
+  taosMemoryFreeClear(pStb->comment);
+  taosMemoryFreeClear(pStb->pAst1);
+  taosMemoryFreeClear(pStb->pAst2);
+}
+
 static int32_t mndStbActionInsert(SSdb *pSdb, SStbObj *pStb) {
   mTrace("stb:%s, perform insert action, row:%p", pStb->name, pStb);
   return 0;
@@ -273,12 +282,7 @@ static int32_t mndStbActionInsert(SSdb *pSdb, SStbObj *pStb) {
 
 static int32_t mndStbActionDelete(SSdb *pSdb, SStbObj *pStb) {
   mTrace("stb:%s, perform delete action, row:%p", pStb->name, pStb);
-  taosArrayDestroy(pStb->pFuncs);
-  taosMemoryFreeClear(pStb->pColumns);
-  taosMemoryFreeClear(pStb->pTags);
-  taosMemoryFreeClear(pStb->comment);
-  taosMemoryFreeClear(pStb->pAst1);
-  taosMemoryFreeClear(pStb->pAst2);
+  mndFreeStb(pStb);
   return 0;
 }
 
