@@ -15,6 +15,7 @@
 
 #include "executor.h"
 #include "tstream.h"
+#include "ttimer.h"
 
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc) {
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
@@ -99,16 +100,19 @@ int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* 
     goto FAIL;
   }
 
-  taosHashPut(pMeta->pTasks, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void*));
+  if (taosHashPut(pMeta->pTasks, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void*)) < 0) {
+    goto FAIL;
+  }
 
   if (tdbTbUpsert(pMeta->pTaskDb, &pTask->taskId, sizeof(int32_t), msg, msgLen, &pMeta->txn) < 0) {
+    taosHashRemove(pMeta->pTasks, &pTask->taskId, sizeof(int32_t));
     ASSERT(0);
-    return -1;
+    goto FAIL;
   }
   return 0;
 
 FAIL:
-  if (pTask) taosMemoryFree(pTask);
+  if (pTask) tFreeSStreamTask(pTask);
   return -1;
 }
 
@@ -158,11 +162,28 @@ int32_t streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
     SStreamTask* pTask = *ppTask;
     taosHashRemove(pMeta->pTasks, &taskId, sizeof(int32_t));
     atomic_store_8(&pTask->taskStatus, TASK_STATUS__DROPPING);
+
+    if (tdbTbDelete(pMeta->pTaskDb, &taskId, sizeof(int32_t), &pMeta->txn) < 0) {
+      /*return -1;*/
+    }
+
+    if (pTask->triggerParam != 0) {
+      taosTmrStop(pTask->timer);
+    }
+
+    while (1) {
+      int8_t schedStatus =
+          atomic_val_compare_exchange_8(&pTask->schedStatus, TASK_SCHED_STATUS__INACTIVE, TASK_SCHED_STATUS__DROPPING);
+      if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
+        tFreeSStreamTask(pTask);
+        break;
+      } else if (schedStatus == TASK_SCHED_STATUS__DROPPING) {
+        break;
+      }
+      taosMsleep(10);
+    }
   }
 
-  if (tdbTbDelete(pMeta->pTaskDb, &taskId, sizeof(int32_t), &pMeta->txn) < 0) {
-    /*return -1;*/
-  }
   return 0;
 }
 

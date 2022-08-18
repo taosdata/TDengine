@@ -2021,8 +2021,7 @@ static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, 
     FOREACH(pNode, pNodeList) {
       SColumnNode *pCol = (SColumnNode *)pNode;
 
-      if (pCol->tableId != suid) {
-        mDebug("topic:%s, check colId:%d passed", pTopic->name, pCol->colId);
+      if (pCol->tableId == suid) {
         sdbRelease(pSdb, pTopic);
         nodesDestroyNode(pAst);
         return -1;
@@ -2045,6 +2044,16 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
 
+    if (pStream->smaId != 0) {
+      sdbRelease(pSdb, pStream);
+      continue;
+    }
+
+    if (pStream->targetStbUid == suid) {
+      sdbRelease(pSdb, pStream);
+      return -1;
+    }
+
     SNode *pAst = NULL;
     if (nodesStringToNode(pStream->ast, &pAst) != 0) {
       ASSERT(0);
@@ -2057,8 +2066,7 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
     FOREACH(pNode, pNodeList) {
       SColumnNode *pCol = (SColumnNode *)pNode;
 
-      if (pCol->tableId != suid) {
-        mDebug("stream:%s, check colId:%d passed", pStream->name, pCol->colId);
+      if (pCol->tableId == suid) {
         sdbRelease(pSdb, pStream);
         nodesDestroyNode(pAst);
         return -1;
