@@ -1549,6 +1549,7 @@ int32_t tPutDiskDataHdr(uint8_t *p, void *ph) {
   SDiskDataHdr *pHdr = (SDiskDataHdr *)ph;
 
   n += tPutU32(p ? p + n : p, pHdr->delimiter);
+  n += tPutU32v(p ? p + n : p, pHdr->fmtVer);
   n += tPutI64(p ? p + n : p, pHdr->suid);
   n += tPutI64(p ? p + n : p, pHdr->uid);
   n += tPutI32v(p ? p + n : p, pHdr->szUid);
@@ -1566,6 +1567,7 @@ int32_t tGetDiskDataHdr(uint8_t *p, void *ph) {
   SDiskDataHdr *pHdr = (SDiskDataHdr *)ph;
 
   n += tGetU32(p + n, &pHdr->delimiter);
+  n += tGetU32v(p + n, &pHdr->fmtVer);
   n += tGetI64(p + n, &pHdr->suid);
   n += tGetI64(p + n, &pHdr->uid);
   n += tGetI32v(p + n, &pHdr->szUid);

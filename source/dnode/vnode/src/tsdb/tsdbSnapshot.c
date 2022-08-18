@@ -27,8 +27,10 @@ struct STsdbSnapReader {
   int32_t       fid;
   SDataFReader* pDataFReader;
   SArray*       aBlockIdx;  // SArray<SBlockIdx>
+  SArray*       aBlockL;    // SArray<SBlockL>
   int32_t       iBlockIdx;
   SBlockIdx*    pBlockIdx;
+  int32_t       iBlockL;
   SMapData      mBlock;  // SMapData<SBlock>
   int32_t       iBlock;
   SBlockData    oBlockData;
@@ -43,32 +45,37 @@ struct STsdbSnapReader {
 
 static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
   int32_t code = 0;
-#if 0
   STsdb*  pTsdb = pReader->pTsdb;
 
   while (true) {
     if (pReader->pDataFReader == NULL) {
-      SDFileSet* pSet =
-          taosArraySearch(pReader->fs.aDFileSet, &(SDFileSet){.fid = pReader->fid}, tDFileSetCmprFn, TD_GT);
-
+      // next
+      SDFileSet  dFileSet = {.fid = pReader->fid};
+      SDFileSet* pSet = taosArraySearch(pReader->fs.aDFileSet, &dFileSet, tDFileSetCmprFn, TD_GT);
       if (pSet == NULL) goto _exit;
-
       pReader->fid = pSet->fid;
+
+      // load
       code = tsdbDataFReaderOpen(&pReader->pDataFReader, pReader->pTsdb, pSet);
       if (code) goto _err;
 
-      // SBlockIdx
       code = tsdbReadBlockIdx(pReader->pDataFReader, pReader->aBlockIdx);
       if (code) goto _err;
 
+      code = tsdbReadBlockL(pReader->pDataFReader, pReader->aBlockL);
+      if (code) goto _err;
+
+      // init
       pReader->iBlockIdx = 0;
       pReader->pBlockIdx = NULL;
+      pReader->iBlockL = 0;
 
       tsdbInfo("vgId:%d, vnode snapshot tsdb open data file to read for %s, fid:%d", TD_VID(pTsdb->pVnode), pTsdb->path,
                pReader->fid);
     }
 
     while (true) {
+#if 0
       if (pReader->pBlockIdx == NULL) {
         if (pReader->iBlockIdx >= taosArrayGetSize(pReader->aBlockIdx)) {
           tsdbDataFReaderClose(&pReader->pDataFReader);
@@ -149,14 +156,15 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
 
         tPutBlockData((uint8_t*)(&pId[1]), &pReader->nBlockData);
 
-        tsdbInfo("vgId:%d, vnode snapshot read data for %s, fid:%d suid:%" PRId64 " uid:%" PRId64
-                 " iBlock:%d minVersion:%d maxVersion:%d nRow:%d out of %d size:%d",
-                 TD_VID(pTsdb->pVnode), pTsdb->path, pReader->fid, pReader->pBlockIdx->suid, pReader->pBlockIdx->uid,
-                 pReader->iBlock - 1, pBlock->minVersion, pBlock->maxVersion, pReader->nBlockData.nRow, pBlock->nRow,
-                 size);
+        // tsdbInfo("vgId:%d, vnode snapshot read data for %s, fid:%d suid:%" PRId64 " uid:%" PRId64
+        //          " iBlock:%d minVersion:%d maxVersion:%d nRow:%d out of %d size:%d",
+        //          TD_VID(pTsdb->pVnode), pTsdb->path, pReader->fid, pReader->pBlockIdx->suid, pReader->pBlockIdx->uid,
+        //          pReader->iBlock - 1, pBlock->minVersion, pBlock->maxVersion, pReader->nBlockData.nRow, pBlock->nRow,
+        //          size);
 
         goto _exit;
       }
+#endif
     }
   }
 
@@ -166,7 +174,6 @@ _exit:
 _err:
   tsdbError("vgId:%d, vnode snapshot tsdb read data for %s failed since %s", TD_VID(pTsdb->pVnode), pTsdb->path,
             tstrerror(code));
-#endif
   return code;
 }
 
@@ -294,6 +301,11 @@ int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, int8_t type
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
+  pReader->aBlockL = taosArrayInit(0, sizeof(SBlockL));
+  if (pReader->aBlockL == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
   pReader->mBlock = tMapDataInit();
   code = tBlockDataCreate(&pReader->oBlockData);
   if (code) goto _err;
@@ -329,6 +341,7 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
   if (pReader->pDataFReader) {
     tsdbDataFReaderClose(&pReader->pDataFReader);
   }
+  taosArrayDestroy(pReader->aBlockL);
   taosArrayDestroy(pReader->aBlockIdx);
   tMapDataClear(&pReader->mBlock);
   tBlockDataDestroy(&pReader->oBlockData, 1);
