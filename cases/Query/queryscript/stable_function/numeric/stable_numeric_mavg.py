@@ -45,7 +45,7 @@ class TDTestQuery(TDCase):
         return case_description
 
     #basic_param
-    db = "stable_numeric_mavg"
+    db = "stable_mavg"
     service_host = ""
     table_list = ['stable_1','stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
