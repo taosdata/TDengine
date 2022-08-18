@@ -228,7 +228,7 @@ int vnodeCommit(SVnode *pVnode) {
   pVnode->inUse = NULL;
 
   pVnode->state.commitTerm = pVnode->state.applyTerm;
-  
+
   // save info
   info.config = pVnode->config;
   info.state.committed = pVnode->state.applied;
