@@ -1198,7 +1198,6 @@ _exit:
 int32_t tBlockDataInitEx(SBlockData *pBlockData, SBlockData *pBlockDataFrom) {
   int32_t code = 0;
 
-  ASSERT(0);
   ASSERT(pBlockDataFrom->suid || pBlockDataFrom->uid);
 
   pBlockData->suid = pBlockDataFrom->suid;
@@ -1437,7 +1436,6 @@ int32_t tBlockDataCopy(SBlockData *pSrc, SBlockData *pDest) {
 
   ASSERT(pDest->suid == pSrc->suid);
   ASSERT(pDest->uid == pSrc->uid);
-  ASSERT(pSrc->nRow == pDest->nRow);
   ASSERT(taosArrayGetSize(pSrc->aIdx) == taosArrayGetSize(pDest->aIdx));
 
   pDest->nRow = pSrc->nRow;
