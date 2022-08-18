@@ -265,10 +265,10 @@ static bool uvHandleReq(SSvrConn* pConn) {
 }
 
 void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
-  // opt
-  SSvrConn*    conn = cli->data;
+  SSvrConn* conn = cli->data;
+  STrans*   pTransInst = conn->pTransInst;
+
   SConnBuffer* pBuf = &conn->readBuf;
-  STrans*      pTransInst = conn->pTransInst;
   if (nread > 0) {
     pBuf->len += nread;
     tTrace("%s conn %p total read:%d, current read:%d", transLabel(pTransInst), conn, pBuf->len, (int)nread);
