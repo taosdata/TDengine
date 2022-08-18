@@ -53,6 +53,7 @@ enum {
   TASK_SCHED_STATUS__WAITING,
   TASK_SCHED_STATUS__ACTIVE,
   TASK_SCHED_STATUS__FAILED,
+  TASK_SCHED_STATUS__DROPPING,
 };
 
 enum {
@@ -126,6 +127,10 @@ typedef struct {
 typedef struct {
   int8_t type;
 } SStreamCheckpoint;
+
+typedef struct {
+  int8_t type;
+} SStreamTaskDestroy;
 
 typedef struct {
   int8_t       type;
@@ -211,7 +216,6 @@ typedef struct {
   void*     vnode;
   FTbSink*  tbSinkFunc;
   STSchema* pTSchema;
-  SHashObj* pHash;  // groupId to tbuid
 } STaskSinkTb;
 
 typedef void FSmaSink(void* vnode, int64_t smaId, const SArray* data);
