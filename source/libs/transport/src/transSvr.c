@@ -204,7 +204,6 @@ static bool uvHandleReq(SSvrConn* pConn) {
   //  uv_read_stop((uv_stream_t*)pConn->pTcp);
   //  transRefSrvHandle(pConn);
   //  uv_queue_work(((SWorkThrd*)pConn->hostThrd)->loop, wreq, uvWorkDoTask, uvWorkAfterTask);
-
   if (uvRecvReleaseReq(pConn, pHead)) {
     return true;
   }
