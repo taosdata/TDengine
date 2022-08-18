@@ -95,6 +95,7 @@ int32_t     metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHash
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(void *tag, int16_t type, STagVal *tagVal);
 int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
+bool        metaIsTableExist(SMeta  *pMeta, tb_uid_t uid);
 
 typedef struct SMetaFltParam {
   tb_uid_t suid;
