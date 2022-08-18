@@ -38,22 +38,22 @@ typedef struct STagVal       STagVal;
 typedef struct STag          STag;
 
 // bitmap
-#define N1(n)        ((1 << (n)) - 1)
-#define BIT1_SIZE(n) (((n)-1) / 8 + 1)
-#define BIT2_SIZE(n) (((n)-1) / 4 + 1)
-#define SET_BIT1(p, i, v)                            \
-  do {                                               \
-    (p)[(i) / 8] &= N1((i) % 8);                     \
-    (p)[(i) / 8] |= (((uint8_t)(v)) << (((i) % 8))); \
-  } while (0)
+const static uint8_t BIT1_MAP[8][2] = {
+    {0b00000000, 0b00000001}, {0b00000001, 0b00000011}, {0b00000011, 0b00000111}, {0b00000111, 0b00001111},
+    {0b00001111, 0b00011111}, {0b00011111, 0b00111111}, {0b00111111, 0b01111111}, {0b01111111, 0b11111111},
+};
 
-#define GET_BIT1(p, i) (((p)[(i) / 8] >> ((i) % 8)) & ((uint8_t)1))
-#define SET_BIT2(p, i, v)                                \
-  do {                                                   \
-    p[(i) / 4] &= N1((i) % 4 * 2);                       \
-    (p)[(i) / 4] |= (((uint8_t)(v)) << (((i) % 4) * 2)); \
-  } while (0)
-#define GET_BIT2(p, i) (((p)[(i) / 4] >> (((i) % 4) * 2)) & ((uint8_t)3))
+const static uint8_t BIT2_MAP[4][4] = {{0b00000000, 0b00000001, 0b00000010, 0},
+                                       {0b00000011, 0b00000111, 0b00001011, 2},
+                                       {0b00001111, 0b00011111, 0b00101111, 4},
+                                       {0b00111111, 0b01111111, 0b10111111, 6}};
+
+#define BIT1_SIZE(n)      (((n)-1) / 8 + 1)
+#define BIT2_SIZE(n)      (((n)-1) / 4 + 1)
+#define SET_BIT1(p, i, v) ((p)[(i) / 8] &= BIT1_MAP[(i) % 8][v])
+#define GET_BIT1(p, i)    (((p)[(i) / 8] >> ((i) % 8)) & ((uint8_t)1))
+#define SET_BIT2(p, i, v) ((p)[(i) / 4] &= BIT2_MAP[(i) % 4][v])
+#define GET_BIT2(p, i)    (((p)[(i) / 4] >> BIT2_MAP[(i) % 4][3]) & ((uint8_t)3))
 
 // STSchema
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
@@ -171,7 +171,7 @@ struct SColVal {
 
 #pragma pack(push, 1)
 struct STagVal {
-//  char colName[TSDB_COL_NAME_LEN]; // only used for tmq_get_meta
+  //  char colName[TSDB_COL_NAME_LEN]; // only used for tmq_get_meta
   union {
     int16_t cid;
     char   *pKey;
