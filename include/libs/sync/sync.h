@@ -33,7 +33,7 @@ extern bool gRaftDetailLog;
 #define SYNC_MAX_READ_RANGE          2
 #define SYNC_MAX_PROGRESS_WAIT_MS    4000
 #define SYNC_MAX_START_TIME_RANGE_MS (1000 * 20)
-#define SYNC_MAX_RECV_TIME_RANGE_MS  1000
+#define SYNC_MAX_RECV_TIME_RANGE_MS  1200
 #define SYNC_ADD_QUORUM_COUNT        3
 
 #define SYNC_MAX_BATCH_SIZE 1
