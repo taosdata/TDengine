@@ -202,7 +202,7 @@ static SRpcConn *rpcAllocateClientConn(SRpcInfo *pRpc);
 static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv);
 static SRpcConn *rpcGetConnObj(SRpcInfo *pRpc, int sid, SRecvInfo *pRecv);
 
-static bool  rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext);
+static TBOOL rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext);
 static void  rpcSendQuickRsp(SRpcConn *pConn, int32_t code);
 static void  rpcSendErrorMsgToPeer(SRecvInfo *pRecv, int32_t code);
 static bool  rpcSendMsgToPeer(SRpcConn *pConn, void *data, int dataLen);
@@ -394,7 +394,7 @@ void *rpcReallocCont(void *ptr, int contLen) {
   return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
 }
 
-bool rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64_t *pRid) {
+TBOOL rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64_t *pRid) {
   SRpcInfo       *pRpc = (SRpcInfo *)shandle;
   SRpcReqContext *pContext;
 
@@ -1384,7 +1384,7 @@ static void rpcSendErrorMsgToPeer(SRecvInfo *pRecv, int32_t code) {
   return; 
 }
 
-static bool rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
+static TBOOL rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   SRpcHead  *pHead = rpcHeadFromCont(pContext->pCont);
   char      *msg = (char *)pHead;
   int        msgLen = rpcMsgLenFromCont(pContext->contLen);
@@ -1394,8 +1394,9 @@ static bool rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   SRpcConn *pConn = rpcSetupConnToServer(pContext);
   if (pConn == NULL) {
     pContext->code = terrno;
+    // in rpcProcessConnError if numOfTry over limit, could call rpcNotifyClient to stop query
     taosTmrStart(rpcProcessConnError, 1, pContext, pRpc->tmrCtrl);
-    return false;
+    return BOOL_ASYNC;
   }
 
   pContext->pConn = pConn;
@@ -1436,7 +1437,16 @@ static bool rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
     taosTmrReset(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl, &pConn->pTimer);
 
   rpcUnlockConn(pConn);
-  return ret;
+
+  if(ret == BOOL_FALSE) {
+    // try next ip again
+    pContext->code = terrno;
+    // in rpcProcessConnError if numOfTry over limit, could call rpcNotifyClient to stop query
+    taosTmrStart(rpcProcessConnError, 1, pContext, pRpc->tmrCtrl);
+    return BOOL_ASYNC;
+  }
+
+  return BOOL_TRUE;
 }
 
 static bool rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
@@ -1478,8 +1488,6 @@ static void rpcProcessConnError(void *param, void *id) {
     return;
   }
   
-  tDebug("%s %p, connection error happens", pRpc->label, pContext->ahandle);
-
   if (pContext->numOfTry >= pContext->epSet.numOfEps || pContext->msgType == TSDB_MSG_TYPE_FETCH) {
     rpcMsg.msgType = pContext->msgType+1;
     rpcMsg.ahandle = pContext->ahandle;
@@ -1487,9 +1495,11 @@ static void rpcProcessConnError(void *param, void *id) {
     rpcMsg.pCont = NULL;
     rpcMsg.contLen = 0;
 
+    tWarn("%s %p, connection error. notify client query over. numOfTry=%d msgType=%d", pRpc->label, pContext->ahandle, pContext->numOfTry, pContext->msgType);
     rpcNotifyClient(pContext, &rpcMsg);
   } else {
     // move to next IP 
+    tWarn("%s %p, connection error. retry to send request again. numOfTry=%d msgType=%d", pRpc->label, pContext->ahandle, pContext->numOfTry, pContext->msgType);
     pContext->epSet.inUse++;
     pContext->epSet.inUse = pContext->epSet.inUse % pContext->epSet.numOfEps;
     rpcSendReqToServer(pRpc, pContext);
