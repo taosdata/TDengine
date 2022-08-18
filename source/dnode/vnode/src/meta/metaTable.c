@@ -180,11 +180,29 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
 }
 
 int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
-  SMetaEntry me = {0};
+  SMetaEntry  me = {0};
+  int         kLen = 0;
+  int         vLen = 0;
+  const void *pKey = NULL;
+  const void *pVal = NULL;
+  void       *pBuf = NULL;
+  int32_t     szBuf = 0;
+  void       *p = NULL;
 
   // validate req
-  if (tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name), NULL, NULL) == 0) {
-    return 0;
+  void *pData = NULL;
+  int   nData = 0;
+  if (tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &pData, &nData) == 0) {
+    tb_uid_t uid = *(tb_uid_t *)pData;
+    tdbFree(pData);
+    SMetaInfo info;
+    metaGetInfo(pMeta, uid, &info);
+    if (info.uid == info.suid) {
+      return 0;
+    } else {
+      terrno = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+      return -1;
+    }
   }
 
   // set structs
@@ -865,6 +883,9 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
     metaUpdateTagIdx(pMeta, &ctbEntry);
   }
 
+  SCtbIdxKey ctbIdxKey = {.suid = ctbEntry.ctbEntry.suid, .uid = uid};
+  tdbTbUpsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), ctbEntry.ctbEntry.pTags, ((STag*)(ctbEntry.ctbEntry.pTags))->len, &pMeta->txn);
+
   tDecoderClear(&dc1);
   tDecoderClear(&dc2);
   if (ctbEntry.ctbEntry.pTags) taosMemoryFree((void *)ctbEntry.ctbEntry.pTags);
@@ -1069,7 +1090,8 @@ static int metaUpdateTtlIdx(SMeta *pMeta, const SMetaEntry *pME) {
 
 static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME) {
   SCtbIdxKey ctbIdxKey = {.suid = pME->ctbEntry.suid, .uid = pME->uid};
-  return tdbTbInsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), NULL, 0, &pMeta->txn);
+
+  return tdbTbInsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), pME->ctbEntry.pTags, ((STag*)(pME->ctbEntry.pTags))->len, &pMeta->txn);
 }
 
 int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_t nTagData, int8_t type, tb_uid_t uid,

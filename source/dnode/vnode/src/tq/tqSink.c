@@ -231,34 +231,35 @@ void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
 
   ASSERT(pTask->tbSink.pTSchema);
   deleteReq.deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
-  SSubmitReq* pReq = tqBlockToSubmit(pVnode, pRes, pTask->tbSink.pTSchema, true, pTask->tbSink.stbUid,
-                                     pTask->tbSink.stbFullName, &deleteReq);
+  SSubmitReq* submitReq = tqBlockToSubmit(pVnode, pRes, pTask->tbSink.pTSchema, true, pTask->tbSink.stbUid,
+                                          pTask->tbSink.stbFullName, &deleteReq);
 
   tqDebug("vgId:%d, task %d convert blocks over, put into write-queue", TD_VID(pVnode), pTask->taskId);
 
-  int32_t code;
-  int32_t len;
-  tEncodeSize(tEncodeSBatchDeleteReq, &deleteReq, len, code);
-  if (code < 0) {
-    //
-    ASSERT(0);
-  }
-  SEncoder encoder;
-  void*    buf = rpcMallocCont(len + sizeof(SMsgHead));
-  void*    abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-  tEncoderInit(&encoder, abuf, len);
-  tEncodeSBatchDeleteReq(&encoder, &deleteReq);
-  tEncoderClear(&encoder);
-
-  ((SMsgHead*)buf)->vgId = pVnode->config.vgId;
-
   if (taosArrayGetSize(deleteReq.deleteReqs) != 0) {
+    int32_t code;
+    int32_t len;
+    tEncodeSize(tEncodeSBatchDeleteReq, &deleteReq, len, code);
+    if (code < 0) {
+      //
+      ASSERT(0);
+    }
+    SEncoder encoder;
+    void*    serializedDeleteReq = rpcMallocCont(len + sizeof(SMsgHead));
+    void*    abuf = POINTER_SHIFT(serializedDeleteReq, sizeof(SMsgHead));
+    tEncoderInit(&encoder, abuf, len);
+    tEncodeSBatchDeleteReq(&encoder, &deleteReq);
+    tEncoderClear(&encoder);
+
+    ((SMsgHead*)serializedDeleteReq)->vgId = pVnode->config.vgId;
+
     SRpcMsg msg = {
         .msgType = TDMT_VND_BATCH_DEL,
-        .pCont = buf,
+        .pCont = serializedDeleteReq,
         .contLen = len + sizeof(SMsgHead),
     };
     if (tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) != 0) {
+      rpcFreeCont(serializedDeleteReq);
       tqDebug("failed to put into write-queue since %s", terrstr());
     }
   }
@@ -268,11 +269,12 @@ void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
   // build write msg
   SRpcMsg msg = {
       .msgType = TDMT_VND_SUBMIT,
-      .pCont = pReq,
-      .contLen = ntohl(pReq->length),
+      .pCont = submitReq,
+      .contLen = ntohl(submitReq->length),
   };
 
   if (tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) != 0) {
+    rpcFreeCont(submitReq);
     tqDebug("failed to put into write-queue since %s", terrstr());
   }
 }
