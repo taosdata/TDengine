@@ -38,19 +38,15 @@ typedef struct STagVal       STagVal;
 typedef struct STag          STag;
 
 // bitmap
-const static uint8_t BIT1_MAP[8][2] = {
-    {0b00000000, 0b00000001}, {0b00000001, 0b00000011}, {0b00000011, 0b00000111}, {0b00000111, 0b00001111},
-    {0b00001111, 0b00011111}, {0b00011111, 0b00111111}, {0b00111111, 0b01111111}, {0b01111111, 0b11111111},
-};
-
 const static uint8_t BIT2_MAP[4][4] = {{0b00000000, 0b00000001, 0b00000010, 0},
-                                       {0b00000011, 0b00000111, 0b00001011, 2},
-                                       {0b00001111, 0b00011111, 0b00101111, 4},
-                                       {0b00111111, 0b01111111, 0b10111111, 6}};
+                                       {0b00000000, 0b00000100, 0b00001000, 2},
+                                       {0b00000000, 0b00010000, 0b00100000, 4},
+                                       {0b00000000, 0b01000000, 0b10000000, 6}};
 
-#define BIT1_SIZE(n)      ((((n)-1) >> 3) + 1)
-#define BIT2_SIZE(n)      ((((n)-1) >> 2) + 1)
-#define SET_BIT1(p, i, v) ((p)[(i) >> 3] |= BIT1_MAP[(i)&7][v])
+#define BIT1_SIZE(n) ((((n)-1) >> 3) + 1)
+#define BIT2_SIZE(n) ((((n)-1) >> 2) + 1)
+#define SET_BIT1(p, i, v) \
+  if (v) (p)[(i) >> 3] |= (((uint8_t)1) << ((i)&7))
 #define GET_BIT1(p, i)    (((p)[(i) >> 3] >> ((i)&7)) & ((uint8_t)1))
 #define SET_BIT2(p, i, v) ((p)[(i) >> 2] |= BIT2_MAP[(i)&3][v])
 #define GET_BIT2(p, i)    (((p)[(i) >> 2] >> BIT2_MAP[(i)&3][3]) & ((uint8_t)3))
