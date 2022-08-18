@@ -11,14 +11,14 @@ sql create table t0 using meters tags(1,'ch')
 sql create table normalTbl(ts timestamp, zone binary(8))
 
 sql use db
-sql show create table meters 
-if $rows != 1 then 
+sql show create table meters
+if $rows != 1 then
   return -1
 endi
 
 print ===============check sub table
 sql show create table t0
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 if $data00 == 't0' then
@@ -27,8 +27,8 @@ endi
 
 print ===============check normal table
 
-sql show create table normalTbl 
-if $rows != 1 then 
+sql show create table normalTbl
+if $rows != 1 then
   return -1
 endi
 
@@ -37,8 +37,8 @@ if $data00 == 'normalTbl' then
 endi
 
 print ===============check super table
-sql show create table meters 
-if $rows != 1 then 
+sql show create table meters
+if $rows != 1 then
   return -1
 endi
 
@@ -49,7 +49,7 @@ endi
 print ===============check sub table with prefix
 
 sql show create table db.t0
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
@@ -58,8 +58,8 @@ if $data00 == 't0' then
 endi
 
 print ===============check normal table with prefix
-sql show create table db.normalTbl 
-if $rows != 1 then 
+sql show create table db.normalTbl
+if $rows != 1 then
   return -1
 endi
 
@@ -69,8 +69,8 @@ endi
 
 
 print ===============check super table with prefix
-sql show create table db.meters 
-if $rows != 1 then 
+sql show create table db.meters
+if $rows != 1 then
   return -1
 endi
 
