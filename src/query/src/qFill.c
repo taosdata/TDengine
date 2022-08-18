@@ -462,6 +462,7 @@ void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const SSDataBlock* pInput) 
         pFillInfo->currentKey,
         pFillInfo->interval.sliding,
         pFillInfo->interval.slidingUnit,
+        pFillInfo->interval.intervalUnit,
         pFillInfo->precision);
       if(numOfRes < numOfRows || pFillInfo->currentKey < lastKey) {
         // set currentKey max
@@ -502,6 +503,7 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
       pFillInfo->currentKey,
       pFillInfo->interval.sliding,
       pFillInfo->interval.slidingUnit,
+      pFillInfo->interval.intervalUnit,
       pFillInfo->precision);
     assert(numOfRes >= numOfRows);
   } else { // reach the end of data
@@ -514,6 +516,7 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
       pFillInfo->currentKey,
       pFillInfo->interval.sliding,
       pFillInfo->interval.slidingUnit,
+      pFillInfo->interval.intervalUnit,
       pFillInfo->precision);
   }
 
