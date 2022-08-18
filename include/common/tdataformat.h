@@ -43,10 +43,9 @@ const static uint8_t BIT2_MAP[4][4] = {{0b00000000, 0b00000001, 0b00000010, 0},
                                        {0b00000000, 0b00010000, 0b00100000, 4},
                                        {0b00000000, 0b01000000, 0b10000000, 6}};
 
-#define BIT1_SIZE(n) ((((n)-1) >> 3) + 1)
-#define BIT2_SIZE(n) ((((n)-1) >> 2) + 1)
-#define SET_BIT1(p, i, v) \
-  if (v) (p)[(i) >> 3] |= (((uint8_t)1) << ((i)&7))
+#define BIT1_SIZE(n)      ((((n)-1) >> 3) + 1)
+#define BIT2_SIZE(n)      ((((n)-1) >> 2) + 1)
+#define SET_BIT1(p, i, v) ((p)[(i) >> 3] |= (((uint8_t)v) << ((i)&7)))
 #define GET_BIT1(p, i)    (((p)[(i) >> 3] >> ((i)&7)) & ((uint8_t)1))
 #define SET_BIT2(p, i, v) ((p)[(i) >> 2] |= BIT2_MAP[(i)&3][v])
 #define GET_BIT2(p, i)    (((p)[(i) >> 2] >> BIT2_MAP[(i)&3][3]) & ((uint8_t)3))
