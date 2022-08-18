@@ -636,6 +636,7 @@ typedef struct {
 
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
 int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj);
+void    tFreeStreamObj(SStreamObj* pObj);
 
 typedef struct {
   char    streamName[TSDB_STREAM_FNAME_LEN];
