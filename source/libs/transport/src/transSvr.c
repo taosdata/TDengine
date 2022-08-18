@@ -278,7 +278,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
         if (pBuf->invalid) {
           tTrace("%s conn %p alread read invalid packet", transLabel(pTransInst), conn);
           destroyConn(conn, true);
-          break;
+          return;
         } else {
           if (false == uvHandleReq(conn)) break;
         }
