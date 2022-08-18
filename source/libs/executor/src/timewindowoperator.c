@@ -1780,7 +1780,7 @@ void increaseTs(SqlFunctionCtx* pCtx) {
   }
 }
 
-void initIntervalDownStream(SOperatorInfo* downstream, uint8_t type, SAggSupporter* pSup) {
+void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SAggSupporter* pSup) {
   if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     // Todo(liuyao) support partition by column
     return;
@@ -2643,7 +2643,6 @@ void destroyTimeSliceOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFree(pInfo->pFillColInfo);
   taosMemoryFreeClear(param);
 }
-
 
 SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo) {
   STimeSliceOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(STimeSliceOperatorInfo));

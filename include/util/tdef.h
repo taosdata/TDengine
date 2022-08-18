@@ -133,7 +133,6 @@ typedef enum EOperatorType {
   OP_TYPE_REM,
   // unary arithmetic operator
   OP_TYPE_MINUS,
-  OP_TYPE_ASSIGN,
 
   // bitwise operator
   OP_TYPE_BIT_AND,
@@ -164,7 +163,10 @@ typedef enum EOperatorType {
 
   // json operator
   OP_TYPE_JSON_GET_VALUE,
-  OP_TYPE_JSON_CONTAINS
+  OP_TYPE_JSON_CONTAINS,
+
+  // internal operator
+  OP_TYPE_ASSIGN
 } EOperatorType;
 
 #define OP_TYPE_CALC_MAX OP_TYPE_BIT_OR
