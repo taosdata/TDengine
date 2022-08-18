@@ -205,28 +205,6 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
 #define CONN_PERSIST_TIME(para)    ((para) <= 90000 ? 90000 : (para))
 #define CONN_GET_HOST_THREAD(conn) (conn ? ((SCliConn*)conn)->hostThrd : NULL)
 #define CONN_GET_INST_LABEL(conn)  (((STrans*)(((SCliThrd*)(conn)->hostThrd)->pTransInst))->label)
-#define CONN_SHOULD_RELEASE(conn, head)                                                                              \
-  do {                                                                                                               \
-    if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) {                                                   \
-      uint64_t ahandle = head->ahandle;                                                                              \
-      CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle);                                                                     \
-      transClearBuffer(&conn->readBuf);                                                                              \
-      transFreeMsg(transContFromHead((char*)head));                                                                  \
-      if (transQueueSize(&conn->cliMsgs) > 0 && ahandle == 0) {                                                      \
-        SCliMsg* cliMsg = transQueueGet(&conn->cliMsgs, 0);                                                          \
-        if (cliMsg->type == Release) return;                                                                         \
-      }                                                                                                              \
-      tDebug("%s conn %p receive release request, refId:%" PRId64 "", CONN_GET_INST_LABEL(conn), conn, conn->refId); \
-      if (T_REF_VAL_GET(conn) > 1) {                                                                                 \
-        transUnrefCliHandle(conn);                                                                                   \
-      }                                                                                                              \
-      destroyCmsg(pMsg);                                                                                             \
-      cliReleaseUnfinishedMsg(conn);                                                                                 \
-      transQueueClear(&conn->cliMsgs);                                                                               \
-      addConnToPool(((SCliThrd*)conn->hostThrd)->pool, conn);                                                        \
-      return;                                                                                                        \
-    }                                                                                                                \
-  } while (0)
 
 #define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                                         \
   do {                                                                                    \
@@ -358,7 +336,6 @@ void cliHandleResp(SCliConn* conn) {
   if (cliRecvReleaseReq(conn, pHead)) {
     return;
   }
-  CONN_SHOULD_RELEASE(conn, pHead);
 
   if (CONN_NO_PERSIST_BY_APP(conn)) {
     pMsg = transQueuePop(&conn->cliMsgs);
@@ -1418,7 +1395,7 @@ int transReleaseCliHandle(void* handle) {
   }
 
   STransMsg tmsg = {.info.handle = handle};
-  // TRACE_SET_MSGID(&tmsg.info.traceId, tGenIdPI64());
+  TRACE_SET_MSGID(&tmsg.info.traceId, tGenIdPI64());
 
   SCliMsg* cmsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cmsg->msg = tmsg;

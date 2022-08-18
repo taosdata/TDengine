@@ -393,7 +393,7 @@ int tqReaderRemoveTbUidList(STqReader* pReader, const SArray* tbUidList) {
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   void* pIter = NULL;
   while (1) {
-    pIter = taosHashIterate(pTq->handles, pIter);
+    pIter = taosHashIterate(pTq->pHandle, pIter);
     if (pIter == NULL) break;
     STqHandle* pExec = (STqHandle*)pIter;
     if (pExec->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {

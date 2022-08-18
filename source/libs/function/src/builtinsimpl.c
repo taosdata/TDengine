@@ -1210,7 +1210,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
         int64_t val = GET_INT64_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          pBuf->v = val;
+          *(int64_t*)&pBuf->v = val;
           if (pCtx->subsidiaries.num > 0) {
             index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             doSaveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
@@ -1223,7 +1223,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
         uint64_t val = GET_UINT64_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          pBuf->v = val;
+          *(uint64_t*)&pBuf->v = val;
           if (pCtx->subsidiaries.num > 0) {
             index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             doSaveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
@@ -1231,11 +1231,11 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         }
       } else if (type == TSDB_DATA_TYPE_DOUBLE) {
         double prev = 0;
-        GET_TYPED_DATA(prev, int64_t, type, &pBuf->v);
+        GET_TYPED_DATA(prev, double, type, &pBuf->v);
 
         double val = GET_DOUBLE_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          pBuf->v = val;
+          *(double*)&pBuf->v = val;
           if (pCtx->subsidiaries.num > 0) {
             index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             doSaveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
@@ -1243,11 +1243,11 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         }
       } else if (type == TSDB_DATA_TYPE_FLOAT) {
         double prev = 0;
-        GET_TYPED_DATA(prev, int64_t, type, &pBuf->v);
+        GET_TYPED_DATA(prev, double, type, &pBuf->v);
 
         double val = GET_DOUBLE_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          pBuf->v = val;
+          *(double*)&pBuf->v = val;
         }
 
         if (pCtx->subsidiaries.num > 0) {
@@ -4918,6 +4918,16 @@ int32_t mavgFunction(SqlFunctionCtx* pCtx) {
   return numOfElems;
 }
 
+static SSampleInfo* getSampleOutputInfo(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SSampleInfo*         pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  pInfo->data = (char*)pInfo + sizeof(SSampleInfo);
+  pInfo->tuplePos = (STuplePos*)((char*)pInfo + sizeof(SSampleInfo) + pInfo->samples * pInfo->colBytes);
+
+  return pInfo;
+}
+
 bool getSampleFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pCol = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
   SValueNode*  pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
@@ -4972,7 +4982,7 @@ static void doReservoirSample(SqlFunctionCtx* pCtx, SSampleInfo* pInfo, char* da
 
 int32_t sampleFunction(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  SSampleInfo*         pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SSampleInfo*         pInfo = getSampleOutputInfo(pCtx);
 
   SInputColumnInfoData* pInput = &pCtx->input;
 
@@ -4998,7 +5008,7 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
 int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
 
-  SSampleInfo* pInfo = GET_ROWCELL_INTERBUF(pEntryInfo);
+  SSampleInfo* pInfo = getSampleOutputInfo(pCtx);
   pEntryInfo->complete = true;
 
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;

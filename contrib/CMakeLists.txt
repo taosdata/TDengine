@@ -105,11 +105,6 @@ if(${BUILD_WITH_SQLITE})
     cat("${TD_SUPPORT_DIR}/sqlite_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_WITH_SQLITE})
 
-# rust-bindings
-if(${RUST_BINDINGS})
-    cat("${TD_SUPPORT_DIR}/rust-bindings_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif(${RUST_BINDINGS})
-
 # lucene
 if(${BUILD_WITH_LUCENE})
     cat("${TD_SUPPORT_DIR}/lucene_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -273,7 +268,7 @@ endif(${BUILD_WITH_NURAFT})
 
 # pthread
 if(${BUILD_PTHREAD})
-    set(CMAKE_BUILD_TYPE release)
+    set(CMAKE_BUILD_TYPE debug)
     add_definitions(-DPTW32_STATIC_LIB)
     add_subdirectory(pthread EXCLUDE_FROM_ALL)
     set_target_properties(libpthreadVC3 PROPERTIES OUTPUT_NAME pthread)
