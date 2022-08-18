@@ -156,6 +156,18 @@ python3 ./test.py -f 2-query/spread.py
 python3 ./test.py -f 2-query/spread.py -R
 python3 ./test.py -f 2-query/sqrt.py
 # python3 ./test.py -f 2-query/sqrt.py -R
+python3 ./test.py -f 2-query/statecount.py
+python3 ./test.py -f 2-query/statecount.py -R
+python3 ./test.py -f 2-query/stateduration.py
+python3 ./test.py -f 2-query/stateduration.py -R
+python3 ./test.py -f 2-query/substr.py
+python3 ./test.py -f 2-query/substr.py -R
+python3 ./test.py -f 2-query/sum.py
+python3 ./test.py -f 2-query/sum.py -R
+python3 ./test.py -f 2-query/tail.py
+python3 ./test.py -f 2-query/tail.py -R
+python3 ./test.py -f 2-query/tan.py
+python3 ./test.py -f 2-query/tan.py -R
 
 
 python3 ./test.py -f 1-insert/update_data.py
@@ -166,7 +178,6 @@ python3 ./test.py -f 2-query/varchar.py
 python3 ./test.py -f 2-query/upper.py
 python3 ./test.py -f 2-query/lower.py
 python3 ./test.py -f 2-query/join2.py
-python3 ./test.py -f 2-query/substr.py
 python3 ./test.py -f 2-query/union.py
 python3 ./test.py -f 2-query/union1.py
 python3 ./test.py -f 2-query/concat2.py
@@ -182,7 +193,6 @@ python3 ./test.py -f 2-query/json_tag.py
 
 python3 ./test.py -f 2-query/top.py
 python3 ./test.py -f 2-query/log.py
-python3 ./test.py -f 2-query/tan.py
 # python3 ./test.py -f 2-query/nestedQuery.py
 # TD-15983 subquery output duplicate name column.
 # Please Xiangyang Guo modify the following script
@@ -193,9 +203,6 @@ python3 ./test.py -f 2-query/csum.py
 python3 ./test.py -f 2-query/mavg.py
 python3 ./test.py -f 2-query/function_diff.py
 python3 ./test.py -f 2-query/unique.py
-python3 ./test.py -f 2-query/stateduration.py
-python3 ./test.py -f 2-query/statecount.py
-python3 ./test.py -f 2-query/tail.py
 python3 ./test.py -f 2-query/ttl_comment.py
 python3 ./test.py -f 2-query/twa.py
 python3 ./test.py -f 2-query/queryQnode.py

@@ -102,7 +102,7 @@ class TDSql:
                     caller = inspect.getframeinfo(inspect.stack()[1][0])
                     args = (caller.filename, caller.lineno, sql, repr(e))
                     tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
-                    raise Exception(repr(e))   
+                    raise Exception(repr(e))
                 i+=1
                 time.sleep(1)
                 pass
@@ -254,21 +254,7 @@ class TDSql:
                 args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
                 tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
 
-        if data is None:
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
-        elif isinstance(data, str):
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
-        elif isinstance(data, datetime.date):
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
-        elif isinstance(data, float):
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
-        else:
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%d" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
+        tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
 
     def getData(self, row, col):
         self.checkRowCol(row, col)
@@ -307,7 +293,7 @@ class TDSql:
                     caller = inspect.getframeinfo(inspect.stack()[1][0])
                     args = (caller.filename, caller.lineno, sql, repr(e))
                     tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
-                    raise Exception(repr(e))                    
+                    raise Exception(repr(e))
                 i+=1
                 time.sleep(1)
                 pass
