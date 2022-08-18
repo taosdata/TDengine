@@ -55,7 +55,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     taosArrayClear(pInfo->pBlockLists);
 
     if (type == STREAM_INPUT__MERGED_SUBMIT) {
-      ASSERT(numOfBlocks > 1);
+      // ASSERT(numOfBlocks > 1);
       for (int32_t i = 0; i < numOfBlocks; i++) {
         SSubmitReq* pReq = *(void**)POINTER_SHIFT(input, i * sizeof(void*));
         taosArrayPush(pInfo->pBlockLists, &pReq);

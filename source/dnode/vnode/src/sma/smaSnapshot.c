@@ -139,7 +139,6 @@ static int32_t rsmaSnapReadQTaskInfo(SRsmaSnapReader* pReader, uint8_t** ppBuf) 
 
   smaInfo("vgId:%d, vnode snapshot rsma read qtaskinfo, size:%" PRIi64, SMA_VID(pSma), size);
 
-
   SSnapDataHdr* pHdr = (SSnapDataHdr*)(*ppBuf);
   pHdr->type = SNAP_DATA_QTASK;
   pHdr->size = size;
@@ -279,7 +278,8 @@ int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapWrit
   TdFilePtr qTaskF = taosCreateFile(qTaskInfoFullName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (!qTaskF) {
     code = TAOS_SYSTEM_ERROR(errno);
-    smaError("vgId:%d, rsma snapshot writer open %s failed since %s", TD_VID(pSma->pVnode), qTaskInfoFullName, tstrerror(code));
+    smaError("vgId:%d, rsma snapshot writer open %s failed since %s", TD_VID(pSma->pVnode), qTaskInfoFullName,
+             tstrerror(code));
     goto _err;
   }
   qWriter->pWriteH = qTaskF;
@@ -309,7 +309,7 @@ int32_t rsmaSnapWriterClose(SRsmaSnapWriter** ppWriter, int8_t rollback) {
   if (rollback) {
     // TODO: rsma1/rsma2
     // qtaskinfo
-    if(pWriter->pQTaskFWriter) {
+    if (pWriter->pQTaskFWriter) {
       taosRemoveFile(pWriter->pQTaskFWriter->fname);
     }
   } else {
