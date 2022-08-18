@@ -562,29 +562,29 @@ class StreamComputingTest(TDCase):
             if i == 0:
                 record_window_close_ts = window_close_ts
             for ts_value in [self.date_time, window_close_ts]:
-                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
+                # self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=True)
+                # if self.update and i%2 == 0:
+                #     self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=True)
+                # if self.delete and i%2 != 0:
+                #     dt = f'cast({self.date_time-1} as timestamp)'
+                #     self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=dt)
+                # ts_value += 1
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, need_null=True)
                 if self.update and i%2 == 0:
-                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
-                if self.delete and i%2 != 0:
-                    dt = f'cast({self.date_time-1} as timestamp)'
-                    self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=dt)
-                ts_value += 1
-                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
-                if self.update and i%2 == 0:
-                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
+                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, need_null=True)
                 if self.delete and i%2 != 0:
                     dt = f'cast({self.date_time-1} as timestamp)'
                     self.tdCom.delete_rows(tbname=self.tb_name, start_ts=dt)
                 ts_value += 1
-                self.tdCom.insert_rows(tbname=ctb_name, ts_value=ts_value)
-                if self.update and i%2 == 0:
-                    self.tdCom.insert_rows(tbname=ctb_name, ts_value=ts_value)
-                if self.delete and i%2 != 0:
-                    dt = f'cast({self.date_time-1} as timestamp)'
-                    self.tdCom.delete_rows(tbname=ctb_name, start_ts=dt)
-                ts_value += 1
+                # self.tdCom.insert_rows(tbname=ctb_name, ts_value=ts_value, need_null=True)
+                # if self.update and i%2 == 0:
+                #     self.tdCom.insert_rows(tbname=ctb_name, ts_value=ts_value, need_null=True)
+                # if self.delete and i%2 != 0:
+                #     dt = f'cast({self.date_time-1} as timestamp)'
+                #     self.tdCom.delete_rows(tbname=ctb_name, start_ts=dt)
+                # ts_value += 1
             
-            for tbname in [self.ctb_name, self.tb_name]:
+            for tbname in [self.tb_name]:
                 if tbname != self.tb_name:
                     self.tdCom.check_query_data(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.stb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s)')
                 else:
@@ -1152,6 +1152,79 @@ class StreamComputingTest(TDCase):
                     else:
                         self.tdCom.check_query_data(f'select {self.stb_filter_des_select_elm} from {self.stb_name}{self.des_table_suffix} order by c1,c2,c3;', f'select {self.stb_filter_des_select_elm}  from {self.stb_name} partition by {partition_by_elm} order by c1,c2,c3;')
 
+    def partition_tag_by_interval(self, interval=None, partition_by_elm="tag", ignore_expired=False):
+        self.case_name = sys._getframe().f_code.co_name
+        self.prepare_data(interval=interval)
+        self.tdCom.write_latency(self.case_name)
+        ctb_name_list = list()
+        for i in range(1, self.range_count):
+            ctb_name = self.tdCom.get_long_name()
+            ctb_name_list.append(ctb_name)
+            self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
+        if interval is not None:
+            stb_source_sql = f'select _wstart AS start, {self.partition_by_stb_source_select_str}  from {self.stb_name} partition by {partition_by_elm} interval({self.dataDict["interval"]}s)'
+            ctb_source_sql = f'select _wstart AS start, {self.partition_by_stb_source_select_str}  from {self.ctb_name} partition by {partition_by_elm} interval({self.dataDict["interval"]}s)'
+        else:
+            stb_source_sql = f'select {self.stb_filter_des_select_elm} from {self.stb_name} partition by {partition_by_elm}'
+            ctb_source_sql = f'select {self.stb_filter_des_select_elm} from {self.ctb_name} partition by {partition_by_elm}'
+
+        # create stb/ctb/tb stream
+        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=stb_source_sql, ignore_expired=ignore_expired)
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=ctb_source_sql, ignore_expired=ignore_expired)
+        # insert data
+        count = 1
+        step_count = 1
+        for i in range(1, self.range_count):
+            if i == 1:
+                record_window_close_ts = self.date_time - 15 * self.offset
+            ctb_name = self.tdCom.get_long_name()
+            self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
+            if i % 2 == 0:
+                step_count += i
+                for j in range(count, step_count):
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{j}s')
+                    for ctb_name in ctb_name_list:
+                        self.tdCom.insert_rows(tbname=ctb_name, ts_value=f'{self.date_time}+{j}s')
+                count += i
+            else:
+                step_count += 1
+                for i in range(2):
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{count}s')
+                    for ctb_name in ctb_name_list:
+                        self.tdCom.insert_rows(tbname=ctb_name, ts_value=f'{self.date_time}+{count}s')
+                count += 1
+            # check result
+            for tbname in [self.stb_name, self.ctb_name]:
+                for colname in self.partition_by_downsampling_function_list:
+                    if interval is not None:
+                        self.tdCom.check_query_data(f'select `{colname}` from {tbname}{self.des_table_suffix} order by `{colname}`;', f'select {colname}  from {tbname} partition by {partition_by_elm} interval({self.dataDict["interval"]}s) order by `{colname}`;')
+                    else:
+                        self.tdCom.check_query_data(f'select {self.stb_filter_des_select_elm} from {tbname}{self.des_table_suffix} order by c1,c2,c3;', f'select {self.stb_filter_des_select_elm}  from {tbname} partition by {partition_by_elm} order by c1,c2,c3;')
+
+        if self.disorder:
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=record_window_close_ts)
+            for ctb_name in ctb_name_list:
+                self.tdCom.insert_rows(tbname=ctb_name, ts_value=record_window_close_ts)
+            if ignore_expired:
+                for colname in self.partition_by_downsampling_function_list:
+                    for tbname in [self.stb_name, self.ctb_name]:
+                        if interval is not None:
+                            self.tdSql.query(f'select `{colname}` from {tbname}{self.des_table_suffix} order by `{colname}`;')
+                            res1 = self.tdSql.query_data
+                            self.tdSql.query(f'select {colname}  from {tbname} partition by {partition_by_elm} interval({self.dataDict["interval"]}s) order by `{colname}`;')
+                            res2 = self.tdSql.query_data
+                            self.tdSql.checkNotEqual(res1, res2)
+                        else:
+                            self.tdCom.check_query_data(f'select {self.stb_filter_des_select_elm} from {tbname}{self.des_table_suffix} order by c1,c2,c3;', f'select {self.stb_filter_des_select_elm}  from {tbname} partition by {partition_by_elm} order by c1,c2,c3;')
+
+            else:
+                for colname in self.partition_by_downsampling_function_list:
+                    for tbname in [self.stb_name, self.ctb_name]:
+                        if interval is not None:
+                            self.tdCom.check_query_data(f'select `{colname}` from {tbname}{self.des_table_suffix} order by `{colname}`;', f'select {colname}  from {tbname} partition by {partition_by_elm} interval({self.dataDict["interval"]}s) order by `{colname}`;')
+                        else:
+                            self.tdCom.check_query_data(f'select {self.stb_filter_des_select_elm} from {tbname}{self.des_table_suffix} order by c1,c2,c3;', f'select {self.stb_filter_des_select_elm}  from {tbname} partition by {partition_by_elm} order by c1,c2,c3;')
+
 
     def max_delay_state_window_order(self, state_window, interation, vgroups=1):
         self.case_name = sys._getframe().f_code.co_name
@@ -1277,8 +1350,8 @@ class StreamComputingTest(TDCase):
     def insert_after_recreate_source_table(self):
         count = self.data_filter(True)
         new_count = deepcopy(count)
-        for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
-            self.tdSql.execute(f'drop table if exists {tbname}')
+        for tbname in [self.stb_name, self.tb_name]:
+            self.tdSql.error(f'drop table if exists {tbname}')
         self.tdCom.create_stable(dbname=self.dbname, stbname=self.stb_name)
         self.tdCom.create_ctable(dbname=self.dbname, stbname=self.stb_name, ctbname=self.ctb_name)
         self.tdCom.create_table(dbname=self.dbname, tbname=self.tb_name)
@@ -1349,6 +1422,8 @@ class StreamComputingTest(TDCase):
         self.partitionby_interval(interval=10, partition_by_elm="tbname", ignore_expired=True)
         # # ! TD-18216
         # self.partitionby_interval(interval=10, partition_by_elm="t1")
+        # ! TD-18481
+        # self.partition_tag_by_interval(interval=10, partition_by_elm="t1")
 
         # TODO to be supported
         # self.partitionby_interval(interval=None, partition_by_elm="t1")
