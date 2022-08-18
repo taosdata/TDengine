@@ -1376,24 +1376,43 @@ static int32_t doMergeBufAndFileRows_Rv(STsdbReader* pReader, STableBlockScanInf
   SBlockData*         pBlockData = &pReader->status.fileBlockData;
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
 
-  int64_t tsLast = getCurrentKeyInLastBlock(pLastBlockReader);
+  int64_t tsLast = INT64_MIN;
+  if (pLastBlockReader->lastBlockData.nRow > 0) {
+    tsLast = getCurrentKeyInLastBlock(pLastBlockReader);
+  }
 
   TSDBKEY  k = TSDBROW_KEY(pRow);
   TSDBROW  fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
 
   SBlockData* pLastBlockData = &pLastBlockReader->lastBlockData;
 
-  int64_t minKey = INT64_MAX;
-  if (minKey > tsLast) {
-    minKey = tsLast;
-  }
+  int64_t minKey = 0;
+  if (pReader->order == TSDB_ORDER_ASC) {
+    minKey = INT64_MAX;   // chosen the minimum value
+    if (minKey > tsLast && pLastBlockReader->lastBlockData.nRow > 0) {
+      minKey = tsLast;
+    }
 
-  if (minKey > k.ts) {
-    minKey = k.ts;
-  }
+    if (minKey > k.ts) {
+      minKey = k.ts;
+    }
 
-  if (minKey > key && pBlockData->nRow > 0) {
-    minKey = key;
+    if (minKey > key && pBlockData->nRow > 0) {
+      minKey = key;
+    }
+  } else {
+    minKey = INT64_MIN;
+    if (minKey < tsLast && pLastBlockReader->lastBlockData.nRow > 0) {
+      minKey = tsLast;
+    }
+
+    if (minKey < k.ts) {
+      minKey = k.ts;
+    }
+
+    if (minKey < key && pBlockData->nRow > 0) {
+      minKey = key;
+    }
   }
 
   bool init = false;
@@ -1530,6 +1549,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
   return TSDB_CODE_SUCCESS;
 }
 
+// todo handle the desc order check
 static int32_t doMergeThreeLevelRowsRv(STsdbReader* pReader, STableBlockScanInfo* pBlockScanInfo, SBlockData* pBlockData, SLastBlockReader* pLastBlockReader) {
   SRowMerger merge = {0};
   STSRow*    pTSRow = NULL;
