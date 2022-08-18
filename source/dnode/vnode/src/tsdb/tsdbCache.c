@@ -1119,7 +1119,10 @@ int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUH
           taosMemoryFree(pRow);
         }
 
+        taosThreadMutexUnlock(&pTsdb->lruMutex);
+
         *handle = NULL;
+
         return 0;
       }
 
@@ -1131,15 +1134,11 @@ int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUH
       }
 
       taosThreadMutexUnlock(&pTsdb->lruMutex);
+
+      h = taosLRUCacheLookup(pCache, key, keyLen);
     } else {
       taosThreadMutexUnlock(&pTsdb->lruMutex);
-
-      *handle = h;
-
-      return code;
     }
-
-    h = taosLRUCacheLookup(pCache, key, keyLen);
   }
 
   *handle = h;
