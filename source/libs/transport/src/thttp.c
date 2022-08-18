@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #ifdef USE_UV
 #include <uv.h>
-#include "transComm.h"
 #endif
 // clang-format off
 #include "zlib.h"
@@ -208,7 +207,7 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   uv_tcp_init(loop, &cli->tcp);
 
   // set up timeout to avoid stuck;
-  int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 2);
+  int32_t fd = taosCreateSocketWithTimeout(5);
   uv_tcp_open((uv_tcp_t*)&cli->tcp, fd);
 
   int32_t ret =uv_tcp_connect(&cli->conn, &cli->tcp, (const struct sockaddr*)&dest, clientConnCb); 
