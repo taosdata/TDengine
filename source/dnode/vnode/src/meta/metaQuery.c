@@ -127,6 +127,15 @@ _err:
 //   return 0;
 // }
 
+bool metaIsTableExist(SMeta  *pMeta, tb_uid_t uid) {
+  // query uid.idx
+  if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), NULL, NULL) < 0) {
+    return false;
+  }
+
+  return true;
+}
+
 int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   SMeta  *pMeta = pReader->pMeta;
   int64_t version;
