@@ -2220,8 +2220,12 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
         doFilterResult(pInfo);
 
         blockDataCleanup(p);
-        if (pInfo->pRes->info.rows > 0)
+        if (pInfo->pRes->info.rows > 0) {
           break;
+        } else {
+          numOfRows = 0;
+          continue;
+        }
       }
     }
     blockDataDestroy(p);
