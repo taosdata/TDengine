@@ -759,6 +759,7 @@ void cliSend(SCliConn* pConn) {
   pHead->release = REQUEST_RELEASE_HANDLE(pCliMsg) ? 1 : 0;
   memcpy(pHead->user, pTransInst->user, strlen(pTransInst->user));
   pHead->traceId = pMsg->info.traceId;
+  pHead->magicNum = htonl(TRANS_MAGIC_NUM);
 
   uv_buf_t wb = uv_buf_init((char*)pHead, msgLen);
 
