@@ -928,6 +928,9 @@ int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
   size = BIT2_SIZE(pColData->nVal + 1);
   code = tRealloc(&pColData->pBitMap, size);
   if (code) goto _exit;
+  if ((pColData->nVal & 3) == 0) {
+    pColData->pBitMap[pColData->nVal >> 2] = 0;
+  }
 
   // put value
   if (pColVal->isNone) {
