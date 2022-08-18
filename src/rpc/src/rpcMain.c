@@ -1423,7 +1423,16 @@ static TBOOL rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
     taosTmrReset(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl, &pConn->pTimer);
 
   rpcUnlockConn(pConn);
-  return ret ? BOOL_TRUE : BOOL_FALSE;
+
+  if(ret == BOOL_FALSE) {
+    // try next ip again
+    pContext->code = terrno;
+    // in rpcProcessConnError if numOfTry over limit, could call rpcNotifyClient to stop query
+    taosTmrStart(rpcProcessConnError, 1, pContext, pRpc->tmrCtrl);
+    return BOOL_ASYNC;
+  }
+
+  return BOOL_TRUE;
 }
 
 static bool rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
@@ -1459,13 +1468,12 @@ static bool rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
 static void rpcProcessConnError(void *param, void *id) {
   SRpcReqContext *pContext = (SRpcReqContext *)param;
   SRpcInfo       *pRpc = pContext->pRpc;
-  SRpcMsg         rpcMsg;
+  SRpcMsg        rpcMsg;
  
   if (pRpc == NULL) {
     return;
   }
   
-
   if (pContext->numOfTry >= pContext->epSet.numOfEps || pContext->msgType == TSDB_MSG_TYPE_FETCH) {
     rpcMsg.msgType = pContext->msgType+1;
     rpcMsg.ahandle = pContext->ahandle;
