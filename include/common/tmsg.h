@@ -2555,10 +2555,14 @@ typedef struct {
   char    topic[TSDB_TOPIC_FNAME_LEN];
   int64_t ntbUid;
   SArray* colIdList;  // SArray<int16_t>
-} SCheckAlterInfo;
+} STqCheckInfo;
 
-int32_t tEncodeSCheckAlterInfo(SEncoder* pEncoder, const SCheckAlterInfo* pInfo);
-int32_t tDecodeSCheckAlterInfo(SDecoder* pDecoder, SCheckAlterInfo* pInfo);
+int32_t tEncodeSTqCheckInfo(SEncoder* pEncoder, const STqCheckInfo* pInfo);
+int32_t tDecodeSTqCheckInfo(SDecoder* pDecoder, STqCheckInfo* pInfo);
+
+typedef struct {
+  char topic[TSDB_TOPIC_FNAME_LEN];
+} STqDelCheckInfoReq;
 
 typedef struct {
   int32_t vgId;
@@ -2658,6 +2662,10 @@ typedef struct {
   int32_t vgId;
   SEpSet  epSet;
 } SVgEpSet;
+
+typedef struct {
+  int32_t padding;
+} SRSmaExecMsg;
 
 typedef struct {
   int64_t suid;

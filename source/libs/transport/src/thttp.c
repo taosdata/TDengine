@@ -221,7 +221,6 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
     uError("failed to receive response from %s:%u since %s", server, port, terrstr());
     goto SEND_OVER;
   }
-
   code = 0;
 
 SEND_OVER:
