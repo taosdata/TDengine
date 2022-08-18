@@ -354,7 +354,6 @@ int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData) {
 
   *ppData = NULL;
 
-#if 0
   // read data file
   if (!pReader->dataDone) {
     code = tsdbSnapReadData(pReader, ppData);
@@ -368,7 +367,6 @@ int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData) {
       }
     }
   }
-#endif
 
   // read del file
   if (!pReader->delDone) {
