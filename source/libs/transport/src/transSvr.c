@@ -277,7 +277,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
         tTrace("%s conn %p alread read complete packet", transLabel(pTransInst), conn);
         if (uvHandleReq(conn) == false) {
           destroyConn(conn, true);
-          break;
+          return;
         }
       }
       return;
