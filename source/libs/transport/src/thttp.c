@@ -152,15 +152,15 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
 }
 
 static int32_t taosBuildDstAddr(const char* server, uint16_t port, struct sockaddr_in* dest) {
-  uint32_t ipv4 = taosGetIpv4FromFqdn(server);
-  if (ipv4 == 0xffffffff) {
+  uint32_t ip = taosGetIpv4FromFqdn(server);
+  if (ip == 0xffffffff) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("http-report failed to get http server:%s ip since %s", server, terrstr());
     return -1;
   }
-  char ipv4Buf[128] = {0};
-  tinet_ntoa(ipv4Buf, ipv4);
-  uv_ip4_addr(ipv4Buf, port, dest);
+  char buf[128] = {0};
+  tinet_ntoa(buf, ip);
+  uv_ip4_addr(buf, port, dest);
   return 0;
 }
 int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32_t contLen, EHttpCompFlag flag) {
