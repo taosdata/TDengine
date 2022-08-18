@@ -530,7 +530,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.sourceDbUid = pDb->uid;
   streamObj.targetDbUid = pDb->uid;
   streamObj.version = 1;
-  streamObj.sql = pCreate->sql;
+  streamObj.sql = strdup(pCreate->sql);
   streamObj.smaId = smaObj.uid;
   streamObj.watermark = pCreate->watermark;
   streamObj.trigger = STREAM_TRIGGER_WINDOW_CLOSE;
@@ -585,6 +585,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
     return -1;
   }
   if (pAst != NULL) nodesDestroyNode(pAst);
+  nodesDestroyNode((SNode *)pPlan);
 
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq);
@@ -609,6 +610,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   code = 0;
 
 _OVER:
+  tFreeStreamObj(&streamObj);
   mndDestroySmaObj(&smaObj);
   mndTransDrop(pTrans);
   return code;
