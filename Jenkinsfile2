@@ -43,6 +43,7 @@ def pre_test(){
         cd ${WKC}
         git reset --hard
         git clean -fxd
+        rm -rf examples/rust/
         git remote prune origin
         git fetch
     '''
