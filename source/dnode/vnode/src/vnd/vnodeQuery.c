@@ -424,6 +424,25 @@ int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t vnodeGetStbIdList(SVnode* pVnode, int64_t suid, SArray* list) {
+  SMStbCursor* pCur = metaOpenStbCursor(pVnode->pMeta, suid);
+  if (!pCur) {
+    return TSDB_CODE_FAILED;
+  }
+
+  while (1) {
+    tb_uid_t id = metaStbCursorNext(pCur);
+    if (id == 0) {
+      break;
+    }
+
+    taosArrayPush(list, &id);
+  }
+
+  metaCloseStbCursor(pCur);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
   SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, suid);
   if (!pCur) {

@@ -167,6 +167,9 @@ static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream) {
 
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream) {
   mTrace("stream:%s, perform delete action", pStream->name);
+  taosWLockLatch(&pStream->lock);
+  tFreeStreamObj(pStream);
+  taosWUnLockLatch(&pStream->lock);
   return 0;
 }
 
@@ -493,10 +496,17 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
 
   stbObj.uid = pStream->targetStbUid;
 
-  if (mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj) < 0) goto _OVER;
+  if (mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj) < 0) {
+    mndFreeStb(&stbObj);
+    goto _OVER;
+  }
+
+  tFreeSMCreateStbReq(&createReq);
+  mndFreeStb(&stbObj);
 
   return 0;
 _OVER:
+  tFreeSMCreateStbReq(&createReq);
   mndReleaseStb(pMnode, pStb);
   mndReleaseDb(pMnode, pDb);
   return -1;
@@ -715,6 +725,7 @@ _OVER:
   mndReleaseDb(pMnode, pDb);
 
   tFreeSCMCreateStreamReq(&createStreamReq);
+  tFreeStreamObj(&streamObj);
   return code;
 }
 

@@ -569,8 +569,6 @@ int32_t tqProcessVgChangeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLe
 }
 
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
-  int32_t code = 0;
-
   if (pTask->taskLevel == TASK_LEVEL__AGG) {
     ASSERT(taosArrayGetSize(pTask->childEpInfo) != 0);
   }
@@ -581,8 +579,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
   pTask->outputQueue = streamQueueOpen();
 
   if (pTask->inputQueue == NULL || pTask->outputQueue == NULL) {
-    code = -1;
-    goto FAIL;
+    return -1;
   }
 
   pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
@@ -627,14 +624,9 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
 
   streamSetupTrigger(pTask);
 
-  tqInfo("deploy stream task on vg %d, task id %d, child id %d", TD_VID(pTq->pVnode), pTask->taskId,
+  tqInfo("expand stream task on vg %d, task id %d, child id %d", TD_VID(pTq->pVnode), pTask->taskId,
          pTask->selfChildId);
-
-FAIL:
-  if (pTask->inputQueue) streamQueueClose(pTask->inputQueue);
-  if (pTask->outputQueue) streamQueueClose(pTask->outputQueue);
-  // TODO free executor
-  return code;
+  return 0;
 }
 
 int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen) {
