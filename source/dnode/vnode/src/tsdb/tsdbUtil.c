@@ -1850,6 +1850,8 @@ int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol
                         uint8_t **ppBuf) {
   int32_t code = 0;
 
+  ASSERT(pColData->flag && (pColData->flag != HAS_NONE) && (pColData->flag != HAS_NULL));
+
   pBlockCol->szBitmap = 0;
   pBlockCol->szOffset = 0;
   pBlockCol->szValue = 0;
@@ -1857,9 +1859,47 @@ int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol
   int32_t size = 0;
   // bitmap
   if (pColData->flag != HAS_VALUE) {
-    code = tsdbCmprData(pColData->pBitMap, BIT2_SIZE(pColData->nVal), TSDB_DATA_TYPE_TINYINT, cmprAlg, ppOut,
-                        nOut + size, &pBlockCol->szBitmap, ppBuf);
+    uint8_t *pBitMap = pColData->pBitMap;
+    int32_t  szBitMap = BIT2_SIZE(pColData->nVal);
+
+    // BIT2 to BIT1
+    if (pColData->flag != (HAS_VALUE | HAS_NULL | HAS_NONE)) {
+      szBitMap = BIT1_SIZE(pColData->nVal);
+      pBitMap = taosMemoryCalloc(1, szBitMap);
+      if (pBitMap == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _exit;
+      }
+
+      for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+        uint8_t v = GET_BIT2(pColData->pBitMap, iVal);
+        switch (pColData->flag) {
+          case (HAS_NULL | HAS_NONE):
+            SET_BIT1(pBitMap, iVal, v);
+            break;
+          case (HAS_VALUE | HAS_NONE):
+            if (v) {
+              SET_BIT1(pBitMap, iVal, 1);
+            } else {
+              SET_BIT1(pBitMap, iVal, 0);
+            }
+            break;
+          case (HAS_VALUE | HAS_NULL):
+            SET_BIT1(pBitMap, iVal, v - 1);
+            break;
+          default:
+            ASSERT(0);
+        }
+      }
+    }
+
+    code = tsdbCmprData(pBitMap, szBitMap, TSDB_DATA_TYPE_TINYINT, cmprAlg, ppOut, nOut + size, &pBlockCol->szBitmap,
+                        ppBuf);
     if (code) goto _exit;
+
+    if (pColData->flag != (HAS_VALUE | HAS_NULL | HAS_NONE)) {
+      taosMemoryFree(pBitMap);
+    }
   }
   size += pBlockCol->szBitmap;
 
@@ -1909,9 +1949,46 @@ int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, in
   uint8_t *p = pIn;
   // bitmap
   if (pBlockCol->szBitmap) {
-    code = tsdbDecmprData(p, pBlockCol->szBitmap, TSDB_DATA_TYPE_TINYINT, cmprAlg, &pColData->pBitMap,
-                          BIT2_SIZE(pColData->nVal), ppBuf);
-    if (code) goto _exit;
+    if (pBlockCol->flag != (HAS_VALUE | HAS_NULL | HAS_NONE)) {
+      uint8_t *pBitMap = NULL;
+      code = tsdbDecmprData(p, pBlockCol->szBitmap, TSDB_DATA_TYPE_TINYINT, cmprAlg, &pBitMap,
+                            BIT1_SIZE(pColData->nVal), ppBuf);
+      if (code) goto _exit;
+
+      code = tRealloc(&pColData->pBitMap, BIT2_SIZE(pColData->nVal));
+      if (code) {
+        tFree(pBitMap);
+        goto _exit;
+      }
+
+      // BIT1 to BIT2
+      for (int32_t iVal = 0; iVal < nVal; iVal++) {
+        uint8_t v = GET_BIT1(pBitMap, iVal);
+        switch (pBlockCol->flag) {
+          case (HAS_NULL | HAS_NONE):
+            SET_BIT2(pColData->pBitMap, iVal, v);
+            break;
+          case (HAS_VALUE | HAS_NONE):
+            if (v) {
+              SET_BIT2(pColData->pBitMap, iVal, 2);
+            } else {
+              SET_BIT2(pColData->pBitMap, iVal, 0);
+            }
+            break;
+          case (HAS_VALUE | HAS_NULL):
+            SET_BIT2(pColData->pBitMap, iVal, v + 1);
+            break;
+          default:
+            ASSERT(0);
+        }
+      }
+
+      tFree(pBitMap);
+    } else {
+      code = tsdbDecmprData(p, pBlockCol->szBitmap, TSDB_DATA_TYPE_TINYINT, cmprAlg, &pColData->pBitMap,
+                            BIT2_SIZE(pColData->nVal), ppBuf);
+      if (code) goto _exit;
+    }
   }
   p += pBlockCol->szBitmap;
 
