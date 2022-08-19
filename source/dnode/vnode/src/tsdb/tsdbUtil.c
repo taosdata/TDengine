@@ -1600,9 +1600,76 @@ _exit:
   return code;
 }
 
-int32_t tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData) {
+int32_t tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uint8_t *aBuf[]) {
   int32_t code = 0;
-  // TODO
+
+  tBlockDataClear(pBlockData);
+
+  int32_t      n = 0;
+  SDiskDataHdr hdr = {0};
+
+  // SDiskDataHdr
+  n += tGetDiskDataHdr(pIn + n, &hdr);
+  if (!taosCheckChecksumWhole(pIn, n + hdr.szUid + hdr.szVer + hdr.szKey + sizeof(TSCKSUM))) {
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _exit;
+  }
+  ASSERT(hdr.delimiter == TSDB_FILE_DLMT);
+
+  pBlockData->suid = hdr.suid;
+  pBlockData->uid = hdr.uid;
+  pBlockData->nRow = hdr.nRow;
+
+  // uid
+  if (hdr.uid == 0) {
+    ASSERT(hdr.szUid);
+    code = tsdbDecmprData(pIn + n, hdr.szUid, TSDB_DATA_TYPE_BIGINT, hdr.cmprAlg, (uint8_t **)&pBlockData->aUid,
+                          sizeof(int64_t) * hdr.nRow, &aBuf[0]);
+    if (code) goto _exit;
+  } else {
+    ASSERT(!hdr.szUid);
+  }
+  n += hdr.szUid;
+
+  // version
+  code = tsdbDecmprData(pIn + n, hdr.szVer, TSDB_DATA_TYPE_BIGINT, hdr.cmprAlg, (uint8_t **)&pBlockData->aVersion,
+                        sizeof(int64_t) * hdr.nRow, &aBuf[0]);
+  if (code) goto _exit;
+  n += hdr.szVer;
+
+  // TSKEY
+  code = tsdbDecmprData(pIn + n, hdr.szKey, TSDB_DATA_TYPE_TIMESTAMP, hdr.cmprAlg, (uint8_t **)&pBlockData->aTSKEY,
+                        sizeof(TSKEY) * hdr.nRow, &aBuf[0]);
+  if (code) goto _exit;
+  n = n + hdr.szKey + sizeof(TSCKSUM);
+
+  // loop to decode each column data
+  if (hdr.szBlkCol == 0) goto _exit;
+
+  int32_t nt = 0;
+  while (nt < hdr.szBlkCol) {
+    SBlockCol blockCol = {0};
+    nt += tGetBlockCol(pIn + n + nt, &blockCol);
+    ASSERT(nt <= hdr.szBlkCol);
+
+    SColData *pColData;
+    code = tBlockDataAddColData(pBlockData, taosArrayGetSize(pBlockData->aIdx), &pColData);
+    if (code) goto _exit;
+
+    tColDataInit(pColData, blockCol.cid, blockCol.type, blockCol.smaOn);
+    if (blockCol.flag == HAS_NULL) {
+      for (int32_t iRow = 0; iRow < hdr.nRow; iRow++) {
+        code = tColDataAppendValue(pColData, &COL_VAL_NULL(blockCol.cid, blockCol.type));
+        if (code) goto _exit;
+      }
+    } else {
+      code = tsdbDecmprColData(pIn + n + hdr.szBlkCol + sizeof(TSCKSUM) + blockCol.offset, &blockCol, hdr.cmprAlg,
+                               hdr.nRow, pColData, &aBuf[0]);
+      if (code) goto _exit;
+    }
+  }
+
+_exit:
   return code;
 }
 
