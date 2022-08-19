@@ -639,7 +639,7 @@ int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
     olen = vlen = vlen2 = vlen3 = 0;
 
     strncpy(line, *pEnv, sizeof(line)-1);
-    (*pEnv)++;
+    pEnv++;
     taosEnvToCfg(line, line);
 
     paGetToken(line, &name, &olen);
@@ -1037,7 +1037,7 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char* apolloUrl
   line[1023] = 0;
   while(*pEnv != NULL) {
     strncpy(line, *pEnv, sizeof(line)-1);
-    (*pEnv)++;
+    pEnv++;
     if (strncmp(line, "TAOS_APOLLO_URL", 14) == 0) {
       char *p = strchr(line, '=');
       if (p != NULL) {
