@@ -910,11 +910,11 @@ int32_t compareWinRes(void* pKey, void* data, int32_t index) {
 }
 
 static void removeDeleteResults(SHashObj* pUpdatedMap, SArray* pDelWins) {
-  if (!pUpdatedMap || taosHashGetSize(pUpdatedMap) == 0) {
+  int32_t delSize = taosArrayGetSize(pDelWins);
+  if (taosHashGetSize(pUpdatedMap) == 0 || delSize == 0) {
     return;
   }
-  int32_t delSize = taosArrayGetSize(pDelWins);
-  void*   pIte = NULL;
+  void* pIte = NULL;
   while ((pIte = taosHashIterate(pUpdatedMap, pIte)) != NULL) {
     SResKeyPos* pResKey = (SResKeyPos*)pIte;
     int32_t     index = binarySearchCom(pDelWins, delSize, pResKey, TSDB_ORDER_DESC, compareWinRes);
