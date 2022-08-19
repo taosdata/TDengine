@@ -1706,14 +1706,19 @@ void destroyStreamFinalIntervalOperatorInfo(void* param, int32_t numOfOutput) {
   blockDataDestroy(pInfo->pPullDataRes);
   taosArrayDestroy(pInfo->pRecycledPages);
   blockDataDestroy(pInfo->pUpdateRes);
+  taosArrayDestroy(pInfo->pDelWins);
+  blockDataDestroy(pInfo->pDelRes);
 
   if (pInfo->pChildren) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
     for (int32_t i = 0; i < size; i++) {
       SOperatorInfo* pChildOp = taosArrayGetP(pInfo->pChildren, i);
       destroyStreamFinalIntervalOperatorInfo(pChildOp->info, numOfOutput);
+      taosMemoryFree(pChildOp->pDownstream);
+      cleanupExprSupp(&pChildOp->exprSupp);
       taosMemoryFreeClear(pChildOp);
     }
+    taosArrayDestroy(pInfo->pChildren);
   }
   nodesDestroyNode((SNode*)pInfo->pPhyNode);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
@@ -2643,7 +2648,6 @@ void destroyTimeSliceOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFree(pInfo->pFillColInfo);
   taosMemoryFreeClear(param);
 }
-
 
 SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo) {
   STimeSliceOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(STimeSliceOperatorInfo));
