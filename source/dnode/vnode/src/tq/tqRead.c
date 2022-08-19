@@ -341,7 +341,7 @@ FAIL:
   return -1;
 }
 
-void tqReaderSetColIdList(STqReader* pReadHandle, SArray* pColIdList) { pReadHandle->pColIdList = pColIdList; }
+void tqReaderSetColIdList(STqReader* pReader, SArray* pColIdList) { pReader->pColIdList = pColIdList; }
 
 int tqReaderSetTbUidList(STqReader* pReader, const SArray* tbUidList) {
   if (pReader->tbIdHash) {

@@ -14,7 +14,7 @@ $st = $stPrefix . $i
 $tb = $tbPrefix . $i
 
 print =============== step1
-# quorum  presicion 
+# quorum  presicion
 sql create database $db vgroups 8 replica 1 duration 2 keep 10 minrows 80 maxrows 10000 wal_level 2 wal_fsync_period 1000 comp 0 cachemodel 'last_value' precision 'us'
 sql select * from information_schema.ins_databases
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
@@ -46,7 +46,7 @@ endi
 #if $data29 != 12 then
 #  return -1
 #endi
- 
+
 print =============== step2
 sql_error create database $db
 sql create database if not exists $db
@@ -60,7 +60,7 @@ sql drop database $db
 sql select * from information_schema.ins_databases
 if $rows != 2 then
   return -1
-endi 
+endi
 
 print =============== step4
 sql_error drop database $db
@@ -102,22 +102,22 @@ while $i < 5
   sql create table $tb using $st tags(1)
 
   sql show stables
-  if $rows != 1 then 
+  if $rows != 1 then
     return -1
   endi
 
   print $data00 $data01 $data02 $data03
-  if $data00 != $st then 
+  if $data00 != $st then
     return -1
   endi
 
   sql show tables
-  if $rows != 1 then 
+  if $rows != 1 then
     return -1
   endi
 
   print $data00 $data01 $data02 $data03
-  if $data00 != $tb then 
+  if $data00 != $tb then
     return -1
   endi
 
@@ -127,8 +127,8 @@ endw
 print =============== step7
 $i = 0
 while $i < 5
-  $db = $dbPrefix . $i  
-  sql drop database $db 
+  $db = $dbPrefix . $i
+  sql drop database $db
   $i = $i + 1
 endw
 
@@ -143,20 +143,20 @@ sql create table $st (ts timestamp, i int) tags (j int)
 sql create table $tb using $st tags(1)
 
 sql show stables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
-if $data00 != $st then 
+if $data00 != $st then
   return -1
 endi
 
 sql show tables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
-if $data00 != $tb then 
+if $data00 != $tb then
   return -1
 endi
 
@@ -168,12 +168,12 @@ sql create database $db
 sql use $db
 
 sql show stables
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
 sql show tables
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -182,20 +182,20 @@ sql create table $st (ts timestamp, i int) tags (j int)
 sql create table $tb using $st tags(1)
 
 sql show stables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
-if $data00 != $st then 
+if $data00 != $st then
   return -1
 endi
 
 sql show tables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
-if $data00 != $tb then 
+if $data00 != $tb then
   return -1
 endi
 
@@ -207,12 +207,12 @@ sql create database $db
 sql use $db
 
 sql show stables
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
 sql show tables
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -221,20 +221,20 @@ sql create table $st (ts timestamp, i int) tags (j int)
 sql create table $tb using $st tags(1)
 
 sql show stables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
-if $data00 != $st then 
+if $data00 != $st then
   return -1
 endi
 
 sql show tables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
-if $data00 != $tb then 
+if $data00 != $tb then
   return -1
 endi
 
@@ -245,12 +245,12 @@ sql insert into $tb values (now+4a, 3)
 sql insert into $tb values (now+5a, 4)
 
 sql select * from $tb
-if $rows != 5 then 
+if $rows != 5 then
   return -1
 endi
 
 sql select * from $st
-if $rows != 5 then 
+if $rows != 5 then
   return -1
 endi
 
@@ -262,12 +262,12 @@ sql create database $db
 sql use $db
 
 sql show stables
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
 sql show tables
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -276,20 +276,20 @@ sql create table $st (ts timestamp, i int) tags (j int)
 sql create table $tb using $st tags(1)
 
 sql show stables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
-if $data00 != $st then 
+if $data00 != $st then
   return -1
 endi
 
 sql show tables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
-if $data00 != $tb then 
+if $data00 != $tb then
   return -1
 endi
 
@@ -300,12 +300,12 @@ sql insert into $tb values (now+4a, 3)
 sql insert into $tb values (now+5a, 4)
 
 sql select * from $tb
-if $rows != 5 then 
+if $rows != 5 then
   return -1
 endi
 
 sql select * from $st
-if $rows != 5 then 
+if $rows != 5 then
   return -1
 endi
 
