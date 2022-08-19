@@ -2828,7 +2828,7 @@ static int32_t checkEvery(STranslateContext* pCxt, SValueNode* pInterval) {
   char *unit = &pInterval->literal[len - 1];
   if (*unit == 'n' || *unit == 'y') {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE,
-                                   "Unsupported time unit in Every clause");
+                                   "Unsupported time unit in EVERY clause");
   }
 
   return TSDB_CODE_SUCCESS;
