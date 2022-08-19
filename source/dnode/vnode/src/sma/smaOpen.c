@@ -146,6 +146,17 @@ int32_t smaClose(SSma *pSma) {
   return 0;
 }
 
+int32_t smaPreClose(SSma *pSma) {
+  if (pSma && VND_IS_RSMA(pSma->pVnode)) {
+    SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pSma);
+    for (int32_t i = 0; i < RSMA_EXECUTOR_MAX; ++i) {
+      tsem_post(&(pRSmaStat->notEmpty));
+    }
+    smaInfo("prop:vgId:%d post notEmtpy", SMA_VID(pSma));
+  }
+  return 0;
+}
+
 /**
  * @brief rsma env restore
  * 

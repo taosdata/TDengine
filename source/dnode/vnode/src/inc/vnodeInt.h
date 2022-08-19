@@ -189,6 +189,7 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
 int32_t smaInit();
 void    smaCleanUp();
 int32_t smaOpen(SVnode* pVnode);
+int32_t smaPreClose(SSma* pSma);
 int32_t smaClose(SSma* pSma);
 int32_t smaBegin(SSma* pSma);
 int32_t smaSyncPreCommit(SSma* pSma);
@@ -322,9 +323,11 @@ struct SVnode {
   TdThreadMutex lock;
   bool          blocked;
   bool          restored;
+  bool          inClose;
   tsem_t        syncSem;
   SQHandle*     pQuery;
 };
+
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
 

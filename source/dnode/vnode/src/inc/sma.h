@@ -32,7 +32,8 @@ extern "C" {
 #define smaTrace(...) do { if (smaDebugFlag & DEBUG_TRACE) { taosPrintLog("SMA ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
-#define RSMA_TASK_INFO_HASH_SLOT 8
+#define RSMA_TASK_INFO_HASH_SLOT (8)
+#define RSMA_EXECUTOR_MAX        (4)
 
 typedef struct SSmaEnv       SSmaEnv;
 typedef struct SSmaStat      SSmaStat;

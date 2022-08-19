@@ -19,7 +19,6 @@
 #define RSMA_QTASKINFO_HEAD_LEN    (sizeof(int32_t) + sizeof(int8_t) + sizeof(int64_t))  // len + type + suid
 #define RSMA_QTASKEXEC_SMOOTH_SIZE (100)                                                 // cnt
 #define RSMA_SUBMIT_BATCH_SIZE     (1024)                                                // cnt
-#define RSMA_EXECUTOR_MAX          (4)                                                   // cnt
 #define RSMA_FETCH_DELAY_MAX       (1800000)                                             // ms
 #define RSMA_FETCH_SKIP_MAX        (1000)                                                // cnt
 #define RSMA_FETCH_ACTIVE_MAX      (1800)                                                // ms
@@ -671,7 +670,7 @@ static int32_t tdRSmaFetchAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSm
     } else {
       smaDebug("vgId:%d, rsma %" PRIi8 " data fetched", SMA_VID(pSma), pItem->level);
     }
-#if 1
+#if 0
     char flag[10] = {0};
     snprintf(flag, 10, "level %" PRIi8, pItem->level);
     blockDebugShowDataBlocks(pResList, flag);
@@ -1736,6 +1735,7 @@ _err:
  * @return int32_t
  */
 int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
+  SVnode    *pVnode = pSma->pVnode;
   SSmaEnv   *pEnv = SMA_RSMA_ENV(pSma);
   SRSmaStat *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pEnv);
   SHashObj  *infoHash = NULL;
@@ -1753,18 +1753,9 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
     goto _err;
   }
 
-  int32_t nIdle = 0;
+  bool isBusy = false;
   while (true) {
-    if (++nIdle > 100) {
-      if (atomic_fetch_sub_8(&pRSmaStat->nExecutor, 1) > 1) {
-        // free the exec thread if without SubmitReq
-        break;
-      } else {
-        // keep at least 1 exec thread only if without SubmitReq in case of no query thread to use when busy again
-        atomic_add_fetch_8(&pRSmaStat->nExecutor, 1);
-        nIdle = 0;
-      }
-    }
+    isBusy = false;
     // step 1: rsma exec - consume data in buffer queue for all suids
     if (type == RSMA_EXEC_OVERFLOW || type == RSMA_EXEC_COMMIT) {
       void *pIter = taosHashIterate(infoHash, NULL);  // infoHash has r/w lock
@@ -1785,7 +1776,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
             if (qallItemSize > 0) {
               // subtract the item size after the task finished, commit should wait for all items be consumed
               atomic_fetch_sub_64(&pRSmaStat->nBufItems, qallItemSize);
-              nIdle = 0;
+              isBusy = true;
             }
             ASSERT(1 == atomic_val_compare_exchange_8(&pInfo->assigned, 1, 0));
           }
@@ -1826,8 +1817,25 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
       ASSERT(0);
     }
 
+    smaInfo("prop:vgId:%d loop end check", SMA_VID(pSma));
     if (atomic_load_64(&pRSmaStat->nBufItems) <= 0) {
+      if (pVnode->inClose) {
+        smaInfo("prop:vgId:%d loop end check - inClose and break", SMA_VID(pSma));
+        break;
+      }
+      smaInfo("prop:vgId:%d loop end check - wait for notEmpty", SMA_VID(pSma));
       tsem_wait(&pRSmaStat->notEmpty);
+      smaInfo("prop:vgId:%d loop end check - received notEmpty", SMA_VID(pSma));
+      if (pVnode->inClose && (atomic_load_64(&pRSmaStat->nBufItems) <= 0)) {
+        smaInfo("prop:vgId:%d loop end check - break - inClose:%d, nBufItems:%" PRIi64, SMA_VID(pSma), pVnode->inClose,
+                atomic_load_64(&pRSmaStat->nBufItems));
+        break;
+      } else {
+        smaInfo("prop:vgId:%d loop end check - continue - inClose:%d, nBufItems:%" PRIi64, SMA_VID(pSma),
+                pVnode->inClose, atomic_load_64(&pRSmaStat->nBufItems));
+      }
+    } else {
+      smaInfo("prop:vgId:%d loop end check - continue to run", SMA_VID(pSma));
     }
   }  // end of while(true)
 
