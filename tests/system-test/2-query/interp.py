@@ -553,11 +553,6 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step9:test error cases")
 
-        tdSql.query(f"select interp(c0) from tb where ts >= '2020-02-10 00:00:05' and ts <= '2020-02-15 00:00:05' range('2022-02-05 00:05:00', '2022-02-06 00:05:00') every(1d) fill(null)");
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 0, None)
-        tdSql.checkData(1, 0, None)
-
         tdSql.error(f"select interp(c0) from {dbname}.{tbname}")
         tdSql.error(f"select interp(c0) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05')")
         tdSql.error(f"select interp(c0) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05') every(1d)")
