@@ -311,7 +311,7 @@ class TDSql:
             tdLog.exit("%s(%d) failed: sql:%s, col_name_list:%s != expect_col_name_list:%s" % args)
 
     def __check_equal(self, elm, expect_elm):
-        if not type(elm) in(list, tuple) and elm == expect_elm:
+        if elm == expect_elm:
             return True
         if type(elm) in(list, tuple) and type(expect_elm) in(list, tuple):
             if len(elm) != len(expect_elm):

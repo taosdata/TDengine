@@ -124,8 +124,14 @@ python3 ./test.py -f 2-query/leastsquares.py
 python3 ./test.py -f 2-query/leastsquares.py -R
 python3 ./test.py -f 2-query/length.py
 python3 ./test.py -f 2-query/length.py -R
+python3 ./test.py -f 2-query/log.py
+# python3 ./test.py -f 2-query/log.py -R
+python3 ./test.py -f 2-query/lower.py
+python3 ./test.py -f 2-query/lower.py -R
 python3 ./test.py -f 2-query/ltrim.py
 python3 ./test.py -f 2-query/ltrim.py -R
+python3 ./test.py -f 2-query/mavg.py
+python3 ./test.py -f 2-query/mavg.py -R
 python3 ./test.py -f 2-query/max_partition.py
 python3 ./test.py -f 2-query/max_partition.py -R
 python3 ./test.py -f 2-query/max.py
@@ -147,7 +153,7 @@ python3 ./test.py -f 2-query/rtrim.py -R
 python3 ./test.py -f 2-query/sample.py
 python3 ./test.py -f 2-query/sample.py -R
 python3 ./test.py -f 2-query/sin.py
-# python3 ./test.py -f 2-query/sin.py -R
+python3 ./test.py -f 2-query/sin.py -R
 python3 ./test.py -f 2-query/smaTest.py
 python3 ./test.py -f 2-query/smaTest.py -R
 python3 ./test.py -f 2-query/sml.py
@@ -155,7 +161,7 @@ python3 ./test.py -f 2-query/sml.py -R
 python3 ./test.py -f 2-query/spread.py
 python3 ./test.py -f 2-query/spread.py -R
 python3 ./test.py -f 2-query/sqrt.py
-# python3 ./test.py -f 2-query/sqrt.py -R
+python3 ./test.py -f 2-query/sqrt.py -R
 python3 ./test.py -f 2-query/statecount.py
 python3 ./test.py -f 2-query/statecount.py -R
 python3 ./test.py -f 2-query/stateduration.py
@@ -167,32 +173,48 @@ python3 ./test.py -f 2-query/sum.py -R
 python3 ./test.py -f 2-query/tail.py
 python3 ./test.py -f 2-query/tail.py -R
 python3 ./test.py -f 2-query/tan.py
-python3 ./test.py -f 2-query/tan.py -R
+# python3 ./test.py -f 2-query/tan.py -R
+python3 ./test.py -f 2-query/Timediff.py
+python3 ./test.py -f 2-query/Timediff.py -R
+python3 ./test.py -f 2-query/timetruncate.py
+# python3 ./test.py -f 2-query/timetruncate.py -R
+python3 ./test.py -f 2-query/timezone.py
+python3 ./test.py -f 2-query/timezone.py -R
+python3 ./test.py -f 2-query/To_iso8601.py
+python3 ./test.py -f 2-query/To_iso8601.py -R
+python3 ./test.py -f 2-query/To_unixtimestamp.py
+python3 ./test.py -f 2-query/To_unixtimestamp.py -R
+python3 ./test.py -f 2-query/Today.py
+# python3 ./test.py -f 2-query/Today.py -R
+python3 ./test.py -f 2-query/top.py
+python3 ./test.py -f 2-query/top.py -R
+python3 ./test.py -f 2-query/tsbsQuery.py
+python3 ./test.py -f 2-query/tsbsQuery.py -R
+python3 ./test.py -f 2-query/ttl_comment.py
+python3 ./test.py -f 2-query/ttl_comment.py -R
+python3 ./test.py -f 2-query/twa.py
+python3 ./test.py -f 2-query/twa.py -R
+python3 ./test.py -f 2-query/union.py
+python3 ./test.py -f 2-query/union.py -R
+python3 ./test.py -f 2-query/unique.py
+python3 ./test.py -f 2-query/unique.py -R
+python3 ./test.py -f 2-query/upper.py
+python3 ./test.py -f 2-query/upper.py -R
+python3 ./test.py -f 2-query/varchar.py
+python3 ./test.py -f 2-query/varchar.py -R
 
 
 python3 ./test.py -f 1-insert/update_data.py
 
 python3 ./test.py -f 1-insert/delete_data.py
 
-python3 ./test.py -f 2-query/varchar.py
-python3 ./test.py -f 2-query/upper.py
-python3 ./test.py -f 2-query/lower.py
 python3 ./test.py -f 2-query/join2.py
-python3 ./test.py -f 2-query/union.py
 python3 ./test.py -f 2-query/union1.py
 python3 ./test.py -f 2-query/concat2.py
 
 
-python3 ./test.py -f 2-query/timezone.py
-python3 ./test.py -f 2-query/Today.py
-python3 ./test.py -f 2-query/To_iso8601.py
-python3 ./test.py -f 2-query/To_unixtimestamp.py
-python3 ./test.py -f 2-query/timetruncate.py
-python3 ./test.py -f 2-query/Timediff.py
 python3 ./test.py -f 2-query/json_tag.py
 
-python3 ./test.py -f 2-query/top.py
-python3 ./test.py -f 2-query/log.py
 # python3 ./test.py -f 2-query/nestedQuery.py
 # TD-15983 subquery output duplicate name column.
 # Please Xiangyang Guo modify the following script
@@ -200,13 +222,8 @@ python3 ./test.py -f 2-query/log.py
 
 python3 ./test.py -f 2-query/elapsed.py
 python3 ./test.py -f 2-query/csum.py
-python3 ./test.py -f 2-query/mavg.py
 python3 ./test.py -f 2-query/function_diff.py
-python3 ./test.py -f 2-query/unique.py
-python3 ./test.py -f 2-query/ttl_comment.py
-python3 ./test.py -f 2-query/twa.py
 python3 ./test.py -f 2-query/queryQnode.py
-python3 ./test.py -f 2-query/tsbsQuery.py
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py
 python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5 -M 3

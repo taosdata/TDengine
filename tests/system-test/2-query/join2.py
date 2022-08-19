@@ -52,12 +52,12 @@ class TDTestCase:
 
         return query_condition
 
-    def __join_condition(self, tb_list, filter=PRIMARY_COL, INNER=False):
+    def __join_condition(self, tb_list, filter=PRIMARY_COL, INNER=False, alias_tb1="tb1", alias_tb2="tb2"):
         table_reference = tb_list[0]
         join_condition = table_reference
         join = "inner join" if INNER else "join"
         for i in range(len(tb_list[1:])):
-            join_condition += f" {join} {tb_list[i+1]} on {table_reference}.{filter}={tb_list[i+1]}.{filter}"
+            join_condition += f" as {alias_tb1} {join} {tb_list[i+1]} as {alias_tb2} on {alias_tb1}.{filter}={alias_tb2}.{filter}"
 
         return join_condition
 

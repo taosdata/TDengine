@@ -67,6 +67,7 @@ class TDTestCase:
     def check_result_auto_sin(self ,origin_query , pow_query):
 
         pow_result = tdSql.getResult(pow_query)
+
         origin_result = tdSql.getResult(origin_query)
 
         auto_result =[]
@@ -80,23 +81,11 @@ class TDTestCase:
                     elem = math.sin(elem)
                 row_check.append(elem)
             auto_result.append(row_check)
-
-        check_status = True
-
+        tdSql.query(pow_query)
         for row_index , row in enumerate(pow_result):
             for col_index , elem in enumerate(row):
-                if auto_result[row_index][col_index] is None  and  elem:
-                    check_status = False
-                elif auto_result[row_index][col_index] is not  None  and (auto_result[row_index][col_index] - elem > 0.00000001):
-                    print("====,auto_result[row_index][col_index]:",auto_result[row_index][col_index], "elem:", elem)
-                    check_status = False
-                else:
-                    pass
-        if not check_status:
-            tdLog.notice("sin function value has not as expected , sql is \"%s\" "%pow_query )
-            sys.exit(1)
-        else:
-            tdLog.info("sin value check pass , it work as expected ,sql is \"%s\"   "%pow_query )
+                tdSql.checkData(row_index ,col_index ,auto_result[row_index][col_index])
+              
 
     def test_errors(self, dbname="db"):
         error_sql_lists = [
@@ -393,7 +382,7 @@ class TDTestCase:
         tdSql.checkData(0,4,-0.100000000)
         tdSql.checkData(0,5,0.000000000)
 
-    def check_boundary_values(self, dbname="db"):
+    def check_boundary_values(self, dbname="testdb"):
 
         PI=3.1415926
 
@@ -418,7 +407,7 @@ class TDTestCase:
         tdSql.error(
                 f"insert into {dbname}.sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        self.check_result_auto_sin( f"select abs(c1), abs(c2), abs(c3) , abs(c4), abs(c5) from {dbname}.sub1_bound ", f"select sin(abs(c1)), sin(abs(c2)) ,sin(abs(c3)), sin(abs(c4)), sin(abs(c5)) from {dbname}.sub1_bound")
+        self.check_result_auto_sin( f"select abs(c1), abs(c2), abs(c3) , abs(c4) from {dbname}.sub1_bound ", f"select sin(abs(c1)), sin(abs(c2)) ,sin(abs(c3)), sin(abs(c4)) from {dbname}.sub1_bound")
 
         self.check_result_auto_sin( f"select c1, c2, c3 , c3, c2 ,c1 from {dbname}.sub1_bound ", f"select sin(c1), sin(c2) ,sin(c3), sin(c3), sin(c2) ,sin(c1) from {dbname}.sub1_bound")
 
@@ -449,24 +438,21 @@ class TDTestCase:
         tdSql.checkData(0,2,math.sin(32767.000000000))
         tdSql.checkData(0,3,math.sin(63.500000000))
 
-        tdSql.execute("create stable {dbname}.st (ts timestamp,  num1 float, num2 double) tags (t1 int);")
+        tdSql.execute(f"create stable {dbname}.st (ts timestamp,  num1 float, num2 double) tags (t1 int);")
         tdSql.execute(f'create table {dbname}.tb1 using {dbname}.st tags (1)')
         tdSql.execute(f'create table {dbname}.tb2 using {dbname}.st tags (2)')
         tdSql.execute(f'create table {dbname}.tb3 using {dbname}.st tags (3)')
-        tdSql.execute('insert into {dbname}.tb1 values (now()-40s, {}, {})'.format(PI/2 ,PI/2 ))
-        tdSql.execute('insert into {dbname}.tb1 values (now()-30s, {}, {})'.format(PI ,PI ))
-        tdSql.execute('insert into {dbname}.tb1 values (now()-20s, {}, {})'.format(PI*1.5 ,PI*1.5))
-        tdSql.execute('insert into {dbname}.tb1 values (now()-10s, {}, {})'.format(PI*2 ,PI*2))
-        tdSql.execute('insert into {dbname}.tb1 values (now(), {}, {})'.format(PI*2.5 ,PI*2.5))
+        tdSql.execute(f'insert into {dbname}.tb1 values (now()-40s, {PI/2}, {PI/2})')
+        tdSql.execute(f'insert into {dbname}.tb1 values (now()-30s, {PI}, {PI})')
+        tdSql.execute(f'insert into {dbname}.tb1 values (now()-20s, {PI*1.5}, {PI*1.5})')
+        tdSql.execute(f'insert into {dbname}.tb1 values (now()-10s, {PI*2}, {PI*2})')
+        tdSql.execute(f'insert into {dbname}.tb1 values (now(), {PI*2.5}, {PI*2.5})')
 
-        tdSql.execute('insert into {dbname}.tb2 values (now()-40s, {}, {})'.format(PI/2 ,PI/2 ))
-        tdSql.execute('insert into {dbname}.tb2 values (now()-30s, {}, {})'.format(PI ,PI ))
-        tdSql.execute('insert into {dbname}.tb2 values (now()-20s, {}, {})'.format(PI*1.5 ,PI*1.5))
-        tdSql.execute('insert into {dbname}.tb2 values (now()-10s, {}, {})'.format(PI*2 ,PI*2))
-        tdSql.execute('insert into {dbname}.tb2 values (now(), {}, {})'.format(PI*2.5 ,PI*2.5))
-
-        for i in range(100):
-            tdSql.execute('insert into {dbname}.tb3 values (now()+{}s, {}, {})'.format(i,PI*(5+i)/2 ,PI*(5+i)/2))
+        tdSql.execute(f'insert into {dbname}.tb2 values (now()-40s, {PI/2}, {PI/2})')
+        tdSql.execute(f'insert into {dbname}.tb2 values (now()-30s, {PI}, {PI})')
+        tdSql.execute(f'insert into {dbname}.tb2 values (now()-20s, {PI*1.5}, {PI*1.5})')
+        tdSql.execute(f'insert into {dbname}.tb2 values (now()-10s, {PI*2}, {PI*2})')
+        tdSql.execute(f'insert into {dbname}.tb2 values (now(), {PI*2.5}, {PI*2.5})')
 
         self.check_result_auto_sin(f"select num1,num2 from {dbname}.tb3;" , f"select sin(num1),sin(num2) from {dbname}.tb3")
 
@@ -500,19 +486,20 @@ class TDTestCase:
 
         self.basic_sin_function()
 
-        tdLog.printNoPrefix("==========step5: big number sin query ============")
-
-        self.test_big_number()
-
-
-        tdLog.printNoPrefix("==========step6: sin boundary query ============")
-
-        self.check_boundary_values()
-
-        tdLog.printNoPrefix("==========step7: sin filter query ============")
+        tdLog.printNoPrefix("==========step5: sin filter query ============")
 
         self.abs_func_filter()
 
+        tdLog.printNoPrefix("==========step6: big number sin query ============")
+
+        self.test_big_number()
+        
+
+        tdLog.printNoPrefix("==========step7: sin boundary query ============")
+
+        self.check_boundary_values()
+
+       
         tdLog.printNoPrefix("==========step8: check sin result of  stable query ============")
 
         self.support_super_table_test()

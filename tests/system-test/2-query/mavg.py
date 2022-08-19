@@ -307,7 +307,7 @@ class TDTestCase:
 
         pass
 
-    def mavg_current_query(self) :
+    def mavg_current_query(self, dbname="db") :
 
         # table schema :ts timestamp, c1 int, c2 float, c3 timestamp, c4 binary(16), c5 double, c6 bool
         #                 c7 bigint, c8 smallint, c9 tinyint, c10 nchar(16)
@@ -325,17 +325,17 @@ class TDTestCase:
         case6 =  {"col": "c9"}
         self.checkmavg(**case6)
 
-        # # case7~8: nested query
-        # case7 = {"table_expr": f"(select c1 from {dbname}.stb1)"}
-        # self.checkmavg(**case7)
-        # case8 = {"table_expr": f"(select mavg(c1, 1) c1 from {dbname}.stb1 group by tbname)"}
+        # case7~8: nested query
+        case7 = {"table_expr": f"(select c1 from {dbname}.stb1)"}
+        self.checkmavg(**case7)
+        # case8 = {"table_expr": f"(select _c0, mavg(c1, 1) c1 from {dbname}.stb1 group by tbname)"}
         # self.checkmavg(**case8)
 
         # case9~10: mix with tbname/ts/tag/col
-        # case9 = {"alias": ", tbname"}
-        # self.checkmavg(**case9)
-        # case10 = {"alias": ", _c0"}
-        # self.checkmavg(**case10)
+        case9 = {"alias": ", tbname"}
+        self.checkmavg(**case9)
+        case10 = {"alias": ", _c0"}
+        self.checkmavg(**case10)
         # case11 = {"alias": ", st1"}
         # self.checkmavg(**case11)
         # case12 = {"alias": ", c1"}
@@ -356,7 +356,7 @@ class TDTestCase:
         # case17: only support normal table join
         case17 = {
             "col": "t1.c1",
-            "table_expr": "t1, t2",
+            "table_expr": f"{dbname}.t1 t1, {dbname}.t2 t2",
             "condition": "where t1.ts=t2.ts"
         }
         self.checkmavg(**case17)
@@ -367,14 +367,14 @@ class TDTestCase:
         # }
         # self.checkmavg(**case19)
 
-        # case20~21: with order by
+        # # case20~21: with order by
         # case20 = {"condition": "order by ts"}
         # self.checkmavg(**case20)
-        #case21 = {
-        #    "table_expr": f"{dbname}.stb1",
-        #    "condition": "group by tbname order by tbname"
-        #}
-        #self.checkmavg(**case21)
+        case21 = {
+           "table_expr": f"{dbname}.stb1",
+           "condition": "group by tbname order by tbname"
+        }
+        self.checkmavg(**case21)
 
         # # case22: with union
         # case22 = {
@@ -398,7 +398,7 @@ class TDTestCase:
 
         pass
 
-    def mavg_error_query(self) -> None :
+    def mavg_error_query(self, dbname="db") -> None :
         # unusual test
 
         # form test
@@ -419,9 +419,9 @@ class TDTestCase:
         err8 = {"table_expr": ""}
         self.checkmavg(**err8)          # no table_expr
 
-        # err9 = {"col": "st1"}
+        err9 = {"col": "st1"}
         # self.checkmavg(**err9)          # col: tag
-        # err10 = {"col": 1}
+        err10 = {"col": 1}
         # self.checkmavg(**err10)         # col: value
         err11 = {"col": "NULL"}
         self.checkmavg(**err11)         # col: NULL
@@ -496,7 +496,7 @@ class TDTestCase:
         #     "condition": "where stb1.ts=stb2.ts and stb1.st1=stb2.st2 order by stb1.ts"
         # }
         # self.checkmavg(**err44)         # stb join
-        tdSql.query("select mavg( stb1.c1 , 1 )  from stb1, stb2 where stb1.ts=stb2.ts and stb1.st1=stb2.st2 order by stb1.ts;")
+        tdSql.query(f"select mavg( stb1.c1 , 1 )  from {dbname}.stb1 stb1, {dbname}.stb2 stb2 where stb1.ts=stb2.ts and stb1.st1=stb2.st2 order by stb1.ts;")
         err45 = {
             "condition": "where ts>0 and ts < now interval(1h) fill(next)"
         }

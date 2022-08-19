@@ -59,7 +59,7 @@ class TDTestCase:
             ( '2022-02-01 01:01:20.000', 6, 66666, 666, 66, 6.66, 66.66, 1, "binary6", "nchar6", now()+6a )
             ( '2022-10-28 01:01:26.000', 7, 00000, 000, 00, 0.00, 00.00, 1, "binary7", "nchar7", "1970-01-01 08:00:00.000" )
             ( '2022-12-01 01:01:30.000', 8, -88888, -888, -88, -8.88, -88.88, 0, "binary8", "nchar8", "1969-01-01 01:00:00.000" )
-            ( '2022-12-31 01:01:36.000', 9, -99999999999999999, -999, -99, -9.99, -999999999999999999999.99, 1, "binary9", "nchar9", "1900-01-01 00:00:00.000" )
+            ( '2022-12-31 01:01:36.000', 9, -99999, -999, -99, -9.99, -99999.99, 1, "binary9", "nchar9", "1900-01-01 00:00:00.000" )
             ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             '''
         )
@@ -80,22 +80,10 @@ class TDTestCase:
                     elem = math.tan(elem)
                 row_check.append(elem)
             auto_result.append(row_check)
-
-        check_status = True
-
+        tdSql.query(pow_query)
         for row_index , row in enumerate(pow_result):
             for col_index , elem in enumerate(row):
-                if auto_result[row_index][col_index] == None  and not (auto_result[row_index][col_index] == None and elem == None):
-                    check_status = False
-                elif auto_result[row_index][col_index] != None  and (auto_result[row_index][col_index] - elem > 0.00000001):
-                    check_status = False
-                else:
-                    pass
-        if not check_status:
-            tdLog.notice("tan function value has not as expected , sql is \"%s\" "%pow_query )
-            sys.exit(1)
-        else:
-            tdLog.info("tan value check pass , it work as expected ,sql is \"%s\"   "%pow_query )
+                tdSql.checkData(row_index , col_index ,auto_result[row_index][col_index] )
 
     def test_errors(self, dbname="db"):
         error_sql_lists = [
@@ -244,7 +232,7 @@ class TDTestCase:
         tdSql.checkData(3, 4, 33)
         tdSql.checkData(5, 5, None)
 
-        self.check_result_auto_tan( f"select abs(c1), abs(c2), abs(c3) , abs(c4), abs(c5) from {dbname}.t1", f"select tan(abs(c1)), tan(abs(c2)) ,tan(abs(c3)), tan(abs(c4)), tan(abs(c5)) from {dbname}.t1")
+        self.check_result_auto_tan( f"select abs(c1), abs(c2), abs(c3) , abs(c4) from {dbname}.t1", f"select tan(abs(c1)), tan(abs(c2)) ,tan(abs(c3)), tan(abs(c4)) from {dbname}.t1")
 
         # used for sub table
         tdSql.query(f"select c2 ,tan(c2) from {dbname}.ct1")
@@ -402,21 +390,21 @@ class TDTestCase:
         )
         tdSql.execute(f'create table {dbname}.sub1_bound using {dbname}.stb_bound tags ( 1 )')
         tdSql.execute(
-                f"insert into sub1_bound values ( now()-1s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()-1s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
-                f"insert into sub1_bound values ( now()-1s, -2147483647, -9223372036854775807, -32767, -127, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()-1s, -2147483647, -9223372036854775807, -32767, -127, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
-                f"insert into sub1_bound values ( now(), 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now(), 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
-                f"insert into sub1_bound values ( now(), -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now(), -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.error(
-                f"insert into sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        self.check_result_auto_tan( f"select abs(c1), abs(c2), abs(c3) , abs(c4), abs(c5) from {dbname}.sub1_bound ", f"select tan(abs(c1)), tan(abs(c2)) ,tan(abs(c3)), tan(abs(c4)), tan(abs(c5)) from {dbname}.sub1_bound")
+        self.check_result_auto_tan( f"select abs(c1), abs(c2), abs(c3) , abs(c4) from {dbname}.sub1_bound ", f"select tan(abs(c1)), tan(abs(c2)) ,tan(abs(c3)), tan(abs(c4)) from {dbname}.sub1_bound")
 
         self.check_result_auto_tan( f"select c1, c2, c3 , c3, c2 ,c1 from {dbname}.sub1_bound ", f"select tan(c1), tan(c2) ,tan(c3), tan(c3), tan(c2) ,tan(c1) from {dbname}.sub1_bound")
 
@@ -462,9 +450,6 @@ class TDTestCase:
         tdSql.execute(f'insert into {dbname}.tb2 values (now()-20s, {PI*1.5}, {PI*1.5})')
         tdSql.execute(f'insert into {dbname}.tb2 values (now()-10s, {PI*2}, {PI*2})')
         tdSql.execute(f'insert into {dbname}.tb2 values (now(), {PI*2.5}, {PI*2.5})')
-
-        for i in range(100):
-            tdSql.execute(f'insert into tb3 values (now()+{i}s, {PI*(5+i)/2}, {PI*(5+i)/2})')
 
         self.check_result_auto_tan(f"select num1,num2 from {dbname}.tb3;" , f"select tan(num1),tan(num2) from {dbname}.tb3")
 
