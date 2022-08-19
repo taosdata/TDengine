@@ -416,6 +416,23 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
     me.ctbEntry.suid = pReq->ctb.suid;
     me.ctbEntry.pTags = pReq->ctb.pTag;
 
+    SArray* pTagVals = NULL;
+    int32_t code = tTagToValArray((STag*)pReq->ctb.pTag, &pTagVals);
+    for (int i = 0; i < taosArrayGetSize(pTagVals); i++) {
+      STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, i);
+
+      if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+        char* buf = taosMemoryCalloc(pTagVal->nData + 1, 1);
+        memcpy(buf, pTagVal->pData, pTagVal->nData);
+        metaDebug("metaTag table:%s varchar index:%d cid:%d type:%d value:%s", pReq->name, i, pTagVal->cid, pTagVal->type, buf);
+        taosMemoryFree(buf);
+      } else {
+        double val = 0;
+        GET_TYPED_DATA(val, double, pTagVal->type, &pTagVal->i64);
+        metaDebug("metaTag table:%s number index:%d cid:%d type:%d value:%f", pReq->name, i, pTagVal->cid, pTagVal->type, val);
+      }
+    }
+
     ++pMeta->pVnode->config.vndStats.numOfCTables;
   } else {
     me.ntbEntry.ctime = pReq->ctime;

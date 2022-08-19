@@ -198,7 +198,6 @@ _err:
 
 typedef struct STableInfoForChildTable{
   char            *tableName;
-  SArray          *tagName;
   SSchemaWrapper  *schemaRow;
   SSchemaWrapper  *tagRow;
 }STableInfoForChildTable;
@@ -206,8 +205,8 @@ typedef struct STableInfoForChildTable{
 static void destroySTableInfoForChildTable(void* data) {
   STableInfoForChildTable* pData = (STableInfoForChildTable*)data;
   taosMemoryFree(pData->tableName);
-  taosArrayDestroy(pData->tagName);
   tDeleteSSchemaWrapper(pData->schemaRow);
+  tDeleteSSchemaWrapper(pData->tagRow);
 }
 
 static void MoveToSnapShotVersion(SSnapContext* ctx){
@@ -243,11 +242,7 @@ static void saveSuperTableInfoForChildTable(SMetaEntry *me, SHashObj *suidInfo){
   }
   STableInfoForChildTable dataTmp = {0};
   dataTmp.tableName = strdup(me->name);
-  dataTmp.tagName = taosArrayInit(me->stbEntry.schemaTag.nCols, TSDB_COL_NAME_LEN);
-  for(int i = 0; i < me->stbEntry.schemaTag.nCols; i++){
-    SSchema *schema = &me->stbEntry.schemaTag.pSchema[i];
-    taosArrayPush(dataTmp.tagName, schema->name);
-  }
+
   dataTmp.schemaRow = tCloneSSchemaWrapper(&me->stbEntry.schemaRow);
   dataTmp.tagRow = tCloneSSchemaWrapper(&me->stbEntry.schemaTag);
   taosHashPut(suidInfo, &me->uid, sizeof(tb_uid_t), &dataTmp, sizeof(STableInfoForChildTable));
@@ -484,14 +479,37 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void **pBuf, int32_t *contLen, in
     ASSERT(data);
     SVCreateTbReq req = {0};
 
-    req.type = TD_CHILD_TABLE;
+    req.type = TSDB_CHILD_TABLE;
     req.name = me.name;
     req.uid = me.uid;
     req.commentLen = -1;
     req.ctb.suid = me.ctbEntry.suid;
-    req.ctb.tagNum = taosArrayGetSize(data->tagName);
+    req.ctb.tagNum = data->tagRow->nCols;
     req.ctb.name = data->tableName;
 
+    SArray* tagName = taosArrayInit(req.ctb.tagNum, TSDB_COL_NAME_LEN);
+    STag* p = (STag*)me.ctbEntry.pTags;
+    if(tTagIsJson(p)){
+      if (p->nTag != 0) {
+        SSchema* schema = &data->tagRow->pSchema[0];
+        taosArrayPush(tagName, schema->name);
+      }
+    }else{
+      SArray* pTagVals = NULL;
+      if (tTagToValArray((const STag*)p, &pTagVals) != 0) {
+        ASSERT(0);
+      }
+      int16_t nCols = taosArrayGetSize(pTagVals);
+      for (int j = 0; j < nCols; ++j) {
+        STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
+        for(int i = 0; i < data->tagRow->nCols; i++){
+          SSchema *schema = &data->tagRow->pSchema[i];
+          if(schema->colId == pTagVal->cid){
+            taosArrayPush(tagName, schema->name);
+          }
+        }
+      }
+    }
 //    SIdInfo* sidInfo = (SIdInfo*)taosHashGet(ctx->idVersion, &me.ctbEntry.suid, sizeof(tb_uid_t));
 //    if(sidInfo->version >= idInfo->version){
 //      // need parse tag
@@ -508,12 +526,13 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void **pBuf, int32_t *contLen, in
       req.ctb.pTag = me.ctbEntry.pTags;
 //    }
 
-    req.ctb.tagName = data->tagName;
+    req.ctb.tagName = tagName;
     ret = buildNormalChildTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_TABLE;
+    taosArrayDestroy(tagName);
   } else if(ctx->subType == TOPIC_SUB_TYPE__DB){
     SVCreateTbReq req = {0};
-    req.type = TD_NORMAL_TABLE;
+    req.type = TSDB_NORMAL_TABLE;
     req.name = me.name;
     req.uid = me.uid;
     req.commentLen = -1;
