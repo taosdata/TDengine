@@ -86,7 +86,7 @@ int tsdbClose(STsdb **pTsdb) {
   if (*pTsdb) {
     taosThreadRwlockDestroy(&(*pTsdb)->rwLock);
     tsdbFSClose(*pTsdb);
-    tsdbCloseCache((*pTsdb)->lruCache);
+    tsdbCloseCache(*pTsdb);
     taosMemoryFreeClear(*pTsdb);
   }
   return 0;

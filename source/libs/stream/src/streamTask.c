@@ -152,11 +152,12 @@ int32_t tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
 }
 
 void tFreeSStreamTask(SStreamTask* pTask) {
+  qDebug("free stream task %d", pTask->taskId);
   if (pTask->inputQueue) streamQueueClose(pTask->inputQueue);
   if (pTask->outputQueue) streamQueueClose(pTask->outputQueue);
   if (pTask->exec.qmsg) taosMemoryFree(pTask->exec.qmsg);
   if (pTask->exec.executor) qDestroyTask(pTask->exec.executor);
-  taosArrayDestroy(pTask->childEpInfo);
+  taosArrayDestroyP(pTask->childEpInfo, taosMemoryFree);
   if (pTask->outputType == TASK_OUTPUT__TABLE) {
     tDeleteSSchemaWrapper(pTask->tbSink.pSchemaWrapper);
     taosMemoryFree(pTask->tbSink.pTSchema);

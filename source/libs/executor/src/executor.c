@@ -364,7 +364,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
   taosThreadOnce(&initPoolOnce, initRefPool);
   atexit(cleanupRefPool);
 
-  qDebug("start to create subplan task, TID:0x%"PRIx64 " QID:0x%"PRIx64, taskId, pSubplan->id.queryId);
+  qDebug("start to create subplan task, TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, pSubplan->id.queryId);
 
   int32_t code = createExecTaskInfoImpl(pSubplan, pTask, readHandle, taskId, sql, model);
   if (code != TSDB_CODE_SUCCESS) {
@@ -390,7 +390,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
     }
   }
 
-  qDebug("subplan task create completed, TID:0x%"PRIx64 " QID:0x%"PRIx64, taskId, pSubplan->id.queryId);
+  qDebug("subplan task create completed, TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, pSubplan->id.queryId);
 
 _error:
   // if failed to add ref for all tables in this query, abort current query
@@ -443,7 +443,7 @@ int waitMoment(SQInfo* pQInfo) {
 #endif
 
 static void freeBlock(void* param) {
-  SSDataBlock* pBlock = *(SSDataBlock**) param;
+  SSDataBlock* pBlock = *(SSDataBlock**)param;
   blockDataDestroy(pBlock);
 }
 
@@ -483,12 +483,12 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds) {
 
   qDebug("%s execTask is launched", GET_TASKID(pTaskInfo));
 
-  int32_t current = 0;
+  int32_t      current = 0;
   SSDataBlock* pRes = NULL;
 
   int64_t st = taosGetTimestampUs();
 
-  while((pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot)) != NULL) {
+  while ((pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot)) != NULL) {
     SSDataBlock* p = createOneDataBlock(pRes, true);
     current += p->info.rows;
     ASSERT(p->info.rows > 0);
@@ -510,7 +510,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds) {
   uint64_t total = pTaskInfo->pRoot->resultInfo.totalRows;
 
   qDebug("%s task suspended, %d rows in %d blocks returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",
-         GET_TASKID(pTaskInfo), current, (int32_t) taosArrayGetSize(pResList), total, 0, el / 1000.0);
+         GET_TASKID(pTaskInfo), current, (int32_t)taosArrayGetSize(pResList), total, 0, el / 1000.0);
 
   atomic_store_64(&pTaskInfo->owner, 0);
   return pTaskInfo->code;
@@ -648,7 +648,7 @@ int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner) {
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
 
   while (1) {
-    uint8_t type = pOperator->operatorType;
+    uint16_t type = pOperator->operatorType;
     if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
       *scanner = pOperator->info;
       return 0;
@@ -746,7 +746,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     return 0;
   }
   if (subType == TOPIC_SUB_TYPE__COLUMN) {
-    uint8_t type = pOperator->operatorType;
+    uint16_t type = pOperator->operatorType;
     pOperator->status = OP_OPENED;
     // TODO add more check
     if (type != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {

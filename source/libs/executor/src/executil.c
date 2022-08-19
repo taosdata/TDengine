@@ -533,7 +533,9 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       vnodeGetCtbIdList(pVnode, pScanNode->suid, res);
     }
   } else {  // Create one table group.
-    taosArrayPush(res, &tableUid);
+    if(metaIsTableExist(metaHandle, tableUid)){
+      taosArrayPush(res, &tableUid);
+    }
   }
 
   if (pTagCond) {
@@ -599,7 +601,10 @@ size_t getTableTagsBufLen(const SNodeList* pGroups) {
 int32_t getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, pMeta, 0);
-  metaGetTableEntryByUid(&mr, uid);
+  if(metaGetTableEntryByUid(&mr, uid) != 0){    // table not exist
+    metaReaderClear(&mr);
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
 
   SNodeList* groupNew = nodesCloneList(pGroupNode);
 

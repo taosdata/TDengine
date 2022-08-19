@@ -207,7 +207,7 @@ typedef struct SExprSupp {
 } SExprSupp;
 
 typedef struct SOperatorInfo {
-  uint8_t                operatorType;
+  uint16_t               operatorType;
   bool                   blocking;  // block operator or not
   uint8_t                status;    // denote if current operator is completed
   char*                  name;      // name, for debug purpose
@@ -436,7 +436,7 @@ typedef struct SStreamAggSupporter {
 typedef struct SessionWindowSupporter {
   SStreamAggSupporter* pStreamAggSup;
   int64_t              gap;
-  uint8_t              parentType;
+  uint16_t             parentType;
   SAggSupporter*       pIntervalAggSup;
 } SessionWindowSupporter;
 
