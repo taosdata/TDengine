@@ -2822,6 +2822,29 @@ static int32_t createDefaultFillNode(STranslateContext* pCxt, SNode** pOutput) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkEvery(STranslateContext* pCxt, SValueNode* pInterval) {
+  int32_t len = strlen(pInterval->literal);
+
+  char *unit = &pInterval->literal[len - 1];
+  if (*unit == 'n' || *unit == 'y') {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE,
+                                   "Unsupported time unit in Every clause");
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateInterpEvery(STranslateContext* pCxt, SNode** pEvery) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  code = checkEvery(pCxt, (SValueNode *)(*pEvery));
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateExpr(pCxt, pEvery);
+  }
+
+  return code;
+}
+
 static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -2856,7 +2879,7 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
 
   int32_t code = translateExpr(pCxt, &pSelect->pRange);
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateExpr(pCxt, &pSelect->pEvery);
+    code = translateInterpEvery(pCxt, &pSelect->pEvery);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterpFill(pCxt, pSelect);
