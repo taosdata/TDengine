@@ -3131,6 +3131,7 @@ int32_t aggDecodeResultRow(SOperatorInfo* pOperator, char* result) {
 
     initResultRow(resultRow);
     pInfo->resultRowInfo.cur = (SResultRowPosition){.pageId = resultRow->pageId, .offset = resultRow->offset};
+    // releaseBufPage(pSup->pResultBuf, getBufPage(pSup->pResultBuf, pageId));
   }
 
   if (offset != length) {

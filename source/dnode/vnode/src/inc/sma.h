@@ -90,14 +90,14 @@ struct SRSmaStat {
   SSma            *pSma;
   int64_t          commitAppliedVer;  // vnode applied version for async commit
   int64_t          refId;             // shared by fetch tasks
-  volatile int64_t qBufSize;          // queue buffer size
+  volatile int64_t nBufItems;         // number of items in queue buffer
   SRWLatch         lock;              // r/w lock for rsma fs(e.g. qtaskinfo)
+  volatile int8_t  nExecutor;         // [1, max(half of query threads, 4)]
   int8_t           triggerStat;       // shared by fetch tasks
   int8_t           commitStat;        // 0 not in committing, 1 in committing
-  int8_t           execStat;          // 0 not in exec , 1 in exec
   SArray          *aTaskFile;         // qTaskFiles committed recently(for recovery/snapshot r/w)
   SHashObj        *infoHash;          // key: suid, value: SRSmaInfo
-  SHashObj        *fetchHash;         // key: suid, value: L1 or L2 or L1|L2
+  tsem_t           notEmpty;          // has items in queue buffer
 };
 
 struct SSmaStat {
@@ -111,26 +111,29 @@ struct SSmaStat {
 #define SMA_STAT_TSMA(s)     (&(s)->tsmaStat)
 #define SMA_STAT_RSMA(s)     (&(s)->rsmaStat)
 #define RSMA_INFO_HASH(r)    ((r)->infoHash)
-#define RSMA_FETCH_HASH(r)   ((r)->fetchHash)
 #define RSMA_TRIGGER_STAT(r) (&(r)->triggerStat)
 #define RSMA_COMMIT_STAT(r)  (&(r)->commitStat)
 #define RSMA_REF_ID(r)       ((r)->refId)
 #define RSMA_FS_LOCK(r)      (&(r)->lock)
 
 struct SRSmaInfoItem {
-  int8_t   level;
-  int8_t   triggerStat;
-  uint16_t interval;  // second
-  int32_t  maxDelay;
-  tmr_h    tmrId;
+  int8_t  level;
+  int8_t  triggerStat;
+  uint8_t nSkipped;  // number of skipped to fetch data from all active window
+  int8_t  fetchLevel;
+  int32_t maxDelay;  // ms
+  int64_t lastFetch; // ms
+  tmr_h   tmrId;
 };
 
 struct SRSmaInfo {
   STSchema *pTSchema;
   int64_t   suid;
-  int64_t   refId;  // refId of SRSmaStat
-  uint64_t  delFlag : 1;
-  uint64_t  lastReceived : 63;  // second
+  int64_t   refId;     // refId of SRSmaStat
+  int64_t   lastRecv;  // ms
+  int8_t    delFlag;
+  int8_t    assigned;  // 0 idle, 1 assgined for exec
+  int16_t   padding;
   T_REF_DECLARE()
   SRSmaInfoItem items[TSDB_RETENTION_L2];
   void         *taskInfo[TSDB_RETENTION_L2];   // qTaskInfo_t

@@ -301,8 +301,6 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       return qWorkerProcessQueryMsg(&handle, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_QUERY_CONTINUE:
       return qWorkerProcessCQueryMsg(&handle, pVnode->pQuery, pMsg, 0);
-    case TDMT_VND_FETCH_RSMA:
-      return smaProcessFetch(pVnode->pSma, pMsg);
     case TDMT_VND_EXEC_RSMA:
       return smaProcessExec(pVnode->pSma, pMsg);
     default:

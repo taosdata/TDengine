@@ -321,10 +321,10 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   int32_t nLoops = 0;
   while (1) {
     if (T_REF_VAL_GET(pStat) == 0) {
-      smaDebug("vgId:%d, rsma fetch tasks all finished", SMA_VID(pSma));
+      smaDebug("vgId:%d, rsma commit, fetch tasks all finished", SMA_VID(pSma));
       break;
     } else {
-      smaDebug("vgId:%d, rsma fetch tasks not all finished yet", SMA_VID(pSma));
+      smaDebug("vgId:%d, rsma commit, fetch tasks not all finished yet", SMA_VID(pSma));
     }
     ++nLoops;
     if (nLoops > 1000) {
@@ -338,30 +338,25 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
    *  1) This is high cost task and should not put in asyncPreCommit originally.
    *  2) But, if put in asyncCommit, would trigger taskInfo cloning frequently.
    */
-  nLoops = 0;
-  smaInfo("vgId:%d, start to wait for rsma qtask free, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
-
-  int8_t old;
-  while (1) {
-    old = atomic_val_compare_exchange_8(&pRSmaStat->execStat, 0, 1);
-    if (old == 0) break;
-    if (++nLoops > 1000) {
-      sched_yield();
-      nLoops = 0;
-      smaDebug("vgId:%d, wait for rsma qtask free, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
-    }
-  }
-
-  smaInfo("vgId:%d, end to wait for rsma qtask free, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
-
   if (tdRSmaProcessExecImpl(pSma, RSMA_EXEC_COMMIT) < 0) {
-    atomic_store_8(&pRSmaStat->execStat, 0);
     return TSDB_CODE_FAILED;
   }
 
+  smaInfo("vgId:%d, rsma commit, wait for all items to be consumed, TID:%p", SMA_VID(pSma), (void*)taosGetSelfPthreadId());
+  nLoops = 0;
+  while (atomic_load_64(&pRSmaStat->nBufItems) > 0) {
+    ++nLoops;
+    if (nLoops > 1000) {
+      sched_yield();
+      nLoops = 0;
+    }
+  }
+  smaInfo("vgId:%d, rsma commit, all items are consumed, TID:%p", SMA_VID(pSma), (void*)taosGetSelfPthreadId());
+
+#if 0 // consuming task of qTaskInfo clone 
   // step 4:  swap queue/qall and iQueue/iQall
   // lock
-  taosWLockLatch(SMA_ENV_LOCK(pEnv));
+  // taosWLockLatch(SMA_ENV_LOCK(pEnv));
 
   ASSERT(RSMA_INFO_HASH(pRSmaStat));
 
@@ -376,11 +371,9 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
     pIter = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), pIter);
   }
 
-  atomic_store_64(&pRSmaStat->qBufSize, 0);
-  atomic_store_8(&pRSmaStat->execStat, 0);
   // unlock
-  taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
-
+  // taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
+#endif
   // step 5: others
   pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
 
@@ -426,7 +419,7 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
 
   // step 1: merge qTaskInfo and iQTaskInfo
   // lock
-  taosWLockLatch(SMA_ENV_LOCK(pEnv));
+  // taosWLockLatch(SMA_ENV_LOCK(pEnv));
 
   void *pIter = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), NULL);
   while (pIter) {
@@ -480,10 +473,9 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
     taosHashRemove(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t));
   }
   taosArrayDestroy(rsmaDeleted);
-  // TODO: remove suid in files?
 
   // unlock
-  taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
+  // taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
 
   // step 2: cleanup outdated qtaskinfo files
   tdCleanupQTaskInfoFiles(pSma, pRSmaStat);
