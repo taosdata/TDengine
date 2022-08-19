@@ -28,6 +28,13 @@ if not exist %tagert_dir%\\driver (
 if not exist C:\\TDengine\\cfg\\taos.cfg (
     copy %source_dir%\\packaging\\cfg\\taos.cfg %tagert_dir%\\cfg\\taos.cfg > nul
 )
+
+if exist %binary_dir%\\test\\cfg\\taosadapter.toml (
+    if not exist %tagert_dir%\\cfg\\taosadapter.toml (
+        copy %binary_dir%\\test\\cfg\\taosadapter.toml %tagert_dir%\\cfg\\taosadapter.toml > nul
+    )
+)
+
 copy %source_dir%\\include\\client\\taos.h %tagert_dir%\\include > nul
 copy %source_dir%\\include\\util\\taoserror.h %tagert_dir%\\include > nul
 copy %source_dir%\\include\\libs\\function\\taosudf.h %tagert_dir%\\include > nul
@@ -39,6 +46,9 @@ copy %binary_dir%\\build\\bin\\taosd.exe %tagert_dir% > nul
 copy %binary_dir%\\build\\bin\\udfd.exe %tagert_dir% > nul
 if exist %binary_dir%\\build\\bin\\taosBenchmark.exe (
     copy %binary_dir%\\build\\bin\\taosBenchmark.exe %tagert_dir% > nul
+)
+if exist %binary_dir%\\build\\bin\\taosadapter.exe (
+    copy %binary_dir%\\build\\bin\\taosadapter.exe %tagert_dir% > nul
 )
 
 mshta vbscript:createobject("shell.application").shellexecute("%~s0",":hasAdmin","","runas",1)(window.close)&& echo To start/stop TDengine with administrator privileges: sc start/stop taosd &goto :eof
