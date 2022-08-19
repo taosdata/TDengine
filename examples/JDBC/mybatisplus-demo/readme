@@ -4,7 +4,7 @@
 ```shell
 $ taos
 
-> create dastabase mp_test
+> create database mp_test
 ```
 
 ## 执行测试用例

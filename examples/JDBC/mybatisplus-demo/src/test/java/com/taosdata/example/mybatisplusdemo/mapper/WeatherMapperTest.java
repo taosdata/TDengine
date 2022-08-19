@@ -35,7 +35,7 @@ public class WeatherMapperTest {
         one.setTs(new Timestamp(1605024000000l));
         one.setTemperature(12.22f);
         one.setLocation("望京");
-        one.setHumidity(1);
+        one.setHumidity(100);
         mapper.insertOne(one);
     }
 
