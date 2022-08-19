@@ -68,7 +68,23 @@ class TDTestCase:
 		tdSub.consume()
 		tdSub.checkRows(11)
 
+
+		# TS-1788: Subscribe a case sensitive table		
+		tdLog.info("create a table and insert 10 rows.")
+		tdSql.execute("create table `T1`(ts timestamp, a int, b int);")
+		for i in range(0, 10):
+			tdSql.execute("insert into `T1` values (%d, %d, %d);" % (now + i, i, i))
+		
+		sqlstr = "select * from `T1`"
+		topic = "topic1"
+		now = int(time.time() * 1000)
+		
+		tdSub.init(self.conn.subscribe(True, topic, sqlstr, 0))
+		tdSub.consume()
+		tdSub.checkRows(10)
+		
 		tdSub.close(True)
+
 
 	def stop(self):
 		tdSub.close(False)
