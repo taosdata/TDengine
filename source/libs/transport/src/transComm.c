@@ -188,7 +188,6 @@ bool transReadComplete(SConnBuffer* connBuf) {
       p->left = 0;
     }
   }
-
   return (p->left == 0 || p->invalid) ? true : false;
 }
 
