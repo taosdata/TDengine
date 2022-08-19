@@ -152,6 +152,8 @@ void      tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **p
 int32_t   tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest);
 int32_t   tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData);
 int32_t   tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);
+int32_t   tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, int32_t *szOut, uint8_t *aBuf[],
+                         int32_t aBufN[]);
 // SDiskDataHdr
 int32_t tPutDiskDataHdr(uint8_t *p, void *ph);
 int32_t tGetDiskDataHdr(uint8_t *p, void *ph);

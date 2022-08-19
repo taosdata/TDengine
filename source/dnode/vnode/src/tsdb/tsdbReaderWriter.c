@@ -1424,111 +1424,38 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
   pBlkInfo->szBlock = 0;
   pBlkInfo->szKey = 0;
 
-  // ================= DATA ====================
-  SDiskDataHdr hdr = {.delimiter = TSDB_FILE_DLMT,
-                      .fmtVer = 0,
-                      .suid = pBlockData->suid,
-                      .uid = pBlockData->uid,
-                      .nRow = pBlockData->nRow,
-                      .cmprAlg = cmprAlg};
-
-  // encode =================
-  // columns AND SBlockCol
-  int32_t nBuf1 = 0;
-  for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aIdx); iColData++) {
-    SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
-
-    ASSERT(pColData->flag);
-
-    if (pColData->flag == HAS_NONE) continue;
-
-    SBlockCol blockCol = {.cid = pColData->cid,
-                          .type = pColData->type,
-                          .smaOn = pColData->smaOn,
-                          .flag = pColData->flag,
-                          .szOrigin = pColData->nData};
-
-    if (pColData->flag != HAS_NULL) {
-      code = tsdbCmprColData(pColData, cmprAlg, &blockCol, &pWriter->aBuf[0], nBuf1, &pWriter->aBuf[2]);
-      if (code) goto _err;
-
-      blockCol.offset = nBuf1;
-      nBuf1 = nBuf1 + blockCol.szBitmap + blockCol.szOffset + blockCol.szValue + sizeof(TSCKSUM);
-    }
-
-    code = tRealloc(&pWriter->aBuf[1], hdr.szBlkCol + tPutBlockCol(NULL, &blockCol));
-    if (code) goto _err;
-    hdr.szBlkCol += tPutBlockCol(pWriter->aBuf[1] + hdr.szBlkCol, &blockCol);
-  }
-
-  int32_t nBuf2 = 0;
-  if (hdr.szBlkCol > 0) {
-    nBuf2 = hdr.szBlkCol + sizeof(TSCKSUM);
-
-    code = tRealloc(&pWriter->aBuf[1], nBuf2);
-    if (code) goto _err;
-
-    taosCalcChecksumAppend(0, pWriter->aBuf[1], nBuf2);
-  }
-
-  // uid + version + tskey
-  int32_t nBuf3 = 0;
-  if (pBlockData->uid == 0) {
-    code = tsdbCmprData((uint8_t *)pBlockData->aUid, sizeof(int64_t) * pBlockData->nRow, TSDB_DATA_TYPE_BIGINT, cmprAlg,
-                        &pWriter->aBuf[2], nBuf3, &hdr.szUid, &pWriter->aBuf[3]);
-    if (code) goto _err;
-  }
-  nBuf3 += hdr.szUid;
-
-  code = tsdbCmprData((uint8_t *)pBlockData->aVersion, sizeof(int64_t) * pBlockData->nRow, TSDB_DATA_TYPE_BIGINT,
-                      cmprAlg, &pWriter->aBuf[2], nBuf3, &hdr.szVer, &pWriter->aBuf[3]);
+  int32_t aBufN[4] = {0};
+  code = tCmprBlockData(pBlockData, cmprAlg, NULL, NULL, pWriter->aBuf, aBufN);
   if (code) goto _err;
-  nBuf3 += hdr.szVer;
-
-  code = tsdbCmprData((uint8_t *)pBlockData->aTSKEY, sizeof(TSKEY) * pBlockData->nRow, TSDB_DATA_TYPE_TIMESTAMP,
-                      cmprAlg, &pWriter->aBuf[2], nBuf3, &hdr.szKey, &pWriter->aBuf[3]);
-  if (code) goto _err;
-  nBuf3 += hdr.szKey;
-
-  nBuf3 += sizeof(TSCKSUM);
-  code = tRealloc(&pWriter->aBuf[2], nBuf3);
-  if (code) goto _err;
-
-  // hdr
-  int32_t nBuf4 = tPutDiskDataHdr(NULL, &hdr);
-  code = tRealloc(&pWriter->aBuf[3], nBuf4);
-  if (code) goto _err;
-  tPutDiskDataHdr(pWriter->aBuf[3], &hdr);
-  taosCalcChecksumAppend(taosCalcChecksum(0, pWriter->aBuf[3], nBuf4), pWriter->aBuf[2], nBuf3);
 
   // write =================
   TdFilePtr pFD = toLast ? pWriter->pLastFD : pWriter->pDataFD;
 
-  pBlkInfo->szKey = nBuf4 + nBuf3;
-  pBlkInfo->szBlock = nBuf1 + nBuf2 + nBuf3 + nBuf4;
+  pBlkInfo->szKey = aBufN[3] + aBufN[2];
+  pBlkInfo->szBlock = aBufN[0] + aBufN[1] + aBufN[2] + aBufN[3];
 
-  int64_t n = taosWriteFile(pFD, pWriter->aBuf[3], nBuf4);
+  int64_t n = taosWriteFile(pFD, pWriter->aBuf[3], aBufN[3]);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
-  n = taosWriteFile(pFD, pWriter->aBuf[2], nBuf3);
+  n = taosWriteFile(pFD, pWriter->aBuf[2], aBufN[2]);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
-  if (nBuf2) {
-    n = taosWriteFile(pFD, pWriter->aBuf[1], nBuf2);
+  if (aBufN[1]) {
+    n = taosWriteFile(pFD, pWriter->aBuf[1], aBufN[1]);
     if (n < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
   }
 
-  if (nBuf1) {
-    n = taosWriteFile(pFD, pWriter->aBuf[0], nBuf1);
+  if (aBufN[0]) {
+    n = taosWriteFile(pFD, pWriter->aBuf[0], aBufN[0]);
     if (n < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
