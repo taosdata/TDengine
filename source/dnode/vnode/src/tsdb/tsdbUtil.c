@@ -1500,7 +1500,7 @@ void tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColD
   *ppColData = NULL;
 }
 
-int32_t tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, int32_t *szOut) {
+int32_t tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, int32_t *szOut, uint8_t *aBuf[]) {
   int32_t code = 0;
 
   SDiskDataHdr hdr = {.delimiter = TSDB_FILE_DLMT,
@@ -1510,14 +1510,9 @@ int32_t tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, 
                       .nRow = pBlockData->nRow,
                       .cmprAlg = cmprAlg};
 
-  uint8_t *pBuf1 = NULL;
-  uint8_t *pBuf2 = NULL;
-  uint8_t *pBuf3 = NULL;
-  uint8_t *pBuf4 = NULL;
-
   // encode =================
   // columns AND SBlockCol
-  int32_t nBuf1 = 0;
+  int32_t nBuf0 = 0;
   for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aIdx); iColData++) {
     SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
 
@@ -1532,71 +1527,71 @@ int32_t tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, 
                           .szOrigin = pColData->nData};
 
     if (pColData->flag != HAS_NULL) {
-      code = tsdbCmprColData(pColData, cmprAlg, &blockCol, &pBuf1, nBuf1, &pBuf3);
+      code = tsdbCmprColData(pColData, cmprAlg, &blockCol, &aBuf[0], nBuf0, &aBuf[2]);
       if (code) goto _exit;
 
-      blockCol.offset = nBuf1;
-      nBuf1 = nBuf1 + blockCol.szBitmap + blockCol.szOffset + blockCol.szValue + sizeof(TSCKSUM);
+      blockCol.offset = nBuf0;
+      nBuf0 = nBuf0 + blockCol.szBitmap + blockCol.szOffset + blockCol.szValue + sizeof(TSCKSUM);
     }
 
-    code = tRealloc(&pBuf2, hdr.szBlkCol + tPutBlockCol(NULL, &blockCol));
+    code = tRealloc(&aBuf[1], hdr.szBlkCol + tPutBlockCol(NULL, &blockCol));
     if (code) goto _exit;
-    hdr.szBlkCol += tPutBlockCol(pBuf2 + hdr.szBlkCol, &blockCol);
+    hdr.szBlkCol += tPutBlockCol(aBuf[1] + hdr.szBlkCol, &blockCol);
   }
 
-  int32_t nBuf2 = 0;
+  int32_t nBuf1 = 0;
   if (hdr.szBlkCol > 0) {
-    nBuf2 = hdr.szBlkCol + sizeof(TSCKSUM);
+    nBuf1 = hdr.szBlkCol + sizeof(TSCKSUM);
 
-    code = tRealloc(&pBuf2, nBuf2);
+    code = tRealloc(&aBuf[1], nBuf1);
     if (code) goto _exit;
 
-    taosCalcChecksumAppend(0, pBuf2, nBuf2);
+    taosCalcChecksumAppend(0, aBuf[1], nBuf1);
   }
 
   // uid + version + tskey
-  int32_t nBuf3 = 0;
+  int32_t nBuf2 = 0;
   if (pBlockData->uid == 0) {
     code = tsdbCmprData((uint8_t *)pBlockData->aUid, sizeof(int64_t) * pBlockData->nRow, TSDB_DATA_TYPE_BIGINT, cmprAlg,
-                        &pBuf3, nBuf3, &hdr.szUid, &pBuf4);
+                        &aBuf[2], nBuf2, &hdr.szUid, &aBuf[3]);
     if (code) goto _exit;
   }
-  nBuf3 += hdr.szUid;
+  nBuf2 += hdr.szUid;
 
   code = tsdbCmprData((uint8_t *)pBlockData->aVersion, sizeof(int64_t) * pBlockData->nRow, TSDB_DATA_TYPE_BIGINT,
-                      cmprAlg, &pBuf3, nBuf3, &hdr.szVer, &pBuf4);
+                      cmprAlg, &aBuf[2], nBuf2, &hdr.szVer, &aBuf[3]);
   if (code) goto _exit;
-  nBuf3 += hdr.szVer;
+  nBuf2 += hdr.szVer;
 
   code = tsdbCmprData((uint8_t *)pBlockData->aTSKEY, sizeof(TSKEY) * pBlockData->nRow, TSDB_DATA_TYPE_TIMESTAMP,
-                      cmprAlg, &pBuf3, nBuf3, &hdr.szKey, &pBuf4);
+                      cmprAlg, &aBuf[2], nBuf2, &hdr.szKey, &aBuf[3]);
   if (code) goto _exit;
-  nBuf3 += hdr.szKey;
+  nBuf2 += hdr.szKey;
 
-  nBuf3 += sizeof(TSCKSUM);
-  code = tRealloc(&pBuf3, nBuf3);
+  nBuf2 += sizeof(TSCKSUM);
+  code = tRealloc(&aBuf[2], nBuf2);
   if (code) goto _exit;
 
   // hdr
-  int32_t nBuf4 = tPutDiskDataHdr(NULL, &hdr);
-  code = tRealloc(&pBuf4, nBuf4);
+  int32_t nBuf3 = tPutDiskDataHdr(NULL, &hdr);
+  code = tRealloc(&aBuf[3], nBuf3);
   if (code) goto _exit;
-  tPutDiskDataHdr(pBuf4, &hdr);
-  taosCalcChecksumAppend(taosCalcChecksum(0, pBuf4, nBuf4), pBuf3, nBuf3);
+  tPutDiskDataHdr(aBuf[3], &hdr);
+  taosCalcChecksumAppend(taosCalcChecksum(0, aBuf[3], nBuf3), aBuf[2], nBuf2);
 
   // aggragate
   if (ppOut) {
-    *szOut = nBuf1 + nBuf2 + nBuf3 + nBuf4;
+    *szOut = nBuf0 + nBuf1 + nBuf2 + nBuf3;
     code = tRealloc(ppOut, *szOut);
     if (code) goto _exit;
 
-    memcpy(*ppOut, pBuf4, nBuf4);
-    memcpy(*ppOut + nBuf4, pBuf3, nBuf3);
-    if (nBuf2) {
-      memcpy(*ppOut + nBuf4 + nBuf3, pBuf2, nBuf2);
-    }
+    memcpy(*ppOut, aBuf[3], nBuf3);
+    memcpy(*ppOut + nBuf3, aBuf[2], nBuf2);
     if (nBuf1) {
-      memcpy(*ppOut + nBuf4 + nBuf3 + nBuf2, pBuf1, nBuf1);
+      memcpy(*ppOut + nBuf3 + nBuf2, aBuf[1], nBuf1);
+    }
+    if (nBuf0) {
+      memcpy(*ppOut + nBuf3 + nBuf2 + nBuf1, aBuf[0], nBuf0);
     }
   }
 
