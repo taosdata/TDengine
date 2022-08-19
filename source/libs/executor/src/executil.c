@@ -429,7 +429,9 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   for (int32_t i = 0; i < rows; i++) {
     int64_t* uid = taosArrayGet(uidList, i);
     void* tag = taosHashGet(tags, uid, sizeof(int64_t));
-    ASSERT(tag);
+    if (suid != 0) {
+      ASSERT(tag);
+    }
     for(int32_t j = 0; j < taosArrayGetSize(pResBlock->pDataBlock); j++){
       SColumnInfoData* pColInfo = (SColumnInfoData*)taosArrayGet(pResBlock->pDataBlock, j);
 
