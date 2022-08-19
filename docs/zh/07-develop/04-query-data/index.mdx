@@ -54,20 +54,20 @@ Query OK, 2 row(s) in set (0.001100s)
 在 TAOS Shell，查找加利福尼亚州所有智能电表采集的电压平均值，并按照 location 分组。
 
 ```
-taos> SELECT AVG(voltage) FROM meters GROUP BY location;
-       avg(voltage)        |            location            |
-=============================================================
-             222.000000000 | California.LosAngeles                |
-             219.200000000 | California.SanFrancisco               |
-Query OK, 2 row(s) in set (0.002136s)
+taos> SELECT AVG(voltage), location FROM meters GROUP BY location;
+       avg(voltage)        |                             location                             |
+===============================================================================================
+             219.200000000 | California.SanFrancisco                                          |
+             221.666666667 | California.LosAngeles                                            |
+Query OK, 2 rows in database (0.005995s)
 ```
 
 ### 示例二
 
-在 TAOS shell, 查找 groupId 为 2 的所有智能电表过去 24 小时的记录条数，电流的最大值。
+在 TAOS shell, 查找 groupId 为 2 的所有智能电表的记录条数，电流的最大值。
 
 ```
-taos> SELECT count(*), max(current) FROM meters where groupId = 2 and ts > now - 24h;
+taos> SELECT count(*), max(current) FROM meters where groupId = 2;
      cunt(*)  |    max(current)  |
 ==================================
             5 |             13.4 |
@@ -81,40 +81,41 @@ Query OK, 1 row(s) in set (0.002136s)
 物联网场景里，经常需要通过降采样（down sampling）将采集的数据按时间段进行聚合。TDengine 提供了一个简便的关键词 interval 让按照时间窗口的查询操作变得极为简单。比如，将智能电表 d1001 采集的电流值每 10 秒钟求和
 
 ```
-taos> SELECT sum(current) FROM d1001 INTERVAL(10s);
-           ts            |       sum(current)        |
+taos> SELECT _wstart, sum(current) FROM d1001 INTERVAL(10s);
+         _wstart         |       sum(current)        |
 ======================================================
  2018-10-03 14:38:00.000 |              10.300000191 |
  2018-10-03 14:38:10.000 |              24.900000572 |
-Query OK, 2 row(s) in set (0.000883s)
+Query OK, 2 rows in database (0.003139s)
 ```
 
 降采样操作也适用于超级表，比如：将加利福尼亚州所有智能电表采集的电流值每秒钟求和
 
 ```
-taos> SELECT SUM(current) FROM meters where location like "California%" INTERVAL(1s);
-           ts            |       sum(current)        |
+taos> SELECT _wstart, SUM(current) FROM meters where location like "California%" INTERVAL(1s);
+         _wstart         |       sum(current)        |
 ======================================================
  2018-10-03 14:38:04.000 |              10.199999809 |
- 2018-10-03 14:38:05.000 |              32.900000572 |
+ 2018-10-03 14:38:05.000 |              23.699999809 |
  2018-10-03 14:38:06.000 |              11.500000000 |
  2018-10-03 14:38:15.000 |              12.600000381 |
- 2018-10-03 14:38:16.000 |              36.000000000 |
-Query OK, 5 row(s) in set (0.001538s)
+ 2018-10-03 14:38:16.000 |              34.400000572 |
+Query OK, 5 rows in database (0.007413s)
 ```
 
 降采样操作也支持时间偏移，比如：将所有智能电表采集的电流值每秒钟求和，但要求每个时间窗口从 500 毫秒开始
 
 ```
-taos> SELECT SUM(current) FROM meters INTERVAL(1s, 500a);
-           ts            |       sum(current)        |
+taos> SELECT _wstart, SUM(current) FROM meters INTERVAL(1s, 500a);
+         _wstart         |       sum(current)        |
 ======================================================
- 2018-10-03 14:38:04.500 |              11.189999809 |
- 2018-10-03 14:38:05.500 |              31.900000572 |
- 2018-10-03 14:38:06.500 |              11.600000000 |
- 2018-10-03 14:38:15.500 |              12.300000381 |
- 2018-10-03 14:38:16.500 |              35.000000000 |
-Query OK, 5 row(s) in set (0.001521s)
+ 2018-10-03 14:38:03.500 |              10.199999809 |
+ 2018-10-03 14:38:04.500 |              10.300000191 |
+ 2018-10-03 14:38:05.500 |              13.399999619 |
+ 2018-10-03 14:38:06.500 |              11.500000000 |
+ 2018-10-03 14:38:14.500 |              12.600000381 |
+ 2018-10-03 14:38:16.500 |              34.400000572 |
+Query OK, 6 rows in database (0.005515s)
 ```
 
 物联网场景里，每个数据采集点采集数据的时间是难同步的，但很多分析算法(比如 FFT)需要把采集的数据严格按照时间等间隔的对齐，在很多系统里，需要应用自己写程序来处理，但使用 TDengine 的降采样操作就轻松解决。
