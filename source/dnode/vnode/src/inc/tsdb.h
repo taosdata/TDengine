@@ -65,6 +65,7 @@ typedef struct SBlockInfo    SBlockInfo;
 typedef struct SSmaInfo      SSmaInfo;
 typedef struct SBlockCol     SBlockCol;
 
+#define TSDB_FILE_DLMT     ((uint32_t)0xF00AFA0F)
 #define TSDB_MAX_SUBBLOCKS 8
 #define TSDB_FHDR_SIZE     512
 
@@ -150,12 +151,7 @@ SColData *tBlockDataGetColDataByIdx(SBlockData *pBlockData, int32_t idx);
 void      tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData);
 int32_t   tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest);
 int32_t   tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData);
-
-#if 1
-int32_t tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);
-int32_t tPutBlockData(uint8_t *p, SBlockData *pBlockData);
-int32_t tGetBlockData(uint8_t *p, SBlockData *pBlockData);
-#endif
+int32_t   tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);
 // SDiskDataHdr
 int32_t tPutDiskDataHdr(uint8_t *p, void *ph);
 int32_t tGetDiskDataHdr(uint8_t *p, void *ph);

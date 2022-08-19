@@ -94,6 +94,8 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
       if (pReader->pBlockIdx && pReader->pBlockL) {
         TABLEID id = {.suid = pReader->pBlockL->suid, .uid = pReader->pBlockL->minUid};
 
+        ASSERT(0);
+
         // if (tTABLEIDCmprFn(pReader->pBlockIdx, &minId) < 0) {
         //   // TODO
         // } else if (tTABLEIDCmprFn(pReader->pBlockIdx, &maxId) < 0) {

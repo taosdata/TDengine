@@ -15,8 +15,6 @@
 
 #include "tsdb.h"
 
-#define TSDB_FILE_DLMT ((uint32_t)0xF00AFA0F)
-
 // SDelFWriter ====================================================
 int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb) {
   int32_t      code = 0;
