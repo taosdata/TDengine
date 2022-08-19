@@ -664,7 +664,9 @@ function install_TDengine() {
 ## ==============================Main program starts from here============================
 echo source directory: $1
 echo binary directory: $2
-if [ "$osType" != "Darwin" ]; then
+if [ -x ${data_dir}/dnode/dnodeCfg.json ]; then
+  echo -e "\033[44;31;5mThe default data directory ${data_dir} contains old data of tdengine 2.x, please clear it before installing!\033[0m"
+elif [ "$osType" != "Darwin" ]; then
   if [ -x ${bin_dir}/${clientName} ]; then
     update_TDengine
   else
