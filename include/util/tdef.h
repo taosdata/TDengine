@@ -166,7 +166,7 @@ typedef enum EOperatorType {
   OP_TYPE_JSON_CONTAINS,
 
   // internal operator
-  OP_TYPE_ASSIGN = 250
+  OP_TYPE_ASSIGN = 200
 } EOperatorType;
 
 #define OP_TYPE_CALC_MAX OP_TYPE_BIT_OR

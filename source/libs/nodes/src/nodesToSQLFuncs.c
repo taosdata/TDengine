@@ -21,7 +21,7 @@
 #include "taoserror.h"
 #include "thash.h"
 
-static const char *operatorTypeStr(EOperatorType type) {
+const char *operatorTypeStr(EOperatorType type) {
   switch (type) {
     case OP_TYPE_ADD:
       return "+";
@@ -91,7 +91,7 @@ static const char *operatorTypeStr(EOperatorType type) {
   return "UNKNOWN";
 }
 
-static const char *logicConditionTypeStr(ELogicConditionType type) {
+const char *logicConditionTypeStr(ELogicConditionType type) {
   switch (type) {
     case LOGIC_COND_TYPE_AND:
       return "AND";
