@@ -174,15 +174,15 @@ ELSE ()
                 BUILD_COMMAND
                 COMMAND set CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client
                 COMMAND set CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib
-                COMMAND go build -ldflags "-s -w -X github.com/taosdata/taosadapter/version.Version=${taos_version} -X github.com/taosdata/taosadapter/version.CommitID=${taosadapter_commit_sha1}"
-                COMMAND go build -o taosadapter-debug -ldflags "-X github.com/taosdata/taosadapter/version.Version=${taos_version} -X github.com/taosdata/taosadapter/version.CommitID=${taosadapter_commit_sha1}"
+                COMMAND go build -a -o taosadapter.exe -ldflags "-s -w -X github.com/taosdata/taosadapter/version.Version=${taos_version} -X github.com/taosdata/taosadapter/version.CommitID=${taosadapter_commit_sha1}"
+                COMMAND go build -a -o taosadapter-debug.exe -ldflags "-X github.com/taosdata/taosadapter/version.Version=${taos_version} -X github.com/taosdata/taosadapter/version.CommitID=${taosadapter_commit_sha1}"
                 INSTALL_COMMAND
                 COMMAND ${_upx_prefix}/src/upx/upx taosadapter.exe
                 COMMAND cmake -E copy taosadapter.exe ${CMAKE_BINARY_DIR}/build/bin
                 COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
                 COMMAND cmake -E copy ./example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
                 COMMAND cmake -E copy ./taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/
-                COMMAND cmake -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
+                COMMAND cmake -E copy taosadapter-debug.exe ${CMAKE_BINARY_DIR}/build/bin
                 )
         unset(_upx_prefix)
     ELSE ()
