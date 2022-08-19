@@ -574,7 +574,7 @@ struct SDelFWriter {
   SDelFile  fDel;
   TdFilePtr pWriteH;
 
-  uint8_t *pBuf1;
+  uint8_t *aBuf[1];
 };
 
 struct SDataFWriter {
@@ -591,10 +591,7 @@ struct SDataFWriter {
   SLastFile fLast;
   SSmaFile  fSma;
 
-  uint8_t *pBuf1;
-  uint8_t *pBuf2;
-  uint8_t *pBuf3;
-  uint8_t *pBuf4;
+  uint8_t *aBuf[4];
 };
 
 struct STsdbReadSnap {
