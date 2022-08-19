@@ -79,11 +79,21 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
       } else {
         pReader->pBlockIdx = NULL;
       }
+
       pReader->iBlockL = 0;
-      if (pReader->iBlockL < taosArrayGetSize(pReader->aBlockL)) {
+      while (true) {
+        if (pReader->iBlockL >= taosArrayGetSize(pReader->aBlockL)) {
+          pReader->pBlockL = NULL;
+          break;
+        }
+
         pReader->pBlockL = (SBlockL*)taosArrayGet(pReader->aBlockL, pReader->iBlockL);
-      } else {
-        pReader->pBlockL = NULL;
+        if (pReader->pBlockL->minVer <= pReader->ever && pReader->pBlockL->maxVer >= pReader->sver) {
+          // TODO
+          break;
+        }
+
+        pReader->iBlockL++;
       }
 
       tsdbInfo("vgId:%d, vnode snapshot tsdb open data file to read for %s, fid:%d", TD_VID(pTsdb->pVnode), pTsdb->path,
