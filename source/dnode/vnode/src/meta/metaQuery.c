@@ -127,7 +127,7 @@ _err:
 //   return 0;
 // }
 
-bool metaIsTableExist(SMeta  *pMeta, tb_uid_t uid) {
+bool metaIsTableExist(SMeta *pMeta, tb_uid_t uid) {
   // query uid.idx
   if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), NULL, NULL) < 0) {
     return false;
@@ -1050,6 +1050,8 @@ int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj 
   metaCloseCtbCursor(pCur);
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t metaCacheGet(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo);
 
 int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo) {
   int32_t code = 0;

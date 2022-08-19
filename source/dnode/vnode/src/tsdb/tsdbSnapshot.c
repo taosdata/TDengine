@@ -30,8 +30,6 @@ struct STsdbSnapReader {
   SArray*       aBlockL;    // SArray<SBlockL>
   SBlockIdx*    pBlockIdx;
   SBlockL*      pBlockL;
-  SBlock*       pBlock;
-  SBlock        block;
 
   int32_t    iBlockIdx;
   int32_t    iBlockL;
@@ -78,9 +76,6 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
         if (code) goto _err;
 
         pReader->iBlock = 0;
-        if (pReader->iBlock < pReader->mBlock.nItem) {
-          tMapDataGetItemByIdx(&pReader->mBlock, pReader->iBlock, &pReader->block, tGetBlock);
-        }
       } else {
         pReader->pBlockIdx = NULL;
       }
@@ -97,18 +92,16 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
 
     while (true) {
       if (pReader->pBlockIdx && pReader->pBlockL) {
-        TABLEID minId = {.suid = pReader->pBlockL->suid, .uid = pReader->pBlockL->minUid};
-        TABLEID maxId = {.suid = pReader->pBlockL->suid, .uid = pReader->pBlockL->maxUid};
+        TABLEID id = {.suid = pReader->pBlockL->suid, .uid = pReader->pBlockL->minUid};
 
-        if (tTABLEIDCmprFn(pReader->pBlockIdx, &minId) < 0) {
-          // TODO
-        } else if (tTABLEIDCmprFn(pReader->pBlockIdx, &maxId) < 0) {
-          // TODO
-        } else {
-          // TODO
-        }
+        // if (tTABLEIDCmprFn(pReader->pBlockIdx, &minId) < 0) {
+        //   // TODO
+        // } else if (tTABLEIDCmprFn(pReader->pBlockIdx, &maxId) < 0) {
+        //   // TODO
+        // } else {
+        //   // TODO
+        // }
       } else if (pReader->pBlockIdx) {
-        // may have problem (todo)
         while (pReader->iBlock < pReader->mBlock.nItem) {
           SBlock block;
           tMapDataGetItemByIdx(&pReader->mBlock, pReader->iBlock, &block, tGetBlock);
@@ -119,9 +112,24 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
 
           // next
           pReader->iBlock++;
-
-          if (*ppData) goto _exit;
+          if (*ppData) break;
         }
+
+        if (pReader->iBlock >= pReader->mBlock.nItem) {
+          pReader->iBlockIdx++;
+          if (pReader->iBlockIdx < taosArrayGetSize(pReader->aBlockIdx)) {
+            pReader->pBlockIdx = (SBlockIdx*)taosArrayGet(pReader->aBlockIdx, pReader->iBlockIdx);
+
+            code = tsdbReadBlock(pReader->pDataFReader, pReader->pBlockIdx, &pReader->mBlock);
+            if (code) goto _err;
+
+            pReader->iBlock = 0;
+          } else {
+            pReader->pBlockIdx = NULL;
+          }
+        }
+
+        if (*ppData) goto _exit;
       } else if (pReader->pBlockL) {
         while (pReader->pBlockL) {
           if (pReader->pBlockL->minVer <= pReader->ever && pReader->pBlockL->maxVer >= pReader->sver) {
