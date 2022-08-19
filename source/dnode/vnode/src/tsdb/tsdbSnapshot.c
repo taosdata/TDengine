@@ -30,6 +30,8 @@ struct STsdbSnapReader {
   SArray*       aBlockL;    // SArray<SBlockL>
   SBlockIdx*    pBlockIdx;
   SBlockL*      pBlockL;
+  SBlock*       pBlock;
+  SBlock        block;
 
   int32_t    iBlockIdx;
   int32_t    iBlockL;
@@ -58,7 +60,7 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
       pReader->fid = pSet->fid;
 
       // load
-      code = tsdbDataFReaderOpen(&pReader->pDataFReader, pReader->pTsdb, pSet);
+      code = tsdbDataFReaderOpen(&pReader->pDataFReader, pTsdb, pSet);
       if (code) goto _err;
 
       code = tsdbReadBlockIdx(pReader->pDataFReader, pReader->aBlockIdx);
@@ -69,8 +71,25 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
 
       // init
       pReader->iBlockIdx = 0;
-      pReader->pBlockIdx = NULL;
+      if (pReader->iBlockIdx < taosArrayGetSize(pReader->aBlockIdx)) {
+        pReader->pBlockIdx = (SBlockIdx*)taosArrayGet(pReader->aBlockIdx, pReader->iBlockIdx);
+
+        code = tsdbReadBlock(pReader->pDataFReader, pReader->pBlockIdx, &pReader->mBlock);
+        if (code) goto _err;
+
+        pReader->iBlock = 0;
+        if (pReader->iBlock < pReader->mBlock.nItem) {
+          tMapDataGetItemByIdx(&pReader->mBlock, pReader->iBlock, &pReader->block, tGetBlock);
+        }
+      } else {
+        pReader->pBlockIdx = NULL;
+      }
       pReader->iBlockL = 0;
+      if (pReader->iBlockL < taosArrayGetSize(pReader->aBlockL)) {
+        pReader->pBlockL = (SBlockL*)taosArrayGet(pReader->aBlockL, pReader->iBlockL);
+      } else {
+        pReader->pBlockL = NULL;
+      }
 
       tsdbInfo("vgId:%d, vnode snapshot tsdb open data file to read for %s, fid:%d", TD_VID(pTsdb->pVnode), pTsdb->path,
                pReader->fid);
@@ -78,6 +97,16 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
 
     while (true) {
       if (pReader->pBlockIdx && pReader->pBlockL) {
+        TABLEID minId = {.suid = pReader->pBlockL->suid, .uid = pReader->pBlockL->minUid};
+        TABLEID maxId = {.suid = pReader->pBlockL->suid, .uid = pReader->pBlockL->maxUid};
+
+        if (tTABLEIDCmprFn(pReader->pBlockIdx, &minId) < 0) {
+          // TODO
+        } else if (tTABLEIDCmprFn(pReader->pBlockIdx, &maxId) < 0) {
+          // TODO
+        } else {
+          // TODO
+        }
       } else if (pReader->pBlockIdx) {
         // may have problem (todo)
         while (pReader->iBlock < pReader->mBlock.nItem) {
