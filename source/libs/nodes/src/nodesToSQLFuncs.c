@@ -21,36 +21,89 @@
 #include "taoserror.h"
 #include "thash.h"
 
-char *gOperatorStr[] = {NULL,
-                        "+",
-                        "-",
-                        "*",
-                        "/",
-                        "%",
-                        "-",
-                        "&",
-                        "|",
-                        ">",
-                        ">=",
-                        "<",
-                        "<=",
-                        "=",
-                        "<>",
-                        "IN",
-                        "NOT IN",
-                        "LIKE",
-                        "NOT LIKE",
-                        "MATCH",
-                        "NMATCH",
-                        "IS NULL",
-                        "IS NOT NULL",
-                        "IS TRUE",
-                        "IS FALSE",
-                        "IS UNKNOWN",
-                        "IS NOT TRUE",
-                        "IS NOT FALSE",
-                        "IS NOT UNKNOWN"};
-char *gLogicConditionStr[] = {"AND", "OR", "NOT"};
+const char *operatorTypeStr(EOperatorType type) {
+  switch (type) {
+    case OP_TYPE_ADD:
+      return "+";
+    case OP_TYPE_SUB:
+      return "-";
+    case OP_TYPE_MULTI:
+      return "*";
+    case OP_TYPE_DIV:
+      return "/";
+    case OP_TYPE_REM:
+      return "%";
+    case OP_TYPE_MINUS:
+      return "-";
+    case OP_TYPE_BIT_AND:
+      return "&";
+    case OP_TYPE_BIT_OR:
+      return "|";
+    case OP_TYPE_GREATER_THAN:
+      return ">";
+    case OP_TYPE_GREATER_EQUAL:
+      return ">=";
+    case OP_TYPE_LOWER_THAN:
+      return "<";
+    case OP_TYPE_LOWER_EQUAL:
+      return "<=";
+    case OP_TYPE_EQUAL:
+      return "=";
+    case OP_TYPE_NOT_EQUAL:
+      return "<>";
+    case OP_TYPE_IN:
+      return "IN";
+    case OP_TYPE_NOT_IN:
+      return "NOT IN";
+    case OP_TYPE_LIKE:
+      return "LIKE";
+    case OP_TYPE_NOT_LIKE:
+      return "NOT LIKE";
+    case OP_TYPE_MATCH:
+      return "MATCH";
+    case OP_TYPE_NMATCH:
+      return "NMATCH";
+    case OP_TYPE_IS_NULL:
+      return "IS NULL";
+    case OP_TYPE_IS_NOT_NULL:
+      return "IS NOT NULL";
+    case OP_TYPE_IS_TRUE:
+      return "IS TRUE";
+    case OP_TYPE_IS_FALSE:
+      return "IS FALSE";
+    case OP_TYPE_IS_UNKNOWN:
+      return "IS UNKNOWN";
+    case OP_TYPE_IS_NOT_TRUE:
+      return "IS NOT TRUE";
+    case OP_TYPE_IS_NOT_FALSE:
+      return "IS NOT FALSE";
+    case OP_TYPE_IS_NOT_UNKNOWN:
+      return "IS NOT UNKNOWN";
+    case OP_TYPE_JSON_GET_VALUE:
+      return "=>";
+    case OP_TYPE_JSON_CONTAINS:
+      return "CONTAINS";
+    case OP_TYPE_ASSIGN:
+      return "=";
+    default:
+      break;
+  }
+  return "UNKNOWN";
+}
+
+const char *logicConditionTypeStr(ELogicConditionType type) {
+  switch (type) {
+    case LOGIC_COND_TYPE_AND:
+      return "AND";
+    case LOGIC_COND_TYPE_OR:
+      return "OR";
+    case LOGIC_COND_TYPE_NOT:
+      return "NOT";
+    default:
+      break;
+  }
+  return "UNKNOWN";
+}
 
 int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
   switch (pNode->type) {
@@ -94,12 +147,7 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
         NODES_ERR_RET(nodesNodeToSQL(pOpNode->pLeft, buf, bufSize, len));
       }
 
-      if (pOpNode->opType >= (sizeof(gOperatorStr) / sizeof(gOperatorStr[0]))) {
-        nodesError("unknown operation type:%d", pOpNode->opType);
-        NODES_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
-      }
-
-      *len += snprintf(buf + *len, bufSize - *len, " %s ", gOperatorStr[pOpNode->opType]);
+      *len += snprintf(buf + *len, bufSize - *len, " %s ", operatorTypeStr(pOpNode->opType));
 
       if (pOpNode->pRight) {
         NODES_ERR_RET(nodesNodeToSQL(pOpNode->pRight, buf, bufSize, len));
@@ -118,7 +166,7 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
 
       FOREACH(node, pLogicNode->pParameterList) {
         if (!first) {
-          *len += snprintf(buf + *len, bufSize - *len, " %s ", gLogicConditionStr[pLogicNode->condType]);
+          *len += snprintf(buf + *len, bufSize - *len, " %s ", logicConditionTypeStr(pLogicNode->condType));
         }
         NODES_ERR_RET(nodesNodeToSQL(node, buf, bufSize, len));
         first = false;

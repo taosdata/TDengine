@@ -143,9 +143,9 @@ static int32_t createSName(SName* pName, SToken* pTableName, int32_t acctId, con
     }
     char name[TSDB_DB_FNAME_LEN] = {0};
     strncpy(name, pTableName->z, dbLen);
-    dbLen = strdequote(name);
+    int32_t actualDbLen = strdequote(name);
 
-    code = tNameSetDbName(pName, acctId, name, dbLen);
+    code = tNameSetDbName(pName, acctId, name, actualDbLen);
     if (code != TSDB_CODE_SUCCESS) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
