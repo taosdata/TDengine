@@ -2413,11 +2413,11 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
             break;
           }
         }
+      }
 
-        if (pSliceInfo->current > pSliceInfo->win.ekey) {
-          doSetOperatorCompleted(pOperator);
-          break;
-        }
+      if (pSliceInfo->current > pSliceInfo->win.ekey) {
+        doSetOperatorCompleted(pOperator);
+        break;
       }
 
       if (ts == pSliceInfo->current) {
