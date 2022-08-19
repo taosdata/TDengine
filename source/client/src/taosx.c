@@ -768,10 +768,11 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
     // change tag cid to new cid
     if(pCreateReq->type == TSDB_CHILD_TABLE){
       STableMeta* pTableMeta = NULL;
-      code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
-      if (code != TSDB_CODE_SUCCESS) {
-        uError("taosCreateTable:catalogGetTableMeta failed. table name: %s", pCreateReq->name);
-        taosMemoryFreeClear(pTableMeta);
+      SName       sName = {0};
+      toName(pTscObj->acctId, pRequest->pDb, pCreateReq->ctb.name, &sName);
+      code = catalogGetTableMeta(pCatalog, &conn, &sName, &pTableMeta);
+      if(code != TSDB_CODE_SUCCESS){
+        uError("taosCreateTable:catalogGetTableMeta failed. table name: %s", pCreateReq->ctb.name);
         goto end;
       }
 

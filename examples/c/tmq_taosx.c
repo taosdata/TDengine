@@ -23,7 +23,7 @@
 static int  running = 1;
 
 static TAOS* use_db(){
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("192.168.1.86", "root", "taosdata", NULL, 0);
   if (pConn == NULL) {
     return NULL;
   }
