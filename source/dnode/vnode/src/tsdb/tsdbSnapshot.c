@@ -422,6 +422,8 @@ struct STsdbSnapWriter {
   int32_t       iRow;
   SBlockData    bDataR;
   SArray*       aBlockL;  // SArray<SBlockL>
+  int32_t       iBlockL;
+  SBlockData    lDataR;
 
   SDataFWriter* pDataFWriter;
   SBlockIdx*    pBlockIdxW;  // NULL when no committing table
@@ -912,7 +914,9 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
     pWriter->iBlock = 0;
     pWriter->pBlockData = NULL;
     pWriter->iRow = 0;
+    pWriter->iBlockL = 0;
     tBlockDataReset(&pWriter->bDataR);
+    tBlockDataReset(&pWriter->lDataR);
 
     // write
     SHeadFile fHead;
