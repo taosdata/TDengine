@@ -1070,7 +1070,7 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char* apolloUrl
   TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile != NULL) {
     while (!taosEOFFile(pFile)) {
-      _bytes = taosGetsFile(pFile, sizeof(line) - 1, &line);
+      _bytes = taosGetsFile(pFile, sizeof(line) - 1, line);
       if (_bytes <= 0) {
         break;
       }
