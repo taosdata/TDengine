@@ -199,10 +199,20 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
     if (pPageH) {
       // copy the page content
       memcpy(&(pPage->pgid), pPgid, sizeof(*pPgid));
+
+      for (int nLoops = 0;;) {
+        if (pPageH->pPager) break;
+        if (++nLoops > 1000) {
+          sched_yield();
+          nLoops = 0;
+        }
+      }
+
       pPage->pLruNext = NULL;
       pPage->pPager = pPageH->pPager;
 
       memcpy(pPage->pData, pPageH->pData, pPage->pageSize);
+      tdbDebug("pcache/pPageH: %p %d %p %p", pPageH, pPageH->pPageHdr - pPageH->pData, pPageH->xCellSize, pPage);
       tdbPageInit(pPage, pPageH->pPageHdr - pPageH->pData, pPageH->xCellSize);
       pPage->kLen = pPageH->kLen;
       pPage->vLen = pPageH->vLen;
