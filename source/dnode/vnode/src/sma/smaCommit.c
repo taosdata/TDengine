@@ -351,7 +351,11 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
       nLoops = 0;
     }
   }
-  smaInfo("vgId:%d, rsma commit, all items are consumed, TID:%p", SMA_VID(pSma), (void*)taosGetSelfPthreadId());
+  smaInfo("vgId:%d, rsma commit, all items are consumed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
+  if (tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat)) < 0) {
+    return TSDB_CODE_FAILED;
+  }
+  smaInfo("vgId:%d, rsma commit, operator state commited, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
 
 #if 0 // consuming task of qTaskInfo clone 
   // step 4:  swap queue/qall and iQueue/iQall
@@ -391,13 +395,14 @@ static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma) {
   if (!pSmaEnv) {
     return TSDB_CODE_SUCCESS;
   }
-
+#if 0
   SRSmaStat *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pSmaEnv);
 
   // perform persist task for qTaskInfo operator
   if (tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat)) < 0) {
     return TSDB_CODE_FAILED;
   }
+#endif
 
   return TSDB_CODE_SUCCESS;
 }
@@ -421,8 +426,8 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
   // lock
   // taosWLockLatch(SMA_ENV_LOCK(pEnv));
 
-  void *pIter = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), NULL);
-  while (pIter) {
+  void *pIter = NULL;
+  while ((pIter = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), pIter))) {
     tb_uid_t  *pSuid = (tb_uid_t *)taosHashGetKey(pIter, NULL);
     SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)pIter;
     if (RSMA_INFO_IS_DEL(pRSmaInfo)) {
@@ -440,14 +445,13 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
             SMA_VID(pSma), refVal, *pSuid);
       }
 
-      pIter = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), pIter);
       continue;
     }
-
+#if 0
     if (pRSmaInfo->taskInfo[0]) {
       if (pRSmaInfo->iTaskInfo[0]) {
         SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)pRSmaInfo->iTaskInfo[0];
-        tdFreeRSmaInfo(pSma, pRSmaInfo, true);
+        tdFreeRSmaInfo(pSma, pRSmaInfo, false);
         pRSmaInfo->iTaskInfo[0] = NULL;
       }
     } else {
@@ -456,8 +460,7 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
 
     taosHashPut(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t), pIter, sizeof(pIter));
     smaDebug("vgId:%d, rsma async post commit, migrated from iRsmaInfoHash for table:%" PRIi64, SMA_VID(pSma), *pSuid);
-
-    pIter = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), pIter);
+#endif
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(rsmaDeleted); ++i) {

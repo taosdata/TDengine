@@ -19,9 +19,9 @@
 #define RSMA_QTASKINFO_HEAD_LEN    (sizeof(int32_t) + sizeof(int8_t) + sizeof(int64_t))  // len + type + suid
 #define RSMA_QTASKEXEC_SMOOTH_SIZE (100)                                                 // cnt
 #define RSMA_SUBMIT_BATCH_SIZE     (1024)                                                // cnt
-#define RSMA_FETCH_DELAY_MAX       (1800000)                                             // ms
-#define RSMA_FETCH_SKIP_MAX        (1000)                                                // cnt
-#define RSMA_FETCH_ACTIVE_MAX      (1800)                                                // ms
+#define RSMA_FETCH_DELAY_MAX       (180000)                                              // ms
+#define RSMA_FETCH_SKIP_MAX        (10)                                                  // cnt
+#define RSMA_FETCH_ACTIVE_MAX      (180)                                                 // ms
 
 SSmaMgmt smaMgmt = {
     .inited = 0,
@@ -163,8 +163,8 @@ void *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree) {
       pInfo->iQall = NULL;
     }
 
-    taosMemoryFree(pInfo);
-  }
+      taosMemoryFree(pInfo);
+    }
 
   return NULL;
 }
@@ -968,13 +968,12 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, void *pMsg, int32_t inputType) {
         goto _err;
       }
 
-      void *pIter = taosHashIterate(uidStore.uidHash, NULL);
-      while (pIter) {
+      void *pIter = NULL;
+      while ((pIter = taosHashIterate(uidStore.uidHash, pIter))) {
         tb_uid_t *pTbSuid = (tb_uid_t *)taosHashGetKey(pIter, NULL);
         if (tdExecuteRSmaAsync(pSma, pMsg, inputType, *pTbSuid) < 0) {
           goto _err;
         }
-        pIter = taosHashIterate(uidStore.uidHash, pIter);
       }
 
       if (tdRSmaExecCheck(pSma) < 0) {
@@ -1418,7 +1417,10 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
     }
 
     for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
+#if 0
       qTaskInfo_t taskInfo = RSMA_INFO_IQTASK(pRSmaInfo, i);
+#endif
+      qTaskInfo_t taskInfo = RSMA_INFO_QTASK(pRSmaInfo, i);
       if (!taskInfo) {
         smaDebug("vgId:%d, rsma, table %" PRIi64 " level %d qTaskInfo is NULL", vid, pRSmaInfo->suid, i + 1);
         continue;
@@ -1644,23 +1646,26 @@ static int32_t tdRSmaConsumeAndFetch(SSma *pSma, SRSmaInfo *pInfo, SArray *pSubm
       }
 
       int64_t curMs = taosGetTimestampMs();
-      if ((pItem->nSkipped > RSMA_FETCH_SKIP_MAX) || (pItem->nSkipped * pItem->maxDelay) > RSMA_FETCH_DELAY_MAX) {
-        pItem->nSkipped = 0;
-        smaInfo("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nSkipped:%" PRIi8 " maxDelay:%d, fetch executed",
-                SMA_VID(pSma), pInfo->suid, i, pItem->nSkipped, pItem->maxDelay);
-      } else {
-        if (((curMs - pInfo->lastRecv) < RSMA_FETCH_ACTIVE_MAX)) {
-          ++pItem->nSkipped;
-          smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " curMs:%" PRIi64 " lastRecv:%" PRIi64 ", fetch skipped ",
-                   SMA_VID(pSma), pInfo->suid, i, curMs, pInfo->lastRecv);
-          continue;
-        } else {
-          smaInfo("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " curMs:%" PRIi64 " lastRecv:%" PRIi64 ", fetch executed ",
-                  SMA_VID(pSma), pInfo->suid, i, curMs, pInfo->lastRecv);
-        }
-      }
+      // if ((pItem->nSkipped > RSMA_FETCH_SKIP_MAX) || (pItem->nSkipped * pItem->maxDelay) > RSMA_FETCH_DELAY_MAX) {
+      //   pItem->nSkipped = 0;
+      //   smaInfo("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nSkipped:%" PRIi8 " maxDelay:%d, fetch executed",
+      //           SMA_VID(pSma), pInfo->suid, i, pItem->nSkipped, pItem->maxDelay);
+      // } else {
+      //   if (((curMs - pInfo->lastRecv) < RSMA_FETCH_ACTIVE_MAX)) {
+      //     ++pItem->nSkipped;
+      //     smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " curMs:%" PRIi64 " lastRecv:%" PRIi64 ", fetch skipped ",
+      //              SMA_VID(pSma), pInfo->suid, i, curMs, pInfo->lastRecv);
+      //     continue;
+      //   } else {
+      //     smaInfo("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " curMs:%" PRIi64 " lastRecv:%" PRIi64 ", fetch executed ",
+      //             SMA_VID(pSma), pInfo->suid, i, curMs, pInfo->lastRecv);
+      //   }
+      // }
 
       pItem->lastFetch = curMs;
+
+      // smaInfo("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " curMs:%" PRIi64 " lastRecv:%" PRIi64 ", fetch executed ",
+      //         SMA_VID(pSma), pInfo->suid, i, curMs, pInfo->lastRecv);
 
       if ((terrno = qSetMultiStreamInput(taskInfo, &dataBlock, 1, STREAM_INPUT__DATA_BLOCK)) < 0) {
         goto _err;
@@ -1817,25 +1822,16 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
       ASSERT(0);
     }
 
-    smaInfo("prop:vgId:%d loop end check", SMA_VID(pSma));
     if (atomic_load_64(&pRSmaStat->nBufItems) <= 0) {
       if (pVnode->inClose) {
-        smaInfo("prop:vgId:%d loop end check - inClose and break", SMA_VID(pSma));
         break;
       }
-      smaInfo("prop:vgId:%d loop end check - wait for notEmpty", SMA_VID(pSma));
       tsem_wait(&pRSmaStat->notEmpty);
-      smaInfo("prop:vgId:%d loop end check - received notEmpty", SMA_VID(pSma));
       if (pVnode->inClose && (atomic_load_64(&pRSmaStat->nBufItems) <= 0)) {
         smaInfo("prop:vgId:%d loop end check - break - inClose:%d, nBufItems:%" PRIi64, SMA_VID(pSma), pVnode->inClose,
                 atomic_load_64(&pRSmaStat->nBufItems));
         break;
-      } else {
-        smaInfo("prop:vgId:%d loop end check - continue - inClose:%d, nBufItems:%" PRIi64, SMA_VID(pSma),
-                pVnode->inClose, atomic_load_64(&pRSmaStat->nBufItems));
       }
-    } else {
-      smaInfo("prop:vgId:%d loop end check - continue to run", SMA_VID(pSma));
     }
   }  // end of while(true)
 
