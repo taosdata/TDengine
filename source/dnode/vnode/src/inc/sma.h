@@ -123,7 +123,6 @@ struct SRSmaInfoItem {
   uint8_t nSkipped;  // number of skipped to fetch data from all active window
   int8_t  fetchLevel;
   int32_t maxDelay;  // ms
-  int64_t lastFetch; // ms
   tmr_h   tmrId;
 };
 
