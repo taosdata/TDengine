@@ -1769,7 +1769,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
         int64_t    itemSize = 0;
         if ((itemSize = taosQueueItemSize(pInfo->queue)) || RSMA_INFO_ITEM(pInfo, 0)->fetchLevel ||
             RSMA_INFO_ITEM(pInfo, 1)->fetchLevel) {
-          smaDebug("vgId:%d queueItemSize is %" PRIi64 " execType:%" PRIi8, SMA_VID(pSma), itemSize, type);
+          smaDebug("vgId:%d, queueItemSize is %" PRIi64 " execType:%" PRIi8, SMA_VID(pSma), itemSize, type);
           if (atomic_val_compare_exchange_8(&pInfo->assigned, 0, 1) == 0) {
             taosReadAllQitems(pInfo->queue, pInfo->qall);  // queue has mutex lock
             int32_t qallItemSize = taosQallItemSize(pInfo->qall);
@@ -1828,7 +1828,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
       }
       tsem_wait(&pRSmaStat->notEmpty);
       if (pVnode->inClose && (atomic_load_64(&pRSmaStat->nBufItems) <= 0)) {
-        smaInfo("prop:vgId:%d loop end check - break - inClose:%d, nBufItems:%" PRIi64, SMA_VID(pSma), pVnode->inClose,
+        smaInfo("vgId:%d, exec task end, inClose:%d, nBufItems:%" PRIi64, SMA_VID(pSma), pVnode->inClose,
                 atomic_load_64(&pRSmaStat->nBufItems));
         break;
       }

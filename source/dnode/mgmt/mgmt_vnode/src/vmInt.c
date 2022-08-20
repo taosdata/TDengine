@@ -91,10 +91,7 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   while (!taosQueueEmpty(pVnode->pWriteQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pSyncQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pApplyQ)) taosMsleep(10);
-  while (!taosQueueEmpty(pVnode->pQueryQ)) {
-    taosMsleep(10);
-    dInfo("prop:vgId:%d, query queue size is %d", pVnode->vgId, taosQueueItemSize(pVnode->pQueryQ));
-  }
+  while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pFetchQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pStreamQ)) taosMsleep(10);
   dTrace("vgId:%d, vnode queue is empty", pVnode->vgId);

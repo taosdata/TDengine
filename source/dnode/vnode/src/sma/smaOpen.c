@@ -152,7 +152,6 @@ int32_t smaPreClose(SSma *pSma) {
     for (int32_t i = 0; i < RSMA_EXECUTOR_MAX; ++i) {
       tsem_post(&(pRSmaStat->notEmpty));
     }
-    smaInfo("prop:vgId:%d post notEmtpy", SMA_VID(pSma));
   }
   return 0;
 }

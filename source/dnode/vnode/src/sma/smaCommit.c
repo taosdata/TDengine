@@ -316,6 +316,8 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   // step 1: set rsma stat
   atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_PAUSED);
   atomic_store_8(RSMA_COMMIT_STAT(pRSmaStat), 1);
+  pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
+  ASSERT(pRSmaStat->commitAppliedVer > 0);
 
   // step 2: wait all triggered fetch tasks finished
   int32_t nLoops = 0;
@@ -378,8 +380,6 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   // unlock
   // taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
 #endif
-  // step 5: others
-  pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
 
   return TSDB_CODE_SUCCESS;
 }
