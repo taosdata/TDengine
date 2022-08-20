@@ -2392,7 +2392,7 @@ static int32_t doLoadRelatedLastBlock(SLastBlockReader* pLastBlockReader, uint64
   }
 
   if (pLastBlockReader->currentBlockIndex == -1) {
-    tBlockDataClear(&pLastBlockReader->lastBlockData);
+    tBlockDataReset(&pLastBlockReader->lastBlockData);
     return TSDB_CODE_SUCCESS;
   }
 
