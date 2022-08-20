@@ -463,7 +463,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
   pReader->pTsdb = getTsdbByRetentions(pVnode, pCond->twindows.skey, pVnode->config.tsdbCfg.retentions, idstr, &level);
   pReader->suid = pCond->suid;
   pReader->order = pCond->order;
-  pReader->capacity = 1;
+  pReader->capacity = 4096;
   pReader->idStr = (idstr != NULL) ? strdup(idstr) : NULL;
   pReader->verRange = getQueryVerRange(pVnode, pCond, level);
   pReader->type = pCond->type;
