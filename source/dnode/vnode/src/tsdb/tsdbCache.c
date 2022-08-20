@@ -266,14 +266,14 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb 
     }
 
     for (++iCol; iCol < nCol; ++iCol) {
-      SLastCol *tTsVal = (SLastCol *)taosArrayGet(pLast, iCol);
-      if (keyTs >= tTsVal->ts) {
-        SColVal *tColVal = &tTsVal->colVal;
+      SLastCol *tTsVal1 = (SLastCol *)taosArrayGet(pLast, iCol);
+      if (keyTs >= tTsVal1->ts) {
+        SColVal *tColVal = &tTsVal1->colVal;
 
         SColVal colVal = {0};
         tTSRowGetVal(row, pTSchema, iCol, &colVal);
         if (colVal.isNone || colVal.isNull) {
-          if (keyTs == tTsVal->ts && !tColVal->isNone && !tColVal->isNull) {
+          if (keyTs == tTsVal1->ts && !tColVal->isNone && !tColVal->isNull) {
             invalidate = true;
 
             break;
@@ -958,7 +958,7 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
 
   pIter->idx = (SBlockIdx){.suid = suid, .uid = uid};
 
-  pIter->fsLastState.state = SFSNEXTROW_FS;
+  pIter->fsLastState.state = (SFSLASTNEXTROWSTATES) SFSNEXTROW_FS;
   pIter->fsLastState.pTsdb = pTsdb;
   pIter->fsLastState.aDFileSet = pIter->pReadSnap->fs.aDFileSet;
   pIter->fsLastState.pBlockIdxExp = &pIter->idx;
@@ -1063,9 +1063,9 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow) {
   int      iMerge[4] = {-1, -1, -1, -1};
   int      nMerge = 0;
   for (int i = 0; i < nMax; ++i) {
-    TSDBKEY maxKey = TSDBROW_KEY(max[i]);
+    TSDBKEY maxKey1 = TSDBROW_KEY(max[i]);
 
-    bool deleted = tsdbKeyDeleted(&maxKey, pIter->pSkyline, &pIter->iSkyline);
+    bool deleted = tsdbKeyDeleted(&maxKey1, pIter->pSkyline, &pIter->iSkyline);
     if (!deleted) {
       iMerge[nMerge] = iMax[i];
       merge[nMerge++] = max[i];
