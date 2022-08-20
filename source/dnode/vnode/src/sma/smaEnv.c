@@ -275,14 +275,14 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     }
     taosHashCleanup(RSMA_INFO_HASH(pStat));
 
-    // step 3: wait all triggered fetch tasks finished
+    // step 3: wait for all triggered fetch tasks to finish
     int32_t nLoops = 0;
     while (1) {
       if (T_REF_VAL_GET((SSmaStat *)pStat) == 0) {
-        smaDebug("vgId:%d, rsma fetch tasks all finished", SMA_VID(pSma));
+        smaDebug("vgId:%d, rsma fetch tasks are all finished", SMA_VID(pSma));
         break;
       } else {
-        smaDebug("vgId:%d, rsma fetch tasks not all finished yet", SMA_VID(pSma));
+        smaDebug("vgId:%d, rsma fetch tasks are not all finished yet", SMA_VID(pSma));
       }
       ++nLoops;
       if (nLoops > 1000) {

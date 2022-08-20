@@ -87,7 +87,6 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   while (pVnode->refCount > 0) taosMsleep(10);
   dTrace("vgId:%d, wait for vnode queue is empty", pVnode->vgId);
 
-
   while (!taosQueueEmpty(pVnode->pWriteQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pSyncQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pApplyQ)) taosMsleep(10);

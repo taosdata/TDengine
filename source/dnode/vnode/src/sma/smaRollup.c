@@ -1524,7 +1524,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
   SRSmaStat *pStat = (SRSmaStat *)tdAcquireSmaRef(smaMgmt.rsetId, pRSmaInfo->refId);
 
   if (!pStat) {
-    smaWarn("rsma fetch task not start since rsma stat already destroyed, rsetId:%" PRIi64 " refId:%d)", smaMgmt.rsetId,
+    smaDebug("rsma fetch task not start since rsma stat already destroyed, rsetId:%" PRIi64 " refId:%d)", smaMgmt.rsetId,
             pRSmaInfo->refId);
     return;
   }
@@ -1557,10 +1557,12 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
                SMA_VID(pSma), pItem->level, pRSmaInfo->suid);
       // async process
       pItem->fetchLevel = pItem->level;
+#if 0
       SRSmaInfo     *qInfo = tdAcquireRSmaInfoBySuid(pSma, pRSmaInfo->suid);
       SRSmaInfoItem *qItem = RSMA_INFO_ITEM(qInfo, pItem->level - 1);
       ASSERT(qItem->level == pItem->level);
       ASSERT(qItem->fetchLevel == pItem->fetchLevel);
+#endif
       tsem_post(&(pStat->notEmpty));
       smaInfo("vgId:%d, rsma fetch task planned for level:%" PRIi8 " suid:%" PRIi64, SMA_VID(pSma), pItem->level,
               pRSmaInfo->suid);

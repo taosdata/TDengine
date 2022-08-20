@@ -109,7 +109,7 @@ int32_t smaBegin(SSma *pSma) {
 /**
  * @brief pre-commit for rollup sma(sync commit).
  *  1) set trigger stat of rsma timer TASK_TRIGGER_STAT_PAUSED.
- *  2) wait all triggered fetch tasks finished
+ *  2) wait for all triggered fetch tasks to finish
  *  3) perform persist task for qTaskInfo
  *
  * @param pSma
@@ -127,14 +127,14 @@ static int32_t tdProcessRSmaSyncPreCommitImpl(SSma *pSma) {
   // step 1: set rsma stat paused
   atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_PAUSED);
 
-  // step 2: wait all triggered fetch tasks finished
+  // step 2: wait for all triggered fetch tasks to finish
   int32_t nLoops = 0;
   while (1) {
     if (T_REF_VAL_GET(pStat) == 0) {
-      smaDebug("vgId:%d, rsma fetch tasks all finished", SMA_VID(pSma));
+      smaDebug("vgId:%d, rsma fetch tasks are all finished", SMA_VID(pSma));
       break;
     } else {
-      smaDebug("vgId:%d, rsma fetch tasks not all finished yet", SMA_VID(pSma));
+      smaDebug("vgId:%d, rsma fetch tasks are not all finished yet", SMA_VID(pSma));
     }
     ++nLoops;
     if (nLoops > 1000) {
@@ -319,14 +319,14 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
   ASSERT(pRSmaStat->commitAppliedVer > 0);
 
-  // step 2: wait all triggered fetch tasks finished
+  // step 2: wait for all triggered fetch tasks to finish
   int32_t nLoops = 0;
   while (1) {
     if (T_REF_VAL_GET(pStat) == 0) {
-      smaDebug("vgId:%d, rsma commit, fetch tasks all finished", SMA_VID(pSma));
+      smaDebug("vgId:%d, rsma commit, fetch tasks are all finished", SMA_VID(pSma));
       break;
     } else {
-      smaDebug("vgId:%d, rsma commit, fetch tasks not all finished yet", SMA_VID(pSma));
+      smaDebug("vgId:%d, rsma commit, fetch tasks are not all finished yet", SMA_VID(pSma));
     }
     ++nLoops;
     if (nLoops > 1000) {

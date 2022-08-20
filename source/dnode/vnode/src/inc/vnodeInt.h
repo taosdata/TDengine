@@ -328,7 +328,6 @@ struct SVnode {
   SQHandle*     pQuery;
 };
 
-
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
 
 #define VND_TSDB(vnd)       ((vnd)->pTsdb)

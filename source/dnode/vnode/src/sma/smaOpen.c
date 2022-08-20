@@ -148,9 +148,13 @@ int32_t smaClose(SSma *pSma) {
 
 int32_t smaPreClose(SSma *pSma) {
   if (pSma && VND_IS_RSMA(pSma->pVnode)) {
-    SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pSma);
+    SSmaEnv   *pEnv = NULL;
+    SRSmaStat *pStat = NULL;
+    if (!(pEnv = SMA_RSMA_ENV(pSma)) || !(pStat = (SRSmaStat *)SMA_ENV_STAT(pEnv))) {
+      return 0;
+    }
     for (int32_t i = 0; i < RSMA_EXECUTOR_MAX; ++i) {
-      tsem_post(&(pRSmaStat->notEmpty));
+      tsem_post(&(pStat->notEmpty));
     }
   }
   return 0;

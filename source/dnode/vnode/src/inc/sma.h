@@ -118,12 +118,12 @@ struct SSmaStat {
 #define RSMA_FS_LOCK(r)      (&(r)->lock)
 
 struct SRSmaInfoItem {
-  int8_t  level;
-  int8_t  triggerStat;
-  uint8_t nSkipped;  // number of skipped to fetch data from all active window
-  int8_t  fetchLevel;
-  int32_t maxDelay;  // ms
-  tmr_h   tmrId;
+  int8_t   level : 4;
+  int8_t   fetchLevel : 4;
+  int8_t   triggerStat;
+  uint16_t nSkipped;  // number of skipped to fetch data from all active window
+  int32_t  maxDelay;  // ms
+  tmr_h    tmrId;
 };
 
 struct SRSmaInfo {
@@ -131,8 +131,8 @@ struct SRSmaInfo {
   int64_t   suid;
   int64_t   refId;     // refId of SRSmaStat
   int64_t   lastRecv;  // ms
-  int8_t    delFlag;
   int8_t    assigned;  // 0 idle, 1 assgined for exec
+  int8_t    delFlag;
   int16_t   padding;
   T_REF_DECLARE()
   SRSmaInfoItem items[TSDB_RETENTION_L2];
