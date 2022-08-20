@@ -938,7 +938,7 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
     if (pSet) {
       wSet.diskId = pSet->diskId;
       wSet.fid = fid;
-      fHead = (SHeadFile){.commitID = pWriter->commitID, .offset = 0, .size = 0, .offset = 0};
+      fHead = (SHeadFile){.commitID = pWriter->commitID, .offset = 0, .size = 0};
       fData = *pSet->pDataF;
       fLast = (SLastFile){.commitID = pWriter->commitID, .size = 0};
       fSma = *pSet->pSmaF;

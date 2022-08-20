@@ -129,6 +129,7 @@ if $data03 != 2 then
   return -1
 endi
 if $data11 != 2.077099980 then
+  print expect 2.077099980, actual: $data11
   return -1
 endi
 if $data12 != 2.077000022 then
