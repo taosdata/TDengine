@@ -400,7 +400,7 @@ _err:
 static void resetDataBlockIterator(SDataBlockIter* pIter, int32_t order, SHashObj* pTableMap) {
   pIter->order = order;
   pIter->index = -1;
-  pIter->numOfBlocks = -1;
+  pIter->numOfBlocks = 0;
   if (pIter->blockList == NULL) {
     pIter->blockList = taosArrayInit(4, sizeof(SFileDataBlockInfo));
   } else {
@@ -1904,7 +1904,6 @@ static bool nextRowInLastBlock(SLastBlockReader *pLastBlockReader) {
     return false;
   }
 
-  bool asc = ASCENDING_TRAVERSE(pLastBlockReader->order);
   *(pLastBlockReader->rowIndex) += step;
 
   SBlockData* pBlockData = &pLastBlockReader->lastBlockData;
@@ -2320,10 +2319,12 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum) {
 
   size_t  numOfTables = taosHashGetSize(pReader->status.pTableMap);
   SArray* pIndexList = taosArrayInit(numOfTables, sizeof(SBlockIdx));
+  SArray* pLastBlocks = pStatus->fileIter.pLastBlockReader->pBlockL;
 
   while (1) {
     bool hasNext = filesetIteratorNext(&pStatus->fileIter, pReader);
     if (!hasNext) {  // no data files on disk
+      taosArrayClear(pLastBlocks);
       break;
     }
 
@@ -2334,7 +2335,6 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum) {
       return code;
     }
 
-    SArray* pLastBlocks = pStatus->fileIter.pLastBlockReader->pBlockL;
     code = tsdbReadBlockL(pReader->pFileReader, pLastBlocks);
     if (code != TSDB_CODE_SUCCESS) {
       taosArrayDestroy(pIndexList);
@@ -2385,6 +2385,7 @@ static int32_t doLoadRelatedLastBlock(SLastBlockReader* pLastBlockReader, uint64
   }
 
   if (pLastBlockReader->currentBlockIndex == -1) {
+    tBlockDataDestroy(&pLastBlockReader->lastBlockData, false);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2431,16 +2432,25 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
       return code;
     }
 
-    initLastBlockReader(pLastBlockReader, pScanInfo->uid, &pScanInfo->indexInBlockL);
-    if (pScanInfo->indexInBlockL == DEFAULT_ROW_INDEX_VAL || pScanInfo->indexInBlockL == pLastBlockReader->lastBlockData.nRow) {
-      bool hasData = nextRowInLastBlock(pLastBlockReader);
-      if (!hasData) {  // current table does not have rows in last block, try next table
-        pStatus->pTableIter = taosHashIterate(pStatus->pTableMap, pStatus->pTableIter);
-        if (pStatus->pTableIter == NULL) {
-          return TSDB_CODE_SUCCESS;
+    if (pLastBlockReader->currentBlockIndex != -1) {
+      initLastBlockReader(pLastBlockReader, pScanInfo->uid, &pScanInfo->indexInBlockL);
+      if (pScanInfo->indexInBlockL == DEFAULT_ROW_INDEX_VAL ||
+          pScanInfo->indexInBlockL == pLastBlockReader->lastBlockData.nRow) {
+        bool hasData = nextRowInLastBlock(pLastBlockReader);
+        if (!hasData) {  // current table does not have rows in last block, try next table
+          pStatus->pTableIter = taosHashIterate(pStatus->pTableMap, pStatus->pTableIter);
+          if (pStatus->pTableIter == NULL) {
+            return TSDB_CODE_SUCCESS;
+          }
+          continue;
         }
-        continue;
       }
+    } else {  // no data in last block, try next table
+      pStatus->pTableIter = taosHashIterate(pStatus->pTableMap, pStatus->pTableIter);
+      if (pStatus->pTableIter == NULL) {
+        return TSDB_CODE_SUCCESS;
+      }
+      continue;
     }
 
     code = doBuildDataBlock(pReader);
@@ -2489,6 +2499,11 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
     code = doLoadRelatedLastBlock(pLastBlockReader, pScanInfo->uid, pReader);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
+    }
+
+    if (pLastBlockReader->currentBlockIndex == -1) {
+//      ASSERT(0);
+      printf("error\n");
     }
 
     initLastBlockReader(pLastBlockReader, pScanInfo->uid, &pScanInfo->indexInBlockL);
@@ -2594,7 +2609,8 @@ static int32_t initForFirstBlockInFile(STsdbReader* pReader, SDataBlockIter* pBl
   if (num.numOfBlocks > 0) {
     code = initBlockIterator(pReader, pBlockIter, num.numOfBlocks);
   } else {
-    pBlockIter->numOfBlocks = 0;
+    tBlockDataReset(&pReader->status.fileBlockData);
+    resetDataBlockIterator(pBlockIter, pReader->order, pReader->status.pTableMap);
   }
 
   // set the correct start position according to the query time window
@@ -2663,9 +2679,8 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
           initBlockDumpInfo(pReader, pBlockIter);
         } else if (taosArrayGetSize(pReader->status.fileIter.pLastBlockReader->pBlockL) > 0) {  // data blocks in current file are exhausted, let's try the next file now
           // todo dump all data in last block if exists.
-          pBlockIter->numOfBlocks = 0;
-          taosArrayClear(pBlockIter->blockList);
           tBlockDataReset(&pReader->status.fileBlockData);
+          resetDataBlockIterator(pBlockIter, pReader->order, pReader->status.pTableMap);
           goto _begin;
         } else {
           code = initForFirstBlockInFile(pReader, pBlockIter);
