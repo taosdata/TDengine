@@ -162,8 +162,8 @@ void *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree) {
       pInfo->iQall = NULL;
     }
 
-      taosMemoryFree(pInfo);
-    }
+    taosMemoryFree(pInfo);
+  }
 
   return NULL;
 }
@@ -1524,8 +1524,8 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
   SRSmaStat *pStat = (SRSmaStat *)tdAcquireSmaRef(smaMgmt.rsetId, pRSmaInfo->refId);
 
   if (!pStat) {
-    smaDebug("rsma fetch task not start since rsma stat already destroyed, rsetId:%" PRIi64 " refId:%d)", smaMgmt.rsetId,
-            pRSmaInfo->refId);
+    smaDebug("rsma fetch task not start since rsma stat already destroyed, rsetId:%" PRIi64 " refId:%d)",
+             smaMgmt.rsetId, pRSmaInfo->refId);
     return;
   }
 
@@ -1741,7 +1741,10 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
               tdRSmaBatchExec(pSma, pInfo, pInfo->qall, pSubmitArr, type);
             }
 
-            tdRSmaFetchAllResult(pSma, pInfo, pSubmitArr);
+            if (type == RSMA_EXEC_OVERFLOW) {
+              tdRSmaFetchAllResult(pSma, pInfo, pSubmitArr);
+            }
+
             if (qallItemSize > 0) {
               // subtract the item size after the task finished, commit should wait for all items be consumed
               atomic_fetch_sub_64(&pRSmaStat->nBufItems, qallItemSize);
