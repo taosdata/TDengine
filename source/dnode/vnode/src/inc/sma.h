@@ -121,7 +121,7 @@ struct SRSmaInfoItem {
   int8_t   level : 4;
   int8_t   fetchLevel : 4;
   int8_t   triggerStat;
-  uint16_t nSkipped;  // number of skipped to fetch data from all active window
+  uint16_t nSkipped;
   int32_t  maxDelay;  // ms
   tmr_h    tmrId;
 };
