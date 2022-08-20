@@ -338,6 +338,11 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, SArray* aDFileSet, STsdb
     pLReader->order   = pReader->order;
     pLReader->window  = pReader->window;
     pLReader->verRange = pReader->verRange;
+
+    int32_t code = tBlockDataCreate(&pLReader->lastBlockData);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
 
   tsdbDebug("init fileset iterator, total files:%d %s", pIter->numOfFiles, pReader->idStr);
@@ -593,7 +598,7 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
 
   size_t num = taosArrayGetSize(aBlockIdx);
   if (num == 0) {
-    taosArrayClear(aBlockIdx);
+    taosArrayDestroy(aBlockIdx);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2359,6 +2364,8 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum) {
         taosArrayDestroy(pQLastBlock);
         break;
       }
+
+      taosArrayDestroy(pQLastBlock);
     }
 
     // no blocks in current file, try next files
@@ -2385,16 +2392,11 @@ static int32_t doLoadRelatedLastBlock(SLastBlockReader* pLastBlockReader, uint64
   }
 
   if (pLastBlockReader->currentBlockIndex == -1) {
-    tBlockDataDestroy(&pLastBlockReader->lastBlockData, false);
+    tBlockDataClear(&pLastBlockReader->lastBlockData);
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t code = tBlockDataCreate(&pLastBlockReader->lastBlockData);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
-  code = tBlockDataInit(&pLastBlockReader->lastBlockData, pReader->suid, pReader->suid ? 0 : uid, pReader->pSchema);
+  int32_t code = tBlockDataInit(&pLastBlockReader->lastBlockData, pReader->suid, pReader->suid ? 0 : uid, pReader->pSchema);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%p init block data failed, code:%s %s", pReader, tstrerror(code), pReader->idStr);
     return code;
@@ -3461,6 +3463,13 @@ void tsdbReaderClose(STsdbReader* pReader) {
 
   if (pReader->pFileReader != NULL) {
     tsdbDataFReaderClose(&pReader->pFileReader);
+  }
+
+  SFilesetIter* pFilesetIter = &pReader->status.fileIter;
+  if (pFilesetIter->pLastBlockReader != NULL) {
+    tBlockDataDestroy(&pFilesetIter->pLastBlockReader->lastBlockData, true);
+    taosArrayDestroy(pFilesetIter->pLastBlockReader->pBlockL);
+    taosMemoryFree(pFilesetIter->pLastBlockReader);
   }
 
   SIOCostSummary* pCost = &pReader->cost;
