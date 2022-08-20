@@ -802,7 +802,7 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
     if (pBlockCol == NULL || pBlockCol->cid > pColData->cid) {
       // add a lot of NONE
       for (int32_t iRow = 0; iRow < hdr.nRow; iRow++) {
-        code = tColDataAppendValue(pColData, &COL_VAL_NONE(pBlockCol->cid, pBlockCol->type));
+        code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColData->cid, pColData->type));
         if (code) goto _err;
       }
     } else {
