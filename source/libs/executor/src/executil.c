@@ -680,15 +680,24 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
     for(int j = 0; j < taosArrayGetSize(groupData); j++){
       SColumnInfoData* pValue = (SColumnInfoData*)taosArrayGetP(groupData, j);
 
-      ASSERT(pValue->info.type != TSDB_DATA_TYPE_JSON);
-
-      if (pValue->info.type == TSDB_DATA_TYPE_NULL || colDataIsNull_s(pValue, i)) {
+      if (colDataIsNull_s(pValue, i)) {
         isNull[j] = 1;
-        continue;
       } else {
         isNull[j] = 0;
         char* data = colDataGetData(pValue, i);
-        if (IS_VAR_DATA_TYPE(pValue->info.type)) {
+        if (pValue->info.type == TSDB_DATA_TYPE_JSON) {
+          if (tTagIsJson(data)) {
+            code = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
+            goto end;
+          }
+          if(tTagIsJsonNull(data)){
+            isNull[j] = 1;
+            continue;
+          }
+          int32_t len = getJsonValueLen(data);
+          memcpy(pStart, data, len);
+          pStart += len;
+        } else if (IS_VAR_DATA_TYPE(pValue->info.type)) {
           memcpy(pStart, data, varDataTLen(data));
           pStart += varDataTLen(data);
         } else {
