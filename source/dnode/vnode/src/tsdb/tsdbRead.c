@@ -814,19 +814,20 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
     pColData = taosArrayGet(pResBlock->pDataBlock, i);
 
     SColData* pData = tBlockDataGetColDataByIdx(pBlockData, colIndex);
-
-    if (pData->cid == pColData->info.colId) {
+    if (pData->cid < pColData->info.colId) {
+      colIndex += 1;
+    } else if (pData->cid == pColData->info.colId) {
       for (int32_t j = pDumpInfo->rowIndex; j < endIndex && j >= 0; j += step) {
         tColDataGetValue(pData, j, &cv);
         doCopyColVal(pColData, rowIndex++, i, &cv, pSupInfo);
       }
       colIndex += 1;
+      i += 1;
       ASSERT(rowIndex == remain);
     } else {  // the specified column does not exist in file block, fill with null data
       colDataAppendNNULL(pColData, 0, remain);
+      i += 1;
     }
-
-    i += 1;
   }
 
   while (i < numOfOutputCols) {
@@ -2436,8 +2437,8 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
 
     if (pLastBlockReader->currentBlockIndex != -1) {
       initLastBlockReader(pLastBlockReader, pScanInfo->uid, &pScanInfo->indexInBlockL);
-      if (pScanInfo->indexInBlockL == DEFAULT_ROW_INDEX_VAL ||
-          pScanInfo->indexInBlockL == pLastBlockReader->lastBlockData.nRow) {
+      int32_t index = pScanInfo->indexInBlockL;
+      if (index == DEFAULT_ROW_INDEX_VAL || index == pLastBlockReader->lastBlockData.nRow) {
         bool hasData = nextRowInLastBlock(pLastBlockReader);
         if (!hasData) {  // current table does not have rows in last block, try next table
           pStatus->pTableIter = taosHashIterate(pStatus->pTableMap, pStatus->pTableIter);
