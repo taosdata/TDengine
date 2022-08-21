@@ -21,6 +21,12 @@ typedef struct {
 } SSkmInfo;
 
 typedef struct {
+  int64_t suid;
+  int64_t uid;
+  TSDBROW row;
+} SRowInfo;
+
+typedef struct {
   STsdb *pTsdb;
   /* commit data */
   int64_t commitID;
@@ -29,6 +35,7 @@ typedef struct {
   int32_t minRow;
   int32_t maxRow;
   int8_t  cmprAlg;
+  SArray *aTbDataP;
   STsdbFS fs;
   // --------------
   TSKEY   nextKey;  // reset by each table commit
@@ -38,15 +45,27 @@ typedef struct {
   // commit file data
   struct {
     SDataFReader *pReader;
-    SArray       *aBlockIdx;  // SArray<SBlockIdx>
-    SMapData      mBlock;     // SMapData<SBlock>, read from reader
-    SBlockData    bData;
+    // data
+    SArray    *aBlockIdx;  // SArray<SBlockIdx>
+    int32_t    iBlockIdx;
+    SBlockIdx *pBlockIdx;
+    SMapData   mBlock;  // SMapData<SBlock>
+    SBlockData bData;
+    // last
+    SArray    *aBlockL;  // SArray<SBlockL>
+    int32_t    iBlockL;
+    SBlockData bDatal;
+    int32_t    iRow;
+    SRowInfo  *pRowInfo;
+    SRowInfo   rowInfo;
   } dReader;
   struct {
     SDataFWriter *pWriter;
     SArray       *aBlockIdx;  // SArray<SBlockIdx>
+    SArray       *aBlockL;    // SArray<SBlockL>
     SMapData      mBlock;     // SMapData<SBlock>
     SBlockData    bData;
+    SBlockData    bDatal;
   } dWriter;
   SSkmInfo skmTable;
   SSkmInfo skmRow;
@@ -162,10 +181,10 @@ static int32_t tsdbCommitDelStart(SCommitter *pCommitter) {
 
   SDelFile *pDelFileR = pCommitter->fs.pDelFile;
   if (pDelFileR) {
-    code = tsdbDelFReaderOpen(&pCommitter->pDelFReader, pDelFileR, pTsdb, NULL);
+    code = tsdbDelFReaderOpen(&pCommitter->pDelFReader, pDelFileR, pTsdb);
     if (code) goto _err;
 
-    code = tsdbReadDelIdx(pCommitter->pDelFReader, pCommitter->aDelIdx, NULL);
+    code = tsdbReadDelIdx(pCommitter->pDelFReader, pCommitter->aDelIdx);
     if (code) goto _err;
   }
 
@@ -202,7 +221,7 @@ static int32_t tsdbCommitTableDel(SCommitter *pCommitter, STbData *pTbData, SDel
     suid = pDelIdx->suid;
     uid = pDelIdx->uid;
 
-    code = tsdbReadDelData(pCommitter->pDelFReader, pDelIdx, pCommitter->aDelData, NULL);
+    code = tsdbReadDelData(pCommitter->pDelFReader, pDelIdx, pCommitter->aDelData);
     if (code) goto _err;
   } else {
     taosArrayClear(pCommitter->aDelData);
@@ -222,7 +241,7 @@ static int32_t tsdbCommitTableDel(SCommitter *pCommitter, STbData *pTbData, SDel
   }
 
   // write
-  code = tsdbWriteDelData(pCommitter->pDelFWriter, pCommitter->aDelData, NULL, &delIdx);
+  code = tsdbWriteDelData(pCommitter->pDelFWriter, pCommitter->aDelData, &delIdx);
   if (code) goto _err;
 
   // put delIdx
@@ -243,7 +262,7 @@ static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
   int32_t code = 0;
   STsdb  *pTsdb = pCommitter->pTsdb;
 
-  code = tsdbWriteDelIdx(pCommitter->pDelFWriter, pCommitter->aDelIdxN, NULL);
+  code = tsdbWriteDelIdx(pCommitter->pDelFWriter, pCommitter->aDelIdxN);
   if (code) goto _err;
 
   code = tsdbUpdateDelFileHdr(pCommitter->pDelFWriter);
@@ -271,87 +290,19 @@ _err:
   return code;
 }
 
-static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
-  int32_t    code = 0;
-  STsdb     *pTsdb = pCommitter->pTsdb;
-  SDFileSet *pRSet = NULL;
-
-  // memory
-  pCommitter->nextKey = TSKEY_MAX;
-
-  // old
-  taosArrayClear(pCommitter->dReader.aBlockIdx);
-  tMapDataReset(&pCommitter->dReader.mBlock);
-  tBlockDataReset(&pCommitter->dReader.bData);
-  pRSet = (SDFileSet *)taosArraySearch(pCommitter->fs.aDFileSet, &(SDFileSet){.fid = pCommitter->commitFid},
-                                       tDFileSetCmprFn, TD_EQ);
-  if (pRSet) {
-    code = tsdbDataFReaderOpen(&pCommitter->dReader.pReader, pTsdb, pRSet);
-    if (code) goto _err;
-
-    code = tsdbReadBlockIdx(pCommitter->dReader.pReader, pCommitter->dReader.aBlockIdx, NULL);
-    if (code) goto _err;
-  }
-
-  // new
-  SHeadFile fHead;
-  SDataFile fData;
-  SLastFile fLast;
-  SSmaFile  fSma;
-  SDFileSet wSet = {.pHeadF = &fHead, .pDataF = &fData, .pLastF = &fLast, .pSmaF = &fSma};
-
-  taosArrayClear(pCommitter->dWriter.aBlockIdx);
-  tMapDataReset(&pCommitter->dWriter.mBlock);
-  tBlockDataReset(&pCommitter->dWriter.bData);
-  if (pRSet) {
-    wSet.diskId = pRSet->diskId;
-    wSet.fid = pCommitter->commitFid;
-    fHead = (SHeadFile){.commitID = pCommitter->commitID, .offset = 0, .size = 0};
-    fData = *pRSet->pDataF;
-    fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0};
-    fSma = *pRSet->pSmaF;
-  } else {
-    SDiskID did = {0};
-
-    tfsAllocDisk(pTsdb->pVnode->pTfs, 0, &did);
-
-    tfsMkdirRecurAt(pTsdb->pVnode->pTfs, pTsdb->path, did);
-
-    wSet.diskId = did;
-    wSet.fid = pCommitter->commitFid;
-    fHead = (SHeadFile){.commitID = pCommitter->commitID, .offset = 0, .size = 0};
-    fData = (SDataFile){.commitID = pCommitter->commitID, .size = 0};
-    fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0};
-    fSma = (SSmaFile){.commitID = pCommitter->commitID, .size = 0};
-  }
-  code = tsdbDataFWriterOpen(&pCommitter->dWriter.pWriter, pTsdb, &wSet);
-  if (code) goto _err;
-
-_exit:
-  return code;
-
-_err:
-  tsdbError("vgId:%d, commit file data start failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
-static int32_t tsdbCommitterUpdateTableSchema(SCommitter *pCommitter, int64_t suid, int64_t uid, int32_t sver) {
+static int32_t tsdbCommitterUpdateTableSchema(SCommitter *pCommitter, int64_t suid, int64_t uid) {
   int32_t code = 0;
 
-  if (pCommitter->skmTable.pTSchema) {
-    if (pCommitter->skmTable.suid == suid) {
-      if (suid == 0) {
-        if (pCommitter->skmTable.uid == uid && sver == pCommitter->skmTable.pTSchema->version) goto _exit;
-      } else {
-        if (sver == pCommitter->skmTable.pTSchema->version) goto _exit;
-      }
-    }
+  if (suid) {
+    if (pCommitter->skmTable.suid == suid) goto _exit;
+  } else {
+    if (pCommitter->skmTable.uid == uid) goto _exit;
   }
 
   pCommitter->skmTable.suid = suid;
   pCommitter->skmTable.uid = uid;
   tTSchemaDestroy(pCommitter->skmTable.pTSchema);
-  code = metaGetTbTSchemaEx(pCommitter->pTsdb->pVnode->pMeta, suid, uid, sver, &pCommitter->skmTable.pTSchema);
+  code = metaGetTbTSchemaEx(pCommitter->pTsdb->pVnode->pMeta, suid, uid, -1, &pCommitter->skmTable.pTSchema);
   if (code) goto _exit;
 
 _exit:
@@ -383,152 +334,355 @@ _exit:
   return code;
 }
 
-static int32_t tsdbCommitBlockData(SCommitter *pCommitter, SBlockData *pBlockData, SBlock *pBlock, SBlockIdx *pBlockIdx,
-                                   int8_t toDataOnly) {
+static int32_t tsdbCommitterNextLastRow(SCommitter *pCommitter) {
   int32_t code = 0;
 
-  if (pBlock->nSubBlock == 0) {
-    if (!toDataOnly && pBlockData->nRow < pCommitter->minRow) {
-      pBlock->last = 1;
+  ASSERT(pCommitter->dReader.pReader);
+  ASSERT(pCommitter->dReader.pRowInfo);
+
+  SBlockData *pBlockDatal = &pCommitter->dReader.bDatal;
+  pCommitter->dReader.iRow++;
+  if (pCommitter->dReader.iRow < pBlockDatal->nRow) {
+    if (pBlockDatal->uid) {
+      pCommitter->dReader.pRowInfo->uid = pBlockDatal->uid;
     } else {
-      pBlock->last = 0;
+      pCommitter->dReader.pRowInfo->uid = pBlockDatal->aUid[pCommitter->dReader.iRow];
+    }
+    pCommitter->dReader.pRowInfo->row = tsdbRowFromBlockData(pBlockDatal, pCommitter->dReader.iRow);
+  } else {
+    pCommitter->dReader.iBlockL++;
+    if (pCommitter->dReader.iBlockL < taosArrayGetSize(pCommitter->dReader.aBlockL)) {
+      SBlockL *pBlockL = (SBlockL *)taosArrayGet(pCommitter->dReader.aBlockL, pCommitter->dReader.iBlockL);
+      int64_t  suid = pBlockL->suid;
+      int64_t  uid = pBlockL->maxUid;
+
+      code = tsdbCommitterUpdateTableSchema(pCommitter, suid, uid);
+      if (code) goto _exit;
+
+      code = tBlockDataInit(pBlockDatal, suid, suid ? 0 : uid, pCommitter->skmTable.pTSchema);
+      if (code) goto _exit;
+
+      code = tsdbReadLastBlock(pCommitter->dReader.pReader, pBlockL, pBlockDatal);
+      if (code) goto _exit;
+
+      pCommitter->dReader.iRow = 0;
+      pCommitter->dReader.pRowInfo->suid = pBlockDatal->suid;
+      if (pBlockDatal->uid) {
+        pCommitter->dReader.pRowInfo->uid = pBlockDatal->uid;
+      } else {
+        pCommitter->dReader.pRowInfo->uid = pBlockDatal->aUid[0];
+      }
+      pCommitter->dReader.pRowInfo->row = tsdbRowFromBlockData(pBlockDatal, pCommitter->dReader.iRow);
+    } else {
+      pCommitter->dReader.pRowInfo = NULL;
     }
   }
 
-  code =
-      tsdbWriteBlockData(pCommitter->dWriter.pWriter, pBlockData, NULL, NULL, pBlockIdx, pBlock, pCommitter->cmprAlg);
+_exit:
+  return code;
+}
+
+static int32_t tsdbCommitterNextTableData(SCommitter *pCommitter) {
+  int32_t code = 0;
+
+  ASSERT(pCommitter->dReader.pBlockIdx);
+
+  pCommitter->dReader.iBlockIdx++;
+  if (pCommitter->dReader.iBlockIdx < taosArrayGetSize(pCommitter->dReader.aBlockIdx)) {
+    pCommitter->dReader.pBlockIdx =
+        (SBlockIdx *)taosArrayGet(pCommitter->dReader.aBlockIdx, pCommitter->dReader.iBlockIdx);
+
+    code = tsdbReadBlock(pCommitter->dReader.pReader, pCommitter->dReader.pBlockIdx, &pCommitter->dReader.mBlock);
+    if (code) goto _exit;
+
+    ASSERT(pCommitter->dReader.mBlock.nItem > 0);
+  } else {
+    pCommitter->dReader.pBlockIdx = NULL;
+  }
+
+_exit:
+  return code;
+}
+
+static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
+  int32_t    code = 0;
+  STsdb     *pTsdb = pCommitter->pTsdb;
+  SDFileSet *pRSet = NULL;
+
+  // memory
+  pCommitter->commitFid = tsdbKeyFid(pCommitter->nextKey, pCommitter->minutes, pCommitter->precision);
+  tsdbFidKeyRange(pCommitter->commitFid, pCommitter->minutes, pCommitter->precision, &pCommitter->minKey,
+                  &pCommitter->maxKey);
+  pCommitter->nextKey = TSKEY_MAX;
+
+  // Reader
+  pRSet = (SDFileSet *)taosArraySearch(pCommitter->fs.aDFileSet, &(SDFileSet){.fid = pCommitter->commitFid},
+                                       tDFileSetCmprFn, TD_EQ);
+  if (pRSet) {
+    code = tsdbDataFReaderOpen(&pCommitter->dReader.pReader, pTsdb, pRSet);
+    if (code) goto _err;
+
+    // data
+    code = tsdbReadBlockIdx(pCommitter->dReader.pReader, pCommitter->dReader.aBlockIdx);
+    if (code) goto _err;
+
+    pCommitter->dReader.iBlockIdx = 0;
+    if (pCommitter->dReader.iBlockIdx < taosArrayGetSize(pCommitter->dReader.aBlockIdx)) {
+      pCommitter->dReader.pBlockIdx =
+          (SBlockIdx *)taosArrayGet(pCommitter->dReader.aBlockIdx, pCommitter->dReader.iBlockIdx);
+
+      code = tsdbReadBlock(pCommitter->dReader.pReader, pCommitter->dReader.pBlockIdx, &pCommitter->dReader.mBlock);
+      if (code) goto _err;
+    } else {
+      pCommitter->dReader.pBlockIdx = NULL;
+    }
+    tBlockDataReset(&pCommitter->dReader.bData);
+
+    // last
+    code = tsdbReadBlockL(pCommitter->dReader.pReader, pCommitter->dReader.aBlockL);
+    if (code) goto _err;
+
+    pCommitter->dReader.iBlockL = -1;
+    pCommitter->dReader.iRow = -1;
+    pCommitter->dReader.pRowInfo = &pCommitter->dReader.rowInfo;
+    tBlockDataReset(&pCommitter->dReader.bDatal);
+    code = tsdbCommitterNextLastRow(pCommitter);
+    if (code) goto _err;
+  } else {
+    pCommitter->dReader.pBlockIdx = NULL;
+    pCommitter->dReader.pRowInfo = NULL;
+  }
+
+  // Writer
+  SHeadFile fHead;
+  SDataFile fData;
+  SLastFile fLast;
+  SSmaFile  fSma;
+  SDFileSet wSet = {.pHeadF = &fHead, .pDataF = &fData, .pLastF = &fLast, .pSmaF = &fSma};
+  if (pRSet) {
+    wSet.diskId = pRSet->diskId;
+    wSet.fid = pCommitter->commitFid;
+    fHead = (SHeadFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
+    fData = *pRSet->pDataF;
+    fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
+    fSma = *pRSet->pSmaF;
+  } else {
+    SDiskID did = {0};
+
+    tfsAllocDisk(pTsdb->pVnode->pTfs, 0, &did);
+
+    tfsMkdirRecurAt(pTsdb->pVnode->pTfs, pTsdb->path, did);
+
+    wSet.diskId = did;
+    wSet.fid = pCommitter->commitFid;
+    fHead = (SHeadFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
+    fData = (SDataFile){.commitID = pCommitter->commitID, .size = 0};
+    fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
+    fSma = (SSmaFile){.commitID = pCommitter->commitID, .size = 0};
+  }
+  code = tsdbDataFWriterOpen(&pCommitter->dWriter.pWriter, pTsdb, &wSet);
   if (code) goto _err;
 
-  code = tMapDataPutItem(&pCommitter->dWriter.mBlock, pBlock, tPutBlock);
+  taosArrayClear(pCommitter->dWriter.aBlockIdx);
+  taosArrayClear(pCommitter->dWriter.aBlockL);
+  tMapDataReset(&pCommitter->dWriter.mBlock);
+  tBlockDataReset(&pCommitter->dWriter.bData);
+  tBlockDataReset(&pCommitter->dWriter.bDatal);
+
+_exit:
+  return code;
+
+_err:
+  tsdbError("vgId:%d, commit file data start failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+static int32_t tsdbCommitDataBlock(SCommitter *pCommitter, SBlock *pBlock) {
+  int32_t     code = 0;
+  SBlockData *pBlockData = &pCommitter->dWriter.bData;
+  SBlock      block;
+
+  ASSERT(pBlockData->nRow > 0);
+
+  if (pBlock) {
+    block = *pBlock;  // as a subblock
+  } else {
+    tBlockReset(&block);  // as a new block
+  }
+
+  // info
+  block.nRow += pBlockData->nRow;
+  for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
+    TSDBKEY key = {.ts = pBlockData->aTSKEY[iRow], .version = pBlockData->aVersion[iRow]};
+
+    if (iRow == 0) {
+      if (tsdbKeyCmprFn(&block.minKey, &key) > 0) {
+        block.minKey = key;
+      }
+    } else {
+      if (pBlockData->aTSKEY[iRow] == pBlockData->aTSKEY[iRow - 1]) {
+        block.hasDup = 1;
+      }
+    }
+
+    if (iRow == pBlockData->nRow - 1 && tsdbKeyCmprFn(&block.maxKey, &key) < 0) {
+      block.maxKey = key;
+    }
+
+    block.minVer = TMIN(block.minVer, key.version);
+    block.maxVer = TMAX(block.maxVer, key.version);
+  }
+
+  // write
+  block.nSubBlock++;
+  code = tsdbWriteBlockData(pCommitter->dWriter.pWriter, pBlockData, &block.aSubBlock[block.nSubBlock - 1],
+                            ((block.nSubBlock == 1) && !block.hasDup) ? &block.smaInfo : NULL, pCommitter->cmprAlg, 0);
   if (code) goto _err;
+
+  // put SBlock
+  code = tMapDataPutItem(&pCommitter->dWriter.mBlock, &block, tPutBlock);
+  if (code) goto _err;
+
+  // clear
+  tBlockDataClear(pBlockData);
 
   return code;
 
 _err:
+  tsdbError("vgId:%d tsdb commit data block failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
-static int32_t tsdbMergeTableData(SCommitter *pCommitter, STbDataIter *pIter, SBlock *pBlockMerge, TSDBKEY toKey,
-                                  int8_t toDataOnly) {
+static int32_t tsdbCommitLastBlock(SCommitter *pCommitter) {
   int32_t     code = 0;
-  SBlockIdx  *pBlockIdx = &(SBlockIdx){.suid = pIter->pTbData->suid, .uid = pIter->pTbData->uid};
-  SBlockData *pBlockDataMerge = &pCommitter->dReader.bData;
-  SBlockData *pBlockData = &pCommitter->dWriter.bData;
-  SBlock      block;
-  SBlock     *pBlock = &block;
-  TSDBROW    *pRow1;
-  TSDBROW     row2;
-  TSDBROW    *pRow2 = &row2;
+  SBlockL     blockL;
+  SBlockData *pBlockData = &pCommitter->dWriter.bDatal;
 
-  // read SBlockData
-  code = tsdbReadBlockData(pCommitter->dReader.pReader, pBlockIdx, pBlockMerge, pBlockDataMerge, NULL, NULL);
+  ASSERT(pBlockData->nRow > 0);
+
+  // info
+  blockL.suid = pBlockData->suid;
+  blockL.nRow = pBlockData->nRow;
+  blockL.minKey = TSKEY_MAX;
+  blockL.maxKey = TSKEY_MIN;
+  blockL.minVer = VERSION_MAX;
+  blockL.maxVer = VERSION_MIN;
+  for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
+    blockL.minKey = TMIN(blockL.minKey, pBlockData->aTSKEY[iRow]);
+    blockL.maxKey = TMAX(blockL.maxKey, pBlockData->aTSKEY[iRow]);
+    blockL.minVer = TMIN(blockL.minVer, pBlockData->aVersion[iRow]);
+    blockL.maxVer = TMAX(blockL.maxVer, pBlockData->aVersion[iRow]);
+  }
+  blockL.minUid = pBlockData->uid ? pBlockData->uid : pBlockData->aUid[0];
+  blockL.maxUid = pBlockData->uid ? pBlockData->uid : pBlockData->aUid[pBlockData->nRow - 1];
+
+  // write
+  code = tsdbWriteBlockData(pCommitter->dWriter.pWriter, pBlockData, &blockL.bInfo, NULL, pCommitter->cmprAlg, 1);
   if (code) goto _err;
 
-  code = tBlockDataSetSchema(pBlockData, pCommitter->skmTable.pTSchema);
+  // push SBlockL
+  if (taosArrayPush(pCommitter->dWriter.aBlockL, &blockL) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  // clear
+  tBlockDataClear(pBlockData);
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb commit last block failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+static int32_t tsdbMergeCommitData(SCommitter *pCommitter, STbDataIter *pIter, SBlock *pBlock) {
+  int32_t     code = 0;
+  STbData    *pTbData = pIter->pTbData;
+  SBlockData *pBlockDataR = &pCommitter->dReader.bData;
+  SBlockData *pBlockDataW = &pCommitter->dWriter.bData;
+
+  code = tsdbReadDataBlock(pCommitter->dReader.pReader, pBlock, pBlockDataR);
   if (code) goto _err;
 
-  // loop to merge
-  pRow1 = tsdbTbDataIterGet(pIter);
-  *pRow2 = tsdbRowFromBlockData(pBlockDataMerge, 0);
-  ASSERT(pRow1 && tsdbKeyCmprFn(&TSDBROW_KEY(pRow1), &toKey) < 0);
-  ASSERT(tsdbKeyCmprFn(&TSDBROW_KEY(pRow2), &toKey) < 0);
-  code = tsdbCommitterUpdateRowSchema(pCommitter, pBlockIdx->suid, pBlockIdx->uid, TSDBROW_SVERSION(pRow1));
-  if (code) goto _err;
+  tBlockDataClear(pBlockDataW);
+  int32_t  iRow = 0;
+  TSDBROW  row;
+  TSDBROW *pRow1 = tsdbTbDataIterGet(pIter);
+  TSDBROW *pRow2 = &row;
+  *pRow2 = tsdbRowFromBlockData(pBlockDataR, iRow);
+  while (pRow1 && pRow2) {
+    int32_t c = tsdbRowCmprFn(pRow1, pRow2);
 
-  tBlockReset(pBlock);
-  tBlockDataClearData(pBlockData);
-  while (true) {
-    if (pRow1 == NULL && pRow2 == NULL) {
-      if (pBlockData->nRow == 0) {
-        break;
+    if (c < 0) {
+      code = tsdbCommitterUpdateRowSchema(pCommitter, pTbData->suid, pTbData->uid, TSDBROW_SVERSION(pRow1));
+      if (code) goto _err;
+
+      code = tBlockDataAppendRow(pBlockDataW, pRow1, pCommitter->skmRow.pTSchema, pTbData->uid);
+      if (code) goto _err;
+
+      // next
+      tsdbTbDataIterNext(pIter);
+      pRow1 = tsdbTbDataIterGet(pIter);
+    } else if (c > 0) {
+      code = tBlockDataAppendRow(pBlockDataW, pRow2, NULL, pTbData->uid);
+      if (code) goto _err;
+
+      iRow++;
+      if (iRow < pBlockDataR->nRow) {
+        *pRow2 = tsdbRowFromBlockData(pBlockDataR, iRow);
       } else {
-        goto _write_block;
+        pRow2 = NULL;
       }
-    }
-
-    if (pRow1 && pRow2) {
-      int32_t c = tsdbRowCmprFn(pRow1, pRow2);
-      if (c < 0) {
-        goto _append_mem_row;
-      } else if (c > 0) {
-        goto _append_block_row;
-      } else {
-        ASSERT(0);
-      }
-    } else if (pRow1) {
-      goto _append_mem_row;
     } else {
-      goto _append_block_row;
+      ASSERT(0);
     }
 
-  _append_mem_row:
-    code = tBlockDataAppendRow(pBlockData, pRow1, pCommitter->skmRow.pTSchema);
+    // check
+    if (pBlockDataW->nRow >= pCommitter->maxRow * 4 / 5) {
+      code = tsdbCommitDataBlock(pCommitter, NULL);
+      if (code) goto _err;
+    }
+  }
+
+  while (pRow2) {
+    code = tBlockDataAppendRow(pBlockDataW, pRow2, NULL, pTbData->uid);
     if (code) goto _err;
 
-    tsdbTbDataIterNext(pIter);
-    pRow1 = tsdbTbDataIterGet(pIter);
-    if (pRow1) {
-      if (tsdbKeyCmprFn(&TSDBROW_KEY(pRow1), &toKey) < 0) {
-        code = tsdbCommitterUpdateRowSchema(pCommitter, pBlockIdx->suid, pBlockIdx->uid, TSDBROW_SVERSION(pRow1));
-        if (code) goto _err;
-      } else {
-        pRow1 = NULL;
-      }
-    }
-
-    if (pBlockData->nRow >= pCommitter->maxRow * 4 / 5) {
-      goto _write_block;
-    } else {
-      continue;
-    }
-
-  _append_block_row:
-    code = tBlockDataAppendRow(pBlockData, pRow2, NULL);
-    if (code) goto _err;
-
-    if (pRow2->iRow + 1 < pBlockDataMerge->nRow) {
-      *pRow2 = tsdbRowFromBlockData(pBlockDataMerge, pRow2->iRow + 1);
+    iRow++;
+    if (iRow < pBlockDataR->nRow) {
+      *pRow2 = tsdbRowFromBlockData(pBlockDataR, iRow);
     } else {
       pRow2 = NULL;
     }
 
-    if (pBlockData->nRow >= pCommitter->maxRow * 4 / 5) {
-      goto _write_block;
-    } else {
-      continue;
+    // check
+    if (pBlockDataW->nRow >= pCommitter->maxRow * 4 / 5) {
+      code = tsdbCommitDataBlock(pCommitter, NULL);
+      if (code) goto _err;
     }
+  }
 
-  _write_block:
-    code = tsdbCommitBlockData(pCommitter, pBlockData, pBlock, pBlockIdx, toDataOnly);
+  // check
+  if (pBlockDataW->nRow > 0) {
+    code = tsdbCommitDataBlock(pCommitter, NULL);
     if (code) goto _err;
-
-    tBlockReset(pBlock);
-    tBlockDataClearData(pBlockData);
   }
 
   return code;
 
 _err:
-  tsdbError("vgId:%d, tsdb merge block and mem failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb merge commit data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
-static int32_t tsdbCommitTableMemData(SCommitter *pCommitter, STbDataIter *pIter, TSDBKEY toKey, int8_t toDataOnly) {
+static int32_t tsdbCommitTableMemData(SCommitter *pCommitter, STbDataIter *pIter, TSDBKEY toKey) {
   int32_t     code = 0;
-  TSDBROW    *pRow;
-  SBlock      block;
-  SBlock     *pBlock = &block;
+  STbData    *pTbData = pIter->pTbData;
   SBlockData *pBlockData = &pCommitter->dWriter.bData;
-  int64_t     suid = pIter->pTbData->suid;
-  int64_t     uid = pIter->pTbData->uid;
 
-  code = tBlockDataSetSchema(pBlockData, pCommitter->skmTable.pTSchema);
-  if (code) goto _err;
-
-  tBlockReset(pBlock);
-  tBlockDataClearData(pBlockData);
-  pRow = tsdbTbDataIterGet(pIter);
-  ASSERT(pRow && tsdbKeyCmprFn(&TSDBROW_KEY(pRow), &toKey) < 0);
+  tBlockDataClear(pBlockData);
+  TSDBROW *pRow = tsdbTbDataIterGet(pIter);
   while (true) {
     if (pRow == NULL) {
       if (pBlockData->nRow > 0) {
@@ -539,33 +693,27 @@ static int32_t tsdbCommitTableMemData(SCommitter *pCommitter, STbDataIter *pIter
     }
 
     // update schema
-    code = tsdbCommitterUpdateRowSchema(pCommitter, suid, uid, TSDBROW_SVERSION(pRow));
+    code = tsdbCommitterUpdateRowSchema(pCommitter, pTbData->suid, pTbData->uid, TSDBROW_SVERSION(pRow));
     if (code) goto _err;
 
     // append
-    code = tBlockDataAppendRow(pBlockData, pRow, pCommitter->skmRow.pTSchema);
+    code = tBlockDataAppendRow(pBlockData, pRow, pCommitter->skmRow.pTSchema, pTbData->uid);
     if (code) goto _err;
 
     tsdbTbDataIterNext(pIter);
     pRow = tsdbTbDataIterGet(pIter);
-    // if (pRow && tsdbKeyCmprFn(&TSDBROW_KEY(pRow), &toKey) >= 0) pRow = NULL;
-    // crash on CI, use the block following
     if (pRow) {
-      TSDBKEY tmpKey = TSDBROW_KEY(pRow);
-      if (tsdbKeyCmprFn(&tmpKey, &toKey) >= 0) {
+      TSDBKEY rowKey = TSDBROW_KEY(pRow);
+      if (tsdbKeyCmprFn(&rowKey, &toKey) >= 0) {
         pRow = NULL;
       }
     }
 
-    if (pBlockData->nRow >= pCommitter->maxRow * 4 / 5) goto _write_block;
-    continue;
-
-  _write_block:
-    code = tsdbCommitBlockData(pCommitter, pBlockData, pBlock, &(SBlockIdx){.suid = suid, .uid = uid}, toDataOnly);
-    if (code) goto _err;
-
-    tBlockReset(pBlock);
-    tBlockDataClearData(pBlockData);
+    if (pBlockData->nRow >= pCommitter->maxRow * 4 / 5) {
+    _write_block:
+      code = tsdbCommitDataBlock(pCommitter, NULL);
+      if (code) goto _err;
+    }
   }
 
   return code;
@@ -575,65 +723,16 @@ _err:
   return code;
 }
 
-static int32_t tsdbCommitTableDiskData(SCommitter *pCommitter, SBlock *pBlock, SBlockIdx *pBlockIdx) {
-  int32_t code = 0;
-  SBlock  block;
+static int32_t tsdbGetNumOfRowsLessThan(STbDataIter *pIter, TSDBKEY key) {
+  int32_t nRow = 0;
 
-  if (pBlock->last) {
-    code = tsdbReadBlockData(pCommitter->dReader.pReader, pBlockIdx, pBlock, &pCommitter->dReader.bData, NULL, NULL);
-    if (code) goto _err;
-
-    tBlockReset(&block);
-    code = tsdbCommitBlockData(pCommitter, &pCommitter->dReader.bData, &block, pBlockIdx, 0);
-    if (code) goto _err;
-  } else {
-    code = tMapDataPutItem(&pCommitter->dWriter.mBlock, pBlock, tPutBlock);
-    if (code) goto _err;
-  }
-
-  return code;
-
-_err:
-  tsdbError("vgId:%d, tsdb commit table disk data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
-static int32_t tsdbCommitTableDataEnd(SCommitter *pCommitter, int64_t suid, int64_t uid) {
-  int32_t    code = 0;
-  SBlockIdx  blockIdx = {.suid = suid, .uid = uid};
-  SBlockIdx *pBlockIdx = &blockIdx;
-
-  code = tsdbWriteBlock(pCommitter->dWriter.pWriter, &pCommitter->dWriter.mBlock, NULL, pBlockIdx);
-  if (code) goto _err;
-
-  if (taosArrayPush(pCommitter->dWriter.aBlockIdx, pBlockIdx) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
-
-  return code;
-
-_err:
-  tsdbError("vgId:%d, commit table data end failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
-static int32_t tsdbGetOvlpNRow(STbDataIter *pIter, SBlock *pBlock) {
-  int32_t     nRow = 0;
-  TSDBROW    *pRow;
-  TSDBKEY     key;
-  int32_t     c = 0;
   STbDataIter iter = *pIter;
-
-  iter.pRow = NULL;
   while (true) {
-    pRow = tsdbTbDataIterGet(&iter);
-
+    TSDBROW *pRow = tsdbTbDataIterGet(&iter);
     if (pRow == NULL) break;
-    key = TSDBROW_KEY(pRow);
 
-    c = tBlockCmprFn(&(SBlock){.maxKey = key, .minKey = key}, pBlock);
-    if (c == 0) {
+    int32_t c = tsdbKeyCmprFn(&TSDBROW_KEY(pRow), &key);
+    if (c < 0) {
       nRow++;
       tsdbTbDataIterNext(&iter);
     } else if (c > 0) {
@@ -648,42 +747,33 @@ static int32_t tsdbGetOvlpNRow(STbDataIter *pIter, SBlock *pBlock) {
 
 static int32_t tsdbMergeAsSubBlock(SCommitter *pCommitter, STbDataIter *pIter, SBlock *pBlock) {
   int32_t     code = 0;
+  STbData    *pTbData = pIter->pTbData;
   SBlockData *pBlockData = &pCommitter->dWriter.bData;
-  SBlockIdx  *pBlockIdx = &(SBlockIdx){.suid = pIter->pTbData->suid, .uid = pIter->pTbData->uid};
-  SBlock      block;
-  TSDBROW    *pRow;
 
-  code = tBlockDataSetSchema(pBlockData, pCommitter->skmTable.pTSchema);
-  if (code) goto _err;
-
-  pRow = tsdbTbDataIterGet(pIter);
-  code = tsdbCommitterUpdateRowSchema(pCommitter, pBlockIdx->suid, pBlockIdx->uid, TSDBROW_SVERSION(pRow));
-  if (code) goto _err;
+  tBlockDataClear(pBlockData);
+  TSDBROW *pRow = tsdbTbDataIterGet(pIter);
   while (true) {
     if (pRow == NULL) break;
-    code = tBlockDataAppendRow(pBlockData, pRow, pCommitter->skmRow.pTSchema);
+
+    code = tsdbCommitterUpdateRowSchema(pCommitter, pTbData->suid, pTbData->uid, TSDBROW_SVERSION(pRow));
+    if (code) goto _err;
+
+    code = tBlockDataAppendRow(pBlockData, pRow, pCommitter->skmRow.pTSchema, pTbData->uid);
     if (code) goto _err;
 
     tsdbTbDataIterNext(pIter);
     pRow = tsdbTbDataIterGet(pIter);
     if (pRow) {
-      TSDBKEY key = TSDBROW_KEY(pRow);
-      int32_t c = tBlockCmprFn(&(SBlock){.minKey = key, .maxKey = key}, pBlock);
-
-      if (c == 0) {
-        code =
-            tsdbCommitterUpdateRowSchema(pCommitter, pIter->pTbData->suid, pIter->pTbData->uid, TSDBROW_SVERSION(pRow));
-        if (code) goto _err;
-      } else if (c > 0) {
+      TSDBKEY rowKey = TSDBROW_KEY(pRow);
+      if (tsdbKeyCmprFn(&rowKey, &pBlock->maxKey) > 0) {
         pRow = NULL;
-      } else {
-        ASSERT(0);
       }
     }
   }
 
-  block = *pBlock;
-  code = tsdbCommitBlockData(pCommitter, pBlockData, &block, pBlockIdx, 0);
+  ASSERT(pBlockData->nRow > 0 && pBlock->nRow + pBlockData->nRow <= pCommitter->maxRow);
+
+  code = tsdbCommitDataBlock(pCommitter, pBlock);
   if (code) goto _err;
 
   return code;
@@ -693,176 +783,307 @@ _err:
   return code;
 }
 
-static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData, SBlockIdx *pBlockIdx) {
-  int32_t      code = 0;
-  STbDataIter  iter = {0};
-  STbDataIter *pIter = &iter;
-  TSDBROW     *pRow;
-  int32_t      iBlock;
-  int32_t      nBlock;
-  int64_t      suid;
-  int64_t      uid;
+static int32_t tsdbMergeCommitLast(SCommitter *pCommitter, STbDataIter *pIter) {
+  int32_t  code = 0;
+  STbData *pTbData = pIter->pTbData;
+  int32_t  nRow = tsdbGetNumOfRowsLessThan(pIter, (TSDBKEY){.ts = pCommitter->maxKey + 1, .version = VERSION_MIN});
 
-  if (pTbData) {
-    tsdbTbDataIterOpen(pTbData, &(TSDBKEY){.ts = pCommitter->minKey, .version = VERSION_MIN}, 0, pIter);
-    pRow = tsdbTbDataIterGet(pIter);
-    if (pRow && TSDBROW_TS(pRow) > pCommitter->maxKey) pRow = NULL;
+  if (pCommitter->dReader.pRowInfo && tTABLEIDCmprFn(pTbData, pCommitter->dReader.pRowInfo) == 0) {
+    if (pCommitter->dReader.pRowInfo->suid) {  // super table
+      for (int32_t iRow = pCommitter->dReader.iRow; iRow < pCommitter->dReader.bDatal.nRow; iRow++) {
+        if (pTbData->uid != pCommitter->dReader.bDatal.aUid[iRow]) break;
+        nRow++;
+      }
+    } else {  // normal table
+      ASSERT(pCommitter->dReader.iRow == 0);
+      nRow += pCommitter->dReader.bDatal.nRow;
+    }
+  }
 
-    suid = pTbData->suid;
-    uid = pTbData->uid;
-  } else {
-    pIter = NULL;
+  if (nRow == 0) goto _exit;
+
+  TSDBROW *pRow = tsdbTbDataIterGet(pIter);
+  if (pRow && TSDBROW_TS(pRow) > pCommitter->maxKey) {
     pRow = NULL;
   }
 
-  if (pBlockIdx) {
-    code = tsdbReadBlock(pCommitter->dReader.pReader, pBlockIdx, &pCommitter->dReader.mBlock, NULL);
-    if (code) goto _err;
-
-    nBlock = pCommitter->dReader.mBlock.nItem;
-    ASSERT(nBlock > 0);
-
-    suid = pBlockIdx->suid;
-    uid = pBlockIdx->uid;
-  } else {
-    nBlock = 0;
+  SRowInfo *pRowInfo = pCommitter->dReader.pRowInfo;
+  if (pRowInfo && pRowInfo->uid != pTbData->uid) {
+    pRowInfo = NULL;
   }
 
-  if (pRow == NULL && nBlock == 0) goto _exit;
+  while (nRow) {
+    SBlockData *pBlockData;
+    int8_t      toData;
 
-  // start ===========
-  tMapDataReset(&pCommitter->dWriter.mBlock);
+    if (nRow < pCommitter->minRow) {  // to .last
+      toData = 0;
+      pBlockData = &pCommitter->dWriter.bDatal;
+
+      // commit and reset block data schema if need
+      // QUESTION: Is there a case that pBlockData->nRow == 0 but need to change schema ?
+      if (pBlockData->suid || pBlockData->uid) {
+        if (pBlockData->suid != pTbData->suid || pBlockData->suid == 0) {
+          if (pBlockData->nRow > 0) {
+            code = tsdbCommitLastBlock(pCommitter);
+            if (code) goto _err;
+          }
+
+          tBlockDataReset(pBlockData);
+        }
+      }
+
+      // set block data schema if need
+      if (pBlockData->suid == 0 && pBlockData->uid == 0) {
+        code =
+            tBlockDataInit(pBlockData, pTbData->suid, pTbData->suid ? 0 : pTbData->uid, pCommitter->skmTable.pTSchema);
+        if (code) goto _err;
+      }
+
+      if (pBlockData->nRow + nRow > pCommitter->maxRow) {
+        code = tsdbCommitLastBlock(pCommitter);
+        if (code) goto _err;
+      }
+    } else {  // to .data
+      toData = 1;
+      pBlockData = &pCommitter->dWriter.bData;
+      ASSERT(pBlockData->nRow == 0);
+    }
+
+    while (pRow && pRowInfo) {
+      int32_t c = tsdbRowCmprFn(pRow, &pRowInfo->row);
+      if (c < 0) {
+        code = tsdbCommitterUpdateRowSchema(pCommitter, pTbData->suid, pTbData->uid, TSDBROW_SVERSION(pRow));
+        if (code) goto _err;
+
+        code = tBlockDataAppendRow(pBlockData, pRow, pCommitter->skmRow.pTSchema, pTbData->uid);
+        if (code) goto _err;
+
+        tsdbTbDataIterNext(pIter);
+        pRow = tsdbTbDataIterGet(pIter);
+        if (pRow && TSDBROW_TS(pRow) > pCommitter->maxKey) {
+          pRow = NULL;
+        }
+      } else if (c > 0) {
+        code = tBlockDataAppendRow(pBlockData, &pRowInfo->row, NULL, pTbData->uid);
+        if (code) goto _err;
+
+        code = tsdbCommitterNextLastRow(pCommitter);
+        if (code) goto _err;
+
+        pRowInfo = pCommitter->dReader.pRowInfo;
+        if (pRowInfo && pRowInfo->uid != pTbData->uid) {
+          pRowInfo = NULL;
+        }
+      } else {
+        ASSERT(0);
+      }
+
+      nRow--;
+      if (toData) {
+        if (nRow == 0 || pBlockData->nRow >= pCommitter->maxRow * 4 / 5) {
+          code = tsdbCommitDataBlock(pCommitter, NULL);
+          if (code) goto _err;
+          goto _outer_break;
+        }
+      }
+    }
+
+    while (pRow) {
+      code = tsdbCommitterUpdateRowSchema(pCommitter, pTbData->suid, pTbData->uid, TSDBROW_SVERSION(pRow));
+      if (code) goto _err;
+
+      code = tBlockDataAppendRow(pBlockData, pRow, pCommitter->skmRow.pTSchema, pTbData->uid);
+      if (code) goto _err;
+
+      tsdbTbDataIterNext(pIter);
+      pRow = tsdbTbDataIterGet(pIter);
+      if (pRow && TSDBROW_TS(pRow) > pCommitter->maxKey) {
+        pRow = NULL;
+      }
+
+      nRow--;
+      if (toData) {
+        if (nRow == 0 || pBlockData->nRow >= pCommitter->maxRow * 4 / 5) {
+          code = tsdbCommitDataBlock(pCommitter, NULL);
+          if (code) goto _err;
+          goto _outer_break;
+        }
+      }
+    }
+
+    while (pRowInfo) {
+      code = tBlockDataAppendRow(pBlockData, &pRowInfo->row, NULL, pTbData->uid);
+      if (code) goto _err;
+
+      code = tsdbCommitterNextLastRow(pCommitter);
+      if (code) goto _err;
+
+      pRowInfo = pCommitter->dReader.pRowInfo;
+      if (pRowInfo && pRowInfo->uid != pTbData->uid) {
+        pRowInfo = NULL;
+      }
+
+      nRow--;
+      if (toData) {
+        if (nRow == 0 || pBlockData->nRow >= pCommitter->maxRow * 4 / 5) {
+          code = tsdbCommitDataBlock(pCommitter, NULL);
+          if (code) goto _err;
+          goto _outer_break;
+        }
+      }
+    }
+
+  _outer_break:
+    ASSERT(nRow >= 0);
+  }
+
+_exit:
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb merge commit last failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData) {
+  int32_t code = 0;
+
+  ASSERT(pCommitter->dReader.pBlockIdx == NULL || tTABLEIDCmprFn(pCommitter->dReader.pBlockIdx, pTbData) >= 0);
+  ASSERT(pCommitter->dReader.pRowInfo == NULL || tTABLEIDCmprFn(pCommitter->dReader.pRowInfo, pTbData) >= 0);
+
+  // merge commit table data
+  STbDataIter  iter = {0};
+  STbDataIter *pIter = &iter;
+  TSDBROW     *pRow;
+
+  tsdbTbDataIterOpen(pTbData, &(TSDBKEY){.ts = pCommitter->minKey, .version = VERSION_MIN}, 0, pIter);
+  pRow = tsdbTbDataIterGet(pIter);
+  if (pRow && TSDBROW_TS(pRow) > pCommitter->maxKey) {
+    pRow = NULL;
+  }
+
+  if (pRow == NULL) goto _exit;
+
+  int32_t iBlock = 0;
   SBlock  block;
   SBlock *pBlock = &block;
-
-  iBlock = 0;
-  if (iBlock < nBlock) {
+  if (pCommitter->dReader.pBlockIdx && tTABLEIDCmprFn(pTbData, pCommitter->dReader.pBlockIdx) == 0) {
     tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock, pBlock, tGetBlock);
   } else {
     pBlock = NULL;
   }
 
-  if (pRow) {
-    code = tsdbCommitterUpdateTableSchema(pCommitter, pTbData->suid, pTbData->uid, pTbData->maxSkmVer);
-    if (code) goto _err;
-  }
+  code = tsdbCommitterUpdateTableSchema(pCommitter, pTbData->suid, pTbData->uid);
+  if (code) goto _err;
 
-  // merge ===========
-  while (true) {
-    if (pRow == NULL && pBlock == NULL) break;
+  tMapDataReset(&pCommitter->dWriter.mBlock);
+  code = tBlockDataInit(&pCommitter->dReader.bData, pTbData->suid, pTbData->uid, pCommitter->skmTable.pTSchema);
+  if (code) goto _err;
+  code = tBlockDataInit(&pCommitter->dWriter.bData, pTbData->suid, pTbData->uid, pCommitter->skmTable.pTSchema);
+  if (code) goto _err;
 
-    if (pRow && pBlock) {
-      if (pBlock->last) {
-        code = tsdbMergeTableData(pCommitter, pIter, pBlock,
-                                  (TSDBKEY){.ts = pCommitter->maxKey + 1, .version = VERSION_MIN}, 0);
-        if (code) goto _err;
-
-        pRow = tsdbTbDataIterGet(pIter);
-        if (pRow && TSDBROW_TS(pRow) > pCommitter->maxKey) pRow = NULL;
-        iBlock++;
-        if (iBlock < nBlock) {
-          tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock, pBlock, tGetBlock);
-        } else {
-          pBlock = NULL;
-        }
-
-        ASSERT(pRow == NULL && pBlock == NULL);
-      } else {
-        int32_t c = tBlockCmprFn(&(SBlock){.maxKey = TSDBROW_KEY(pRow), .minKey = TSDBROW_KEY(pRow)}, pBlock);
-        if (c > 0) {
-          // only disk data
-          code = tsdbCommitTableDiskData(pCommitter, pBlock, pBlockIdx);
-          if (code) goto _err;
-
-          iBlock++;
-          if (iBlock < nBlock) {
-            tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock, pBlock, tGetBlock);
-          } else {
-            pBlock = NULL;
-          }
-        } else if (c < 0) {
-          // only memory data
-          code = tsdbCommitTableMemData(pCommitter, pIter, pBlock->minKey, 1);
-          if (code) goto _err;
-
-          pRow = tsdbTbDataIterGet(pIter);
-          if (pRow && TSDBROW_TS(pRow) > pCommitter->maxKey) pRow = NULL;
-        } else {
-          // merge memory and disk
-          int32_t nOvlp = tsdbGetOvlpNRow(pIter, pBlock);
-          ASSERT(nOvlp);
-          if (pBlock->nRow + nOvlp <= pCommitter->maxRow && pBlock->nSubBlock < TSDB_MAX_SUBBLOCKS) {
-            code = tsdbMergeAsSubBlock(pCommitter, pIter, pBlock);
-            if (code) goto _err;
-          } else {
-            TSDBKEY toKey = {.ts = pCommitter->maxKey + 1, .version = VERSION_MIN};
-            int8_t  toDataOnly = 0;
-
-            if (iBlock < nBlock - 1) {
-              toDataOnly = 1;
-
-              SBlock nextBlock = {0};
-              tBlockReset(&nextBlock);
-              tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock + 1, &nextBlock, tGetBlock);
-              toKey = nextBlock.minKey;
-            }
-
-            code = tsdbMergeTableData(pCommitter, pIter, pBlock, toKey, toDataOnly);
-            if (code) goto _err;
-          }
-
-          pRow = tsdbTbDataIterGet(pIter);
-          if (pRow && TSDBROW_TS(pRow) > pCommitter->maxKey) pRow = NULL;
-          iBlock++;
-          if (iBlock < nBlock) {
-            tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock, pBlock, tGetBlock);
-          } else {
-            pBlock = NULL;
-          }
-        }
-      }
-    } else if (pBlock) {
-      code = tsdbCommitTableDiskData(pCommitter, pBlock, pBlockIdx);
+  // .data merge
+  while (pBlock && pRow) {
+    int32_t c = tBlockCmprFn(pBlock, &(SBlock){.minKey = TSDBROW_KEY(pRow), .maxKey = TSDBROW_KEY(pRow)});
+    if (c < 0) {  // disk
+      code = tMapDataPutItem(&pCommitter->dWriter.mBlock, pBlock, tPutBlock);
       if (code) goto _err;
 
+      // next
       iBlock++;
-      if (iBlock < nBlock) {
+      if (iBlock < pCommitter->dReader.mBlock.nItem) {
         tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock, pBlock, tGetBlock);
       } else {
         pBlock = NULL;
       }
-    } else {
-      code =
-          tsdbCommitTableMemData(pCommitter, pIter, (TSDBKEY){.ts = pCommitter->maxKey + 1, .version = VERSION_MIN}, 0);
+    } else if (c > 0) {  // memory
+      code = tsdbCommitTableMemData(pCommitter, pIter, pBlock->minKey);
       if (code) goto _err;
 
+      // next
       pRow = tsdbTbDataIterGet(pIter);
-      if (pRow && TSDBROW_TS(pRow) > pCommitter->maxKey) pRow = NULL;
-      ASSERT(pRow == NULL);
+      if (pRow && TSDBROW_TS(pRow) > pCommitter->maxKey) {
+        pRow = NULL;
+      }
+    } else {  // merge
+      int32_t nOvlp = tsdbGetNumOfRowsLessThan(pIter, pBlock->maxKey);
+
+      ASSERT(nOvlp > 0);
+
+      if (pBlock->nRow + nOvlp <= pCommitter->maxRow && pBlock->nSubBlock < TSDB_MAX_SUBBLOCKS) {
+        code = tsdbMergeAsSubBlock(pCommitter, pIter, pBlock);
+        if (code) goto _err;
+      } else {
+        code = tsdbMergeCommitData(pCommitter, pIter, pBlock);
+        if (code) goto _err;
+      }
+
+      // next
+      pRow = tsdbTbDataIterGet(pIter);
+      if (pRow && TSDBROW_TS(pRow) > pCommitter->maxKey) {
+        pRow = NULL;
+      }
+      iBlock++;
+      if (iBlock < pCommitter->dReader.mBlock.nItem) {
+        tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock, pBlock, tGetBlock);
+      } else {
+        pBlock = NULL;
+      }
     }
   }
 
-  // end =====================
-  code = tsdbCommitTableDataEnd(pCommitter, suid, uid);
+  while (pBlock) {
+    code = tMapDataPutItem(&pCommitter->dWriter.mBlock, pBlock, tPutBlock);
+    if (code) goto _err;
+
+    // next
+    iBlock++;
+    if (iBlock < pCommitter->dReader.mBlock.nItem) {
+      tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock, pBlock, tGetBlock);
+    } else {
+      pBlock = NULL;
+    }
+  }
+
+  // .data append and .last merge
+  code = tsdbMergeCommitLast(pCommitter, pIter);
   if (code) goto _err;
 
-_exit:
-  if (pIter) {
-    pRow = tsdbTbDataIterGet(pIter);
-    if (pRow) pCommitter->nextKey = TMIN(pCommitter->nextKey, TSDBROW_TS(pRow));
+  // end
+  if (pCommitter->dWriter.mBlock.nItem > 0) {
+    SBlockIdx blockIdx = {.suid = pTbData->suid, .uid = pTbData->uid};
+    code = tsdbWriteBlock(pCommitter->dWriter.pWriter, &pCommitter->dWriter.mBlock, &blockIdx);
+    if (code) goto _err;
+
+    if (taosArrayPush(pCommitter->dWriter.aBlockIdx, &blockIdx) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
   }
+
+_exit:
+  pRow = tsdbTbDataIterGet(pIter);
+  if (pRow) {
+    pCommitter->nextKey = TMIN(pCommitter->nextKey, TSDBROW_TS(pRow));
+  }
+
   return code;
 
 _err:
-  tsdbError("vgId:%d, tsdb commit table data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d tsdb commit table data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
 static int32_t tsdbCommitFileDataEnd(SCommitter *pCommitter) {
   int32_t code = 0;
 
-  // write blockIdx
-  code = tsdbWriteBlockIdx(pCommitter->dWriter.pWriter, pCommitter->dWriter.aBlockIdx, NULL);
+  // write aBlockIdx
+  code = tsdbWriteBlockIdx(pCommitter->dWriter.pWriter, pCommitter->dWriter.aBlockIdx);
+  if (code) goto _err;
+
+  // write aBlockL
+  code = tsdbWriteBlockL(pCommitter->dWriter.pWriter, pCommitter->dWriter.aBlockL);
   if (code) goto _err;
 
   // update file header
@@ -890,6 +1111,98 @@ _err:
   return code;
 }
 
+static int32_t tsdbMoveCommitData(SCommitter *pCommitter, TABLEID toTable) {
+  int32_t code = 0;
+
+  // .data
+  while (true) {
+    if (pCommitter->dReader.pBlockIdx == NULL || tTABLEIDCmprFn(pCommitter->dReader.pBlockIdx, &toTable) >= 0) break;
+
+    SBlockIdx blockIdx = *pCommitter->dReader.pBlockIdx;
+    code = tsdbWriteBlock(pCommitter->dWriter.pWriter, &pCommitter->dReader.mBlock, &blockIdx);
+    if (code) goto _err;
+
+    if (taosArrayPush(pCommitter->dWriter.aBlockIdx, &blockIdx) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+
+    code = tsdbCommitterNextTableData(pCommitter);
+    if (code) goto _err;
+  }
+
+  // .last
+  while (true) {
+    if (pCommitter->dReader.pRowInfo == NULL || tTABLEIDCmprFn(pCommitter->dReader.pRowInfo, &toTable) >= 0) break;
+
+    SBlockData *pBlockDataR = &pCommitter->dReader.bDatal;
+    SBlockData *pBlockDataW = &pCommitter->dWriter.bDatal;
+    tb_uid_t    suid = pCommitter->dReader.pRowInfo->suid;
+    tb_uid_t    uid = pCommitter->dReader.pRowInfo->uid;
+
+    ASSERT((pBlockDataR->suid && !pBlockDataR->uid) || (!pBlockDataR->suid && pBlockDataR->uid));
+    ASSERT(pBlockDataR->nRow > 0);
+
+    // commit and reset block data schema if need
+    if (pBlockDataW->suid || pBlockDataW->uid) {
+      if (pBlockDataW->suid != suid || pBlockDataW->suid == 0) {
+        if (pBlockDataW->nRow > 0) {
+          code = tsdbCommitLastBlock(pCommitter);
+          if (code) goto _err;
+        }
+        tBlockDataReset(pBlockDataW);
+      }
+    }
+
+    // set block data schema if need
+    if (pBlockDataW->suid == 0 && pBlockDataW->uid == 0) {
+      code = tsdbCommitterUpdateTableSchema(pCommitter, suid, uid);
+      if (code) goto _err;
+
+      code = tBlockDataInit(pBlockDataW, suid, suid ? 0 : uid, pCommitter->skmTable.pTSchema);
+      if (code) goto _err;
+    }
+
+    // check if it can make sure that one table data in one block
+    int32_t nRow = 0;
+    if (pBlockDataR->suid) {
+      int32_t iRow = pCommitter->dReader.iRow;
+      while ((iRow < pBlockDataR->nRow) && (pBlockDataR->aUid[iRow] == uid)) {
+        nRow++;
+        iRow++;
+      }
+    } else {
+      ASSERT(pCommitter->dReader.iRow == 0);
+      nRow = pBlockDataR->nRow;
+    }
+
+    ASSERT(nRow > 0 && nRow < pCommitter->minRow);
+
+    if (pBlockDataW->nRow + nRow > pCommitter->maxRow) {
+      ASSERT(pBlockDataW->nRow > 0);
+
+      code = tsdbCommitLastBlock(pCommitter);
+      if (code) goto _err;
+    }
+
+    while (nRow > 0) {
+      code = tBlockDataAppendRow(pBlockDataW, &pCommitter->dReader.pRowInfo->row, NULL, uid);
+      if (code) goto _err;
+
+      code = tsdbCommitterNextLastRow(pCommitter);
+      if (code) goto _err;
+
+      nRow--;
+    }
+  }
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb move commit data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
 static int32_t tsdbCommitFileData(SCommitter *pCommitter) {
   int32_t    code = 0;
   STsdb     *pTsdb = pCommitter->pTsdb;
@@ -900,59 +1213,30 @@ static int32_t tsdbCommitFileData(SCommitter *pCommitter) {
   if (code) goto _err;
 
   // commit file data impl
-  int32_t    iTbData = 0;
-  int32_t    nTbData = taosArrayGetSize(pMemTable->aTbData);
-  int32_t    iBlockIdx = 0;
-  int32_t    nBlockIdx = taosArrayGetSize(pCommitter->dReader.aBlockIdx);
-  STbData   *pTbData;
-  SBlockIdx *pBlockIdx;
+  for (int32_t iTbData = 0; iTbData < taosArrayGetSize(pCommitter->aTbDataP); iTbData++) {
+    STbData *pTbData = (STbData *)taosArrayGetP(pCommitter->aTbDataP, iTbData);
 
-  ASSERT(nTbData > 0);
+    // move commit until current (suid, uid)
+    code = tsdbMoveCommitData(pCommitter, *(TABLEID *)pTbData);
+    if (code) goto _err;
 
-  pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
-  pBlockIdx = (iBlockIdx < nBlockIdx) ? (SBlockIdx *)taosArrayGet(pCommitter->dReader.aBlockIdx, iBlockIdx) : NULL;
-  while (pTbData || pBlockIdx) {
-    if (pTbData && pBlockIdx) {
-      int32_t c = tTABLEIDCmprFn(pTbData, pBlockIdx);
+    // commit current table data
+    code = tsdbCommitTableData(pCommitter, pTbData);
+    if (code) goto _err;
 
-      if (c == 0) {
-        goto _commit_table_mem_and_disk;
-      } else if (c < 0) {
-        goto _commit_table_mem_data;
-      } else {
-        goto _commit_table_disk_data;
-      }
-    } else if (pBlockIdx) {
-      goto _commit_table_disk_data;
-    } else {
-      goto _commit_table_mem_data;
+    // move next reader table data if need
+    if (pCommitter->dReader.pBlockIdx && tTABLEIDCmprFn(pTbData, pCommitter->dReader.pBlockIdx) == 0) {
+      code = tsdbCommitterNextTableData(pCommitter);
+      if (code) goto _err;
     }
+  }
 
-  _commit_table_mem_data:
-    code = tsdbCommitTableData(pCommitter, pTbData, NULL);
+  code = tsdbMoveCommitData(pCommitter, (TABLEID){.suid = INT64_MAX, .uid = INT64_MAX});
+  if (code) goto _err;
+
+  if (pCommitter->dWriter.bDatal.nRow > 0) {
+    code = tsdbCommitLastBlock(pCommitter);
     if (code) goto _err;
-
-    iTbData++;
-    pTbData = (iTbData < nTbData) ? (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData) : NULL;
-    continue;
-
-  _commit_table_disk_data:
-    code = tsdbCommitTableData(pCommitter, NULL, pBlockIdx);
-    if (code) goto _err;
-
-    iBlockIdx++;
-    pBlockIdx = (iBlockIdx < nBlockIdx) ? (SBlockIdx *)taosArrayGet(pCommitter->dReader.aBlockIdx, iBlockIdx) : NULL;
-    continue;
-
-  _commit_table_mem_and_disk:
-    code = tsdbCommitTableData(pCommitter, pTbData, pBlockIdx);
-    if (code) goto _err;
-
-    iBlockIdx++;
-    pBlockIdx = (iBlockIdx < nBlockIdx) ? (SBlockIdx *)taosArrayGet(pCommitter->dReader.aBlockIdx, iBlockIdx) : NULL;
-    iTbData++;
-    pTbData = (iTbData < nTbData) ? (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData) : NULL;
-    continue;
   }
 
   // commit file data end
@@ -987,6 +1271,11 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
   pCommitter->minRow = pTsdb->pVnode->config.tsdbCfg.minRows;
   pCommitter->maxRow = pTsdb->pVnode->config.tsdbCfg.maxRows;
   pCommitter->cmprAlg = pTsdb->pVnode->config.tsdbCfg.compression;
+  pCommitter->aTbDataP = tsdbMemTableGetTbDataArray(pTsdb->imem);
+  if (pCommitter->aTbDataP == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
 
   code = tsdbFSCopy(pTsdb, &pCommitter->fs);
   if (code) goto _err;
@@ -1001,22 +1290,42 @@ _err:
 static int32_t tsdbCommitDataStart(SCommitter *pCommitter) {
   int32_t code = 0;
 
+  // Reader
   pCommitter->dReader.aBlockIdx = taosArrayInit(0, sizeof(SBlockIdx));
   if (pCommitter->dReader.aBlockIdx == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
 
+  code = tBlockDataCreate(&pCommitter->dReader.bData);
+  if (code) goto _exit;
+
+  pCommitter->dReader.aBlockL = taosArrayInit(0, sizeof(SBlockL));
+  if (pCommitter->dReader.aBlockL == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  code = tBlockDataCreate(&pCommitter->dReader.bDatal);
+  if (code) goto _exit;
+
+  // Writer
   pCommitter->dWriter.aBlockIdx = taosArrayInit(0, sizeof(SBlockIdx));
   if (pCommitter->dWriter.aBlockIdx == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
 
-  code = tBlockDataInit(&pCommitter->dReader.bData);
+  pCommitter->dWriter.aBlockL = taosArrayInit(0, sizeof(SBlockL));
+  if (pCommitter->dWriter.aBlockL == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  code = tBlockDataCreate(&pCommitter->dWriter.bData);
   if (code) goto _exit;
 
-  code = tBlockDataInit(&pCommitter->dWriter.bData);
+  code = tBlockDataCreate(&pCommitter->dWriter.bDatal);
   if (code) goto _exit;
 
 _exit:
@@ -1024,12 +1333,19 @@ _exit:
 }
 
 static void tsdbCommitDataEnd(SCommitter *pCommitter) {
+  // Reader
   taosArrayDestroy(pCommitter->dReader.aBlockIdx);
   tMapDataClear(&pCommitter->dReader.mBlock);
-  tBlockDataClear(&pCommitter->dReader.bData, 1);
+  tBlockDataDestroy(&pCommitter->dReader.bData, 1);
+  taosArrayDestroy(pCommitter->dReader.aBlockL);
+  tBlockDataDestroy(&pCommitter->dReader.bDatal, 1);
+
+  // Writer
   taosArrayDestroy(pCommitter->dWriter.aBlockIdx);
+  taosArrayDestroy(pCommitter->dWriter.aBlockL);
   tMapDataClear(&pCommitter->dWriter.mBlock);
-  tBlockDataClear(&pCommitter->dWriter.bData, 1);
+  tBlockDataDestroy(&pCommitter->dWriter.bData, 1);
+  tBlockDataDestroy(&pCommitter->dWriter.bDatal, 1);
   tTSchemaDestroy(pCommitter->skmTable.pTSchema);
   tTSchemaDestroy(pCommitter->skmRow.pTSchema);
 }
@@ -1049,9 +1365,6 @@ static int32_t tsdbCommitData(SCommitter *pCommitter) {
   // impl ====================
   pCommitter->nextKey = pMemTable->minKey;
   while (pCommitter->nextKey < TSKEY_MAX) {
-    pCommitter->commitFid = tsdbKeyFid(pCommitter->nextKey, pCommitter->minutes, pCommitter->precision);
-    tsdbFidKeyRange(pCommitter->commitFid, pCommitter->minutes, pCommitter->precision, &pCommitter->minKey,
-                    &pCommitter->maxKey);
     code = tsdbCommitFileData(pCommitter);
     if (code) goto _err;
   }
@@ -1088,13 +1401,13 @@ static int32_t tsdbCommitDel(SCommitter *pCommitter) {
   int32_t  iDelIdx = 0;
   int32_t  nDelIdx = taosArrayGetSize(pCommitter->aDelIdx);
   int32_t  iTbData = 0;
-  int32_t  nTbData = taosArrayGetSize(pMemTable->aTbData);
+  int32_t  nTbData = taosArrayGetSize(pCommitter->aTbDataP);
   STbData *pTbData;
   SDelIdx *pDelIdx;
 
   ASSERT(nTbData > 0);
 
-  pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
+  pTbData = (STbData *)taosArrayGetP(pCommitter->aTbDataP, iTbData);
   pDelIdx = (iDelIdx < nDelIdx) ? (SDelIdx *)taosArrayGet(pCommitter->aDelIdx, iDelIdx) : NULL;
   while (true) {
     if (pTbData == NULL && pDelIdx == NULL) break;
@@ -1120,7 +1433,7 @@ static int32_t tsdbCommitDel(SCommitter *pCommitter) {
     if (code) goto _err;
 
     iTbData++;
-    pTbData = (iTbData < nTbData) ? (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData) : NULL;
+    pTbData = (iTbData < nTbData) ? (STbData *)taosArrayGetP(pCommitter->aTbDataP, iTbData) : NULL;
     continue;
 
   _commit_disk_del:
@@ -1136,7 +1449,7 @@ static int32_t tsdbCommitDel(SCommitter *pCommitter) {
     if (code) goto _err;
 
     iTbData++;
-    pTbData = (iTbData < nTbData) ? (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData) : NULL;
+    pTbData = (iTbData < nTbData) ? (STbData *)taosArrayGetP(pCommitter->aTbDataP, iTbData) : NULL;
     iDelIdx++;
     pDelIdx = (iDelIdx < nDelIdx) ? (SDelIdx *)taosArrayGet(pCommitter->aDelIdx, iDelIdx) : NULL;
     continue;
@@ -1184,6 +1497,7 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
 
   tsdbUnrefMemTable(pMemTable);
   tsdbFSDestroy(&pCommitter->fs);
+  taosArrayDestroy(pCommitter->aTbDataP);
 
   tsdbInfo("vgId:%d, tsdb end commit", TD_VID(pTsdb->pVnode));
   return code;

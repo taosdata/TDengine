@@ -139,7 +139,7 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
       }
 
       assert(w.ekey > pBlockInfo->window.ekey);
-      if (w.skey <= pBlockInfo->window.ekey && w.skey > pBlockInfo->window.skey) {
+      if (TMAX(w.skey, pBlockInfo->window.skey) <= pBlockInfo->window.ekey) {
         return true;
       }
     }
@@ -147,7 +147,7 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
     w = getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.ekey);
     assert(w.skey <= pBlockInfo->window.ekey);
 
-    if (w.skey > pBlockInfo->window.skey) {
+    if (TMAX(w.skey, pBlockInfo->window.skey) <= TMIN(w.ekey, pBlockInfo->window.ekey)) {
       return true;
     }
 
@@ -158,7 +158,7 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
       }
 
       assert(w.skey < pBlockInfo->window.skey);
-      if (w.ekey < pBlockInfo->window.ekey && w.ekey >= pBlockInfo->window.skey) {
+      if (pBlockInfo->window.skey <= TMIN(w.ekey, pBlockInfo->window.ekey)) {
         return true;
       }
     }
@@ -440,7 +440,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int
     } else {  // these are tags
       STagVal tagVal = {0};
       tagVal.cid = pExpr->base.pParam[0].pCol->colId;
-      const char* p = metaGetTableTagVal(&mr.me, pColInfoData->info.type, &tagVal);
+      const char* p = metaGetTableTagVal(mr.me.ctbEntry.pTags, pColInfoData->info.type, &tagVal);
 
       char* data = NULL;
       if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON && p != NULL) {
@@ -1175,19 +1175,19 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
   SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, pInfo->primaryTsIndex);
   ASSERT(pColDataInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP);
   TSKEY* tsCol = (TSKEY*)pColDataInfo->pData;
+  bool   tableInserted = updateInfoIsTableInserted(pInfo->pUpdateInfo, pBlock->info.uid);
   for (int32_t rowId = 0; rowId < pBlock->info.rows; rowId++) {
     SResultRowInfo dumyInfo;
     dumyInfo.cur.pageId = -1;
     bool        isClosed = false;
     STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};
-    if (isOverdue(tsCol[rowId], &pInfo->twAggSup)) {
+    if (tableInserted && isOverdue(tsCol[rowId], &pInfo->twAggSup)) {
       win = getActiveTimeWindow(NULL, &dumyInfo, tsCol[rowId], &pInfo->interval, TSDB_ORDER_ASC);
       isClosed = isCloseWindow(&win, &pInfo->twAggSup);
     }
-    bool inserted = updateInfoIsTableInserted(pInfo->pUpdateInfo, pBlock->info.uid);
     // must check update info first.
     bool update = updateInfoIsUpdated(pInfo->pUpdateInfo, pBlock->info.uid, tsCol[rowId]);
-    bool closedWin = isClosed && inserted && isSignleIntervalWindow(pInfo) &&
+    bool closedWin = isClosed && isSignleIntervalWindow(pInfo) &&
                      isDeletedWindow(&win, pBlock->info.groupId, pInfo->sessionSup.pIntervalAggSup);
     if ((update || closedWin) && out) {
       appendOneRow(pInfo->pUpdateDataRes, tsCol + rowId, tsCol + rowId, &pBlock->info.uid);
@@ -1649,6 +1649,8 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     }
     taosArrayDestroy(tableIdList);
     memcpy(&pTaskInfo->streamInfo.tableCond, &pTSInfo->cond, sizeof(SQueryTableDataCond));
+  } else {
+    taosArrayDestroy(pColIds);
   }
 
   // create the pseduo columns info
@@ -2038,9 +2040,33 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     metaReaderClear(&smr);
 
     if (numOfRows >= pOperator->resultInfo.capacity) {
-      break;
+      p->info.rows = numOfRows;
+      pInfo->pRes->info.rows = numOfRows;
+
+      relocateColumnData(pInfo->pRes, pInfo->scanCols, p->pDataBlock, false);
+      doFilterResult(pInfo);
+
+      blockDataCleanup(p);
+      numOfRows = 0;
+
+      if (pInfo->pRes->info.rows > 0) {
+        break;
+      }
     }
   }
+
+  if (numOfRows > 0) {
+    p->info.rows = numOfRows;
+    pInfo->pRes->info.rows = numOfRows;
+
+    relocateColumnData(pInfo->pRes, pInfo->scanCols, p->pDataBlock, false);
+    doFilterResult(pInfo);
+
+    blockDataCleanup(p);
+    numOfRows = 0;
+  }
+
+  blockDataDestroy(p);
 
   // todo temporarily free the cursor here, the true reason why the free is not valid needs to be found
   if (ret != 0) {
@@ -2048,14 +2074,6 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     pInfo->pCur = NULL;
     doSetOperatorCompleted(pOperator);
   }
-
-  p->info.rows = numOfRows;
-  pInfo->pRes->info.rows = numOfRows;
-
-  relocateColumnData(pInfo->pRes, pInfo->scanCols, p->pDataBlock, false);
-  doFilterResult(pInfo);
-
-  blockDataDestroy(p);
 
   pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
@@ -2213,9 +2231,33 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
       colDataAppend(pColInfoData, numOfRows, n, false);
 
       if (++numOfRows >= pOperator->resultInfo.capacity) {
-        break;
+        p->info.rows = numOfRows;
+        pInfo->pRes->info.rows = numOfRows;
+
+        relocateColumnData(pInfo->pRes, pInfo->scanCols, p->pDataBlock, false);
+        doFilterResult(pInfo);
+
+        blockDataCleanup(p);
+        numOfRows = 0;
+
+        if (pInfo->pRes->info.rows > 0) {
+          break;
+        }
       }
     }
+
+    if (numOfRows > 0) {
+      p->info.rows = numOfRows;
+      pInfo->pRes->info.rows = numOfRows;
+
+      relocateColumnData(pInfo->pRes, pInfo->scanCols, p->pDataBlock, false);
+      doFilterResult(pInfo);
+
+      blockDataCleanup(p);
+      numOfRows = 0;
+    }
+
+    blockDataDestroy(p);
 
     // todo temporarily free the cursor here, the true reason why the free is not valid needs to be found
     if (ret != 0) {
@@ -2223,14 +2265,6 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
       pInfo->pCur = NULL;
       doSetOperatorCompleted(pOperator);
     }
-
-    p->info.rows = numOfRows;
-    pInfo->pRes->info.rows = numOfRows;
-
-    relocateColumnData(pInfo->pRes, pInfo->scanCols, p->pDataBlock, false);
-    doFilterResult(pInfo);
-
-    blockDataDestroy(p);
 
     pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
     return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
@@ -2506,7 +2540,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
       } else {  // it is a tag value
         STagVal val = {0};
         val.cid = pExprInfo[j].base.pParam[0].pCol->colId;
-        const char* p = metaGetTableTagVal(&mr.me, pDst->info.type, &val);
+        const char* p = metaGetTableTagVal(mr.me.ctbEntry.pTags, pDst->info.type, &val);
 
         char* data = NULL;
         if (pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL) {

@@ -428,6 +428,9 @@ void    nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 char*   nodesGetFillModeString(EFillMode mode);
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);
 
+const char* operatorTypeStr(EOperatorType type);
+const char* logicConditionTypeStr(ELogicConditionType type);
+
 #ifdef __cplusplus
 }
 #endif

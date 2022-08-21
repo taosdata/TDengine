@@ -25,7 +25,7 @@ while $count < $N
 endw
 
 sql select * from $tb
-if $rows != $N then 
+if $rows != $N then
   return -1
 endi
 
@@ -47,7 +47,7 @@ while $count < $N
 endw
 
 sql select * from $tb
-if $rows != $N then 
+if $rows != $N then
   return -1
 endi
 
@@ -69,7 +69,7 @@ while $count < $N
 endw
 
 sql select * from $tb
-if $rows != $N then 
+if $rows != $N then
   return -1
 endi
 
@@ -85,7 +85,7 @@ $tb = $tbPrefix . $i
 sql use $db
 sql select * from $tb
 print select * from $tb ==> $rows points
-if $rows != $N then 
+if $rows != $N then
   return -1
 endi
 
@@ -95,18 +95,18 @@ $tb = $tbPrefix . $i
 sql use $db
 sql select * from $tb
 print select * from $tb ==> $rows points
-if $rows != $N then 
+if $rows != $N then
   return -1
 endi
- 
+
 $i = 2
 $db = $dbPrefix . $i
 $tb = $tbPrefix . $i
 sql use $db
 sql select * from $tb
 print select * from $tb ==> $rows points
-if $rows != $N then 
+if $rows != $N then
   return -1
-endi  
- 
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

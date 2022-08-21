@@ -75,7 +75,7 @@ int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 
 // telem
-bool     tsEnableTelem = false;
+bool     tsEnableTelem = true;
 int32_t  tsTelemInterval = 86400;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.taosdata.com";
 uint16_t tsTelemPort = 80;
@@ -166,7 +166,22 @@ int32_t tsTtlPushInterval = 86400;
 int32_t tsGrantHBInterval = 60;
 
 #ifndef _STORAGE
-int32_t taosSetTfsCfg(SConfig *pCfg) { return 0; }
+int32_t taosSetTfsCfg(SConfig *pCfg) {
+  SConfigItem *pItem = cfgGetItem(pCfg, "dataDir");
+  memset(tsDataDir, 0, PATH_MAX);
+
+  int32_t size = taosArrayGetSize(pItem->array);
+  tsDiskCfgNum = 1;
+  tstrncpy(tsDiskCfg[0].dir, pItem->str, TSDB_FILENAME_LEN);
+  tsDiskCfg[0].level = 0;
+  tsDiskCfg[0].primary = 1;
+  tstrncpy(tsDataDir, pItem->str, PATH_MAX);
+  if (taosMulMkDir(tsDataDir) != 0) {
+    uError("failed to create dataDir:%s", tsDataDir);
+    return -1;
+  }
+  return 0;
+}
 #else
 int32_t taosSetTfsCfg(SConfig *pCfg);
 #endif

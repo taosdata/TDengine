@@ -130,6 +130,14 @@ int             metaTtlSmaller(SMeta* pMeta, uint64_t time, SArray* uidList);
 int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
 
+typedef struct SMetaInfo {
+  int64_t uid;
+  int64_t suid;
+  int64_t version;
+  int32_t skmVer;
+} SMetaInfo;
+int32_t metaGetInfo(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo);
+
 // tsdb
 int         tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg);
 int         tsdbClose(STsdb** pTsdb);
@@ -155,13 +163,16 @@ int     tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
 int     tqCommit(STQ*);
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
 int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId);
-int32_t tqProcessCheckAlterInfoReq(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen, int64_t ver);
+// tq-mq
+int32_t tqProcessAddCheckInfoReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessDelCheckInfoReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessVgChangeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessVgDeleteReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen);
+// tq-stream
+int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessTaskDropReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* data, int64_t ver);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec);
@@ -188,6 +199,7 @@ int32_t smaAsyncCommit(SSma* pSma);
 int32_t smaAsyncPostCommit(SSma* pSma);
 int32_t smaDoRetention(SSma* pSma, int64_t now);
 int32_t smaProcessFetch(SSma* pSma, void* pMsg);
+int32_t smaProcessExec(SSma* pSma, void* pMsg);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
@@ -357,6 +369,7 @@ struct SSma {
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
 
 enum {
+  SNAP_DATA_CFG = 0,
   SNAP_DATA_META = 1,
   SNAP_DATA_TSDB = 2,
   SNAP_DATA_DEL = 3,
