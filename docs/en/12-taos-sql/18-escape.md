@@ -2,7 +2,7 @@
 title: Escape Characters
 ---
 
-Below table is the list of escape characters used in TDengine.
+## Escape Characters
 
 | Escape Character | **Actual Meaning**       |
 | :--------------: | ------------------------ |
