@@ -339,6 +339,7 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, SArray* aDFileSet, STsdb
     pLReader->order   = pReader->order;
     pLReader->window  = pReader->window;
     pLReader->verRange = pReader->verRange;
+    pLReader->currentBlockIndex = -1;
 
     int32_t code = tBlockDataCreate(&pLReader->lastBlockData);
     if (code != TSDB_CODE_SUCCESS) {
@@ -2418,7 +2419,6 @@ static int32_t doLoadRelatedLastBlock(SLastBlockReader* pLastBlockReader, STable
     return code;
   }
 
-  ;
   code = tsdbReadLastBlock(pReader->pFileReader, pBlock, &pLastBlockReader->lastBlockData);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%p error occurs in loading last block into buffer, last block index:%d, total:%d code:%s %s", pReader,
