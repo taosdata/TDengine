@@ -2506,7 +2506,6 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
 
     if (pLastBlockReader->currentBlockIndex == -1) {
 //      ASSERT(0);
-      printf("error\n");
     }
 
     initLastBlockReader(pLastBlockReader, pScanInfo->uid, &pScanInfo->indexInBlockL);
