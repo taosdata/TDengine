@@ -33,7 +33,7 @@ extern "C" {
 // clang-format on
 
 #define RSMA_TASK_INFO_HASH_SLOT (8)
-#define RSMA_EXECUTOR_MAX        (4)
+#define RSMA_EXECUTOR_MAX        (1)
 
 typedef struct SSmaEnv       SSmaEnv;
 typedef struct SSmaStat      SSmaStat;
