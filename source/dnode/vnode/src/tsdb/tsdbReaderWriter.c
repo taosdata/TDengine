@@ -694,8 +694,18 @@ int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnD
   code = tRealloc(&pReader->aBuf[0], size);
   if (code) goto _err;
 
+  // seek
+  int64_t n = taosLSeekFile(pReader->pSmaFD, pSmaInfo->offset, SEEK_SET);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  } else if (n < pSmaInfo->offset) {
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _err;
+  }
+
   // read
-  int64_t n = taosReadFile(pReader->pSmaFD, pReader->aBuf[0], size);
+  n = taosReadFile(pReader->pSmaFD, pReader->aBuf[0], size);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
