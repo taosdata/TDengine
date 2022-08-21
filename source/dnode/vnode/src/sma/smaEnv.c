@@ -209,6 +209,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       SRSmaStat *pRSmaStat = (SRSmaStat *)(*pSmaStat);
       pRSmaStat->pSma = (SSma *)pSma;
       atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_INIT);
+      tsem_init(&pRSmaStat->notEmpty, 0, 0);
 
       // init smaMgmt
       smaInit();
@@ -228,12 +229,6 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       RSMA_INFO_HASH(pRSmaStat) = taosHashInit(
           RSMA_TASK_INFO_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
       if (!RSMA_INFO_HASH(pRSmaStat)) {
-        return TSDB_CODE_FAILED;
-      }
-
-      RSMA_FETCH_HASH(pRSmaStat) = taosHashInit(
-          RSMA_TASK_INFO_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
-      if (!RSMA_FETCH_HASH(pRSmaStat)) {
         return TSDB_CODE_FAILED;
       }
     } else if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
@@ -267,6 +262,7 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     smaDebug("vgId:%d, destroy rsma stat %p", SMA_VID(pSma), pRSmaStat);
     // step 1: set rsma trigger stat cancelled
     atomic_store_8(RSMA_TRIGGER_STAT(pStat), TASK_TRIGGER_STAT_CANCELLED);
+    tsem_destroy(&(pStat->notEmpty));
 
     // step 2: destroy the rsma info and associated fetch tasks
     if (taosHashGetSize(RSMA_INFO_HASH(pStat)) > 0) {
@@ -279,17 +275,14 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     }
     taosHashCleanup(RSMA_INFO_HASH(pStat));
 
-    // step 3: destroy the rsma fetch hash
-    taosHashCleanup(RSMA_FETCH_HASH(pStat));
-
-    // step 4: wait all triggered fetch tasks finished
+    // step 3: wait for all triggered fetch tasks to finish
     int32_t nLoops = 0;
     while (1) {
       if (T_REF_VAL_GET((SSmaStat *)pStat) == 0) {
-        smaDebug("vgId:%d, rsma fetch tasks all finished", SMA_VID(pSma));
+        smaDebug("vgId:%d, rsma fetch tasks are all finished", SMA_VID(pSma));
         break;
       } else {
-        smaDebug("vgId:%d, rsma fetch tasks not all finished yet", SMA_VID(pSma));
+        smaDebug("vgId:%d, rsma fetch tasks are not all finished yet", SMA_VID(pSma));
       }
       ++nLoops;
       if (nLoops > 1000) {

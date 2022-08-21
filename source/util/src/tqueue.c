@@ -298,7 +298,8 @@ int32_t taosGetQitem(STaosQall *qall, void **ppItem) {
   return num;
 }
 
-void taosResetQitems(STaosQall *qall) { qall->current = qall->start; }
+void    taosResetQitems(STaosQall *qall) { qall->current = qall->start; }
+int32_t taosQallItemSize(STaosQall *qall) { return qall->numOfItems; }
 
 STaosQset *taosOpenQset() {
   STaosQset *qset = taosMemoryCalloc(sizeof(STaosQset), 1);
