@@ -45,7 +45,8 @@ typedef struct STableBlockScanInfo {
   SIterInfo iter;         // mem buffer skip list iterator
   SIterInfo iiter;        // imem buffer skip list iterator
   SArray*   delSkyline;   // delete info for this table
-  int32_t   fileDelIndex;
+  int32_t   fileDelIndex; // file block delete index
+  int32_t   lastBlockDelIndex;// delete index for last block
   bool      iterInit;     // whether to initialize the in-memory skip list iterator or not
   int16_t   indexInBlockL;// row position in last block
 } STableBlockScanInfo;
@@ -1296,7 +1297,7 @@ static bool fileBlockShouldLoad(STsdbReader* pReader, SFileDataBlockInfo* pFBloc
 
   // todo here we need to each key in the last files to identify if it is really overlapped with last block
   bool overlapWithlastBlock = false;
-  if (taosArrayGetSize(pLastBlockReader->pBlockL) > 0) {
+  if (taosArrayGetSize(pLastBlockReader->pBlockL) > 0 && (pLastBlockReader->currentBlockIndex != -1)) {
     SBlockL *pBlockL = taosArrayGet(pLastBlockReader->pBlockL, pLastBlockReader->currentBlockIndex);
     overlapWithlastBlock = !(pBlock->maxKey.ts < pBlockL->minKey || pBlock->minKey.ts > pBlockL->maxKey);
   }
@@ -1939,7 +1940,7 @@ static bool nextRowInLastBlock(SLastBlockReader *pLastBlockReader, STableBlockSc
     }
 
     TSDBKEY k = {.ts = ts, .version = ver};
-    if (hasBeenDropped(pBlockScanInfo->delSkyline, &pBlockScanInfo->fileDelIndex, &k, pLastBlockReader->order)) {
+    if (hasBeenDropped(pBlockScanInfo->delSkyline, &pBlockScanInfo->lastBlockDelIndex, &k, pLastBlockReader->order)) {
       continue;
     }
 
@@ -2295,6 +2296,7 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
       ASCENDING_TRAVERSE(pReader->order) ? 0 : taosArrayGetSize(pBlockScanInfo->delSkyline) - 1;
   pBlockScanInfo->iiter.index = pBlockScanInfo->iter.index;
   pBlockScanInfo->fileDelIndex = pBlockScanInfo->iter.index;
+  pBlockScanInfo->lastBlockDelIndex = pBlockScanInfo->iter.index;
   return code;
 
 _err:
@@ -2304,9 +2306,6 @@ _err:
 
 static TSDBKEY getCurrentKeyInBuf(STableBlockScanInfo* pScanInfo, STsdbReader* pReader) {
   TSDBKEY key = {.ts = TSKEY_INITIAL_VAL};
-
-//  SFileDataBlockInfo*  pFBlock = getCurrentBlockInfo(pBlockIter);
-//  STableBlockScanInfo* pScanInfo = taosHashGet(pReader->status.pTableMap, &pFBlock->uid, sizeof(pFBlock->uid));
 
   initMemDataIterator(pScanInfo, pReader);
   TSDBROW* pRow = getValidRow(&pScanInfo->iter, pScanInfo->delSkyline, pReader);
@@ -2381,10 +2380,12 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doLoadRelatedLastBlock(SLastBlockReader* pLastBlockReader, uint64_t uid, STsdbReader* pReader) {
+static int32_t doLoadRelatedLastBlock(SLastBlockReader* pLastBlockReader, STableBlockScanInfo *pBlockScanInfo, STsdbReader* pReader) {
   SArray*  pBlocks = pLastBlockReader->pBlockL;
   SBlockL* pBlock = NULL;
 
+  uint64_t uid = pBlockScanInfo->uid;
+  initMemDataIterator(pBlockScanInfo, pReader);
   pLastBlockReader->currentBlockIndex = -1;
 
   // find the correct SBlockL
@@ -2435,7 +2436,7 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
     // load the last data block of current table
     // todo opt perf by avoiding load last block repeatly
     STableBlockScanInfo* pScanInfo = pStatus->pTableIter;
-    int32_t code = doLoadRelatedLastBlock(pLastBlockReader, pScanInfo->uid, pReader);
+    int32_t code = doLoadRelatedLastBlock(pLastBlockReader, pScanInfo, pReader);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -2504,7 +2505,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
     key = getCurrentKeyInBuf(pScanInfo, pReader);
 
     // load the last data block of current table
-    code = doLoadRelatedLastBlock(pLastBlockReader, pScanInfo->uid, pReader);
+    code = doLoadRelatedLastBlock(pLastBlockReader, pScanInfo, pReader);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
