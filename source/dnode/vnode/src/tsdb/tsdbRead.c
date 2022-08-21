@@ -94,7 +94,7 @@ typedef struct SLastBlockReader {
   SVersionRange verRange;
   int32_t       order;
   uint64_t      uid;
-  int16_t*      rowIndex;   // row index ptr, usually from the STableBlockScanInfo->indexInBlockL
+  int16_t*      rowIndex;         // row index ptr, usually from the STableBlockScanInfo->indexInBlockL
 } SLastBlockReader;
 
 typedef struct SFilesetIter {
@@ -2380,26 +2380,35 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum) {
   return TSDB_CODE_SUCCESS;
 }
 
+// todo add elapsed time results
 static int32_t doLoadRelatedLastBlock(SLastBlockReader* pLastBlockReader, STableBlockScanInfo *pBlockScanInfo, STsdbReader* pReader) {
   SArray*  pBlocks = pLastBlockReader->pBlockL;
   SBlockL* pBlock = NULL;
 
   uint64_t uid = pBlockScanInfo->uid;
-  initMemDataIterator(pBlockScanInfo, pReader);
-  pLastBlockReader->currentBlockIndex = -1;
+  int32_t totalLastBlocks = (int32_t)taosArrayGetSize(pBlocks);
 
-  // find the correct SBlockL
-  for (int32_t i = 0; i < taosArrayGetSize(pBlocks); ++i) {
+  initMemDataIterator(pBlockScanInfo, pReader);
+
+  // find the correct SBlockL. todo binary search
+  int32_t index = -1;
+  for (int32_t i = 0; i < totalLastBlocks; ++i) {
     SBlockL* p = taosArrayGet(pBlocks, i);
     if (p->minUid <= uid && p->maxUid >= uid) {
-      pLastBlockReader->currentBlockIndex = i;
+      index = i;
       pBlock = p;
       break;
     }
   }
 
-  if (pLastBlockReader->currentBlockIndex == -1) {
+  if (index == -1) {
+    pLastBlockReader->currentBlockIndex = index;
     tBlockDataReset(&pLastBlockReader->lastBlockData);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // the required last datablock has already loaded
+  if (index == pLastBlockReader->currentBlockIndex) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2409,15 +2418,19 @@ static int32_t doLoadRelatedLastBlock(SLastBlockReader* pLastBlockReader, STable
     return code;
   }
 
+  ;
   code = tsdbReadLastBlock(pReader->pFileReader, pBlock, &pLastBlockReader->lastBlockData);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError(
-        "%p error occurs in loading last block into buffer, last block index:%d, total:%d rows:%d, minVer:%" PRId64
-        ", maxVer:%" PRId64 ", code:%s %s",
-        pReader, pLastBlockReader->currentBlockIndex, (int32_t)taosArrayGetSize(pBlocks), pBlock->nRow, pBlock->minVer,
-        pBlock->maxVer, tstrerror(code), pReader->idStr);
+    tsdbError("%p error occurs in loading last block into buffer, last block index:%d, total:%d code:%s %s", pReader,
+              pLastBlockReader->currentBlockIndex, totalLastBlocks, tstrerror(code), pReader->idStr);
+  } else {
+    tsdbDebug("%p load last block completed, uid:%" PRIu64
+              " last block index:%d, total:%d rows:%d, minVer:%d, maxVer:%d, brange:%" PRId64 " - %" PRId64 " %s",
+              pReader, uid, pLastBlockReader->currentBlockIndex, totalLastBlocks, pBlock->nRow, pBlock->minVer,
+              pBlock->maxVer, pBlock->minKey, pBlock->maxKey, pReader->idStr);
   }
 
+  pLastBlockReader->currentBlockIndex = index;
   return TSDB_CODE_SUCCESS;
 }
 
