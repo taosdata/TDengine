@@ -1594,7 +1594,7 @@ class TDTestQuery(TDCase):
         
         os.system("rm -rf %s/meters.sql" % (self.testcasePath))  
         
-        #self.data_create(self.db)
+        self.data_create(self.db)
          
         # self.select_column()
         # self.select_column_union()
