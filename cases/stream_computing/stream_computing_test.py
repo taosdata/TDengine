@@ -1392,7 +1392,7 @@ class StreamComputingTest(TDCase):
         # self.insert_after_recreate_source_table()
         self.query_after_drop_stream_db()
 
-        self.vgroups = 10
+        # self.vgroups = 10
         self.data_filter()
         self.life_cycle()
         self.scalar_function()
@@ -1420,10 +1420,8 @@ class StreamComputingTest(TDCase):
         self.partitionby_interval(interval=None, partition_by_elm="tbname", ignore_expired=True)
         self.partitionby_interval(interval=10, partition_by_elm="tbname")
         self.partitionby_interval(interval=10, partition_by_elm="tbname", ignore_expired=True)
-        # # ! TD-18216
-        # self.partitionby_interval(interval=10, partition_by_elm="t1")
-        # ! TD-18481
-        # self.partition_tag_by_interval(interval=10, partition_by_elm="t1")
+        self.partitionby_interval(interval=10, partition_by_elm="t1")
+        self.partition_tag_by_interval(interval=10, partition_by_elm="t1")
 
         # TODO to be supported
         # self.partitionby_interval(interval=None, partition_by_elm="t1")
