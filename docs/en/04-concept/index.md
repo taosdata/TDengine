@@ -2,7 +2,7 @@
 title: Concepts
 ---
 
-In order to explain the basic concepts and provide some sample code, the TDengine documentation smart meters as a typical time series use case. We assume the following: 1. Each smart meter collects three metrics i.e. current, voltage, and phase 2. There are multiple smart meters, and 3. Each meter has static attributes like location and group ID. Based on this, collected data will look similar to the following table:
+In order to explain the basic concepts and provide some sample code, the TDengine documentation smart meters as a typical time series use case. We assume the following: 1. Each smart meter collects three metrics i.e. current, voltage, and phase; 2. There are multiple smart meters; 3. Each meter has static attributes like location and group ID. Based on this, collected data will look similar to the following table:
 
 <div className="center-table">
 <table>
