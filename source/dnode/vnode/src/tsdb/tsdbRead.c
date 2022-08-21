@@ -2327,15 +2327,17 @@ static TSDBKEY getCurrentKeyInBuf(STableBlockScanInfo* pScanInfo, STsdbReader* p
 
 static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum) {
   SReaderStatus* pStatus = &pReader->status;
+  pBlockNum->numOfBlocks = 0;
+  pBlockNum->numOfLastBlocks = 0;
 
   size_t  numOfTables = taosHashGetSize(pReader->status.pTableMap);
   SArray* pIndexList = taosArrayInit(numOfTables, sizeof(SBlockIdx));
   SArray* pLastBlocks = pStatus->fileIter.pLastBlockReader->pBlockL;
+  taosArrayClear(pLastBlocks);
 
   while (1) {
     bool hasNext = filesetIteratorNext(&pStatus->fileIter, pReader);
     if (!hasNext) {  // no data files on disk
-      taosArrayClear(pLastBlocks);
       break;
     }
 
@@ -2630,6 +2632,9 @@ static int32_t initForFirstBlockInFile(STsdbReader* pReader, SDataBlockIter* pBl
     tBlockDataReset(&pReader->status.fileBlockData);
     resetDataBlockIterator(pBlockIter, pReader->order, pReader->status.pTableMap);
   }
+
+  SLastBlockReader* pLReader = pReader->status.fileIter.pLastBlockReader;
+  pLReader->currentBlockIndex = -1;
 
   // set the correct start position according to the query time window
   initBlockDumpInfo(pReader, pBlockIter);
