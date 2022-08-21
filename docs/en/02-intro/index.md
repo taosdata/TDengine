@@ -31,7 +31,7 @@ For more details on features, please read through the entire documentation.
 
 ## Competitive Advantages
 
-By making full use of [these characteristics of time series data](https://tdengine.com/2019/07/09/86.html), TDengine differentiates itself from other time series databases, with the following advantages.
+By making full use of [characteristics of time series data](https://tdengine.com/tsdb/characteristics-of-time-series-data/), TDengine differentiates itself from other time series databases, with the following advantages.
 
 - **High-Performance**: TDengine is the only time-series database to solve the high cardinality issue to support billions of data collection points while out performing other time-series databases for data ingestion, querying and data compression.
 
@@ -45,7 +45,7 @@ By making full use of [these characteristics of time series data](https://tdengi
 
 - **Open Source**: TDengine’s core modules, including cluster feature, are all available under open source licenses. It has gathered 18.8k stars on GitHub. There is an active developer community, and over 139k running instances worldwide.
 
-With TDengine, the total cost of ownership of your time-series data platform can be greatly reduced. 1: With its superior performance, the computing and storage resources are reduced significantly 2: With SQL support, it can be seamlessly integrated with many third party tools, and learning costs/migration costs are reduced significantly 3: With its simplified solution and nearly zero management, the operation and maintenance costs are reduced significantly. 
+With TDengine, the total cost of ownership of your time-series data platform can be greatly reduced. 1: With its superior performance, the computing and storage resources are reduced significantly；2: With SQL support, it can be seamlessly integrated with many third party tools, and learning costs/migration costs are reduced significantly；3: With its simplified solution and nearly zero management, the operation and maintenance costs are reduced significantly. 
 
 ## Technical Ecosystem
 This is how TDengine would be situated, in a typical time-series data processing platform:
