@@ -634,8 +634,9 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
     SScalarParam output = {0};
 
     switch (nodeType(pNode)) {
-      case QUERY_NODE_COLUMN:
       case QUERY_NODE_VALUE:
+        break;
+      case QUERY_NODE_COLUMN:
       case QUERY_NODE_OPERATOR:
       case QUERY_NODE_FUNCTION:{
         SExprNode* expNode = (SExprNode*)pNode;
@@ -646,9 +647,18 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
         break;
       }
       default:
-        ASSERT(0);
+        code = TSDB_CODE_OPS_NOT_SUPPORT;
+        goto end;
     }
-    code = scalarCalculate(pNode, pBlockList, &output);
+    if(nodeType(pNode) == QUERY_NODE_COLUMN){
+      SColumnNode* pSColumnNode = (SColumnNode*)pNode;
+      SColumnInfoData* pColInfo = (SColumnInfoData*)taosArrayGet(pResBlock->pDataBlock, pSColumnNode->slotId);
+      code = colDataAssign(output.columnData, pColInfo, rows, NULL);
+    }else if(nodeType(pNode) == QUERY_NODE_VALUE){
+      continue;
+    }else{
+      code = scalarCalculate(pNode, pBlockList, &output);
+    }
     if(code != TSDB_CODE_SUCCESS){
       releaseColInfoData(output.columnData);
       goto end;
