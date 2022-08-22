@@ -49,6 +49,8 @@ target_sources(
     "src/tsdb/tsdbSnapshot.c"
     "src/tsdb/tsdbCacheRead.c"
     "src/tsdb/tsdbRetention.c"
+    "src/tsdb/tsdbDiskData.c"
+    "src/tsdb/tsdbCompress.c"
 
     # tq
     "src/tq/tq.c"
