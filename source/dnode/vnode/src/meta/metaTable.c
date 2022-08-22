@@ -357,10 +357,7 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   metaSaveToTbDb(pMeta, &nStbEntry);
 
   // update uid index
-  SMetaInfo info;
-  metaGetEntryInfo(&nStbEntry, &info);
-  tdbTbcUpsert(pUidIdxc, &pReq->suid, sizeof(tb_uid_t),
-               &(SUidIdxVal){.suid = info.suid, .version = info.version, .skmVer = info.skmVer}, sizeof(SUidIdxVal), 0);
+  metaUpdateUidIdx(pMeta, &nStbEntry);
 
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
   metaULock(pMeta);
@@ -901,7 +898,8 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   }
 
   SCtbIdxKey ctbIdxKey = {.suid = ctbEntry.ctbEntry.suid, .uid = uid};
-  tdbTbUpsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), ctbEntry.ctbEntry.pTags, ((STag*)(ctbEntry.ctbEntry.pTags))->len, &pMeta->txn);
+  tdbTbUpsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), ctbEntry.ctbEntry.pTags,
+              ((STag *)(ctbEntry.ctbEntry.pTags))->len, &pMeta->txn);
 
   tDecoderClear(&dc1);
   tDecoderClear(&dc2);
@@ -1108,7 +1106,8 @@ static int metaUpdateTtlIdx(SMeta *pMeta, const SMetaEntry *pME) {
 static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME) {
   SCtbIdxKey ctbIdxKey = {.suid = pME->ctbEntry.suid, .uid = pME->uid};
 
-  return tdbTbInsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), pME->ctbEntry.pTags, ((STag*)(pME->ctbEntry.pTags))->len, &pMeta->txn);
+  return tdbTbInsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), pME->ctbEntry.pTags,
+                     ((STag *)(pME->ctbEntry.pTags))->len, &pMeta->txn);
 }
 
 int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_t nTagData, int8_t type, tb_uid_t uid,

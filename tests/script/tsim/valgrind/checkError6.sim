@@ -114,8 +114,8 @@ sql select tbcol5 - tbcol3 from stb
 sql select spread( tbcol2 )/44, spread(tbcol2), 0.204545455 * 44 from stb;
 sql select min(tbcol) * max(tbcol) /4, sum(tbcol2) * apercentile(tbcol2, 20), apercentile(tbcol2, 33) + 52/9 from stb;
 sql select distinct(tbname), tgcol from stb;
-#sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 1 soffset 1;
-#sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 2 soffset 4 limit 10 offset 1;
+sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 1 soffset 1;
+sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 2 soffset 4 limit 10 offset 1;
 
 print =============== step5: explain
 sql explain analyze select ts from stb where -2;

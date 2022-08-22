@@ -76,6 +76,12 @@ static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
 #define realloc u_realloc
 #endif
 
+#define T_LONG_JMP(_obj, _c) \
+  do {                       \
+    assert((_c) != -1);      \
+    longjmp((_obj), (_c));   \
+  } while (0);
+
 #define CLEAR_QUERY_STATUS(q, st)   ((q)->status &= (~(st)))
 #define QUERY_IS_INTERVAL_QUERY(_q) ((_q)->interval.interval > 0)
 
@@ -372,15 +378,30 @@ void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow
 
 void cleanupExecTimeWindowInfo(SColumnInfoData* pColData) { colDataDestroy(pColData); }
 
-void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow* pWin,
-                      SColumnInfoData* pTimeWindowData, int32_t offset, int32_t forwardStep, TSKEY* tsCol,
-                      int32_t numOfTotal, int32_t numOfOutput, int32_t order) {
+typedef struct {
+  bool    hasAgg;
+  int32_t numOfRows;
+  int32_t startOffset;
+} SFunctionCtxStatus;
+
+static void functionCtxSave(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus) {
+  pStatus->hasAgg = pCtx->input.colDataAggIsSet;
+  pStatus->numOfRows = pCtx->input.numOfRows;
+  pStatus->startOffset = pCtx->input.startRowIndex;
+}
+
+static void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus) {
+  pCtx->input.colDataAggIsSet = pStatus->hasAgg;
+  pCtx->input.numOfRows  = pStatus->numOfRows;
+  pCtx->input.startRowIndex = pStatus->startOffset;
+}
+
+void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData, int32_t offset,
+                      int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput) {
   for (int32_t k = 0; k < numOfOutput; ++k) {
     // keep it temporarily
-    // todo no need this??
-    bool    hasAgg = pCtx[k].input.colDataAggIsSet;
-    int32_t numOfRows = pCtx[k].input.numOfRows;
-    int32_t startOffset = pCtx[k].input.startRowIndex;
+    SFunctionCtxStatus status = {0};
+    functionCtxSave(&pCtx[k], &status);
 
     pCtx[k].input.startRowIndex = offset;
     pCtx[k].input.numOfRows = forwardStep;
@@ -418,9 +439,7 @@ void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow
       }
 
       // restore it
-      pCtx[k].input.colDataAggIsSet = hasAgg;
-      pCtx[k].input.startRowIndex = startOffset;
-      pCtx[k].input.numOfRows = numOfRows;
+      functionCtxRestore(&pCtx[k], &status);
     }
   }
 }
@@ -3131,6 +3150,7 @@ int32_t aggDecodeResultRow(SOperatorInfo* pOperator, char* result) {
 
     initResultRow(resultRow);
     pInfo->resultRowInfo.cur = (SResultRowPosition){.pageId = resultRow->pageId, .offset = resultRow->offset};
+    // releaseBufPage(pSup->pResultBuf, getBufPage(pSup->pResultBuf, pageId));
   }
 
   if (offset != length) {
@@ -3874,9 +3894,9 @@ static void cleanupTableSchemaInfo(SSchemaInfo* pSchemaInfo) {
   tDeleteSSchemaWrapper(pSchemaInfo->qsw);
 }
 
-static int32_t sortTableGroup(STableListInfo* pTableListInfo, int32_t groupNum) {
+static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   taosArrayClear(pTableListInfo->pGroupList);
-  SArray* sortSupport = taosArrayInit(groupNum, sizeof(uint64_t));
+  SArray* sortSupport = taosArrayInit(16, sizeof(uint64_t));
   if (sortSupport == NULL) return TSDB_CODE_OUT_OF_MEMORY;
   for (int32_t i = 0; i < taosArrayGetSize(pTableListInfo->pTableList); i++) {
     STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
@@ -3954,48 +3974,26 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
   if (pTableListInfo->map == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  int32_t keyLen = 0;
-  void*   keyBuf = NULL;
-
-  SNode* node;
-  FOREACH(node, group) {
-    SExprNode* pExpr = (SExprNode*)node;
-    keyLen += pExpr->resType.bytes;
-  }
-
-  int32_t nullFlagSize = sizeof(int8_t) * LIST_LENGTH(group);
-  keyLen += nullFlagSize;
-
-  keyBuf = taosMemoryCalloc(1, keyLen);
-  if (keyBuf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
 
   bool assignUid = groupbyTbname(group);
 
-  int32_t groupNum = 0;
   size_t  numOfTables = taosArrayGetSize(pTableListInfo->pTableList);
 
-  for (int32_t i = 0; i < numOfTables; i++) {
-    STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
-
-    if (assignUid) {
+  if(assignUid){
+    for (int32_t i = 0; i < numOfTables; i++) {
+      STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
       info->groupId = info->uid;
-    } else {
-      int32_t code = getGroupIdFromTagsVal(pHandle->meta, info->uid, group, keyBuf, &info->groupId);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
+      taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &info->groupId, sizeof(uint64_t));
     }
-
-    taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &info->groupId, sizeof(uint64_t));
-    groupNum++;
+  }else{
+    int32_t code = getColInfoResultForGroupby(pHandle->meta, group, pTableListInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
 
-  taosMemoryFree(keyBuf);
-
   if (pTableListInfo->needSortTableByGroupId) {
-    return sortTableGroup(pTableListInfo, groupNum);
+    return sortTableGroup(pTableListInfo);
   }
 
   return TDB_CODE_SUCCESS;

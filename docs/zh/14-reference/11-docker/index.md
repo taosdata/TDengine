@@ -25,10 +25,11 @@ curl -u root:taosdata -d "show databases" localhost:6041/rest/sql
 $ docker exec -it tdengine taos
 
 taos> show databases;
-              name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
-====================================================================================================================================================================================================================================================================================
- log                            | 2022-01-17 13:57:22.270 |          10 |           1 |       1 |      1 |     10 | 30                       |           1 |           3 |         100 |        4096 |        1 |        3000 |    2 |         0 | us        |      0 | ready      |
-Query OK, 1 row(s) in set (0.002843s)
+              name              |
+=================================
+ information_schema             |
+ performance_schema             |
+Query OK, 2 rows in database (0.033802s)
 ```
 
 因为运行在容器中的 TDengine 服务端使用容器的 hostname 建立连接，使用 taos shell 或者各种连接器（例如 JDBC-JNI）从容器外访问容器内的 TDengine 比较复杂，所以上述方式是访问容器中 TDengine 服务的最简单的方法，适用于一些简单场景。如果在一些复杂场景下想要从容器化使用 taos shell 或者各种连接器访问容器中的 TDengine 服务，请参考下一节。
@@ -45,10 +46,11 @@ docker run -d --name tdengine --network host tdengine/tdengine
 $ taos
 
 taos> show dnodes;
-   id   |           end_point            | vnodes | cores  |   status   | role  |       create_time       |      offline reason      |
-======================================================================================================================================
-      1 | myhost:6030           |      1 |      8 | ready      | any   | 2022-01-17 22:10:32.619 |                          |
-Query OK, 1 row(s) in set (0.003233s)
+     id      |            endpoint            | vnodes | support_vnodes |   status   |       create_time       |              note              |
+=================================================================================================================================================
+           1 | vm98:6030                      |      0 |             32 | ready      | 2022-08-19 14:50:05.337 |                                |
+Query OK, 1 rows in database (0.010654s)
+
 ```
 
 ## 以指定的 hostname 和 port 启动 TDengine
@@ -59,12 +61,13 @@ Query OK, 1 row(s) in set (0.003233s)
 docker run -d \
    --name tdengine \
    -e TAOS_FQDN=tdengine \
-   -p 6030-6049:6030-6049 \
-   -p 6030-6049:6030-6049/udp \
+   -p 6030:6030 \
+   -p 6041-6049:6041-6049 \
+   -p 6041-6049:6041-6049/udp \
    tdengine/tdengine
 ```
 
-上面的命令在容器中启动一个 TDengine 服务，其所监听的 hostname 为 tdengine ，并将容器的 6030 到 6049 端口段映射到主机的 6030 到 6049 端口段 （tcp 和 udp 都需要映射)。如果主机上该端口段已经被占用，可以修改上述命令指定一个主机上空闲的端口段。如果 `rpcForceTcp` 被设置为 `1` ，可以只映射 tcp 协议。
+上面的命令在容器中启动一个 TDengine 服务，其所监听的 hostname 为 tdengine ，并将容器的 6030 端口映射到主机的 6030 端口（TCP，只能映射主机 6030 端口），6041-6049 端口段映射到主机 6041-6049 端口段（tcp 和 udp 都需要映射，如果主机上该端口段已经被占用，可以修改上述命令指定一个主机上空闲的端口段）。
 
 接下来，要确保 "tdengine" 这个 hostname 在 `/etc/hosts` 中可解析。
 
@@ -103,9 +106,9 @@ taos -h tdengine -P 6030
 3. 在同一网络上的另一容器中启动 TDengine 客户端
 
    ```shell
-   docker run --rm -it --network td-net -e TAOS_FIRST_EP=tdengine tdengine/tdengine taos
+   docker run --rm -it --network td-net -e TAOS_FIRST_EP=tdengine --entrypoint=taos tdengine/tdengine
    # or
-   #docker run --rm -it --network td-net -e tdengine/tdengine taos -h tdengine
+   #docker run --rm -it --network td-net --entrypoint=taos tdengine/tdengine -h tdengine
    ```
 
 ## 在容器中启动客户端应用
@@ -115,7 +118,7 @@ taos -h tdengine -P 6030
 ```docker
 FROM ubuntu:20.04
 RUN apt-get update && apt-get install -y wget
-ENV TDENGINE_VERSION=2.4.0.0
+ENV TDENGINE_VERSION=3.0.0.0
 RUN wget -c https://www.taosdata.com/assets-download/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && tar xvf TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && cd TDengine-client-${TDENGINE_VERSION} \
@@ -128,6 +131,14 @@ RUN wget -c https://www.taosdata.com/assets-download/TDengine-client-${TDENGINE_
 ```
 
 以下是一个 go 应用程序的示例：
+
+* 创建 go mod 项目：
+
+```bash
+go mod init app
+```
+
+* 创建 main.go：
 
 ```go
 /*
@@ -212,12 +223,18 @@ func checkErr(err error, prompt string) {
 }
 ```
 
-如下是完整版本的 dockerfile
+* 更新 go mod
 
-```docker
-FROM golang:1.17.6-buster as builder
-ENV TDENGINE_VERSION=2.4.0.0
-RUN wget -c https://www.taosdata.com/assets-download/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
+```bash
+go mod tidy
+```
+
+如下是完整版本的 dockerfile：
+
+```dockerfile
+FROM golang:1.19.0-buster as builder
+ENV TDENGINE_VERSION=3.0.0.0
+RUN wget -c https://www.taosdata.com/assets-download/3.0/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && tar xvf TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && cd TDengine-client-${TDENGINE_VERSION} \
    && ./install_client.sh \
@@ -232,8 +249,8 @@ RUN go build
 
 FROM ubuntu:20.04
 RUN apt-get update && apt-get install -y wget
-ENV TDENGINE_VERSION=2.4.0.0
-RUN wget -c https://www.taosdata.com/assets-download/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
+ENV TDENGINE_VERSION=3.0.0.0
+RUN wget -c https://www.taosdata.com/assets-download/3.0/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && tar xvf TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && cd TDengine-client-${TDENGINE_VERSION} \
    && ./install_client.sh \
@@ -248,113 +265,112 @@ CMD ["app"]
 目前我们已经有了 `main.go`, `go.mod`, `go.sum`, `app.dockerfile`， 现在可以构建出这个应用程序并在 `td-net` 网络上启动它
 
 ```shell
-$ docker build -t app -f app.dockerfile
-$ docker run --rm --network td-net app -h tdengine -p 6030
+$ docker build -t app -f app.dockerfile .
+$ docker run --rm --network td-net app app -h tdengine -p 6030
 ============= args parse result: =============
 hostName:             tdengine
 serverPort:           6030
 usr:                  root
 password:             taosdata
 ================================================
-2022-01-17 15:56:55.48 +0000 UTC 0
-2022-01-17 15:56:56.48 +0000 UTC 1
-2022-01-17 15:56:57.48 +0000 UTC 2
-2022-01-17 15:56:58.48 +0000 UTC 3
-2022-01-17 15:58:01.842 +0000 UTC 0
-2022-01-17 15:58:02.842 +0000 UTC 1
-2022-01-17 15:58:03.842 +0000 UTC 2
-2022-01-17 15:58:04.842 +0000 UTC 3
-2022-01-18 01:43:48.029 +0000 UTC 0
-2022-01-18 01:43:49.029 +0000 UTC 1
-2022-01-18 01:43:50.029 +0000 UTC 2
-2022-01-18 01:43:51.029 +0000 UTC 3
+2022-08-19 07:43:51.68 +0000 UTC 0
+2022-08-19 07:43:52.68 +0000 UTC 1
+2022-08-19 07:43:53.68 +0000 UTC 2
+2022-08-19 07:43:54.68 +0000 UTC 3
 ```
 
 ## 用 docker-compose 启动 TDengine 集群
 
-1. 如下 docker-compose 文件启动一个 2 副本、2 管理节点、2 数据节点以及 1 个 arbitrator 的 TDengine 集群。
+1. 如下 docker-compose 文件启动一个 三节点 TDengine 集群。
 
-   ```docker
-   version: "3"
-   services:
-     arbitrator:
-       image: tdengine/tdengine:$VERSION
-       command: tarbitrator
-     td-1:
-       image: tdengine/tdengine:$VERSION
-       environment:
-         TAOS_FQDN: "td-1"
-         TAOS_FIRST_EP: "td-1"
-         TAOS_NUM_OF_MNODES: "2"
-         TAOS_REPLICA: "2"
-         TAOS_ARBITRATOR: arbitrator:6042
-       volumes:
-         - taosdata-td1:/var/lib/taos/
-         - taoslog-td1:/var/log/taos/
-     td-2:
-       image: tdengine/tdengine:$VERSION
-       environment:
-         TAOS_FQDN: "td-2"
-         TAOS_FIRST_EP: "td-1"
-         TAOS_NUM_OF_MNODES: "2"
-         TAOS_REPLICA: "2"
-         TAOS_ARBITRATOR: arbitrator:6042
-       volumes:
-         - taosdata-td2:/var/lib/taos/
-         - taoslog-td2:/var/log/taos/
-   volumes:
-     taosdata-td1:
-     taoslog-td1:
-     taosdata-td2:
-     taoslog-td2:
-   ```
+```yml
+version: "3"
+services:
+  td-1:
+    image: tdengine/tdengine:$VERSION
+    environment:
+      TAOS_FQDN: "td-1"
+      TAOS_FIRST_EP: "td-1"
+    volumes:
+      - taosdata-td1:/var/lib/taos/
+      - taoslog-td1:/var/log/taos/
+  td-2:
+    image: tdengine/tdengine:$VERSION
+    environment:
+      TAOS_FQDN: "td-2"
+      TAOS_FIRST_EP: "td-1"
+    volumes:
+      - taosdata-td2:/var/lib/taos/
+      - taoslog-td2:/var/log/taos/
+  td-3:
+    image: tdengine/tdengine:$VERSION
+    environment:
+      TAOS_FQDN: "td-3"
+      TAOS_FIRST_EP: "td-1"
+    volumes:
+      - taosdata-td3:/var/lib/taos/
+      - taoslog-td3:/var/log/taos/    
+volumes:
+  taosdata-td1:
+  taoslog-td1:
+  taosdata-td2:
+  taoslog-td2:
+  taosdata-td3:
+  taoslog-td3:
+```
 
 :::note
 
-- `VERSION` 环境变量被用来设置 tdengine image tag
-- 在新创建的实例上必须设置 `TAOS_FIRST_EP` 以使其能够加入 TDengine 集群；如果有高可用需求，则需要同时使用 `TAOS_SECOND_EP`
-- `TAOS_REPLICA` 用来设置缺省的数据库副本数量，其取值范围为[1,3]
-  在双副本环境下，推荐使用 arbitrator, 用 TAOS_ARBITRATOR 来设置
-  :::
+* `VERSION` 环境变量被用来设置 tdengine image tag
+* 在新创建的实例上必须设置 `TAOS_FIRST_EP` 以使其能够加入 TDengine 集群；如果有高可用需求，则需要同时使用 `TAOS_SECOND_EP`
+:::
 
 2. 启动集群
 
-   ```shell
-   $ VERSION=2.4.0.0 docker-compose up -d
-   Creating network "test_default" with the default driver
-   Creating volume "test_taosdata-td1" with default driver
-   Creating volume "test_taoslog-td1" with default driver
-   Creating volume "test_taosdata-td2" with default driver
-   Creating volume "test_taoslog-td2" with default driver
-   Creating test_td-1_1       ... done
-   Creating test_arbitrator_1 ... done
-   Creating test_td-2_1       ... done
-   ```
+```shell
+$ VERSION=3.0.0.0 docker-compose up -d
+Creating network "test-docker_default" with the default driver
+Creating volume "test-docker_taosdata-td1" with default driver
+Creating volume "test-docker_taoslog-td1" with default driver
+Creating volume "test-docker_taosdata-td2" with default driver
+Creating volume "test-docker_taoslog-td2" with default driver
+Creating volume "test-docker_taosdata-td3" with default driver
+Creating volume "test-docker_taoslog-td3" with default driver
+
+Creating test-docker_td-3_1 ... done
+Creating test-docker_td-1_1 ... done
+Creating test-docker_td-2_1 ... done
+```
 
 3. 查看节点状态
 
-   ```shell
-   $ docker-compose ps
-         Name                     Command               State                                                                Ports
-   ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-   test_arbitrator_1   /usr/bin/entrypoint.sh tar ...   Up      6030/tcp, 6031/tcp, 6032/tcp, 6033/tcp, 6034/tcp, 6035/tcp, 6036/tcp, 6037/tcp, 6038/tcp, 6039/tcp, 6040/tcp, 6041/tcp, 6042/tcp
-   test_td-1_1         /usr/bin/entrypoint.sh taosd     Up      6030/tcp, 6031/tcp, 6032/tcp, 6033/tcp, 6034/tcp, 6035/tcp, 6036/tcp, 6037/tcp, 6038/tcp, 6039/tcp, 6040/tcp, 6041/tcp, 6042/tcp
-   test_td-2_1         /usr/bin/entrypoint.sh taosd     Up      6030/tcp, 6031/tcp, 6032/tcp, 6033/tcp, 6034/tcp, 6035/tcp, 6036/tcp, 6037/tcp, 6038/tcp, 6039/tcp, 6040/tcp, 6041/tcp, 6042/tcp
-   ```
+```shell
+   docker-compose ps
+       Name                     Command               State   Ports
+
+-------------------------------------------------------------------
+test-docker_td-1_1   /tini -- /usr/bin/entrypoi ...   Up
+test-docker_td-2_1   /tini -- /usr/bin/entrypoi ...   Up
+test-docker_td-3_1   /tini -- /usr/bin/entrypoi ...   Up
+```
 
 4. 用 taos shell 查看 dnodes
 
-   ```shell
-   $ docker-compose exec td-1 taos -s "show dnodes"
+```shell
 
-   taos> show dnodes
-      id   |           end_point            | vnodes | cores  |   status   | role  |       create_time       |      offline reason      |
-   ======================================================================================================================================
-         1 | td-1:6030                      |      1 |      8 | ready      | any   | 2022-01-18 02:47:42.871 |                          |
-         2 | td-2:6030                      |      0 |      8 | ready      | any   | 2022-01-18 02:47:43.518 |                          |
-         0 | arbitrator:6042                |      0 |      0 | ready      | arb   | 2022-01-18 02:47:43.633 | -                        |
-   Query OK, 3 row(s) in set (0.000811s)
-   ```
+$ docker-compose exec td-1 taos -s "show dnodes"
+
+taos> show dnodes
+
+     id      |            endpoint            | vnodes | support_vnodes |   status   |       create_time       |              note              |
+=================================================================================================================================================
+
+           1 | td-1:6030                      |      0 |             32 | ready      | 2022-08-19 07:57:29.971 |                                |
+           2 | td-2:6030                      |      0 |             32 | ready      | 2022-08-19 07:57:31.415 |                                |
+           3 | td-3:6030                      |      0 |             32 | ready      | 2022-08-19 07:57:31.417 |                                |
+Query OK, 3 rows in database (0.021262s)
+
+```
 
 ## taosAdapter
 
@@ -362,93 +378,80 @@ password:             taosdata
 
 2. 同时为了部署灵活起见，可以在独立的容器中启动 taosAdapter
 
-   ```docker
-   services:
-     # ...
-     adapter:
-       image: tdengine/tdengine:$VERSION
-       command: taosadapter
-   ```
+```docker
+services:
+  # ...
+  adapter:
+    image: tdengine/tdengine:$VERSION
+    command: taosadapter
+```
 
-   如果要部署多个 taosAdapter 来提高吞吐量并提供高可用性，推荐配置方式为使用 nginx 等反向代理来提供统一的访问入口。具体配置方法请参考 nginx 的官方文档。如下是示例：
+如果要部署多个 taosAdapter 来提高吞吐量并提供高可用性，推荐配置方式为使用 nginx 等反向代理来提供统一的访问入口。具体配置方法请参考 nginx 的官方文档。如下是示例：
 
-   ```docker
-   version: "3"
+```yml
+version: "3"
 
-   networks:
-     inter:
-     api:
+networks:
+  inter:
 
-   services:
-     arbitrator:
-       image: tdengine/tdengine:$VERSION
-       command: tarbitrator
-       networks:
-         - inter
-     td-1:
-       image: tdengine/tdengine:$VERSION
-       networks:
-         - inter
-       environment:
-         TAOS_FQDN: "td-1"
-         TAOS_FIRST_EP: "td-1"
-         TAOS_NUM_OF_MNODES: "2"
-         TAOS_REPLICA: "2"
-         TAOS_ARBITRATOR: arbitrator:6042
-       volumes:
-         - taosdata-td1:/var/lib/taos/
-         - taoslog-td1:/var/log/taos/
-     td-2:
-       image: tdengine/tdengine:$VERSION
-       networks:
-         - inter
-       environment:
-         TAOS_FQDN: "td-2"
-         TAOS_FIRST_EP: "td-1"
-         TAOS_NUM_OF_MNODES: "2"
-         TAOS_REPLICA: "2"
-         TAOS_ARBITRATOR: arbitrator:6042
-       volumes:
-         - taosdata-td2:/var/lib/taos/
-         - taoslog-td2:/var/log/taos/
-     adapter:
-       image: tdengine/tdengine:$VERSION
-       command: taosadapter
-       networks:
-         - inter
-       environment:
-         TAOS_FIRST_EP: "td-1"
-         TAOS_SECOND_EP: "td-2"
-       deploy:
-         replicas: 4
-     nginx:
-       image: nginx
-       depends_on:
-         - adapter
-       networks:
-         - inter
-         - api
-       ports:
-         - 6041:6041
-         - 6044:6044/udp
-       command: [
-           "sh",
-           "-c",
-           "while true;
-           do curl -s http://adapter:6041/-/ping >/dev/null && break;
-           done;
-           printf 'server{listen 6041;location /{proxy_pass http://adapter:6041;}}'
-           > /etc/nginx/conf.d/rest.conf;
-           printf 'stream{server{listen 6044 udp;proxy_pass adapter:6044;}}'
-           >> /etc/nginx/nginx.conf;cat /etc/nginx/nginx.conf;
-           nginx -g 'daemon off;'",
-         ]
-   volumes:
-     taosdata-td1:
-     taoslog-td1:
-     taosdata-td2:
-     taoslog-td2:
-   ```
+services:
+  td-1:
+    image: tdengine/tdengine:$VERSION
+    networks:
+      - inter
+    environment:
+      TAOS_FQDN: "td-1"
+      TAOS_FIRST_EP: "td-1"
+    volumes:
+      - taosdata-td1:/var/lib/taos/
+      - taoslog-td1:/var/log/taos/
+  td-2:
+    image: tdengine/tdengine:$VERSION
+    networks:
+      - inter
+    environment:
+      TAOS_FQDN: "td-2"
+      TAOS_FIRST_EP: "td-1"
+    volumes:
+      - taosdata-td2:/var/lib/taos/
+      - taoslog-td2:/var/log/taos/
+  adapter:
+    image: tdengine/tdengine:$VERSION
+    entrypoint: "taosadapter"
+    networks:
+      - inter
+    environment:
+      TAOS_FIRST_EP: "td-1"
+      TAOS_SECOND_EP: "td-2"
+    deploy:
+      replicas: 4
+  nginx:
+    image: nginx
+    depends_on:
+      - adapter
+    networks:
+      - inter
+    ports:
+      - 6041:6041
+      - 6044:6044/udp
+    command: [
+        "sh",
+        "-c",
+        "while true;
+        do curl -s http://adapter:6041/-/ping >/dev/null && break;
+        done;
+        printf 'server{listen 6041;location /{proxy_pass http://adapter:6041;}}'
+        > /etc/nginx/conf.d/rest.conf;
+        printf 'stream{server{listen 6044 udp;proxy_pass adapter:6044;}}'
+        >> /etc/nginx/nginx.conf;cat /etc/nginx/nginx.conf;
+        nginx -g 'daemon off;'",
+      ]
+volumes:
+  taosdata-td1:
+  taoslog-td1:
+  taosdata-td2:
+  taoslog-td2:
+```
 
 ## 使用 docker swarm 部署
 
@@ -457,50 +460,46 @@ password:             taosdata
 docker-compose 文件可以参考上节。下面是使用 docker swarm 启动 TDengine 的命令：
 
 ```shell
-$ VERSION=2.4.0 docker stack deploy -c docker-compose.yml taos
+$ VERSION=3.0.0.0 docker stack deploy -c docker-compose.yml taos
 Creating network taos_inter
-Creating network taos_api
-Creating service taos_arbitrator
+Creating service taos_nginx
 Creating service taos_td-1
 Creating service taos_td-2
 Creating service taos_adapter
-Creating service taos_nginx
 ```
 
 查看和管理
 
 ```shell
 $ docker stack ps taos
-ID                  NAME                IMAGE                     NODE                DESIRED STATE       CURRENT STATE                ERROR               PORTS
-79ni8temw59n        taos_nginx.1        nginx:latest              TM1701     Running             Running about a minute ago
-3e94u72msiyg        taos_adapter.1      tdengine/tdengine:2.4.0   TM1702     Running             Running 56 seconds ago
-100amjkwzsc6        taos_td-2.1         tdengine/tdengine:2.4.0   TM1703     Running             Running about a minute ago
-pkjehr2vvaaa        taos_td-1.1         tdengine/tdengine:2.4.0   TM1704     Running             Running 2 minutes ago
-tpzvgpsr1qkt        taos_arbitrator.1   tdengine/tdengine:2.4.0   TM1705     Running             Running 2 minutes ago
-rvss3g5yg6fa        taos_adapter.2      tdengine/tdengine:2.4.0   TM1706     Running             Running 56 seconds ago
-i2augxamfllf        taos_adapter.3      tdengine/tdengine:2.4.0   TM1707     Running             Running 56 seconds ago
-lmjyhzccpvpg        taos_adapter.4      tdengine/tdengine:2.4.0   TM1708     Running             Running 56 seconds ago
+ID             NAME             IMAGE                       NODE      DESIRED STATE   CURRENT STATE                ERROR     PORTS
+7m3sbf532bqp   taos_adapter.1   tdengine/tdengine:3.0.0.0   vm98      Running         Running about a minute ago             
+pj403n6ofmmh   taos_adapter.2   tdengine/tdengine:3.0.0.0   vm98      Running         Running about a minute ago             
+rxqfwsyk5q1h   taos_adapter.3   tdengine/tdengine:3.0.0.0   vm98      Running         Running about a minute ago             
+qj40lpxr40oc   taos_adapter.4   tdengine/tdengine:3.0.0.0   vm98      Running         Running about a minute ago             
+oe3455ulxpze   taos_nginx.1     nginx:latest                vm98      Running         Running about a minute ago             
+o0tsg70nrrc6   taos_td-1.1      tdengine/tdengine:3.0.0.0   vm98      Running         Running about a minute ago             
+q5m1oxs589cp   taos_td-2.1      tdengine/tdengine:3.0.0.0   vm98      Running         Running about a minute ago
 $ docker service ls
-ID                  NAME                MODE                REPLICAS            IMAGE                     PORTS
-561t4lu6nfw6        taos_adapter        replicated          4/4                 tdengine/tdengine:2.4.0
-3hk5ct3q90sm        taos_arbitrator     replicated          1/1                 tdengine/tdengine:2.4.0
-d8qr52envqzu        taos_nginx          replicated          1/1                 nginx:latest              *:6041->6041/tcp, *:6044->6044/udp
-2isssfvjk747        taos_td-1           replicated          1/1                 tdengine/tdengine:2.4.0
-9pzw7u02ichv        taos_td-2           replicated          1/1                 tdengine/tdengine:2.4.0
+ID             NAME           MODE         REPLICAS   IMAGE                       PORTS
+ozuklorgl8bs   taos_adapter   replicated   4/4        tdengine/tdengine:3.0.0.0   
+crmhdjw6vxw0   taos_nginx     replicated   1/1        nginx:latest                *:6041->6041/tcp, *:6044->6044/udp
+o86ngy7csv5n   taos_td-1      replicated   1/1        tdengine/tdengine:3.0.0.0   
+rma040ny4tb0   taos_td-2      replicated   1/1        tdengine/tdengine:3.0.0.0
 ```
 
-从上面的输出可以看到有两个 dnode， 和两个 taosAdapter，以及一个 nginx 反向代理服务。
+从上面的输出可以看到有两个 dnode， 和四个 taosAdapter，以及一个 nginx 反向代理服务。
 
 接下来，我们可以减少 taosAdapter 服务的数量
 
 ```shell
 $ docker service scale taos_adapter=1
 taos_adapter scaled to 1
-overall progress: 1 out of 1 tasks
-1/1: running   [==================================================>]
+overall progress: 1 out of 1 tasks 
+1/1: running   [==================================================>] 
 verify: Service converged
 
 $ docker service ls -f name=taos_adapter
-ID                  NAME                MODE                REPLICAS            IMAGE                     PORTS
-561t4lu6nfw6        taos_adapter        replicated          1/1                 tdengine/tdengine:2.4.0
+ID             NAME           MODE         REPLICAS   IMAGE                       PORTS
+ozuklorgl8bs   taos_adapter   replicated   1/1        tdengine/tdengine:3.0.0.0  
 ```
