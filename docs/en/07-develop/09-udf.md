@@ -15,7 +15,7 @@ When you create a user-defined function, you must implement standard interface f
 - For aggregate functions, implement the `aggfn_start`, `aggfn`, and `aggfn_finish` interface functions.
 - To initialize your function, implement the `udf_init` function. To terminate your function, implement the `udf_destroy` function.
 
-There are strict naming conventions for these interface functions. The names of the start, finish, init, and destroy interfaces must be <udf-name>_start, <udf-name>_finish, <udf-name>_init, and <udf-name>_destroy, respectively. Replace `scalarfn`, `aggfn`, and `udf` with the name of your user-defined function.
+There are strict naming conventions for these interface functions. The names of the start, finish, init, and destroy interfaces must be <udf-name\>_start, <udf-name\>_finish, <udf-name\>_init, and <udf-name\>_destroy, respectively. Replace `scalarfn`, `aggfn`, and `udf` with the name of your user-defined function.
 
 ## Implementing a Scalar Function
 The implementation of a scalar function is described as follows:
@@ -102,7 +102,7 @@ Replace `aggfn` with the name of your function.
 
 ## Interface Functions
 
-There are strict naming conventions for interface functions. The names of the start, finish, init, and destroy interfaces must be <udf-name>_start, <udf-name>_finish, <udf-name>_init, and <udf-name>_destroy, respectively. Replace `scalarfn`, `aggfn`, and `udf` with the name of your user-defined function.
+There are strict naming conventions for interface functions. The names of the start, finish, init, and destroy interfaces must be <udf-name\>_start, <udf-name\>_finish, <udf-name\>_init, and <udf-name\>_destroy, respectively. Replace `scalarfn`, `aggfn`, and `udf` with the name of your user-defined function.
 
 Interface functions return a value that indicates whether the operation was successful. If an operation fails, the interface function returns an error code. Otherwise, it returns TSDB_CODE_SUCCESS. The error codes are defined in `taoserror.h` and in the common API error codes in `taos.h`. For example, TSDB_CODE_UDF_INVALID_INPUT indicates invalid input. TSDB_CODE_OUT_OF_MEMORY indicates insufficient memory.
 

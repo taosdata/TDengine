@@ -171,7 +171,7 @@ SRaftCfg *raftCfgOpen(const char *path) {
 
   taosLSeekFile(pCfg->pFile, 0, SEEK_SET);
 
-  char buf[1024] = {0};
+  char buf[CONFIG_FILE_LEN] = {0};
   int  len = taosReadFile(pCfg->pFile, buf, sizeof(buf));
   ASSERT(len > 0);
 

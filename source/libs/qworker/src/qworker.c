@@ -149,13 +149,10 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
     }
   }
 
+_return:
+
   taosArrayDestroy(pResList);
   QW_RET(code);
-
-_return:
-  taosArrayDestroy(pResList);
-
-  return code;
 }
 
 int32_t qwGenerateSchHbRsp(SQWorker *mgmt, SQWSchStatus *sch, SQWHbInfo *hbInfo) {
