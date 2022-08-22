@@ -496,6 +496,8 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
 
       if (!state->pBlockDataL) {
         state->pBlockDataL = &state->blockDataL;
+
+        tBlockDataCreate(state->pBlockDataL);
       }
       code = tBlockDataInit(state->pBlockDataL, suid, suid ? 0 : uid, state->pTSchema);
       if (code) goto _err;
