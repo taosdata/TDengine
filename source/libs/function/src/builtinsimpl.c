@@ -791,8 +791,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfRows = pInput->numOfRows;
 
   if (IS_NULL_TYPE(type)) {
-    GET_RES_INFO(pCtx)->isNullRes = 1;
-    numOfElem = 1;
+    numOfElem = 0;
     goto _avg_over;
   }
 
@@ -1100,9 +1099,9 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   // check for overflow
-  if (isinf(pAvgRes->result) || isnan(pAvgRes->result)) {
-    GET_RES_INFO(pCtx)->numOfRes = 0;
-  }
+  //if (isinf(pAvgRes->result) || isnan(pAvgRes->result)) {
+  //  GET_RES_INFO(pCtx)->numOfRes = 0;
+  //}
 
   return functionFinalize(pCtx, pBlock);
 }
@@ -1792,8 +1791,7 @@ int32_t stddevFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfRows = pInput->numOfRows;
 
   if (IS_NULL_TYPE(type)) {
-    GET_RES_INFO(pCtx)->isNullRes = 1;
-    numOfElem = 1;
+    numOfElem = 0;
     goto _stddev_over;
   }
 
