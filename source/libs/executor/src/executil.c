@@ -408,6 +408,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   tags = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   code = metaGetTableTags(metaHandle, suid, uidList, tags);
   if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to get table tags from meta, reason:%s, suid:%" PRIu64, tstrerror(code), suid);
     terrno = code;
     goto end;
   }
@@ -484,11 +485,13 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
   code = createResultData(&type, rows, &output);
   if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to create result, reason:%s", tstrerror(code));
     goto end;
   }
 
   code = scalarCalculate(pTagCond, pBlockList, &output);
   if(code != TSDB_CODE_SUCCESS){
+    qError("failed to calculate scalar, reason:%s", tstrerror(code));
     terrno = code;
   }
 //  int64_t st2 = taosGetTimestampUs();
