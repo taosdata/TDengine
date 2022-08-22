@@ -82,7 +82,7 @@ SELECT * from performance_schema.`perf_streams`;
 
 1. AT_ONCE：写入立即触发
 
-2. WINDOW_CLOSE：窗口关闭时触发（窗口关闭由事件时间决定，可配合 watermark 使用，详见《流式计算的乱序数据容忍策略》）
+2. WINDOW_CLOSE：窗口关闭时触发（窗口关闭由事件时间决定，可配合 watermark 使用）
 
 3. MAX_DELAY time：若窗口关闭，则触发计算。若窗口未关闭，且未关闭时长超过 max delay 指定的时间，则触发计算。
 
@@ -93,6 +93,8 @@ SELECT * from performance_schema.`perf_streams`;
 MAX_DELAY 模式在窗口关闭时会立即触发计算。此外，当数据写入后，计算触发的时间超过 max delay 指定的时间，则立即触发计算
 
 ## 流式计算的窗口关闭
+
+流式计算以事件时间（插入记录中的时间戳主键）为基准计算窗口关闭，而非以 TDengine 服务器的时间，以事件时间为基准，可以避免客户端与服务器时间不一致带来的问题，能够解决乱序数据写入等等问题。流式计算还提供了 watermark 来定义容忍的乱序程度。
 
 在创建流时，可以在 stream_option 中指定 watermark，它定义了数据乱序的容忍上界。
 
