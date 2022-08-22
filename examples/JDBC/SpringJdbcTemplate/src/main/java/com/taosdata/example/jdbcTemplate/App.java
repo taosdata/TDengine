@@ -28,7 +28,7 @@ public class App {
         //use database
         executor.doExecute("use test");
         // create table
-        executor.doExecute("create table if not exists test.weather (ts timestamp, temperature int, humidity float)");
+        executor.doExecute("create table if not exists test.weather (ts timestamp, temperature float, humidity int)");
 
         WeatherDao weatherDao = ctx.getBean(WeatherDao.class);
         Weather weather = new Weather(new Timestamp(new Date().getTime()), random.nextFloat() * 50.0f, random.nextInt(100));

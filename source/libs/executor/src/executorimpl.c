@@ -378,15 +378,30 @@ void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow
 
 void cleanupExecTimeWindowInfo(SColumnInfoData* pColData) { colDataDestroy(pColData); }
 
-void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow* pWin,
-                      SColumnInfoData* pTimeWindowData, int32_t offset, int32_t forwardStep, TSKEY* tsCol,
-                      int32_t numOfTotal, int32_t numOfOutput, int32_t order) {
+typedef struct {
+  bool    hasAgg;
+  int32_t numOfRows;
+  int32_t startOffset;
+} SFunctionCtxStatus;
+
+static void functionCtxSave(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus) {
+  pStatus->hasAgg = pCtx->input.colDataAggIsSet;
+  pStatus->numOfRows = pCtx->input.numOfRows;
+  pStatus->startOffset = pCtx->input.startRowIndex;
+}
+
+static void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus) {
+  pCtx->input.colDataAggIsSet = pStatus->hasAgg;
+  pCtx->input.numOfRows  = pStatus->numOfRows;
+  pCtx->input.startRowIndex = pStatus->startOffset;
+}
+
+void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData, int32_t offset,
+                      int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput) {
   for (int32_t k = 0; k < numOfOutput; ++k) {
     // keep it temporarily
-    // todo no need this??
-    bool    hasAgg = pCtx[k].input.colDataAggIsSet;
-    int32_t numOfRows = pCtx[k].input.numOfRows;
-    int32_t startOffset = pCtx[k].input.startRowIndex;
+    SFunctionCtxStatus status = {0};
+    functionCtxSave(&pCtx[k], &status);
 
     pCtx[k].input.startRowIndex = offset;
     pCtx[k].input.numOfRows = forwardStep;
@@ -424,9 +439,7 @@ void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow
       }
 
       // restore it
-      pCtx[k].input.colDataAggIsSet = hasAgg;
-      pCtx[k].input.startRowIndex = startOffset;
-      pCtx[k].input.numOfRows = numOfRows;
+      functionCtxRestore(&pCtx[k], &status);
     }
   }
 }

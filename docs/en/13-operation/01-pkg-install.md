@@ -13,16 +13,16 @@ TDengine community version provides deb and rpm packages for users to choose fro
 <Tabs>
 <TabItem label="Install Deb" value="debinst">
 
-1. Download deb package from official website, for example TDengine-server-2.4.0.7-Linux-x64.deb
+1. Download deb package from official website, for example TDengine-server-3.0.0.0-Linux-x64.deb
 2. In the directory where the package is located, execute the command below
 
 ```bash
-$ sudo dpkg -i TDengine-server-2.4.0.7-Linux-x64.deb
+$ sudo dpkg -i TDengine-server-3.0.0.0-Linux-x64.deb
 (Reading database ... 137504 files and directories currently installed.)
-Preparing to unpack TDengine-server-2.4.0.7-Linux-x64.deb ...
+Preparing to unpack TDengine-server-3.0.0.0-Linux-x64.deb ...
 TDengine is removed successfully!
-Unpacking tdengine (2.4.0.7) over (2.4.0.7) ...
-Setting up tdengine (2.4.0.7) ...
+Unpacking tdengine (3.0.0.0) over (3.0.0.0) ...
+Setting up tdengine (3.0.0.0) ...
 Start to install TDengine...
 
 System hostname is: ubuntu-1804
@@ -45,14 +45,14 @@ TDengine is installed successfully!
 
 <TabItem label="Install RPM" value="rpminst">
 
-1. Download rpm package from official website, for example TDengine-server-2.4.0.7-Linux-x64.rpm；
+1. Download rpm package from official website, for example TDengine-server-3.0.0.0-Linux-x64.rpm；
 2. In the directory where the package is located, execute the command below
 
 ```
-$ sudo rpm -ivh TDengine-server-2.4.0.7-Linux-x64.rpm
+$ sudo rpm -ivh TDengine-server-3.0.0.0-Linux-x64.rpm
 Preparing...                          ################################# [100%]
 Updating / installing...
-   1:tdengine-2.4.0.7-3               ################################# [100%]
+   1:tdengine-3.0.0.0-3               ################################# [100%]
 Start to install TDengine...
 
 System hostname is: centos7
@@ -76,27 +76,27 @@ TDengine is installed successfully!
 
 <TabItem label="Install tar.gz" value="tarinst">
 
-1. Download the tar.gz package, for example TDengine-server-2.4.0.7-Linux-x64.tar.gz；
-2. In the directory where the package is located, first decompress the file, then switch to the sub-directory generated in decompressing, i.e. "TDengine-enterprise-server-2.4.0.7/" in this example, and execute the `install.sh` script.
+1. Download the tar.gz package, for example TDengine-server-3.0.0.0-Linux-x64.tar.gz；
+2. In the directory where the package is located, first decompress the file, then switch to the sub-directory generated in decompressing, i.e. "TDengine-enterprise-server-3.0.0.0/" in this example, and execute the `install.sh` script.
 
 ```bash
-$ tar xvzf TDengine-enterprise-server-2.4.0.7-Linux-x64.tar.gz
-TDengine-enterprise-server-2.4.0.7/
-TDengine-enterprise-server-2.4.0.7/driver/
-TDengine-enterprise-server-2.4.0.7/driver/vercomp.txt
-TDengine-enterprise-server-2.4.0.7/driver/libtaos.so.2.4.0.7
-TDengine-enterprise-server-2.4.0.7/install.sh
-TDengine-enterprise-server-2.4.0.7/examples/
+$ tar xvzf TDengine-enterprise-server-3.0.0.0-Linux-x64.tar.gz
+TDengine-enterprise-server-3.0.0.0/
+TDengine-enterprise-server-3.0.0.0/driver/
+TDengine-enterprise-server-3.0.0.0/driver/vercomp.txt
+TDengine-enterprise-server-3.0.0.0/driver/libtaos.so.3.0.0.0
+TDengine-enterprise-server-3.0.0.0/install.sh
+TDengine-enterprise-server-3.0.0.0/examples/
 ...
 
 $ ll
 total 43816
 drwxrwxr-x  3 ubuntu ubuntu     4096 Feb 22 09:31 ./
 drwxr-xr-x 20 ubuntu ubuntu     4096 Feb 22 09:30 ../
-drwxrwxr-x  4 ubuntu ubuntu     4096 Feb 22 09:30 TDengine-enterprise-server-2.4.0.7/
--rw-rw-r--  1 ubuntu ubuntu 44852544 Feb 22 09:31 TDengine-enterprise-server-2.4.0.7-Linux-x64.tar.gz
+drwxrwxr-x  4 ubuntu ubuntu     4096 Feb 22 09:30 TDengine-enterprise-server-3.0.0.0/
+-rw-rw-r--  1 ubuntu ubuntu 44852544 Feb 22 09:31 TDengine-enterprise-server-3.0.0.0-Linux-x64.tar.gz
 
-$ cd TDengine-enterprise-server-2.4.0.7/
+$ cd TDengine-enterprise-server-3.0.0.0/
 
  $ ll
 total 40784
@@ -146,7 +146,7 @@ Deb package of TDengine can be uninstalled as below:
 ```bash
 $ sudo dpkg -r tdengine
 (Reading database ... 137504 files and directories currently installed.)
-Removing tdengine (2.4.0.7) ...
+Removing tdengine (3.0.0.0) ...
 TDengine is removed successfully!
 
 ```
@@ -245,7 +245,7 @@ For example, if using `systemctl` , the commands to start, stop, restart and che
 
 - Check server status：`systemctl status taosd`
 
-From version 2.4.0.0, a new independent component named as `taosAdapter` has been included in TDengine. `taosAdapter` should be started and stopped using `systemctl`.
+Another component named as `taosAdapter` is to provide HTTP service for TDengine, it should be started and stopped using `systemctl`.
 
 If the server process is OK, the output of `systemctl status` is like below:
 

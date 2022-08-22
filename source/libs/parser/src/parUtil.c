@@ -1159,6 +1159,16 @@ void destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request) {
     taosHashCleanup(pMetaCache->pTableMeta);
     taosHashCleanup(pMetaCache->pTableVgroup);
   }
+  SInsertTablesMetaReq* p = taosHashIterate(pMetaCache->pInsertTables, NULL);
+  while (NULL != p) {
+    taosArrayDestroy(p->pTableMetaPos);
+    taosArrayDestroy(p->pTableMetaReq);
+    taosArrayDestroy(p->pTableVgroupPos);
+    taosArrayDestroy(p->pTableVgroupReq);
+
+    p = taosHashIterate(pMetaCache->pInsertTables, p);
+  }  
+  taosHashCleanup(pMetaCache->pInsertTables);
   taosHashCleanup(pMetaCache->pDbVgroup);
   taosHashCleanup(pMetaCache->pDbCfg);
   taosHashCleanup(pMetaCache->pDbInfo);
