@@ -25,17 +25,17 @@ $i = 0
 while $i < $tbNum
   $tb = $tbPrefix . $i
   sql create table $tb using $mt tags( $i )
-  
+
   $x = 0
   while $x < $rowNum
     $cc = $x * 60000
     $ms = 1601481600000 + $cc
-    sql insert into $tb values ($ms , $x ) 
+    sql insert into $tb values ($ms , $x )
     $x = $x + 1
-  endw 
- 
+  endw
+
   $i = $i + 1
-endw 
+endw
 
 print =============== step2
 $i = 1
@@ -43,7 +43,7 @@ $tb = $tbPrefix . $i
 
 sql select diff(tbcol) from $tb
 print ===> $data10
-if $data10 != 1 then 
+if $data10 != 1 then
   return -1
 endi
 
@@ -52,7 +52,7 @@ $cc = 4 * 60000
 $ms = 1601481600000 + $cc
 sql select diff(tbcol) from $tb where ts > $ms
 print ===> $data10
-if $data10 != 1 then 
+if $data10 != 1 then
   return -1
 endi
 
@@ -60,14 +60,14 @@ $cc = 4 * 60000
 $ms = 1601481600000 + $cc
 sql select diff(tbcol) from $tb where ts <= $ms
 print ===> $data10
-if $data10 != 1 then 
+if $data10 != 1 then
   return -1
 endi
 
 print =============== step4
 sql select diff(tbcol) as b from $tb
 print ===> $data10
-if $data10 != 1 then 
+if $data10 != 1 then
   return -1
 endi
 
@@ -86,7 +86,7 @@ step6:
 print =============== clear
 sql drop database $db
 sql select * from information_schema.ins_databases
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 

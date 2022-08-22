@@ -58,6 +58,7 @@ int32_t tPutLastFile(uint8_t *p, SLastFile *pLastFile) {
 
   n += tPutI64v(p ? p + n : p, pLastFile->commitID);
   n += tPutI64v(p ? p + n : p, pLastFile->size);
+  n += tPutI64v(p ? p + n : p, pLastFile->offset);
 
   return n;
 }
@@ -67,6 +68,7 @@ static int32_t tGetLastFile(uint8_t *p, SLastFile *pLastFile) {
 
   n += tGetI64v(p + n, &pLastFile->commitID);
   n += tGetI64v(p + n, &pLastFile->size);
+  n += tGetI64v(p + n, &pLastFile->offset);
 
   return n;
 }
@@ -186,10 +188,15 @@ int32_t tPutDFileSet(uint8_t *p, SDFileSet *pSet) {
   n += tPutI32v(p ? p + n : p, pSet->diskId.level);
   n += tPutI32v(p ? p + n : p, pSet->diskId.id);
   n += tPutI32v(p ? p + n : p, pSet->fid);
+
+  // data
   n += tPutHeadFile(p ? p + n : p, pSet->pHeadF);
   n += tPutDataFile(p ? p + n : p, pSet->pDataF);
-  n += tPutLastFile(p ? p + n : p, pSet->pLastF);
   n += tPutSmaFile(p ? p + n : p, pSet->pSmaF);
+
+  // last
+  n += tPutU8(p ? p + n : p, 1);  // for future compatibility
+  n += tPutLastFile(p ? p + n : p, pSet->pLastF);
 
   return n;
 }
@@ -200,10 +207,16 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
   n += tGetI32v(p + n, &pSet->diskId.level);
   n += tGetI32v(p + n, &pSet->diskId.id);
   n += tGetI32v(p + n, &pSet->fid);
+
+  // data
   n += tGetHeadFile(p + n, pSet->pHeadF);
   n += tGetDataFile(p + n, pSet->pDataF);
-  n += tGetLastFile(p + n, pSet->pLastF);
   n += tGetSmaFile(p + n, pSet->pSmaF);
+
+  // last
+  uint8_t nLast;
+  n += tGetU8(p + n, &nLast);
+  n += tGetLastFile(p + n, pSet->pLastF);
 
   return n;
 }

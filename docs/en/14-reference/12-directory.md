@@ -31,8 +31,10 @@ All executable files of TDengine are in the _/usr/local/taos/bin_ directory by d
 
 :::note
 taosdump after version 2.4.0.0 require taosTools as a standalone installation. A new version of taosBenchmark is include in taosTools too.
+
 :::
 
 :::tip
 You can configure different data directories and log directories by modifying the system configuration file `taos.cfg`.
+
 :::

@@ -23,7 +23,7 @@ step1:
 		return -1
 	endi
 sql select * from information_schema.ins_dnodes
-print ===> rows: $rows 
+print ===> rows: $rows
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
@@ -47,10 +47,10 @@ endi
 print =============== step2: create database
 sql create database db vgroups 1 replica 3
 sql select * from information_schema.ins_databases
-if $rows != 3 then 
+if $rows != 3 then
   return -1
 endi
-if $data(db)[4] != 3 then 
+if $data(db)[4] != 3 then
   return -1
 endi
 
@@ -139,7 +139,7 @@ step3:
 		return -1
 	endi
 sql show db.vgroups
-print ===> rows: $rows 
+print ===> rows: $rows
 if $rows != 1 then
   goto step3
 endi

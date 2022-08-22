@@ -24,46 +24,6 @@
 #include "ttime.h"
 #include "functionMgt.h"
 
-OptrStr gOptrStr[] = {
-  {0,                                      "invalid"},
-  {OP_TYPE_ADD,                            "+"},
-  {OP_TYPE_SUB,                            "-"},
-  {OP_TYPE_MULTI,                          "*"},
-  {OP_TYPE_DIV,                            "/"},
-  {OP_TYPE_REM,                            "%"},
-  {OP_TYPE_MINUS,                          "minus"},
-  {OP_TYPE_ASSIGN,                         "assign"},
-  // bit operator
-  {OP_TYPE_BIT_AND,                        "&"},
-  {OP_TYPE_BIT_OR,                         "|"},
-
-  // comparison operator
-  {OP_TYPE_GREATER_THAN,                   ">"},
-  {OP_TYPE_GREATER_EQUAL,                  ">="},
-  {OP_TYPE_LOWER_THAN,                     "<"},
-  {OP_TYPE_LOWER_EQUAL,                    "<="},
-  {OP_TYPE_EQUAL,                          "=="},
-  {OP_TYPE_NOT_EQUAL,                      "!="},
-  {OP_TYPE_IN,                             "in"},
-  {OP_TYPE_NOT_IN,                         "not in"},
-  {OP_TYPE_LIKE,                           "like"},
-  {OP_TYPE_NOT_LIKE,                       "not like"},
-  {OP_TYPE_MATCH,                          "match"},
-  {OP_TYPE_NMATCH,                         "nmatch"},
-  {OP_TYPE_IS_NULL,                        "is null"},
-  {OP_TYPE_IS_NOT_NULL,                    "not null"},
-  {OP_TYPE_IS_TRUE,                        "is true"},
-  {OP_TYPE_IS_FALSE,                       "is false"},
-  {OP_TYPE_IS_UNKNOWN,                     "is unknown"},
-  {OP_TYPE_IS_NOT_TRUE,                    "not true"},
-  {OP_TYPE_IS_NOT_FALSE,                   "not false"},
-  {OP_TYPE_IS_NOT_UNKNOWN,                 "not unknown"},
-
-  // json operator
-  {OP_TYPE_JSON_GET_VALUE,                 "->"},
-  {OP_TYPE_JSON_CONTAINS,                  "json contains"}
-};
-
 bool filterRangeCompGi (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   int32_t result = cfunc(maxv, minr);
   return result >= 0;
@@ -986,7 +946,7 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
   } else {
     int32_t paramNum = scalarGetOperatorParamNum(optr);
     if (1 != paramNum) {
-      fltError("invalid right field in unit, operator:%s, rightType:%d", gOptrStr[optr].str, u->right.type);
+      fltError("invalid right field in unit, operator:%s, rightType:%d", operatorTypeStr(optr), u->right.type);
       return TSDB_CODE_QRY_APP_ERROR;
     }
   }
@@ -1517,7 +1477,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
         SColumnNode *refNode = (SColumnNode *)left->desc;
         if (unit->compare.optr >= 0 && unit->compare.optr <= OP_TYPE_JSON_CONTAINS){
-          len = sprintf(str, "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId, gOptrStr[unit->compare.optr].str);
+          len = sprintf(str, "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId, operatorTypeStr(unit->compare.optr));
         }
 
         if (unit->right.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != OP_TYPE_IN) {
@@ -1536,7 +1496,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
         if (unit->compare.optr2) {
           strcat(str, " && ");
           if (unit->compare.optr2 >= 0 && unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS){
-            sprintf(str + strlen(str), "[%d][%d]  %s  [", refNode->dataBlockId, refNode->slotId, gOptrStr[unit->compare.optr2].str);
+            sprintf(str + strlen(str), "[%d][%d]  %s  [", refNode->dataBlockId, refNode->slotId, operatorTypeStr(unit->compare.optr2));
           }
 
           if (unit->right2.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != OP_TYPE_IN) {

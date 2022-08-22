@@ -2,18 +2,15 @@
 sidebar_label: Docker
 title: 通过 Docker 快速体验 TDengine
 ---
-:::info
-如果您希望为 TDengine 贡献代码或对内部技术实现感兴趣，请参考[TDengine GitHub 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
-:::
 
-本节首先介绍如何通过 Docker 快速体验 TDengine，然后介绍如何在 Docker 环境下体验 TDengine 的写入和查询功能。
+本节首先介绍如何通过 Docker 快速体验 TDengine，然后介绍如何在 Docker 环境下体验 TDengine 的写入和查询功能。如果你不熟悉 Docker，请使用[安装包的方式快速体验](../../get-started/package/)。如果您希望为 TDengine 贡献代码或对内部技术实现感兴趣，请参考 [TDengine GitHub 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
 
 ## 启动 TDengine
 
 如果已经安装了 docker， 只需执行下面的命令。
 
 ```shell
-docker run -d -p 6030:6030 -p 6041/6041 -p 6043-6049/6043-6049 -p 6043-6049:6043-6049/udp tdengine/tdengine
+docker run -d -p 6030:6030 -p 6041:6041 -p 6043-6049:6043-6049 -p 6043-6049:6043-6049/udp tdengine/tdengine
 ```
 
 注意：TDengine 3.0 服务端仅使用 6030 TCP 端口。6041 为 taosAdapter 所使用提供 REST 服务端口。6043-6049 为 taosAdapter 提供第三方应用接入所使用端口，可根据需要选择是否打开。

@@ -1,9 +1,9 @@
 ---
-sidebar_label: SHOW 命令
-title: 使用 SHOW 命令查看系统元数据
+sidebar_label: SHOW Statement
+title: SHOW Statement for Metadata
 ---
 
-除了使用 `select` 语句查询 `INFORMATION_SCHEMA` 数据库中的表获得系统中的各种元数据、系统信息和状态之外，也可以用 `SHOW` 命令来实现同样的目的。
+In addition to running SELECT statements on INFORMATION_SCHEMA, you can also use SHOW to obtain system metadata, information, and status.
 
 ## SHOW ACCOUNTS
 
@@ -11,9 +11,9 @@ title: 使用 SHOW 命令查看系统元数据
 SHOW ACCOUNTS;
 ```
 
-显示当前系统中所有租户的信息。
+Shows information about tenants on the system.
 
-注：企业版独有
+Note: TDengine Enterprise Edition only.
 
 ## SHOW APPS
 
@@ -21,7 +21,7 @@ SHOW ACCOUNTS;
 SHOW APPS;
 ```
 
-显示接入集群的应用（客户端）信息。
+Shows all clients (such as applications) that connect to the cluster.
 
 ## SHOW BNODES
 
@@ -29,7 +29,7 @@ SHOW APPS;
 SHOW BNODES;
 ```
 
-显示当前系统中存在的 BNODE (backup node, 即备份节点）的信息。
+Shows information about backup nodes (bnodes) in the system.
 
 ## SHOW CLUSTER
 
@@ -37,7 +37,7 @@ SHOW BNODES;
 SHOW CLUSTER;
 ```
 
-显示当前集群的信息
+Shows information about the current cluster.
 
 ## SHOW CONNECTIONS
 
@@ -45,7 +45,7 @@ SHOW CLUSTER;
 SHOW CONNECTIONS;
 ```
 
-显示当前系统中存在的连接的信息。
+Shows information about connections to the system.
 
 ## SHOW CONSUMERS
 
@@ -53,7 +53,7 @@ SHOW CONNECTIONS;
 SHOW CONSUMERS;
 ```
 
-显示当前数据库下所有活跃的消费者的信息。
+Shows information about all active consumers in the system.
 
 ## SHOW CREATE DATABASE
 
@@ -61,7 +61,7 @@ SHOW CONSUMERS;
 SHOW CREATE DATABASE db_name;
 ```
 
-显示 db_name 指定的数据库的创建语句。
+Shows the SQL statement used to create the specified database.
 
 ## SHOW CREATE STABLE
 
@@ -69,7 +69,7 @@ SHOW CREATE DATABASE db_name;
 SHOW CREATE STABLE [db_name.]stb_name;
 ```
 
-显示 tb_name 指定的超级表的创建语句
+Shows the SQL statement used to create the specified supertable.
 
 ## SHOW CREATE TABLE
 
@@ -77,7 +77,7 @@ SHOW CREATE STABLE [db_name.]stb_name;
 SHOW CREATE TABLE [db_name.]tb_name
 ```
 
-显示 tb_name 指定的表的创建语句。支持普通表、超级表和子表。
+Shows the SQL statement used to create the specified table. This statement can be used on supertables, standard tables, and subtables.
 
 ## SHOW DATABASES
 
@@ -85,7 +85,7 @@ SHOW CREATE TABLE [db_name.]tb_name
 SHOW DATABASES;
 ```
 
-显示用户定义的所有数据库。
+Shows all user-created databases.
 
 ## SHOW DNODES
 
@@ -93,7 +93,7 @@ SHOW DATABASES;
 SHOW DNODES;
 ```
 
-显示当前系统中 DNODE 的信息。
+Shows all dnodes in the system.
 
 ## SHOW FUNCTIONS
 
@@ -101,7 +101,7 @@ SHOW DNODES;
 SHOW FUNCTIONS;
 ```
 
-显示用户定义的自定义函数。
+Shows all user-defined functions in the system.
 
 ## SHOW LICENSE
 
@@ -110,9 +110,9 @@ SHOW LICENSE;
 SHOW GRANTS;
 ```
 
-显示企业版许可授权的信息。
+Shows information about the TDengine Enterprise Edition license.
 
-注：企业版独有
+Note: TDengine Enterprise Edition only.
 
 ## SHOW INDEXES
 
@@ -120,7 +120,7 @@ SHOW GRANTS;
 SHOW INDEXES FROM tbl_name [FROM db_name];
 ```
 
-显示已创建的索引。
+Shows indices that have been created.
 
 ## SHOW LOCAL VARIABLES
 
@@ -128,7 +128,7 @@ SHOW INDEXES FROM tbl_name [FROM db_name];
 SHOW LOCAL VARIABLES;
 ```
 
-显示当前客户端配置参数的运行值。
+Shows the working configuration of the client.
 
 ## SHOW MNODES
 
@@ -136,7 +136,7 @@ SHOW LOCAL VARIABLES;
 SHOW MNODES;
 ```
 
-显示当前系统中 MNODE 的信息。
+Shows information about mnodes in the system.
 
 ## SHOW MODULES
 
@@ -144,7 +144,7 @@ SHOW MNODES;
 SHOW MODULES;
 ```
 
-显示当前系统中所安装的组件的信息。
+Shows information about modules installed in the system.
 
 ## SHOW QNODES
 
@@ -152,7 +152,7 @@ SHOW MODULES;
 SHOW QNODES;
 ```
 
-显示当前系统中 QNODE （查询节点）的信息。
+Shows information about qnodes in the system.
 
 ## SHOW SCORES
 
@@ -160,9 +160,9 @@ SHOW QNODES;
 SHOW SCORES;
 ```
 
-显示系统被许可授权的容量的信息。
+Shows information about the storage space allowed by the license.
 
-注：企业版独有
+Note: TDengine Enterprise Edition only.
 
 ## SHOW SNODES
 
@@ -170,7 +170,7 @@ SHOW SCORES;
 SHOW SNODES;
 ```
 
-显示当前系统中 SNODE （流计算节点）的信息。
+Shows information about stream processing nodes (snodes) in the system.
 
 ## SHOW STABLES
 
@@ -178,7 +178,7 @@ SHOW SNODES;
 SHOW [db_name.]STABLES [LIKE 'pattern'];
 ```
 
-显示当前数据库下的所有超级表的信息。可以使用 LIKE 对表名进行模糊匹配。
+Shows all supertables in the current database. You can use LIKE for fuzzy matching.
 
 ## SHOW STREAMS
 
@@ -186,7 +186,7 @@ SHOW [db_name.]STABLES [LIKE 'pattern'];
 SHOW STREAMS;
 ```
 
-显示当前系统内所有流计算的信息。
+Shows information about streams in the system.
 
 ## SHOW SUBSCRIPTIONS
 
@@ -194,7 +194,7 @@ SHOW STREAMS;
 SHOW SUBSCRIPTIONS;
 ```
 
-显示当前数据库下的所有的订阅关系
+Shows all subscriptions in the current database.
 
 ## SHOW TABLES
 
@@ -202,7 +202,7 @@ SHOW SUBSCRIPTIONS;
 SHOW [db_name.]TABLES [LIKE 'pattern'];
 ```
 
-显示当前数据库下的所有普通表和子表的信息。可以使用 LIKE 对表名进行模糊匹配。
+Shows all standard tables and subtables in the current database. You can use LIKE for fuzzy matching.
 
 ## SHOW TABLE DISTRIBUTED
 
@@ -210,7 +210,7 @@ SHOW [db_name.]TABLES [LIKE 'pattern'];
 SHOW TABLE DISTRIBUTED table_name;
 ```
 
-显示表的数据分布信息。
+Shows how table data is distributed.
 
 ## SHOW TAGS
 
@@ -218,7 +218,7 @@ SHOW TABLE DISTRIBUTED table_name;
 SHOW TAGS FROM child_table_name [FROM db_name];
 ```
 
-显示子表的标签信息。
+Shows all tag information in a subtable.
 
 ## SHOW TOPICS
 
@@ -226,7 +226,7 @@ SHOW TAGS FROM child_table_name [FROM db_name];
 SHOW TOPICS;
 ```
 
-显示当前数据库下的所有主题的信息。
+Shows all topics in the current database.
 
 ## SHOW TRANSACTIONS
 
@@ -234,7 +234,7 @@ SHOW TOPICS;
 SHOW TRANSACTIONS;
 ```
 
-显示当前系统中正在执行的事务的信息
+Shows all running transactions in the system.
 
 ## SHOW USERS
 
@@ -242,7 +242,7 @@ SHOW TRANSACTIONS;
 SHOW USERS;
 ```
 
-显示当前系统中所有用户的信息。包括用户自定义的用户和系统默认用户。
+Shows information about users on the system. This includes user-created users and system-defined users.
 
 ## SHOW VARIABLES
 
@@ -251,7 +251,7 @@ SHOW VARIABLES;
 SHOW DNODE dnode_id VARIABLES;
 ```
 
-显示当前系统中各节点需要相同的配置参数的运行值，也可以指定 DNODE 来查看其的配置参数。
+Shows the working configuration of the parameters that must be the same on each node. You can also specify a dnode to show the working configuration for that node. 
 
 ## SHOW VGROUPS
 
@@ -259,7 +259,7 @@ SHOW DNODE dnode_id VARIABLES;
 SHOW [db_name.]VGROUPS;
 ```
 
-显示当前系统中所有 VGROUP 或某个 db 的 VGROUPS 的信息。
+Shows information about all vgroups in the system or about the vgroups for a specified database.
 
 ## SHOW VNODES
 
@@ -267,4 +267,4 @@ SHOW [db_name.]VGROUPS;
 SHOW VNODES [dnode_name];
 ```
 
-显示当前系统中所有 VNODE 或某个 DNODE 的 VNODE 的信息。
+Shows information about all vnodes in the system or about the vnodes for a specified dnode.

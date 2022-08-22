@@ -8,13 +8,13 @@ TDengine provides a rich set of APIs (application development interface). To fac
 
 ## Supported platforms
 
-Currently, TDengine's native interface connectors can support platforms such as X64/ARM64 hardware platforms and Linux/Win64 development environments. The comparison matrix is as follows.
+Currently, TDengine's native interface connectors can support platforms such as x64 and ARM hardware platforms and Linux and Windows development environments. The comparison matrix is as follows.
 
-| **CPU** | **OS** | **JDBC** | **Python** | **Go** | **Node.js** | **C#** | **Rust** | C/C++ |
-| ------- | ------ | -------- | ---------- | ------ | ----------- | ------ | -------- | ----- |
-| **X86 64bit** | **Linux** | ● | ● | ● | ● | ● | ● | ● |
-| **X86 64bit** | **Win64** | ● | ● | ● | ● | ● | ● | ● |
-| **ARM64** | **Linux** | ● | ● | ● | ● | ○ | ○ | ● |
+| **CPU**        | **OS**    | **Java** | **Python** | **Go** | **Node.js** | **C#** | **Rust** | C/C++ |
+| -------------- | --------- | -------- | ---------- | ------ | ----------- | ------ | -------- | ----- |
+| **X86 64bit**  | **Linux** | ●        | ●          | ●      | ●           | ●      | ●        | ●     |
+| **X86 64bit**  | **Win64** | ●        | ●          | ●      | ●           | ●      | ●        | ●     |
+| **ARM64**      | **Linux** | ●        | ●          | ●      | ●           | ○      | ○        | ●     |
 
 Where ● means the official test verification passed, ○ means the unofficial test verification passed, -- means no assurance.
 
@@ -26,6 +26,7 @@ TDengine version updates often add new features, and the connector versions in t
 
 | **TDengine Versions** | **Java** | **Python** | **Go** | **C#** | **Node.js** | **Rust** |
 | --------------------- | -------- | ---------- | ------------ | ------------- | --------------- | -------- |
+| **3.0.0.0 and later**    | 3.0.0    | current version   | 3.0 branch     | 3.0.0         | 3.0.0           | current version |
 | **2.4.0.14 and up** | 2.0.38 | current version | develop branch | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | current version |
 | **2.4.0.6 and up** | 2.0.37 | current version | develop branch | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | current version |
 | **2.4.0.4 - 2.4.0.5** | 2.0.37 | current version | develop branch | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | current version |
@@ -42,9 +43,8 @@ Comparing the connector support for TDengine functional features as follows.
 | -------------- | -------- | ---------- | ------ | ------ | ----------- | -------- |
 | **Connection Management** | Support | Support | Support | Support | Support | Support |
 | **Regular Query** | Support | Support | Support | Support | Support | Support |
-| **Continuous Query** | Support | Support | Support | Support | Support | Support |
 | **Parameter Binding** | Support | Support | Support | Support | Support | Support |
-| **Subscription** | Support | Support | Support | Support | Support | Not Supported |
+| ** TMQ **      | Support     | Support       | Support   | Support   | Support        | Support     |
 | **Schemaless** | Support | Support | Support | Support | Support | Support |
 | **DataFrame** | Not Supported | Support | Not Supported | Not Supported | Not Supported | Not Supported |
 
@@ -52,17 +52,17 @@ Comparing the connector support for TDengine functional features as follows.
 The different database framework specifications for various programming languages do not mean that all C/C++ interfaces need a wrapper.
 :::
 
-### Using the REST interface
+### Use HTTP Interfaces (REST or WebSocket)
 
 | **Functional Features** | **Java** | **Python** | **Go** | **C# (not supported yet)** | **Node.js** | **Rust** |
 | ------------------------------ | -------- | ---------- | -------- | ------------------ | ----------- | -------- |
 | **Connection Management** | Support | Support | Support | N/A | Support | Support |
 | **Regular Query** | Support | Support | Support | N/A | Support | Support |
 | **Continous Query ** | Support | Support | Support | N/A | Support | Support |
-| **Parameter Binding** | Not Supported | Not Supported | Not Supported | N/A | Not Supported | Not Supported |
-| **Subscription** | Not Supported | Not Supported | Not Supported | N/A | Not Supported | Not Supported |
-| **Schemaless** | Not supported | Not Supported | Not Supported | N/A | Not Supported | Not supported |
-| **Bulk Pulling (based on WebSocket) **| Support | Not Supported | Not Supported | N/A | Not Supported | Not Supported |
+| **Parameter Binding**                   | Not supported   | Not supported   | Not supported | N/A                | Not supported      | Support     |
+| ** TMQ **                      | Not supported   | Not supported   | Not supported | N/A                | Not supported      | Support     |
+| **Schemaless**                 | Not supported | Not supported   | Not supported | N/A                | Not supported      | Not supported |
+| **Bulk Pulling (based on WebSocket) **| Support | Support | Not Supported | N/A | Not Supported | Supported |
 | **DataFrame** | Not supported | Support | Not supported | N/A | Not supported | Not supported |
 
 :::warning
@@ -85,7 +85,7 @@ The client driver needs to be installed if you use the native interface connecto
 
 :::
 
-### Installation steps
+### Install
 
 <Tabs defaultValue="linux" groupId="os">
   <TabItem value="linux" label="Linux">
@@ -96,7 +96,7 @@ The client driver needs to be installed if you use the native interface connecto
   </TabItem>
 </Tabs>
 
-### Installation Verification
+### Verify
 
 After completing the above installation and configuration and you have confirmed that the TDengine service is up and running, you can execute the TDengine CLI tool to log in.
 

@@ -25,13 +25,13 @@ from util.cases import *
 from util.sql import *
 from util.dnodes import *
 
-
+dbname = 'db'
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
 
-    def mavg_query_form(self, sel="select", func="mavg(", col="c1", m_comm =",", k=1,r_comm=")", alias="", fr="from",table_expr="t1", condition=""):
+    def mavg_query_form(self, sel="select", func="mavg(", col="c1", m_comm =",", k=1,r_comm=")", alias="", fr="from",table_expr=f"{dbname}.t1", condition=""):
         '''
         mavg function:
 
@@ -50,7 +50,7 @@ class TDTestCase:
 
         return f"{sel} {func} {col} {m_comm} {k} {r_comm} {alias} {fr} {table_expr} {condition}"
 
-    def checkmavg(self,sel="select", func="mavg(", col="c1", m_comm =",", k=1,r_comm=")", alias="", fr="from",table_expr="t1", condition=""):
+    def checkmavg(self,sel="select", func="mavg(", col="c1", m_comm =",", k=1,r_comm=")", alias="", fr="from",table_expr=f"{dbname}.t1", condition=""):
         # print(self.mavg_query_form(sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
         #                            table_expr=table_expr, condition=condition))
         line = sys._getframe().f_back.f_lineno
@@ -62,7 +62,7 @@ class TDTestCase:
                 table_expr=table_expr, condition=condition
             ))
 
-        sql = "select * from t1"
+        sql = f"select * from {dbname}.t1"
         collist =  tdSql.getColNameList(sql)
 
         if not isinstance(col, str):
@@ -326,9 +326,9 @@ class TDTestCase:
         self.checkmavg(**case6)
 
         # # case7~8: nested query
-        # case7 = {"table_expr": "(select c1 from stb1)"}
+        # case7 = {"table_expr": f"(select c1 from {dbname}.stb1)"}
         # self.checkmavg(**case7)
-        # case8 = {"table_expr": "(select mavg(c1, 1) c1 from stb1 group by tbname)"}
+        # case8 = {"table_expr": f"(select mavg(c1, 1) c1 from {dbname}.stb1 group by tbname)"}
         # self.checkmavg(**case8)
 
         # case9~10: mix with tbname/ts/tag/col
@@ -362,7 +362,7 @@ class TDTestCase:
         self.checkmavg(**case17)
         # # case18~19: with group by
         # case19 = {
-        #     "table_expr": "stb1",
+        #     "table_expr": f"{dbname}.stb1",
         #     "condition": "partition by tbname"
         # }
         # self.checkmavg(**case19)
@@ -371,14 +371,14 @@ class TDTestCase:
         # case20 = {"condition": "order by ts"}
         # self.checkmavg(**case20)
         #case21 = {
-        #    "table_expr": "stb1",
+        #    "table_expr": f"{dbname}.stb1",
         #    "condition": "group by tbname order by tbname"
         #}
         #self.checkmavg(**case21)
 
         # # case22: with union
         # case22 = {
-        #     "condition": "union all select mavg( c1 , 1 ) from t2"
+        #     "condition": f"union all select mavg( c1 , 1 ) from {dbname}.t2"
         # }
         # self.checkmavg(**case22)
 
@@ -486,32 +486,33 @@ class TDTestCase:
         #tdSql.query(" select mavg( c1 , 1 ) + 2 from t1 ")
         err41 = {"alias": "+ avg(c1)"}
         self.checkmavg(**err41)         # mix with arithmetic 2
-        err42 = {"alias": ", c1"}
-        self.checkmavg(**err42)         # mix with other col
-        # err43 = {"table_expr": "stb1"}
+        # err42 = {"alias": ", c1"}
+        # self.checkmavg(**err42)         # mix with other col
+        # err43 = {"table_expr": f"{dbname}.stb1"}
         # self.checkmavg(**err43)         # select stb directly
-        err44 = {
-            "col": "stb1.c1",
-            "table_expr": "stb1, stb2",
-            "condition": "where stb1.ts=stb2.ts and stb1.st1=stb2.st2 order by stb1.ts"
-        }
-        self.checkmavg(**err44)         # stb join
+        # err44 = {
+        #     "col": "stb1.c1",
+        #     "table_expr": "stb1, stb2",
+        #     "condition": "where stb1.ts=stb2.ts and stb1.st1=stb2.st2 order by stb1.ts"
+        # }
+        # self.checkmavg(**err44)         # stb join
+        tdSql.query("select mavg( stb1.c1 , 1 )  from stb1, stb2 where stb1.ts=stb2.ts and stb1.st1=stb2.st2 order by stb1.ts;")
         err45 = {
             "condition": "where ts>0 and ts < now interval(1h) fill(next)"
         }
         self.checkmavg(**err45)         # interval
         err46 = {
-            "table_expr": "t1",
+            "table_expr": f"{dbname}.t1",
             "condition": "group by c6"
         }
         self.checkmavg(**err46)         # group by normal col
         err47 = {
-            "table_expr": "stb1",
+            "table_expr": f"{dbname}.stb1",
             "condition": "group by tbname slimit 1 "
         }
         # self.checkmavg(**err47)         # with slimit
         err48 = {
-            "table_expr": "stb1",
+            "table_expr": f"{dbname}.stb1",
             "condition": "group by tbname slimit 1 soffset 1"
         }
         # self.checkmavg(**err48)         # with soffset
@@ -554,8 +555,8 @@ class TDTestCase:
         err67 = {"k": 0.999999}
         self.checkmavg(**err67)         # k: left out of [1, 1000]
         err68 = {
-            "table_expr": "stb1",
-            "condition": "group by tbname order by tbname" # order by tbname not supported
+            "table_expr": f"{dbname}.stb1",
+            "condition": f"group by tbname order by tbname" # order by tbname not supported
         }
         self.checkmavg(**err68)
 
@@ -565,42 +566,42 @@ class TDTestCase:
         for i in range(tbnum):
             for j in range(data_row):
                 tdSql.execute(
-                    f"insert into t{i} values ("
+                    f"insert into {dbname}.t{i} values ("
                     f"{basetime + (j+1)*10}, {random.randint(-200, -1)}, {random.uniform(200, -1)}, {basetime + random.randint(-200, -1)}, "
                     f"'binary_{j}', {random.uniform(-200, -1)}, {random.choice([0,1])}, {random.randint(-200,-1)}, "
                     f"{random.randint(-200, -1)}, {random.randint(-127, -1)}, 'nchar_{j}' )"
                 )
 
                 tdSql.execute(
-                    f"insert into t{i} values ("
+                    f"insert into {dbname}.t{i} values ("
                     f"{basetime - (j+1) * 10}, {random.randint(1, 200)}, {random.uniform(1, 200)}, {basetime - random.randint(1, 200)}, "
                     f"'binary_{j}_1', {random.uniform(1, 200)}, {random.choice([0, 1])}, {random.randint(1,200)}, "
                     f"{random.randint(1,200)}, {random.randint(1,127)}, 'nchar_{j}_1' )"
                 )
                 tdSql.execute(
-                    f"insert into tt{i} values ( {basetime-(j+1) * 10}, {random.randint(1, 200)} )"
+                    f"insert into {dbname}.tt{i} values ( {basetime-(j+1) * 10}, {random.randint(1, 200)} )"
                 )
 
         pass
 
     def mavg_test_table(self,tbnum: int) -> None :
-        tdSql.execute("drop database if exists db")
-        tdSql.execute("create database  if not exists db keep 3650")
-        tdSql.execute("use db")
+        tdSql.execute(f"drop database if exists {dbname}")
+        tdSql.execute(f"create database  if not exists {dbname} keep 3650")
+        tdSql.execute(f"use {dbname}")
 
         tdSql.execute(
-            "create stable db.stb1 (\
+            f"create stable {dbname}.stb1 (\
                 ts timestamp, c1 int, c2 float, c3 timestamp, c4 binary(16), c5 double, c6 bool, \
                 c7 bigint, c8 smallint, c9 tinyint, c10 nchar(16)\
                 ) \
             tags(st1 int)"
         )
         tdSql.execute(
-            "create stable db.stb2 (ts timestamp, c1 int) tags(st2 int)"
+            f"create stable {dbname}.stb2 (ts timestamp, c1 int) tags(st2 int)"
         )
         for i in range(tbnum):
-            tdSql.execute(f"create table t{i} using stb1 tags({i})")
-            tdSql.execute(f"create table tt{i} using stb2 tags({i})")
+            tdSql.execute(f"create table {dbname}.t{i} using {dbname}.stb1 tags({i})")
+            tdSql.execute(f"create table {dbname}.tt{i} using {dbname}.stb2 tags({i})")
 
         pass
 
@@ -617,25 +618,25 @@ class TDTestCase:
 
         tdLog.printNoPrefix("######## insert only NULL test:")
         for i in range(tbnum):
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime - 5})")
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime + 5})")
+            tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime - 5})")
+            tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime + 5})")
         self.mavg_current_query()
         self.mavg_error_query()
 
         tdLog.printNoPrefix("######## insert data in the range near the max(bigint/double):")
         # self.mavg_test_table(tbnum)
-        # tdSql.execute(f"insert into t1(ts, c1,c2,c5,c7) values "
+        # tdSql.execute(f"insert into {dbname}.t1(ts, c1,c2,c5,c7) values "
         #               f"({nowtime - (per_table_rows + 1) * 10}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
-        # tdSql.execute(f"insert into t1(ts, c1,c2,c5,c7) values "
+        # tdSql.execute(f"insert into {dbname}.t1(ts, c1,c2,c5,c7) values "
         #               f"({nowtime - (per_table_rows + 2) * 10}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
         # self.mavg_current_query()
         # self.mavg_error_query()
 
         tdLog.printNoPrefix("######## insert data in the range near the min(bigint/double):")
         # self.mavg_test_table(tbnum)
-        # tdSql.execute(f"insert into t1(ts, c1,c2,c5,c7) values "
+        # tdSql.execute(f"insert into {dbname}.t1(ts, c1,c2,c5,c7) values "
         #               f"({nowtime - (per_table_rows + 1) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {1-2**63})")
-        # tdSql.execute(f"insert into t1(ts, c1,c2,c5,c7) values "
+        # tdSql.execute(f"insert into {dbname}.t1(ts, c1,c2,c5,c7) values "
         #               f"({nowtime - (per_table_rows + 2) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {512-2**63})")
         # self.mavg_current_query()
         # self.mavg_error_query()
@@ -649,9 +650,9 @@ class TDTestCase:
 
         tdLog.printNoPrefix("######## insert data mix with NULL test:")
         for i in range(tbnum):
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime})")
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime-(per_table_rows+3)*10})")
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime+(per_table_rows+3)*10})")
+            tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime})")
+            tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime-(per_table_rows+3)*10})")
+            tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime+(per_table_rows+3)*10})")
         self.mavg_current_query()
         self.mavg_error_query()
 
@@ -664,67 +665,64 @@ class TDTestCase:
         tdDnodes.start(index)
         self.mavg_current_query()
         self.mavg_error_query()
-        tdSql.query("select mavg(1,1) from t1")
+        tdSql.query(f"select mavg(1,1) from {dbname}.t1")
         tdSql.checkRows(7)
         tdSql.checkData(0,0,1.000000000)
         tdSql.checkData(1,0,1.000000000)
         tdSql.checkData(5,0,1.000000000)
 
-        tdSql.query("select mavg(abs(c1),1) from t1")
+        tdSql.query(f"select mavg(abs(c1),1) from {dbname}.t1")
         tdSql.checkRows(4)
 
     def mavg_support_stable(self):
-        tdSql.query(" select mavg(1,3) from stb1 ")
+        tdSql.query(f" select mavg(1,3) from {dbname}.stb1 ")
         tdSql.checkRows(68)
         tdSql.checkData(0,0,1.000000000)
-        tdSql.query("select mavg(c1,3) from stb1 partition by tbname ")
+        tdSql.query(f"select mavg(c1,3) from {dbname}.stb1 partition by tbname ")
         tdSql.checkRows(20)
-        # tdSql.query("select mavg(st1,3) from stb1 partition by tbname")
-        # tdSql.checkRows(38)
-        tdSql.query("select mavg(st1+c1,3) from stb1 partition by tbname")
+        tdSql.query(f"select mavg(st1,3) from {dbname}.stb1 partition by tbname")
+        tdSql.checkRows(50)
+        tdSql.query(f"select mavg(st1+c1,3) from {dbname}.stb1 partition by tbname")
         tdSql.checkRows(20)
-        tdSql.query("select mavg(st1+c1,3) from stb1 partition by tbname")
+        tdSql.query(f"select mavg(st1+c1,3) from {dbname}.stb1 partition by tbname")
         tdSql.checkRows(20)
-        tdSql.query("select mavg(st1+c1,3) from stb1 partition by tbname")
+        tdSql.query(f"select mavg(st1+c1,3) from {dbname}.stb1 partition by tbname")
         tdSql.checkRows(20)
 
-        # # bug need fix
-        # tdSql.query("select mavg(st1+c1,3) from stb1 partition by tbname slimit 1 ")
-        # tdSql.checkRows(2)
-        # tdSql.error("select mavg(st1+c1,3) from stb1 partition by tbname limit 1 ")
 
 
         # bug need fix
-        tdSql.query("select mavg(st1+c1,3) from stb1 partition by tbname")
+        tdSql.query(f"select mavg(st1+c1,3) from {dbname}.stb1 partition by tbname")
         tdSql.checkRows(20)
 
         # bug need fix
-        # tdSql.query("select tbname , mavg(c1,3) from stb1 partition by tbname")
-        # tdSql.checkRows(38)
-        # tdSql.query("select tbname , mavg(st1,3) from stb1 partition by tbname")
-        # tdSql.checkRows(38)
-        # tdSql.query("select tbname , mavg(st1,3) from stb1 partition by tbname slimit 1")
-        # tdSql.checkRows(2)
+        tdSql.query(f"select tbname , mavg(c1,3) from {dbname}.stb1 partition by tbname")
+        tdSql.checkRows(20)
+        tdSql.query(f"select tbname , mavg(st1,3) from {dbname}.stb1 partition by tbname")
+        tdSql.checkRows(50)
+        tdSql.query(f"select tbname , mavg(st1,3) from {dbname}.stb1 partition by tbname slimit 1")
+        tdSql.checkRows(5)
 
         # partition by tags
-        # tdSql.query("select st1 , mavg(c1,3) from stb1 partition by st1")
-        # tdSql.checkRows(38)
-        # tdSql.query("select mavg(c1,3) from stb1 partition by st1")
-        # tdSql.checkRows(38)
-        # tdSql.query("select st1 , mavg(c1,3) from stb1 partition by st1 slimit 1")
-        # tdSql.checkRows(2)
-        # tdSql.query("select mavg(c1,3) from stb1 partition by st1 slimit 1")
-        # tdSql.checkRows(2)
+        tdSql.query(f"select st1 , mavg(c1,3) from {dbname}.stb1 partition by st1")
+        tdSql.checkRows(20)
+        tdSql.query(f"select mavg(c1,3) from {dbname}.stb1 partition by st1")
+        tdSql.checkRows(20)
+        tdSql.query(f"select st1 , mavg(c1,3) from {dbname}.stb1 partition by st1 slimit 1")
+        tdSql.checkRows(2)
+        tdSql.query(f"select mavg(c1,3) from {dbname}.stb1 partition by st1 slimit 1")
+        tdSql.checkRows(2)
 
         # partition by col
-        # tdSql.query("select c1 , mavg(c1,3) from stb1 partition by c1")
-        # tdSql.checkRows(38)
-        # tdSql.query("select mavg(c1 ,3) from stb1 partition by c1")
-        # tdSql.checkRows(38)
-        # tdSql.query("select c1 , mavg(c1,3) from stb1 partition by st1 slimit 1")
-        # tdSql.checkRows(2)
-        # tdSql.query("select diff(c1) from stb1 partition by st1 slimit 1")
-        # tdSql.checkRows(2)
+        tdSql.query(f"select c1 , mavg(c1,3) from {dbname}.stb1 partition by c1")
+        tdSql.checkRows(0)
+        tdSql.query(f"select c1 , mavg(c1,1) from {dbname}.stb1 partition by c1")
+        tdSql.checkRows(40)
+        tdSql.query(f"select c1, c2, c3, c4, mavg(c1,3) from {dbname}.stb1 partition by tbname ")
+        tdSql.checkRows(20)
+        tdSql.query(f"select c1, c2, c3, c4, mavg(123,3) from {dbname}.stb1 partition by tbname ")
+        tdSql.checkRows(50)
+
 
     def run(self):
         import traceback

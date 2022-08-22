@@ -25,107 +25,107 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol bool)
 sql create table $tb using $mt tags( 1 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol = 1
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
-  
+
 print =============== step3
 $i = 3
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol smallint)
 sql create table $tb using $mt tags( 1 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol = 1
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
-  
+
 print =============== step4
 $i = 4
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol tinyint)
 sql create table $tb using $mt tags( 1 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol = 1
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
-  
+
 print =============== step5
 $i = 5
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
 sql create table $tb using $mt tags( 1 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol = 1
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
-  
+
 print =============== step6
 $i = 6
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol bigint)
 sql create table $tb using $mt tags( 1 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol = 1
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
-  
+
 print =============== step7
 $i = 7
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol float)
 sql create table $tb using $mt tags( 1 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol = 1
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol = 0
@@ -133,62 +133,62 @@ if $rows != 0 then
   print expect 0, actual: $rows
   return -1
 endi
-  
+
 print =============== step8
 $i = 8
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol double)
 sql create table $tb using $mt tags( 1 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol = 1
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
-  
+
 print =============== step9
 $i = 9
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol binary(10))
 sql create table $tb using $mt tags( '1')
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol = '1'
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol = '0'
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
-  
+
 print =============== step10
 $i = 10
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol bool, tgcol2 bool)
 sql create table $tb using $mt tags( 1, 2 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = 1
 if $rows != 1 then
   print expect 1, actual: $rows
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol2 = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -198,16 +198,16 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol bool, tgcol2 smallint)
 sql create table $tb using $mt tags( 1, 2 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = 2
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol2 = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -217,16 +217,16 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol bool, tgcol2 tinyint)
 sql create table $tb using $mt tags( 1, 2 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = 2
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol2 = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -236,16 +236,16 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol bool, tgcol2 int)
 sql create table $tb using $mt tags( 1, 2 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = 2
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol2 = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -255,17 +255,17 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol bool, tgcol2 bigint)
 sql create table $tb using $mt tags( 1, 2 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = 2
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 
 sql select * from $mt where tgcol2 = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 print =============== step15
@@ -274,16 +274,16 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol bool, tgcol2 float)
 sql create table $tb using $mt tags( 1, 2 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = 2
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol2 = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -293,16 +293,16 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol bool, tgcol2 double)
 sql create table $tb using $mt tags( 1, 2 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = 2
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol2 = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -312,16 +312,16 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol bool, tgcol2 binary(10))
 sql create table $tb using $mt tags( 1, '2' )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol = true
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol2 = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -331,16 +331,16 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol smallint, tgcol2 tinyint)
 sql create table $tb using $mt tags( 1, 2 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = 2
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol2 = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -350,16 +350,16 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol tinyint, tgcol2 int)
 sql create table $tb using $mt tags( 1, 2 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = 2
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol2 = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -369,16 +369,16 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int, tgcol2 bigint)
 sql create table $tb using $mt tags( 1, 2 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = 2
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol2 = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -388,16 +388,16 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol bigint, tgcol2 float)
 sql create table $tb using $mt tags( 1, 2 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = 2
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol2 = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -407,16 +407,16 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol float, tgcol2 double)
 sql create table $tb using $mt tags( 1, 2 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = 2
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol2 = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -426,16 +426,16 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol double, tgcol2 binary(10))
 sql create table $tb using $mt tags( 1, '2' )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = '2'
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol2 = 0
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -445,51 +445,51 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bool, tgcol2 bool, tgcol3 int, tgcol4 float, tgcol5 double, tgcol6 binary(10))
 sql create table $tb using $mt tags( 1, 2, 3, 4, 5, '6' )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol1 = 1
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol2 = 1
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol3 = 3
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol4 = 4
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol5 = 5
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol6 = '6'
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol6 = '0'
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -499,16 +499,16 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol bool, tgcol2 int, tgcol3 float, tgcol4 double, tgcol5 binary(10), tgcol6 binary(10))
 sql create table $tb using $mt tags( 1, 2, 3, 4, '5', '6' )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol6 = '6'
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol6 = '0'
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -518,16 +518,16 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol binary(10), tgcol2 binary(10), tgcol3 binary(10), tgcol4 binary(10), tgcol5 binary(10), tgcol6 binary(10))
 sql create table $tb using $mt tags( '1', '2', '3', '4', '5', '6' )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol3 = '3'
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 sql select * from $mt where tgcol3 = '0'
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 
@@ -545,12 +545,12 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol binary(250), tgcol2 binary(250))
 sql create table $tb using $mt tags('1', '1')
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol = '1'
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 
@@ -560,12 +560,12 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol binary(25), tgcol2 binary(250))
 sql create table $tb using $mt tags('1', '1')
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol = '1'
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 
@@ -575,7 +575,7 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol binary(250), tgcol2 binary(250), tgcol3 binary(30)) -x step30
 #  return -1
-step30: 
+step30:
 
 print =============== step31
 $i = 31
@@ -584,15 +584,15 @@ $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol binary(5))
 sql_error create table $tb using $mt tags('1234567')
 sql create table $tb using $mt tags('12345')
-sql insert into $tb values(now, 1) 
-sql select * from $mt 
+sql insert into $tb values(now, 1)
+sql select * from $mt
 print sql select * from $mt
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
 print $data00 $data01 $data02
-if $data02 != 12345 then 
+if $data02 != 12345 then
   return -1
 endi
 

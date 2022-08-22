@@ -14,6 +14,7 @@
  */
 
 #include "tq.h"
+#include "vnd.h"
 
 #if 0
 void tqTmrRspFunc(void* param, void* tmrId) {
@@ -212,9 +213,7 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 #endif
 
 int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
-  walApplyVer(pTq->pVnode->pWal, ver);
-
-  if (msgType == TDMT_VND_SUBMIT) {
+  if (vnodeIsRoleLeader(pTq->pVnode) && msgType == TDMT_VND_SUBMIT) {
     if (taosHashGetSize(pTq->pStreamMeta->pTasks) == 0) return 0;
 
     void* data = taosMemoryMalloc(msgLen);

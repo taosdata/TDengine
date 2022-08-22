@@ -8,43 +8,45 @@ title: TDengine Rust Connector
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-import Preparation from "./_preparation.mdx"
+import Preparition from "./_preparition.mdx"
 import RustInsert from "../../07-develop/03-insert-data/_rust_sql.mdx"
 import RustBind from "../../07-develop/03-insert-data/_rust_stmt.mdx"
 import RustQuery from "../../07-develop/04-query-data/_rust.mdx"
 
-[`taos`][taos] is the official Rust language connector for TDengine. Rust developers can develop applications to access the TDengine instance data.
+[![Crates.io](https://img.shields.io/crates/v/taos)](https://crates.io/crates/taos) ![Crates.io](https://img.shields.io/crates/d/taos) [![docs.rs](https://img.shields.io/docsrs/taos)](https://docs.rs/taos)
 
-Rust connector provides two ways to establish connections. One is the **Native Connection**, which connects to TDengine instances via the TDengine client driver (taosc). The other is **Websocket connection**, which connects to TDengine instances via taosAdapter service.
+`taos` is the official Rust connector for TDengine. Rust developers can develop applications to access the TDengine instance data.
 
-The source code is hosted on [taosdata/taos-connector-rust](https://github.com/taosdata/taos-connector-rust).
+`taos` provides two ways to establish connections. One is the **Native Connection**, which connects to TDengine instances via the TDengine client driver (taosc). The other is the **WebSocket connection**, which connects to TDengine instances via the WebSocket interface provided by taosAdapter. You can specify a connection type with Cargo features. By default, both types are supported. The Websocket connection can be used on any platform. The native connection can be used on any platform that the TDengine Client supports.
+
+The source code for the Rust connectors is located on [GitHub](https://github.com/taosdata/taos-connector-rust).
 
 ## Supported platforms
 
-The platforms supported by native connections are the same as those supported by the TDengine client driver.
-REST connections are supported on all platforms that can run Rust.
+Native connections are supported on the same platforms as the TDengine client driver.
+Websocket connections are supported on all platforms that can run Go.
 
 ## Version support
 
-Please refer to [version support list](/reference/connector#version-support).
+Please refer to [version support list](/reference/connector#version-support)
 
 The Rust Connector is still under rapid development and is not guaranteed to be backward compatible before 1.0. We recommend using TDengine version 3.0 or higher to avoid known issues.
 
 ## Installation
 
-### Pre-installation
+### Pre-installation preparation
 
 * Install the Rust development toolchain
 * If using the native connection, please install the TDengine client driver. Please refer to [install client driver](/reference/connector#install-client-driver)
 
-### Add dependencies
+# Add taos dependency
 
-Add the dependency to the [Rust](https://rust-lang.org) project as follows, depending on the connection method selected.
+Depending on the connection method, add the [taos][taos] dependency in your Rust project as follows:
 
 <Tabs defaultValue="default">
-<TabItem value="default" label="Both">
+<TabItem value="default" label="Support Both">
 
-Add [taos] to the `Cargo.toml` file.
+In `cargo.toml`, add [taos][taos]:
 
 ```toml
 [dependencies]
@@ -53,9 +55,10 @@ taos = "*"
 ```
 
 </TabItem>
-<TabItem value="native" label="Native only">
 
-Add [taos] to the `Cargo.toml` file.
+<TabItem value="native" label="native connection only">
+
+In `cargo.toml`, add [taos][taos] and enable the native feature:
 
 ```toml
 [dependencies]
@@ -65,7 +68,7 @@ taos = { version = "*", default-features = false, features = ["native"] }
 </TabItem>
 <TabItem value="rest" label="Websocket only">
 
-Add [taos] to the `Cargo.toml` file and enable the `ws` feature.
+In `cargo.toml`, add [taos][taos] and enable the ws feature:
 
 ```toml
 [dependencies]
@@ -75,15 +78,15 @@ taos = { version = "*", default-features = false, features = ["ws"] }
 </TabItem>
 </Tabs>
 
-## Create a connection
+## Establishing a connection
 
-In rust connector, we use a DSN connection string as a connection builder. For example,
+[TaosBuilder] creates a connection constructor through the DSN connection description string.
 
 ```rust
 let builder = TaosBuilder::from_dsn("taos://")?;
 ```
 
-You can now use connection client to create the connection.
+You can now use this object to create the connection.
 
 ```rust
 let conn = builder.build()?;
@@ -96,9 +99,7 @@ let conn1 = builder.build()?;
 let conn2 = builder.build()?;
 ```
 
-DSN is short for **D**ata **S**ource **N**ame string - [a data structure used to describe a connection to a data source](https://en.wikipedia.org/wiki/Data_source_name).
-
-A common DSN is basically constructed as this:
+The structure of the DSN description string is as follows:
 
 ```text
 <driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
@@ -106,31 +107,31 @@ A common DSN is basically constructed as this:
 |driver|   protocol |   | username  | password  | host | port |  database  |  params               |
 ```
 
-- **Driver**: the main entrypoint to a processer. **Required**. In Rust connector, the supported driver names are listed here:
-  - **taos**: the legacy TDengine connection data source.
-  - **tmq**: subscription data source from TDengine.
-  - **http/ws**: use websocket protocol via `ws://` scheme.
-  - **https/wss**: use websocket protocol via `wss://` scheme.
-- **Protocol**: the additional information appended to driver, which can be be used to support different kind of data sources. By default, leave it empty for native driver(only under feature "native"), and `ws/wss` for websocket driver (only under feature "ws"). **Optional**.
-- **Username**: as its definition, is the username to the connection. **Optional**.
-- **Password**: the password of the username. **Optional**.
-- **Host**: address host to the datasource. **Optional**.
-- **Port**: address port to the datasource. **Optional**.
-- **Database**: database name or collection name in the datasource. **Optional**.
-- **Params**: a key-value map for any other informations to the datasource. **Optional**.
+The parameters are described as follows:
 
-Here is a simple DSN connection string example:
+- **driver**: Specify a driver name so that the connector can choose which method to use to establish the connection. Supported driver names are as follows:
+  - **taos**: Table names use the TDengine connector driver.
+  - **tmq**: Use the TMQ to subscribe to data.
+  - **http/ws**: Use Websocket to establish connections.
+  - **https/wss**: Use Websocket to establish connections, and enable SSL/TLS.
+- **protocol**: Specify which connection method to use. For example, `taos+ws://localhost:6041` uses Websocket to establish connections.
+- **username/password**: Username and password used to create connections.
+- **host/port**: Specifies the server and port to establish a connection. If you do not specify a hostname or port, native connections default to `localhost:6030` and Websocket connections default to `localhost:6041`.
+- **database**: Specify the default database to connect to.
+- **params**：Optional parameters.
+
+A sample DSN description string is as follows:
 
 ```text
 taos+ws://localhost:6041/test
 ```
 
-which means connect `localhost` with port `6041` via `ws` protocol, and make `test` as the default database.
+This indicates that the Websocket connection method is used on port 6041 to connect to the server localhost and use the database `test` by default.
 
-So that you can use DSN to specify connection protocol at runtime:
+You can create DSNs to connect to servers in your environment.
 
 ```rust
-use taos::*; // use it like a `prelude` mod, we need some traits at next.
+use taos::*;
 
 // use native protocol.
 let builder = TaosBuilder::from_dsn("taos://localhost:6030")?;
@@ -140,7 +141,7 @@ let conn1 = builder.build();
 let conn2 = TaosBuilder::from_dsn("taos+ws://localhost:6041")?;
 ```
 
-After connected, you can perform the following operations on the database.
+After the connection is established, you can perform operations on your database.
 
 ```rust
 async fn demo(taos: &Taos, db: &str) -> Result<(), Error> {
@@ -179,7 +180,7 @@ async fn demo(taos: &Taos, db: &str) -> Result<(), Error> {
 }
 ```
 
-Rust connector provides two kinds of ways to fetch data:
+There are two ways to query data: Using built-in types or the [serde](https://serde.rs) deserialization framework.
 
 ```rust
     // Query option 1, use rows stream.
@@ -225,41 +226,41 @@ Rust connector provides two kinds of ways to fetch data:
 
 <RustInsert />
 
-#### Stmt bind
+#### STMT Write
 
 <RustBind />
 
 ### Query data
 
-<RustQuery />|
+<RustQuery />
 
 ## API Reference
 
-### Connector builder
+### Connector Constructor
 
-Use DSN to directly construct a TaosBuilder object.
+You create a connector constructor by using a DSN.
 
 ```rust
-let builder = TaosBuilder::from_dsn("")? ;
+let cfg = TaosBuilder::default().build()?;
 ```
 
-Use `builder` to create many connections:
+You use the builder object to create multiple connections.
 
 ```rust
 let conn: Taos = cfg.build();
 ```
 
-### Connection pool
+### Connection pooling
 
-In complex applications, we recommend enabling connection pools. Connection pool for [taos] is implemented using [r2d2] by enabling "r2d2" feature.
+In complex applications, we recommend enabling connection pools. [taos] implements connection pools based on [r2d2].
 
-Basically, a connection pool with default parameters can be generated as:
+As follows, a connection pool with default parameters can be generated.
 
 ```rust
 let pool = TaosBuilder::from_dsn(dsn)?.pool()?;
 ```
 
-You can set the connection pool parameters using the `PoolBuilder`.
+You can set the same connection pool parameters using the connection pool's constructor.
 
 ```rust
 let dsn = "taos://localhost:6030";
@@ -273,23 +274,23 @@ let opts = PoolBuilder::new()
 let pool = TaosBuilder::from_dsn(dsn)?.with_pool_builder(opts)?;
 ```
 
-In the application code, use `pool.get()?` to get a connection object [Taos].
+In the application code, use `pool.get()? ` to get a connection object [Taos].
 
 ```rust
-let taos = pool.get()? ;
+let taos = pool.get()?;
 ```
 
-### Connection methods
+# Connectors
 
-The [Taos] connection struct provides several APIs for convenient use.
+The [Taos][struct.Taos] object provides an API to perform operations on multiple databases.
 
-1. `exec`: Execute some non-query SQL statements, such as `CREATE`, `ALTER`, `INSERT` etc. and return affected rows (only meaningful to `INSERT`).
+1. `exec`: Execute some non-query SQL statements, such as `CREATE`, `ALTER`, `INSERT`, etc.
 
     ```rust
     let affected_rows = taos.exec("INSERT INTO tb1 VALUES(now, NULL)").await?;
     ```
 
-2. `exec_many`: You can execute many SQL statements in order with `exec_many` method.
+2. `exec_many`: Run multiple SQL statements simultaneously or in order.
 
     ```rust
     taos.exec_many([
@@ -299,15 +300,15 @@ The [Taos] connection struct provides several APIs for convenient use.
     ]).await?;
     ```
 
-3. `query`: Execute the query statement and return the [ResultSet] object.
+3. `query`: Run a query statement and return a [ResultSet] object.
 
     ```rust
-    let mut q = taos.query("select * from log.logs").await?
+    let mut q = taos.query("select * from log.logs").await?;
     ```
 
-    The [ResultSet] object stores the query result data and basic information about the returned columns (column name, type, length).
+    The [ResultSet] object stores query result data and the names, types, and lengths of returned columns
 
-    Get filed information with `fields` method.
+    You can obtain column information by using [.fields()].
 
     ```rust
     let cols = q.fields();
@@ -316,7 +317,7 @@ The [Taos] connection struct provides several APIs for convenient use.
     }
     ```
 
-    Users could fetch data by rows.
+    It fetches data line by line.
 
     ```rust
     let mut rows = result.rows();
@@ -332,7 +333,7 @@ The [Taos] connection struct provides several APIs for convenient use.
     }
     ```
 
-    Or use it with [serde](https://serde.rs) deserialization.
+    Or use the [serde](https://serde.rs) deserialization framework.
 
     ```rust
     #[derive(Debug, Deserialize)]
@@ -359,15 +360,17 @@ The [Taos] connection struct provides several APIs for convenient use.
 
 Note that Rust asynchronous functions and an asynchronous runtime are required.
 
-[Taos] provides a few Rust methods that encapsulate SQL to reduce the frequency of `format!` code blocks.
+[Taos][struct.Taos] provides Rust methods for some SQL statements to reduce the number of `format!`s.
 
 - `.describe(table: &str)`: Executes `DESCRIBE` and returns a Rust data structure.
 - `.create_database(database: &str)`: Executes the `CREATE DATABASE` statement.
 - `.use_database(database: &str)`: Executes the `USE` statement.
 
-### Bind API
+In addition, this structure is also the entry point for [Parameter Binding](#Parameter Binding Interface) and [Line Protocol Interface](#Line Protocol Interface). Please refer to the specific API descriptions for usage.
 
-Similar to the C interface, Rust provides the bind interface's wrapping. First, create a bind object [Stmt] for a SQL command with the [Taos] object.
+### Bind Interface
+
+Similar to the C interface, Rust provides the bind interface's wrapping. First, the [Taos][struct.taos] object creates a parameter binding object [Stmt] for an SQL statement.
 
 ```rust
 let mut stmt = Stmt::init(&taos).await?;
@@ -387,17 +390,17 @@ stmt.set_tbname("d0")?;
 
 #### `.set_tags(&[tag])`
 
-Bind tag values when the SQL statement uses a super table.
+Bind sub-table table names and tag values when the SQL statement uses a super table.
 
 ```rust
 let mut stmt = taos.stmt("insert into ? using stb0 tags(?) values(? ,?)")?;
 stmt.set_tbname("d0")?;
-stmt.set_tags(&[Value::VarChar("涛思".to_string())])?;
+stmt.set_tags(&[Value::VarChar("taos".to_string())])?;
 ```
 
 #### `.bind(&[column])`
 
-Bind value types. Use the [ColumnView] structure to construct the desired type and bind.
+Bind value types. Use the [ColumnView] structure to create and bind the required types.
 
 ```rust
 let params = vec![
@@ -421,42 +424,42 @@ let rows = stmt.bind(&params)?.add_batch()?.execute()?;
 
 #### `.execute()`
 
-Execute to insert all bind records. [Stmt] objects can be reused, re-bind, and executed after execution. Remember to call `add_batch` before `execute`.
+Execute SQL. [Stmt] objects can be reused, re-binded, and executed after execution. Before execution, ensure that all data has been added to the queue with `.add_batch`.
 
 ```rust
-stmt.add_batch()?.execute()?;
+stmt.execute()?;
 
 // next bind cycle.
-// stmt.set_tbname()? ;
-//stmt.bind()? ;
-//stmt.add_batch().execute()? ;
+//stmt.set_tbname()?;
+//stmt.bind()?;
+//stmt.execute()?;
 ```
 
-A runnable example for bind can be found [here](https://github.com/taosdata/taos-connector-rust/blob/main/examples/bind.rs).
+For a working example, see [GitHub](https://github.com/taosdata/taos-connector-rust/blob/main/examples/bind.rs).
 
-### Subscription API
+### Subscriptions
 
-Users can subscribe a [TOPIC](../../../taos-sql/tmq/) with TMQ(the TDengine Message Queue) API.
+TDengine starts subscriptions through [TMQ](../../../taos-sql/tmq/).
 
-Start from a TMQ builder:
+You create a TMQ connector by using a DSN.
 
 ```rust
 let tmq = TmqBuilder::from_dsn("taos://localhost:6030/?group.id=test")?;
 ```
 
-Build a consumer:
+Create a consumer:
 
 ```rust
 let mut consumer = tmq.build()?;
 ```
 
-Subscribe a topic:
+A single consumer can subscribe to one or more topics.
 
 ```rust
 consumer.subscribe(["tmq_meters"]).await?;
 ```
 
-Consume messages, and commit the offset for each message.
+The TMQ is of [futures::Stream](https://docs.rs/futures/latest/futures/stream/index.html) type. You can use the corresponding API to consume each message in the queue and then use `.commit` to mark them as consumed.
 
 ```rust
 {
@@ -495,22 +498,21 @@ Unsubscribe:
 consumer.unsubscribe().await;
 ```
 
-In TMQ DSN, you must choose to subscribe with a group id. Also, there's several options could be set:
+The following parameters can be configured for the TMQ DSN. Only `group.id` is mandatory.
 
-- `group.id`: **Required**, a group id is any visible string you set.
-- `client.id`: a optional client description string.
-- `auto.offset.reset`: choose to subscribe from *earliest* or *latest*, default is *none* which means 'earliest'.
-- `enable.auto.commit`: automatically commit with specified time interval. By default - in the recommended way _ you must use `commit` to ensure that you've consumed the messages correctly, otherwise, consumers will received repeated messages when re-subscribe.
-- `auto.commit.interval.ms`: the auto commit interval in milliseconds.
+- `group.id`: Within a consumer group, load balancing is implemented by consuming messages on an at-least-once basis.
+- `client.id`: Subscriber client ID.
+- `auto.offset.reset`: Initial point of subscription. *earliest* subscribes from the beginning, and *latest* subscribes from the newest message. The default is earliest. Note: This parameter is set per consumer group.
+- `enable.auto.commit`: Automatically commits. This can be enabled when data consistency is not essential.
+- `auto.commit.interval.ms`: Interval for automatic commits.
+  
+For more information, see [GitHub sample file](https://github.com/taosdata/taos-connector-rust/blob/main/examples/subscribe.rs).
 
-Check the whole subscription example at [GitHub](https://github.com/taosdata/taos-connector-rust/blob/main/examples/subscribe.rs).
+For information about other structure APIs, see the [Rust documentation](https://docs.rs/taos).
 
-Please move to the Rust documentation hosting page for other related structure API usage instructions: <https://docs.rs/taos>.
-
-[TDengine]: https://github.com/taosdata/TDengine
+[taos]: https://github.com/taosdata/rust-connector-taos
 [r2d2]: https://crates.io/crates/r2d2
-[Taos]: https://docs.rs/taos/latest/taos/struct.Taos.html
-[ResultSet]: https://docs.rs/taos/latest/taos/struct.ResultSet.html
-[Value]: https://docs.rs/taos/latest/taos/enum.Value.html
-[Stmt]: https://docs.rs/taos/latest/taos/stmt/struct.Stmt.html
-[taos]: https://crates.io/crates/taos
+[TaosBuilder]: https://docs.rs/taos/latest/taos/struct.TaosBuilder.html
+[TaosCfg]: https://docs.rs/taos/latest/taos/struct.TaosCfg.html
+[struct.Taos]: https://docs.rs/taos/latest/taos/struct.Taos.html
+[Stmt]: https://docs.rs/taos/latest/taos/struct.Stmt.html

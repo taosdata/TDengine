@@ -25,18 +25,18 @@ $i = 0
 while $i < $tbNum
   $tb = $tbPrefix . $i
   sql create table $tb using $mt tags( $i )
-  
+
   $x = 0
   while $x < $rowNum
     $cc = $x * 60000
     $ms = 1601481600000 + $cc
 
-    sql insert into $tb values ($ms , $x ) 
+    sql insert into $tb values ($ms , $x )
     $x = $x + 1
-  endw 
- 
+  endw
+
   $i = $i + 1
-endw 
+endw
 
 print =============== step2
 $i = 1
@@ -44,13 +44,13 @@ $tb = $tbPrefix . $i
 
 sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb interval(1m)
 print ===> $rows
-if $rows < $rowNum then 
+if $rows < $rowNum then
   return -1
 endi
-if $data00 != 1 then 
+if $data00 != 1 then
   return -1
 endi
-if $data04 != 1 then 
+if $data04 != 1 then
   return -1
 endi
 
@@ -59,16 +59,16 @@ $cc = 4 * 60000
 $ms = 1601481600000 + $cc
 sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms interval(1m)
 print ===> $rows
-if $rows > 10 then 
+if $rows > 10 then
   return -1
 endi
-if $rows < 3 then 
+if $rows < 3 then
   return -1
 endi
-if $data00 != 1 then 
+if $data00 != 1 then
   return -1
 endi
-if $data04 != 1 then 
+if $data04 != 1 then
   return -1
 endi
 
@@ -81,16 +81,16 @@ $ms2 = 1601481600000 - $cc
 
 sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms and ts > $ms2 interval(1m)
 print ===> $rows
-if $rows < 18 then 
+if $rows < 18 then
   return -1
 endi
-if $rows > 22 then 
+if $rows > 22 then
   return -1
 endi
-if $data00 != 1 then 
+if $data00 != 1 then
   return -1
 endi
-if $data04 != 1 then 
+if $data04 != 1 then
   return -1
 endi
 
@@ -107,29 +107,29 @@ if $rows < 30 then
   print expect greater than 30, actual: $rows
   return -1
 endi
-if $rows > 50 then 
+if $rows > 50 then
   return -1
 endi
-if $data20 != 1 then 
+if $data20 != 1 then
   return -1
 endi
-if $data24 != 1 then 
+if $data24 != 1 then
   return -1
 endi
 
 print =============== step6
 sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt interval(1m)
 print ===> $rows
-if $rows < 18 then 
+if $rows < 18 then
   return -1
 endi
-if $rows > 22 then 
+if $rows > 22 then
   return -1
 endi
-if $data10 > 15 then 
+if $data10 > 15 then
   return -1
 endi
-if $data10 < 5 then 
+if $data10 < 5 then
   return -1
 endi
 
@@ -138,16 +138,16 @@ $cc = 4 * 60000
 $ms = 1601481600000 + $cc
 sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms interval(1m)
 print ===> $rows
-if $rows < 3 then 
+if $rows < 3 then
   return -1
 endi
-if $rows > 7 then 
+if $rows > 7 then
   return -1
 endi
-if $data10 > 15 then 
+if $data10 > 15 then
   return -1
 endi
-if $data10 < 5 then 
+if $data10 < 5 then
   return -1
 endi
 
@@ -160,16 +160,16 @@ $ms2 = 1601481600000 - $cc
 
 sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms1 and ts > $ms2 interval(1m)
 print ===> $rows
-if $rows < 18 then 
+if $rows < 18 then
   return -1
 endi
-if $rows > 22 then 
+if $rows > 22 then
   return -1
 endi
-if $data10 > 15 then 
+if $data10 > 15 then
   return -1
 endi
-if $data10 < 5 then 
+if $data10 < 5 then
   return -1
 endi
 
@@ -181,23 +181,23 @@ $cc = 1 * 60000
 $ms2 = 1601481600000 - $cc
 
 sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms1 and ts > $ms2 interval(1m) fill(value, 0)
-if $rows < 30 then 
+if $rows < 30 then
   return -1
 endi
-if $rows > 50 then 
+if $rows > 50 then
   return -1
 endi
-if $data10 > 15 then 
+if $data10 > 15 then
   return -1
 endi
-if $data10 < 5 then 
+if $data10 < 5 then
   return -1
 endi
 
 print =============== clear
 sql drop database $db
 sql select * from information_schema.ins_databases
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 
