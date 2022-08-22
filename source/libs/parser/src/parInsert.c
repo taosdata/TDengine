@@ -681,6 +681,11 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
       break;
     }
 
+    char tmpTokenBuf[TSDB_COL_NAME_LEN + 2] = {0};  // used for deleting Escape character backstick(`)
+    strncpy(tmpTokenBuf, sToken.z, sToken.n);
+    sToken.z = tmpTokenBuf;
+    sToken.n = strdequote(sToken.z);
+
     col_id_t t = lastColIdx + 1;
     col_id_t index = findCol(&sToken, t, nCols, pSchema);
     if (index < 0 && t > 0) {
