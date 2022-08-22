@@ -23,7 +23,7 @@ Docker version 20.10.3, build 48d30b5
 ### Launch TDengine Server
 
 ```bash
-$ docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine
+$ docker run -d -p 6030:6040 -p 6041:6041 -p 6043-6049:6043-6049 -p 6043-6049:6043-6049/udp tdengine/tdengine
 526aa188da767ae94b244226a2b2eec2b5f17dd8eff592893d9ec0cd0f3a1ccd
 ```
 
@@ -69,7 +69,7 @@ c452519b0f9b   tdengine/tdengine   "taosd"   14 minutes ago   Up 14 minutes   ·
 
 ```bash
 $ docker exec -it tdengine /bin/bash
-root@tdengine-server:~/TDengine-server-2.4.0.4#
+root@tdengine-server:~/TDengine-server-3.0.0.0#
 ```
 
 - **docker exec**: Attach to the container
@@ -81,9 +81,9 @@ root@tdengine-server:~/TDengine-server-2.4.0.4#
 Inside the container, start TDengine CLI `taos`
 
 ```bash
-root@tdengine-server:~/TDengine-server-2.4.0.4# taos
+root@tdengine-server:~/TDengine-server-3.0.0.0# taos
 
-Welcome to the TDengine shell from Linux, Client Version:2.4.0.4
+Welcome to the TDengine shell from Linux, Client Version:3.0.0.0
 Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
 
 taos>
@@ -100,7 +100,7 @@ If option `-p` used to map ports properly between host and container, it's also 
 ```
 $ taos
 
-Welcome to the TDengine shell from Linux, Client Version:2.4.0.4
+Welcome to the TDengine shell from Linux, Client Version:3.0.0.0
 Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
 
 taos>
@@ -122,26 +122,26 @@ For details of REST API please refer to [REST API](/reference/rest-api/).
 
 ### Run TDengine server and taosAdapter inside container
 
-From version 2.4.0.0, in the TDengine Docker image, `taosAdapter` is enabled by default, but can be disabled using environment variable `TAOS_DISABLE_ADAPTER=true` . `taosAdapter` can also be run alone without `taosd` when launching a container.
+In the TDengine Docker image, `taosAdapter` is enabled by default, but can be disabled using environment variable `TAOS_DISABLE_ADAPTER=true` . `taosAdapter` can also be run alone without `taosd` when launching a container.
 
 For the port mapping of `taosAdapter`, please refer to [taosAdapter](/reference/taosadapter/).
 
 - Run both `taosd` and `taosAdapter` (by default) in docker container:
 
 ```bash
-docker run -d --name tdengine-all -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine:2.4.0.4
+docker run -d --name tdengine-all -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine:3.0.0.0
 ```
 
 - Run `taosAdapter` only in docker container, `TAOS_FIRST_EP` environment variable needs to be used to specify the container name in which `taosd` is running:
 
 ```bash
-docker run -d --name tdengine-taosa -p 6041-6049:6041-6049 -p 6041-6049:6041-6049/udp -e TAOS_FIRST_EP=tdengine-all tdengine/tdengine:2.4.0.4 taosadapter
+docker run -d --name tdengine-taosa -p 6041-6049:6041-6049 -p 6041-6049:6041-6049/udp -e TAOS_FIRST_EP=tdengine-all tdengine/tdengine:3.0.0.0 taosadapter
 ```
 
 - Run `taosd` only in docker container:
 
 ```bash
-docker run -d --name tdengine-taosd -p 6030-6042:6030-6042 -p 6030-6042:6030-6042/udp -e TAOS_DISABLE_ADAPTER=true tdengine/tdengine:2.4.0.4
+docker run -d --name tdengine-taosd -p 6030-6042:6030-6042 -p 6030-6042:6030-6042/udp -e TAOS_DISABLE_ADAPTER=true tdengine/tdengine:3.0.0.0
 ```
 
 - Verify the REST interface:

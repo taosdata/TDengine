@@ -15,9 +15,6 @@ title: Escape Characters
 |       `\%`       | % see below for details  |
 |       `\_`       | \_ see below for details |
 
-:::note
-Escape characters are available from version 2.4.0.4 .
-
 :::
 
 ## Restrictions

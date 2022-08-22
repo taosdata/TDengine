@@ -223,7 +223,7 @@ phpize && ./configure && make -j && make install
 **Specify TDengine Location：**
 
 ```shell
-phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/2.4.0.0 && make -j && make install
+phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/3.0.0.0 && make -j && make install
 ```
 
 > `--with-tdengine-dir=` is followed by the TDengine installation location.

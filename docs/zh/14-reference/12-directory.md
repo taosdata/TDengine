@@ -30,7 +30,7 @@ TDengine 的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下
 - _taosd-dump-cfg.gdb_：用于方便调试 taosd 的 gdb 执行脚本。
 
 :::note
-2.4.0.0 版本之后的 taosBenchmark 和 taosdump 需要安装独立安装包 taosTools。
+taosdump 需要安装独立安装包 taosTools。
 
 :::
 
