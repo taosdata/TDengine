@@ -5574,6 +5574,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
   if (pCtx->end.key != INT64_MIN) {
     pInfo->dOutput += twa_get_area(pInfo->p, pCtx->end);
     pInfo->p = pCtx->end;
+    numOfElems += 1;
   }
 
   pInfo->win.ekey = pInfo->p.key;

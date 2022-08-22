@@ -370,6 +370,7 @@ struct SSma {
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
 
 enum {
+  SNAP_DATA_CFG = 0,
   SNAP_DATA_META = 1,
   SNAP_DATA_TSDB = 2,
   SNAP_DATA_DEL = 3,
