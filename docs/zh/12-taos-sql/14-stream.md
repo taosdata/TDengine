@@ -44,6 +44,7 @@ window_clause: {
 ```sql
 CREATE STREAM avg_vol_s INTO avg_vol AS
 SELECT _wstartts, count(*), avg(voltage) FROM meters PARTITION BY tbname INTERVAL(1m) SLIDING(30s);
+```
 
 ## 流式计算的 partition
 
@@ -52,7 +53,6 @@ SELECT _wstartts, count(*), avg(voltage) FROM meters PARTITION BY tbname INTERVA
 不带 PARTITION BY 选项时，所有的数据将写入到一张子表。
 
 流式计算创建的超级表有唯一的 tag 列 groupId，每个 partition 会被分配唯一 groupId。与 schemaless 写入一致，我们通过 MD5 计算子表名，并自动创建它。
-```
 
 ## 删除流式计算
 
