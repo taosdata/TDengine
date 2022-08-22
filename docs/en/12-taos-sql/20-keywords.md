@@ -1,10 +1,11 @@
 ---
-title: Keywords
+sidebar_label: Reserved Keywords
+title: Reserved Keywords
 ---
 
-There are about 200 keywords reserved by TDengine, they can't be used as the name of database, STable or table with either upper case, lower case or mixed case.
+## Keyword List
 
-## Keywords List
+There are about 200 keywords reserved by TDengine, they can't be used as the name of database, STable or table with either upper case, lower case or mixed case. The following list shows all reserved keywords:
 
 ### A
 
@@ -57,70 +58,70 @@ There are about 200 keywords reserved by TDengine, they can't be used as the nam
 
 ### D
 
-- DATABASE  
-- DATABASES 
-- DAYS      
-- DBS       
-- DEFERRED  
+- DATABASE
+- DATABASES
+- DAYS
+- DBS
+- DEFERRED
 - DELETE
 - DELIMITERS
-- DESC      
-- DESCRIBE  
-- DETACH    
-- DISTINCT  
-- DIVIDE    
-- DNODE     
-- DNODES    
-- DOT       
-- DOUBLE    
-- DROP  
+- DESC
+- DESCRIBE
+- DETACH
+- DISTINCT
+- DIVIDE
+- DNODE
+- DNODES
+- DOT
+- DOUBLE
+- DROP
 
 ### E
 
-- END     
-- EQ      
-- EXISTS  
-- EXPLAIN 
+- END
+- EQ
+- EXISTS
+- EXPLAIN
 
 ### F
 
-- FAIL   
-- FILE   
-- FILL   
-- FLOAT  
-- FOR    
-- FROM   
-- FSYNC  
+- FAIL
+- FILE
+- FILL
+- FLOAT
+- FOR
+- FROM
+- FSYNC
 
 ### G
 
-- GE    
-- GLOB  
+- GE
+- GLOB
 - GRANTS
-- GROUP 
-- GT  
+- GROUP
+- GT
 
 ### H
 
-- HAVING 
+- HAVING
 
 ### I
 
 - ID
 - IF
-- IGNORE 
+- IGNORE
 - IMMEDIA
-- IMPORT 
-- IN     
+- IMPORT
+- IN
 - INITIAL
-- INSERT 
+- INSERT
 - INSTEAD
-- INT    
+- INT
 - INTEGER
 - INTERVA
-- INTO   
-- IS     
-- ISNULL 
+- INTO
+- IS
+- ISNULL
 
 ### J
 
@@ -129,187 +130,147 @@ There are about 200 keywords reserved by TDengine, they can't be used as the nam
 ### K
 
 - KEEP
-- KEY 
+- KEY
 - KILL
 
 ### L
 
-- LE    
-- LIKE  
-- LIMIT 
+- LE
+- LIKE
+- LIMIT
 - LINEAR
-- LOCAL 
-- LP    
+- LOCAL
+- LP
 - LSHIFT
-- LT 
+- LT
 
 ### M
 
-- MATCH    
-- MAXROWS  
-- MINROWS  
-- MINUS    
-- MNODES   
-- MODIFY   
-- MODULES  
+- MATCH
+- MAXROWS
+- MINROWS
+- MINUS
+- MNODES
+- MODIFY
+- MODULES
 
 ### N
 
-- NE     
-- NONE   
-- NOT    
+- NE
+- NONE
+- NOT
 - NOTNULL
-- NOW    
+- NOW
 - NULL
 
 ### O
 
-- OF    
+- OF
 - OFFSET
-- OR    
-- ORDER 
+- OR
+- ORDER
 
 ### P
 
 - PARTITION
-- PASS     
-- PLUS     
-- PPS      
+- PASS
+- PLUS
+- PPS
 - PRECISION
-- PREV     
+- PREV
 - PRIVILEGE
 
 ### Q
 
-- QTIME 
+- QTIME
 - QUERIE
-- QUERY 
+- QUERY
 - QUORUM
 
 ### R
 
-- RAISE  
-- REM    
+- RAISE
+- REM
 - REPLACE
 - REPLICA
-- RESET  
+- RESET
 - RESTRIC
-- ROW    
-- RP     
+- ROW
+- RP
 - RSHIFT
 
 ### S
 
-- SCORES 
-- SELECT 
-- SEMI   
+- SCORES
+- SELECT
+- SEMI
 - SESSION
-- SET    
-- SHOW   
-- SLASH  
+- SET
+- SHOW
+- SLASH
 - SLIDING
-- SLIMIT 
+- SLIMIT
 - SMALLIN
 - SOFFSET
-- STable 
+- STable
 - STableS
-- STAR    
-- STATE   
+- STAR
+- STATE
 - STATEMEN
 - STATE_WI
-- STORAGE 
-- STREAM  
-- STREAMS 
-- STRING  
-- SYNCDB  
+- STORAGE
+- STREAM
+- STREAMS
+- STRING
+- SYNCDB
 
 ### T
 
-- TABLE     
-- TABLES    
-- TAG       
-- TAGS      
-- TBNAME    
-- TIMES     
-- TIMESTAMP 
-- TINYINT   
-- TOPIC     
-- TOPICS    
-- TRIGGER   
-- TSERIES   
+- TABLE
+- TABLES
+- TAG
+- TAGS
+- TBNAME
+- TIMES
+- TIMESTAMP
+- TINYINT
+- TOPIC
+- TOPICS
+- TRIGGER
+- TSERIES
 
 ### U
 
-- UMINUS   
-- UNION    
-- UNSIGNED 
-- UPDATE   
-- UPLUS    
-- USE      
-- USER     
-- USERS    
-- USING  
+- UMINUS
+- UNION
+- UNSIGNED
+- UPDATE
+- UPLUS
+- USE
+- USER
+- USERS
+- USING
 
 ### V
 
-- VALUES   
-- VARIABLE 
+- VALUES
+- VARIABLE
 - VARIABLES
-- VGROUPS  
-- VIEW     
-- VNODES   
+- VGROUPS
+- VIEW
+- VNODES
 
 ### W
 
 - WAL
 - WHERE
 
-### _
+### \_
 
-- _C0
-- _QSTART
-- _QSTOP
-- _QDURATION
-- _WSTART
-- _WSTOP
-- _WDURATION
-
-## Explanations
-### TBNAME
-`TBNAME` can be considered as a special tag, which represents the name of the subtable, in a STable.
-
-Get the table name and tag values of all subtables in a STable.
-```mysql
-SELECT TBNAME, location FROM meters;
-```
-
-Count the number of subtables in a STable.
-```mysql
-SELECT COUNT(TBNAME) FROM meters;
-```
-
-Only filter on TAGS can be used in WHERE clause in the above two query statements.
-```mysql
-taos> SELECT TBNAME, location FROM meters;
-             tbname             |            location            |
-==================================================================
- d1004                          | California.SanFrancisco        |
- d1003                          | California.SanFrancisco        |
- d1002                          | California.LosAngeles          |
- d1001                          | California.LosAngeles          |
-Query OK, 4 row(s) in set (0.000881s)
-
-taos> SELECT COUNT(tbname) FROM meters WHERE groupId > 2;
-     count(tbname)     |
-========================
-                     2 |
-Query OK, 1 row(s) in set (0.001091s)
-```
-### _QSTART/_QSTOP/_QDURATION
-The start, stop and duration of a query time window.
-
-### _WSTART/_WSTOP/_WDURATION
-The start, stop and duration of aggegate query by time window, like interval, session window, state window.
-
-### _c0/_ROWTS
-_c0 is equal to _ROWTS, it means the first column of a table or STable.
+- \_C0
+- \_QSTART
+- \_QSTOP
+- \_QDURATION
+- \_WSTART
+- \_WSTOP
+- \_WDURATION

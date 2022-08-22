@@ -1,247 +1,247 @@
 ---
-sidebar_label: 元数据库
-title: 元数据库
+sidebar_label: Metadata
+title: Information_Schema Database
 ---
 
-TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数据库元数据、数据库系统信息和状态的访问，例如数据库或表的名称，当前执行的 SQL 语句等。该数据库存储有关 TDengine 维护的所有其他数据库的信息。它包含多个只读表。实际上，这些表都是视图，而不是基表，因此没有与它们关联的文件。所以对这些表只能查询，不能进行 INSERT 等写入操作。`INFORMATION_SCHEMA` 数据库旨在以一种更一致的方式来提供对 TDengine 支持的各种 SHOW 语句（如 SHOW TABLES、SHOW DATABASES）所提供的信息的访问。与 SHOW 语句相比，使用 SELECT ... FROM INFORMATION_SCHEMA.tablename 具有以下优点：
+TDengine includes a built-in database named `INFORMATION_SCHEMA` to provide access to database metadata, system information, and status information. This information includes database names, table names, and currently running SQL statements. All information related to TDengine maintenance is stored in this database. It contains several read-only tables. These tables are more accurately described as views, and they do not correspond to specific files. You can query these tables but cannot write data to them. The INFORMATION_SCHEMA database is intended to provide a unified method for SHOW commands to access data. However, using SELECT ... FROM INFORMATION_SCHEMA.tablename offers several advantages over SHOW commands:
 
-1. 可以使用 USE 语句将 INFORMATION_SCHEMA 设为默认数据库
-2. 可以使用 SELECT 语句熟悉的语法，只需要学习一些表名和列名
-3. 可以对查询结果进行筛选、排序等操作。事实上，可以使用任意 TDengine 支持的 SELECT 语句对 INFORMATION_SCHEMA 中的表进行查询
-4. TDengine 在后续演进中可以灵活的添加已有 INFORMATION_SCHEMA 中表的列，而不用担心对既有业务系统造成影响
-5. 与其他数据库系统更具互操作性。例如，Oracle 数据库用户熟悉查询 Oracle 数据字典中的表
+1. You can use a USE statement to specify the INFORMATION_SCHEMA database as the current database.
+2. You can use the familiar SELECT syntax to access information, provided that you know the table and column names.
+3. You can filter and order the query results. More generally, you can use any SELECT syntax that TDengine supports to query the INFORMATION_SCHEMA database.
+4. Future versions of TDengine can add new columns to INFORMATION_SCHEMA tables without affecting existing business systems.
+5. It is easier for users coming from other database management systems. For example, Oracle users can query data dictionary tables.
 
-Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们仍然被保留。
+Note: SHOW statements are still supported for the convenience of existing users.
 
-本章将详细介绍 `INFORMATION_SCHEMA` 这个内置元数据库中的表和表结构。
+This document introduces the tables of INFORMATION_SCHEMA and their structure.
 
 ## INS_DNODES
 
-提供 dnode 的相关信息。也可以使用 SHOW DNODES 来查询这些信息。
+Provides information about dnodes. Similar to SHOW DNODES.
 
-| #   |    **列名**    | **数据类型** | **说明**                  |
+| #   |    **Column**    | **Data Type** | **Description**                  |
 | --- | :------------: | ------------ | ------------------------- |
-| 1   |     vnodes     | SMALLINT     | dnode 中的实际 vnode 个数 |
-| 2   | support_vnodes | SMALLINT     | 最多支持的 vnode 个数     |
-| 3   |     status     | BINARY(10)   | 当前状态                  |
-| 4   |      note      | BINARY(256)  | 离线原因等信息            |
-| 5   |       id       | SMALLINT     | dnode id                  |
-| 6   |    endpoint    | BINARY(134)  | dnode 的地址              |
-| 7   |     create     | TIMESTAMP    | 创建时间                  |
+| 1   |     vnodes     | SMALLINT     | Current number of vnodes on the dnode |
+| 2   |     vnodes     | SMALLINT     | Maximum number of vnodes on the dnode |
+| 3   |     status     | BINARY(10)   | Current status                  |
+| 4   |      note      | BINARY(256)  | Reason for going offline or other information            |
+| 5   |       id       | SMALLINT     | Dnode ID                  |
+| 6   |    endpoint    | BINARY(134)  | Dnode endpoint              |
+| 7   |     create     | TIMESTAMP    | Creation time                  |
 
 ## INS_MNODES
 
-提供 mnode 的相关信息。也可以使用 SHOW MNODES 来查询这些信息。
+Provides information about mnodes. Similar to SHOW MNODES.
 
-| #   |  **列名**   | **数据类型** | **说明**           |
+| #   |    **Column**    | **Data Type** | **Description**                  |
 | --- | :---------: | ------------ | ------------------ |
-| 1   |     id      | SMALLINT     | mnode id           |
-| 2   |  endpoint   | BINARY(134)  | mnode 的地址       |
-| 3   |    role     | BINARY(10)   | 当前角色           |
-| 4   |  role_time  | TIMESTAMP    | 成为当前角色的时间 |
-| 5   | create_time | TIMESTAMP    | 创建时间           |
+| 1   |       id       | SMALLINT     | Mnode ID                  |
+| 2   |    endpoint    | BINARY(134)  | Mnode endpoint              |
+| 3   |    role     | BINARY(10)   | Current role           |
+| 4   |  role_time  | TIMESTAMP    | Time at which the current role was assumed |
+| 5   | create_time | TIMESTAMP    | Creation time           |
 
 ## INS_MODULES
 
-提供组件的相关信息。也可以使用 SHOW MODULES 来查询这些信息
+Provides information about modules. Similar to SHOW MODULES.
 
-| #   | **列名** | **数据类型** | **说明**   |
+| #   |    **Column**    | **Data Type** | **Description**                  |
 | --- | :------: | ------------ | ---------- |
-| 1   |    id    | SMALLINT     | module id  |
-| 2   | endpoint | BINARY(134)  | 组件的地址 |
-| 3   |  module  | BINARY(10)   | 组件状态   |
+| 1   |       id       | SMALLINT     | Module ID                  |
+| 2   |    endpoint    | BINARY(134)  | Module endpoint              |
+| 3   |  module  | BINARY(10)   | Module status   |
 
 ## INS_QNODES
 
-当前系统中 QNODE 的信息。也可以使用 SHOW QNODES 来查询这些信息。
+Provides information about qnodes. Similar to SHOW QNODES.
 
-| #   |  **列名**   | **数据类型** | **说明**     |
+| #   |    **Column**    | **Data Type** | **Description**                  |
 | --- | :---------: | ------------ | ------------ |
-| 1   |     id      | SMALLINT     | qnode id     |
-| 2   |  endpoint   | BINARY(134)  | qnode 的地址 |
-| 3   | create_time | TIMESTAMP    | 创建时间     |
+| 1   |       id       | SMALLINT     | Qnode ID                  |
+| 2   |    endpoint    | BINARY(134)  | Qnode endpoint              |
+| 3   | create_time | TIMESTAMP    | Creation time           |
 
 ## INS_CLUSTER
 
-存储集群相关信息。
+Provides information about the cluster.
 
-| #   |  **列名**   | **数据类型** | **说明**   |
+| #   |    **Column**    | **Data Type** | **Description**                  |
 | --- | :---------: | ------------ | ---------- |
-| 1   |     id      | BIGINT       | cluster id |
-| 2   |    name     | BINARY(134)  | 集群名称   |
-| 3   | create_time | TIMESTAMP    | 创建时间   |
+| 1   |     id      | BIGINT       | Cluster ID |
+| 2   |    name     | BINARY(134)  | Cluster name   |
+| 3   | create_time | TIMESTAMP    | Creation time           |
 
 ## INS_DATABASES
 
-提供用户创建的数据库对象的相关信息。也可以使用 SHOW DATABASES 来查询这些信息。
+Provides information about user-created databases. Similar to SHOW DATABASES.
 
-| #   |       **列名**       | **数据类型**     | **说明**                                         |
+| #   |    **Column**    | **Data Type** | **Description**                  |
 | --- | :------------------: | ---------------- | ------------------------------------------------ |
-| 1   |         name         | BINARY(32)       | 数据库名                                         |
-| 2   |     create_time      | TIMESTAMP        | 创建时间                                         |
-| 3   |       ntables        | INT              | 数据库中表的数量，包含子表和普通表但不包含超级表 |
-| 4   |       vgroups        | INT              | 数据库中有多少个 vgroup                          |
-| 6   |       replica        | INT              | 副本数                                           |
-| 7   |        quorum        | BINARY(3)        | 强一致性                                         |
-| 8   |       duration       | INT              | 单文件存储数据的时间跨度                         |
-| 9   |         keep         | INT              | 数据保留时长                                     |
-| 10  |        buffer        | INT              | 每个 vnode 写缓存的内存块大小，单位 MB           |
-| 11  |       pagesize       | INT              | 每个 VNODE 中元数据存储引擎的页大小，单位为 KB   |
-| 12  |        pages         | INT              | 每个 vnode 元数据存储引擎的缓存页个数            |
-| 13  |       minrows        | INT              | 文件块中记录的最大条数                           |
-| 14  |       maxrows        | INT              | 文件块中记录的最小条数                           |
-| 15  |         comp         | INT              | 数据压缩方式                                     |
-| 16  |      precision       | BINARY(2)        | 时间分辨率                                       |
-| 17  |        status        | BINARY(10)       | 数据库状态                                       |
-| 18  |      retention       | BINARY (60)      | 数据的聚合周期和保存时长                         |
-| 19  |    single_stable     | BOOL             | 表示此数据库中是否只可以创建一个超级表           |
-| 20  |      cachemodel      | BINARY(60)       | 表示是否在内存中缓存子表的最近数据               |
-| 21  |      cachesize       | INT              | 表示每个 vnode 中用于缓存子表最近数据的内存大小  |
-| 22  |      wal_level       | INT              | WAL 级别                                         |
-| 23  |   wal_fsync_period   | INT              | 数据落盘周期                                     |
-| 24  | wal_retention_period | INT              | WAL 的保存时长                                   |
-| 25  |  wal_retention_size  | INT              | WAL 的保存上限                                   |
-| 26  |   wal_roll_period    | INT              | wal 文件切换时长                                 |
-| 27  |   wal_segment_size   | wal 单个文件大小 |
+| 1| name| BINARY(32)| Database name |
+| 2   | create_time | TIMESTAMP    | Creation time           |
+| 3   |       ntables        | INT              | Number of standard tables and subtables (not including supertables) |
+| 4   |       vgroups        | INT              | Number of vgroups                           |
+| 6   |       replica        | INT              | Number of replicas                                           |
+| 7   |        quorum        | BINARY(3)        | Strong consistency                                         |
+| 8   |       duration       | INT              | Duration for storage of single files                         |
+| 9   |         keep         | INT              | Data retention period                                     |
+| 10  |        buffer        | INT              | Write cache size per vnode, in MB           |
+| 11  |       pagesize       | INT              | Page size for vnode metadata storage engine, in KB   |
+| 12  |        pages         | INT              | Number of pages per vnode metadata storage engine            |
+| 13  |       minrows        | INT              | Maximum number of records per file block                           |
+| 14  |       maxrows        | INT              | Minimum number of records per file block                           |
+| 15  |         comp         | INT              | Compression method                                     |
+| 16  |      precision       | BINARY(2)        | Time precision                                      |
+| 17  |        status        | BINARY(10)       | Current database status                                       |
+| 18  |      retention       | BINARY (60)      | Aggregation interval and retention period                         |
+| 19  |    single_stable     | BOOL             | Whether the database can contain multiple supertables           |
+| 20  |      cachemodel      | BINARY(60)       | Caching method for the newest data               |
+| 21  |      cachesize       | INT              | Memory per vnode used for caching the newest data  |
+| 22  |      wal_level       | INT              | WAL level                                     |
+| 23  |   wal_fsync_period   | INT              | Interval at which WAL is written to disk  |
+| 24  | wal_retention_period | INT              | WAL retention period                                   |
+| 25  |  wal_retention_size  | INT              | Maximum WAL size                                   |
+| 26  |   wal_roll_period    | INT              | WAL rotation period                                 |
+| 27  |   wal_segment_size   | WAL file size |
 
 ## INS_FUNCTIONS
 
-用户创建的自定义函数的信息。
+Provides information about user-defined functions.
 
-| #   |  **列名**   | **数据类型** | **说明**       |
+| #   |    **Column**    | **Data Type** | **Description**                  |
 | --- | :---------: | ------------ | -------------- |
-| 1   |    name     | BINARY(64)   | 函数名         |
-| 2   |   comment   | BINARY(255)  | 补充说明       |
-| 3   |  aggregate  | INT          | 是否为聚合函数 |
-| 4   | output_type | BINARY(31)   | 输出类型       |
-| 5   | create_time | TIMESTAMP    | 创建时间       |
-| 6   |  code_len   | INT          | 代码长度       |
-| 7   |   bufsize   | INT          | buffer 大小    |
+| 1   |    name     | BINARY(64)   | Function name         |
+| 2   |   comment   | BINARY(255)  | Function description       |
+| 3   |  aggregate  | INT          | Whether the UDF is an aggregate function |
+| 4   | output_type | BINARY(31)   | Output data type       |
+| 5   | create_time | TIMESTAMP    | Creation time       |
+| 6   |  code_len   | INT          | Length of the source code       |
+| 7   |   bufsize   | INT          | Buffer size    |
 
 ## INS_INDEXES
 
-提供用户创建的索引的相关信息。也可以使用 SHOW INDEX 来查询这些信息。
+Provides information about user-created indices. Similar to SHOW INDEX.
 
-| #   |     **列名**     | **数据类型** | **说明**                                                                           |
+| #   |    **Column**    | **Data Type** | **Description**                  |
 | --- | :--------------: | ------------ | ---------------------------------------------------------------------------------- |
-| 1   |     db_name      | BINARY(32)   | 包含此索引的表所在的数据库名                                                       |
-| 2   |    table_name    | BINARY(192)  | 包含此索引的表的名称                                                               |
-| 3   |    index_name    | BINARY(192)  | 索引名                                                                             |
-| 4   |   column_name    | BINARY(64)   | 建索引的列的列名                                                                   |
-| 5   |    index_type    | BINARY(10)   | 目前有 SMA 和 FULLTEXT                                                             |
-| 6   | index_extensions | BINARY(256)  | 索引的额外信息。对 SMA 类型的索引，是函数名的列表。对 FULLTEXT 类型的索引为 NULL。 |
+| 1   |     db_name      | BINARY(32)   | Database containing the table with the specified index                                                       |
+| 2   |     table_name      | BINARY(192)   | Table containing the specified index                                                       |
+| 3   |    index_name    | BINARY(192)  | Index name                                                                             |
+| 4   |     db_name      | BINARY(64)   | Index column                                                       |
+| 5   |    index_type    | BINARY(10)   | SMA or FULLTEXT index                                                             |
+| 6   | index_extensions | BINARY(256)  | Other information For SMA indices, this shows a list of functions. For FULLTEXT indices, this is null. |
 
 ## INS_STABLES
 
-提供用户创建的超级表的相关信息。
+Provides information about supertables.
 
-| #   |   **列名**    | **数据类型** | **说明**                 |
+| #   |    **Column**    | **Data Type** | **Description**                  |
 | --- | :-----------: | ------------ | ------------------------ |
-| 1   |  stable_name  | BINARY(192)  | 超级表表名               |
-| 2   |    db_name    | BINARY(64)   | 超级表所在的数据库的名称 |
-| 3   |  create_time  | TIMESTAMP    | 创建时间                 |
-| 4   |    columns    | INT          | 列数目                   |
-| 5   |     tags      | INT          | 标签数目                 |
-| 6   |  last_update  | TIMESTAMP    | 最后更新时间             |
-| 7   | table_comment | BINARY(1024) | 表注释                   |
-| 8   |   watermark   | BINARY(64)   | 窗口的关闭时间           |
-| 9   |   max_delay   | BINARY(64)   | 推送计算结果的最大延迟   |
-| 10  |    rollup     | BINARY(128)  | rollup 聚合函数          |
+| 1   |  stable_name  | BINARY(192)  | Supertable name               |
+| 2   |    db_name    | BINARY(64)   | All databases in the supertable |
+| 3   |  create_time  | TIMESTAMP    | Creation time                 |
+| 4   |    columns    | INT          | Number of columns                   |
+| 5   |     tags      | INT          | Number of tags                |
+| 6   |  last_update  | TIMESTAMP    | Last updated time             |
+| 7   | table_comment | BINARY(1024) | Table description                   |
+| 8   |   watermark   | BINARY(64)   | Window closing time           |
+| 9   |   max_delay   | BINARY(64)   | Maximum delay for pushing stream processing results  |
+| 10  |    rollup     | BINARY(128)  | Rollup aggregate function          |
 
 ## INS_TABLES
 
-提供用户创建的普通表和子表的相关信息
+Provides information about standard tables and subtables.
 
-| #   |   **列名**    | **数据类型** | **说明**         |
+| #   |    **Column**    | **Data Type** | **Description**                  |
 | --- | :-----------: | ------------ | ---------------- |
-| 1   |  table_name   | BINARY(192)  | 表名             |
-| 2   |    db_name    | BINARY(64)   | 数据库名         |
-| 3   |  create_time  | TIMESTAMP    | 创建时间         |
-| 4   |    columns    | INT          | 列数目           |
-| 5   |  stable_name  | BINARY(192)  | 所属的超级表表名 |
-| 6   |      uid      | BIGINT       | 表 id            |
-| 7   |   vgroup_id   | INT          | vgroup id        |
-| 8   |      ttl      | INT          | 表的生命周期     |
-| 9   | table_comment | BINARY(1024) | 表注释           |
-| 10  |     type      | BINARY(20)   | 表类型           |
+| 1   |  table_name   | BINARY(192)  | Table name             |
+| 2   |    db_name    | BINARY(64)   | Database name         |
+| 3   |  create_time  | TIMESTAMP    | Creation time         |
+| 4   |    columns    | INT          | Number of columns           |
+| 5   |  stable_name  | BINARY(192)  | Supertable name |
+| 6   |      uid      | BIGINT       | Table ID            |
+| 7   |   vgroup_id   | INT          | Vgroup ID        |
+| 8   |      ttl      | INT          | Table time-to-live    |
+| 9   | table_comment | BINARY(1024) | Table description           |
+| 10  |     type      | BINARY(20)   | Table type           |
 
 ## INS_TAGS
 
-| #   |  **列名**   | **数据类型**  | **说明**               |
+| #   |    **Column**    | **Data Type** | **Description**                  |
 | --- | :---------: | ------------- | ---------------------- |
-| 1   | table_name  | BINARY(192)   | 表名                   |
-| 2   |   db_name   | BINARY(64)    | 该表所在的数据库的名称 |
-| 3   | stable_name | BINARY(192)   | 所属的超级表表名       |
-| 4   |  tag_name   | BINARY(64)    | tag 的名称             |
-| 5   |  tag_type   | BINARY(64)    | tag 的类型             |
-| 6   |  tag_value  | BINARY(16384) | tag 的值               |
+| 1   | table_name  | BINARY(192)   | Table name                   |
+| 2   |   db_name   | BINARY(64)    | Database name |
+| 3   | stable_name | BINARY(192)   | Supertable name       |
+| 4   |  tag_name   | BINARY(64)    | Tag name             |
+| 5   |  tag_type   | BINARY(64)    | Tag type             |
+| 6   |  tag_value  | BINARY(16384) | Tag value               |
 
 ## INS_USERS
 
-提供系统中创建的用户的相关信息。
+Provides information about TDengine users.
 
-| #   |  **列名**   | **数据类型** | **说明** |
+| #   |    **Column**    | **Data Type** | **Description**                  |
 | --- | :---------: | ------------ | -------- |
-| 1   |  user_name  | BINARY(23)   | 用户名   |
-| 2   |  privilege  | BINARY(256)  | 权限     |
-| 3   | create_time | TIMESTAMP    | 创建时间 |
+| 1   |  user_name  | BINARY(23)   | User name   |
+| 2   |  privilege  | BINARY(256)  | User permissions     |
+| 3   | create_time | TIMESTAMP    | Creation time |
 
 ## INS_GRANTS
 
-提供企业版授权的相关信息。
+Provides information about TDengine Enterprise Edition permissions.
 
-| #   |  **列名**   | **数据类型** | **说明**                                           |
+| #   |    **Column**    | **Data Type** | **Description**                  |
 | --- | :---------: | ------------ | -------------------------------------------------- |
-| 1   |   version   | BINARY(9)    | 企业版授权说明：official(官方授权的)/trial(试用的) |
-| 2   |  cpu_cores  | BINARY(9)    | 授权使用的 CPU 核心数量                            |
-| 3   |   dnodes    | BINARY(10)   | 授权使用的 dnode 节点数量                          |
-| 4   |   streams   | BINARY(10)   | 授权创建的流数量                                   |
-| 5   |    users    | BINARY(10)   | 授权创建的用户数量                                 |
-| 6   |  accounts   | BINARY(10)   | 授权创建的帐户数量                                 |
-| 7   |   storage   | BINARY(21)   | 授权使用的存储空间大小                             |
-| 8   | connections | BINARY(21)   | 授权使用的客户端连接数量                           |
-| 9   |  databases  | BINARY(11)   | 授权使用的数据库数量                               |
-| 10  |    speed    | BINARY(9)    | 授权使用的数据点每秒写入数量                       |
-| 11  |  querytime  | BINARY(9)    | 授权使用的查询总时长                               |
-| 12  | timeseries  | BINARY(21)   | 授权使用的测点数量                                 |
-| 13  |   expired   | BINARY(5)    | 是否到期，true：到期，false：未到期                |
-| 14  | expire_time | BINARY(19)   | 试用期到期时间                                     |
+| 1   |   version   | BINARY(9)    | Whether the deployment is a licensed or trial version |
+| 2   |  cpu_cores  | BINARY(9)    | CPU cores included in license                           |
+| 3   |   dnodes    | BINARY(10)   | Dnodes included in license                         |
+| 4   |   streams   | BINARY(10)   | Streams included in license                                   |
+| 5   |    users    | BINARY(10)   | Users included in license                                 |
+| 6   |   streams   | BINARY(10)   | Accounts included in license                                   |
+| 7   |   storage   | BINARY(21)   | Storage space included in license                             |
+| 8   | connections | BINARY(21)   | Client connections included in license                           |
+| 9   |  databases  | BINARY(11)   | Databases included in license                               |
+| 10  |    speed    | BINARY(9)    | Write speed specified in license (data points per second)                       |
+| 11  |  querytime  | BINARY(9)    | Total query time specified in license                               |
+| 12  | timeseries  | BINARY(21)   | Number of metrics included in license                                 |
+| 13  |   expired   | BINARY(5)    | Whether the license has expired                |
+| 14  | expire_time | BINARY(19)   | When the trial period expires                                     |
 
 ## INS_VGROUPS
 
-系统中所有 vgroups 的信息。
+Provides information about vgroups.
 
-| #   | **列名**  | **数据类型** | **说明**                                               |
+| #   |    **Column**    | **Data Type** | **Description**                  |
 | --- | :-------: | ------------ | ------------------------------------------------------ |
-| 1   | vgroup_id | INT          | vgroup id                                              |
-| 2   |  db_name  | BINARY(32)   | 数据库名                                               |
-| 3   |  tables   | INT          | 此 vgroup 内有多少表                                   |
-| 4   |  status   | BINARY(10)   | 此 vgroup 的状态                                       |
-| 5   | v1_dnode  | INT          | 第一个成员所在的 dnode 的 id                           |
-| 6   | v1_status | BINARY(10)   | 第一个成员的状态                                       |
-| 7   | v2_dnode  | INT          | 第二个成员所在的 dnode 的 id                           |
-| 8   | v2_status | BINARY(10)   | 第二个成员的状态                                       |
-| 9   | v3_dnode  | INT          | 第三个成员所在的 dnode 的 id                           |
-| 10  | v3_status | BINARY(10)   | 第三个成员的状态                                       |
-| 11  |  nfiles   | INT          | 此 vgroup 中数据/元数据文件的数量                      |
-| 12  | file_size | INT          | 此 vgroup 中数据/元数据文件的大小                      |
-| 13  |   tsma    | TINYINT      | 此 vgroup 是否专用于 Time-range-wise SMA，1: 是, 0: 否 |
+| 1   | vgroup_id | INT          | Vgroup ID                                              |
+| 2   |  db_name  | BINARY(32)   | Database name                                               |
+| 3   |  tables   | INT          | Tables in vgroup                                  |
+| 4   |  status   | BINARY(10)   | Vgroup status                                       |
+| 5   | v1_dnode  | INT          | Dnode ID of first vgroup member                           |
+| 6   | v1_status | BINARY(10)   | Status of first vgroup member                                       |
+| 7   | v2_dnode  | INT          | Dnode ID of second vgroup member                           |
+| 8   | v2_status | BINARY(10)   | Status of second vgroup member                                       |
+| 9   | v3_dnode  | INT          | Dnode ID of third vgroup member                          |
+| 10  | v3_status | BINARY(10)   | Status of third vgroup member                                       |
+| 11  |  nfiles   | INT          | Number of data and metadata files in the vgroup                      |
+| 12  | file_size | INT          | Size of the data and metadata files in the vgroup                      |
+| 13  |   tsma    | TINYINT      | Whether time-range-wise SMA is enabled. 1 means enabled; 0 means disabled. |
 
 ## INS_CONFIGS
 
-系统配置参数。
+Provides system configuration information.
 
-| #   | **列名** | **数据类型** | **说明**     |
+| #   |    **Column**    | **Data Type** | **Description**                  |
 | --- | :------: | ------------ | ------------ |
-| 1   |   name   | BINARY(32)   | 配置项名称   |
-| 2   |  value   | BINARY(64)   | 该配置项的值 |
+| 1   |    name     | BINARY(32)  | Parameter   |
+| 2   |  value   | BINARY(64)   | Value |
 
 ## INS_DNODE_VARIABLES
 
-系统中每个 dnode 的配置参数。
+Provides dnode configuration information.
 
-| #   | **列名** | **数据类型** | **说明**     |
+| #   |    **Column**    | **Data Type** | **Description**                  |
 | --- | :------: | ------------ | ------------ |
-| 1   | dnode_id | INT          | dnode 的 ID  |
-| 2   |   name   | BINARY(32)   | 配置项名称   |
-| 3   |  value   | BINARY(64)   | 该配置项的值 |
+| 1   | dnode_id | INT          | Dnode ID |
+| 2   |   name   | BINARY(32)   | Parameter   |
+| 3   |  value   | BINARY(64)   | Value |

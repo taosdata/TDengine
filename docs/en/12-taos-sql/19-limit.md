@@ -1,59 +1,59 @@
 ---
-sidebar_label: 命名与边界限制
-title: 命名与边界限制
+sidebar_label: Name and Size Limits
+title: Name and Size Limits
 ---
 
-## 名称命名规则
+## Naming Rules
 
-1. 合法字符：英文字符、数字和下划线
-2. 允许英文字符或下划线开头，不允许以数字开头
-3. 不区分大小写
-4. 转义后表（列）名规则：
-   为了兼容支持更多形式的表（列）名，TDengine 引入新的转义符 "`"。可用让表名与关键词不冲突，同时不受限于上述表名称合法性约束检查
-   转义后的表（列）名同样受到长度限制要求，且长度计算的时候不计算转义符。使用转义字符以后，不再对转义字符中的内容进行大小写统一
+1. Names can include letters, digits, and underscores (_).
+2. Names can begin with letters or underscores (_) but not with digits.
+3. Names are not case-sensitive.
+4. Rules for names with escape characters are as follows:
+   You can escape a name by enclosing it in backticks (`). In this way, you can reuse keyword names for table names. However, the first three naming rules no longer apply.
+   Table and column names that are enclosed in escape characters are still subject to length limits. When the length of such a name is calculated, the escape characters are not included. Names specified using escape character are case-sensitive.
 
-   例如：\`aBc\` 和 \`abc\` 是不同的表（列）名，但是 abc 和 aBc 是相同的表（列）名。
-   需要注意的是转义字符中的内容必须是可打印字符。
+   For example, \`aBc\` and \`abc\` are different table or column names, but "abc" and "aBc" are same names because internally they are all "abc".
+   Only ASCII visible characters can be used with escape character.
 
-## 密码合法字符集
+## Password Rules
 
 `[a-zA-Z0-9!?$%^&*()_–+={[}]:;@~#|<,>.?/]`
 
-去掉了 `` ‘“`\ `` (单双引号、撇号、反斜杠、空格)
+The following characters cannot occur in a password: single quotation marks ('), double quotation marks ("), backticks (`), backslashes (\\), and spaces.
 
-## 一般限制
+## General Limits
 
-- 数据库名最大长度为 32
-- 表名最大长度为 192，不包括数据库名前缀和分隔符
-- 每行数据最大长度 48KB （注意：数据行内每个 BINARY/NCHAR 类型的列还会额外占用 2 个字节的存储位置）
-- 列名最大长度为 64
-- 最多允许 4096 列，最少需要 2 列，第一列必须是时间戳。
-- 标签名最大长度为 64
-- 最多允许 128 个，至少要有 1 个标签，一个表中标签值的总长度不超过 16KB
-- SQL 语句最大长度 1048576 个字符，也可通过客户端配置参数 maxSQLLength 修改，取值范围 65480 ~ 1048576
-- SELECT 语句的查询结果，最多允许返回 4096 列（语句中的函数调用可能也会占用一些列空间），超限时需要显式指定较少的返回数据列，以避免语句执行报错
-- 库的数目，超级表的数目、表的数目，系统不做限制，仅受系统资源限制
-- 数据库的副本数只能设置为 1 或 3
-- 用户名的最大长度是 23 个字节
-- 用户密码的最大长度是 15 个字节
-- 总数据行数取决于可用资源
-- 单个数据库的虚拟结点数上限为 1024
+- Maximum length of database name is 32 bytes
+- Maximum length of table name is 192 bytes, excluding the database name prefix and the separator.
+- Maximum length of each data row is 48K bytes. Note that the upper limit includes the extra 2 bytes consumed by each column of BINARY/NCHAR type.
+- The maximum length of a column name is 64 bytes.
+- Maximum number of columns is 4096. There must be at least 2 columns, and the first column must be timestamp.
+- The maximum length of a tag name is 64 bytes
+- Maximum number of tags is 128. There must be at least 1 tag. The total length of tag values cannot exceed 16 KB.
+- Maximum length of single SQL statement is 1 MB (1048576 bytes). It can be configured in the parameter `maxSQLLength` in the client side, the applicable range is [65480, 1048576].
+- At most 4096 columns can be returned by `SELECT`. Functions in the query statement constitute columns. An error is returned if the limit is exceeded.
+- Maximum numbers of databases, STables, tables are dependent only on the system resources.
+- The number of replicas can only be 1 or 3.
+- The maximum length of a username is 23 bytes.
+- The maximum length of a password is 15 bytes.
+- The maximum number of rows depends on system resources.
+- The maximum number of vnodes in a database is 1024.
 
-## 表(列)名合法性说明
+## Restrictions of Table/Column Names
 
-### TDengine 中的表（列）名命名规则如下：
+### Name Restrictions of Table/Column
 
-只能由字母、数字、下划线构成，数字不能在首位，长度不能超过 192 字节，不区分大小写。这里表名称不包括数据库名的前缀和分隔符。
+The name of a table or column can only be composed of ASCII characters, digits and underscore and it cannot start with a digit. The maximum length is 192 bytes. Names are case insensitive. The name mentioned in this rule doesn't include the database name prefix and the separator.
 
-### 转义后表（列）名规则：
+### Name Restrictions After Escaping
 
-为了兼容支持更多形式的表（列）名，TDengine 引入新的转义符 "`"，可以避免表名与关键词的冲突，同时不受限于上述表名合法性约束检查，转义符不计入表名的长度。
-转义后的表（列）名同样受到长度限制要求，且长度计算的时候不计算转义符。使用转义字符以后，不再对转义字符中的内容进行大小写统一。
+To support more flexible table or column names, new escape character "\`" is introduced in TDengine to avoid the conflict between table name and keywords and break the above restrictions for table names. The escape character is not counted in the length of table name.
+With escaping, the string inside escape characters are case sensitive, i.e. will not be converted to lower case internally. The table names specified using escape character are case sensitive.
 
-例如：
-\`aBc\` 和 \`abc\` 是不同的表（列）名，但是 abc 和 aBc 是相同的表（列）名。
+For example:
+\`aBc\` and \`abc\` are different table or column names, but "abc" and "aBc" are same names because internally they are all "abc".
 
 :::note
-转义字符中的内容必须是可打印字符。
+The characters inside escape characters must be printable characters.
 
 :::
