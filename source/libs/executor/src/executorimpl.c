@@ -3342,7 +3342,11 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
         pInfo->curGroupId = pInfo->pRes->info.groupId;  // the first data block
         pInfo->totalInputRows += pInfo->pRes->info.rows;
 
-        taosFillSetStartInfo(pInfo->pFillInfo, pInfo->pRes->info.rows, pBlock->info.window.ekey);
+        if (order == pInfo->pFillInfo->order) {
+          taosFillSetStartInfo(pInfo->pFillInfo, pInfo->pRes->info.rows, pBlock->info.window.ekey);
+        } else {
+          taosFillSetStartInfo(pInfo->pFillInfo, pInfo->pRes->info.rows, pBlock->info.window.skey);
+        }
         taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->pRes);
       } else if (pInfo->curGroupId != pBlock->info.groupId) {  // the new group data block
         pInfo->existNewGroupBlock = pBlock;
@@ -3711,13 +3715,20 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
                             const char* id, SInterval* pInterval, int32_t fillType, int32_t order) {
   SFillColInfo* pColInfo = createFillColInfo(pExpr, numOfCols, pNotFillExpr, numOfNotFillCols, pValNode);
 
-  STimeWindow w = getAlignQueryTimeWindow(pInterval, pInterval->precision, win.skey);
-  w = getFirstQualifiedTimeWindow(win.skey, &w, pInterval, TSDB_ORDER_ASC);
+  int64_t startKey = (order == TSDB_ORDER_ASC) ? win.skey : win.ekey;
+  STimeWindow w = getAlignQueryTimeWindow(pInterval, pInterval->precision, startKey);
+  w = getFirstQualifiedTimeWindow(startKey, &w, pInterval, order);
 
   pInfo->pFillInfo = taosCreateFillInfo(w.skey, numOfCols, numOfNotFillCols, capacity, pInterval, fillType, pColInfo,
                                         pInfo->primaryTsCol, order, id);
 
-  pInfo->win = win;
+  if (order == TSDB_ORDER_ASC) {
+    pInfo->win.skey = win.skey;
+    pInfo->win.ekey = win.ekey;
+  } else {
+    pInfo->win.skey = win.ekey;
+    pInfo->win.ekey = win.skey;
+  }
   pInfo->p = taosMemoryCalloc(numOfCols, POINTER_BYTES);
 
   if (pInfo->pFillInfo == NULL || pInfo->p == NULL) {
