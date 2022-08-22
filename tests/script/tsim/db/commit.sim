@@ -39,9 +39,9 @@ sql create table tb (ts timestamp, i int)
 $x = 1
 while $x < 41
   $time = $x . m
-  sql insert into tb values (now + $time , $x ) 
+  sql insert into tb values (now + $time , $x )
   $x = $x + 1
-endw 
+endw
 
 sql select * from tb order by ts desc
 print ===> rows $rows
@@ -71,7 +71,7 @@ if $data01 != 40 then
 	return -1
 endi
 
-$oldnum = $rows 
+$oldnum = $rows
 $num = $rows + 2
 
 print ======== step3 import old data

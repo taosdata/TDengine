@@ -3970,16 +3970,16 @@ int32_t elapsedFunction(SqlFunctionCtx* pCtx) {
     TSKEY*  ptsList = (int64_t*)colDataGetData(pCol, 0);
     if (pCtx->order == TSDB_ORDER_DESC) {
       if (pCtx->start.key == INT64_MIN) {
-        pInfo->max =
-            (pInfo->max < ptsList[start + pInput->numOfRows - 1]) ? ptsList[start + pInput->numOfRows - 1] : pInfo->max;
+        pInfo->max = (pInfo->max < ptsList[start]) ? ptsList[start] : pInfo->max;
       } else {
         pInfo->max = pCtx->start.key + 1;
       }
 
-      if (pCtx->end.key != INT64_MIN) {
-        pInfo->min = pCtx->end.key;
+      if (pCtx->end.key == INT64_MIN) {
+        pInfo->min = (pInfo->min > ptsList[start + pInput->numOfRows - 1]) ?
+                     ptsList[start + pInput->numOfRows - 1] : pInfo->min;
       } else {
-        pInfo->min = ptsList[start];
+        pInfo->min = pCtx->end.key;
       }
     } else {
       if (pCtx->start.key == INT64_MIN) {
@@ -3988,10 +3988,11 @@ int32_t elapsedFunction(SqlFunctionCtx* pCtx) {
         pInfo->min = pCtx->start.key;
       }
 
-      if (pCtx->end.key != INT64_MIN) {
-        pInfo->max = pCtx->end.key + 1;
+      if (pCtx->end.key == INT64_MIN) {
+        pInfo->max = (pInfo->max < ptsList[start + pInput->numOfRows - 1]) ?
+                     ptsList[start + pInput->numOfRows - 1] : pInfo->max;
       } else {
-        pInfo->max = ptsList[start + pInput->numOfRows - 1];
+        pInfo->max = pCtx->end.key + 1;
       }
     }
   }
@@ -5573,6 +5574,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
   if (pCtx->end.key != INT64_MIN) {
     pInfo->dOutput += twa_get_area(pInfo->p, pCtx->end);
     pInfo->p = pCtx->end;
+    numOfElems += 1;
   }
 
   pInfo->win.ekey = pInfo->p.key;

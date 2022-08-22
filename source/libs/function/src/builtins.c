@@ -1503,11 +1503,17 @@ static int32_t translateInterp(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
+  uint8_t nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, 0));
+  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (!IS_NUMERIC_TYPE(paraType) || QUERY_NODE_VALUE == nodeType) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
   if (3 <= numOfParams) {
     int64_t timeVal[2] = {0};
     for (int32_t i = 1; i < 3; ++i) {
-      uint8_t nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, i));
-      uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, i))->resType.type;
+      nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, i));
+      paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, i))->resType.type;
       if (!IS_VAR_DATA_TYPE(paraType) || QUERY_NODE_VALUE != nodeType) {
         return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
       }
@@ -1525,8 +1531,8 @@ static int32_t translateInterp(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   }
 
   if (4 == numOfParams) {
-    uint8_t nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, 3));
-    uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type;
+    nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, 3));
+    paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type;
     if (!IS_INTEGER_TYPE(paraType) || QUERY_NODE_VALUE != nodeType) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
