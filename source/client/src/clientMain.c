@@ -674,6 +674,8 @@ static void destorySqlParseWrapper(SqlParseWrapper *pWrapper) {
   taosArrayDestroy(pWrapper->catalogReq.pIndex);
   taosArrayDestroy(pWrapper->catalogReq.pUser);
   taosArrayDestroy(pWrapper->catalogReq.pTableIndex);
+  taosArrayDestroy(pWrapper->pCtx->pTableMetaPos);
+  taosArrayDestroy(pWrapper->pCtx->pTableVgroupPos);
   taosMemoryFree(pWrapper->pCtx);
   taosMemoryFree(pWrapper);
 }
