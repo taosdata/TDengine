@@ -1,28 +1,68 @@
 ---
-sidebar_label: 自定义函数
-title: 用户自定义函数
+sidebar_label: User-Defined Functions
+title: User-Defined Functions (UDF)
 ---
 
-除了 TDengine 的内置函数以外，用户还可以编写自己的函数逻辑并加入TDengine系统中。
+You can create user-defined functions and import them into TDengine.
+## Create UDF
 
-## 创建函数
+SQL command can be executed on the host where the generated UDF DLL resides to load the UDF DLL into TDengine. This operation cannot be done through REST interface or web console. Once created, any client of the current TDengine can use these UDF functions in their SQL commands. UDF are stored in the management node of TDengine. The UDFs loaded in TDengine would be still available after TDengine is restarted.
 
+When creating UDF, the type of UDF, i.e. a scalar function or aggregate function must be specified. If the specified type is wrong, the SQL statements using the function would fail with errors. The input data type and output data type must be consistent with the UDF definition.
+
+- Create Scalar Function
 ```sql
-CREATE [AGGREGATE] FUNCTION func_name AS library_path OUTPUTTYPE type_name [BUFSIZE value]
+CREATE FUNCTION function_name AS library_path OUTPUTTYPE output_type;
 ```
 
-语法说明：
+  - function_name: The scalar function name to be used in SQL statement which must be consistent with the UDF name and is also the name of the compiled DLL (.so file).
+  - library_path: The absolute path of the DLL file including the name of the shared object file (.so). The path must be quoted with single or double quotes.
+  - output_type: The data type of the results of the UDF.
 
-AGGREGATE：标识此函数是标量函数还是聚集函数。
-func_name：函数名，必须与函数实现中udfNormalFunc的实际名称一致。
-library_path：包含UDF函数实现的动态链接库的绝对路径，是在客户端侧主机上的绝对路径。
-OUTPUTTYPE：标识此函数的返回类型。
-BUFSIZE：中间结果的缓冲区大小，单位是字节。不设置则默认为0。最大不可超过512字节。
+  For example, the following SQL statement can be used to create a UDF from `libbitand.so`.
 
-关于如何开发自定义函数，请参考 [UDF使用说明](../../develop/udf)。
+  ```sql
+  CREATE FUNCTION bit_and AS "/home/taos/udf_example/libbitand.so" OUTPUTTYPE INT;
+  ```
 
-## 删除自定义函数
-
+- Create Aggregate Function
 ```sql
-DROP FUNCTION func_name
+CREATE AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE output_type [ BUFSIZE buffer_size ];
 ```
+
+  - function_name: The aggregate function name to be used in SQL statement which must be consistent with the udfNormalFunc name and is also the name of the compiled DLL (.so file).
+  - library_path: The absolute path of the DLL file including the name of the shared object file (.so). The path must be quoted with single or double quotes.
+  - output_type: The output data type, the value is the literal string of the supported TDengine data type.
+  - buffer_size: The size of the intermediate buffer in bytes. This parameter is optional.
+
+  For example, the following SQL statement can be used to create a UDF from `libl2norm.so`.
+
+  ```sql
+  CREATE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUTTYPE DOUBLE bufsize 8;
+  ```
+For more information about user-defined functions, see [User-Defined Functions](../../develop/udf).
+
+## Manage UDF
+
+- The following statement deleted the specified user-defined function.
+```
+DROP FUNCTION function_name;
+```
+
+- function_name: The value of function_name in the CREATE statement used to import the UDF for example `bit_and` or `l2norm`. 
+```sql
+DROP FUNCTION bit_and;
+```
+- Show Available UDF
+```sql
+SHOW FUNCTIONS;
+```
+
+## Call UDF
+
+The function name specified when creating UDF can be used directly in SQL statements, just like builtin functions. For example:
+```sql
+SELECT X(c1,c2) FROM table/stable;
+```
+
+The above SQL statement invokes function X for column c1 and c2. You can use query keywords like WHERE with user-defined functions.
