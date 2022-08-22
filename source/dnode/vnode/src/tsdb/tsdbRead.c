@@ -857,7 +857,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
 
 static int32_t doLoadFileBlockData(STsdbReader* pReader, SDataBlockIter* pBlockIter, SBlockData* pBlockData) {
   int64_t st = taosGetTimestampUs();
-  double elapsedTime = 0;
+  double  elapsedTime = 0;
   int32_t code = 0;
 
   SFileDataBlockInfo* pBlockInfo = getCurrentBlockInfo(pBlockIter);
@@ -1992,7 +1992,7 @@ static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanI
       TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
 
       // no last block
-      if (pLastBlockReader->lastBlockData.nRow == 0) {
+      if (pLastBlockReader->lastBlockData.nRow == 0 || (!hasDataInLastBlock(pLastBlockReader))) {
         if (tryCopyDistinctRowFromFileBlock(pReader, pBlockData, key, pDumpInfo)) {
           return TSDB_CODE_SUCCESS;
         } else {
@@ -2495,13 +2495,12 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
 }
 
 static int32_t doBuildDataBlock(STsdbReader* pReader) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  SReaderStatus*  pStatus = &pReader->status;
-  SDataBlockIter* pBlockIter = &pStatus->blockIter;
-
   TSDBKEY key = {0};
+  int32_t code = TSDB_CODE_SUCCESS;
   SBlock* pBlock = NULL;
+
+  SReaderStatus*       pStatus = &pReader->status;
+  SDataBlockIter*      pBlockIter = &pStatus->blockIter;
   STableBlockScanInfo* pScanInfo = NULL;
   SFileDataBlockInfo*  pBlockInfo = getCurrentBlockInfo(pBlockIter);
   SLastBlockReader*    pLastBlockReader = pReader->status.fileIter.pLastBlockReader;
