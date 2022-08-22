@@ -637,8 +637,7 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
       case QUERY_NODE_COLUMN:
       case QUERY_NODE_VALUE:
       case QUERY_NODE_OPERATOR:
-      case QUERY_NODE_FUNCTION:
-      case QUERY_NODE_LOGIC_CONDITION:{
+      case QUERY_NODE_FUNCTION:{
         SExprNode* expNode = (SExprNode*)pNode;
         code = createResultData(&expNode->resType, rows, &output);
         if (code != TSDB_CODE_SUCCESS) {
