@@ -116,6 +116,120 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
   return ret;
 }
 
+int32_t syncNodeAppendEntriesOnePeer(SSyncNode* pSyncNode, SRaftId* pDestId, SyncIndex nextIndex) {
+  int32_t ret = 0;
+
+  // pre index, pre term
+  SyncIndex preLogIndex = syncNodeGetPreIndex(pSyncNode, nextIndex);
+  SyncTerm  preLogTerm = syncNodeGetPreTerm(pSyncNode, nextIndex);
+  if (preLogTerm == SYNC_TERM_INVALID) {
+    SyncIndex newNextIndex = syncNodeGetLastIndex(pSyncNode) + 1;
+    // SyncIndex newNextIndex = nextIndex + 1;
+
+    syncIndexMgrSetIndex(pSyncNode->pNextIndex, pDestId, newNextIndex);
+    syncIndexMgrSetIndex(pSyncNode->pMatchIndex, pDestId, SYNC_INDEX_INVALID);
+    sError("vgId:%d, sync get pre term error, nextIndex:%" PRId64 ", update next-index:%" PRId64
+           ", match-index:%d, raftid:%" PRId64,
+           pSyncNode->vgId, nextIndex, newNextIndex, SYNC_INDEX_INVALID, pDestId->addr);
+    return -1;
+  }
+
+  // entry pointer array
+  SSyncRaftEntry* entryPArr[SYNC_MAX_BATCH_SIZE];
+  memset(entryPArr, 0, sizeof(entryPArr));
+
+  // get entry batch
+  int32_t   getCount = 0;
+  SyncIndex getEntryIndex = nextIndex;
+  for (int32_t i = 0; i < pSyncNode->pRaftCfg->batchSize; ++i) {
+    SSyncRaftEntry* pEntry = NULL;
+    int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, getEntryIndex, &pEntry);
+    if (code == 0) {
+      ASSERT(pEntry != NULL);
+      entryPArr[i] = pEntry;
+      getCount++;
+      getEntryIndex++;
+
+    } else {
+      break;
+    }
+  }
+
+  // event log
+  do {
+    char     logBuf[128];
+    char     host[64];
+    uint16_t port;
+    syncUtilU642Addr(pDestId->addr, host, sizeof(host), &port);
+    snprintf(logBuf, sizeof(logBuf), "build batch:%d for %s:%d", getCount, host, port);
+    syncNodeEventLog(pSyncNode, logBuf);
+  } while (0);
+
+  // build msg
+  SyncAppendEntriesBatch* pMsg = syncAppendEntriesBatchBuild(entryPArr, getCount, pSyncNode->vgId);
+  ASSERT(pMsg != NULL);
+
+  // free entries
+  for (int32_t i = 0; i < pSyncNode->pRaftCfg->batchSize; ++i) {
+    SSyncRaftEntry* pEntry = entryPArr[i];
+    if (pEntry != NULL) {
+      syncEntryDestory(pEntry);
+      entryPArr[i] = NULL;
+    }
+  }
+
+  // prepare msg
+  pMsg->srcId = pSyncNode->myRaftId;
+  pMsg->destId = *pDestId;
+  pMsg->term = pSyncNode->pRaftStore->currentTerm;
+  pMsg->prevLogIndex = preLogIndex;
+  pMsg->prevLogTerm = preLogTerm;
+  pMsg->commitIndex = pSyncNode->commitIndex;
+  pMsg->privateTerm = 0;
+  pMsg->dataCount = getCount;
+
+  // send msg
+  syncNodeAppendEntriesBatch(pSyncNode, pDestId, pMsg);
+
+  // speed up
+  if (pMsg->dataCount > 0 && pSyncNode->commitIndex - pMsg->prevLogIndex > SYNC_SLOW_DOWN_RANGE) {
+    ret = 1;
+
+#if 0
+      do {
+        char     logBuf[128];
+        char     host[64];
+        uint16_t port;
+        syncUtilU642Addr(pDestId->addr, host, sizeof(host), &port);
+        snprintf(logBuf, sizeof(logBuf), "maybe speed up for %s:%d, pre-index:%ld", host, port, pMsg->prevLogIndex);
+        syncNodeEventLog(pSyncNode, logBuf);
+      } while (0);
+#endif
+  }
+
+  syncAppendEntriesBatchDestroy(pMsg);
+
+  return ret;
+}
+
+int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+    return -1;
+  }
+
+  int32_t ret = 0;
+  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    SRaftId* pDestId = &(pSyncNode->peersId[i]);
+
+    // next index
+    SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
+    ret = syncNodeAppendEntriesOnePeer(pSyncNode, pDestId, nextIndex);
+  }
+
+  return ret;
+}
+
+#if 0
 int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
     return -1;
@@ -221,6 +335,7 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
 
   return ret;
 }
+#endif
 
 int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_LEADER);

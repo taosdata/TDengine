@@ -171,7 +171,7 @@ int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat) {
 
 int32_t tdRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
   if (!pRSmaInfo) return 0;
-  
+
   int ref = T_REF_INC(pRSmaInfo);
   smaDebug("vgId:%d, ref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
   return 0;
@@ -209,6 +209,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       SRSmaStat *pRSmaStat = (SRSmaStat *)(*pSmaStat);
       pRSmaStat->pSma = (SSma *)pSma;
       atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_INIT);
+      tsem_init(&pRSmaStat->notEmpty, 0, 0);
 
       // init smaMgmt
       smaInit();
@@ -228,7 +229,6 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       RSMA_INFO_HASH(pRSmaStat) = taosHashInit(
           RSMA_TASK_INFO_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
       if (!RSMA_INFO_HASH(pRSmaStat)) {
-        taosMemoryFreeClear(*pSmaStat);
         return TSDB_CODE_FAILED;
       }
     } else if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
@@ -262,10 +262,9 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     smaDebug("vgId:%d, destroy rsma stat %p", SMA_VID(pSma), pRSmaStat);
     // step 1: set rsma trigger stat cancelled
     atomic_store_8(RSMA_TRIGGER_STAT(pStat), TASK_TRIGGER_STAT_CANCELLED);
+    tsem_destroy(&(pStat->notEmpty));
 
     // step 2: destroy the rsma info and associated fetch tasks
-    // TODO: use taosHashSetFreeFp when taosHashSetFreeFp is ready.
-#if 1
     if (taosHashGetSize(RSMA_INFO_HASH(pStat)) > 0) {
       void *infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), NULL);
       while (infoHash) {
@@ -274,17 +273,16 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
         infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), infoHash);
       }
     }
-#endif
     taosHashCleanup(RSMA_INFO_HASH(pStat));
 
-    // step 3: wait all triggered fetch tasks finished
+    // step 3: wait for all triggered fetch tasks to finish
     int32_t nLoops = 0;
     while (1) {
       if (T_REF_VAL_GET((SSmaStat *)pStat) == 0) {
-        smaDebug("vgId:%d, rsma fetch tasks all finished", SMA_VID(pSma));
+        smaDebug("vgId:%d, rsma fetch tasks are all finished", SMA_VID(pSma));
         break;
       } else {
-        smaDebug("vgId:%d, rsma fetch tasks not all finished yet", SMA_VID(pSma));
+        smaDebug("vgId:%d, rsma fetch tasks are not all finished yet", SMA_VID(pSma));
       }
       ++nLoops;
       if (nLoops > 1000) {
@@ -293,7 +291,7 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
       }
     }
 
-    // step 4: free pStat
+    // step 5: free pStat
     taosMemoryFreeClear(pStat);
   }
 }
@@ -318,9 +316,9 @@ void *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType) {
 int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
   if (pSmaStat) {
     if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
-      tdDestroyTSmaStat(SMA_TSMA_STAT(pSmaStat));
+      tdDestroyTSmaStat(SMA_STAT_TSMA(pSmaStat));
     } else if (smaType == TSDB_SMA_TYPE_ROLLUP) {
-      SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pSmaStat);
+      SRSmaStat *pRSmaStat = &pSmaStat->rsmaStat;
       int32_t    vid = SMA_VID(pRSmaStat->pSma);
       int64_t    refId = RSMA_REF_ID(pRSmaStat);
       if (taosRemoveRef(smaMgmt.rsetId, RSMA_REF_ID(pRSmaStat)) < 0) {

@@ -148,6 +148,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
     pReply->term = ths->pRaftStore->currentTerm;
     pReply->success = false;
     pReply->matchIndex = SYNC_INDEX_INVALID;
+    pReply->startTime = ths->startTime;
 
     // msg event log
     syncLogSendAppendEntriesReply(ths, pReply, "");
@@ -289,6 +290,8 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
     } else {
       pReply->matchIndex = pMsg->prevLogIndex;
     }
+
+    pReply->startTime = ths->startTime;
 
     // msg event log
     syncLogSendAppendEntriesReply(ths, pReply, "");
@@ -603,6 +606,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
       pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
       pReply->success = true;
       pReply->matchIndex = matchIndex;
+      pReply->startTime = ths->startTime;
 
       // msg event log
       syncLogSendAppendEntriesReply(ths, pReply, "");
@@ -651,6 +655,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
       pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
       pReply->success = false;
       pReply->matchIndex = ths->commitIndex;
+      pReply->startTime = ths->startTime;
 
       // msg event log
       syncLogSendAppendEntriesReply(ths, pReply, "");
@@ -729,6 +734,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
       pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
       pReply->success = true;
       pReply->matchIndex = hasAppendEntries ? pMsg->prevLogIndex + pMsg->dataCount : pMsg->prevLogIndex;
+      pReply->startTime = ths->startTime;
 
       // msg event log
       syncLogSendAppendEntriesReply(ths, pReply, "");
@@ -874,6 +880,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
       pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
       pReply->success = true;
       pReply->matchIndex = matchIndex;
+      pReply->startTime = ths->startTime;
 
       // msg event log
       syncLogSendAppendEntriesReply(ths, pReply, "");
@@ -919,6 +926,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
       pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
       pReply->success = false;
       pReply->matchIndex = SYNC_INDEX_INVALID;
+      pReply->startTime = ths->startTime;
 
       // msg event log
       syncLogSendAppendEntriesReply(ths, pReply, "");
@@ -984,6 +992,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
       pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
       pReply->success = true;
       pReply->matchIndex = hasAppendEntries ? pMsg->prevLogIndex + 1 : pMsg->prevLogIndex;
+      pReply->startTime = ths->startTime;
 
       // msg event log
       syncLogSendAppendEntriesReply(ths, pReply, "");

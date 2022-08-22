@@ -91,6 +91,7 @@ int transInitBuffer(SConnBuffer* buf) {
   buf->left = -1;
   buf->len = 0;
   buf->total = 0;
+  buf->invalid = 0;
   return 0;
 }
 int transDestroyBuffer(SConnBuffer* p) {
@@ -108,19 +109,25 @@ int transClearBuffer(SConnBuffer* buf) {
   p->left = -1;
   p->len = 0;
   p->total = 0;
+  p->invalid = 0;
   return 0;
 }
 
 int transDumpFromBuffer(SConnBuffer* connBuf, char** buf) {
+  static const int HEADSIZE = sizeof(STransMsgHead);
+
   SConnBuffer* p = connBuf;
   if (p->left != 0) {
     return -1;
   }
   int total = connBuf->total;
-  *buf = taosMemoryCalloc(1, total);
-  memcpy(*buf, p->buf, total);
-
-  transResetBuffer(connBuf);
+  if (total >= HEADSIZE && !p->invalid) {
+    *buf = taosMemoryCalloc(1, total);
+    memcpy(*buf, p->buf, total);
+    transResetBuffer(connBuf);
+  } else {
+    total = -1;
+  }
   return total;
 }
 
@@ -173,6 +180,7 @@ bool transReadComplete(SConnBuffer* connBuf) {
       memcpy((char*)&head, connBuf->buf, sizeof(head));
       int32_t msgLen = (int32_t)htonl(head.msgLen);
       p->total = msgLen;
+      p->invalid = TRANS_NOVALID_PACKET(htonl(head.magicNum));
     }
     if (p->total >= p->len) {
       p->left = p->total - p->len;
@@ -180,7 +188,7 @@ bool transReadComplete(SConnBuffer* connBuf) {
       p->left = 0;
     }
   }
-  return p->left == 0 ? true : false;
+  return (p->left == 0 || p->invalid) ? true : false;
 }
 
 int transSetConnOption(uv_tcp_t* stream) {

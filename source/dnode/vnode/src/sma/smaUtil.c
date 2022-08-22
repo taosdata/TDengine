@@ -350,49 +350,48 @@ _err:
 }
 
 /**
- * @brief pTSchema is shared
+ * @brief Clone qTaskInfo of SRSmaInfo
  *
  * @param pSma
- * @param pDest
- * @param pSrc
+ * @param pInfo
  * @return int32_t
  */
-int32_t tdCloneRSmaInfo(SSma *pSma, SRSmaInfo **pDest, SRSmaInfo *pSrc) {
-  SVnode     *pVnode = pSma->pVnode;
+int32_t tdCloneRSmaInfo(SSma *pSma, SRSmaInfo *pInfo) {
   SRSmaParam *param = NULL;
-  if (!pSrc) {
-    *pDest = NULL;
+  if (!pInfo) {
     return TSDB_CODE_SUCCESS;
   }
 
   SMetaReader mr = {0};
   metaReaderInit(&mr, SMA_META(pSma), 0);
-  smaDebug("vgId:%d, rsma clone, suid is %" PRIi64, TD_VID(pVnode), pSrc->suid);
-  if (metaGetTableEntryByUid(&mr, pSrc->suid) < 0) {
-    smaError("vgId:%d, rsma clone, failed to get table meta for %" PRIi64 " since %s", TD_VID(pVnode), pSrc->suid,
+  smaDebug("vgId:%d, rsma clone qTaskInfo for suid:%" PRIi64, SMA_VID(pSma), pInfo->suid);
+  if (metaGetTableEntryByUid(&mr, pInfo->suid) < 0) {
+    smaError("vgId:%d, rsma clone, failed to get table meta for %" PRIi64 " since %s", SMA_VID(pSma), pInfo->suid,
              terrstr());
     goto _err;
   }
   ASSERT(mr.me.type == TSDB_SUPER_TABLE);
-  ASSERT(mr.me.uid == pSrc->suid);
+  ASSERT(mr.me.uid == pInfo->suid);
   if (TABLE_IS_ROLLUP(mr.me.flags)) {
     param = &mr.me.stbEntry.rsmaParam;
     for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
-      if (tdCloneQTaskInfo(pSma, pSrc->iTaskInfo[i], pSrc->taskInfo[i], param, pSrc->suid, i) < 0) {
+      if (!pInfo->iTaskInfo[i]) {
+        continue;
+      }
+      if (tdCloneQTaskInfo(pSma, pInfo->taskInfo[i], pInfo->iTaskInfo[i], param, pInfo->suid, i) < 0) {
         goto _err;
       }
     }
-    smaDebug("vgId:%d, rsma clone env success for %" PRIi64, TD_VID(pVnode), pSrc->suid);
+    smaDebug("vgId:%d, rsma clone env success for %" PRIi64, SMA_VID(pSma), pInfo->suid);
+  } else {
+    terrno = TSDB_CODE_RSMA_INVALID_SCHEMA;
+    goto _err;
   }
 
   metaReaderClear(&mr);
-
-  *pDest = pSrc;  // pointer copy
-
   return TSDB_CODE_SUCCESS;
 _err:
-  *pDest = NULL;
   metaReaderClear(&mr);
-  smaError("vgId:%d, rsma clone env failed for %" PRIi64 " since %s", TD_VID(pVnode), pSrc->suid, terrstr());
+  smaError("vgId:%d, rsma clone env failed for %" PRIi64 " since %s", SMA_VID(pSma), pInfo->suid, terrstr());
   return TSDB_CODE_FAILED;
 }
