@@ -2057,10 +2057,6 @@ static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql) {
     if (info->dataFormat) taosArrayDestroy(cols);
     return ret;
   }
-  if (taosArrayGetSize(cols) > TSDB_MAX_COLUMNS) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "too many columns than 4096", NULL);
-    return TSDB_CODE_PAR_TOO_MANY_COLUMNS;
-  }
 
   bool            hasTable = true;
   SSmlTableInfo  *tinfo = NULL;
@@ -2092,6 +2088,11 @@ static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql) {
     if (taosArrayGetSize((*oneTable)->tags) > TSDB_MAX_TAGS) {
       smlBuildInvalidDataMsg(&info->msgBuf, "too many tags than 128", NULL);
       return TSDB_CODE_PAR_INVALID_TAGS_NUM;
+    }
+
+    if (taosArrayGetSize(cols) + taosArrayGetSize((*oneTable)->tags) > TSDB_MAX_COLUMNS) {
+      smlBuildInvalidDataMsg(&info->msgBuf, "too many columns than 4096", NULL);
+      return TSDB_CODE_PAR_TOO_MANY_COLUMNS;
     }
 
     (*oneTable)->sTableName = elements.measure;
