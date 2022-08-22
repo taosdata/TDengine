@@ -711,7 +711,7 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
           pStart += varDataTLen(data);
         } else {
           memcpy(pStart, data, pValue->info.bytes);
-          pStart += pValue->info.type;
+          pStart += pValue->info.bytes;
         }
       }
     }
