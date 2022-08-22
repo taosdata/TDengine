@@ -1,7 +1,17 @@
 pub use taos_query::prelude::*;
 pub use taos_query::Manager;
 
-pub mod tmq;
+pub mod sync {
+    pub use taos_query::prelude::sync::*;
+    pub use super::Stmt;
+    pub use super::{Taos, TaosBuilder};
+    pub use super::tmq::{Consumer, MessageSet, TmqBuilder};
+}
+
+mod stmt;
+pub use stmt::Stmt;
+
+mod tmq;
 pub use tmq::{Consumer, MessageSet, TmqBuilder};
 
 #[derive(Debug, thiserror::Error)]
@@ -56,7 +66,7 @@ impl TBuilder for TaosBuilder {
             dsn.driver.as_str(),
             dsn.protocol.as_ref().map(|s| s.as_str()),
         ) {
-            ("ws" | "wss" | "http" | "https", _) => Ok(Self(TaosBuilderInner::Ws(
+            ("ws" | "wss" | "http" | "https" | "taosws" |"taoswss", _) => Ok(Self(TaosBuilderInner::Ws(
                 taos_ws::TaosBuilder::from_dsn(dsn)?,
             ))),
             ("taos" | "tmq", None) => Ok(Self(TaosBuilderInner::Native(
@@ -291,7 +301,8 @@ impl taos_query::Queryable for Taos {
 }
 #[cfg(test)]
 mod tests {
-    use super::{ResultSet, Taos, TaosBuilder};
+
+    use super::TaosBuilder;
 
     #[tokio::test(flavor = "multi_thread")]
     async fn sync_json_test_native() -> anyhow::Result<()> {
@@ -300,6 +311,36 @@ mod tests {
     #[test]
     fn sync_json_test_ws() -> anyhow::Result<()> {
         sync_json_test("ws://localhost:6041/")
+    }
+    #[test]
+    fn sync_json_test_taosws() -> anyhow::Result<()> {
+        sync_json_test("taosws://localhost:6041/")
+    }
+
+    #[test]
+    fn null_test() -> anyhow::Result<()> {
+        use taos_query::prelude::sync::*;
+        let taos = TaosBuilder::from_dsn("taosws://localhost:6041")?.build()?;
+        taos.exec_many(["drop database if exists db", "create database db", "use db"])?;
+
+        taos.exec(
+            "create table st(ts timestamp, c1 TINYINT UNSIGNED) tags(utntag TINYINT UNSIGNED)",
+        )?;
+        taos.exec("create table t1 using st tags(0)")?;
+        taos.exec("insert into t1 values(1640000000000, 0)")?;
+        taos.exec("create table t2 using st tags(254)")?;
+        taos.exec("insert into t2 values(1640000000000, 254)")?;
+        taos.exec("create table t3 using st tags(NULL)")?;
+        taos.exec("insert into t3 values(1640000000000, NULL)")?;
+
+        let mut rs = taos.query("select * from st where utntag is null")?;
+        for row in rs.rows() {
+            let row = row?;
+            let values = row.into_values();
+            assert_eq!(values[1], Value::Null);
+            assert_eq!(values[2], Value::Null);
+        }
+        Ok(())
     }
 
     fn sync_json_test(dsn: &str) -> anyhow::Result<()> {

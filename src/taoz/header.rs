@@ -1,15 +1,11 @@
 //! TaosX's backup file format
 //!
 //!
-use std::fmt::Display;
-use std::io::prelude::*;
-use std::io::Result as IoResult;
-use std::ops::Deref;
-use std::ops::DerefMut;
-
 use chrono::DateTime;
 use chrono::Local;
 use chrono::TimeZone;
+use std::fmt::Display;
+use std::io::prelude::*;
 use taos::*;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncReadExt;
@@ -147,7 +143,6 @@ impl taos::AsyncInlinable for Header {
 
 #[cfg(test)]
 mod tests {
-
     use super::Header;
     #[test]
     fn test_inline() {
@@ -155,17 +150,10 @@ mod tests {
 
         let header = Header::new("abc".to_string());
         let mut bytes = Vec::new();
+        bytes.resize(18, 0);
 
         let len = bytes.as_mut_slice().write_inlinable(&header).unwrap();
         assert!(len > 0);
-        assert!(bytes.len() == len);
-        let reader = &mut bytes.as_mut_slice();
-        // let header2: Header = reader.read_inlinable().unwrap();
-
-        // let mut bytes = header.inlined();
-        // dbg!(bytes.len());
-        let reader = bytes.as_mut_slice();
-
-        // let header: Header = reader;
+        assert_eq!(bytes.len(), len);
     }
 }

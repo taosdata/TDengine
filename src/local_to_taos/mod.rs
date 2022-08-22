@@ -1,22 +1,12 @@
-use std::{
-    path::Path,
-    sync::{Arc, Mutex},
-};
+use std::{path::Path, sync::Arc};
 
 use anyhow::{bail, Result};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
-use sha2::Sha256;
-use taos::{tmq::Consumer, *};
-use tokio::{
-    io::*,
-    sync::{Barrier, OwnedSemaphorePermit, Semaphore, SemaphorePermit},
-};
+use taos::*;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
-use crate::{
-    taoz::{ZCodec, ZFile},
-    Compression,
-};
+use crate::{taoz::ZCodec, Compression};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct Topic {
@@ -39,7 +29,7 @@ async fn restore(
     let reader = async_compression::tokio::bufread::ZstdDecoder::new(reader);
     let mut reader = ZCodec::new(reader);
     let header = reader.header_async().await?;
-    dbg!(header);
+    log::debug!("parse header: {:?}", header);
 
     // let mut rows = AtomicU64::new(0);
     let mut rows = 0;
@@ -122,6 +112,10 @@ impl LocalConfig {
         std::fs::write(path, bytes)?;
         Ok(())
     }
+}
+
+pub async fn local_to_taos_validate(from: Dsn, to: Dsn) -> Result<()> {
+    Ok(())
 }
 
 pub async fn local_to_taos(from: Dsn, to: Dsn, jobs: usize, force: bool) -> Result<()> {
@@ -214,5 +208,47 @@ pub async fn local_to_taos(from: Dsn, to: Dsn, jobs: usize, force: bool) -> Resu
     for handle in handles {
         handle.await??;
     }
+    Ok(())
+}
+
+#[tokio::test]
+async fn test() -> anyhow::Result<()> {
+    std::env::set_var("RUST_LOG", "debug");
+    pretty_env_logger::init();
+    let out = Path::new("local_to_taos_out");
+    if out.exists() {
+        std::fs::remove_dir_all(out)?;
+    }
+    let local: Dsn = format!("local:./{}", out.display()).parse()?;
+    let taos = TaosBuilder::from_dsn("taos://")?.build()?;
+    taos.exec_many([
+        "DROP TOPIC IF EXISTS local_to_taos",
+        "DROP DATABASE IF EXISTS local_to_taos",
+        "CREATE DATABASE local_to_taos",
+        "USE local_to_taos",
+        "CREATE STABLE stb1 (ts TIMESTAMP, v1 BOOL) TAGS(j1 json)",
+        "CREATE TABLE tb1 USING stb1 TAGS('{\"id\":\"1\"}')",
+        "INSERT INTO tb1 VALUES (now, true) (now+1s, false) (now+2s, NULL)",
+        "CREATE TOPIC local_to_taos WITH META AS DATABASE local_to_taos",
+    ])
+    .await?;
+    crate::tmq_to_local("tmq:///local_to_taos".parse()?, local.clone(), 1, true).await?;
+
+    taos.exec_many([
+        "DROP TOPIC local_to_taos",
+        "DROP DATABASE local_to_taos",
+        "CREATE DATABASE local_to_taos",
+    ])
+    .await?;
+
+    local_to_taos(local.clone(), "taos:///".parse()?, 1, true).await?;
+
+    let count: usize = taos.query_one("SELECT count(*) from tb1").await?.unwrap();
+    assert_eq!(count, 3, "restored");
+
+    std::fs::remove_dir_all(out)?;
+
+    taos.exec_many(["DROP DATABASE local_to_taos"]).await?;
+
     Ok(())
 }
