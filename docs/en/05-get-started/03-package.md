@@ -73,7 +73,7 @@ Users will be prompted to enter some configuration information when install.sh i
 <PkgListV3 type={3}/>
 2. Run the downloaded package to install TDengine.
 :::info
-The server only supports Windows Server 2016/2019 and windows 10/11 system versions on the windows platform.
+TDengine only supports Windows Server 2016/2019 and windows 10/11 system versions on the windows platform.
 :::
 
 </TabItem>
