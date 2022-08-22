@@ -2,7 +2,9 @@
 title: Data Model
 ---
 
-The data model employed by TDengine is similar to that of a relational database. You have to create databases and tables. You must design the data model based on your own business and application requirements. You should design the STable (an abbreviation for super table) schema to fit your data. This chapter will explain the big picture without getting into syntactical details.
+The data model employed by TDengine is similar to that of a relational database. You have to create databases and tables. You must design the data model based on your own business and application requirements. You should design the [STable](/concept/#super-table-stable) (an abbreviation for super table) schema to fit your data. This chapter will explain the big picture without getting into syntactical details. 
+
+Note: before you read this chapter, please make sure you have already read through [Key Concepts](/concept/), since TDengine introduces new concepts like "one table for one [data collection point](/concept/#data-collection-point)" and "[super table](/concept/#super-table-stable)".
 
 
 
@@ -11,7 +13,7 @@ The data model employed by TDengine is similar to that of a relational database.
 The characteristics of time-series data from different data collection points may be different. Characteristics include collection frequency, retention policy and others which determine how you create and configure the database. For e.g. days to keep, number of replicas, data block size, whether data updates are allowed and other configurable parameters would be determined by the characteristics of your data and your business requirements. For TDengine to operate with the best performance, we strongly recommend that you create and configure different databases for data with different characteristics. This allows you, for example, to set up different storage and retention policies. When creating a database, there are a lot of parameters that can be configured such as, the days to keep data, the number of replicas, the size of the cache, time precision, the minimum and maximum number of rows in each data block, whether compression is enabled, the time range of the data in single data file and so on. An example is shown as follows:
 
 ```sql
-CREATE DATABASE power KEEP 365 DURATION 10 BUFFER 16 VGROUPS 100 WAL 1;
+CREATE DATABASE power KEEP 365 DURATION 10 BUFFER 16 WAL_LEVEL 1;
 ```
 
 In the above SQL statement:

@@ -8,7 +8,7 @@ sql create database db
 sql select * from information_schema.ins_databases
 print $rows $data07
 
-if $rows != 3 then 
+if $rows != 3 then
   return -1
 endi
 

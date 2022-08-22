@@ -135,24 +135,6 @@ execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
         WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
 execute_process(COMMAND "${CMAKE_COMMAND}" --build .
         WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
-     
-# clear submodule
-execute_process(COMMAND git submodule deinit -f tools/taos-tools
-        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
-execute_process(COMMAND git rm --cached tools/taos-tools
-        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
-execute_process(COMMAND git submodule deinit -f tools/taosadapter
-        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
-execute_process(COMMAND git rm --cached tools/taosadapter
-        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
-execute_process(COMMAND git submodule deinit -f tools/taosws-rs
-        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
-execute_process(COMMAND git rm --cached tools/taosws-rs
-        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
-execute_process(COMMAND git submodule deinit -f examples/rust
-        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
-execute_process(COMMAND git rm --cached examples/rust
-        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
 
 # ================================================================================================
 # Build
@@ -349,9 +331,11 @@ endif(${BUILD_WITH_TRAFT})
 
 # LIBUV
 if(${BUILD_WITH_UV})
-    if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-        MESSAGE("Windows need set no-sign-compare")
-        add_compile_options(-Wno-sign-compare)
+    if (TD_WINDOWS)
+        # There is no GetHostNameW function on win7.
+        file(READ "libuv/src/win/util.c" LIBUV_WIN_UTIL_CONTENT)
+        string(REPLACE "if (GetHostNameW(buf, UV_MAXHOSTNAMESIZE" "DWORD  nSize = UV_MAXHOSTNAMESIZE;\n  if (GetComputerNameW(buf, &nSize" LIBUV_WIN_UTIL_CONTENT "${LIBUV_WIN_UTIL_CONTENT}")
+        file(WRITE "libuv/src/win/util.c" "${LIBUV_WIN_UTIL_CONTENT}")
     endif ()
     add_subdirectory(libuv EXCLUDE_FROM_ALL)
 endif(${BUILD_WITH_UV})

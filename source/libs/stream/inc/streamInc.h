@@ -32,7 +32,6 @@ typedef struct {
 
 static SStreamGlobalEnv streamEnv;
 
-int32_t streamExec(SStreamTask* pTask);
 int32_t streamPipelineExec(SStreamTask* pTask, int32_t batchNum, bool dispatch);
 
 int32_t streamDispatch(SStreamTask* pTask);

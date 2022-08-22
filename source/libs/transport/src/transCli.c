@@ -318,9 +318,16 @@ void cliHandleResp(SCliConn* conn) {
   }
 
   STransMsgHead* pHead = NULL;
-  transDumpFromBuffer(&conn->readBuf, (char**)&pHead);
+  if (transDumpFromBuffer(&conn->readBuf, (char**)&pHead) <= 0) {
+    tDebug("%s conn %p recv invalid packet ", CONN_GET_INST_LABEL(conn), conn);
+    return;
+  }
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
+
+  if (cliRecvReleaseReq(conn, pHead)) {
+    return;
+  }
 
   STransMsg transMsg = {0};
   transMsg.contLen = transContLenFromMsg(pHead->msgLen);
@@ -333,10 +340,6 @@ void cliHandleResp(SCliConn* conn) {
 
   SCliMsg*       pMsg = NULL;
   STransConnCtx* pCtx = NULL;
-  if (cliRecvReleaseReq(conn, pHead)) {
-    return;
-  }
-
   if (CONN_NO_PERSIST_BY_APP(conn)) {
     pMsg = transQueuePop(&conn->cliMsgs);
 
@@ -598,7 +601,12 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
     pBuf->len += nread;
     while (transReadComplete(pBuf)) {
       tTrace("%s conn %p read complete", CONN_GET_INST_LABEL(conn), conn);
-      cliHandleResp(conn);
+      if (pBuf->invalid) {
+        cliHandleExcept(conn);
+        break;
+      } else {
+        cliHandleResp(conn);
+      }
     }
     return;
   }
@@ -759,6 +767,7 @@ void cliSend(SCliConn* pConn) {
   pHead->release = REQUEST_RELEASE_HANDLE(pCliMsg) ? 1 : 0;
   memcpy(pHead->user, pTransInst->user, strlen(pTransInst->user));
   pHead->traceId = pMsg->info.traceId;
+  pHead->magicNum = htonl(TRANS_MAGIC_NUM);
 
   uv_buf_t wb = uv_buf_init((char*)pHead, msgLen);
 
@@ -1423,7 +1432,7 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
   if (pThrd == NULL && valid == false) {
     transFreeMsg(pReq->pCont);
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
-    return -1;
+    return TSDB_CODE_RPC_BROKEN_LINK;
   }
 
   TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
@@ -1468,7 +1477,7 @@ int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMs
   if (pThrd == NULL && valid == false) {
     transFreeMsg(pReq->pCont);
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
-    return -1;
+    return TSDB_CODE_RPC_BROKEN_LINK;
   }
 
   tsem_t* sem = taosMemoryCalloc(1, sizeof(tsem_t));

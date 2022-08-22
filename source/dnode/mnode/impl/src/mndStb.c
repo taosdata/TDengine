@@ -266,6 +266,15 @@ _OVER:
   return pRow;
 }
 
+void mndFreeStb(SStbObj *pStb) {
+  taosArrayDestroy(pStb->pFuncs);
+  taosMemoryFreeClear(pStb->pColumns);
+  taosMemoryFreeClear(pStb->pTags);
+  taosMemoryFreeClear(pStb->comment);
+  taosMemoryFreeClear(pStb->pAst1);
+  taosMemoryFreeClear(pStb->pAst2);
+}
+
 static int32_t mndStbActionInsert(SSdb *pSdb, SStbObj *pStb) {
   mTrace("stb:%s, perform insert action, row:%p", pStb->name, pStb);
   return 0;
@@ -273,12 +282,7 @@ static int32_t mndStbActionInsert(SSdb *pSdb, SStbObj *pStb) {
 
 static int32_t mndStbActionDelete(SSdb *pSdb, SStbObj *pStb) {
   mTrace("stb:%s, perform delete action, row:%p", pStb->name, pStb);
-  taosArrayDestroy(pStb->pFuncs);
-  taosMemoryFreeClear(pStb->pColumns);
-  taosMemoryFreeClear(pStb->pTags);
-  taosMemoryFreeClear(pStb->comment);
-  taosMemoryFreeClear(pStb->pAst1);
-  taosMemoryFreeClear(pStb->pAst2);
+  mndFreeStb(pStb);
   return 0;
 }
 
@@ -438,6 +442,8 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   if (req.rollup) {
     req.rsmaParam.maxdelay[0] = pStb->maxdelay[0];
     req.rsmaParam.maxdelay[1] = pStb->maxdelay[1];
+    req.rsmaParam.watermark[0] = pStb->watermark[0];
+    req.rsmaParam.watermark[1] = pStb->watermark[1];
     if (pStb->ast1Len > 0) {
       if (mndConvertRsmaTask(&req.rsmaParam.qmsg[0], &req.rsmaParam.qmsgLen[0], pStb->pAst1, pStb->uid,
                              STREAM_TRIGGER_WINDOW_CLOSE, req.rsmaParam.watermark[0]) < 0) {
@@ -2021,8 +2027,7 @@ static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, 
     FOREACH(pNode, pNodeList) {
       SColumnNode *pCol = (SColumnNode *)pNode;
 
-      if (pCol->tableId != suid) {
-        mDebug("topic:%s, check colId:%d passed", pTopic->name, pCol->colId);
+      if (pCol->tableId == suid) {
         sdbRelease(pSdb, pTopic);
         nodesDestroyNode(pAst);
         return -1;
@@ -2045,6 +2050,16 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
 
+    if (pStream->smaId != 0) {
+      sdbRelease(pSdb, pStream);
+      continue;
+    }
+
+    if (pStream->targetStbUid == suid) {
+      sdbRelease(pSdb, pStream);
+      return -1;
+    }
+
     SNode *pAst = NULL;
     if (nodesStringToNode(pStream->ast, &pAst) != 0) {
       ASSERT(0);
@@ -2057,8 +2072,7 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
     FOREACH(pNode, pNodeList) {
       SColumnNode *pCol = (SColumnNode *)pNode;
 
-      if (pCol->tableId != suid) {
-        mDebug("stream:%s, check colId:%d passed", pStream->name, pCol->colId);
+      if (pCol->tableId == suid) {
         sdbRelease(pSdb, pStream);
         nodesDestroyNode(pAst);
         return -1;
