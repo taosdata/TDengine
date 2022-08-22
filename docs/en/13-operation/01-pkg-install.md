@@ -10,7 +10,7 @@ TDengine community version provides deb and rpm packages for users to choose fro
 
 ## Install
 
-About details of installing TDenine, please refer to [Installation Guide](../../get-started/pkg-install).
+About details of installing TDenine, please refer to [Installation Guide](../../get-started/package/).
 
 ## Uninstall
 
