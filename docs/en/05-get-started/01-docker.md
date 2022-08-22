@@ -87,11 +87,12 @@ Query the average, maximum, and minimum values of all rows whose `groupId` tag i
 select avg(current), max(voltage), min(phase) from test.meters where groupId=10;
 ```
 
-Query the average, maximum, and minimum values for table `d10` in 10 second intervals:
+Query the average, maximum, and minimum values for table `d10` in 1 second intervals:
 
 ```sql
-select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
+select first(ts), avg(current), max(voltage), min(phase) from test.d10 interval(1s);
 ```
+In the query above you are selecting the first timestamp (ts) in the interval, another way of selecting this would be _wstart which will give the start of the time window. For more information about windowed queries, see [Time-Series Extensions](../../taos-sql/distinguished/).
 
 ## Additional Information
 
