@@ -238,6 +238,9 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
     TSWAP(pRequest->targetTableList, (*pQuery)->pTargetTableList);
   }
 
+  taosArrayDestroy(cxt.pTableMetaPos);
+  taosArrayDestroy(cxt.pTableVgroupPos);
+
   return code;
 }
 
