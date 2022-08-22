@@ -69,8 +69,10 @@ typedef struct SIOCostSummary {
   double  buildmemBlock;
   int64_t headFileLoad;
   double  headFileLoadTime;
-  int64_t smaData;
+  int64_t smaDataLoad;
   double  smaLoadTime;
+  int64_t lastBlockLoad;
+  double  lastBlockLoadTime;
 } SIOCostSummary;
 
 typedef struct SBlockLoadSuppInfo {
@@ -98,10 +100,10 @@ typedef struct SLastBlockReader {
 } SLastBlockReader;
 
 typedef struct SFilesetIter {
-  int32_t numOfFiles;    // number of total files
-  int32_t index;         // current accessed index in the list
-  SArray* pFileList;     // data file list
-  int32_t order;
+  int32_t           numOfFiles;    // number of total files
+  int32_t           index;         // current accessed index in the list
+  SArray*           pFileList;     // data file list
+  int32_t           order;
   SLastBlockReader* pLastBlockReader; // last file block reader
 } SFilesetIter;
 
@@ -857,7 +859,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
 
 static int32_t doLoadFileBlockData(STsdbReader* pReader, SDataBlockIter* pBlockIter, SBlockData* pBlockData) {
   int64_t st = taosGetTimestampUs();
-  double elapsedTime = 0;
+  double  elapsedTime = 0;
   int32_t code = 0;
 
   SFileDataBlockInfo* pBlockInfo = getCurrentBlockInfo(pBlockIter);
@@ -1303,9 +1305,23 @@ static bool fileBlockShouldLoad(STsdbReader* pReader, SFileDataBlockInfo* pFBloc
     overlapWithlastBlock = !(pBlock->maxKey.ts < pBlockL->minKey || pBlock->minKey.ts > pBlockL->maxKey);
   }
 
-  return (overlapWithNeighbor || hasDup || dataBlockPartiallyRequired(&pReader->window, &pReader->verRange, pBlock) ||
-          keyOverlapFileBlock(key, pBlock, &pReader->verRange) || (pBlock->nRow > pReader->capacity) ||
-          overlapWithDel || overlapWithlastBlock);
+  bool moreThanOutputCapacity = pBlock->nRow > pReader->capacity;
+  bool partiallyRequired = dataBlockPartiallyRequired(&pReader->window, &pReader->verRange, pBlock);
+  bool overlapWithKey = keyOverlapFileBlock(key, pBlock, &pReader->verRange);
+
+  bool loadDataBlock = (overlapWithNeighbor || hasDup || partiallyRequired || overlapWithKey ||
+                        moreThanOutputCapacity || overlapWithDel || overlapWithlastBlock);
+
+  // log the reason why load the datablock for profile
+  if (loadDataBlock) {
+    tsdbDebug("%p uid:%" PRIu64
+              " need to load the datablock, reason overlapwithneighborblock:%d, hasDup:%d, partiallyRequired:%d, "
+              "overlapWithKey:%d, greaterThanBuf:%d, overlapWithDel:%d, overlapWithlastBlock:%d, %s",
+              pReader, pFBlock->uid, overlapWithNeighbor, hasDup, partiallyRequired, overlapWithKey,
+              moreThanOutputCapacity, overlapWithDel, overlapWithlastBlock, pReader->idStr);
+  }
+
+  return loadDataBlock;
 }
 
 static int32_t buildDataBlockFromBuf(STsdbReader* pReader, STableBlockScanInfo* pBlockScanInfo, int64_t endKey) {
@@ -1992,7 +2008,7 @@ static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanI
       TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
 
       // no last block
-      if (pLastBlockReader->lastBlockData.nRow == 0) {
+      if (pLastBlockReader->lastBlockData.nRow == 0 || (!hasDataInLastBlock(pLastBlockReader))) {
         if (tryCopyDistinctRowFromFileBlock(pReader, pBlockData, key, pDumpInfo)) {
           return TSDB_CODE_SUCCESS;
         } else {
@@ -2383,7 +2399,6 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum) {
   return TSDB_CODE_SUCCESS;
 }
 
-// todo add elapsed time results
 static int32_t doLoadRelatedLastBlock(SLastBlockReader* pLastBlockReader, STableBlockScanInfo *pBlockScanInfo, STsdbReader* pReader) {
   SArray*  pBlocks = pLastBlockReader->pBlockL;
   SBlockL* pBlock = NULL;
@@ -2415,6 +2430,7 @@ static int32_t doLoadRelatedLastBlock(SLastBlockReader* pLastBlockReader, STable
     return TSDB_CODE_SUCCESS;
   }
 
+  int64_t st = taosGetTimestampUs();
   int32_t code = tBlockDataInit(&pLastBlockReader->lastBlockData, pReader->suid, pReader->suid ? 0 : uid, pReader->pSchema);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%p init block data failed, code:%s %s", pReader, tstrerror(code), pReader->idStr);
@@ -2422,17 +2438,23 @@ static int32_t doLoadRelatedLastBlock(SLastBlockReader* pLastBlockReader, STable
   }
 
   code = tsdbReadLastBlock(pReader->pFileReader, pBlock, &pLastBlockReader->lastBlockData);
+
+  double el = (taosGetTimestampUs() - st) / 1000.0;
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%p error occurs in loading last block into buffer, last block index:%d, total:%d code:%s %s", pReader,
               pLastBlockReader->currentBlockIndex, totalLastBlocks, tstrerror(code), pReader->idStr);
   } else {
     tsdbDebug("%p load last block completed, uid:%" PRIu64
-              " last block index:%d, total:%d rows:%d, minVer:%d, maxVer:%d, brange:%" PRId64 " - %" PRId64 " %s",
+              " last block index:%d, total:%d rows:%d, minVer:%d, maxVer:%d, brange:%" PRId64 " - %" PRId64
+              " elapsed time:%.2f ms, %s",
               pReader, uid, pLastBlockReader->currentBlockIndex, totalLastBlocks, pBlock->nRow, pBlock->minVer,
-              pBlock->maxVer, pBlock->minKey, pBlock->maxKey, pReader->idStr);
+              pBlock->maxVer, pBlock->minKey, pBlock->maxKey, el, pReader->idStr);
   }
 
   pLastBlockReader->currentBlockIndex = index;
+  pReader->cost.lastBlockLoad += 1;
+  pReader->cost.lastBlockLoadTime += el;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2495,13 +2517,12 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
 }
 
 static int32_t doBuildDataBlock(STsdbReader* pReader) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  SReaderStatus*  pStatus = &pReader->status;
-  SDataBlockIter* pBlockIter = &pStatus->blockIter;
-
   TSDBKEY key = {0};
+  int32_t code = TSDB_CODE_SUCCESS;
   SBlock* pBlock = NULL;
+
+  SReaderStatus*       pStatus = &pReader->status;
+  SDataBlockIter*      pBlockIter = &pStatus->blockIter;
   STableBlockScanInfo* pScanInfo = NULL;
   SFileDataBlockInfo*  pBlockInfo = getCurrentBlockInfo(pBlockIter);
   SLastBlockReader*    pLastBlockReader = pReader->status.fileIter.pLastBlockReader;
@@ -2628,7 +2649,7 @@ static int32_t initForFirstBlockInFile(STsdbReader* pReader, SDataBlockIter* pBl
   // initialize the block iterator for a new fileset
   if (num.numOfBlocks > 0) {
     code = initBlockIterator(pReader, pBlockIter, num.numOfBlocks);
-  } else {
+  } else { // no block data, only last block exists
     tBlockDataReset(&pReader->status.fileBlockData);
     resetDataBlockIterator(pBlockIter, pReader->order, pReader->status.pTableMap);
   }
@@ -2701,7 +2722,6 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
         if (hasNext) {  // check for the next block in the block accessed order list
           initBlockDumpInfo(pReader, pBlockIter);
         } else if (taosArrayGetSize(pReader->status.fileIter.pLastBlockReader->pBlockL) > 0) {  // data blocks in current file are exhausted, let's try the next file now
-          // todo dump all data in last block if exists.
           tBlockDataReset(&pReader->status.fileBlockData);
           resetDataBlockIterator(pBlockIter, pReader->order, pReader->status.pTableMap);
           goto _begin;
@@ -3498,10 +3518,11 @@ void tsdbReaderClose(STsdbReader* pReader) {
   tsdbDebug("%p :io-cost summary: head-file:%" PRIu64 ", head-file time:%.2f ms, SMA:%" PRId64
             " SMA-time:%.2f ms, fileBlocks:%" PRId64
             ", fileBlocks-time:%.2f ms, "
-            "build in-memory-block-time:%.2f ms, STableBlockScanInfo size:%.2f Kb %s",
-            pReader, pCost->headFileLoad, pCost->headFileLoadTime, pCost->smaData, pCost->smaLoadTime,
-            pCost->numOfBlocks, pCost->blockLoadTime, pCost->buildmemBlock,
-            numOfTables * sizeof(STableBlockScanInfo) / 1000.0, pReader->idStr);
+            "build in-memory-block-time:%.2f ms, lastBlocks:%" PRId64
+            ", lastBlocks-time:%.2f ms, STableBlockScanInfo size:%.2f Kb %s",
+            pReader, pCost->headFileLoad, pCost->headFileLoadTime, pCost->smaDataLoad, pCost->smaLoadTime,
+            pCost->numOfBlocks, pCost->blockLoadTime, pCost->buildmemBlock, pCost->lastBlockLoad,
+            pCost->lastBlockLoadTime, numOfTables * sizeof(STableBlockScanInfo) / 1000.0, pReader->idStr);
 
   taosMemoryFree(pReader->idStr);
   taosMemoryFree(pReader->pSchema);
@@ -3663,7 +3684,7 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg*** pBlockS
 
   double elapsed = (taosGetTimestampUs() - stime) / 1000.0;
   pReader->cost.smaLoadTime += elapsed;
-  pReader->cost.smaData += 1;
+  pReader->cost.smaDataLoad += 1;
 
   *pBlockStatis = pSup->plist;
 
