@@ -730,7 +730,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SArray*
 
   double el = (taosGetTimestampUs() - st) / 1000.0;
   tsdbDebug("load block of %d tables completed, blocks:%d in %d tables, lastBlock:%d, size:%.2f Kb, elapsed time:%.2f ms %s",
-            numOfTables, total, numOfQTable, pBlockNum->numOfLastBlocks, sizeInDisk
+            numOfTables, pBlockNum->numOfBlocks, numOfQTable, pBlockNum->numOfLastBlocks, sizeInDisk
             / 1000.0, el, pReader->idStr);
 
   pReader->cost.numOfBlocks += total;
@@ -2445,10 +2445,10 @@ static int32_t doLoadRelatedLastBlock(SLastBlockReader* pLastBlockReader, STable
               pLastBlockReader->currentBlockIndex, totalLastBlocks, tstrerror(code), pReader->idStr);
   } else {
     tsdbDebug("%p load last block completed, uid:%" PRIu64
-              " last block index:%d, total:%d rows:%d, minVer:%d, maxVer:%d, brange:%" PRId64 " - %" PRId64
+              " last block index:%d, total:%d rows:%d, minVer:%d, maxVer:%d, brange:%" PRId64 "-%" PRId64
               " elapsed time:%.2f ms, %s",
-              pReader, uid, pLastBlockReader->currentBlockIndex, totalLastBlocks, pBlock->nRow, pBlock->minVer,
-              pBlock->maxVer, pBlock->minKey, pBlock->maxKey, el, pReader->idStr);
+              pReader, uid, index, totalLastBlocks, pBlock->nRow, pBlock->minVer, pBlock->maxVer, pBlock->minKey,
+              pBlock->maxKey, el, pReader->idStr);
   }
 
   pLastBlockReader->currentBlockIndex = index;
