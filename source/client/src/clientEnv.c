@@ -341,7 +341,6 @@ void doDestroyRequest(void *p) {
   schedulerFreeJob(&pRequest->body.queryJob, 0);
 
   taosMemoryFreeClear(pRequest->msgBuf);
-  taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFreeClear(pRequest->pDb);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
@@ -360,6 +359,7 @@ void doDestroyRequest(void *p) {
     taosMemoryFree(pRequest->body.param);
   }
 
+  taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFree(pRequest);
   tscTrace("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
 }
