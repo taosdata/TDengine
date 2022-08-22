@@ -31,7 +31,7 @@ Data can be inserted into multiple tables in the same SQL statement. The example
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 218, 0.33) d1002 VALUES (1538548696800, 12.3, 221, 0.31);
 ```
 
-For more details about `INSERT` please refer to [INSERT](/taos-sql/insert).
+For more details about `INSERT` please refer to [INSERT](https://docs.tdengine.com/cloud/taos-sql/insert).
 
 
 ## Connector Examples
