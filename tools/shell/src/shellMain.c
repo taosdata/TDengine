@@ -19,6 +19,7 @@
 SShellObj shell = {0};
 
 int main(int argc, char *argv[]) {
+  shell.exit = false;
 #ifdef WEBSOCKET
   shell.args.timeout = 10;
   shell.args.cloud = true;
@@ -46,7 +47,7 @@ int main(int argc, char *argv[]) {
     shellPrintHelp();
     return 0;
   }
-#ifdef WEBSOCKET 
+#ifdef WEBSOCKET
   shellCheckConnectMode();
 #endif
   taos_init();

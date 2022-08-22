@@ -3894,9 +3894,9 @@ static void cleanupTableSchemaInfo(SSchemaInfo* pSchemaInfo) {
   tDeleteSSchemaWrapper(pSchemaInfo->qsw);
 }
 
-static int32_t sortTableGroup(STableListInfo* pTableListInfo, int32_t groupNum) {
+static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   taosArrayClear(pTableListInfo->pGroupList);
-  SArray* sortSupport = taosArrayInit(groupNum, sizeof(uint64_t));
+  SArray* sortSupport = taosArrayInit(16, sizeof(uint64_t));
   if (sortSupport == NULL) return TSDB_CODE_OUT_OF_MEMORY;
   for (int32_t i = 0; i < taosArrayGetSize(pTableListInfo->pTableList); i++) {
     STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
@@ -3974,48 +3974,26 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
   if (pTableListInfo->map == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  int32_t keyLen = 0;
-  void*   keyBuf = NULL;
-
-  SNode* node;
-  FOREACH(node, group) {
-    SExprNode* pExpr = (SExprNode*)node;
-    keyLen += pExpr->resType.bytes;
-  }
-
-  int32_t nullFlagSize = sizeof(int8_t) * LIST_LENGTH(group);
-  keyLen += nullFlagSize;
-
-  keyBuf = taosMemoryCalloc(1, keyLen);
-  if (keyBuf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
 
   bool assignUid = groupbyTbname(group);
 
-  int32_t groupNum = 0;
   size_t  numOfTables = taosArrayGetSize(pTableListInfo->pTableList);
 
-  for (int32_t i = 0; i < numOfTables; i++) {
-    STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
-
-    if (assignUid) {
+  if(assignUid){
+    for (int32_t i = 0; i < numOfTables; i++) {
+      STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
       info->groupId = info->uid;
-    } else {
-      int32_t code = getGroupIdFromTagsVal(pHandle->meta, info->uid, group, keyBuf, &info->groupId);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
+      taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &info->groupId, sizeof(uint64_t));
     }
-
-    taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &info->groupId, sizeof(uint64_t));
-    groupNum++;
+  }else{
+    int32_t code = getColInfoResultForGroupby(pHandle->meta, group, pTableListInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
 
-  taosMemoryFree(keyBuf);
-
   if (pTableListInfo->needSortTableByGroupId) {
-    return sortTableGroup(pTableListInfo, groupNum);
+    return sortTableGroup(pTableListInfo);
   }
 
   return TDB_CODE_SUCCESS;
