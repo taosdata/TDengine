@@ -360,7 +360,9 @@ pipeline {
             parallel {
                 stage('check docs') {
                     agent{label " worker03 || slave215 || slave217 || slave219 || Mac_catalina "}
-                    check_docs()
+                    steps {
+                        check_docs()
+                    }
                 }
             }
         }
