@@ -45,16 +45,16 @@ sql_error drop database db
 sql_error use db
 sql_error alter database db replica 1;
 sql_error show db.vgroups
-sql_error show db.stables
-sql_error show db.tables
+sql select * from information_schema.ins_stables where db_name = 'db'
+sql select * from information_schema.ins_tables where db_name = 'db'
 
 print =============== check show
-sql_error show users
+sql select * from information_schema.ins_users
 sql_error show cluster
-sql_error show dnodes
-sql_error show mnodes
+sql select * from information_schema.ins_dnodes
+sql select * from information_schema.ins_mnodes
 sql_error show snodes
-sql_error show qnodes
+sql select * from information_schema.ins_qnodes
 sql_error show bnodes
 sql_error show grants
 sql_error show dnode 1 variables;

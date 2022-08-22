@@ -116,7 +116,7 @@ class TwoClients:
         tdSql.init(cur2, True)
 
         # use new wal file to start up tasod 
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0]=="db2":
                 assert tdSql.queryResult[i][4]==2 , "replica is wrong"

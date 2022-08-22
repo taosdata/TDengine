@@ -85,7 +85,9 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->state.commitTerm = info.state.commitTerm;
   pVnode->pTfs = pTfs;
   pVnode->msgCb = msgCb;
-  pVnode->blockCount = 0;
+  taosThreadMutexInit(&pVnode->lock, NULL);
+  pVnode->blocked = false;
+  pVnode->inClose = false;
 
   tsem_init(&pVnode->syncSem, 0, 0);
   tsem_init(&(pVnode->canCommit), 0, 1);
@@ -180,6 +182,8 @@ _err:
 void vnodePreClose(SVnode *pVnode) {
   if (pVnode) {
     syncLeaderTransfer(pVnode->sync);
+    pVnode->inClose = true;
+    smaPreClose(pVnode->pSma);
   }
 }
 
@@ -199,6 +203,7 @@ void vnodeClose(SVnode *pVnode) {
     tsem_destroy(&pVnode->syncSem);
     taosThreadCondDestroy(&pVnode->poolNotEmpty);
     taosThreadMutexDestroy(&pVnode->mutex);
+    taosThreadMutexDestroy(&pVnode->lock);
     taosMemoryFree(pVnode);
   }
 }

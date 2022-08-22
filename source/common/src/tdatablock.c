@@ -1343,12 +1343,14 @@ SSDataBlock* createDataBlock() {
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (pBlock == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
   }
 
   pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
   if (pBlock->pDataBlock == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFree(pBlock);
+    return NULL;
   }
 
   return pBlock;
@@ -1423,6 +1425,7 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize) {
 }
 
 void colDataDestroy(SColumnInfoData* pColData) {
+  if(!pColData) return;
   if (IS_VAR_DATA_TYPE(pColData->info.type)) {
     taosMemoryFreeClear(pColData->varmeta.offset);
   } else {
@@ -1713,7 +1716,7 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
   char    pBuf[128] = {0};
   int32_t sz = taosArrayGetSize(dataBlocks);
   for (int32_t i = 0; i < sz; i++) {
-    SSDataBlock* pDataBlock = taosArrayGet(dataBlocks, i);
+    SSDataBlock* pDataBlock = taosArrayGetP(dataBlocks, i);
     size_t       numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
 
     int32_t rows = pDataBlock->info.rows;
@@ -1870,10 +1873,10 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
  * @brief TODO: Assume that the final generated result it less than 3M
  *
  * @param pReq
- * @param pDataBlock
+ * @param pDataBlocks
  * @param vgId
  * @param suid
- *
+ * 
  */
 int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataBlock, STSchema* pTSchema, int32_t vgId,
                                     tb_uid_t suid) {

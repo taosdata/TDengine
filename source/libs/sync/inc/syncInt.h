@@ -237,7 +237,7 @@ void syncNodeVoteForSelf(SSyncNode* pSyncNode);
 bool syncNodeHasSnapshot(SSyncNode* pSyncNode);
 void syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode);
 
-SyncIndex syncNodeGetLastIndex(SSyncNode* pSyncNode);
+SyncIndex syncNodeGetLastIndex(const SSyncNode* pSyncNode);
 SyncTerm  syncNodeGetLastTerm(SSyncNode* pSyncNode);
 int32_t   syncNodeGetLastIndexTerm(SSyncNode* pSyncNode, SyncIndex* pLastIndex, SyncTerm* pLastTerm);
 
@@ -268,6 +268,8 @@ bool syncNodeCheckNewConfig(SSyncNode* pSyncNode, const SSyncCfg* pNewCfg);
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode);
 int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader);
 int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry);
+
+int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode);
 
 // trace log
 void syncLogSendRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s);

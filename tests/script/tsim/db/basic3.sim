@@ -10,7 +10,7 @@ sql create table d1.t2 (ts timestamp, i int);
 sql create table d1.t3 (ts timestamp, i int);
 sql create table d1.t4 (ts timestamp, i int);
 
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -23,12 +23,12 @@ if $data22 != 2 then
   return -1
 endi
 
-#if $data03 != 4 then 
+#if $data03 != 4 then
 #  return -1
 #endi
 
 sql show d1.tables
-if $rows != 4 then 
+if $rows != 4 then
   return -1
 endi
 
@@ -38,13 +38,13 @@ sql create table d2.t1 (ts timestamp, i int);
 sql create table d2.t2 (ts timestamp, i int);
 sql create table d2.t3 (ts timestamp, i int);
 
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 4 then
   return -1
 endi
 
 sql show d2.tables
-if $rows != 3 then 
+if $rows != 3 then
   return -1
 endi
 

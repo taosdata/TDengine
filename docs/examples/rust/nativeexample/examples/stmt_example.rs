@@ -1,38 +1,40 @@
-use bstr::BString;
-use libtaos::*;
+use taos::*;
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
-    let taos = TaosCfg::default().connect().expect("fail to connect");
+async fn main() -> anyhow::Result<()> {
+    let taos = TaosBuilder::from_dsn("taos://")?.build()?;
     taos.create_database("power").await?;
     taos.use_database("power").await?;
-    taos.exec("CREATE STABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)").await?;
-    let mut stmt = taos.stmt("INSERT INTO ? USING meters TAGS(?, ?) VALUES(?, ?, ?, ?)")?;
+    taos.exec("CREATE STABLE IF NOT EXISTS meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)").await?;
+
+    let mut stmt = Stmt::init(&taos)?;
+    stmt.prepare("INSERT INTO ? USING meters TAGS(?, ?) VALUES(?, ?, ?, ?)")?;
     // bind table name and tags
     stmt.set_tbname_tags(
         "d1001",
-        [
-            Field::Binary(BString::from("California.SanFrancisco")),
-            Field::Int(2),
-        ],
+        &[Value::VarChar("San Fransico".into()), Value::Int(2)],
     )?;
     // bind values.
     let values = vec![
-        Field::Timestamp(Timestamp::new(1648432611249, TimestampPrecision::Milli)),
-        Field::Float(10.3),
-        Field::Int(219),
-        Field::Float(0.31),
+        ColumnView::from_millis_timestamp(vec![1648432611249]),
+        ColumnView::from_floats(vec![10.3]),
+        ColumnView::from_ints(vec![219]),
+        ColumnView::from_floats(vec![0.31]),
     ];
     stmt.bind(&values)?;
     // bind one more row
     let values2 = vec![
-        Field::Timestamp(Timestamp::new(1648432611749, TimestampPrecision::Milli)),
-        Field::Float(12.6),
-        Field::Int(218),
-        Field::Float(0.33),
+        ColumnView::from_millis_timestamp(vec![1648432611749]),
+        ColumnView::from_floats(vec![12.6]),
+        ColumnView::from_ints(vec![218]),
+        ColumnView::from_floats(vec![0.33]),
     ];
     stmt.bind(&values2)?;
-    // execute
-    stmt.execute()?;
+    
+    stmt.add_batch()?;
+    
+    // execute.
+    let rows = stmt.execute()?;
+    assert_eq!(rows, 2);
     Ok(())
 }

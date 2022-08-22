@@ -23,11 +23,7 @@ There are two ways to install taosBenchmark:
 
 TaosBenchmark needs to be executed on the terminal of the operating system, it supports two configuration methods: [Command-line arguments](#command-line-arguments-in-detail) and [JSON configuration file](#configuration-file-parameters-in-detail). These two methods are mutually exclusive. Users can use `-f <json file>` to specify a configuration file. When running taosBenchmark with command-line arguments to control its behavior, users should use other parameters for configuration, but not the `-f` parameter. In addition, taosBenchmark offers a special way of running without parameters.
 
-<<<<<<< HEAD
-taosBenchmark supports complete performance testing of TDengine. taosBenchmark supports the TDengine functions in three categories: write, query, and subscribe. These three functions are mutually exclusive, and users can select only one of them each time taosBenchmark runs. It is important to note that the type of functionality to be tested is not configurable when using the command-line configuration method, which can only test writing performance. To test the query and subscription performance of the TDengine, you must use the configuration file method and specify the function type to test via the parameter `filetype` in the configuration file.
-=======
-taosBenchmark supports the complete performance testing of TDengine by providing functionally to write, query, and subscribe. These three functions are mutually exclusive, users can only select one of them each time taosBenchmark runs. The query and subscribe functionalities are only configurable using a json configuration file by specifying the parameter `filetype`, while write can be performed through both the command-line and a configuration file.
->>>>>>> 108548b4d6 (docs: typo)
+taosBenchmark supports the complete performance testing of TDengine by providing functionally to write, query, and subscribe. These three functions are mutually exclusive, users can only select one of them each time taosBenchmark runs. The query and subscribe functionalities are only configurable using a json configuration file by specifying the parameter `filetype`, while write can be performed through both the command-line and a configuration file. If you want to test the performance of queries or data subscriptionm configure taosBenchmark with the configuration file. You can modify the value of the `filetype` parameter to specify the function that you want to test.
 
 **Make sure that the TDengine cluster is running correctly before running taosBenchmark. **
 
@@ -61,8 +57,9 @@ Use the following command-line to run taosBenchmark and control its behavior via
 taosBenchmark -f <json file>
 ```
 
+**Sample configuration files**
+
 #### Configuration file examples
-##### Example of inserting a scenario JSON configuration file
 
 <details>
 <summary>insert.json</summary>
@@ -73,7 +70,7 @@ taosBenchmark -f <json file>
 
 </details>
 
-##### Query Scenario JSON Profile Example
+#### Query Scenario JSON Profile Example
 
 <details>
 <summary>query.json</summary>
@@ -84,7 +81,7 @@ taosBenchmark -f <json file>
 
 </details>
 
-##### Subscription JSON configuration example
+#### Subscription JSON configuration example
 
 <details>
 <summary>subscribe.json</summary>
@@ -128,7 +125,7 @@ taosBenchmark -f <json file>
   Enables interleaved insertion mode and specifies the number of rows of data to be inserted into each child table. Interleaved insertion mode means inserting the number of rows specified by this parameter into each sub-table and repeating the process until all sub-tables have been inserted. The default value is 0, i.e., data is inserted into one sub-table before the next sub-table is inserted.
 
 - **-i/--insert-interval <timeInterval\>** :
-  Specify the insert interval in `ms` for interleaved insert mode. The default value is 0. It only works if `-B/--interlace-rows` is greater than 0. That means that after inserting interlaced rows for each child table, the data insertion with multiple threads will wait for the interval specified by this value before proceeding to the next round of writes.
+  Specify the insert interval in `ms` for interleaved insert mode. The default value is 0. It only works if `-B/--interlace-rows` is greater than 0. After inserting interlaced rows for each child table, the data insertion thread will wait for the interval specified by this value before proceeding to the next round of writes.
 
 - **-r/--rec-per-req <rowNum\>** :
   Writing the number of rows of records per request to TDengine, the default value is 30000.
@@ -184,7 +181,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
   This parameter indicates writing data with random values. The default is false. If users use this parameter, taosBenchmark will generate the random values. For tag/data columns of numeric type, the value is a random value within the range of values of that type. For NCHAR and BINARY type tag columns/data columns, the value is the random string within the specified length range.
 
 - **-x/--aggr-func** :
-  Switch parameter to indicate query aggregation function after insertion. The default value is false.
+  Switch parameter to indicate query aggregation function after insertion. The default is false.
 
 - **-y/--answer-yes** :
   Switch parameter that requires the user to confirm at the prompt to continue. The default value is false.
@@ -230,45 +227,34 @@ The parameters listed in this section apply to all function modes.
 
 #### Database related configuration parameters
 
-The parameters related to database creation are configured in `dbinfo` in the json configuration file, as follows. These parameters correspond to the database parameters specified when `create database` in TDengine.
+The parameters related to database creation are configured in `dbinfo` in the json configuration file, as follows. The other parameters correspond to the database parameters specified when `create database` in [../../taos-sql/database].
 
 - **name**: specify the name of the database.
 
 - **drop**: indicate whether to delete the database before inserting. The default is true.
 
-- **replica**: specify the number of replicas when creating the database.
+#### Stream processing related configuration parameters
 
-- **days**: specify the time span for storing data in a single data file. The default is 10.
+The parameters for creating streams are configured in `stream` in the json configuration file, as shown below.
 
-- **cache**: specify the size of the cache blocks in MB. The default value is 16.
+- **stream_name**: Name of the stream. Mandatory.
 
-- **blocks**: specify the number of cache blocks in each vnode. The default is 6.
+- **stream_stb**: Name of the supertable for the stream. Mandatory.
 
-- **precision**: specify the database time precision. The default value is "ms".
+- **stream_sql**: SQL statement for the stream to process. Mandatory.
 
-- **keep**: specify the number of days to keep the data. The default value is 3650.
+- **trigger_mode**: Triggering mode for stream processing. Optional.
 
-- **minRows**: specify the minimum number of records in the file block. The default value is 100.
+- **watermark**: Watermark for stream processing. Optional.
 
-- **maxRows**: specify the maximum number of records in the file block. The default value is 4096.
-
-- **comp**: specify the file compression level. The default value is 2.
-
-- **walLevel** : specify WAL level, default is 1.
-
-- **cacheLast**: indicate whether to allow the last record of each table to be kept in memory. The default value is 0. The value can be 0, 1, 2, or 3.
-
-- **quorum**: specify the number of writing acknowledgments in multi-replica mode. The default value is 1.
-
-- **fsync**: specify the interval of fsync in ms when users set WAL to 2. The default value is 3000.
-
-- **update** : indicate whether to support data update, default value is 0, optional values are 0, 1, 2.
+- **drop**: Whether to create the stream. Specify yes to create the stream or no to not create the stream.
 
 #### Super table related configuration parameters
 
 The parameters for creating super tables are configured in `super_tables` in the json configuration file, as shown below.
 
 - **name**: Super table name, mandatory, no default value.
+
 - **child_table_exists** : whether the child table already exists, default value is "no", optional value is "yes" or "no".
 
 - **child_table_count** : The number of child tables, the default value is 10.
@@ -319,6 +305,22 @@ The parameters for creating super tables are configured in `super_tables` in the
 
 - **tags_file** : only works when insert_mode is taosc, rest. The final tag value is related to the childtable_count. Suppose the tag data rows in the CSV file are smaller than the given number of child tables. In that case, taosBenchmark will read the CSV file data cyclically until the number of child tables specified by childtable_count is generated. Otherwise, taosBenchmark will read the childtable_count rows of tag data only. The final number of child tables generated is the smaller of the two.
 
+#### TSMA configuration parameters
+
+The configuration parameters for specifying TSMAs are in `tsmas` in `super_tables`.
+
+- **name**: Specifies TSMA name. Mandatory.
+
+- **function**: Specifies TSMA function. Mandatory.
+
+- **interval**: Specifies TSMA interval. Mandatory.
+
+- **sliding**: Specifies time offset for TSMA window. Mandatory.
+
+- **custom**: Specifies custom configurations to attach to the end of the TSMA creation statement. Optional.
+
+- **start_when_inserted**: Specifies the number of inserted rows after which TSMA is started. Optional. The default value is 0.
+
 #### Tag and Data Column Configuration Parameters
 
 The configuration parameters for specifying super table tag columns and data columns are in `columns` and `tag` in `super_tables`, respectively.
@@ -338,6 +340,8 @@ The configuration parameters for specifying super table tag columns and data col
 
 - **values**: The value field of the nchar/binary column/label, which will be chosen randomly from the values.
 
+- **sma**: Insert the column into the BSMA. Enter `yes` or `no`. The default is `no`.
+
 #### insertion behavior configuration parameters
 
 - **thread_count**: specify the number of threads to insert data. Default is 8.
@@ -350,17 +354,17 @@ The configuration parameters for specifying super table tag columns and data col
 
 - **confirm_parameter_prompt**: The switch parameter requires the user to confirm after the prompt to continue. The default value is false.
 
-- **interlace_rows**: Enables interleaved insertion mode and specifies the number of rows of data to be inserted into each child table at a time. Interleaved insertion mode means inserting the number of rows specified by this parameter into each sub-table and repeating the process until all sub-tables are inserted. The default value is 0, which means that data will be inserted into the following child table only after data is inserted into one child table.
+- **interlace_rows**: Enables interleaved insertion mode and specifies the number of rows of data to be inserted into each child table at a time. Staggered insertion mode means inserting the number of rows specified by this parameter into each sub-table and repeating the process until all sub-tables have been inserted. The default value is 0, i.e., data is inserted into one sub-table before the next sub-table is inserted.
   This parameter can also be configured in `super_tables`, and if so, the configuration in `super_tables` takes precedence and overrides the global setting.
 
 - **insert_interval** :
-  Specifies the insertion interval in ms for interleaved insertion mode. The default value is 0. Only works if `-B/--interlace-rows` is greater than 0. It means that after inserting interlace rows for each child table, the data insertion thread will wait for the interval specified by this value before proceeding to the next round of writes.
-  This parameter can also be configured in `super_tables`, and if configured, the configuration in `super_tables` takes high priority, overriding the global setting.
+  Specify the insert interval in `ms` for interleaved insert mode. The default value is 0. It only works if `-B/--interlace-rows` is greater than 0. After inserting interlaced rows for each child table, the data insertion thread will wait for the interval specified by this value before proceeding to the next round of writes.
+  This parameter can also be configured in `super_tables`, and if so, the configuration in `super_tables` takes precedence and overrides the global setting.
 
 - **num_of_records_per_req** :
-  The number of rows of data to be written per request to TDengine, the default value is 30000. When it is set too large, the TDengine client driver will return the corresponding error message, so you need to lower the setting of this parameter to meet the writing requirements.
+  Writing the number of rows of records per request to TDengine, the default value is 30000. When it is set too large, the TDengine client driver will return the corresponding error message, so you need to lower the setting of this parameter to meet the writing requirements.
 
-- **prepare_rand**: The number of unique values in the generated random data. A value of 1 means that all data are the same. The default value is 10000.
+- **prepare_rand**: The number of unique values in the generated random data. A value of 1 means that all data are equal. The default value is 10000.
 
 ### Query scenario configuration parameters
 
@@ -388,7 +392,7 @@ The configuration parameters of the super table query are set in `super_table_qu
 
 - **threads**: The number of threads to execute the query SQL, the default value is 1.
 
-- **sqls** : The default value is 1.
+- **sqls**:
   - **sql**: The SQL command to be executed. For the query SQL of super table, keep "xxxx" in the SQL command. The program will automatically replace it with all the sub-table names of the super table.
     Replace it with all the sub-table names in the super table.
   - **result**: The file to save the query result. If not specified, taosBenchmark will not save result.
@@ -411,9 +415,9 @@ The configuration parameters for subscribing to a sub-table or a generic table a
 
 - **resubAfterConsume**: "yes" means cancel the previous subscription and then subscribe again, "no" means continue the previous subscription, and the default value is "no".
 
-- **sqls** : The default value is "no".
+- **sqls**:
   - **sql** : The SQL command to be executed, required.
-  - **result** : The file to save the query result, unspecified is not saved.
+  - **result**: The file to save the query result. If not specified, taosBenchmark will not save result.
 
 #### Configuration parameters for subscribing to supertables
 
@@ -431,7 +435,7 @@ The configuration parameters for subscribing to a super table are set in `super_
 
 - **resubAfterConsume**: "yes" means cancel the previous subscription and then subscribe again, "no" means continue the previous subscription, and the default value is "no".
 
-- **sqls** : The default value is "no".
-  - **sql**: SQL command to be executed, required; for the query SQL of the super table, keep "xxxx" in the SQL command, and the program will replace it with all the sub-table names of the super table automatically.
+- **sqls**:
+  - **sql**: The SQL command to be executed. For the query SQL of super table, keep "xxxx" in the SQL command. The program will automatically replace it with all the sub-table names of the super table.
     Replace it with all the sub-table names in the super table.
-  - **result**: The file to save the query result, if not specified, it will not be saved.
+  - **result**: The file to save the query result. If not specified, taosBenchmark will not save result.

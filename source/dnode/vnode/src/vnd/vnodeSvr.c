@@ -145,7 +145,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   int32_t len;
   int32_t ret;
 
-  vTrace("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
+  vDebug("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
          version);
 
   pVnode->state.applied = version;
@@ -196,36 +196,42 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       break;
     /* TQ */
     case TDMT_VND_MQ_VG_CHANGE:
-      if (tqProcessVgChangeReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
+      if (tqProcessVgChangeReq(pVnode->pTq, version, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
                                pMsg->contLen - sizeof(SMsgHead)) < 0) {
         goto _err;
       }
       break;
     case TDMT_VND_MQ_VG_DELETE:
-      if (tqProcessVgDeleteReq(pVnode->pTq, pMsg->pCont, pMsg->contLen) < 0) {
+      if (tqProcessVgDeleteReq(pVnode->pTq, version, pMsg->pCont, pMsg->contLen) < 0) {
         goto _err;
       }
       break;
     case TDMT_VND_MQ_COMMIT_OFFSET:
-      if (tqProcessOffsetCommitReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
-                                   pMsg->contLen - sizeof(SMsgHead), version) < 0) {
+      if (tqProcessOffsetCommitReq(pVnode->pTq, version, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
+                                   pMsg->contLen - sizeof(SMsgHead)) < 0) {
         goto _err;
       }
       break;
-    case TDMT_VND_CHECK_ALTER_INFO:
-      if (tqProcessCheckAlterInfoReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
-                                     pMsg->contLen - sizeof(SMsgHead)) < 0) {
+    case TDMT_VND_ADD_CHECK_INFO:
+      if (tqProcessAddCheckInfoReq(pVnode->pTq, version, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
+                                   pMsg->contLen - sizeof(SMsgHead)) < 0) {
+        goto _err;
+      }
+      break;
+    case TDMT_VND_DELETE_CHECK_INFO:
+      if (tqProcessDelCheckInfoReq(pVnode->pTq, version, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
+                                   pMsg->contLen - sizeof(SMsgHead)) < 0) {
         goto _err;
       }
       break;
     case TDMT_STREAM_TASK_DEPLOY: {
-      if (tqProcessTaskDeployReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
+      if (tqProcessTaskDeployReq(pVnode->pTq, version, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
                                  pMsg->contLen - sizeof(SMsgHead)) < 0) {
         goto _err;
       }
     } break;
     case TDMT_STREAM_TASK_DROP: {
-      if (tqProcessTaskDropReq(pVnode->pTq, pMsg->pCont, pMsg->contLen) < 0) {
+      if (tqProcessTaskDropReq(pVnode->pTq, version, pMsg->pCont, pMsg->contLen) < 0) {
         goto _err;
       }
     } break;
@@ -246,6 +252,8 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   }
 
   vTrace("vgId:%d, process %s request success, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), version);
+
+  walApplyVer(pVnode->pWal, version);
 
   if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, version) < 0) {
     vError("vgId:%d, failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
@@ -281,7 +289,7 @@ int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
-  if ((pMsg->msgType == TDMT_SCH_QUERY) && !vnodeIsLeader(pVnode)) {
+  if ((pMsg->msgType == TDMT_SCH_QUERY) && !vnodeIsReadyForRead(pVnode)) {
     vnodeRedirectRpcMsg(pVnode, pMsg);
     return 0;
   }
@@ -293,6 +301,8 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       return qWorkerProcessQueryMsg(&handle, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_QUERY_CONTINUE:
       return qWorkerProcessCQueryMsg(&handle, pVnode->pQuery, pMsg, 0);
+    case TDMT_VND_EXEC_RSMA:
+      return smaProcessExec(pVnode->pSma, pMsg);
     default:
       vError("unknown msg type:%d in query queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
@@ -303,7 +313,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("vgId:%d, msg:%p in fetch queue is processing", pVnode->config.vgId, pMsg);
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
        pMsg->msgType == TDMT_VND_BATCH_META) &&
-      !vnodeIsLeader(pVnode)) {
+      !vnodeIsReadyForRead(pVnode)) {
     vnodeRedirectRpcMsg(pVnode, pMsg);
     return 0;
   }
@@ -329,8 +339,6 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetTableCfg(pVnode, pMsg, true);
     case TDMT_VND_BATCH_META:
       return vnodeGetBatchMeta(pVnode, pMsg);
-    case TDMT_VND_FETCH_RSMA:
-      return smaProcessFetch(pVnode->pSma, pMsg);
     case TDMT_VND_CONSUME:
       return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_RUN:
@@ -357,7 +365,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 // TODO: remove the function
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   // TODO
-  blockDebugShowDataBlocks(data, __func__);
+  // blockDebugShowDataBlocks(data, __func__);
   tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);
 }
 
@@ -522,7 +530,9 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pR
   }
 
   tqUpdateTbUidList(pVnode->pTq, tbUids, true);
-  tdUpdateTbUidList(pVnode->pSma, pStore);
+  if (tdUpdateTbUidList(pVnode->pSma, pStore) < 0) {
+    goto _exit;
+  }
   tdUidStoreFree(pStore);
 
   // prepare rsp
@@ -867,7 +877,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
 
       submitBlkRsp.uid = createTbReq.uid;
       submitBlkRsp.tblFName = taosMemoryMalloc(strlen(pVnode->config.dbname) + strlen(createTbReq.name) + 2);
-      sprintf(submitBlkRsp.tblFName, "%s.", pVnode->config.dbname);
+      sprintf(submitBlkRsp.tblFName, "%s.%s", pVnode->config.dbname, createTbReq.name);
 
       msgIter.uid = createTbReq.uid;
       if (createTbReq.type == TSDB_CHILD_TABLE) {
@@ -1071,6 +1081,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t version, void 
       // TODO
     }
   }
+  taosArrayDestroy(deleteReq.deleteReqs);
   return 0;
 }
 

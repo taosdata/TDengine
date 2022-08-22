@@ -62,12 +62,13 @@ static void indexDestroy(void* sIdx);
 
 void indexInit() {
   // refactor later
-  indexQhandle = taosInitScheduler(INDEX_QUEUE_SIZE, INDEX_NUM_OF_THREADS, "index");
+  indexQhandle = taosInitScheduler(INDEX_QUEUE_SIZE, INDEX_NUM_OF_THREADS, "index", NULL);
   indexRefMgt = taosOpenRef(1000, indexDestroy);
 }
 void indexCleanup() {
   // refacto later
   taosCleanUpScheduler(indexQhandle);
+  taosMemoryFreeClear(indexQhandle);
   taosCloseRef(indexRefMgt);
 }
 

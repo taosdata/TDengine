@@ -1105,6 +1105,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
   SName* pName = ctgGetFetchName(ctx->pNames, pFetch);
   int32_t flag = pFetch->flag;
   int32_t* vgId = &pFetch->vgId;
+  bool taskDone = false;
 
   CTG_ERR_JRET(ctgProcessRspMsg(pMsgCtx->out, reqType, pMsg->pData, pMsg->len, rspCode, pMsgCtx->target));
 
@@ -1250,6 +1251,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
   pOut->tbMeta = NULL;
   if (0 == atomic_sub_fetch_32(&ctx->fetchNum, 1)) {
     TSWAP(pTask->res, ctx->pResList);
+    taskDone = true;
   }
 
 _return:
@@ -1264,10 +1266,11 @@ _return:
     pRes->pRes = NULL;
     if (0 == atomic_sub_fetch_32(&ctx->fetchNum, 1)) {
       TSWAP(pTask->res, ctx->pResList);
+      taskDone = true;
     }
   }
 
-  if (pTask->res) {
+  if (pTask->res && taskDone) {
     ctgHandleTaskEnd(pTask, code);
   }
   
@@ -1354,6 +1357,7 @@ int32_t ctgHandleGetTbHashsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
   SCatalog* pCtg = pTask->pJob->pCtg; 
   SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, tReq->msgIdx);
   SCtgFetch* pFetch = taosArrayGet(ctx->pFetchs, tReq->msgIdx);
+  bool taskDone = false;
 
   CTG_ERR_JRET(ctgProcessRspMsg(pMsgCtx->out, reqType, pMsg->pData, pMsg->len, rspCode, pMsgCtx->target));
 
@@ -1377,6 +1381,7 @@ int32_t ctgHandleGetTbHashsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
 
   if (0 == atomic_sub_fetch_32(&ctx->fetchNum, 1)) {
     TSWAP(pTask->res, ctx->pResList);
+    taskDone = true;
   }
 
 _return:
@@ -1392,10 +1397,11 @@ _return:
     
     if (0 == atomic_sub_fetch_32(&ctx->fetchNum, 1)) {
       TSWAP(pTask->res, ctx->pResList);
+      taskDone = true;
     }
   }
 
-  if (pTask->res) {
+  if (pTask->res && taskDone) {
     ctgHandleTaskEnd(pTask, code);
   }
 

@@ -10,7 +10,7 @@ sql connect
 
 print =============== step1: create alter drop show user
 sql create user u1 pass 'taosdata'
-sql show users
+sql select * from information_schema.ins_users
 sql alter user u1 sysinfo 1
 sql alter user u1 enable 1
 sql alter user u1 pass 'taosdata'
@@ -23,7 +23,7 @@ sql create dnode $hostname port 7300
 sql drop dnode 3
 sql alter dnode 1 'debugflag 131'
 
-print =============== step3: show dnodes
+print =============== step3: select * from information_schema.ins_dnodes
 $x = 0
 step3:
 	$x = $x + 1
@@ -32,7 +32,7 @@ step3:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 if $rows != 2 then
@@ -53,17 +53,17 @@ sql create table t0 using stb tags (0)
 sql create table tba (ts timestamp, c1 binary(10), c2 nchar(10));
 
 print =============== run show xxxx
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $rows != 2 then 
   return -1
 endi
 
-sql show mnodes
+sql select * from information_schema.ins_mnodes
 if $rows != 1 then 
   return -1
 endi
 
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -78,7 +78,7 @@ if $rows != 2 then
   return -1
 endi
 
-sql show users
+sql select * from information_schema.ins_users
 if $rows != 1 then 
   return -1
 endi

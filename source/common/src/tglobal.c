@@ -75,7 +75,7 @@ int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 
 // telem
-bool     tsEnableTelem = false;
+bool     tsEnableTelem = true;
 int32_t  tsTelemInterval = 86400;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.taosdata.com";
 uint16_t tsTelemPort = 80;
@@ -165,58 +165,26 @@ int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushInterval = 86400;
 int32_t tsGrantHBInterval = 60;
 
-void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary) {
-  tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
-  tsDiskCfg[index].level = level;
-  tsDiskCfg[index].primary = primary;
-  uTrace("dataDir:%s, level:%d primary:%d is configured", v1, level, primary);
-}
-
-static int32_t taosSetTfsCfg(SConfig *pCfg) {
+#ifndef _STORAGE
+int32_t taosSetTfsCfg(SConfig *pCfg) {
   SConfigItem *pItem = cfgGetItem(pCfg, "dataDir");
   memset(tsDataDir, 0, PATH_MAX);
 
   int32_t size = taosArrayGetSize(pItem->array);
-  if (size <= 0) {
-    tsDiskCfgNum = 1;
-    taosAddDataDir(0, pItem->str, 0, 1);
-    tstrncpy(tsDataDir, pItem->str, PATH_MAX);
-    if (taosMulMkDir(tsDataDir) != 0) {
-      uError("failed to create dataDir:%s since %s", tsDataDir, terrstr());
-      return -1;
-    }
-  } else {
-    tsDiskCfgNum = size < TFS_MAX_DISKS ? size : TFS_MAX_DISKS;
-    for (int32_t index = 0; index < tsDiskCfgNum; ++index) {
-      SDiskCfg *pCfg = taosArrayGet(pItem->array, index);
-      memcpy(&tsDiskCfg[index], pCfg, sizeof(SDiskCfg));
-      if (pCfg->level == 0 && pCfg->primary == 1) {
-        tstrncpy(tsDataDir, pCfg->dir, PATH_MAX);
-      }
-      if (taosMulMkDir(pCfg->dir) != 0) {
-        uError("failed to create tfsDir:%s since %s", tsDataDir, terrstr());
-        return -1;
-      }
-    }
+  tsDiskCfgNum = 1;
+  tstrncpy(tsDiskCfg[0].dir, pItem->str, TSDB_FILENAME_LEN);
+  tsDiskCfg[0].level = 0;
+  tsDiskCfg[0].primary = 1;
+  tstrncpy(tsDataDir, pItem->str, PATH_MAX);
+  if (taosMulMkDir(tsDataDir) != 0) {
+    uError("failed to create dataDir:%s", tsDataDir);
+    return -1;
   }
-
-  if (tsDataDir[0] == 0) {
-    if (pItem->str != NULL) {
-      taosAddDataDir(tsDiskCfgNum, pItem->str, 0, 1);
-      tstrncpy(tsDataDir, pItem->str, PATH_MAX);
-      if (taosMulMkDir(tsDataDir) != 0) {
-        uError("failed to create tfsDir:%s since %s", tsDataDir, terrstr());
-        return -1;
-      }
-      tsDiskCfgNum++;
-    } else {
-      uError("datadir not set");
-      return -1;
-    }
-  }
-
   return 0;
 }
+#else
+int32_t taosSetTfsCfg(SConfig *pCfg);
+#endif
 
 struct SConfig *taosGetCfg() {
   return tsCfg;
@@ -405,9 +373,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfVnodeWriteThreads = TMAX(tsNumOfVnodeWriteThreads, 1);
   if (cfgAddInt32(pCfg, "numOfVnodeWriteThreads", tsNumOfVnodeWriteThreads, 1, 1024, 0) != 0) return -1;
 
-  // tsNumOfVnodeSyncThreads = tsNumOfCores;
-  tsNumOfVnodeSyncThreads = 32;
-  tsNumOfVnodeSyncThreads = TMAX(tsNumOfVnodeSyncThreads, 1);
+  tsNumOfVnodeSyncThreads = tsNumOfCores * 2;
+  tsNumOfVnodeSyncThreads = TMAX(tsNumOfVnodeSyncThreads, 16);
   if (cfgAddInt32(pCfg, "numOfVnodeSyncThreads", tsNumOfVnodeSyncThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfQnodeQueryThreads = tsNumOfCores * 2;

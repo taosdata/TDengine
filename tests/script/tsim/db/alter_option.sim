@@ -18,7 +18,7 @@ step1:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
@@ -47,7 +47,7 @@ print ============= create database
 #  | WAL_LEVEL value          [1 | 2]
 
 sql create database db CACHEMODEL 'both' COMP 0 DURATION 240 WAL_FSYNC_PERIOD 1000 MAXROWS 8000 MINROWS 10 KEEP 1000 PRECISION 'ns' REPLICA 3 WAL_LEVEL 2 VGROUPS 6 SINGLE_STABLE 1
-sql show databases
+sql select * from information_schema.ins_databases
 print rows: $rows
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 print $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
@@ -111,7 +111,7 @@ endi
 if $data21_db != 1000 then  # wal_level fsyncperiod
   return -1
 endi
-if $data22_db != 172800 then  # wal_retention_period
+if $data22_db != 345600 then  # wal_retention_period
   return -1
 endi
 if $data23_db != -1 then  # wal_retention_size
@@ -184,29 +184,29 @@ sql_error alter database db replica 5
 sql_error alter database db replica -1
 sql_error alter database db replica 0
 #sql alter database db replica 1
-#sql show databases
+#sql select * from information_schema.ins_databases
 #print replica: $data4_db
-#if $data4_db != 1 then 
+#if $data4_db != 1 then
 #  return -1
 #endi
 #sql alter database db replica 3
-#sql show databases
+#sql select * from information_schema.ins_databases
 #print replica: $data4_db
-#if $data4_db != 3 then 
+#if $data4_db != 3 then
 #  return -1
 #endi
 
 #print ============== modify quorum
 #sql alter database db quorum 2
-#sql show databases
+#sql select * from information_schema.ins_databases
 #print quorum $data5_db
-#if $data5_db != 2 then 
+#if $data5_db != 2 then
 #  return -1
 #endi
 #sql alter database db quorum 1
-#sql show databases
+#sql select * from information_schema.ins_databases
 #print quorum $data5_db
-#if $data5_db != 1 then 
+#if $data5_db != 1 then
 #  return -1
 #endi
 
@@ -224,16 +224,16 @@ sql_error alter database db duration 14400  # set over than keep
 
 print ============== modify keep
 sql alter database db keep 2400
-sql show databases
+sql select * from information_schema.ins_databases
 print keep $data7_db
 if $data7_db != 3456000m,3456000m,3456000m then
   return -1
 endi
 
 #sql alter database db keep 1000,2000
-#sql show databases
+#sql select * from information_schema.ins_databases
 #print keep $data7_db
-#if $data7_db != 500,500,500 then 
+#if $data7_db != 500,500,500 then
 #  return -1
 #endi
 
@@ -261,15 +261,15 @@ sql_error alter database db keep -1
 
 #print ============== modify blocks
 #sql alter database db blocks 3
-#sql show databases
+#sql select * from information_schema.ins_databases
 #print blocks $data9_db
-#if $data9_db != 3 then 
+#if $data9_db != 3 then
 #  return -1
 #endi
 #sql alter database db blocks 11
-#sql show databases
+#sql select * from information_schema.ins_databases
 #print blocks $data9_db
-#if $data9_db != 11 then 
+#if $data9_db != 11 then
 #  return -1
 #endi
 
@@ -298,15 +298,15 @@ sql_error alter database db maxrows 10  # little than minrows
 
 print ============== step wal_level
 sql alter database db wal_level 1
-sql show databases
+sql select * from information_schema.ins_databases
 print wal_level $data20_db
-if $data20_db != 1 then 
+if $data20_db != 1 then
   return -1
 endi
 sql alter database db wal_level 2
-sql show databases
+sql select * from information_schema.ins_databases
 print wal_level $data20_db
-if $data20_db != 2 then 
+if $data20_db != 2 then
   return -1
 endi
 
@@ -317,21 +317,21 @@ sql_error alter database db wal_level -1
 
 print ============== modify wal_fsync_period
 sql alter database db wal_fsync_period 2000
-sql show databases
+sql select * from information_schema.ins_databases
 print wal_fsync_period $data21_db
-if $data21_db != 2000 then 
+if $data21_db != 2000 then
   return -1
 endi
 sql alter database db wal_fsync_period 500
-sql show databases
+sql select * from information_schema.ins_databases
 print wal_fsync_period $data21_db
-if $data21_db != 500 then 
+if $data21_db != 500 then
   return -1
 endi
 sql alter database db wal_fsync_period 0
-sql show databases
+sql select * from information_schema.ins_databases
 print wal_fsync_period $data21_db
-if $data21_db != 0 then 
+if $data21_db != 0 then
   return -1
 endi
 sql_error alter database db wal_fsync_period 180001
@@ -349,33 +349,33 @@ sql_error alter database db comp -1
 
 print ============== modify cachelast [0, 1, 2, 3]
 sql alter database db cachemodel 'last_value'
-sql show databases
+sql select * from information_schema.ins_databases
 print cachelast $data18_db
-if $data18_db != last_value then 
+if $data18_db != last_value then
   return -1
 endi
 sql alter database db cachemodel 'last_row'
-sql show databases
+sql select * from information_schema.ins_databases
 print cachelast $data18_db
-if $data18_db != last_row then 
+if $data18_db != last_row then
   return -1
 endi
 sql alter database db cachemodel 'none'
-sql show databases
+sql select * from information_schema.ins_databases
 print cachelast $data18_db
-if $data18_db != none then 
+if $data18_db != none then
   return -1
 endi
 sql alter database db cachemodel 'last_value'
-sql show databases
+sql select * from information_schema.ins_databases
 print cachelast $data18_db
-if $data18_db != last_value then 
+if $data18_db != last_value then
   return -1
 endi
 sql alter database db cachemodel 'both'
-sql show databases
+sql select * from information_schema.ins_databases
 print cachelast $data18_db
-if $data18_db != both then 
+if $data18_db != both then
   return -1
 endi
 

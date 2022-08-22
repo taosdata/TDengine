@@ -5,10 +5,10 @@ sql connect
 
 print =============== step2
 sql create database db
-sql show databases
+sql select * from information_schema.ins_databases
 print $rows $data07
 
-if $rows != 3 then 
+if $rows != 3 then
   return -1
 endi
 
@@ -68,7 +68,7 @@ sql reset query cache
 
 print =============== step7
 sql create database db
-sql show databases
+sql select * from information_schema.ins_databases
 print $rows $data07
 
 if $rows != 3 then

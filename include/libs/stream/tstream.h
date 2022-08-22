@@ -34,6 +34,8 @@ typedef struct SStreamTask SStreamTask;
 
 enum {
   STREAM_STATUS__NORMAL = 0,
+  STREAM_STATUS__STOP,
+  STREAM_STATUS__FAILED,
   STREAM_STATUS__RECOVER,
 };
 
@@ -51,6 +53,7 @@ enum {
   TASK_SCHED_STATUS__WAITING,
   TASK_SCHED_STATUS__ACTIVE,
   TASK_SCHED_STATUS__FAILED,
+  TASK_SCHED_STATUS__DROPPING,
 };
 
 enum {
@@ -124,6 +127,10 @@ typedef struct {
 typedef struct {
   int8_t type;
 } SStreamCheckpoint;
+
+typedef struct {
+  int8_t type;
+} SStreamTaskDestroy;
 
 typedef struct {
   int8_t       type;
@@ -209,7 +216,6 @@ typedef struct {
   void*     vnode;
   FTbSink*  tbSinkFunc;
   STSchema* pTSchema;
-  SHashObj* pHash;  // groupId to tbuid
 } STaskSinkTb;
 
 typedef void FSmaSink(void* vnode, int64_t smaId, const SArray* data);
@@ -273,12 +279,8 @@ typedef struct SStreamTask {
   int32_t nodeId;
   SEpSet  epSet;
 
-  // used for task source and sink,
-  // while task agg should have processedVer for each child
   int64_t recoverSnapVer;
   int64_t startVer;
-  int64_t checkpointVer;
-  int64_t processedVer;
 
   // children info
   SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>
@@ -517,7 +519,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 void         streamMetaClose(SStreamMeta* streamMeta);
 
 int32_t      streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask);
-int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, char* msg, int32_t msgLen);
+int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* msg, int32_t msgLen);
 int32_t      streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
 SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
 

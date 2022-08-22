@@ -2,7 +2,7 @@
 title: Concepts
 ---
 
-In order to explain the basic concepts and provide some sample code, the TDengine documentation smart meters as a typical time series use case. We assume the following: 1. Each smart meter collects three metrics i.e. current, voltage, and phase 2. There are multiple smart meters, and 3. Each meter has static attributes like location and group ID. Based on this, collected data will look similar to the following table:
+In order to explain the basic concepts and provide some sample code, the TDengine documentation smart meters as a typical time series use case. We assume the following: 1. Each smart meter collects three metrics i.e. current, voltage, and phase; 2. There are multiple smart meters; 3. Each meter has static attributes like location and group ID. Based on this, collected data will look similar to the following table:
 
 <div className="center-table">
 <table>
@@ -116,7 +116,7 @@ Data Collection Point (DCP) refers to hardware or software that collects metrics
 
 ## Table
 
-Since time-series data is most likely to be structured data, TDengine adopts the traditional relational database model to process them with a short learning curve. You need to create a database, create tables, then insert data points and execute queries to explore the data. 
+Since time-series data is most likely to be structured data, TDengine adopts the traditional relational database model to process them with a short learning curve. You need to create a database, create tables, then insert data points and execute queries to explore the data.
 
 To make full use of time-series data characteristics, TDengine adopts a strategy of "**One Table for One Data Collection Point**". TDengine requires the user to create a table for each data collection point (DCP) to store collected time-series data. For example, if there are over 10 million smart meters, it means 10 million tables should be created. For the table above, 4 tables should be created for devices D1001, D1002, D1003, and D1004 to store the data collected. This design has several benefits:
 
@@ -125,9 +125,11 @@ To make full use of time-series data characteristics, TDengine adopts a strategy
 3. The metric data from a DCP is continuously stored, block by block. If you read data for a period of time, it can greatly reduce random read operations and improve read and query performance by orders of magnitude.
 4. Inside a data block for a DCP, columnar storage is used, and different compression algorithms are used for different data types. Metrics generally don't vary as significantly between themselves over a time range as compared to other metrics, which allows for a higher compression rate.
 
-If the metric data of multiple DCPs are traditionally written into a single table, due to uncontrollable network delays, the timing of the data from different DCPs arriving at the server cannot be guaranteed, write operations must be protected by locks, and metric data from one DCP cannot be guaranteed to be continuously stored together. **One table for one data collection point can ensure the best performance of insert and query of a single data collection point to the greatest possible extent.**
+If the metric data of multiple DCPs are traditionally written into a single table, due to uncontrollable network delays, the timing of the data from different DCPs arriving at the server cannot be guaranteed, write operations must be protected by locks, and metric data from one DCP cannot be guaranteed to be continuously stored together. ** One table for one data collection point can ensure the best performance of insert and query of a single data collection point to the greatest possible extent.**
 
 TDengine suggests using DCP ID as the table name (like D1001 in the above table). Each DCP may collect one or multiple metrics (like the current, voltage, phase as above). Each metric has a corresponding column in the table. The data type for a column can be int, float, string and others. In addition, the first column in the table must be a timestamp. TDengine uses the time stamp as the index, and won’t build the index on any metrics stored. Column wise storage is used.
+
+Complex devices, such as connected cars, may have multiple DCPs. In this case, multiple tables are created for a single device, one table per DCP.
 
 ## Super Table (STable)
 
@@ -135,15 +137,16 @@ The design of one table for one data collection point will require a huge number
 
 STable is a template for a type of data collection point. A STable contains a set of data collection points (tables) that have the same schema or data structure, but with different static attributes (tags). To describe a STable, in addition to defining the table structure of the metrics, it is also necessary to define the schema of its tags. The data type of tags can be int, float, string, and there can be multiple tags, which can be added, deleted, or modified afterward. If the whole system has N different types of data collection points, N STables need to be established.
 
-In the design of TDengine, **a table is used to represent a specific data collection point, and STable is used to represent a set of data collection points of the same type**. 
+In the design of TDengine, **a table is used to represent a specific data collection point, and STable is used to represent a set of data collection points of the same type**.
 
 ## Subtable
 
-When creating a table for a specific data collection point, the user can use a STable as a template and specify the tag values of this specific DCP to create it. **The table created by using a STable as the template is called subtable** in TDengine. The difference between regular table and subtable is: 
+When creating a table for a specific data collection point, the user can use a STable as a template and specify the tag values of this specific DCP to create it. ** The table created by using a STable as the template is called subtable** in TDengine. The difference between regular table and subtable is:
+
 1. Subtable is a table, all SQL commands applied on a regular table can be applied on subtable.
 2. Subtable is a table with extensions, it has static tags (labels), and these tags can be added, deleted, and updated after it is created. But a regular table does not have tags.
 3. A subtable belongs to only one STable, but a STable may have many subtables. Regular tables do not belong to a STable.
-4. A regular table can not be converted into a subtable, and vice versa. 
+4. A regular table can not be converted into a subtable, and vice versa.
 
 The relationship between a STable and the subtables created based on this STable is as follows:
 
@@ -151,13 +154,13 @@ The relationship between a STable and the subtables created based on this STable
 2. The schema of metrics or labels cannot be adjusted through subtables, and it can only be changed via STable. Changes to the schema of a STable takes effect immediately for all associated subtables.
 3. STable defines only one template and does not store any data or label information by itself. Therefore, data cannot be written to a STable, only to subtables.
 
-Queries can be executed on both a table (subtable) and a STable. For a query on a STable, TDengine will treat the data in all its subtables as a whole data set for processing. TDengine will first find the subtables that meet the tag filter conditions, then scan the time-series data of these subtables to perform aggregation operation, which reduces the number of data sets to be scanned which in turn greatly improves the performance of data aggregation across multiple DCPs.
+Queries can be executed on both a table (subtable) and a STable. For a query on a STable, TDengine will treat the data in all its subtables as a whole data set for processing. TDengine will first find the subtables that meet the tag filter conditions, then scan the time-series data of these subtables to perform aggregation operation, which reduces the number of data sets to be scanned which in turn greatly improves the performance of data aggregation across multiple DCPs. In essence, querying a supertable is a very efficient aggregate query on multiple DCPs of the same type.
 
-In TDengine, it is recommended to use a subtable instead of a regular table for a DCP. 
+In TDengine, it is recommended to use a subtable instead of a regular table for a DCP.
 
 ## Database
 
-A database is a collection of tables. TDengine allows a running instance to have multiple databases, and each database can be configured with different storage policies. Different types of DCPs often have different data characteristics, including the frequency of data collection, data retention time, the number of replications, the size of data blocks, whether data is allowed to be updated, and so on. In order for TDengine to work with maximum efficiency in various scenarios, TDengine recommends that STables with different data characteristics be created in different databases.
+A database is a collection of tables. TDengine allows a running instance to have multiple databases, and each database can be configured with different storage policies. The [characteristics of time-series data](https://www.taosdata.com/blog/2019/07/09/86.html) from different data collection points may be different. Characteristics include collection frequency, retention policy and others which determine how you create and configure the database. For e.g. days to keep, number of replicas, data block size, whether data updates are allowed and other configurable parameters would be determined by the characteristics of your data and your business requirements. In order for TDengine to work with maximum efficiency in various scenarios, TDengine recommends that STables with different data characteristics be created in different databases.
 
 In a database, there can be one or more STables, but a STable belongs to only one database. All tables owned by a STable are stored in only one database.
 
@@ -167,4 +170,4 @@ FQDN (Fully Qualified Domain Name) is the full domain name of a specific compute
 
 Each node of a TDengine cluster is uniquely identified by an End Point, which consists of an FQDN and a Port, such as h1.tdengine.com:6030. In this way, when the IP changes, we can still use the FQDN to dynamically find the node without changing any configuration of the cluster. In addition, FQDN is used to facilitate unified access to the same cluster from the Intranet and the Internet.
 
-TDengine does not recommend using an IP address to access the cluster. FQDN is recommended for cluster management.
+TDengine does not recommend using an IP address to access the cluster. FQDN is recommended for cluster management. 

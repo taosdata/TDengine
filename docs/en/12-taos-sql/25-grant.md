@@ -1,29 +1,29 @@
 ---
-sidebar_label: 权限管理
-title: 权限管理
+sidebar_label: Permissions Management
+title: Permissions Management
 ---
 
-本节讲述如何在 TDengine 中进行权限管理的相关操作。
+This document describes how to manage permissions in TDengine.
 
-## 创建用户
+## Create a User
 
 ```sql
-CREATE USER use_name PASS password;
+CREATE USER use_name PASS 'password';
 ```
 
-创建用户。
+This statement creates a user account.
 
-use_name最长为23字节。
+The maximum length of use_name is 23 bytes.
 
-password最长为128字节，合法字符包括"a-zA-Z0-9!?$%^&*()_–+={[}]:;@~#|<,>.?/"，不可以出现单双引号、撇号、反斜杠和空格，且不可以为空。
+The maximum length of password is 128 bytes. The password can include leters, digits, and special characters excluding single quotation marks, double quotation marks, backticks, backslashes, and spaces. The password cannot be empty.
 
-## 删除用户
+## Delete a User
 
 ```sql
 DROP USER user_name;
 ```
 
-## 修改用户信息
+## Modify User Information
 
 ```sql
 ALTER USER user_name alter_user_clause
@@ -35,12 +35,12 @@ alter_user_clause: {
 }
 ```
 
-- PASS：修改用户密码。
-- ENABLE：修改用户是否启用。1表示启用此用户，0表示禁用此用户。
-- SYSINFO：修改用户是否可查看系统信息。1表示可以查看系统信息，0表示不可以查看系统信息。
+- PASS: Modify the user password.
+- ENABLE: Specify whether the user is enabled or disabled. 1 indicates enabled and 0 indicates disabled.
+- SYSINFO: Specify whether the user can query system information. 1 indicates that the user can query system information and 0 indicates that the user cannot query system information.
 
 
-## 授权
+## Grant Permissions
 
 ```sql
 GRANT privileges ON priv_level TO user_name
@@ -61,15 +61,15 @@ priv_level : {
 }
 ```
 
-对用户授权。
+Grant permissions to a user.
 
-授权级别支持到DATABASE，权限有READ和WRITE两种。
+Permissions are granted on the database level. You can grant read or write permissions.
 
-TDengine 有超级用户和普通用户两类用户。超级用户缺省创建为root，拥有所有权限。使用超级用户创建出来的用户为普通用户。在未授权的情况下，普通用户可以创建DATABASE，并拥有自己创建的DATABASE的所有权限，包括删除数据库、修改数据库、查询时序数据和写入时序数据。超级用户可以给普通用户授予其他DATABASE的读写权限，使其可以在此DATABASE上读写数据，但不能对其进行删除和修改数据库的操作。
+TDengine has superusers and standard users. The default superuser name is root. This account has all permissions. You can use the superuser account to create standard users. With no permissions, standard users can create databases and have permissions on the databases that they create. These include deleting, modifying, querying, and writing to their own databases. Superusers can grant users permission to read and write other databases. However, standard users cannot delete or modify databases created by other users.
 
-对于非DATABASE的对象，如USER、DNODE、UDF、QNODE等，普通用户只有读权限（一般为SHOW命令），不能创建和修改。
+For non-database objects such as users, dnodes, and user-defined functions, standard users have read permissions only, generally by means of the SHOW statement. Standard users cannot create or modify these objects.
 
-## 撤销授权
+## Revoke Permissions
 
 ```sql
 REVOKE privileges ON priv_level FROM user_name
@@ -91,4 +91,4 @@ priv_level : {
 
 ```
 
-收回对用户的授权。
+Revoke permissions from a user.

@@ -163,7 +163,7 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowTagsStmt";
     case QUERY_NODE_SHOW_USERS_STMT:
       return "ShowUsersStmt";
-    case QUERY_NODE_SHOW_LICENCE_STMT:
+    case QUERY_NODE_SHOW_LICENCES_STMT:
       return "ShowGrantsStmt";
     case QUERY_NODE_SHOW_VGROUPS_STMT:
       return "ShowVgroupsStmt";
@@ -171,10 +171,6 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowTopicsStmt";
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
       return "ShowConsumersStmt";
-    case QUERY_NODE_SHOW_SUBSCRIBES_STMT:
-      return "ShowSubscribesStmt";
-    case QUERY_NODE_SHOW_SMAS_STMT:
-      return "ShowSmasStmt";
     case QUERY_NODE_SHOW_QUERIES_STMT:
       return "ShowQueriesStmt";
     case QUERY_NODE_SHOW_VNODES_STMT:
@@ -2090,9 +2086,10 @@ static int32_t jsonToPhysiIntervalNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkFillPhysiPlanMode = "Mode";
+static const char* jkFillPhysiPlanFillExprs = "FillExprs";
+static const char* jkFillPhysiPlanNotFillExprs = "NotFillExprs";
 static const char* jkFillPhysiPlanWStartTs = "WStartTs";
 static const char* jkFillPhysiPlanValues = "Values";
-static const char* jkFillPhysiPlanTargets = "Targets";
 static const char* jkFillPhysiPlanStartTime = "StartTime";
 static const char* jkFillPhysiPlanEndTime = "EndTime";
 static const char* jkFillPhysiPlanInputTsOrder = "inputTsOrder";
@@ -2105,13 +2102,16 @@ static int32_t physiFillNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddIntegerToObject(pJson, jkFillPhysiPlanMode, pNode->mode);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkFillPhysiPlanFillExprs, pNode->pFillExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkFillPhysiPlanNotFillExprs, pNode->pNotFillExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkFillPhysiPlanWStartTs, nodeToJson, pNode->pWStartTs);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkFillPhysiPlanValues, nodeToJson, pNode->pValues);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodeListToJson(pJson, jkFillPhysiPlanTargets, pNode->pTargets);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkFillPhysiPlanStartTime, pNode->timeRange.skey);
@@ -2132,16 +2132,18 @@ static int32_t jsonToPhysiFillNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToPhysicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     tjsonGetNumberValue(pJson, jkFillPhysiPlanMode, pNode->mode, code);
-    ;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkFillPhysiPlanFillExprs, &pNode->pFillExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkFillPhysiPlanNotFillExprs, &pNode->pNotFillExprs);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkFillPhysiPlanWStartTs, &pNode->pWStartTs);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkFillPhysiPlanValues, &pNode->pValues);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeList(pJson, jkFillPhysiPlanTargets, &pNode->pTargets);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkFillPhysiPlanStartTime, &pNode->timeRange.skey);
@@ -4671,7 +4673,6 @@ static int32_t jsonToNode(const SJson* pJson, void* pObj) {
 
   int32_t code;
   tjsonGetNumberValue(pJson, jkNodeType, pNode->type, code);
-  ;
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonToObject(pJson, nodesNodeName(pNode->type), jsonToSpecificNode, pNode);
     if (TSDB_CODE_SUCCESS != code) {

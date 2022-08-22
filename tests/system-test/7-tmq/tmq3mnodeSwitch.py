@@ -40,7 +40,7 @@ class TDTestCase:
     def checkDnodesStatusAndCreateMnode(self,dnodeNumbers):
         count=0
         while count < dnodeNumbers:
-            tdSql.query("show dnodes")
+            tdSql.query("select * from information_schema.ins_dnodes")
             # tdLog.debug(tdSql.queryResult)
             dCnt = 0
             for i in range(dnodeNumbers):
@@ -63,7 +63,7 @@ class TDTestCase:
         count=0
         while count < self.mnodeCheckCnt:
             time.sleep(1)
-            tdSql.query("show mnodes;")
+            tdSql.query("select * from information_schema.ins_mnodes;")
             if tdSql.checkRows(self.mnodes) :
                 tdLog.debug("mnode is  three nodes")
             else:
@@ -87,7 +87,7 @@ class TDTestCase:
         else:
             tdLog.exit("three mnodes is not ready in 10s ")
 
-        tdSql.query("show mnodes;")
+        tdSql.query("select * from information_schema.ins_mnodes;")
         tdSql.checkRows(self.mnodes)
         tdSql.checkData(0,self.mnodeEpIndex,'%s:%d'%(self.host,self.startPort))
         tdSql.checkData(0,self.mnodeStatusIndex,'ready')
@@ -100,7 +100,7 @@ class TDTestCase:
         count=0
         while count < self.mnodeCheckCnt:
             time.sleep(1)
-            tdSql.query("show mnodes")
+            tdSql.query("select * from information_schema.ins_mnodes")
             tdLog.debug(tdSql.queryResult)
             # if tdSql.checkRows(self.mnodes) :
             #     tdLog.debug("mnode is three nodes")

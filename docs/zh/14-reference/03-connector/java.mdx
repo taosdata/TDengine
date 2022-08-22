@@ -83,7 +83,7 @@ Maven 项目中，在 pom.xml 中添加以下依赖：
 <dependency>
  <groupId>com.taosdata.jdbc</groupId>
  <artifactId>taos-jdbcdriver</artifactId>
- <version>2.0.**</version>
+ <version>3.0.0</version>
 </dependency>
 ```
 
@@ -93,12 +93,12 @@ Maven 项目中，在 pom.xml 中添加以下依赖：
 可以通过下载 TDengine 的源码，自己编译最新版本的 Java connector
 
 ```shell
-git clone https://github.com/taosdata/taos-connector-jdbc.git --branch 2.0
+git clone https://github.com/taosdata/taos-connector-jdbc.git
 cd taos-connector-jdbc
 mvn clean install -Dmaven.test.skip=true
 ```
 
-编译后，在 target 目录下会产生 taos-jdbcdriver-2.0.XX-dist.jar 的 jar 包，并自动将编译的 jar 文件放在本地的 Maven 仓库中。
+编译后，在 target 目录下会产生 taos-jdbcdriver-3.0.*-dist.jar 的 jar 包，并自动将编译的 jar 文件放在本地的 Maven 仓库中。
 
 </TabItem>
 </Tabs>
@@ -131,7 +131,7 @@ url 中的配置参数如下：
 - charset：客户端使用的字符集，默认值为系统字符集。
 - locale：客户端语言环境，默认值系统当前 locale。
 - timezone：客户端使用的时区，默认值为系统当前时区。
-- batchfetch: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。开启批量拉取同时获取一批数据在查询数据量较大时批量拉取可以有效的提升查询性能。
+- batchfetch: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：true。开启批量拉取同时获取一批数据在查询数据量较大时批量拉取可以有效的提升查询性能。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败将继续执行下面的 SQL。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 
 JDBC 原生连接的使用请参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1955.html)。
@@ -198,7 +198,7 @@ url 中的配置参数如下：
 
 - user：登录 TDengine 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
-- batchfetch: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。逐行拉取结果集使用 HTTP 方式进行数据传输。从 taos-jdbcdriver-2.0.38 开始，JDBC REST 连接增加批量拉取数据功能。taos-jdbcdriver 与 TDengine 之间通过 WebSocket 连接进行数据传输。相较于 HTTP，WebSocket 可以使 JDBC REST 连接支持大数据量查询，并提升查询性能。
+- batchfetch: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。逐行拉取结果集使用 HTTP 方式进行数据传输。JDBC REST 连接支持批量拉取数据功能。taos-jdbcdriver 与 TDengine 之间通过 WebSocket 连接进行数据传输。相较于 HTTP，WebSocket 可以使 JDBC REST 连接支持大数据量查询，并提升查询性能。
 - charset: 当开启批量拉取数据时，指定解析字符串数据的字符集。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 - httpConnectTimeout: 连接超时时间，单位 ms， 默认值为 5000。
@@ -216,7 +216,7 @@ url 中的配置参数如下：
 INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('California.SanFrancisco') VALUES(now, 24.6);
 ```
 
-- 从 taos-jdbcdriver-2.0.36 开始，如果在 url 中指定了 dbname，那么，JDBC REST 连接会默认使用/rest/sql/dbname 作为 restful 请求的 url，在 SQL 中不需要指定 dbname。例如：url 为 jdbc:TAOS-RS://127.0.0.1:6041/test，那么，可以执行 sql：insert into t1 using weather(ts, temperature) tags('California.SanFrancisco') values(now, 24.6);
+- 如果在 url 中指定了 dbname，那么，JDBC REST 连接会默认使用/rest/sql/dbname 作为 restful 请求的 url，在 SQL 中不需要指定 dbname。例如：url 为 jdbc:TAOS-RS://127.0.0.1:6041/test，那么，可以执行 sql：insert into t1 using weather(ts, temperature) tags('California.SanFrancisco') values(now, 24.6);
 
 :::
 
@@ -230,7 +230,7 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('California.SanFra
 **注意**：
 
 - 应用中设置的 client parameter 为进程级别的，即如果要更新 client 的参数，需要重启应用。这是因为 client parameter 是全局参数，仅在应用程序的第一次设置生效。
-- 以下示例代码基于 taos-jdbcdriver-2.0.36。
+- 以下示例代码基于 taos-jdbcdriver-3.0.0。
 
 ```java
 public Connection getConn() throws Exception{
@@ -358,7 +358,7 @@ JDBC 连接器可能报错的错误码包括 3 种：JDBC driver 本身的报错
 具体的错误码请参考：
 
 - [TDengine Java Connector](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
-- [TDengine_ERROR_CODE](../error-code)
+<!-- - [TDengine_ERROR_CODE](../error-code) -->
 
 ### 通过参数绑定写入数据
 
@@ -367,7 +367,7 @@ TDengine 的 JDBC 原生连接实现大幅改进了参数绑定方式对数据�
 **注意**：
 
 - JDBC REST 连接目前不支持参数绑定
-- 以下示例代码基于 taos-jdbcdriver-2.0.36
+- 以下示例代码基于 taos-jdbcdriver-3.0.0
 - binary 类型数据需要调用 setString 方法，nchar 类型数据需要调用 setNString 方法
 - setString 和 setNString 都要求用户在 size 参数里声明表定义中对应列的列宽
 
@@ -635,7 +635,7 @@ TDengine 支持无模式写入功能。无模式写入兼容 InfluxDB 的 行协
 **注意**：
 
 - JDBC REST 连接目前不支持无模式写入
-- 以下示例代码基于 taos-jdbcdriver-2.0.36
+- 以下示例代码基于 taos-jdbcdriver-3.0.0
 
 ```java
 public class SchemalessInsertTest {
@@ -666,7 +666,7 @@ public class SchemalessInsertTest {
 }
 ```
 
-### 订阅
+### 数据订阅
 
 TDengine Java 连接器支持订阅功能，应用 API 如下：
 
@@ -712,13 +712,18 @@ while(true) {
 }
 ```
 
-`poll` 方法返回一个结果集，其中包含从上次 `poll` 到目前为止的所有新数据。请务必按需选择合理的调用 `poll` 的频率（如例子中的 `Duration.ofMillis(100)`），否则会给服务端造成不必要的压力。
+`poll` 每次调用获取一个消息。
 
 #### 关闭订阅
 
 ```java
+// 取消订阅
+consumer.unsubscribe();
+// 关闭消费
 consumer.close()
 ```
+
+详情请参考：[数据订阅](../../../develop/tmq)
 
 ### 使用示例如下：
 
@@ -734,7 +739,7 @@ public abstract class ConsumerLoop {
         config.setProperty("msg.with.table.name", "true");
         config.setProperty("enable.auto.commit", "true");
         config.setProperty("group.id", "group1");
-        config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.ResultDeserializer");
+        config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.ConsumerLoop$ResultDeserializer");
 
         this.consumer = new TaosConsumer<>(config);
         this.topics = Collections.singletonList("topic_speed");
@@ -754,8 +759,9 @@ public abstract class ConsumerLoop {
                     process(record);
                 }
             }
+            consumer.unsubscribe();
         } finally {
-             consumer.close();
+            consumer.close();
             shutdownLatch.countDown();
         }
     }
@@ -765,11 +771,11 @@ public abstract class ConsumerLoop {
         shutdownLatch.await();
     }
 
-    static class ResultDeserializer extends ReferenceDeserializer<ResultBean> {
+    public static class ResultDeserializer extends ReferenceDeserializer<ResultBean> {
 
     }
 
-    static class ResultBean {
+    public static class ResultBean {
         private Timestamp ts;
         private int speed;
 
@@ -875,6 +881,7 @@ public static void main(String[] args) throws Exception {
 
 | taos-jdbcdriver 版本 |            主要变化            |
 | :------------------: | :----------------------------: |
+|       3.0.0        |   支持 TDengine 3.0    |
 |   2.0.39 - 2.0.40    |  增加 REST 连接/请求 超时设置  |
 |        2.0.38        | JDBC REST 连接增加批量拉取功能 |
 |        2.0.37        |      增加对 json tag 支持      |
@@ -900,7 +907,13 @@ public static void main(String[] args) throws Exception {
 
    **解决方法**：重新安装 64 位 JDK。
 
-4. 其它问题请参考 [FAQ](../../../train-faq/faq)
+4. java.lang.NoSuchMethodError: setByteArray
+
+  **原因**：taos-jdbcdriver 3.* 版本仅支持 TDengine 3.0 及以上版本。
+
+  **解决方法**： 使用 taos-jdbcdriver 2.* 版本连接 TDengine 2.* 版本。
+
+其它问题请参考 [FAQ](../../../train-faq/faq)
 
 ## API 参考
 

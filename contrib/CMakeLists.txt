@@ -27,10 +27,6 @@ else ()
     cat("${TD_SUPPORT_DIR}/taosadapter_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
-if(TD_LINUX_64 AND JEMALLOC_ENABLED)
-    cat("${TD_SUPPORT_DIR}/jemalloc_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif()
-
 # pthread
 if(${BUILD_PTHREAD})
     cat("${TD_SUPPORT_DIR}/pthread_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -109,11 +105,6 @@ if(${BUILD_WITH_SQLITE})
     cat("${TD_SUPPORT_DIR}/sqlite_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_WITH_SQLITE})
 
-# rust-bindings
-if(${RUST_BINDINGS})
-    cat("${TD_SUPPORT_DIR}/rust-bindings_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif(${RUST_BINDINGS})
-
 # lucene
 if(${BUILD_WITH_LUCENE})
     cat("${TD_SUPPORT_DIR}/lucene_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -144,24 +135,6 @@ execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
         WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
 execute_process(COMMAND "${CMAKE_COMMAND}" --build .
         WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
-     
-# clear submodule
-execute_process(COMMAND git submodule deinit -f tools/taos-tools
-        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
-execute_process(COMMAND git rm --cached tools/taos-tools
-        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
-execute_process(COMMAND git submodule deinit -f tools/taosadapter
-        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
-execute_process(COMMAND git rm --cached tools/taosadapter
-        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
-execute_process(COMMAND git submodule deinit -f tools/taosws-rs
-        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
-execute_process(COMMAND git rm --cached tools/taosws-rs
-        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
-execute_process(COMMAND git submodule deinit -f examples/rust
-        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
-execute_process(COMMAND git rm --cached examples/rust
-        WORKING_DIRECTORY "${TD_SOURCE_DIR}")
 
 # ================================================================================================
 # Build
@@ -277,7 +250,7 @@ endif(${BUILD_WITH_NURAFT})
 
 # pthread
 if(${BUILD_PTHREAD})
-    set(CMAKE_BUILD_TYPE release)
+    set(CMAKE_BUILD_TYPE debug)
     add_definitions(-DPTW32_STATIC_LIB)
     add_subdirectory(pthread EXCLUDE_FROM_ALL)
     set_target_properties(libpthreadVC3 PROPERTIES OUTPUT_NAME pthread)
@@ -358,9 +331,11 @@ endif(${BUILD_WITH_TRAFT})
 
 # LIBUV
 if(${BUILD_WITH_UV})
-    if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-        MESSAGE("Windows need set no-sign-compare")
-        add_compile_options(-Wno-sign-compare)
+    if (TD_WINDOWS)
+        # There is no GetHostNameW function on win7.
+        file(READ "libuv/src/win/util.c" LIBUV_WIN_UTIL_CONTENT)
+        string(REPLACE "if (GetHostNameW(buf, UV_MAXHOSTNAMESIZE" "DWORD  nSize = UV_MAXHOSTNAMESIZE;\n  if (GetComputerNameW(buf, &nSize" LIBUV_WIN_UTIL_CONTENT "${LIBUV_WIN_UTIL_CONTENT}")
+        file(WRITE "libuv/src/win/util.c" "${LIBUV_WIN_UTIL_CONTENT}")
     endif ()
     add_subdirectory(libuv EXCLUDE_FROM_ALL)
 endif(${BUILD_WITH_UV})
@@ -395,19 +370,6 @@ if(${BUILD_WITH_SQLITE})
         )
     endif(NOT TD_WINDOWS)
 endif(${BUILD_WITH_SQLITE})
-
-# jemalloc
-IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
-    include(ExternalProject)
-    ExternalProject_Add(jemalloc
-        PREFIX        "jemalloc"
-        SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/jemalloc
-        BUILD_IN_SOURCE     1
-        CONFIGURE_COMMAND   ./autogen.sh COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/
-        BUILD_COMMAND       ${MAKE}
-        )
-    INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
-ENDIF ()
 
 # addr2line
 if(${BUILD_ADDR2LINE})
