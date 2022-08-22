@@ -73,8 +73,9 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 <PkgListV3 type={3}/>
 2. 运行可执行程序来安装 TDengine。
 :::info
-目前服务端在 Windows 平台上只支持 Windows server 2016/2019 和 Windows 10/11 系统版本。
+目前 TDengine 在 Windows 平台上只支持 Windows server 2016/2019 和 Windows 10/11 系统版本。
 :::
+
 </TabItem>
 <TabItem value="apt-get" label="apt-get">
 可以使用 apt-get 工具从官方仓库安装。
