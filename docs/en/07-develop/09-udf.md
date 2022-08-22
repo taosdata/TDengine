@@ -15,7 +15,7 @@ When you create a user-defined function, you must implement standard interface f
 - For aggregate functions, implement the `aggfn_start`, `aggfn`, and `aggfn_finish` interface functions.
 - To initialize your function, implement the `udf_init` function. To terminate your function, implement the `udf_destroy` function.
 
-There are strict naming conventions for these interface functions. The names of the start, finish, init, and destroy interfaces must be <udf-name>_start, <udf-name>_finish, <udf-name>_init, and <udf-name>_destroy, respectively. Replace `scalarfn`, `aggfn`, and `udf` with the name of your user-defined function.
+There are strict naming conventions for these interface functions. The names of the start, finish, init, and destroy interfaces must be <udf-name\>_start, <udf-name\>_finish, <udf-name\>_init, and <udf-name\>_destroy, respectively. Replace `scalarfn`, `aggfn`, and `udf` with the name of your user-defined function.
 
 ## Implementing a Scalar Function
 The implementation of a scalar function is described as follows:
