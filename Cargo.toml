@@ -27,5 +27,22 @@ serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
 taos = { path = "../taos-connector-rust" }
 tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7" }
 toml = "0.5.9"
 zstd = "0.11.2"
+
+actix-web = "4"
+serde_json = "1.0"
+sqlx = { version = "*", features = ["runtime-tokio-native-tls", "sqlite", "chrono"] }
+utoipa = { version = "1", features = ["actix_extras", "chrono"] }
+utoipa-swagger-ui = { version = "1", features = ["actix-web"] }
+
+lru = "0.7.5"
+metrics = "0.20.1"
+metrics-exporter-prometheus = "0.11.0"
+palaver = "0.2.8"
+procfs = "0.14.0"
+psutil = { version = "3.2.0", default-features = false, features = ["cpu", "process"] }
+
+[patch.crates-io]
+zip = { git = "https://github.com/zip-rs/zip.git" }

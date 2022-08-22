@@ -114,6 +114,10 @@ impl LocalConfig {
     }
 }
 
+pub async fn local_to_taos_validate(from: Dsn, to: Dsn) -> Result<()> {
+    Ok(())
+}
+
 pub async fn local_to_taos(from: Dsn, to: Dsn, jobs: usize, force: bool) -> Result<()> {
     if from.fragment.is_none() {
         anyhow::bail!(
