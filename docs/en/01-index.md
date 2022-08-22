@@ -26,3 +26,4 @@ If you are very interested in the internal design of TDengine, please read the c
 TDengine is an open source database, and we would love for you to be a part of TDengine. If you find any errors in the documentation, or see parts where more clarity or elaboration is needed, please click "Edit this page" at the bottom of each page to edit it directly.
 
 Together, we make a difference.
+
