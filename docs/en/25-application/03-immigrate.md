@@ -419,7 +419,7 @@ Note that once the installation is complete, do not immediately start the `taosd
 
 To ensure that the system can obtain the necessary information for regular operation. Please set the following vital parameters correctly on the server:
 
-FQDN, firstEp, secondEP, dataDir, logDir, tmpDir, serverPort. For the specific meaning and setting requirements of each parameter, please refer to the document "[TDengine Cluster Installation and Management](/cluster/)"
+FQDN, firstEp, secondEP, dataDir, logDir, tmpDir, serverPort. For the specific meaning and setting requirements of each parameter, please refer to the document "[TDengine Cluster Installation and Management](../../cluster/)"
 
 Follow the same steps to set parameters on the other nodes, start the taosd service, and then add Dnodes to the cluster.
 
