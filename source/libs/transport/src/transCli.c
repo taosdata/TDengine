@@ -1432,7 +1432,7 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
   if (pThrd == NULL && valid == false) {
     transFreeMsg(pReq->pCont);
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
-    return -1;
+    return TSDB_CODE_RPC_BROKEN_LINK;
   }
 
   TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
@@ -1477,7 +1477,7 @@ int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMs
   if (pThrd == NULL && valid == false) {
     transFreeMsg(pReq->pCont);
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
-    return -1;
+    return TSDB_CODE_RPC_BROKEN_LINK;
   }
 
   tsem_t* sem = taosMemoryCalloc(1, sizeof(tsem_t));

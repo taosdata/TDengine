@@ -375,6 +375,9 @@ int32_t tdCloneRSmaInfo(SSma *pSma, SRSmaInfo *pInfo) {
   if (TABLE_IS_ROLLUP(mr.me.flags)) {
     param = &mr.me.stbEntry.rsmaParam;
     for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
+      if (!pInfo->iTaskInfo[i]) {
+        continue;
+      }
       if (tdCloneQTaskInfo(pSma, pInfo->taskInfo[i], pInfo->iTaskInfo[i], param, pInfo->suid, i) < 0) {
         goto _err;
       }

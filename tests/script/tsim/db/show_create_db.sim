@@ -7,7 +7,7 @@ print =============== step2
 sql create database db
 sql show create database db
 
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
@@ -15,13 +15,13 @@ print =============== step3
 sql use db
 sql show create database db
 
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
-if $data00 != db then 
+if $data00 != db then
   return -1
-endi  
+endi
 
 sql drop database db
 

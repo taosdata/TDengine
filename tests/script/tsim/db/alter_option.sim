@@ -186,13 +186,13 @@ sql_error alter database db replica 0
 #sql alter database db replica 1
 #sql select * from information_schema.ins_databases
 #print replica: $data4_db
-#if $data4_db != 1 then 
+#if $data4_db != 1 then
 #  return -1
 #endi
 #sql alter database db replica 3
 #sql select * from information_schema.ins_databases
 #print replica: $data4_db
-#if $data4_db != 3 then 
+#if $data4_db != 3 then
 #  return -1
 #endi
 
@@ -200,13 +200,13 @@ sql_error alter database db replica 0
 #sql alter database db quorum 2
 #sql select * from information_schema.ins_databases
 #print quorum $data5_db
-#if $data5_db != 2 then 
+#if $data5_db != 2 then
 #  return -1
 #endi
 #sql alter database db quorum 1
 #sql select * from information_schema.ins_databases
 #print quorum $data5_db
-#if $data5_db != 1 then 
+#if $data5_db != 1 then
 #  return -1
 #endi
 
@@ -233,7 +233,7 @@ endi
 #sql alter database db keep 1000,2000
 #sql select * from information_schema.ins_databases
 #print keep $data7_db
-#if $data7_db != 500,500,500 then 
+#if $data7_db != 500,500,500 then
 #  return -1
 #endi
 
@@ -263,13 +263,13 @@ sql_error alter database db keep -1
 #sql alter database db blocks 3
 #sql select * from information_schema.ins_databases
 #print blocks $data9_db
-#if $data9_db != 3 then 
+#if $data9_db != 3 then
 #  return -1
 #endi
 #sql alter database db blocks 11
 #sql select * from information_schema.ins_databases
 #print blocks $data9_db
-#if $data9_db != 11 then 
+#if $data9_db != 11 then
 #  return -1
 #endi
 
@@ -300,13 +300,13 @@ print ============== step wal_level
 sql alter database db wal_level 1
 sql select * from information_schema.ins_databases
 print wal_level $data20_db
-if $data20_db != 1 then 
+if $data20_db != 1 then
   return -1
 endi
 sql alter database db wal_level 2
 sql select * from information_schema.ins_databases
 print wal_level $data20_db
-if $data20_db != 2 then 
+if $data20_db != 2 then
   return -1
 endi
 
@@ -319,19 +319,19 @@ print ============== modify wal_fsync_period
 sql alter database db wal_fsync_period 2000
 sql select * from information_schema.ins_databases
 print wal_fsync_period $data21_db
-if $data21_db != 2000 then 
+if $data21_db != 2000 then
   return -1
 endi
 sql alter database db wal_fsync_period 500
 sql select * from information_schema.ins_databases
 print wal_fsync_period $data21_db
-if $data21_db != 500 then 
+if $data21_db != 500 then
   return -1
 endi
 sql alter database db wal_fsync_period 0
 sql select * from information_schema.ins_databases
 print wal_fsync_period $data21_db
-if $data21_db != 0 then 
+if $data21_db != 0 then
   return -1
 endi
 sql_error alter database db wal_fsync_period 180001
@@ -351,31 +351,31 @@ print ============== modify cachelast [0, 1, 2, 3]
 sql alter database db cachemodel 'last_value'
 sql select * from information_schema.ins_databases
 print cachelast $data18_db
-if $data18_db != last_value then 
+if $data18_db != last_value then
   return -1
 endi
 sql alter database db cachemodel 'last_row'
 sql select * from information_schema.ins_databases
 print cachelast $data18_db
-if $data18_db != last_row then 
+if $data18_db != last_row then
   return -1
 endi
 sql alter database db cachemodel 'none'
 sql select * from information_schema.ins_databases
 print cachelast $data18_db
-if $data18_db != none then 
+if $data18_db != none then
   return -1
 endi
 sql alter database db cachemodel 'last_value'
 sql select * from information_schema.ins_databases
 print cachelast $data18_db
-if $data18_db != last_value then 
+if $data18_db != last_value then
   return -1
 endi
 sql alter database db cachemodel 'both'
 sql select * from information_schema.ins_databases
 print cachelast $data18_db
-if $data18_db != both then 
+if $data18_db != both then
   return -1
 endi
 

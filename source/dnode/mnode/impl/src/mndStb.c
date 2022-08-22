@@ -442,6 +442,8 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   if (req.rollup) {
     req.rsmaParam.maxdelay[0] = pStb->maxdelay[0];
     req.rsmaParam.maxdelay[1] = pStb->maxdelay[1];
+    req.rsmaParam.watermark[0] = pStb->watermark[0];
+    req.rsmaParam.watermark[1] = pStb->watermark[1];
     if (pStb->ast1Len > 0) {
       if (mndConvertRsmaTask(&req.rsmaParam.qmsg[0], &req.rsmaParam.qmsgLen[0], pStb->pAst1, pStb->uid,
                              STREAM_TRIGGER_WINDOW_CLOSE, req.rsmaParam.watermark[0]) < 0) {

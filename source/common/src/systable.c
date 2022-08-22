@@ -88,7 +88,7 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "comp", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "precision", .bytes = 2 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "retention", .bytes = 60 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "retentions", .bytes = 60 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "single_stable", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL},
     {.name = "cachemodel", .bytes = TSDB_CACHE_MODEL_STR_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "cachesize", .bytes = 4, .type = TSDB_DATA_TYPE_INT},

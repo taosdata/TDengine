@@ -275,16 +275,15 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     if (pBuf->len <= TRANS_PACKET_LIMIT) {
       while (transReadComplete(pBuf)) {
         tTrace("%s conn %p alread read complete packet", transLabel(pTransInst), conn);
-        if (pBuf->invalid) {
-          tTrace("%s conn %p alread read invalid packet", transLabel(pTransInst), conn);
+        if (true == pBuf->invalid || false == uvHandleReq(conn)) {
+          tError("%s conn %p read invalid packet", transLabel(pTransInst), conn);
           destroyConn(conn, true);
           return;
-        } else {
-          if (false == uvHandleReq(conn)) break;
         }
       }
       return;
     } else {
+      tError("%s conn %p read invalid packet, exceed limit", transLabel(pTransInst), conn);
       destroyConn(conn, true);
       return;
     }

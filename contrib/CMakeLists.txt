@@ -331,9 +331,11 @@ endif(${BUILD_WITH_TRAFT})
 
 # LIBUV
 if(${BUILD_WITH_UV})
-    if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-        MESSAGE("Windows need set no-sign-compare")
-        add_compile_options(-Wno-sign-compare)
+    if (TD_WINDOWS)
+        # There is no GetHostNameW function on win7.
+        file(READ "libuv/src/win/util.c" LIBUV_WIN_UTIL_CONTENT)
+        string(REPLACE "if (GetHostNameW(buf, UV_MAXHOSTNAMESIZE" "DWORD  nSize = UV_MAXHOSTNAMESIZE;\n  if (GetComputerNameW(buf, &nSize" LIBUV_WIN_UTIL_CONTENT "${LIBUV_WIN_UTIL_CONTENT}")
+        file(WRITE "libuv/src/win/util.c" "${LIBUV_WIN_UTIL_CONTENT}")
     endif ()
     add_subdirectory(libuv EXCLUDE_FROM_ALL)
 endif(${BUILD_WITH_UV})
