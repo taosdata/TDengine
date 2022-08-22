@@ -175,6 +175,20 @@ After the installation is complete, run `C:\TDengine\taosd.exe` to start TDengin
 </TabItem>
 </Tabs>
 
+## Test data insert performance
+
+After your TDengine Server is running normally, you can run the taosBenchmark utility to test its performance:
+
+```bash
+taosBenchmark
+```
+
+This command creates the `meters` supertable in the `test` database. In the `meters` supertable, it then creates 10,000 subtables named `d0` to `d9999`. Each table has 10,000 rows and each row has four columns: `ts`, `current`, `voltage`, and `phase`. The timestamps of the data in these columns range from 2017-07-14 10:40:00 000 to 2017-07-14 10:40:09 999. Each table is randomly assigned a `groupId` tag from 1 to 10 and a `location` tag of either `Campbell`, `Cupertino`, `Los Angeles`, `Mountain View`, `Palo Alto`, `San Diego`, `San Francisco`, `San Jose`, `Santa Clara` or `Sunnyvale`.
+
+The `taosBenchmark` command creates a deployment with 100 million data points that you can use for testing purposes. The time required to create the deployment depends on your hardware. On most modern servers, the deployment is created in less than a minute.
+
+You can customize the test deployment that taosBenchmark creates by specifying command-line parameters. For information about command-line parameters, run the `taosBenchmark --help` command. For more information about taosBenchmark, see [taosBenchmark](../../reference/taosbenchmark).
+
 ## Command Line Interface
 
 You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, run the following command:
@@ -206,51 +220,38 @@ Query OK, 2 row(s) in set (0.003128s)
 ```
 
 You can also can monitor the deployment status, add and remove user accounts, and manage running instances. You can run the TDengine CLI on either Linux or Windows machines. For more information, see [TDengine CLI](../../reference/taos-shell/).
-
-## Test data insert performance
-
-After your TDengine Server is running normally, you can run the taosBenchmark utility to test its performance:
-
-```bash
-taosBenchmark
-```
-
-This command creates the `meters` supertable in the `test` database. In the `meters` supertable, it then creates 10,000 subtables named `d0` to `d9999`. Each table has 10,000 rows and each row has four columns: `ts`, `current`, `voltage`, and `phase`. The timestamps of the data in these columns range from 2017-07-14 10:40:00 000 to 2017-07-14 10:40:09 999. Each table is randomly assigned a `groupId` tag from 1 to ten and a `location` tag of either `California.SanFrancisco` or `California.LosAngeles`.
-
-The `taosBenchmark` command creates a deployment with 100 million data points that you can use for testing purposes. The time required to create the deployment depends on your hardware. On most modern servers, the deployment is created in less than a minute.
-
-You can customize the test deployment that taosBenchmark creates by specifying command-line parameters. For information about command-line parameters, run the `taosBenchmark --help` command. For more information about taosBenchmark, see [taosBenchmark](../../reference/taosbenchmark).
-
+           
 ## Test data query performance
 
 After using taosBenchmark to create your test deployment, you can run queries in the TDengine CLI to test its performance:
 
-Query the number of rows in the `meters` supertable:
+From the TDengine CLI query the number of rows in the `meters` supertable:
 
 ```sql
-taos> select count(*) from test.meters;
+select count(*) from test.meters;
 ```
 
 Query the average, maximum, and minimum values of all 100 million rows of data:
 
 ```sql
-taos> select avg(current), max(voltage), min(phase) from test.meters;
+select avg(current), max(voltage), min(phase) from test.meters;
 ```
 
-Query the number of rows whose `location` tag is `California.SanFrancisco`:
+Query the number of rows whose `location` tag is `San Francisco`:
 
 ```sql
-taos> select count(*) from test.meters where location="California.SanFrancisco";
+select count(*) from test.meters where location="San Francisco";
 ```
 
 Query the average, maximum, and minimum values of all rows whose `groupId` tag is `10`:
 
 ```sql
-taos> select avg(current), max(voltage), min(phase) from test.meters where groupId=10;
+select avg(current), max(voltage), min(phase) from test.meters where groupId=10;
 ```
 
-Query the average, maximum, and minimum values for table `d10` in 10 second intervals:
+Query the average, maximum, and minimum values for table `d10` in 1 second intervals:
 
 ```sql
-taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
+select first(ts), avg(current), max(voltage), min(phase) from test.d10 interval(1s);
 ```
+In the query above you are selecting the first timestamp (ts) in the interval, another way of selecting this would be _wstart which will give the start of the time window. For more information about windowed queries, see [Time-Series Extensions](../../taos-sql/distinguished/).
