@@ -3043,7 +3043,12 @@ static int32_t checkForNeighborFileBlock(STsdbReader* pReader, STableBlockScanIn
 
     // 3. load the neighbor block, and set it to be the currently accessed file data block
     tBlockDataReset(&pStatus->fileBlockData);
-    int32_t code = doLoadFileBlockData(pReader, pBlockIter, &pStatus->fileBlockData);
+    int32_t code = tBlockDataInit(&pStatus->fileBlockData, pReader->suid, pFBlock->uid, pReader->pSchema);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    code = doLoadFileBlockData(pReader, pBlockIter, &pStatus->fileBlockData);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
