@@ -195,8 +195,10 @@ int32_t tPutDFileSet(uint8_t *p, SDFileSet *pSet) {
   n += tPutSmaFile(p ? p + n : p, pSet->pSmaF);
 
   // last
-  n += tPutU8(p ? p + n : p, 1);  // for future compatibility
-  n += tPutLastFile(p ? p + n : p, pSet->pLastF);
+  n += tPutU8(p ? p + n : p, pSet->nLastF);
+  for (int32_t iLast = 0; iLast < pSet->nLastF; iLast++) {
+    n += tPutLastFile(p ? p + n : p, pSet->aLastF[iLast]);
+  }
 
   return n;
 }
@@ -208,15 +210,40 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
   n += tGetI32v(p + n, &pSet->diskId.id);
   n += tGetI32v(p + n, &pSet->fid);
 
-  // data
+  // head
+  pSet->pHeadF = (SHeadFile *)taosMemoryCalloc(1, sizeof(SHeadFile));
+  if (pSet->pHeadF == NULL) {
+    return -1;
+  }
+  pSet->pHeadF->nRef = 1;
   n += tGetHeadFile(p + n, pSet->pHeadF);
+
+  // data
+  pSet->pDataF = (SDataFile *)taosMemoryCalloc(1, sizeof(SDataFile));
+  if (pSet->pDataF == NULL) {
+    return -1;
+  }
+  pSet->pDataF->nRef = 1;
   n += tGetDataFile(p + n, pSet->pDataF);
+
+  // sma
+  pSet->pSmaF = (SSmaFile *)taosMemoryCalloc(1, sizeof(SSmaFile));
+  if (pSet->pSmaF == NULL) {
+    return -1;
+  }
+  pSet->pSmaF->nRef = 1;
   n += tGetSmaFile(p + n, pSet->pSmaF);
 
   // last
-  uint8_t nLast;
-  n += tGetU8(p + n, &nLast);
-  n += tGetLastFile(p + n, pSet->pLastF);
+  n += tGetU8(p + n, &pSet->nLastF);
+  for (int32_t iLast = 0; iLast < pSet->nLastF; iLast++) {
+    pSet->aLastF[iLast] = (SLastFile *)taosMemoryCalloc(1, sizeof(SLastFile));
+    if (pSet->aLastF[iLast] == NULL) {
+      return -1;
+    }
+    pSet->aLastF[iLast]->nRef = 1;
+    n += tGetLastFile(p + n, pSet->aLastF[iLast]);
+  }
 
   return n;
 }

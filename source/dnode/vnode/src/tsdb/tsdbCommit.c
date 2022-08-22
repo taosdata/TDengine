@@ -458,10 +458,11 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   SDataFile fData;
   SLastFile fLast;
   SSmaFile  fSma;
-  SDFileSet wSet = {.pHeadF = &fHead, .pDataF = &fData, .pLastF = &fLast, .pSmaF = &fSma};
+  SDFileSet wSet = {.pHeadF = &fHead, .pDataF = &fData, .aLastF[0] = &fLast, .pSmaF = &fSma};
   if (pRSet) {
     wSet.diskId = pRSet->diskId;
     wSet.fid = pCommitter->commitFid;
+    wSet.nLastF = 1;
     fHead = (SHeadFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
     fData = *pRSet->pDataF;
     fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
@@ -475,6 +476,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
 
     wSet.diskId = did;
     wSet.fid = pCommitter->commitFid;
+    wSet.nLastF = 1;
     fHead = (SHeadFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
     fData = (SDataFile){.commitID = pCommitter->commitID, .size = 0};
     fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
