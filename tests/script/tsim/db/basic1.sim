@@ -25,15 +25,15 @@ endi
 print =============== show vgroups1
 sql use d1
 sql show vgroups
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 
-if $data00 != 2 then 
+if $data00 != 2 then
   return -1
 endi
 
-if $data10 != 3 then 
+if $data10 != 3 then
   return -1
 endi
 
@@ -59,11 +59,11 @@ if $rows != 2 then
   return -1
 endi
 
-if $data00 != 4 then 
+if $data00 != 4 then
   return -1
 endi
 
-if $data10 != 5 then 
+if $data10 != 5 then
   return -1
 endi
 
@@ -73,15 +73,15 @@ if $rows != 3 then
   return -1
 endi
 
-if $data00 != 6 then 
+if $data00 != 6 then
   return -1
 endi
 
-if $data10 != 7 then 
+if $data10 != 7 then
   return -1
 endi
 
-if $data20 != 8 then 
+if $data20 != 8 then
   return -1
 endi
 
@@ -91,19 +91,19 @@ if $rows != 4 then
   return -1
 endi
 
-if $data00 != 9 then 
+if $data00 != 9 then
   return -1
 endi
 
-if $data10 != 10 then 
+if $data10 != 10 then
   return -1
 endi
 
-if $data20 != 11 then 
+if $data20 != 11 then
   return -1
 endi
 
-if $data30 != 12 then 
+if $data30 != 12 then
   return -1
 endi
 

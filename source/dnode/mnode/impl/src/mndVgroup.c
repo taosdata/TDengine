@@ -509,6 +509,7 @@ int32_t mndAllocSmaVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup) {
   pVgroup->replica = 1;
 
   if (mndGetAvailableDnode(pMnode, pDb, pVgroup, pArray) != 0) return -1;
+  taosArrayDestroy(pArray);
 
   mInfo("db:%s, sma vgId:%d is alloced", pDb->name, pVgroup->vgId);
   return 0;

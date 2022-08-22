@@ -103,14 +103,6 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port);
 static void      addConnToPool(void* pool, SCliConn* conn);
 static void      doCloseIdleConn(void* param);
 
-static int sockDebugInfo(struct sockaddr* sockname, char* dst) {
-  struct sockaddr_in addr = *(struct sockaddr_in*)sockname;
-
-  char buf[16] = {0};
-  int  r = uv_ip4_name(&addr, (char*)buf, sizeof(buf));
-  sprintf(dst, "%s:%d", buf, ntohs(addr.sin_port));
-  return r;
-}
 // register timer for read
 static void cliReadTimeoutCb(uv_timer_t* handle);
 // register timer in each thread to clear expire conn
@@ -121,7 +113,7 @@ static void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_
 static void cliRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf);
 // callback after write data to socket
 static void cliSendCb(uv_write_t* req, int status);
-// callback after conn  to server
+// callback after conn to server
 static void cliConnCb(uv_connect_t* req, int status);
 static void cliAsyncCb(uv_async_t* handle);
 static void cliIdleCb(uv_idle_t* handle);
@@ -348,7 +340,6 @@ void cliHandleResp(SCliConn* conn) {
 
   SCliMsg*       pMsg = NULL;
   STransConnCtx* pCtx = NULL;
-
   if (CONN_NO_PERSIST_BY_APP(conn)) {
     pMsg = transQueuePop(&conn->cliMsgs);
 
@@ -369,7 +360,7 @@ void cliHandleResp(SCliConn* conn) {
                transMsg.info.ahandle);
       }
     } else {
-      pCtx = pMsg ? pMsg->ctx : NULL;
+      pCtx = pMsg->ctx;
       transMsg.info.ahandle = pCtx ? pCtx->ahandle : NULL;
       tDebug("%s conn %p get ahandle %p, persist: 1", CONN_GET_INST_LABEL(conn), conn, transMsg.info.ahandle);
     }
@@ -381,7 +372,6 @@ void cliHandleResp(SCliConn* conn) {
   }
 
   STraceId* trace = &transMsg.info.traceId;
-
   tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, code str:%s", CONN_GET_INST_LABEL(conn), conn,
           TMSG_INFO(pHead->msgType), conn->dst, conn->src, transMsg.contLen, tstrerror(transMsg.code));
 
@@ -822,11 +812,11 @@ void cliConnCb(uv_connect_t* req, int status) {
 
   int addrlen = sizeof(peername);
   uv_tcp_getpeername((uv_tcp_t*)pConn->stream, &peername, &addrlen);
-  transGetSockDebugInfo(&peername, pConn->dst);
+  transSockInfo2Str(&peername, pConn->dst);
 
   addrlen = sizeof(sockname);
   uv_tcp_getsockname((uv_tcp_t*)pConn->stream, &sockname, &addrlen);
-  transGetSockDebugInfo(&sockname, pConn->src);
+  transSockInfo2Str(&sockname, pConn->src);
 
   tTrace("%s conn %p connect to server successfully", CONN_GET_INST_LABEL(pConn), pConn);
   assert(pConn->stream == req->handle);
@@ -1414,7 +1404,7 @@ int transReleaseCliHandle(void* handle) {
   }
 
   STransMsg tmsg = {.info.handle = handle};
-  // TRACE_SET_MSGID(&tmsg.info.traceId, tGenIdPI64());
+  TRACE_SET_MSGID(&tmsg.info.traceId, tGenIdPI64());
 
   SCliMsg* cmsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cmsg->msg = tmsg;
@@ -1442,7 +1432,7 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
   if (pThrd == NULL && valid == false) {
     transFreeMsg(pReq->pCont);
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
-    return -1;
+    return TSDB_CODE_RPC_BROKEN_LINK;
   }
 
   TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
@@ -1487,7 +1477,7 @@ int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMs
   if (pThrd == NULL && valid == false) {
     transFreeMsg(pReq->pCont);
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
-    return -1;
+    return TSDB_CODE_RPC_BROKEN_LINK;
   }
 
   tsem_t* sem = taosMemoryCalloc(1, sizeof(tsem_t));

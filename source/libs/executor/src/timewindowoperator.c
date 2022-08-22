@@ -871,7 +871,6 @@ static int32_t saveWinResult(int64_t ts, int32_t pageId, int32_t offset, uint64_
 
 static int32_t saveWinResultRow(SResultRow* result, uint64_t groupId, SHashObj* pUpdatedMap) {
   return saveWinResult(result->win.skey, result->pageId, result->offset, groupId, pUpdatedMap);
-  ;
 }
 
 static int32_t saveResultRow(SResultRow* result, uint64_t groupId, SArray* pUpdated) {
@@ -910,11 +909,11 @@ int32_t compareWinRes(void* pKey, void* data, int32_t index) {
 }
 
 static void removeDeleteResults(SHashObj* pUpdatedMap, SArray* pDelWins) {
-  if (!pUpdatedMap || taosHashGetSize(pUpdatedMap) == 0) {
+  int32_t delSize = taosArrayGetSize(pDelWins);
+  if (taosHashGetSize(pUpdatedMap) == 0 || delSize == 0) {
     return;
   }
-  int32_t delSize = taosArrayGetSize(pDelWins);
-  void*   pIte = NULL;
+  void* pIte = NULL;
   while ((pIte = taosHashIterate(pUpdatedMap, pIte)) != NULL) {
     SResKeyPos* pResKey = (SResKeyPos*)pIte;
     int32_t     index = binarySearchCom(pDelWins, delSize, pResKey, TSDB_ORDER_DESC, compareWinRes);
@@ -1595,7 +1594,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   SArray*    pUpdated = taosArrayInit(4, POINTER_BYTES);  // SResKeyPos
-  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP);
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   SHashObj*  pUpdatedMap = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
   while (1) {
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
@@ -1706,14 +1705,19 @@ void destroyStreamFinalIntervalOperatorInfo(void* param, int32_t numOfOutput) {
   blockDataDestroy(pInfo->pPullDataRes);
   taosArrayDestroy(pInfo->pRecycledPages);
   blockDataDestroy(pInfo->pUpdateRes);
+  taosArrayDestroy(pInfo->pDelWins);
+  blockDataDestroy(pInfo->pDelRes);
 
   if (pInfo->pChildren) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
     for (int32_t i = 0; i < size; i++) {
       SOperatorInfo* pChildOp = taosArrayGetP(pInfo->pChildren, i);
       destroyStreamFinalIntervalOperatorInfo(pChildOp->info, numOfOutput);
+      taosMemoryFree(pChildOp->pDownstream);
+      cleanupExprSupp(&pChildOp->exprSupp);
       taosMemoryFreeClear(pChildOp);
     }
+    taosArrayDestroy(pInfo->pChildren);
   }
   nodesDestroyNode((SNode*)pInfo->pPhyNode);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
@@ -1780,7 +1784,7 @@ void increaseTs(SqlFunctionCtx* pCtx) {
   }
 }
 
-void initIntervalDownStream(SOperatorInfo* downstream, uint8_t type, SAggSupporter* pSup) {
+void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SAggSupporter* pSup) {
   if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     // Todo(liuyao) support partition by column
     return;
@@ -1866,62 +1870,6 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
   if (nodeType(pPhyNode) == QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL) {
     initIntervalDownStream(downstream, QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL, &pInfo->aggSup);
   }
-
-  code = appendDownstream(pOperator, &downstream, 1);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
-
-  return pOperator;
-
-_error:
-  destroyIntervalOperatorInfo(pInfo, numOfCols);
-  taosMemoryFreeClear(pOperator);
-  pTaskInfo->code = code;
-  return NULL;
-}
-
-SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
-                                                SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                                STimeWindowAggSupp* pTwAggSupp, SExecTaskInfo* pTaskInfo) {
-  SIntervalAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SIntervalAggOperatorInfo));
-  SOperatorInfo*            pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-  if (pInfo == NULL || pOperator == NULL) {
-    goto _error;
-  }
-
-  pOperator->pTaskInfo = pTaskInfo;
-  pInfo->inputOrder = TSDB_ORDER_ASC;
-  pInfo->interval = *pInterval;
-  pInfo->execModel = OPTR_EXEC_MODEL_STREAM;
-  pInfo->win = pTaskInfo->window;
-  pInfo->twAggSup = *pTwAggSupp;
-  pInfo->primaryTsIndex = primaryTsSlotId;
-
-  int32_t numOfRows = 4096;
-  size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
-
-  initResultSizeInfo(&pOperator->resultInfo, numOfRows);
-  int32_t code = initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
-  initBasicInfo(&pInfo->binfo, pResBlock);
-  initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pInfo->win);
-
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
-
-  initResultRowInfo(&pInfo->binfo.resultRowInfo);
-
-  pOperator->name = "StreamTimeIntervalAggOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL;
-  pOperator->blocking = true;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->exprSupp.pExprInfo = pExprInfo;
-  pOperator->exprSupp.numOfExprs = numOfCols;
-  pOperator->info = pInfo;
-
-  pOperator->fpSet = createOperatorFpSet(doOpenIntervalAgg, doStreamIntervalAgg, doStreamIntervalAgg, NULL,
-                                         destroyIntervalOperatorInfo, aggEncodeResultRow, aggDecodeResultRow, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2154,7 +2102,7 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
 
 static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock) {
   int32_t rows = pResBlock->info.rows;
-
+  blockDataEnsureCapacity(pResBlock, rows + 1);
   // todo set the correct primary timestamp column
 
   // output the result
@@ -2408,11 +2356,11 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
             break;
           }
         }
+      }
 
-        if (pSliceInfo->current > pSliceInfo->win.ekey) {
-          doSetOperatorCompleted(pOperator);
-          break;
-        }
+      if (pSliceInfo->current > pSliceInfo->win.ekey) {
+        doSetOperatorCompleted(pOperator);
+        break;
       }
 
       if (ts == pSliceInfo->current) {
@@ -2643,7 +2591,6 @@ void destroyTimeSliceOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFree(pInfo->pFillColInfo);
   taosMemoryFreeClear(param);
 }
-
 
 SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo) {
   STimeSliceOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(STimeSliceOperatorInfo));
@@ -3105,11 +3052,12 @@ void processPullOver(SSDataBlock* pBlock, SHashObj* pMap) {
 
 static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
   SStreamFinalIntervalOperatorInfo* pInfo = pOperator->info;
-  SOperatorInfo*                    downstream = pOperator->pDownstream[0];
-  SArray*                           pUpdated = taosArrayInit(4, POINTER_BYTES);
-  _hash_fn_t                        hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP);
-  SHashObj*                         pUpdatedMap = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
-  TSKEY                             maxTs = INT64_MIN;
+
+  SOperatorInfo* downstream = pOperator->pDownstream[0];
+  SArray*        pUpdated = taosArrayInit(4, POINTER_BYTES);
+  _hash_fn_t     hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  SHashObj*      pUpdatedMap = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
+  TSKEY          maxTs = INT64_MIN;
 
   SExprSupp* pSup = &pOperator->exprSupp;
 
@@ -3542,7 +3490,7 @@ void initDummyFunction(SqlFunctionCtx* pDummy, SqlFunctionCtx* pCtx, int32_t num
 }
 
 void initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, int64_t gap, int64_t waterMark,
-                    uint8_t type) {
+                    uint16_t type) {
   ASSERT(downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN);
   SStreamScanInfo* pScanInfo = downstream->info;
   pScanInfo->sessionSup = (SessionWindowSupporter){.pStreamAggSup = pAggSup, .gap = gap, .parentType = type};

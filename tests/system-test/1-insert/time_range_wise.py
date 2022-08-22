@@ -293,7 +293,7 @@ class TDTestCase:
         dbname =  tdSql.getData(0,0)
         tdSql.query("select * from information_schema.ins_databases")
         for index , value in enumerate(tdSql.cursor.description):
-            if value[0] == "retention":
+            if value[0] == "retentions":
                 r_index = index
                 break
         for row in tdSql.queryResult:

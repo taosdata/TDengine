@@ -1120,7 +1120,7 @@ class Database:
     @classmethod
     def setupLastTick(cls):
         # start time will be auto generated , start at 10 years ago  local time 
-        local_time = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-16]
+        local_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-16]
         local_epoch_time = [int(i) for i in local_time.split("-")]
         #local_epoch_time will be such as : [2022, 7, 18]
 

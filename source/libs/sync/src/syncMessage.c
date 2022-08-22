@@ -1947,6 +1947,8 @@ cJSON* syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg) {
     cJSON_AddNumberToObject(pRoot, "success", pMsg->success);
     snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->matchIndex);
     cJSON_AddStringToObject(pRoot, "matchIndex", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->startTime);
+    cJSON_AddStringToObject(pRoot, "startTime", u64buf);
   }
 
   cJSON* pJson = cJSON_CreateObject();

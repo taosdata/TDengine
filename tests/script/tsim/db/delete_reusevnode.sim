@@ -3,7 +3,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-print ======== step1 
+print ======== step1
 
 $tbPrefix = t
 $i = 0
@@ -21,13 +21,13 @@ while $i < 30
   print times $i
   $i = $i + 1
 
-endw 
+endw
 
 print ======== step2
 sql select * from information_schema.ins_databases
-if $rows != 2 then 
+if $rows != 2 then
   return -1
-endi 
+endi
 
 system sh/stop_dnodes.sh
 

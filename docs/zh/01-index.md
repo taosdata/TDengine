@@ -4,7 +4,7 @@ sidebar_label: 文档首页
 slug: /
 ---
 
-TDengine是一款[开源](https://www.taosdata.com/tdengine/open_source_time-series_database)、[高性能](https://www.taosdata.com/fast)、[云原生](https://www.taosdata.com/tdengine/cloud_native_time-series_database)的时序数据库(Time-Series Database, TSDB), 它专为物联网、工业互联网、金融等场景优化设计。同时它还带有内建的缓存、流式计算、数据订阅等系统功能，能大幅减少系统设计的复杂度，降低研发和运营成本，是一极简的时序数据处理平台。本文档是 TDengine 用户手册，主要是介绍 TDengine 的基本概念、安装、使用、功能、开发接口、运营维护、TDengine 内核设计等等，它主要是面向架构师、开发者与系统管理员的。
+TDengine是一款[开源](https://www.taosdata.com/tdengine/open_source_time-series_database)、[高性能](https://www.taosdata.com/fast)、[云原生](https://www.taosdata.com/tdengine/cloud_native_time-series_database)的<a href="https://www.taosdata.com/" data-internallinksmanager029f6b8e52c="2" title="时序数据库" target="_blank" rel="noopener">时序数据库</a>（<a href="https://www.taosdata.com/time-series-database" data-internallinksmanager029f6b8e52c="9" title="Time Series DataBase" target="_blank" rel="noopener">Time Series Database</a>, <a href="https://www.taosdata.com/tsdb" data-internallinksmanager029f6b8e52c="8" title="TSDB" target="_blank" rel="noopener">TSDB</a>）, 它专为物联网、工业互联网、金融等场景优化设计。同时它还带有内建的缓存、流式计算、数据订阅等系统功能，能大幅减少系统设计的复杂度，降低研发和运营成本，是一极简的时序数据处理平台。本文档是 TDengine 用户手册，主要是介绍 TDengine 的基本概念、安装、使用、功能、开发接口、运营维护、TDengine 内核设计等等，它主要是面向架构师、开发者与系统管理员的。
 
 TDengine 充分利用了时序数据的特点，提出了“一个数据采集点一张表”与“超级表”的概念，设计了创新的存储引擎，让数据的写入、查询和存储效率都得到极大的提升。为正确理解并使用TDengine, 无论如何，请您仔细阅读[基本概念](./concept)一章。
 

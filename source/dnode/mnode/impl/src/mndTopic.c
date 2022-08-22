@@ -57,7 +57,8 @@ int32_t mndInitTopic(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_TOPIC, mndProcessCreateTopicReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_TOPIC, mndProcessDropTopicReq);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_TOPIC_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_CHECK_ALTER_INFO_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_ADD_CHECK_INFO_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_DELETE_CHECK_INFO_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndRetrieveTopic);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndCancelGetNextTopic);
@@ -450,7 +451,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   if (topicObj.ntbUid != 0) {
-    SCheckAlterInfo info;
+    STqCheckInfo info;
     memcpy(info.topic, topicObj.name, TSDB_TOPIC_FNAME_LEN);
     info.ntbUid = topicObj.ntbUid;
     info.colIdList = topicObj.ntbColIds;
@@ -470,7 +471,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       // encoder check alter info
       int32_t len;
       int32_t code;
-      tEncodeSize(tEncodeSCheckAlterInfo, &info, len, code);
+      tEncodeSize(tEncodeSTqCheckInfo, &info, len, code);
       if (code < 0) {
         sdbRelease(pSdb, pVgroup);
         mndTransDrop(pTrans);
@@ -481,7 +482,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       void    *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
       SEncoder encoder;
       tEncoderInit(&encoder, abuf, len);
-      if (tEncodeSCheckAlterInfo(&encoder, &info) < 0) {
+      if (tEncodeSTqCheckInfo(&encoder, &info) < 0) {
         sdbRelease(pSdb, pVgroup);
         mndTransDrop(pTrans);
         return -1;
@@ -493,7 +494,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
       action.pCont = buf;
       action.contLen = sizeof(SMsgHead) + len;
-      action.msgType = TDMT_VND_CHECK_ALTER_INFO;
+      action.msgType = TDMT_VND_ADD_CHECK_INFO;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         taosMemoryFree(buf);
         sdbRelease(pSdb, pVgroup);
@@ -659,12 +660,14 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   mDebug("trans:%d, used to drop topic:%s", pTrans->id, pTopic->name);
 
+#if 0
   if (mndDropOffsetByTopic(pMnode, pTrans, dropReq.name) < 0) {
     ASSERT(0);
     mndTransDrop(pTrans);
     mndReleaseTopic(pMnode, pTopic);
     return -1;
   }
+#endif
 
   // TODO check if rebalancing
   if (mndDropSubByTopic(pMnode, pTrans, dropReq.name) < 0) {
@@ -673,6 +676,37 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     mndTransDrop(pTrans);
     mndReleaseTopic(pMnode, pTopic);
     return -1;
+  }
+
+  if (pTopic->ntbUid != 0) {
+    // broadcast to all vnode
+    void   *pIter = NULL;
+    SVgObj *pVgroup = NULL;
+    while (1) {
+      pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+      if (pIter == NULL) break;
+      if (!mndVgroupInDb(pVgroup, pTopic->dbUid)) {
+        sdbRelease(pSdb, pVgroup);
+        continue;
+      }
+
+      void *buf = taosMemoryCalloc(1, sizeof(SMsgHead) + TSDB_TOPIC_FNAME_LEN);
+      void *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+      ((SMsgHead *)buf)->vgId = htonl(pVgroup->vgId);
+      memcpy(abuf, pTopic->name, TSDB_TOPIC_FNAME_LEN);
+
+      STransAction action = {0};
+      action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+      action.pCont = buf;
+      action.contLen = sizeof(SMsgHead) + TSDB_TOPIC_FNAME_LEN;
+      action.msgType = TDMT_VND_DELETE_CHECK_INFO;
+      if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+        taosMemoryFree(buf);
+        sdbRelease(pSdb, pVgroup);
+        mndTransDrop(pTrans);
+        return -1;
+      }
+    }
   }
 
   int32_t code = mndDropTopic(pMnode, pTrans, pReq, pTopic);

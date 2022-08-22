@@ -266,6 +266,15 @@ _OVER:
   return pRow;
 }
 
+void mndFreeStb(SStbObj *pStb) {
+  taosArrayDestroy(pStb->pFuncs);
+  taosMemoryFreeClear(pStb->pColumns);
+  taosMemoryFreeClear(pStb->pTags);
+  taosMemoryFreeClear(pStb->comment);
+  taosMemoryFreeClear(pStb->pAst1);
+  taosMemoryFreeClear(pStb->pAst2);
+}
+
 static int32_t mndStbActionInsert(SSdb *pSdb, SStbObj *pStb) {
   mTrace("stb:%s, perform insert action, row:%p", pStb->name, pStb);
   return 0;
@@ -273,12 +282,7 @@ static int32_t mndStbActionInsert(SSdb *pSdb, SStbObj *pStb) {
 
 static int32_t mndStbActionDelete(SSdb *pSdb, SStbObj *pStb) {
   mTrace("stb:%s, perform delete action, row:%p", pStb->name, pStb);
-  taosArrayDestroy(pStb->pFuncs);
-  taosMemoryFreeClear(pStb->pColumns);
-  taosMemoryFreeClear(pStb->pTags);
-  taosMemoryFreeClear(pStb->comment);
-  taosMemoryFreeClear(pStb->pAst1);
-  taosMemoryFreeClear(pStb->pAst2);
+  mndFreeStb(pStb);
   return 0;
 }
 
@@ -438,6 +442,8 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   if (req.rollup) {
     req.rsmaParam.maxdelay[0] = pStb->maxdelay[0];
     req.rsmaParam.maxdelay[1] = pStb->maxdelay[1];
+    req.rsmaParam.watermark[0] = pStb->watermark[0];
+    req.rsmaParam.watermark[1] = pStb->watermark[1];
     if (pStb->ast1Len > 0) {
       if (mndConvertRsmaTask(&req.rsmaParam.qmsg[0], &req.rsmaParam.qmsgLen[0], pStb->pAst1, pStb->uid,
                              STREAM_TRIGGER_WINDOW_CLOSE, req.rsmaParam.watermark[0]) < 0) {
@@ -1145,7 +1151,7 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
   return 0;
 }
 
-int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbname, int64_t suid, col_id_t colId) {
+static int32_t mndCheckAlterColForTopic(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId) {
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
   while (1) {
@@ -1154,7 +1160,7 @@ int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbname, int64_t
     if (pIter == NULL) break;
 
     mDebug("topic:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d, subType:%d sql:%s",
-           pTopic->name, stbname, suid, colId, pTopic->subType, pTopic->sql);
+           pTopic->name, stbFullName, suid, colId, pTopic->subType, pTopic->sql);
     if (pTopic->subType != TOPIC_SUB_TYPE__COLUMN) {
       sdbRelease(pSdb, pTopic);
       continue;
@@ -1192,20 +1198,66 @@ int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbname, int64_t
     sdbRelease(pSdb, pTopic);
     nodesDestroyNode(pAst);
   }
+  return 0;
+}
 
+static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  while (1) {
+    SStreamObj *pStream = NULL;
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) break;
+
+    SNode *pAst = NULL;
+    if (nodesStringToNode(pStream->ast, &pAst) != 0) {
+      ASSERT(0);
+      return -1;
+    }
+
+    SNodeList *pNodeList = NULL;
+    nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList);
+    SNode *pNode = NULL;
+    FOREACH(pNode, pNodeList) {
+      SColumnNode *pCol = (SColumnNode *)pNode;
+
+      if (pCol->tableId != suid) {
+        mDebug("stream:%s, check colId:%d passed", pStream->name, pCol->colId);
+        goto NEXT;
+      }
+      if (pCol->colId > 0 && pCol->colId == colId) {
+        sdbRelease(pSdb, pStream);
+        nodesDestroyNode(pAst);
+        terrno = TSDB_CODE_MND_STREAM_MUST_BE_DELETED;
+        mError("stream:%s, check colId:%d conflicted", pStream->name, pCol->colId);
+        return -1;
+      }
+      mDebug("stream:%s, check colId:%d passed", pStream->name, pCol->colId);
+    }
+
+  NEXT:
+    sdbRelease(pSdb, pStream);
+    nodesDestroyNode(pAst);
+  }
+  return 0;
+}
+
+static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
   while (1) {
     SSmaObj *pSma = NULL;
     pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
     if (pIter == NULL) break;
 
-    mDebug("tsma:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d, sql:%s", pSma->name, stbname,
-           suid, colId, pSma->sql);
+    mDebug("tsma:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d, sql:%s", pSma->name,
+           stbFullName, suid, colId, pSma->sql);
 
     SNode *pAst = NULL;
     if (nodesStringToNode(pSma->ast, &pAst) != 0) {
       terrno = TSDB_CODE_SDB_INVALID_DATA_CONTENT;
       mError("tsma:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d failed since parse AST err",
-             pSma->name, stbname, suid, colId);
+             pSma->name, stbFullName, suid, colId);
       return -1;
     }
 
@@ -1218,7 +1270,7 @@ int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbname, int64_t
 
       if ((pCol->tableId != suid) && (pSma->stbUid != suid)) {
         mDebug("tsma:%s, check colId:%d passed", pSma->name, pCol->colId);
-        goto NEXT2;
+        goto NEXT;
       }
       if ((pCol->colId) > 0 && (pCol->colId == colId)) {
         sdbRelease(pSdb, pSma);
@@ -1230,11 +1282,24 @@ int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbname, int64_t
       mDebug("tsma:%s, check colId:%d passed", pSma->name, pCol->colId);
     }
 
-  NEXT2:
+  NEXT:
     sdbRelease(pSdb, pSma);
     nodesDestroyNode(pAst);
   }
+  return 0;
+}
 
+int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId) {
+  if (mndCheckAlterColForTopic(pMnode, stbFullName, suid, colId) < 0) {
+    return -1;
+  }
+  if (mndCheckAlterColForStream(pMnode, stbFullName, suid, colId) < 0) {
+    return -1;
+  }
+
+  if (mndCheckAlterColForTSma(pMnode, stbFullName, suid, colId) < 0) {
+    return -1;
+  }
   return 0;
 }
 
@@ -1930,6 +1995,98 @@ _OVER:
   return code;
 }
 
+static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, int64_t suid) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  while (1) {
+    SMqTopicObj *pTopic = NULL;
+    pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic);
+    if (pIter == NULL) break;
+
+    if (pTopic->subType == TOPIC_SUB_TYPE__TABLE) {
+      if (pTopic->stbUid == suid) {
+        sdbRelease(pSdb, pTopic);
+        return -1;
+      }
+    }
+
+    if (pTopic->subType != TOPIC_SUB_TYPE__COLUMN) {
+      sdbRelease(pSdb, pTopic);
+      continue;
+    }
+
+    SNode *pAst = NULL;
+    if (nodesStringToNode(pTopic->ast, &pAst) != 0) {
+      ASSERT(0);
+      return -1;
+    }
+
+    SNodeList *pNodeList = NULL;
+    nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList);
+    SNode *pNode = NULL;
+    FOREACH(pNode, pNodeList) {
+      SColumnNode *pCol = (SColumnNode *)pNode;
+
+      if (pCol->tableId == suid) {
+        sdbRelease(pSdb, pTopic);
+        nodesDestroyNode(pAst);
+        return -1;
+      } else {
+        goto NEXT;
+      }
+    }
+  NEXT:
+    sdbRelease(pSdb, pTopic);
+    nodesDestroyNode(pAst);
+  }
+  return 0;
+}
+
+static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName, int64_t suid) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  while (1) {
+    SStreamObj *pStream = NULL;
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) break;
+
+    if (pStream->smaId != 0) {
+      sdbRelease(pSdb, pStream);
+      continue;
+    }
+
+    if (pStream->targetStbUid == suid) {
+      sdbRelease(pSdb, pStream);
+      return -1;
+    }
+
+    SNode *pAst = NULL;
+    if (nodesStringToNode(pStream->ast, &pAst) != 0) {
+      ASSERT(0);
+      return -1;
+    }
+
+    SNodeList *pNodeList = NULL;
+    nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList);
+    SNode *pNode = NULL;
+    FOREACH(pNode, pNodeList) {
+      SColumnNode *pCol = (SColumnNode *)pNode;
+
+      if (pCol->tableId == suid) {
+        sdbRelease(pSdb, pStream);
+        nodesDestroyNode(pAst);
+        return -1;
+      } else {
+        goto NEXT;
+      }
+    }
+  NEXT:
+    sdbRelease(pSdb, pStream);
+    nodesDestroyNode(pAst);
+  }
+  return 0;
+}
+
 static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
@@ -1968,6 +2125,16 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   }
 
   if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
+    goto _OVER;
+  }
+
+  if (mndCheckDropStbForTopic(pMnode, dropReq.name, pStb->uid) < 0) {
+    terrno = TSDB_CODE_MND_TOPIC_MUST_BE_DELETED;
+    goto _OVER;
+  }
+
+  if (mndCheckDropStbForStream(pMnode, dropReq.name, pStb->uid) < 0) {
+    terrno = TSDB_CODE_MND_STREAM_MUST_BE_DELETED;
     goto _OVER;
   }
 
