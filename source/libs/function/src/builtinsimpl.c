@@ -468,7 +468,7 @@ int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  pResInfo->isNullRes = pResInfo->numOfRes == 0;
+  pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
 
   char* in = GET_ROWCELL_INTERBUF(pResInfo);
   colDataAppend(pCol, pBlock->info.rows, in, pResInfo->isNullRes);
@@ -498,7 +498,7 @@ int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock,
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  pResInfo->isNullRes = (pResInfo->isNullRes == 1) ? 1 : (pResInfo->numOfRes == 0);;
+  pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
 
   char* in = finalResult;
   colDataAppend(pCol, pBlock->info.rows, in, pResInfo->isNullRes);
@@ -663,8 +663,7 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
 
   // check for overflow
   if (IS_FLOAT_TYPE(type) && (isinf(pSumRes->dsum) || isnan(pSumRes->dsum))) {
-    GET_RES_INFO(pCtx)->isNullRes = 1;
-    numOfElem = 1;
+    numOfElem = 0;
   }
 
 _sum_over:
@@ -1099,9 +1098,9 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   // check for overflow
-  //if (isinf(pAvgRes->result) || isnan(pAvgRes->result)) {
-  //  GET_RES_INFO(pCtx)->numOfRes = 0;
-  //}
+  if (isinf(pAvgRes->result) || isnan(pAvgRes->result)) {
+    GET_RES_INFO(pCtx)->numOfRes = 0;
+  }
 
   return functionFinalize(pCtx, pBlock);
 }
