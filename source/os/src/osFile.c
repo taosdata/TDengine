@@ -440,10 +440,10 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
 #endif
   assert(pFile->fd >= 0);  // Please check if you have closed the file.
 #ifdef WINDOWS
-  size_t pos = _lseek(pFile->fd, 0, SEEK_CUR);
-  _lseek(pFile->fd, offset, SEEK_SET);
+  size_t pos = _lseeki64(pFile->fd, 0, SEEK_CUR);
+  _lseeki64(pFile->fd, offset, SEEK_SET);
   int64_t ret = _read(pFile->fd, buf, count);
-  _lseek(pFile->fd, pos, SEEK_SET);
+  _lseeki64(pFile->fd, pos, SEEK_SET);
 #else
   int64_t ret = pread(pFile->fd, buf, count, offset);
 #endif
@@ -493,7 +493,7 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
 #endif
   assert(pFile->fd >= 0);  // Please check if you have closed the file.
 #ifdef WINDOWS
-  int64_t ret = _lseek(pFile->fd, offset, whence);
+  int64_t ret = _lseeki64(pFile->fd, offset, whence);
 #else
   int64_t ret = lseek(pFile->fd, offset, whence);
 #endif
@@ -637,7 +637,7 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
 
 #ifdef WINDOWS
 
-  _lseek(pFileIn->fd, (int32_t)(*offset), 0);
+  _lseeki64(pFileIn->fd, *offset, 0);
   int64_t writeLen = 0;
   uint8_t buffer[_SEND_FILE_STEP_] = {0};
 
