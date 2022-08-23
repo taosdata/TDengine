@@ -171,8 +171,8 @@ The \_QSTART and \_QEND pseudocolumns contain the beginning and end of the time 
 
 The \_QSTART and \_QEND pseudocolumns cannot be used in a WHERE clause.
 
-**\_WSTART, \_WEND, and \_DURATION**
-\_WSTART, \_WEND, and \_WDURATION pseudocolumns
+**\_WSTART, \_WEND, and \_WDURATION**
+
 The \_WSTART, \_WEND, and \_WDURATION pseudocolumns indicate the beginning, end, and duration of a window.
 
 These pseudocolumns can be used only in time window-based aggregations and must occur after the aggregation clause.

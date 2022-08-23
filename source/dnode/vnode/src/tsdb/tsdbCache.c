@@ -422,6 +422,8 @@ typedef struct {
   STsdb               *pTsdb;         // [input]
   SBlockIdx           *pBlockIdxExp;  // [input]
   STSchema            *pTSchema;      // [input]
+  tb_uid_t             suid;
+  tb_uid_t             uid;
   int32_t              nFileSet;
   int32_t              iFileSet;
   SArray              *aDFileSet;
@@ -494,6 +496,8 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
 
       if (!state->pBlockDataL) {
         state->pBlockDataL = &state->blockDataL;
+
+        tBlockDataCreate(state->pBlockDataL);
       }
       code = tBlockDataInit(state->pBlockDataL, suid, suid ? 0 : uid, state->pTSchema);
       if (code) goto _err;
@@ -593,6 +597,9 @@ typedef struct SFSNextRowIter {
   SFSNEXTROWSTATES state;         // [input]
   STsdb           *pTsdb;         // [input]
   SBlockIdx       *pBlockIdxExp;  // [input]
+  STSchema        *pTSchema;      // [input]
+  tb_uid_t         suid;
+  tb_uid_t         uid;
   int32_t          nFileSet;
   int32_t          iFileSet;
   SArray          *aDFileSet;
@@ -685,6 +692,10 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
 
         tMapDataGetItemByIdx(&state->blockMap, state->iBlock, &block, tGetBlock);
         /* code = tsdbReadBlockData(state->pDataFReader, &state->blockIdx, &block, &state->blockData, NULL, NULL); */
+        tBlockDataReset(state->pBlockData);
+        code = tBlockDataInit(state->pBlockData, state->suid, state->uid, state->pTSchema);
+        if (code) goto _err;
+
         code = tsdbReadDataBlock(state->pDataFReader, &block, state->pBlockData);
         if (code) goto _err;
 
@@ -958,16 +969,21 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
 
   pIter->idx = (SBlockIdx){.suid = suid, .uid = uid};
 
-  pIter->fsLastState.state = (SFSLASTNEXTROWSTATES) SFSNEXTROW_FS;
+  pIter->fsLastState.state = (SFSLASTNEXTROWSTATES)SFSNEXTROW_FS;
   pIter->fsLastState.pTsdb = pTsdb;
   pIter->fsLastState.aDFileSet = pIter->pReadSnap->fs.aDFileSet;
   pIter->fsLastState.pBlockIdxExp = &pIter->idx;
   pIter->fsLastState.pTSchema = pTSchema;
+  pIter->fsLastState.suid = suid;
+  pIter->fsLastState.uid = uid;
 
   pIter->fsState.state = SFSNEXTROW_FS;
   pIter->fsState.pTsdb = pTsdb;
   pIter->fsState.aDFileSet = pIter->pReadSnap->fs.aDFileSet;
   pIter->fsState.pBlockIdxExp = &pIter->idx;
+  pIter->fsState.pTSchema = pTSchema;
+  pIter->fsState.suid = suid;
+  pIter->fsState.uid = uid;
 
   pIter->input[0] = (TsdbNextRowState){&pIter->memRow, true, false, &pIter->memState, getNextRowFromMem, NULL};
   pIter->input[1] = (TsdbNextRowState){&pIter->imemRow, true, false, &pIter->imemState, getNextRowFromMem, NULL};
