@@ -2649,6 +2649,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
 
   int32_t code = getTableList(pHandle->meta, pHandle->vnode, pScanNode, pTagCond, pTagIndexCond, pTableListInfo);
   if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to getTableList, code: %s", tstrerror(code));
     return code;
   }
 
