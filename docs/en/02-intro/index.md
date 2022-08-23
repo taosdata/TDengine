@@ -17,7 +17,7 @@ The major features are listed below:
 4. Support for [user defined functions](/develop/udf).
 5. Support for [caching](/develop/cache). TDengine always saves the last data point in cache, so Redis is not needed in some scenarios.
 6. Support for [continuous query](../develop/stream).
-7. Support for [data subscription](../develop/tmq with the capability to specify filter conditions.
+7. Support for [data subscription](../develop/tmq) with the capability to specify filter conditions.
 8. Support for [cluster](../deployment/), with the capability of increasing processing power by adding more nodes. High availability is supported by replication. 
 9. Provides an interactive [command-line interface](/reference/taos-shell) for management, maintenance and ad-hoc queries.
 10. Provides many ways to [import](/operation/import) and [export](/operation/export) data.
@@ -43,7 +43,7 @@ By making full use of [characteristics of time series data](https://tdengine.com
 
 - **Easy Data Analytics**: Through super tables, storage and compute separation, data partitioning by time interval, pre-computation and other means, TDengine makes it easy to explore, format, and get access to data in a highly efficient way. 
 
-- **Open Source**: TDengine’s core modules, including cluster feature, are all available under open source licenses. It has gathered 18.8k stars on GitHub. There is an active developer community, and over 139k running instances worldwide.
+- **Open Source**: TDengine’s core modules, including cluster feature, are all available under open source licenses. It has gathered over 19k stars on GitHub. There is an active developer community, and over 140k running instances worldwide.
 
 With TDengine, the total cost of ownership of your time-series data platform can be greatly reduced. 1: With its superior performance, the computing and storage resources are reduced significantly；2: With SQL support, it can be seamlessly integrated with many third party tools, and learning costs/migration costs are reduced significantly；3: With its simplified solution and nearly zero management, the operation and maintenance costs are reduced significantly. 
 
