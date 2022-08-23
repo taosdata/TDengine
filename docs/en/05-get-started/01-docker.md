@@ -31,17 +31,6 @@ You can now access TDengine or run other Linux commands.
 
 Note: For information about installing docker, see the [official documentation](https://docs.docker.com/get-docker/).
 
-## Open the TDengine CLI
-
-On the container, run the following command to open the TDengine CLI: 
-
-```
-$ taos
-
-taos> 
-
-```
-
 ## Insert Data into TDengine
 
 You can use the `taosBenchmark` tool included with TDengine to write test data into your deployment.
@@ -59,39 +48,51 @@ To do so, run the following command:
 
    You can customize the test deployment that taosBenchmark creates by specifying command-line parameters. For information about command-line parameters, run the `taosBenchmark --help` command. For more information about taosBenchmark, see [taosBenchmark](/reference/taosbenchmark).
 
+## Open the TDengine CLI
+
+On the container, run the following command to open the TDengine CLI: 
+
+```
+$ taos
+
+taos> 
+
+```
+
 ## Query Data in TDengine
 
 After using taosBenchmark to create your test deployment, you can run queries in the TDengine CLI to test its performance. For example:
 
-Query the number of rows in the `meters` supertable:
+From the TDengine CLI query the number of rows in the `meters` supertable:
 
 ```sql
-taos> select count(*) from test.meters;
+select count(*) from test.meters;
 ```
 
 Query the average, maximum, and minimum values of all 100 million rows of data:
 
 ```sql
-taos> select avg(current), max(voltage), min(phase) from test.meters;
+select avg(current), max(voltage), min(phase) from test.meters;
 ```
 
-Query the number of rows whose `location` tag is `California.SanFrancisco`:
+Query the number of rows whose `location` tag is `San Francisco`:
 
 ```sql
-taos> select count(*) from test.meters where location="San Francisco";
+select count(*) from test.meters where location="San Francisco";
 ```
 
 Query the average, maximum, and minimum values of all rows whose `groupId` tag is `10`:
 
 ```sql
-taos> select avg(current), max(voltage), min(phase) from test.meters where groupId=10;
+select avg(current), max(voltage), min(phase) from test.meters where groupId=10;
 ```
 
-Query the average, maximum, and minimum values for table `d10` in 10 second intervals:
+Query the average, maximum, and minimum values for table `d10` in 1 second intervals:
 
 ```sql
-taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
+select first(ts), avg(current), max(voltage), min(phase) from test.d10 interval(1s);
 ```
+In the query above you are selecting the first timestamp (ts) in the interval, another way of selecting this would be _wstart which will give the start of the time window. For more information about windowed queries, see [Time-Series Extensions](../../taos-sql/distinguished/).
 
 ## Additional Information
 

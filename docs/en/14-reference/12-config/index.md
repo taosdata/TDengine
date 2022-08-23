@@ -75,7 +75,6 @@ taos --dump-config
 | Applicable    | Server Only                                                                                                                     |
 | Meaning       | The port for external access after `taosd` is started                                                                           |
 | Default Value | 6030                                                                                                                            |
-| Note          | the default port of REST service is 6041                                                                                        |
 
 :::note
 TDengine uses 13 continuous ports, both TCP and UDP, starting with the port specified by `serverPort`. You should ensure, in your firewall rules, that these ports are kept open. Below table describes the ports used by TDengine in details.
@@ -87,11 +86,11 @@ TDengine uses 13 continuous ports, both TCP and UDP, starting with the port spec
 | TCP      | 6030         | Communication between client and server          | serverPort                                                                                     |
 | TCP      | 6035         | Communication among server nodes in cluster      | serverPort+5                                                                                   |
 | TCP      | 6040         | Data syncup among server nodes in cluster        | serverPort+10                                                                                  |
-| TCP      | 6041         | REST connection between client and server        | refer to [taosAdapter](/reference/taosadapter/)                                                |
+| TCP      | 6041         | REST connection between client and server        | Please refer to [taosAdapter](../taosadapter/) |
 | TCP      | 6042         | Service Port of Arbitrator                       | The parameter of Arbitrator                                                                    |
 | TCP      | 6043         | Service Port of TaosKeeper                       | The parameter of TaosKeeper                                                                    |
-| TCP      | 6044         | Data access port for StatsD                      | refer to [taosAdapter](/reference/taosadapter/)                                                |
-| UDP      | 6045         | Data access for statsd                           | refer to [taosAdapter](/reference/taosadapter/)                                                |
+| TCP      | 6044         | Data access port for StatsD                      | refer to [taosAdapter](../taosadapter/)                                                 |
+| UDP      | 6045         | Data access for statsd                           | refer to [taosAdapter](../taosadapter/)                                                 |
 | TCP      | 6060         | Port of Monitoring Service in Enterprise version |                                                                                                |
 | UDP      | 6030-6034    | Communication between client and server          | serverPort                                                                                     |
 | UDP      | 6035-6039    | Communication among server nodes in cluster      | serverPort                                                                                     |
@@ -777,8 +776,6 @@ To prevent system resource from being exhausted by multiple concurrent streams, 
 
 ## HTTP Parameters
 
-:::
-
 ### http
 
 | Attribute     | Description                    |
@@ -976,15 +973,7 @@ To prevent system resource from being exhausted by multiple concurrent streams, 
 | Applicable    | Server and Client          |
 | Meaning       | Log level of common module |
 | Value Range   | Same as debugFlag          |
-| Default Value |                            |
-
-### httpDebugFlag
-
-| Attribute     | Description                                 |
-| ------------- | ------------------------------------------- |
-| Applicable    | Server Only                                 |
-| Value Range   | Same as debugFlag                           |
-| Default Value |                                             |
+| Default Value |                            |                                            |
 
 ### mqttDebugFlag
 

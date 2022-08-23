@@ -13,13 +13,13 @@ ConnectionPoolDemo的程序逻辑：
 ### 如何运行这个例子：
 
 ```shell script
-mvn clean package assembly:single
-java -jar target/connectionPools-1.0-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
+mvn clean package
+java -jar target/ConnectionPoolDemo-jar-with-dependencies.jar -host 127.0.0.1
 ```
 使用mvn运行ConnectionPoolDemo的main方法，可以指定参数
 ```shell script
 Usage: 
-java -jar target/connectionPools-1.0-SNAPSHOT-jar-with-dependencies.jar
+java -jar target/ConnectionPoolDemo-jar-with-dependencies.jar
 -host : hostname
 -poolType <c3p0| dbcp| druid| hikari>
 -poolSize <poolSize>

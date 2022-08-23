@@ -948,6 +948,10 @@ void shellCleanup(void *arg) { taosResetTerminalMode(); }
 void *shellCancelHandler(void *arg) {
   setThreadName("shellCancelHandler");
   while (1) {
+    if (shell.exit == true) {
+      break;
+    }
+
     if (tsem_wait(&shell.cancelSem) != 0) {
       taosMsleep(10);
       continue;
@@ -961,7 +965,7 @@ void *shellCancelHandler(void *arg) {
 		taos_kill_query(shell.conn);
 #ifdef WEBSOCKET
 	}
-#endif 
+#endif
   #ifdef WINDOWS
     printf("\n%s", shell.info.promptHeader);
   #endif
@@ -1009,7 +1013,7 @@ int32_t shellExecute() {
   if (shell.args.restful || shell.args.cloud) {
 	if (shell_conn_ws_server(1)) {
 		return -1;
-	}	
+	}
   } else {
 #endif
 	if (shell.args.auth == NULL) {
@@ -1043,7 +1047,7 @@ int32_t shellExecute() {
 	if (shell.args.restful || shell.args.cloud) {
 		ws_close(shell.ws_conn);
 	} else {
-#endif	
+#endif
 		taos_close(shell.conn);
 #ifdef WEBSOCKET
 	}
@@ -1079,7 +1083,12 @@ int32_t shellExecute() {
     taosThreadCreate(&shell.pid, NULL, shellThreadLoop, NULL);
     taosThreadJoin(shell.pid, NULL);
     taosThreadClear(&shell.pid);
+    if (shell.exit) {
+      tsem_post(&shell.cancelSem);
+      break;
+    }
   }
+  taosThreadJoin(spid, NULL);
 
   shellCleanupHistory();
   return 0;

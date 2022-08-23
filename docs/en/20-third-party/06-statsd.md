@@ -40,7 +40,7 @@ Use the TDengine CLI to verify that StatsD data is written to TDengine and can r
 
 ```
 Welcome to the TDengine shell from Linux, Client Version:3.0.0.0
-Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
+Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.
 
 taos> use statsd;
 Database changed.

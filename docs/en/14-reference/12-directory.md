@@ -29,11 +29,6 @@ All executable files of TDengine are in the _/usr/local/taos/bin_ directory by d
 - _set_core.sh_: script for setting up the system to generate core dump files for easy debugging
 - _taosd-dump-cfg.gdb_: script to facilitate debugging of taosd's gdb execution.
 
-:::note
-taosdump requires taosTools as a standalone installation.
-
-:::
-
 :::tip
 You can configure different data directories and log directories by modifying the system configuration file `taos.cfg`.
 
