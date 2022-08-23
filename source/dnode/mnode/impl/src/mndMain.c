@@ -114,7 +114,7 @@ static void *mndThreadFp(void *param) {
       mndTtlTimer(pMnode);
     }
 
-    if (lastTime % (tsTransPullupInterval * 10) == 1) {
+    if (lastTime % (tsTransPullupInterval * 10) == 0) {
       mndPullupTrans(pMnode);
     }
 
