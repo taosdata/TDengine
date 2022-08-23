@@ -23,16 +23,17 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  char streamPath[200];
+  int32_t len = strlen(path) + 20;
+  char*   streamPath = taosMemoryCalloc(1, len);
   sprintf(streamPath, "%s/%s", path, "stream");
   pMeta->path = strdup(streamPath);
   if (tdbOpen(pMeta->path, 16 * 1024, 1, &pMeta->db) < 0) {
     goto _err;
   }
 
-  char checkpointPath[200];
-  sprintf(checkpointPath, "%s/%s", streamPath, "checkpoints");
-  mkdir(checkpointPath, 0755);
+  sprintf(streamPath, "%s/%s", pMeta->path, "checkpoints");
+  mkdir(streamPath, 0755);
+  taosMemoryFree(streamPath);
 
   if (tdbTbOpen("task.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pTaskDb) < 0) {
     goto _err;

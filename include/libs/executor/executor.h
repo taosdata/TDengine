@@ -23,7 +23,6 @@ extern "C" {
 #include "query.h"
 #include "tcommon.h"
 #include "tmsgcb.h"
-#include "tstream.h"
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
@@ -31,18 +30,18 @@ struct SRpcMsg;
 struct SSubplan;
 
 typedef struct {
-  void*         tqReader;
-  void*         meta;
-  void*         config;
-  void*         vnode;
-  void*         mnd;
-  SMsgCb*       pMsgCb;
-  int64_t       version;
-  bool          initMetaReader;
-  bool          initTableReader;
-  bool          initTqReader;
-  int32_t       numOfVgroups;
-  SStreamState* pState;
+  void*   tqReader;
+  void*   meta;
+  void*   config;
+  void*   vnode;
+  void*   mnd;
+  SMsgCb* pMsgCb;
+  int64_t version;
+  bool    initMetaReader;
+  bool    initTableReader;
+  bool    initTqReader;
+  int32_t numOfVgroups;
+  void*   pStateBackend;
 } SReadHandle;
 
 // in queue mode, data streams are seperated by msg

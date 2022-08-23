@@ -4616,8 +4616,8 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
     goto _complete;
   }
 
-  if (pHandle && pHandle->pState) {
-    (*pTaskInfo)->streamInfo.pState = pHandle->pState;
+  if (pHandle && pHandle->pStateBackend) {
+    (*pTaskInfo)->streamInfo.pState = pHandle->pStateBackend;
   }
 
   (*pTaskInfo)->sql = sql;
