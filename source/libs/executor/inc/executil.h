@@ -80,11 +80,9 @@ struct SqlFunctionCtx;
 
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
-void   cleanupResultRowInfo(SResultRowInfo* pResultRowInfo);
 
 void initResultRow(SResultRow* pResultRow);
 void closeResultRow(SResultRow* pResultRow);
-bool isResultRowClosed(SResultRow* pResultRow);
 
 struct SResultRowEntryInfo* getResultEntryInfo(const SResultRow* pRow, int32_t index, const int32_t* offset);
 
