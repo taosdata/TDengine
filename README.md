@@ -211,14 +211,14 @@ cmake .. -G "NMake Makefiles"
 nmake
 ```
 
-### On macOS platform
+<!-- ### On macOS platform
 
 Please install XCode command line tools and cmake. Verified with XCode 11.4+ on Catalina and Big Sur.
 
 ```shell
 mkdir debug && cd debug
 cmake .. && cmake --build .
-```
+``` -->
 
 # Installing
 
