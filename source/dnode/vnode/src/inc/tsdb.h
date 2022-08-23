@@ -172,6 +172,7 @@ int32_t tGetDelData(uint8_t *p, void *ph);
 void    tMapDataReset(SMapData *pMapData);
 void    tMapDataClear(SMapData *pMapData);
 int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *));
+int32_t tMapDataCopy(SMapData *pFrom, SMapData *pTo);
 void    tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *));
 int32_t tMapDataSearch(SMapData *pMapData, void *pSearchItem, int32_t (*tGetItemFn)(uint8_t *, void *),
                        int32_t (*tItemCmprFn)(const void *, const void *), void *pItem);

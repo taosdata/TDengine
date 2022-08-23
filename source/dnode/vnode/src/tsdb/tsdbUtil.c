@@ -51,6 +51,22 @@ _exit:
   return code;
 }
 
+int32_t tMapDataCopy(SMapData *pFrom, SMapData *pTo) {
+  int32_t code = 0;
+
+  pTo->nItem = pFrom->nItem;
+  pTo->nData = pFrom->nData;
+  code = tRealloc((uint8_t **)&pTo->aOffset, sizeof(int32_t) * pFrom->nItem);
+  if (code) goto _exit;
+  code = tRealloc(&pTo->pData, pFrom->nData);
+  if (code) goto _exit;
+  memcpy(pTo->aOffset, pFrom->aOffset, sizeof(int32_t) * pFrom->nItem);
+  memcpy(pTo->pData, pFrom->pData, pFrom->nData);
+
+_exit:
+  return code;
+}
+
 int32_t tMapDataSearch(SMapData *pMapData, void *pSearchItem, int32_t (*tGetItemFn)(uint8_t *, void *),
                        int32_t (*tItemCmprFn)(const void *, const void *), void *pItem) {
   int32_t code = 0;
