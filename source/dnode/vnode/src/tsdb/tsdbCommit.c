@@ -35,8 +35,8 @@ typedef struct {
   int32_t minRow;
   int32_t maxRow;
   int8_t  cmprAlg;
-  SArray *aTbDataP;
-  STsdbFS fs;
+  SArray *aTbDataP;  // memory
+  STsdbFS fs;        // disk
   // --------------
   TSKEY   nextKey;  // reset by each table commit
   int32_t commitFid;
@@ -1278,7 +1278,6 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
-
   code = tsdbFSCopy(pTsdb, &pCommitter->fs);
   if (code) goto _err;
 
