@@ -836,27 +836,6 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFSNew) {
       pSetOld->pDataF->size = pSetNew->pDataF->size;
     }
 
-    // last
-    fSet.aLastF[0] = pSetOld->aLastF[0];
-    if ((!sameDisk) || (pSetOld->aLastF[0]->commitID != pSetNew->aLastF[0]->commitID)) {
-      pSetOld->aLastF[0] = (SLastFile *)taosMemoryMalloc(sizeof(SLastFile));
-      if (pSetOld->aLastF[0] == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _err;
-      }
-      *pSetOld->aLastF[0] = *pSetNew->aLastF[0];
-      pSetOld->aLastF[0]->nRef = 1;
-
-      nRef = atomic_sub_fetch_32(&fSet.aLastF[0]->nRef, 1);
-      if (nRef == 0) {
-        tsdbLastFileName(pTsdb, pSetOld->diskId, pSetOld->fid, fSet.aLastF[0], fname);
-        taosRemoveFile(fname);
-        taosMemoryFree(fSet.aLastF[0]);
-      }
-    } else {
-      ASSERT(pSetOld->aLastF[0]->size == pSetNew->aLastF[0]->size);
-    }
-
     // sma
     fSet.pSmaF = pSetOld->pSmaF;
     if ((!sameDisk) || (pSetOld->pSmaF->commitID != pSetNew->pSmaF->commitID)) {
@@ -877,6 +856,27 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFSNew) {
     } else {
       ASSERT(pSetOld->pSmaF->size <= pSetNew->pSmaF->size);
       pSetOld->pSmaF->size = pSetNew->pSmaF->size;
+    }
+
+    // last
+    fSet.aLastF[0] = pSetOld->aLastF[0];
+    if ((!sameDisk) || (pSetOld->aLastF[0]->commitID != pSetNew->aLastF[0]->commitID)) {
+      pSetOld->aLastF[0] = (SLastFile *)taosMemoryMalloc(sizeof(SLastFile));
+      if (pSetOld->aLastF[0] == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _err;
+      }
+      *pSetOld->aLastF[0] = *pSetNew->aLastF[0];
+      pSetOld->aLastF[0]->nRef = 1;
+
+      nRef = atomic_sub_fetch_32(&fSet.aLastF[0]->nRef, 1);
+      if (nRef == 0) {
+        tsdbLastFileName(pTsdb, pSetOld->diskId, pSetOld->fid, fSet.aLastF[0], fname);
+        taosRemoveFile(fname);
+        taosMemoryFree(fSet.aLastF[0]);
+      }
+    } else {
+      ASSERT(pSetOld->aLastF[0]->size == pSetNew->aLastF[0]->size);
     }
 
     if (!sameDisk) {
@@ -902,18 +902,20 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFSNew) {
       taosMemoryFree(pSetOld->pDataF);
     }
 
-    nRef = atomic_sub_fetch_32(&pSetOld->aLastF[0]->nRef, 1);
-    if (nRef == 0) {
-      tsdbLastFileName(pTsdb, pSetOld->diskId, pSetOld->fid, pSetOld->aLastF[0], fname);
-      taosRemoveFile(fname);
-      taosMemoryFree(pSetOld->aLastF[0]);
-    }
-
     nRef = atomic_sub_fetch_32(&pSetOld->pSmaF->nRef, 1);
     if (nRef == 0) {
       tsdbSmaFileName(pTsdb, pSetOld->diskId, pSetOld->fid, pSetOld->pSmaF, fname);
       taosRemoveFile(fname);
       taosMemoryFree(pSetOld->pSmaF);
+    }
+
+    for (int8_t iLast = 0; iLast < pSetOld->nLastF; iLast++) {
+      nRef = atomic_sub_fetch_32(&pSetOld->aLastF[iLast]->nRef, 1);
+      if (nRef == 0) {
+        tsdbLastFileName(pTsdb, pSetOld->diskId, pSetOld->fid, pSetOld->aLastF[iLast], fname);
+        taosRemoveFile(fname);
+        taosMemoryFree(pSetOld->aLastF[iLast]);
+      }
     }
 
     taosArrayRemove(pTsdb->fs.aDFileSet, iOld);
@@ -942,15 +944,6 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFSNew) {
     *fSet.pDataF = *pSetNew->pDataF;
     fSet.pDataF->nRef = 1;
 
-    // last
-    fSet.aLastF[0] = (SLastFile *)taosMemoryMalloc(sizeof(SLastFile));
-    if (fSet.aLastF[0] == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _err;
-    }
-    *fSet.aLastF[0] = *pSetNew->aLastF[0];
-    fSet.aLastF[0]->nRef = 1;
-
     // sma
     fSet.pSmaF = (SSmaFile *)taosMemoryMalloc(sizeof(SSmaFile));
     if (fSet.pSmaF == NULL) {
@@ -959,6 +952,16 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFSNew) {
     }
     *fSet.pSmaF = *pSetNew->pSmaF;
     fSet.pSmaF->nRef = 1;
+
+    // last
+    ASSERT(pSetNew->nLastF == 1);
+    fSet.aLastF[0] = (SLastFile *)taosMemoryMalloc(sizeof(SLastFile));
+    if (fSet.aLastF[0] == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+    *fSet.aLastF[0] = *pSetNew->aLastF[0];
+    fSet.aLastF[0]->nRef = 1;
 
     if (taosArrayInsert(pTsdb->fs.aDFileSet, iOld, &fSet) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
