@@ -363,8 +363,9 @@ void         launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* 
 int32_t      refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
 int32_t      updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList);
 void         doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
-int32_t      removeMeta(STscObj* pTscObj, SArray* tbList);  // todo move to clientImpl.c and become a static function
-int32_t      handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);  // todo move to xxx
+int32_t      removeMeta(STscObj* pTscObj, SArray* tbList);  
+int32_t      handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);
+int32_t      handleCreateTbExecRes(void* res, SCatalog* pCatalog);
 bool         qnodeRequired(SRequestObj* pRequest);
 
 #ifdef __cplusplus

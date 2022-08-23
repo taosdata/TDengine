@@ -219,6 +219,11 @@ void destroyQueryExecRes(SExecResult* pRes) {
   }
 
   switch (pRes->msgType) {
+    case TDMT_VND_CREATE_TABLE: {
+      taosArrayDestroyEx((SArray*)pRes->res, tFreeSTableMetaRsp);
+      break;
+    }
+    case TDMT_MND_CREATE_STB:
     case TDMT_VND_ALTER_TABLE:
     case TDMT_MND_ALTER_STB: {
       tFreeSTableMetaRsp((STableMetaRsp*)pRes->res);

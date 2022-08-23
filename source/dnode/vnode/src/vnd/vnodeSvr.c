@@ -370,6 +370,10 @@ void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
 }
 
 void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
+  if (NULL == pMetaRsp) {
+    return;
+  }
+  
   strcpy(pMetaRsp->dbFName, pVnode->config.dbname);
   pMetaRsp->dbId = pVnode->config.dbId;
   pMetaRsp->vgId = TD_VID(pVnode);
@@ -514,7 +518,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pR
     }
 
     // do create table
-    if (metaCreateTable(pVnode->pMeta, version, pCreateReq) < 0) {
+    if (metaCreateTable(pVnode->pMeta, version, pCreateReq, &cRsp.pMeta) < 0) {
       if (pCreateReq->flags & TD_CREATE_IF_NOT_EXISTS && terrno == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
         cRsp.code = TSDB_CODE_SUCCESS;
       } else {
@@ -524,6 +528,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pR
       cRsp.code = TSDB_CODE_SUCCESS;
       tdFetchTbUidList(pVnode->pSma, &pStore, pCreateReq->ctb.suid, pCreateReq->uid);
       taosArrayPush(tbUids, &pCreateReq->uid);
+      vnodeUpdateMetaRsp(pVnode, cRsp.pMeta); 
     }
 
     taosArrayPush(rsp.pArray, &cRsp);
@@ -552,7 +557,7 @@ _exit:
     pCreateReq = req.pReqs + iReq;
     taosArrayDestroy(pCreateReq->ctb.tagName);
   }
-  taosArrayDestroy(rsp.pArray);
+  taosArrayDestroyEx(rsp.pArray, tFreeSVCreateTbRsp);
   taosArrayDestroy(tbUids);
   tDecoderClear(&decoder);
   tEncoderClear(&encoder);
@@ -864,7 +869,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
         goto _exit;
       }
 
-      if (metaCreateTable(pVnode->pMeta, version, &createTbReq) < 0) {
+      if (metaCreateTable(pVnode->pMeta, version, &createTbReq, NULL) < 0) {
         if (terrno != TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
           submitBlkRsp.code = terrno;
           pRsp->code = terrno;
