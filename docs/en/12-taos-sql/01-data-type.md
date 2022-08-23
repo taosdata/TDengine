@@ -1,7 +1,10 @@
 ---
+sidebar_label: Data Types
 title: Data Types
 description: "TDengine supports a variety of data types including timestamp, float, JSON and many others."
 ---
+
+## Timestamp
 
 When using TDengine to store and query data, the most important part of the data is timestamp. Timestamp must be specified when creating and inserting data rows. Timestamp must follow the rules below:
 
@@ -16,34 +19,54 @@ Time precision in TDengine can be set by the `PRECISION` parameter when executin
 ```sql
 CREATE DATABASE db_name PRECISION 'ns';
 ```
+## Data Types
 
 In TDengine, the data types below can be used when specifying a column or tag.
 
 | #   | **type**  | **Bytes** | **Description** |
-| --- | :-------: | --------- | ------------------------- |
-| 1   | TIMESTAMP | 8         | Default precision is millisecond, microsecond and nanosecond are also supported  |
-| 2   |    INT    | 4         | Integer, the value range is [-2^31+1, 2^31-1], while -2^31 is treated as NULL  |
-| 3   |  BIGINT   | 8         | Long integer, the value range is [-2^63+1, 2^63-1], while -2^63 is treated as NULL |
-| 4   |   FLOAT   | 4         | Floating point number, the effective number of digits is 6-7, the value range is [-3.4E38, 3.4E38]  |
-| 5   |  DOUBLE   | 8         | Double precision floating point number, the effective number of digits is 15-16, the value range is [-1.7E308, 1.7E308]  |
-| 6   |  BINARY   | User Defined | Single-byte string for ASCII visible characters. Length must be specified when defining a column or tag of binary type. The string length can be up to  16374 bytes. The string value must be quoted with single quotes. The literal single quote inside the string must be preceded with back slash like `\'` |
-| 7   | SMALLINT  | 2         | Short integer, the value range is [-32767, 32767], while -32768 is treated as NULL  |
-| 8   |  TINYINT  | 1         | Single-byte integer, the value range is [-127, 127], while -128 is treated as NULL |
-| 9   |   BOOL    | 1         | Bool, the value range is {true, false}   |
-| 10  | NCHAR     | User Defined| Multi-Byte string that can include multi byte characters like Chinese characters. Each character of NCHAR type consumes 4 bytes storage. The string value should be quoted with single quotes. Literal single quote inside the string must be preceded with backslash, like `\’`. The length must be specified when defining a column or tag of NCHAR type, for example nchar(10) means it can store at most 10 characters of nchar type and will consume fixed storage of 40 bytes. An error will be reported if the string value exceeds the length defined.   |
-| 11  |   JSON    |           | JSON type can only be used on tags. A tag of json type is excluded with any other tags of any other type |
+| --- | :-------: | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | TIMESTAMP | 8         | Default precision is millisecond, microsecond and nanosecond are also supported      |
+| 2   |    INT    | 4         | Integer, the value range is [-2^31, 2^31-1]  |
+| 3   | INT UNSIGNED| 4| unsigned integer, the value range is [0, 2^32-1] 
+| 4   |  BIGINT   | 8         | Long integer, the value range is [-2^63, 2^63-1] |
+| 5   |  BIGINT UNSIGNED  | 8         | unsigned long integer, the value range is [0, 2^64-1]     |
+| 6   |   FLOAT   | 4         | Floating point number, the effective number of digits is 6-7, the value range is [-3.4E38, 3.4E38]  |
+| 7   |  DOUBLE   | 8         | Double precision floating point number, the effective number of digits is 15-16, the value range is [-1.7E308, 1.7E308]  |
+| 8   |  BINARY   | User Defined | Single-byte string for ASCII visible characters. Length must be specified when defining a column or tag of binary type. |
+| 9   | SMALLINT  | 2         | Short integer, the value range is [-32768, 32767]  |
+| 10   | INT UNSIGNED| 2| unsigned integer, the value range is [0, 65535]|
+| 11   |  TINYINT  | 1         | Single-byte integer, the value range is [-128, 127] |
+| 12   |  TINYINT UNSIGNED  | 1         | unsigned single-byte integer, the value range is [0, 255]     |
+| 13   |   BOOL    | 1         | Bool, the value range is {true, false}   |
+| 14  | NCHAR     | User Defined| Multi-Byte string that can include multi byte characters like Chinese characters. Each character of NCHAR type consumes 4 bytes storage. The string value should be quoted with single quotes. Literal single quote inside the string must be preceded with backslash, like `\’`. The length must be specified when defining a column or tag of NCHAR type, for example nchar(10) means it can store at most 10 characters of nchar type and will consume fixed storage of 40 bytes. An error will be reported if the string value exceeds the length defined.                                                                                            |
+| 15  |   JSON    |           | JSON type can only be used on tags. A tag of json type is excluded with any other tags of any other type |
+| 16 | VARCHAR | User-defined | Alias of BINARY  |
 
-:::tip
-TDengine is case insensitive and treats any characters in the sql command as lower case by default, case sensitive strings must be quoted with single quotes.
+
+:::note
+- TDengine is case insensitive and treats any characters in the sql command as lower case by default, case sensitive strings must be quoted with single quotes.
+- Only ASCII visible characters are suggested to be used in a column or tag of BINARY type. Multi-byte characters must be stored in NCHAR type. 
+- The length of BINARY can be up to 16374 bytes. The string value must be quoted with single quotes. You must specify a length in bytes for a BINARY value, for example binary(20) for up to twenty single-byte characters. If the data exceeds the specified length, an error will occur. The literal single quote inside the string must be preceded with back slash like `\'`
+- Numeric values in SQL statements will be determined as integer or float type according to whether there is decimal point or whether scientific notation is used, so attention must be paid to avoid overflow. For example, 9999999999999999999 will be considered as overflow because it exceeds the upper limit of long integer, but 9999999999999999999.0 will be considered as a legal float number.
 
 :::
 
-:::note
-Only ASCII visible characters are suggested to be used in a column or tag of BINARY type. Multi-byte characters must be stored in NCHAR type.
 
-:::
+## Constants
+TDengine supports a variety of constants:
+
+| #   | **Syntax**  | **Type** | **Description**    |
+| --- | :-------: | --------- | -------------------------------------- |
+| 1 | [{+ \| -}]123 | BIGINT | Integer literals are of type BIGINT. Data that exceeds the length of the BIGINT type is truncated. |
+| 2 | 123.45 | DOUBLE | Floating-point literals are of type DOUBLE. Numeric values will be determined as integer or float type according to whether there is decimal point or whether scientific notation is used. |
+| 3 | 1.2E3 | DOUBLE | Literals in scientific notation are of type DOUBLE. |
+| 4 | 'abc' | BINARY | Content enclosed in single quotation marks is of type BINARY. The size of a BINARY is the size of the string in bytes. A literal single quote inside the string must be escaped with a backslash (\'). |
+| 5 | 'abc' | BINARY | Content enclosed in double quotation marks is of type BINARY. The size of a BINARY is the size of the string in bytes. A literal double quote inside the string must be escaped with a backslash (\"). |
+| 6 | TIMESTAMP {'literal' \| "literal"} | TIMESTAMP | The TIMESTAMP keyword indicates that the following string literal is interpreted as a timestamp. The string must be in YYYY-MM-DD HH:mm:ss.MS format. The precision is inherited from the database configuration. |
+| 7 | {TRUE \| FALSE} | BOOL | Boolean literals are of type BOOL. |
+| 8 | {'' \| "" \| '\t' \| "\t" \| ' ' \| " " \| NULL } | -- | The preceding characters indicate null literals. These can be used with any data type. |
 
 :::note
-Numeric values in SQL statements will be determined as integer or float type according to whether there is decimal point or whether scientific notation is used, so attention must be paid to avoid overflow. For example, 9999999999999999999 will be considered as overflow because it exceeds the upper limit of long integer, but 9999999999999999999.0 will be considered as a legal float number.
+Numeric values will be determined as integer or float type according to whether there is decimal point or whether scientific notation is used, so attention must be paid to avoid overflow. For example, 9999999999999999999 will be considered as overflow because it exceeds the upper limit of long integer, but 9999999999999999999.0 will be considered as a legal float number.
 
 :::
