@@ -193,7 +193,7 @@ docker run -d \
 
 如上图所示，在 Query 中选中 `TDengine` 数据源，在下方查询框可输入相应 SQL 进行查询，具体说明如下：
 
-- INPUT SQL：输入要查询的语句（该 SQL 语句的结果集应为两列多行），例如：`select avg(mem_system) from log.dn where ts >= $from and ts < $to interval($interval)` ，其中，from、to 和 interval 为 TDengine 插件的内置变量，表示从 Grafana 插件面板获取的查询范围和时间间隔。除了内置变量外，`也支持可以使用自定义模板变量`。
+- INPUT SQL：输入要查询的语句（该 SQL 语句的结果集应为两列多行），例如：`select _wstart, avg(mem_system) from log.dnodes_info where ts >= $from and ts < $to interval($interval)` ，其中，from、to 和 interval 为 TDengine 插件的内置变量，表示从 Grafana 插件面板获取的查询范围和时间间隔。除了内置变量外，`也支持可以使用自定义模板变量`。
 - ALIAS BY：可设置当前查询别名。
 - GENERATE SQL： 点击该按钮会自动替换相应变量，并生成最终执行的语句。
 
@@ -205,7 +205,11 @@ docker run -d \
 
 ### 导入 Dashboard
 
-在数据源配置页面，您可以为该数据源导入 TDinsight 面板，作为 TDengine 集群的监控可视化工具。该 Dashboard 已发布在 Grafana：[Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)) 。其他安装方式和相关使用说明请见 [TDinsight 用户手册](/reference/tdinsight/)。
+在数据源配置页面，您可以为该数据源导入 TDinsight 面板，作为 TDengine 集群的监控可视化工具。如果 TDengine 服务端为 3.0 版本请选择 `TDinsight for 3.x` 导入。
+
+![TDengine Database Grafana plugine import dashboard](./import_dashboard.webp)
+
+其中适配 TDengine 2.* 的 Dashboard 已发布在 Grafana：[Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)) 。其他安装方式和相关使用说明请见 [TDinsight 用户手册](/reference/tdinsight/)。
 
 使用 TDengine 作为数据源的其他面板，可以[在此搜索](https://grafana.com/grafana/dashboards/?dataSource=tdengine-datasource)。以下是一份不完全列表：
 

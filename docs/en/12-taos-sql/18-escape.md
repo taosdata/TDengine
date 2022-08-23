@@ -2,7 +2,7 @@
 title: Escape Characters
 ---
 
-Below table is the list of escape characters used in TDengine.
+## Escape Characters
 
 | Escape Character | **Actual Meaning**       |
 | :--------------: | ------------------------ |
@@ -14,11 +14,6 @@ Below table is the list of escape characters used in TDengine.
 |       `\\`       | Back Slash \             |
 |       `\%`       | % see below for details  |
 |       `\_`       | \_ see below for details |
-
-:::note
-Escape characters are available from version 2.4.0.4 .
-
-:::
 
 ## Restrictions
 

@@ -100,7 +100,6 @@ extern "C" {
 typedef struct SExplainGroup {
   int32_t   nodeNum;
   int32_t   physiPlanExecNum;
-  int32_t   physiPlanNum;
   int32_t   physiPlanExecIdx;
   SRWLatch  lock;
   SSubplan *plan;

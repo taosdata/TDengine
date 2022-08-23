@@ -392,6 +392,29 @@ bool syncIsReady(int64_t rid) {
   return b;
 }
 
+bool syncIsReadyForRead(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return false;
+  }
+  ASSERT(rid == pSyncNode->rid);
+
+  // TODO: last not noop?
+  SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
+  bool b = (pSyncNode->state == TAOS_SYNC_STATE_LEADER) && (pSyncNode->commitIndex >= lastIndex - SYNC_MAX_READ_RANGE);
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+
+  // if false, set error code
+  if (false == b) {
+    if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+      terrno = TSDB_CODE_SYN_NOT_LEADER;
+    } else {
+      terrno = TSDB_CODE_APP_NOT_READY;
+    }
+  }
+  return b;
+}
+
 bool syncIsRestoreFinish(int64_t rid) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
@@ -517,6 +540,30 @@ SyncTerm syncGetMyTerm(int64_t rid) {
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return term;
+}
+
+SyncIndex syncGetLastIndex(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return SYNC_INDEX_INVALID;
+  }
+  ASSERT(rid == pSyncNode->rid);
+  SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return lastIndex;
+}
+
+SyncIndex syncGetCommitIndex(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return SYNC_INDEX_INVALID;
+  }
+  ASSERT(rid == pSyncNode->rid);
+  SyncIndex cmtIndex = pSyncNode->commitIndex;
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return cmtIndex;
 }
 
 SyncGroupId syncGetVgId(int64_t rid) {
@@ -826,6 +873,15 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
 
       ASSERT(!pSyncNode->changing);
       pSyncNode->changing = true;
+    }
+
+    // not restored, vnode enable
+    if (!pSyncNode->restoreFinish && pSyncNode->vgId != 1) {
+      ret = -1;
+      terrno = TSDB_CODE_SYN_PROPOSE_NOT_READY;
+      sError("vgId:%d, failed to sync propose since not ready, type:%s, last:%ld, cmt:%ld", pSyncNode->vgId,
+             TMSG_INFO(pMsg->msgType), syncNodeGetLastIndex(pSyncNode), pSyncNode->commitIndex);
+      goto _END;
     }
 
     SRespStub stub;
@@ -1626,13 +1682,13 @@ inline void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
                ", sby:%d, "
                "stgy:%d, bch:%d, "
                "r-num:%d, "
-               "lcfg:%" PRId64 ", chging:%d, rsto:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s",
+               "lcfg:%" PRId64 ", chging:%d, rsto:%d, dquorum:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
                pSyncNode->pRaftCfg->isStandBy, pSyncNode->pRaftCfg->snapshotStrategy, pSyncNode->pRaftCfg->batchSize,
                pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing,
-               pSyncNode->restoreFinish, pSyncNode->electTimerLogicClockUser, pSyncNode->heartbeatTimerLogicClockUser,
-               printStr);
+               pSyncNode->restoreFinish, syncNodeDynamicQuorum(pSyncNode), pSyncNode->electTimerLogicClockUser,
+               pSyncNode->heartbeatTimerLogicClockUser, printStr);
     } else {
       snprintf(logBuf, sizeof(logBuf), "%s", str);
     }
@@ -1650,12 +1706,13 @@ inline void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
                ", sby:%d, "
                "stgy:%d, bch:%d, "
                "r-num:%d, "
-               "lcfg:%" PRId64 ", chging:%d, rsto:%d, %s",
+               "lcfg:%" PRId64 ", chging:%d, rsto:%d, dquorum:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
                pSyncNode->pRaftCfg->isStandBy, pSyncNode->pRaftCfg->snapshotStrategy, pSyncNode->pRaftCfg->batchSize,
                pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing,
-               pSyncNode->restoreFinish, printStr);
+               pSyncNode->restoreFinish, syncNodeDynamicQuorum(pSyncNode), pSyncNode->electTimerLogicClockUser,
+               pSyncNode->heartbeatTimerLogicClockUser, printStr);
     } else {
       snprintf(s, len, "%s", str);
     }
@@ -2124,6 +2181,11 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
     (pMySender->privateTerm) += 100;
   }
 
+  // close receiver
+  if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
+    snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
+  }
+
   // stop elect timer
   syncNodeStopElectTimer(pSyncNode);
 
@@ -2227,7 +2289,7 @@ bool syncNodeHasSnapshot(SSyncNode* pSyncNode) {
 
 // return max(logLastIndex, snapshotLastIndex)
 // if no snapshot and log, return -1
-SyncIndex syncNodeGetLastIndex(SSyncNode* pSyncNode) {
+SyncIndex syncNodeGetLastIndex(const SSyncNode* pSyncNode) {
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
   if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
     pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
@@ -2716,10 +2778,26 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
     return 0;
   }
 
-  if (ths->vgId > 1) {
-    syncNodeEventLog(ths, "I am vnode, can not do leader transfer");
+  if (pEntry->term < ths->pRaftStore->currentTerm) {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "little term:%lu, can not do leader transfer", pEntry->term);
+    syncNodeEventLog(ths, logBuf);
     return 0;
   }
+
+  if (pEntry->index < syncNodeGetLastIndex(ths)) {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "little index:%ld, can not do leader transfer", pEntry->index);
+    syncNodeEventLog(ths, logBuf);
+    return 0;
+  }
+
+  /*
+    if (ths->vgId > 1) {
+      syncNodeEventLog(ths, "I am vnode, can not do leader transfer");
+      return 0;
+    }
+  */
 
   do {
     char logBuf[128];

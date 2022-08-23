@@ -4,8 +4,16 @@ description: "TDengine 流式计算将数据的写入、预处理、复杂分析
 title: 流式计算
 ---
 
-在时序数据的处理中，经常要对原始数据进行清洗、预处理，再使用时序数据库进行长久的储存。用户通常需要在时序数据库之外再搭建 Kafka、Flink、Spark 等流计算处理引擎，增加了用户的开发成本和维护成本。
-使用 TDengine 3.0 的流式计算引擎能够最大限度的减少对这些额外中间件的依赖，真正将数据的写入、预处理、长期存储、复杂分析、实时计算、实时报警触发等功能融为一体，并且，所有这些任务只需要使用 SQL 完成，极大降低了用户的学习成本、使用成本。
+在时序数据的处理中，经常要对原始数据进行清洗、预处理，再使用时序数据库进行长久的储存。在传统的时序数据解决方案中，常常需要部署 Kafka、Flink 等流处理系统。而流处理系统的复杂性，带来了高昂的开发与运维成本。
+
+TDengine 3.0 的流式计算引擎提供了实时处理写入的数据流的能力，使用 SQL 定义实时流变换，当数据被写入流的源表后，数据会被以定义的方式自动处理，并根据定义的触发模式向目的表推送结果。它提供了替代复杂流处理系统的轻量级解决方案，并能够在高吞吐的数据写入的情况下，提供毫秒级的计算结果延迟。
+
+流式计算可以包含数据过滤，标量函数计算（含UDF），以及窗口聚合（支持滑动窗口、会话窗口与状态窗口），可以以超级表、子表、普通表为源表，写入到目的超级表。在创建流时，目的超级表将被自动创建，随后新插入的数据会被流定义的方式处理并写入其中，通过 partition by 子句，可以以表名或标签划分 partition，不同的 partition 将写入到目的超级表的不同子表。
+
+TDengine 的流式计算能够支持分布在多个 vnode 中的超级表聚合；还能够处理乱序数据的写入：它提供了 watermark 机制以度量容忍数据乱序的程度，并提供了 ignore expired 配置项以决定乱序数据的处理策略——丢弃或者重新计算。
+
+详见 [流式计算](../../taos-sql/stream)
+
 
 ## 流式计算的创建
 
@@ -14,7 +22,7 @@ CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name AS subq
 stream_options: {
  TRIGGER    [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
  WATERMARK   time
- IGNORE EXPIRED
+ IGNORE EXPIRED [0 | 1]
 }
 ```
 
@@ -59,7 +67,7 @@ insert into d1004 values("2018-10-03 14:38:05.000", 10.80000, 223, 0.29000);
 insert into d1004 values("2018-10-03 14:38:06.500", 11.50000, 221, 0.35000);
 ```
 
-### 查询以观查结果
+### 查询以观察结果
 
 ```sql
 taos> select start, end, max_current from current_stream_output_stb;
@@ -88,7 +96,7 @@ create stream power_stream into power_stream_output_stb as select ts, concat_ws(
 
 参考示例一 [写入数据](#写入数据)
 
-### 查询以观查结果
+### 查询以观察结果
 ```sql
 taos> select ts, meter_location, active_power, reactive_power from power_stream_output_stb;
            ts            |         meter_location         |       active_power        |      reactive_power       |

@@ -25,18 +25,18 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bool, tgcol2 int)
 sql create table $tb using $mt tags( 1, 2 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol1 = 1
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
 
@@ -62,18 +62,18 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 smallint, tgcol2 tinyint)
 sql create table $tb using $mt tags( 1, 2 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol1 = 1
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
 
@@ -86,15 +86,15 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bigint, tgcol2 float)
 sql create table $tb using $mt tags( 1, 2 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol1 = 1
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 2.00000 then
@@ -103,61 +103,61 @@ endi
 
 sql alter table $mt rename tag tgcol1 tgcol3
 sql alter table $mt rename tag tgcol2 tgcol4
-  
+
 print =============== step5
 $i = 5
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 double, tgcol2 binary(10))
 sql create table $tb using $mt tags( 1, '2' )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = '2'
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1.000000000 then 
+if $data02 != 1.000000000 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
 
 sql alter table $mt rename tag tgcol1 tgcol3
 sql alter table $mt rename tag tgcol2 tgcol4
-  
+
 print =============== step6
 $i = 6
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 binary(10), tgcol2 int, tgcol3 smallint, tgcol4 binary(11), tgcol5 double, tgcol6 binary(20))
 sql create table $tb using $mt tags( '1', 2, 3, '4', 5, '6' )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol1 = '1'
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
-if $data04 != 3 then 
+if $data04 != 3 then
   return -1
 endi
-if $data05 != 4 then 
+if $data05 != 4 then
   return -1
 endi
-if $data06 != 5.000000000 then 
+if $data06 != 5.000000000 then
   return -1
 endi
-if $data07 != 6 then 
+if $data07 != 6 then
   return -1
 endi
 
@@ -187,31 +187,31 @@ step25:
 
 sql select * from $mt where tgcol3 = 1
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
 
 sql select * from $mt where tgcol4 = 2
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
 
@@ -229,34 +229,34 @@ step32:
 
 sql select * from $mt where tgcol3 = 1
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
 
 sql select * from $mt where tgcol4 = 2
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
-  
+
 print =============== step4
 $i = 4
 $mt = $mtPrefix . $i
@@ -271,13 +271,13 @@ step42:
 
 sql select * from $mt where tgcol3 = 1
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 2.00000 then
@@ -298,7 +298,7 @@ endi
 if $data03 != 2.00000 then
   return -1
 endi
-  
+
 print =============== step5
 $i = 5
 $mt = $mtPrefix . $i
@@ -313,34 +313,34 @@ step52:
 
 sql select * from $mt where tgcol3 < 2
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1.000000000 then 
+if $data02 != 1.000000000 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
 
 sql select * from $mt where tgcol4 = '2'
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1.000000000 then 
+if $data02 != 1.000000000 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
-  
+
 print =============== step6
 $i = 6
 $mt = $mtPrefix . $i
@@ -367,143 +367,143 @@ step66:
 
 sql select * from $mt where tgcol7 = '1'
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
-if $data04 != 4 then 
+if $data04 != 4 then
   return -1
 endi
-if $data05 != 5.000000000 then 
+if $data05 != 5.000000000 then
   return -1
 endi
-if $data06 != 6 then 
+if $data06 != 6 then
   return -1
 endi
-if $data07 != null then 
+if $data07 != null then
   return -1
 endi
 
 sql select * from $mt where tgcol8 = 2
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
-if $data04 != 4 then 
+if $data04 != 4 then
   return -1
 endi
-if $data05 != 5.000000000 then 
+if $data05 != 5.000000000 then
   return -1
 endi
-if $data06 != 6 then 
+if $data06 != 6 then
   return -1
 endi
-if $data07 != null then 
+if $data07 != null then
   return -1
 endi
 
 sql select * from $mt where tgcol9 = '4'
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
-if $data04 != 4 then 
+if $data04 != 4 then
   return -1
 endi
-if $data05 != 5.000000000 then 
+if $data05 != 5.000000000 then
   return -1
 endi
-if $data06 != 6 then 
+if $data06 != 6 then
   return -1
 endi
-if $data07 != null then 
+if $data07 != null then
   return -1
 endi
 
 sql select * from $mt where tgcol10 = 5
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
-if $data04 != 4 then 
+if $data04 != 4 then
   return -1
 endi
-if $data05 != 5.000000000 then 
+if $data05 != 5.000000000 then
   return -1
 endi
-if $data06 != 6 then 
+if $data06 != 6 then
   return -1
 endi
-if $data07 != null then 
+if $data07 != null then
   return -1
 endi
 
 sql select * from $mt where tgcol11 = '6'
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
-if $data04 != 4 then 
+if $data04 != 4 then
   return -1
 endi
-if $data05 != 5.000000000 then 
+if $data05 != 5.000000000 then
   return -1
 endi
-if $data06 != 6 then 
+if $data06 != 6 then
   return -1
 endi
-if $data07 != null then 
+if $data07 != null then
   return -1
 endi
 
 print =============== clear
 sql drop database $db
 sql select * from information_schema.ins_databases
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 

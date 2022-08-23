@@ -38,22 +38,18 @@ typedef struct STagVal       STagVal;
 typedef struct STag          STag;
 
 // bitmap
-#define N1(n)        ((1 << (n)) - 1)
-#define BIT1_SIZE(n) (((n)-1) / 8 + 1)
-#define BIT2_SIZE(n) (((n)-1) / 4 + 1)
-#define SET_BIT1(p, i, v)                            \
-  do {                                               \
-    (p)[(i) / 8] &= N1((i) % 8);                     \
-    (p)[(i) / 8] |= (((uint8_t)(v)) << (((i) % 8))); \
-  } while (0)
+const static uint8_t BIT2_MAP[4][4] = {{0b00000000, 0b00000001, 0b00000010, 0},
+                                       {0b00000000, 0b00000100, 0b00001000, 2},
+                                       {0b00000000, 0b00010000, 0b00100000, 4},
+                                       {0b00000000, 0b01000000, 0b10000000, 6}};
 
-#define GET_BIT1(p, i) (((p)[(i) / 8] >> ((i) % 8)) & ((uint8_t)1))
-#define SET_BIT2(p, i, v)                                \
-  do {                                                   \
-    p[(i) / 4] &= N1((i) % 4 * 2);                       \
-    (p)[(i) / 4] |= (((uint8_t)(v)) << (((i) % 4) * 2)); \
-  } while (0)
-#define GET_BIT2(p, i) (((p)[(i) / 4] >> (((i) % 4) * 2)) & ((uint8_t)3))
+#define N1(n)             ((((uint8_t)1) << (n)) - 1)
+#define BIT1_SIZE(n)      ((((n)-1) >> 3) + 1)
+#define BIT2_SIZE(n)      ((((n)-1) >> 2) + 1)
+#define SET_BIT1(p, i, v) ((p)[(i) >> 3] = (p)[(i) >> 3] & N1((i)&7) | (((uint8_t)(v)) << ((i)&7)))
+#define GET_BIT1(p, i)    (((p)[(i) >> 3] >> ((i)&7)) & ((uint8_t)1))
+#define SET_BIT2(p, i, v) ((p)[(i) >> 2] = (p)[(i) >> 2] & N1(BIT2_MAP[(i)&3][3]) | BIT2_MAP[(i)&3][(v)])
+#define GET_BIT2(p, i)    (((p)[(i) >> 2] >> BIT2_MAP[(i)&3][3]) & ((uint8_t)3))
 
 // STSchema
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
@@ -171,7 +167,7 @@ struct SColVal {
 
 #pragma pack(push, 1)
 struct STagVal {
-//  char colName[TSDB_COL_NAME_LEN]; // only used for tmq_get_meta
+  //  char colName[TSDB_COL_NAME_LEN]; // only used for tmq_get_meta
   union {
     int16_t cid;
     char   *pKey;

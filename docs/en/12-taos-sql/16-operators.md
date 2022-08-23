@@ -5,62 +5,62 @@ title: Operators
 
 ## Arithmetic Operators
 
-| #   | **Operator** | **Data Types** | **Description**                                           |
-| --- | :----------: | -------------- | --------------------------------------------------------- |
-| 1   |     +, -     | Numeric Types  | Representing positive or negative numbers, unary operator |
-| 2   |     +, -     | Numeric Types  | Addition and substraction, binary operator                |
-| 3   |    \*, /     | Numeric Types  | Multiplication and division, binary oeprator              |
-| 4   |      %       | Numeric Types  | Taking the remainder, binary operator                     |
+| #   | **Operator** | **Supported Data Types** | **Description**                   |
+| --- | :--------: | -------------- | -------------------------- |
+| 1   |    +, -    | Numeric       | Expresses sign. Unary operators. |
+| 2   |    +, -    | Numeric       | Expresses addition and subtraction. Binary operators. |
+| 3   |   \*, /    | Numeric       | Expresses multiplication and division. Binary operators. |
+| 4   |     %      | Numeric       | Expresses modulo. Binary operator.   |
 
 ## Bitwise Operators
 
-| #   | **Operator** | **Data Types** | **Description**               |
-| --- | :----------: | -------------- | ----------------------------- |
-| 1   |      &       | Numeric Types  | Bitewise AND, binary operator |
-| 2   |      \|      | Numeric Types  | Bitewise OR, binary operator  |
+| #   | **Operator** | **Supported Data Types** | **Description**                   |
+| --- | :--------: | -------------- | ------------------ |
+| 1   |     &      | Numeric       | Bitwise AND. Binary operator. |
+| 2   |     \|     | Numeric       | Bitwise OR. Binary operator. |
 
-## JSON Operator
+## JSON Operators
 
-`->` operator can be used to get the value of a key in a column of JSON type, the left oeprand is the column name, the right operand is a string constant. For example, `col->'name'` returns the value of key `'name'`.
+The `->` operator returns the value for a key in JSON column. Specify the column indicator on the left of the operator and the key name on the right of the operator. For example, `col->name` returns the value of the name key.
 
-## Set Operator
+## Set Operators
 
-Set operators are used to combine the results of two queries into single result. A query including set operators is called a combined query. The number of rows in each result in a combined query must be same, and the type is determined by the first query's result, the type of the following queriess result must be able to be converted to the type of the first query's result, the conversion rule is same as `CAST` function.
+Set operators combine the results of two queries. Queries that include set operators are known as compound queries. The expressions corresponding to each query in the select list in a compound query must match in number. The results returned take the data type of the first query, and the data type returned by subsequent queries must be convertible into the data type of the first query. The conditions of the `CAST` function apply to this conversion.
 
-TDengine provides 2 set operators: `UNION ALL` and `UNION`. `UNION ALL` combines the results without removing duplicate data. `UNION` combines the results and remove duplicate data rows. In single SQL statement, at most 100 set operators can be used.
+TDengine supports the `UNION` and `UNION ALL` operations. UNION ALL collects all query results and returns them as a composite result without deduplication. UNION collects all query results and returns them as a deduplicated composite result. In a single SQL statement, at most 100 set operators can be supported.
 
-## Comparsion Operator
+## Comparison Operators
 
-| #   |   **Operator**    | **Data Types**                                                      | **Description**                                 |
-| --- | :---------------: | ------------------------------------------------------------------- | ----------------------------------------------- |
-| 1   |         =         | Except for BLOB, MEDIUMBLOB and JSON                                | Equal                                           |
-| 2   |      <\>, !=      | Except for BLOB, MEDIUMBLOB, JSON and primary key of timestamp type | Not equal                                       |
-| 3   |      \>, <       | Except for BLOB, MEDIUMBLOB and JSON                                | Greater than, less than                         |
-| 4   |     \>=, <=      | Except for BLOB, MEDIUMBLOB and JSON                                | Greater than or equal to, less than or equal to |
-| 5   |   IS [NOT] NULL   | Any types                                                           | Is NULL or NOT                                  |
-| 6   | [NOT] BETWEEN AND | Except for BLOB, MEDIUMBLOB and JSON                                | In a value range or not                         |
-| 7   |        IN         | Except for BLOB, MEDIUMBLOB, JSON and primary key of timestamp type | In a list of values or not                      |
-| 8   |       LIKE        | BINARY, NCHAR and VARCHAR                                           | Wildcard matching                               |
-| 9   |   MATCH, NMATCH   | BINARY, NCHAR and VARCHAR                                           | Regular expression matching                     |
-| 10  |     CONTAINS      | JSON                                                                | If A key exists in JSON                         |
+| #   | **Operator** | **Supported Data Types** | **Description**                   |
+| --- | :---------------: | -------------------------------------------------------------------- | -------------------- |
+| 1   |         =         | All types except BLOB, MEDIUMBLOB, and JSON                             | Equal to |
+| 2   |      <\>, !=      | All types except BLOB, MEDIUMBLOB, and JSON; the primary key (timestamp) is also not supported | Not equal to               |
+| 3   |      \>, <       | All types except BLOB, MEDIUMBLOB, and JSON                             | Greater than and less than           |
+| 4   |     \>=, <=      | All types except BLOB, MEDIUMBLOB, and JSON                             | Greater than or equal to and less than or equal to   |
+| 5   |   IS [NOT] NULL   | All types                                                             | Indicates whether the value is null           |
+| 6   | [NOT] BETWEEN AND | All types except BLOB, MEDIUMBLOB, and JSON                       | Closed interval comparison           |
+| 7   |        IN         | All types except BLOB, MEDIUMBLOB, and JSON; the primary key (timestamp) is also not supported | Equal to any value in the list |
+| 8   |       LIKE        | BINARY, NCHAR, and VARCHAR                                             | Wildcard match           |
+| 9   |   MATCH, NMATCH   | BINARY, NCHAR, and VARCHAR                                             | Regular expression match       |
+| 10  |     CONTAINS      | JSON                                                                 | Indicates whether the key exists  |
 
-`LIKE` operator uses wildcard to match a string, the rules are：
+LIKE is used together with wildcards to match strings. Its usage is described as follows:
 
-- '%' matches 0 to any number of characters; '\_' matches any single ASCII character.
-- \_ can be used to match a `_` in the string, i.e. using escape character backslash `\`
-- Wildcard string is 100 bytes at most. Longer a wildcard string is, worse the performance of LIKE operator is.
+- '%' matches 0 or any number of characters, '\_' matches any single ASCII character.
+- `\_` is used to match the \_ in the string.
+- The maximum length of wildcard string is 100 bytes. A very long wildcard string may slowdown the execution performance of `LIKE` operator.
 
-`MATCH` and `NMATCH` operators use regular expressions to match a string, the rules are:
+MATCH and NMATCH are used together with regular expressions to match strings. Their usage is described as follows:
 
-- Regular expressions of POSIX standard are supported.
-- Only `tbname`, i.e. table name of sub tables, and tag columns of string types can be matched with regular expression, data columns are not supported.
-- Regular expression string is 128 bytes at most, and can be adjusted by setting parameter `maxRegexStringLen`, which is a client side configuration and needs to restart the client to take effect.
+- Use POSIX regular expression syntax. For more information, see Regular Expressions.
+- Regular expression can be used against only table names, i.e. `tbname`, and tags of binary/nchar types, but can't be used against data columns.
+- The maximum length of regular expression string is 128 bytes. Configuration parameter `maxRegexStringLen` can be used to set the maximum allowed regular expression. It's a configuration parameter on the client side, and will take effect after restarting the client.
 
 ## Logical Operators
 
-| #   | **Operator** | **Data Types** | **Description**                                                                          |
-| --- | :----------: | -------------- | ---------------------------------------------------------------------------------------- |
-| 1   |     AND      | BOOL           | Logical AND, return TRUE if both conditions are TRUE; return FALSE if any one is FALSE. |
-| 2   |      OR      | BOOL           | Logical OR, return TRUE if any condition is TRUE; return FALSE if both are FALSE        |
+| #   | **Operator** | **Supported Data Types** | **Description**                   |
+| --- | :--------: | -------------- | --------------------------------------------------------------------------- |
+| 1   |    AND     | BOOL           | Logical AND; if both conditions are true, TRUE is returned; If either condition is false, FALSE is returned.
+| 2   |    OR     | BOOL           | Logical OR; if either condition is true, TRUE is returned; If both conditions are false, FALSE is returned.
 
-TDengine uses shortcircut optimization when performing logical operations. For AND operator, if the first condition is evaluated to FALSE, then the second one is not evaluated. For OR operator, if the first condition is evaluated to TRUE, then the second one is not evaluated.
+TDengine performs short-path optimization when calculating logical conditions. If the first condition for AND is false, FALSE is returned without calculating the second condition. If the first condition for OR is true, TRUE is returned without calculating the second condition

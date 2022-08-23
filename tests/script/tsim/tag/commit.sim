@@ -25,39 +25,39 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bool, tgcol2 int)
 sql create table $tb using $mt tags( 1, 2 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = 2
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
 
 sql alter table $mt drop tag tgcol2
 sql alter table $mt add tag tgcol4 int
 sql reset query cache
-sql alter table $tb set tag tgcol4 =4 
+sql alter table $tb set tag tgcol4 =4
 sql reset query cache
 
 sql select * from $mt where tgcol4 = 4
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 if $data02 != 1 then
   return -1
 endi
-if $data03 != 4 then 
+if $data03 != 4 then
   return -1
 endi
 
@@ -71,61 +71,61 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 smallint, tgcol2 tinyint)
 sql create table $tb using $mt tags( 1, 2 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = 2
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
 
 sql alter table $mt drop tag tgcol2
 sql alter table $mt add tag tgcol4 tinyint
 sql reset query cache
-sql alter table $tb set tag tgcol4=4 
+sql alter table $tb set tag tgcol4=4
 sql reset query cache
 
 sql select * from $mt where tgcol4 = 4
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 4 then 
+if $data03 != 4 then
   return -1
 endi
 
 sql select * from $mt where tgcol2 = 1 -x step3
   return -1
 step3:
-  
+
 print =============== step4
 $i = 4
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bigint, tgcol2 float)
 sql create table $tb using $mt tags( 1, 2 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = 2
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 2.00000 then
@@ -133,34 +133,34 @@ if $data03 != 2.00000 then
 endi
 
 sql describe $tb
-if $data21 != BIGINT then 
+if $data21 != BIGINT then
   return -1
 endi
-if $data31 != FLOAT then 
+if $data31 != FLOAT then
   return -1
 endi
-if $data23 != TAG then 
+if $data23 != TAG then
   return -1
 endi
-if $data33 != TAG then 
+if $data33 != TAG then
   return -1
 endi
 
 sql alter table $mt drop tag tgcol2
 sql alter table $mt add tag tgcol4 float
 sql reset query cache
-sql alter table $tb set tag tgcol4=4 
+sql alter table $tb set tag tgcol4=4
 sql reset query cache
 
 sql select * from $mt where tgcol4 = 4
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 4.00000 then
@@ -170,184 +170,184 @@ endi
 sql select * from $mt where tgcol2 = 1 -x step4
   return -1
 step4:
-  
+
 print =============== step5
 $i = 5
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 double, tgcol2 binary(10))
 sql create table $tb using $mt tags( 1, '2' )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = '2'
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1.000000000 then 
+if $data02 != 1.000000000 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
 
 sql alter table $mt drop tag tgcol2
 sql alter table $mt add tag tgcol4 smallint
 sql reset query cache
-sql alter table $tb set tag tgcol4=4 
+sql alter table $tb set tag tgcol4=4
 sql reset query cache
 
 sql select * from $mt where tgcol4 = 4
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1.000000000 then 
+if $data02 != 1.000000000 then
   return -1
 endi
-if $data03 != 4 then 
+if $data03 != 4 then
   return -1
 endi
 
 sql select * from $mt where tgcol3 = '1' -x step5
   return -1
 step5:
-  
+
 print =============== step6
 $i = 6
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bool, tgcol2 int, tgcol3 tinyint)
 sql create table $tb using $mt tags( 1, 2, 3 )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = 2
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
-if $data04 != 3 then 
+if $data04 != 3 then
   return -1
 endi
 
 sql alter table $mt rename tag tgcol1 tgcol4
-sql alter table $mt drop tag tgcol2 
+sql alter table $mt drop tag tgcol2
 sql alter table $mt drop tag tgcol3
 sql alter table $mt add tag tgcol5 binary(10)
 sql alter table $mt add tag tgcol6 binary(10)
 
 sql reset query cache
-sql alter table $tb set tag tgcol4=false 
-sql alter table $tb set tag tgcol5='5' 
-sql alter table $tb set tag tgcol6='6' 
+sql alter table $tb set tag tgcol4=false
+sql alter table $tb set tag tgcol5='5'
+sql alter table $tb set tag tgcol6='6'
 sql reset query cache
 
 sql select * from $mt where tgcol5 = '5'
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 if $data02 != 0 then
   return -1
 endi
-if $data03 != 5 then 
+if $data03 != 5 then
   return -1
 endi
-if $data04 != 6 then 
+if $data04 != 6 then
   return -1
 endi
 
 sql select * from $mt where tgcol6 = '6'
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 if $data02 != 0 then
   return -1
 endi
-if $data03 != 5 then 
+if $data03 != 5 then
   return -1
 endi
-if $data04 != 6 then 
+if $data04 != 6 then
   return -1
 endi
 
 sql select * from $mt where tgcol4 = 1
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 sql select * from $mt where tgcol3 = 1 -x step52
   return -1
 step52:
-  
+
 print =============== step7
 $i = 7
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 smallint, tgcol2 tinyint, tgcol3 binary(10))
 sql create table $tb using $mt tags( 1, 2, '3' )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol3 = '3'
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
-if $data04 != 3 then 
+if $data04 != 3 then
   return -1
 endi
 
 sql alter table $mt rename tag tgcol1 tgcol4
-sql alter table $mt drop tag tgcol2 
+sql alter table $mt drop tag tgcol2
 sql alter table $mt drop tag tgcol3
 sql alter table $mt add tag tgcol5 bigint
 sql alter table $mt add tag tgcol6 tinyint
 
 sql reset query cache
-sql alter table $tb set tag tgcol4=4 
-sql alter table $tb set tag tgcol5=5 
-sql alter table $tb set tag tgcol6=6 
+sql alter table $tb set tag tgcol4=4
+sql alter table $tb set tag tgcol5=5
+sql alter table $tb set tag tgcol6=6
 sql reset query cache
 
 sql select * from $mt where tgcol6 = 6
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 4 then 
+if $data02 != 4 then
   return -1
 endi
-if $data03 != 5 then 
+if $data03 != 5 then
   return -1
 endi
-if $data04 != 6 then 
+if $data04 != 6 then
   return -1
 endi
 
@@ -357,54 +357,54 @@ step71:
 sql select * from $mt where tgcol3 = 1 -x step72
   return -1
 step72:
-    
+
 print =============== step8
 $i = 8
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bigint, tgcol2 float, tgcol3 binary(10))
 sql create table $tb using $mt tags( 1, 2, '3' )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol3 = '3'
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 2.00000 then
   return -1
 endi
-if $data04 != 3 then 
+if $data04 != 3 then
   return -1
 endi
 
 sql alter table $mt rename tag tgcol1 tgcol4
-sql alter table $mt drop tag tgcol2 
+sql alter table $mt drop tag tgcol2
 sql alter table $mt drop tag tgcol3
 sql alter table $mt add tag tgcol5 binary(17)
 sql alter table $mt add tag tgcol6 bool
 sql reset query cache
-sql alter table $tb set tag tgcol4=4 
-sql alter table $tb set tag tgcol5='5' 
+sql alter table $tb set tag tgcol4=4
+sql alter table $tb set tag tgcol5='5'
 sql alter table $tb set tag tgcol6=1
 sql reset query cache
 
 sql select * from $mt where tgcol5 = '5'
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 4 then 
+if $data02 != 4 then
   return -1
 endi
-if $data03 != 5 then 
+if $data03 != 5 then
   return -1
 endi
 if $data04 != 1 then
@@ -424,45 +424,45 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 double, tgcol2 binary(10), tgcol3 binary(10))
 sql create table $tb using $mt tags( 1, '2', '3' )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol2 = '2'
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1.000000000 then 
+if $data02 != 1.000000000 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
-if $data04 != 3 then 
+if $data04 != 3 then
   return -1
 endi
 
 sql alter table $mt rename tag tgcol1 tgcol4
-sql alter table $mt drop tag tgcol2 
+sql alter table $mt drop tag tgcol2
 sql alter table $mt drop tag tgcol3
 sql alter table $mt add tag tgcol5 bool
 sql alter table $mt add tag tgcol6 float
 
 sql reset query cache
-sql alter table $tb set tag tgcol4=4 
+sql alter table $tb set tag tgcol4=4
 sql alter table $tb set tag tgcol5=1
 sql alter table $tb set tag tgcol6=6
 sql reset query cache
 
 sql select * from $mt where tgcol5 = 1
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 4.000000000 then 
+if $data02 != 4.000000000 then
   return -1
 endi
 if $data03 != 1 then
@@ -485,24 +485,24 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 binary(10), tgcol2 binary(10), tgcol3 binary(10), tgcol4 binary(10))
 sql create table $tb using $mt tags( '1', '2', '3', '4' )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol4 = '4'
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
-if $data04 != 3 then 
+if $data04 != 3 then
   return -1
 endi
-if $data05 != 4 then 
+if $data05 != 4 then
   return -1
 endi
 
@@ -510,7 +510,7 @@ sql alter table $mt rename tag tgcol1 tgcol4 -x step103
   return -1
 step103:
 
-sql alter table $mt drop tag tgcol2 
+sql alter table $mt drop tag tgcol2
 sql alter table $mt drop tag tgcol3
 sql alter table $mt drop tag tgcol4
 sql reset query cache
@@ -524,22 +524,22 @@ sql reset query cache
 
 sql select * from $mt where tgcol4 = '4'
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 4 then 
+if $data03 != 4 then
   return -1
 endi
 if $data04 != 0 then
   return -1
 endi
-if $data05 != null then 
+if $data05 != null then
   return -1
 endi
 
@@ -556,27 +556,27 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bool, tgcol2 int, tgcol3 smallint, tgcol4 float, tgcol5 binary(10))
 sql create table $tb using $mt tags( 1, 2, 3, 4, '5' )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol1 = 1
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
-if $data04 != 3 then 
+if $data04 != 3 then
   return -1
 endi
 if $data05 != 4.00000 then
   return -1
 endi
-if $data06 != 5 then 
+if $data06 != 5 then
   return -1
 endi
 
@@ -584,7 +584,7 @@ sql alter table $mt rename tag tgcol1 tgcol4 -x step114
   return -1
 step114:
 
-sql alter table $mt drop tag tgcol2 
+sql alter table $mt drop tag tgcol2
 sql alter table $mt drop tag tgcol3
 sql alter table $mt drop tag tgcol4
 sql alter table $mt drop tag tgcol5
@@ -596,7 +596,7 @@ sql alter table $mt add tag tgcol7 bigint
 sql alter table $mt add tag tgcol8 smallint
 
 sql reset query cache
-sql alter table $tb set tag tgcol4='4' 
+sql alter table $tb set tag tgcol4='4'
 sql alter table $tb set tag tgcol5=5
 sql alter table $tb set tag tgcol6='6'
 sql alter table $tb set tag tgcol7=7
@@ -605,28 +605,28 @@ sql reset query cache
 
 sql select * from $mt where tgcol5 =5
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 if $data02 != 1 then
   return -1
 endi
-if $data03 != 4 then 
+if $data03 != 4 then
   return -1
 endi
-if $data04 != 5 then 
+if $data04 != 5 then
   return -1
 endi
-if $data05 != 6 then 
+if $data05 != 6 then
   return -1
 endi
-if $data06 != 7 then 
+if $data06 != 7 then
   return -1
 endi
-if $data07 != 8 then 
+if $data07 != 8 then
   return -1
 endi
 
@@ -646,34 +646,34 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bool, tgcol2 smallint, tgcol3 float, tgcol4 double, tgcol5 binary(10), tgcol6 binary(20))
 sql create table $tb using $mt tags( 1, 2, 3, 4, '5', '6' )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol1 = 1
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
 if $data04 != 3.00000 then
   return -1
 endi
-if $data05 != 4.000000000 then 
+if $data05 != 4.000000000 then
   return -1
 endi
-if $data06 != 5 then 
+if $data06 != 5 then
   return -1
 endi
-if $data07 != 6 then 
+if $data07 != 6 then
   return -1
 endi
 
-sql alter table $mt drop tag tgcol2 
+sql alter table $mt drop tag tgcol2
 sql alter table $mt drop tag tgcol3
 sql alter table $mt drop tag tgcol4
 sql alter table $mt drop tag tgcol5
@@ -684,8 +684,8 @@ sql alter table $mt add tag tgcol4 binary(10)
 sql alter table $mt add tag tgcol5 bigint
 
 sql reset query cache
-sql alter table $tb set tag tgcol1=false 
-sql alter table $tb set tag tgcol2='5' 
+sql alter table $tb set tag tgcol1=false
+sql alter table $tb set tag tgcol2='5'
 sql alter table $tb set tag tgcol3=4
 sql alter table $tb set tag tgcol4='3'
 sql alter table $tb set tag tgcol5=2
@@ -694,28 +694,28 @@ sql reset query cache
 
 sql select * from $mt where tgcol4 = '3'
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 if $data02 != 0 then
   return -1
 endi
-if $data03 != 1 then 
+if $data03 != 1 then
   return -1
 endi
-if $data04 != 5 then 
+if $data04 != 5 then
   return -1
 endi
-if $data05 != 4 then 
+if $data05 != 4 then
   return -1
 endi
-if $data06 != 3 then 
+if $data06 != 3 then
   return -1
 endi
-if $data07 != 2 then 
+if $data07 != 2 then
   return -1
 endi
 
@@ -745,34 +745,34 @@ $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 binary(10), tgcol2 int, tgcol3 smallint, tgcol4 binary(11), tgcol5 double, tgcol6 binary(20))
 sql create table $tb using $mt tags( '1', 2, 3, '4', 5, '6' )
-sql insert into $tb values(now, 1)  
+sql insert into $tb values(now, 1)
 sql select * from $mt where tgcol1 = '1'
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 2 then 
+if $data03 != 2 then
   return -1
 endi
-if $data04 != 3 then 
+if $data04 != 3 then
   return -1
 endi
-if $data05 != 4 then 
+if $data05 != 4 then
   return -1
 endi
-if $data06 != 5.000000000 then 
+if $data06 != 5.000000000 then
   return -1
 endi
-if $data07 != 6 then 
+if $data07 != 6 then
   return -1
 endi
 
-sql alter table $mt drop tag tgcol2 
+sql alter table $mt drop tag tgcol2
 sql alter table $mt drop tag tgcol4
 sql alter table $mt drop tag tgcol6
 sql reset query cache
@@ -781,8 +781,8 @@ sql alter table $mt add tag tgcol4 int
 sql alter table $mt add tag tgcol6 bigint
 
 sql reset query cache
-sql alter table $tb set tag tgcol1='7' 
-sql alter table $tb set tag tgcol2='8' 
+sql alter table $tb set tag tgcol1='7'
+sql alter table $tb set tag tgcol2='8'
 sql alter table $tb set tag tgcol3=9
 sql alter table $tb set tag tgcol4=10
 sql alter table $tb set tag tgcol5=11
@@ -791,28 +791,28 @@ sql reset query cache
 
 sql select * from $mt where tgcol2 = '8'
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 7 then 
+if $data02 != 7 then
   return -1
 endi
-if $data03 != 9 then 
+if $data03 != 9 then
   return -1
 endi
-if $data04 != 11.000000000 then 
+if $data04 != 11.000000000 then
   return -1
 endi
-if $data05 != 8 then 
+if $data05 != 8 then
   return -1
 endi
-if $data06 != 10 then 
+if $data06 != 10 then
   return -1
 endi
-if $data07 != 12 then 
+if $data07 != 12 then
   return -1
 endi
 
@@ -832,16 +832,16 @@ $tb = $tbPrefix . $i
 
 sql select * from $mt where tgcol4 = 4
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 if $data02 != 1 then
   return -1
 endi
-if $data03 != 4 then 
+if $data03 != 4 then
   return -1
 endi
 
@@ -852,19 +852,19 @@ $tb = $tbPrefix . $i
 
 sql select * from $mt where tgcol4 = 4
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 4 then 
+if $data03 != 4 then
   return -1
 endi
-  
+
 print =============== step4
 $i = 4
 $mt = $mtPrefix . $i
@@ -872,20 +872,20 @@ $tb = $tbPrefix . $i
 
 sql select * from $mt where tgcol4 = 4
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 4.00000 then
   return -1
 endi
 
-  
+
 print =============== step5
 $i = 5
 $mt = $mtPrefix . $i
@@ -893,20 +893,20 @@ $tb = $tbPrefix . $i
 
 sql select * from $mt where tgcol4 = 4
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1.000000000 then 
+if $data02 != 1.000000000 then
   return -1
 endi
-if $data03 != 4 then 
+if $data03 != 4 then
   return -1
 endi
 
-  
+
 print =============== step6
 $i = 6
 $mt = $mtPrefix . $i
@@ -914,45 +914,45 @@ $tb = $tbPrefix . $i
 
 sql select * from $mt where tgcol5 = '5'
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 if $data02 != 0 then
   return -1
 endi
-if $data03 != 5 then 
+if $data03 != 5 then
   return -1
 endi
-if $data04 != 6 then 
+if $data04 != 6 then
   return -1
 endi
 
 sql select * from $mt where tgcol6 = '6'
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 if $data02 != 0 then
   return -1
 endi
-if $data03 != 5 then 
+if $data03 != 5 then
   return -1
 endi
-if $data04 != 6 then 
+if $data04 != 6 then
   return -1
 endi
 
 sql select * from $mt where tgcol4 = 1
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
-  
+
 print =============== step7
 $i = 7
 $mt = $mtPrefix . $i
@@ -960,23 +960,23 @@ $tb = $tbPrefix . $i
 
 sql select * from $mt where tgcol6 = 6
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 4 then 
+if $data02 != 4 then
   return -1
 endi
-if $data03 != 5 then 
+if $data03 != 5 then
   return -1
 endi
-if $data04 != 6 then 
+if $data04 != 6 then
   return -1
 endi
 
-    
+
 print =============== step8
 $i = 8
 $mt = $mtPrefix . $i
@@ -984,16 +984,16 @@ $tb = $tbPrefix . $i
 
 sql select * from $mt where tgcol5 = '5'
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 4 then 
+if $data02 != 4 then
   return -1
 endi
-if $data03 != 5 then 
+if $data03 != 5 then
   return -1
 endi
 if $data04 != 1 then
@@ -1008,13 +1008,13 @@ $tb = $tbPrefix . $i
 
 sql select * from $mt where tgcol5 = 1
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 4.000000000 then 
+if $data02 != 4.000000000 then
   return -1
 endi
 if $data03 != 1 then
@@ -1032,22 +1032,22 @@ $tb = $tbPrefix . $i
 
 sql select * from $mt where tgcol4 = '4'
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 4 then 
+if $data03 != 4 then
   return -1
 endi
 if $data04 != 0 then
   return -1
 endi
-if $data05 != null then 
+if $data05 != null then
   return -1
 endi
 
@@ -1058,28 +1058,28 @@ $tb = $tbPrefix . $i
 
 sql select * from $mt where tgcol5 =5
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 if $data02 != 1 then
   return -1
 endi
-if $data03 != 4 then 
+if $data03 != 4 then
   return -1
 endi
-if $data04 != 5 then 
+if $data04 != 5 then
   return -1
 endi
-if $data05 != 6 then 
+if $data05 != 6 then
   return -1
 endi
-if $data06 != 7 then 
+if $data06 != 7 then
   return -1
 endi
-if $data07 != 8 then 
+if $data07 != 8 then
   return -1
 endi
 
@@ -1091,28 +1091,28 @@ $tb = $tbPrefix . $i
 
 sql select * from $mt where tgcol4 = '3'
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
 if $data02 != 0 then
   return -1
 endi
-if $data03 != 1 then 
+if $data03 != 1 then
   return -1
 endi
-if $data04 != 5 then 
+if $data04 != 5 then
   return -1
 endi
-if $data05 != 4 then 
+if $data05 != 4 then
   return -1
 endi
-if $data06 != 3 then 
+if $data06 != 3 then
   return -1
 endi
-if $data07 != 2 then 
+if $data07 != 2 then
   return -1
 endi
 
@@ -1143,35 +1143,35 @@ $tb = $tbPrefix . $i
 
 sql select * from $mt where tgcol2 = '8'
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 7 then 
+if $data02 != 7 then
   return -1
 endi
-if $data03 != 9 then 
+if $data03 != 9 then
   return -1
 endi
-if $data04 != 11.000000000 then 
+if $data04 != 11.000000000 then
   return -1
 endi
-if $data05 != 8 then 
+if $data05 != 8 then
   return -1
 endi
-if $data06 != 10 then 
+if $data06 != 10 then
   return -1
 endi
-if $data07 != 12 then 
+if $data07 != 12 then
   return -1
 endi
 
 print =============== clear
 sql drop database $db
 sql select * from information_schema.ins_databases
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 

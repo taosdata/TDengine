@@ -132,15 +132,14 @@ typedef enum EOperatorType {
   OP_TYPE_DIV,
   OP_TYPE_REM,
   // unary arithmetic operator
-  OP_TYPE_MINUS,
-  OP_TYPE_ASSIGN,
+  OP_TYPE_MINUS = 20,
 
   // bitwise operator
-  OP_TYPE_BIT_AND,
+  OP_TYPE_BIT_AND = 30,
   OP_TYPE_BIT_OR,
 
   // binary comparison operator
-  OP_TYPE_GREATER_THAN,
+  OP_TYPE_GREATER_THAN = 40,
   OP_TYPE_GREATER_EQUAL,
   OP_TYPE_LOWER_THAN,
   OP_TYPE_LOWER_EQUAL,
@@ -153,7 +152,7 @@ typedef enum EOperatorType {
   OP_TYPE_MATCH,
   OP_TYPE_NMATCH,
   // unary comparison operator
-  OP_TYPE_IS_NULL,
+  OP_TYPE_IS_NULL = 100,
   OP_TYPE_IS_NOT_NULL,
   OP_TYPE_IS_TRUE,
   OP_TYPE_IS_FALSE,
@@ -163,8 +162,11 @@ typedef enum EOperatorType {
   OP_TYPE_IS_NOT_UNKNOWN,
 
   // json operator
-  OP_TYPE_JSON_GET_VALUE,
-  OP_TYPE_JSON_CONTAINS
+  OP_TYPE_JSON_GET_VALUE = 150,
+  OP_TYPE_JSON_CONTAINS,
+
+  // internal operator
+  OP_TYPE_ASSIGN = 200
 } EOperatorType;
 
 #define OP_TYPE_CALC_MAX OP_TYPE_BIT_OR
@@ -384,7 +386,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_DEFAULT_EXPLAIN_VERBOSE false
 
-#define TSDB_EXPLAIN_RESULT_ROW_SIZE    512
+#define TSDB_EXPLAIN_RESULT_ROW_SIZE    (16*1024)
 #define TSDB_EXPLAIN_RESULT_COLUMN_NAME "QUERY_PLAN"
 
 #define TSDB_MAX_FIELD_LEN             16384

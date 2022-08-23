@@ -192,6 +192,7 @@ void taos_free_result(TAOS_RES *res) {
     if (pRsp->rsp.withSchema) taosArrayDestroyP(pRsp->rsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
     pRsp->resInfo.pRspMsg = NULL;
     doFreeReqResultInfo(&pRsp->resInfo);
+    taosMemoryFree(pRsp);
   } else if (TD_RES_TMQ_META(res)) {
     SMqMetaRspObj *pRspObj = (SMqMetaRspObj *)res;
     taosMemoryFree(pRspObj->metaRsp.metaRsp);
@@ -673,6 +674,8 @@ static void destorySqlParseWrapper(SqlParseWrapper *pWrapper) {
   taosArrayDestroy(pWrapper->catalogReq.pIndex);
   taosArrayDestroy(pWrapper->catalogReq.pUser);
   taosArrayDestroy(pWrapper->catalogReq.pTableIndex);
+  taosArrayDestroy(pWrapper->pCtx->pTableMetaPos);
+  taosArrayDestroy(pWrapper->pCtx->pTableVgroupPos);
   taosMemoryFree(pWrapper->pCtx);
   taosMemoryFree(pWrapper);
 }

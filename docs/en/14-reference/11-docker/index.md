@@ -1,6 +1,6 @@
 ---
 title: Deploying TDengine with Docker
-Description: "This chapter focuses on starting the TDengine service in a container and accessing it."
+description: "This chapter focuses on starting the TDengine service in a container and accessing it."
 ---
 
 This chapter describes how to start the TDengine service in a container and access it. Users can control the behavior of the service in the container by using environment variables on the docker run command-line or in the docker-compose file.
@@ -24,13 +24,10 @@ The TDengine client taos can be executed in this container to access TDengine us
 ```shell
 $ docker exec -it tdengine taos
 
-Welcome to the TDengine shell from Linux, Client Version:2.4.0.0
-Copyright (c) 2020 by TAOS Data, Inc.
-
 taos> show databases;
-              name | created_time | ntables | vgroups | replica | quorum | days | keep | cache(MB) | blocks | minrows | maxrows | wallevel | fsync | comp | cachelast | precision | update | status | status precision | update | status |
-================================================================================================================================== ================================================================================================================================== ================
- log | 2022-01-17 13:57:22.270 | 10 | 1 | 1 | 1 | 10 | 30 | 1 | 3 | 100 | 4096 | 1 | 3000 | 2 | 0 | us | 0 | ready |
+              name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
+====================================================================================================================================================================================================================================================================================
+ log                            | 2022-01-17 13:57:22.270 |          10 |           1 |       1 |      1 |     10 | 30                       |           1 |           3 |         100 |        4096 |        1 |        3000 |    2 |         0 | us        |      0 | ready      |
 Query OK, 1 row(s) in set (0.002843s)
 ```
 
@@ -47,13 +44,10 @@ The above command starts TDengine on the host network and uses the host's FQDN t
 ```shell
 $ taos
 
-Welcome to the TDengine shell from Linux, Client Version:2.4.0.0
-Copyright (c) 2020 by TAOS Data, Inc.
-
 taos> show dnodes;
-   id | end_point | vnodes | cores | status | role | create_time | offline reason |
-================================================================================================================================== ====
-      1 | myhost:6030 | 1 | 8 | ready | any | 2022-01-17 22:10:32.619 | |
+   id   |           end_point            | vnodes | cores  |   status   | role  |       create_time       |      offline reason      |
+======================================================================================================================================
+      1 | myhost:6030           |      1 |      8 | ready      | any   | 2022-01-17 22:10:32.619 |                          |
 Query OK, 1 row(s) in set (0.003233s)
 ```
 
@@ -88,13 +82,13 @@ If set `TAOS_FQDN` to the same hostname, the effect is the same as "Start TDengi
 
 ## Start TDengine on the specified network
 
-You can also start TDengine on a specific network.
+You can also start TDengine on a specific network. Perform the following steps:
 
 1. First, create a docker network named `td-net`
 
    ```shell
    docker network create td-net
-   ``` Create td-net
+   ```
 
 2. Start TDengine
 
@@ -111,7 +105,7 @@ You can also start TDengine on a specific network.
    ```shell
    docker run --rm -it --network td-net -e TAOS_FIRST_EP=tdengine tdengine/tdengine taos
    # or
-   # docker run --rm -it --network td-net -e tdengine/tdengine taos -h tdengine
+   #docker run --rm -it --network td-net -e tdengine/tdengine taos -h tdengine
    ```
 
 ## Launching a client application in a container
@@ -147,7 +141,7 @@ import (
     "fmt"
     "time"
 
-    _ "github.com/taosdata/driver-go/v2/taosSql"
+    _ "github.com/taosdata/driver-go/v3/taosSql"
 )
 
 type config struct {
@@ -316,12 +310,12 @@ password:             taosdata
    ```
 
 :::note
+
 - The `VERSION` environment variable is used to set the tdengine image tag
-    - `TAOS_FIRST_EP` must be set on the newly created instance so that it can join the TDengine cluster; if there is a high availability requirement, `TAOS_SECOND_EP` needs to be used at the same time
-    - `TAOS_REPLICA` is used to set the default number of database replicas. Its value range is [1,3]
-      We recommend setting it with `TAOS_ARBITRATOR` to use arbitrator in a two-nodes environment.
- 
- :::
+- `TAOS_FIRST_EP` must be set on the newly created instance so that it can join the TDengine cluster; if there is a high availability requirement, `TAOS_SECOND_EP` needs to be used at the same time
+- `TAOS_REPLICA` is used to set the default number of database replicas. Its value range is [1,3]
+  We recommend setting it with `TAOS_ARBITRATOR` to use arbitrator in a two-nodes environment.
+  :::
 
 2. Start the cluster
 
@@ -353,9 +347,6 @@ password:             taosdata
    ```shell
    $ docker-compose exec td-1 taos -s "show dnodes"
 
-   Welcome to the TDengine shell from Linux, Client Version:2.4.0.0
-   Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
-
    taos> show dnodes
       id   |           end_point            | vnodes | cores  |   status   | role  |       create_time       |      offline reason      |
    ======================================================================================================================================
@@ -371,15 +362,15 @@ password:             taosdata
 
 2. At the same time, for flexible deployment, taosAdapter can be started in a separate container
 
-    ```docker
-    services:
-      # ...
-      adapter:
-        image: tdengine/tdengine:$VERSION
-        command: taosadapter
-    ````
+   ```docker
+   services:
+     # ...
+     adapter:
+       image: tdengine/tdengine:$VERSION
+       command: taosadapter
+   ```
 
-    Suppose you want to deploy multiple taosAdapters to improve throughput and provide high availability. In that case, the recommended configuration method uses a reverse proxy such as Nginx to offer a unified access entry. For specific configuration methods, please refer to the official documentation of Nginx. Here is an example:
+   Suppose you want to deploy multiple taosAdapters to improve throughput and provide high availability. In that case, the recommended configuration method uses a reverse proxy such as Nginx to offer a unified access entry. For specific configuration methods, please refer to the official documentation of Nginx. Here is an example:
 
    ```docker
    version: "3"

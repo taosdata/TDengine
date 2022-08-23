@@ -25,18 +25,18 @@ $i = 0
 while $i < $tbNum
   $tb = $tbPrefix . $i
   sql create table $tb using $mt tags( $i )
-  
+
   $x = 0
   while $x < $rowNum
     $cc = $x * 60000
     $ms = 1601481600000 + $cc
-    
-    sql insert into $tb values ($ms , $x ) 
+
+    sql insert into $tb values ($ms , $x )
     $x = $x + 1
-  endw 
- 
+  endw
+
   $i = $i + 1
-endw 
+endw
 
 print =============== step2
 $i = 1
@@ -44,7 +44,7 @@ $tb = $tbPrefix . $i
 
 sql select max(tbcol) from $tb
 print ===> $data00
-if $data00 != 19 then 
+if $data00 != 19 then
   return -1
 endi
 
@@ -54,27 +54,27 @@ $ms = 1601481600000 + $cc
 
 sql select max(tbcol) from $tb where ts <= $ms
 print ===> $data00
-if $data00 != 4 then 
+if $data00 != 4 then
   return -1
 endi
 
 print =============== step4
 sql select max(tbcol) as b from $tb
 print ===> $data00
-if $data00 != 19 then 
+if $data00 != 19 then
   return -1
 endi
 
 print =============== step5
 sql select max(tbcol) as b from $tb interval(1m)
 print ===> $data10
-if $data10 != 1 then 
+if $data10 != 1 then
   return -1
 endi
 
 sql select max(tbcol) as b from $tb interval(1d)
 print ===> $data00
-if $data00 != 19 then 
+if $data00 != 19 then
   return -1
 endi
 
@@ -84,17 +84,17 @@ $ms = 1601481600000 + $cc
 
 sql select max(tbcol) as b from $tb where ts <= $ms interval(1m)
 print ===> $data10
-if $data10 != 1 then 
+if $data10 != 1 then
   return -1
 endi
-if $rows != 5 then 
+if $rows != 5 then
   return -1
 endi
 
 print =============== step7
 sql select max(tbcol) from $mt
 print ===> $data00
-if $data00 != 19 then 
+if $data00 != 19 then
   return -1
 endi
 
@@ -104,13 +104,13 @@ $ms = 1601481600000 + $cc
 
 sql select max(tbcol) as c from $mt where ts <= $ms
 print ===> $data00
-if $data00 != 4 then 
+if $data00 != 4 then
   return -1
 endi
 
 sql select max(tbcol) as c from $mt where tgcol < 5
 print ===> $data00
-if $data00 != 19 then 
+if $data00 != 19 then
   return -1
 endi
 
@@ -119,31 +119,31 @@ $ms = 1601481600000 + $cc
 
 sql select max(tbcol) as c from $mt where tgcol < 5 and ts <= $ms
 print ===> $data00
-if $data00 != 4 then 
+if $data00 != 4 then
   return -1
 endi
 
 print =============== step9
 sql select max(tbcol) as b from $mt interval(1m)
 print ===> $data10
-if $data10 != 1 then 
+if $data10 != 1 then
   return -1
 endi
 
 sql select max(tbcol) as b from $mt interval(1d)
 print ===> $data00
-if $data00 != 19 then 
+if $data00 != 19 then
   return -1
 endi
 
 print =============== step10
 sql select max(tbcol) as b from $mt group by tgcol
 print ===> $data00
-if $data00 != 19 then 
+if $data00 != 19 then
   return -1
 endi
 
-if $rows != $tbNum then 
+if $rows != $tbNum then
   return -1
 endi
 
@@ -153,18 +153,18 @@ $ms = 1601481600000 + $cc
 
 sql select max(tbcol) as b from $mt  where ts <= $ms partition by tgcol interval(1m)
 print ===> $data10
-if $data10 != 1 then 
+if $data10 != 1 then
   return -1
 endi
 print ===> $rows
-if $rows != 50 then 
+if $rows != 50 then
   return -1
 endi
 
 print =============== clear
 sql drop database $db
 sql select * from information_schema.ins_databases
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 

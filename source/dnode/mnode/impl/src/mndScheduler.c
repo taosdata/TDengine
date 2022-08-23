@@ -424,6 +424,8 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
       }
       mndAddTaskToTaskSet(taskSourceLevel, pTask);
 
+      pTask->triggerParam = 0;
+
       // source
       pTask->taskLevel = TASK_LEVEL__SOURCE;
 

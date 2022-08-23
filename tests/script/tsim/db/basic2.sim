@@ -3,6 +3,21 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
+print =============== conflict stb
+sql create database db vgroups 1;
+sql use db;
+sql create table stb (ts timestamp, i int) tags (j int);
+sql_error create table stb using stb tags (1);
+sql_error create table stb (ts timestamp, i int);
+
+sql create table ctb (ts timestamp, i int);
+sql_error create table ctb (ts timestamp, i int) tags (j int);
+
+sql create table ntb (ts timestamp, i int);
+sql_error create table ntb (ts timestamp, i int) tags (j int);
+
+sql drop database db
+
 print =============== create database d1
 sql create database d1
 sql use d1
@@ -12,7 +27,7 @@ sql create table t3 (ts timestamp, i int);
 sql create table t4 (ts timestamp, i int);
 
 sql select * from information_schema.ins_databases
-print rows: $rows 
+print rows: $rows
 print $data00 $data01 $data02 $data03
 print $data10 $data11 $data12 $data13
 if $rows != 3 then
@@ -32,7 +47,7 @@ endi
 #endi
 
 sql show tables
-if $rows != 4 then 
+if $rows != 4 then
   return -1
 endi
 
@@ -49,7 +64,7 @@ if $rows != 4 then
 endi
 
 sql show tables
-if $rows != 3 then 
+if $rows != 3 then
   return -1
 endi
 

@@ -1399,7 +1399,7 @@ static int32_t translateTimelineFunc(STranslateContext* pCxt, SFunctionNode* pFu
                                    "%s function must be used in select statements", pFunc->functionName);
   }
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
-  if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
+  if (NULL != pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
       !isTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "%s function requires valid time series input", pFunc->functionName);
@@ -1881,6 +1881,12 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
   }
+  if (NULL != pSelect->pWindow && QUERY_NODE_STATE_WINDOW == nodeType(pSelect->pWindow)) {
+    if (nodesEqualNode(((SStateWindowNode*)pSelect->pWindow)->pExpr, *pNode)) {
+      pSelect->hasStateKey = true;
+      return rewriteExprToGroupKeyFunc(pCxt, pNode);
+    }
+  }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
     if (pSelect->selectFuncNum > 1 || pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc) {
       return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt));
@@ -1973,7 +1979,7 @@ static int32_t checkWindowFuncCoexist(STranslateContext* pCxt, SSelectStmt* pSel
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
   }
-  if (NULL != pSelect->pWindow && !pSelect->hasAggFuncs) {
+  if (NULL != pSelect->pWindow && !pSelect->hasAggFuncs && !pSelect->hasStateKey) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN);
   }
   return TSDB_CODE_SUCCESS;
@@ -2037,16 +2043,13 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
     code = getDBVgInfoImpl(pCxt, pName, &vgroupList);
   }
 
-  if (TSDB_CODE_SUCCESS == code &&
-      0 == strcmp(pRealTable->table.dbName, TSDB_INFORMATION_SCHEMA_DB) &&
-      0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TAGS) &&
-      isSelectStmt(pCxt->pCurrStmt) &&
+  if (TSDB_CODE_SUCCESS == code && 0 == strcmp(pRealTable->table.dbName, TSDB_INFORMATION_SCHEMA_DB) &&
+      0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TAGS) && isSelectStmt(pCxt->pCurrStmt) &&
       0 == taosArrayGetSize(vgroupList)) {
     ((SSelectStmt*)pCxt->pCurrStmt)->isEmptyResult = true;
   }
 
-  if (TSDB_CODE_SUCCESS == code &&
-      0 == strcmp(pRealTable->table.dbName, TSDB_INFORMATION_SCHEMA_DB) &&
+  if (TSDB_CODE_SUCCESS == code && 0 == strcmp(pRealTable->table.dbName, TSDB_INFORMATION_SCHEMA_DB) &&
       0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES)) {
     code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &vgroupList);
   }
@@ -2825,6 +2828,29 @@ static int32_t createDefaultFillNode(STranslateContext* pCxt, SNode** pOutput) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkEvery(STranslateContext* pCxt, SValueNode* pInterval) {
+  int32_t len = strlen(pInterval->literal);
+
+  char* unit = &pInterval->literal[len - 1];
+  if (*unit == 'n' || *unit == 'y') {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE,
+                                   "Unsupported time unit in EVERY clause");
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateInterpEvery(STranslateContext* pCxt, SNode** pEvery) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  code = checkEvery(pCxt, (SValueNode*)(*pEvery));
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateExpr(pCxt, pEvery);
+  }
+
+  return code;
+}
+
 static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -2859,7 +2885,7 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
 
   int32_t code = translateExpr(pCxt, &pSelect->pRange);
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateExpr(pCxt, &pSelect->pEvery);
+    code = translateInterpEvery(pCxt, &pSelect->pEvery);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterpFill(pCxt, pSelect);
