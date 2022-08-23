@@ -68,7 +68,7 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
     if (pMgmt->errCode != 0) {
       mError("trans:%d, failed to propose since %s, post sem", transId, tstrerror(pMgmt->errCode));
     } else {
-      mInfo("trans:%d, is proposed and post sem", transId, tstrerror(pMgmt->errCode));
+      mDebug("trans:%d, is proposed and post sem", transId, tstrerror(pMgmt->errCode));
     }
     pMgmt->transId = 0;
     taosWUnLockLatch(&pMgmt->lock);
@@ -118,7 +118,7 @@ void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbM
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
   pMgmt->errCode = cbMeta.code;
-  mInfo("trans:-1, sync reconfig is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64, pMgmt->transId,
+  mDebug("trans:-1, sync reconfig is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64, pMgmt->transId,
         cbMeta.code, cbMeta.index, cbMeta.term);
 
   taosWLockLatch(&pMgmt->lock);
@@ -126,7 +126,7 @@ void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbM
     if (pMgmt->errCode != 0) {
       mError("trans:-1, failed to propose sync reconfig since %s, post sem", tstrerror(pMgmt->errCode));
     } else {
-      mInfo("trans:-1, sync reconfig is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64 " post sem",
+      mDebug("trans:-1, sync reconfig is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64 " post sem",
             pMgmt->transId, cbMeta.code, cbMeta.index, cbMeta.term);
     }
     pMgmt->transId = 0;
@@ -228,7 +228,7 @@ int32_t mndInitSync(SMnode *pMnode) {
   syncInfo.isStandBy = pMgmt->standby;
   syncInfo.snapshotStrategy = SYNC_STRATEGY_STANDARD_SNAPSHOT;
 
-  mInfo("start to open mnode sync, standby:%d", pMgmt->standby);
+  mDebug("start to open mnode sync, standby:%d", pMgmt->standby);
   if (pMgmt->standby || pMgmt->replica.id > 0) {
     SSyncCfg *pCfg = &syncInfo.syncCfg;
     pCfg->replicaNum = 1;
@@ -236,7 +236,7 @@ int32_t mndInitSync(SMnode *pMnode) {
     SNodeInfo *pNode = &pCfg->nodeInfo[0];
     tstrncpy(pNode->nodeFqdn, pMgmt->replica.fqdn, sizeof(pNode->nodeFqdn));
     pNode->nodePort = pMgmt->replica.port;
-    mInfo("mnode ep:%s:%u", pNode->nodeFqdn, pNode->nodePort);
+    mDebug("mnode ep:%s:%u", pNode->nodeFqdn, pNode->nodePort);
   }
 
   tsem_init(&pMgmt->syncSem, 0, 0);
