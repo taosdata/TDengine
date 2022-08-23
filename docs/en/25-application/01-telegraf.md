@@ -34,7 +34,7 @@ Please refer to the [official documentation](https://grafana.com/grafana/downloa
 
 ### TDengine
 
-Download the latest TDengine-server 2.4.0.x or above from the [Downloads](http://taosdata.com/cn/all-downloads/) page on the TAOSData website and install it.
+Download the latest TDengine-server from the [Downloads](http://tdengine.com/en/all-downloads/) page on the TAOSData website and install it.
 
 ## Data Connection Setup
 
@@ -79,5 +79,5 @@ Click on the plus icon on the left and select `Import` to get the data from `htt
 
 ## Wrap-up
 
-The above demonstrates how to quickly build a IT DevOps visualization system. Thanks to the new schemaless protocol parsing feature in TDengine version 2.4.0.0 and ability to integrate easily with a large software ecosystem, users can build an efficient and easy-to-use IT DevOps visualization system in just a few minutes.
+The above demonstrates how to quickly build a IT DevOps visualization system. Thanks to the schemaless protocol parsing feature in TDengine and ability to integrate easily with a large software ecosystem, users can build an efficient and easy-to-use IT DevOps visualization system in just a few minutes.
 Please refer to the official documentation and product implementation cases for other features.
