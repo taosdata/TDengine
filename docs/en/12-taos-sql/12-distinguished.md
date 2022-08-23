@@ -58,6 +58,15 @@ The following restrictions apply:
 - The window clause cannot be used with a GROUP BY clause.
 - `WHERE` clause can be used to specify the starting and ending time and other filter conditions
 
+
+### Window Pseudocolumns
+
+**\_WSTART, \_WEND, and \_WDURATION**
+
+The \_WSTART, \_WEND, and \_WDURATION pseudocolumns indicate the beginning, end, and duration of a window.
+
+These pseudocolumns occur after the aggregation clause.
+
 ### FILL Clause
 
 `FILL` clause is used to specify how to fill when there is data missing in any window, including:

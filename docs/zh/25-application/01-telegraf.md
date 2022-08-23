@@ -34,7 +34,7 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 
 ### TDengine
 
-从涛思数据官网[下载](http://taosdata.com/cn/all-downloads/)页面下载最新 TDengine-server 2.4.0.x 或以上版本安装。
+从涛思数据官网[下载](http://taosdata.com/cn/all-downloads/)页面下载最新 TDengine-server 版本安装。
 
 ## 数据链路设置
 
@@ -79,4 +79,4 @@ sudo systemctl start telegraf
 
 ## 总结
 
-以上演示如何快速搭建一个完整的 IT 运维展示系统。得力于 TDengine 2.4.0.0 版本中新增的 schemaless 协议解析功能，以及强大的生态软件适配能力，用户可以短短数分钟就可以搭建一个高效易用的 IT 运维系统。TDengine 强大的数据写入查询性能和其他丰富功能请参考官方文档和产品落地案例。
+以上演示如何快速搭建一个完整的 IT 运维展示系统。得力于 TDengine 的 schemaless 协议解析功能，以及强大的生态软件适配能力，用户可以短短数分钟就可以搭建一个高效易用的 IT 运维系统。TDengine 强大的数据写入查询性能和其他丰富功能请参考官方文档和产品落地案例。

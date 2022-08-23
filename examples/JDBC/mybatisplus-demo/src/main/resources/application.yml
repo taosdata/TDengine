@@ -2,7 +2,7 @@ spring:
   datasource:
     driver-class-name: com.taosdata.jdbc.TSDBDriver
     url: jdbc:TAOS://localhost:6030/mp_test?charset=UTF-8&locale=en_US.UTF-8&timezone=UTC-8
-    user: root
+    username: root
     password: taosdata
 
     druid:

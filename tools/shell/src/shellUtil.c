@@ -157,6 +157,6 @@ void shellExit() {
     taos_close(shell.conn);
     shell.conn = NULL;
   }
+  shell.exit = true;
   taos_cleanup();
-  exit(EXIT_FAILURE);
 }

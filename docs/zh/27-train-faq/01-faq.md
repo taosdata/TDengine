@@ -187,7 +187,7 @@ TDengine 中时间戳的时区总是由客户端进行处理，而与服务端�
 
 ### 17. 为什么 RESTful 接口无响应、Grafana 无法添加 TDengine 为数据源、TDengineGUI 选了 6041 端口还是无法连接成功？
 
-taosAdapter 从 TDengine 2.4.0.0 版本开始成为 TDengine 服务端软件的组成部分，是 TDengine 集群和应用程序之间的桥梁和适配器。在此之前 RESTful 接口等功能是由 taosd 内置的 HTTP 服务提供的，而如今要实现上述功能需要执行：```systemctl start taosadapter``` 命令来启动 taosAdapter 服务。
+这个现象可能是因为 taosAdapter 没有被正确启动引起的，需要执行：```systemctl start taosadapter``` 命令来启动 taosAdapter 服务。
 
 需要说明的是，taosAdapter 的日志路径 path 需要单独配置，默认路径是 /var/log/taos ；日志等级 logLevel 有 8 个等级，默认等级是 info ，配置成 panic 可关闭日志输出。请注意操作系统 / 目录的空间大小，可通过命令行参数、环境变量或配置文件来修改配置，默认配置文件是 /etc/taos/taosadapter.toml 。
 
