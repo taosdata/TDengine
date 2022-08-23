@@ -256,6 +256,7 @@ After building successfully, TDengine can be installed by:
 nmake install
 ```
 
+<!-- 
 ## On macOS platform
 
 After building successfully, TDengine can be installed by:
@@ -263,6 +264,7 @@ After building successfully, TDengine can be installed by:
 ```bash
 sudo make install
 ```
+-->
 
 ## Quick Run
 
