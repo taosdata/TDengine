@@ -407,11 +407,11 @@ TDengine 提供了丰富的帮助文档说明集群安装、部署的诸多方�
 
 为确保系统能够正常获取运行的必要信息。请在服务端正确设置以下关键参数：
 
-FQDN、firstEp、secondEP、dataDir、logDir、tmpDir、serverPort。各参数的具体含义及设置的要求，可参见文档《[TDengine 集群安装、管理](/cluster/)》
+FQDN、firstEp、secondEP、dataDir、logDir、tmpDir、serverPort。各参数的具体含义及设置的要求，可参见文档《[TDengine 集群安装、管理](../../cluster/)》
 
 按照相同的步骤，在需要运行的节点上设置参数，并启动 `taosd` 服务，然后添加 Dnode 到集群中。
 
-最后启动 `taos` 命令行程序，执行命令 `show dnodes`，如果能看到所有的加入集群的节点，那么集群顺利搭建完成。具体的操作流程及注意事项，请参阅文档《[TDengine 集群安装、管理](/cluster/)》
+最后启动 `taos` 命令行程序，执行命令 `show dnodes`，如果能看到所有的加入集群的节点，那么集群顺利搭建完成。具体的操作流程及注意事项，请参阅文档《[TDengine 集群安装、管理](../../cluster/)》
 
 ## 附录 4: 超级表名称
 

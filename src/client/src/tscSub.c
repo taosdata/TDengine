@@ -149,7 +149,6 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
     goto fail;
   }
 
-  strtolower(pSql->sqlstr, pSql->sqlstr);
   pRes->qId = 0;
   pRes->numOfRows = 1;
   pCmd->resColumnId = TSDB_RES_COL_ID;

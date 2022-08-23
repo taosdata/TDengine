@@ -10,7 +10,7 @@ import AptGetInstall from "./\_apt_get_install.mdx";
 
 ## Quick Install
 
-The full package of TDengine includes the server(taosd), taosAdapter for connecting with third-party systems and providing a RESTful interface, client driver(taosc), command-line program(CLI, taos) and some tools. For the current version, the server taosd and taosAdapter can only be installed and run on Linux systems. In the future taosd and taosAdapter will also be supported on Windows, macOS and other systems. The client driver taosc and TDengine CLI can be installed and run on Windows or Linux. In addition to connectors for multiple languages, TDengine also provides a [RESTful interface](/reference/rest-api) through [taosAdapter](/reference/taosadapter). Prior to version 2.4.0.0, taosAdapter did not exist and the RESTful interface was provided by the built-in HTTP service of taosd.
+The full package of TDengine includes the server(taosd), taosAdapter for connecting with third-party systems and providing a RESTful interface, client driver(taosc), command-line program(CLI, taos) and some tools. For the current version, the server taosd and taosAdapter can only be installed and run on Linux systems. In the future taosd and taosAdapter will also be supported on Windows, macOS and other systems. The client driver taosc and TDengine CLI can be installed and run on Windows or Linux. In addition to connectors for multiple languages, TDengine also provides a [RESTful interface](../14-reference/02-rest-api/02-rest-api.mdx) through [taosAdapter](../14-reference/04-taosadapter.md). Prior to version 2.4.0.0, taosAdapter did not exist and the RESTful interface was provided by the built-in HTTP service of taosd.
 
 TDengine supports X64/ARM64/MIPS64/Alpha64 hardware platforms, and will support ARM32, RISC-V and other CPU architectures in the future.
 
@@ -36,7 +36,7 @@ docker exec -it <container name> bash
 
 Then you can execute the Linux commands and access TDengine.
 
-For detailed steps, please visit [Experience TDengine via Docker](/train-faq/docker)。
+For detailed steps, please visit [Experience TDengine via Docker](../27-train-faq/03-docker.md).
 
 :::info
 Starting from 2.4.0.10，besides taosd，TDengine docker image includes: taos，taosAdapter，taosdump，taosBenchmark，TDinsight, scripts and sample code. Once the TDengine container is started，it will start both taosAdapter and taosd automatically to support RESTful interface.
@@ -98,7 +98,7 @@ To manage the TDengine running instance，or execute ad-hoc queries, TDengine pr
 taos
 ```
 
-If it connects to the TDengine server successfully, it will print out the version and welcome message. If it fails, it will print out the error message, please check [FAQ](/train-faq/faq) for trouble shooting connection issue. TDengine CLI's prompt is：
+If it connects to the TDengine server successfully, it will print out the version and welcome message. If it fails, it will print out the error message, please check [FAQ](../27-train-faq/01-faq.md) for trouble shooting connection issue. TDengine CLI's prompt is：
 
 ```cmd
 taos>
@@ -120,7 +120,7 @@ select * from t;
 Query OK, 2 row(s) in set (0.003128s)
 ```
 
-Besides executing SQL commands, system administrators can check running status, add/drop user accounts and manage the running instances. TDengine CLI with client driver can be installed and run on either Linux or Windows machines. For more details on CLI, please [check here](../reference/taos-shell/).
+Besides executing SQL commands, system administrators can check running status, add/drop user accounts and manage the running instances. TDengine CLI with client driver can be installed and run on either Linux or Windows machines. For more details on CLI, please [check here](../14-reference/08-taos-shell.md).
 
 ## Experience the blazing fast speed
 
@@ -134,7 +134,7 @@ This command will create a super table "meters" under database "test". Under "me
 
 This command will insert 100 million rows into the database quickly. Time to insert depends on the hardware configuration, it only takes a dozen seconds for a regular PC server.            
 
-taosBenchmark provides command-line options and a configuration file to customize the scenarios, like number of tables, number of rows per table, number of columns and more. Please execute `taosBenchmark --help` to list them. For details on running taosBenchmark, please check [reference for taosBenchmark](/reference/taosbenchmark)
+taosBenchmark provides command-line options and a configuration file to customize the scenarios, like number of tables, number of rows per table, number of columns and more. Please execute `taosBenchmark --help` to list them. For details on running taosBenchmark, please check [reference for taosBenchmark](../14-reference/05-taosbenchmark.md)
 
 ## Experience query speed
            

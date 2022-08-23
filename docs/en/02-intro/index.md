@@ -3,7 +3,7 @@ title: Introduction
 toc_max_heading_level: 2
 ---
 
-TDengine is a high-performance, scalable time-series database with SQL support. Its code, including its cluster feature is open source under GNU AGPL v3.0. Besides the database engine, it provides [caching](/develop/cache), [stream processing](/develop/continuous-query), [data subscription](/develop/subscribe)  and other functionalities to reduce the complexity and cost of development and operation.
+TDengine is a high-performance, scalable time-series database with SQL support. Its code, including its cluster feature is open source under GNU AGPL v3.0. Besides the database engine, it provides [caching](/develop/cache), [stream processing](../develop/continuous-query), [data subscription](../develop/subscribe)  and other functionalities to reduce the complexity and cost of development and operation.
 
 This section introduces the major features, competitive advantages, typical use-cases and benchmarks to help you get a high level overview of TDengine.
 
@@ -16,9 +16,9 @@ The major features are listed below:
 3. Support for [all kinds of queries](/develop/query-data), including aggregation, nested query, downsampling, interpolation and others.
 4. Support for [user defined functions](/develop/udf).
 5. Support for [caching](/develop/cache). TDengine always saves the last data point in cache, so Redis is not needed in some scenarios.
-6. Support for [continuous query](/develop/continuous-query).
-7. Support for [data subscription](/develop/subscribe) with the capability to specify filter conditions.
-8. Support for [cluster](/cluster/), with the capability of increasing processing power by adding more nodes. High availability is supported by replication. 
+6. Support for [continuous query](../develop/continuous-query).
+7. Support for [data subscription](../develop/subscribe) with the capability to specify filter conditions.
+8. Support for [cluster](../cluster/), with the capability of increasing processing power by adding more nodes. High availability is supported by replication. 
 9. Provides an interactive [command-line interface](/reference/taos-shell) for management, maintenance and ad-hoc queries.
 10. Provides many ways to [import](/operation/import) and [export](/operation/export) data.
 11. Provides [monitoring](/operation/monitor) on running instances of TDengine.
