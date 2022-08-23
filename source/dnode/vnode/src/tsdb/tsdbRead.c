@@ -1402,7 +1402,7 @@ static int32_t doMergeBufAndFileRows_Rv(STsdbReader* pReader, STableBlockScanInf
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
 
   int64_t tsLast = INT64_MIN;
-  if (pLastBlockReader->lastBlockData.nRow > 0) {
+  if ((pLastBlockReader->lastBlockData.nRow > 0) && hasDataInLastBlock(pLastBlockReader)) {
     tsLast = getCurrentKeyInLastBlock(pLastBlockReader);
   }
 
@@ -1595,7 +1595,10 @@ static int32_t doMergeMultiLevelRowsRv(STsdbReader* pReader, STableBlockScanInfo
   ASSERT(pRow != NULL && piRow != NULL);
 
   SBlockData* pLastBlockData = &pLastBlockReader->lastBlockData;
-  int64_t tsLast = getCurrentKeyInLastBlock(pLastBlockReader);
+  int64_t tsLast = INT64_MIN;
+  if (hasDataInLastBlock(pLastBlockReader)) {
+    tsLast = getCurrentKeyInLastBlock(pLastBlockReader);
+  }
 
   int64_t key = pBlockData->aTSKEY[pDumpInfo->rowIndex];
 
@@ -1617,7 +1620,7 @@ static int32_t doMergeMultiLevelRowsRv(STsdbReader* pReader, STableBlockScanInfo
       minKey = key;
     }
 
-    if (minKey > tsLast && pLastBlockData->nRow > 0) {
+    if (minKey > tsLast && hasDataInLastBlock(pLastBlockReader)) {
       minKey = tsLast;
     }
   } else {
@@ -1634,7 +1637,7 @@ static int32_t doMergeMultiLevelRowsRv(STsdbReader* pReader, STableBlockScanInfo
       minKey = key;
     }
 
-    if (minKey < tsLast && pLastBlockData->nRow > 0) {
+    if (minKey < tsLast && hasDataInLastBlock(pLastBlockReader)) {
       minKey = tsLast;
     }
   }
@@ -3043,7 +3046,12 @@ static int32_t checkForNeighborFileBlock(STsdbReader* pReader, STableBlockScanIn
 
     // 3. load the neighbor block, and set it to be the currently accessed file data block
     tBlockDataReset(&pStatus->fileBlockData);
-    int32_t code = doLoadFileBlockData(pReader, pBlockIter, &pStatus->fileBlockData);
+    int32_t code = tBlockDataInit(&pStatus->fileBlockData, pReader->suid, pFBlock->uid, pReader->pSchema);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    code = doLoadFileBlockData(pReader, pBlockIter, &pStatus->fileBlockData);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }

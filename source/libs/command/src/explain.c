@@ -296,8 +296,6 @@ int32_t qExplainGenerateResNode(SPhysiNode *pNode, SExplainGroup *group, SExplai
 
   QRY_ERR_JRET(qExplainGenerateResChildren(pNode, group, &resNode->pChildren));
 
-  ++group->physiPlanNum;
-
   *pResNode = resNode;
 
   return TSDB_CODE_SUCCESS;
@@ -1547,12 +1545,6 @@ int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t level) {
   }
 
   QRY_ERR_RET(qExplainGenerateResNode(group->plan->pNode, group, &node));
-
-  if ((EXPLAIN_MODE_ANALYZE == ctx->mode) && (group->physiPlanNum != group->physiPlanExecNum)) {
-    qError("physiPlanNum %d mismatch with physiExecNum %d in group %d", group->physiPlanNum, group->physiPlanExecNum,
-           groupId);
-    QRY_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
-  }
 
   QRY_ERR_JRET(qExplainResNodeToRows(node, ctx, level));
 
