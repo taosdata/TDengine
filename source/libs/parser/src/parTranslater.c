@@ -2594,8 +2594,13 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode* pWhere, STimeWi
   return code;
 }
 
-static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* pInterval) {
+static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* pInterval,
+                         bool isInterpFill) {
   if (FILL_MODE_NONE == pFill->mode) {
+    if (isInterpFill) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Unsupported fill type");
+    }
+
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2635,7 +2640,7 @@ static int32_t translateFill(STranslateContext* pCxt, SSelectStmt* pSelect, SInt
   }
 
   ((SFillNode*)pInterval->pFill)->timeRange = pSelect->timeRange;
-  return checkFill(pCxt, (SFillNode*)pInterval->pFill, (SValueNode*)pInterval->pInterval);
+  return checkFill(pCxt, (SFillNode*)pInterval->pFill, (SValueNode*)pInterval->pInterval, false);
 }
 
 static int64_t getMonthsFromTimeVal(int64_t val, int32_t fromPrecision, char unit) {
@@ -2864,7 +2869,7 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
     code = getQueryTimeRange(pCxt, pSelect->pRange, &(((SFillNode*)pSelect->pFill)->timeRange));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery);
+    code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery, true);
   }
 
   return code;

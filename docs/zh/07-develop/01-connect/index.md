@@ -223,7 +223,7 @@ phpize && ./configure && make -j && make install
 **手动指定 TDengine 目录：**
 
 ```shell
-phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/2.4.0.0 && make -j && make install
+phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/3.0.0.0 && make -j && make install
 ```
 
 > `--with-tdengine-dir=` 后跟上 TDengine 目录。
