@@ -64,7 +64,7 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
       code = tsdbReadBlockIdx(pReader->pDataFReader, pReader->aBlockIdx);
       if (code) goto _err;
 
-      code = tsdbReadBlockL(pReader->pDataFReader, pReader->aBlockL);
+      code = tsdbReadBlockL(pReader->pDataFReader, 0, pReader->aBlockL);
       if (code) goto _err;
 
       // init
@@ -911,7 +911,7 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
       code = tsdbReadBlockIdx(pWriter->pDataFReader, pWriter->aBlockIdx);
       if (code) goto _err;
 
-      code = tsdbReadBlockL(pWriter->pDataFReader, pWriter->aBlockL);
+      code = tsdbReadBlockL(pWriter->pDataFReader, 0, pWriter->aBlockL);
       if (code) goto _err;
     } else {
       ASSERT(pWriter->pDataFReader == NULL);

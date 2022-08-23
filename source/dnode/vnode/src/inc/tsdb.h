@@ -262,7 +262,7 @@ int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pS
 int32_t tsdbDataFReaderClose(SDataFReader **ppReader);
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx);
 int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMapData);
-int32_t tsdbReadBlockL(SDataFReader *pReader, SArray *aBlockL);
+int32_t tsdbReadBlockL(SDataFReader *pReader, int32_t iLast, SArray *aBlockL);
 int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnDataAgg);
 int32_t tsdbReadDataBlock(SDataFReader *pReader, SBlock *pBlock, SBlockData *pBlockData);
 int32_t tsdbReadLastBlock(SDataFReader *pReader, SBlockL *pBlockL, SBlockData *pBlockData);

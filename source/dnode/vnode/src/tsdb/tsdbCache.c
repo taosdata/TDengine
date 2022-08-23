@@ -481,7 +481,7 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
         taosArrayClear(state->aBlockL);
       }
 
-      code = tsdbReadBlockL(state->pDataFReader, state->aBlockL);
+      code = tsdbReadBlockL(state->pDataFReader, 0, state->aBlockL);
       if (code) goto _err;
 
       // SBlockL *pBlockL = (SBlockL *)taosArrayGet(state->aBlockL, state->iBlockL);

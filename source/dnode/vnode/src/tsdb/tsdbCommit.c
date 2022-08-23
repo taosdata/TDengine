@@ -35,6 +35,7 @@ typedef struct {
   int32_t minRow;
   int32_t maxRow;
   int8_t  cmprAlg;
+  int8_t  maxLast;
   SArray *aTbDataP;  // memory
   STsdbFS fs;        // disk
   // --------------
@@ -45,19 +46,11 @@ typedef struct {
   // commit file data
   struct {
     SDataFReader *pReader;
-    // data
-    SArray    *aBlockIdx;  // SArray<SBlockIdx>
-    int32_t    iBlockIdx;
-    SBlockIdx *pBlockIdx;
-    SMapData   mBlock;  // SMapData<SBlock>
-    SBlockData bData;
-    // last
-    SArray    *aBlockL;  // SArray<SBlockL>
-    int32_t    iBlockL;
-    SBlockData bDatal;
-    int32_t    iRow;
-    SRowInfo  *pRowInfo;
-    SRowInfo   rowInfo;
+    SArray       *aBlockIdx;  // SArray<SBlockIdx>
+    int32_t       iBlockIdx;
+    SBlockIdx    *pBlockIdx;
+    SMapData      mBlock;  // SMapData<SBlock>
+    SBlockData    bData;
   } dReader;
   struct {
     SDataFWriter *pWriter;
@@ -437,20 +430,8 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
       pCommitter->dReader.pBlockIdx = NULL;
     }
     tBlockDataReset(&pCommitter->dReader.bData);
-
-    // last
-    code = tsdbReadBlockL(pCommitter->dReader.pReader, pCommitter->dReader.aBlockL);
-    if (code) goto _err;
-
-    pCommitter->dReader.iBlockL = -1;
-    pCommitter->dReader.iRow = -1;
-    pCommitter->dReader.pRowInfo = &pCommitter->dReader.rowInfo;
-    tBlockDataReset(&pCommitter->dReader.bDatal);
-    code = tsdbCommitterNextLastRow(pCommitter);
-    if (code) goto _err;
   } else {
     pCommitter->dReader.pBlockIdx = NULL;
-    pCommitter->dReader.pRowInfo = NULL;
   }
 
   // Writer
@@ -1273,6 +1254,7 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
   pCommitter->minRow = pTsdb->pVnode->config.tsdbCfg.minRows;
   pCommitter->maxRow = pTsdb->pVnode->config.tsdbCfg.maxRows;
   pCommitter->cmprAlg = pTsdb->pVnode->config.tsdbCfg.compression;
+  pCommitter->maxLast = TSDB_DEFAULT_LAST_FILE;  // TODO: make it as a config
   pCommitter->aTbDataP = tsdbMemTableGetTbDataArray(pTsdb->imem);
   if (pCommitter->aTbDataP == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -1299,15 +1281,6 @@ static int32_t tsdbCommitDataStart(SCommitter *pCommitter) {
   }
 
   code = tBlockDataCreate(&pCommitter->dReader.bData);
-  if (code) goto _exit;
-
-  pCommitter->dReader.aBlockL = taosArrayInit(0, sizeof(SBlockL));
-  if (pCommitter->dReader.aBlockL == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
-  }
-
-  code = tBlockDataCreate(&pCommitter->dReader.bDatal);
   if (code) goto _exit;
 
   // Writer
@@ -1338,8 +1311,6 @@ static void tsdbCommitDataEnd(SCommitter *pCommitter) {
   taosArrayDestroy(pCommitter->dReader.aBlockIdx);
   tMapDataClear(&pCommitter->dReader.mBlock);
   tBlockDataDestroy(&pCommitter->dReader.bData, 1);
-  taosArrayDestroy(pCommitter->dReader.aBlockL);
-  tBlockDataDestroy(&pCommitter->dReader.bDatal, 1);
 
   // Writer
   taosArrayDestroy(pCommitter->dWriter.aBlockIdx);

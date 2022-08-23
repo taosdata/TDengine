@@ -399,8 +399,8 @@ struct SDataFReader {
   SDFileSet *pSet;
   TdFilePtr  pHeadFD;
   TdFilePtr  pDataFD;
-  TdFilePtr  pLastFD;
   TdFilePtr  pSmaFD;
+  TdFilePtr  aLastFD[TSDB_MAX_LAST_FILE];
 
   uint8_t *aBuf[3];
 };
@@ -445,11 +445,13 @@ int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pS
   }
 
   // last
-  tsdbLastFileName(pTsdb, pSet->diskId, pSet->fid, pSet->aLastF[0], fname);
-  pReader->pLastFD = taosOpenFile(fname, TD_FILE_READ);
-  if (pReader->pLastFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
+  for (int32_t iLast = 0; iLast < pSet->nLastF; iLast++) {
+    tsdbLastFileName(pTsdb, pSet->diskId, pSet->fid, pSet->aLastF[iLast], fname);
+    pReader->aLastFD[iLast] = taosOpenFile(fname, TD_FILE_READ);
+    if (pReader->aLastFD[iLast] == NULL) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
   }
 
   *ppReader = pReader;
@@ -465,30 +467,35 @@ int32_t tsdbDataFReaderClose(SDataFReader **ppReader) {
   int32_t code = 0;
   if (*ppReader == NULL) goto _exit;
 
+  // head
   if (taosCloseFile(&(*ppReader)->pHeadFD) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
+  // data
   if (taosCloseFile(&(*ppReader)->pDataFD) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
-  if (taosCloseFile(&(*ppReader)->pLastFD) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
+  // sma
   if (taosCloseFile(&(*ppReader)->pSmaFD) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
+  // last
+  for (int32_t iLast = 0; iLast < (*ppReader)->pSet->nLastF; iLast++) {
+    if (taosCloseFile(&(*ppReader)->aLastFD[iLast]) < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+  }
+
   for (int32_t iBuf = 0; iBuf < sizeof((*ppReader)->aBuf) / sizeof(uint8_t *); iBuf++) {
     tFree((*ppReader)->aBuf[iBuf]);
   }
-
   taosMemoryFree(*ppReader);
 
 _exit:
@@ -563,10 +570,10 @@ _err:
   return code;
 }
 
-int32_t tsdbReadBlockL(SDataFReader *pReader, SArray *aBlockL) {
+int32_t tsdbReadBlockL(SDataFReader *pReader, int32_t iLast, SArray *aBlockL) {
   int32_t  code = 0;
-  int64_t  offset = pReader->pSet->aLastF[0]->offset;
-  int64_t  size = pReader->pSet->aLastF[0]->size - offset;
+  int64_t  offset = pReader->pSet->aLastF[iLast]->offset;
+  int64_t  size = pReader->pSet->aLastF[iLast]->size - offset;
   int64_t  n;
   uint32_t delimiter;
 
@@ -580,13 +587,13 @@ int32_t tsdbReadBlockL(SDataFReader *pReader, SArray *aBlockL) {
   if (code) goto _err;
 
   // seek
-  if (taosLSeekFile(pReader->pLastFD, offset, SEEK_SET) < 0) {
+  if (taosLSeekFile(pReader->aLastFD[iLast], offset, SEEK_SET) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
   // read
-  n = taosReadFile(pReader->pLastFD, pReader->aBuf[0], size);
+  n = taosReadFile(pReader->aLastFD[iLast], pReader->aBuf[0], size);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -745,7 +752,7 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
 
   tBlockDataClear(pBlockData);
 
-  TdFilePtr pFD = fromLast ? pReader->pLastFD : pReader->pDataFD;
+  TdFilePtr pFD = fromLast ? pReader->aLastFD[0] : pReader->pDataFD;  // (todo)
 
   // uid + version + tskey
   code = tsdbReadAndCheck(pFD, pBlkInfo->offset, &pReader->aBuf[0], pBlkInfo->szKey, 1);
