@@ -664,6 +664,11 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
     ASSERT(pTask->exec.executor);
   }
 
+  pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask);
+  if (pTask->pState == NULL) {
+    return -1;
+  }
+
   // sink
   /*pTask->ahandle = pTq->pVnode;*/
   if (pTask->outputType == TASK_OUTPUT__SMA) {

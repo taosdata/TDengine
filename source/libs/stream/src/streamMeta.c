@@ -14,7 +14,7 @@
  */
 
 #include "executor.h"
-#include "tstream.h"
+#include "streamInc.h"
 #include "ttimer.h"
 
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc) {
@@ -23,17 +23,22 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  pMeta->path = strdup(path);
+  char streamPath[200];
+  sprintf(streamPath, "%s/%s", path, "stream");
+  pMeta->path = strdup(streamPath);
   if (tdbOpen(pMeta->path, 16 * 1024, 1, &pMeta->db) < 0) {
     goto _err;
   }
+
+  char checkpointPath[200];
+  sprintf(checkpointPath, "%s/%s", streamPath, "checkpoints");
+  mkdir(checkpointPath, 0755);
 
   if (tdbTbOpen("task.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pTaskDb) < 0) {
     goto _err;
   }
 
-  // open state storage backend
-  if (tdbTbOpen("state.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pStateDb) < 0) {
+  if (tdbTbOpen("checkpoint.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pCheckpointDb) < 0) {
     goto _err;
   }
 
@@ -57,8 +62,8 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 _err:
   if (pMeta->path) taosMemoryFree(pMeta->path);
   if (pMeta->pTasks) taosHashCleanup(pMeta->pTasks);
-  if (pMeta->pStateDb) tdbTbClose(pMeta->pStateDb);
   if (pMeta->pTaskDb) tdbTbClose(pMeta->pTaskDb);
+  if (pMeta->pCheckpointDb) tdbTbClose(pMeta->pCheckpointDb);
   if (pMeta->db) tdbClose(pMeta->db);
   taosMemoryFree(pMeta);
   return NULL;
@@ -67,7 +72,7 @@ _err:
 void streamMetaClose(SStreamMeta* pMeta) {
   tdbCommit(pMeta->db, &pMeta->txn);
   tdbTbClose(pMeta->pTaskDb);
-  tdbTbClose(pMeta->pStateDb);
+  tdbTbClose(pMeta->pCheckpointDb);
   tdbClose(pMeta->db);
 
   void* pIter = NULL;

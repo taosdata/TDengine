@@ -8,7 +8,8 @@ add_library(executor STATIC ${EXECUTOR_SRC})
 #        )
 
 target_link_libraries(executor
-        PRIVATE os util common function parser planner qcom vnode scalar nodes index stream
+        PUBLIC stream
+        PRIVATE os util common function parser planner qcom vnode scalar nodes index 
         )
 
 target_include_directories(
