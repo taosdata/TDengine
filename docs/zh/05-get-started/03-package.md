@@ -108,7 +108,7 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统
 </Tabs>
 
 :::info
-下载其他组件、最新 Beta 版及之前版本的安装包，请点击[发布历史页面](../../releases) 
+下载其他组件、最新 Beta 版及之前版本的安装包，请点击[发布历史页面](../../releases/tdengine) 
 :::
 
 :::note
