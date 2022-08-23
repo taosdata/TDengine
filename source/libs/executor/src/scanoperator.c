@@ -1517,7 +1517,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
   pTaskInfo->streamInfo.metaRsp.metaRspLen = 0;   // use metaRspLen !=0 to judge if data is meta
   pTaskInfo->streamInfo.metaRsp.metaRsp = NULL;
 
-  qDebug("doRawScan called");
+  qDebug("tmqsnap doRawScan called");
   if(pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA){
     SSDataBlock* pBlock = &pInfo->pRes;
 
@@ -1548,6 +1548,8 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
     if (mtInfo.uid == 0){  //read snapshot done, change to get data from wal
       qDebug("tmqsnap read snapshot done, change to get data from wal");
       pTaskInfo->streamInfo.prepareStatus.uid = mtInfo.uid;
+      pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__LOG;
+      pTaskInfo->streamInfo.lastStatus.version = pInfo->sContext->snapVersion;
       tDeleteSSchemaWrapper(pTaskInfo->streamInfo.schema);
     }else{
       pTaskInfo->streamInfo.prepareStatus.uid = mtInfo.uid;
@@ -1595,7 +1597,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
       if(pInfo->needFetchLog){
         fetchVer++;
         if (tqFetchLog(pInfo->tqReader->pWalReader, pInfo->sContext->withMeta, &fetchVer, &pInfo->pCkHead) < 0) {
-          qDebug("tmq poll: consumer log end. offset %" PRId64, fetchVer);
+          qDebug("tmqsnap tmq poll: consumer log end. offset %" PRId64, fetchVer);
           pTaskInfo->streamInfo.metaRsp.rspOffset.version = fetchVer;
           pTaskInfo->streamInfo.metaRsp.rspOffset.type = TMQ_OFFSET__LOG;
           return NULL;

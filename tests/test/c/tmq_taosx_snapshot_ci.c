@@ -19,8 +19,11 @@
 #include <string.h>
 #include <time.h>
 #include "taos.h"
+#include "types.h"
 
 static int  running = 1;
+TdFilePtr        g_fp = NULL;
+char dir[64]={0};
 
 static TAOS* use_db(){
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -48,6 +51,8 @@ static void msg_process(TAOS_RES* msg) {
     if (result) {
       printf("meta result: %s\n", result);
     }
+    taosFprintfFile(g_fp, result);
+    taosFprintfFile(g_fp, "\n");
     tmq_free_json_meta(result);
   }
 
@@ -84,7 +89,7 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create database if not exists db_taosx vgroups 4");
+  pRes = taos_query(pConn, "create database if not exists db_taosx vgroups 1");
   if (taos_errno(pRes) != 0) {
     printf("error in create db_taosx, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -98,7 +103,7 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create database if not exists abc1 vgroups 3");
+  pRes = taos_query(pConn, "create database if not exists abc1 vgroups 1");
   if (taos_errno(pRes) != 0) {
     printf("error in create db, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -163,13 +168,6 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table if not exists ct4 using st1(t3) tags('ct4')");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create child table ct4, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
   pRes = taos_query(pConn, "insert into ct3 values(1626006833600, 5, 6, 'c') ct1 values(1626006833601, 2, 3, 'sds') (1626006833602, 4, 5, 'ddd') ct0 values(1626006833602, 4, 3, 'hwj') ct1 values(now+5s, 23, 32, 's21ds')");
   if (taos_errno(pRes) != 0) {
     printf("failed to insert into ct3, reason:%s\n", taos_errstr(pRes));
@@ -226,20 +224,6 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-//  pRes = taos_query(pConn, "drop table ct3 ct1");
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to drop child table ct3, reason:%s\n", taos_errstr(pRes));
-//    return -1;
-//  }
-//  taos_free_result(pRes);
-//
-//  pRes = taos_query(pConn, "drop table st1");
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to drop super table st1, reason:%s\n", taos_errstr(pRes));
-//    return -1;
-//  }
-//  taos_free_result(pRes);
-
   pRes = taos_query(pConn, "create table if not exists n1(ts timestamp, c1 int, c2 nchar(4))");
   if (taos_errno(pRes) != 0) {
     printf("failed to create normal table n1, reason:%s\n", taos_errstr(pRes));
@@ -289,13 +273,6 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-//  pRes = taos_query(pConn, "drop table n1");
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to drop normal table n1, reason:%s\n", taos_errstr(pRes));
-//    return -1;
-//  }
-//  taos_free_result(pRes);
-
   pRes = taos_query(pConn, "create table jt(ts timestamp, i int) tags(t json)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table jt, reason:%s\n", taos_errstr(pRes));
@@ -317,21 +294,19 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn,
-                    "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(16)) tags(t1 int, t3 "
-                    "nchar(8), t4 bool)");
+  pRes = taos_query(pConn, "insert into jt1 values(now, 1)");
   if (taos_errno(pRes) != 0) {
-    printf("failed to create super table st1, reason:%s\n", taos_errstr(pRes));
+    printf("failed to create super table jt1, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
   taos_free_result(pRes);
 
-//  pRes = taos_query(pConn, "drop table st1");
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to drop super table st1, reason:%s\n", taos_errstr(pRes));
-//    return -1;
-//  }
-//  taos_free_result(pRes);
+  pRes = taos_query(pConn, "insert into jt2 values(now, 11)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create super table jt2, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
 
   taos_close(pConn);
   return 0;
@@ -386,9 +361,8 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set(conf, "enable.auto.commit", "true");
-  tmq_conf_set(conf, "experimental.snapshot.enable", "false");
-
-
+  tmq_conf_set(conf, "enable.heartbeat.background", "true");
+  tmq_conf_set(conf, "experimental.snapshot.enable", "true");
   /*tmq_conf_set(conf, "experimental.snapshot.enable", "true");*/
 
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
@@ -425,6 +399,8 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
       /*} else {*/
       /*break;*/
       /*tmq_commit_sync(tmq, NULL);*/
+    }else{
+      break;
     }
   }
 
@@ -475,8 +451,54 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     fprintf(stderr, "%% Consumer closed\n");
 }
 
+void initLogFile() {
+  char f1[256] = {0};
+  char f2[256] = {0};
+
+  sprintf(f1, "%s/../log/tmq_taosx_tmp_snapshot.source", dir);
+  sprintf(f2, "%s/../log/tmq_taosx_tmp_snapshot.result", dir);
+  TdFilePtr pFile = taosOpenFile(f1, TD_FILE_TEXT | TD_FILE_TRUNC | TD_FILE_STREAM);
+  if (NULL == pFile) {
+    fprintf(stderr, "Failed to open %s for save result\n", f1);
+    exit(-1);
+  }
+  g_fp = pFile;
+
+  TdFilePtr pFile2 = taosOpenFile(f2, TD_FILE_TEXT | TD_FILE_TRUNC | TD_FILE_STREAM);
+  if (NULL == pFile2) {
+    fprintf(stderr, "Failed to open %s for save result\n", f2);
+    exit(-1);
+  }
+  char *result[] = {
+      "{\"type\":\"create\",\"tableName\":\"st1\",\"tableType\":\"super\",\"columns\":[{\"name\":\"ts\",\"type\":9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":64},{\"name\":\"c4\",\"type\":5}],\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":1},{\"name\":\"t2\",\"type\":8,\"length\":64}]}",
+      "{\"type\":\"create\",\"tableName\":\"ct0\",\"tableType\":\"child\",\"using\":\"st1\",\"tagNum\":4,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":1000},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"ttt\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]}",
+      "{\"type\":\"create\",\"tableName\":\"ct1\",\"tableType\":\"child\",\"using\":\"st1\",\"tagNum\":4,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":2000}]}",
+      "{\"type\":\"create\",\"tableName\":\"ct2\",\"tableType\":\"child\",\"using\":\"st1\",\"tagNum\":4,\"tags\":[]}",
+      "{\"type\":\"create\",\"tableName\":\"ct3\",\"tableType\":\"child\",\"using\":\"st1\",\"tagNum\":4,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":5000}]}",
+      "{\"type\":\"create\",\"tableName\":\"n1\",\"tableType\":\"normal\",\"columns\":[{\"name\":\"ts\",\"type\":9},{\"name\":\"c2\",\"type\":10,\"length\":8},{\"name\":\"cc3\",\"type\":5}],\"tags\":[]}",
+      "{\"type\":\"create\",\"tableName\":\"jt\",\"tableType\":\"super\",\"columns\":[{\"name\":\"ts\",\"type\":9},{\"name\":\"i\",\"type\":4}],\"tags\":[{\"name\":\"t\",\"type\":15}]}",
+      "{\"type\":\"create\",\"tableName\":\"jt1\",\"tableType\":\"child\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[{\"name\":\"t\",\"type\":15,\"value\":\"{\\\"k1\\\":1,\\\"k2\\\":\\\"hello\\\"}\"}]}",
+      "{\"type\":\"create\",\"tableName\":\"jt2\",\"tableType\":\"child\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[]}",
+  };
+
+  for(int i = 0; i < sizeof(result)/sizeof(result[0]); i++){
+    taosFprintfFile(pFile2, result[i]);
+    taosFprintfFile(pFile2, "\n");
+  }
+  taosCloseFile(&pFile2);
+}
+
 int main(int argc, char* argv[]) {
+  if(argc == 3 && strcmp(argv[1], "-c") == 0) {
+    strcpy(dir, argv[2]);
+  }else{
+//    strcpy(dir, "../../../sim/psim/cfg");
+    strcpy(dir, "/var/log");
+  }
+
   printf("env init\n");
+  initLogFile();
+
   if (init_env() < 0) {
     return -1;
   }
@@ -486,4 +508,5 @@ int main(int argc, char* argv[]) {
   tmq_list_t* topic_list = build_topic_list();
   basic_consume_loop(tmq, topic_list);
   /*sync_consume_loop(tmq, topic_list);*/
+  taosCloseFile(&g_fp);
 }

@@ -888,6 +888,7 @@ const void *metaGetTableTagVal(void *pTag, int16_t type, STagVal *val) {
     return NULL;
   }
 
+#ifdef TAG_FILTER_DEBUG
   if (IS_VAR_DATA_TYPE(val->type)) {
     char* buf = taosMemoryCalloc(val->nData + 1, 1);
     memcpy(buf, val->pData, val->nData);
@@ -915,6 +916,7 @@ const void *metaGetTableTagVal(void *pTag, int16_t type, STagVal *val) {
       metaDebug("metaTag table number index:%d cid:%d type:%d value:%f", i, pTagVal->cid, pTagVal->type, dval);
     }
   }
+#endif
 
   return val;
 }

@@ -120,15 +120,14 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqMetaRsp*
       }
     }
 
-    if (pRsp->blockNum == 0 && pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA){
+    if (pDataBlock == NULL && pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA){
       if(pHandle->execHandle.subType != TOPIC_SUB_TYPE__COLUMN && qStreamExtractPrepareUid(task) != 0){
         continue;
       }
       tqDebug("tmqsnap vgId: %d, tsdb consume over, switch to wal, ver %" PRId64, TD_VID(pTq->pVnode),
               pHandle->snapshotVer + 1);
-      tqOffsetResetToLog(pOffset, pHandle->snapshotVer);
-      qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType);
-      continue;
+//      tqOffsetResetToLog(pOffset, pHandle->snapshotVer);
+//      qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType);
     }
 
     if (pRsp->blockNum > 0){
@@ -139,7 +138,8 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqMetaRsp*
 
     SMqMetaRsp* tmp = qStreamExtractMetaMsg(task);
     if(tmp->rspOffset.type == TMQ_OFFSET__SNAPSHOT_DATA){
-      qStreamPrepareScan(task, &tmp->rspOffset, pHandle->execHandle.subType);
+      tqOffsetResetToData(pOffset, tmp->rspOffset.uid, tmp->rspOffset.ts);
+      qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType);
       tmp->rspOffset.type = TMQ_OFFSET__SNAPSHOT_META;
       tqDebug("tmqsnap task exec change to get data");
       continue;
