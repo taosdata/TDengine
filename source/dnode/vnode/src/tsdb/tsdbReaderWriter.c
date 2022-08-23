@@ -936,18 +936,22 @@ int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pS
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
-  if (code) goto _err;
   pWriter->pTsdb = pTsdb;
-  pWriter->wSet = (SDFileSet){.diskId = pSet->diskId,
-                              .fid = pSet->fid,
-                              .pHeadF = &pWriter->fHead,
-                              .pDataF = &pWriter->fData,
-                              .aLastF[0] = &pWriter->fLast,
-                              .pSmaF = &pWriter->fSma};
+  pWriter->wSet = (SDFileSet){
+      .diskId = pSet->diskId,
+      .fid = pSet->fid,
+      .pHeadF = &pWriter->fHead,
+      .pDataF = &pWriter->fData,
+      .pSmaF = &pWriter->fSma,
+      .nLastF = pSet->nLastF  //
+  };
   pWriter->fHead = *pSet->pHeadF;
   pWriter->fData = *pSet->pDataF;
-  pWriter->fLast = *pSet->aLastF[0];
   pWriter->fSma = *pSet->pSmaF;
+  for (int8_t iLast = 0; iLast < pSet->nLastF; iLast++) {
+    pWriter->wSet.aLastF[iLast] = &pWriter->fLast[iLast];
+    pWriter->fLast[iLast] = *pSet->aLastF[iLast];
+  }
 
   // head
   flag = TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
@@ -998,36 +1002,6 @@ int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pS
     ASSERT(n == pWriter->fData.size);
   }
 
-  // last
-  if (pWriter->fLast.size == 0) {
-    flag = TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
-  } else {
-    flag = TD_FILE_WRITE;
-  }
-  tsdbLastFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fLast, fname);
-  pWriter->pLastFD = taosOpenFile(fname, flag);
-  if (pWriter->pLastFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-  if (pWriter->fLast.size == 0) {
-    n = taosWriteFile(pWriter->pLastFD, hdr, TSDB_FHDR_SIZE);
-    if (n < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _err;
-    }
-
-    pWriter->fLast.size += TSDB_FHDR_SIZE;
-  } else {
-    n = taosLSeekFile(pWriter->pLastFD, 0, SEEK_END);
-    if (n < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _err;
-    }
-
-    ASSERT(n == pWriter->fLast.size);
-  }
-
   // sma
   if (pWriter->fSma.size == 0) {
     flag = TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
@@ -1058,6 +1032,22 @@ int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pS
     ASSERT(n == pWriter->fSma.size);
   }
 
+  // last
+  ASSERT(pWriter->fLast[pSet->nLastF - 1].size == 0);
+  flag = TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
+  tsdbLastFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fLast[pSet->nLastF - 1], fname);
+  pWriter->pLastFD = taosOpenFile(fname, flag);
+  if (pWriter->pLastFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+  n = taosWriteFile(pWriter->pLastFD, hdr, TSDB_FHDR_SIZE);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+  pWriter->fLast[pWriter->wSet.nLastF - 1].size += TSDB_FHDR_SIZE;
+
   *ppWriter = pWriter;
   return code;
 
@@ -1085,12 +1075,12 @@ int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync) {
       goto _err;
     }
 
-    if (taosFsyncFile((*ppWriter)->pLastFD) < 0) {
+    if (taosFsyncFile((*ppWriter)->pSmaFD) < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
 
-    if (taosFsyncFile((*ppWriter)->pSmaFD) < 0) {
+    if (taosFsyncFile((*ppWriter)->pLastFD) < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
@@ -1106,12 +1096,12 @@ int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync) {
     goto _err;
   }
 
-  if (taosCloseFile(&(*ppWriter)->pLastFD) < 0) {
+  if (taosCloseFile(&(*ppWriter)->pSmaFD) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
-  if (taosCloseFile(&(*ppWriter)->pSmaFD) < 0) {
+  if (taosCloseFile(&(*ppWriter)->pLastFD) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
@@ -1168,23 +1158,6 @@ int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter) {
     goto _err;
   }
 
-  // last ==============
-  memset(hdr, 0, TSDB_FHDR_SIZE);
-  tPutLastFile(hdr, &pWriter->fLast);
-  taosCalcChecksumAppend(0, hdr, TSDB_FHDR_SIZE);
-
-  n = taosLSeekFile(pWriter->pLastFD, 0, SEEK_SET);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  n = taosWriteFile(pWriter->pLastFD, hdr, TSDB_FHDR_SIZE);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
   // sma ==============
   memset(hdr, 0, TSDB_FHDR_SIZE);
   tPutSmaFile(hdr, &pWriter->fSma);
@@ -1197,6 +1170,23 @@ int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter) {
   }
 
   n = taosWriteFile(pWriter->pSmaFD, hdr, TSDB_FHDR_SIZE);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // last ==============
+  memset(hdr, 0, TSDB_FHDR_SIZE);
+  tPutLastFile(hdr, &pWriter->fLast[pWriter->wSet.nLastF - 1]);
+  taosCalcChecksumAppend(0, hdr, TSDB_FHDR_SIZE);
+
+  n = taosLSeekFile(pWriter->pLastFD, 0, SEEK_SET);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  n = taosWriteFile(pWriter->pLastFD, hdr, TSDB_FHDR_SIZE);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -1309,7 +1299,7 @@ _err:
 
 int32_t tsdbWriteBlockL(SDataFWriter *pWriter, SArray *aBlockL) {
   int32_t    code = 0;
-  SLastFile *pLastFile = &pWriter->fLast;
+  SLastFile *pLastFile = &pWriter->fLast[pWriter->wSet.nLastF - 1];
   int64_t    size;
   int64_t    n;
 
@@ -1437,7 +1427,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
 
   ASSERT(pBlockData->nRow > 0);
 
-  pBlkInfo->offset = toLast ? pWriter->fLast.size : pWriter->fData.size;
+  pBlkInfo->offset = toLast ? pWriter->fLast[pWriter->wSet.nLastF - 1].size : pWriter->fData.size;
   pBlkInfo->szBlock = 0;
   pBlkInfo->szKey = 0;
 
@@ -1481,7 +1471,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
 
   // update info
   if (toLast) {
-    pWriter->fLast.size += pBlkInfo->szBlock;
+    pWriter->fLast[pWriter->wSet.nLastF - 1].size += pBlkInfo->szBlock;
   } else {
     pWriter->fData.size += pBlkInfo->szBlock;
   }

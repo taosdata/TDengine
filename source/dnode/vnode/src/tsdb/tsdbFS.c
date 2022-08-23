@@ -629,13 +629,35 @@ int32_t tsdbFSUpsertFSet(STsdbFS *pFS, SDFileSet *pSet) {
     if (c == 0) {
       *pDFileSet->pHeadF = *pSet->pHeadF;
       *pDFileSet->pDataF = *pSet->pDataF;
-      *pDFileSet->aLastF[0] = *pSet->aLastF[0];
       *pDFileSet->pSmaF = *pSet->pSmaF;
+      // last
+      if (pSet->nLastF > pDFileSet->nLastF) {
+        ASSERT(pSet->nLastF == pDFileSet->nLastF + 1);
+
+        pDFileSet->aLastF[pDFileSet->nLastF] = (SLastFile *)taosMemoryMalloc(sizeof(SLastFile));
+        if (pDFileSet->aLastF[pDFileSet->nLastF] == NULL) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          goto _exit;
+        }
+        *pDFileSet->aLastF[pDFileSet->nLastF] = *pSet->aLastF[pSet->nLastF - 1];
+        pDFileSet->nLastF++;
+      } else if (pSet->nLastF < pDFileSet->nLastF) {
+        ASSERT(pSet->nLastF == 1);
+        for (int32_t iLast = 1; iLast < pDFileSet->nLastF; iLast++) {
+          taosMemoryFree(pDFileSet->aLastF[iLast]);
+        }
+
+        *pDFileSet->aLastF[0] = *pSet->aLastF[0];
+        pDFileSet->nLastF = 1;
+      } else {
+        ASSERT(0);
+      }
 
       goto _exit;
     }
   }
 
+  ASSERT(pSet->nLastF == 1);
   SDFileSet fSet = {.diskId = pSet->diskId, .fid = pSet->fid, .nLastF = 1};
 
   // head
@@ -654,14 +676,6 @@ int32_t tsdbFSUpsertFSet(STsdbFS *pFS, SDFileSet *pSet) {
   }
   *fSet.pDataF = *pSet->pDataF;
 
-  // last
-  fSet.aLastF[0] = (SLastFile *)taosMemoryMalloc(sizeof(SLastFile));
-  if (fSet.aLastF[0] == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
-  }
-  *fSet.aLastF[0] = *pSet->aLastF[0];
-
   // sma
   fSet.pSmaF = (SSmaFile *)taosMemoryMalloc(sizeof(SSmaFile));
   if (fSet.pSmaF == NULL) {
@@ -669,6 +683,14 @@ int32_t tsdbFSUpsertFSet(STsdbFS *pFS, SDFileSet *pSet) {
     goto _exit;
   }
   *fSet.pSmaF = *pSet->pSmaF;
+
+  // last
+  fSet.aLastF[0] = (SLastFile *)taosMemoryMalloc(sizeof(SLastFile));
+  if (fSet.aLastF[0] == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  *fSet.aLastF[0] = *pSet->aLastF[0];
 
   if (taosArrayInsert(pFS->aDFileSet, idx, &fSet) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;

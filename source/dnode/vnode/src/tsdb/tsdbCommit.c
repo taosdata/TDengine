@@ -437,31 +437,43 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   // Writer
   SHeadFile fHead;
   SDataFile fData;
-  SLastFile fLast;
   SSmaFile  fSma;
-  SDFileSet wSet = {.pHeadF = &fHead, .pDataF = &fData, .aLastF[0] = &fLast, .pSmaF = &fSma};
+  SLastFile fLast;
+  SDFileSet wSet = {0};
   if (pRSet) {
+    ASSERT(pRSet->nLastF < pCommitter->maxLast);
+    fHead = (SHeadFile){.commitID = pCommitter->commitID};
+    fData = *pRSet->pDataF;
+    fSma = *pRSet->pSmaF;
+    fLast = (SLastFile){.commitID = pCommitter->commitID};
+
     wSet.diskId = pRSet->diskId;
     wSet.fid = pCommitter->commitFid;
-    wSet.nLastF = 1;
-    fHead = (SHeadFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
-    fData = *pRSet->pDataF;
-    fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
-    fSma = *pRSet->pSmaF;
+    wSet.pHeadF = &fHead;
+    wSet.pDataF = &fData;
+    wSet.pSmaF = &fSma;
+    for (int8_t iLast = 0; iLast < pRSet->nLastF; iLast++) {
+      wSet.aLastF[iLast] = pRSet->aLastF[iLast];
+    }
+    wSet.nLastF = pRSet->nLastF + 1;
+    wSet.aLastF[wSet.nLastF - 1] = &fLast;  // todo
   } else {
+    fHead = (SHeadFile){.commitID = pCommitter->commitID};
+    fData = (SDataFile){.commitID = pCommitter->commitID};
+    fSma = (SSmaFile){.commitID = pCommitter->commitID};
+    fLast = (SLastFile){.commitID = pCommitter->commitID};
+
     SDiskID did = {0};
-
     tfsAllocDisk(pTsdb->pVnode->pTfs, 0, &did);
-
     tfsMkdirRecurAt(pTsdb->pVnode->pTfs, pTsdb->path, did);
 
     wSet.diskId = did;
     wSet.fid = pCommitter->commitFid;
+    wSet.pHeadF = &fHead;
+    wSet.pDataF = &fData;
+    wSet.pSmaF = &fSma;
     wSet.nLastF = 1;
-    fHead = (SHeadFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
-    fData = (SDataFile){.commitID = pCommitter->commitID, .size = 0};
-    fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0, .offset = 0};
-    fSma = (SSmaFile){.commitID = pCommitter->commitID, .size = 0};
+    wSet.aLastF[0] = &fLast;
   }
   code = tsdbDataFWriterOpen(&pCommitter->dWriter.pWriter, pTsdb, &wSet);
   if (code) goto _err;

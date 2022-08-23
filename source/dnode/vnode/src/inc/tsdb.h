@@ -589,13 +589,13 @@ struct SDataFWriter {
 
   TdFilePtr pHeadFD;
   TdFilePtr pDataFD;
-  TdFilePtr pLastFD;
   TdFilePtr pSmaFD;
+  TdFilePtr pLastFD;
 
   SHeadFile fHead;
   SDataFile fData;
-  SLastFile fLast;
   SSmaFile  fSma;
+  SLastFile fLast[TSDB_MAX_LAST_FILE];
 
   uint8_t *aBuf[4];
 };
