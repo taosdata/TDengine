@@ -1312,7 +1312,7 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans) {
           if (pTrans->failedTimes < 6) {
             mError("trans:%d, stage keep on redoAction since action:%d code:0x%x not 0x%x, failedTimes:%d", pTrans->id,
                    pTrans->lastAction, pTrans->code, pAction->retryCode, pTrans->failedTimes);
-            taosMsleep(1000);
+            taosMsleep(100);
             continueExec = true;
             return true;
           }
