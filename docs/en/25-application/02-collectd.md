@@ -37,7 +37,7 @@ Please refer to the [official documentation](https://grafana.com/grafana/downloa
 
 ### Install TDengine
 
-Download the latest TDengine-server 2.4.0.x or above from the [Downloads](http://taosdata.com/cn/all-downloads/) page on the TAOSData website and install it.
+Download the latest TDengine-server from the [Downloads](http://tdengine.com/en/all-downloads/) page on the TAOSData website and install it.
 
 ## Data Connection Setup
 
@@ -99,6 +99,6 @@ Download the dashboard json from `https://github.com/taosdata/grafanaplugin/blob
 
 ## Wrap-up
 
-TDengine, as an emerging time-series big data platform, has the advantages of high performance, high reliability, easy management and easy maintenance. Thanks to the new schemaless protocol parsing feature in TDengine version 2.4.0.0 and ability to integrate easily with a large software ecosystem, users can build an efficient and easy-to-use IT DevOps visualization system, or adapt an existing system, in just a few minutes.
+TDengine, as an emerging time-series big data platform, has the advantages of high performance, high reliability, easy management and easy maintenance. Thanks to the new schemaless protocol parsing feature in TDengine and ability to integrate easily with a large software ecosystem, users can build an efficient and easy-to-use IT DevOps visualization system, or adapt an existing system, in just a few minutes.
 
 For TDengine's powerful data writing and querying performance and other features, please refer to the official documentation and successful product implementation cases.

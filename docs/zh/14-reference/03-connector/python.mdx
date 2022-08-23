@@ -150,10 +150,19 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 
 ```json
 {
-  "status": "succ",
-  "head": ["server_version()"],
-  "column_meta": [["server_version()", 8, 8]],
-  "data": [["2.4.0.16"]],
+  "code": 0,
+  "column_meta": [
+    [
+      "server_version()",
+      "VARCHAR",
+      7
+    ]
+  ],
+  "data": [
+    [
+      "3.0.0.0"
+    ]
+  ],
   "rows": 1
 }
 ```
