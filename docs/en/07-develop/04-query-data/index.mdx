@@ -43,7 +43,7 @@ Query OK, 2 row(s) in set (0.001100s)
 
 To meet the requirements of varied use cases, some special functions have been added in TDengine. Some examples are `twa` (Time Weighted Average), `spread` (The difference between the maximum and the minimum), and `last_row` (the last row).
 
-For detailed query syntax, see [Select](../../taos-sql././select).
+For detailed query syntax, see [Select](../../taos-sql/select).
 
 ## Aggregation among Tables
 
@@ -74,7 +74,7 @@ taos> SELECT count(*), max(current) FROM meters where groupId = 2;
 Query OK, 1 row(s) in set (0.002136s)
 ```
 
-In [Select](../../taos-sql././select), all query operations are marked as to whether they support STables or not.
+In [Select](../../taos-sql/select), all query operations are marked as to whether they support STables or not.
 
 ## Down Sampling and Interpolation
 
@@ -122,7 +122,7 @@ In many use cases, it's hard to align the timestamp of the data collected by eac
 
 Interpolation can be performed in TDengine if there is no data in a time range.
 
-For more information, see [Aggregate by Window](../../taos-sql/interval).
+For more information, see [Aggregate by Window](../../taos-sql/distinguished).
 
 ## Examples
 

@@ -10,131 +10,7 @@ TDengine community version provides deb and rpm packages for users to choose fro
 
 ## Install
 
-<Tabs>
-<TabItem label="Install Deb" value="debinst">
-
-1. Download deb package from official website, for example TDengine-server-2.4.0.7-Linux-x64.deb
-2. In the directory where the package is located, execute the command below
-
-```bash
-$ sudo dpkg -i TDengine-server-2.4.0.7-Linux-x64.deb
-(Reading database ... 137504 files and directories currently installed.)
-Preparing to unpack TDengine-server-2.4.0.7-Linux-x64.deb ...
-TDengine is removed successfully!
-Unpacking tdengine (2.4.0.7) over (2.4.0.7) ...
-Setting up tdengine (2.4.0.7) ...
-Start to install TDengine...
-
-System hostname is: ubuntu-1804
-
-Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join
-OR leave it blank to build one:
-
-Enter your email address for priority support or enter empty to skip:
-Created symlink /etc/systemd/system/multi-user.target.wants/taosd.service → /etc/systemd/system/taosd.service.
-
-To configure TDengine : edit /etc/taos/taos.cfg
-To start TDengine     : sudo systemctl start taosd
-To access TDengine    : taos -h ubuntu-1804 to login into TDengine server
-
-
-TDengine is installed successfully!
-```
-
-</TabItem>
-
-<TabItem label="Install RPM" value="rpminst">
-
-1. Download rpm package from official website, for example TDengine-server-2.4.0.7-Linux-x64.rpm；
-2. In the directory where the package is located, execute the command below
-
-```
-$ sudo rpm -ivh TDengine-server-2.4.0.7-Linux-x64.rpm
-Preparing...                          ################################# [100%]
-Updating / installing...
-   1:tdengine-2.4.0.7-3               ################################# [100%]
-Start to install TDengine...
-
-System hostname is: centos7
-
-Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join
-OR leave it blank to build one:
-
-Enter your email address for priority support or enter empty to skip:
-
-Created symlink from /etc/systemd/system/multi-user.target.wants/taosd.service to /etc/systemd/system/taosd.service.
-
-To configure TDengine : edit /etc/taos/taos.cfg
-To start TDengine     : sudo systemctl start taosd
-To access TDengine    : taos -h centos7 to login into TDengine server
-
-
-TDengine is installed successfully!
-```
-
-</TabItem>
-
-<TabItem label="Install tar.gz" value="tarinst">
-
-1. Download the tar.gz package, for example TDengine-server-2.4.0.7-Linux-x64.tar.gz；
-2. In the directory where the package is located, first decompress the file, then switch to the sub-directory generated in decompressing, i.e. "TDengine-enterprise-server-2.4.0.7/" in this example, and execute the `install.sh` script.
-
-```bash
-$ tar xvzf TDengine-enterprise-server-2.4.0.7-Linux-x64.tar.gz
-TDengine-enterprise-server-2.4.0.7/
-TDengine-enterprise-server-2.4.0.7/driver/
-TDengine-enterprise-server-2.4.0.7/driver/vercomp.txt
-TDengine-enterprise-server-2.4.0.7/driver/libtaos.so.2.4.0.7
-TDengine-enterprise-server-2.4.0.7/install.sh
-TDengine-enterprise-server-2.4.0.7/examples/
-...
-
-$ ll
-total 43816
-drwxrwxr-x  3 ubuntu ubuntu     4096 Feb 22 09:31 ./
-drwxr-xr-x 20 ubuntu ubuntu     4096 Feb 22 09:30 ../
-drwxrwxr-x  4 ubuntu ubuntu     4096 Feb 22 09:30 TDengine-enterprise-server-2.4.0.7/
--rw-rw-r--  1 ubuntu ubuntu 44852544 Feb 22 09:31 TDengine-enterprise-server-2.4.0.7-Linux-x64.tar.gz
-
-$ cd TDengine-enterprise-server-2.4.0.7/
-
- $ ll
-total 40784
-drwxrwxr-x  4 ubuntu ubuntu     4096 Feb 22 09:30 ./
-drwxrwxr-x  3 ubuntu ubuntu     4096 Feb 22 09:31 ../
-drwxrwxr-x  2 ubuntu ubuntu     4096 Feb 22 09:30 driver/
-drwxrwxr-x 10 ubuntu ubuntu     4096 Feb 22 09:30 examples/
--rwxrwxr-x  1 ubuntu ubuntu    33294 Feb 22 09:30 install.sh*
--rw-rw-r--  1 ubuntu ubuntu 41704288 Feb 22 09:30 taos.tar.gz
-
-$ sudo ./install.sh
-
-Start to update TDengine...
-Created symlink /etc/systemd/system/multi-user.target.wants/taosd.service → /etc/systemd/system/taosd.service.
-Nginx for TDengine is updated successfully!
-
-To configure TDengine : edit /etc/taos/taos.cfg
-To configure Taos Adapter (if has) : edit /etc/taos/taosadapter.toml
-To start TDengine     : sudo systemctl start taosd
-To access TDengine    : use taos -h ubuntu-1804 in shell OR from http://127.0.0.1:6060
-
-TDengine is updated successfully!
-Install taoskeeper as a standalone service
-taoskeeper is installed, enable it by `systemctl enable taoskeeper`
-```
-
-:::info
-Users will be prompted to enter some configuration information when install.sh is executing. The interactive mode can be disabled by executing `./install.sh -e no`. `./install.sh -h` can show all parameters with detailed explanation.
-
-:::
-
-</TabItem>
-</Tabs>
-
-:::note
-When installing on the first node in the cluster, at the "Enter FQDN:" prompt, nothing needs to be provided. When installing on subsequent nodes, at the "Enter FQDN:" prompt, you must enter the end point of the first dnode in the cluster if it is already up. You can also just ignore it and configure it later after installation is finished.
-
-:::
+About details of installing TDenine, please refer to [Installation Guide](../../get-started/package/).
 
 ## Uninstall
 
@@ -146,7 +22,7 @@ Deb package of TDengine can be uninstalled as below:
 ```bash
 $ sudo dpkg -r tdengine
 (Reading database ... 137504 files and directories currently installed.)
-Removing tdengine (2.4.0.7) ...
+Removing tdengine (3.0.0.0) ...
 TDengine is removed successfully!
 
 ```
@@ -245,7 +121,7 @@ For example, if using `systemctl` , the commands to start, stop, restart and che
 
 - Check server status：`systemctl status taosd`
 
-From version 2.4.0.0, a new independent component named as `taosAdapter` has been included in TDengine. `taosAdapter` should be started and stopped using `systemctl`.
+Another component named as `taosAdapter` is to provide HTTP service for TDengine, it should be started and stopped using `systemctl`.
 
 If the server process is OK, the output of `systemctl status` is like below:
 

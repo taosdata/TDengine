@@ -871,14 +871,14 @@ _return:
 
   taosMemoryFree(param);
 
-#if SCH_ASYNC_LAUNCH_TASK
-  if (code) {
-    code = schProcessOnTaskFailure(pJob, pTask, code);
+  if (pJob->taskNum >= SCH_MIN_AYSNC_EXEC_NUM) {
+    if (code) {
+      code = schProcessOnTaskFailure(pJob, pTask, code);
+    }
+    if (code) {
+      code = schHandleJobFailure(pJob, code);
+    }
   }
-  if (code) {
-    code = schHandleJobFailure(pJob, code);
-  }
-#endif
 
   SCH_RET(code);
 }
@@ -893,12 +893,12 @@ int32_t schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
   param->pJob = pJob;
   param->pTask = pTask;
 
-#if SCH_ASYNC_LAUNCH_TASK
-  taosAsyncExec(schLaunchTaskImpl, param, NULL);
-#else
-  SCH_ERR_RET(schLaunchTaskImpl(param));
-#endif
-
+  if (pJob->taskNum >= SCH_MIN_AYSNC_EXEC_NUM) {
+    taosAsyncExec(schLaunchTaskImpl, param, NULL);
+  } else {
+    SCH_ERR_RET(schLaunchTaskImpl(param));
+  }
+  
   return TSDB_CODE_SUCCESS;
 }
 

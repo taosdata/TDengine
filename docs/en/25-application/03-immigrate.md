@@ -419,11 +419,11 @@ Note that once the installation is complete, do not immediately start the `taosd
 
 To ensure that the system can obtain the necessary information for regular operation. Please set the following vital parameters correctly on the server:
 
-FQDN, firstEp, secondEP, dataDir, logDir, tmpDir, serverPort. For the specific meaning and setting requirements of each parameter, please refer to the document "[TDengine Cluster Installation and Management](/cluster/)"
+FQDN, firstEp, secondEP, dataDir, logDir, tmpDir, serverPort. For the specific meaning and setting requirements of each parameter, please refer to the document "[TDengine Cluster Deployment](../../deployment)"
 
 Follow the same steps to set parameters on the other nodes, start the taosd service, and then add Dnodes to the cluster.
 
-Finally, start `taos` and execute the `show dnodes` command. If you can see all the nodes that have joined the cluster, the cluster building process was successfully completed. For specific operation procedures and precautions, please refer to the document "[TDengine Cluster Installation and Management](/cluster/)".
+Finally, start `taos` and execute the `show dnodes` command. If you can see all the nodes that have joined the cluster, the cluster building process was successfully completed. For specific operation procedures and precautions, please refer to the document "[TDengine Cluster Deployment](../../deployment)".
 
 ## Appendix 4: Super Table Names
 
@@ -431,5 +431,5 @@ Since OpenTSDB's metric name has a dot (".") in it, for example, a metric with a
 
 ## Appendix 5: Reference Articles
 
-1. [Using TDengine + collectd/StatsD + Grafana to quickly build an IT operation and maintenance monitoring system](/application/collectd/)
-2. [Write collected data directly to TDengine through collectd](/third-party/collectd/)
+1. [Using TDengine + collectd/StatsD + Grafana to quickly build an IT operation and maintenance monitoring system](../collectd/)
+2. [Write collected data directly to TDengine through collectd](../collectd/)

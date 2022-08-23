@@ -1232,7 +1232,7 @@ SELECT SERVER_VERSION();
 ### SERVER_STATUS
 
 ```sql
-SELECT SERVER_VERSION();
+SELECT SERVER_STATUS();
 ```
 
 **Description**: The server status.
