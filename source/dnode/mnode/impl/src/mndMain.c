@@ -114,7 +114,7 @@ static void *mndThreadFp(void *param) {
       mndTtlTimer(pMnode);
     }
 
-    if (lastTime % (tsTransPullupInterval * 10) == 0) {
+    if (lastTime % (tsTransPullupInterval * 10) == 10) {
       mndPullupTrans(pMnode);
     }
 
@@ -122,7 +122,7 @@ static void *mndThreadFp(void *param) {
       mndCalMqRebalance(pMnode);
     }
 
-    if (lastTime % (tsTelemInterval * 10) == 0) {
+    if (lastTime % (tsTelemInterval * 10) == 30) {
       mndPullupTelem(pMnode);
     }
 
