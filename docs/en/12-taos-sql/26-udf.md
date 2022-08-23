@@ -40,8 +40,6 @@ CREATE AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE output_type [
   ```sql
   CREATE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUTTYPE DOUBLE bufsize 8;
   ```
-For more information about user-defined functions, see [User-Defined Functions](../../develop/udf).
-
 ## Manage UDF
 
 - The following statement deleted the specified user-defined function.
