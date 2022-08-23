@@ -782,6 +782,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       colDataDestroy(pColInfoData);
       taosMemoryFreeClear(pColInfoData);
       taosArrayDestroy(res);
+      qError("failed to getColInfoResult, code: %s", tstrerror(terrno));
       return terrno;
     }
 
