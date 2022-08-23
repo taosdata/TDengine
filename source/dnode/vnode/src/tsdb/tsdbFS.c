@@ -562,14 +562,6 @@ int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS) {
     }
     *fSet.pDataF = *pSet->pDataF;
 
-    // last
-    fSet.aLastF[0] = (SLastFile *)taosMemoryMalloc(sizeof(SLastFile));
-    if (fSet.aLastF[0] == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
-    }
-    *fSet.aLastF[0] = *pSet->aLastF[0];
-
     // sma
     fSet.pSmaF = (SSmaFile *)taosMemoryMalloc(sizeof(SSmaFile));
     if (fSet.pSmaF == NULL) {
@@ -581,6 +573,16 @@ int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS) {
     if (taosArrayPush(pFS->aDFileSet, &fSet) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
+    }
+
+    // last
+    for (int32_t iLast = 0; iLast < pSet->nLastF; iLast++) {
+      fSet.aLastF[iLast] = (SLastFile *)taosMemoryMalloc(sizeof(SLastFile));
+      if (fSet.aLastF[iLast] == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _exit;
+      }
+      *fSet.aLastF[iLast] = *pSet->aLastF[iLast];
     }
   }
 
