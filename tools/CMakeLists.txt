@@ -103,9 +103,9 @@ ELSE ()
         ExternalProject_Add(upx
             PREFIX              "${_upx_prefix}"
             URL                 https://github.com/upx/upx/releases/download/v3.96/upx-3.96-${PLATFORM_ARCH_STR}_linux.tar.xz
-            CONFIGURE_COMMAND   cmake -E true
-            BUILD_COMMAND       cmake -E true
-            INSTALL_COMMAND     cmake -E true
+            CONFIGURE_COMMAND   ""
+            BUILD_COMMAND       ""
+            INSTALL_COMMAND     ""
             )
 
         ExternalProject_Add(taosadapter
@@ -157,9 +157,9 @@ ELSE ()
         ExternalProject_Add(upx
                 PREFIX              "${_upx_prefix}"
                 URL                 https://github.com/upx/upx/releases/download/v3.96/upx-3.96-win32.zip
-                CONFIGURE_COMMAND   cmake -E true
-                BUILD_COMMAND       cmake -E true
-                INSTALL_COMMAND     cmake -E true
+                CONFIGURE_COMMAND   ""
+                BUILD_COMMAND       ""
+                INSTALL_COMMAND     ""
                 )
 
         ExternalProject_Add(taosadapter
