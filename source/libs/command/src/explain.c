@@ -1570,12 +1570,9 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
 
   SColumnInfoData *pInfoData = taosArrayGet(pBlock->pDataBlock, 0);
 
-  char buf[1024] = {0};
   for (int32_t i = 0; i < rowNum; ++i) {
     SQueryExplainRowInfo *row = taosArrayGet(pCtx->rows, i);
-    varDataCopy(buf, row->buf);
-    ASSERT(varDataTLen(row->buf) == row->len);
-    colDataAppend(pInfoData, i, buf, false);
+    colDataAppend(pInfoData, i, row->buf, false);
   }
 
   pBlock->info.rows = rowNum;
