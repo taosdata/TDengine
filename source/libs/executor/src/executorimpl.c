@@ -3492,6 +3492,7 @@ int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t n
     qError("Init stream agg supporter failed since %s", terrstr(terrno));
     return terrno;
   }
+
   int32_t code = createDiskbasedBuf(&pAggSup->pResultBuf, defaultPgsz, defaultBufsz, pKey, tsTempDir);
   if (code != TSDB_CODE_SUCCESS) {
     qError("Create agg result buf failed since %s", tstrerror(code));
