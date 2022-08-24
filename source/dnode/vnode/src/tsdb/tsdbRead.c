@@ -1414,7 +1414,7 @@ static int32_t doMergeBufAndFileRows_Rv(STsdbReader* pReader, STableBlockScanInf
   int64_t minKey = 0;
   if (pReader->order == TSDB_ORDER_ASC) {
     minKey = INT64_MAX;   // chosen the minimum value
-    if (minKey > tsLast && pLastBlockReader->lastBlockData.nRow > 0) {
+    if (minKey > tsLast && hasDataInLastBlock(pLastBlockReader)) {
       minKey = tsLast;
     }
 
@@ -1427,7 +1427,7 @@ static int32_t doMergeBufAndFileRows_Rv(STsdbReader* pReader, STableBlockScanInf
     }
   } else {
     minKey = INT64_MIN;
-    if (minKey < tsLast && pLastBlockReader->lastBlockData.nRow > 0) {
+    if (minKey < tsLast && hasDataInLastBlock(pLastBlockReader)) {
       minKey = tsLast;
     }
 
