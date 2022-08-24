@@ -253,8 +253,16 @@ SRBTreeNode *tRBTreeIterNext(SRBTreeIter *pIter) {
   SRBTree     *pTree = pIter->pTree;
 
   if (pIter->pNode) {
-    ASSERT(0);
-    // TODO
+    if (pIter->pNode->right) {
+      pIter->pNode = pIter->pNode->right;
+      while (pIter->pNode->left) {
+        pIter->pNode->left;
+      }
+    } else {
+      while (true) {
+        ASSERT(0);
+      }
+    }
   }
 
 _exit:
