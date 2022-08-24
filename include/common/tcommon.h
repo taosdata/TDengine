@@ -44,6 +44,30 @@ enum {
 )
 // clang-format on
 
+typedef struct {
+  TSKEY    ts;
+  uint64_t groupId;
+} SWinKey;
+
+static inline int SWinKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
+  SWinKey* pWin1 = (SWinKey*)pKey1;
+  SWinKey* pWin2 = (SWinKey*)pKey2;
+
+  if (pWin1->groupId > pWin2->groupId) {
+    return 1;
+  } else if (pWin1->groupId < pWin2->groupId) {
+    return -1;
+  }
+
+  if (pWin1->ts > pWin2->ts) {
+    return 1;
+  } else if (pWin1->ts < pWin2->ts) {
+    return -1;
+  }
+
+  return 0;
+}
+
 enum {
   TMQ_MSG_TYPE__DUMMY = 0,
   TMQ_MSG_TYPE__POLL_RSP,
