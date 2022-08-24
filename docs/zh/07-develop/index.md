@@ -12,7 +12,7 @@ title: 开发指南
 7. 在很多场景下(如车辆管理)，应用需要获取每个数据采集点的最新状态，那么建议你采用TDengine的cache功能，而不用单独部署Redis等缓存软件。
 8. 如果你发现TDengine的函数无法满足你的要求，那么你可以使用用户自定义函数来解决问题。
 
-本部分内容就是按照上述的顺序组织的。为便于理解，TDengine为每个功能为每个支持的编程语言都提供了示例代码。如果你希望深入了解SQL的使用，需要查看[SQL手册](/taos-sql/)。如果想更深入地了解各连接器的使用，请阅读[连接器参考指南](/reference/connector/)。如果还希望想将TDengine与第三方系统集成起来，比如Grafana, 请参考[第三方工具](/third-party/)。
+本部分内容就是按照上述的顺序组织的。为便于理解，TDengine为每个功能为每个支持的编程语言都提供了示例代码。如果你希望深入了解SQL的使用，需要查看[SQL手册](/taos-sql/)。如果想更深入地了解各连接器的使用，请阅读[连接器参考指南](../connector/)。如果还希望想将TDengine与第三方系统集成起来，比如Grafana, 请参考[第三方工具](../third-party/)。
 
 如果在开发过程中遇到任何问题，请点击每个页面下方的["反馈问题"](https://github.com/taosdata/TDengine/issues/new/choose), 在GitHub上直接递交issue。
 

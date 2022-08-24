@@ -165,5 +165,8 @@ void tFreeSStreamTask(SStreamTask* pTask) {
   if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     taosArrayDestroy(pTask->shuffleDispatcher.dbInfo.pVgroupInfos);
   }
+
+  if (pTask->pState) streamStateClose(pTask->pState);
+
   taosMemoryFree(pTask);
 }

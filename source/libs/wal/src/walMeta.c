@@ -121,7 +121,7 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
   if (found == NULL) {
     // file corrupted, no complete log
     // TODO delete and search in previous files
-    ASSERT(0);
+    /*ASSERT(0);*/
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
@@ -221,7 +221,6 @@ int walCheckAndRepairMeta(SWal* pWal) {
 
       int code = walSaveMeta(pWal);
       if (code < 0) {
-        taosArrayDestroy(actualLog);
         return -1;
       }
     }
