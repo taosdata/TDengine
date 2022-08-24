@@ -570,11 +570,6 @@ int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS) {
     }
     *fSet.pSmaF = *pSet->pSmaF;
 
-    if (taosArrayPush(pFS->aDFileSet, &fSet) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
-    }
-
     // last
     for (fSet.nLastF = 0; fSet.nLastF < pSet->nLastF; fSet.nLastF++) {
       fSet.aLastF[fSet.nLastF] = (SLastFile *)taosMemoryMalloc(sizeof(SLastFile));
@@ -583,6 +578,11 @@ int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS) {
         goto _exit;
       }
       *fSet.aLastF[fSet.nLastF] = *pSet->aLastF[fSet.nLastF];
+    }
+
+    if (taosArrayPush(pFS->aDFileSet, &fSet) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
     }
   }
 
@@ -958,9 +958,7 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFSNew) {
     continue;
 
   _add_new:
-    fSet.diskId = pSetNew->diskId;
-    fSet.fid = pSetNew->fid;
-    fSet.nLastF = 1;
+    fSet = (SDFileSet){.diskId = pSetNew->diskId, .fid = pSetNew->fid, .nLastF = 1};
 
     // head
     fSet.pHeadF = (SHeadFile *)taosMemoryMalloc(sizeof(SHeadFile));
