@@ -551,16 +551,17 @@ typedef struct {
 } SStreamStateCur;
 
 #if 1
-int32_t streamStatePut(SStreamState* pState, const void* key, int32_t kLen, const void* value, int32_t vLen);
-int32_t streamStateGet(SStreamState* pState, const void* key, int32_t kLen, void** pVal, int32_t* pVLen);
-int32_t streamStateDel(SStreamState* pState, const void* key, int32_t kLen);
+int32_t streamStatePut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
+int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
+int32_t streamStateDel(SStreamState* pState, const SWinKey* key);
+void    streamFreeVal(void* val);
 
-SStreamStateCur* streamStateGetCur(SStreamState* pState, const void* key, int32_t kLen);
-SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const void* key, int32_t kLen);
-SStreamStateCur* streamStateSeekKeyPrev(SStreamState* pState, const void* key, int32_t kLen);
+SStreamStateCur* streamStateGetCur(SStreamState* pState, const SWinKey* key);
+SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const SWinKey* key);
+SStreamStateCur* streamStateSeekKeyPrev(SStreamState* pState, const SWinKey* key);
 void             streamStateFreeCur(SStreamStateCur* pCur);
 
-int32_t streamGetKVByCur(SStreamStateCur* pCur, void** pKey, int32_t* pKLen, void** pVal, int32_t* pVLen);
+int32_t streamStateGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 
 int32_t streamStateSeekFirst(SStreamState* pState, SStreamStateCur* pCur);
 int32_t streamStateSeekLast(SStreamState* pState, SStreamStateCur* pCur);
