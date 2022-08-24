@@ -115,7 +115,7 @@ If you want to start your application in a container, you need to add the corres
 ```docker
 FROM ubuntu:20.04
 RUN apt-get update && apt-get install -y wget
-ENV TDENGINE_VERSION=2.4.0.0
+ENV TDENGINE_VERSION=3.0.0.0
 RUN wget -c https://www.taosdata.com/assets-download/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && tar xvf TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && cd TDengine-client-${TDENGINE_VERSION} \
@@ -216,7 +216,7 @@ Here is the full Dockerfile:
 
 ```docker
 FROM golang:1.17.6-buster as builder
-ENV TDENGINE_VERSION=2.4.0.0
+ENV TDENGINE_VERSION=3.0.0.0
 RUN wget -c https://www.taosdata.com/assets-download/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && tar xvf TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && cd TDengine-client-${TDENGINE_VERSION} \
@@ -232,7 +232,7 @@ RUN go build
 
 FROM ubuntu:20.04
 RUN apt-get update && apt-get install -y wget
-ENV TDENGINE_VERSION=2.4.0.0
+ENV TDENGINE_VERSION=3.0.0.0
 RUN wget -c https://www.taosdata.com/assets-download/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && tar xvf TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && cd TDengine-client-${TDENGINE_VERSION} \
@@ -320,7 +320,7 @@ password:             taosdata
 2. Start the cluster
 
    ```shell
-   $ VERSION=2.4.0.0 docker-compose up -d
+   $ VERSION=3.0.0.0 docker-compose up -d
    Creating network "test_default" with the default driver
    Creating volume "test_taosdata-td1" with default driver
    Creating volume "test_taoslog-td1" with default driver
@@ -457,7 +457,7 @@ If you want to deploy a container-based TDengine cluster on multiple hosts, you 
 The docker-compose file can refer to the previous section. Here is the command to start TDengine with docker swarm:
 
 ```shell
-$ VERSION=2.4.0 docker stack deploy -c docker-compose.yml taos
+$ VERSION=3.0.0.0 docker stack deploy -c docker-compose.yml taos
 Creating network taos_inter
 Creating network taos_api
 Creating service taos_arbitrator
@@ -473,20 +473,20 @@ Checking status:
 $ docker stack ps taos
 ID                  NAME                IMAGE                     NODE                DESIRED STATE       CURRENT STATE                ERROR               PORTS
 79ni8temw59n        taos_nginx.1        nginx:latest              TM1701     Running             Running about a minute ago
-3e94u72msiyg        taos_adapter.1      tdengine/tdengine:2.4.0   TM1702     Running             Running 56 seconds ago
-100amjkwzsc6        taos_td-2.1         tdengine/tdengine:2.4.0   TM1703     Running             Running about a minute ago
-pkjehr2vvaaa        taos_td-1.1         tdengine/tdengine:2.4.0   TM1704     Running             Running 2 minutes ago
-tpzvgpsr1qkt        taos_arbitrator.1   tdengine/tdengine:2.4.0   TM1705     Running             Running 2 minutes ago
-rvss3g5yg6fa        taos_adapter.2      tdengine/tdengine:2.4.0   TM1706     Running             Running 56 seconds ago
-i2augxamfllf        taos_adapter.3      tdengine/tdengine:2.4.0   TM1707     Running             Running 56 seconds ago
-lmjyhzccpvpg        taos_adapter.4      tdengine/tdengine:2.4.0   TM1708     Running             Running 56 seconds ago
+3e94u72msiyg        taos_adapter.1      tdengine/tdengine:3.0.0.0   TM1702     Running             Running 56 seconds ago
+100amjkwzsc6        taos_td-2.1         tdengine/tdengine:3.0.0.0   TM1703     Running             Running about a minute ago
+pkjehr2vvaaa        taos_td-1.1         tdengine/tdengine:3.0.0.0   TM1704     Running             Running 2 minutes ago
+tpzvgpsr1qkt        taos_arbitrator.1   tdengine/tdengine:3.0.0.0   TM1705     Running             Running 2 minutes ago
+rvss3g5yg6fa        taos_adapter.2      tdengine/tdengine:3.0.0.0   TM1706     Running             Running 56 seconds ago
+i2augxamfllf        taos_adapter.3      tdengine/tdengine:3.0.0.0   TM1707     Running             Running 56 seconds ago
+lmjyhzccpvpg        taos_adapter.4      tdengine/tdengine:3.0.0.0   TM1708     Running             Running 56 seconds ago
 $ docker service ls
 ID                  NAME                MODE                REPLICAS            IMAGE                     PORTS
-561t4lu6nfw6        taos_adapter        replicated          4/4                 tdengine/tdengine:2.4.0
-3hk5ct3q90sm        taos_arbitrator     replicated          1/1                 tdengine/tdengine:2.4.0
+561t4lu6nfw6        taos_adapter        replicated          4/4                 tdengine/tdengine:3.0.0.0
+3hk5ct3q90sm        taos_arbitrator     replicated          1/1                 tdengine/tdengine:3.0.0.0
 d8qr52envqzu        taos_nginx          replicated          1/1                 nginx:latest              *:6041->6041/tcp, *:6044->6044/udp
-2isssfvjk747        taos_td-1           replicated          1/1                 tdengine/tdengine:2.4.0
-9pzw7u02ichv        taos_td-2           replicated          1/1                 tdengine/tdengine:2.4.0
+2isssfvjk747        taos_td-1           replicated          1/1                 tdengine/tdengine:3.0.0.0
+9pzw7u02ichv        taos_td-2           replicated          1/1                 tdengine/tdengine:3.0.0.0
 ```
 
 From the above output, you can see two dnodes, two taosAdapters, and one Nginx reverse proxy service.
@@ -502,5 +502,5 @@ verify: Service converged
 
 $ docker service ls -f name=taos_adapter
 ID                  NAME                MODE                REPLICAS            IMAGE                     PORTS
-561t4lu6nfw6        taos_adapter        replicated          1/1                 tdengine/tdengine:2.4.0
+561t4lu6nfw6        taos_adapter        replicated          1/1                 tdengine/tdengine:3.0.0.0
 ```

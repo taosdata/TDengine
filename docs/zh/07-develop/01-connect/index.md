@@ -14,10 +14,10 @@ import ConnCSNative from "./_connect_cs.mdx";
 import ConnC from "./_connect_c.mdx";
 import ConnR from "./_connect_r.mdx";
 import ConnPHP from "./_connect_php.mdx";
-import InstallOnWindows from "../../14-reference/03-connector/_linux_install.mdx";
-import InstallOnLinux from "../../14-reference/03-connector/_windows_install.mdx";
-import VerifyLinux from "../../14-reference/03-connector/_verify_linux.mdx";
-import VerifyWindows from "../../14-reference/03-connector/_verify_windows.mdx";
+import InstallOnWindows from "../../08-connector/_linux_install.mdx";
+import InstallOnLinux from "../../08-connector/_windows_install.mdx";
+import VerifyLinux from "../../08-connector/_verify_linux.mdx";
+import VerifyWindows from "../../08-connector/_verify_windows.mdx";
 
 TDengine 提供了丰富的应用程序开发接口，为了便于用户快速开发自己的应用，TDengine 支持了多种编程语言的连接器，其中官方连接器包括支持 C/C++、Java、Python、Go、Node.js、C#、Rust、Lua（社区贡献）和 PHP （社区贡献）的连接器。这些连接器支持使用原生接口（taosc）和 REST 接口（部分语言暂不支持）连接 TDengine 集群。社区开发者也贡献了多个非官方连接器，例如 ADO.NET 连接器、Lua 连接器和 PHP 连接器。
 
@@ -33,7 +33,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 关键不同点在于：
 
 1. 使用 REST 连接，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但性能要下降 30%左右。
-2. 使用原生连接可以体验 TDengine 的全部功能，如[参数绑定接口](/reference/connector/cpp#参数绑定-api)、[订阅](/reference/connector/cpp#订阅和消费-api)等等。
+2. 使用原生连接可以体验 TDengine 的全部功能，如[参数绑定接口](../../connector/cpp/#参数绑定-api)、[订阅](../../connector/cpp/#订阅和消费-api)等等。
 
 ## 安装客户端驱动 taosc
 
@@ -223,7 +223,7 @@ phpize && ./configure && make -j && make install
 **手动指定 TDengine 目录：**
 
 ```shell
-phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/2.4.0.0 && make -j && make install
+phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/3.0.0.0 && make -j && make install
 ```
 
 > `--with-tdengine-dir=` 后跟上 TDengine 目录。
