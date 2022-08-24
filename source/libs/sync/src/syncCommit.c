@@ -133,6 +133,87 @@ bool syncAgreeIndex(SSyncNode* pSyncNode, SRaftId* pRaftId, SyncIndex index) {
   return false;
 }
 
+static inline int64_t syncNodeAbs64(int64_t a, int64_t b) {
+  ASSERT(a >= 0);
+  ASSERT(b >= 0);
+
+  int64_t c = a > b ? a - b : b - a;
+  return c;
+}
+
+int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode) {
+  int32_t quorum = 1;  // self
+
+  int64_t timeNow = taosGetTimestampMs();
+  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    int64_t   peerStartTime = syncIndexMgrGetStartTime(pSyncNode->pNextIndex, &(pSyncNode->peersId)[i]);
+    int64_t   peerRecvTime = syncIndexMgrGetRecvTime(pSyncNode->pNextIndex, &(pSyncNode->peersId)[i]);
+    SyncIndex peerMatchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId)[i]);
+
+    int64_t recvTimeDiff = TABS(peerRecvTime - timeNow);
+    int64_t startTimeDiff = TABS(peerStartTime - pSyncNode->startTime);
+    int64_t logDiff = TABS(peerMatchIndex - syncNodeGetLastIndex(pSyncNode));
+
+    /*
+        int64_t recvTimeDiff = syncNodeAbs64(peerRecvTime, timeNow);
+        int64_t startTimeDiff = syncNodeAbs64(peerStartTime, pSyncNode->startTime);
+        int64_t logDiff = syncNodeAbs64(peerMatchIndex, syncNodeGetLastIndex(pSyncNode));
+    */
+
+    int32_t addQuorum = 0;
+
+    if (recvTimeDiff < SYNC_MAX_RECV_TIME_RANGE_MS) {
+      if (startTimeDiff < SYNC_MAX_START_TIME_RANGE_MS) {
+        addQuorum = 1;
+      } else {
+        if (logDiff < SYNC_ADD_QUORUM_COUNT) {
+          addQuorum = 1;
+        } else {
+          addQuorum = 0;
+        }
+      }
+    } else {
+      addQuorum = 0;
+    }
+
+    /*
+        if (recvTimeDiff < SYNC_MAX_RECV_TIME_RANGE_MS) {
+          addQuorum = 1;
+        } else {
+          addQuorum = 0;
+        }
+
+        if (startTimeDiff > SYNC_MAX_START_TIME_RANGE_MS) {
+          addQuorum = 0;
+        }
+    */
+
+    quorum += addQuorum;
+  }
+
+  ASSERT(quorum <= pSyncNode->replicaNum);
+
+  if (quorum < pSyncNode->quorum) {
+    quorum = pSyncNode->quorum;
+  }
+
+  return quorum;
+}
+
+bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
+  int agreeCount = 0;
+  for (int i = 0; i < pSyncNode->replicaNum; ++i) {
+    if (syncAgreeIndex(pSyncNode, &(pSyncNode->replicasId[i]), index)) {
+      ++agreeCount;
+    }
+    if (agreeCount >= syncNodeDynamicQuorum(pSyncNode)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/*
 bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
   int agreeCount = 0;
   for (int i = 0; i < pSyncNode->replicaNum; ++i) {
@@ -145,3 +226,4 @@ bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
   }
   return false;
 }
+*/

@@ -15,10 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #include "mndOffset.h"
-#include "mndPrivilege.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndTopic.h"
@@ -305,7 +305,7 @@ int32_t mndDropOffsetByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
     sdbRelease(pSdb, pOffset);
   }
 
-   return code;
+  return code;
 }
 
 int32_t mndDropOffsetByTopic(SMnode *pMnode, STrans *pTrans, const char *topic) {

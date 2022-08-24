@@ -32,7 +32,8 @@ extern "C" {
 #define smaTrace(...) do { if (smaDebugFlag & DEBUG_TRACE) { taosPrintLog("SMA ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
-#define RSMA_TASK_INFO_HASH_SLOT 8
+#define RSMA_TASK_INFO_HASH_SLOT (8)
+#define RSMA_EXECUTOR_MAX        (1)
 
 typedef struct SSmaEnv       SSmaEnv;
 typedef struct SSmaStat      SSmaStat;
@@ -57,9 +58,10 @@ typedef struct {
   void   *tmrHandle;  // shared by all fetch tasks
 } SSmaMgmt;
 
-#define SMA_ENV_LOCK(env) (&(env)->lock)
-#define SMA_ENV_TYPE(env) ((env)->type)
-#define SMA_ENV_STAT(env) ((env)->pStat)
+#define SMA_ENV_LOCK(env)  (&(env)->lock)
+#define SMA_ENV_TYPE(env)  ((env)->type)
+#define SMA_ENV_STAT(env)  ((env)->pStat)
+#define SMA_RSMA_STAT(sma) ((SRSmaStat *)SMA_ENV_STAT((SSmaEnv *)(sma)->pRSmaEnv))
 
 struct STSmaStat {
   int8_t    state;  // ETsdbSmaStat
@@ -86,15 +88,17 @@ struct SQTaskFWriter {
 };
 
 struct SRSmaStat {
-  SSma     *pSma;
-  int64_t   commitAppliedVer;  // vnode applied version for async commit
-  int64_t   refId;             // shared by fetch tasks
-  SRWLatch  lock;              // r/w lock for rsma fs(e.g. qtaskinfo)
-  int8_t    triggerStat;       // shared by fetch tasks
-  int8_t    commitStat;        // 0 not in committing, 1 in committing
-  SArray   *aTaskFile;         // qTaskFiles committed recently(for recovery/snapshot r/w)
-  SHashObj *rsmaInfoHash;      // key: stbUid, value: SRSmaInfo;
-  SHashObj *iRsmaInfoHash;     // key: stbUid, value: SRSmaInfo; immutable rsmaInfoHash
+  SSma            *pSma;
+  int64_t          commitAppliedVer;  // vnode applied version for async commit
+  int64_t          refId;             // shared by fetch tasks
+  volatile int64_t nBufItems;         // number of items in queue buffer
+  SRWLatch         lock;              // r/w lock for rsma fs(e.g. qtaskinfo)
+  volatile int8_t  nExecutor;         // [1, max(half of query threads, 4)]
+  int8_t           triggerStat;       // shared by fetch tasks
+  int8_t           commitStat;        // 0 not in committing, 1 in committing
+  SArray          *aTaskFile;         // qTaskFiles committed recently(for recovery/snapshot r/w)
+  SHashObj        *infoHash;          // key: suid, value: SRSmaInfo
+  tsem_t           notEmpty;          // has items in queue buffer
 };
 
 struct SSmaStat {
@@ -105,34 +109,42 @@ struct SSmaStat {
   T_REF_DECLARE()
 };
 
-#define SMA_TSMA_STAT(s)      (&(s)->tsmaStat)
-#define SMA_RSMA_STAT(s)      (&(s)->rsmaStat)
-#define RSMA_INFO_HASH(r)     ((r)->rsmaInfoHash)
-#define RSMA_IMU_INFO_HASH(r) ((r)->iRsmaInfoHash)
-#define RSMA_TRIGGER_STAT(r)  (&(r)->triggerStat)
-#define RSMA_COMMIT_STAT(r)   (&(r)->commitStat)
-#define RSMA_REF_ID(r)        ((r)->refId)
-#define RSMA_FS_LOCK(r)       (&(r)->lock)
+#define SMA_STAT_TSMA(s)     (&(s)->tsmaStat)
+#define SMA_STAT_RSMA(s)     (&(s)->rsmaStat)
+#define RSMA_INFO_HASH(r)    ((r)->infoHash)
+#define RSMA_TRIGGER_STAT(r) (&(r)->triggerStat)
+#define RSMA_COMMIT_STAT(r)  (&(r)->commitStat)
+#define RSMA_REF_ID(r)       ((r)->refId)
+#define RSMA_FS_LOCK(r)      (&(r)->lock)
 
 struct SRSmaInfoItem {
-  int8_t  level;
-  int8_t  triggerStat;
-  int32_t maxDelay;
-  tmr_h   tmrId;
+  int8_t   level : 4;
+  int8_t   fetchLevel : 4;
+  int8_t   triggerStat;
+  uint16_t nSkipped;
+  int32_t  maxDelay;  // ms
+  tmr_h    tmrId;
 };
 
 struct SRSmaInfo {
   STSchema *pTSchema;
   int64_t   suid;
-  int64_t   refId;  // refId of SRSmaStat
+  int64_t   refId;     // refId of SRSmaStat
+  int64_t   lastRecv;  // ms
+  int8_t    assigned;  // 0 idle, 1 assgined for exec
   int8_t    delFlag;
+  int16_t   padding;
   T_REF_DECLARE()
   SRSmaInfoItem items[TSDB_RETENTION_L2];
   void         *taskInfo[TSDB_RETENTION_L2];   // qTaskInfo_t
-  void         *iTaskInfo[TSDB_RETENTION_L2];  // immutable
+  STaosQueue   *queue;                         // buffer queue of SubmitReq
+  STaosQall    *qall;                          // buffer qall of SubmitReq
+  void         *iTaskInfo[TSDB_RETENTION_L2];  // immutable qTaskInfo_t
+  STaosQueue   *iQueue;                        // immutable buffer queue of SubmitReq
+  STaosQall    *iQall;                         // immutable buffer qall of SubmitReq
 };
 
-#define RSMA_INFO_HEAD_LEN     32
+#define RSMA_INFO_HEAD_LEN     offsetof(SRSmaInfo, items)
 #define RSMA_INFO_IS_DEL(r)    ((r)->delFlag == 1)
 #define RSMA_INFO_SET_DEL(r)   ((r)->delFlag = 1)
 #define RSMA_INFO_QTASK(r, i)  ((r)->taskInfo[i])
@@ -160,6 +172,12 @@ enum {
   RSMA_RESTORE_REBOOT = 1,
   RSMA_RESTORE_SYNC = 2,
 };
+
+typedef enum {
+  RSMA_EXEC_OVERFLOW = 1,  // triggered by queue buf overflow
+  RSMA_EXEC_TIMEOUT = 2,   // triggered by timer
+  RSMA_EXEC_COMMIT = 3,    // triggered by commit
+} ERsmaExecType;
 
 void  tdDestroySmaEnv(SSmaEnv *pSmaEnv);
 void *tdFreeSmaEnv(SSmaEnv *pSmaEnv);
@@ -228,12 +246,13 @@ static FORCE_INLINE void tdSmaStatSetDropped(STSmaStat *pTStat) {
 
 void           tdRSmaQTaskInfoGetFileName(int32_t vid, int64_t version, char *outputName);
 void           tdRSmaQTaskInfoGetFullName(int32_t vid, int64_t version, const char *path, char *outputName);
-int32_t        tdCloneRSmaInfo(SSma *pSma, SRSmaInfo **pDest, SRSmaInfo *pSrc);
+int32_t        tdCloneRSmaInfo(SSma *pSma, SRSmaInfo *pInfo);
 void           tdFreeQTaskInfo(qTaskInfo_t *taskHandle, int32_t vgId, int32_t level);
 static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
 int32_t        tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
+int32_t        tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type);
 
 int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
 int32_t tdProcessRSmaRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer);

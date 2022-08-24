@@ -13,13 +13,13 @@ sql create table tb1 using st1 tags(1);
 sql insert into tb1 values (now, 1);
 
 sql show stables
-if $rows != 1 then 
+if $rows != 1 then
   print $rows
   return -1
 endi
 
 sql show tables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
@@ -35,12 +35,12 @@ sql use db1;
 sql create stable st1 (ts timestamp, f1 int) tags(t1 int)
 
 sql show stables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
 sql show tables
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 

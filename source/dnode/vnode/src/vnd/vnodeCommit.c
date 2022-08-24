@@ -220,9 +220,6 @@ int vnodeCommit(SVnode *pVnode) {
   vInfo("vgId:%d, start to commit, commit ID:%" PRId64 " version:%" PRId64, TD_VID(pVnode), pVnode->state.commitID,
         pVnode->state.applied);
 
-  vnodeBufPoolUnRef(pVnode->inUse);
-  pVnode->inUse = NULL;
-
   pVnode->state.commitTerm = pVnode->state.applyTerm;
 
   // save info
@@ -239,7 +236,13 @@ int vnodeCommit(SVnode *pVnode) {
 
   // preCommit
   // smaSyncPreCommit(pVnode->pSma);
-  smaAsyncPreCommit(pVnode->pSma);
+  if(smaAsyncPreCommit(pVnode->pSma) < 0){
+    ASSERT(0);
+    return -1;
+  }
+
+  vnodeBufPoolUnRef(pVnode->inUse);
+  pVnode->inUse = NULL;
 
   // commit each sub-system
   if (metaCommit(pVnode->pMeta) < 0) {
@@ -248,7 +251,10 @@ int vnodeCommit(SVnode *pVnode) {
   }
 
   if (VND_IS_RSMA(pVnode)) {
-    smaAsyncCommit(pVnode->pSma);
+    if (smaAsyncCommit(pVnode->pSma) < 0) {
+      ASSERT(0);
+      return -1;
+    }
 
     if (tsdbCommit(VND_RSMA0(pVnode)) < 0) {
       ASSERT(0);
@@ -285,7 +291,10 @@ int vnodeCommit(SVnode *pVnode) {
 
   // postCommit
   // smaSyncPostCommit(pVnode->pSma);
-  smaAsyncPostCommit(pVnode->pSma);
+  if (smaAsyncPostCommit(pVnode->pSma) < 0) {
+    ASSERT(0);
+    return -1;
+  }
 
   // apply the commit (TODO)
   walEndSnapshot(pVnode->pWal);

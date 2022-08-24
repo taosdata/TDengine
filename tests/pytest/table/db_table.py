@@ -34,8 +34,8 @@ class TDTestCase:
         tdLog.info('=============== step6')
         tdLog.info('drop database db')
         tdSql.execute('drop database db')
-        tdLog.info('show databases')
-        tdSql.query('show databases')
+        tdLog.info('select * from information_schema.ins_databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
 # convert end

@@ -25,15 +25,11 @@ All executable files of TDengine are in the _/usr/local/taos/bin_ directory by d
 - _taosBenchmark_: TDengine testing tool
 - _remove.sh_: script to uninstall TDengine, please execute it carefully, link to the **rmtaos** command in the /usr/bin directory. Will remove the TDengine installation directory `/usr/local/taos`, but will keep `/etc/taos`, `/var/lib/taos`, `/var/log/taos`
 - _taosadapter_: server-side executable that provides RESTful services and accepts writing requests from a variety of other softwares
-- _tarbitrator_: provides arbitration for two-node cluster deployments
 - _TDinsight.sh_: script to download TDinsight and install it
 - _set_core.sh_: script for setting up the system to generate core dump files for easy debugging
 - _taosd-dump-cfg.gdb_: script to facilitate debugging of taosd's gdb execution.
 
-:::note
-taosdump after version 2.4.0.0 require taosTools as a standalone installation. A new version of taosBenchmark is include in taosTools too.
-:::
-
 :::tip
 You can configure different data directories and log directories by modifying the system configuration file `taos.cfg`.
+
 :::

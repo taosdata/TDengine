@@ -54,10 +54,6 @@ typedef struct SFuncExecFuncs {
   FExecCombine combine;
 } SFuncExecFuncs;
 
-typedef struct SFileBlockInfo {
-  int32_t numBlocksOfStep;
-} SFileBlockInfo;
-
 #define MAX_INTERVAL_TIME_WINDOW  1000000  // maximum allowed time windows in final results
 
 #define TOP_BOTTOM_QUERY_LIMIT    100
@@ -146,6 +142,7 @@ typedef struct SqlFunctionCtx {
   struct SSDataBlock    *pDstBlock; // used by indifinite rows function to set selectivity
   int32_t                curBufPage;
   bool                   increase;
+  bool                   isStream;
 
   char                   udfName[TSDB_FUNC_NAME_LEN];
 } SqlFunctionCtx;
@@ -171,8 +168,6 @@ typedef struct tExprNode {
   };
 } tExprNode;
 
-void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *));
-
 struct SScalarParam {
   bool             colAlloced;
   SColumnInfoData *columnData;
@@ -182,14 +177,10 @@ struct SScalarParam {
   int32_t          numOfRows;
 };
 
-int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, SResultDataInfo* pInfo, int16_t extLength,
-                          bool isSuperTable);
-
-void resetResultRowEntryResult(SqlFunctionCtx* pCtx, int32_t num);
-void cleanupResultRowEntry(struct SResultRowEntryInfo* pCell);
+void    cleanupResultRowEntry(struct SResultRowEntryInfo* pCell);
 int32_t getNumOfResult(SqlFunctionCtx* pCtx, int32_t num, SSDataBlock* pResBlock);
-bool isRowEntryCompleted(struct SResultRowEntryInfo* pEntry);
-bool isRowEntryInitialized(struct SResultRowEntryInfo* pEntry);
+bool    isRowEntryCompleted(struct SResultRowEntryInfo* pEntry);
+bool    isRowEntryInitialized(struct SResultRowEntryInfo* pEntry);
 
 typedef struct SPoint {
   int64_t key;

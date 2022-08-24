@@ -28,20 +28,28 @@ static inline bool vnodeIsMsgWeak(tmsg_t type) { return false; }
 static inline void vnodeWaitBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
   if (vnodeIsMsgBlock(pMsg->msgType)) {
     const STraceId *trace = &pMsg->info.traceId;
-    vGTrace("vgId:%d, msg:%p wait block, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
-    pVnode->blockCount = 1;
-    tsem_wait(&pVnode->syncSem);
+    taosThreadMutexLock(&pVnode->lock);
+    if (!pVnode->blocked) {
+      vGTrace("vgId:%d, msg:%p wait block, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
+      pVnode->blocked = true;
+      taosThreadMutexUnlock(&pVnode->lock);
+      tsem_wait(&pVnode->syncSem);
+    } else {
+      taosThreadMutexUnlock(&pVnode->lock);
+    }
   }
 }
 
 static inline void vnodePostBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
   if (vnodeIsMsgBlock(pMsg->msgType)) {
     const STraceId *trace = &pMsg->info.traceId;
-    if (pVnode->blockCount) {
+    taosThreadMutexLock(&pVnode->lock);
+    if (pVnode->blocked) {
       vGTrace("vgId:%d, msg:%p post block, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
-      pVnode->blockCount = 0;
+      pVnode->blocked = false;
       tsem_post(&pVnode->syncSem);
     }
+    taosThreadMutexUnlock(&pVnode->lock);
   }
 }
 
@@ -672,6 +680,32 @@ static void vnodeRestoreFinish(struct SSyncFSM *pFsm) {
   vDebug("vgId:%d, sync restore finished", pVnode->config.vgId);
 }
 
+static void vnodeBecomeFollower(struct SSyncFSM *pFsm) {
+  SVnode *pVnode = pFsm->data;
+  vDebug("vgId:%d, become follower", pVnode->config.vgId);
+
+  // clear old leader resource
+  taosThreadMutexLock(&pVnode->lock);
+  if (pVnode->blocked) {
+    pVnode->blocked = false;
+    vDebug("vgId:%d, become follower and post block", pVnode->config.vgId);
+    tsem_post(&pVnode->syncSem);
+  }
+  taosThreadMutexUnlock(&pVnode->lock);
+}
+
+static void vnodeBecomeLeader(struct SSyncFSM *pFsm) {
+  SVnode *pVnode = pFsm->data;
+  vDebug("vgId:%d, become leader", pVnode->config.vgId);
+
+  // taosThreadMutexLock(&pVnode->lock);
+  // if (pVnode->blocked) {
+  //   pVnode->blocked = false;
+  //   tsem_post(&pVnode->syncSem);
+  // }
+  // taosThreadMutexUnlock(&pVnode->lock);
+}
+
 static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pVnode;
@@ -681,6 +715,8 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpGetSnapshotInfo = vnodeSyncGetSnapshot;
   pFsm->FpRestoreFinishCb = vnodeRestoreFinish;
   pFsm->FpLeaderTransferCb = vnodeLeaderTransfer;
+  pFsm->FpBecomeLeaderCb = vnodeBecomeLeader;
+  pFsm->FpBecomeFollowerCb = vnodeBecomeFollower;
   pFsm->FpReConfigCb = vnodeSyncReconfig;
   pFsm->FpSnapshotStartRead = vnodeSnapshotStartRead;
   pFsm->FpSnapshotStopRead = vnodeSnapshotStopRead;
@@ -728,6 +764,8 @@ void vnodeSyncStart(SVnode *pVnode) {
 
 void vnodeSyncClose(SVnode *pVnode) { syncStop(pVnode->sync); }
 
+bool vnodeIsRoleLeader(SVnode *pVnode) { return syncGetMyRole(pVnode->sync) == TAOS_SYNC_STATE_LEADER; }
+
 bool vnodeIsLeader(SVnode *pVnode) {
   if (!syncIsReady(pVnode->sync)) {
     vDebug("vgId:%d, vnode not ready, state:%s, restore:%d", pVnode->config.vgId, syncGetMyRoleStr(pVnode->sync),
@@ -742,4 +780,18 @@ bool vnodeIsLeader(SVnode *pVnode) {
   }
 
   return true;
+}
+
+bool vnodeIsReadyForRead(SVnode *pVnode) {
+  if (syncIsReady(pVnode->sync)) {
+    return true;
+  }
+
+  if (syncIsReadyForRead(pVnode->sync)) {
+    return true;
+  }
+
+  vDebug("vgId:%d, vnode not ready for read, state:%s, last:%ld, cmt:%ld", pVnode->config.vgId,
+         syncGetMyRoleStr(pVnode->sync), syncGetLastIndex(pVnode->sync), syncGetCommitIndex(pVnode->sync));
+  return false;
 }

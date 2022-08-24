@@ -3,7 +3,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-print ======== step1 
+print ======== step1
 sql create database d1 replica 1
 sql create database d2 replica 1
 sql create database d3 replica 1
@@ -48,7 +48,7 @@ step2:
 print ========= step3
 sql create database db1 replica 1
 sql reset query cache
-sleep 50  
+sleep 50
 
 sql create table db1.tb1 (ts timestamp, i int)
 sql insert into db1.tb1 values(now, 2)
@@ -61,7 +61,7 @@ print ========= step4
 $x = 1
 while $x < 20
 
-  $db = db . $x 
+  $db = db . $x
   $tb = tb . $x
   sql use $db
   sql drop database $db
@@ -69,14 +69,14 @@ while $x < 20
   sql insert into $tb values(now, -1) -x step4
     return -1
   step4:
-  
-  $x = $x + 1  
-  $db = db . $x 
+
+  $x = $x + 1
+  $db = db . $x
   $tb = tb . $x
-  
+
   sql reset query cache
-  sleep 50  
-  
+  sleep 50
+
   sql create database $db replica 1
   sql use $db
   sql create table $tb (ts timestamp, i int)
@@ -85,8 +85,8 @@ while $x < 20
   if $rows != 1 then
 	return -1
   endi
-  
+
   print ===> loop times: $x
-endw 
+endw
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

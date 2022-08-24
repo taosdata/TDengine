@@ -52,13 +52,6 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 
 #define NEEDTO_COMPRESS_QUERY(size) ((size) > tsCompressColData ? 1 : 0)
 
-#define START_TS_COLUMN_INDEX             0
-#define END_TS_COLUMN_INDEX               1
-#define UID_COLUMN_INDEX                  2
-#define GROUPID_COLUMN_INDEX              3
-#define CALCULATE_START_TS_COLUMN_INDEX   4
-#define CALCULATE_END_TS_COLUMN_INDEX     5
-
 enum {
   // when this task starts to execute, this status will set
   TASK_NOT_COMPLETED = 0x1u,
@@ -212,7 +205,7 @@ typedef struct SExprSupp {
 } SExprSupp;
 
 typedef struct SOperatorInfo {
-  uint8_t                operatorType;
+  uint16_t               operatorType;
   bool                   blocking;  // block operator or not
   uint8_t                status;    // denote if current operator is completed
   char*                  name;      // name, for debug purpose
@@ -266,7 +259,11 @@ typedef struct SExchangeInfo {
   SArray*             pSourceDataInfo;
   tsem_t              ready;
   void*               pTransporter;
-  SSDataBlock*        pResult;
+  // SArray<SSDataBlock*>, result block list, used to keep the multi-block that
+  // passed by downstream operator
+  SArray*             pResultBlockList;
+  int32_t             rspBlockIndex;    // indicate the return block index in pResultBlockList
+  SSDataBlock*        pDummyBlock;  // dummy block, not keep data
   bool                seqLoadData;  // sequential load data or not, false by default
   int32_t             current;
   SLoadRemoteDataInfo loadInfo;
@@ -437,7 +434,7 @@ typedef struct SStreamAggSupporter {
 typedef struct SessionWindowSupporter {
   SStreamAggSupporter* pStreamAggSup;
   int64_t              gap;
-  uint8_t              parentType;
+  uint16_t             parentType;
   SAggSupporter*       pIntervalAggSup;
 } SessionWindowSupporter;
 
@@ -520,6 +517,7 @@ typedef struct SBlockDistInfo {
 typedef struct SOptrBasicInfo {
   SResultRowInfo  resultRowInfo;
   SSDataBlock*    pRes;
+  bool            mergeResultBlock;
 } SOptrBasicInfo;
 
 typedef struct SIntervalAggOperatorInfo {
@@ -554,8 +552,6 @@ typedef struct SMergeAlignedIntervalAggOperatorInfo {
   uint64_t     groupId;  // current groupId
   int64_t      curTs;    // current ts
   SSDataBlock* prefetchedBlock;
-  bool         inputBlocksFinished;
-
   SNode*       pCondition;
 } SMergeAlignedIntervalAggOperatorInfo;
 
@@ -594,7 +590,6 @@ typedef struct SAggOperatorInfo {
   uint64_t           groupId;
   SGroupResInfo      groupResInfo;
   SExprSupp          scalarExprSup;
-
   SNode             *pCondition;
 } SAggOperatorInfo;
 
@@ -624,15 +619,20 @@ typedef struct SIndefOperatorInfo {
 typedef struct SFillOperatorInfo {
   struct SFillInfo* pFillInfo;
   SSDataBlock*      pRes;
+  SSDataBlock*      pFinalRes;
   int64_t           totalInputRows;
   void**            p;
   SSDataBlock*      existNewGroupBlock;
-  bool              multigroupResult;
   STimeWindow       win;
   SNode*            pCondition;
   SArray*           pColMatchColInfo;
   int32_t           primaryTsCol;
+  int32_t           primarySrcSlotId;
   uint64_t          curGroupId;       // current handled group id
+  SExprInfo*        pExprInfo;
+  int32_t           numOfExpr;
+  SExprInfo*        pNotFillExprInfo;
+  int32_t           numOfNotFillExpr;
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {
@@ -680,6 +680,7 @@ typedef struct SWindowRowsSup {
   TSKEY       prevTs;
   int32_t     startRowIndex;
   int32_t     numOfRows;
+  uint64_t    groupId;
 } SWindowRowsSup;
 
 typedef struct SSessionAggOperatorInfo {
@@ -699,6 +700,7 @@ typedef struct SSessionAggOperatorInfo {
 typedef struct SResultWindowInfo {
   SResultRowPosition pos;
   STimeWindow win;
+  uint64_t groupId;
   bool isOutput;
   bool isClosed;
 } SResultWindowInfo;
@@ -739,6 +741,7 @@ typedef struct STimeSliceOperatorInfo {
   SArray*                 pPrevRow;      // SArray<SGroupValue>
   SArray*                 pNextRow;      // SArray<SGroupValue>
   SArray*                 pLinearInfo;   // SArray<SFillLinearInfo>
+  bool                    fillLastPoint;
   bool                    isPrevRowSet;
   bool                    isNextRowSet;
   int32_t                 fillType;      // fill type
@@ -857,12 +860,13 @@ int32_t handleLimitOffset(SOperatorInfo *pOperator, SLimitInfo* pLimitInfo, SSDa
 bool    hasLimitOffsetInfo(SLimitInfo* pLimitInfo);
 void    initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimitInfo);
 
-void    doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset,
-                         int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput, int32_t order);
+void    doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData, int32_t offset,
+                         int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput);
 
-int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows, char* pData,
-                                  int32_t compLen, int32_t numOfOutput, int64_t startTs, uint64_t* total,
-                                  SArray* pColList);
+int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, int32_t numOfOutput, SArray* pColList, char** pNextStart);
+void updateLoadRemoteInfo(SLoadRemoteDataInfo *pInfo, int32_t numOfRows, int32_t dataLen, int64_t startTs,
+                          SOperatorInfo* pOperator);
+
 STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInterval* pInterval, int32_t order);
 
 int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t *order, int32_t* scanFlag);
@@ -897,7 +901,7 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
 SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode *pScanPhyNode, const char* pUser, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SNode* pCondition, SExprInfo* pScalarExprInfo,
-                                           int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo);
+                                           int32_t numOfScalarExpr, bool mergeResult, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode *pNode, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* pProjPhyNode, SExecTaskInfo* pTaskInfo);
@@ -912,17 +916,14 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
 
 SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                          SExecTaskInfo* pTaskInfo);
+                                          bool mergeResultBlock, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                          SNode* pCondition, SExecTaskInfo* pTaskInfo);
+                                          SNode* pCondition, bool mergeResultBlocks, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream,
-    SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, int32_t numOfChild);
-SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
-                                                SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                                STimeWindowAggSupp *pTwAggSupp, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
+                                                     SExecTaskInfo* pTaskInfo, int32_t numOfChild);
 SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPhysiNode* pSessionNode,
                                             SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
@@ -1011,12 +1012,11 @@ SResultWindowInfo* getSessionTimeWindow(SStreamAggSupporter* pAggSup, TSKEY star
 SResultWindowInfo* getCurSessionWindow(SStreamAggSupporter* pAggSup, TSKEY startTs,
     TSKEY endTs, uint64_t groupId, int64_t gap, int32_t* pIndex);
 bool isInTimeWindow(STimeWindow* pWin, TSKEY ts, int64_t gap);
-int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pStartTs,
-    TSKEY* pEndTs, int32_t rows, int32_t start, int64_t gap, SHashObj* pStDeleted);
 bool functionNeedToExecute(SqlFunctionCtx* pCtx);
+bool isOverdue(TSKEY ts, STimeWindowAggSupp* pSup);
 bool isCloseWindow(STimeWindow* pWin, STimeWindowAggSupp* pSup);
 bool isDeletedWindow(STimeWindow* pWin, uint64_t groupId, SAggSupporter* pSup);
-void appendOneRow(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid);
+void appendOneRow(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, int32_t uidCol, uint64_t* pID);
 void printDataBlock(SSDataBlock* pBlock, const char* flag);
 
 int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,

@@ -63,6 +63,7 @@ void    vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId);
 int32_t vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen);
 int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
 int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list);
+int32_t vnodeGetStbIdList(SVnode *pVnode, int64_t suid, SArray* list);
 void   *vnodeGetIdx(SVnode *pVnode);
 void   *vnodeGetIvtIdx(SVnode *pVnode);
 
@@ -91,9 +92,11 @@ typedef struct SMetaEntry  SMetaEntry;
 void        metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
 void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
+int32_t     metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj *tags);
 int32_t     metaReadNext(SMetaReader *pReader);
-const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t type, STagVal *tagVal);
+const void *metaGetTableTagVal(void *tag, int16_t type, STagVal *tagVal);
 int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
+bool        metaIsTableExist(SMeta  *pMeta, tb_uid_t uid);
 
 typedef struct SMetaFltParam {
   tb_uid_t suid;
@@ -128,19 +131,19 @@ typedef struct STsdbReader STsdbReader;
 #define LASTROW_RETRIEVE_TYPE_ALL    0x1
 #define LASTROW_RETRIEVE_TYPE_SINGLE 0x2
 
-int32_t tsdbSetTableId(STsdbReader *pReader, int64_t uid);
-int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, SArray *pTableList, STsdbReader **ppReader,
-                       const char *idstr);
-void    tsdbReaderClose(STsdbReader *pReader);
-bool    tsdbNextDataBlock(STsdbReader *pReader);
-void    tsdbRetrieveDataBlockInfo(STsdbReader *pReader, SDataBlockInfo *pDataBlockInfo);
-int32_t tsdbRetrieveDatablockSMA(STsdbReader *pReader, SColumnDataAgg ***pBlockStatis, bool *allHave);
-SArray *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
-int32_t tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond);
-int32_t tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
-int64_t tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
-void   *tsdbGetIdx(SMeta *pMeta);
-void   *tsdbGetIvtIdx(SMeta *pMeta);
+int32_t  tsdbSetTableId(STsdbReader *pReader, int64_t uid);
+int32_t  tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, SArray *pTableList, STsdbReader **ppReader,
+                        const char *idstr);
+void     tsdbReaderClose(STsdbReader *pReader);
+bool     tsdbNextDataBlock(STsdbReader *pReader);
+void     tsdbRetrieveDataBlockInfo(STsdbReader *pReader, SDataBlockInfo *pDataBlockInfo);
+int32_t  tsdbRetrieveDatablockSMA(STsdbReader *pReader, SColumnDataAgg ***pBlockStatis, bool *allHave);
+SArray  *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
+int32_t  tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond);
+int32_t  tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
+int64_t  tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
+void    *tsdbGetIdx(SMeta *pMeta);
+void    *tsdbGetIvtIdx(SMeta *pMeta);
 uint64_t getReaderMaxVersion(STsdbReader *pReader);
 
 int32_t tsdbLastRowReaderOpen(void *pVnode, int32_t type, SArray *pTableIdList, int32_t numOfCols, void **pReader);

@@ -8,7 +8,7 @@ title: TDengine Go Connector
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-import Preparation from "./_preparation.mdx"
+import Preparition from "./_preparition.mdx"
 import GoInsert from "../../07-develop/03-insert-data/_go_sql.mdx"
 import GoInfluxLine from "../../07-develop/03-insert-data/_go_line.mdx"
 import GoOpenTSDBTelnet from "../../07-develop/03-insert-data/_go_opts_telnet.mdx"
@@ -23,7 +23,7 @@ This article describes how to install `driver-go` and connect to TDengine cluste
 
 The source code of `driver-go` is hosted on [GitHub](https://github.com/taosdata/driver-go).
 
-## Supported Platforms
+## Supported platforms
 
 Native connections are supported on the same platforms as the TDengine client driver.
 REST connections are supported on all platforms that can run Go.
@@ -41,33 +41,31 @@ A "native connection" is established by the connector directly to the TDengine i
 * Normal queries
 * Continuous queries
 * Subscriptions
-* schemaless interface
-* parameter binding interface
+* Schemaless interface
+* Parameter binding interface
 
 ### REST connection
 
 A "REST connection" is a connection between the application and the TDengine instance via the REST API provided by the taosAdapter component. The following features are supported:
 
-* General queries
+* Normal queries
 * Continuous queries
 
-## Installation steps
+## Installation Steps
 
-### Pre-installation
+### Pre-installation preparation
 
-- Install Go development environment (Go 1.14 and above, GCC 4.8.5 and above)
+* Install Go development environment (Go 1.14 and above, GCC 4.8.5 and above)
 - If you use the native connector, please install the TDengine client driver. Please refer to [Install Client Driver](/reference/connector/#install-client-driver) for specific steps
 
 Configure the environment variables and check the command.
 
-* `go env`
-* `gcc -v`
+* ```go env```
+* ```gcc -v```
 
 ### Use go get to install
 
-```
-go get -u github.com/taosdata/driver-go/v2@develop
-```
+`go get -u github.com/taosdata/driver-go/v3@latest`
 
 ### Manage with go mod
 
@@ -75,14 +73,14 @@ go get -u github.com/taosdata/driver-go/v2@develop
 
   ```text
   go mod init taos-demo
-  ``` 
+  ```
 
 2. Introduce taosSql
 
   ```go
   import (
     "database/sql"
-    _ "github.com/taosdata/driver-go/v2/taosSql"
+    _ "github.com/taosdata/driver-go/v3/taosSql"
   )
   ```
 
@@ -90,7 +88,7 @@ go get -u github.com/taosdata/driver-go/v2@develop
 
   ```text
   go mod tidy
-  ``` 
+  ```
 
 4. Run the program with `go run taos-demo` or compile the binary with the `go build` command.
 
@@ -99,14 +97,14 @@ go get -u github.com/taosdata/driver-go/v2@develop
   go build
   ```
 
-## Create a connection
+## Establishing a connection
 
 ### Data source name (DSN)
 
 Data source names have a standard format, e.g. [PEAR DB](http://pear.php.net/manual/en/package.database.db.intro-dsn.php), but no type prefix (square brackets indicate optionally):
 
 ``` text
-[username[:password]@][protocol[(address)]]/[dbname][?param1=value1&... &paramN=valueN]
+[username[:password]@][protocol[(address)]]/[dbname][?param1=value1&...&paramN=valueN]
 ```
 
 DSN in full form.
@@ -114,7 +112,6 @@ DSN in full form.
 ```text
 username:password@protocol(address)/dbname?param=value
 ```
-
 ### Connecting via connector
 
 <Tabs defaultValue="native">
@@ -126,7 +123,7 @@ Use `taosSql` as `driverName` and use a correct [DSN](#DSN) as `dataSourceName`,
 
 * configPath specifies the `taos.cfg` directory
 
-Example.
+For example:
 
 ```go
 package main
@@ -135,13 +132,13 @@ import (
     "database/sql"
     "fmt"
 
-    _ "github.com/taosdata/driver-go/v2/taosSql"
+    _ "github.com/taosdata/driver-go/v3/taosSql"
 )
 
 func main() {
     var taosUri = "root:taosdata@tcp(localhost:6030)/"
     taos, err := sql.Open("taosSql", taosUri)
-    if err ! = nil {
+    if err != nil {
         fmt.Println("failed to connect TDengine, err:", err)
         return
     }
@@ -158,7 +155,7 @@ Use `taosRestful` as `driverName` and use a correct [DSN](#DSN) as `dataSourceNa
 * `disableCompression` whether to accept compressed data, default is true do not accept compressed data, set to false if transferring data using gzip compression.
 * `readBufferSize` The default size of the buffer for reading data is 4K (4096), which can be adjusted upwards when the query result has a lot of data.
 
-Example.
+For example:
 
 ```go
 package main
@@ -167,13 +164,13 @@ import (
     "database/sql"
     "fmt"
 
-    _ "github.com/taosdata/driver-go/v2/taosRestful"
+    _ "github.com/taosdata/driver-go/v3/taosRestful"
 )
 
 func main() {
     var taosUri = "root:taosdata@http(localhost:6041)/"
     taos, err := sql.Open("taosRestful", taosUri)
-    if err ! = nil {
+    if err != nil {
         fmt.Println("failed to connect TDengine, err:", err)
         return
     }
@@ -208,14 +205,14 @@ func main() {
 
 ### More sample programs
 
-* [sample program](https://github.com/taosdata/TDengine/tree/develop/examples/go)
-* [Video tutorial](https://www.taosdata.com/blog/2020/11/11/1951.html).
+* [sample program](https://github.com/taosdata/driver-go/tree/3.0/examples)
+
 
 ## Usage limitations
 
 Since the REST interface is stateless, the `use db` syntax will not work. You need to put the db name into the SQL command, e.g. `create table if not exists tb1 (ts timestamp, a int)` to `create table if not exists test.tb1 (ts timestamp, a int)` otherwise it will report the error `[0x217] Database not specified or available`.
 
-You can also put the db name in the DSN by changing `root:taosdata@http(localhost:6041)/` to `root:taosdata@http(localhost:6041)/test`. This method is supported by taosAdapter since TDengine 2.4.0.5. Executing the `create database` statement when the specified db does not exist will not report an error while executing other queries or writing against that db will report an error.
+You can also put the db name in the DSN by changing `root:taosdata@http(localhost:6041)/` to `root:taosdata@http(localhost:6041)/test`. Executing the `create database` statement when the specified db does not exist will not report an error while executing other queries or writing against that db will report an error.
 
 The complete example is as follows.
 
@@ -227,7 +224,7 @@ import (
     "fmt"
     "time"
 
-    _ "github.com/taosdata/driver-go/v2/taosRestful"
+    _ "github.com/taosdata/driver-go/v3/taosRestful"
 )
 
 func main() {
@@ -269,35 +266,27 @@ func main() {
 
 ## Frequently Asked Questions
 
-1. Cannot find the package `github.com/taosdata/driver-go/v2/taosRestful`
-
-  Change the `github.com/taosdata/driver-go/v2` line in the require block of the `go.mod` file to `github.com/taosdata/driver-go/v2 develop`, then execute `go mod tidy`.
-
-2. bind interface in database/sql crashes
+1. bind interface in database/sql crashes
 
   REST does not support parameter binding related interface. It is recommended to use `db.Exec` and `db.Query`.
 
-3. error `[0x217] Database not specified or available` after executing other statements with `use db` statement
+2. error `[0x217] Database not specified or available` after executing other statements with `use db` statement
 
   The execution of SQL command in the REST interface is not contextual, so using `use db` statement will not work, see the usage restrictions section above.
 
-4. use `taosSql` without error but use `taosRestful` with error `[0x217] Database not specified or available`
+3. use `taosSql` without error but use `taosRestful` with error `[0x217] Database not specified or available`
 
   Because the REST interface is stateless, using the `use db` statement will not take effect. See the usage restrictions section above.
 
-5. Upgrade `github.com/taosdata/driver-go/v2/taosRestful`
-
-  Change the `github.com/taosdata/driver-go/v2` line in the `go.mod` file to `github.com/taosdata/driver-go/v2 develop`, then execute `go mod tidy`.
-
-6. `readBufferSize` parameter has no significant effect after being increased
+4. `readBufferSize` parameter has no significant effect after being increased
 
   Increasing `readBufferSize` will reduce the number of `syscall` calls when fetching results. If the query result is smaller, modifying this parameter will not improve performance significantly. If you increase the parameter value too much, the bottleneck will be parsing JSON data. If you need to optimize the query speed, you must adjust the value based on the actual situation to achieve the best query performance.
 
-7. `disableCompression` parameter is set to `false` when the query efficiency is reduced
+5. `disableCompression` parameter is set to `false` when the query efficiency is reduced
 
   When set `disableCompression` parameter to `false`, the query result will be compressed by `gzip` and then transmitted, so you have to decompress the data by `gzip` after getting it.
 
-8. `go get` command can't get the package, or timeout to get the package
+6. `go get` command can't get the package, or timeout to get the package
 
   Set Go proxy `go env -w GOPROXY=https://goproxy.cn,direct`.
 
@@ -311,14 +300,13 @@ func main() {
 
 :::info
 This API is created successfully without checking permissions, but only when you execute a Query or Exec, and check if user/password/host/port is legal.
-
 :::
 
-* `func (db *DB) Exec(query string, args . .interface{}) (Result, error)`
+* `func (db *DB) Exec(query string, args ...interface{}) (Result, error)`
 
   `sql.Open` built-in method to execute non-query related SQL.
 
-* `func (db *DB) Query(query string, args ... . interface{}) (*Rows, error)`
+* `func (db *DB) Query(query string, args ...interface{}) (*Rows, error)`
 
   `sql.Open` Built-in method to execute query statements.
 
@@ -338,17 +326,33 @@ The `af` package encapsulates TDengine advanced functions such as connection man
 
 #### Subscribe to
 
-* `func (conn *Connector) Subscribe(restart bool, topic string, sql string, interval time.Duration) (Subscriber, error)`
+* `func NewConsumer(conf *Config) (*Consumer, error)`
 
-  Subscribe to data.
+Creates consumer group.
 
-* `func (s *taosSubscriber) Consume() (driver.Rows, error)`
+* `func (c *Consumer) Subscribe(topics []string) error`
 
-  Consume the subscription data, returning the `Rows` structure of the `database/sql/driver` package.
+Subscribes to a topic.
 
-* `func (s *taosSubscriber) Unsubscribe(keepProgress bool)`
+* `func (c *Consumer) Poll(timeout time.Duration) (*Result, error)`
 
-  Unsubscribe from data.
+Polling information.
+
+* `func (c *Consumer) Commit(ctx context.Context, message unsafe.Pointer) error`
+
+Commit information.
+
+* `func (c *Consumer) FreeMessage(message unsafe.Pointer)`
+
+Free information.
+
+* `func (c *Consumer) Unsubscribe() error`
+
+Unsubscribe.
+
+* `func (c *Consumer) Close() error`
+
+Close consumer.
 
 #### schemaless
 
@@ -370,11 +374,7 @@ The `af` package encapsulates TDengine advanced functions such as connection man
 
   Parameter bound single row insert.
 
-* `func (conn *Connector) StmtQuery(sql string, params *param.Param) (rows driver.Rows, err error)`
-
-  Parameter bound query that returns the `Rows` structure of the `database/sql/driver` package.
-
-* `func (conn *Connector) InsertStmt() *insertstmt.
+* `func (conn *Connector) InsertStmt() *insertstmt.InsertStmt`
 
   Initialize the parameters.
 
@@ -412,4 +412,4 @@ The `af` package encapsulates TDengine advanced functions such as connection man
 
 ## API Reference
 
-Full API see [driver-go documentation](https://pkg.go.dev/github.com/taosdata/driver-go/v2)
+Full API see [driver-go documentation](https://pkg.go.dev/github.com/taosdata/driver-go/v3)

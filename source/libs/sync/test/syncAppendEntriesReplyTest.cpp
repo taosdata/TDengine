@@ -24,6 +24,7 @@ SyncAppendEntriesReply *createMsg() {
   pMsg->matchIndex = 77;
   pMsg->term = 33;
   pMsg->privateTerm = 44;
+  pMsg->startTime = taosGetTimestampMs();
   return pMsg;
 }
 
@@ -89,6 +90,8 @@ void test5() {
 }
 
 int main() {
+  gRaftDetailLog = true;
+
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
   logTest();

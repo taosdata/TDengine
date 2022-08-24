@@ -103,7 +103,7 @@ SELECT d1001.* FROM d1001,d1003 WHERE d1001.ts = d1003.ts;
 在超级表和子表的查询中可以指定 _标签列_，且标签列的值会与普通列的数据一起返回。
 
 ```sql
-ELECT location, groupid, current FROM d1001 LIMIT 2;
+SELECT location, groupid, current FROM d1001 LIMIT 2;
 ```
 
 ### 结果去重
@@ -140,10 +140,6 @@ taos> SELECT ts, ts AS primary_key_ts FROM d1001;
 
 但是针对`first(*)`、`last(*)`、`last_row(*)`不支持针对单列的重命名。
 
-### 隐式结果列
-
-`Select_exprs`可以是表所属列的列名，也可以是基于列的函数表达式或计算式，数量的上限 256 个。当用户使用了`interval`或`group by tags`的子句以后，在最后返回结果中会强制返回时间戳列（第一列）和 group by 子句中的标签列。后续的版本中可以支持关闭 group by 子句中隐式列的输出，列输出完全由 select 子句控制。
-
 ### 伪列
 
 **TBNAME**
@@ -152,7 +148,13 @@ taos> SELECT ts, ts AS primary_key_ts FROM d1001;
 获取一个超级表所有的子表名及相关的标签信息：
 
 ```mysql
-SELECT TBNAME, location FROM meters;
+SELECT DISTINCT TBNAME, location FROM meters;
+```
+
+建议用户使用 INFORMATION_SCHEMA 下的 INS_TAGS 系统表来查询超级表的子表标签信息，例如获取超级表 meters 所有的子表名和标签值：
+
+```mysql
+SELECT table_name, tag_name, tag_type, tag_value FROM information_schema.ins_tags WHERE stable_name='meters';
 ```
 
 统计超级表下辖子表数量：

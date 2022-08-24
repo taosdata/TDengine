@@ -73,7 +73,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   }
 
   // open pUidIdx
-  ret = tdbTbOpen("uid.idx", sizeof(tb_uid_t), sizeof(int64_t), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pUidIdx);
+  ret = tdbTbOpen("uid.idx", sizeof(tb_uid_t), sizeof(SUidIdxVal), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pUidIdx);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta uid idx since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
@@ -87,7 +87,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   }
 
   // open pCtbIdx
-  ret = tdbTbOpen("ctb.idx", sizeof(SCtbIdxKey), 0, ctbIdxKeyCmpr, pMeta->pEnv, &pMeta->pCtbIdx);
+  ret = tdbTbOpen("ctb.idx", sizeof(SCtbIdxKey), -1, ctbIdxKeyCmpr, pMeta->pEnv, &pMeta->pCtbIdx);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta child table index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
@@ -143,6 +143,13 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
     goto _err;
   }
 
+  int32_t code = metaCacheOpen(pMeta);
+  if (code) {
+    terrno = code;
+    metaError("vgId:%d, failed to open meta cache since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
   metaDebug("vgId:%d, meta is opened", TD_VID(pVnode));
 
   *ppMeta = pMeta;
@@ -169,6 +176,7 @@ _err:
 
 int metaClose(SMeta *pMeta) {
   if (pMeta) {
+    if (pMeta->pCache) metaCacheClose(pMeta);
     if (pMeta->pIdx) metaCloseIdx(pMeta);
     if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
     if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);

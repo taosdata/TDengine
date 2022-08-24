@@ -1,13 +1,14 @@
 ---
+sidebar_label: Functions
 title: Functions
 toc_max_heading_level: 4
 ---
 
-## Single-Row Functions
+## Single Row Functions
 
-Single-Row functions return a result row for each row in the query result.
+Single row functions return a result for each row.
 
-### Numeric Functions
+### Mathematical Functions
 
 #### ABS
 
@@ -17,16 +18,15 @@ SELECT ABS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 
 **Description**: The absolute value of a specific field.
 
-**Return value type**: Same as input type.
+**Return value type**: Same as the field being used
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
-- Cannot be used with aggregate functions.
+**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
 
 #### ACOS
 
@@ -34,18 +34,17 @@ SELECT ABS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**Description**: The anti-cosine of a specific field.
+**Description**: The arc cosine of a specific field.
 
-**Return value type**: DOUBLE.
+**Return value type**: Double
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
-- Cannot be used with aggregate functions.
+**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
 
 #### ASIN
 
@@ -53,18 +52,18 @@ SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**Description**: The anti-sine of a specific field.
+**Description**: The arc sine of a specific field.
 
-**Return value type**: DOUBLE.
+**Return value type**: Double
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
-- Cannot be used with aggregate functions.
+**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+
 
 #### ATAN
 
@@ -72,37 +71,36 @@ SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 SELECT ATAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**Description**: anti-tangent of a specific field.
+**Description**: The arc tangent of a specific field.
 
-**Return value type**: DOUBLE.
+**Return value type**: Double
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
-- Cannot be used with aggregate functions.
+**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+
 
 #### CEIL
 
-```
+```sql
 SELECT CEIL(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**: The rounded up value of a specific field.
+**Description**: The rounded up value of a specific field
 
-**Return value type**: Same as input type.
+**Return value type**: Same as the field being used
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable
+**Applicable table types**: standard tables and supertables
 
-**Applicable nested query**: Inner query and outer query.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**More explanations**:
-- Can't be used with aggregate functions.
+**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
 
 #### COS
 
@@ -112,45 +110,43 @@ SELECT COS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 
 **Description**: The cosine of a specific field.
 
-**Return value type**: DOUBLE.
+**Return value type**: Double
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
-- Can't be used with aggregate functions.
+**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
 
 #### FLOOR
 
-```
+```sql
 SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**: The rounded down value of a specific field.
-
-**More explanations**: Refer to `CEIL` function for usage restrictions.
+**Description**: The rounded down value of a specific field  
+ **More explanations**: The restrictions are same as those of the `CEIL` function.
 
 #### LOG
 
 ```sql
-SELECT LOG(field_name, base) FROM { tb_name | stb_name } [WHERE clause]
+SELECT LOG(field_name[, base]) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**Description**: The logarithm of a specific field with `base` as the radix. If `base` parameter is ignored, natural logarithm of the field is returned.
+**Description**: The logarithm of a specific field with `base` as the radix. If you do not enter a base, the natural logarithm of the field is returned.
 
-**Return value type**: DOUBLE.
+**Return value type**: Double
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
-- Can't be used with aggregate functions
+**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+
 
 #### POW
 
@@ -158,28 +154,28 @@ SELECT LOG(field_name, base) FROM { tb_name | stb_name } [WHERE clause]
 SELECT POW(field_name, power) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**Description**: The power of a specific field with `power` as the index.
+**Description**: The power of a specific field with `power` as the exponent.
 
-**Return value type**: DOUBLE.
+**Return value type**: Double
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
-- Can't be used with aggregate functions.
+**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+
 
 #### ROUND
 
-```
+```sql
 SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**: The rounded value of a specific field.
+**Description**: The rounded value of a specific field.  
+ **More explanations**: The restrictions are same as those of the `CEIL` function.
 
-**More explanations**: Refer to `CEIL` function for usage restrictions.
 
 #### SIN
 
@@ -189,18 +185,15 @@ SELECT SIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 
 **Description**: The sine of a specific field.
 
-**Description**: The anti-cosine of a specific field.
+**Return value type**: Double
 
-**Return value type**: DOUBLE.
+**Applicable data types**: Numeric
 
-**Applicable data types**: Numeric types.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
 
-**Applicable nested query**: Inner query and Outer query.
-
-**More explanations**:
-- Can't be used with aggregate functions.
+**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
 
 #### SQRT
 
@@ -210,16 +203,15 @@ SELECT SQRT(field_name) FROM { tb_name | stb_name } [WHERE clause]
 
 **Description**: The square root of a specific field.
 
-**Return value type**: DOUBLE.
+**Return value type**: Double
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
-- Can't be used with aggregate functions.
+**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
 
 #### TAN
 
@@ -229,39 +221,35 @@ SELECT TAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 
 **Description**: The tangent of a specific field.
 
-**Description**: The anti-cosine of a specific field.
+**Return value type**: Double
 
-**Return value type**: DOUBLE.
+**Applicable data types**: Numeric
 
-**Applicable data types**: Numeric types.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
 
-**Applicable nested query**: Inner query and Outer query.
+**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
 
-**More explanations**:
-- Can't be used with aggregate functions.
+### Concatenation Functions
 
-### String Functions
-
-String functiosn take strings as input and output numbers or strings.
+Concatenation functions take strings as input and produce string or numeric values as output.
 
 #### CHAR_LENGTH
 
-```
+```sql
 SELECT CHAR_LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**Description**: The mumber of characters of a string.
+**Description**: The length in number of characters of a string
 
-**Return value type**: INTEGER.
+**Return value type**: Bigint
 
-**Applicable data types**: VARCHAR, NCHAR.
+**Applicable data types**: VARCHAR and NCHAR
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
-
+**Applicable table types**: standard tables and supertables
 
 #### CONCAT
 
@@ -269,144 +257,139 @@ SELECT CHAR_LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
 SELECT CONCAT(str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**Description**: The concatenation result of two or more strings.
+**Description**: The concatenation result of two or more strings
 
-**Return value type**: If all input strings are VARCHAR type, the result is VARCHAR type too. If any one of input strings is NCHAR type, then the result is NCHAR. If input strings contain NULL value, the result is NULL. 
+**Return value type**: If the concatenated strings are VARCHARs, the result is a VARCHAR. If the concatenated strings are NCHARs, the result is an NCHAR. If an input value is null, the result is null.
 
-**Applicable data types**: VARCHAR, NCHAR.  At least 2 input strings are required, and at most 8 input strings are allowed. 
+**Applicable data types**: VARCHAR and NCHAR You can concatenate between 2 and 8 strings.
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: standard tables and supertables
 
 
 #### CONCAT_WS
 
-```
+```sql
 SELECT CONCAT_WS(separator, str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**Description**: The concatenation result of two or more strings with separator.
+**Description**: The concatenation result of two or more strings with separator
 
-**Return value type**: If all input strings are VARCHAR type, the result is VARCHAR type too. If any one of input strings is NCHAR type, then the result is NCHAR. If input strings contain NULL value, the result is NULL. 
+**Return value type**: If the concatenated strings are VARCHARs, the result is a VARCHAR. If the concatenated strings are NCHARs, the result is an NCHAR. If an input value is null, the result is null.
 
-**Applicable data types**: VARCHAR, NCHAR. At least 3 input strings are required, and at most 9 input strings are allowed. 
+**Applicable data types**: VARCHAR and NCHAR You can concatenate between 3 and 9 strings.
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: standard tables and supertables
 
 
 #### LENGTH
 
-```
+```sql
 SELECT LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**Description**: The length in bytes of a string.
+**Description**: The length in bytes of a string
 
-**Return value type**: INTEGER.
+**Return value type**: Bigint
 
-**Applicable data types**: VARCHAR, NCHAR.
+**Applicable data types**: VARCHAR and NCHAR fields or columns
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: standard tables and supertables
 
 
 #### LOWER
 
-```
+```sql
 SELECT LOWER(str|column) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**Description**: Convert the input string to lower case.
+**Description**: Convert the input string to lower case
 
-**Return value type**: Same as input type.
+**Return value type**: Same as input
 
-**Applicable data types**: VARCHAR, NCHAR.
+**Applicable data types**: VARCHAR and NCHAR
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: standard tables and supertables
 
 
 #### LTRIM
 
-```
+```sql
 SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**Description**: Remove the left leading blanks of a string.
+**Description**: Remove the left leading blanks of a string
 
-**Return value type**: Same as input type.
+**Return value type**: Same as input
 
-**Applicable data types**: VARCHAR, NCHAR.
+**Applicable data types**: VARCHAR and NCHAR
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: standard tables and supertables
 
 
 #### RTRIM
 
+```sql
+SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
 ```
-SELECT RTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
-```
 
-**Description**: Remove the right tailing blanks of a string.
+**Description**: Remove the right tailing blanks of a string
 
-**Return value type**: Same as input type.
+**Return value type**: Same as input
 
-**Applicable data types**: VARCHAR, NCHAR.
+**Applicable data types**: VARCHAR and NCHAR
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: standard tables and supertables
 
 
 #### SUBSTR
 
-```
+```sql
 SELECT SUBSTR(str,pos[,len]) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**Description**: The sub-string starting from `pos` with length of `len` from the original string `str`.
+**Description**: The sub-string starting from `pos` with length of `len` from the original string `str` - If `len` is not specified, it means from `pos` to the end.
 
-**Return value type**: Same as input type.
+**Return value type**: Same as input
 
-**Applicable data types**: VARCHAR, NCHAR.
+**Applicable data types**: VARCHAR and NCHAR Parameter `pos` can be an positive or negative integer; If it's positive, the starting position will be counted from the beginning of the string; if it's negative, the starting position will be counted from the end of the string.
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: table, STable
 
-**More explanations**:
-
-- If the input is NULL, the output is NULL
-- Parameter `pos` can be an positive or negative integer; If it's positive, the starting position will be counted from the beginning of the string; if it's negative, the starting position will be counted from the end of the string.
-- If `len` is not specified, it means from `pos` to the end of string.
 
 #### UPPER
 
-```
+```sql
 SELECT UPPER(str|column) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**Description**: Convert the input string to upper case.
+**Description**: Convert the input string to upper case
 
-**Return value type**: Same as input type.
+**Return value type**: Same as input
 
-**Applicable data types**: VARCHAR, NCHAR.
+**Applicable data types**: VARCHAR and NCHAR
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: table, STable
 
 
 ### Conversion Functions
 
-Conversion functions convert from one data type to another.
+Conversion functions change the data type of a value.
 
 #### CAST
 
@@ -414,19 +397,23 @@ Conversion functions convert from one data type to another.
 SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**Description**: Used for type casting. Convert `expression` to the type specified by `type_name`.
+**Description**: Convert the input data `expression` into the type specified by `type_name`. This function can be used only in SELECT statements.
 
-**Return value type**: The type specified by parameter `type_name`.
+**Return value type**: The type specified by parameter `type_name`
 
-**Applicable data types**: `expression` can be any data type except for JSON.
+**Applicable data types**: All data types except JSON
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
 
 **More explanations**:
 
-- Error will be reported for unsupported type casting.
+- Error will be reported for unsupported type casting
 - Some values of some supported data types may not be casted, below are known issues:
-  1）When casting VARCHAR/NCHAR to BIGINT/BIGINT UNSIGNED, some characters may be treated as illegal, for example "a" may be converted to 0.
-  2）When casting to numeric type, if converted result is out of range the destination data type can hold, overflow may occur and casting behavior is undefined.
-  3) When casting to VARCHAR/NCHAR type, if converted string length exceeds the length specified in `type_name`, the result will be truncated. (e.g. CAST("abcd" as BINARY(2)) will return string "ab").
+        1. Some strings cannot be converted to numeric values. For example, the string `a` may be converted to `0`. However, this does not produce an error.
+        2. If a converted numeric value is larger than the maximum size for the specified type, an overflow will occur. However, this does not produce an error.
+        3. If a converted string value is larger than the maximum size for the specified type, the output value will be truncated. However, this does not produce an error.
 
 #### TO_ISO8601
 
@@ -434,18 +421,22 @@ SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
 SELECT TO_ISO8601(ts[, timezone]) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**: The ISO8601 date/time format converted from a UNIX timestamp, with timezone attached. `timezone` parameter allows attaching any customized timezone string to the output format. If `timezone` parameter is not specified, the timezone information of client side system will be attached.
+**Description**: The ISO8601 date/time format converted from a UNIX timestamp, plus the timezone. You can specify any time zone with the timezone parameter. If you do not enter this parameter, the time zone on the client is used.
 
-**Return value type**: VARCHAR.
+**Return value type**: VARCHAR
 
-**Applicable data types**: INTEGER, TIMESTAMP.
+**Applicable data types**: Integers and timestamps
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
 
 **More explanations**:
 
-- If the input is INTEGER represents UNIX timestamp, the precision of the returned value is determined by the digits of the input integer.
-- If the input is of TIMESTAMP type, The precision of the returned value is same as the precision set for the current database in use.
+- You can specify a time zone in the following format: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]。 For example, TO_ISO8601(1, "+00:00").
+- If the input is a UNIX timestamp, the precision of the returned value is determined by the digits of the input timestamp 
+- If the input is a column of TIMESTAMP type, the precision of the returned value is same as the precision set for the current data base in use
+
 
 #### TO_JSON
 
@@ -453,38 +444,44 @@ SELECT TO_ISO8601(ts[, timezone]) FROM { tb_name | stb_name } [WHERE clause];
 SELECT TO_JSON(str_literal) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**: Convert a JSON string to a JSON body.
+**Description**: Converts a string into JSON.
 
-**Return value type**: JSON.
+**Return value type**: JSON
 
-**Applicable data types**: JSON string, in the format like '{ "literal" : literal }'. '{}' is NULL value. keys in the string must be string constants, values can be constants of numeric types, bool, string or NULL. Escaping characters are not allowed in the JSON string.
+**Applicable data types**: JSON strings in the form `{"literal": literal}`. `{}` indicates a null value. The key must be a string literal. The value can be a numeric literal, string literal, Boolean literal, or null literal. str_literal cannot include escape characters.
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: table, STable
+
 
 #### TO_UNIXTIMESTAMP
 
 ```sql
-SELECT TO_UNIXTIMESTAMP(datetime_string | ts_col) FROM { tb_name | stb_name } [WHERE clause];
+SELECT TO_UNIXTIMESTAMP(datetime_string) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**: UNIX timestamp converted from a string of date/time format.
+**Description**: UNIX timestamp converted from a string of date/time format
 
-**Return value type**: BIGINT.
+**Return value type**: BIGINT
 
-**Applicable data types**: VARCHAR, NCHAR.
+**Applicable column types**: VARCHAR and NCHAR
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
 
 **More explanations**:
 
-- The input string must be compatible with ISO8601/RFC3339 standard, NULL will be returned if the string cannot be converted.
-- The precision of the returned timestamp is same as the precision set for the current database in use.
+- The input string must be compatible with ISO8601/RFC3339 standard, NULL will be returned if the string can't be converted
+- The precision of the returned timestamp is same as the precision set for the current data base in use
 
-### DateTime Functions
 
-DateTime functions applied to timestamp data. NOW(), TODAY() and TIMEZONE() are executed only once even though they may occur multiple times in a single SQL statement.
+### Time and Date Functions
+
+These functions perform operations on times and dates.
+
+All functions that return the current time, such as `NOW`, `TODAY`, and `TIMEZONE`, are calculated only once per statement even if they appear multiple times.
 
 #### NOW
 
@@ -494,61 +491,66 @@ SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior NOW()
 INSERT INTO tb_name VALUES (NOW(), ...);
 ```
 
-**Description**: The current time of the client side system.
+**Description**: The current time of the client side system
 
-**Return value type**: TIMESTAMP.
+**Return value type**: TIMESTAMP
 
-**Applicable data types**: TIMESTAMP only if used in WHERE/INSERT clause.
+**Applicable column types**: TIMESTAMP only
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
 **More explanations**:
 
-- Addition and Subtraction operation with time duration can be performed, for example NOW() + 1s, the time unit can be one of the followings:
-  b(nanosecond), u(microsecond), a(millisecond)), s(second), m(minute), h(hour), d(day), w(week).
-- The precision of the returned timestamp is same as the precision set for the current database in use.
+- Add and Subtract operation can be performed, for example NOW() + 1s, the time unit can be:
+        b(nanosecond), u(microsecond), a(millisecond)), s(second), m(minute), h(hour), d(day), w(week)
+- The precision of the returned timestamp is same as the precision set for the current data base in use
+
 
 #### TIMEDIFF
 
 ```sql
-SELECT TIMEDIFF(ts1 | datetime_string1, ts2 | datetime_string2 [, time_unit]) FROM { tb_name | stb_name } [WHERE clause];
+SELECT TIMEDIFF(ts | datetime_string1, ts | datetime_string2 [, time_unit]) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**: The difference(duration) between two timestamps, and rounded to the time unit specified by `time_unit`.
+**Description**: The difference between two timestamps, and rounded to the time unit specified by `time_unit`
 
-**Return value type**: BIGINT.
+**Return value type**: BIGINT
 
-**Applicable data types**: INTEGER/TIMESTAMP represents UNIX timestamp, or VARCHAR/NCHAR string in date/time format.
+**Applicable column types**: UNIX-style timestamps in BIGINT and TIMESTAMP format and other timestamps in VARCHAR and NCHAR format
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
 **More explanations**:
-
 - Time unit specified by `time_unit` can be:
-  1b(nanosecond), 1u(microsecond),1a(millisecond),1s(second),1m(minute),1h(hour),1d(day),1w(week).
-- If `time_unit` parameter is not specified, the precision of the returned time duration is same as the precision set for the current database in use.
-- If input date-time string cannot be converted to UNIX timestamp, NULL value is returned.
+          1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks)
+- The precision of the returned timestamp is same as the precision set for the current data base in use
+- If the input data is not formatted as a timestamp, the returned value is null.
+
 
 #### TIMETRUNCATE
 
 ```sql
-SELECT TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) FROM { tb_name | stb_name } [WHERE clause];
+SELECT TIMETRUNCATE(ts | datetime_string , time_unit) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**: Truncate the input timestamp with unit specified by `time_unit`.
+**Description**: Truncate the input timestamp with unit specified by `time_unit`
 
-**Return value type**: TIMESTAMP.
+**Return value type**: TIMESTAMP
 
-**Applicable data types**: INTEGER/TIMESTAMP represents UNIX timestamp, or VARCHAR/NCHAR string in date/time format.
+**Applicable column types**: UNIX-style timestamps in BIGINT and TIMESTAMP format and other timestamps in VARCHAR and NCHAR format
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
 
 **More explanations**:
-
 - Time unit specified by `time_unit` can be:
-  1b(nanosecond),1u(microsecond),1a(millisecond),1s(second),1m(minute),1h(hour),1d(day),1w(week).
-- The precision of the returned timestamp is same as the precision set for the current database in use.
-- If input date-time string cannot be converted to UNIX timestamp, NULL value is returned.
+          1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks)
+- The precision of the returned timestamp is same as the precision set for the current data base in use
+- If the input data is not formatted as a timestamp, the returned value is null.
+
 
 #### TIMEZONE
 
@@ -556,13 +558,14 @@ SELECT TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) FROM { tb_name
 SELECT TIMEZONE() FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**: The timezone of the client side system.
+**Description**: The timezone of the client side system
 
-**Return value type**: VARCHAR.
+**Applicable data types**: VARCHAR
 
-**Applicable data types**: None.
+**Applicable column types**: None
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
+
 
 #### TODAY
 
@@ -572,269 +575,269 @@ SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior TODAY
 INSERT INTO tb_name VALUES (TODAY(), ...);
 ```
 
-**Description**: The timestamp of 00:00:00 of the client side system.
+**Description**: The timestamp of 00:00:00 of the client side system
 
-**Return value type**: TIMESTAMP.
+**Return value type**: TIMESTAMP
 
-**Applicable data types**: TIMESTAMP only if used in WHERE/INSERT clause.
+**Applicable column types**: TIMESTAMP only
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
 
 **More explanations**:
 
-- Addition and Subtraction operation can be performed with time durations, for example NOW() + 1s, the time unit can be:
-  b(nanosecond), u(microsecond), a(millisecond)), s(second), m(minute), h(hour), d(day), w(week).
-- The precision of the returned timestamp is same as the precision set for the current database in use.
+- Add and Subtract operation can be performed, for example TODAY() + 1s, the time unit can be:
+                b(nanosecond), u(microsecond), a(millisecond)), s(second), m(minute), h(hour), d(day), w(week)
+- The precision of the returned timestamp is same as the precision set for the current data base in use
+
 
 ## Aggregate Functions
 
-Aggregate functions return single result row for each group in the query result set. Groups are determined by `GROUP BY` clause or time window clause if they are used; or the whole result is considered a group if neither of them is used.
+Aggregate functions return one row per group. You can use windows or GROUP BY to group data. Otherwise, the entire query is considered a single group.
+
+TDengine supports the following aggregate functions:
 
 ### APERCENTILE
 
+```sql
+SELECT APERCENTILE(field_name, P[, algo_type]) FROM { tb_name | stb_name } [WHERE clause]
 ```
-SELECT APERCENTILE(field_name, P[, algo_type])
-FROM { tb_name | stb_name } [WHERE clause]
-```
 
-**Description**: Similar to `PERCENTILE`, but a approximated result is returned.
+**Description**: Similar to `PERCENTILE`, but a simulated result is returned
 
-**Return value type**: DOUBLE.
+**Return value type**: DOUBLE
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**
-
+**Explanations**：
 - _P_ is in range [0,100], when _P_ is 0, the result is same as using function MIN; when _P_ is 100, the result is same as function MAX.
-- **algo_type** can only be input as `default` or `t-digest`, if it's not specified `default` will be used, i.e. `apercentile(column_name, 50)` is same as `apercentile(column_name, 50, "default")`.
-- If `default` is used, histogram based algorithm is used for calculation. If `t-digest` is used, `t-digest` sampling algorithm is used to calculate the result.
-
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+- `algo_type` can only be input as `default` or `t-digest` Enter `default` to use a histogram-based algorithm. Enter `t-digest` to use the t-digest algorithm to calculate the approximation of the quantile. `default` is used by default.
 
 ### AVG
 
-```
+```sql
 SELECT AVG(field_name) FROM tb_name [WHERE clause];
 ```
 
-**Description**: Get the average value of a column in a table or STable.
+**Description**: The average value of the specified fields.
 
-**Return value type**: DOUBLE.
+**Return value type**: DOUBLE
 
-**Applicable data types**: Numeric type.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
+
 
 ### COUNT
 
-```
+```sql
 SELECT COUNT([*|field_name]) FROM tb_name [WHERE clause];
 ```
 
-**Description**: Get the number of rows in a table or a super table.
+**Description**: The number of records in the specified fields.
 
-**Return value type**: BIGINT.
+**Return value type**: BIGINT
 
-**Applicable data types**: All data types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
 
 **More explanation**:
 
-- Wildcard (\*) is used to represent all columns. If \* used `COUNT` function will get the total number of all rows.
-- The number of non-NULL values will be returned if this function is used on a specific column.
+- Wildcard (\*) is used to represent all columns.
+If you input a specific column, the number of non-null values in the column is returned.
+
 
 ### ELAPSED
 
-```mysql
-SELECT ELAPSED(field_name[, time_unit]) FROM { tb_name | stb_name } [WHERE clause] [INTERVAL(interval [, offset]) [SLIDING sliding]];
+```sql
+SELECT ELAPSED(ts_primary_key [, time_unit]) FROM { tb_name | stb_name } [WHERE clause] [INTERVAL(interval [, offset]) [SLIDING sliding]];
 ```
 
-**Description**：`elapsed` function can be used to calculate the continuous time length in which there is valid data. If it's used with `INTERVAL` clause, the returned result is the calcualted time length within each time window. If it's used without `INTERVAL` caluse, the returned result is the calculated time duration within the specified time range. Please be noted that the calculated time duration is in the specified `time_unit`.
+**Description**：`elapsed` function can be used to calculate the continuous time length in which there is valid data. If it's used with `INTERVAL` clause, the returned result is the calcualted time length within each time window. If it's used without `INTERVAL` caluse, the returned result is the calculated time length within the specified time range. Please be noted that the return value of `elapsed` is the number of `time_unit` in the calculated time length.
 
-**Return value type**：DOUBLE.
+**Return value type**: Double if the input value is not NULL;
 
-**Applicable data type**：TIMESTAMP.
+**Return value type**: TIMESTAMP
 
-**Applicable tables**: table, STable, outter in nested query.
+**Applicable tables**: table, STable, outter in nested query
 
 **Explanations**：
-
 - `field_name` parameter can only be the first column of a table, i.e. timestamp primary key.
-- The minimum value of `time_unit` is the time precision of the database. If `time_unit` is not specified, the time precision of the database is used as the default ime unit.
+- The minimum value of `time_unit` is the time precision of the database. If `time_unit` is not specified, the time precision of the database is used as the default time unit. Time unit specified by `time_unit` can be:
+          1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks)
 - It can be used with `INTERVAL` to get the time valid time length of each time window. Please be noted that the return value is same as the time window for all time windows except for the first and the last time window.
 - `order by asc/desc` has no effect on the result.
 - `group by tbname` must be used together when `elapsed` is used against a STable.
 - `group by` must NOT be used together when `elapsed` is used against a table or sub table.
-- When used in nested query, it's only applicable when the inner query outputs an implicit timestamp column as the primary key. For example, `select elapsed(ts) from (select diff(value) from sub1)` is legal usage while `select elapsed(ts) from (select * from sub1)` is not.
-- It cannot be used with `leastsquares`, `diff`, `derivative`, `top`, `bottom`, `last_row`, `interp`.
+- When used in nested query, it's only applicable when the inner query outputs an implicit timestamp column as the primary key. For example, `select elapsed(ts) from (select diff(value) from sub1)` is legal usage while `select elapsed(ts) from (select * from sub1)` is not. In addition, because elapsed has a strict dependency on the timeline, a statement like `select elapsed(ts) from (select diff(value) from st group by tbname) will return a meaningless result.
+- It can't be used with `leastsquares`, `diff`, `derivative`, `top`, `bottom`, `last_row`, `interp`.
+
 
 ### LEASTSQUARES
 
-```
+```sql
 SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause];
 ```
 
 **Description**: The linear regression function of the specified column and the timestamp column (primary key), `start_val` is the initial value and `step_val` is the step value.
 
-**Return value type**: VARCHAR string in the format of "(slope, intercept)".
+**Return value type**: A string in the format of "(slope, intercept)"
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table only.
+**Applicable table types**: table only
+
 
 ### SPREAD
 
-```
+```sql
 SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**: The difference between the max and the min value of a specific column.
+**Description**: The difference between the max and the min of a specific column
 
-**Return value type**: DOUBLE.
+**Return value type**: DOUBLE
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Integers and timestamps
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**: Can be used on a column of TIMESTAMP type, the result time unit precision is same as the current database in use.
 
 ### STDDEV
 
-```
+```sql
 SELECT STDDEV(field_name) FROM tb_name [WHERE clause];
 ```
 
-**Description**: Standard deviation of a specific column in a table or STable.
+**Description**: Standard deviation of a specific column in a table or STable
 
-**Return value type**: DOUBLE.
+**Return value type**: DOUBLE
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
+
 
 ### SUM
 
-```
+```sql
 SELECT SUM(field_name) FROM tb_name [WHERE clause];
 ```
 
-**Description**: The summation of values of a specific column in a table or STable.
+**Description**: The sum of a specific column in a table or STable
 
-**Return value type**: DOUBLE.
+**Return value type**: DOUBLE or BIGINT
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
+
 
 ### HYPERLOGLOG
 
-```
+```sql
 SELECT HYPERLOGLOG(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**:The cardinal number of a specific column is returned by using hyperloglog algorithm.
+**Description**：
+  The cardinal number of a specific column is returned by using hyperloglog algorithm. The benefit of using hyperloglog algorithm is that the memory usage is under control when the data volume is huge.
+  However, when the data volume is very small, the result may be not accurate, it's recommented to use `select count(data) from (select unique(col) as data from table)` in this case.
 
-**Return value type**: INTEGER.
+**Return value type**: Integer
 
-**Applicable data types**: All data types.
+**Applicable data types**: Numeric
 
-**More explanations**: The benefit of using hyperloglog algorithm is that the memory usage is under control when the data volume is huge. However, when the data volume is very small, the result may be not accurate, it's recommented to use `select count(data) from (select unique(col) as data from table)` in this case.
+**Applicable table types**: standard tables and supertables
+
 
 ### HISTOGRAM
 
-```
+```sql
 SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_name [WHERE clause];
 ```
 
 **Description**：Returns count of data points in user-specified ranges.
 
-**Return value type**：DOUBLE or BIGINT, depends on normalized parameter settings.
+**Return value type** If normalized is set to 1, a DOUBLE is returned; otherwise a BIGINT is returned
 
-**Applicable data type**：Numerical types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable table types**: table, STable
 
 **Explanations**：
-
 - bin_type: parameter to indicate the bucket type, valid inputs are: "user_input", "linear_bin", "log_bin"。
-- bin_description: parameter to describe the rule to generate buckets，can be in the following JSON formats for each bin_type respectively:
+- bin_description: parameter to describe how to generate buckets，can be in the following JSON formats for each bin_type respectively:       
+    - "user_input": "[1, 3, 5, 7]": 
+       User specified bin values.
+       
+    - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
+       "start" - bin starting point.       "width" - bin offset.       "count" - number of bins generated.       "infinity" - whether to add（-inf, inf）as start/end point in generated set of bins.
+       The above "linear_bin" descriptor generates a set of bins: [-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf].
+ 
+    - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
+       "start" - bin starting point.       "factor" - exponential factor of bin offset.       "count" - number of bins generated.       "infinity" - whether to add（-inf, inf）as start/end point in generated range of bins.
+       The above "linear_bin" descriptor generates a set of bins: [-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf].
+- normalized: setting to 1/0 to turn on/off result normalization. Valid values are 0 or 1.
 
-   - "user_input": "[1, 3, 5, 7]": User specified bin values.
-
-   - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
-     "start" - bin starting point.
-     "width" - bin offset.
-     "count" - number of bins generated.
-     "infinity" - whether to add（-inf, inf）as start/end point in generated set of bins.
-     The above "linear_bin" descriptor generates a set of bins: [-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf].
-
-   - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
-     "start" - bin starting point.
-     "factor" - exponential factor of bin offset.
-     "count" - number of bins generated.
-     "infinity" - whether to add（-inf, inf）as start/end point in generated range of bins.
-     The above "log_bin" descriptor generates a set of bins:[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf].
-
-- normalized: setting to 1/0 to turn on/off result normalization.
 
 ### PERCENTILE
 
-```
+```sql
 SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
 ```
 
 **Description**: The value whose rank in a specific column matches the specified percentage. If such a value matching the specified percentage doesn't exist in the column, an interpolation value will be returned.
 
-**Return value type**: DOUBLE.
+**Return value type**: DOUBLE
 
-**Applicable data types**: Numeric types.
+**Applicable column types**: Numeric
 
-**Applicable table types**: table.
+**Applicable table types**: table only
 
 **More explanations**: _P_ is in range [0,100], when _P_ is 0, the result is same as using function MIN; when _P_ is 100, the result is same as function MAX.
 
-## Selector Functions
 
-Selector functiosn choose one or more rows in the query result according to the semantics. You can specify to output primary timestamp column and other columns including tbname and tags so that you can easily know which rows the selected values belong to.
+## Selection Functions
+
+Selection functions return one or more results depending. You can specify the timestamp column, tbname pseudocolumn, or tag columns to show which rows contain the selected value.
 
 ### BOTTOM
 
-```
+```sql
 SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
 **Description**: The least _k_ values of a specific column in a table or STable. If a value has multiple occurrences in the column but counting all of them in will exceed the upper limit _k_, then a part of them will be returned randomly.
 
-**Return value type**: Same as the column being operated upon.
+**Return value type**:Same as the data type of the column being operated upon
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
+**More explanation**:
 
-- _k_ must be in range [1,100].
-- The timestamp associated with the selected values are returned too.
-- Can't be used with `FILL`.
+- _k_ must be in range [1,100]
+- The timestamp associated with the selected values are returned too
+- Can't be used with `FILL`
 
 ### FIRST
 
-```
+```sql
 SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**: The first non-null value of a specific column in a table or STable.
+**Description**: The first non-null value of a specific column in a table or STable
 
-**Return value type**: Same as the column being operated upon.
+**Return value type**:Same as the data type of the column being operated upon
 
-**Applicable data types**: All data types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
+**More explanation**:
 
 - FIRST(\*) can be used to get the first non-null value of all columns
 - NULL will be returned if all the values of the specified column are all NULL
@@ -842,225 +845,231 @@ SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 ### INTERP
 
-```
-SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] [ RANGE(timestamp1,timestamp2) ] [EVERY(interval)] [FILL ({ VALUE | PREV | NULL | LINEAR | NEXT})];
+```sql
+SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] RANGE(timestamp1,timestamp2) EVERY(interval) FILL({ VALUE | PREV | NULL | LINEAR | NEXT});
 ```
 
 **Description**: The value that matches the specified timestamp range is returned, if existing; or an interpolation value is returned.
 
-**Return value type**: Same as the column being operated upon.
+**Return value type**: Same as the column being operated upon
 
-**Applicable data types**: Numeric data types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable, nested query.
+**Applicable table types**: standard tables and supertables
 
 **More explanations**
 
 - `INTERP` is used to get the value that matches the specified time slice from a column. If no such value exists an interpolation value will be returned based on `FILL` parameter.
 - The input data of `INTERP` is the value of the specified column and a `where` clause can be used to filter the original data. If no `where` condition is specified then all original data is the input.
-- The output time range of `INTERP` is specified by `RANGE(timestamp1,timestamp2)` parameter, with timestamp1<=timestamp2. timestamp1 is the starting point of the output time range and must be specified. timestamp2 is the ending point of the output time range and must be specified. If `RANGE` is not specified, then the timestamp of the first row that matches the filter condition is treated as timestamp1, the timestamp of the last row that matches the filter condition is treated as timestamp2.
-- The number of rows in the result set of `INTERP` is determined by the parameter `EVERY`. Starting from timestamp1, one interpolation is performed for every time interval specified `EVERY` parameter. If `EVERY` parameter is not used, the time windows will be considered as no ending timestamp, i.e. there is only one time window from timestamp1.
-- Interpolation is performed based on `FILL` parameter. No interpolation is performed if `FILL` is not used, that means either the original data that matches is returned or nothing is returned.
-- `INTERP` can only be used to interpolate in single timeline. So it must be used with `group by tbname` when it's used on a STable. It can't be used with `GROUP BY` when it's used in the inner query of a nested query.
-- The result of `INTERP` is not influenced by `ORDER BY TIMESTAMP`, which impacts the output order only..
+- The output time range of `INTERP` is specified by `RANGE(timestamp1,timestamp2)` parameter, with timestamp1<=timestamp2. timestamp1 is the starting point of the output time range and must be specified. timestamp2 is the ending point of the output time range and must be specified. 
+- The number of rows in the result set of `INTERP` is determined by the parameter `EVERY`. Starting from timestamp1, one interpolation is performed for every time interval specified `EVERY` parameter. 
+- Interpolation is performed based on `FILL` parameter. 
+- `INTERP` can only be used to interpolate in single timeline. So it must be used with `partition by tbname` when it's used on a STable.
 
 ### LAST
 
-```
+```sql
 SELECT LAST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**: The last non-NULL value of a specific column in a table or STable.
+**Description**: The last non-NULL value of a specific column in a table or STable
 
-**Return value type**: Same as the column being operated upon.
+**Return value type**:Same as the data type of the column being operated upon
 
-**Applicable data types**: All data types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
+**More explanation**:
 
 - LAST(\*) can be used to get the last non-NULL value of all columns
 - If the values of a column in the result set are all NULL, NULL is returned for that column; if all columns in the result are all NULL, no result will be returned.
 - When it's used on a STable, if there are multiple values with the timestamp in the result set, one of them will be returned randomly and it's not guaranteed that the same value is returned if the same query is run multiple times.
 
+
 ### LAST_ROW
 
-```
+```sql
 SELECT LAST_ROW(field_name) FROM { tb_name | stb_name };
 ```
 
-**Description**: The last row of a table or STable.
+**Description**: The last row of a table or STable
 
-**Return value type**: Same as the column being operated upon.
+**Return value type**:Same as the data type of the column being operated upon
 
-**Applicable data types**: All data type.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
 
 **More explanations**:
 
-- When it's used against a STable, multiple rows with the same and largest timestamp may exist, in this case one of them is returned randomly and it's not guaranteed that the result is same if the query is run multiple times.
-- Cannot be used with `INTERVAL`.
+- When it's used on a STable, if there are multiple values with the timestamp in the result set, one of them will be returned randomly and it's not guaranteed that the same value is returned if the same query is run multiple times.
+- Can't be used with `INTERVAL`.
 
 ### MAX
 
-```
+```sql
 SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**: The maximum value of a specific column of a table or STable.
+**Description**: The maximum value of a specific column of a table or STable
 
-**Return value type**: Same as the data type of the column being operated upon.
+**Return value type**:Same as the data type of the column being operated upon
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
+
 
 ### MIN
 
-```
+```sql
 SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
 ```
 
-**Description**: The minimum value of a specific column in a table or STable.
+**Description**: The minimum value of a specific column in a table or STable
 
-**Return value type**: Same as the data type of the column being operated upon.
+**Return value type**:Same as the data type of the column being operated upon
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
+
 
 ### MODE
 
-```
+```sql
 SELECT MODE(field_name) FROM tb_name [WHERE clause];
 ```
 
 **Description**:The value which has the highest frequency of occurrence. NULL is returned if there are multiple values which have highest frequency of occurrence.
 
-**Return value type**:Same as the data type of the column being operated upon.
+**Return value type**: Same as the input data
 
-**Applicable data types**: All data types.
+**Applicable data types**: Numeric
 
-**More explanations**:Considering the number of returned result set is unpredictable, it's suggested to limit the number of unique values to 100,000, otherwise error will be returned.
+**Applicable table types**: standard tables and supertables
+
 
 ### SAMPLE
 
 ```sql
-    SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **Description**: _k_ sampling values of a specific column. The applicable range of _k_ is [1,1000].
 
-**Return value type**: Same as the column being operated.
+**Return value type**: Same as the column being operated plus the associated timestamp
 
-**Applicable data types**: All data types.
+**Applicable data types**: Any data type except for tags of STable
 
-**Applicable table types**: table, STable.
+**Applicable nested query**: Inner query and Outer query
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
+**More explanations**: 
 
-- Arithmetic operation cannot be operated on the result of `SAMPLE` function
-- Must be used with `Partition by tbname` when it's used on a STable to force the result on each single timeline.
+This function cannot be used in expression calculation.
+- Must be used with `PARTITION BY tbname` when it's used on a STable to force the result on each single timeline
+
 
 ### TAIL
 
-```
+```sql
 SELECT TAIL(field_name, k, offset_val) FROM {tb_name | stb_name} [WHERE clause];
 ```
 
 **Description**: The next _k_ rows are returned after skipping the last `offset_val` rows, NULL values are not ignored. `offset_val` is optional parameter. When it's not specified, the last _k_ rows are returned. When `offset_val` is used, the effect is same as `order by ts desc LIMIT k OFFSET offset_val`.
 
-**Parameter value range**: k: [1,100] offset_val: [0,100].
+**Parameter value range**: k: [1,100] offset_val: [0,100]
 
-**Return value type**: Same as the column being operated upon.
+**Return value type**:Same as the data type of the column being operated upon
 
-**Applicable data types**: All data types.
+**Applicable data types**: Any data type except for timestamp, i.e. the primary key
+
+**Applicable table types**: standard tables and supertables
+
 
 ### TOP
 
-```
+```sql
 SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
 **Description**: The greatest _k_ values of a specific column in a table or STable. If a value has multiple occurrences in the column but counting all of them in will exceed the upper limit _k_, then a part of them will be returned randomly.
 
-**Return value type**: Same as the column being operated upon.
+**Return value type**:Same as the data type of the column being operated upon
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
+**More explanation**:
 
-- _k_ must be in range [1,100].
-- The timestamp associated with the selected values are returned too.
-- Cannot be used with `FILL`.
+- _k_ must be in range [1,100]
+- The timestamp associated with the selected values are returned too
+- Can't be used with `FILL`
 
 ### UNIQUE
 
-```
+```sql
 SELECT UNIQUE(field_name) FROM {tb_name | stb_name} [WHERE clause];
 ```
 
-**Description**: The values that occur the first time in the specified column. The effect is similar to `distinct` keyword, but it can also be used to match tags or timestamp.
+**Description**: The values that occur the first time in the specified column. The effect is similar to `distinct` keyword, but it can also be used to match tags or timestamp. The first occurrence of a timestamp or tag is used.
 
-**Return value type**: Same as the column or tag being operated upon.
+**Return value type**:Same as the data type of the column being operated upon
 
-**Applicable data types**: All data types.
+**Applicable column types**: Any data types except for timestamp
 
-**More explanations**:
+**Applicable table types**: table, STable
 
-- It can be used against table or STable, but can't be used together with time window, like `interval`, `state_window` or `session_window` .
-- Considering the number of result sets is unpredictable, it's suggested to limit the distinct values under 100,000 to control the memory usage, otherwise error will be returned.
 
-## Time-Series Specific Functions
+## Time-Series Extensions
 
-TDengine provides a set of time-series specific functions to better meet the requirements in querying time-series data. In general databases, similar functionalities can only be achieved with much more complex syntax and much worse performance. TDengine provides these functionalities in builtin functions so that the burden on user side is minimized.
+TDengine includes extensions to standard SQL that are intended specifically for time-series use cases. The functions enabled by these extensions require complex queries to implement in general-purpose databases. By offering them as built-in extensions, TDengine reduces user workload.
 
 ### CSUM
 
 ```sql
-    SELECT CSUM(field_name) FROM { tb_name | stb_name } [WHERE clause]
+SELECT CSUM(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **Description**: The cumulative sum of each row for a specific column. The number of output rows is same as that of the input rows.
 
-**Return value type**: BIGINT for signed integer input types; UNSIGNED BIGINT for unsigned integer input types; DOUBLE for floating point input types. 
+**Return value type**: Long integer for integers; Double for floating points. uint64_t for unsigned integers
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable nested query**: Inner query and Outer query.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
-- Arithmetic operation cannot be performed on the result of `csum` function.
-- Can only be used with aggregate functions.
-- `Partition by tbname` must be used together on a STable to force the result on a single timeline.
+**More explanations**: 
+  
+- Arithmetic operation can't be performed on the result of `csum` function
+- Can only be used with aggregate functions This function can be used with supertables and standard tables. 
+- Must be used with `PARTITION BY tbname` when it's used on a STable to force the result on each single timeline
+
 
 ### DERIVATIVE
 
-```
+```sql
 SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHERE clause];
 ```
 
 **Description**: The derivative of a specific column. The time rage can be specified by parameter `time_interval`, the minimum allowed time range is 1 second (1s); the value of `ignore_negative` can be 0 or 1, 1 means negative values are ignored.
 
-**Return value type**: DOUBLE.
+**Return value type**: DOUBLE
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
-
-- The number of result rows is the number of total rows in the time range subtracted by one, no output for the first row.
+**More explanation**: 
+  
 - It can be used together with `PARTITION BY tbname` against a STable.
-- Can be used together with selection of relative columns. E.g. select \_rowts, DERIVATIVE() from.
+- It can be used together with a selected column. For example: select \_rowts, DERIVATIVE() from。
 
 ### DIFF
 
@@ -1070,159 +1079,159 @@ SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHER
 
 **Description**: The different of each row with its previous row for a specific column. `ignore_negative` can be specified as 0 or 1, the default value is 1 if it's not specified. `1` means negative values are ignored.
 
-**Return value type**: Same as the column being operated upon.
+**Return value type**:Same as the data type of the column being operated upon
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
+**More explanation**: 
 
-- The number of result rows is the number of rows subtracted by one, no output for the first row.
-- It can be used on STable with `PARTITION by tbname`.
-- Can be used together with selection of relative columns. E.g. select \_rowts, DIFF() from.
+- The number of result rows is the number of rows subtracted by one, no output for the first row
+- It can be used together with a selected column. For example: select \_rowts, DIFF() from。
+
 
 ### IRATE
 
-```
+```sql
 SELECT IRATE(field_name) FROM tb_name WHERE clause;
 ```
 
 **Description**: instantaneous rate on a specific column. The last two samples in the specified time range are used to calculate instantaneous rate. If the last sample value is smaller, then only the last sample value is used instead of the difference between the last two sample values.
 
-**Return value type**: DOUBLE.
+**Return value type**: DOUBLE
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
-
-- It can be used on stble with `PARTITION BY`, i.e. timelines generated by `PARTITION BY tbname` on a STable.
 
 ### MAVG
 
 ```sql
-    SELECT MAVG(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+SELECT MAVG(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
 **Description**: The moving average of continuous _k_ values of a specific column. If the number of input rows is less than _k_, nothing is returned. The applicable range of _k_ is [1,1000].
 
-**Return value type**: DOUBLE.
+**Return value type**: DOUBLE
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable nested query**: Inner query and Outer query.
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
+**More explanations**: 
+  
+- Arithmetic operation can't be performed on the result of `MAVG`. 
+- Can only be used with data columns, can't be used with tags. - Can't be used with aggregate functions.
+- Must be used with `PARTITION BY tbname` when it's used on a STable to force the result on each single timeline
 
-- Arithmetic operation cannot be performed on the result of `MAVG`.
-- Cannot be used with aggregate functions.
-- Must be used with `PARTITION BY tbname` when it's used on a STable to force the result on each single timeline.
 
 ### STATECOUNT
 
-```
+```sql
 SELECT STATECOUNT(field_name, oper, val) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**: The number of continuous rows satisfying the specified conditions for a specific column. If the specified condition is evaluated as true, the number is increased by 1; otherwise the number is reset to -1. If the input value is NULL, then the corresponding row is skipped.
+**Description**: The number of continuous rows satisfying the specified conditions for a specific column. The result is shown as an extra column for each row. If the specified condition is evaluated as true, the number is increased by 1; otherwise the number is reset to -1. If the input value is NULL, then the corresponding row is skipped.
 
 **Applicable parameter values**:
 
-- oper : Can be one of "LT" (lower than), "GT" (greater than), "LE" (lower than or euqal to), "GE" (greater than or equal to), "NE" (not equal to), "EQ" (equal to).
-- val ： Numeric types.
+- oper : Can be one of `LT` (lower than), `GT` (greater than), `LE` (lower than or equal to), `GE` (greater than or equal to), `NE` (not equal to), `EQ` (equal to), the value is case insensitive
+- val ： Numeric types
 
-**Return value type**: INTEGER.
+**Return value type**: Integer
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable nested query**: Outer query only
 
-**Applicable nested query**: Outer query only.
+**Applicable table types**: standard tables and supertables
 
 **More explanations**:
 
-- Must be used together with `PARTITION BY tbname` when it's used on a STable to force the result into each single timeline.
-- Cannot be used with window operation, like interval/state_window/session_window.
+- Must be used together with `PARTITION BY tbname` when it's used on a STable to force the result into each single timeline]
+- Can't be used with window operation, like interval/state_window/session_window
+
 
 ### STATEDURATION
 
-```
+```sql
 SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**: The length of time range in which all rows satisfy the specified condition for a specific column. The length for the first row that satisfies the condition is 0. Next, if the condition is evaluated as true for a row, the time interval between current row and its previous row is added up to the time range; otherwise the time range length is reset to -1. If the value of the column is NULL, the corresponding row is skipped.
+**Description**: The length of time range in which all rows satisfy the specified condition for a specific column. The result is shown as an extra column for each row. The length for the first row that satisfies the condition is 0. Next, if the condition is evaluated as true for a row, the time interval between current row and its previous row is added up to the time range; otherwise the time range length is reset to -1. If the value of the column is NULL, the corresponding row is skipped.
 
 **Applicable parameter values**:
 
-- oper : Can be one of "LT" (lower than), "GT" (greater than), "LE" (lower than or euqal to), "GE" (greater than or equal to), "NE" (not equal to), "EQ" (equal to).
-- val : Numeric types.
-- unit : The unit of time interval, can be: 1b(nanosecond), 1u(microsecond),1a(millisecond),1s(second),1m(minute),1h(hour),1d(day),1w(week). If not specified, default is same as the current database time precision in use.
+- oper : Can be one of `LT` (lower than), `GT` (greater than), `LE` (lower than or equal to), `GE` (greater than or equal to), `NE` (not equal to), `EQ` (equal to), the value is case insensitive
+- val ： Numeric types
+- unit: The unit of time interval. Enter one of the following options: 1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks) If you do not enter a unit of time, the precision of the current database is used by default.
 
-**Return value type**: INTEGER.
+**Return value type**: Integer
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable nested query**: Outer query only
 
-**Applicable nested query**: Outer query only.
+**Applicable table types**: standard tables and supertables
 
 **More explanations**:
 
-- Must be used together with `PARTITION BY tbname` when it's used on a STable to force the result into each single timeline.
-- Cannot be used with window operation, like interval/state_window/session_window.
+- Must be used together with `PARTITION BY tbname` when it's used on a STable to force the result into each single timeline]
+- Can't be used with window operation, like interval/state_window/session_window
+
 
 ### TWA
 
-```
+```sql
 SELECT TWA(field_name) FROM tb_name WHERE clause;
 ```
 
-**Description**: Time weighted average on a specific column within a time range.
+**Description**: Time weighted average on a specific column within a time range
 
-**Return value type**: DOUBLE.
+**Return value type**: DOUBLE
 
-**Applicable data types**: Numeric types.
+**Applicable data types**: Numeric
 
-**Applicable table types**: table, STable.
+**Applicable table types**: standard tables and supertables
 
-**More explanations**:
+- Must be used together with `PARTITION BY tbname` to force the result into each single timeline.
 
-- It can be used on stable with `PARTITION BY`, i.e. timelines generated by `PARTITION BY tbname` on a STable.
 
 ## System Information Functions
 
 ### DATABASE
 
-```
+```sql
 SELECT DATABASE();
 ```
 
-**Description**：Return the current database being used. If the user doesn't specify database when logon and doesn't use `USE` SQL command to switch the datbase, this function returns NULL.
+**Description**: The current database. If no database is specified upon logging in and no database is specified with `USE` after login, NULL will be returned by `select database()`.
+
 
 ### CLIENT_VERSION
 
-```
+```sql
 SELECT CLIENT_VERSION();
 ```
 
-**Description**：Return the client version.
+**Description**: The client version.
 
 ### SERVER_VERSION
 
-```
+```sql
 SELECT SERVER_VERSION();
 ```
 
-**Description**：Returns the server version.
+**Description**: The server version.
 
 ### SERVER_STATUS
 
-```
-SELECT SERVER_VERSION();
+```sql
+SELECT SERVER_STATUS();
 ```
 
-**Description**：Returns the server's status.
+**Description**: The server status.

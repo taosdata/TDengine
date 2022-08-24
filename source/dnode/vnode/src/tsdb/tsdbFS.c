@@ -576,10 +576,7 @@ int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
-    fSet.pHeadF->nRef = 0;
-    fSet.pHeadF->commitID = pSet->pHeadF->commitID;
-    fSet.pHeadF->size = pSet->pHeadF->size;
-    fSet.pHeadF->offset = pSet->pHeadF->offset;
+    *fSet.pHeadF = *pSet->pHeadF;
 
     // data
     fSet.pDataF = (SDataFile *)taosMemoryMalloc(sizeof(SDataFile));
@@ -587,9 +584,7 @@ int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
-    fSet.pDataF->nRef = 0;
-    fSet.pDataF->commitID = pSet->pDataF->commitID;
-    fSet.pDataF->size = pSet->pDataF->size;
+    *fSet.pDataF = *pSet->pDataF;
 
     // data
     fSet.pLastF = (SLastFile *)taosMemoryMalloc(sizeof(SLastFile));
@@ -597,9 +592,7 @@ int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
-    fSet.pLastF->nRef = 0;
-    fSet.pLastF->commitID = pSet->pLastF->commitID;
-    fSet.pLastF->size = pSet->pLastF->size;
+    *fSet.pLastF = *pSet->pLastF;
 
     // last
     fSet.pSmaF = (SSmaFile *)taosMemoryMalloc(sizeof(SSmaFile));
@@ -607,9 +600,7 @@ int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
-    fSet.pSmaF->nRef = 0;
-    fSet.pSmaF->commitID = pSet->pSmaF->commitID;
-    fSet.pSmaF->size = pSet->pSmaF->size;
+    *fSet.pSmaF = *pSet->pSmaF;
 
     if (taosArrayPush(pFS->aDFileSet, &fSet) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;

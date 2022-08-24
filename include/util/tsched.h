@@ -17,6 +17,7 @@
 #define _TD_UTIL_SCHED_H_
 
 #include "os.h"
+#include "tdef.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,6 +31,24 @@ typedef struct SSchedMsg {
   void *thandle;
 } SSchedMsg;
 
+
+typedef struct {
+  char          label[TSDB_LABEL_LEN];
+  tsem_t        emptySem;
+  tsem_t        fullSem;
+  TdThreadMutex queueMutex;
+  int32_t       fullSlot;
+  int32_t       emptySlot;
+  int32_t       queueSize;
+  int32_t       numOfThreads;
+  TdThread     *qthread;
+  SSchedMsg    *queue;
+  int8_t        stop;
+  void         *pTmrCtrl;
+  void         *pTimer;
+} SSchedQueue;
+
+
 /**
  * Create a thread-safe ring-buffer based task queue and return the instance. A thread
  * pool will be created to consume the messages in the queue.
@@ -38,7 +57,7 @@ typedef struct SSchedMsg {
  * @param label the label of the queue
  * @return the created queue scheduler
  */
-void *taosInitScheduler(int32_t capacity, int32_t numOfThreads, const char *label);
+void *taosInitScheduler(int32_t capacity, int32_t numOfThreads, const char *label, SSchedQueue* pSched);
 
 /**
  * Create a thread-safe ring-buffer based task queue and return the instance.
