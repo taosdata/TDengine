@@ -39,7 +39,7 @@ class TDTestQuery(TDCase):
 
     def desc(self) -> str:
         case_description = '''
-        case1:# not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        case1:# support all int type \ double type  [hanshu = ['INTERP']]
         case2:
         '''
         return case_description
@@ -80,7 +80,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
                            
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
         for i in (33,):
             func = tdFunction.func_stable_special(i)
             try:
@@ -161,41 +161,117 @@ class TDTestQuery(TDCase):
         
         
         #单fill
-        fills = ['NONE','VALUE,100','PREV','NULL','LINEAR','NEXT']
+        fills = ['VALUE,100','PREV','NULL','LINEAR','NEXT']#'NONE',
         fill_base = str(random.sample(fills,1)).replace("[","").replace("]","").replace("'","").replace(", ","")
         single_fill = 'Fill' +'(' +fill_base + ')'
 
         #单every
-        everys = ['nums','numm','numh','numd','numw','numn','numy']#,'numa'
+        everys = ['nums','numm','numh','numd','numw','numn','numy','numa']
         every_base = str(random.sample(everys,1)).replace("num",'%s' %every_n).replace("[","").replace("]","").replace("'","").replace(", ","")
         single_every = 'every' +'(' +every_base + ')'
         
+        everys = ['numn','numy']
+        every_base = str(random.sample(everys,1)).replace("num",'%s' %every_n).replace("[","").replace("]","").replace("'","").replace(", ","")
+        single_every_error = 'every' +'(' +every_base + ')'
+        
+        everys = ['numa','nums','numm','numh','numd','numw']
+        every_base = str(random.sample(everys,1)).replace("num",'%s' %every_n).replace("[","").replace("]","").replace("'","").replace(", ","")
+        single_every_right = 'every' +'(' +every_base + ')'
+        
         #单range
+        range_starts = ['2021-08-01 00:00:00',1625000000000]
+        range_start = str(random.sample(range_starts,1)).replace("[","").replace("]","").replace(", ","")
+        range_ends = ['2022-08-15 00:00:00',1629000000000]
+        range_end = str(random.sample(range_ends,1)).replace("[","").replace("]","").replace(", ","").replace("' (","").replace(") '","")
+        single_range_right_11 = 'range' +'(' +range_start + ','+ range_end + ')'
+         
+        range_starts = ['2021-08-01 00:00:00',1625000000000]
+        range_start = str(random.sample(range_starts,1)).replace("[","").replace("]","").replace(", ","")
+        range_ends = ['2022-09-01 00:00:00',1631000000000]
+        range_end = str(random.sample(range_ends,1)).replace("[","").replace("]","").replace(", ","").replace("' (","").replace(") '","")
+        single_range_right_12 = 'range' +'(' +range_start + ','+ range_end + ')'
+         
+        range_starts = ['2021-08-30 00:00:00',1630090000000]
+        range_start = str(random.sample(range_starts,1)).replace("[","").replace("]","").replace(", ","")
+        range_ends = ['2022-09-10 00:00:00',1631000000000]
+        range_end = str(random.sample(range_ends,1)).replace("[","").replace("]","").replace(", ","").replace("' (","").replace(") '","")
+        single_range_right_13 = 'range' +'(' +range_start + ','+ range_end + ')'
+         
         t = time.time()  
         t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t))  
-        range_starts = ['2021-01-01 00:00:00',1600000000000,1600000000000000]
+        range_starts = ['2021-10-01 00:00:00',1640000000000]
         range_start = str(random.sample(range_starts,1)).replace("[","").replace("]","").replace(", ","")
-        range_ends = ['2022-01-01 00:00:00',' (now()) ','t_to_s']
+        range_ends = ['2022-01-01 00:00:00',1640000100000,' (now()) ','t_to_s']
         range_end = str(random.sample(range_ends,1)).replace("[","").replace("]","").replace(", ","").replace("' (","").replace(") '","").replace("t_to_s","%s" %t_to_s)
-        single_range = 'range' +'(' +range_start + ','+ range_end + ')'
-        
+        single_range_right_14 = 'range' +'(' +range_start + ','+ range_end + ')'
+                
+        range_starts = ['2021-08-01 00:00:00',1625000000000]
+        range_start = str(random.sample(range_starts,1)).replace("[","").replace("]","").replace(", ","")
+        range_ends = ['2022-01-01 00:00:00',1640000100000,' (now()) ','t_to_s']
+        range_end = str(random.sample(range_ends,1)).replace("[","").replace("]","").replace(", ","").replace("' (","").replace(") '","").replace("t_to_s","%s" %t_to_s)
+        single_range_right_15 = 'range' +'(' +range_start + ','+ range_end + ')'
 
         if i == 1:
             range_fill_every = single_fill
         elif i == 2:
             range_fill_every = single_every
         elif i == 3:
-            range_fill_every = single_range
+            range_fill_every = single_range_right_15
         elif i == 4:
-            range_fill_every = single_range + ' ' + single_every
+            range_fill_every = single_range_right_15 + ' ' + single_every
         elif i == 5:
-            range_fill_every = single_range + ' ' + single_fill
+            range_fill_every = single_range_right_15 + ' ' + single_fill
         elif i == 6:
             range_fill_every = single_every + ' ' + single_fill
         elif i == 7:
-            range_fill_every = single_range + ' ' + single_every + ' ' + single_fill
+            range_fill_every = single_range_right_15 + ' ' + single_every_error + ' ' + single_fill
+        #right
+        elif i == 11:
+            range_fill_every = single_range_right_11 + ' ' + single_every_right + ' ' + single_fill
+        elif i == 12:
+            range_fill_every = single_range_right_12 + ' ' + single_every_right + ' ' + single_fill
+        elif i == 13:
+            range_fill_every = single_range_right_13 + ' ' + single_every_right + ' ' + single_fill
+        elif i == 14:
+            range_fill_every = single_range_right_14 + ' ' + single_every_right + ' ' + single_fill
+        elif i == 15:
+            range_fill_every = single_range_right_15 + ' ' + single_every_right + ' ' + single_fill
                                
-        return range_fill_every                        
+        return range_fill_every    
+ 
+    
+    def interp_check(self,sql1,sql2):            
+        rows = -1;
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
+        cur1 = case_common[1]
+        
+        try:
+            self.tdSql.query(sql1,queryTimes=1)
+            self.tdSql.query(sql2,queryTimes=1)            
+            rows = self.tdSql.query(sql1).row_count   
+            if rows>=0:
+                rows_1 = rows 
+                rows_2 = self.tdSql.query(sql2).row_count 
+                if (rows_1 == 0) and (rows_2 == 0):
+                    self.logger.info(("=====sql1.rows:'%s',=====sql2.rows:'%s'") %(rows_1,rows_2))
+                    self.tdCreateData.explain_sql(sql2) 
+                    cur1.execute(sql2)           
+                elif (rows_1 > 0 and rows_1 <= 10) and (rows_2 > 0 and rows_2 <= 10):
+                    self.logger.info(("=====sql1.rows:'%s',=====sql2.rows:'%s'") %(rows_1,rows_2))
+                    self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                    self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %rows_1),1,1,'%s' %sql2 ,1,int('%d' %rows_2),1,1)
+                    self.tdCreateData.explain_sql(sql2)    
+                    cur1.execute(sql2)      
+                elif (rows_1 > 10 ) and (rows_2 > 10 ) and (rows_1 == rows_2) :
+                    self.logger.info(("=====sql1.rows:'%s',=====sql2.rows:'%s'") %(rows_1,rows_2))
+                    self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,10,1,1,'%s' %sql2 ,1,10,1,1)
+                    self.tdCreateData.explain_sql(sql2)
+                    cur1.execute(sql2)
+        except:
+            self.tdSql.error(sql1)
+            self.tdSql.error(sql2)
+            self.logger.info("sql1 is not support :=====%s; sql2 is not support :=====%s; " %(sql1,sql2))
+                                                   
          
     def right_case_1_range(self):
         self.logger.info("\n==========================right case 1==========================\n")
@@ -204,7 +280,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
                            
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
         for i in (33,):
             func = tdFunction.func_stable_special(i)
             try:
@@ -226,64 +302,73 @@ class TDTestQuery(TDCase):
                         interval_fill = ' where ts between 1630000001000 and 1630100001000 '
                         interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
                             
-                        list_intervals = [7,]
-                        for i in list_intervals:                        
-                            range_fill_every = self.interp_range_fill_every(i)
-                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
-                            
-                            sql2 = "select %s from %s  %s ;"  % (func,self.table,range_fill_every)
-                            print(sql2)
-                            cur1.execute(sql2)
-                            sql= sql + sql2
-                                
-                        # list_intervals = [1,2,3,4,5,6,]
+                        # list_intervals = [11,12,13,14,15]
                         # for i in list_intervals:                        
                         #     range_fill_every = self.interp_range_fill_every(i)
                         #     self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                             
                         #     sql2 = "select %s from %s  %s ;"  % (func,self.table,range_fill_every)
-                        #     self.tdSql.error(sql2)
+                        #     print(sql2)
+                        #     cur1.execute(sql2)
+                        #     #self.tdSql.error(sql2)
                         #     sql= sql + sql2
+                                
+                        list_intervals = [1,2,3,4,5,6,7,]
+                        for i in list_intervals:                        
+                            range_fill_every = self.interp_range_fill_every(i)
+                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
+                            
+                            sql2 = "select %s from %s  %s ;"  % (func,self.table,range_fill_every)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
 
-                        #     sql2 = "select * from (select %s from %s where %s %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select * from (select %s from %s where %s %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
                                                        
-                        #     sql2 = "select %s from %s where tbname in ('%s') %s ;"  % (func,self.table,self.table,range_fill_every)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select %s from %s where tbname in ('%s') %s ;"  % (func,self.table,self.table,range_fill_every)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
 
-                        #     sql2 = "select %s from (select * from %s) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select %s from (select * from %s) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
                             
-                        #     sql2 = "select %s from %s where %s %s %s %s ;" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select %s from %s where %s %s %s %s ;" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
                             
-                        # list_intervals = [7]
-                        # for i in list_intervals:                        
-                        #     range_fill_every = self.interp_range_fill_every(i)
-                        #     self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
-                        #     sql1 = "select %s from %s  %s ;"  % (func,self.table,range_fill_every)
+                        list_intervals = [11,12,13,14,15,]
+                        for i in list_intervals:                        
+                            range_fill_every = self.interp_range_fill_every(i)
+                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
+                            sql1 = "select %s from %s  %s ;"  % (func,self.table,range_fill_every)
 
-                        #     sql2 = "select %s from %s where  %s %s %s ;" %(func,self.table,qt_like_match,qt_in_where,range_fill_every)
-                        #     self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        #     cur1.execute(sql2)
-                        #     self.tdCreateData.explain_sql(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select %s from %s where  %s %s %s ;" %(func,self.table,qt_like_match,qt_in_where,range_fill_every)
+                            self.interp_check(sql1,sql2)
+                            sql= sql + sql2
                             
-                        #     sql2 = "select %s from %s where tbname in ('%s') %s ;"  % (func,self.table,self.table,range_fill_every)
-                        #     self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        #     cur1.execute(sql2)
-                        #     self.tdCreateData.explain_sql(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select %s from %s where tbname in ('%s') %s ;"  % (func,self.table,self.table,range_fill_every)
+                            self.interp_check(sql1,sql2)
+                            sql= sql + sql2
 
-                        #     sql2 = "select * from (select %s from %s where %s %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
-                        #     self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        #     cur1.execute(sql2)
-                        #     self.tdCreateData.explain_sql(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select * from (select %s from %s where %s %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
+                            self.interp_check(sql1,sql2)
+                            sql= sql + sql2
+                            
+                            sql1 = "select %s as ii from %s  %s order by ii;"  % (func,self.table,range_fill_every)
+
+                            sql2 = "select %s as ii from %s where  %s %s %s order by ii ;" %(func,self.table,qt_like_match,qt_in_where,range_fill_every)
+                            self.interp_check(sql1,sql2)
+                            sql= sql + sql2
+                            
+                            sql2 = "select %s as ii from %s where tbname in ('%s') %s order by ii ;"  % (func,self.table,self.table,range_fill_every)
+                            self.interp_check(sql1,sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select * from (select %s as ii from %s where %s %s %s %s order by ii);" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
+                            self.interp_check(sql1,sql2)
+                            sql= sql + sql2
                             
             except Exception as e:
                 raise e   
@@ -300,7 +385,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
                            
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
         for i in (33,):
             func = tdFunction.func_stable_special(i)
             try:
@@ -346,7 +431,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
                            
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
    
         for i in (33,):
             func = tdFunction.func_stable_special(i)
@@ -526,7 +611,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
 
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
         for i in (33,):
             func = tdFunction.func_stable_special(i)
             func_desc = func # for desc
@@ -620,7 +705,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
 
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
         for i in (33,):
             func = tdFunction.func_stable_special(i)
             func_desc = func # for desc
@@ -726,7 +811,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
 
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
         for i in (33,):
             func = tdFunction.func_stable_special(i)
             func_desc = func # for desc
@@ -1160,7 +1245,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
                    
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
         for i in (33,):
             func = tdFunction.func_stable_special(i)
             try:
@@ -1206,7 +1291,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
                    
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
         for i in (33,):
             func = tdFunction.func_stable_special(i)
             try:
@@ -1252,7 +1337,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
                    
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
         for i in (33,):
             func = tdFunction.func_stable_special(i)
             try:
@@ -1406,37 +1491,37 @@ class TDTestQuery(TDCase):
     def run(self):
         startTime = time.time() 
         
-        #self.data_create(self.db)
+        self.data_create(self.db)
         
         self.right_case_1_range()
           
-        # startTime1 = time.time()
-        # self.right_case_1()
-        # self.right_case_1_tbname()
-        # self.error_case_1()       
-        # self.right_case_1_interval()
-        # endTime1 = time.time()       
-        # self.logger.info("total time1 %d s" % (endTime1 - startTime1))
+        startTime1 = time.time()
+        self.right_case_1()
+        self.right_case_1_tbname()
+        self.error_case_1()       
+        self.right_case_1_interval()
+        endTime1 = time.time()       
+        self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
-        # startTime2 = time.time()
-        # self.right_case_2()
-        # self.right_case_2_tbname()
-        # self.error_case_2()        
-        # self.right_case_2_interval()
-        # self.right_case_2_tbname_interval()
-        # endTime2 = time.time()       
-        # self.logger.info("total time2 %d s" % (endTime2 - startTime2))
+        startTime2 = time.time()
+        self.right_case_2()
+        self.right_case_2_tbname()
+        self.error_case_2()        
+        self.right_case_2_interval()
+        self.right_case_2_tbname_interval()
+        endTime2 = time.time()       
+        self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
-        # startTime3 = time.time()
-        # self.right_case_3()
-        # self.right_case_3_tbname()
-        # self.error_case_3()       
-        # self.right_case_3_interval()
-        # endTime3 = time.time()
-        # self.logger.info("total time3 %ds" % (endTime3 - startTime3))     
+        startTime3 = time.time()
+        self.right_case_3()
+        self.right_case_3_tbname()
+        self.error_case_3()       
+        self.right_case_3_interval()
+        endTime3 = time.time()
+        self.logger.info("total time3 %ds" % (endTime3 - startTime3))     
 
         endTime = time.time()
-        #self.rm_sql()
+        self.rm_sql()
         self.logger.info("total time %ds" % (endTime - startTime))
 
 

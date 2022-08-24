@@ -46,10 +46,10 @@ class TDTestQuery(TDCase):
         return case_description
 
     #basic_param
-    db = "stable_time"
-    db_1 = "stable_time_1"
-    db_2 = "stable_time_2"
-    db_3 = "stable_time_3"
+    db = "stable_now"
+    db_1 = "stable_now_1"
+    db_2 = "stable_now_2"
+    db_3 = "stable_now_3"
     service_host = ""
     table_list = ['stable_1','stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
