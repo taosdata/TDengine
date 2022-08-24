@@ -17,7 +17,7 @@
 
 #define RBTREE_NODE_COLOR(N) ((N) ? (N)->color : BLACK)
 
-// APIs ================================================
+// SRBTree ================================================
 static void tRBTreeRotateLeft(SRBTree *pTree, SRBTreeNode *pNode) {
   SRBTreeNode *right = pNode->right;
 
@@ -138,13 +138,73 @@ SRBTreeNode *tRBTreePut(SRBTree *pTree, SRBTreeNode *pNew) {
       }
     }
   }
-
   pTree->rootNode->color = BLACK;
+
+  // update min/max node
+  if (pTree->minNode == NULL || pTree->cmprFn(pTree->minNode->payload, pNew->payload) > 0) {
+    pTree->minNode = pNew;
+  }
+  if (pTree->maxNode == NULL || pTree->cmprFn(pTree->maxNode->payload, pNew->payload) < 0) {
+    pTree->maxNode = pNew;
+  }
+
   return pNew;
 }
 
 void tRBTreeDrop(SRBTree *pTree, SRBTreeNode *pNode) {
-  // TODO
+  // update min/max node
+  if (pTree->minNode == pNode) pTree->minNode = pNode->parent;
+  if (pTree->maxNode == pNode) pTree->maxNode = pNode->parent;
+
+  // drop impl
+  if (pNode->left == NULL) {
+    if (pNode->parent) {
+      if (pNode == pNode->parent->left) {
+        pNode->parent->left = pNode->right;
+      } else {
+        pNode->parent->right = pNode->right;
+      }
+    } else {
+      pTree->rootNode = pNode->right;
+    }
+
+    if (pNode->right) {
+      pNode->right->parent = pNode->parent;
+    }
+  } else if (pNode->right == NULL) {
+    if (pNode->parent) {
+      if (pNode == pNode->parent->left) {
+        pNode->parent->left = pNode->left;
+      } else {
+        pNode->parent->right = pNode->left;
+      }
+    } else {
+      pTree->rootNode = pNode->left;
+    }
+
+    if (pNode->left) {
+      pNode->left->parent = pNode->parent;
+    }
+  } else {
+    // TODO
+    SRBTreeNode *pSuccessorNode = pNode->right;
+    while (pSuccessorNode->left) {
+      pSuccessorNode = pSuccessorNode->left;
+    }
+
+    pSuccessorNode->parent->left = NULL;  // todo: not correct here
+
+    pSuccessorNode->parent = pNode->parent;
+    pSuccessorNode->left = pNode->left;
+    pSuccessorNode->right = pNode->right;
+    pNode->left->parent = pSuccessorNode;
+    pNode->right->parent = pSuccessorNode;
+  }
+
+  // fix
+  if (pNode->color == BLACK) {
+    // TODO
+  }
 }
 
 SRBTreeNode *tRBTreeDropByKey(SRBTree *pTree, void *pKey) {
@@ -184,5 +244,19 @@ SRBTreeNode *tRBTreeGet(SRBTree *pTree, void *pKey) {
     }
   }
 
+  return pNode;
+}
+
+// SRBTreeIter ================================================
+SRBTreeNode *tRBTreeIterNext(SRBTreeIter *pIter) {
+  SRBTreeNode *pNode = pIter->pNode;
+  SRBTree     *pTree = pIter->pTree;
+
+  if (pIter->pNode) {
+    ASSERT(0);
+    // TODO
+  }
+
+_exit:
   return pNode;
 }

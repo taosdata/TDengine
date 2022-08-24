@@ -21,7 +21,7 @@ typedef struct SRBTreeIter SRBTreeIter;
 
 typedef int32_t (*tRBTreeCmprFn)(void *, void *);
 
-// SRBTree
+// SRBTree =============================================
 #define tRBTreeCreate(compare) \
   (SRBTree) { .cmprFn = (compare), .root = NULL, .minNode = NULL, .maxNode = NULL }
 
@@ -30,12 +30,13 @@ void         tRBTreeDrop(SRBTree *pTree, SRBTreeNode *pNode);
 SRBTreeNode *tRBTreeDropByKey(SRBTree *pTree, void *pKey);
 SRBTreeNode *tRBTreeGet(SRBTree *pTree, void *pKey);
 
-// SRBTreeIter
+// SRBTreeIter =============================================
 #define tRBTreeIterCreate(tree) \
-  (SRBTreeIter) { .pTree = (tree) }
+  (SRBTreeIter) { .pTree = (tree), .pNode = (tree)->minNode }
 
 SRBTreeNode *tRBTreeIterNext(SRBTreeIter *pIter);
 
+// STRUCT =============================================
 struct SRBTreeNode {
   enum { RED, BLACK } color;
   SRBTreeNode *parent;
@@ -52,5 +53,6 @@ struct SRBTree {
 };
 
 struct SRBTreeIter {
-  SRBTree *pTree;
+  SRBTree     *pTree;
+  SRBTreeNode *pNode;
 };
