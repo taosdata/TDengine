@@ -1281,6 +1281,42 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
   SStreamScanInfo* pInfo = pOperator->info;
 
+#if 0
+  SStreamState* pState = pTaskInfo->streamInfo.pState;
+  if (pState) {
+    printf(">>>>>>>> stream write backend\n");
+    SWinKey key = {
+        .ts = 1,
+        .groupId = 2,
+    };
+    char tmp[100] = "abcdefg1";
+    if (streamStatePut(pState, &key, &tmp, strlen(tmp) + 1) < 0) {
+      ASSERT(0);
+    }
+
+    key.ts = 2;
+    char tmp2[100] = "abcdefg2";
+    if (streamStatePut(pState, &key, &tmp2, strlen(tmp2) + 1) < 0) {
+      ASSERT(0);
+    }
+
+    key.groupId = 5;
+    key.ts = 1;
+    char tmp3[100] = "abcdefg3";
+    if (streamStatePut(pState, &key, &tmp3, strlen(tmp3) + 1) < 0) {
+      ASSERT(0);
+    }
+
+    char*   val2 = NULL;
+    int32_t sz;
+    if (streamStateGet(pState, &key, (void**)&val2, &sz) < 0) {
+      ASSERT(0);
+    }
+    printf("stream read %s %d\n", val2, sz);
+    streamFreeVal(val2);
+  }
+#endif
+
   qDebug("stream scan called");
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__LOG) {
     while (1) {
