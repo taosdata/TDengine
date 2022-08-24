@@ -79,6 +79,10 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
     ASSERT(0);
   }
 
+  if (streamLoadTasks(pTq->pStreamMeta) < 0) {
+    ASSERT(0);
+  }
+
   return pTq;
 }
 

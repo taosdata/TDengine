@@ -55,9 +55,6 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->ahandle = ahandle;
   pMeta->expandFunc = expandFunc;
 
-  if (streamLoadTasks(pMeta) < 0) {
-    goto _err;
-  }
   return pMeta;
 
 _err:
