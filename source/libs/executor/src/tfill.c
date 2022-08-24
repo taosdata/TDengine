@@ -76,6 +76,11 @@ static void doSetUserSpecifiedValue(SColumnInfoData* pDst, SVariant* pVar, int32
   }
 }
 
+static bool fillWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, SColumnInfoData* pDstColInfoData, int32_t rowIndex) {
+  //fill windows pseduo column, _wstart, _wend, _wduration and return true
+  return false;
+}
+
 static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock* pSrcBlock, int64_t ts,
                          bool outOfBound) {
   SPoint  point1, point2, point;

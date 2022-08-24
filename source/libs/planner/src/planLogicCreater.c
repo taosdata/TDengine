@@ -44,12 +44,15 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol) {
       pCol->colType = COLUMN_TYPE_TBNAME;
       break;
     case FUNCTION_TYPE_WSTART:
+      pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+      pCol->colType = COLUMN_TYPE_WINDOW_START;
+      break;
     case FUNCTION_TYPE_WEND:
       pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-      pCol->colType = COLUMN_TYPE_WINDOW_PC;
+      pCol->colType = COLUMN_TYPE_WINDOW_END;
       break;
     case FUNCTION_TYPE_WDURATION:
-      pCol->colType = COLUMN_TYPE_WINDOW_PC;
+      pCol->colType = COLUMN_TYPE_WINDOW_DURATION;
       break;
     case FUNCTION_TYPE_GROUP_KEY:
       pCol->colType = COLUMN_TYPE_GROUP_KEY;
@@ -784,7 +787,10 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
 static EDealRes needFillValueImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    if (COLUMN_TYPE_WINDOW_PC != pCol->colType && COLUMN_TYPE_GROUP_KEY != pCol->colType) {
+    if (COLUMN_TYPE_WINDOW_START != pCol->colType &&
+        COLUMN_TYPE_WINDOW_END != pCol->colType &&
+        COLUMN_TYPE_WINDOW_DURATION != pCol->colType &&
+        COLUMN_TYPE_GROUP_KEY != pCol->colType) {
       *(bool*)pContext = true;
       return DEAL_RES_END;
     }
