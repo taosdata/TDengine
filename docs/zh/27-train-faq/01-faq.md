@@ -141,7 +141,7 @@ charset UTF-8
 
 ### 14. JDBC 报错： the executed SQL is not a DML or a DDL？
 
-请更新至最新的 JDBC 驱动，参考 [Java 连接器](/reference/connector/java)
+请更新至最新的 JDBC 驱动，参考 [Java 连接器](../../reference/connector/java)
 
 ### 15. taos connect failed, reason&#58; invalid timestamp
 
