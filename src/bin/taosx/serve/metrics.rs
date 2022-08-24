@@ -1,9 +1,9 @@
-use metrics::{counter, describe_gauge, gauge, histogram, register_gauge, register_histogram};
+use metrics::{describe_gauge, gauge, register_gauge};
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusRecorder};
 use std::{
     collections::HashSet,
     net::SocketAddr,
-    time::{Duration, Instant},
+    time::{Duration},
 };
 
 #[derive(Debug, Default)]

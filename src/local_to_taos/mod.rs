@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use taos::*;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
-use crate::{taoz::ZCodec, Compression};
+use crate::{taoz::ZCodec};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct Topic {
@@ -114,7 +114,7 @@ impl LocalConfig {
     }
 }
 
-pub async fn local_to_taos_validate(from: Dsn, to: Dsn) -> Result<()> {
+pub async fn local_to_taos_validate(_from: Dsn, _to: Dsn) -> Result<()> {
     Ok(())
 }
 

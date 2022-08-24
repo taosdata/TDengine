@@ -1,14 +1,14 @@
 //! TaosX's backup file format
 //!
 //!
-use std::fmt::Display;
+
 use std::io::prelude::*;
 use std::io::Result as IoResult;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::Arc;
+
 
 use chrono::Local;
 use futures::FutureExt;
@@ -19,14 +19,14 @@ use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWrite;
 use tokio::io::AsyncWriteExt;
 
-use anyhow::Result;
+
 
 mod header;
 
 use async_compression::{tokio::write::ZstdEncoder, Level};
 pub use header::*;
 use tokio::io::BufReader;
-use tokio::sync::Mutex;
+
 
 type ZFileInner = ZCodec<ZstdEncoder<BufReader<tokio::fs::File>>>;
 
@@ -203,8 +203,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::{
-        borrow::BorrowMut,
-        sync::{atomic::AtomicU64, Arc, Mutex},
+        sync::{Arc, Mutex},
     };
 
     use futures::TryFutureExt;
@@ -256,7 +255,7 @@ mod tests {
                         writer.start_data_async().await.unwrap();
                         while let Some(block) = data.fetch_raw_block().await.unwrap() {
                             // dbg!(&block);
-                            let len = writer.write_data_async(&block).await.unwrap();
+                            let _len = writer.write_data_async(&block).await.unwrap();
                             rows += block.nrows();
                             // dbg!(len);
                             // log::info!("");

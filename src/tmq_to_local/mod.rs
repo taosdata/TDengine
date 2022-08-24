@@ -1,6 +1,5 @@
 use std::{
     path::Path,
-    sync::{Arc, Mutex},
 };
 
 use anyhow::Result;
@@ -8,11 +7,9 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use taos::{Consumer, *};
-use tokio::io::*;
 
 use crate::{
-    taoz::{ZCodec, ZFile},
-    Compression,
+    taoz::{ZFile},
 };
 
 #[derive(Debug, Deserialize, Serialize)]

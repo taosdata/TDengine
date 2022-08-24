@@ -1,32 +1,28 @@
-use std::{collections::HashMap, sync::Mutex};
+use std::{collections::HashMap, time::Duration};
 
 use actix_web::{
-    delete, get, post, put,
-    web::{Data, Json, Path, Query, ServiceConfig},
+    delete, get, post,
+    web::{Data, Json, Path, ServiceConfig},
     HttpResponse, Responder,
 };
-use tokio_util::sync::CancellationToken;
-// use sqlx::types::
 use chrono::{DateTime, Local};
-use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use sqlx::migrate::Migrator;
-use sqlx::{Sqlite, SqlitePool};
+use sqlx::SqlitePool;
 use std::str::FromStr;
-use taos::{Address, Code, Dsn, DsnError};
+use taos::{Code, Dsn};
 use tokio::{runtime::Runtime, sync::RwLock};
-use utoipa::{IntoParams, *};
+use tokio_util::sync::CancellationToken;
+use utoipa::*;
 
 static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
-
-use super::{LogApiKey, RequireApiKey};
 
 // const TASK_SELECT: &str = "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks";
 
 #[derive()]
 pub(super) struct TaskController {
     pool: SqlitePool,
-    runtime: Runtime,
+    runtime: Option<Runtime>,
     tasks: RwLock<
         HashMap<
             i64,
@@ -37,6 +33,19 @@ pub(super) struct TaskController {
         >,
     >,
     // tasks: Mutex<Vec<Task>>,
+}
+
+impl Drop for TaskController {
+    fn drop(&mut self) {
+        if let Some(rt) = self.runtime.take() {
+            // rt.block_on(self.clear()).unwrap();
+            std::thread::spawn(move || {
+                std::mem::drop(rt);
+            })
+            .join()
+            .unwrap();
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -60,17 +69,28 @@ pub(super) enum StreamType {
 }
 
 impl TaskController {
-    pub async fn new(sqlite: &str) -> anyhow::Result<Self> {
+    pub async fn from_sqlite(sqlite: &str, runtime: Runtime) -> anyhow::Result<Self> {
         let options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?.create_if_missing(true);
         let pool = sqlx::SqlitePool::connect_with(options).await?;
         MIGRATOR.run(&pool).await?;
+        Ok(Self {
+            pool,
+            runtime: Some(runtime),
+            tasks: Default::default(),
+        })
+    }
+
+    pub async fn new(sqlite: &str) -> anyhow::Result<Self> {
+        let options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?.create_if_missing(true);
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .max_blocking_threads(1024)
             .build()?;
+        let pool = sqlx::SqlitePool::connect_with(options).await?;
+        MIGRATOR.run(&pool).await?;
         Ok(Self {
             pool,
-            runtime,
+            runtime: Some(runtime),
             tasks: Default::default(),
         })
     }
@@ -107,7 +127,7 @@ impl TaskController {
         // let (tx, rx) = tokio::sync::oneshot::channel();
         let token = tokio_util::sync::CancellationToken::new();
         let cloned_token = token.clone();
-        let handle = self.runtime.spawn(async move {
+        let handle = self.runtime.as_ref().unwrap().spawn(async move {
             tokio::select! {
                 _ = cloned_token.cancelled() => {
                     let now = Local::now();
@@ -186,6 +206,30 @@ impl TaskController {
             log::info!("successfully deleted task by id {id}");
         }
         Ok(Some(()))
+    }
+
+    pub async fn clear(&self) -> anyhow::Result<()> {
+        for (id, (handle, token)) in self.tasks.write().await.drain() {
+            token.cancel();
+            if !handle.is_finished() {
+                // token.cancel();
+                log::error!("Cancel task by id {id}");
+                let _ = handle.await;
+            }
+
+            let res = sqlx::query_as_unchecked!(
+                Task,
+                "UPDATE tasks SET `deleted` = TRUE where id = ?",
+                id
+            )
+            .execute(&self.pool)
+            .await?;
+            // dbg!(res);
+            if res.rows_affected() == 1 {
+                log::info!("successfully deleted task by id {id}");
+            }
+        }
+        Ok(())
     }
 }
 
@@ -304,7 +348,7 @@ impl TryFrom<NewTask> for taosx::TaskOpts {
             jobs,
             compression_level,
             force,
-            stream_type,
+            stream_type: _,
         } = value;
         Ok(Self {
             from: from.parse()?,

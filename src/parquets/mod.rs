@@ -9,7 +9,7 @@ use arrow::{
 };
 use futures::TryStreamExt;
 use taos::{
-    AsyncFetchable, AsyncQueryable, ColumnView, Dsn, Field, Itertools, Precision, TBuilder, Taos,
+    AsyncFetchable, AsyncQueryable, ColumnView, Dsn, Field, Itertools, Precision, TBuilder,
     TaosBuilder, Ty,
 };
 

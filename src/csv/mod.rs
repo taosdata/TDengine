@@ -1,7 +1,7 @@
 use anyhow::Result;
 use futures::TryStreamExt;
 use taos::{
-    AsyncFetchable, AsyncQueryable, BorrowedValue, Dsn, Itertools, TBuilder, Taos, TaosBuilder,
+    AsyncFetchable, AsyncQueryable, Dsn, Itertools, TBuilder, TaosBuilder,
 };
 
 pub async fn query_to_csv(mut from: Dsn, to: Dsn) -> Result<()> {

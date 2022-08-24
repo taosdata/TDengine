@@ -6,8 +6,8 @@ mod tmq;
 mod tmq_to_local;
 mod tmq_to_td;
 
-use std::future::Future;
-use std::pin::Pin;
+
+
 
 use taos::{Dsn, IntoDsn};
 
