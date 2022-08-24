@@ -23,7 +23,7 @@ TDengine的主要功能如下：
 10. 提供多种数据的[导入](../operation/import)、[导出](../operation/export)
 11. 支持对[TDengine 集群本身的监控](/operation/monitor)
 12. 提供各种语言的[连接器](../reference/connector): C/C++, Java, Python, Go, Rust, Node.js 等
-13. 支持 [REST 接口](../reference/connector/rest-api/)
+13. 支持 [REST 接口](../reference/rest-api/)
 14. 支持与[ Grafana 无缝集成](../third-party/grafana)
 15. 支持与 Google Data Studio 无缝集成
 
