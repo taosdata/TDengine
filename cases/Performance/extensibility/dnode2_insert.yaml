@@ -1,0 +1,154 @@
+case1:
+  json_file1:
+    json_info:
+      host: "v3cluster-0001"
+      port: 6030
+      thread_count: 2
+      thread_count_create_tbl: 32
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      insert_interval: 0
+      num_of_records_per_req: 100
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_db1"
+      drop: "no"
+      replica: 1
+      cache: 16
+      blocks: 8
+      precision: "ms"
+      keep: 3650
+      minRows: 100
+      maxRows: 4096
+      comp: 2
+      walLevel: 1
+      quorum: 1
+      fsync: 3000
+      update: 0
+      vgroups: 1
+    stb_info:
+      stb_name: "stb1"
+      child_table_exists: "no"
+      childtable_count: 2000
+      childtable_prefix: "stb1_00"
+      escape_character: "no"
+      auto_create_table: "no"
+      stream_config: "trigger ignore expired"
+      batch_create_tbl_num: 1
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 10000
+
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 65480
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 110
+      start_timestamp: "2020-01-01 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 0
+      col_float_count: 0
+      col_int_count: 2
+      col_double_count: 1
+      col_binary_count: 1
+      col_binary_length: 12
+      col_nchar_count: 0
+      col_nchar_length: 16
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_bigint_count: 0
+      tag_float_count: 0
+      tag_int_count: 1
+      tag_double_count: 0
+      tag_binary_count: 0
+      tag_binary_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_tinyint_count: 0
+      tag_smallint_count: 0
+      tag_bigint_count: 0
+      tag_timestamp_count: 0
+  # json_file2:
+  #   json_info:
+  #     host: "v3cluster-0001"
+  #     port: 6030
+  #     thread_count: 128
+  #     thread_count_create_tbl: 32
+  #     result_file: "/root/taosBenchmark_result.log"
+  #     confirm_parameter_prompt: "no"
+  #     insert_interval: 0
+  #     num_of_records_per_req: 100
+  #     max_sql_len: 1024000
+  #   db_info:
+  #     db_name: "perf_db1"
+  #     drop: "no"
+  #     replica: 1
+  #     cache: 16
+  #     blocks: 8
+  #     precision: "ms"
+  #     keep: 3650
+  #     minRows: 100
+  #     maxRows: 4096
+  #     comp: 2
+  #     walLevel: 1
+  #     quorum: 1
+  #     fsync: 3000
+  #     update: 0
+  #     vgroups: 1
+  #   stb_info:
+  #     stb_name: "stb2"
+  #     child_table_exists: "no"
+  #     childtable_count: 1000
+  #     childtable_prefix: "stb2_00"
+  #     escape_character: "no"
+  #     auto_create_table: "no"
+  #     stream_config: "trigger ignore expired"
+  #     batch_create_tbl_num: 1
+  #     data_source: "rand"
+  #     insert_mode: "taosc"
+  #     interlace_rows: 0
+  #     line_protocol: null
+  #     tcp_transfer: "no"
+  #     insert_rows: 10000
+
+  #     childtable_limit: 0
+  #     childtable_offset: 0
+  #     rows_per_tbl: 0
+  #     max_sql_len: 65480
+  #     disorder_ratio: 0
+  #     disorder_range: 1000
+  #     timestamp_step: 110
+  #     start_timestamp: "2020-01-01 00:00:00"
+  #     sample_format: "csv"
+  #     sample_file: "./sample.csv"
+  #     tags_file: ""
+  #     col_timestamp_count: 0
+  #     col_float_count: 0
+  #     col_int_count: 2
+  #     col_double_count: 1
+  #     col_binary_count: 1
+  #     col_binary_length: 12
+  #     col_nchar_count: 0
+  #     col_nchar_length: 16
+  #     col_tinyint_count: 0
+  #     col_smallint_count: 0
+  #     col_bigint_count: 0
+  #     tag_float_count: 0
+  #     tag_int_count: 1
+  #     tag_double_count: 0
+  #     tag_binary_count: 0
+  #     tag_binary_length: 16
+  #     tag_nchar_count: 0
+  #     tag_nchar_length: 16
+  #     tag_tinyint_count: 0
+  #     tag_smallint_count: 0
+  #     tag_bigint_count: 0
+  #     tag_timestamp_count: 0
+
