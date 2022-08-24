@@ -1,0 +1,12 @@
+[package]
+name = "restexample"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+chrono = "0.4"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["rt", "macros", "rt-multi-thread"] }
+
+taos = { version = "0.*" }
