@@ -1707,7 +1707,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
             if (batchMax > 1) {
               batchMax = 100 / batchMax;
             }
-            while (occupied || (++batchCnt > batchMax)) {    // greedy mode
+            while (occupied || (++batchCnt < batchMax)) {    // greedy mode
               taosReadAllQitems(pInfo->queue, pInfo->qall);  // queue has mutex lock
               int32_t qallItemSize = taosQallItemSize(pInfo->qall);
               if (qallItemSize > 0) {
