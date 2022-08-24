@@ -404,7 +404,9 @@ void taos_init_imp(void) {
   schedulerInit();
   tscDebug("starting to initialize TAOS driver");
 
+#ifndef WINDOWS
   taosSetCoreDump(true);
+#endif
 
   initTaskQueue();
   fmFuncMgtInit();
