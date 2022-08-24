@@ -102,8 +102,11 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
         tDecoderInit(&coder, msg, msgSize);
         code = tDecodeSVCreateTbBatchRsp(&coder, &batchRsp);
         if (TSDB_CODE_SUCCESS == code && batchRsp.nRsps > 0) {
-          pJob->execRes.res = taosArrayInit(batchRsp.nRsps, POINTER_BYTES);
-          pJob->execRes.msgType = TDMT_VND_CREATE_TABLE;
+          SCH_LOCK(SCH_WRITE, &pJob->resLock);
+          if (NULL == pJob->execRes.res) {
+            pJob->execRes.res = taosArrayInit(batchRsp.nRsps, POINTER_BYTES);
+            pJob->execRes.msgType = TDMT_VND_CREATE_TABLE;
+          }
 
           for (int32_t i = 0; i < batchRsp.nRsps; ++i) {
             SVCreateTbRsp *rsp = batchRsp.pRsps + i;
@@ -115,6 +118,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
               code = rsp->code;
             }
           }
+          SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
 
           if (taosArrayGetSize((SArray*)pJob->execRes.res) <= 0) {        
             taosArrayDestroy((SArray*)pJob->execRes.res);
@@ -1113,7 +1117,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       break;
   }
 
-#if 1
+#if 0
   SSchTrans trans = {.pTrans = pJob->conn.pTrans, .pHandle = SCH_GET_TASK_HANDLE(pTask)};
   code = schAsyncSendMsg(pJob, pTask, &trans, addr, msgType, msg, msgSize, persistHandle, (rpcCtx.args ? &rpcCtx : NULL));
   msg = NULL;

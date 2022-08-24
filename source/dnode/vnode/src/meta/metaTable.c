@@ -437,7 +437,7 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMe
         (*pMetaRsp)->suid = pReq->ctb.suid;
         strcpy((*pMetaRsp)->tbName, pReq->name);
       } else {
-        metaUpdateMetaRsp(pReq->uid, pReq->name, pReq->ntb.schemaRow, *pMetaRsp);
+        metaUpdateMetaRsp(pReq->uid, pReq->name, &pReq->ntb.schemaRow, *pMetaRsp);
       }
     }
   }
