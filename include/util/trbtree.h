@@ -13,17 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _TD_UTIL_RBTREE_H_
+#define _TD_UTIL_RBTREE_H_
+
 #include "os.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct SRBTree     SRBTree;
 typedef struct SRBTreeNode SRBTreeNode;
 typedef struct SRBTreeIter SRBTreeIter;
 
-typedef int32_t (*tRBTreeCmprFn)(void *, void *);
+typedef int32_t (*tRBTreeCmprFn)(const void *, const void *);
 
 // SRBTree =============================================
 #define tRBTreeCreate(compare) \
-  (SRBTree) { .cmprFn = (compare), .root = NULL, .minNode = NULL, .maxNode = NULL }
+  (SRBTree) { .cmprFn = (compare), .rootNode = NULL, .minNode = NULL, .maxNode = NULL }
 
 SRBTreeNode *tRBTreePut(SRBTree *pTree, SRBTreeNode *pNew);
 void         tRBTreeDrop(SRBTree *pTree, SRBTreeNode *pNode);
@@ -56,3 +63,9 @@ struct SRBTreeIter {
   SRBTree     *pTree;
   SRBTreeNode *pNode;
 };
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_UTIL_RBTREE_H_*/

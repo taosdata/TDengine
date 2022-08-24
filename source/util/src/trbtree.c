@@ -256,7 +256,7 @@ SRBTreeNode *tRBTreeIterNext(SRBTreeIter *pIter) {
     if (pIter->pNode->right) {
       pIter->pNode = pIter->pNode->right;
       while (pIter->pNode->left) {
-        pIter->pNode->left;
+        pIter->pNode = pIter->pNode->left;
       }
     } else {
       while (true) {
