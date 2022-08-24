@@ -13,30 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-
-typedef int32_t (*tRBTreeCmprFn)(void *, void *);
-
-typedef struct SRBTree     SRBTree;
-typedef struct SRBTreeNode SRBTreeNode;
-typedef struct SRBTreeIter SRBTreeIter;
-
-struct SRBTreeNode {
-  enum { RED, BLACK } color;
-  SRBTreeNode *parent;
-  SRBTreeNode *left;
-  SRBTreeNode *right;
-  uint8_t      payload[];
-};
-
-struct SRBTree {
-  tRBTreeCmprFn cmprFn;
-  SRBTreeNode  *root;
-};
-
-struct SRBTreeIter {
-  SRBTree *pTree;
-};
+#include "trbtree.h"
 
 #define RBTREE_NODE_COLOR(N) ((N) ? (N)->color : BLACK)
 
@@ -51,7 +28,7 @@ static void tRBTreeRotateLeft(SRBTree *pTree, SRBTreeNode *pNode) {
 
   right->parent = pNode->parent;
   if (pNode->parent == NULL) {
-    pTree->root = right;
+    pTree->rootNode = right;
   } else if (pNode == pNode->parent->left) {
     pNode->parent->left = right;
   } else {
@@ -72,7 +49,7 @@ static void tRBTreeRotateRight(SRBTree *pTree, SRBTreeNode *pNode) {
 
   left->parent = pNode->parent;
   if (pNode->parent == NULL) {
-    pTree->root = left;
+    pTree->rootNode = left;
   } else if (pNode == pNode->parent->left) {
     pNode->parent->left = left;
   } else {
@@ -83,20 +60,17 @@ static void tRBTreeRotateRight(SRBTree *pTree, SRBTreeNode *pNode) {
   pNode->parent = left;
 }
 
-#define tRBTreeCreate(compare) \
-  (SRBTree) { .cmprFn = (compare), .root = NULL }
-
 SRBTreeNode *tRBTreePut(SRBTree *pTree, SRBTreeNode *pNew) {
   pNew->left = NULL;
   pNew->right = NULL;
   pNew->color = RED;
 
   // insert
-  if (pTree->root == NULL) {
+  if (pTree->rootNode == NULL) {
     pNew->parent = NULL;
-    pTree->root = pNew;
+    pTree->rootNode = pNew;
   } else {
-    SRBTreeNode *pNode = pTree->root;
+    SRBTreeNode *pNode = pTree->rootNode;
     while (true) {
       ASSERT(pNode);
 
@@ -165,12 +139,16 @@ SRBTreeNode *tRBTreePut(SRBTree *pTree, SRBTreeNode *pNew) {
     }
   }
 
-  pTree->root->color = BLACK;
+  pTree->rootNode->color = BLACK;
   return pNew;
 }
 
-SRBTreeNode *tRBTreeDrop(SRBTree *pTree, void *pKey) {
-  SRBTreeNode *pNode = pTree->root;
+void tRBTreeDrop(SRBTree *pTree, SRBTreeNode *pNode) {
+  // TODO
+}
+
+SRBTreeNode *tRBTreeDropByKey(SRBTree *pTree, void *pKey) {
+  SRBTreeNode *pNode = pTree->rootNode;
 
   while (pNode) {
     int32_t c = pTree->cmprFn(pKey, pNode->payload);
@@ -185,14 +163,14 @@ SRBTreeNode *tRBTreeDrop(SRBTree *pTree, void *pKey) {
   }
 
   if (pNode) {
-    // TODO
+    tRBTreeDrop(pTree, pNode);
   }
 
   return pNode;
 }
 
 SRBTreeNode *tRBTreeGet(SRBTree *pTree, void *pKey) {
-  SRBTreeNode *pNode = pTree->root;
+  SRBTreeNode *pNode = pTree->rootNode;
 
   while (pNode) {
     int32_t c = pTree->cmprFn(pKey, pNode->payload);

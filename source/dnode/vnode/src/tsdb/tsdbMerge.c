@@ -29,6 +29,20 @@ typedef struct {
 } SLDataIter;
 
 typedef struct {
+  SRBTree tMerge;
+} SDataMerger;
+
+SRowInfo *tDataMergeNext(SDataMerger *pMerger) {
+  SRowInfo *pRowInfo = NULL;
+
+  SRBTreeNode *pNode = pMerger->tMerge.minNode;
+  if (pNode == NULL) return NULL;
+
+  return pRowInfo;
+}
+
+// ================================================================================
+typedef struct {
   STsdb  *pTsdb;
   int8_t  maxLast;
   int64_t commitID;
