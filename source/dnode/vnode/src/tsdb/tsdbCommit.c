@@ -327,54 +327,6 @@ _exit:
   return code;
 }
 
-// static int32_t tsdbCommitterNextLastRow(SCommitter *pCommitter) {
-//   int32_t code = 0;
-
-//   ASSERT(pCommitter->dReader.pReader);
-//   ASSERT(pCommitter->dReader.pRowInfo);
-
-//   SBlockData *pBlockDatal = &pCommitter->dReader.bDatal;
-//   pCommitter->dReader.iRow++;
-//   if (pCommitter->dReader.iRow < pBlockDatal->nRow) {
-//     if (pBlockDatal->uid) {
-//       pCommitter->dReader.pRowInfo->uid = pBlockDatal->uid;
-//     } else {
-//       pCommitter->dReader.pRowInfo->uid = pBlockDatal->aUid[pCommitter->dReader.iRow];
-//     }
-//     pCommitter->dReader.pRowInfo->row = tsdbRowFromBlockData(pBlockDatal, pCommitter->dReader.iRow);
-//   } else {
-//     pCommitter->dReader.iBlockL++;
-//     if (pCommitter->dReader.iBlockL < taosArrayGetSize(pCommitter->dReader.aBlockL)) {
-//       SBlockL *pBlockL = (SBlockL *)taosArrayGet(pCommitter->dReader.aBlockL, pCommitter->dReader.iBlockL);
-//       int64_t  suid = pBlockL->suid;
-//       int64_t  uid = pBlockL->maxUid;
-
-//       code = tsdbCommitterUpdateTableSchema(pCommitter, suid, uid);
-//       if (code) goto _exit;
-
-//       code = tBlockDataInit(pBlockDatal, suid, suid ? 0 : uid, pCommitter->skmTable.pTSchema);
-//       if (code) goto _exit;
-
-//       code = tsdbReadLastBlock(pCommitter->dReader.pReader, pBlockL, pBlockDatal);
-//       if (code) goto _exit;
-
-//       pCommitter->dReader.iRow = 0;
-//       pCommitter->dReader.pRowInfo->suid = pBlockDatal->suid;
-//       if (pBlockDatal->uid) {
-//         pCommitter->dReader.pRowInfo->uid = pBlockDatal->uid;
-//       } else {
-//         pCommitter->dReader.pRowInfo->uid = pBlockDatal->aUid[0];
-//       }
-//       pCommitter->dReader.pRowInfo->row = tsdbRowFromBlockData(pBlockDatal, pCommitter->dReader.iRow);
-//     } else {
-//       pCommitter->dReader.pRowInfo = NULL;
-//     }
-//   }
-
-// _exit:
-//   return code;
-// }
-
 static int32_t tsdbCommitterNextTableData(SCommitter *pCommitter) {
   int32_t code = 0;
 
