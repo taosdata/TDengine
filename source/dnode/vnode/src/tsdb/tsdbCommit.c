@@ -835,6 +835,9 @@ static int32_t tsdbMergeCommitLast(SCommitter *pCommitter, STbDataIter *pIter) {
 
       // set block data schema if need
       if (pBlockData->suid == 0 && pBlockData->uid == 0) {
+        code = tsdbCommitterUpdateTableSchema(pCommitter, pTbData->suid, pTbData->uid);
+        if (code) goto _err;
+
         code =
             tBlockDataInit(pBlockData, pTbData->suid, pTbData->suid ? 0 : pTbData->uid, pCommitter->skmTable.pTSchema);
         if (code) goto _err;
