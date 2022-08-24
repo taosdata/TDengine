@@ -469,6 +469,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
   code = createResultData(&type, rows, &output);
   if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
     qError("failed to create result, reason:%s", tstrerror(code));
     goto end;
   }
@@ -477,6 +478,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   if(code != TSDB_CODE_SUCCESS){
     qError("failed to calculate scalar, reason:%s", tstrerror(code));
     terrno = code;
+    goto end;
   }
 //  int64_t st2 = taosGetTimestampUs();
 //  qDebug("calculate tag block rows:%d, cost:%ld us", rows, st2-st1);
@@ -763,6 +765,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   }
 
   if (pTagCond) {
+    terrno = TDB_CODE_SUCCESS;
     SColumnInfoData* pColInfoData = getColInfoResult(metaHandle, pListInfo->suid, res, pTagCond);
     if(terrno != TDB_CODE_SUCCESS){
       colDataDestroy(pColInfoData);
