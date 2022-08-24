@@ -79,5 +79,3 @@ Copy code bellow to your editor and run it.
 ```python
 {{#include docs/examples/python/develop_tutorial.py:connect}}
 ```
-
-<!---The client connection is then established. For how to write data and query data, please refer to [Insert Data](https://docs.tdengine.com/cloud/develop/insert-data#connector-examples) and [Query Data](https://docs.tdengine.com/cloud/develop/query-data/#connector-examples).--->
