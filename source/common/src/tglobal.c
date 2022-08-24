@@ -164,6 +164,7 @@ int32_t tsMqRebalanceInterval = 2;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushInterval = 86400;
 int32_t tsGrantHBInterval = 60;
+int32_t tsUptimeInterval = 300;  // seconds
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {

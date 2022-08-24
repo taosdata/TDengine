@@ -53,6 +53,7 @@ def check_docs() {
         }
         sh '''
             cd ${WKC}
+            git remote prune origin
             git pull >/dev/null
             git fetch origin +refs/pull/${CHANGE_ID}/merge
             git checkout -qf FETCH_HEAD

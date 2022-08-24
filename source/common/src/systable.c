@@ -66,8 +66,9 @@ static const SSysDbTableSchema bnodesSchema[] = {
 };
 
 static const SSysDbTableSchema clusterSchema[] = {
-    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "name", .bytes = TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "uptime", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
 
