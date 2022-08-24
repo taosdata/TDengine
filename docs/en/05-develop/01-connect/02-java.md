@@ -1,7 +1,6 @@
 ---
 sidebar_label: Java
 title: Connect with Java Connector
-pagination_next: develop/insert-data
 ---
 
 import Tabs from '@theme/Tabs';

@@ -1,7 +1,6 @@
 ---
 sidebar_label: Rust
 title: Connect with Rust Connector
-pagination_next: develop/insert-data
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';

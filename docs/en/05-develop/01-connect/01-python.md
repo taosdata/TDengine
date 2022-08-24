@@ -1,7 +1,6 @@
 ---
 sidebar_label: Python
 title: Connect with Python Connector
-pagination_next: develop/insert-data
 ---
 
 import Tabs from '@theme/Tabs';
