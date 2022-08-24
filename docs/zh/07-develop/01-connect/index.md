@@ -14,10 +14,10 @@ import ConnCSNative from "./_connect_cs.mdx";
 import ConnC from "./_connect_c.mdx";
 import ConnR from "./_connect_r.mdx";
 import ConnPHP from "./_connect_php.mdx";
-import InstallOnWindows from "../../14-reference/03-connector/_linux_install.mdx";
-import InstallOnLinux from "../../14-reference/03-connector/_windows_install.mdx";
-import VerifyLinux from "../../14-reference/03-connector/_verify_linux.mdx";
-import VerifyWindows from "../../14-reference/03-connector/_verify_windows.mdx";
+import InstallOnWindows from "../../08-connector/_linux_install.mdx";
+import InstallOnLinux from "../../08-connector/_windows_install.mdx";
+import VerifyLinux from "../../08-connector/_verify_linux.mdx";
+import VerifyWindows from "../../08-connector/_verify_windows.mdx";
 
 TDengine 提供了丰富的应用程序开发接口，为了便于用户快速开发自己的应用，TDengine 支持了多种编程语言的连接器，其中官方连接器包括支持 C/C++、Java、Python、Go、Node.js、C#、Rust、Lua（社区贡献）和 PHP （社区贡献）的连接器。这些连接器支持使用原生接口（taosc）和 REST 接口（部分语言暂不支持）连接 TDengine 集群。社区开发者也贡献了多个非官方连接器，例如 ADO.NET 连接器、Lua 连接器和 PHP 连接器。
 
