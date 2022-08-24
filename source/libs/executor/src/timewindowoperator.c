@@ -3128,8 +3128,8 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     maxTs = TMAX(maxTs, pBlock->info.window.ekey);
     maxTs = TMAX(maxTs, pBlock->info.watermark);
 
-    if (pBlock->info.type == STREAM_NORMAL || pBlock->info.type == STREAM_PULL_DATA ||
-        pBlock->info.type == STREAM_INVALID) {
+    ASSERT(pBlock->info.type != STREAM_INVERT);
+    if (pBlock->info.type == STREAM_NORMAL || pBlock->info.type == STREAM_PULL_DATA) {
       pInfo->binfo.pRes->info.type = pBlock->info.type;
     } else if (pBlock->info.type == STREAM_CLEAR) {
       SArray* pUpWins = taosArrayInit(8, sizeof(SWinRes));

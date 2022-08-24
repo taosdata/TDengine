@@ -90,7 +90,7 @@ http://127.0.0.1:6041/rest/sql
 ```
 Basic cm9vdDp0YW9zZGF0YQ==
 ```
-相关文档请参考[ TDengine REST API 文档](/reference/rest-api/)。
+相关文档请参考[ TDengine REST API 文档](../../connector/rest-api/)。
 
 在消息体中输入规则引擎替换模板:
 

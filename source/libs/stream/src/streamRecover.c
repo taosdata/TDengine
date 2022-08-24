@@ -176,6 +176,7 @@ int32_t tDecodeSStreamTaskRecoverRsp(SDecoder* pDecoder, SStreamRecoverDownstrea
 }
 
 int32_t streamSaveStateInfo(SStreamMeta* pMeta, SStreamTask* pTask) {
+#if 0
   void* buf = NULL;
 
   ASSERT(pTask->taskLevel == TASK_LEVEL__SINK);
@@ -224,10 +225,12 @@ int32_t streamSaveStateInfo(SStreamMeta* pMeta, SStreamTask* pTask) {
 FAIL:
   if (buf) taosMemoryFree(buf);
   return -1;
+#endif
   return 0;
 }
 
 int32_t streamLoadStateInfo(SStreamMeta* pMeta, SStreamTask* pTask) {
+#if 0
   void*   pVal = NULL;
   int32_t vLen = 0;
   if (tdbTbGet(pMeta->pStateDb, &pTask->taskId, sizeof(void*), &pVal, &vLen) < 0) {
@@ -241,7 +244,7 @@ int32_t streamLoadStateInfo(SStreamMeta* pMeta, SStreamTask* pTask) {
 
   pTask->nextCheckId = aggCheckpoint.checkpointId + 1;
   pTask->checkpointInfo = aggCheckpoint.checkpointVer;
-
+#endif
   return 0;
 }
 

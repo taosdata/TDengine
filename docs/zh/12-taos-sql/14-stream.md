@@ -18,7 +18,7 @@ stream_options: {
 其中 subquery 是 select 普通查询语法的子集:
 
 ```sql
-subquery: SELECT [DISTINCT] select_list
+subquery: SELECT select_list
     from_clause
     [WHERE condition]
     [PARTITION BY tag_list]
@@ -37,7 +37,7 @@ window_clause: {
 
 其中，SESSION 是会话窗口，tol_val 是时间间隔的最大范围。在 tol_val 时间间隔范围内的数据都属于同一个窗口，如果连续的两条数据的时间超过 tol_val，则自动开启下一个窗口。
 
-窗口的定义与时序数据特色查询中的定义完全相同。
+窗口的定义与时序数据特色查询中的定义完全相同，详见 [TDengine 特色查询](../distinguished)
 
 例如，如下语句创建流式计算，同时自动创建名为 avg_vol 的超级表，此流计算以一分钟为时间窗口、30 秒为前向增量统计这些电表的平均电压，并将来自 meters 表的数据的计算结果写入 avg_vol 表，不同 partition 的数据会分别创建子表并写入不同子表。
 
