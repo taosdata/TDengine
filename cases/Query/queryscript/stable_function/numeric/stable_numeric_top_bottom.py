@@ -45,7 +45,7 @@ class TDTestQuery(TDCase):
         return case_description
 
     #basic_param
-    db = "stable_numeric_top_bottom"
+    db = "stable_top_bottom"
     service_host = ""
     table_list = ['stable_1','stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
