@@ -8,7 +8,7 @@ TDengine 命令行程序（以下简称 TDengine CLI）是用户操作 TDengine 
 
 ## 安装
 
-如果在 TDengine 服务器端执行，无需任何安装，已经自动安装好 TDengine CLI。如果要在非 TDengine 服务器端运行，需要安装 TDengine 客户端驱动安装包，具体安装，请参考 [安装客户端驱动](/reference/connector/#安装客户端驱动)。
+如果在 TDengine 服务器端执行，无需任何安装，已经自动安装好 TDengine CLI。如果要在非 TDengine 服务器端运行，需要安装 TDengine 客户端驱动安装包，具体安装，请参考 [安装客户端驱动](../connector/#安装客户端驱动)。
 
 ## 执行
 
