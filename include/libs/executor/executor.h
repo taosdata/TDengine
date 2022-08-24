@@ -43,7 +43,6 @@ typedef struct {
   int32_t numOfVgroups;
 
   void*   sContext;      // SSnapContext*
-  SHashObj *pFilterOutTbUid;
 
   void*   pStateBackend;
 } SReadHandle;

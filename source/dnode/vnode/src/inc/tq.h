@@ -101,6 +101,7 @@ typedef struct {
 
   int64_t snapshotVer;
 
+  SWalReader* pWalReader;
 
   SWalRef* pRef;
 
@@ -140,7 +141,10 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
 
 // tqRead
 int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqMetaRsp* pMetaRsp, STqOffsetVal* offset);
+int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** pHeadWithCkSum);
 
+// tqExec
+int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataRsp* pRsp);
 int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp);
 
 // tqMeta

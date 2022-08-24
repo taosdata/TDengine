@@ -215,8 +215,6 @@ int32_t tqReaderSetDataMsg(STqReader *pReader, SSubmitReq *pMsg, int64_t ver);
 bool    tqNextDataBlock(STqReader *pReader);
 bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReader *pReader);
-int64_t tqFetchLog(SWalReader *pWalReader, bool fetchMeta, int64_t* fetchOffset, SWalCkHead** ppCkHead);
-SSDataBlock* tqLogScanExec(int8_t subType, STqReader* pReader, SHashObj* pFilterOutTbUid, SSDataBlock* block);
 
 void vnodeEnqueueStreamMsg(SVnode *pVnode, SRpcMsg *pMsg);
 

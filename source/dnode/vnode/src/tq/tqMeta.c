@@ -269,12 +269,11 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
       ASSERT(handle.execHandle.pExecReader);
     } else {
 
+      handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
       handle.execHandle.execDb.pFilterOutTbUid =
           taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-      handle.execHandle.pExecReader = tqOpenReader(pTq->pVnode);
+//      handle.execHandle.pExecReader = tqOpenReader(pTq->pVnode);
       buildSnapContext(reader.meta, reader.version, 0, handle.execHandle.subType, handle.fetchMeta, (SSnapContext **)(&reader.sContext));
-      reader.tqReader = handle.execHandle.pExecReader;
-      reader.pFilterOutTbUid = handle.execHandle.execDb.pFilterOutTbUid;
 
       handle.execHandle.task =
           qCreateQueueExecTaskInfo(NULL, &reader, NULL, NULL);

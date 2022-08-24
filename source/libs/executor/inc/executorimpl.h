@@ -499,14 +499,9 @@ typedef struct SStreamRawScanInfo{
 //  void     *metaInfo;
 //  void     *dataInfo;
   SVnode*         vnode;
-  SWalCkHead*     pCkHead;
-  bool            needFetchLog;
-  bool            hasDataInOneFetchVer;
   SSDataBlock     pRes;         // result SSDataBlock
   STsdbReader*    dataReader;
   SSnapContext*   sContext;
-  STqReader*      tqReader;
-  SHashObj*       pFilterOutTbUid;
 }SStreamRawScanInfo;
 
 typedef struct SSysTableScanInfo {
