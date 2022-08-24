@@ -1690,7 +1690,7 @@ SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pT
   pInfo->hasDataInOneFetchVer = false;
 
   pInfo->vnode = pHandle->vnode;
-  pInfo->pFilterOutTbUid = pHandle->pFilterOutTbUid;
+  pInfo->pFilterOutTbUid = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   pInfo->tqReader = pHandle->tqReader;
   walSetReaderCapacity(pInfo->tqReader->pWalReader, 2048);
 

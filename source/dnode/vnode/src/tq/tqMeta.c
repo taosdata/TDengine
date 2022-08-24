@@ -267,8 +267,10 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
       ASSERT(scanner);
       handle.execHandle.pExecReader = qExtractReaderFromStreamScanner(scanner);
       ASSERT(handle.execHandle.pExecReader);
-    } else if(handle.execHandle.subType == TOPIC_SUB_TYPE__DB){
+    } else {
 
+      handle.execHandle.execDb.pFilterOutTbUid =
+          taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
       handle.execHandle.pExecReader = tqOpenReader(pTq->pVnode);
       buildSnapContext(reader.meta, reader.version, 0, handle.execHandle.subType, handle.fetchMeta, (SSnapContext **)(&reader.sContext));
       reader.tqReader = handle.execHandle.pExecReader;
@@ -276,9 +278,6 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
 
       handle.execHandle.task =
           qCreateQueueExecTaskInfo(NULL, &reader, NULL, NULL);
-
-      handle.execHandle.execDb.pFilterOutTbUid =
-          taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     }
     tqDebug("tq restore %s consumer %" PRId64 " vgId:%d", handle.subKey, handle.consumerId, TD_VID(pTq->pVnode));
     taosHashPut(pTq->pHandle, pKey, kLen, &handle, sizeof(STqHandle));
