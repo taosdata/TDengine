@@ -8,7 +8,7 @@ TDengine 命令行程序（以下简称 TDengine CLI）是用户操作 TDengine 
 
 ## 安装
 
-如果在 TDengine 服务器端执行，无需任何安装，已经自动安装好 TDengine CLI。如果要在非 TDengine 服务器端运行，需要安装 TDengine 客户端驱动安装包，具体安装，请参考 [连接器](/reference/connector/)。
+如果在 TDengine 服务器端执行，无需任何安装，已经自动安装好 TDengine CLI。如果要在非 TDengine 服务器端运行，需要安装 TDengine 客户端驱动安装包，具体安装，请参考 [连接器](../../connector/)。
 
 ## 执行
 
@@ -18,7 +18,7 @@ TDengine 命令行程序（以下简称 TDengine CLI）是用户操作 TDengine 
 taos
 ```
 
-如果连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息。（请参考 [FAQ](/train-faq/faq) 来解决终端连接服务端失败的问题）。TDengine CLI 的提示符号如下：
+如果连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息。（请参考 [FAQ](../../train-faq/faq) 来解决终端连接服务端失败的问题）。TDengine CLI 的提示符号如下：
 
 ```cmd
 taos>
