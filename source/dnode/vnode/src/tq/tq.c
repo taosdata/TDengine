@@ -401,7 +401,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   tqDebug("tmq poll: consumer %ld, subkey %s, vg %d, no data", consumerId, pHandle->subKey,
           TD_VID(pTq->pVnode));
 
-  tqOffsetResetToLog(&dataRsp.rspOffset, metaRsp.rspOffset.version);
+  tqOffsetResetToLog(&dataRsp.rspOffset, fetchOffsetNew.version);
   if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
     code = -1;
   }

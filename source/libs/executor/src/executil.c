@@ -360,7 +360,7 @@ static int32_t createResultData(SDataType* pType, int32_t numOfRows, SScalarPara
 
   int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows);
   if (code != TSDB_CODE_SUCCESS) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    terrno = code;
     taosMemoryFree(pColumnData);
     return terrno;
   }
@@ -378,6 +378,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   SScalarParam output = {0};
 
   tagFilterAssist ctx = {0};
+
   ctx.colHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
   if(ctx.colHash == NULL){
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -484,6 +485,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   code = createResultData(&type, rows, &output);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to create result, reason:%s", tstrerror(code));
+    terrno = code;
     goto end;
   }
 
