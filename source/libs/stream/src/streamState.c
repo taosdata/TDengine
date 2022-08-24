@@ -15,6 +15,7 @@
 
 #include "executor.h"
 #include "streamInc.h"
+#include "tcommon.h"
 #include "ttimer.h"
 
 SStreamState* streamStateOpen(char* path, SStreamTask* pTask) {
@@ -23,14 +24,18 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  char statePath[200];
+  char statePath[300];
   sprintf(statePath, "%s/%d", path, pTask->taskId);
-  if (tdbOpen(statePath, 16 * 1024, 1, &pState->db) < 0) {
+  if (tdbOpen(statePath, 4096, 256, &pState->db) < 0) {
     goto _err;
   }
 
   // open state storage backend
-  if (tdbTbOpen("state.db", sizeof(int32_t), -1, NULL, pState->db, &pState->pStateDb) < 0) {
+  if (tdbTbOpen("state.db", sizeof(SWinKey), -1, SWinKeyCmpr, pState->db, &pState->pStateDb) < 0) {
+    goto _err;
+  }
+
+  if (streamStateBegin(pState) < 0) {
     goto _err;
   }
 
@@ -60,6 +65,7 @@ int32_t streamStateBegin(SStreamState* pState) {
   }
 
   if (tdbBegin(pState->db, &pState->txn) < 0) {
+    tdbTxnClose(&pState->txn);
     return -1;
   }
   return 0;
@@ -95,33 +101,39 @@ int32_t streamStateAbort(SStreamState* pState) {
   return 0;
 }
 
-int32_t streamStatePut(SStreamState* pState, const void* key, int32_t kLen, const void* value, int32_t vLen) {
-  return tdbTbUpsert(pState->pStateDb, key, kLen, value, vLen, &pState->txn);
+int32_t streamStatePut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
+  return tdbTbUpsert(pState->pStateDb, key, sizeof(SWinKey), value, vLen, &pState->txn);
 }
-int32_t streamStateGet(SStreamState* pState, const void* key, int32_t kLen, void** pVal, int32_t* pVLen) {
-  return tdbTbGet(pState->pStateDb, key, kLen, pVal, pVLen);
-}
-
-int32_t streamStateDel(SStreamState* pState, const void* key, int32_t kLen) {
-  return tdbTbDelete(pState->pStateDb, key, kLen, &pState->txn);
+int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
+  return tdbTbGet(pState->pStateDb, key, sizeof(SWinKey), pVal, pVLen);
 }
 
-SStreamStateCur* streamStateGetCur(SStreamState* pState, const void* key, int32_t kLen) {
+int32_t streamStateDel(SStreamState* pState, const SWinKey* key) {
+  return tdbTbDelete(pState->pStateDb, key, sizeof(SWinKey), &pState->txn);
+}
+
+SStreamStateCur* streamStateGetCur(SStreamState* pState, const SWinKey* key) {
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
   if (pCur == NULL) return NULL;
   tdbTbcOpen(pState->pStateDb, &pCur->pCur, NULL);
 
   int32_t c;
-  tdbTbcMoveTo(pCur->pCur, key, kLen, &c);
+  tdbTbcMoveTo(pCur->pCur, key, sizeof(SWinKey), &c);
   if (c != 0) {
     taosMemoryFree(pCur);
     return NULL;
   }
-  return 0;
+  return pCur;
 }
 
-int32_t streamGetKVByCur(SStreamStateCur* pCur, void** pKey, int32_t* pKLen, void** pVal, int32_t* pVLen) {
-  return tdbTbcGet(pCur->pCur, (const void**)pKey, pKLen, (const void**)pVal, pVLen);
+int32_t streamStateGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
+  const SWinKey* pKTmp = NULL;
+  int32_t        kLen;
+  if (tdbTbcGet(pCur->pCur, (const void**)&pKTmp, &kLen, pVal, pVLen) < 0) {
+    return -1;
+  }
+  *pKey = *pKTmp;
+  return 0;
 }
 
 int32_t streamStateSeekFirst(SStreamState* pState, SStreamStateCur* pCur) {
@@ -134,14 +146,14 @@ int32_t streamStateSeekLast(SStreamState* pState, SStreamStateCur* pCur) {
   return tdbTbcMoveToLast(pCur->pCur);
 }
 
-SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const void* key, int32_t kLen) {
+SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const SWinKey* key) {
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
   if (pCur == NULL) {
     return NULL;
   }
 
   int32_t c;
-  if (tdbTbcMoveTo(pCur->pCur, key, kLen, &c) < 0) {
+  if (tdbTbcMoveTo(pCur->pCur, key, sizeof(SWinKey), &c) < 0) {
     taosMemoryFree(pCur);
     return NULL;
   }
@@ -155,14 +167,14 @@ SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const void* key, i
   return pCur;
 }
 
-SStreamStateCur* streamStateSeekKeyPrev(SStreamState* pState, const void* key, int32_t kLen) {
+SStreamStateCur* streamStateSeekKeyPrev(SStreamState* pState, const SWinKey* key) {
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
   if (pCur == NULL) {
     return NULL;
   }
 
   int32_t c;
-  if (tdbTbcMoveTo(pCur->pCur, key, kLen, &c) < 0) {
+  if (tdbTbcMoveTo(pCur->pCur, key, sizeof(SWinKey), &c) < 0) {
     taosMemoryFree(pCur);
     return NULL;
   }
@@ -185,3 +197,9 @@ int32_t streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur) {
   //
   return tdbTbcMoveToPrev(pCur->pCur);
 }
+void streamStateFreeCur(SStreamStateCur* pCur) {
+  tdbTbcClose(pCur->pCur);
+  taosMemoryFree(pCur);
+}
+
+void streamFreeVal(void* val) { tdbFree(val); }
