@@ -497,6 +497,7 @@ typedef struct SSysTableScanInfo {
   SReadHandle            readHandle;
   int32_t                accountId;
   const char*            pUser;
+  bool                   sysInfo;
   bool                   showRewrite;
   SNode*                 pCondition;  // db_name filter condition, to discard data that are not in current database
   SMTbCursor*            pCur;        // cursor for iterate the local table meta store.

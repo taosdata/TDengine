@@ -2157,6 +2157,10 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
   STableInfoReq infoReq = {0};
   STableMetaRsp metaRsp = {0};
 
+  SUserObj *pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
+  if (pUser == NULL) return 0;
+  bool sysinfo = pUser->sysInfo;
+
   if (tDeserializeSTableInfoReq(pReq->pCont, pReq->contLen, &infoReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
@@ -2164,7 +2168,7 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
 
   if (0 == strcmp(infoReq.dbFName, TSDB_INFORMATION_SCHEMA_DB)) {
     mDebug("information_schema table:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName);
-    if (mndBuildInsTableSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp) != 0) {
+    if (mndBuildInsTableSchema(pMnode, infoReq.dbFName, infoReq.tbName, sysinfo, &metaRsp) != 0) {
       goto _OVER;
     }
   } else if (0 == strcmp(infoReq.dbFName, TSDB_PERFORMANCE_SCHEMA_DB)) {
@@ -2203,6 +2207,7 @@ _OVER:
     mError("stb:%s.%s, failed to retrieve meta since %s", infoReq.dbFName, infoReq.tbName, terrstr());
   }
 
+  mndReleaseUser(pMnode, pUser);
   tFreeSTableMetaRsp(&metaRsp);
   return code;
 }

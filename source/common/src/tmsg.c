@@ -3630,6 +3630,7 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   if (tEncodeU32(&encoder, pRsp->connId) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->dnodeNum) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->superUser) < 0) return -1;
+  if (tEncodeI8(&encoder, pRsp->sysInfo) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->connType) < 0) return -1;
   if (tEncodeSEpSet(&encoder, &pRsp->epSet) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->svrTimestamp) < 0) return -1;
@@ -3652,6 +3653,7 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   if (tDecodeU32(&decoder, &pRsp->connId) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->dnodeNum) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->superUser) < 0) return -1;
+  if (tDecodeI8(&decoder, &pRsp->sysInfo) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->connType) < 0) return -1;
   if (tDecodeSEpSet(&decoder, &pRsp->epSet) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->svrTimestamp) < 0) return -1;

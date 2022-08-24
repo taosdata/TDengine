@@ -545,6 +545,7 @@ static int32_t physiSysTableScanCopy(const SSystemTableScanPhysiNode* pSrc, SSys
   COPY_OBJECT_FIELD(mgmtEpSet, sizeof(SEpSet));
   COPY_SCALAR_FIELD(showRewrite);
   COPY_SCALAR_FIELD(accountId);
+  COPY_SCALAR_FIELD(sysInfo);
   return TSDB_CODE_SUCCESS;
 }
 
