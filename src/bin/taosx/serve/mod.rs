@@ -3,14 +3,11 @@ use std::{net::IpAddr, path::PathBuf};
 use anyhow::Result;
 use taos::*;
 
-use taosx::{local_to_taos, query_to_csv, query_to_parquet, tmq_to_local, tmq_to_td};
-
 use clap::Parser;
 
 use std::{
     error::Error,
     future::{self, Ready},
-    net::Ipv4Addr,
 };
 
 use actix_web::{
@@ -28,8 +25,8 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use task::*;
 
-mod task;
 mod metrics;
+mod task;
 
 const API_KEY_NAME: &str = "taosx-key";
 const API_KEY: &str = "taosx-rocks";
@@ -181,7 +178,7 @@ impl Default for Cli {
 }
 
 impl Cli {
-    pub(super) async fn run_with(self, opts: super::GlobalOpts) -> Result<()> {
+    pub(super) async fn run_with(self, _opts: super::GlobalOpts) -> Result<()> {
         #[derive(OpenApi)]
         #[openapi(
             handlers(
@@ -223,13 +220,25 @@ impl Cli {
                 )
             }
         }
+        let controller = std::thread::spawn(|| {
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .max_blocking_threads(1024)
+                .build()
+                .unwrap();
+            runtime.spawn_blocking(|| {});
+            TaskController::from_sqlite("sqlite:taosx.db", runtime)
+        })
+        .join()
+        .unwrap()
+        .await?;
 
-        let store = Data::new(TaskController::new("sqlite:taosx.db").await?);
-        // Make instance variable of ApiDoc so all worker threads gets the same instance.
+        let store = Data::new(controller);
+        let store_cloned = store.clone();
+        // // Make instance variable of ApiDoc so all worker threads gets the same instance.
         let openapi = ApiDoc::openapi();
-        log::info!("start...");
 
-        HttpServer::new(move || {
+        let server = HttpServer::new(move || {
             // This factory closure is called on each worker thread independently.
             App::new()
                 .wrap(Logger::default())
@@ -240,8 +249,21 @@ impl Cli {
                 )
         })
         .bind((self.host, self.port))?
-        .run()
-        .await?;
+        .run();
+
+        tokio::select! {
+            _ = server => {
+                 log::info!("server stopped");
+                store_cloned.clear().await?;
+                // done;
+            },
+            _ = tokio::signal::ctrl_c() => {
+                 log::info!("Ctrl+C triggered");
+                // done
+                store_cloned.clear().await?;
+                drop(store_cloned);
+            }
+        };
 
         Ok(())
     }

@@ -53,7 +53,7 @@ pub async fn tmq_to_td(from: Dsn, mut to: Dsn, jobs: usize) -> Result<()> {
     let target = TaosBuilder::from_dsn(to)?;
 
     let mut consumers = Vec::with_capacity(jobs);
-    for id in 0..jobs {
+    for _id in 0..jobs {
         let mut consumer = tmq.build()?;
         consumer.subscribe(&topics).await?;
         consumers.push(consumer);
