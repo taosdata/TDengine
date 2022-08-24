@@ -145,7 +145,7 @@ static void clientRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t *buf
   if (nread < 0) {
     uError("http-report read error:%s", uv_err_name(nread));
   } else {
-    uInfo("http-report succ to read %d bytes, just ignore it", nread);
+    uTrace("http-report succ to read %d bytes, just ignore it", nread);
   }
   uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
 } 
@@ -155,7 +155,7 @@ static void clientSentCb(uv_write_t* req, int32_t status) {
     terrno = TAOS_SYSTEM_ERROR(status);
     uError("http-report failed to send data %s", uv_strerror(status));
   } else {
-    uInfo("http-report succ to send data");
+    uTrace("http-report succ to send data");
   }
   uv_read_start((uv_stream_t *)&cli->tcp, clientAllocBuffCb, clientRecvCb); 
 }

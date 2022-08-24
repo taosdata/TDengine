@@ -97,14 +97,13 @@ As a high-performance, scalable and SQL supported time-series database, TDengine
 | **System Maintenance Requirements**              | **Not Applicable** | **Might Be Applicable** | **Very Applicable** | **Description**                                              |
 | ------------------------------------------------- | ------------------ | ----------------------- | ------------------- | ------------------------------------------------------------ |
 | Native high-reliability         |                    |                      | √                   | TDengine has a very robust, reliable and easily configurable system architecture to simplify routine operation. Human errors and accidents are eliminated to the greatest extent, with a streamlined experience for operators. |
-| Minimize learning and maintenance costs |                    |                      | √                   | In addition to being easily configurable, standard SQL support and the Taos shell for ad hoc queries makes maintenance simpler, allows reuse and reduces learning costs.|
+| Minimize learning and maintenance costs |                    |                      | √                   | In addition to being easily configurable, standard SQL support and the TDengine CLI for ad hoc queries makes maintenance simpler, allows reuse and reduces learning costs.|
 | Abundant talent supply               | √                  |                      |                     | Given the above, and given the extensive training and professional services provided by TDengine, it is easy to migrate from existing solutions or create a new and lasting solution based on TDengine.|
 
 ## Comparison with other databases
 
 - [Writing Performance Comparison of TDengine and InfluxDB ](https://tdengine.com/2022/02/23/4975.html)
 - [Query Performance Comparison of TDengine and InfluxDB](https://tdengine.com/2022/02/24/5120.html)
-- [TDengine vs InfluxDB、OpenTSDB、Cassandra、MySQL、ClickHouse](https://www.tdengine.com/downloads/TDengine_Testing_Report_en.pdf)
 - [TDengine vs OpenTSDB](https://tdengine.com/2019/09/12/710.html)
 - [TDengine vs Cassandra](https://tdengine.com/2019/09/12/708.html)
 - [TDengine vs InfluxDB](https://tdengine.com/2019/09/12/706.html)

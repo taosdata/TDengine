@@ -821,7 +821,13 @@ int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList) {
 
 int32_t schLaunchTaskImpl(void *param) {
   SSchTaskCtx *pCtx = (SSchTaskCtx *)param;
-  SSchJob *pJob = pCtx->pJob;
+  SSchJob *pJob = schAcquireJob(pCtx->jobRid);
+  if (NULL == pJob) {
+    taosMemoryFree(param);
+    qDebug("job refId 0x%" PRIx64 " already not exist", pCtx->jobRid);
+    SCH_RET(TSDB_CODE_SCH_JOB_IS_DROPPING);
+  }
+  
   SSchTask *pTask = pCtx->pTask;
   int8_t  status = 0;
   int32_t code = 0;
@@ -880,6 +886,8 @@ _return:
     }
   }
 
+  schReleaseJob(pJob->refId);
+
   SCH_RET(code);
 }
 
@@ -890,7 +898,7 @@ int32_t schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
   
-  param->pJob = pJob;
+  param->jobRid = pJob->refId;
   param->pTask = pTask;
 
   if (pJob->taskNum >= SCH_MIN_AYSNC_EXEC_NUM) {
