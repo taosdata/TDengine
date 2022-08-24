@@ -1,3 +1,9 @@
+---
+sidebar_label: SQL
+title: Insert Data Using SQL
+description: This section describes how to insert data using TDengine SQL
+---
+
 # Insert Data
 
 import Tabs from '@theme/Tabs';

@@ -1,3 +1,9 @@
+---
+sidebar_label: taosDump
+title: Dump Data Using taosDump
+description: Introduces how to dump data from TDengine into files using taosDump
+---
+
 # taosDump
 
 taosdump is a tool that supports backing up data from a running TDengine cluster and restoring the backed up data to the same, or another running TDengine cluster.
