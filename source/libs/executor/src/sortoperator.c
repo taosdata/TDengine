@@ -156,7 +156,7 @@ void applyScalarFunction(SSDataBlock* pBlock, void* param) {
     int32_t code = projectApplyFunctions(pOperator->exprSupp.pExprInfo, pBlock, pBlock, pOperator->exprSupp.pCtx,
                                          pOperator->exprSupp.numOfExprs, NULL);
     if (code != TSDB_CODE_SUCCESS) {
-      longjmp(pOperator->pTaskInfo->env, code);
+      T_LONG_JMP(pOperator->pTaskInfo->env, code);
     }
   }
 }
@@ -184,7 +184,7 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
   taosMemoryFreeClear(ps);
 
   if (code != TSDB_CODE_SUCCESS) {
-    longjmp(pTaskInfo->env, terrno);
+    T_LONG_JMP(pTaskInfo->env, terrno);
   }
 
   pOperator->cost.openCost = (taosGetTimestampUs() - pInfo->startTs) / 1000.0;
@@ -204,7 +204,7 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
 
   int32_t code = pOperator->fpSet._openFn(pOperator);
   if (code != TSDB_CODE_SUCCESS) {
-    longjmp(pTaskInfo->env, code);
+    T_LONG_JMP(pTaskInfo->env, code);
   }
 
   SSDataBlock* pBlock = NULL;
@@ -388,7 +388,7 @@ int32_t beginSortGroup(SOperatorInfo* pOperator) {
   taosMemoryFreeClear(ps);
 
   if (code != TSDB_CODE_SUCCESS) {
-    longjmp(pTaskInfo->env, terrno);
+    T_LONG_JMP(pTaskInfo->env, terrno);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -420,7 +420,7 @@ SSDataBlock* doGroupSort(SOperatorInfo* pOperator) {
 
   int32_t code = pOperator->fpSet._openFn(pOperator);
   if (code != TSDB_CODE_SUCCESS) {
-    longjmp(pTaskInfo->env, code);
+    T_LONG_JMP(pTaskInfo->env, code);
   }
 
   if (!pInfo->hasGroupId) {
@@ -575,7 +575,7 @@ int32_t doOpenMultiwayMergeOperator(SOperatorInfo* pOperator) {
 
   int32_t code = tsortOpen(pInfo->pSortHandle);
   if (code != TSDB_CODE_SUCCESS) {
-    longjmp(pTaskInfo->env, terrno);
+    T_LONG_JMP(pTaskInfo->env, terrno);
   }
 
   pOperator->cost.openCost = (taosGetTimestampUs() - pInfo->startTs) / 1000.0;
@@ -672,7 +672,7 @@ SSDataBlock* doMultiwayMerge(SOperatorInfo* pOperator) {
 
   int32_t code = pOperator->fpSet._openFn(pOperator);
   if (code != TSDB_CODE_SUCCESS) {
-    longjmp(pTaskInfo->env, code);
+    T_LONG_JMP(pTaskInfo->env, code);
   }
 
   SSDataBlock* pBlock = getMultiwaySortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes,

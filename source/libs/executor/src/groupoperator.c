@@ -247,7 +247,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     if (!pInfo->isInit) {
       recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
       if (terrno != TSDB_CODE_SUCCESS) {  // group by json error
-        longjmp(pTaskInfo->env, terrno);
+        T_LONG_JMP(pTaskInfo->env, terrno);
       }
       pInfo->isInit = true;
       num++;
@@ -265,7 +265,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       num++;
       recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
       if (terrno != TSDB_CODE_SUCCESS) {  // group by json error
-        longjmp(pTaskInfo->env, terrno);
+        T_LONG_JMP(pTaskInfo->env, terrno);
       }
       continue;
     }
@@ -273,7 +273,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
     int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf, len, pBlock->info.groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
-      longjmp(pTaskInfo->env, TSDB_CODE_QRY_APP_ERROR);
+      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_APP_ERROR);
     }
 
     int32_t rowIndex = j - num;
@@ -291,7 +291,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
         setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf, len,
                                 pBlock->info.groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
     if (ret != TSDB_CODE_SUCCESS) {
-      longjmp(pTaskInfo->env, TSDB_CODE_QRY_APP_ERROR);
+      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_APP_ERROR);
     }
 
     int32_t rowIndex = pBlock->info.rows - num;
@@ -350,7 +350,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
 
     int32_t code = getTableScanInfo(pOperator, &order, &scanFlag);
     if (code != TSDB_CODE_SUCCESS) {
-      longjmp(pTaskInfo->env, code);
+      T_LONG_JMP(pTaskInfo->env, code);
     }
 
     // the pDataBlock are always the same one, no need to call this again
@@ -360,7 +360,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
     if (pInfo->scalarSup.pExprInfo != NULL) {
       pTaskInfo->code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx, pInfo->scalarSup.numOfExprs, NULL);
       if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
-        longjmp(pTaskInfo->env, pTaskInfo->code);
+        T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
       }
     }
 
@@ -678,14 +678,14 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
     if (pInfo->scalarSup.pExprInfo != NULL) {
       pTaskInfo->code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx, pInfo->scalarSup.numOfExprs, NULL);
       if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
-        longjmp(pTaskInfo->env, pTaskInfo->code);
+        T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
       }
     }
 
     terrno = TSDB_CODE_SUCCESS;
     doHashPartition(pOperator, pBlock);
     if (terrno != TSDB_CODE_SUCCESS) {  // group by json error
-      longjmp(pTaskInfo->env, terrno);
+      T_LONG_JMP(pTaskInfo->env, terrno);
     }
   }
 

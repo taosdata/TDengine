@@ -268,7 +268,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       // the pDataBlock are always the same one, no need to call this again
       int32_t code = getTableScanInfo(downstream, &order, &scanFlag);
       if (code != TSDB_CODE_SUCCESS) {
-        longjmp(pTaskInfo->env, code);
+        T_LONG_JMP(pTaskInfo->env, code);
       }
 
       setInputDataBlock(pOperator, pSup->pCtx, pBlock, order, scanFlag, false);
@@ -277,7 +277,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
                                    pProjectInfo->pPseudoColInfo);
       if (code != TSDB_CODE_SUCCESS) {
-        longjmp(pTaskInfo->env, code);
+        T_LONG_JMP(pTaskInfo->env, code);
       }
 
       status = doIngroupLimitOffset(pLimitInfo, pBlock->info.groupId, pInfo->pRes, pOperator);
@@ -415,7 +415,7 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
   // the pDataBlock are always the same one, no need to call this again
   int32_t code = getTableScanInfo(downstream, &order, &scanFlag);
   if (code != TSDB_CODE_SUCCESS) {
-    longjmp(pTaskInfo->env, code);
+    T_LONG_JMP(pTaskInfo->env, code);
   }
 
   // there is an scalar expression that needs to be calculated before apply the group aggregation.
@@ -424,7 +424,7 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
     code = projectApplyFunctions(pScalarSup->pExprInfo, pBlock, pBlock, pScalarSup->pCtx, pScalarSup->numOfExprs,
                                  pIndefInfo->pPseudoColInfo);
     if (code != TSDB_CODE_SUCCESS) {
-      longjmp(pTaskInfo->env, code);
+      T_LONG_JMP(pTaskInfo->env, code);
     }
   }
 
@@ -434,7 +434,7 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
   code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
                                pIndefInfo->pPseudoColInfo);
   if (code != TSDB_CODE_SUCCESS) {
-    longjmp(pTaskInfo->env, code);
+    T_LONG_JMP(pTaskInfo->env, code);
   }
 }
 
