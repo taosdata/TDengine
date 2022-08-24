@@ -846,7 +846,7 @@ SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ### INTERP
 
 ```sql
-SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] [ RANGE(timestamp1,timestamp2) ] [EVERY(interval)] [FILL ({ VALUE | PREV | NULL | LINEAR | NEXT})];
+SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] RANGE(timestamp1,timestamp2) EVERY(interval) FILL({ VALUE | PREV | NULL | LINEAR | NEXT});
 ```
 
 **Description**: The value that matches the specified timestamp range is returned, if existing; or an interpolation value is returned.
@@ -861,11 +861,10 @@ SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] [ 
 
 - `INTERP` is used to get the value that matches the specified time slice from a column. If no such value exists an interpolation value will be returned based on `FILL` parameter.
 - The input data of `INTERP` is the value of the specified column and a `where` clause can be used to filter the original data. If no `where` condition is specified then all original data is the input.
-- The output time range of `INTERP` is specified by `RANGE(timestamp1,timestamp2)` parameter, with timestamp1<=timestamp2. timestamp1 is the starting point of the output time range and must be specified. timestamp2 is the ending point of the output time range and must be specified. If `RANGE` is not specified, then the timestamp of the first row that matches the filter condition is treated as timestamp1, the timestamp of the last row that matches the filter condition is treated as timestamp2.
-- The number of rows in the result set of `INTERP` is determined by the parameter `EVERY`. Starting from timestamp1, one interpolation is performed for every time interval specified `EVERY` parameter. If `EVERY` parameter is not used, the time windows will be considered as no ending timestamp, i.e. there is only one time window from timestamp1.
-- Interpolation is performed based on `FILL` parameter. No interpolation is performed if `FILL` is not used, that means either the original data that matches is returned or nothing is returned.
-- `INTERP` can only be used to interpolate in single timeline. So it must be used with `group by tbname` when it's used on a STable. It can't be used with `GROUP BY` when it's used in the inner query of a nested query.
-- The result of `INTERP` is not influenced by `ORDER BY TIMESTAMP`, which impacts the output order only..
+- The output time range of `INTERP` is specified by `RANGE(timestamp1,timestamp2)` parameter, with timestamp1<=timestamp2. timestamp1 is the starting point of the output time range and must be specified. timestamp2 is the ending point of the output time range and must be specified. 
+- The number of rows in the result set of `INTERP` is determined by the parameter `EVERY`. Starting from timestamp1, one interpolation is performed for every time interval specified `EVERY` parameter. 
+- Interpolation is performed based on `FILL` parameter. 
+- `INTERP` can only be used to interpolate in single timeline. So it must be used with `partition by tbname` when it's used on a STable.
 
 ### LAST
 

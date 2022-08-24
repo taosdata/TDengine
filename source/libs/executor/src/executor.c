@@ -368,12 +368,14 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
 
   int32_t code = createExecTaskInfoImpl(pSubplan, pTask, readHandle, taskId, sql, model);
   if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to createExecTaskInfoImpl, code: %s", tstrerror(code));
     goto _error;
   }
 
   SDataSinkMgtCfg cfg = {.maxDataBlockNum = 10000, .maxDataBlockNumPerQuery = 5000};
   code = dsDataSinkMgtInit(&cfg);
   if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to dsDataSinkMgtInit, code: %s", tstrerror(code));
     goto _error;
   }
 
@@ -381,6 +383,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
     void* pSinkParam = NULL;
     code = createDataSinkParam(pSubplan->pDataSink, &pSinkParam, pTaskInfo, readHandle);
     if (code != TSDB_CODE_SUCCESS) {
+      qError("failed to createDataSinkParam, code: %s", tstrerror(code));
       goto _error;
     }
 

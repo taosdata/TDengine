@@ -8,7 +8,7 @@ description: "taospy 是 TDengine 的官方 Python 连接器。taospy 提供了�
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-`taospy` 是 TDengine 的官方 Python 连接器。`taospy` 提供了丰富的 API， 使得 Python 应用可以很方便地使用 TDengine。`taospy` 对 TDengine 的[原生接口](/reference/connector/cpp)和 [REST 接口](/reference/rest-api)都进行了封装， 分别对应 `taospy` 包的 `taos` 模块 和 `taosrest` 模块。
+`taospy` 是 TDengine 的官方 Python 连接器。`taospy` 提供了丰富的 API， 使得 Python 应用可以很方便地使用 TDengine。`taospy` 对 TDengine 的[原生接口](../cpp)和 [REST 接口](../rest-api)都进行了封装， 分别对应 `taospy` 包的 `taos` 模块 和 `taosrest` 模块。
 除了对原生接口和 REST 接口的封装，`taospy` 还提供了符合 [Python 数据访问规范(PEP 249)](https://peps.python.org/pep-0249/) 的编程接口。这使得 `taospy` 和很多第三方工具集成变得简单，比如 [SQLAlchemy](https://www.sqlalchemy.org/) 和 [pandas](https://pandas.pydata.org/)。
 
 使用客户端驱动提供的原生接口直接与服务端建立的连接的方式下文中称为“原生连接”；使用 taosAdapter 提供的 REST 接口与服务端建立的连接的方式下文中称为“REST 连接”。
@@ -17,7 +17,7 @@ Python 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-con
 
 ## 支持的平台
 
-- 原生连接[支持的平台](/reference/connector/#支持的平台)和 TDengine 客户端支持的平台一致。
+- 原生连接[支持的平台](../#支持的平台)和 TDengine 客户端支持的平台一致。
 - REST 连接支持所有能运行 Python 的平台。
 
 ## 版本选择
@@ -150,10 +150,19 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 
 ```json
 {
-  "status": "succ",
-  "head": ["server_version()"],
-  "column_meta": [["server_version()", 8, 8]],
-  "data": [["2.4.0.16"]],
+  "code": 0,
+  "column_meta": [
+    [
+      "server_version()",
+      "VARCHAR",
+      7
+    ]
+  ],
+  "data": [
+    [
+      "3.0.0.0"
+    ]
+  ],
   "rows": 1
 }
 ```
@@ -266,7 +275,7 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 
 ##### RestClient 类的使用
 
-`RestClient` 类是对于 [REST API](/reference/rest-api) 的直接封装。它只包含一个 `sql()` 方法用于执行任意 SQL 语句， 并返回执行结果。
+`RestClient` 类是对于 [REST API](../rest-api) 的直接封装。它只包含一个 `sql()` 方法用于执行任意 SQL 语句， 并返回执行结果。
 
 ```python title="RestClient 的使用"
 {{#include docs/examples/python/rest_client_example.py}}

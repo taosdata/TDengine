@@ -31,20 +31,6 @@ void initResultRowInfo(SResultRowInfo* pResultRowInfo) {
   pResultRowInfo->cur.pageId = -1;
 }
 
-void cleanupResultRowInfo(SResultRowInfo* pResultRowInfo) {
-  if (pResultRowInfo == NULL) {
-    return;
-  }
-
-  for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
-    //    if (pResultRowInfo->pResult[i]) {
-    //      taosMemoryFreeClear(pResultRowInfo->pResult[i]->key);
-    //    }
-  }
-}
-
-bool isResultRowClosed(SResultRow* pRow) { return (pRow->closed == true); }
-
 void closeResultRow(SResultRow* pResultRow) { pResultRow->closed = true; }
 
 // TODO refactor: use macro
@@ -484,6 +470,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
   code = createResultData(&type, rows, &output);
   if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
     qError("failed to create result, reason:%s", tstrerror(code));
     terrno = code;
     goto end;
@@ -493,6 +480,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   if(code != TSDB_CODE_SUCCESS){
     qError("failed to calculate scalar, reason:%s", tstrerror(code));
     terrno = code;
+    goto end;
   }
 //  int64_t st2 = taosGetTimestampUs();
 //  qDebug("calculate tag block rows:%d, cost:%ld us", rows, st2-st1);
@@ -779,11 +767,13 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   }
 
   if (pTagCond) {
+    terrno = TDB_CODE_SUCCESS;
     SColumnInfoData* pColInfoData = getColInfoResult(metaHandle, pListInfo->suid, res, pTagCond);
     if(terrno != TDB_CODE_SUCCESS){
       colDataDestroy(pColInfoData);
       taosMemoryFreeClear(pColInfoData);
       taosArrayDestroy(res);
+      qError("failed to getColInfoResult, code: %s", tstrerror(terrno));
       return terrno;
     }
 

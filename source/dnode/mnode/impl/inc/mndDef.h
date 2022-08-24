@@ -179,6 +179,7 @@ typedef struct {
   char    name[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
   int64_t updateTime;
+  int32_t upTime;
 } SClusterObj;
 
 typedef struct {

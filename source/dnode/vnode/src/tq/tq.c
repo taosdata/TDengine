@@ -79,6 +79,10 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
     ASSERT(0);
   }
 
+  if (streamLoadTasks(pTq->pStreamMeta) < 0) {
+    ASSERT(0);
+  }
+
   return pTq;
 }
 
@@ -603,6 +607,11 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
     };
     pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &mgHandle);
     ASSERT(pTask->exec.executor);
+  }
+
+  pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask);
+  if (pTask->pState == NULL) {
+    return -1;
   }
 
   // sink

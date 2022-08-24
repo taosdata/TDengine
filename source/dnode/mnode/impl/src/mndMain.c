@@ -100,6 +100,16 @@ static void mndGrantHeartBeat(SMnode *pMnode) {
   }
 }
 
+static void mndIncreaseUpTime(SMnode *pMnode) {
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {
+        .msgType = TDMT_MND_UPTIME_TIMER, .pCont = pReq, .contLen = contLen, .info.ahandle = (void *)0x9528};
+    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  }
+}
+
 static void *mndThreadFp(void *param) {
   SMnode *pMnode = param;
   int64_t lastTime = 0;
@@ -122,12 +132,16 @@ static void *mndThreadFp(void *param) {
       mndCalMqRebalance(pMnode);
     }
 
-    if (lastTime % (tsTelemInterval * 10) == 0) {
+    if (lastTime % (tsTelemInterval * 10) == 1) {
       mndPullupTelem(pMnode);
     }
 
     if (lastTime % (tsGrantHBInterval * 10) == 0) {
       mndGrantHeartBeat(pMnode);
+    }
+
+    if ((lastTime % (tsUptimeInterval * 10)) == ((tsUptimeInterval - 1) * 10)) {
+      mndIncreaseUpTime(pMnode);
     }
   }
 
@@ -556,7 +570,8 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   }
   if (mndAcquireRpcRef(pMsg->info.node) == 0) return 0;
   if (pMsg->msgType == TDMT_MND_MQ_TIMER || pMsg->msgType == TDMT_MND_TELEM_TIMER ||
-      pMsg->msgType == TDMT_MND_TRANS_TIMER || pMsg->msgType == TDMT_MND_TTL_TIMER) {
+      pMsg->msgType == TDMT_MND_TRANS_TIMER || pMsg->msgType == TDMT_MND_TTL_TIMER ||
+      pMsg->msgType == TDMT_MND_UPTIME_TIMER) {
     return -1;
   }
 
@@ -705,7 +720,8 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     if (pObj->id == pMnode->selfDnodeId) {
       pClusterInfo->first_ep_dnode_id = pObj->id;
       tstrncpy(pClusterInfo->first_ep, pObj->pDnode->ep, sizeof(pClusterInfo->first_ep));
-      pClusterInfo->master_uptime = (ms - pObj->stateStartTime) / (86400000.0f);
+      pClusterInfo->master_uptime = mndGetClusterUpTime(pMnode);
+      // pClusterInfo->master_uptime = (ms - pObj->stateStartTime) / (86400000.0f);
       tstrncpy(desc.role, syncStr(TAOS_SYNC_STATE_LEADER), sizeof(desc.role));
     } else {
       tstrncpy(desc.role, syncStr(pObj->state), sizeof(desc.role));
