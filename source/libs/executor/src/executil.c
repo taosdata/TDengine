@@ -31,20 +31,6 @@ void initResultRowInfo(SResultRowInfo* pResultRowInfo) {
   pResultRowInfo->cur.pageId = -1;
 }
 
-void cleanupResultRowInfo(SResultRowInfo* pResultRowInfo) {
-  if (pResultRowInfo == NULL) {
-    return;
-  }
-
-  for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
-    //    if (pResultRowInfo->pResult[i]) {
-    //      taosMemoryFreeClear(pResultRowInfo->pResult[i]->key);
-    //    }
-  }
-}
-
-bool isResultRowClosed(SResultRow* pRow) { return (pRow->closed == true); }
-
 void closeResultRow(SResultRow* pResultRow) { pResultRow->closed = true; }
 
 // TODO refactor: use macro
@@ -782,6 +768,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       colDataDestroy(pColInfoData);
       taosMemoryFreeClear(pColInfoData);
       taosArrayDestroy(res);
+      qError("failed to getColInfoResult, code: %s", tstrerror(terrno));
       return terrno;
     }
 

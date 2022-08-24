@@ -2972,7 +2972,6 @@ static void doHashInterval(SOperatorInfo* pOperatorInfo, SSDataBlock* pSDataBloc
 static void clearStreamIntervalOperator(SStreamFinalIntervalOperatorInfo* pInfo) {
   taosHashClear(pInfo->aggSup.pResultRowHashTable);
   clearDiskbasedBuf(pInfo->aggSup.pResultBuf);
-  cleanupResultRowInfo(&pInfo->binfo.resultRowInfo);
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
 }
 
@@ -4264,8 +4263,6 @@ static void clearStreamSessionOperator(SStreamSessionAggOperatorInfo* pInfo) {
     }
   }
   clearDiskbasedBuf(pInfo->streamAggSup.pResultBuf);
-  cleanupResultRowInfo(&pInfo->binfo.resultRowInfo);
-  initResultRowInfo(&pInfo->binfo.resultRowInfo);
 }
 
 static void removeSessionResults(SHashObj* pHashMap, SArray* pWins) {
