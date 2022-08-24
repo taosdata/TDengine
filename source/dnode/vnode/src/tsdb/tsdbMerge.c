@@ -17,11 +17,36 @@
 
 typedef struct {
   STsdb  *pTsdb;
+  int8_t  maxLast;
   STsdbFS fs;
+  struct {
+    SDataFReader *pReader;
+  } dReader;
+  struct {
+    SDataFWriter *pWriter;
+  } dWriter;
 } STsdbMerger;
 
 int32_t tsdbMerge(STsdb *pTsdb) {
-  int32_t code = 0;
-  // TODO
+  int32_t      code = 0;
+  STsdbMerger  merger = {0};
+  STsdbMerger *pMerger = &merger;
+
+  pMerger->pTsdb = pTsdb;
+  pMerger->maxLast = TSDB_DEFAULT_LAST_FILE;
+  code = tsdbFSCopy(pTsdb, &pMerger->fs);
+  if (code) goto _err;
+
+  for (int32_t iSet = 0; iSet < taosArrayGetSize(pMerger->fs.aDFileSet); iSet++) {
+    SDFileSet *pSet = (SDFileSet *)taosArrayGet(pMerger->fs.aDFileSet, iSet);
+    if (pSet->nLastF < pMerger->maxLast) continue;
+
+    // do merge the file
+  }
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb merge failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }

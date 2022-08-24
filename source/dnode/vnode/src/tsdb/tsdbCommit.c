@@ -28,6 +28,7 @@ typedef struct {
 
 typedef struct {
   STsdb *pTsdb;
+  int8_t toMerge;
   /* commit data */
   int64_t commitID;
   int32_t minutes;
@@ -394,6 +395,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   SDFileSet wSet = {0};
   if (pRSet) {
     ASSERT(pRSet->nLastF < pCommitter->maxLast);
+
     fHead = (SHeadFile){.commitID = pCommitter->commitID};
     fData = *pRSet->pDataF;
     fSma = *pRSet->pSmaF;
@@ -409,6 +411,10 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
     }
     wSet.nLastF = pRSet->nLastF + 1;
     wSet.aLastF[wSet.nLastF - 1] = &fLast;  // todo
+
+    if (wSet.nLastF == pCommitter->maxLast) {
+      pCommitter->toMerge = 1;
+    }
   } else {
     fHead = (SHeadFile){.commitID = pCommitter->commitID};
     fData = (SDataFile){.commitID = pCommitter->commitID};
@@ -1276,6 +1282,11 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
   tsdbUnrefMemTable(pMemTable);
   tsdbFSDestroy(&pCommitter->fs);
   taosArrayDestroy(pCommitter->aTbDataP);
+
+  if (pCommitter->toMerge) {
+    code = tsdbMerge(pTsdb);
+    if (code) goto _err;
+  }
 
   tsdbInfo("vgId:%d, tsdb end commit", TD_VID(pTsdb->pVnode));
   return code;
