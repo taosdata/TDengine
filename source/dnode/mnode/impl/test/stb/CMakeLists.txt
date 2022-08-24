@@ -5,7 +5,9 @@ target_link_libraries(
     PUBLIC sut
 )
 
-add_test(
-    NAME stbTest
-    COMMAND stbTest
-)
+if(NOT ${TD_WINDOWS})
+    add_test(
+        NAME stbTest
+        COMMAND stbTest
+    )
+endif(NOT ${TD_WINDOWS})
