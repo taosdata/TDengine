@@ -29,7 +29,7 @@ typedef void* DataSinkHandle;
 struct SRpcMsg;
 struct SSubplan;
 
-typedef struct SReadHandle {
+typedef struct {
   void*   tqReader;
   void*   meta;
   void*   config;
@@ -41,6 +41,7 @@ typedef struct SReadHandle {
   bool    initTableReader;
   bool    initTqReader;
   int32_t numOfVgroups;
+  void*   pStateBackend;
 } SReadHandle;
 
 // in queue mode, data streams are seperated by msg
@@ -78,8 +79,8 @@ int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numO
 
 /**
  * @brief Cleanup SSDataBlock for StreamScanInfo
- * 
- * @param tinfo 
+ *
+ * @param tinfo
  */
 void tdCleanupStreamInputDataBlock(qTaskInfo_t tinfo);
 
@@ -163,7 +164,7 @@ int32_t qGetQualifiedTableIdList(void* pTableList, const char* tagCond, int32_t 
 
 void qProcessRspMsg(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 
-int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, SArray* pExecInfoList/*,int32_t* resNum, SExplainExecInfo** pRes*/);
+int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, SArray* pExecInfoList /*,int32_t* resNum, SExplainExecInfo** pRes*/);
 
 int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len);
 
