@@ -313,30 +313,30 @@ class TDTestQuery(TDCase):
                         #     #self.tdSql.error(sql2)
                         #     sql= sql + sql2
                                 
-                        # list_intervals = [1,2,3,4,5,6,7,]
-                        # for i in list_intervals:                        
-                        #     range_fill_every = self.interp_range_fill_every(i)
-                        #     self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
+                        list_intervals = [1,2,3,4,5,6,7,]
+                        for i in list_intervals:                        
+                            range_fill_every = self.interp_range_fill_every(i)
+                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                             
-                        #     sql2 = "select %s from %s  %s ;"  % (func,self.table,range_fill_every)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select %s from %s  %s ;"  % (func,self.table,range_fill_every)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
 
-                        #     sql2 = "select * from (select %s from %s where %s %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select * from (select %s from %s where %s %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
                                                        
-                        #     sql2 = "select %s from %s where tbname in ('%s') %s ;"  % (func,self.table,self.table,range_fill_every)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select %s from %s where tbname in ('%s') %s ;"  % (func,self.table,self.table,range_fill_every)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
 
-                        #     sql2 = "select %s from (select * from %s) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select %s from (select * from %s) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
                             
-                        #     sql2 = "select %s from %s where %s %s %s %s ;" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select %s from %s where %s %s %s %s ;" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
                             
                         list_intervals = [11,12,13,14,15,]
                         for i in list_intervals:                        
@@ -1495,33 +1495,33 @@ class TDTestQuery(TDCase):
         
         self.right_case_1_range()
           
-        # startTime1 = time.time()
-        # self.right_case_1()
-        # self.right_case_1_tbname()
-        # self.error_case_1()       
-        # self.right_case_1_interval()
-        # endTime1 = time.time()       
-        # self.logger.info("total time1 %d s" % (endTime1 - startTime1))
+        startTime1 = time.time()
+        self.right_case_1()
+        self.right_case_1_tbname()
+        self.error_case_1()       
+        self.right_case_1_interval()
+        endTime1 = time.time()       
+        self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
-        # startTime2 = time.time()
-        # self.right_case_2()
-        # self.right_case_2_tbname()
-        # self.error_case_2()        
-        # self.right_case_2_interval()
-        # self.right_case_2_tbname_interval()
-        # endTime2 = time.time()       
-        # self.logger.info("total time2 %d s" % (endTime2 - startTime2))
+        startTime2 = time.time()
+        self.right_case_2()
+        self.right_case_2_tbname()
+        self.error_case_2()        
+        self.right_case_2_interval()
+        self.right_case_2_tbname_interval()
+        endTime2 = time.time()       
+        self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
-        # startTime3 = time.time()
-        # self.right_case_3()
-        # self.right_case_3_tbname()
-        # self.error_case_3()       
-        # self.right_case_3_interval()
-        # endTime3 = time.time()
-        # self.logger.info("total time3 %ds" % (endTime3 - startTime3))     
+        startTime3 = time.time()
+        self.right_case_3()
+        self.right_case_3_tbname()
+        self.error_case_3()       
+        self.right_case_3_interval()
+        endTime3 = time.time()
+        self.logger.info("total time3 %ds" % (endTime3 - startTime3))     
 
         endTime = time.time()
-        #self.rm_sql()
+        self.rm_sql()
         self.logger.info("total time %ds" % (endTime - startTime))
 
 
