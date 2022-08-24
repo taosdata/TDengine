@@ -23,11 +23,13 @@ extern SSmaMgmt smaMgmt;
 
 // declaration of static functions
 
-static int32_t  tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pSma);
-static SSmaEnv *tdNewSmaEnv(const SSma *pSma, int8_t smaType, const char *path);
-static int32_t  tdInitSmaEnv(SSma *pSma, int8_t smaType, const char *path, SSmaEnv **pEnv);
-static void    *tdFreeTSmaStat(STSmaStat *pStat);
-static void     tdDestroyRSmaStat(void *pRSmaStat);
+static int32_t tdNewSmaEnv(SSma *pSma, int8_t smaType, SSmaEnv **ppEnv);
+static int32_t tdInitSmaEnv(SSma *pSma, int8_t smaType, SSmaEnv **ppEnv);
+static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pSma);
+static int32_t tdRsmaStartExecutor(const SSma *pSma);
+static int32_t tdRsmaStopExecutor(const SSma *pSma);
+static void   *tdFreeTSmaStat(STSmaStat *pStat);
+static void    tdDestroyRSmaStat(void *pRSmaStat);
 
 /**
  * @brief rsma init
@@ -97,35 +99,42 @@ void smaCleanUp() {
   }
 }
 
-static SSmaEnv *tdNewSmaEnv(const SSma *pSma, int8_t smaType, const char *path) {
+static int32_t tdNewSmaEnv(SSma *pSma, int8_t smaType, SSmaEnv **ppEnv) {
   SSmaEnv *pEnv = NULL;
 
   pEnv = (SSmaEnv *)taosMemoryCalloc(1, sizeof(SSmaEnv));
+  *ppEnv = pEnv;
   if (!pEnv) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    return TSDB_CODE_FAILED;
   }
 
   SMA_ENV_TYPE(pEnv) = smaType;
 
   taosInitRWLatch(&(pEnv->lock));
 
+  (smaType == TSDB_SMA_TYPE_TIME_RANGE) ? atomic_store_ptr(&SMA_TSMA_ENV(pSma), *ppEnv)
+                                        : atomic_store_ptr(&SMA_RSMA_ENV(pSma), *ppEnv);
+
   if (tdInitSmaStat(&SMA_ENV_STAT(pEnv), smaType, pSma) != TSDB_CODE_SUCCESS) {
     tdFreeSmaEnv(pEnv);
-    return NULL;
+    *ppEnv = NULL;
+    (smaType == TSDB_SMA_TYPE_TIME_RANGE) ? atomic_store_ptr(&SMA_TSMA_ENV(pSma), NULL)
+                                          : atomic_store_ptr(&SMA_RSMA_ENV(pSma), NULL);
+    return TSDB_CODE_FAILED;
   }
 
-  return pEnv;
+  return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tdInitSmaEnv(SSma *pSma, int8_t smaType, const char *path, SSmaEnv **pEnv) {
-  if (!pEnv) {
+static int32_t tdInitSmaEnv(SSma *pSma, int8_t smaType, SSmaEnv **ppEnv) {
+  if (!ppEnv) {
     terrno = TSDB_CODE_INVALID_PTR;
     return TSDB_CODE_FAILED;
   }
 
-  if (!(*pEnv)) {
-    if (!(*pEnv = tdNewSmaEnv(pSma, smaType, path))) {
+  if (!(*ppEnv)) {
+    if (tdNewSmaEnv(pSma, smaType, ppEnv) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_FAILED;
     }
   }
@@ -199,7 +208,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
    * tdInitSmaStat invoked in other multithread environment later.
    */
   if (!(*pSmaStat)) {
-    *pSmaStat = (SSmaStat *)taosMemoryCalloc(1, sizeof(SSmaStat));
+    *pSmaStat = (SSmaStat *)taosMemoryCalloc(1, sizeof(SSmaStat) + sizeof(TdThread) * tsNumOfVnodeRsmaThreads);
     if (!(*pSmaStat)) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return TSDB_CODE_FAILED;
@@ -229,6 +238,10 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       RSMA_INFO_HASH(pRSmaStat) = taosHashInit(
           RSMA_TASK_INFO_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
       if (!RSMA_INFO_HASH(pRSmaStat)) {
+        return TSDB_CODE_FAILED;
+      }
+
+      if (tdRsmaStartExecutor(pSma) < 0) {
         return TSDB_CODE_FAILED;
       }
     } else if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
@@ -290,6 +303,9 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
         nLoops = 0;
       }
     }
+
+    // step 4:
+    tdRsmaStopExecutor(pSma);
 
     // step 5: free pStat
     taosMemoryFreeClear(pStat);
@@ -381,17 +397,70 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
   pEnv = (smaType == TSDB_SMA_TYPE_TIME_RANGE) ? atomic_load_ptr(&SMA_TSMA_ENV(pSma))
                                                : atomic_load_ptr(&SMA_RSMA_ENV(pSma));
   if (!pEnv) {
-    char rname[TSDB_FILENAME_LEN] = {0};
-
-    if (tdInitSmaEnv(pSma, smaType, rname, &pEnv) < 0) {
+    if (tdInitSmaEnv(pSma, smaType, &pEnv) < 0) {
       tdUnLockSma(pSma);
       return TSDB_CODE_FAILED;
     }
-
-    (smaType == TSDB_SMA_TYPE_TIME_RANGE) ? atomic_store_ptr(&SMA_TSMA_ENV(pSma), pEnv)
-                                          : atomic_store_ptr(&SMA_RSMA_ENV(pSma), pEnv);
   }
   tdUnLockSma(pSma);
 
   return TSDB_CODE_SUCCESS;
 };
+
+void *tdRSmaExecutorFunc(void *param) {
+  setThreadName("vnode-rsma");
+
+  tdRSmaProcessExecImpl((SSma *)param, RSMA_EXEC_OVERFLOW);
+  return NULL;
+}
+
+static int32_t tdRsmaStartExecutor(const SSma *pSma) {
+  TdThreadAttr thAttr = {0};
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+
+  SSmaEnv  *pEnv = SMA_RSMA_ENV(pSma);
+  SSmaStat *pStat = SMA_ENV_STAT(pEnv);
+  TdThread *pthread = (TdThread *)&pStat->data;
+
+  for (int32_t i = 0; i < tsNumOfVnodeRsmaThreads; ++i) {
+    if (taosThreadCreate(&pthread[i], &thAttr, tdRSmaExecutorFunc, (void *)pSma) != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      smaError("vgId:%d, failed to create pthread for rsma since %s", SMA_VID(pSma), terrstr());
+      return -1;
+    }
+    smaDebug("vgId:%d, success to create pthread for rsma", SMA_VID(pSma));
+  }
+
+  taosThreadAttrDestroy(&thAttr);
+  return 0;
+}
+
+static int32_t tdRsmaStopExecutor(const SSma *pSma) {
+  if (pSma && VND_IS_RSMA(pSma->pVnode)) {
+    SSmaEnv   *pEnv = NULL;
+    SSmaStat  *pStat = NULL;
+    SRSmaStat *pRSmaStat = NULL;
+    TdThread  *pthread = NULL;
+
+    if (!(pEnv = SMA_RSMA_ENV(pSma)) || !(pStat = SMA_ENV_STAT(pEnv))) {
+      return 0;
+    }
+
+    pEnv->flag |= SMA_ENV_FLG_CLOSE;
+    pRSmaStat = (SRSmaStat *)pStat;
+    pthread = (TdThread *)&pStat->data;
+
+    for (int32_t i = 0; i < tsNumOfVnodeRsmaThreads; ++i) {
+      tsem_post(&(pRSmaStat->notEmpty));
+    }
+
+    for (int32_t i = 0; i < tsNumOfVnodeRsmaThreads; ++i) {
+      if (taosCheckPthreadValid(pthread[i])) {
+        smaDebug("vgId:%d, start to join pthread for rsma:%" PRId64, SMA_VID(pSma), pthread[i]);
+        taosThreadJoin(pthread[i], NULL);
+      }
+    }
+  }
+  return 0;
+}

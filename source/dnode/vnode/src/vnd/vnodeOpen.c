@@ -87,7 +87,6 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->msgCb = msgCb;
   taosThreadMutexInit(&pVnode->lock, NULL);
   pVnode->blocked = false;
-  pVnode->inClose = false;
 
   tsem_init(&pVnode->syncSem, 0, 0);
   tsem_init(&(pVnode->canCommit), 0, 1);
@@ -182,8 +181,6 @@ _err:
 void vnodePreClose(SVnode *pVnode) {
   if (pVnode) {
     syncLeaderTransfer(pVnode->sync);
-    pVnode->inClose = true;
-    smaPreClose(pVnode->pSma);
   }
 }
 
