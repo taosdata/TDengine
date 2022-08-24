@@ -260,7 +260,17 @@ SRBTreeNode *tRBTreeIterNext(SRBTreeIter *pIter) {
       }
     } else {
       while (true) {
-        ASSERT(0);
+        if (pIter->pNode->parent) {
+          if (pIter->pNode == pIter->pNode->parent->left) {
+            pIter->pNode = pIter->pNode->parent;
+            break;
+          } else {
+            pIter->pNode = pIter->pNode->parent;
+          }
+        } else {
+          pIter->pNode = NULL;
+          break;
+        }
       }
     }
   }
