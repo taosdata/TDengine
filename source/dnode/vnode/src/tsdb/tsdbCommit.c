@@ -966,7 +966,20 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData) {
     pRow = NULL;
   }
 
-  if (pRow == NULL) goto _exit;
+  if (pRow == NULL) {
+    if (pCommitter->dReader.pBlockIdx && tTABLEIDCmprFn(pCommitter->dReader.pBlockIdx, pTbData) == 0) {
+      SBlockIdx blockIdx = {.suid = pTbData->suid, .uid = pTbData->uid};
+      code = tsdbWriteBlock(pCommitter->dWriter.pWriter, &pCommitter->dWriter.mBlock, &blockIdx);
+      if (code) goto _err;
+
+      if (taosArrayPush(pCommitter->dWriter.aBlockIdx, &blockIdx) == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _err;
+      }
+    }
+
+    goto _exit;
+  }
 
   int32_t iBlock = 0;
   SBlock  block;
