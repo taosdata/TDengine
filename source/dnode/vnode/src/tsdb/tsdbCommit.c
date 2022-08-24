@@ -21,12 +21,6 @@ typedef struct {
 } SSkmInfo;
 
 typedef struct {
-  int64_t suid;
-  int64_t uid;
-  TSDBROW row;
-} SRowInfo;
-
-typedef struct {
   STsdb *pTsdb;
   int8_t toMerge;
   /* commit data */

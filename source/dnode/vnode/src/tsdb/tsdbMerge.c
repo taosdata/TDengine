@@ -16,6 +16,19 @@
 #include "tsdb.h"
 
 typedef struct {
+  int64_t suid;
+  int64_t uid;
+  TSDBROW row;
+} SRowInfo;
+
+typedef struct {
+  SArray    *aBlockL;  // SArray<SBlockL>
+  int32_t    iBlockL;
+  SBlockData bData;
+  int32_t    iRow;
+} SLDataIter;
+
+typedef struct {
   STsdb  *pTsdb;
   int8_t  maxLast;
   int64_t commitID;
@@ -29,6 +42,8 @@ typedef struct {
     SDataFWriter *pWriter;
     SArray       *aBlockIdx;
     SArray       *aBlockL;
+    SBlockData    bData;
+    SBlockData    bDatal;
   } dWriter;
 } STsdbMerger;
 
