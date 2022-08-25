@@ -33,7 +33,6 @@ extern "C" {
 // clang-format on
 
 #define RSMA_TASK_INFO_HASH_SLOT (8)
-#define RSMA_EXECUTOR_MAX        (1)
 
 typedef struct SSmaEnv       SSmaEnv;
 typedef struct SSmaStat      SSmaStat;
@@ -49,8 +48,11 @@ typedef struct SQTaskFWriter SQTaskFWriter;
 struct SSmaEnv {
   SRWLatch  lock;
   int8_t    type;
+  int8_t    flag;  // 0x01 inClose
   SSmaStat *pStat;
 };
+
+#define SMA_ENV_FLG_CLOSE ((int8_t)0x1)
 
 typedef struct {
   int8_t  inited;
@@ -93,7 +95,6 @@ struct SRSmaStat {
   int64_t          refId;             // shared by fetch tasks
   volatile int64_t nBufItems;         // number of items in queue buffer
   SRWLatch         lock;              // r/w lock for rsma fs(e.g. qtaskinfo)
-  volatile int8_t  nExecutor;         // [1, max(half of query threads, 4)]
   int8_t           triggerStat;       // shared by fetch tasks
   int8_t           commitStat;        // 0 not in committing, 1 in committing
   SArray          *aTaskFile;         // qTaskFiles committed recently(for recovery/snapshot r/w)
@@ -107,6 +108,7 @@ struct SSmaStat {
     SRSmaStat rsmaStat;  // rollup sma
   };
   T_REF_DECLARE()
+  char data[];
 };
 
 #define SMA_STAT_TSMA(s)     (&(s)->tsmaStat)
