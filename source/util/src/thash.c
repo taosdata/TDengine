@@ -250,11 +250,15 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
 
   // the max slots is not defined by user
   pHashObj->capacity = taosHashCapacity((int32_t)capacity);
+  pHashObj->size = 0;
 
   pHashObj->equalFp = memcmp;
   pHashObj->hashFp = fn;
   pHashObj->type = type;
+  pHashObj->lock = 0;
   pHashObj->enableUpdate = update;
+  pHashObj->freeFp = NULL;
+  pHashObj->callbackFp = NULL;
 
   ASSERT((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
 
@@ -327,7 +331,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
   // disable resize
   taosHashRLock(pHashObj);
 
-  int32_t     slot = HASH_INDEX(hashVal, pHashObj->capacity);
+  uint32_t   slot = HASH_INDEX(hashVal, pHashObj->capacity);
   SHashEntry *pe = pHashObj->hashList[slot];
 
   taosHashEntryWLock(pHashObj, pe);
