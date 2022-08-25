@@ -969,7 +969,7 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData) {
   if (pRow == NULL) {
     if (pCommitter->dReader.pBlockIdx && tTABLEIDCmprFn(pCommitter->dReader.pBlockIdx, pTbData) == 0) {
       SBlockIdx blockIdx = {.suid = pTbData->suid, .uid = pTbData->uid};
-      code = tsdbWriteBlock(pCommitter->dWriter.pWriter, &pCommitter->dWriter.mBlock, &blockIdx);
+      code = tsdbWriteBlock(pCommitter->dWriter.pWriter, &pCommitter->dReader.mBlock, &blockIdx);
       if (code) goto _err;
 
       if (taosArrayPush(pCommitter->dWriter.aBlockIdx, &blockIdx) == NULL) {
