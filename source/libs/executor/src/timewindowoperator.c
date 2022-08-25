@@ -2112,6 +2112,7 @@ static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
   // todo set the correct primary timestamp column
 
   // output the result
+  bool hasInterp = true;
   for (int32_t j = 0; j < pExprSup->numOfExprs; ++j) {
     SExprInfo* pExprInfo = &pExprSup->pExprInfo[j];
     int32_t    srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
@@ -2123,7 +2124,6 @@ static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
     switch (pSliceInfo->fillType) {
       case TSDB_FILL_NULL: {
         colDataAppendNULL(pDst, rows);
-        pResBlock->info.rows += 1;
         break;
       }
 
@@ -2143,7 +2143,6 @@ static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
           GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
           colDataAppend(pDst, rows, (char*)&v, false);
         }
-        pResBlock->info.rows += 1;
         break;
       }
 
@@ -2157,6 +2156,7 @@ static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
 
         // before interp range, do not fill
         if (start.key == INT64_MIN || end.key == INT64_MAX) {
+          hasInterp = false;
           break;
         }
 
@@ -2168,28 +2168,27 @@ static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         }
 
         taosMemoryFree(current.val);
-        pResBlock->info.rows += 1;
         break;
       }
       case TSDB_FILL_PREV: {
         if (!pSliceInfo->isPrevRowSet) {
+          hasInterp = false;
           break;
         }
 
         SGroupKeys* pkey = taosArrayGet(pSliceInfo->pPrevRow, srcSlot);
         colDataAppend(pDst, rows, pkey->pData, false);
-        pResBlock->info.rows += 1;
         break;
       }
 
       case TSDB_FILL_NEXT: {
         if (!pSliceInfo->isNextRowSet) {
+          hasInterp = false;
           break;
         }
 
         SGroupKeys* pkey = taosArrayGet(pSliceInfo->pNextRow, srcSlot);
         colDataAppend(pDst, rows, pkey->pData, false);
-        pResBlock->info.rows += 1;
         break;
       }
 
@@ -2198,6 +2197,11 @@ static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         break;
     }
   }
+
+  if (hasInterp) {
+    pResBlock->info.rows += 1;
+  }
+
 }
 
 static int32_t initPrevRowsKeeper(STimeSliceOperatorInfo* pInfo, SSDataBlock* pBlock) {
@@ -2377,6 +2381,11 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
 
           SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, srcSlot);
           SColumnInfoData* pDst = taosArrayGet(pResBlock->pDataBlock, dstSlot);
+
+          if (colDataIsNull_s(pSrc, i)) {
+            colDataAppendNULL(pDst, pResBlock->info.rows);
+            continue;
+          }
 
           char* v = colDataGetData(pSrc, i);
           colDataAppend(pDst, pResBlock->info.rows, v, false);
