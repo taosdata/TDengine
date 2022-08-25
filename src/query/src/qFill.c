@@ -485,6 +485,15 @@ bool taosFillHasMoreResults(SFillInfo* pFillInfo) {
   return false;
 }
 
+bool validateAlignOfSlidingWindows(TSKEY lastKey, TSKEY currentKey, SFillInfo *pFillInfo) {
+    if (pFillInfo->interval.slidingUnit != 'n' && pFillInfo->interval.slidingUnit != 'y') {
+        assert((lastKey-currentKey)%pFillInfo->interval.sliding == 0 &&
+            "Sliding windows not aligned."
+            "Most likely caused by mismatched timezones between client and/or dnodes");
+    }
+    return true;
+}
+
 int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t maxNumOfRows) {
   int64_t* tsList = (int64_t*) pFillInfo->pData[0];
 
@@ -498,6 +507,7 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
   int64_t numOfRes = -1;
   if (numOfRows > 0) {  // still fill gap within current data block, not generating data after the result set.
     TSKEY lastKey = tsList[pFillInfo->numOfRows - 1];
+    if(!validateAlignOfSlidingWindows(lastKey, pFillInfo->currentKey, pFillInfo)) return 0;
     numOfRes = taosTimeCountInterval(
       lastKey,
       pFillInfo->currentKey,
@@ -505,7 +515,8 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
       pFillInfo->interval.slidingUnit,
       pFillInfo->interval.intervalUnit,
       pFillInfo->precision);
-    assert(numOfRes >= numOfRows);
+    assert(numOfRes >= numOfRows &&
+        "Sliding windows to fill mismatched");
   } else { // reach the end of data
     if ((ekey1 < pFillInfo->currentKey && FILL_IS_ASC_FILL(pFillInfo)) ||
         (ekey1 > pFillInfo->currentKey && !FILL_IS_ASC_FILL(pFillInfo))) {
