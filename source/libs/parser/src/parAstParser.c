@@ -464,6 +464,9 @@ static int32_t collectMetaKeyFromShowCreateTable(SCollectMetaKeyCxt* pCxt, SShow
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCacheExt(pCxt->pParseCxt->pUser, &name, AUTH_TYPE_READ, pCxt->pMetaCache);
+  }
   return code;
 }
 
