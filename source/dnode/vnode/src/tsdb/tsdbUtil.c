@@ -1619,7 +1619,7 @@ _exit:
 int32_t tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uint8_t *aBuf[]) {
   int32_t code = 0;
 
-  tBlockDataClear(pBlockData);
+  tBlockDataReset(pBlockData);
 
   int32_t      n = 0;
   SDiskDataHdr hdr = {0};

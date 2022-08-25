@@ -908,7 +908,7 @@ _err:
   return code;
 }
 
-int32_t tsdbReadLastBlock(SDataFReader *pReader, SBlockL *pBlockL, SBlockData *pBlockData) {
+int32_t tsdbReadLastBlock(SDataFReader *pReader, int32_t iLast, SBlockL *pBlockL, SBlockData *pBlockData) {
   int32_t code = 0;
 
   code = tsdbReadBlockDataImpl(pReader, &pBlockL->bInfo, 1, pBlockData);
@@ -918,6 +918,21 @@ int32_t tsdbReadLastBlock(SDataFReader *pReader, SBlockL *pBlockL, SBlockData *p
 
 _err:
   tsdbError("vgId:%d tsdb read last block failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+int32_t tsdbReadLastBlockEx(SDataFReader *pReader, int32_t iLast, SBlockL *pBlockL, SBlockData *pBlockData) {
+  int32_t code = 0;
+
+  // read
+  code = tsdbReadAndCheck(pReader->aLastFD[iLast], pBlockL->bInfo.offset, &pReader->aBuf[1], pBlockL->bInfo.szBlock, 0);
+  if (code) goto _exit;
+
+  // decmpr
+  code = tDecmprBlockData(pReader->aBuf[1], pBlockL->bInfo.szBlock, pBlockData, &pReader->aBuf[1]);
+  if (code) goto _exit;
+
+_exit:
   return code;
 }
 

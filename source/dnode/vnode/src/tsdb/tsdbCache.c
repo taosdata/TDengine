@@ -503,7 +503,7 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
       if (code) goto _err;
     }
     case SFSLASTNEXTROW_BLOCKDATA:
-      code = tsdbReadLastBlock(state->pDataFReader, state->pBlockL, state->pBlockDataL);
+      code = tsdbReadLastBlock(state->pDataFReader, 0, state->pBlockL, state->pBlockDataL);
       if (code) goto _err;
 
       state->nRow = state->blockDataL.nRow;

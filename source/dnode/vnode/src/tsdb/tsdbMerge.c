@@ -128,8 +128,8 @@ typedef struct {
   struct {
     SDataFReader *pReader;
     SArray       *aBlockIdx;
+    SLDataIter    aLDataiter[TSDB_MAX_LAST_FILE];
     SDataMerger   merger;
-    SArray       *aBlockL[TSDB_MAX_LAST_FILE];
   } dReader;
   struct {
     SDataFWriter *pWriter;
@@ -139,6 +139,9 @@ typedef struct {
     SBlockData    bDatal;
   } dWriter;
 } STsdbMerger;
+
+extern int32_t tsdbReadLastBlockEx(SDataFReader *pReader, int32_t iLast, SBlockL *pBlockL,
+                                   SBlockData *pBlockData);  // todo
 
 static int32_t tsdbMergeFileDataStart(STsdbMerger *pMerger, SDFileSet *pSet) {
   int32_t code = 0;
@@ -151,9 +154,42 @@ static int32_t tsdbMergeFileDataStart(STsdbMerger *pMerger, SDFileSet *pSet) {
   code = tsdbReadBlockIdx(pMerger->dReader.pReader, pMerger->dReader.aBlockIdx);
   if (code) goto _err;
 
+  pMerger->dReader.merger.pNode = NULL;
+  pMerger->dReader.merger.rbt = tRBTreeCreate(tRowInfoCmprFn);
   for (int8_t iLast = 0; iLast < pSet->nLastF; iLast++) {
-    code = tsdbReadBlockL(pMerger->dReader.pReader, iLast, pMerger->dReader.aBlockL[iLast]);
+    SRBTreeNode *pNode = (SRBTreeNode *)taosMemoryCalloc(1, sizeof(*pNode) + sizeof(SLDataIter));
+    if (pNode == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+
+    SLDataIter *pIter = (SLDataIter *)pNode->payload;
+
+    pIter->aBlockL = taosArrayInit(0, sizeof(SBlockL));
+    if (pIter->aBlockL == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+    code = tBlockDataCreate(&pIter->bData);
     if (code) goto _err;
+
+    code = tsdbReadBlockL(pMerger->dReader.pReader, iLast, pIter->aBlockL);
+    if (code) goto _err;
+
+    if (taosArrayGetSize(pIter->aBlockL) == 0) continue;
+    pIter->iBlockL = 0;
+
+    SBlockL *pBlockL = (SBlockL *)taosArrayGet(pIter->aBlockL, 0);
+    code = tsdbReadLastBlockEx(pMerger->dReader.pReader, iLast, pBlockL, &pIter->bData);
+    if (code) goto _err;
+
+    pIter->iRow = 0;
+    pIter->rowInfo.suid = pIter->bData.suid;
+    pIter->rowInfo.uid = pIter->bData.uid ? pIter->bData.uid : pIter->bData.aUid[0];
+    pIter->rowInfo.row = tsdbRowFromBlockData(&pIter->bData, 0);
+
+    pNode = tRBTreePut(&pMerger->dReader.merger.rbt, pNode);
+    ASSERT(pNode);
   }
 
   // writer
@@ -261,13 +297,13 @@ static int32_t tsdbStartMerge(STsdbMerger *pMerger, STsdb *pTsdb) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  for (int8_t iLast = 0; iLast < TSDB_MAX_LAST_FILE; iLast++) {
-    pMerger->dReader.aBlockL[iLast] = taosArrayInit(0, sizeof(SBlockL));
-    if (pMerger->dReader.aBlockL[iLast] == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
-    }
-  }
+  // for (int8_t iLast = 0; iLast < TSDB_MAX_LAST_FILE; iLast++) {
+  //   pMerger->dReader.aBlockL[iLast] = taosArrayInit(0, sizeof(SBlockL));
+  //   if (pMerger->dReader.aBlockL[iLast] == NULL) {
+  //     code = TSDB_CODE_OUT_OF_MEMORY;
+  //     goto _exit;
+  //   }
+  // }
 
   // writer
   pMerger->dWriter.aBlockIdx = taosArrayInit(0, sizeof(SBlockIdx));
@@ -305,9 +341,9 @@ static int32_t tsdbEndMerge(STsdbMerger *pMerger) {
   taosArrayDestroy(pMerger->dWriter.aBlockIdx);
 
   // reader
-  for (int8_t iLast = 0; iLast < TSDB_MAX_LAST_FILE; iLast++) {
-    taosArrayDestroy(pMerger->dReader.aBlockL[iLast]);
-  }
+  // for (int8_t iLast = 0; iLast < TSDB_MAX_LAST_FILE; iLast++) {
+  //   taosArrayDestroy(pMerger->dReader.aBlockL[iLast]);
+  // }
   taosArrayDestroy(pMerger->dReader.aBlockIdx);
   tsdbFSDestroy(&pMerger->fs);
 
