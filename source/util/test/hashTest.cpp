@@ -295,15 +295,44 @@ void perfTest() {
   int64_t end100m = taosGetTimestampMs();
   int64_t end100mCt = taosHashGetCompTimes(hash100m);
 
+
+  SArray *sArray[1000] = {0};
+  for (int64_t i = 0; i < 1000; ++i) {
+    sArray[i] = taosArrayInit(100000, 9);
+  }
+  int64_t cap = 4;
+  while (cap < 100000000) cap = (cap << 1u);
+  
+  _hash_fn_t hashFp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  int32_t slotR = cap / 1000 + 1;
+  for (int64_t i = 0; i < 10000000; ++i) {
+    char* p = name + (i % 50000000) * 9;
+    uint32_t v = (*hashFp)(p, 9);
+    taosArrayPush(sArray[(v%cap)/slotR], p);
+  }
+  SArray *slArray = taosArrayInit(100000000, 9);
+  for (int64_t i = 0; i < 1000; ++i) {
+    int32_t num = taosArrayGetSize(sArray[i]);
+    printf("%d ", num);
+    SArray* pArray = sArray[i];
+    for (int64_t m = 0; m < num; ++m) {
+      char* p = (char*)taosArrayGet(pArray, m);
+      ASSERT(taosArrayPush(slArray, p));
+    }
+  }
+  printf("\n");
   int64_t start100mS = taosGetTimestampMs();
   int64_t start100mSCt = taosHashGetCompTimes(hash100m);
-  _hash_fn_t hashFp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
-  for (int64_t i = 0; i < 10000000; ++i) {
-    ASSERT(taosHashGet(hash100m, name + (i % 50000000) * 9, 9));
+  int32_t num = taosArrayGetSize(slArray);
+  for (int64_t i = 0; i < num; ++i) {
+    ASSERT(taosHashGet(hash100m, (char*)TARRAY_GET_ELEM(slArray, i), 9));
   }
   int64_t end100mS = taosGetTimestampMs();
   int64_t end100mSCt = taosHashGetCompTimes(hash100m);
-
+  for (int64_t i = 0; i < 1000; ++i) {
+    taosArrayDestroy(sArray[i]);
+  }
+  taosArrayDestroy(slArray);
 
   printf("1h \t %" PRId64 "ms,%" PRId64 "\n", end1h - start1h, end1hCt - start1hCt);
   printf("1s \t %" PRId64 "ms,%" PRId64 "\n", end1s - start1s, end1sCt - start1sCt);
@@ -312,6 +341,7 @@ void perfTest() {
   printf("1m \t %" PRId64 "ms,%" PRId64 "\n", end1m - start1m, end1mCt - start1mCt);
   printf("10m \t %" PRId64 "ms,%" PRId64 "\n", end10m - start10m, end10mCt - start10mCt);
   printf("100m \t %" PRId64 "ms,%" PRId64 "\n", end100m - start100m, end100mCt - start100mCt);
+  printf("100mS \t %" PRId64 "ms,%" PRId64 "\n", end100mS - start100mS, end100mSCt - start100mSCt);
 
   taosHashCleanup(hash1h);
   taosHashCleanup(hash1s);
@@ -345,7 +375,8 @@ void perfTest() {
     ASSERT(taosHashGet(mhash[i%1000], name + i * 9, 9));
   }
 #else
-  for (int64_t i = 0; i < 10000000; ++i) {
+//  for (int64_t i = 0; i < 10000000; ++i) {
+  for (int64_t i = 0; i < 50000000; i+=5) {
     ASSERT(taosHashGet(mhash[i/50000], name + i * 9, 9));
   }
 #endif  
