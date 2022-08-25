@@ -2367,7 +2367,7 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
 
   SUidOrderCheckInfo *pOrderedCheckInfo = &pStatus->uidCheckInfo;
   int32_t code = initOrderCheckInfo(pOrderedCheckInfo, pStatus);
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS || (taosHashGetSize(pStatus->pTableMap) == 0)) {
     return code;
   }
 
