@@ -442,6 +442,26 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapperEx(SDecoder* pDecoder, SSchemaW
 
 STSchema* tdGetSTSChemaFromSSChema(SSchema* pSchema, int32_t nCols, int32_t sver);
 
+
+typedef struct {
+  char     tbName[TSDB_TABLE_NAME_LEN];
+  char     stbName[TSDB_TABLE_NAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  int64_t  dbId;
+  int32_t  numOfTags;
+  int32_t  numOfColumns;
+  int8_t   precision;
+  int8_t   tableType;
+  int32_t  sversion;
+  int32_t  tversion;
+  uint64_t suid;
+  uint64_t tuid;
+  int32_t  vgId;
+  int8_t   sysInfo;
+  SSchema* pSchemas;
+} STableMetaRsp;
+
+
 typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
   int8_t   igExists;
@@ -472,6 +492,14 @@ typedef struct {
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
 int32_t tDeserializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
 void    tFreeSMCreateStbReq(SMCreateStbReq* pReq);
+
+typedef struct {
+  STableMetaRsp* pMeta;
+} SMCreateStbRsp;
+
+int32_t tEncodeSMCreateStbRsp(SEncoder* pEncoder, const SMCreateStbRsp* pRsp);
+int32_t tDecodeSMCreateStbRsp(SDecoder* pDecoder, SMCreateStbRsp* pRsp);
+void    tFreeSMCreateStbRsp(SMCreateStbRsp* pRsp);
 
 typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
@@ -1242,24 +1270,6 @@ typedef struct {
 } SVgroupsInfo;
 
 typedef struct {
-  char     tbName[TSDB_TABLE_NAME_LEN];
-  char     stbName[TSDB_TABLE_NAME_LEN];
-  char     dbFName[TSDB_DB_FNAME_LEN];
-  int64_t  dbId;
-  int32_t  numOfTags;
-  int32_t  numOfColumns;
-  int8_t   precision;
-  int8_t   tableType;
-  int32_t  sversion;
-  int32_t  tversion;
-  uint64_t suid;
-  uint64_t tuid;
-  int32_t  vgId;
-  int8_t   sysInfo;
-  SSchema* pSchemas;
-} STableMetaRsp;
-
-typedef struct {
   STableMetaRsp* pMeta;
 } SMAlterStbRsp;
 
@@ -1269,7 +1279,7 @@ void    tFreeSMAlterStbRsp(SMAlterStbRsp* pRsp);
 
 int32_t tSerializeSTableMetaRsp(void* buf, int32_t bufLen, STableMetaRsp* pRsp);
 int32_t tDeserializeSTableMetaRsp(void* buf, int32_t bufLen, STableMetaRsp* pRsp);
-void    tFreeSTableMetaRsp(STableMetaRsp* pRsp);
+void    tFreeSTableMetaRsp(void* pRsp);
 void    tFreeSTableIndexRsp(void* info);
 
 typedef struct {
@@ -2031,11 +2041,13 @@ int tEncodeSVCreateTbBatchReq(SEncoder* pCoder, const SVCreateTbBatchReq* pReq);
 int tDecodeSVCreateTbBatchReq(SDecoder* pCoder, SVCreateTbBatchReq* pReq);
 
 typedef struct {
-  int32_t code;
+  int32_t        code;
+  STableMetaRsp* pMeta;
 } SVCreateTbRsp, SVUpdateTbRsp;
 
 int tEncodeSVCreateTbRsp(SEncoder* pCoder, const SVCreateTbRsp* pRsp);
 int tDecodeSVCreateTbRsp(SDecoder* pCoder, SVCreateTbRsp* pRsp);
+void tFreeSVCreateTbRsp(void* param);
 
 int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
 void*   tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);

@@ -367,7 +367,7 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   return 0;
 }
 
-int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
+int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMetaRsp **pMetaRsp) {
   SMetaEntry  me = {0};
   SMetaReader mr = {0};
 
@@ -426,6 +426,21 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
   }
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
+
+  if (pMetaRsp) {
+    *pMetaRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+
+    if (*pMetaRsp) {
+      if (me.type == TSDB_CHILD_TABLE) {
+        (*pMetaRsp)->tableType = TSDB_CHILD_TABLE;
+        (*pMetaRsp)->tuid = pReq->uid;
+        (*pMetaRsp)->suid = pReq->ctb.suid;
+        strcpy((*pMetaRsp)->tbName, pReq->name);
+      } else {
+        metaUpdateMetaRsp(pReq->uid, pReq->name, &pReq->ntb.schemaRow, *pMetaRsp);
+      }
+    }
+  }
 
   metaDebug("vgId:%d, table:%s uid %" PRId64 " is created, type:%" PRId8, TD_VID(pMeta->pVnode), pReq->name, pReq->uid,
             pReq->type);
