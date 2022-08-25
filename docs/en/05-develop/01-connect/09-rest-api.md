@@ -3,6 +3,9 @@ sidebar_label: REST API
 title: REST API
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 ## Config
 
 Run this command in your terminal to save the TDengine cloud token and URL as variables:
