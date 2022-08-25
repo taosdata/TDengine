@@ -156,7 +156,7 @@ AllowWebSockets
 ## 功能列表
 
 - RESTful 接口
-  [https://docs.taosdata.com/reference/rest-api/](https://docs.taosdata.com/reference/rest-api/)
+  [RESTful API](../../connector/rest-api)
 - 兼容 InfluxDB v1 写接口
   [https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/](https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/)
 - 兼容 OpenTSDB JSON 和 telnet 格式写入
@@ -179,7 +179,7 @@ AllowWebSockets
 
 ### TDengine RESTful 接口
 
-您可以使用任何支持 http 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/rest/sql` 来写入数据到 TDengine 或从 TDengine 中查询数据。细节请参考[官方文档](/reference/rest-api/)。
+您可以使用任何支持 http 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/rest/sql` 来写入数据到 TDengine 或从 TDengine 中查询数据。细节请参考[官方文档](../../connector/rest-api/)。
 
 ### InfluxDB
 

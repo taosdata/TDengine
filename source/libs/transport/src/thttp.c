@@ -23,6 +23,7 @@
 
 
 #define HTTP_RECV_BUF_SIZE 1024
+
 typedef struct SHttpClient {
   uv_connect_t conn;
   uv_tcp_t     tcp;
@@ -143,9 +144,9 @@ static void clientAllocBuffCb(uv_handle_t *handle, size_t suggested_size, uv_buf
 static void clientRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t *buf) {
   SHttpClient* cli = handle->data; 
   if (nread < 0) {
-    uError("http-report read error:%s", uv_err_name(nread));
+    uError("http-report recv error:%s", uv_err_name(nread));
   } else {
-    uTrace("http-report succ to read %d bytes, just ignore it", nread);
+    uTrace("http-report succ to recv %d bytes, just ignore it", nread);
   }
   uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
 } 

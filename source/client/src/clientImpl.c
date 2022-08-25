@@ -842,6 +842,8 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     }
 
     schedulerFreeJob(&pRequest->body.queryJob, 0);
+
+    pRequest->metric.execEnd = taosGetTimestampUs();
   }
 
   taosMemoryFree(pResult);

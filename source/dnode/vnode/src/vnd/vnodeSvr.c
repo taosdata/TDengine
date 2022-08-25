@@ -301,8 +301,6 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       return qWorkerProcessQueryMsg(&handle, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_QUERY_CONTINUE:
       return qWorkerProcessCQueryMsg(&handle, pVnode->pQuery, pMsg, 0);
-    case TDMT_VND_EXEC_RSMA:
-      return smaProcessExec(pVnode->pSma, pMsg);
     default:
       vError("unknown msg type:%d in query queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
@@ -380,13 +378,13 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, 
   int32_t     code = 0;
   SVTrimDbReq trimReq = {0};
 
-  vInfo("vgId:%d, trim vnode request will be processed, time:%d", pVnode->config.vgId, trimReq.timestamp);
-
   // decode
   if (tDeserializeSVTrimDbReq(pReq, len, &trimReq) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
+
+  vInfo("vgId:%d, trim vnode request will be processed, time:%d", pVnode->config.vgId, trimReq.timestamp);
 
   // process
   code = tsdbDoRetention(pVnode->pTsdb, trimReq.timestamp);
