@@ -40,7 +40,7 @@ settings:
         logDir: /var/log/taos
         debugFlag: 143
         asynclog: 0
-        numOfLogLines: 50000000
+        numOfLogLines: 10000000
   - name: taosAdapter
     fqdn: [ceph01]
     spec:
