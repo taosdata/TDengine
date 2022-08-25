@@ -723,6 +723,12 @@ int32_t handleSubmitExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog
 
   for (int32_t i = 0; i < pRsp->nBlocks; ++i) {
     SSubmitBlkRsp* blk = pRsp->pBlocks + i;
+    if (blk->pMeta) {
+      handleCreateTbExecRes(blk->pMeta, pCatalog);
+      tFreeSTableMetaRsp(blk->pMeta);
+      taosMemoryFreeClear(blk->pMeta);
+    }
+    
     if (NULL == blk->tblFName || 0 == blk->tblFName[0]) {
       continue;
     }
