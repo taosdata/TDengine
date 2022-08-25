@@ -779,33 +779,43 @@ class TDCreateData():
         sql_analyze_ratio_verbose_true = sql 
         sql_analyze_ratio_verbose_false = sql 
         
-        sql = "explain " + sql 
-        self.tdSql.query(sql) 
-        sql_verbose_true = "explain verbose true " + sql_verbose_true 
-        self.tdSql.query(sql_verbose_true) 
-        sql_verbose_false = "explain verbose false " + sql_verbose_false 
-        self.tdSql.query(sql_verbose_false)
+        i = random.randint(1,5)
         
-        sql_ratio = "explain ratio {} ".format(ratio) + sql_ratio 
-        self.tdSql.query(sql_ratio) 
-        sql_ratio_verbose_true = "explain ratio 0.05 verbose true " + sql_ratio_verbose_true 
-        self.tdSql.query(sql_ratio_verbose_true) 
-        sql_ratio_verbose_false = "explain ratio 0.05 verbose false " + sql_ratio_verbose_false 
-        self.tdSql.query(sql_ratio_verbose_false)
+        if i==1:
         
-        sql_analyze = "explain analyze " + sql_analyze 
-        self.tdSql.query(sql_analyze)
-        sql_analyze_verbose_true = "explain analyze verbose false " + sql_analyze_verbose_true 
-        self.tdSql.query(sql_analyze_verbose_true)
-        sql_analyze_verbose_false = "explain analyze verbose false " + sql_analyze_verbose_false 
-        self.tdSql.query(sql_analyze_verbose_false)
+            sql = "explain " + sql 
+            self.tdSql.query(sql) 
+            sql_verbose_true = "explain verbose true " + sql_verbose_true 
+            self.tdSql.query(sql_verbose_true) 
+            sql_verbose_false = "explain verbose false " + sql_verbose_false 
+            self.tdSql.query(sql_verbose_false)
         
-        sql_analyze_ratio = "explain analyze ratio {} ".format(ratio) + sql_analyze_ratio 
-        self.tdSql.query(sql_analyze_ratio)
-        sql_analyze_ratio_verbose_true = "explain analyze ratio {} verbose false ".format(ratio) + sql_analyze_ratio_verbose_true 
-        self.tdSql.query(sql_analyze_ratio_verbose_true)
-        sql_analyze_ratio_verbose_false = "explain analyze ratio {} verbose false ".format(ratio) + sql_analyze_ratio_verbose_false 
-        self.tdSql.query(sql_analyze_ratio_verbose_false)
+        elif i ==2:
+            
+            sql_ratio = "explain ratio {} ".format(ratio) + sql_ratio 
+            self.tdSql.query(sql_ratio) 
+            sql_ratio_verbose_true = "explain ratio 0.05 verbose true " + sql_ratio_verbose_true 
+            self.tdSql.query(sql_ratio_verbose_true) 
+            sql_ratio_verbose_false = "explain ratio 0.05 verbose false " + sql_ratio_verbose_false 
+            self.tdSql.query(sql_ratio_verbose_false)
+        
+        elif i ==3:
+            
+            sql_analyze = "explain analyze " + sql_analyze 
+            self.tdSql.query(sql_analyze)
+            sql_analyze_verbose_true = "explain analyze verbose true " + sql_analyze_verbose_true 
+            self.tdSql.query(sql_analyze_verbose_true)
+            sql_analyze_verbose_false = "explain analyze verbose false " + sql_analyze_verbose_false 
+            self.tdSql.query(sql_analyze_verbose_false)
+        
+        else:
+            
+            sql_analyze_ratio = "explain analyze ratio {} ".format(ratio) + sql_analyze_ratio 
+            self.tdSql.query(sql_analyze_ratio)
+            sql_analyze_ratio_verbose_true = "explain analyze ratio {} verbose true ".format(ratio) + sql_analyze_ratio_verbose_true 
+            self.tdSql.query(sql_analyze_ratio_verbose_true)
+            sql_analyze_ratio_verbose_false = "explain analyze ratio {} verbose false ".format(ratio) + sql_analyze_ratio_verbose_false 
+            self.tdSql.query(sql_analyze_ratio_verbose_false)
         
     def taos_f(self,service_host,testcasePath,testcaseFilename):   
         #执行taos_f 导入解析            
