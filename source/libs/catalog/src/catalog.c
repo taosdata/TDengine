@@ -893,7 +893,7 @@ int32_t catalogChkTbMetaVersion(SCatalog* pCtg, SRequestConnInfo *pConn, SArray*
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  SName   name;
+  SName   name = {0};
   int32_t sver = 0;
   int32_t tver = 0;
   int32_t tbNum = taosArrayGetSize(pTables);

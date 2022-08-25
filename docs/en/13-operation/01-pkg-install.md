@@ -10,37 +10,7 @@ This document gives more information about installing, uninstalling, and upgradi
 
 ## Install
 
-See [Quick Install](../../get-started/package) for preliminary steps.
-
-
-
-## Installation Directory
-
-TDengine is installed at /usr/local/taos if successful.
-
-```
-$ cd /usr/local/taos
-$ ll
-$ ll
-total 28
-drwxr-xr-x  7 root root 4096 Feb 22 09:34 ./
-drwxr-xr-x 12 root root 4096 Feb 22 09:34 ../
-drwxr-xr-x  2 root root 4096 Feb 22 09:34 bin/
-drwxr-xr-x  2 root root 4096 Feb 22 09:34 cfg/
-lrwxrwxrwx  1 root root   13 Feb 22 09:34 data -> /var/lib/taos/
-drwxr-xr-x  2 root root 4096 Feb 22 09:34 driver/
-drwxr-xr-x 10 root root 4096 Feb 22 09:34 examples/
-drwxr-xr-x  2 root root 4096 Feb 22 09:34 include/
-lrwxrwxrwx  1 root root   13 Feb 22 09:34 log -> /var/log/taos/
-```
-
-- Configuration directory, data directory, and log directory are created automatically if they don't exist
-- The default configuration file is located at /etc/taos/taos.cfg, which is a copy of /usr/local/taos/cfg/taos.cfg
-- The default data directory is /var/lib/taos, which is a soft link to /usr/local/taos/data
-- The default log directory is /var/log/taos, which is a soft link to /usr/local/taos/log
-- The executables at /usr/local/taos/bin are linked to /usr/bin
-- The DLL files at /usr/local/taos/driver are linked to /usr/lib
-- The header files at /usr/local/taos/include are linked to /usr/include
+About details of installing TDenine, please refer to [Installation Guide](../../get-started/package/).
 
 ## Uninstall
 
@@ -56,8 +26,8 @@ Deb package of TDengine can be uninstalled as below:
 
 ```
 $ sudo dpkg -r tdengine
-(Reading database ... 120119 files and directories currently installed.)
-Removing tdengine (3.0.0.10002) ...
+(Reading database ... 137504 files and directories currently installed.)
+Removing tdengine (3.0.0.0) ...
 TDengine is removed successfully!
 
 ```
@@ -117,6 +87,7 @@ Uninstalling and Modifying Files
 - When TDengine is uninstalled, the configuration /etc/taos/taos.cfg, data directory /var/lib/taos, log directory /var/log/taos are kept. They can be deleted manually with caution, because data can't be recovered. Please follow data integrity, security, backup or relevant SOPs before deleting any data.
 
 - When reinstalling TDengine, if the default configuration file /etc/taos/taos.cfg exists, it will be kept and the configuration file in the installation package will be renamed to taos.cfg.orig and stored at /usr/local/taos/cfg to be used as configuration sample. Otherwise the configuration file in the installation package will be installed to /etc/taos/taos.cfg and used.
+
 
 ## Upgrade
 There are two aspects in upgrade operation: upgrade installation package and upgrade a running server.

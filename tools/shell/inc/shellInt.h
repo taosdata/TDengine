@@ -95,6 +95,7 @@ typedef struct {
   TAOS*           conn;
   TdThread        pid;
   tsem_t          cancelSem;
+  bool            exit;
 #ifdef WEBSOCKET
   WS_TAOS*        ws_conn;
   bool		      stop_query;

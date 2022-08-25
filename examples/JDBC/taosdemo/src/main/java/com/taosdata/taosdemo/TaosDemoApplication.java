@@ -32,8 +32,10 @@ public class TaosDemoApplication {
             System.exit(0);
         }
         // 初始化
-        final DataSource dataSource = DataSourceFactory.getInstance(config.host, config.port, config.user, config.password);
-        if (config.executeSql != null && !config.executeSql.isEmpty() && !config.executeSql.replaceAll("\\s", "").isEmpty()) {
+        final DataSource dataSource = DataSourceFactory.getInstance(config.host, config.port, config.user,
+                config.password);
+        if (config.executeSql != null && !config.executeSql.isEmpty()
+                && !config.executeSql.replaceAll("\\s", "").isEmpty()) {
             Thread task = new Thread(new SqlExecuteTask(dataSource, config.executeSql));
             task.start();
             try {
@@ -55,7 +57,7 @@ public class TaosDemoApplication {
         databaseParam.put("keep", Integer.toString(config.keep));
         databaseParam.put("days", Integer.toString(config.days));
         databaseParam.put("replica", Integer.toString(config.replica));
-        //TODO: other database parameters
+        // TODO: other database parameters
         databaseService.createDatabase(databaseParam);
         databaseService.useDatabase(config.database);
         long end = System.currentTimeMillis();
@@ -70,11 +72,13 @@ public class TaosDemoApplication {
             if (config.database != null && !config.database.isEmpty())
                 superTableMeta.setDatabase(config.database);
         } else if (config.numOfFields == 0) {
-            String sql = "create table " + config.database + "." + config.superTable + " (ts timestamp, temperature float, humidity int) tags(location nchar(64), groupId int)";
+            String sql = "create table " + config.database + "." + config.superTable
+                    + " (ts timestamp, temperature float, humidity int) tags(location nchar(64), groupId int)";
             superTableMeta = SuperTableMetaGenerator.generate(sql);
         } else {
             // create super table with specified field size and tag size
-            superTableMeta = SuperTableMetaGenerator.generate(config.database, config.superTable, config.numOfFields, config.prefixOfFields, config.numOfTags, config.prefixOfTags);
+            superTableMeta = SuperTableMetaGenerator.generate(config.database, config.superTable, config.numOfFields,
+                    config.prefixOfFields, config.numOfTags, config.prefixOfTags);
         }
         /**********************************************************************************/
         // 建表
@@ -84,7 +88,8 @@ public class TaosDemoApplication {
             superTableService.create(superTableMeta);
             if (!config.autoCreateTable) {
                 // 批量建子表
-                subTableService.createSubTable(superTableMeta, config.numOfTables, config.prefixOfTable, config.numOfThreadsForCreate);
+                subTableService.createSubTable(superTableMeta, config.numOfTables, config.prefixOfTable,
+                        config.numOfThreadsForCreate);
             }
         }
         end = System.currentTimeMillis();
@@ -93,7 +98,7 @@ public class TaosDemoApplication {
         // 插入
         long tableSize = config.numOfTables;
         int threadSize = config.numOfThreadsForInsert;
-        long startTime = getProperStartTime(config.startTime, config.keep);
+        long startTime = getProperStartTime(config.startTime, config.days);
 
         if (tableSize < threadSize)
             threadSize = (int) tableSize;
@@ -101,12 +106,12 @@ public class TaosDemoApplication {
 
         start = System.currentTimeMillis();
         // multi threads to insert
-        int affectedRows = subTableService.insertMultiThreads(superTableMeta, threadSize, tableSize, startTime, gap, config);
+        int affectedRows = subTableService.insertMultiThreads(superTableMeta, threadSize, tableSize, startTime, gap,
+                config);
         end = System.currentTimeMillis();
         logger.info("insert " + affectedRows + " rows, time cost: " + (end - start) + " ms");
         /**********************************************************************************/
         // 查询
-
 
         /**********************************************************************************/
         // 删除表
