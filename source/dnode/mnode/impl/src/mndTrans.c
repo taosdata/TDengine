@@ -17,6 +17,7 @@
 #include "mndTrans.h"
 #include "mndConsumer.h"
 #include "mndDb.h"
+#include "mndStb.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSync.h"
@@ -900,15 +901,6 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       }
       SRpcMsg rspMsg = {.code = code, .info = *pInfo};
 
-      if (pTrans->rpcRspLen != 0) {
-        void *rpcCont = rpcMallocCont(pTrans->rpcRspLen);
-        if (rpcCont != NULL) {
-          memcpy(rpcCont, pTrans->rpcRsp, pTrans->rpcRspLen);
-          rspMsg.pCont = rpcCont;
-          rspMsg.contLen = pTrans->rpcRspLen;
-        }
-      }
-
       if (pTrans->originRpcType == TDMT_MND_CREATE_DB) {
         mDebug("trans:%d, origin msgtype:%s", pTrans->id, TMSG_INFO(pTrans->originRpcType));
         SDbObj *pDb = mndAcquireDb(pMnode, pTrans->dbname1);
@@ -924,6 +916,21 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
           }
         }
         mndReleaseDb(pMnode, pDb);
+      } else if (pTrans->originRpcType == TDMT_MND_CREATE_STB) {
+        void   *pCont = NULL;
+        int32_t contLen = 0;
+        if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname1, pTrans->dbname2, &pCont, &contLen) != 0) {
+          mndTransSetRpcRsp(pTrans, pCont, contLen);
+        }
+      }
+
+      if (pTrans->rpcRspLen != 0) {
+        void *rpcCont = rpcMallocCont(pTrans->rpcRspLen);
+        if (rpcCont != NULL) {
+          memcpy(rpcCont, pTrans->rpcRsp, pTrans->rpcRspLen);
+          rspMsg.pCont = rpcCont;
+          rspMsg.contLen = pTrans->rpcRspLen;
+        }
       }
 
       tmsgSendRsp(&rspMsg);
