@@ -158,7 +158,7 @@ Queries can be executed on both a table (subtable) and a STable. For a query on 
 
 In TDengine, it is recommended to use a subtable instead of a regular table for a DCP. In the meters example, we can create subtables like d1001, d1002, d1003, and d1004 under super table meters.
 
-To better understand the data model using super table and subtable, please refer to [Meters Data Model Diagram](supertable.webp)
+To better understand the data model using super table and subtable, please refer to ![Meters Data Model Diagram](./supertable.webp)
 
 ## Database
 
