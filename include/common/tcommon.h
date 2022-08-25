@@ -205,7 +205,7 @@ typedef struct SColumn {
   int16_t slotId;
 
   char    name[TSDB_COL_NAME_LEN];
-  int8_t  flag;  // column type: normal column, tag, or user-input column (integer/float/string)
+  int16_t colType;  // column type: normal column, tag, or window column
   int16_t type;
   int32_t bytes;
   uint8_t precision;

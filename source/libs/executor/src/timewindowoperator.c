@@ -1947,8 +1947,8 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
     if (gid != pRowSup->groupId || pInfo->winSup.prevTs == INT64_MIN) {
       doKeepNewWindowStartInfo(pRowSup, tsList, j, gid);
       doKeepTuple(pRowSup, tsList[j], gid);
-    } else if ((tsList[j] - pRowSup->prevTs >= 0) && tsList[j] - pRowSup->prevTs <= gap ||
-               (pRowSup->prevTs - tsList[j] >= 0) && (pRowSup->prevTs - tsList[j] <= gap)) {
+    } else if (((tsList[j] - pRowSup->prevTs >= 0) && (tsList[j] - pRowSup->prevTs <= gap)) ||
+               ((pRowSup->prevTs - tsList[j] >= 0) && (pRowSup->prevTs - tsList[j] <= gap))) {
       // The gap is less than the threshold, so it belongs to current session window that has been opened already.
       doKeepTuple(pRowSup, tsList[j], gid);
       if (j == 0 && pRowSup->startRowIndex != 0) {

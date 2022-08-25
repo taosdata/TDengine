@@ -317,6 +317,7 @@ typedef struct SSystemTableScanPhysiNode {
   SEpSet         mgmtEpSet;
   bool           showRewrite;
   int32_t        accountId;
+  bool           sysInfo;
 } SSystemTableScanPhysiNode;
 
 typedef struct STableScanPhysiNode {
