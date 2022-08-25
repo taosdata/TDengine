@@ -74,6 +74,7 @@ sql explain analyze verbose true select ts from tb1 where f1 > 0;
 sql explain analyze verbose true select f1 from st1 where f1 > 0 and ts > '2020-10-31 00:00:00' and ts < '2021-10-31 00:00:00';
 sql explain analyze verbose true select * from information_schema.ins_stables where db_name='db2';
 sql explain analyze verbose true select * from (select min(f1),count(*) a from st1 where f1 > 0) where a < 0;
+sql explain analyze verbose true select count(f1) from st1 group by tbname;
 
 #not pass case
 #sql explain verbose true select count(*),sum(f1) as aa from tb1 where (f1 > 0 or f1 < -1) and ts > '2020-10-31 00:00:00' and ts < '2021-10-31 00:00:00' order by aa;

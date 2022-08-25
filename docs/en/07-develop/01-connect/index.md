@@ -1,38 +1,39 @@
 ---
-sidebar_label: Connect
 title: Connect
-description: "This document explains how to establish connections to TDengine, and briefly introduces how to install and use TDengine connectors."
+description: "This document explains how to establish connections to TDengine and how to install and use TDengine connectors."
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import ConnJava from "./\_connect_java.mdx";
-import ConnGo from "./\_connect_go.mdx";
-import ConnRust from "./\_connect_rust.mdx";
-import ConnNode from "./\_connect_node.mdx";
-import ConnPythonNative from "./\_connect_python.mdx";
-import ConnCSNative from "./\_connect_cs.mdx";
-import ConnC from "./\_connect_c.mdx";
-import ConnR from "./\_connect_r.mdx";
-import InstallOnWindows from "../../14-reference/03-connector/\_linux_install.mdx";
-import InstallOnLinux from "../../14-reference/03-connector/\_windows_install.mdx";
-import VerifyLinux from "../../14-reference/03-connector/\_verify_linux.mdx";
-import VerifyWindows from "../../14-reference/03-connector/\_verify_windows.mdx";
+import ConnJava from "./_connect_java.mdx";
+import ConnGo from "./_connect_go.mdx";
+import ConnRust from "./_connect_rust.mdx";
+import ConnNode from "./_connect_node.mdx";
+import ConnPythonNative from "./_connect_python.mdx";
+import ConnCSNative from "./_connect_cs.mdx";
+import ConnC from "./_connect_c.mdx";
+import ConnR from "./_connect_r.mdx";
+import ConnPHP from "./_connect_php.mdx";
+import InstallOnWindows from "../../14-reference/03-connector/_linux_install.mdx";
+import InstallOnLinux from "../../14-reference/03-connector/_windows_install.mdx";
+import VerifyLinux from "../../14-reference/03-connector/_verify_linux.mdx";
+import VerifyWindows from "../../14-reference/03-connector/_verify_windows.mdx";
 
-Any application programs running on any kind of platform can access TDengine through the REST API provided by TDengine. For details, please refer to [REST API](/reference/rest-api/). Additionally, application programs can use the connectors of multiple programming languages including C/C++, Java, Python, Go, Node.js, C#, Rust to access TDengine. This chapter describes how to establish a connection to TDengine and briefly introduces how to install and use connectors. TDengine community also provides connectors in LUA and PHP languages. For details about the connectors, please refer to [Connectors](/reference/connector/).
+Any application running on any platform can access TDengine through the REST API provided by TDengine. For information, see [REST API](/reference/rest-api/). Applications can also use the connectors for various programming languages, including C/C++, Java, Python, Go, Node.js, C#, and Rust, to access TDengine. These connectors support connecting to TDengine clusters using both native interfaces (taosc). Some connectors also support connecting over a REST interface. Community developers have also contributed several unofficial connectors, such as the ADO.NET connector, the Lua connector, and the PHP connector.
 
 ## Establish Connection
 
 There are two ways for a connector to establish connections to TDengine:
 
-1. Connection through the REST API provided by the taosAdapter component, this way is called "REST connection" hereinafter.
-2. Connection through the TDengine client driver (taosc), this way is called "Native connection" hereinafter.
+1. REST connection through the REST API provided by the taosAdapter component.
+2. Native connection through the TDengine client driver (taosc).
+
+For REST and native connections, connectors provide similar APIs for performing operations and running SQL statements on your databases. The main difference is the method of establishing the connection, which is not visible to users.
 
 Key differences：
 
-1. The TDengine client driver (taosc) has the highest performance with all the features of TDengine like [Parameter Binding](/reference/connector/cpp#parameter-binding-api), [Subscription](/reference/connector/cpp#subscription-and-consumption-api), etc.
-2. The TDengine client driver (taosc) is not supported across all platforms, and applications built on taosc may need to be modified when updating taosc to newer versions.
 3. The REST connection is more accessible with cross-platform support, however it results in a 30% performance downgrade.
+1. The TDengine client driver (taosc) has the highest performance with all the features of TDengine like [Parameter Binding](/reference/connector/cpp#parameter-binding-api), [Subscription](/reference/connector/cpp#subscription-and-consumption-api), etc.
 
 ## Install Client Driver taosc
 
@@ -136,19 +137,19 @@ Node.js connector provides different ways of establishing connections by providi
 
 1. Install Node.js Native Connector
 
-```
-npm install @tdengine/client
-```
+  ```
+  npm install @tdengine/client
+  ```
 
 :::note
 It's recommend to use Node whose version is between `node-v12.8.0` and `node-v13.0.0`.
-:::
-
+::: 
+  
 2. Install Node.js REST Connector
 
-```
-npm install @tdengine/rest
-```
+  ```
+  npm install @tdengine/rest
+  ```
 
 </TabItem>
 <TabItem label="C#" value="csharp">
@@ -222,7 +223,7 @@ phpize && ./configure && make -j && make install
 **Specify TDengine Location：**
 
 ```shell
-phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/2.4.0.0 && make -j && make install
+phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/3.0.0.0 && make -j && make install
 ```
 
 > `--with-tdengine-dir=` is followed by the TDengine installation location.
@@ -236,14 +237,14 @@ phpize && ./configure --enable-swoole && make -j && make install
 
 **Enable The Extension:**
 
-Option One: Add `extension=tdengine` in `php.ini` 
+Option One: Add `extension=tdengine` in `php.ini`
 
 Option Two: Specify the extension on CLI `php -d extension=tdengine test.php`
 
 </TabItem>
 </Tabs>
 
-## Establish Connection
+## Establish a connection
 
 Prior to establishing connection, please make sure TDengine is already running and accessible. The following sample code assumes TDengine is running on the same host as the client program, with FQDN configured to "localhost" and serverPort configured to "6030".
 
@@ -271,6 +272,9 @@ Prior to establishing connection, please make sure TDengine is already running a
   </TabItem>
   <TabItem label="C" value="c">
     <ConnC />
+  </TabItem>
+  <TabItem label="PHP" value="php">
+    <ConnPHP />
   </TabItem>
 </Tabs>
 
