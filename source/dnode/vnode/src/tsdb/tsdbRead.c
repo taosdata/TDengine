@@ -2309,7 +2309,7 @@ static int32_t uidComparFunc(const void* p1, const void* p2) {
   if (pu1 == pu2) {
     return 0;
   } else {
-    return (pu1 > pu2)? -1:1;
+    return (pu1 < pu2)? -1:1;
   }
 }
 
