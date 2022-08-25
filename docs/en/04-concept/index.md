@@ -156,7 +156,9 @@ The relationship between a STable and the subtables created based on this STable
 
 Queries can be executed on both a table (subtable) and a STable. For a query on a STable, TDengine will treat the data in all its subtables as a whole data set for processing. TDengine will first find the subtables that meet the tag filter conditions, then scan the time-series data of these subtables to perform aggregation operation, which reduces the number of data sets to be scanned which in turn greatly improves the performance of data aggregation across multiple DCPs. In essence, querying a supertable is a very efficient aggregate query on multiple DCPs of the same type.
 
-In TDengine, it is recommended to use a subtable instead of a regular table for a DCP.
+In TDengine, it is recommended to use a subtable instead of a regular table for a DCP. In the meters example, we can create subtables like d1001, d1002, d1003, and d1004 under super table meters.
+
+To better understand the data model using super table and subtable, please refer to [Meters Data Model Diagram](supertable.webp)
 
 ## Database
 
