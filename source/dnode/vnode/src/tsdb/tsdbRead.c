@@ -657,9 +657,11 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SArray*
   int32_t total = pBlockNum->numOfLastBlocks + pBlockNum->numOfBlocks;
 
   double el = (taosGetTimestampUs() - st) / 1000.0;
-  tsdbDebug("load block of %d tables completed, blocks:%d in %d tables, lastBlock:%d, size:%.2f Kb, elapsed time:%.2f ms %s",
-            numOfTables, pBlockNum->numOfBlocks, numOfQTable, pBlockNum->numOfLastBlocks, sizeInDisk
-            / 1000.0, el, pReader->idStr);
+  tsdbDebug(
+      "load block of %d tables completed, blocks:%d in %d tables, lastBlock:%d, block-info-size:%.2f Kb, elapsed "
+      "time:%.2f ms %s",
+      numOfTables, pBlockNum->numOfBlocks, numOfQTable, pBlockNum->numOfLastBlocks, sizeInDisk / 1000.0, el,
+      pReader->idStr);
 
   pReader->cost.numOfBlocks += total;
   pReader->cost.headFileLoadTime += el;
@@ -2006,9 +2008,12 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
   setComposedBlockFlag(pReader, true);
   int64_t et = taosGetTimestampUs();
 
-  tsdbDebug("%p uid:%" PRIu64 ", composed data block created, brange:%" PRIu64 "-%" PRIu64 " rows:%d, elapsed time:%.2f ms %s",
-            pReader, pBlockScanInfo->uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
-            pResBlock->info.rows, (et - st) / 1000.0, pReader->idStr);
+  if (pResBlock->info.rows > 0) {
+    tsdbDebug("%p uid:%" PRIu64 ", composed data block created, brange:%" PRIu64 "-%" PRIu64
+              " rows:%d, elapsed time:%.2f ms %s",
+              pReader, pBlockScanInfo->uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
+              pResBlock->info.rows, (et - st) / 1000.0, pReader->idStr);
+  }
 
   return TSDB_CODE_SUCCESS;
 }
