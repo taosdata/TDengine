@@ -20,7 +20,7 @@ static SSDataBlock* doSort(SOperatorInfo* pOperator);
 static int32_t      doOpenSortOperator(SOperatorInfo* pOperator);
 static int32_t      getExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len);
 
-static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput);
+static void destroyOrderOperatorInfo(void* param);
 
 // todo add limit/offset impl
 SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortNode, SExecTaskInfo* pTaskInfo) {
@@ -250,7 +250,7 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
   return blockDataGetNumOfRows(pBlock) > 0 ? pBlock : NULL;
 }
 
-void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyOrderOperatorInfo(void* param) {
   SSortOperatorInfo* pInfo = (SSortOperatorInfo*)param;
   pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
 
@@ -468,7 +468,7 @@ int32_t getGroupSortExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, u
   return TSDB_CODE_SUCCESS;
 }
 
-void destroyGroupSortOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyGroupSortOperatorInfo(void* param) {
   SGroupSortOperatorInfo* pInfo = (SGroupSortOperatorInfo*)param;
   pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
 
@@ -685,7 +685,7 @@ SSDataBlock* doMultiwayMerge(SOperatorInfo* pOperator) {
   return pBlock;
 }
 
-void destroyMultiwayMergeOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyMultiwayMergeOperatorInfo(void* param) {
   SMultiwayMergeOperatorInfo* pInfo = (SMultiwayMergeOperatorInfo*)param;
   pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
   pInfo->pInputBlock = blockDataDestroy(pInfo->pInputBlock);

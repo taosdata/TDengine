@@ -23,7 +23,7 @@ static SArray*      setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOf
 static void setFunctionResultOutput(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t stage,
                                     int32_t numOfExprs);
 
-static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput) {
+static void destroyProjectOperatorInfo(void* param) {
   if (NULL == param) {
     return;
   }
@@ -37,10 +37,13 @@ static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFreeClear(param);
 }
 
-static void destroyIndefinitOperatorInfo(void* param, int32_t numOfOutput) {
+static void destroyIndefinitOperatorInfo(void* param) {
   SIndefOperatorInfo* pInfo = (SIndefOperatorInfo*)param;
-  cleanupBasicInfo(&pInfo->binfo);
+  if (pInfo == NULL) {
+    return;
+  }
 
+  cleanupBasicInfo(&pInfo->binfo);
   taosArrayDestroy(pInfo->pPseudoColInfo);
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSup);
@@ -112,7 +115,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   return pOperator;
 
 _error:
-  destroyProjectOperatorInfo(pInfo, numOfCols);
+  destroyProjectOperatorInfo(pInfo);
   taosMemoryFree(pOperator);
   pTaskInfo->code = code;
   return NULL;
@@ -371,9 +374,12 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
 
   initResultSizeInfo(&pOperator->resultInfo, numOfRows);
 
-  initAggInfo(pSup, &pInfo->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str);
-  initBasicInfo(&pInfo->binfo, pResBlock);
+  int32_t code = initAggInfo(pSup, &pInfo->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
+  initBasicInfo(&pInfo->binfo, pResBlock);
   setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfExpr);
 
   pInfo->binfo.pRes = pResBlock;
@@ -389,7 +395,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doApplyIndefinitFunction, NULL, NULL,
                                          destroyIndefinitOperatorInfo, NULL, NULL, NULL);
 
-  int32_t code = appendDownstream(pOperator, &downstream, 1);
+  code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -397,7 +403,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   return pOperator;
 
 _error:
-  taosMemoryFree(pInfo);
+  destroyIndefinitOperatorInfo(pInfo);
   taosMemoryFree(pOperator);
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
   return NULL;

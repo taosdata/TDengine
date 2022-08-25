@@ -90,13 +90,13 @@ static void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock*
 
 static void releaseQueryBuf(size_t numOfTables);
 
-static void destroyFillOperatorInfo(void* param, int32_t numOfOutput);
-static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput);
-static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput);
-static void destroyAggOperatorInfo(void* param, int32_t numOfOutput);
+static void destroyFillOperatorInfo(void* param);
+static void destroyProjectOperatorInfo(void* param);
+static void destroyOrderOperatorInfo(void* param);
+static void destroyAggOperatorInfo(void* param);
 
-static void destroyIntervalOperatorInfo(void* param, int32_t numOfOutput);
-static void destroyExchangeOperatorInfo(void* param, int32_t numOfOutput);
+static void destroyIntervalOperatorInfo(void* param);
+static void destroyExchangeOperatorInfo(void* param);
 
 static void destroyOperatorInfo(SOperatorInfo* pOperator);
 
@@ -3424,7 +3424,7 @@ static void destroyOperatorInfo(SOperatorInfo* pOperator) {
   }
 
   if (pOperator->fpSet.closeFn != NULL) {
-    pOperator->fpSet.closeFn(pOperator->info, pOperator->exprSupp.numOfExprs);
+    pOperator->fpSet.closeFn(pOperator->info);
   }
 
   if (pOperator->pDownstream != NULL) {
@@ -3616,7 +3616,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
 
   return pOperator;
 _error:
-  destroyAggOperatorInfo(pInfo, numOfCols);
+  destroyAggOperatorInfo(pInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
   return NULL;
@@ -3641,7 +3641,7 @@ static void freeItem(void* pItem) {
   }
 }
 
-void destroyAggOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyAggOperatorInfo(void* param) {
   SAggOperatorInfo* pInfo = (SAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
 
@@ -3651,7 +3651,7 @@ void destroyAggOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFreeClear(param);
 }
 
-void destroyFillOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyFillOperatorInfo(void* param) {
   SFillOperatorInfo* pInfo = (SFillOperatorInfo*)param;
   pInfo->pFillInfo = taosDestroyFillInfo(pInfo->pFillInfo);
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
@@ -3667,7 +3667,7 @@ void destroyFillOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFreeClear(param);
 }
 
-void destroyExchangeOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyExchangeOperatorInfo(void* param) {
   SExchangeInfo* pExInfo = (SExchangeInfo*)param;
   taosRemoveRef(exchangeObjRefPool, pExInfo->self);
 }

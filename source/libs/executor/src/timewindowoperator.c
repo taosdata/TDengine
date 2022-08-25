@@ -1664,7 +1664,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   return pInfo->binfo.pRes->info.rows == 0 ? NULL : pInfo->binfo.pRes;
 }
 
-static void destroyStateWindowOperatorInfo(void* param, int32_t numOfOutput) {
+static void destroyStateWindowOperatorInfo(void* param) {
   SStateWindowOperatorInfo* pInfo = (SStateWindowOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   taosMemoryFreeClear(pInfo->stateKey.pData);
@@ -1677,7 +1677,7 @@ static void freeItem(void* param) {
   taosMemoryFree(pKey->pData);
 }
 
-void destroyIntervalOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyIntervalOperatorInfo(void* param) {
   SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   cleanupAggSup(&pInfo->aggSup);
@@ -1694,7 +1694,7 @@ void destroyIntervalOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFreeClear(param);
 }
 
-void destroyStreamFinalIntervalOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyStreamFinalIntervalOperatorInfo(void* param) {
   SStreamFinalIntervalOperatorInfo* pInfo = (SStreamFinalIntervalOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   cleanupAggSup(&pInfo->aggSup);
@@ -1711,7 +1711,7 @@ void destroyStreamFinalIntervalOperatorInfo(void* param, int32_t numOfOutput) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
     for (int32_t i = 0; i < size; i++) {
       SOperatorInfo* pChildOp = taosArrayGetP(pInfo->pChildren, i);
-      destroyStreamFinalIntervalOperatorInfo(pChildOp->info, numOfOutput);
+      destroyStreamFinalIntervalOperatorInfo(pChildOp->info);
       taosMemoryFree(pChildOp->pDownstream);
       cleanupExprSupp(&pChildOp->exprSupp);
       taosMemoryFreeClear(pChildOp);
@@ -1830,6 +1830,10 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
   int32_t code = initAggInfo(pSup, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   initBasicInfo(&pInfo->binfo, pResBlock);
 
   if (isStream) {
@@ -1849,6 +1853,7 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
       goto _error;
     }
   }
+
   pInfo->pRecycledPages = taosArrayInit(4, sizeof(int32_t));
   pInfo->pDelWins = taosArrayInit(4, sizeof(SWinRes));
   pInfo->delIndex = 0;
@@ -1878,7 +1883,7 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
   return pOperator;
 
 _error:
-  destroyIntervalOperatorInfo(pInfo, numOfCols);
+  destroyIntervalOperatorInfo(pInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
   return NULL;
@@ -2563,7 +2568,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
   return pResBlock->info.rows == 0 ? NULL : pResBlock;
 }
 
-void destroyTimeSliceOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyTimeSliceOperatorInfo(void* param) {
   STimeSliceOperatorInfo* pInfo = (STimeSliceOperatorInfo*)param;
 
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
@@ -2671,7 +2676,11 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInf
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
-  initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExpr, numOfCols, keyBufSize, pTaskInfo->id.str);
+  int32_t code = initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExpr, numOfCols, keyBufSize, pTaskInfo->id.str);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   initBasicInfo(&pInfo->binfo, pResBlock);
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
@@ -2692,18 +2701,27 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInf
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStateWindowAgg, NULL, NULL,
                                          destroyStateWindowOperatorInfo, aggEncodeResultRow, aggDecodeResultRow, NULL);
 
-  int32_t code = appendDownstream(pOperator, &downstream, 1);
+  code = appendDownstream(pOperator, &downstream, 1);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   return pOperator;
 
 _error:
-  pTaskInfo->code = TSDB_CODE_SUCCESS;
+  destroyStateWindowOperatorInfo(pInfo);
+  taosMemoryFreeClear(pOperator);
+  pTaskInfo->code = code;
   return NULL;
 }
 
-void destroySWindowOperatorInfo(void* param, int32_t numOfOutput) {
+void destroySWindowOperatorInfo(void* param) {
   SSessionAggOperatorInfo* pInfo = (SSessionAggOperatorInfo*)param;
-  cleanupBasicInfo(&pInfo->binfo);
+  if (pInfo == NULL) {
+    return;
+  }
 
+  cleanupBasicInfo(&pInfo->binfo);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
 
   cleanupAggSup(&pInfo->aggSup);
@@ -2757,15 +2775,15 @@ SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionW
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doSessionWindowAgg, NULL, NULL,
                                          destroySWindowOperatorInfo, aggEncodeResultRow, aggDecodeResultRow, NULL);
   pOperator->pTaskInfo = pTaskInfo;
-
   code = appendDownstream(pOperator, &downstream, 1);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   return pOperator;
 
 _error:
-  if (pInfo != NULL) {
-    destroySWindowOperatorInfo(pInfo, numOfCols);
-  }
-
+  destroySWindowOperatorInfo(pInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
   return NULL;
@@ -3328,14 +3346,16 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   SSDataBlock* pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
 
   int32_t code = initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   initBasicInfo(&pInfo->binfo, pResBlock);
 
   ASSERT(numOfCols > 0);
   increaseTs(pOperator->exprSupp.pCtx);
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
   pInfo->pChildren = NULL;
   if (numOfChild > 0) {
@@ -3401,7 +3421,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   return pOperator;
 
 _error:
-  destroyStreamFinalIntervalOperatorInfo(pInfo, numOfCols);
+  destroyStreamFinalIntervalOperatorInfo(pInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
   return NULL;
@@ -3439,7 +3459,7 @@ void destroyStateStreamAggSupporter(SStreamAggSupporter* pSup) {
   blockDataDestroy(pSup->pScanBlock);
 }
 
-void destroyStreamSessionAggOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyStreamSessionAggOperatorInfo(void* param) {
   SStreamSessionAggOperatorInfo* pInfo = (SStreamSessionAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   destroyStreamAggSupporter(&pInfo->streamAggSup);
@@ -3449,7 +3469,7 @@ void destroyStreamSessionAggOperatorInfo(void* param, int32_t numOfOutput) {
     for (int32_t i = 0; i < size; i++) {
       SOperatorInfo*                 pChild = taosArrayGetP(pInfo->pChildren, i);
       SStreamSessionAggOperatorInfo* pChInfo = pChild->info;
-      destroyStreamSessionAggOperatorInfo(pChInfo, numOfOutput);
+      destroyStreamSessionAggOperatorInfo(pChInfo);
       taosMemoryFreeClear(pChild);
     }
   }
@@ -3519,7 +3539,7 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   if (pSessionNode->window.pExprs != NULL) {
     int32_t    numOfScalar = 0;
     SExprInfo* pScalarExprInfo = createExprInfo(pSessionNode->window.pExprs, NULL, &numOfScalar);
-    int32_t    code = initExprSupp(&pInfo->scalarSupp, pScalarExprInfo, numOfScalar);
+    code = initExprSupp(&pInfo->scalarSupp, pScalarExprInfo, numOfScalar);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -3583,7 +3603,7 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
 
 _error:
   if (pInfo != NULL) {
-    destroyStreamSessionAggOperatorInfo(pInfo, numOfCols);
+    destroyStreamSessionAggOperatorInfo(pInfo);
   }
 
   taosMemoryFreeClear(pOperator);
@@ -4411,7 +4431,7 @@ SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream
 
 _error:
   if (pInfo != NULL) {
-    destroyStreamSessionAggOperatorInfo(pInfo, pOperator->exprSupp.numOfExprs);
+    destroyStreamSessionAggOperatorInfo(pInfo);
   }
 
   taosMemoryFreeClear(pOperator);
@@ -4419,7 +4439,7 @@ _error:
   return NULL;
 }
 
-void destroyStreamStateOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyStreamStateOperatorInfo(void* param) {
   SStreamStateAggOperatorInfo* pInfo = (SStreamStateAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   destroyStateStreamAggSupporter(&pInfo->streamAggSup);
@@ -4429,7 +4449,7 @@ void destroyStreamStateOperatorInfo(void* param, int32_t numOfOutput) {
     for (int32_t i = 0; i < size; i++) {
       SOperatorInfo*                 pChild = taosArrayGetP(pInfo->pChildren, i);
       SStreamSessionAggOperatorInfo* pChInfo = pChild->info;
-      destroyStreamSessionAggOperatorInfo(pChInfo, numOfOutput);
+      destroyStreamSessionAggOperatorInfo(pChInfo);
       taosMemoryFreeClear(pChild);
       taosMemoryFreeClear(pChInfo);
     }
@@ -4849,16 +4869,15 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   return pOperator;
 
 _error:
-  destroyStreamStateOperatorInfo(pInfo, numOfCols);
+  destroyStreamStateOperatorInfo(pInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
   return NULL;
 }
 
-void destroyMergeAlignedIntervalOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyMergeAlignedIntervalOperatorInfo(void* param) {
   SMergeAlignedIntervalAggOperatorInfo* miaInfo = (SMergeAlignedIntervalAggOperatorInfo*)param;
-  destroyIntervalOperatorInfo(miaInfo->intervalAggOperatorInfo, numOfOutput);
-
+  destroyIntervalOperatorInfo(miaInfo->intervalAggOperatorInfo);
   taosMemoryFreeClear(param);
 }
 
@@ -5086,17 +5105,16 @@ SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream,
 
   int32_t code =
       initAggInfo(&pOperator->exprSupp, &iaInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
-  initBasicInfo(&iaInfo->binfo, pResBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
+  initBasicInfo(&iaInfo->binfo, pResBlock);
   initExecTimeWindowInfo(&iaInfo->twAggSup.timeWindowData, &iaInfo->win);
 
   iaInfo->timeWindowInterpo = timeWindowinterpNeeded(pSup->pCtx, numOfCols, iaInfo);
   if (iaInfo->timeWindowInterpo) {
     iaInfo->binfo.resultRowInfo.openWindow = tdListNew(sizeof(SResultRowPosition));
-  }
-
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
   }
 
   initResultRowInfo(&iaInfo->binfo.resultRowInfo);
@@ -5122,7 +5140,7 @@ SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream,
   return pOperator;
 
 _error:
-  destroyMergeAlignedIntervalOperatorInfo(miaInfo, numOfCols);
+  destroyMergeAlignedIntervalOperatorInfo(miaInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
   return NULL;
@@ -5145,10 +5163,10 @@ typedef struct SGroupTimeWindow {
   STimeWindow window;
 } SGroupTimeWindow;
 
-void destroyMergeIntervalOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyMergeIntervalOperatorInfo(void* param) {
   SMergeIntervalAggOperatorInfo* miaInfo = (SMergeIntervalAggOperatorInfo*)param;
   tdListFree(miaInfo->groupIntervals);
-  destroyIntervalOperatorInfo(&miaInfo->intervalAggOperatorInfo, numOfOutput);
+  destroyIntervalOperatorInfo(&miaInfo->intervalAggOperatorInfo);
 
   taosMemoryFreeClear(param);
 }
@@ -5392,8 +5410,11 @@ SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SExprI
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
   int32_t code = initAggInfo(pExprSupp, &iaInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
-  initBasicInfo(&iaInfo->binfo, pResBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
+  initBasicInfo(&iaInfo->binfo, pResBlock);
   initExecTimeWindowInfo(&iaInfo->twAggSup.timeWindowData, &iaInfo->win);
 
   iaInfo->timeWindowInterpo = timeWindowinterpNeeded(pExprSupp->pCtx, numOfCols, iaInfo);
@@ -5426,7 +5447,7 @@ SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SExprI
   return pOperator;
 
 _error:
-  destroyMergeIntervalOperatorInfo(miaInfo, numOfCols);
+  destroyMergeIntervalOperatorInfo(miaInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
   return NULL;

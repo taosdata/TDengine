@@ -36,8 +36,12 @@ static void freeGroupKey(void* param) {
   taosMemoryFree(pKey->pData);
 }
 
-static void destroyGroupOperatorInfo(void* param, int32_t numOfOutput) {
+static void destroyGroupOperatorInfo(void* param) {
   SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
+  if (pInfo == NULL) {
+    return;
+  }
+
   cleanupBasicInfo(&pInfo->binfo);
   taosMemoryFreeClear(pInfo->keyBuf);
   taosArrayDestroy(pInfo->pGroupCols);
@@ -413,7 +417,11 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
   }
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
-  initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, pInfo->groupKeyLen, pTaskInfo->id.str);
+  code = initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, pInfo->groupKeyLen, pTaskInfo->id.str);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   initBasicInfo(&pInfo->binfo, pResultBlock);
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
 
@@ -426,11 +434,15 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, hashGroupbyAggregate, NULL, NULL, destroyGroupOperatorInfo, aggEncodeResultRow, aggDecodeResultRow, NULL);
   code = appendDownstream(pOperator, &downstream, 1);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   return pOperator;
 
   _error:
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
-  taosMemoryFreeClear(pInfo);
+  destroyGroupOperatorInfo(pInfo);
   taosMemoryFreeClear(pOperator);
   return NULL;
 }
@@ -710,7 +722,7 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
   return buildPartitionResult(pOperator);
 }
 
-static void destroyPartitionOperatorInfo(void* param, int32_t numOfOutput) {
+static void destroyPartitionOperatorInfo(void* param) {
   SPartitionOperatorInfo* pInfo = (SPartitionOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   taosArrayDestroy(pInfo->pGroupCols);

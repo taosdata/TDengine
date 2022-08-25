@@ -689,7 +689,7 @@ static int32_t getTableScannerExecInfo(struct SOperatorInfo* pOptr, void** pOptr
   return 0;
 }
 
-static void destroyTableScanOperatorInfo(void* param, int32_t numOfOutput) {
+static void destroyTableScanOperatorInfo(void* param) {
   STableScanInfo* pTableScanInfo = (STableScanInfo*)param;
   blockDataDestroy(pTableScanInfo->pResBlock);
   cleanupQueryTableDataCond(&pTableScanInfo->cond);
@@ -863,7 +863,7 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
   return pBlock;
 }
 
-static void destroyBlockDistScanOperatorInfo(void* param, int32_t numOfOutput) {
+static void destroyBlockDistScanOperatorInfo(void* param) {
   SBlockDistInfo* pDistInfo = (SBlockDistInfo*)param;
   blockDataDestroy(pDistInfo->pResBlock);
   tsdbReaderClose(pDistInfo->pHandle);
@@ -1532,11 +1532,11 @@ SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNo
   return NULL;
 }
 
-static void destroyStreamScanOperatorInfo(void* param, int32_t numOfOutput) {
+static void destroyStreamScanOperatorInfo(void* param) {
   SStreamScanInfo* pStreamScan = (SStreamScanInfo*)param;
   if (pStreamScan->pTableScanOp && pStreamScan->pTableScanOp->info) {
     STableScanInfo* pTableScanInfo = pStreamScan->pTableScanOp->info;
-    destroyTableScanOperatorInfo(pTableScanInfo, numOfOutput);
+    destroyTableScanOperatorInfo(pTableScanInfo);
     taosMemoryFreeClear(pStreamScan->pTableScanOp);
   }
   if (pStreamScan->tqReader) {
@@ -1692,7 +1692,7 @@ _error:
   return NULL;
 }
 
-static void destroySysScanOperator(void* param, int32_t numOfOutput) {
+static void destroySysScanOperator(void* param) {
   SSysTableScanInfo* pInfo = (SSysTableScanInfo*)param;
   tsem_destroy(&pInfo->ready);
   blockDataDestroy(pInfo->pRes);
@@ -2577,12 +2577,10 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
   return (pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
 
-static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
+static void destroyTagScanOperatorInfo(void* param) {
   STagScanInfo* pInfo = (STagScanInfo*)param;
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
-
   taosArrayDestroy(pInfo->pColMatchInfo);
-
   taosMemoryFreeClear(param);
 }
 
@@ -3044,7 +3042,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
   return pBlock;
 }
 
-void destroyTableMergeScanOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyTableMergeScanOperatorInfo(void* param) {
   STableMergeScanInfo* pTableScanInfo = (STableMergeScanInfo*)param;
   cleanupQueryTableDataCond(&pTableScanInfo->cond);
   taosArrayDestroy(pTableScanInfo->sortSourceParams);
