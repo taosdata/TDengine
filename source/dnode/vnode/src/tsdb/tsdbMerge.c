@@ -53,6 +53,17 @@ static int32_t tRowInfoCmprFn(const void *p1, const void *p2) {
   return tsdbRowCmprFn(&pInfo1->row, &pInfo2->row);
 }
 
+static void tDataMergerInit(SDataMerger *pMerger, SArray *aNodeP) {
+  pMerger->pNode = NULL;
+  pMerger->rbt = tRBTreeCreate(tRowInfoCmprFn);
+  for (int32_t iNode = 0; iNode < taosArrayGetSize(aNodeP); iNode++) {
+    SRBTreeNode *pNode = (SRBTreeNode *)taosArrayGetP(aNodeP, iNode);
+
+    pNode = tRBTreePut(&pMerger->rbt, pNode);
+    ASSERT(pNode);
+  }
+}
+
 static int32_t tDataMergeNext(SDataMerger *pMerger, SRowInfo **ppInfo) {
   int32_t code = 0;
 
@@ -67,7 +78,7 @@ static int32_t tDataMergeNext(SDataMerger *pMerger, SRowInfo **ppInfo) {
     } else {
       pIter->iBlockL++;
       if (pIter->iBlockL < taosArrayGetSize(pIter->aBlockL)) {
-        code = tsdbReadLastBlock(NULL, (SBlockL *)taosArrayGet(pIter->aBlockL, pIter->iBlockL), &pIter->bData);
+        // code = tsdbReadLastBlock(NULL, (SBlockL *)taosArrayGet(pIter->aBlockL, pIter->iBlockL), &pIter->bData);
         if (code) goto _exit;
 
         pIter->iRow = 0;
