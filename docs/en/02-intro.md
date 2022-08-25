@@ -27,7 +27,7 @@ The major features are listed below:
 10. Provides many ways to [get data in](../data-in) and [get data out](../data-out) data.
 11. Provides a Dashboard to monitor your running instances of TDengine.
 12. Provides [connectors](../connector/) for [Java](../connector/java), [Python](../connector/python), [Go](../connector/go), [Rust](../connector/rust), and [Node.js](../connector/node).
-13. Provides a [REST API](../connector/rest-api/).
+13. Provides a [REST API](/reference/rest-api/).
 14. Supports seamless integration with [Grafana](../visual/grafana) for visualization.
 15. Supports seamless integration with Google Data Studio.
 
