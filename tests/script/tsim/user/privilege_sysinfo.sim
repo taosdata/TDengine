@@ -133,8 +133,8 @@ sql_error show grants
 sql       show queries
 sql       show connections
 sql       show apps
-sql_error show transactions
-#sql_error show create database d2
+sql       show transactions
+sql_error show create database d2
 sql       show create table d2.stb2;
 sql       show create table d2.ctb2;
 sql       show create table d2.ntb2;
@@ -175,9 +175,8 @@ sql select * from performance_schema.perf_queries
 sql select * from performance_schema.perf_topics
 sql select * from performance_schema.perf_consumers
 sql select * from performance_schema.perf_subscriptions
-#sql_error select * from performance_schema.perf_trans
-#sql_error select * from performance_schema.perf_smas
-#sql_error select * from information_schema.perf_streams
-#sql_error select * from information_schema.perf_apps
+sql select * from performance_schema.perf_trans
+sql select * from performance_schema.perf_streams
+sql select * from performance_schema.perf_apps
 
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT
