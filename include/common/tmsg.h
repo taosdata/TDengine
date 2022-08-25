@@ -457,6 +457,7 @@ typedef struct {
   uint64_t suid;
   uint64_t tuid;
   int32_t  vgId;
+  int8_t   sysInfo;
   SSchema* pSchemas;
 } STableMetaRsp;
 
