@@ -261,11 +261,13 @@ static int32_t tsdbMergeFileData(STsdbMerger *pMerger, SDFileSet *pSet) {
   // impl
   SRowInfo  rInfo = {.suid = INT64_MIN};
   SRowInfo *pInfo;
+  int64_t   nRow = 0;
   while (true) {
     code = tDataMergeNext(&pMerger->dReader.merger, &pInfo);
     if (code) goto _err;
 
     if (pInfo == NULL) break;
+    nRow++;
 
     ASSERT(tRowInfoCmprFn(pInfo, &rInfo) > 0);
     rInfo = *pInfo;

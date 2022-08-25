@@ -925,11 +925,11 @@ int32_t tsdbReadLastBlockEx(SDataFReader *pReader, int32_t iLast, SBlockL *pBloc
   int32_t code = 0;
 
   // read
-  code = tsdbReadAndCheck(pReader->aLastFD[iLast], pBlockL->bInfo.offset, &pReader->aBuf[1], pBlockL->bInfo.szBlock, 0);
+  code = tsdbReadAndCheck(pReader->aLastFD[iLast], pBlockL->bInfo.offset, &pReader->aBuf[0], pBlockL->bInfo.szBlock, 0);
   if (code) goto _exit;
 
   // decmpr
-  code = tDecmprBlockData(pReader->aBuf[1], pBlockL->bInfo.szBlock, pBlockData, &pReader->aBuf[1]);
+  code = tDecmprBlockData(pReader->aBuf[0], pBlockL->bInfo.szBlock, pBlockData, &pReader->aBuf[1]);
   if (code) goto _exit;
 
 _exit:

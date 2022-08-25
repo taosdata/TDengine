@@ -405,10 +405,6 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
     }
     wSet.nLastF = pRSet->nLastF + 1;
     wSet.aLastF[wSet.nLastF - 1] = &fLast;  // todo
-
-    if (wSet.nLastF == pCommitter->maxLast) {
-      pCommitter->toMerge = 1;
-    }
   } else {
     fHead = (SHeadFile){.commitID = pCommitter->commitID};
     fData = (SDataFile){.commitID = pCommitter->commitID};
@@ -426,6 +422,9 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
     wSet.pSmaF = &fSma;
     wSet.nLastF = 1;
     wSet.aLastF[0] = &fLast;
+  }
+  if (wSet.nLastF == pCommitter->maxLast) {
+    pCommitter->toMerge = 1;
   }
   code = tsdbDataFWriterOpen(&pCommitter->dWriter.pWriter, pTsdb, &wSet);
   if (code) goto _err;
