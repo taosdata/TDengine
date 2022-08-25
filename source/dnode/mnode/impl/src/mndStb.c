@@ -1774,6 +1774,67 @@ static int32_t mndBuildSMAlterStbRsp(SDbObj *pDb, SStbObj *pObj, void **pCont, i
   return 0;
 }
 
+int32_t mndBuildSMCreateStbRsp(SMnode *pMnode, char* dbFName, char* stbFName, void **pCont, int32_t *pLen) {
+  int32_t       ret = -1;
+  SDbObj *pDb = mndAcquireDb(pMnode, dbFName);
+  if (NULL == pDb) {
+    return -1;
+  }
+
+  SStbObj *pObj = mndAcquireStb(pMnode, stbFName);
+  if (NULL == pObj) {
+    goto _OVER;
+  }
+  
+  SEncoder      ec = {0};
+  uint32_t      contLen = 0;
+  SMCreateStbRsp stbRsp = {0};
+  SName         name = {0};
+  tNameFromString(&name, pObj->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+
+  stbRsp.pMeta = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+  if (NULL == stbRsp.pMeta) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  ret = mndBuildStbSchemaImp(pDb, pObj, name.tname, stbRsp.pMeta);
+  if (ret) {
+    tFreeSMCreateStbRsp(&stbRsp);
+    goto _OVER;
+  }
+
+  tEncodeSize(tEncodeSMCreateStbRsp, &stbRsp, contLen, ret);
+  if (ret) {
+    tFreeSMCreateStbRsp(&stbRsp);
+    goto _OVER;
+  }
+
+  void *cont = taosMemoryMalloc(contLen);
+  tEncoderInit(&ec, cont, contLen);
+  tEncodeSMCreateStbRsp(&ec, &stbRsp);
+  tEncoderClear(&ec);
+
+  tFreeSMCreateStbRsp(&stbRsp);
+
+  *pCont = cont;
+  *pLen = contLen;
+
+  ret = 0;
+  
+_OVER:
+  if (pObj) {
+    mndReleaseStb(pMnode, pObj);
+  }
+  
+  if (pDb) {
+    mndReleaseDb(pMnode, pDb);
+  }
+
+  return ret;
+}
+
+
 static int32_t mndAlterStbImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp,
                               void *alterOriData, int32_t alterOriDataLen) {
   int32_t code = -1;

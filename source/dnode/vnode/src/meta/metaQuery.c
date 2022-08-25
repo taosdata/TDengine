@@ -619,7 +619,7 @@ int64_t metaGetTimeSeriesNum(SMeta *pMeta) {
   vnodeGetTimeSeriesNum(pMeta->pVnode, &num);
   pMeta->pVnode->config.vndStats.numOfTimeSeries = num;
 
-  return pMeta->pVnode->config.vndStats.numOfTimeSeries;
+  return pMeta->pVnode->config.vndStats.numOfTimeSeries + pMeta->pVnode->config.vndStats.numOfNTimeSeries;
 }
 
 typedef struct {

@@ -1,6 +1,7 @@
 ---
 sidebar_label: Helm
 title: 使用 Helm 部署 TDengine 集群
+description: 使用 Helm 部署 TDengine 集群的详细指南
 ---
 
 Helm 是 Kubernetes 的包管理器，上一节使用 Kubernets 部署 TDengine 集群的操作已经足够简单，但 Helm 依然可以提供更强大的能力。

@@ -1,6 +1,7 @@
 ---
 sidebar_label: TCollector
 title: TCollector 写入
+description: 使用 TCollector 写入 TDengine
 ---
 
 import TCollector from "../14-reference/_tcollector.mdx"
