@@ -20,11 +20,11 @@ In theory, larger cache sizes are always better. However, at a certain point, it
 
 ## Read Cache
 
-When you create a database, you can configure whether the latest data from every subtable is cached. To do so, set the *cachelast* parameter as follows:
-- 0: Caching is disabled.
-- 1: The latest row of data in each subtable is cached. This option significantly improves the performance of the `LAST_ROW` function
-- 2: The latest non-null value in each column of each subtable is cached. This option significantly improves the performance of the `LAST` function in normal situations, such as WHERE, ORDER BY, GROUP BY, and INTERVAL statements.
-- 3: Rows and columns are both cached. This option is equivalent to simultaneously enabling options 1 and 2.
+When you create a database, you can configure whether the latest data from every subtable is cached. To do so, set the *cachemodel* parameter as follows:
+- none: Caching is disabled.
+- last_row: The latest row of data in each subtable is cached. This option significantly improves the performance of the `LAST_ROW` function
+- last_value: The latest non-null value in each column of each subtable is cached. This option significantly improves the performance of the `LAST` function in normal situations, such as WHERE, ORDER BY, GROUP BY, and INTERVAL statements.
+- both: Rows and columns are both cached. This option is equivalent to simultaneously enabling option last_row and last_value.
 
 ## Metadata Cache
 
