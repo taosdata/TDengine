@@ -30,7 +30,8 @@ typedef struct {
 } SLDataIter;
 
 typedef struct {
-  SRBTree tMerge;
+  SRBTreeNode *pNode;
+  SRBTree      rbt;
 } SDataMerger;
 
 static int32_t tRowInfoCmprFn(const void *p1, const void *p2) {
@@ -52,13 +53,59 @@ static int32_t tRowInfoCmprFn(const void *p1, const void *p2) {
   return tsdbRowCmprFn(&pInfo1->row, &pInfo2->row);
 }
 
-static SRowInfo *tDataMergeNext(SDataMerger *pMerger) {
-  SRowInfo *pRowInfo = NULL;
+static int32_t tDataMergeNext(SDataMerger *pMerger, SRowInfo **ppInfo) {
+  int32_t code = 0;
 
-  SRBTreeNode *pNode = pMerger->tMerge.minNode;
-  if (pNode == NULL) return NULL;
+  if (pMerger->pNode) {
+    // next current iter
+    SLDataIter *pIter = (SLDataIter *)pMerger->pNode->payload;
 
-  return pRowInfo;
+    pIter->iRow++;
+    if (pIter->iRow < pIter->bData.nRow) {
+      pIter->rowInfo.uid = pIter->bData.uid ? pIter->bData.uid : pIter->bData.aUid[pIter->iRow];
+      pIter->rowInfo.row = tsdbRowFromBlockData(&pIter->bData, pIter->iRow);
+    } else {
+      pIter->iBlockL++;
+      if (pIter->iBlockL < taosArrayGetSize(pIter->aBlockL)) {
+        code = tsdbReadLastBlock(NULL, (SBlockL *)taosArrayGet(pIter->aBlockL, pIter->iBlockL), &pIter->bData);
+        if (code) goto _exit;
+
+        pIter->iRow = 0;
+        pIter->rowInfo.suid = pIter->bData.suid;
+        pIter->rowInfo.uid = pIter->bData.uid ? pIter->bData.uid : pIter->bData.aUid[0];
+        pIter->rowInfo.row = tsdbRowFromBlockData(&pIter->bData, 0);
+      } else {
+        pMerger->pNode = NULL;
+      }
+    }
+
+    if (pMerger->pNode && pMerger->rbt.minNode) {
+      int32_t c = tRowInfoCmprFn(pMerger->pNode->payload, pMerger->rbt.minNode->payload);
+      if (c > 0) {
+        pMerger->pNode = tRBTreePut(&pMerger->rbt, pMerger->pNode);
+        ASSERT(pMerger->pNode);
+        pMerger->pNode = NULL;
+      } else {
+        ASSERT(c);
+      }
+    }
+  }
+
+  if (pMerger->pNode == NULL) {
+    pMerger->pNode = pMerger->rbt.minNode;
+    if (pMerger->pNode) {
+      tRBTreeDrop(&pMerger->rbt, pMerger->pNode);
+    }
+  }
+
+  if (pMerger->pNode) {
+    *ppInfo = &((SLDataIter *)pMerger->pNode->payload)[0].rowInfo;
+  } else {
+    *ppInfo = NULL;
+  }
+
+_exit:
+  return code;
 }
 
 // ================================================================================

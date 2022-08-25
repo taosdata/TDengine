@@ -210,6 +210,36 @@ void tRBTreeDrop(SRBTree *pTree, SRBTreeNode *pNode) {
   }
 
   // drop impl
+  if (pNode->left == NULL) {
+    // transplant right
+    if (pNode->parent == NULL) {
+      pTree->rootNode = pNode->right;
+    } else if (pNode == pNode->parent->left) {
+      pNode->parent->left = pNode->right;
+    } else {
+      pNode->parent->right = pNode->right;
+    }
+
+    if (pNode->right) {
+      pNode->right->parent = pNode->parent;
+    }
+  } else if (pNode->right == NULL) {
+    // transplant left
+    if (pNode->parent == NULL) {
+      pTree->rootNode = pNode->left;
+    } else if (pNode == pNode->parent->left) {
+      pNode->parent->left = pNode->left;
+    } else {
+      pNode->parent->right = pNode->left;
+    }
+
+    if (pNode->left) {
+      pNode->left->parent = pNode->parent;
+    }
+  } else {
+    SRBTreeNode *y = tRBTreeSuccessor(pNode);
+    pNode->color = RBTREE_NODE_COLOR(y);
+  }
 
   // fix
   if (pNode->color == BLACK) {
