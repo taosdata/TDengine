@@ -800,6 +800,11 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
   return conflict;
 }
 
+ static void mndTransFreeObj(SSdb *pSdb) {
+  sdbFreeRowsByType(pSdb, SDB_STREAM);
+  sdbFreeRowsByType(pSdb, SDB_SMA);
+}
+
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
     if (strlen(pTrans->dbname1) == 0 && strlen(pTrans->dbname2) == 0) {
@@ -826,6 +831,9 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     return -1;
   }
+
+  mndTransFreeObj(pMnode->pSdb);
+
   mDebug("trans:%d, prepare finished", pTrans->id);
 
   STrans *pNew = mndAcquireTrans(pMnode, pTrans->id);

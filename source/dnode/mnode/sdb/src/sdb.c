@@ -65,6 +65,25 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   return pSdb;
 }
 
+void sdbFreeRowsByType(SSdb *pSdb, ESdbType type) {
+  SHashObj *hash = pSdb->hashObjs[type];
+  if (hash == NULL || !taosHashGetSize(hash)) {
+    return;
+  }
+
+  SSdbRow **ppRow = taosHashIterate(hash, NULL);
+  while (ppRow != NULL) {
+    SSdbRow *pRow = *ppRow;
+    if (pRow == NULL) {
+      ppRow = taosHashIterate(hash, ppRow);
+      continue;
+    }
+    sdbFreeRow(pSdb, pRow, false);
+    ppRow = taosHashIterate(hash, ppRow);
+  }
+  taosHashClear(hash);
+}
+
 void sdbCleanup(SSdb *pSdb) {
   mDebug("start to cleanup sdb");
 
