@@ -1,6 +1,7 @@
 ---
 sidebar_label: 函数
 title: 函数
+description: TDengine 支持的函数列表
 toc_max_heading_level: 4
 ---
 

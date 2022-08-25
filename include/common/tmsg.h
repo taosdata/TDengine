@@ -268,6 +268,35 @@ STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
 // for debug
 int32_t tPrintFixedSchemaSubmitReq(SSubmitReq* pReq, STSchema* pSchema);
 
+struct SSchema {
+  int8_t   type;
+  int8_t   flags;
+  col_id_t colId;
+  int32_t  bytes;
+  char     name[TSDB_COL_NAME_LEN];
+};
+
+
+typedef struct {
+  char     tbName[TSDB_TABLE_NAME_LEN];
+  char     stbName[TSDB_TABLE_NAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  int64_t  dbId;
+  int32_t  numOfTags;
+  int32_t  numOfColumns;
+  int8_t   precision;
+  int8_t   tableType;
+  int32_t  sversion;
+  int32_t  tversion;
+  uint64_t suid;
+  uint64_t tuid;
+  int32_t  vgId;
+  int8_t   sysInfo;
+  SSchema* pSchemas;
+} STableMetaRsp;
+
+
+
 typedef struct {
   int32_t code;
   int8_t  hashMeta;
@@ -276,6 +305,7 @@ typedef struct {
   int32_t numOfRows;
   int32_t affectedRows;
   int64_t sver;
+  STableMetaRsp* pMeta;  
 } SSubmitBlkRsp;
 
 typedef struct {
@@ -290,6 +320,7 @@ typedef struct {
 
 int32_t tEncodeSSubmitRsp(SEncoder* pEncoder, const SSubmitRsp* pRsp);
 int32_t tDecodeSSubmitRsp(SDecoder* pDecoder, SSubmitRsp* pRsp);
+void tFreeSSubmitBlkRsp(void* param);
 void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 
 #define COL_SMA_ON     ((int8_t)0x1)
@@ -297,13 +328,6 @@ void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 #define COL_SET_NULL   ((int8_t)0x10)
 #define COL_SET_VAL    ((int8_t)0x20)
 #define COL_IS_SYSINFO ((int8_t)0x40)
-struct SSchema {
-  int8_t   type;
-  int8_t   flags;
-  col_id_t colId;
-  int32_t  bytes;
-  char     name[TSDB_COL_NAME_LEN];
-};
 
 #define COL_IS_SET(FLG)  (((FLG) & (COL_SET_VAL | COL_SET_NULL)) != 0)
 #define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
@@ -441,26 +465,6 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapperEx(SDecoder* pDecoder, SSchemaW
 }
 
 STSchema* tdGetSTSChemaFromSSChema(SSchema* pSchema, int32_t nCols, int32_t sver);
-
-
-typedef struct {
-  char     tbName[TSDB_TABLE_NAME_LEN];
-  char     stbName[TSDB_TABLE_NAME_LEN];
-  char     dbFName[TSDB_DB_FNAME_LEN];
-  int64_t  dbId;
-  int32_t  numOfTags;
-  int32_t  numOfColumns;
-  int8_t   precision;
-  int8_t   tableType;
-  int32_t  sversion;
-  int32_t  tversion;
-  uint64_t suid;
-  uint64_t tuid;
-  int32_t  vgId;
-  int8_t   sysInfo;
-  SSchema* pSchemas;
-} STableMetaRsp;
-
 
 typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];

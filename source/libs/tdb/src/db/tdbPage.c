@@ -68,6 +68,8 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
   }
 
   *ppPage = pPage;
+
+  tdbDebug("page/create: %p %p", pPage, xMalloc);
   return 0;
 }
 

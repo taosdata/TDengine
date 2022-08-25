@@ -420,6 +420,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "ttlUnit", tsTtlUnit, 1, 86400 * 365, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "ttlPushInterval", tsTtlPushInterval, 1, 100000, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "uptimeInterval", tsUptimeInterval, 1, 100000, 1) != 0) return -1;
 
   if (cfgAddBool(pCfg, "udf", tsStartUdfd, 0) != 0) return -1;
   GRANT_CFG_ADD;
@@ -567,6 +568,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMqRebalanceInterval = cfgGetItem(pCfg, "mqRebalanceInterval")->i32;
   tsTtlUnit = cfgGetItem(pCfg, "ttlUnit")->i32;
   tsTtlPushInterval = cfgGetItem(pCfg, "ttlPushInterval")->i32;
+  tsUptimeInterval = cfgGetItem(pCfg, "uptimeInterval")->i32;
 
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
 

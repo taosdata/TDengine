@@ -1,6 +1,7 @@
 ---
 sidebar_label: 手动部署
 title: 集群部署和管理
+description: 使用命令行工具手动部署 TDengine 集群
 ---
 
 ## 准备工作
