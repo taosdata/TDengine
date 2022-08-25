@@ -29,11 +29,12 @@ typedef struct SRBTreeIter SRBTreeIter;
 typedef int32_t (*tRBTreeCmprFn)(const void *, const void *);
 
 // SRBTree =============================================
-#define tRBTreeCreate(compare) \
-  (SRBTree) { .cmprFn = (compare), .root = NULL, .min = NULL, .max = NULL }
+#define tRBTreeMin(T) ((T)->min == ((T)->NIL) ? NULL : (T)->min)
+#define tRBTreeMax(T) ((T)->max == ((T)->NIL) ? NULL : (T)->max)
 
-SRBTreeNode *tRBTreePut(SRBTree *pTree, SRBTreeNode *pNew);
-void         tRBTreeDrop(SRBTree *pTree, SRBTreeNode *pNode);
+void         tRBTreeCreate(SRBTree *pTree, tRBTreeCmprFn cmprFn);
+SRBTreeNode *tRBTreePut(SRBTree *pTree, SRBTreeNode *z);
+void         tRBTreeDrop(SRBTree *pTree, SRBTreeNode *z);
 SRBTreeNode *tRBTreeDropByKey(SRBTree *pTree, void *pKey);
 SRBTreeNode *tRBTreeGet(SRBTree *pTree, void *pKey);
 
@@ -50,7 +51,7 @@ struct SRBTreeNode {
   SRBTreeNode *parent;
   SRBTreeNode *left;
   SRBTreeNode *right;
-  uint8_t      payload[];
+  uint8_t      payload[0];
 };
 
 struct SRBTree {
@@ -58,6 +59,8 @@ struct SRBTree {
   SRBTreeNode  *root;
   SRBTreeNode  *min;
   SRBTreeNode  *max;
+  SRBTreeNode  *NIL;
+  SRBTreeNode   NILNODE;
 };
 
 struct SRBTreeIter {

@@ -15,8 +15,9 @@ static int32_t tCmprInteger(const void *p1, const void *p2) {
 }
 
 TEST(trbtreeTest, rbtree_test1) {
-  SRBTree rt = tRBTreeCreate(tCmprInteger);
-  int     a[] = {1, 3, 4, 2, 7, 5, 8};
+  SRBTree rt;
+  tRBTreeCreate(&rt, tCmprInteger);
+  int a[] = {1, 3, 4, 2, 7, 5, 8};
 
   for (int i = 0; i < sizeof(a) / sizeof(a[0]); i++) {
     SRBTreeNode *pNode = (SRBTreeNode *)taosMemoryMalloc(sizeof(*pNode) + sizeof(int));

@@ -55,7 +55,7 @@ static int32_t tRowInfoCmprFn(const void *p1, const void *p2) {
 
 static void tDataMergerInit(SDataMerger *pMerger, SArray *aNodeP) {
   pMerger->pNode = NULL;
-  pMerger->rbt = tRBTreeCreate(tRowInfoCmprFn);
+  tRBTreeCreate(&pMerger->rbt, tRowInfoCmprFn);
   for (int32_t iNode = 0; iNode < taosArrayGetSize(aNodeP); iNode++) {
     SRBTreeNode *pNode = (SRBTreeNode *)taosArrayGetP(aNodeP, iNode);
 
@@ -90,8 +90,9 @@ static int32_t tDataMergeNext(SDataMerger *pMerger, SRowInfo **ppInfo) {
       }
     }
 
-    if (pMerger->pNode && pMerger->rbt.min) {
-      int32_t c = tRowInfoCmprFn(pMerger->pNode->payload, pMerger->rbt.min->payload);
+    SRBTreeNode *pMinNode = tRBTreeMin(&pMerger->rbt);
+    if (pMerger->pNode && pMinNode) {
+      int32_t c = tRowInfoCmprFn(pMerger->pNode->payload, pMinNode->payload);
       if (c > 0) {
         pMerger->pNode = tRBTreePut(&pMerger->rbt, pMerger->pNode);
         ASSERT(pMerger->pNode);
@@ -103,7 +104,7 @@ static int32_t tDataMergeNext(SDataMerger *pMerger, SRowInfo **ppInfo) {
   }
 
   if (pMerger->pNode == NULL) {
-    pMerger->pNode = pMerger->rbt.min;
+    pMerger->pNode = tRBTreeMin(&pMerger->rbt);
     if (pMerger->pNode) {
       tRBTreeDrop(&pMerger->rbt, pMerger->pNode);
     }
@@ -155,7 +156,7 @@ static int32_t tsdbMergeFileDataStart(STsdbMerger *pMerger, SDFileSet *pSet) {
   if (code) goto _err;
 
   pMerger->dReader.merger.pNode = NULL;
-  pMerger->dReader.merger.rbt = tRBTreeCreate(tRowInfoCmprFn);
+  tRBTreeCreate(&pMerger->dReader.merger.rbt, tRowInfoCmprFn);
   for (int8_t iLast = 0; iLast < pSet->nLastF; iLast++) {
     SRBTreeNode *pNode = (SRBTreeNode *)taosMemoryCalloc(1, sizeof(*pNode) + sizeof(SLDataIter));
     if (pNode == NULL) {
