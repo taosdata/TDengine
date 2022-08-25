@@ -35,13 +35,13 @@ TDengine is an open source, high-performance, cloud native [time-series database
 
 # Documentation
 
-For user manual, system design and architecture, please refer to [TDengine Documentation](https://docs.taosdata.com) ([TDengine 文档](https://docs.taosdata.com))
+For user manual, system design and architecture, please refer to [TDengine Documentation](https://docs.tdengine.com) ([TDengine 文档](https://docs.taosdata.com))
 
 # Building
 
 At the moment, TDengine server supports running on Linux and Windows systems. Any application can also choose the RESTful interface provided by taosAdapter to connect the taosd service . TDengine supports X64/ARM64 CPU, and it will support MIPS64, Alpha64, ARM32, RISC-V and other CPU architectures in the future.
 
-You can choose to install through source code, [container](https://docs.taosdata.com/get-started/docker/), [installation package](https://docs.taosdata.com/get-started/package/) or [Kubernetes](https://docs.taosdata.com/deployment/k8s/). This quick guide only applies to installing from source.
+You can choose to install through source code, [container](https://docs.tdengine.com/get-started/docker/), [installation package](https://docs.tdengine.com/get-started/package/) or [Kubernetes](https://docs.tdengine.com/deployment/k8s/). This quick guide only applies to installing from source.
 
 TDengine provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. By default, TDengine compiling does not include taosTools. You can use `cmake .. -DBUILD_TOOLS=true` to make them be compiled with TDengine.
 
@@ -306,14 +306,14 @@ Query OK, 2 row(s) in set (0.001700s)
 
 TDengine provides abundant developing tools for users to develop on TDengine. Follow the links below to find your desired connectors and relevant documentation.
 
-- [Java](https://docs.taosdata.com/reference/connector/java/)
-- [C/C++](https://docs.taosdata.com/reference/connector/cpp/)
-- [Python](https://docs.taosdata.com/reference/connector/python/)
-- [Go](https://docs.taosdata.com/reference/connector/go/)
-- [Node.js](https://docs.taosdata.com/reference/connector/node/)
-- [Rust](https://docs.taosdata.com/reference/connector/rust/)
-- [C#](https://docs.taosdata.com/reference/connector/csharp/)
-- [RESTful API](https://docs.taosdata.com/reference/rest-api/)
+- [Java](https://docs.tdengine.com/reference/connector/java/)
+- [C/C++](https://docs.tdengine.com/reference/connector/cpp/)
+- [Python](https://docs.tdengine.com/reference/connector/python/)
+- [Go](https://docs.tdengine.com/reference/connector/go/)
+- [Node.js](https://docs.tdengine.com/reference/connector/node/)
+- [Rust](https://docs.tdengine.com/reference/connector/rust/)
+- [C#](https://docs.tdengine.com/reference/connector/csharp/)
+- [RESTful API](https://docs.tdengine.com/reference/rest-api/)
 
 # Contribute to TDengine
 
