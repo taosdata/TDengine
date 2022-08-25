@@ -15,11 +15,11 @@ The REST interface does not rely on any TDengine native library, so the client a
 
 ## Verification
 
-To verify accessing TDengine Cloud service, it can be as follows:
+To verify accessing the TDengine Cloud service, it can be as follows:
 
 The following example is in an Ubuntu environment and uses the `curl` tool to verify that the REST interface is working. Note that the `curl` tool may need to be installed in your environment.
 
-The following example lists all databases on the host `TDengine Cloud URL`. If you are accessing TDengine Cloud, you need to use given token.
+The following example lists all databases on the `TDengine Cloud URL` host. If you are accessing TDengine Cloud, you need to use the given token.
 
 ```bash
 curl -L \
@@ -74,14 +74,12 @@ http://<TDENGINE_CLOUD_URL>/rest/sql/[db_name]?token=TDENGINE_CLOUD_TOKEN
 Parameter Description:
 
 - TDENGINE_CLOUD_URL: TDengine cloud service's address.
-- db_name: Optional parameter that specifies the default database name for the executed SQL command.
-- token: use to access TDengine cloud service.
+- db_name: Optional parameter specifies the default database name for the executed SQL command.
+- token: used to access TDengine cloud service.
 
 For example, `http://gw-aws.cloud.tdengine.com:80/rest/sql/test?token=xxxxxxxxx` is a URL to `gw-aws.cloud.tdengine:80` and sets the default database name to `test`.
 
-TDengine supports both Basic authentication and custom authentication mechanisms, and subsequent versions will provide a standard secure digital signature mechanism for authentication.
-
-The HTTP request's BODY is a complete SQL command, and the data table in the SQL statement should be provided with a database prefix, e.g., `db_name.tb_name`. If the table name does not have a database prefix and the database name is not specified in the URL, the system will response an error because the HTTP module is a simple forwarder and has no awareness of the current DB.
+The HTTP request's BODY is a complete SQL command, and the data table in the SQL statement should be provided with a database prefix, e.g., `db_name.tb_name`. If the table name does not have a database prefix and the database name is not specified in the URL, the system will respond with an error because the HTTP module is a simple forwarder and has no awareness of the current DB.
 
 Use `curl` to initiate an HTTP request with a custom authentication method, with the following syntax.
 
@@ -226,7 +224,7 @@ Description:
 
 ## Usage examples
 
-- query all records from table d1001 of database demo
+- query all records from table d1001 of the database demo
 
   ```bash
   export TDENGINE_CLOUD_URL=https://gw-aws.cloud.tdengine.com:80

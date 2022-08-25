@@ -5,7 +5,7 @@ title: REST API
 
 ## Config
 
-Run this command in your terminal to save TDengine cloud token and URL as variables:
+Run this command in your terminal to save the TDengine cloud token and URL as variables:
 
 <Tabs defaultValue="bash">
 <TabItem value="bash" label="Bash">
@@ -36,7 +36,7 @@ $env:TDENGINE_CLOUD_URL="<url>"
 
 ## Connect
 
-Copy code bellow to your editor and run it.
+Please copy the code below to your editor and run it.
 
 ```bash
 curl -L \
