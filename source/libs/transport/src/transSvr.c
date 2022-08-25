@@ -276,14 +276,16 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
       while (transReadComplete(pBuf)) {
         tTrace("%s conn %p alread read complete packet", transLabel(pTransInst), conn);
         if (true == pBuf->invalid || false == uvHandleReq(conn)) {
-          tError("%s conn %p read invalid packet, dst: %s, srv: %s", transLabel(pTransInst), conn, conn->dst, conn->src);
+          tError("%s conn %p read invalid packet, received from %s, local info:%s", transLabel(pTransInst), conn,
+                 conn->dst, conn->src);
           destroyConn(conn, true);
           return;
         }
       }
       return;
     } else {
-      tError("%s conn %p read invalid packet, exceed limit", transLabel(pTransInst), conn);
+      tError("%s conn %p read invalid packet, exceed limit, received from %s, local info:", transLabel(pTransInst),
+             conn, conn->dst, conn->src);
       destroyConn(conn, true);
       return;
     }
@@ -649,7 +651,7 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
 
     pObj->workerIdx = (pObj->workerIdx + 1) % pObj->numOfThreads;
 
-    tTrace("new conntion accepted by main server, dispatch to %dth worker-thread", pObj->workerIdx);
+    tTrace("new connection accepted by main server, dispatch to %dth worker-thread", pObj->workerIdx);
 
     uv_write2(wr, (uv_stream_t*)&(pObj->pipe[pObj->workerIdx][0]), &buf, 1, (uv_stream_t*)cli, uvOnPipeWriteCb);
   } else {

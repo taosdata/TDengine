@@ -3,7 +3,7 @@ sidebar_label: SHOW 命令
 title: 使用 SHOW 命令查看系统元数据
 ---
 
-除了使用 `select` 语句查询 `INFORMATION_SCHEMA` 数据库中的表获得系统中的各种元数据、系统信息和状态之外，也可以用 `SHOW` 命令来实现同样的目的。
+SHOW 命令可以用来获取简要的系统信息。若想获取系统中详细的各种元数据、系统信息和状态，请使用 select 语句查询 INFORMATION_SCHEMA 数据库中的表。
 
 ## SHOW ACCOUNTS
 
