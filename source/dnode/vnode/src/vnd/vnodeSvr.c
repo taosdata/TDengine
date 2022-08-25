@@ -867,13 +867,17 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
         goto _exit;
       }
 
-      if (metaCreateTable(pVnode->pMeta, version, &createTbReq, NULL) < 0) {
+      if (metaCreateTable(pVnode->pMeta, version, &createTbReq, &submitBlkRsp.pMeta) < 0) {
         if (terrno != TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
           submitBlkRsp.code = terrno;
           pRsp->code = terrno;
           tDecoderClear(&decoder);
           taosArrayDestroy(createTbReq.ctb.tagName);
           goto _exit;
+        }
+      } else {
+        if (NULL != submitBlkRsp.pMeta) {
+          vnodeUpdateMetaRsp(pVnode, submitBlkRsp.pMeta);
         }
       }
       taosArrayPush(newTbUids, &createTbReq.uid);
@@ -918,11 +922,7 @@ _exit:
   tEncodeSSubmitRsp(&encoder, &submitRsp);
   tEncoderClear(&encoder);
 
-  for (int32_t i = 0; i < taosArrayGetSize(submitRsp.pArray); i++) {
-    taosMemoryFree(((SSubmitBlkRsp *)taosArrayGet(submitRsp.pArray, i))[0].tblFName);
-  }
-
-  taosArrayDestroy(submitRsp.pArray);
+  taosArrayDestroyEx(submitRsp.pArray, tFreeSSubmitBlkRsp);
 
   // TODO: the partial success scenario and the error case
   // => If partial success, extract the success submitted rows and reconstruct a new submit msg, and push to level
