@@ -20,15 +20,15 @@ The major features are listed below:
 3. Support for [all kinds of queries](/develop/query-data), including aggregation, nested query, downsampling, interpolation and others.
 4. Support for [user defined functions](/develop/udf).
 5. Support for [caching](/develop/cache). TDengine always saves the last data point in cache, so Redis is not needed in some scenarios.
-6. Support for [stream processing](../cloud/taos-sql).
-7. Support for [data subscription](../cloud/taos-sql) with the capability to specify filter conditions.
+6. Support for [stream processing](../taos-sql).
+7. Support for [data subscription](../taos-sql) with the capability to specify filter conditions.
 8. High availability is supported by replication including multi-cloud replication. 
 9. Provides an interactive [command-line interface](/reference/taos-shell) for management, maintenance and ad-hoc queries.
-10. Provides many ways to [get data in](/cloud/data-in) and [get data out](/cloud/data-out) data.
+10. Provides many ways to [get data in](../data-in) and [get data out](../data-out) data.
 11. Provides a Dashboard to monitor your running instances of TDengine.
-12. Provides [connectors](/cloud/connector/) for [Java](/cloud/connector/java), [Python](/cloud/connector/python), [Go](/cloud/connector/go), [Rust](/cloud/connector/rust), and [Node.js](/cloud/connector/node).
-13. Provides a [REST API](/reference/rest-api/).
-14. Supports seamless integration with [Grafana](/cloud/visual/grafana) for visualization.
+12. Provides [connectors](../connector/) for [Java](../connector/java), [Python](../connector/python), [Go](../connector/go), [Rust](../connector/rust), and [Node.js](../connector/node).
+13. Provides a [REST API](../connector/rest-api/).
+14. Supports seamless integration with [Grafana](../visual/grafana) for visualization.
 15. Supports seamless integration with Google Data Studio.
 
 For more details on features, please read through the entire documentation. 
