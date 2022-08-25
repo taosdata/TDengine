@@ -90,8 +90,8 @@ static int32_t tDataMergeNext(SDataMerger *pMerger, SRowInfo **ppInfo) {
       }
     }
 
-    if (pMerger->pNode && pMerger->rbt.minNode) {
-      int32_t c = tRowInfoCmprFn(pMerger->pNode->payload, pMerger->rbt.minNode->payload);
+    if (pMerger->pNode && pMerger->rbt.min) {
+      int32_t c = tRowInfoCmprFn(pMerger->pNode->payload, pMerger->rbt.min->payload);
       if (c > 0) {
         pMerger->pNode = tRBTreePut(&pMerger->rbt, pMerger->pNode);
         ASSERT(pMerger->pNode);
@@ -103,7 +103,7 @@ static int32_t tDataMergeNext(SDataMerger *pMerger, SRowInfo **ppInfo) {
   }
 
   if (pMerger->pNode == NULL) {
-    pMerger->pNode = pMerger->rbt.minNode;
+    pMerger->pNode = pMerger->rbt.min;
     if (pMerger->pNode) {
       tRBTreeDrop(&pMerger->rbt, pMerger->pNode);
     }
@@ -128,6 +128,7 @@ typedef struct {
   struct {
     SDataFReader *pReader;
     SArray       *aBlockIdx;
+    SDataMerger   merger;
     SArray       *aBlockL[TSDB_MAX_LAST_FILE];
   } dReader;
   struct {
@@ -222,9 +223,16 @@ static int32_t tsdbMergeFileData(STsdbMerger *pMerger, SDFileSet *pSet) {
   if (code) goto _err;
 
   // impl
+  SRowInfo  rInfo = {.suid = INT64_MIN};
+  SRowInfo *pInfo;
   while (true) {
-    if (1) break;
-    // TODO
+    code = tDataMergeNext(&pMerger->dReader.merger, &pInfo);
+    if (code) goto _err;
+
+    if (pInfo == NULL) break;
+
+    ASSERT(tRowInfoCmprFn(pInfo, &rInfo) > 0);
+    rInfo = *pInfo;
   }
 
   // end

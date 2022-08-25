@@ -26,7 +26,7 @@ static void tRBTreeRotateLeft(SRBTree *pTree, SRBTreeNode *x) {
   }
   y->parent = x->parent;
   if (x->parent == NULL) {
-    pTree->rootNode = y;
+    pTree->root = y;
   } else if (x == x->parent->left) {
     x->parent->left = y;
   } else {
@@ -44,7 +44,7 @@ static void tRBTreeRotateRight(SRBTree *pTree, SRBTreeNode *x) {
   }
   y->parent = x->parent;
   if (x->parent == NULL) {
-    pTree->rootNode = y;
+    pTree->root = y;
   } else if (x == x->parent->left) {
     x->parent->left = y;
   } else {
@@ -109,11 +109,11 @@ SRBTreeNode *tRBTreePut(SRBTree *pTree, SRBTreeNode *pNew) {
   pNew->color = RED;
 
   // insert
-  if (pTree->rootNode == NULL) {
+  if (pTree->root == NULL) {
     pNew->parent = NULL;
-    pTree->rootNode = pNew;
+    pTree->root = pNew;
   } else {
-    SRBTreeNode *pNode = pTree->rootNode;
+    SRBTreeNode *pNode = pTree->root;
     while (true) {
       ASSERT(pNode);
 
@@ -181,14 +181,14 @@ SRBTreeNode *tRBTreePut(SRBTree *pTree, SRBTreeNode *pNew) {
       }
     }
   }
-  pTree->rootNode->color = BLACK;
+  pTree->root->color = BLACK;
 
   // update min/max node
-  if (pTree->minNode == NULL || pTree->cmprFn(pTree->minNode->payload, pNew->payload) > 0) {
-    pTree->minNode = pNew;
+  if (pTree->min == NULL || pTree->cmprFn(pTree->min->payload, pNew->payload) > 0) {
+    pTree->min = pNew;
   }
-  if (pTree->maxNode == NULL || pTree->cmprFn(pTree->maxNode->payload, pNew->payload) < 0) {
-    pTree->maxNode = pNew;
+  if (pTree->max == NULL || pTree->cmprFn(pTree->max->payload, pNew->payload) < 0) {
+    pTree->max = pNew;
   }
 
   return pNew;
@@ -196,7 +196,7 @@ SRBTreeNode *tRBTreePut(SRBTree *pTree, SRBTreeNode *pNew) {
 
 static void tRBTreeTransplant(SRBTree *pTree, SRBTreeNode *u, SRBTreeNode *v) {
   if (u->parent == NULL) {
-    pTree->rootNode = v;
+    pTree->root = v;
   } else if (u == u->parent->left) {
     u->parent->left = v;
   } else {
@@ -208,7 +208,7 @@ static void tRBTreeTransplant(SRBTree *pTree, SRBTreeNode *u, SRBTreeNode *v) {
 }
 
 static void tRBTreeDropFixup(SRBTree *t, SRBTreeNode *x) {
-  while (x != t->rootNode && x->color == BLACK) {
+  while (x != t->root && x->color == BLACK) {
     if (x == x->parent->left) {
       SRBTreeNode *w = x->parent->right;
       if (RBTREE_NODE_COLOR(w) == RED) {
@@ -231,7 +231,7 @@ static void tRBTreeDropFixup(SRBTree *t, SRBTreeNode *x) {
         x->parent->color = BLACK;
         w->right->color = BLACK;
         tRBTreeRotateLeft(t, x->parent);
-        x = t->rootNode;
+        x = t->root;
       }
     } else {
       SRBTreeNode *w = x->parent->left;
@@ -255,7 +255,7 @@ static void tRBTreeDropFixup(SRBTree *t, SRBTreeNode *x) {
         x->parent->color = BLACK;
         w->left->color = BLACK;
         tRBTreeRotateRight(t, x->parent);
-        x = t->rootNode;
+        x = t->root;
       }
     }
   }
@@ -264,11 +264,11 @@ static void tRBTreeDropFixup(SRBTree *t, SRBTreeNode *x) {
 
 void tRBTreeDrop(SRBTree *t, SRBTreeNode *z) {
   // update min/max node
-  if (t->minNode == z) {
-    t->minNode = tRBTreeSuccessor(t->minNode);
+  if (t->min == z) {
+    t->min = tRBTreeSuccessor(t->min);
   }
-  if (t->maxNode == z) {
-    t->maxNode = tRBTreePredecessor(t->maxNode);
+  if (t->max == z) {
+    t->max = tRBTreePredecessor(t->max);
   }
 
   // drop impl
@@ -316,7 +316,7 @@ SRBTreeNode *tRBTreeDropByKey(SRBTree *pTree, void *pKey) {
 }
 
 SRBTreeNode *tRBTreeGet(SRBTree *pTree, void *pKey) {
-  SRBTreeNode *pNode = pTree->rootNode;
+  SRBTreeNode *pNode = pTree->root;
 
   while (pNode) {
     int32_t c = pTree->cmprFn(pKey, pNode->payload);
