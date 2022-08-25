@@ -4,6 +4,7 @@
   "main": "index.js",
   "license": "MIT",
   "dependencies": {
-    "td2.0-rest-connector": "^1.0.5"
+    "@tdengine/client": "^3.0.1",
+    "@tdengine/rest": "^3.0.0"
   }
 }
