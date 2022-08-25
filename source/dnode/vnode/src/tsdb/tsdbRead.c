@@ -2331,7 +2331,10 @@ static int32_t initOrderCheckInfo(SUidOrderCheckInfo* pOrderCheckInfo, SReaderSt
     uint64_t uid = pOrderCheckInfo->tableUidList[0];
     pStatus->pTableIter = taosHashGet(pStatus->pTableMap, &uid, sizeof(uid));
   } else {
-    if (pStatus->pTableIter == NULL) {
+    if (pStatus->pTableIter == NULL) {  // it is the last block of a new file
+      ASSERT(pOrderCheckInfo->currentIndex == taosHashGetSize(pStatus->pTableMap));
+
+      pOrderCheckInfo->currentIndex = 0;
       uint64_t uid = pOrderCheckInfo->tableUidList[pOrderCheckInfo->currentIndex];
       pStatus->pTableIter = taosHashGet(pStatus->pTableMap, &uid, sizeof(uid));
     }
