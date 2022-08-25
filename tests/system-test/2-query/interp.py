@@ -551,7 +551,40 @@ class TDTestCase:
         tdSql.checkData(0, 0, 15)
         tdSql.checkData(1, 0, 15)
 
-        tdLog.printNoPrefix("==========step9:test error cases")
+        tdLog.printNoPrefix("==========step9:test multi-interp cases")
+        tdSql.query(f"select interp(c0),interp(c1),interp(c2),interp(c3) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-12 00:00:05') every(1d) fill(null)")
+        tdSql.checkRows(3)
+        tdSql.checkCols(4)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, 15)
+        tdSql.checkData(2, 0, None)
+
+        tdSql.query(f"select interp(c0),interp(c1),interp(c2),interp(c3) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-12 00:00:05') every(1d) fill(value, 1)")
+        tdSql.checkRows(3)
+        tdSql.checkCols(4)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 15)
+        tdSql.checkData(2, 0, 1)
+
+        tdSql.query(f"select interp(c0),interp(c1),interp(c2),interp(c3) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-12 00:00:05') every(1d) fill(prev)")
+        tdSql.checkRows(3)
+        tdSql.checkCols(4)
+        tdSql.checkData(0, 0, 5)
+        tdSql.checkData(1, 0, 15)
+        tdSql.checkData(2, 0, 15)
+
+        tdSql.query(f"select interp(c0),interp(c1),interp(c2),interp(c3) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-12 00:00:05') every(1d) fill(next)")
+        tdSql.checkRows(2)
+        tdSql.checkCols(4)
+        tdSql.checkData(0, 0, 15)
+        tdSql.checkData(1, 0, 15)
+
+        tdSql.query(f"select interp(c0),interp(c1),interp(c2),interp(c3) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-12 00:00:05') every(1d) fill(linear)")
+        tdSql.checkRows(1)
+        tdSql.checkCols(4)
+        tdSql.checkData(0, 0, 15)
+
+        tdLog.printNoPrefix("==========step10:test error cases")
 
         tdSql.error(f"select interp(c0) from {dbname}.{tbname}")
         tdSql.error(f"select interp(c0) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05')")
