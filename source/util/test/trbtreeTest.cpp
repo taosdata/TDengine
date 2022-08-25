@@ -25,7 +25,7 @@ TEST(trbtreeTest, rbtree_test1) {
     tRBTreePut(&rt, pNode);
   }
 
-  SRBTreeIter  rti = tRBTreeIterCreate(&rt);
+  SRBTreeIter  rti = tRBTreeIterCreate(&rt, 0);
   SRBTreeNode *pNode = tRBTreeIterNext(&rti);
   int          la = 0;
   while (pNode) {

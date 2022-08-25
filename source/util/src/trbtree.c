@@ -253,23 +253,48 @@ SRBTreeNode *tRBTreeIterNext(SRBTreeIter *pIter) {
   SRBTree     *pTree = pIter->pTree;
 
   if (pIter->pNode) {
-    if (pIter->pNode->right) {
-      pIter->pNode = pIter->pNode->right;
-      while (pIter->pNode->left) {
+    if (pIter->des) {
+      // descend
+      if (pIter->pNode->left) {
         pIter->pNode = pIter->pNode->left;
+        while (pIter->pNode->right) {
+          pIter->pNode = pIter->pNode->right;
+        }
+      } else {
+        while (true) {
+          if (pIter->pNode->parent) {
+            if (pIter->pNode == pIter->pNode->parent->right) {
+              pIter->pNode = pIter->pNode->parent;
+              break;
+            } else {
+              pIter->pNode = pIter->pNode->parent;
+            }
+          } else {
+            pIter->pNode = NULL;
+            break;
+          }
+        }
       }
     } else {
-      while (true) {
-        if (pIter->pNode->parent) {
-          if (pIter->pNode == pIter->pNode->parent->left) {
-            pIter->pNode = pIter->pNode->parent;
-            break;
+      // ascend
+      if (pIter->pNode->right) {
+        pIter->pNode = pIter->pNode->right;
+        while (pIter->pNode->left) {
+          pIter->pNode = pIter->pNode->left;
+        }
+      } else {
+        while (true) {
+          if (pIter->pNode->parent) {
+            if (pIter->pNode == pIter->pNode->parent->left) {
+              pIter->pNode = pIter->pNode->parent;
+              break;
+            } else {
+              pIter->pNode = pIter->pNode->parent;
+            }
           } else {
-            pIter->pNode = pIter->pNode->parent;
+            pIter->pNode = NULL;
+            break;
           }
-        } else {
-          pIter->pNode = NULL;
-          break;
         }
       }
     }
