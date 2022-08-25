@@ -1,5 +1,7 @@
 ---
 title: 表管理
+sidebar_label: 表
+description: 对表的各种管理操作
 ---
 
 ## 创建表

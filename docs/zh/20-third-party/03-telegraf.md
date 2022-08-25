@@ -1,6 +1,7 @@
 ---
 sidebar_label: Telegraf
 title: Telegraf 写入
+description: 使用 Telegraf 向 TDengine 写入数据
 ---
 
 import Telegraf from "../14-reference/_telegraf.mdx"
