@@ -25,12 +25,13 @@ TEST(trbtreeTest, rbtree_test1) {
     tRBTreePut(&rt, pNode);
   }
 
-  SRBTreeIter  rti = tRBTreeIterCreate(&rt, 0);
+  SRBTreeIter  rti = tRBTreeIterCreate(&rt, 1);
   SRBTreeNode *pNode = tRBTreeIterNext(&rti);
   int          la = 0;
   while (pNode) {
     GTEST_ASSERT_GT(*(int *)pNode->payload, la);
     la = *(int *)pNode->payload;
+    // printf("%d\n", la);
     pNode = tRBTreeIterNext(&rti);
   }
 }

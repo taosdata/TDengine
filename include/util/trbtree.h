@@ -38,8 +38,8 @@ SRBTreeNode *tRBTreeDropByKey(SRBTree *pTree, void *pKey);
 SRBTreeNode *tRBTreeGet(SRBTree *pTree, void *pKey);
 
 // SRBTreeIter =============================================
-#define tRBTreeIterCreate(tree, descend) \
-  (SRBTreeIter) { .des = (descend), .pTree = (tree), .pNode = (descend) ? (tree)->maxNode : (tree)->minNode }
+#define tRBTreeIterCreate(tree, ascend) \
+  (SRBTreeIter) { .asc = (ascend), .pTree = (tree), .pNode = (ascend) ? (tree)->minNode : (tree)->maxNode }
 
 SRBTreeNode *tRBTreeIterNext(SRBTreeIter *pIter);
 
@@ -60,7 +60,7 @@ struct SRBTree {
 };
 
 struct SRBTreeIter {
-  int8_t       des;
+  int8_t       asc;
   SRBTree     *pTree;
   SRBTreeNode *pNode;
 };

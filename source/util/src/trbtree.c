@@ -60,6 +60,55 @@ static void tRBTreeRotateRight(SRBTree *pTree, SRBTreeNode *pNode) {
   pNode->parent = left;
 }
 
+static SRBTreeNode *tRBTreeSuccessor(SRBTreeNode *pNode) {
+  if (pNode->right) {
+    pNode = pNode->right;
+    while (pNode->left) {
+      pNode = pNode->left;
+    }
+  } else {
+    while (true) {
+      if (pNode->parent) {
+        if (pNode == pNode->parent->left) {
+          pNode = pNode->parent;
+          break;
+        } else {
+          pNode = pNode->parent;
+        }
+      } else {
+        pNode = NULL;
+        break;
+      }
+    }
+  }
+
+  return pNode;
+}
+
+static SRBTreeNode *tRBTreePredecessor(SRBTreeNode *pNode) {
+  if (pNode->left) {
+    pNode = pNode->left;
+    while (pNode->right) {
+      pNode = pNode->right;
+    }
+  } else {
+    while (true) {
+      if (pNode->parent) {
+        if (pNode == pNode->parent->right) {
+          pNode = pNode->parent;
+          break;
+        } else {
+          pNode = pNode->parent;
+        }
+      } else {
+        pNode = NULL;
+        break;
+      }
+    }
+  }
+  return NULL;
+}
+
 SRBTreeNode *tRBTreePut(SRBTree *pTree, SRBTreeNode *pNew) {
   pNew->left = NULL;
   pNew->right = NULL;
@@ -153,8 +202,12 @@ SRBTreeNode *tRBTreePut(SRBTree *pTree, SRBTreeNode *pNew) {
 
 void tRBTreeDrop(SRBTree *pTree, SRBTreeNode *pNode) {
   // update min/max node
-  if (pTree->minNode == pNode) pTree->minNode = pNode->parent;
-  if (pTree->maxNode == pNode) pTree->maxNode = pNode->parent;
+  if (pTree->minNode == pNode) {
+    pTree->minNode = tRBTreeSuccessor(pTree->minNode);
+  }
+  if (pTree->maxNode == pNode) {
+    pTree->maxNode = tRBTreePredecessor(pTree->maxNode);
+  }
 
   // drop impl
   if (pNode->left == NULL) {
@@ -208,19 +261,7 @@ void tRBTreeDrop(SRBTree *pTree, SRBTreeNode *pNode) {
 }
 
 SRBTreeNode *tRBTreeDropByKey(SRBTree *pTree, void *pKey) {
-  SRBTreeNode *pNode = pTree->rootNode;
-
-  while (pNode) {
-    int32_t c = pTree->cmprFn(pKey, pNode->payload);
-
-    if (c < 0) {
-      pNode = pNode->left;
-    } else if (c > 0) {
-      pNode = pNode->right;
-    } else {
-      break;
-    }
-  }
+  SRBTreeNode *pNode = tRBTreeGet(pTree, pKey);
 
   if (pNode) {
     tRBTreeDrop(pTree, pNode);
@@ -250,53 +291,14 @@ SRBTreeNode *tRBTreeGet(SRBTree *pTree, void *pKey) {
 // SRBTreeIter ================================================
 SRBTreeNode *tRBTreeIterNext(SRBTreeIter *pIter) {
   SRBTreeNode *pNode = pIter->pNode;
-  SRBTree     *pTree = pIter->pTree;
 
   if (pIter->pNode) {
-    if (pIter->des) {
-      // descend
-      if (pIter->pNode->left) {
-        pIter->pNode = pIter->pNode->left;
-        while (pIter->pNode->right) {
-          pIter->pNode = pIter->pNode->right;
-        }
-      } else {
-        while (true) {
-          if (pIter->pNode->parent) {
-            if (pIter->pNode == pIter->pNode->parent->right) {
-              pIter->pNode = pIter->pNode->parent;
-              break;
-            } else {
-              pIter->pNode = pIter->pNode->parent;
-            }
-          } else {
-            pIter->pNode = NULL;
-            break;
-          }
-        }
-      }
-    } else {
+    if (pIter->asc) {
       // ascend
-      if (pIter->pNode->right) {
-        pIter->pNode = pIter->pNode->right;
-        while (pIter->pNode->left) {
-          pIter->pNode = pIter->pNode->left;
-        }
-      } else {
-        while (true) {
-          if (pIter->pNode->parent) {
-            if (pIter->pNode == pIter->pNode->parent->left) {
-              pIter->pNode = pIter->pNode->parent;
-              break;
-            } else {
-              pIter->pNode = pIter->pNode->parent;
-            }
-          } else {
-            pIter->pNode = NULL;
-            break;
-          }
-        }
-      }
+      pIter->pNode = tRBTreeSuccessor(pIter->pNode);
+    } else {
+      // descend
+      pIter->pNode = tRBTreePredecessor(pIter->pNode);
     }
   }
 
