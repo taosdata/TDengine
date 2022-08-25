@@ -6,9 +6,7 @@ title: Grafana
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine can be quickly integrated with the open-source data visualization system [Grafana](https://www.grafana.com/) to build a data monitoring and alerting system. The whole process does not require any code development. And you can visualize the contents of the data tables in TDengine on a dashboard.
-
-You can learn more about using the TDengine plugin on [GitHub](https://github.com/taosdata/grafanaplugin/blob/master/README.md).
+TDengine can be quickly integrated with the open-source data visualization system [Grafana](https://www.grafana.com/) to build a data monitoring and alerting system. The whole process does not require any code development. And you can visualize the contents of the data tables in TDengine on a dashboard. You can learn more about using the TDengine plugin on [GitHub](https://github.com/taosdata/grafanaplugin/blob/master/README.md).
 
 ## Prerequisites
 
@@ -65,7 +63,6 @@ Restart Grafana service and open Grafana in web-browser, usually <http://localho
 Save the script and type `./install.sh --help` for the full usage of the script.
 
 </TabItem>
-
 <TabItem value="manual" label="Install & Configure Manually">
 
 Follow the installation steps in [Grafana](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation) with the [``grafana-cli`` command-line tool](https://grafana.com/docs/grafana/latest/administration/cli/) for plugin installation.
@@ -76,7 +73,7 @@ grafana-cli plugins install tdengine-datasource
 sudo -u grafana grafana-cli plugins install tdengine-datasource
 ```
 
-Alternatively, you can manually download the .zip file from [GitHub](https://github.com/taosdata/grafanaplugin/releases/tag/latest) or [Grafana](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation) and unpack it into your grafana plugins directory.
+You can also download zip files from [GitHub](https://github.com/taosdata/grafanaplugin/releases/tag/latest) or [Grafana](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation) and install manually. The commands are as follows:
 
 ```bash
 GF_VERSION=3.2.2
@@ -131,7 +128,7 @@ docker run -d \
   grafana/grafana
 ```
 
-You can setup a zero-configuration stack for TDengine + Grafana by [docker-compose](https://docs.docker.com/compose/) and [Grafana provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) file：
+You can setup a zero-configuration stack for TDengine + Grafana by [docker-compose](https://docs.docker.com/compose/) and [Grafana provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) file:
 
 1. Save the provisioning configuration file to `tdengine.yml`.
 
@@ -196,7 +193,7 @@ Go back to the main interface to create a dashboard and click Add Query to enter
 
 As shown above, select the `TDengine` data source in the `Query` and enter the corresponding SQL in the query box below for query.
 
-- INPUT SQL: enter the statement to be queried (the result set of the SQL statement should be two columns and multiple rows), for example: `select avg(mem_system) from log.dn where ts >= $from and ts < $to interval($interval)`, where, from, to and interval are built-in variables of the TDengine plugin, indicating the range and time interval of queries fetched from the Grafana plugin panel. In addition to the built-in variables, custom template variables are also supported.
+- INPUT SQL: Enter the desired query (the results being two columns and multiple rows), such as `select _wstart, avg(mem_system) from log.dnodes_info where ts >= $from and ts < $to interval($interval)`. In this statement, $from, $to, and $interval are variables that Grafana replaces with the query time range and interval. In addition to the built-in variables, custom template variables are also supported.
 - ALIAS BY: This allows you to set the current query alias.
 - GENERATE SQL: Clicking this button will automatically replace the corresponding variables and generate the final executed statement.
 
@@ -208,7 +205,11 @@ Follow the default prompt to query the average system memory usage for the speci
 
 ### Importing the Dashboard
 
-You can install TDinsight dashboard in data source configuration page (like `http://localhost:3000/datasources/edit/1/dashboards`) as a monitoring visualization tool for TDengine cluster. The dashboard is published in Grafana as [Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167). Check the [TDinsight User Manual](/reference/tdinsight/) for the details.
+You can install TDinsight dashboard in data source configuration page (like `http://localhost:3000/datasources/edit/1/dashboards`) as a monitoring visualization tool for TDengine cluster. Ensure that you use TDinsight for 3.x.
+
+![TDengine Database Grafana plugine import dashboard](./import_dashboard.webp)
+
+A dashboard for TDengine 2.x has been published on Grafana: [Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)) 。 Check the [TDinsight User Manual](/reference/tdinsight/) for the details.
 
 For more dashboards using TDengine data source, [search here in Grafana](https://grafana.com/grafana/dashboards/?dataSource=tdengine-datasource). Here is a sub list:
 
