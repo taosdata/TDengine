@@ -132,7 +132,7 @@ static void *mndThreadFp(void *param) {
       mndCalMqRebalance(pMnode);
     }
 
-    if (lastTime % (tsTelemInterval * 10) == 1) {
+    if (lastTime % (tsTelemInterval * 10) == ((tsTelemInterval - 1) * 10)) {
       mndPullupTelem(pMnode);
     }
 

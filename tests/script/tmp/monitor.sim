@@ -4,6 +4,7 @@ system sh/cfg.sh -n dnode1 -c monitorfqdn -v localhost
 system sh/cfg.sh -n dnode1 -c monitorport -v 80
 system sh/cfg.sh -n dnode1 -c monitorInterval -v 1
 system sh/cfg.sh -n dnode1 -c monitorComp -v 1
+system sh/cfg.sh -n dnode1 -c uptimeInterval -v 3
 #system sh/cfg.sh -n dnode1 -c supportVnodes -v 128
 
 #system sh/cfg.sh -n dnode1 -c telemetryReporting -v 1
@@ -14,7 +15,7 @@ system sh/cfg.sh -n dnode1 -c monitorComp -v 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-print =============== select * from information_schema.ins_dnodes
+print =============== create database
 sql create database db vgroups 2;
 sql use db;
 sql create table db.stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 binary(16)) comment "abd";
