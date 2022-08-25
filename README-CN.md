@@ -310,7 +310,7 @@ TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java�
 - [Node.js](https://docs.taosdata.com/connector/node/)
 - [Rust](https://docs.taosdata.com/connector/rust/)
 - [C#](https://docs.taosdata.com/connector/csharp/)
-- [RESTful API](https://docs.taosdata.com/rest-api/)
+- [RESTful API](https://docs.taosdata.com/connector/rest-api/)
 
 # 成为社区贡献者
 
