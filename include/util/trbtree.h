@@ -44,8 +44,9 @@ SRBTreeNode *tRBTreeGet(SRBTree *pTree, void *pKey);
 SRBTreeNode *tRBTreeIterNext(SRBTreeIter *pIter);
 
 // STRUCT =============================================
+typedef enum { RED, BLACK } ECOLOR;
 struct SRBTreeNode {
-  enum { RED, BLACK } color;
+  ECOLOR       color;
   SRBTreeNode *parent;
   SRBTreeNode *left;
   SRBTreeNode *right;
