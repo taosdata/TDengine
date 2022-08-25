@@ -1,10 +1,6 @@
 ---
 sidebar_label: Introduction
-title: TDengine Cloud Service
----
----
-title: Introduction
-toc_max_heading_level: 2
+title: Introduction to TDengine Cloud Service
 ---
 
 TDengine Cloud, is the fast, elastic, serverless and cost effective time-series data processing service based on the popular open source time-series database, TDengine. With TDengine Cloud you get the highly optimized and purpose-built for IoT time-series platform, for which TDengine is known. 
