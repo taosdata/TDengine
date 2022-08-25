@@ -47,7 +47,26 @@ lrwxrwxrwx  1 root root   13 Feb 22 09:34 log -> /var/log/taos/
 <Tabs>
 <TabItem label="apt-get 卸载" value="aptremove">
 
-内容 TBD
+卸载命令如下:
+
+```
+$ sudo apt-get remove tdengine
+Reading package lists... Done
+Building dependency tree       
+Reading state information... Done
+The following packages were automatically installed and are no longer required:
+  libevent-core-2.1-7 libevent-pthreads-2.1-7 libopts25 sntp
+Use 'apt autoremove' to remove them.
+The following packages will be REMOVED:
+  tdengine
+0 upgraded, 0 newly installed, 1 to remove and 18 not upgraded.
+After this operation, 68.3 MB disk space will be freed.
+Do you want to continue? [Y/n] y
+(Reading database ... 135625 files and directories currently installed.)
+Removing tdengine (3.0.0.0) ...
+TDengine is removed successfully!
+
+```
 
 </TabItem>
 <TabItem label="Deb 卸载" value="debuninst">
@@ -57,7 +76,7 @@ lrwxrwxrwx  1 root root   13 Feb 22 09:34 log -> /var/log/taos/
 ```
 $ sudo dpkg -r tdengine
 (Reading database ... 120119 files and directories currently installed.)
-Removing tdengine (3.0.0.10002) ...
+Removing tdengine (3.0.0.0) ...
 TDengine is removed successfully!
 
 ```
