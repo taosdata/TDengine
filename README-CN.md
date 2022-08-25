@@ -210,14 +210,14 @@ cmake .. -G "NMake Makefiles"
 nmake
 ```
 
-### macOS 系统
+<!-- ### macOS 系统
 
 安装 Xcode 命令行工具和 cmake. 在 Catalina 和 Big Sur 操作系统上，需要安装 XCode 11.4+ 版本。
 
 ```bash
 mkdir debug && cd debug
 cmake .. && cmake --build .
-```
+``` -->
 
 # 安装
 

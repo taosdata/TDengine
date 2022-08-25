@@ -817,6 +817,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyNode(pLogicNode->pWStartTs);
       nodesDestroyNode(pLogicNode->pValues);
+      nodesDestroyList(pLogicNode->pFillExprs);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_SORT: {

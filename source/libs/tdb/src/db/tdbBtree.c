@@ -1401,7 +1401,7 @@ static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pD
   pDecoder->pgno = 0;
   TDB_CELLDECODER_SET_FREE_NIL(pDecoder);
 
-  tdbDebug("tdb btc decoder set nil: %p/0x%x ", pDecoder, pDecoder->freeKV);
+  // tdbTrace("tdb btc decoder set nil: %p/0x%x ", pDecoder, pDecoder->freeKV);
 
   // 1. Decode header part
   if (!leaf) {

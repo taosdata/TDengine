@@ -238,6 +238,9 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
     TSWAP(pRequest->targetTableList, (*pQuery)->pTargetTableList);
   }
 
+  taosArrayDestroy(cxt.pTableMetaPos);
+  taosArrayDestroy(cxt.pTableVgroupPos);
+
   return code;
 }
 
@@ -839,6 +842,8 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     }
 
     schedulerFreeJob(&pRequest->body.queryJob, 0);
+
+    pRequest->metric.execEnd = taosGetTimestampUs();
   }
 
   taosMemoryFree(pResult);

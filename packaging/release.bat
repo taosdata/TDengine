@@ -40,10 +40,12 @@ if not exist %work_dir%\debug\ver-%2-x86 (
 )
 cd %work_dir%\debug\ver-%2-x64
 call vcvarsall.bat x64
-cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_HTTP=false -DVERNUMBER=%2 -DCPUTYPE=x64
+cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_HTTP=false -DBUILD_TEST=false -DVERNUMBER=%2 -DCPUTYPE=x64
 cmake --build .
 rd /s /Q C:\TDengine
 cmake --install .
+for /r c:\TDengine %%i in (*.dll) do signtool sign /f D:\\123.pfx /p taosdata %%i
+for /r c:\TDengine %%i in (*.exe) do signtool sign /f D:\\123.pfx /p taosdata %%i
 if not %errorlevel% == 0  ( call :RUNFAILED build x64 failed & exit /b 1)
 cd %package_dir%
 iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%2" /DMyAppExcludeSource="" tools\tdengine.iss /O..\release
@@ -51,19 +53,7 @@ if not %errorlevel% == 0  ( call :RUNFAILED package %packagServerName_x64% faile
 iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%2" /DMyAppExcludeSource="taosd.exe" tools\tdengine.iss /O..\release
 if not %errorlevel% == 0  ( call :RUNFAILED package %packagClientName_x64% failed & exit /b 1)
 
-cd %work_dir%\debug\ver-%2-x86
-call vcvarsall.bat x86
-cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_HTTP=false -DVERNUMBER=%2 -DCPUTYPE=x86
-cmake --build .
-rd /s /Q C:\TDengine
-cmake --install .
-if not %errorlevel% == 0  ( call :RUNFAILED build x86 failed & exit /b 1)
-cd %package_dir%
-@REM iscc /DMyAppInstallName="%packagServerName_x86%" /DMyAppVersion="%2" /DMyAppExcludeSource="" tools\tdengine.iss /O..\release
-@REM if not %errorlevel% == 0  ( call :RUNFAILED package %packagServerName_x86% failed & exit /b 1)
-iscc /DMyAppInstallName="%packagClientName_x86%" /DMyAppVersion="%2" /DMyAppExcludeSource="taosd.exe" tools\tdengine.iss /O..\release
-if not %errorlevel% == 0  ( call :RUNFAILED package %packagClientName_x86% failed & exit /b 1)
-
+for /r ..\release %%i in (*.exe) do signtool sign /f d:\\123.pfx /p taosdata %%i
 goto EXIT0
 
 :USAGE

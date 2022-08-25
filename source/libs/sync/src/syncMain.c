@@ -2181,6 +2181,11 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
     (pMySender->privateTerm) += 100;
   }
 
+  // close receiver
+  if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
+    snapshotReceiverForceStop(pSyncNode->pNewNodeReceiver);
+  }
+
   // stop elect timer
   syncNodeStopElectTimer(pSyncNode);
 

@@ -125,6 +125,37 @@ static int32_t skipInsertInto(char** pSql, SMsgBuf* pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
+static char* tableNameGetPosition(SToken* pToken, char target) {
+  bool inEscape = false;
+  bool inQuote = false;
+  char quotaStr = 0;
+
+  for (uint32_t i = 0; i < pToken->n; ++i) {
+    if (*(pToken->z + i) == target && (!inEscape) && (!inQuote)) {
+      return pToken->z + i;
+    }
+
+    if (*(pToken->z + i) == TS_ESCAPE_CHAR) {
+      if (!inQuote) {
+        inEscape = !inEscape;
+      }
+    }
+
+    if (*(pToken->z + i) == '\'' || *(pToken->z + i) == '"') {
+      if (!inEscape) {
+        if (!inQuote) {
+          quotaStr = *(pToken->z + i);
+          inQuote = !inQuote;
+        } else if (quotaStr == *(pToken->z + i)) {
+          inQuote = !inQuote;
+        }
+      }
+    }
+  }
+
+  return NULL;
+}
+
 static int32_t createSName(SName* pName, SToken* pTableName, int32_t acctId, const char* dbName, SMsgBuf* pMsgBuf) {
   const char* msg1 = "name too long";
   const char* msg2 = "invalid database name";
@@ -132,7 +163,7 @@ static int32_t createSName(SName* pName, SToken* pTableName, int32_t acctId, con
   const char* msg4 = "invalid table name";
 
   int32_t code = TSDB_CODE_SUCCESS;
-  char*   p = strnchr(pTableName->z, TS_PATH_DELIMITER[0], pTableName->n, true);
+  char*   p = tableNameGetPosition(pTableName, TS_PATH_DELIMITER[0]);
 
   if (p != NULL) {  // db has been specified in sql string so we ignore current db path
     assert(*p == TS_PATH_DELIMITER[0]);
@@ -680,6 +711,11 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
     if (TK_NK_RP == sToken.type) {
       break;
     }
+
+    char tmpTokenBuf[TSDB_COL_NAME_LEN + 2] = {0};  // used for deleting Escape character backstick(`)
+    strncpy(tmpTokenBuf, sToken.z, sToken.n);
+    sToken.z = tmpTokenBuf;
+    sToken.n = strdequote(sToken.z);
 
     col_id_t t = lastColIdx + 1;
     col_id_t index = findCol(&sToken, t, nCols, pSchema);
@@ -1686,9 +1722,17 @@ static int32_t collectTableMetaKey(SInsertParseSyntaxCxt* pCxt, bool isStable, i
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkTableName(const char* pTableName, SMsgBuf* pMsgBuf) {
+  if (NULL != strchr(pTableName, '.')) {
+    return generateSyntaxErrMsgExt(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, "The table name cannot contain '.'");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t collectAutoCreateTableMetaKey(SInsertParseSyntaxCxt* pCxt, int32_t tableNo, SToken* pTbToken) {
   SName name;
   CHECK_CODE(createSName(&name, pTbToken, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg));
+  CHECK_CODE(checkTableName(name.tname, &pCxt->msg));
   CHECK_CODE(reserveTableMetaInCacheForInsert(&name, CATALOG_REQ_TYPE_VGROUP, tableNo, pCxt->pMetaCache));
   return TSDB_CODE_SUCCESS;
 }

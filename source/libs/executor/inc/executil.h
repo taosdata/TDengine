@@ -119,6 +119,7 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode);
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext);
 int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond, STableListInfo* pListInfo);
 int32_t getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId);
+int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableListInfo* pTableListInfo);
 size_t  getTableTagsBufLen(const SNodeList* pGroups);
 
 SArray*  createSortInfo(SNodeList* pNodeList);

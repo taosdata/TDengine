@@ -15,7 +15,6 @@
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
 
-
 English | [简体中文](README-CN.md) | We are hiring, check [here](https://tdengine.com/careers)
 
 # What is TDengine？
@@ -42,7 +41,7 @@ For user manual, system design and architecture, please refer to [TDengine Docum
 
 At the moment, TDengine server supports running on Linux, Windows systems.Any OS application can also choose the RESTful interface of taosAdapter to connect the taosd service . TDengine supports X64/ARM64 CPU , and it will support MIPS64, Alpha64, ARM32, RISC-V and other CPU architectures in the future.
 
-You can choose to install through source code according to your needs, [container](https://docs.taosdata.com/get-started/docker/), [installation package](https://docs.taosdata.com/get-started/package/) or [Kubenetes](https://docs.taosdata.com/deployment/k8s/) to install. This quick guide only applies to installing from source.   
+You can choose to install through source code according to your needs, [container](https://docs.taosdata.com/get-started/docker/), [installation package](https://docs.taosdata.com/get-started/package/) or [Kubernetes](https://docs.taosdata.com/deployment/k8s/) to install. This quick guide only applies to installing from source.
 
 TDengine provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. By default, TDengine compiling does not include taosTools. You can use `cmake .. -DBUILD_TOOLS=true` to make them be compiled with TDengine.
 
@@ -57,7 +56,6 @@ sudo apt-get install -y gcc cmake build-essential git libssl-dev
 ```
 
 #### Install build dependencies for taosTools
-
 
 To build the [taosTools](https://github.com/taosdata/taos-tools) on Ubuntu/Debian, the following packages need to be installed.
 
@@ -82,14 +80,13 @@ sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
 
 #### Install build dependencies for taosTools on CentOS
 
-
 #### CentOS 7.9
 
 ```
 sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
 ```
 
-#### CentOS 8/Rocky Linux 
+#### CentOS 8/Rocky Linux
 
 ```
 sudo yum install -y epel-release
@@ -100,13 +97,13 @@ sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgco
 
 Note: Since snappy lacks pkg-config support (refer to [link](https://github.com/google/snappy/pull/86)), it leads a cmake prompt libsnappy not found. But snappy still works well.
 
-If the powertools installation fails, you can try to use:
+If the PowerTools installation fails, you can try to use:
+
 ```
-sudo yum config-manager --set-enabled Powertools
+sudo yum config-manager --set-enabled powertools
 ```
 
 ### Setup golang environment
-
 
 TDengine includes a few components like taosAdapter developed by Go language. Please refer to golang.org official documentation for golang environment setup.
 
@@ -125,7 +122,7 @@ cmake .. -DBUILD_HTTP=false
 
 ### Setup rust environment
 
-TDengine includes a few compoments developed by Rust language. Please refer to rust-lang.org official documentation for rust environment setup.
+TDengine includes a few components developed by Rust language. Please refer to rust-lang.org official documentation for rust environment setup.
 
 ## Get the source codes
 
@@ -136,7 +133,6 @@ git clone https://github.com/taosdata/TDengine.git
 cd TDengine
 ```
 
-
 You can modify the file ~/.gitconfig to use ssh protocol instead of https for better download speed. You will need to upload ssh public key to GitHub first. Please refer to GitHub official documentation for detail.
 
 ```
@@ -146,13 +142,11 @@ You can modify the file ~/.gitconfig to use ssh protocol instead of https for be
 
 ## Special Note
 
-
 [JDBC Connector](https://github.com/taosdata/taos-connector-jdbc)， [Go Connector](https://github.com/taosdata/driver-go)，[Python Connector](https://github.com/taosdata/taos-connector-python)，[Node.js Connector](https://github.com/taosdata/taos-connector-node)，[C# Connector](https://github.com/taosdata/taos-connector-dotnet) ，[Rust Connector](https://github.com/taosdata/taos-connector-rust) and [Grafana plugin](https://github.com/taosdata/grafanaplugin) has been moved to standalone repository.
 
 ## Build TDengine
 
 ### On Linux platform
-
 
 You can run the bash script `build.sh` to build both TDengine and taosTools including taosBenchmark and taosdump as below:
 
@@ -168,7 +162,6 @@ cd debug
 cmake .. -DBUILD_TOOLS=true
 make
 ```
-
 
 You can use Jemalloc as memory allocator instead of glibc:
 
@@ -218,14 +211,14 @@ cmake .. -G "NMake Makefiles"
 nmake
 ```
 
-### On macOS platform
+<!-- ### On macOS platform
 
 Please install XCode command line tools and cmake. Verified with XCode 11.4+ on Catalina and Big Sur.
 
 ```shell
 mkdir debug && cd debug
 cmake .. && cmake --build .
-```
+``` -->
 
 # Installing
 
@@ -237,7 +230,7 @@ After building successfully, TDengine can be installed by
 sudo make install
 ```
 
-Users can find more information about directories installed on the system in the [directory and files](https://docs.taosdata.com/reference/directory/) section.  
+Users can find more information about directories installed on the system in the [directory and files](https://docs.taosdata.com/reference/directory/) section.
 
 Installing from source code will also configure service management for TDengine.Users can also choose to [install from packages](https://docs.taosdata.com/get-started/package/) for it.
 
@@ -309,7 +302,7 @@ Query OK, 2 row(s) in set (0.001700s)
 
 ## Official Connectors
 
-TDengine provides abundant developing tools for users to develop on TDengine.  include C/C++、Java、Python、Go、Node.js、C# 、RESTful  ,Follow the links below to find your desired connectors and relevant documentation.
+TDengine provides abundant developing tools for users to develop on TDengine. Follow the links below to find your desired connectors and relevant documentation.
 
 - [Java](https://docs.taosdata.com/reference/connector/java/)
 - [C/C++](https://docs.taosdata.com/reference/connector/cpp/)

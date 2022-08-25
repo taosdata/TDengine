@@ -674,6 +674,8 @@ static void destorySqlParseWrapper(SqlParseWrapper *pWrapper) {
   taosArrayDestroy(pWrapper->catalogReq.pIndex);
   taosArrayDestroy(pWrapper->catalogReq.pUser);
   taosArrayDestroy(pWrapper->catalogReq.pTableIndex);
+  taosArrayDestroy(pWrapper->pCtx->pTableMetaPos);
+  taosArrayDestroy(pWrapper->pCtx->pTableVgroupPos);
   taosMemoryFree(pWrapper->pCtx);
   taosMemoryFree(pWrapper);
 }
@@ -683,6 +685,8 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
   SQuery          *pQuery = pWrapper->pQuery;
   SRequestObj     *pRequest = pWrapper->pRequest;
 
+  pRequest->metric.ctgEnd = taosGetTimestampUs();
+
   if (code == TSDB_CODE_SUCCESS) {
     code = qAnalyseSqlSemantic(pWrapper->pCtx, &pWrapper->catalogReq, pResultMeta, pQuery);
     pRequest->stableQuery = pQuery->stableQuery;
@@ -690,6 +694,8 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
       pRequest->stmtType = pQuery->pRoot->type;
     }
   }
+
+  pRequest->metric.semanticEnd = taosGetTimestampUs();
 
   if (code == TSDB_CODE_SUCCESS) {
     if (pQuery->haveResultSet) {
@@ -782,11 +788,15 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 
   SQuery *pQuery = NULL;
 
+  pRequest->metric.syntaxStart = taosGetTimestampUs();
+
   SCatalogReq catalogReq = {.forceUpdate = updateMetaForce, .qNodeRequired = qnodeRequired(pRequest)};
   code = qParseSqlSyntax(pCxt, &pQuery, &catalogReq);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
+
+  pRequest->metric.syntaxEnd = taosGetTimestampUs();
 
   if (!updateMetaForce) {
     STscObj            *pTscObj = pRequest->pTscObj;
@@ -813,6 +823,8 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
                            .requestId = pCxt->requestId,
                            .requestObjRefId = pCxt->requestRid,
                            .mgmtEps = pCxt->mgmtEpSet};
+
+  pRequest->metric.ctgStart = taosGetTimestampUs();
 
   code = catalogAsyncGetAllMeta(pCxt->pCatalog, &conn, &catalogReq, retrieveMetaCallback, pWrapper,
                                 &pRequest->body.queryJob);

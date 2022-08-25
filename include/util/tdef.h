@@ -386,7 +386,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_DEFAULT_EXPLAIN_VERBOSE false
 
-#define TSDB_EXPLAIN_RESULT_ROW_SIZE    512
+#define TSDB_EXPLAIN_RESULT_ROW_SIZE    (16*1024)
 #define TSDB_EXPLAIN_RESULT_COLUMN_NAME "QUERY_PLAN"
 
 #define TSDB_MAX_FIELD_LEN             16384

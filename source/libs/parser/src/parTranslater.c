@@ -1881,6 +1881,12 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
   }
+  if (NULL != pSelect->pWindow && QUERY_NODE_STATE_WINDOW == nodeType(pSelect->pWindow)) {
+    if (nodesEqualNode(((SStateWindowNode*)pSelect->pWindow)->pExpr, *pNode)) {
+      pSelect->hasStateKey = true;
+      return rewriteExprToGroupKeyFunc(pCxt, pNode);
+    }
+  }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
     if (pSelect->selectFuncNum > 1 || pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc) {
       return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt));
@@ -1973,7 +1979,7 @@ static int32_t checkWindowFuncCoexist(STranslateContext* pCxt, SSelectStmt* pSel
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
   }
-  if (NULL != pSelect->pWindow && !pSelect->hasAggFuncs) {
+  if (NULL != pSelect->pWindow && !pSelect->hasAggFuncs && !pSelect->hasStateKey) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN);
   }
   return TSDB_CODE_SUCCESS;
@@ -2588,8 +2594,13 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode* pWhere, STimeWi
   return code;
 }
 
-static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* pInterval) {
+static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* pInterval,
+                         bool isInterpFill) {
   if (FILL_MODE_NONE == pFill->mode) {
+    if (isInterpFill) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Unsupported fill type");
+    }
+
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2629,7 +2640,7 @@ static int32_t translateFill(STranslateContext* pCxt, SSelectStmt* pSelect, SInt
   }
 
   ((SFillNode*)pInterval->pFill)->timeRange = pSelect->timeRange;
-  return checkFill(pCxt, (SFillNode*)pInterval->pFill, (SValueNode*)pInterval->pInterval);
+  return checkFill(pCxt, (SFillNode*)pInterval->pFill, (SValueNode*)pInterval->pInterval, false);
 }
 
 static int64_t getMonthsFromTimeVal(int64_t val, int32_t fromPrecision, char unit) {
@@ -2825,7 +2836,7 @@ static int32_t createDefaultFillNode(STranslateContext* pCxt, SNode** pOutput) {
 static int32_t checkEvery(STranslateContext* pCxt, SValueNode* pInterval) {
   int32_t len = strlen(pInterval->literal);
 
-  char *unit = &pInterval->literal[len - 1];
+  char* unit = &pInterval->literal[len - 1];
   if (*unit == 'n' || *unit == 'y') {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE,
                                    "Unsupported time unit in EVERY clause");
@@ -2837,7 +2848,7 @@ static int32_t checkEvery(STranslateContext* pCxt, SValueNode* pInterval) {
 static int32_t translateInterpEvery(STranslateContext* pCxt, SNode** pEvery) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  code = checkEvery(pCxt, (SValueNode *)(*pEvery));
+  code = checkEvery(pCxt, (SValueNode*)(*pEvery));
   if (TSDB_CODE_SUCCESS == code) {
     code = translateExpr(pCxt, pEvery);
   }
@@ -2858,7 +2869,7 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
     code = getQueryTimeRange(pCxt, pSelect->pRange, &(((SFillNode*)pSelect->pFill)->timeRange));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery);
+    code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery, true);
   }
 
   return code;

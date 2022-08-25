@@ -1086,7 +1086,10 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
 
   SColumnInfoData* pDestStartCol = taosArrayGet(pDestBlock->pDataBlock, START_TS_COLUMN_INDEX);
   SColumnInfoData* pDestEndCol = taosArrayGet(pDestBlock->pDataBlock, END_TS_COLUMN_INDEX);
+  SColumnInfoData* pDestUidCol = taosArrayGet(pDestBlock->pDataBlock, UID_COLUMN_INDEX);
   SColumnInfoData* pDestGpCol = taosArrayGet(pDestBlock->pDataBlock, GROUPID_COLUMN_INDEX);
+  SColumnInfoData* pDestCalStartTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
+  SColumnInfoData* pDestCalEndTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
   int32_t          dummy = 0;
   for (int32_t i = 0; i < pSrcBlock->info.rows; i++) {
     uint64_t groupId = getGroupId(pInfo->pTableScanOp, uidCol[i]);
@@ -1100,9 +1103,13 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
     SResultWindowInfo* pEndWin =
         getCurSessionWindow(pInfo->sessionSup.pStreamAggSup, endData[i], endData[i], groupId, 0, &dummy);
     ASSERT(pEndWin);
+    TSKEY ts = INT64_MIN;
     colDataAppend(pDestStartCol, i, (const char*)&pStartWin->win.skey, false);
     colDataAppend(pDestEndCol, i, (const char*)&pEndWin->win.ekey, false);
+    colDataAppendNULL(pDestUidCol, i);
     colDataAppend(pDestGpCol, i, (const char*)&groupId, false);
+    colDataAppendNULL(pDestCalStartTsCol, i);
+    colDataAppendNULL(pDestCalEndTsCol, i);
     pDestBlock->info.rows++;
   }
   return TSDB_CODE_SUCCESS;
@@ -1157,13 +1164,13 @@ static int32_t generateScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock,
   return code;
 }
 
-void appendOneRow(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid) {
+void appendOneRow(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, int32_t uidCol, uint64_t* pID) {
   SColumnInfoData* pStartTsCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
   SColumnInfoData* pEndTsCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
-  SColumnInfoData* pUidCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
+  SColumnInfoData* pUidCol = taosArrayGet(pBlock->pDataBlock, uidCol);
   colDataAppend(pStartTsCol, pBlock->info.rows, (const char*)pStartTs, false);
   colDataAppend(pEndTsCol, pBlock->info.rows, (const char*)pEndTs, false);
-  colDataAppend(pUidCol, pBlock->info.rows, (const char*)pUid, false);
+  colDataAppend(pUidCol, pBlock->info.rows, (const char*)pID, false);
   pBlock->info.rows++;
 }
 
@@ -1190,7 +1197,7 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
     bool closedWin = isClosed && isSignleIntervalWindow(pInfo) &&
                      isDeletedWindow(&win, pBlock->info.groupId, pInfo->sessionSup.pIntervalAggSup);
     if ((update || closedWin) && out) {
-      appendOneRow(pInfo->pUpdateDataRes, tsCol + rowId, tsCol + rowId, &pBlock->info.uid);
+      appendOneRow(pInfo->pUpdateDataRes, tsCol + rowId, tsCol + rowId, UID_COLUMN_INDEX, &pBlock->info.uid);
     }
   }
   if (out) {
@@ -1273,6 +1280,42 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   // NOTE: this operator does never check if current status is done or not
   SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
   SStreamScanInfo* pInfo = pOperator->info;
+
+#if 0
+  SStreamState* pState = pTaskInfo->streamInfo.pState;
+  if (pState) {
+    printf(">>>>>>>> stream write backend\n");
+    SWinKey key = {
+        .ts = 1,
+        .groupId = 2,
+    };
+    char tmp[100] = "abcdefg1";
+    if (streamStatePut(pState, &key, &tmp, strlen(tmp) + 1) < 0) {
+      ASSERT(0);
+    }
+
+    key.ts = 2;
+    char tmp2[100] = "abcdefg2";
+    if (streamStatePut(pState, &key, &tmp2, strlen(tmp2) + 1) < 0) {
+      ASSERT(0);
+    }
+
+    key.groupId = 5;
+    key.ts = 1;
+    char tmp3[100] = "abcdefg3";
+    if (streamStatePut(pState, &key, &tmp3, strlen(tmp3) + 1) < 0) {
+      ASSERT(0);
+    }
+
+    char*   val2 = NULL;
+    int32_t sz;
+    if (streamStateGet(pState, &key, (void**)&val2, &sz) < 0) {
+      ASSERT(0);
+    }
+    printf("stream read %s %d\n", val2, sz);
+    streamFreeVal(val2);
+  }
+#endif
 
   qDebug("stream scan called");
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__LOG) {
@@ -2640,6 +2683,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
 
   int32_t code = getTableList(pHandle->meta, pHandle->vnode, pScanNode, pTagCond, pTagIndexCond, pTableListInfo);
   if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to getTableList, code: %s", tstrerror(code));
     return code;
   }
 
