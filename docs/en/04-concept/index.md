@@ -104,15 +104,15 @@ Each row contains the device ID, time stamp, collected metrics (current, voltage
 
 ## Metric
 
-Metric refers to the physical quantity collected by sensors, equipment or other types of data collection devices, such as current, voltage, temperature, pressure, GPS position, etc., which change with time, and the data type can be integer, float, Boolean, or strings. As time goes by, the amount of collected metric data stored increases.
+Metric refers to the physical quantity collected by sensors, equipment or other types of data collection devices, such as current, voltage, temperature, pressure, GPS position, etc., which change with time, and the data type can be integer, float, Boolean, or strings. As time goes by, the amount of collected metric data stored increases. In the meters example, current, voltage and phase are the metrics.
 
 ## Label/Tag
 
-Label/Tag refers to the static properties of sensors, equipment or other types of data collection devices, which do not change with time, such as device model, color, fixed location of the device, etc. The data type can be any type. Although static, TDengine allows users to add, delete or update tag values at any time. Unlike the collected metric data, the amount of tag data stored does not change over time.
+Label/Tag refers to the static properties of sensors, equipment or other types of data collection devices, which do not change with time, such as device model, color, fixed location of the device, etc. The data type can be any type. Although static, TDengine allows users to add, delete or update tag values at any time. Unlike the collected metric data, the amount of tag data stored does not change over time. In the meters example, `location` and `groupid` are the tags.
 
 ## Data Collection Point
 
-Data Collection Point (DCP) refers to hardware or software that collects metrics based on preset time periods or triggered by events. A data collection point can collect one or multiple metrics, but these metrics are collected at the same time and have the same time stamp. For some complex equipment, there are often multiple data collection points, and the sampling rate of each collection point may be different, and fully independent. For example, for a car, there could be a data collection point to collect GPS position metrics, a data collection point to collect engine status metrics, and a data collection point to collect the environment metrics inside the car. So in this example the car would have three data collection points.
+Data Collection Point (DCP) refers to hardware or software that collects metrics based on preset time periods or triggered by events. A data collection point can collect one or multiple metrics, but these metrics are collected at the same time and have the same time stamp. For some complex equipment, there are often multiple data collection points, and the sampling rate of each collection point may be different, and fully independent. For example, for a car, there could be a data collection point to collect GPS position metrics, a data collection point to collect engine status metrics, and a data collection point to collect the environment metrics inside the car. So in this example the car would have three data collection points. In the meters example, d1001, d1002, d1003, and d1004 are the data collection points.
 
 ## Table
 
@@ -137,7 +137,7 @@ The design of one table for one data collection point will require a huge number
 
 STable is a template for a type of data collection point. A STable contains a set of data collection points (tables) that have the same schema or data structure, but with different static attributes (tags). To describe a STable, in addition to defining the table structure of the metrics, it is also necessary to define the schema of its tags. The data type of tags can be int, float, string, and there can be multiple tags, which can be added, deleted, or modified afterward. If the whole system has N different types of data collection points, N STables need to be established.
 
-In the design of TDengine, **a table is used to represent a specific data collection point, and STable is used to represent a set of data collection points of the same type**.
+In the design of TDengine, **a table is used to represent a specific data collection point, and STable is used to represent a set of data collection points of the same type**. In the meters example, we can create a super table named `meters`.
 
 ## Subtable
 
