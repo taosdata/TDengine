@@ -313,14 +313,12 @@ void perfTest() {
   SArray *slArray = taosArrayInit(100000000, 9);
   for (int64_t i = 0; i < 1000; ++i) {
     int32_t num = taosArrayGetSize(sArray[i]);
-    printf("%d ", num);
     SArray* pArray = sArray[i];
     for (int64_t m = 0; m < num; ++m) {
       char* p = (char*)taosArrayGet(pArray, m);
       ASSERT(taosArrayPush(slArray, p));
     }
   }
-  printf("\n");
   int64_t start100mS = taosGetTimestampMs();
   int64_t start100mSCt = taosHashGetCompTimes(hash100m);
   int32_t num = taosArrayGetSize(slArray);

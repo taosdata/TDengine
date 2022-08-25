@@ -5123,8 +5123,15 @@ int tDecodeSVCreateTbRsp(SDecoder *pCoder, SVCreateTbRsp *pRsp) {
 }
 
 void tFreeSVCreateTbRsp(void* param) {
+  if (NULL == param) {
+    return;
+  }
+  
   SVCreateTbRsp* pRsp = (SVCreateTbRsp*)param;
-  taosMemoryFree(pRsp->pMeta);
+  if (pRsp->pMeta) {
+    taosMemoryFree(pRsp->pMeta->pSchemas);
+    taosMemoryFree(pRsp->pMeta);
+  }
 }
 
 // TDMT_VND_DROP_TABLE =================
