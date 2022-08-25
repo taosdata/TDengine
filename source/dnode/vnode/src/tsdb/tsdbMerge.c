@@ -22,6 +22,7 @@ typedef struct {
 } SRowInfo;
 
 typedef struct {
+  SRowInfo   rowInfo;
   SArray    *aBlockL;  // SArray<SBlockL>
   int32_t    iBlockL;
   SBlockData bData;
@@ -32,7 +33,26 @@ typedef struct {
   SRBTree tMerge;
 } SDataMerger;
 
-SRowInfo *tDataMergeNext(SDataMerger *pMerger) {
+static int32_t tRowInfoCmprFn(const void *p1, const void *p2) {
+  SRowInfo *pInfo1 = (SRowInfo *)p1;
+  SRowInfo *pInfo2 = (SRowInfo *)p2;
+
+  if (pInfo1->suid < pInfo2->suid) {
+    return -1;
+  } else if (pInfo1->suid > pInfo2->suid) {
+    return 1;
+  }
+
+  if (pInfo1->uid < pInfo2->uid) {
+    return -1;
+  } else if (pInfo1->uid > pInfo2->uid) {
+    return 1;
+  }
+
+  return tsdbRowCmprFn(&pInfo1->row, &pInfo2->row);
+}
+
+static SRowInfo *tDataMergeNext(SDataMerger *pMerger) {
   SRowInfo *pRowInfo = NULL;
 
   SRBTreeNode *pNode = pMerger->tMerge.minNode;

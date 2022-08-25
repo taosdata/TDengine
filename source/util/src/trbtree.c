@@ -210,49 +210,6 @@ void tRBTreeDrop(SRBTree *pTree, SRBTreeNode *pNode) {
   }
 
   // drop impl
-  if (pNode->left == NULL) {
-    if (pNode->parent) {
-      if (pNode == pNode->parent->left) {
-        pNode->parent->left = pNode->right;
-      } else {
-        pNode->parent->right = pNode->right;
-      }
-    } else {
-      pTree->rootNode = pNode->right;
-    }
-
-    if (pNode->right) {
-      pNode->right->parent = pNode->parent;
-    }
-  } else if (pNode->right == NULL) {
-    if (pNode->parent) {
-      if (pNode == pNode->parent->left) {
-        pNode->parent->left = pNode->left;
-      } else {
-        pNode->parent->right = pNode->left;
-      }
-    } else {
-      pTree->rootNode = pNode->left;
-    }
-
-    if (pNode->left) {
-      pNode->left->parent = pNode->parent;
-    }
-  } else {
-    // TODO
-    SRBTreeNode *pSuccessorNode = pNode->right;
-    while (pSuccessorNode->left) {
-      pSuccessorNode = pSuccessorNode->left;
-    }
-
-    pSuccessorNode->parent->left = NULL;  // todo: not correct here
-
-    pSuccessorNode->parent = pNode->parent;
-    pSuccessorNode->left = pNode->left;
-    pSuccessorNode->right = pNode->right;
-    pNode->left->parent = pSuccessorNode;
-    pNode->right->parent = pSuccessorNode;
-  }
 
   // fix
   if (pNode->color == BLACK) {
