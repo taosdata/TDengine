@@ -621,7 +621,7 @@ static int32_t tdFetchSubmitReqSuids(SSubmitReq *pMsg, STbUidStore *pStore) {
  */
 int32_t smaDoRetention(SSma *pSma, int64_t now) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (VND_IS_RSMA(pSma->pVnode)) {
+  if (!VND_IS_RSMA(pSma->pVnode)) {
     return code;
   }
 
@@ -734,9 +734,11 @@ static int32_t tdExecuteRSmaImplAsync(SSma *pSma, const void *pMsg, int32_t inpu
 
   SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pSma);
 
-  tsem_post(&(pRSmaStat->notEmpty));
-
   int64_t nItems = atomic_fetch_add_64(&pRSmaStat->nBufItems, 1);
+
+  if (atomic_load_8(&pInfo->assigned) == 0) {
+    tsem_post(&(pRSmaStat->notEmpty));
+  }
 
   // smoothing consume
   int32_t n = nItems / RSMA_QTASKEXEC_SMOOTH_SIZE;
@@ -911,39 +913,6 @@ static int32_t tdExecuteRSmaAsync(SSma *pSma, const void *pMsg, int32_t inputTyp
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tdRSmaExecCheck(SSma *pSma) {
-  SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pSma);
-
-  if (atomic_load_8(&pRSmaStat->nExecutor) >= TMIN(RSMA_EXECUTOR_MAX, tsNumOfVnodeQueryThreads / 2)) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SRSmaExecMsg fetchMsg;
-  int32_t      contLen = sizeof(SMsgHead);
-  void        *pBuf = rpcMallocCont(0 + contLen);
-
-  ((SMsgHead *)pBuf)->vgId = SMA_VID(pSma);
-  ((SMsgHead *)pBuf)->contLen = sizeof(SMsgHead);
-
-  SRpcMsg rpcMsg = {
-      .code = 0,
-      .msgType = TDMT_VND_EXEC_RSMA,
-      .pCont = pBuf,
-      .contLen = contLen,
-  };
-
-  if ((terrno = tmsgPutToQueue(&pSma->pVnode->msgCb, QUERY_QUEUE, &rpcMsg)) != 0) {
-    smaError("vgId:%d, failed to put rsma exec msg into query-queue since %s", SMA_VID(pSma), terrstr());
-    goto _err;
-  }
-
-  smaDebug("vgId:%d, success to put rsma fetch msg into query-queue", SMA_VID(pSma));
-
-  return TSDB_CODE_SUCCESS;
-_err:
-  return TSDB_CODE_FAILED;
-}
-
 int32_t tdProcessRSmaSubmit(SSma *pSma, void *pMsg, int32_t inputType) {
   SSmaEnv *pEnv = SMA_RSMA_ENV(pSma);
   if (!pEnv) {
@@ -973,10 +942,6 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, void *pMsg, int32_t inputType) {
         if (tdExecuteRSmaAsync(pSma, pMsg, inputType, *pTbSuid) < 0) {
           goto _err;
         }
-      }
-
-      if (tdRSmaExecCheck(pSma) < 0) {
-        goto _err;
       }
     }
   }
@@ -1563,7 +1528,9 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
       ASSERT(qItem->level == pItem->level);
       ASSERT(qItem->fetchLevel == pItem->fetchLevel);
 #endif
-      tsem_post(&(pStat->notEmpty));
+      if (atomic_load_8(&pRSmaInfo->assigned) == 0) {
+        tsem_post(&(pStat->notEmpty));
+      }
       smaInfo("vgId:%d, rsma fetch task planned for level:%" PRIi8 " suid:%" PRIi64, SMA_VID(pSma), pItem->level,
               pRSmaInfo->suid);
     } break;
@@ -1591,9 +1558,11 @@ _end:
 }
 
 static void tdFreeRSmaSubmitItems(SArray *pItems) {
+  ASSERT(taosArrayGetSize(pItems) > 0);
   for (int32_t i = 0; i < taosArrayGetSize(pItems); ++i) {
     taosFreeQitem(*(void **)taosArrayGet(pItems, i));
   }
+  taosArrayClear(pItems);
 }
 
 /**
@@ -1703,6 +1672,7 @@ _err:
  * @param type
  * @return int32_t
  */
+
 int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
   SVnode    *pVnode = pSma->pVnode;
   SSmaEnv   *pEnv = SMA_RSMA_ENV(pSma);
@@ -1722,41 +1692,53 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
     goto _err;
   }
 
-  bool isBusy = false;
   while (true) {
-    isBusy = false;
     // step 1: rsma exec - consume data in buffer queue for all suids
     if (type == RSMA_EXEC_OVERFLOW || type == RSMA_EXEC_COMMIT) {
-      void *pIter = taosHashIterate(infoHash, NULL);  // infoHash has r/w lock
-      while (pIter) {
+      void *pIter = NULL;
+      while ((pIter = taosHashIterate(infoHash, pIter))) {
         SRSmaInfo *pInfo = *(SRSmaInfo **)pIter;
-        int64_t    itemSize = 0;
-        if ((itemSize = taosQueueItemSize(pInfo->queue)) || RSMA_INFO_ITEM(pInfo, 0)->fetchLevel ||
-            RSMA_INFO_ITEM(pInfo, 1)->fetchLevel) {
-          smaDebug("vgId:%d, queueItemSize is %" PRIi64 " execType:%" PRIi8, SMA_VID(pSma), itemSize, type);
-          if (atomic_val_compare_exchange_8(&pInfo->assigned, 0, 1) == 0) {
-            taosReadAllQitems(pInfo->queue, pInfo->qall);  // queue has mutex lock
-            int32_t qallItemSize = taosQallItemSize(pInfo->qall);
-            if (qallItemSize > 0) {
-              tdRSmaBatchExec(pSma, pInfo, pInfo->qall, pSubmitArr, type);
+        if (atomic_val_compare_exchange_8(&pInfo->assigned, 0, 1) == 0) {
+          if ((taosQueueItemSize(pInfo->queue) > 0) || RSMA_INFO_ITEM(pInfo, 0)->fetchLevel ||
+              RSMA_INFO_ITEM(pInfo, 1)->fetchLevel) {
+            int32_t batchCnt = -1;
+            int32_t batchMax = taosHashGetSize(infoHash) / tsNumOfVnodeRsmaThreads;
+            bool    occupied = (batchMax <= 1);
+            if (batchMax > 1) {
+              batchMax = 100 / batchMax;
             }
+            while (occupied || (++batchCnt < batchMax)) {    // greedy mode
+              taosReadAllQitems(pInfo->queue, pInfo->qall);  // queue has mutex lock
+              int32_t qallItemSize = taosQallItemSize(pInfo->qall);
+              if (qallItemSize > 0) {
+                tdRSmaBatchExec(pSma, pInfo, pInfo->qall, pSubmitArr, type);
+                smaDebug("vgId:%d, batchSize:%d, execType:%" PRIi8, SMA_VID(pSma), qallItemSize, type);
+              }
 
-            if (type == RSMA_EXEC_OVERFLOW) {
-              tdRSmaFetchAllResult(pSma, pInfo, pSubmitArr);
-            }
+              if (type == RSMA_EXEC_OVERFLOW) {
+                tdRSmaFetchAllResult(pSma, pInfo, pSubmitArr);
+              }
 
-            if (qallItemSize > 0) {
-              // subtract the item size after the task finished, commit should wait for all items be consumed
-              atomic_fetch_sub_64(&pRSmaStat->nBufItems, qallItemSize);
-              isBusy = true;
+              if (qallItemSize > 0) {
+                atomic_fetch_sub_64(&pRSmaStat->nBufItems, qallItemSize);
+                continue;
+              } else if (RSMA_INFO_ITEM(pInfo, 0)->fetchLevel || RSMA_INFO_ITEM(pInfo, 1)->fetchLevel) {
+                continue;
+              }
+
+              break;
             }
-            ASSERT(1 == atomic_val_compare_exchange_8(&pInfo->assigned, 1, 0));
           }
+          ASSERT(1 == atomic_val_compare_exchange_8(&pInfo->assigned, 1, 0));
         }
-        pIter = taosHashIterate(infoHash, pIter);
       }
       if (type == RSMA_EXEC_COMMIT) {
-        break;
+        if (atomic_load_64(&pRSmaStat->nBufItems) <= 0) {
+          break;
+        } else {
+          // commit should wait for all items be consumed
+          continue;
+        }
       }
     }
 #if 0
@@ -1790,16 +1772,19 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
     }
 
     if (atomic_load_64(&pRSmaStat->nBufItems) <= 0) {
-      if (pVnode->inClose) {
+      if (pEnv->flag & SMA_ENV_FLG_CLOSE) {
         break;
       }
+      
       tsem_wait(&pRSmaStat->notEmpty);
-      if (pVnode->inClose && (atomic_load_64(&pRSmaStat->nBufItems) <= 0)) {
-        smaInfo("vgId:%d, exec task end, inClose:%d, nBufItems:%" PRIi64, SMA_VID(pSma), pVnode->inClose,
+
+      if ((pEnv->flag & SMA_ENV_FLG_CLOSE) && (atomic_load_64(&pRSmaStat->nBufItems) <= 0)) {
+        smaInfo("vgId:%d, exec task end, flag:%" PRIi8 ", nBufItems:%" PRIi64, SMA_VID(pSma), pEnv->flag,
                 atomic_load_64(&pRSmaStat->nBufItems));
         break;
       }
     }
+
   }  // end of while(true)
 
 _end:
@@ -1807,41 +1792,5 @@ _end:
   return TSDB_CODE_SUCCESS;
 _err:
   taosArrayDestroy(pSubmitArr);
-  return TSDB_CODE_FAILED;
-}
-
-/**
- * @brief exec rsma level 1data, fetch result of level 2/3 and submit
- *
- * @param pSma
- * @param pMsg
- * @return int32_t
- */
-int32_t smaProcessExec(SSma *pSma, void *pMsg) {
-  SRpcMsg   *pRpcMsg = (SRpcMsg *)pMsg;
-  SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pSma);
-
-  if (!pRpcMsg || pRpcMsg->contLen < sizeof(SMsgHead)) {
-    terrno = TSDB_CODE_RSMA_FETCH_MSG_MSSED_UP;
-    goto _err;
-  }
-  smaDebug("vgId:%d, begin to process rsma exec msg by TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
-
-  int8_t nOld = atomic_fetch_add_8(&pRSmaStat->nExecutor, 1);
-
-  if (nOld < TMIN(RSMA_EXECUTOR_MAX, tsNumOfVnodeQueryThreads / 2)) {
-    if (tdRSmaProcessExecImpl(pSma, RSMA_EXEC_OVERFLOW) < 0) {
-      goto _err;
-    }
-  } else {
-    atomic_fetch_sub_8(&pRSmaStat->nExecutor, 1);
-  }
-
-  smaDebug("vgId:%d, success to process rsma exec msg by TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
-  return TSDB_CODE_SUCCESS;
-_err:
-  atomic_fetch_sub_8(&pRSmaStat->nExecutor, 1);
-  smaError("vgId:%d, failed to process rsma exec msg by TID:%p since %s", SMA_VID(pSma), (void *)taosGetSelfPthreadId(),
-           terrstr());
   return TSDB_CODE_FAILED;
 }

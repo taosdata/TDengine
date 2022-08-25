@@ -3,7 +3,7 @@ sidebar_label: SHOW Statement
 title: SHOW Statement for Metadata
 ---
 
-In addition to running SELECT statements on INFORMATION_SCHEMA, you can also use SHOW to obtain system metadata, information, and status.
+`SHOW` command can be used to get brief system information. To get details about metatadata, information, and status in the system, please use `select` to query the tables in database `INFORMATION_SCHEMA`. 
 
 ## SHOW ACCOUNTS
 

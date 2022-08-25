@@ -189,7 +189,6 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
 int32_t smaInit();
 void    smaCleanUp();
 int32_t smaOpen(SVnode* pVnode);
-int32_t smaPreClose(SSma* pSma);
 int32_t smaClose(SSma* pSma);
 int32_t smaBegin(SSma* pSma);
 int32_t smaSyncPreCommit(SSma* pSma);
@@ -199,7 +198,6 @@ int32_t smaAsyncPreCommit(SSma* pSma);
 int32_t smaAsyncCommit(SSma* pSma);
 int32_t smaAsyncPostCommit(SSma* pSma);
 int32_t smaDoRetention(SSma* pSma, int64_t now);
-int32_t smaProcessExec(SSma* pSma, void* pMsg);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
@@ -323,7 +321,6 @@ struct SVnode {
   TdThreadMutex lock;
   bool          blocked;
   bool          restored;
-  bool          inClose;
   tsem_t        syncSem;
   SQHandle*     pQuery;
 };

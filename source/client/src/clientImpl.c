@@ -215,6 +215,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
                        .pUser = pTscObj->user,
                        .schemalessType = pTscObj->schemalessType,
                        .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
+                       .enableSysInfo = pTscObj->sysInfo,
                        .svrVer = pTscObj->sVer,
                        .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes)};
 
@@ -246,7 +247,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
 
 int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
-  int32_t            code = qExecCommand(pQuery->pRoot, &pRsp);
+  int32_t            code = qExecCommand(pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
   }
@@ -284,7 +285,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     return;
   }
 
-  int32_t code = qExecCommand(pQuery->pRoot, &pRsp);
+  int32_t code = qExecCommand(pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
   }
@@ -419,7 +420,8 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .showRewrite = pQuery->showRewrite,
                       .pMsg = pRequest->msgBuf,
                       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
-                      .pUser = pRequest->pTscObj->user};
+                      .pUser = pRequest->pTscObj->user,
+                      .sysInfo = pRequest->pTscObj->sysInfo};
 
   return qCreateQueryPlan(&cxt, pPlan, pNodeList);
 }
@@ -1009,7 +1011,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
                           .showRewrite = pQuery->showRewrite,
                           .pMsg = pRequest->msgBuf,
                           .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
-                          .pUser = pRequest->pTscObj->user};
+                          .pUser = pRequest->pTscObj->user,
+                          .sysInfo = pRequest->pTscObj->sysInfo};
 
       SAppInstInfo* pAppInfo = getAppInfo(pRequest);
       SQueryPlan*   pDag = NULL;
@@ -1590,10 +1593,11 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
 }
 
 int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols) {
-  int32_t cols = *(int32_t*) (p + sizeof(int32_t) * 3);
+  int32_t cols = *(int32_t*)(p + sizeof(int32_t) * 3);
   ASSERT(numOfCols == cols);
 
-  return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t)*3 + sizeof(uint64_t) + numOfCols * (sizeof(int8_t) + sizeof(int32_t));
+  return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) * 3 + sizeof(uint64_t) +
+         numOfCols * (sizeof(int8_t) + sizeof(int32_t));
 }
 
 static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, int32_t numOfRows) {

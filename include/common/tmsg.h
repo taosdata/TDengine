@@ -292,10 +292,11 @@ int32_t tEncodeSSubmitRsp(SEncoder* pEncoder, const SSubmitRsp* pRsp);
 int32_t tDecodeSSubmitRsp(SDecoder* pDecoder, SSubmitRsp* pRsp);
 void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 
-#define COL_SMA_ON   ((int8_t)0x1)
-#define COL_IDX_ON   ((int8_t)0x2)
-#define COL_SET_NULL ((int8_t)0x10)
-#define COL_SET_VAL  ((int8_t)0x20)
+#define COL_SMA_ON     ((int8_t)0x1)
+#define COL_IDX_ON     ((int8_t)0x2)
+#define COL_SET_NULL   ((int8_t)0x10)
+#define COL_SET_VAL    ((int8_t)0x20)
+#define COL_IS_SYSINFO ((int8_t)0x40)
 struct SSchema {
   int8_t   type;
   int8_t   flags;
@@ -557,6 +558,7 @@ typedef struct {
   uint32_t connId;
   int32_t  dnodeNum;
   int8_t   superUser;
+  int8_t   sysInfo;
   int8_t   connType;
   SEpSet   epSet;
   int32_t  svrTimestamp;

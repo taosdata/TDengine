@@ -51,13 +51,13 @@ sql select * from information_schema.ins_tables where db_name = 'db'
 print =============== check show
 sql select * from information_schema.ins_users
 sql_error show cluster
-sql select * from information_schema.ins_dnodes
-sql select * from information_schema.ins_mnodes
+sql_error select * from information_schema.ins_dnodes
+sql_error select * from information_schema.ins_mnodes
 sql_error show snodes
-sql select * from information_schema.ins_qnodes
+sql_error select * from information_schema.ins_qnodes
 sql_error show bnodes
 sql_error show grants
 sql_error show dnode 1 variables;
-sql show variables;
+sql_error show variables;
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

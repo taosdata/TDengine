@@ -79,6 +79,10 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
     ASSERT(0);
   }
 
+  if (streamLoadTasks(pTq->pStreamMeta) < 0) {
+    ASSERT(0);
+  }
+
   return pTq;
 }
 
@@ -648,17 +652,28 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
 
   // expand executor
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
+    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask);
+    if (pTask->pState == NULL) {
+      return -1;
+    }
+
     SReadHandle handle = {
         .meta = pTq->pVnode->pMeta,
         .vnode = pTq->pVnode,
         .initTqReader = 1,
+        .pStateBackend = pTask->pState,
     };
     pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
     ASSERT(pTask->exec.executor);
   } else if (pTask->taskLevel == TASK_LEVEL__AGG) {
+    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask);
+    if (pTask->pState == NULL) {
+      return -1;
+    }
     SReadHandle mgHandle = {
         .vnode = NULL,
         .numOfVgroups = (int32_t)taosArrayGetSize(pTask->childEpInfo),
+        .pStateBackend = pTask->pState,
     };
     pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &mgHandle);
     ASSERT(pTask->exec.executor);

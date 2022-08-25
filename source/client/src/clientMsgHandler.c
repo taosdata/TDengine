@@ -96,6 +96,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
              connectRsp.epSet.eps[i].fqdn, connectRsp.epSet.eps[i].port, pTscObj->id);
   }
 
+  pTscObj->sysInfo = connectRsp.sysInfo;
   pTscObj->connId = connectRsp.connId;
   pTscObj->acctId = connectRsp.acctId;
   tstrncpy(pTscObj->sVer, connectRsp.sVer, tListLen(pTscObj->sVer));
