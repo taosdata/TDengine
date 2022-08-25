@@ -1672,7 +1672,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
   return NULL;
 }
 
-static void destroyRawScanOperatorInfo(void* param, int32_t numOfOutput) {
+static void destroyRawScanOperatorInfo(void* param) {
   SStreamRawScanInfo* pRawScan = (SStreamRawScanInfo*)param;
   tsdbReaderClose(pRawScan->dataReader);
   destroySnapContext(pRawScan->sContext);
