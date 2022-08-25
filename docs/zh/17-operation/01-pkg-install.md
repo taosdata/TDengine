@@ -54,9 +54,6 @@ $ sudo apt-get remove tdengine
 Reading package lists... Done
 Building dependency tree       
 Reading state information... Done
-The following packages were automatically installed and are no longer required:
-  libevent-core-2.1-7 libevent-pthreads-2.1-7 libopts25 sntp
-Use 'apt autoremove' to remove them.
 The following packages will be REMOVED:
   tdengine
 0 upgraded, 0 newly installed, 1 to remove and 18 not upgraded.
