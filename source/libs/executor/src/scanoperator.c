@@ -36,8 +36,8 @@
 #define SWITCH_ORDER(n)              (((n) = ((n) == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC))
 
 static int32_t buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capacity);
-static int32_t buildDbTableInfoBlock(const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta, size_t size,
-                                     const char* dbName);
+static int32_t buildDbTableInfoBlock(bool sysInfo, const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta,
+                                     size_t size, const char* dbName);
 
 static bool processBlockWithProbability(const SSampleExecInfo* pInfo);
 
@@ -250,7 +250,7 @@ static bool doLoadBlockSMA(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, 
 
   int32_t code = tsdbRetrieveDatablockSMA(pTableScanInfo->dataReader, &pColAgg, &allColumnsHaveAgg);
   if (code != TSDB_CODE_SUCCESS) {
-    longjmp(pTaskInfo->env, code);
+    T_LONG_JMP(pTaskInfo->env, code);
   }
 
   if (!allColumnsHaveAgg) {
@@ -264,7 +264,7 @@ static bool doLoadBlockSMA(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, 
   if (pBlock->pBlockAgg == NULL) {
     pBlock->pBlockAgg = taosMemoryCalloc(numOfCols, POINTER_BYTES);
     if (pBlock->pBlockAgg == NULL) {
-      longjmp(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
+      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
     }
   }
 
@@ -374,7 +374,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     int32_t code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pBlock,
                                           GET_TASKID(pTaskInfo));
     if (code != TSDB_CODE_SUCCESS) {
-      longjmp(pTaskInfo->env, code);
+      T_LONG_JMP(pTaskInfo->env, code);
     }
   }
 
@@ -495,7 +495,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
 
   while (tsdbNextDataBlock(pTableScanInfo->dataReader)) {
     if (isTaskKilled(pTaskInfo)) {
-      longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
+      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
     }
 
     // process this data block based on the probabilities
@@ -523,7 +523,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     int32_t  code = loadDataBlock(pOperator, pTableScanInfo, pBlock, &status);
     //    int32_t  code = loadDataBlockOnDemand(pOperator->pRuntimeEnv, pTableScanInfo, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
-      longjmp(pOperator->pTaskInfo->env, code);
+      T_LONG_JMP(pOperator->pTaskInfo->env, code);
     }
 
     // current block is filter out according to filter condition, continue load the next block
@@ -649,7 +649,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
     int32_t code = tsdbReaderOpen(pInfo->readHandle.vnode, &pInfo->cond, tableList, (STsdbReader**)&pInfo->dataReader,
                                   GET_TASKID(pTaskInfo));
     if (code != TSDB_CODE_SUCCESS) {
-      longjmp(pTaskInfo->env, code);
+      T_LONG_JMP(pTaskInfo->env, code);
       return NULL;
     }
   }
@@ -689,7 +689,7 @@ static int32_t getTableScannerExecInfo(struct SOperatorInfo* pOptr, void** pOptr
   return 0;
 }
 
-static void destroyTableScanOperatorInfo(void* param, int32_t numOfOutput) {
+static void destroyTableScanOperatorInfo(void* param) {
   STableScanInfo* pTableScanInfo = (STableScanInfo*)param;
   blockDataDestroy(pTableScanInfo->pResBlock);
   cleanupQueryTableDataCond(&pTableScanInfo->cond);
@@ -837,7 +837,7 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
   int32_t code = doGetTableRowSize(pBlockScanInfo->readHandle.meta, pBlockScanInfo->uid, &blockDistInfo.rowSize,
                                    GET_TASKID(pTaskInfo));
   if (code != TSDB_CODE_SUCCESS) {
-    longjmp(pTaskInfo->env, code);
+    T_LONG_JMP(pTaskInfo->env, code);
   }
 
   tsdbGetFileBlocksDistInfo(pBlockScanInfo->pHandle, &blockDistInfo);
@@ -863,7 +863,7 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
   return pBlock;
 }
 
-static void destroyBlockDistScanOperatorInfo(void* param, int32_t numOfOutput) {
+static void destroyBlockDistScanOperatorInfo(void* param) {
   SBlockDistInfo* pDistInfo = (SBlockDistInfo*)param;
   blockDataDestroy(pDistInfo->pResBlock);
   tsdbReaderClose(pDistInfo->pHandle);
@@ -1266,7 +1266,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
                                           GET_TASKID(pTaskInfo));
     if (code != TSDB_CODE_SUCCESS) {
       blockDataFreeRes((SSDataBlock*)pBlock);
-      longjmp(pTaskInfo->env, code);
+      T_LONG_JMP(pTaskInfo->env, code);
     }
   }
 
@@ -1280,6 +1280,42 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   // NOTE: this operator does never check if current status is done or not
   SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
   SStreamScanInfo* pInfo = pOperator->info;
+
+#if 0
+  SStreamState* pState = pTaskInfo->streamInfo.pState;
+  if (pState) {
+    printf(">>>>>>>> stream write backend\n");
+    SWinKey key = {
+        .ts = 1,
+        .groupId = 2,
+    };
+    char tmp[100] = "abcdefg1";
+    if (streamStatePut(pState, &key, &tmp, strlen(tmp) + 1) < 0) {
+      ASSERT(0);
+    }
+
+    key.ts = 2;
+    char tmp2[100] = "abcdefg2";
+    if (streamStatePut(pState, &key, &tmp2, strlen(tmp2) + 1) < 0) {
+      ASSERT(0);
+    }
+
+    key.groupId = 5;
+    key.ts = 1;
+    char tmp3[100] = "abcdefg3";
+    if (streamStatePut(pState, &key, &tmp3, strlen(tmp3) + 1) < 0) {
+      ASSERT(0);
+    }
+
+    char*   val2 = NULL;
+    int32_t sz;
+    if (streamStateGet(pState, &key, (void**)&val2, &sz) < 0) {
+      ASSERT(0);
+    }
+    printf("stream read %s %d\n", val2, sz);
+    streamFreeVal(val2);
+  }
+#endif
 
   qDebug("stream scan called");
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__LOG) {
@@ -1673,11 +1709,11 @@ SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pT
   return pOperator;
 }
 
-static void destroyStreamScanOperatorInfo(void* param, int32_t numOfOutput) {
+static void destroyStreamScanOperatorInfo(void* param) {
   SStreamScanInfo* pStreamScan = (SStreamScanInfo*)param;
   if (pStreamScan->pTableScanOp && pStreamScan->pTableScanOp->info) {
     STableScanInfo* pTableScanInfo = pStreamScan->pTableScanOp->info;
-    destroyTableScanOperatorInfo(pTableScanInfo, numOfOutput);
+    destroyTableScanOperatorInfo(pTableScanInfo);
     taosMemoryFreeClear(pStreamScan->pTableScanOp);
   }
   if (pStreamScan->tqReader) {
@@ -1833,7 +1869,7 @@ _error:
   return NULL;
 }
 
-static void destroySysScanOperator(void* param, int32_t numOfOutput) {
+static void destroySysScanOperator(void* param) {
   SSysTableScanInfo* pInfo = (SSysTableScanInfo*)param;
   tsem_destroy(&pInfo->ready);
   blockDataDestroy(pInfo->pRes);
@@ -2091,7 +2127,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
       metaReaderClear(&smr);
       metaCloseTbCursor(pInfo->pCur);
       pInfo->pCur = NULL;
-      longjmp(pTaskInfo->env, terrno);
+      T_LONG_JMP(pTaskInfo->env, terrno);
     }
 
     char stableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -2294,7 +2330,7 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
           metaReaderClear(&mr);
           metaCloseTbCursor(pInfo->pCur);
           pInfo->pCur = NULL;
-          longjmp(pTaskInfo->env, terrno);
+          T_LONG_JMP(pTaskInfo->env, terrno);
         }
 
         // number of columns
@@ -2526,10 +2562,10 @@ int32_t buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capacity) {
   const SSysTableMeta* pSysDbTableMeta = NULL;
 
   getInfosDbMeta(&pSysDbTableMeta, &size);
-  p->info.rows = buildDbTableInfoBlock(p, pSysDbTableMeta, size, TSDB_INFORMATION_SCHEMA_DB);
+  p->info.rows = buildDbTableInfoBlock(pInfo->sysInfo, p, pSysDbTableMeta, size, TSDB_INFORMATION_SCHEMA_DB);
 
   getPerfDbMeta(&pSysDbTableMeta, &size);
-  p->info.rows = buildDbTableInfoBlock(p, pSysDbTableMeta, size, TSDB_PERFORMANCE_SCHEMA_DB);
+  p->info.rows = buildDbTableInfoBlock(pInfo->sysInfo, p, pSysDbTableMeta, size, TSDB_PERFORMANCE_SCHEMA_DB);
 
   pInfo->pRes->info.rows = p->info.rows;
   relocateColumnData(pInfo->pRes, pInfo->scanCols, p->pDataBlock, false);
@@ -2538,13 +2574,16 @@ int32_t buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capacity) {
   return pInfo->pRes->info.rows;
 }
 
-int32_t buildDbTableInfoBlock(const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta, size_t size,
+int32_t buildDbTableInfoBlock(bool sysInfo, const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta, size_t size,
                               const char* dbName) {
   char    n[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   int32_t numOfRows = p->info.rows;
 
   for (int32_t i = 0; i < size; ++i) {
     const SSysTableMeta* pm = &pSysDbTableMeta[i];
+    if (!sysInfo && pm->sysInfo) {
+      continue;
+    }
 
     SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, 0);
 
@@ -2598,6 +2637,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
 
   pInfo->accountId = pScanPhyNode->accountId;
   pInfo->pUser = taosMemoryStrDup((void*)pUser);
+  pInfo->sysInfo = pScanPhyNode->sysInfo;
   pInfo->showRewrite = pScanPhyNode->showRewrite;
   pInfo->pRes = pResBlock;
   pInfo->pCondition = pScanNode->node.pConditions;
@@ -2668,7 +2708,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
       qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", item->uid, tstrerror(terrno),
              GET_TASKID(pTaskInfo));
       metaReaderClear(&mr);
-      longjmp(pTaskInfo->env, terrno);
+      T_LONG_JMP(pTaskInfo->env, terrno);
     }
 
     for (int32_t j = 0; j < pOperator->exprSupp.numOfExprs; ++j) {
@@ -2718,12 +2758,10 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
   return (pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
 
-static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
+static void destroyTagScanOperatorInfo(void* param) {
   STagScanInfo* pInfo = (STagScanInfo*)param;
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
-
   taosArrayDestroy(pInfo->pColMatchInfo);
-
   taosMemoryFreeClear(param);
 }
 
@@ -2919,7 +2957,7 @@ static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeSc
     int32_t code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pTableScanInfo->pseudoSup.pExprInfo,
                                           pTableScanInfo->pseudoSup.numOfExprs, pBlock, GET_TASKID(pTaskInfo));
     if (code != TSDB_CODE_SUCCESS) {
-      longjmp(pTaskInfo->env, code);
+      T_LONG_JMP(pTaskInfo->env, code);
     }
   }
 
@@ -2962,7 +3000,7 @@ static SSDataBlock* getTableDataBlock(void* param) {
   STsdbReader* reader = taosArrayGetP(pTableScanInfo->dataReaders, readerIdx);
   while (tsdbNextDataBlock(reader)) {
     if (isTaskKilled(pOperator->pTaskInfo)) {
-      longjmp(pOperator->pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
+      T_LONG_JMP(pOperator->pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
     }
 
     // process this data block based on the probabilities
@@ -2985,7 +3023,7 @@ static SSDataBlock* getTableDataBlock(void* param) {
     int32_t  code = loadDataBlockFromOneTable(pOperator, pTableScanInfo, readerIdx, pBlock, &status);
     //    int32_t  code = loadDataBlockOnDemand(pOperator->pRuntimeEnv, pTableScanInfo, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
-      longjmp(pOperator->pTaskInfo->env, code);
+      T_LONG_JMP(pOperator->pTaskInfo->env, code);
     }
 
     // current block is filter out according to filter condition, continue load the next block
@@ -3078,7 +3116,7 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   int32_t code = tsortOpen(pInfo->pSortHandle);
 
   if (code != TSDB_CODE_SUCCESS) {
-    longjmp(pTaskInfo->env, terrno);
+    T_LONG_JMP(pTaskInfo->env, terrno);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3148,7 +3186,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
 
   int32_t code = pOperator->fpSet._openFn(pOperator);
   if (code != TSDB_CODE_SUCCESS) {
-    longjmp(pTaskInfo->env, code);
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   size_t tableListSize = taosArrayGetSize(pInfo->tableListInfo->pTableList);
   if (!pInfo->hasGroupId) {
@@ -3186,7 +3224,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
   return pBlock;
 }
 
-void destroyTableMergeScanOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyTableMergeScanOperatorInfo(void* param) {
   STableMergeScanInfo* pTableScanInfo = (STableMergeScanInfo*)param;
   cleanupQueryTableDataCond(&pTableScanInfo->cond);
   taosArrayDestroy(pTableScanInfo->sortSourceParams);

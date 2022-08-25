@@ -49,6 +49,7 @@ typedef struct SParseContext {
   SStmtCallback*   pStmtCb;
   const char*      pUser;
   bool             isSuperUser;
+  bool             enableSysInfo;
   bool             async;
   int8_t           schemalessType;
   const char*      svrVer;

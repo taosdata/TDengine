@@ -268,6 +268,35 @@ STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
 // for debug
 int32_t tPrintFixedSchemaSubmitReq(SSubmitReq* pReq, STSchema* pSchema);
 
+struct SSchema {
+  int8_t   type;
+  int8_t   flags;
+  col_id_t colId;
+  int32_t  bytes;
+  char     name[TSDB_COL_NAME_LEN];
+};
+
+
+typedef struct {
+  char     tbName[TSDB_TABLE_NAME_LEN];
+  char     stbName[TSDB_TABLE_NAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  int64_t  dbId;
+  int32_t  numOfTags;
+  int32_t  numOfColumns;
+  int8_t   precision;
+  int8_t   tableType;
+  int32_t  sversion;
+  int32_t  tversion;
+  uint64_t suid;
+  uint64_t tuid;
+  int32_t  vgId;
+  int8_t   sysInfo;
+  SSchema* pSchemas;
+} STableMetaRsp;
+
+
+
 typedef struct {
   int32_t code;
   int8_t  hashMeta;
@@ -276,6 +305,7 @@ typedef struct {
   int32_t numOfRows;
   int32_t affectedRows;
   int64_t sver;
+  STableMetaRsp* pMeta;  
 } SSubmitBlkRsp;
 
 typedef struct {
@@ -290,19 +320,14 @@ typedef struct {
 
 int32_t tEncodeSSubmitRsp(SEncoder* pEncoder, const SSubmitRsp* pRsp);
 int32_t tDecodeSSubmitRsp(SDecoder* pDecoder, SSubmitRsp* pRsp);
+void tFreeSSubmitBlkRsp(void* param);
 void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 
-#define COL_SMA_ON   ((int8_t)0x1)
-#define COL_IDX_ON   ((int8_t)0x2)
-#define COL_SET_NULL ((int8_t)0x10)
-#define COL_SET_VAL  ((int8_t)0x20)
-struct SSchema {
-  int8_t   type;
-  int8_t   flags;
-  col_id_t colId;
-  int32_t  bytes;
-  char     name[TSDB_COL_NAME_LEN];
-};
+#define COL_SMA_ON     ((int8_t)0x1)
+#define COL_IDX_ON     ((int8_t)0x2)
+#define COL_SET_NULL   ((int8_t)0x10)
+#define COL_SET_VAL    ((int8_t)0x20)
+#define COL_IS_SYSINFO ((int8_t)0x40)
 
 #define COL_IS_SET(FLG)  (((FLG) & (COL_SET_VAL | COL_SET_NULL)) != 0)
 #define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
@@ -473,6 +498,14 @@ int32_t tDeserializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pR
 void    tFreeSMCreateStbReq(SMCreateStbReq* pReq);
 
 typedef struct {
+  STableMetaRsp* pMeta;
+} SMCreateStbRsp;
+
+int32_t tEncodeSMCreateStbRsp(SEncoder* pEncoder, const SMCreateStbRsp* pRsp);
+int32_t tDecodeSMCreateStbRsp(SDecoder* pDecoder, SMCreateStbRsp* pRsp);
+void    tFreeSMCreateStbRsp(SMCreateStbRsp* pRsp);
+
+typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
   int8_t   igNotExists;
   int8_t   source;  // 1-taosX or 0-taosClient
@@ -530,6 +563,7 @@ typedef struct {
   uint32_t connId;
   int32_t  dnodeNum;
   int8_t   superUser;
+  int8_t   sysInfo;
   int8_t   connType;
   SEpSet   epSet;
   int32_t  svrTimestamp;
@@ -1240,23 +1274,6 @@ typedef struct {
 } SVgroupsInfo;
 
 typedef struct {
-  char     tbName[TSDB_TABLE_NAME_LEN];
-  char     stbName[TSDB_TABLE_NAME_LEN];
-  char     dbFName[TSDB_DB_FNAME_LEN];
-  int64_t  dbId;
-  int32_t  numOfTags;
-  int32_t  numOfColumns;
-  int8_t   precision;
-  int8_t   tableType;
-  int32_t  sversion;
-  int32_t  tversion;
-  uint64_t suid;
-  uint64_t tuid;
-  int32_t  vgId;
-  SSchema* pSchemas;
-} STableMetaRsp;
-
-typedef struct {
   STableMetaRsp* pMeta;
 } SMAlterStbRsp;
 
@@ -1266,7 +1283,7 @@ void    tFreeSMAlterStbRsp(SMAlterStbRsp* pRsp);
 
 int32_t tSerializeSTableMetaRsp(void* buf, int32_t bufLen, STableMetaRsp* pRsp);
 int32_t tDeserializeSTableMetaRsp(void* buf, int32_t bufLen, STableMetaRsp* pRsp);
-void    tFreeSTableMetaRsp(STableMetaRsp* pRsp);
+void    tFreeSTableMetaRsp(void* pRsp);
 void    tFreeSTableIndexRsp(void* info);
 
 typedef struct {
@@ -2028,11 +2045,13 @@ int tEncodeSVCreateTbBatchReq(SEncoder* pCoder, const SVCreateTbBatchReq* pReq);
 int tDecodeSVCreateTbBatchReq(SDecoder* pCoder, SVCreateTbBatchReq* pReq);
 
 typedef struct {
-  int32_t code;
+  int32_t        code;
+  STableMetaRsp* pMeta;
 } SVCreateTbRsp, SVUpdateTbRsp;
 
 int tEncodeSVCreateTbRsp(SEncoder* pCoder, const SVCreateTbRsp* pRsp);
 int tDecodeSVCreateTbRsp(SDecoder* pCoder, SVCreateTbRsp* pRsp);
+void tFreeSVCreateTbRsp(void* param);
 
 int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
 void*   tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);

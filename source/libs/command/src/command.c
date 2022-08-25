@@ -17,6 +17,7 @@
 #include "catalog.h"
 #include "commandInt.h"
 #include "scheduler.h"
+#include "systable.h"
 #include "tdatablock.h"
 #include "tglobal.h"
 #include "tgrant.h"
@@ -75,46 +76,41 @@ static SSDataBlock* buildDescResultDataBlock() {
   return pBlock;
 }
 
-static void setDescResultIntoDataBlock(SSDataBlock* pBlock, int32_t numOfRows, STableMeta* pMeta) {
+static void setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock, int32_t numOfRows, STableMeta* pMeta) {
   blockDataEnsureCapacity(pBlock, numOfRows);
-  pBlock->info.rows = numOfRows;
+  pBlock->info.rows = 0;
 
   // field
   SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
-  char             buf[DESCRIBE_RESULT_FIELD_LEN] = {0};
-  for (int32_t i = 0; i < numOfRows; ++i) {
-    STR_TO_VARSTR(buf, pMeta->schema[i].name);
-    colDataAppend(pCol1, i, buf, false);
-  }
-
   // Type
   SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
-  for (int32_t i = 0; i < numOfRows; ++i) {
-    STR_TO_VARSTR(buf, tDataTypes[pMeta->schema[i].type].name);
-    colDataAppend(pCol2, i, buf, false);
-  }
-
   // Length
   SColumnInfoData* pCol3 = taosArrayGet(pBlock->pDataBlock, 2);
-  for (int32_t i = 0; i < numOfRows; ++i) {
-    int32_t bytes = getSchemaBytes(pMeta->schema + i);
-    colDataAppend(pCol3, i, (const char*)&bytes, false);
-  }
-
   // Note
   SColumnInfoData* pCol4 = taosArrayGet(pBlock->pDataBlock, 3);
+  char             buf[DESCRIBE_RESULT_FIELD_LEN] = {0};
   for (int32_t i = 0; i < numOfRows; ++i) {
+    if (invisibleColumn(sysInfoUser, pMeta->tableType, pMeta->schema[i].flags)) {
+      continue;
+    }
+    STR_TO_VARSTR(buf, pMeta->schema[i].name);
+    colDataAppend(pCol1, pBlock->info.rows, buf, false);
+    STR_TO_VARSTR(buf, tDataTypes[pMeta->schema[i].type].name);
+    colDataAppend(pCol2, pBlock->info.rows, buf, false);
+    int32_t bytes = getSchemaBytes(pMeta->schema + i);
+    colDataAppend(pCol3, pBlock->info.rows, (const char*)&bytes, false);
     STR_TO_VARSTR(buf, i >= pMeta->tableInfo.numOfColumns ? "TAG" : "");
-    colDataAppend(pCol4, i, buf, false);
+    colDataAppend(pCol4, pBlock->info.rows, buf, false);
+    ++(pBlock->info.rows);
   }
 }
 
-static int32_t execDescribe(SNode* pStmt, SRetrieveTableRsp** pRsp) {
+static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp) {
   SDescribeStmt* pDesc = (SDescribeStmt*)pStmt;
   int32_t        numOfRows = TABLE_TOTAL_COL_NUM(pDesc->pMeta);
 
   SSDataBlock* pBlock = buildDescResultDataBlock();
-  setDescResultIntoDataBlock(pBlock, numOfRows, pDesc->pMeta);
+  setDescResultIntoDataBlock(sysInfoUser, pBlock, numOfRows, pDesc->pMeta);
 
   return buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
 }
@@ -665,10 +661,10 @@ static int32_t execSelectWithoutFrom(SSelectStmt* pSelect, SRetrieveTableRsp** p
   return code;
 }
 
-int32_t qExecCommand(SNode* pStmt, SRetrieveTableRsp** pRsp) {
+int32_t qExecCommand(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_DESCRIBE_STMT:
-      return execDescribe(pStmt, pRsp);
+      return execDescribe(sysInfoUser, pStmt, pRsp);
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
       return execResetQueryCache();
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:

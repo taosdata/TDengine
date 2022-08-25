@@ -23,6 +23,12 @@
 #include "tcommon.h"
 #include "tpagedbuf.h"
 
+#define T_LONG_JMP(_obj, _c) \
+  do {                       \
+    ASSERT((_c) != -1);      \
+    longjmp((_obj), (_c));   \
+  } while (0);
+
 #define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)     \
   do {                                               \
     assert(sizeof(_uid) == sizeof(uint64_t));        \

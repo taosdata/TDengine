@@ -1,6 +1,7 @@
 ---
 sidebar_label: 流式计算
 title: 流式计算
+description: 流式计算的相关 SQL 的详细语法
 ---
 
 

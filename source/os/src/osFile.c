@@ -203,10 +203,11 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
 }
 
 int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime) {
-  struct stat fileStat;
 #ifdef WINDOWS
-  int32_t code = _stat(path, &fileStat);
+  struct _stati64 fileStat;
+  int32_t code = _stati64(path, &fileStat);
 #else
+  struct stat fileStat;
   int32_t code = stat(path, &fileStat);
 #endif
   if (code < 0) {

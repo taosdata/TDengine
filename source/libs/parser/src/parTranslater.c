@@ -784,6 +784,9 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
     int32_t           nums = pMeta->tableInfo.numOfColumns +
                    (igTags ? 0 : ((TSDB_SUPER_TABLE == pMeta->tableType) ? pMeta->tableInfo.numOfTags : 0));
     for (int32_t i = 0; i < nums; ++i) {
+      if (invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
+        continue;
+      }
       SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
       if (NULL == pCol) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
@@ -826,7 +829,8 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
     }
     int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
     for (int32_t i = 0; i < nums; ++i) {
-      if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
+      if (0 == strcmp(pCol->colName, pMeta->schema[i].name) &&
+          !invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
         setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns), pCol);
         *pFound = true;
         break;
@@ -2192,13 +2196,13 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
           code = setTableCacheLastMode(pCxt, &name, pRealTable);
         }
       }
-      pRealTable->table.precision = pRealTable->pMeta->tableInfo.precision;
-      pRealTable->table.singleTable = isSingleTable(pRealTable);
       if (TSDB_CODE_SUCCESS == code) {
+        pRealTable->table.precision = pRealTable->pMeta->tableInfo.precision;
+        pRealTable->table.singleTable = isSingleTable(pRealTable);
+        if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
+          pCxt->stableQuery = true;
+        }
         code = addNamespace(pCxt, pRealTable);
-      }
-      if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
-        pCxt->stableQuery = true;
       }
       break;
     }
@@ -2594,8 +2598,7 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode* pWhere, STimeWi
   return code;
 }
 
-static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* pInterval,
-                         bool isInterpFill) {
+static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* pInterval, bool isInterpFill) {
   if (FILL_MODE_NONE == pFill->mode) {
     if (isInterpFill) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Unsupported fill type");

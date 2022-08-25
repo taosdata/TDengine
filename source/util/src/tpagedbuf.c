@@ -309,6 +309,7 @@ static SListNode* getEldestUnrefedPage(SDiskbasedBuf* pBuf) {
 static char* evacOneDataPage(SDiskbasedBuf* pBuf) {
   char*      bufPage = NULL;
   SListNode* pn = getEldestUnrefedPage(pBuf);
+  terrno = 0;
 
   // all pages are referenced by user, try to allocate new space
   if (pn == NULL) {
@@ -332,6 +333,7 @@ static char* evacOneDataPage(SDiskbasedBuf* pBuf) {
     bufPage = flushPageToDisk(pBuf, d);
   }
 
+  ASSERT((bufPage != NULL) || terrno != TSDB_CODE_SUCCESS);
   return bufPage;
 }
 
