@@ -1528,7 +1528,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
   if(pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA){
     SSDataBlock* pBlock = &pInfo->pRes;
 
-    if (tsdbNextDataBlock(pInfo->dataReader)) {
+    if (pInfo->dataReader && tsdbNextDataBlock(pInfo->dataReader)) {
       if (isTaskKilled(pTaskInfo)) {
         longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
       }

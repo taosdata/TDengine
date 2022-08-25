@@ -1405,6 +1405,11 @@ static int32_t tmqWriteRaw(TAOS* taos, void* data, int32_t dataLen) {
     }
 
     code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST){
+      uError("WriteRaw:catalogGetTableMeta table not exist. table name: %s", tbName);
+      code = TSDB_CODE_SUCCESS;
+      continue;
+    }
     if (code != TSDB_CODE_SUCCESS) {
       uError("WriteRaw:catalogGetTableMeta failed. table name: %s", tbName);
       goto end;
@@ -1472,7 +1477,7 @@ static int32_t tmqWriteRaw(TAOS* taos, void* data, int32_t dataLen) {
     SRowBuilder rb = {0};
     tdSRowInit(&rb, sver);
     tdSRowSetTpInfo(&rb, pTableMeta->tableInfo.numOfColumns, fLen);
-    int32_t dataLen = 0;
+    int32_t totalLen = 0;
 
     SHashObj* schemaHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
     for (int i = 0; i < pSW->nCols; i++) {
@@ -1509,7 +1514,7 @@ static int32_t tmqWriteRaw(TAOS* taos, void* data, int32_t dataLen) {
       tdSRowEnd(&rb);
       int32_t rowLen = TD_ROW_LEN(rowData);
       rowData = POINTER_SHIFT(rowData, rowLen);
-      dataLen += rowLen;
+      totalLen += rowLen;
     }
 
     taosHashCleanup(schemaHash);
@@ -1518,8 +1523,8 @@ static int32_t tmqWriteRaw(TAOS* taos, void* data, int32_t dataLen) {
     blk->sversion = htonl(sver);
     blk->schemaLen = htonl(schemaLen);
     blk->numOfRows = htonl(rows);
-    blk->dataLen = htonl(dataLen);
-    subReq->length += sizeof(SSubmitBlk) + schemaLen + dataLen;
+    blk->dataLen = htonl(totalLen);
+    subReq->length += sizeof(SSubmitBlk) + schemaLen + totalLen;
     subReq->numOfBlocks++;
     taosMemoryFreeClear(pTableMeta);
   }

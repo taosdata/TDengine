@@ -403,6 +403,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
         code = -1;
       }
+      goto OVER;
     }else{
       fetchOffsetNew = dataRsp.rspOffset;
     }
@@ -434,7 +435,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         // TODO add push mgr
 
         tqOffsetResetToLog(&dataRsp.rspOffset, fetchVer);
-        ASSERT(dataRsp.rspOffset.version >= dataRsp.reqOffset.version);
         if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
           code = -1;
         }
@@ -456,8 +456,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         // TODO continue scan until meeting batch requirement
         if (dataRsp.blockNum > 0 /* threshold */) {
           tqOffsetResetToLog(&dataRsp.rspOffset, fetchVer);
-          ASSERT(dataRsp.rspOffset.version >= dataRsp.reqOffset.version);
-
           if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
             code = -1;
           }

@@ -283,6 +283,15 @@ int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t
     STbDbKey *tmp = (STbDbKey*)pKey;
     if (tmp->version > ctx->snapVersion) break;
 
+    SIdInfo* idData = (SIdInfo*)taosHashGet(ctx->idVersion, &tmp->uid, sizeof(tb_uid_t));
+    if(idData) {
+      continue;
+    }
+
+    if (tdbTbGet(pMeta->pUidIdx, &tmp->uid, sizeof(tb_uid_t), NULL, NULL) < 0) {    // check if table exist for now, need optimize later
+      continue;
+    }
+
     SDecoder   dc = {0};
     SMetaEntry me = {0};
     tDecoderInit(&dc, pVal, vLen);
@@ -290,16 +299,17 @@ int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t
     if(ctx->subType == TOPIC_SUB_TYPE__TABLE){
       if ((me.uid != ctx->suid && me.type == TSDB_SUPER_TABLE) ||
           (me.ctbEntry.suid != ctx->suid && me.type == TSDB_CHILD_TABLE)){
+        tDecoderClear(&dc);
         continue;
       }
     }
-    SIdInfo* idData = (SIdInfo*)taosHashGet(ctx->idVersion, &tmp->uid, sizeof(tb_uid_t));
-    if(!idData){
-      taosArrayPush(ctx->idList, &tmp->uid);
-      metaDebug("tmqsnap init idlist name:%s, uid:%" PRIi64, me.name, tmp->uid);
-      SIdInfo info = {0};
-      taosHashPut(ctx->idVersion, &tmp->uid, sizeof(tb_uid_t), &info, sizeof(SIdInfo));
-    }
+
+    taosArrayPush(ctx->idList, &tmp->uid);
+    metaDebug("tmqsnap init idlist name:%s, uid:%" PRIi64, me.name, tmp->uid);
+    SIdInfo info = {0};
+    taosHashPut(ctx->idVersion, &tmp->uid, sizeof(tb_uid_t), &info, sizeof(SIdInfo));
+
+    tDecoderClear(&dc);
   }
   taosHashClear(ctx->idVersion);
 
@@ -310,10 +320,11 @@ int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t
 
     STbDbKey *tmp = (STbDbKey*)pKey;
     SIdInfo* idData = (SIdInfo*)taosHashGet(ctx->idVersion, &tmp->uid, sizeof(tb_uid_t));
-    if(!idData){
-      SIdInfo info = {.version = tmp->version, .index = 0};
-      taosHashPut(ctx->idVersion, &tmp->uid, sizeof(tb_uid_t), &info, sizeof(SIdInfo));
+    if(idData){
+      continue;
     }
+    SIdInfo info = {.version = tmp->version, .index = 0};
+    taosHashPut(ctx->idVersion, &tmp->uid, sizeof(tb_uid_t), &info, sizeof(SIdInfo));
 
     SDecoder   dc = {0};
     SMetaEntry me = {0};
@@ -322,6 +333,7 @@ int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t
     if(ctx->subType == TOPIC_SUB_TYPE__TABLE){
       if ((me.uid != ctx->suid && me.type == TSDB_SUPER_TABLE) ||
           (me.ctbEntry.suid != ctx->suid && me.type == TSDB_CHILD_TABLE)){
+        tDecoderClear(&dc);
         continue;
       }
     }

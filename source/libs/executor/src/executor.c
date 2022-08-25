@@ -847,6 +847,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     pInfo->dataReader = NULL;
     cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
     taosArrayDestroy(pTaskInfo->tableqinfoList.pTableList);
+    if(mtInfo.uid == 0) return 0;   // no data
+
     initQueryTableDataCondForTmq(&pTaskInfo->streamInfo.tableCond, sContext, mtInfo);
     pTaskInfo->streamInfo.tableCond.twindows.skey = pOffset->ts;
     pTaskInfo->tableqinfoList.pTableList = taosArrayInit(1, sizeof(STableKeyInfo));
