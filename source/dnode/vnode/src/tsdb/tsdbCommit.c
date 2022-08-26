@@ -753,7 +753,7 @@ static int32_t tsdbCommitLastFile(SCommitter *pCommitter, STbDataIter *pIter) {
   }
 
   if (!pBlockData->suid && !pBlockData->uid) {
-    code = tBlockDataInit(pBlockData, pTbData->suid, pTbData->uid, pCommitter->skmTable.pTSchema);
+    code = tBlockDataInit(pBlockData, pTbData->suid, 0, pCommitter->skmTable.pTSchema);
     if (code) goto _err;
   }
 
@@ -1150,7 +1150,7 @@ static int32_t tsdbCommitData(SCommitter *pCommitter) {
   tsdbCommitDataEnd(pCommitter);
 
 _exit:
-  tsdbDebug("vgId:%d, commit data done, nRow:%" PRId64, TD_VID(pTsdb->pVnode), pMemTable->nRow);
+  tsdbInfo("vgId:%d, commit data done, nRow:%" PRId64, TD_VID(pTsdb->pVnode), pMemTable->nRow);
   return code;
 
 _err:
