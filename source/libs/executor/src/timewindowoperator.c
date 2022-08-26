@@ -1029,7 +1029,7 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
         (!ascScan && ekey >= pBlock->info.window.skey)) {
       // window start(end) key interpolation
       doWindowBorderInterpolation(pInfo, pBlock, pResult, &nextWin, startPos, forwardRows, pSup);
-    } else {
+    } else if (pInfo->timeWindowInterpo) {
       addToOpenWindowList(pResultRowInfo, pResult, tableGroupId);
     }
 
