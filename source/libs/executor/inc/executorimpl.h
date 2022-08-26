@@ -300,7 +300,7 @@ typedef struct SAggSupporter {
   SSHashObj*     pResultRowHashTable;  // quick locate the window object for each result
   char*          keyBuf;               // window key buffer
   SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
-  int32_t        resultRowSize;  // the result buffer size for each result row, with the meta data size for each row
+  int32_t        resultRowSize;        // the result buffer size for each result row, with the meta data size for each row
 } SAggSupporter;
 
 typedef struct {
