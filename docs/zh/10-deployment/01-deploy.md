@@ -71,11 +71,7 @@ serverPort            6030
 
 ## 启动集群
 
-<<<<<<< HEAD
 按照《立即开始》里的步骤，启动第一个数据节点，例如 h1.taosdata.com，然后执行 taos，启动 TDengine CLI，在其中执行命令 “SHOW DNODES”，如下所示：
-=======
-按照《立即开始》里的步骤，启动第一个数据节点，例如 h1.taosdata.com，然后执行 taos，启动 TDengine CLI，从 shell 里执行命令“SHOW DNODES”，如下所示：
->>>>>>> 30903ba80fe488b3b8e96db7f599052a05f7c025
 
 ```
 taos> show dnodes;
