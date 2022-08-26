@@ -12,15 +12,15 @@ Prometheus data can be stored in TDengine via the `remote_write` interface with 
 
 ## Install Prometheus
 
-Please refer to [Install Prometheus](../../data-in/prometheus).
+Please refer to [Install Prometheus](../../data-in/prometheus#install-prometheus).
 
-## Configure
+## Configure Prometheus
 
-Please refer to [Configure Prometheus](../../data-in/prometheus).
+Please refer to [Configure Prometheus](../../data-in/prometheus/#configure-prometheus).
 
 ## Start Prometheus
 
-Please refer to [Start Prometheus](../../data-in/prometheus).
+Please refer to [Start Prometheus](../../data-in/prometheus/#start-prometheus).
 
 ## Verify Remote Read
 
