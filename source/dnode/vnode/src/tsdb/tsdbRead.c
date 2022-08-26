@@ -2191,7 +2191,7 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum) {
       return code;
     }
 
-    code = tsdbReadBlockL(pReader->pFileReader, pLastBlocks);
+    code = tsdbReadBlockL(pReader->pFileReader, 0, pLastBlocks);
     if (code != TSDB_CODE_SUCCESS) {
       taosArrayDestroy(pIndexList);
       return code;
@@ -2266,7 +2266,7 @@ static int32_t doLoadRelatedLastBlock(SLastBlockReader* pLastBlockReader, STable
     return code;
   }
 
-  code = tsdbReadLastBlock(pReader->pFileReader, pBlock, &pLastBlockReader->lastBlockData);
+  code = tsdbReadLastBlock(pReader->pFileReader, 0, pBlock, &pLastBlockReader->lastBlockData);
 
   double el = (taosGetTimestampUs() - st) / 1000.0;
   if (code != TSDB_CODE_SUCCESS) {
