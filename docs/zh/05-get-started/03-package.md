@@ -1,6 +1,7 @@
 ---
 sidebar_label: 安装包
 title: 使用安装包立即开始
+description: 使用安装包快速体验 TDengine
 ---
 
 import Tabs from "@theme/Tabs";

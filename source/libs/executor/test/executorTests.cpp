@@ -26,7 +26,6 @@
 #include "executor.h"
 #include "executorimpl.h"
 #include "function.h"
-#include "stub.h"
 #include "taos.h"
 #include "tdatablock.h"
 #include "tdef.h"

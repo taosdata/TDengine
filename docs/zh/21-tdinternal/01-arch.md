@@ -1,6 +1,7 @@
 ---
 sidebar_label: 整体架构
 title: 整体架构
+description: TDengine 架构设计，包括：集群、存储、缓存与持久化、数据备份、多级存储等
 ---
 
 ## 集群与基本逻辑单元

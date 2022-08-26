@@ -1,6 +1,7 @@
 ---
 sidebar_label: 自定义函数
 title: 用户自定义函数
+description: 使用 UDF 的详细指南
 ---
 
 除了 TDengine 的内置函数以外，用户还可以编写自己的函数逻辑并加入TDengine系统中。

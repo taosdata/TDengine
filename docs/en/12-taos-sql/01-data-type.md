@@ -11,7 +11,7 @@ When using TDengine to store and query data, the most important part of the data
 - The format must be `YYYY-MM-DD HH:mm:ss.MS`, the default time precision is millisecond (ms), for example `2017-08-12 18:25:58.128`
 - Internal function `now` can be used to get the current timestamp on the client side
 - The current timestamp of the client side is applied when `now` is used to insert data
-- Epoch Time：timestamp can also be a long integer number, which means the number of seconds, milliseconds or nanoseconds, depending on the time precision, from 1970-01-01 00:00:00.000 (UTC/GMT)
+- Epoch Time：timestamp can also be a long integer number, which means the number of seconds, milliseconds or nanoseconds, depending on the time precision, from UTC 1970-01-01 00:00:00.
 - Add/subtract operations can be carried out on timestamps. For example `now-2h` means 2 hours prior to the time at which query is executed. The units of time in operations can be b(nanosecond), u(microsecond), a(millisecond), s(second), m(minute), h(hour), d(day), or w(week). So `select * from t1 where ts > now-2w and ts <= now-1w` means the data between two weeks ago and one week ago. The time unit can also be n (calendar month) or y (calendar year) when specifying the time window for down sampling operations.
 
 Time precision in TDengine can be set by the `PRECISION` parameter when executing `CREATE DATABASE`. The default time precision is millisecond. In the statement below, the precision is set to nanonseconds.

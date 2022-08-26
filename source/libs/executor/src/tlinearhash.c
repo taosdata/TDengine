@@ -26,7 +26,7 @@ typedef struct SLHashBucket {
   int32_t        size;            // the number of element in this entry
 } SLHashBucket;
 
-typedef struct SLHashObj {
+struct SLHashObj {
   SDiskbasedBuf *pBuf;
   _hash_fn_t     hashFn;
   SLHashBucket **pBucket;         // entry list
@@ -35,7 +35,7 @@ typedef struct SLHashObj {
   int32_t        bits;            // the number of bits used in hash
   int32_t        numOfBuckets;    // the number of buckets
   int64_t        size;            // the number of total items
-} SLHashObj;
+};
 
 /**
  * the data struct for each hash node
@@ -99,7 +99,7 @@ static int32_t doAddToBucket(SLHashObj* pHashObj, SLHashBucket* pBucket, int32_t
     int32_t newPageId = -1;
     SFilePage* pNewPage = getNewBufPage(pHashObj->pBuf, 0, &newPageId);
     if (pNewPage == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     taosArrayPush(pBucket->pPageIdList, &newPageId);
@@ -138,7 +138,6 @@ static void doRemoveFromBucket(SFilePage* pPage, SLHashNode* pNode, SLHashBucket
   }
 
   setBufPageDirty(pPage, true);
-
   pBucket->size -= 1;
 }
 
@@ -229,6 +228,10 @@ static int32_t doAddNewBucket(SLHashObj* pHashObj) {
 
   int32_t pageId = -1;
   SFilePage* p = getNewBufPage(pHashObj->pBuf, 0, &pageId);
+  if (p == NULL) {
+    return terrno;
+  }
+
   p->num = sizeof(SFilePage);
   setBufPageDirty(p, true);
 
@@ -252,7 +255,8 @@ SLHashObj* tHashInit(int32_t inMemPages, int32_t pageSize, _hash_fn_t fn, int32_
     printf("tHash Init failed since %s", terrstr(terrno));
     return NULL;
   }
-  int32_t code = createDiskbasedBuf(&pHashObj->pBuf, pageSize, inMemPages * pageSize, 0, tsTempDir);
+
+  int32_t code = createDiskbasedBuf(&pHashObj->pBuf, pageSize, inMemPages * pageSize, "", tsTempDir);
   if (code != 0) {
     terrno = code;
     return NULL;
@@ -389,7 +393,9 @@ char* tHashGet(SLHashObj* pHashObj, const void *key, size_t keyLen) {
   }
 
   SLHashBucket* pBucket = pHashObj->pBucket[bucketId];
-  for (int32_t i = 0; i < taosArrayGetSize(pBucket->pPageIdList); ++i) {
+  int32_t num = taosArrayGetSize(pBucket->pPageIdList);
+
+  for (int32_t i = 0; i < num; ++i) {
     int32_t    pageId = *(int32_t*)taosArrayGet(pBucket->pPageIdList, i);
     SFilePage* p = getBufPage(pHashObj->pBuf, pageId);
 

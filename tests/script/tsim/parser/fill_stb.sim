@@ -279,7 +279,7 @@ endi
 #endi
 
 ## linear fill
-sql select _wstart, max(c1), min(c2), avg(c3), sum(c4), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu partition by t1 interval(5m) fill(linear) 
+sql select _wstart, max(c1), min(c2), avg(c3), sum(c4), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu partition by t1 interval(5m) fill(linear)
 $val = $rowNum * 2
 $val = $val - 1
 $val = $val * $tbNum

@@ -1,5 +1,6 @@
 ---
 title: 数据导出
+description: 如何导出 TDengine 中的数据
 ---
 
 为方便数据导出，TDengine 提供了两种导出方式，分别是按表导出和用 taosdump 导出。

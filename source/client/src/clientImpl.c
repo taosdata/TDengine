@@ -723,6 +723,12 @@ int32_t handleSubmitExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog
 
   for (int32_t i = 0; i < pRsp->nBlocks; ++i) {
     SSubmitBlkRsp* blk = pRsp->pBlocks + i;
+    if (blk->pMeta) {
+      handleCreateTbExecRes(blk->pMeta, pCatalog);
+      tFreeSTableMetaRsp(blk->pMeta);
+      taosMemoryFreeClear(blk->pMeta);
+    }
+    
     if (NULL == blk->tblFName || 0 == blk->tblFName[0]) {
       continue;
     }
@@ -782,6 +788,10 @@ int32_t handleAlterTbExecRes(void* res, SCatalog* pCatalog) {
   return catalogUpdateTableMeta(pCatalog, (STableMetaRsp*)res);
 }
 
+int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog) {
+  return catalogUpdateTableMeta(pCatalog, (STableMetaRsp*)res);
+}
+
 int32_t handleQueryExecRsp(SRequestObj* pRequest) {
   if (NULL == pRequest->body.resInfo.execRes.res) {
     return TSDB_CODE_SUCCESS;
@@ -802,6 +812,19 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
     case TDMT_VND_ALTER_TABLE:
     case TDMT_MND_ALTER_STB: {
       code = handleAlterTbExecRes(pRes->res, pCatalog);
+      break;
+    }
+    case TDMT_VND_CREATE_TABLE: {
+      SArray* pList = (SArray*)pRes->res;
+      int32_t num = taosArrayGetSize(pList);
+      for (int32_t i = 0; i < num; ++i) {
+        void* res = taosArrayGetP(pList, i);
+        code = handleCreateTbExecRes(res, pCatalog);
+      }
+      break;
+    }
+    case TDMT_MND_CREATE_STB: {
+      code = handleCreateTbExecRes(pRes->res, pCatalog);
       break;
     }
     case TDMT_VND_SUBMIT: {
@@ -863,16 +886,12 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     return;
   }
 
-  if (code == TSDB_CODE_SUCCESS) {
-    code = handleQueryExecRsp(pRequest);
-    ASSERT(pRequest->code == TSDB_CODE_SUCCESS);
-    pRequest->code = code;
-  }
-
   tscDebug("schedulerExecCb request type %s", TMSG_INFO(pRequest->type));
-  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
+  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
     removeMeta(pTscObj, pRequest->targetTableList);
   }
+
+  handleQueryExecRsp(pRequest);
 
   // return to client
   pRequest->body.queryFp(pRequest->body.param, pRequest, code);
@@ -932,6 +951,10 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
 
   if (!keepQuery) {
     qDestroyQuery(pQuery);
+  }
+
+  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
+    removeMeta(pRequest->pTscObj, pRequest->targetTableList);
   }
 
   handleQueryExecRsp(pRequest);
@@ -1131,10 +1154,6 @@ SRequestObj* execQuery(uint64_t connId, const char* sql, int sqlLen, bool valida
 
     inRetry = true;
   } while (retryNum++ < REQUEST_TOTAL_EXEC_TIMES);
-
-  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
-    removeMeta(pRequest->pTscObj, pRequest->targetTableList);
-  }
 
   return pRequest;
 }
@@ -1956,7 +1975,7 @@ _OVER:
 
 int32_t appendTbToReq(SHashObj* pHash, int32_t pos1, int32_t len1, int32_t pos2, int32_t len2, const char* str,
                       int32_t acctId, char* db) {
-  SName name;
+  SName name = {0};
 
   if (len1 <= 0) {
     return -1;

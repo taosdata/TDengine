@@ -21,7 +21,7 @@
 
 // the add ref count operation may trigger the warning if the reference count is greater than the MAX_WARNING_REF_COUNT
 #define MAX_WARNING_REF_COUNT    10000
-#define HASH_MAX_CAPACITY        (1024 * 1024 * 16)
+#define HASH_MAX_CAPACITY        (1024 * 1024 * 1024)
 #define HASH_DEFAULT_LOAD_FACTOR (0.75)
 #define HASH_INDEX(v, c)         ((v) & ((c)-1))
 
@@ -67,6 +67,7 @@ struct SHashObj {
   bool              enableUpdate;  // enable update
   SArray           *pMemBlock;     // memory block allocated for SHashEntry
   _hash_before_fn_t callbackFp;    // function invoked before return the value to caller
+  int64_t           compTimes;
 };
 
 /*
@@ -146,6 +147,7 @@ static FORCE_INLINE SHashNode *doSearchInEntryList(SHashObj *pHashObj, SHashEntr
                                                    uint32_t hashVal) {
   SHashNode *pNode = pe->next;
   while (pNode) {
+    atomic_add_fetch_64(&pHashObj->compTimes, 1);
     if ((pNode->keyLen == keyLen) && ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) &&
         pNode->removed == 0) {
       assert(pNode->hashVal == hashVal);
@@ -250,11 +252,15 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
 
   // the max slots is not defined by user
   pHashObj->capacity = taosHashCapacity((int32_t)capacity);
+  pHashObj->size = 0;
 
   pHashObj->equalFp = memcmp;
   pHashObj->hashFp = fn;
   pHashObj->type = type;
+  pHashObj->lock = 0;
   pHashObj->enableUpdate = update;
+  pHashObj->freeFp = NULL;
+  pHashObj->callbackFp = NULL;
 
   ASSERT((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
 
@@ -327,7 +333,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
   // disable resize
   taosHashRLock(pHashObj);
 
-  int32_t     slot = HASH_INDEX(hashVal, pHashObj->capacity);
+  uint32_t   slot = HASH_INDEX(hashVal, pHashObj->capacity);
   SHashEntry *pe = pHashObj->hashList[slot];
 
   taosHashEntryWLock(pHashObj, pe);
@@ -882,3 +888,7 @@ void *taosHashAcquire(SHashObj *pHashObj, const void *key, size_t keyLen) {
 }
 
 void taosHashRelease(SHashObj *pHashObj, void *p) { taosHashCancelIterate(pHashObj, p); }
+
+int64_t taosHashGetCompTimes(SHashObj *pHashObj) { return atomic_load_64(&pHashObj->compTimes); }
+
+
