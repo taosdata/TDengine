@@ -109,7 +109,7 @@ After message consumption is finished, the consumer is unsubscribed.
 
 ## Sample Code
 
-<Tabs defaultValue="rust" groupId="lang">
+<Tabs defaultValue="Rust" groupId="lang">
 
 <TabItem value="c" label="C">
 
@@ -130,6 +130,9 @@ Will be available soon
 
 <TabItem label="Rust" value="Rust">
 
+```rust
+{{#include docs/examples/rust/cloud-example/examples/subscribe_demo.rs}}
+```
 
 </TabItem>
 
