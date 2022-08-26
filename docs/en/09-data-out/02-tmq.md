@@ -91,6 +91,8 @@ The method of specifying these parameters depends on the language used:
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="c" label="C">
 
+Will be available soon
+<!-- temporarily comment off
 ```c
 /* Create consumer groups on demand (group.id) and enable automatic commits (enable.auto.commit),
    an automatic commit interval (auto.commit.interval.ms), and a username (td.connect.user) and password (td.connect.pass) */
@@ -108,10 +110,13 @@ tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
 tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
 tmq_conf_destroy(conf);
 ```
+-->
 
 </TabItem>
 <TabItem value="java" label="Java">
 
+Will be available soon
+<!-- temporarily comment off
 Java programs use the following parameters:
 
 |            Parameter            |  Type   | Description                                                 | Remarks                                        |
@@ -142,11 +147,14 @@ import com.taosdata.jdbc.tmq.ReferenceDeserializer;
 public class MetersDeserializer extends ReferenceDeserializer<Meters> {
 }
 ```
+-->
 
 </TabItem>
 
 <TabItem label="Go" value="Go">
 
+Will be available soon
+<!-- temporarily comment off
 ```go
 config := tmq.NewConfig()
 defer config.Destroy()
@@ -193,6 +201,7 @@ if err != nil {
   panic(err)
 }
 ```
+-->
 
 </TabItem>
 
@@ -213,6 +222,8 @@ let mut consumer = tmq.build()?;
 
 <TabItem value="Python" label="Python">
 
+Will be available soon
+<!-- temporarily comment off
 Python programs use the following parameters:
 
 |            Parameter            |  Type   | Description                                                 | Remarks                                        |
@@ -232,9 +243,12 @@ Python programs use the following parameters:
 |           `timeout`            |  int   | Consumer pull timeout                                     |                                             |
 
 </TabItem>
+-->
 
 <TabItem label="Node.JS" value="Node.JS">
 
+Will be available soon
+<!-- temporarily comment off
 ```js
 // Create consumer groups on demand (group.id) and enable automatic commits (enable.auto.commit),
 // an automatic commit interval (auto.commit.interval.ms), and a username (td.connect.user) and password (td.connect.pass) 
@@ -251,11 +265,14 @@ let consumer = taos.consumer({
   'td.connect.port','6030'  
   });
 ```
+-->
 
 </TabItem>
 
 <TabItem value="C#" label="C#">
 
+Will be available soon
+<!-- temporarily comment off
 ```csharp
 using TDengineTMQ;
 
@@ -277,6 +294,7 @@ var cfg = new ConsumerConfig
 var consumer = new ConsumerBuilder(cfg).Build();
 
 ```
+-->
 
 </TabItem>
 
@@ -291,6 +309,8 @@ A single consumer can subscribe to multiple topics.
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="c" label="C">
 
+Will be available soon
+<!-- temporarily comment off
 ```c
 // Create a list of subscribed topics
 tmq_list_t* topicList = tmq_list_new();
@@ -300,19 +320,25 @@ tmq_subscribe(tmq, topicList);
 tmq_list_destroy(topicList);
   
 ```
+-->
 
 </TabItem>
 <TabItem value="java" label="Java">
 
+Will be available soon
+<!-- temporarily comment off
 ```java
 List<String> topics = new ArrayList<>();
 topics.add("tmq_topic");
 consumer.subscribe(topics);
 ```
+-->
 
 </TabItem>
 <TabItem value="Go" label="Go">
 
+Will be available soon
+<!-- temporarily comment off
 ```go
 consumer, err := tmq.NewConsumer(config)
 if err != nil {
@@ -323,6 +349,7 @@ if err != nil {
  panic(err)
 }
 ```
+-->
 
 </TabItem>
 <TabItem value="Rust" label="Rust">
@@ -335,14 +362,19 @@ consumer.subscribe(["tmq_meters"]).await?;
 
 <TabItem value="Python" label="Python">
 
+Will be available soon
+<!-- temporarily comment off
 ```python
 consumer = TaosConsumer('topic_ctb_column', group_id='vg2')
 ```
+-->
 
 </TabItem>
 
 <TabItem label="Node.JS" value="Node.JS">
 
+Will be available soon
+<!-- temporarily comment off
 ```js
 // Create a list of subscribed topics
 let topics = ['topic_test']
@@ -350,11 +382,14 @@ let topics = ['topic_test']
 // Enable subscription
 consumer.subscribe(topics);
 ```
+-->
 
 </TabItem>
 
 <TabItem value="C#" label="C#">
 
+Will be available soon
+<!-- temporarily comment off
 ```csharp
 // Create a list of subscribed topics
 List<String> topics = new List<string>();
@@ -362,6 +397,7 @@ topics.add("tmq_topic");
 // Enable subscription
 consumer.Subscribe(topics);
 ```
+-->
 
 </TabItem>
 
@@ -374,6 +410,8 @@ The following code demonstrates how to consume the messages in a queue.
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="c" label="C">
 
+Will be available soon
+<!-- temporarily comment off
 ```c
 ## Consume data
 while (running) {
@@ -383,10 +421,13 @@ while (running) {
 ```
 
 The `while` loop obtains a message each time it calls `tmq_consumer_poll()`. This message is exactly the same as the result returned by a query, and the same deserialization API can be used on it.
+-->
 
 </TabItem>
 <TabItem value="java" label="Java">
 
+Will be available soon
+<!-- temporarily comment off
 ```java
 while(running){
   ConsumerRecords<Meters> meters = consumer.poll(Duration.ofMillis(100));
@@ -395,11 +436,14 @@ while(running){
     }    
 }
 ```
+-->
 
 </TabItem>
 
 <TabItem value="Go" label="Go">
 
+Will be available soon
+<!-- temporarily comment off
 ```go
 for {
  result, err := consumer.Poll(time.Second)
@@ -411,6 +455,7 @@ for {
  consumer.FreeMessage(result.Message)
 }
 ```
+-->
 
 </TabItem>
 
@@ -449,17 +494,22 @@ for {
 
 </TabItem>
 <TabItem value="Python" label="Python">
+Will be available soon
+<!-- temporarily comment off
 
 ```python
 for msg in consumer:
     for row in msg:
         print(row)
 ```
+-->
 
 </TabItem>
 
 <TabItem label="Node.JS" value="Node.JS">
 
+Will be available soon
+<!-- temporarily comment off
 ```js
 while(true){
   msg = consumer.consume(200);
@@ -469,11 +519,14 @@ while(true){
   console.log(msg.fields)
 }
 ```
+-->
 
 </TabItem>
 
 <TabItem value="C#" label="C#">
 
+Will be available soon
+<!-- temporarily comment off
 ```csharp
 ## Consume data
 while (true)
@@ -484,6 +537,7 @@ while (true)
     consumer.Commit(consumerRes);
 }
 ```
+-->
 
 </TabItem>
 
@@ -495,6 +549,8 @@ A single consumer can subscribe to multiple topics.
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="c" label="C">
+Will be available soon
+<!-- temporarily comment off
 
 ```c
 // Create a list of subscribed topics
@@ -505,19 +561,25 @@ tmq_subscribe(tmq, topicList);
 tmq_list_destroy(topicList);
   
 ```
+-->
 
 </TabItem>
 <TabItem value="java" label="Java">
 
+Will be available soon
+<!-- temporarily comment off
 ```java
 List<String> topics = new ArrayList<>();
 topics.add("tmq_topic");
 consumer.subscribe(topics);
 ```
+-->
 
 </TabItem>
 <TabItem value="Go" label="Go">
 
+Will be available soon
+<!-- temporarily comment off
 ```go
 consumer, err := tmq.NewConsumer(config)
 if err != nil {
@@ -528,6 +590,7 @@ if err != nil {
  panic(err)
 }
 ```
+-->
 
 </TabItem>
 <TabItem value="Rust" label="Rust">
@@ -539,13 +602,18 @@ consumer.subscribe(["tmq_meters"]).await?;
 </TabItem>
 
 <TabItem value="Python" label="Python">
+Will be available soon
+<!-- temporarily comment off
 
 ```python
 consumer = TaosConsumer('topic_ctb_column', group_id='vg2')
 ```
+-->
 
 </TabItem>
 
+Will be available soon
+<!-- temporarily comment off
 <TabItem label="Node.JS" value="Node.JS">
 
 ```js
@@ -555,10 +623,13 @@ let topics = ['topic_test']
 // Enable subscription
 consumer.subscribe(topics);
 ```
+-->
 
 </TabItem>
 
 <TabItem value="C#" label="C#">
+Will be available soon
+<!-- temporarily comment off
 
 ```csharp
 // Create a list of subscribed topics
@@ -567,6 +638,7 @@ topics.add("tmq_topic");
 // Enable subscription
 consumer.Subscribe(topics);
 ```
+-->
 
 </TabItem>
 
@@ -580,6 +652,8 @@ The following code demonstrates how to consume the messages in a queue.
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="c" label="C">
 
+Will be available soon
+<!-- temporarily comment off
 ```c
 ## Consume data
 while (running) {
@@ -587,12 +661,15 @@ while (running) {
   msg_process(msg);
 }  
 ```
+-->
 
 The `while` loop obtains a message each time it calls `tmq_consumer_poll()`. This message is exactly the same as the result returned by a query, and the same deserialization API can be used on it.
 
 </TabItem>
 <TabItem value="java" label="Java">
 
+Will be available soon
+<!-- temporarily comment off
 ```java
 while(running){
   ConsumerRecords<Meters> meters = consumer.poll(Duration.ofMillis(100));
@@ -601,11 +678,14 @@ while(running){
     }    
 }
 ```
+-->
 
 </TabItem>
 
 <TabItem value="Go" label="Go">
 
+Will be available soon
+<!-- temporarily comment off
 ```go
 for {
  result, err := consumer.Poll(time.Second)
@@ -617,6 +697,7 @@ for {
  consumer.FreeMessage(result.Message)
 }
 ```
+-->
 
 </TabItem>
 
@@ -655,17 +736,22 @@ for {
 
 </TabItem>
 <TabItem value="Python" label="Python">
+Will be available soon
+<!-- temporarily comment off
 
 ```python
 for msg in consumer:
     for row in msg:
         print(row)
 ```
+-->
 
 </TabItem>
 
 <TabItem label="Node.JS" value="Node.JS">
 
+Will be available soon
+<!-- temporarily comment off
 ```js
 while(true){
   msg = consumer.consume(200);
@@ -675,11 +761,14 @@ while(true){
   console.log(msg.fields)
 }
 ```
+-->
 
 </TabItem>
 
 <TabItem value="C#" label="C#">
 
+Will be available soon
+<!-- temporarily comment off
 ```csharp
 ## Consume data
 while (true)
@@ -691,6 +780,7 @@ while (true)
 }
 ```
 
+-->
 </TabItem>
 
 </Tabs>
@@ -702,6 +792,8 @@ After message consumption is finished, the consumer is unsubscribed.
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="c" label="C">
 
+Will be available soon
+<!-- temporarily comment off
 ```c
 /* Unsubscribe */
 tmq_unsubscribe(tmq);
@@ -710,9 +802,12 @@ tmq_unsubscribe(tmq);
 tmq_consumer_close(tmq);
 ```
 
+-->
 </TabItem>
 <TabItem value="java" label="Java">
 
+Will be available soon
+<!-- temporarily comment off
 ```java
 /* Unsubscribe */
 consumer.unsubscribe();
@@ -720,14 +815,18 @@ consumer.unsubscribe();
 /* Close consumer */
 consumer.close();
 ```
+-->
 
 </TabItem>
 
 <TabItem value="Go" label="Go">
 
+Will be available soon
+<!-- temporarily comment off
 ```go
 consumer.Close()
 ```
+-->
 
 </TabItem>
 
@@ -741,24 +840,32 @@ consumer.unsubscribe().await;
 
 <TabItem value="Python" label="Python">
 
+Will be available soon
+<!-- temporarily comment off
 ```py
 # Unsubscribe
 consumer.unsubscribe()
 # Close consumer
 consumer.close()
 ```
+-->
 
 </TabItem>
 <TabItem label="Node.JS" value="Node.JS">
 
+Will be available soon
+<!-- temporarily comment off
 ```js
 consumer.unsubscribe();
 consumer.close();
 ```
+-->
 
 </TabItem>
 
 <TabItem value="C#" label="C#">
+Will be available soon
+<!-- temporarily comment off
 
 ```csharp
 // Unsubscribe
@@ -767,6 +874,7 @@ consumer.Unsubscribe();
 // Close consumer
 consumer.Close();
 ```
+-->
 
 </TabItem>
 
@@ -779,6 +887,8 @@ After message consumption is finished, the consumer is unsubscribed.
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="c" label="C">
+Will be available soon
+<!-- temporarily comment off
 
 ```c
 /* Unsubscribe */
@@ -787,10 +897,13 @@ tmq_unsubscribe(tmq);
 /* Close consumer object */
 tmq_consumer_close(tmq);
 ```
+-->
 
 </TabItem>
 <TabItem value="java" label="Java">
 
+Will be available soon
+<!-- temporarily comment off
 ```java
 /* Unsubscribe */
 consumer.unsubscribe();
@@ -798,14 +911,18 @@ consumer.unsubscribe();
 /* Close consumer */
 consumer.close();
 ```
+-->
 
 </TabItem>
 
 <TabItem value="Go" label="Go">
 
+Will be available soon
+<!-- temporarily comment off
 ```go
 consumer.Close()
 ```
+-->
 
 </TabItem>
 
@@ -818,6 +935,8 @@ consumer.unsubscribe().await;
 </TabItem>
 
 <TabItem value="Python" label="Python">
+Will be available soon
+<!-- temporarily comment off
 
 ```py
 # Unsubscribe
@@ -825,18 +944,24 @@ consumer.unsubscribe()
 # Close consumer
 consumer.close()
 ```
+-->
 
 </TabItem>
 <TabItem label="Node.JS" value="Node.JS">
 
+Will be available soon
+<!-- temporarily comment off
 ```js
 consumer.unsubscribe();
 consumer.close();
 ```
+-->
 
 </TabItem>
 
 <TabItem value="C#" label="C#">
+Will be available soon
+<!-- temporarily comment off
 
 ```csharp
 // Unsubscribe
@@ -845,6 +970,7 @@ consumer.Unsubscribe();
 // Close consumer
 consumer.Close();
 ```
+-->
 
 </TabItem>
 
