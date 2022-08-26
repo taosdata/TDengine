@@ -68,7 +68,7 @@ typedef struct SBlockCol     SBlockCol;
 #define TSDB_FILE_DLMT         ((uint32_t)0xF00AFA0F)
 #define TSDB_MAX_SUBBLOCKS     8
 #define TSDB_MAX_LAST_FILE     16
-#define TSDB_DEFAULT_LAST_FILE 8
+#define TSDB_DEFAULT_LAST_FILE 1
 #define TSDB_FHDR_SIZE         512
 
 #define HAS_NONE  ((int8_t)0x1)

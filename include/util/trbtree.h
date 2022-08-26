@@ -56,6 +56,7 @@ struct SRBTreeNode {
 
 struct SRBTree {
   tRBTreeCmprFn cmprFn;
+  int64_t       n;
   SRBTreeNode  *root;
   SRBTreeNode  *min;
   SRBTreeNode  *max;

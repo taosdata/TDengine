@@ -78,6 +78,7 @@ typedef struct {
     SRBTree    rbt;
     SDataIter  dataIter;
     SDataIter  aDataIter[TSDB_MAX_LAST_FILE];
+    int8_t     toLast;
   };
   struct {
     SDataFWriter *pWriter;
@@ -454,6 +455,10 @@ static int32_t tsdbOpenCommitIter(SCommitter *pCommitter) {
       tRBTreePut(&pCommitter->rbt, (SRBTreeNode *)pIter);
       iIter++;
     }
+
+    pCommitter->toLast = 0;
+  } else {
+    pCommitter->toLast = 1;
   }
 
   code = tsdbNextCommitRow(pCommitter);
@@ -1206,7 +1211,7 @@ _err:
 static int32_t tsdbCommitDataStart(SCommitter *pCommitter) {
   int32_t code = 0;
 
-  // Reader
+  // reader
   pCommitter->dReader.aBlockIdx = taosArrayInit(0, sizeof(SBlockIdx));
   if (pCommitter->dReader.aBlockIdx == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -1216,7 +1221,20 @@ static int32_t tsdbCommitDataStart(SCommitter *pCommitter) {
   code = tBlockDataCreate(&pCommitter->dReader.bData);
   if (code) goto _exit;
 
-  // Writer
+  // merger
+  for (int32_t iLast = 0; iLast < TSDB_MAX_LAST_FILE; iLast++) {
+    SDataIter *pIter = &pCommitter->aDataIter[iLast];
+    pIter->aBlockL = taosArrayInit(0, sizeof(SBlockL));
+    if (pIter->aBlockL == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+
+    code = tBlockDataCreate(&pIter->bData);
+    if (code) goto _exit;
+  }
+
+  // writer
   pCommitter->dWriter.aBlockIdx = taosArrayInit(0, sizeof(SBlockIdx));
   if (pCommitter->dWriter.aBlockIdx == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -1240,12 +1258,19 @@ _exit:
 }
 
 static void tsdbCommitDataEnd(SCommitter *pCommitter) {
-  // Reader
+  // reader
   taosArrayDestroy(pCommitter->dReader.aBlockIdx);
   tMapDataClear(&pCommitter->dReader.mBlock);
   tBlockDataDestroy(&pCommitter->dReader.bData, 1);
 
-  // Writer
+  // merger
+  for (int32_t iLast = 0; iLast < TSDB_MAX_LAST_FILE; iLast++) {
+    SDataIter *pIter = &pCommitter->aDataIter[iLast];
+    taosArrayDestroy(pIter->aBlockL);
+    tBlockDataDestroy(&pIter->bData, 1);
+  }
+
+  // writer
   taosArrayDestroy(pCommitter->dWriter.aBlockIdx);
   taosArrayDestroy(pCommitter->dWriter.aBlockL);
   tMapDataClear(&pCommitter->dWriter.mBlock);
