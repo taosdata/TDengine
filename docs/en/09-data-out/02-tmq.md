@@ -65,7 +65,9 @@ CREATE TOPIC topic_name [WITH META] AS DATABASE db_name;
 
 This SQL statement creates a subscription to all tables in the database. You can add the `WITH META` parameter to include schema changes in the subscription, including creating and deleting supertables; adding, deleting, and modifying columns; and creating, deleting, and modifying the tags of subtables. Consumers can determine the message type from the API. Note that this differs from Kafka.
 
-## Program Model
+## Programming Model
+
+To subscribe the data from a created topic, the client program needs to follow the programming model described in this section.
 
 1. Create Consumer
 
@@ -128,13 +130,14 @@ Will be available soon
 
 <TabItem label="Rust" value="Rust">
 
-<Rust />
 
 </TabItem>
 
 <TabItem value="Python" label="Python">
 
 Will be available soon
+
+</TabItem>
 
 <TabItem label="Node.JS" value="Node.JS">
 
@@ -157,7 +160,6 @@ Once a topic becomes useless, it can be deleted.
 You can delete topics that are no longer useful. Note that you must unsubscribe all consumers from a topic before deleting it.
 
 ```sql
-/* Delete topic/
 DROP TOPIC topic_name;
 ```
 
