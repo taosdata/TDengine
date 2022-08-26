@@ -367,7 +367,6 @@ int64_t sdbGetTableVer(SSdb *pSdb, ESdbType type);
  */
 void sdbSetApplyInfo(SSdb *pSdb, int64_t index, int64_t term, int64_t config);
 void sdbGetCommitInfo(SSdb *pSdb, int64_t *index, int64_t *term, int64_t *config);
-void sdbFreeRowsByType(SSdb *pSdb, ESdbType type);
 
 SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen);
 void     sdbFreeRaw(SSdbRaw *pRaw);
