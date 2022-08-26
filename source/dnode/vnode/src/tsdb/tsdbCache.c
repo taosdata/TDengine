@@ -476,7 +476,7 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
       if (code) goto _err;
 
       if (!state->aBlockL) {
-        state->aBlockL = taosArrayInit(0, sizeof(SBlockIdx));
+        state->aBlockL = taosArrayInit(0, sizeof(SBlockL));
       } else {
         taosArrayClear(state->aBlockL);
       }
