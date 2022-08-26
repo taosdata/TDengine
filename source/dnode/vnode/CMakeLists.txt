@@ -51,7 +51,6 @@ target_sources(
     "src/tsdb/tsdbRetention.c"
     "src/tsdb/tsdbDiskData.c"
     "src/tsdb/tsdbCompress.c"
-    "src/tsdb/tsdbMerge.c"
     "src/tsdb/tsdbCompact.c"
 
     # tq
