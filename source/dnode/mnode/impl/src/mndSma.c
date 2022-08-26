@@ -839,10 +839,11 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
   code = 0;
 
 _OVER:
-  mndReleaseStream(pMnode, pStream);
   mndTransDrop(pTrans);
   mndReleaseVgroup(pMnode, pVgroup);
   mndReleaseStb(pMnode, pStb);
+  mndReleaseStream(pMnode, pStream);
+  mndReleaseSma(pMnode, pSma);
   return code;
 }
 
