@@ -1,5 +1,6 @@
 ---
 title: 产品简介
+description: 简要介绍 TDengine 的主要功能
 toc_max_heading_level: 2
 ---
 

@@ -1,6 +1,7 @@
 ---
 sidebar_label: 统计数据
 title: 存储统计数据的 Performance_Schema 数据库
+description: Performance_Schema 数据库中存储了系统中的各种统计信息
 ---
 
 TDengine 3.0 版本开始提供一个内置数据库 `performance_schema`，其中存储了与性能有关的统计数据。本节详细介绍其中的表和表结构。

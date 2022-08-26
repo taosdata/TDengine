@@ -1,6 +1,7 @@
 ---
 sidebar_label: Kafka
-title: TDengine Kafka Connector 使用教程
+title: TDengine Kafka Connector
+description: 使用 TDengine Kafka Connector 的详细指南
 ---
 
 TDengine Kafka Connector 包含两个插件: TDengine Source Connector 和 TDengine Sink Connector。用户只需提供简单的配置文件，就可以将 Kafka 中指定 topic 的数据（批量或实时）同步到 TDengine， 或将 TDengine 中指定数据库的数据（批量或实时）同步到 Kafka。

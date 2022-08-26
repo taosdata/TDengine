@@ -1,6 +1,7 @@
 ---
 sidebar_label: EMQX Broker
 title: EMQX Broker 写入
+description: 使用 EMQX Broker 写入 TDengine
 ---
 
 MQTT 是流行的物联网数据传输协议，[EMQX](https://github.com/emqx/emqx)是一开源的 MQTT Broker 软件，无需任何代码，只需要在 EMQX Dashboard 里使用“规则”做简单配置，即可将 MQTT 的数据直接写入 TDengine。EMQX 支持通过 发送到 Web 服务的方式保存数据到 TDengine，也在企业版上提供原生的 TDengine 驱动实现直接保存。

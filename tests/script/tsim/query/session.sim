@@ -35,8 +35,8 @@ sql INSERT INTO dev_001 VALUES('2020-05-13 13:00:00.001', 12)
 sql INSERT INTO dev_001 VALUES('2020-05-14 13:00:00.001', 13)
 sql INSERT INTO dev_001 VALUES('2020-05-15 14:00:00.000', 14)
 sql INSERT INTO dev_001 VALUES('2020-05-20 10:00:00.000', 15)
-sql INSERT INTO dev_001 VALUES('2020-05-27 10:00:00.001', 16) 
-           
+sql INSERT INTO dev_001 VALUES('2020-05-27 10:00:00.001', 16)
+
 sql INSERT INTO dev_002 VALUES('2020-05-13 10:00:00.000', 1)
 sql INSERT INTO dev_002 VALUES('2020-05-13 10:00:00.005', 2)
 sql INSERT INTO dev_002 VALUES('2020-05-13 10:00:00.009', 3)
@@ -46,7 +46,7 @@ sql INSERT INTO dev_002 VALUES('2020-05-13 10:00:00.036', 6)
 sql INSERT INTO dev_002 VALUES('2020-05-13 10:00:00.51', 7)
 
 # vnode does not return the precision of the table
-print ====> create database d1 precision 'us' 
+print ====> create database d1 precision 'us'
 sql create database d1 precision 'us'
 sql use d1
 sql create table dev_001 (ts timestamp ,i timestamp ,j int)
@@ -54,7 +54,7 @@ sql insert into dev_001 values(1623046993681000,now,1)(1623046993681001,now+1s,2
 sql create table secondts(ts timestamp,t2 timestamp,i int)
 sql insert into secondts values(1623046993681000,now,1)(1623046993681001,now+1s,2)(1623046993681002,now+2s,3)(1623046993681004,now+5s,4)
 
-$loop_test = 0  
+$loop_test = 0
 loop_test_pos:
 
 sql use $dbNamme
@@ -299,7 +299,7 @@ if $loop_test == 0 then
   print =============== stop and restart taosd
   system sh/exec.sh -n dnode1 -s stop -x SIGINT
   system sh/exec.sh -n dnode1 -s start
-  
+
   $loop_cnt = 0
   check_dnode_ready_0:
   	$loop_cnt = $loop_cnt + 1
@@ -317,7 +317,7 @@ if $loop_test == 0 then
     goto check_dnode_ready_0
   endi
 
-  $loop_test = 1  
+  $loop_test = 1
   goto loop_test_pos
 endi
 

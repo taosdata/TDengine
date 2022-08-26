@@ -835,6 +835,9 @@ static int32_t tsdbMergeCommitLast(SCommitter *pCommitter, STbDataIter *pIter) {
 
       // set block data schema if need
       if (pBlockData->suid == 0 && pBlockData->uid == 0) {
+        code = tsdbCommitterUpdateTableSchema(pCommitter, pTbData->suid, pTbData->uid);
+        if (code) goto _err;
+
         code =
             tBlockDataInit(pBlockData, pTbData->suid, pTbData->suid ? 0 : pTbData->uid, pCommitter->skmTable.pTSchema);
         if (code) goto _err;
@@ -963,7 +966,20 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData) {
     pRow = NULL;
   }
 
-  if (pRow == NULL) goto _exit;
+  if (pRow == NULL) {
+    if (pCommitter->dReader.pBlockIdx && tTABLEIDCmprFn(pCommitter->dReader.pBlockIdx, pTbData) == 0) {
+      SBlockIdx blockIdx = {.suid = pTbData->suid, .uid = pTbData->uid};
+      code = tsdbWriteBlock(pCommitter->dWriter.pWriter, &pCommitter->dReader.mBlock, &blockIdx);
+      if (code) goto _err;
+
+      if (taosArrayPush(pCommitter->dWriter.aBlockIdx, &blockIdx) == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _err;
+      }
+    }
+
+    goto _exit;
+  }
 
   int32_t iBlock = 0;
   SBlock  block;

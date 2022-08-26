@@ -1,6 +1,7 @@
 ---
 sidebar_label: 超级表管理
 title: 超级表 STable 管理
+description: 对超级表的各种管理操作
 ---
 
 ## 创建超级表

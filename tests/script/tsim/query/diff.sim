@@ -25,17 +25,17 @@ $i = 0
 while $i < $tbNum
   $tb = $tbPrefix . $i
   sql create table $tb using $mt tags( $i )
-  
+
   $x = 0
   while $x < $rowNum
     $cc = $x * 60000
     $ms = 1601481600000 + $cc
-    sql insert into $tb values ($ms , $x ) 
+    sql insert into $tb values ($ms , $x )
     $x = $x + 1
-  endw 
- 
+  endw
+
   $i = $i + 1
-endw 
+endw
 
 sleep 100
 
@@ -61,7 +61,7 @@ sql select _rowts, diff(tbcol) from $tb where ts > $ms
 print ===> rows: $rows
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
-if $data11 != 1 then 
+if $data11 != 1 then
   return -1
 endi
 
@@ -72,7 +72,7 @@ sql select _rowts, diff(tbcol) from $tb where ts <= $ms
 print ===> rows: $rows
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
-if $data11 != 1 then 
+if $data11 != 1 then
   return -1
 endi
 
@@ -82,7 +82,7 @@ sql select _rowts, diff(tbcol) as b from $tb
 print ===> rows: $rows
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
-if $data11 != 1 then 
+if $data11 != 1 then
   return -1
 endi
 

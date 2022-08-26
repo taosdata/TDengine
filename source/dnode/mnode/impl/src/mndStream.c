@@ -631,6 +631,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   SStreamObj        *pStream = NULL;
   SDbObj            *pDb = NULL;
   SCMCreateStreamReq createStreamReq = {0};
+  SStreamObj         streamObj = {0};
 
   if (tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, &createStreamReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -659,7 +660,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
   // build stream obj from request
-  SStreamObj streamObj = {0};
   if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
     /*ASSERT(0);*/
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());

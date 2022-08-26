@@ -23,6 +23,7 @@
 
 
 #define HTTP_RECV_BUF_SIZE 1024
+
 typedef struct SHttpClient {
   uv_connect_t conn;
   uv_tcp_t     tcp;
@@ -143,9 +144,9 @@ static void clientAllocBuffCb(uv_handle_t *handle, size_t suggested_size, uv_buf
 static void clientRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t *buf) {
   SHttpClient* cli = handle->data; 
   if (nread < 0) {
-    uError("http-report read error:%s", uv_err_name(nread));
+    uError("http-report recv error:%s", uv_err_name(nread));
   } else {
-    uTrace("http-report succ to read %d bytes, just ignore it", nread);
+    uTrace("http-report succ to recv %d bytes, just ignore it", nread);
   }
   uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
 } 
@@ -174,7 +175,7 @@ static int32_t taosBuildDstAddr(const char* server, uint16_t port, struct sockad
   uint32_t ip = taosGetIpv4FromFqdn(server);
   if (ip == 0xffffffff) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("http-report failed to get http server:%s ip since %s", server, terrstr());
+    uError("http-report failed to get http server:%s since %s", server, errno == 0 ? "invalid http server" : terrstr());
     return -1;
   }
   char buf[128] = {0};
@@ -223,6 +224,7 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   if (ret != 0) {
     uError("http-report failed to connect to server, reason:%s, dst:%s:%d", uv_strerror(ret), cli->addr, cli->port);
     destroyHttpClient(cli);
+    uv_stop(loop);
   }
 
   uv_run(loop, UV_RUN_DEFAULT);

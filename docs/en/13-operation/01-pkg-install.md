@@ -15,6 +15,27 @@ About details of installing TDenine, please refer to [Installation Guide](../../
 ## Uninstall
 
 <Tabs>
+<TabItem label="Uninstall apt-get" value="aptremove">
+
+Apt-get package of TDengine can be uninstalled as below:
+
+```bash
+$ sudo apt-get remove tdengine
+Reading package lists... Done
+Building dependency tree       
+Reading state information... Done
+The following packages will be REMOVED:
+  tdengine
+0 upgraded, 0 newly installed, 1 to remove and 18 not upgraded.
+After this operation, 68.3 MB disk space will be freed.
+Do you want to continue? [Y/n] y
+(Reading database ... 135625 files and directories currently installed.)
+Removing tdengine (3.0.0.0) ...
+TDengine is removed successfully!
+
+```
+
+</TabItem>
 <TabItem label="Uninstall Deb" value="debuninst">
 
 Deb package of TDengine can be uninstalled as below:
