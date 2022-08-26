@@ -12,18 +12,18 @@ This section introduces the major features, competitive advantages, typical use-
 The major features are listed below:
 
 1. While TDengine supports [using SQL to insert](/develop/insert-data/sql-writing), it also supports [Schemaless writing](/reference/schemaless/) just like NoSQL databases. TDengine also supports standard protocols like [InfluxDB LINE](/develop/insert-data/influxdb-line)，[OpenTSDB Telnet](/develop/insert-data/opentsdb-telnet), [OpenTSDB JSON ](/develop/insert-data/opentsdb-json) among others.
-2. TDengine supports seamless integration with third-party data collection agents like [Telegraf](/third-party/telegraf)，[Prometheus](/third-party/prometheus)，[StatsD](/third-party/statsd)，[collectd](/third-party/collectd)，[icinga2](/third-party/icinga2), [TCollector](/third-party/tcollector), [EMQX](/third-party/emq-broker), [HiveMQ](/third-party/hive-mq-broker). These agents can write data into TDengine with simple configuration and without a single line of code. 
-3. Support for [all kinds of queries](/develop/query-data), including aggregation, nested query, downsampling, interpolation and others.
-4. Support for [user defined functions](/develop/udf).
-5. Support for [caching](/develop/cache). TDengine always saves the last data point in cache, so Redis is not needed in some scenarios.
-6. Support for [stream processing](../taos-sql).
-7. Support for [data subscription](../taos-sql) with the capability to specify filter conditions.
+2. TDengine supports seamless integration with third-party tools like [Telegraf](../data-in/telegraf)，[Prometheus](../data-in/prometheus)，they can write data into TDengine with simple configuration and without a single line of code. 
+3. Support for [time series specific queries](../taos-sql/distinguished), including aggregation, nested query, downsampling, interpolation and others.
+4. Support for [user defined functions](../taos-sql/udf).
+5. Support for [caching](../taos-sql/database). TDengine always saves the last data point in cache, so Redis is not needed in some scenarios.
+6. Support for [stream processing](../taos-sql/stream).
+7. Support for [data subscription](../taos-sql/tmq) with the capability to specify filter conditions.
 8. High availability is supported by replication including multi-cloud replication. 
-9. Provides an interactive [command-line interface](/reference/taos-shell) for management, maintenance and ad-hoc queries.
+9. Provides an interactive [command-line interface](../tools/cli) for management, maintenance and ad-hoc queries.
 10. Provides many ways to [get data in](../data-in) and [get data out](../data-out) data.
 11. Provides a Dashboard to monitor your running instances of TDengine.
 12. Provides [connectors](../connector/) for [Java](../connector/java), [Python](../connector/python), [Go](../connector/go), [Rust](../connector/rust), and [Node.js](../connector/node).
-13. Provides a [REST API](/reference/rest-api/).
+13. Provides a [REST API](../develop/connect/rest-api/).
 14. Supports seamless integration with [Grafana](../visual/grafana) for visualization.
 15. Supports seamless integration with Google Data Studio.
 
