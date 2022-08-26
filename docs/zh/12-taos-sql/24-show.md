@@ -195,7 +195,7 @@ SHOW STREAMS;
 SHOW SUBSCRIPTIONS;
 ```
 
-显示当前数据库下的所有的订阅关系
+显示当前系统内所有的订阅关系
 
 ## SHOW TABLES
 
