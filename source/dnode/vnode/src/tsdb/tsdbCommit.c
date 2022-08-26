@@ -1636,9 +1636,59 @@ _err:
   return code;
 }
 
-static int32_t tsdbCommitTableData2(SCommitter *pCommitter, TABLEID id) {
-  int32_t code = 0;
-  // TODO
+static int32_t tsdbCommitTableData2(SCommitter *pCommitter, TABLEID id, int8_t toLastOnly) {
+  int32_t   code = 0;
+  SRowInfo *pRowInfo = tsdbGetCommitRow(pCommitter);
+
+  if (pRowInfo && (pRowInfo->suid != id.suid || pRowInfo->uid != id.uid)) {
+    pRowInfo = NULL;
+  }
+
+  if (pRowInfo == NULL) goto _err;
+
+#if 0
+  if (pBlockData->suid || pBlockData->uid) {
+    if (pBlockData->suid != pTbData->suid || pBlockData->suid == 0) {
+      if (pBlockData->nRow > 0) {
+        code = tsdbCommitLastBlock(pCommitter);
+        if (code) goto _err;
+      }
+
+      tBlockDataReset(pBlockData);
+    }
+  }
+
+  if (!pBlockData->suid && !pBlockData->uid) {
+    code = tBlockDataInit(pBlockData, pTbData->suid, 0, pCommitter->skmTable.pTSchema);
+    if (code) goto _err;
+  }
+#endif
+
+  SBlockData *pBlockData = NULL;  // TODO
+  while (pRowInfo) {
+    STSchema *pTSchema = NULL;
+    if (pRowInfo->row.type == 0) {
+      code = tsdbCommitterUpdateRowSchema(pCommitter, id.suid, id.uid, TSDBROW_SVERSION(&pRowInfo->row));
+      if (code) goto _err;
+
+      pTSchema = pCommitter->skmRow.pTSchema;
+    }
+
+    code = tBlockDataAppendRow(pBlockData, &pRowInfo->row, pTSchema, id.uid);
+    if (code) goto _err;
+
+    code = tsdbNextCommitRow(pCommitter);
+    if (code) goto _err;
+
+    pRowInfo = tsdbGetCommitRow(pCommitter);
+    if (pRowInfo && (pRowInfo->suid != id.suid || pRowInfo->uid != id.uid)) {
+      pRowInfo = NULL;
+    }
+  }
+
+  return code;
+
+_err:
   return code;
 }
 
@@ -1675,6 +1725,8 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
     // other
     code = tsdbCommitterUpdateTableSchema(pCommitter, id.suid, id.uid);
     if (code) goto _err;
+    code = tBlockDataInit(&pCommitter->dReader.bData, id.suid, id.uid, pCommitter->skmRow.pTSchema);
+    if (code) goto _err;
     code = tBlockDataInit(&pCommitter->dWriter.bData, id.suid, id.uid, pCommitter->skmRow.pTSchema);
     if (code) goto _err;
 
@@ -1683,7 +1735,7 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
     if (code) goto _err;
 
     /* handle remain table data */
-    code = tsdbCommitTableData2(pCommitter, id);
+    code = tsdbCommitTableData2(pCommitter, id, 1);
     if (code) goto _err;
   }
 
