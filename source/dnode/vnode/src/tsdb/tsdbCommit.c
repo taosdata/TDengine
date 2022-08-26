@@ -388,7 +388,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   SLastFile fLast;
   SDFileSet wSet = {0};
   if (pRSet) {
-    ASSERT(pRSet->nLastF < pCommitter->maxLast);
+    ASSERT(pCommitter->maxLast == 1 || pRSet->nLastF < pCommitter->maxLast);
 
     fHead = (SHeadFile){.commitID = pCommitter->commitID};
     fData = *pRSet->pDataF;
