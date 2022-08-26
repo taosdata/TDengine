@@ -557,23 +557,29 @@ int64_t taosTimeSub(int64_t timeStamp, int64_t duration, char unit, int32_t prec
   return (int64_t)(mktime(&tm) * TSDB_TICK_PER_SECOND(precision));
 }
 
-int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision) {
+int64_t taosTimeTzOffset(int64_t intervalUnit, int32_t precision) {
+  int64_t tz_offset = 0;
+  if (intervalUnit == 'd' || intervalUnit == 'w') {
+    #if defined(WINDOWS) && _MSC_VER >= 1900
+    // see https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
+    int64_t timezone = _timezone;
+    #endif
+    tz_offset = -1 * timezone * TSDB_TICK_PER_SECOND(precision);
+  }
+  return tz_offset;
+}
+
+int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t sliding, int64_t slidingUnit, int64_t intervalUnit, int32_t precision) {
   if (ekey < skey) {
     int64_t tmp = ekey;
     ekey = skey;
     skey = tmp;
   }
 
-#ifdef _MSC_VER
-#if _MSC_VER >= 1900
-  int64_t timezone = _timezone;
-#endif
-#endif
-
-  int64_t tz_offset = -1 * timezone * TSDB_TICK_PER_SECOND(precision);
-
-  if (unit != 'n' && unit != 'y') {
-    return (int32_t)((ekey+tz_offset)/interval - (skey+tz_offset)/interval) + 1;
+  int64_t tz_offset = taosTimeTzOffset(intervalUnit, precision);
+ 
+  if (slidingUnit != 'n' && slidingUnit != 'y') {
+    return (int32_t)((ekey+tz_offset)/sliding - (skey+tz_offset)/sliding) + 1;
   }
 
   skey /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
@@ -588,12 +594,13 @@ int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char
   localtime_r(&timeStamp, &tm);
   int emon = tm.tm_year * 12 + tm.tm_mon;
 
-  if (unit == 'y') {
-    interval *= 12;
+  if (slidingUnit == 'y') {
+    sliding *= 12;
   }
 
-  return (int32_t)(emon/interval - smon/interval) + 1;
+  return (int32_t)(emon/sliding - smon/sliding) + 1;
 }
+
 
 int64_t taosTimeTruncate(int64_t timeStamp, const SInterval* pInterval, int32_t precision) {
   if (pInterval->sliding == 0) {
@@ -614,56 +621,22 @@ int64_t taosTimeTruncate(int64_t timeStamp, const SInterval* pInterval, int32_t 
 
     if (pInterval->slidingUnit == 'y') {
       tm.tm_mon = 0;
-      tm.tm_year = (int)(tm.tm_year / pInterval->sliding * pInterval->sliding);
+      tm.tm_year -= (int)(tm.tm_year%pInterval->sliding);
     } else {
       int mon = tm.tm_year * 12 + tm.tm_mon;
-      mon = (int)(mon / pInterval->sliding * pInterval->sliding);
+      mon -= (int)(mon % pInterval->sliding);
       tm.tm_year = mon / 12;
       tm.tm_mon = mon % 12;
     }
 
     start = (int64_t)(mktime(&tm) * TSDB_TICK_PER_SECOND(precision));
   } else {
-    int64_t delta = timeStamp - pInterval->interval;
-    int32_t factor = (delta >= 0) ? 1 : -1;
-
-    start = (delta / pInterval->sliding + factor) * pInterval->sliding;
-
-    if (pInterval->intervalUnit == 'd' || pInterval->intervalUnit == 'w') {
-     /*
-      * here we revised the start time of day according to the local time zone,
-      * but in case of DST, the start time of one day need to be dynamically decided.
-      */
-      // todo refactor to extract function that is available for Linux/Windows/Mac platform
-  #if defined(WINDOWS) && _MSC_VER >= 1900
-      // see https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
-      int64_t timezone = _timezone;
-      int32_t daylight = _daylight;
-      char**  tzname = _tzname;
-  #endif
-
-      start += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
-    }
-
-    int64_t end = 0;
-
-    // not enough time range
-    if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
-      end = start + pInterval->interval - 1;
-
-      while(end < timeStamp && ((start + pInterval->sliding) <= INT64_MAX)) { // move forward to the correct time window
-        start += pInterval->sliding;
-
-        if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
-          end = start + pInterval->interval - 1;
-        } else {
-          end = INT64_MAX;
-          break;
-        }
-      }
-    } else {
-      end = INT64_MAX;
-    }
+    // To avoid the overly complicated effect of DST on size of sliding windows, the DST(daylight saving time) is
+    // better to be respected by users' input and output for display only, maintaining the status quo.
+    // In this way, the size of sliding windows keeps unchanging during each cycle of processing of requests.
+    start = timeStamp - pInterval->interval + pInterval->sliding;
+    int64_t tz_offset = taosTimeTzOffset(pInterval->intervalUnit, precision);
+    start -= (start+tz_offset)%pInterval->sliding;
   }
 
   if (pInterval->offset > 0) {
