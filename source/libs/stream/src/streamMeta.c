@@ -265,6 +265,8 @@ int32_t streamLoadTasks(SStreamMeta* pMeta) {
     }
   }
 
+  tdbFree(pKey);
+  tdbFree(pVal);
   if (tdbTbcClose(pCur) < 0) {
     return -1;
   }
