@@ -826,7 +826,6 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     return -1;
   }
-
   mDebug("trans:%d, prepare finished", pTrans->id);
 
   STrans *pNew = mndAcquireTrans(pMnode, pTrans->id);
