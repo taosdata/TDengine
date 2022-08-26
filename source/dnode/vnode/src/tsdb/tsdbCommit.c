@@ -1439,6 +1439,18 @@ _exit:
   return code;
 }
 
+static int32_t tsdbCommitAheadBlock(SCommitter *pCommitter, SBlock *pBlock) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+static int32_t tsdbCommitMergeBlock(SCommitter *pCommitter, SBlock *pBlock) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
 static int32_t tsdbMergeTableData(SCommitter *pCommitter, TABLEID id) {
   int32_t    code = 0;
   SBlockIdx *pBlockIdx = pCommitter->dReader.pBlockIdx;
@@ -1468,7 +1480,23 @@ static int32_t tsdbMergeTableData(SCommitter *pCommitter, TABLEID id) {
           pBlock = NULL;
         }
       } else if (c > 0) {
+        code = tsdbCommitAheadBlock(pCommitter, pBlock);
+        if (code) goto _err;
+
+        pRowInfo = tsdbGetCommitRow(pCommitter);
+        if (pRowInfo && (pRowInfo->suid != id.suid || pRowInfo->uid != id.uid)) pRowInfo = NULL;
       } else {
+        code = tsdbCommitMergeBlock(pCommitter, pBlock);
+        if (code) goto _err;
+
+        iBlock++;
+        if (iBlock < pCommitter->dReader.mBlock.nItem) {
+          tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock, pBlock, tGetBlock);
+        } else {
+          pBlock = NULL;
+        }
+        pRowInfo = tsdbGetCommitRow(pCommitter);
+        if (pRowInfo && (pRowInfo->suid != id.suid || pRowInfo->uid != id.uid)) pRowInfo = NULL;
       }
     }
 
