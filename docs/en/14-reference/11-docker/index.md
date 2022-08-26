@@ -72,7 +72,7 @@ Next, ensure the hostname "tdengine" is resolvable in `/etc/hosts`.
 echo 127.0.0.1 tdengine |sudo tee -a /etc/hosts
 ```
 
-Finally, the TDengine service can be accessed from the taos shell or any connector with "tdengine" as the server address.
+Finally, the TDengine service can be accessed from the TDengine CLI or any connector with "tdengine" as the server address.
 
 ```shell
 taos -h tdengine -P 6030
