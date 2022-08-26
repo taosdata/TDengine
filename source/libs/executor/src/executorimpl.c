@@ -4138,7 +4138,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      pOperator = createLastrowScanOperator(pScanNode, pHandle, pTaskInfo);
+      pOperator = createCacherowsScanOperator(pScanNode, pHandle, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_PROJECT == type) {
       pOperator = createProjectOperatorInfo(NULL, (SProjectPhysiNode*)pPhyNode, pTaskInfo);
     } else {

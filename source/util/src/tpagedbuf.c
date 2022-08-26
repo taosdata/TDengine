@@ -293,16 +293,6 @@ static SListNode* getEldestUnrefedPage(SDiskbasedBuf* pBuf) {
     }
   }
 
-  //  int32_t pos = listNEles(pBuf->lruList);
-  //  SListIter iter1 = {0};
-  //  tdListInitIter(pBuf->lruList, &iter1, TD_LIST_BACKWARD);
-  //  SListNode* pn1 = NULL;
-  //  while((pn1 = tdListNext(&iter1)) != NULL) {
-  //    SPageInfo* pageInfo = *(SPageInfo**) pn1->data;
-  //    printf("page %d is used, dirty:%d, pos:%d\n", pageInfo->pageId, pageInfo->dirty, pos - 1);
-  //    pos -= 1;
-  //  }
-
   return pn;
 }
 
@@ -661,10 +651,14 @@ void dBufPrintStatis(const SDiskbasedBuf* pBuf) {
       pBuf->totalBufSize / 1024.0, pBuf->numOfPages, listNEles(pBuf->lruList) * pBuf->pageSize / 1024.0,
       listNEles(pBuf->lruList), pBuf->fileSize / 1024.0, pBuf->pageSize / 1024.0f, pBuf->id);
 
-  printf(
-      "Get/Release pages:%d/%d, flushToDisk:%.2f Kb (%d Pages), loadFromDisk:%.2f Kb (%d Pages), avgPageSize:%.2f Kb\n",
-      ps->getPages, ps->releasePages, ps->flushBytes / 1024.0f, ps->flushPages, ps->loadBytes / 1024.0f, ps->loadPages,
-      ps->loadBytes / (1024.0 * ps->loadPages));
+  if (ps->loadPages > 0) {
+    printf(
+        "Get/Release pages:%d/%d, flushToDisk:%.2f Kb (%d Pages), loadFromDisk:%.2f Kb (%d Pages), avgPageSize:%.2f Kb\n",
+        ps->getPages, ps->releasePages, ps->flushBytes / 1024.0f, ps->flushPages, ps->loadBytes / 1024.0f,
+        ps->loadPages, ps->loadBytes / (1024.0 * ps->loadPages));
+  } else {
+    printf("no page loaded\n");
+  }
 }
 
 void clearDiskbasedBuf(SDiskbasedBuf* pBuf) {

@@ -128,8 +128,10 @@ typedef struct STsdbReader STsdbReader;
 #define TIMEWINDOW_RANGE_CONTAINED 1
 #define TIMEWINDOW_RANGE_EXTERNAL  2
 
-#define LASTROW_RETRIEVE_TYPE_ALL    0x1
-#define LASTROW_RETRIEVE_TYPE_SINGLE 0x2
+#define CACHESCAN_RETRIEVE_TYPE_ALL    0x1
+#define CACHESCAN_RETRIEVE_TYPE_SINGLE 0x2
+#define CACHESCAN_RETRIEVE_LAST_ROW    0x4
+#define CACHESCAN_RETRIEVE_LAST        0x8
 
 int32_t  tsdbSetTableId(STsdbReader *pReader, int64_t uid);
 int32_t  tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, SArray *pTableList, STsdbReader **ppReader,
@@ -146,9 +148,9 @@ void    *tsdbGetIdx(SMeta *pMeta);
 void    *tsdbGetIvtIdx(SMeta *pMeta);
 uint64_t getReaderMaxVersion(STsdbReader *pReader);
 
-int32_t tsdbLastRowReaderOpen(void *pVnode, int32_t type, SArray *pTableIdList, int32_t numOfCols, void **pReader);
-int32_t tsdbRetrieveLastRow(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, SArray *pTableUids);
-int32_t tsdbLastrowReaderClose(void *pReader);
+int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, SArray *pTableIdList, int32_t numOfCols, void **pReader);
+int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, SArray *pTableUids);
+int32_t tsdbCacherowsReaderClose(void *pReader);
 int32_t tsdbGetTableSchema(SVnode *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid);
 
 void   tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
