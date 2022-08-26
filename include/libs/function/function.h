@@ -141,7 +141,6 @@ typedef struct SqlFunctionCtx {
   struct SSDataBlock    *pSrcBlock;
   struct SSDataBlock    *pDstBlock; // used by indefinite rows function to set selectivity
   int32_t                curBufPage;
-  bool                   increase;
   bool                   isStream;
 
   char                   udfName[TSDB_FUNC_NAME_LEN];

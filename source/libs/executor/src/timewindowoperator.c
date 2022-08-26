@@ -637,6 +637,7 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
     setResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
     setNotInterpoWindowKey(pSup->pCtx, numOfExprs, RESULT_ROW_START_INTERP);
 
+    updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &w, true);
     doApplyFunctions(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos, 0, pBlock->info.rows,
                      numOfExprs);
 
@@ -1808,7 +1809,7 @@ static bool timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, SInt
 
 void increaseTs(SqlFunctionCtx* pCtx) {
   if (pCtx[0].pExpr->pExpr->_function.pFunctNode->funcType == FUNCTION_TYPE_WSTART) {
-    pCtx[0].increase = true;
+//    pCtx[0].increase = true;
   }
 }
 
