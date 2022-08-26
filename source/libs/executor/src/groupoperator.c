@@ -702,8 +702,8 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
   }
 
   SArray* groupArray = taosArrayInit(taosHashGetSize(pInfo->pGroupSet), sizeof(SDataGroupInfo));
-  void* pGroupIter = NULL;
-  pGroupIter = taosHashIterate(pInfo->pGroupSet, NULL);
+
+  void* pGroupIter = taosHashIterate(pInfo->pGroupSet, NULL);
   while (pGroupIter != NULL) {
     SDataGroupInfo* pGroupInfo = pGroupIter;
     taosArrayPush(groupArray, pGroupInfo);

@@ -595,6 +595,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
 #else
   struct statvfs info;
   if (statvfs(dataDir, &info)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   } else {
     diskSize->total = info.f_blocks * info.f_frsize;
