@@ -1,7 +1,7 @@
 ---
 sidebar_label: taosDump
 title: Dump Data Using taosDump
-description: Introduces how to dump data from TDengine into files using taosDump
+description: Dump data from TDengine into files using taosDump
 ---
 
 # taosDump

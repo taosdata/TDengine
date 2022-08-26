@@ -1,7 +1,7 @@
 ---
 sidebar_label: Prometheus
 title: Prometheus for TDengine Cloud
-description: This topic introduces how to write data into TDengine from Prometheus.
+description: Write data into TDengine from Prometheus.
 ---
 
 Prometheus is a widespread open-source monitoring and alerting system. Prometheus joined the Cloud Native Computing Foundation (CNCF) in 2016 as the second incubated project after Kubernetes, which has a very active developer and user community.
@@ -61,16 +61,4 @@ Prometheus should start up. It also started a web server at <http://localhost:90
 Log in TDengine Cloud, click "Explorer" on the left navigation bar. You will see metrics collected by prometheus.
 
 ![TDengine prometheus remote_write result](prometheus_data.webp)
-
-## Verify Remote Read
-
-Lets retrieve some metrics from TDengine Cloud via prometheus web server. Browse to <http://localhost:9090/graph> and use the "Graph" tab.
-
-Enter the following expression to graph the per-second rate of chunks being created in the self-scraped Prometheus:
-
-```
-rate(prometheus_tsdb_head_chunks_created_total[1m])
-```
-
-![TDengine prometheus remote_read](prometheus_read.webp)
 

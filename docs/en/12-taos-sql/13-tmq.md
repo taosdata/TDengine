@@ -1,6 +1,7 @@
 ---
 sidebar_label: Data Subscription
 title: Data Subscription
+description: Subscribe Data from TDengine.
 ---
 
 The information in this document is related to the TDengine data subscription feature.

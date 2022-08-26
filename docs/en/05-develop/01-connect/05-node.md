@@ -1,6 +1,7 @@
 ---
 sidebar_label: Node.js
 title: Connect with Node.js Connector
+description: Node.JS Connector for TDengine
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';

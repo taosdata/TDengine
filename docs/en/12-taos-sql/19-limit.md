@@ -1,6 +1,7 @@
 ---
-sidebar_label: Name and Size Limits
-title: Name and Size Limits
+sidebar_label: Limits
+title: Limits
+description: Naming Limits
 ---
 
 ## Naming Rules

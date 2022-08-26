@@ -1,7 +1,7 @@
 ---
 sidebar_label: Telegraf
 title: Telegraf for TDengine Cloud
-description: This section explains how to write data into TDengine from telegraf.
+description: Write data into TDengine from telegraf.
 ---
 
 Telegraf is an open-source, metrics collection software. Telegraf can collect the operation information of various components without having to write any scripts to collect regularly, reducing the difficulty of data acquisition.

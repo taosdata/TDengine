@@ -1,6 +1,7 @@
 ---
-sidebar_label: Reserved Keywords
+sidebar_label: Keywords
 title: Reserved Keywords
+description: Reserved Keywords in TDengine SQL
 ---
 
 ## Keyword List

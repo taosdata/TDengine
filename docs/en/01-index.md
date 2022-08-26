@@ -25,6 +25,6 @@ This is the documentation structure for TDengine Cloud.
 
 9. The [Tools](./tools) section introduces the Taos CLI which gives you shell access to easily perform ad hoc queries on your instances and databases. Additionally, taosBenchmark is introduced. It is a tool that can help you generate large amounts of data very easily with simple configurations and test the performance of TDengine Cloud.
 
-10. Finally, in the [FAQ](./faq) section, we try to preemptively answer questions that we anticipate. Of course, we will continue to add to this section all the time.
+<!-- 10. Finally, in the [FAQ](./faq) section, we try to preemptively answer questions that we anticipate. Of course, we will continue to add to this section all the time. -->
 
 We are very excited that you have chosen TDengine Cloud to be part of your time series platform and look forward to hearing your feedback and ways in which we can improve and be a small part of your success.

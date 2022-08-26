@@ -1,6 +1,7 @@
 ---
 sidebar_label: Operators
 title: Operators
+description: TDengine Supported Operators
 ---
 
 ## Arithmetic Operators

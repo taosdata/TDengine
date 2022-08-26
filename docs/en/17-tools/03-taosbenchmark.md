@@ -1,6 +1,7 @@
 ---
 title: taosBenchmark
 sidebar_label: taosBenchmark
+description: Benchmark Tool  for TDengine.
 ---
 
 ## Introduction

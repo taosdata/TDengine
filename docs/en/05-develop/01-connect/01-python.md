@@ -1,6 +1,7 @@
 ---
 sidebar_label: Python
 title: Connect with Python Connector
+description: Python Connector for TDengine.
 ---
 
 import Tabs from '@theme/Tabs';

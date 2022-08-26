@@ -1,6 +1,7 @@
 ---
 sidebar_label: Insert
 title: Insert
+description: Insert data into TDengine
 ---
 
 ## Syntax

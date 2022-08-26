@@ -1,7 +1,7 @@
 ---
 sidebar_label: SQL
 title: Query Data Using SQL
-description: This topic introduces how to read data from TDengine using basic SQL.
+description: Read data from TDengine using basic SQL.
 ---
 
 # Query Data

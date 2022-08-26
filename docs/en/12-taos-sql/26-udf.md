@@ -1,6 +1,7 @@
 ---
-sidebar_label: User-Defined Functions
+sidebar_label: UDF
 title: User-Defined Functions (UDF)
+description: User Defined Functions
 ---
 
 You can create user-defined functions and import them into TDengine.
