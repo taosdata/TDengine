@@ -381,8 +381,7 @@ function install_header() {
       ${install_main_dir}/include ||
       ${csudo}cp -f ${source_dir}/include/client/taos.h ${source_dir}/include/common/taosdef.h ${source_dir}/include/util/taoserror.h ${source_dir}/include/libs/function/taosudf.h \
         ${install_main_2_dir}/include &&
-      ${csudo}chmod 644 ${install_main_dir}/include/* ||:
-      ${csudo}chmod 644 ${install_main_2_dir}/include/*
+      ${csudo}chmod 644 ${install_main_dir}/include/* || ${csudo}chmod 644 ${install_main_2_dir}/include/*
   fi
 }
 
