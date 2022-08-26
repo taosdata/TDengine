@@ -350,6 +350,7 @@ struct SFilterInfo {
 
 extern bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right);
 extern __compar_fn_t filterGetCompFunc(int32_t type, int32_t optr);
+extern __compar_fn_t filterGetCompFuncEx(int32_t lType, int32_t rType, int32_t optr);
 
 #ifdef __cplusplus
 }
