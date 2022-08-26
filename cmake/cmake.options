@@ -91,6 +91,12 @@ ELSE ()
 ENDIF ()
 
 option(
+    BUILD_SHARED_LIBS
+    ""
+    OFF
+    )
+
+option(
     RUST_BINDINGS
     "If build with rust-bindings"
     ON

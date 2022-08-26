@@ -221,7 +221,6 @@ int walCheckAndRepairMeta(SWal* pWal) {
 
       int code = walSaveMeta(pWal);
       if (code < 0) {
-        taosArrayDestroy(actualLog);
         return -1;
       }
     }
