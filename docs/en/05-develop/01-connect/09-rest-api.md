@@ -4,6 +4,9 @@ title: REST API
 description: Communicate with TDengine Cloud Service through RESTful API 
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 ## Config
 
 Run this command in your terminal to save the TDengine cloud token and URL as variables:
