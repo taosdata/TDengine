@@ -220,13 +220,13 @@ static void MoveToSnapShotVersion(SSnapContext* ctx){
   }
 }
 
-static void MoveToPosition(SSnapContext* ctx, int64_t ver, int64_t uid){
+static int32_t MoveToPosition(SSnapContext* ctx, int64_t ver, int64_t uid){
   tdbTbcClose(ctx->pCur);
   tdbTbcOpen(ctx->pMeta->pTbDb, &ctx->pCur, NULL);
   STbDbKey key = {.version = ver, .uid = uid};
   int c = 0;
   tdbTbcMoveTo(ctx->pCur, &key, sizeof(key), &c);
-  ASSERT(c == 0);
+  return c;
 }
 
 static void MoveToFirst(SSnapContext* ctx){
@@ -451,20 +451,27 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void **pBuf, int32_t *contLen, in
   void *pVal = NULL;
   int   vLen = 0, kLen = 0;
 
-  if(ctx->index >= taosArrayGetSize(ctx->idList)){
-    metaDebug("tmqsnap get meta end");
-    ctx->index = 0;
-    ctx->queryMetaOrData = false; // change to get data
-    return 0;
+  while(1){
+    if(ctx->index >= taosArrayGetSize(ctx->idList)){
+      metaDebug("tmqsnap get meta end");
+      ctx->index = 0;
+      ctx->queryMetaOrData = false; // change to get data
+      return 0;
+    }
+
+    int64_t* uidTmp = taosArrayGet(ctx->idList, ctx->index);
+    ctx->index++;
+    SIdInfo* idInfo = (SIdInfo*)taosHashGet(ctx->idVersion, uidTmp, sizeof(tb_uid_t));
+    ASSERT(idInfo);
+
+    *uid = *uidTmp;
+    ret = MoveToPosition(ctx, idInfo->version, *uidTmp);
+    if(ret == 0){
+      break;
+    }
+    metaDebug("tmqsnap get meta not exist uid:%" PRIi64 " version:%" PRIi64, *uid, idInfo->version);
   }
 
-  int64_t* uidTmp = taosArrayGet(ctx->idList, ctx->index);
-  ctx->index++;
-  SIdInfo* idInfo = (SIdInfo*)taosHashGet(ctx->idVersion, uidTmp, sizeof(tb_uid_t));
-  ASSERT(idInfo);
-
-  *uid = *uidTmp;
-  MoveToPosition(ctx, idInfo->version, *uidTmp);
   tdbTbcGet(ctx->pCur, (const void**)&pKey, &kLen, (const void**)&pVal, &vLen);
   SDecoder   dc = {0};
   SMetaEntry me = {0};
@@ -575,7 +582,11 @@ SMetaTableInfo getUidfromSnapShot(SSnapContext* ctx){
     SIdInfo* idInfo = (SIdInfo*)taosHashGet(ctx->idVersion, uidTmp, sizeof(tb_uid_t));
     ASSERT(idInfo);
 
-    MoveToPosition(ctx, idInfo->version, *uidTmp);
+    int32_t ret = MoveToPosition(ctx, idInfo->version, *uidTmp);
+    if(ret != 0) {
+      metaDebug("tmqsnap getUidfromSnapShot not exist uid:%" PRIi64 " version:%" PRIi64, *uidTmp, idInfo->version);
+      continue;
+    }
     tdbTbcGet(ctx->pCur, (const void**)&pKey, &kLen, (const void**)&pVal, &vLen);
     SDecoder   dc = {0};
     SMetaEntry me = {0};
