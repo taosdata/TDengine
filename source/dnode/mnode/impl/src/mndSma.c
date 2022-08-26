@@ -961,8 +961,8 @@ _OVER:
     mError("sma:%s, failed to drop since %s", dropReq.name, terrstr());
   }
 
-  mndReleaseDb(pMnode, pDb);
   mndReleaseSma(pMnode, pSma);
+  mndReleaseDb(pMnode, pDb);
   return code;
 }
 
