@@ -1,6 +1,7 @@
 ---
 sidebar_label: REST API
 title: REST API
+description: Communicate with TDengine Cloud Service through RESTful API 
 ---
 
 ## Config

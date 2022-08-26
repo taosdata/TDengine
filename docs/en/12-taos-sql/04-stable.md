@@ -1,6 +1,7 @@
 ---
 sidebar_label: Supertable
 title: Supertable
+description: Operations about Super Tables.
 ---
 
 ## Create a Supertable

@@ -1,6 +1,7 @@
 ---
 sidebar_label: Index
 title: Using Indices
+description: Use Index to Accelerate Query.
 ---
 
 TDengine supports SMA and FULLTEXT indexing.

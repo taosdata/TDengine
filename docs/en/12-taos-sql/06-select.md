@@ -1,6 +1,7 @@
 ---
 sidebar_label: Select
 title: Select
+description: Query Data from TDengine.
 ---
 
 ## Syntax

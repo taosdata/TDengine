@@ -2,6 +2,7 @@
 sidebar_label: Functions
 title: Functions
 toc_max_heading_level: 4
+description: TDengine Built-in Functions.
 ---
 
 ## Single Row Functions

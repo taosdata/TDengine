@@ -1,6 +1,7 @@
 ---
 sidebar_label: Time-Series Extensions
 title: Time-Series Extensions
+description: TimeSeries Data Specific Queries.
 ---
 
 As a purpose-built database for storing and processing time-series data, TDengine provides time-series-specific extensions to standard SQL.

@@ -1,6 +1,7 @@
 ---
 sidebar_label: JSON Type
 title: JSON Type
+description: JSON Data Type
 ---
 
 
