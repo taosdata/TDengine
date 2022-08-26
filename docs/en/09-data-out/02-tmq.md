@@ -9,7 +9,6 @@ import TabItem from "@theme/TabItem";
 import Java from "./_sub_java.mdx";
 import Python from "./_sub_python.mdx";
 import Go from "./_sub_go.mdx";
-import Rust from "./_sub_rust.mdx";
 import Node from "./_sub_node.mdx";
 import CSharp from "./_sub_cs.mdx";
 import CDemo from "./_sub_c.mdx";
@@ -200,7 +199,7 @@ if err != nil {
 <TabItem label="Rust" value="Rust">
 
 ```rust
-let mut dsn: Dsn = "taos://".parse()?;
+let mut dsn = std::env::var("TDENGINE_CLOUD_DSN").parse()?;
 dsn.set("group.id", "group1");
 dsn.set("client.id", "test");
 dsn.set("auto.offset.reset", "earliest");

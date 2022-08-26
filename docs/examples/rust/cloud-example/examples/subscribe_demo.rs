@@ -35,7 +35,7 @@ async fn prepare(taos: Taos) -> anyhow::Result<()> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let dsn = "taosws://localhost:6030";
+    let mut dsn = std::env::var("TDENGINE_CLOUD_DSN").parse()?;
     let builder = TaosBuilder::from_dsn(dsn)?;
 
     let taos = builder.build()?;
