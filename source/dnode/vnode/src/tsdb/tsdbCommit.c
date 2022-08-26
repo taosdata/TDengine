@@ -48,7 +48,6 @@ typedef struct {
 
 typedef struct {
   STsdb *pTsdb;
-  int8_t toMerge;
   /* commit data */
   int64_t commitID;
   int32_t minutes;
@@ -456,9 +455,6 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
     wSet.nLastF = 1;
     wSet.aLastF[0] = &fLast;
   }
-  if (wSet.nLastF == pCommitter->maxLast) {
-    pCommitter->toMerge = 1;
-  }
   code = tsdbDataFWriterOpen(&pCommitter->dWriter.pWriter, pTsdb, &wSet);
   if (code) goto _err;
 
@@ -575,6 +571,7 @@ _err:
   return code;
 }
 
+#if 0
 static int32_t tsdbMergeCommitDataBlock(SCommitter *pCommitter, STbDataIter *pIter, SBlock *pBlock) {
   int32_t     code = 0;
   STbData    *pTbData = pIter->pTbData;
@@ -657,7 +654,6 @@ _err:
 
 static int32_t tsdbCommitTableMemData(SCommitter *pCommitter, STbDataIter *pIter, TSDBKEY toKey) {
   int32_t code = 0;
-#if 0
   STbData    *pTbData = pIter->pTbData;
   SBlockData *pBlockData = &pCommitter->dWriter.bData;
 
@@ -700,7 +696,6 @@ static int32_t tsdbCommitTableMemData(SCommitter *pCommitter, STbDataIter *pIter
 
 _err:
   tsdbError("vgId:%d, tsdb commit table mem data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
-#endif
   return code;
 }
 
@@ -962,6 +957,7 @@ _err:
   tsdbError("vgId:%d tsdb commit table data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
+#endif
 
 static int32_t tsdbCommitFileDataEnd(SCommitter *pCommitter) {
   int32_t code = 0;
@@ -1737,6 +1733,17 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
     /* handle remain table data */
     code = tsdbCommitTableData2(pCommitter, id, 1);
     if (code) goto _err;
+
+    if (pCommitter->dWriter.mBlock.nItem > 0) {
+      SBlockIdx blockIdx = {.suid = id.suid, .uid = id.uid};
+      code = tsdbWriteBlock(pCommitter->dWriter.pWriter, &pCommitter->dWriter.mBlock, &blockIdx);
+      if (code) goto _err;
+
+      if (taosArrayPush(pCommitter->dWriter.aBlockIdx, &blockIdx) == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _err;
+      }
+    }
   }
 
   return code;
