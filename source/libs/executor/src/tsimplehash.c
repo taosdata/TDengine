@@ -294,11 +294,13 @@ int32_t tSimpleHashIterateRemove(SSHashObj *pHashObj, const void *key, size_t ke
         pPrev->next = pNode->next;
       }
 
-      if (pNode->next) {
-        *pIter = GET_SHASH_NODE_DATA(pNode->next);
-      } else {
-        *pIter = NULL;
-        ++(*iter);
+      if (*pIter ==  (void*)GET_SHASH_NODE_DATA(pNode)) {
+        if (pNode->next) {
+          *pIter = GET_SHASH_NODE_DATA(pNode->next);
+        } else {
+          *pIter = NULL;
+          ++(*iter);
+        }
       }
 
       FREE_HASH_NODE(pNode);
