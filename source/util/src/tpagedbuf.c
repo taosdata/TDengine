@@ -638,7 +638,7 @@ void clearDiskbasedBuf(SDiskbasedBuf* pBuf) {
     taosMemoryFreeClear(pi);
   }
 
-  taosArrayDestroy(pBuf->pIdList);
+  taosArrayClear(pBuf->pIdList);
 
   tdListEmpty(pBuf->lruList);
   tdListEmpty(pBuf->freePgList);
