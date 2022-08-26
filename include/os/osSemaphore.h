@@ -23,10 +23,9 @@ extern "C" {
 #include <semaphore.h>
 
 #if defined(_TD_DARWIN_64)
-
+#include <dispatch/dispatch.h>
 // typedef struct tsem_s *tsem_t;
-typedef struct bosal_sem_t *tsem_t;
-
+typedef dispatch_semaphore_t tsem_t;
 
 int tsem_init(tsem_t *sem, int pshared, unsigned int value);
 int tsem_wait(tsem_t *sem);
