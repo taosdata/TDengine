@@ -32,7 +32,13 @@ taos> show databases;
 Query OK, 2 rows in database (0.033802s)
 ```
 
+<<<<<<< HEAD
 因为运行在容器中的 TDengine 服务端使用容器的 hostname 建立连接，使用 TDengine CLI 或者各种连接器（例如 JDBC-JNI）从容器外访问容器内的 TDengine 比较复杂，所以上述方式是访问容器中 TDengine 服务的最简单的方法，适用于一些简单场景。如果在一些复杂场景下想要从容器化使用 TDengine CLI 或者各种连接器访问容器中的 TDengine 服务，请参考下一节。
+=======
+
+因为运行在容器中的 TDengine 服务端使用容器的 hostname 建立连接，使用 TDengine CLI 或者各种连接器（例如 JDBC-JNI）从容器外访问容器内的 TDengine 比较复杂，所以上述方式是访问容器中 TDengine 服务的最简单的方法，适用于一些简单场景。如果在一些复杂场景下想要从容器化使用 TDengine CLI 或者各种连接器访问容器中的 TDengine 服务，请参考下一节。
+
+>>>>>>> 30903ba80fe488b3b8e96db7f599052a05f7c025
 
 ## 在 host 网络上启动 TDengine
 
@@ -354,7 +360,11 @@ test-docker_td-2_1   /tini -- /usr/bin/entrypoi ...   Up
 test-docker_td-3_1   /tini -- /usr/bin/entrypoi ...   Up
 ```
 
+<<<<<<< HEAD
 4. 用 TDengine 查看 dnodes
+=======
+4. 用 TDengine CLI 查看 dnodes
+>>>>>>> 30903ba80fe488b3b8e96db7f599052a05f7c025
 
 ```shell
 
