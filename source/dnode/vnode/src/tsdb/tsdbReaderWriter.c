@@ -394,17 +394,6 @@ _err:
 }
 
 // SDataFReader ====================================================
-struct SDataFReader {
-  STsdb     *pTsdb;
-  SDFileSet *pSet;
-  TdFilePtr  pHeadFD;
-  TdFilePtr  pDataFD;
-  TdFilePtr  pSmaFD;
-  TdFilePtr  aLastFD[TSDB_MAX_LAST_FILE];
-
-  uint8_t *aBuf[3];
-};
-
 int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet) {
   int32_t       code = 0;
   SDataFReader *pReader;

@@ -609,6 +609,17 @@ struct STsdbReadSnap {
   STsdbFS    fs;
 };
 
+struct SDataFReader {
+  STsdb     *pTsdb;
+  SDFileSet *pSet;
+  TdFilePtr  pHeadFD;
+  TdFilePtr  pDataFD;
+  TdFilePtr  pSmaFD;
+  TdFilePtr  aLastFD[TSDB_MAX_LAST_FILE];
+
+  uint8_t *aBuf[3];
+};
+
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
   TSDBKEY *pKey1 = (TSDBKEY *)p1;
