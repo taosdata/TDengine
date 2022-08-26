@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ $1 -eq "abort-upgrade" ]; then
+if [ "$1"x = "abort-upgrade"x ]; then
   exit 0
 fi
 
