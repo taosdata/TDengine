@@ -1552,12 +1552,23 @@ static int32_t tsdbMergeFileData(STsdbMerger *pMerger, SDFileSet *pSet) {
     if (code) goto _err;
 
     if (pInfo == NULL) {
-      // end commit (todo)
+      if (pMerger->dWriter.bData.nRow > 0) {
+        // TODO
+      }
+
+      if (pMerger->dWriter.bDatal.nRow > 0) {
+        // TODO
+      }
+
       break;
     }
 
     if (id.suid != pInfo->suid || id.uid != pInfo->uid) {
-      // table changed, do something (todo)
+      while (true) {
+        // move commit the head data
+      }
+
+      // prepare to commit next
     }
 
     code = tBlockDataAppendRow(&pMerger->dWriter.bData, &pInfo->row, NULL, pInfo->uid);
