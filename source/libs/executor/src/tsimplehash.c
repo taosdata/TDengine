@@ -294,12 +294,11 @@ int32_t tSimpleHashIterateRemove(SSHashObj *pHashObj, const void *key, size_t ke
         pPrev->next = pNode->next;
       }
 
-      if (*pIter ==  (void*)GET_SHASH_NODE_DATA(pNode)) {
-        if (pNode->next) {
-          *pIter = GET_SHASH_NODE_DATA(pNode->next);
-        } else {
+      if (*pIter == (void *)GET_SHASH_NODE_DATA(pNode)) {
+        if (!pPrev) {
           *pIter = NULL;
-          ++(*iter);
+        } else {
+          *pIter = pPrev;
         }
       }
 
@@ -331,6 +330,7 @@ void tSimpleHashClear(SSHashObj *pHashObj) {
       FREE_HASH_NODE(pNode);
       pNode = pNext;
     }
+    pHashObj->hashList[i] = NULL;
   }
   atomic_store_64(&pHashObj->size, 0);
 }
