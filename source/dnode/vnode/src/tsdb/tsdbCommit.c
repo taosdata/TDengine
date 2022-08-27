@@ -459,9 +459,9 @@ static int32_t tsdbOpenCommitIter(SCommitter *pCommitter) {
     }
 
     if (iIter > 0) {
-      pCommitter->toLastOnly = 1;
-    } else {
       pCommitter->toLastOnly = 0;
+    } else {
+      pCommitter->toLastOnly = 1;
     }
   } else {
     pCommitter->toLastOnly = 0;
