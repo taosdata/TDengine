@@ -1720,28 +1720,40 @@ _err:
   return code;
 }
 
-static int32_t tsdbAppendLastBlock(SCommitter *pCommitter) {
+static int32_t tsdbInitLastBlockIfNeed(SCommitter *pCommitter, TABLEID id) {
   int32_t code = 0;
 
-  SBlockData *pBData = &pCommitter->dWriter.bData;
   SBlockData *pBDatal = &pCommitter->dWriter.bDatal;
-
   if (pBDatal->suid || pBDatal->uid) {
-    if (pBDatal->suid != pBData->suid || pBDatal->suid == 0) {
+    if (pBDatal->suid != id.suid || id.uid == 0) {
       if (pBDatal->nRow) {
         code = tsdbCommitLastBlock(pCommitter);
-        if (code) goto _err;
+        if (code) goto _exit;
       }
       tBlockDataReset(pBDatal);
     }
   }
 
   if (!pBDatal->suid && !pBDatal->uid) {
-    ASSERT(pCommitter->skmTable.suid == pBData->suid);
-    ASSERT(pCommitter->skmTable.uid == pBData->uid);
-    code = tBlockDataInit(pBDatal, pBData->suid, 0, pCommitter->skmTable.pTSchema);
-    if (code) goto _err;
+    ASSERT(pCommitter->skmTable.suid == id.suid);
+    ASSERT(pCommitter->skmTable.uid == id.uid);
+    code = tBlockDataInit(pBDatal, id.suid, 0, pCommitter->skmTable.pTSchema);
+    if (code) goto _exit;
   }
+
+_exit:
+  return code;
+}
+
+static int32_t tsdbAppendLastBlock(SCommitter *pCommitter) {
+  int32_t code = 0;
+
+  SBlockData *pBData = &pCommitter->dWriter.bData;
+  SBlockData *pBDatal = &pCommitter->dWriter.bDatal;
+
+  TABLEID id = {.suid = pBData->suid, .uid = pBData->uid};
+  code = tsdbInitLastBlockIfNeed(pCommitter, id);
+  if (code) goto _err;
 
   for (int32_t iRow = 0; iRow < pBData->nRow; iRow++) {
     TSDBROW row = tsdbRowFromBlockData(pBData, iRow);
@@ -1773,22 +1785,8 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, TABLEID id) {
   if (pCommitter->toLastOnly) {
     SBlockData *pBDatal = &pCommitter->dWriter.bDatal;
 
-    if (pBDatal->suid || pBDatal->uid) {
-      if (pBDatal->suid != id.suid || pBDatal->suid == 0) {
-        if (pBDatal->nRow) {
-          code = tsdbCommitLastBlock(pCommitter);
-          if (code) goto _err;
-        }
-        tBlockDataReset(pBDatal);
-      }
-    }
-
-    if (!pBDatal->suid && !pBDatal->uid) {
-      ASSERT(pCommitter->skmTable.suid == id.suid);
-      ASSERT(pCommitter->skmTable.uid == id.uid);
-      code = tBlockDataInit(pBDatal, id.suid, 0, pCommitter->skmTable.pTSchema);
-      if (code) goto _err;
-    }
+    code = tsdbInitLastBlockIfNeed(pCommitter, id);
+    if (code) goto _err;
 
     while (pRowInfo) {
       STSchema *pTSchema = NULL;
