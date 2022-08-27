@@ -344,7 +344,7 @@ The charset that takes effect is UTF-8.
 | Attribute     | Description                            |
 | -------- | --------------------------------- |
 | Applicable    | Server and Client         |
-| Meaning       | The interval for taos shell to send heartbeat to mnode |
+| Meaning       | The interval for TDengine CLI to send heartbeat to mnode |
 | Unit          | second                                          |
 | Value Range   | 1-120                                         |
 | Default Value | 3                              |
