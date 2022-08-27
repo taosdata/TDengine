@@ -1732,7 +1732,7 @@ _err:
   return code;
 }
 
-static int32_t tsdbCommitTableData2(SCommitter *pCommitter, TABLEID id, int8_t toLastOnly) {
+static int32_t tsdbCommitTableData(SCommitter *pCommitter, TABLEID id) {
   int32_t   code = 0;
   SRowInfo *pRowInfo = tsdbGetCommitRow(pCommitter);
 
@@ -1821,9 +1821,9 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
     // other
     code = tsdbCommitterUpdateTableSchema(pCommitter, id.suid, id.uid);
     if (code) goto _err;
-    code = tBlockDataInit(&pCommitter->dReader.bData, id.suid, id.uid, pCommitter->skmRow.pTSchema);
+    code = tBlockDataInit(&pCommitter->dReader.bData, id.suid, id.uid, pCommitter->skmTable.pTSchema);
     if (code) goto _err;
-    code = tBlockDataInit(&pCommitter->dWriter.bData, id.suid, id.uid, pCommitter->skmRow.pTSchema);
+    code = tBlockDataInit(&pCommitter->dWriter.bData, id.suid, id.uid, pCommitter->skmTable.pTSchema);
     if (code) goto _err;
 
     /* merge with data in .data file */
@@ -1831,7 +1831,7 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
     if (code) goto _err;
 
     /* handle remain table data */
-    code = tsdbCommitTableData2(pCommitter, id, 1);
+    code = tsdbCommitTableData(pCommitter, id);
     if (code) goto _err;
 
     if (pCommitter->dWriter.mBlock.nItem > 0) {
