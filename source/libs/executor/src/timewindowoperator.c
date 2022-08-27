@@ -1025,6 +1025,10 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
     ekey = ascScan ? nextWin.ekey : nextWin.skey;
     forwardRows =
         getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL, pInfo->inputOrder);
+    // window start(end) key interpolation
+    doWindowBorderInterpolation(pInfo, pBlock, pResult, &nextWin, startPos, forwardRows, pSup);
+    //TODO: add to open window? how to close the open windows after input blocks exhausted?
+#if 0
     if ((ascScan && ekey <= pBlock->info.window.ekey) ||
         (!ascScan && ekey >= pBlock->info.window.skey)) {
       // window start(end) key interpolation
@@ -1032,7 +1036,7 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
     } else if (pInfo->timeWindowInterpo) {
       addToOpenWindowList(pResultRowInfo, pResult, tableGroupId);
     }
-
+#endif
     updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &nextWin, true);
     doApplyFunctions(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos, forwardRows, pBlock->info.rows,
                      numOfOutput);
