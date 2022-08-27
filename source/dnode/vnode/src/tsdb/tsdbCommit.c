@@ -1782,74 +1782,53 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, TABLEID id) {
 
   if (pRowInfo == NULL) goto _exit;
 
+  SBlockData *pBData;
   if (pCommitter->toLastOnly) {
-    SBlockData *pBDatal = &pCommitter->dWriter.bDatal;
-
+    pBData = &pCommitter->dWriter.bDatal;
     code = tsdbInitLastBlockIfNeed(pCommitter, id);
     if (code) goto _err;
+  } else {
+    pBData = &pCommitter->dWriter.bData;
+    ASSERT(pBData->nRow == 0);
+  }
 
-    while (pRowInfo) {
-      STSchema *pTSchema = NULL;
-      if (pRowInfo->row.type == 0) {
-        code = tsdbCommitterUpdateRowSchema(pCommitter, id.suid, id.uid, TSDBROW_SVERSION(&pRowInfo->row));
-        if (code) goto _err;
-        pTSchema = pCommitter->skmRow.pTSchema;
-      }
-
-      code = tBlockDataAppendRow(pBDatal, &pRowInfo->row, pTSchema, id.uid);
+  while (pRowInfo) {
+    STSchema *pTSchema = NULL;
+    if (pRowInfo->row.type == 0) {
+      code = tsdbCommitterUpdateRowSchema(pCommitter, id.suid, id.uid, TSDBROW_SVERSION(&pRowInfo->row));
       if (code) goto _err;
+      pTSchema = pCommitter->skmRow.pTSchema;
+    }
 
-      code = tsdbNextCommitRow(pCommitter);
-      if (code) goto _err;
+    code = tBlockDataAppendRow(pBData, &pRowInfo->row, pTSchema, id.uid);
+    if (code) goto _err;
 
-      pRowInfo = tsdbGetCommitRow(pCommitter);
-      if (pRowInfo && (pRowInfo->suid != id.suid || pRowInfo->uid != id.uid)) {
-        pRowInfo = NULL;
-      }
+    code = tsdbNextCommitRow(pCommitter);
+    if (code) goto _err;
 
-      if (pBDatal->nRow >= pCommitter->maxRow) {
+    pRowInfo = tsdbGetCommitRow(pCommitter);
+    if (pRowInfo && (pRowInfo->suid != id.suid || pRowInfo->uid != id.uid)) {
+      pRowInfo = NULL;
+    }
+
+    if (pBData->nRow >= pCommitter->maxRow) {
+      if (pCommitter->toLastOnly) {
         code = tsdbCommitLastBlock(pCommitter);
         if (code) goto _err;
-      }
-    }
-  } else {
-    SBlockData *pBData = &pCommitter->dWriter.bData;
-
-    ASSERT(pBData->nRow == 0);
-
-    while (pRowInfo) {
-      STSchema *pTSchema = NULL;
-      if (pRowInfo->row.type == 0) {
-        code = tsdbCommitterUpdateRowSchema(pCommitter, id.suid, id.uid, TSDBROW_SVERSION(&pRowInfo->row));
-        if (code) goto _err;
-        pTSchema = pCommitter->skmRow.pTSchema;
-      }
-
-      code = tBlockDataAppendRow(pBData, &pRowInfo->row, pTSchema, id.uid);
-      if (code) goto _err;
-
-      code = tsdbNextCommitRow(pCommitter);
-      if (code) goto _err;
-
-      pRowInfo = tsdbGetCommitRow(pCommitter);
-      if (pRowInfo && (pRowInfo->suid != id.suid || pRowInfo->uid != id.uid)) {
-        pRowInfo = NULL;
-      }
-
-      if (pBData->nRow >= pCommitter->maxRow) {
-        code = tsdbCommitDataBlock(pCommitter);
-        if (code) goto _err;
-      }
-    }
-
-    if (pBData->nRow) {
-      if (pBData->nRow > pCommitter->minRow) {
-        code = tsdbCommitDataBlock(pCommitter);
-        if (code) goto _err;
       } else {
-        code = tsdbAppendLastBlock(pCommitter);
+        code = tsdbCommitDataBlock(pCommitter);
         if (code) goto _err;
       }
+    }
+  }
+
+  if (!pCommitter->toLastOnly && pBData->nRow) {
+    if (pBData->nRow > pCommitter->minRow) {
+      code = tsdbCommitDataBlock(pCommitter);
+      if (code) goto _err;
+    } else {
+      code = tsdbAppendLastBlock(pCommitter);
+      if (code) goto _err;
     }
   }
 
