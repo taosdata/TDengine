@@ -33,13 +33,13 @@ static SFilePage *loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx) 
   SFilePage *buffer = (SFilePage *)taosMemoryCalloc(1, pMemBucket->bytes * pMemBucket->pSlots[slotIdx].info.size + sizeof(SFilePage));
 
   int32_t groupId = getGroupId(pMemBucket->numOfSlots, slotIdx, pMemBucket->times);
-  SIDList list = taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
+  SArray* pIdList = *(SArray**)taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
 
   int32_t offset = 0;
-  for(int32_t i = 0; i < list->size; ++i) {
-    struct SPageInfo* pgInfo = *(struct SPageInfo**) taosArrayGet(list, i);
+  for(int32_t i = 0; i < taosArrayGetSize(pIdList); ++i) {
+    int32_t* pageId = taosArrayGet(pIdList, i);
 
-    SFilePage* pg = getBufPage(pMemBucket->pBuffer, getPageId(pgInfo));
+    SFilePage* pg = getBufPage(pMemBucket->pBuffer, *pageId);
     memcpy(buffer->data + offset, pg->data, (size_t)(pg->num * pMemBucket->bytes));
 
     offset += (int32_t)(pg->num * pMemBucket->bytes);
