@@ -3,7 +3,7 @@ title: Introduction
 toc_max_heading_level: 2
 ---
 
-TDengine is an open source, high-performance, cloud native [time-series database](https://tdengine.com/tsdb/) optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. Its code, including its cluster feature is open source under GNU AGPL v3.0. Besides the database engine, it provides [caching](../develop/cache), [stream processing](../develop/stream), [data subscription](../develop/tmq) and other functionalities to reduce the system complexity and cost of development and operation.
+TDengine is an open source, high-performance, cloud native [time-series database](https://tdengine.com/tsdb/) optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. Its code, including its cluster feature is open source under GNU AGPL v3.0. Besides the database engine, it provides [caching](/develop/cache), [stream processing](/develop/stream), [data subscription](/develop/tmq) and other functionalities to reduce the system complexity and cost of development and operation.
 
 This section introduces the major features, competitive advantages, typical use-cases and benchmarks to help you get a high level overview of TDengine.
 
@@ -14,20 +14,20 @@ The major features are listed below:
 1. Insert data
     * supports [using SQL to insert](/develop/insert-data/sql-writing).
     * supports [schemaless writing](/reference/schemaless/) just like NoSQL databases. It also supports standard protocols like [InfluxDB LINE](/develop/insert-data/influxdb-line)，[OpenTSDB Telnet](/develop/insert-data/opentsdb-telnet), [OpenTSDB JSON ](/develop/insert-data/opentsdb-json) among others.
-    * supports seamless integration with third-party tools like [Telegraf](../data-in/telegraf)，[Prometheus](../data-in/prometheus)，they can write data into TDengine with simple configuration and without a single line of code. 
+    * supports seamless integration with third-party tools like [Telegraf](/third-party/telegraf/)，[Prometheus](/third-party/prometheus/)，they can write data into TDengine with simple configuration and without a single line of code. 
 2. Query data
     * supports standard SQL, including nested query.
-    * supports [time series specific functions](../taos-sql/function/#time-series-extensions) and [time series specific queries](../taos-sql/distinguished), like downsampling, interpolation, cumulated sum, time weighted average, state window, session window and many others.
-    * supports [user defined functions](../taos-sql/udf).
-3. [caching](../taos-sql/database): TDengine always saves the last data point in cache, so Redis is not needed for time-series data processing.
-4. [stream processing](../taos-sql/stream): not only is the continuous query is supported, but TDengine also supports even driven stream processing, so Flink or spark is not needed for time-series daata processing. 
-5. [data subscription](../taos-sql/tmq): application can subscribe a table or a set of tables. API is the same as Kafka, but you can specify filter conditions.
+    * supports [time series specific functions](/taos-sql/function/#time-series-extensions) and [time series specific queries](/taos-sql/distinguished), like downsampling, interpolation, cumulated sum, time weighted average, state window, session window and many others.
+    * supports [user defined functions](/taos-sql/udf).
+3. [caching](/develop/cache/): TDengine always saves the last data point in cache, so Redis is not needed for time-series data processing.
+4. [stream processing](/develop/stream/): not only is the continuous query is supported, but TDengine also supports even driven stream processing, so Flink or spark is not needed for time-series daata processing. 
+5. [data subscription](/develop/tmq/): application can subscribe a table or a set of tables. API is the same as Kafka, but you can specify filter conditions.
 6. Visulization
-    * supports seamless integration with [Grafana](../visual/grafana) for visualization.
+    * supports seamless integration with [Grafana](/third-party/grafana/) for visualization.
     * supports seamless integration with Google Data Studio.
 7. Cluster
-    * supports [cluster](../deployment/), with the capability of increasing processing power by adding more nodes. 
-    * Supports [deployment on Kubernetes](../deployment/k8s/)
+    * supports [cluster](/deployment/), with the capability of increasing processing power by adding more nodes. 
+    * Supports [deployment on Kubernetes](/deployment/k8s/)
     * upports high availability is via replication and RAFT. 
 8. Administration
     * provides [monitoring](/operation/monitor) on running instances of TDengine.
