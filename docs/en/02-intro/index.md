@@ -14,9 +14,9 @@ The major features are listed below:
 1. Insert data
     * supports [using SQL to insert](/develop/insert-data/sql-writing).
     * supports [schemaless writing](/reference/schemaless/) just like NoSQL databases. It also supports standard protocols like [InfluxDB LINE](/develop/insert-data/influxdb-line)，[OpenTSDB Telnet](/develop/insert-data/opentsdb-telnet), [OpenTSDB JSON ](/develop/insert-data/opentsdb-json) among others.
-    * supports seamless integration with third-party tools like [Telegraf](/third-party/telegraf/)，[Prometheus](/third-party/prometheus/)，they can write data into TDengine with simple configuration and without a single line of code. 
+    * supports seamless integration with third-party tools like [Telegraf](/third-party/telegraf/)，[Prometheus](/third-party/prometheus/)，[collectd](/third-party/collectd/), [StatsD](/third-party/statsd/), [TCollector](/third-party/tcollector/) and [icinga2/](/third-party/icinga2/), they can write data into TDengine with simple configuration and without a single line of code. 
 2. Query data
-    * supports standard SQL, including nested query.
+    * supports standard [SQL](/taos-sql/), including nested query.
     * supports [time series specific functions](/taos-sql/function/#time-series-extensions) and [time series specific queries](/taos-sql/distinguished), like downsampling, interpolation, cumulated sum, time weighted average, state window, session window and many others.
     * supports [user defined functions](/taos-sql/udf).
 3. [caching](/develop/cache/): TDengine always saves the last data point in cache, so Redis is not needed for time-series data processing.
