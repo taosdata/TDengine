@@ -343,6 +343,7 @@ class PlannerTestBaseImpl {
     cxt.pMsg = stmtEnv_.msgBuf_.data();
     cxt.msgLen = stmtEnv_.msgBuf_.max_size();
     cxt.svrVer = "3.0.0.0";
+    cxt.enableSysInfo = true;
     if (prepare) {
       SStmtCallback stmtCb = {0};
       cxt.pStmtCb = &stmtCb;

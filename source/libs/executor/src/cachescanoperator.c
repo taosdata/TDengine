@@ -24,10 +24,9 @@
 #include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"
-#include "executorInt.h"
 
 static SSDataBlock* doScanLastrow(SOperatorInfo* pOperator);
-static void destroyLastrowScanOperator(void* param, int32_t numOfOutput);
+static void destroyLastrowScanOperator(void* param);
 static int32_t extractTargetSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo, int32_t** pSlotIds);
 
 SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandle* readHandle, SExecTaskInfo* pTaskInfo) {
@@ -211,7 +210,7 @@ SSDataBlock* doScanLastrow(SOperatorInfo* pOperator) {
   }
 }
 
-void destroyLastrowScanOperator(void* param, int32_t numOfOutput) {
+void destroyLastrowScanOperator(void* param) {
   SLastrowScanInfo* pInfo = (SLastrowScanInfo*)param;
   blockDataDestroy(pInfo->pRes);
   taosMemoryFreeClear(param);

@@ -354,6 +354,19 @@ static int32_t queryConvertTableMetaMsg(STableMetaRsp *pMetaMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryCreateCTableMetaFromMsg(STableMetaRsp *msg, SCTableMeta *pMeta) {
+  pMeta->vgId = msg->vgId;
+  pMeta->tableType = msg->tableType;
+  pMeta->uid = msg->tuid;
+  pMeta->suid = msg->suid;
+
+  qDebug("ctable %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s suid %" PRIx64 ,
+         msg->tbName, pMeta->uid, pMeta->tableType, pMeta->vgId, msg->dbFName, pMeta->suid);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta **pMeta) {
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;

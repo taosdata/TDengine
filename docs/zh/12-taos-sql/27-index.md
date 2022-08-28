@@ -1,6 +1,7 @@
 ---
 sidebar_label: 索引
 title: 使用索引
+description: 索引功能的使用细节
 ---
 
 TDengine 从 3.0.0.0 版本开始引入了索引功能，支持 SMA 索引和 FULLTEXT 索引。

@@ -1,6 +1,7 @@
 ---
 sidebar_label: 数据订阅
 title: 数据订阅
+description: TDengine 消息队列提供的数据订阅功能
 ---
 
 TDengine 3.0.0.0 开始对消息队列做了大幅的优化和增强以简化用户的解决方案。

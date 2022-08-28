@@ -1,5 +1,6 @@
 ---
 title: 高可用
+description: TDengine 的高可用设计 
 ---
 
 ## Vnode 的高可用性

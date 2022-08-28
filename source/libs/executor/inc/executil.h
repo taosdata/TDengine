@@ -23,6 +23,12 @@
 #include "tcommon.h"
 #include "tpagedbuf.h"
 
+#define T_LONG_JMP(_obj, _c) \
+  do {                       \
+    ASSERT((_c) != -1);      \
+    longjmp((_obj), (_c));   \
+  } while (0);
+
 #define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)     \
   do {                                               \
     assert(sizeof(_uid) == sizeof(uint64_t));        \
@@ -80,11 +86,9 @@ struct SqlFunctionCtx;
 
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
-void   cleanupResultRowInfo(SResultRowInfo* pResultRowInfo);
 
 void initResultRow(SResultRow* pResultRow);
 void closeResultRow(SResultRow* pResultRow);
-bool isResultRowClosed(SResultRow* pResultRow);
 
 struct SResultRowEntryInfo* getResultEntryInfo(const SResultRow* pRow, int32_t index, const int32_t* offset);
 

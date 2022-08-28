@@ -595,6 +595,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
 #else
   struct statvfs info;
   if (statvfs(dataDir, &info)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   } else {
     diskSize->total = info.f_blocks * info.f_frsize;
@@ -851,13 +852,12 @@ char *taosGetCmdlineByPID(int pid) {
 }
 
 void taosSetCoreDump(bool enable) {
+  if (!enable) return;
 #ifdef WINDOWS
-  // SetUnhandledExceptionFilter(exceptionHandler);
-  // SetUnhandledExceptionFilter(&FlCrashDump);
+  SetUnhandledExceptionFilter(exceptionHandler);
+  SetUnhandledExceptionFilter(&FlCrashDump);
 #elif defined(_TD_DARWIN_64)
 #else
-  if (!enable) return;
-
   // 1. set ulimit -c unlimited
   struct rlimit rlim;
   struct rlimit rlim_new;

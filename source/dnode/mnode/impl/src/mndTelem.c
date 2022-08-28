@@ -131,7 +131,9 @@ static int32_t mndProcessTelemTimer(SRpcMsg* pReq) {
   char* pCont = mndBuildTelemetryReport(pMnode);
   if (pCont != NULL) {
     if (taosSendHttpReport(tsTelemServer, tsTelemPort, pCont, strlen(pCont), HTTP_FLAT) != 0) {
-      mError("failed to send telemetry msg");
+      mError("failed to send telemetry report");
+    } else {
+      mTrace("succeed to send telemetry report");
     }
     taosMemoryFree(pCont);
   }
