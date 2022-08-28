@@ -22,13 +22,13 @@ The major features are listed below:
 3. [caching](/develop/cache/): TDengine always saves the last data point in cache, so Redis is not needed for time-series data processing.
 4. [stream processing](/develop/stream/): not only is the continuous query is supported, but TDengine also supports even driven stream processing, so Flink or spark is not needed for time-series daata processing. 
 5. [data subscription](/develop/tmq/): application can subscribe a table or a set of tables. API is the same as Kafka, but you can specify filter conditions.
-6. Visulization
+6. Visualization
     * supports seamless integration with [Grafana](/third-party/grafana/) for visualization.
     * supports seamless integration with Google Data Studio.
 7. Cluster
-    * supports [cluster](/deployment/), with the capability of increasing processing power by adding more nodes. 
+    * supports [cluster](/deployment/) with the capability of increasing processing power by adding more nodes. 
     * Supports [deployment on Kubernetes](/deployment/k8s/)
-    * upports high availability is via replication and RAFT. 
+    * supports high availability via replication and RAFT. 
 8. Administration
     * provides [monitoring](/operation/monitor) on running instances of TDengine.
     * provides many ways to [import](/operation/import) and [export](/operation/export) data.
