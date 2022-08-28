@@ -19,9 +19,9 @@ The major features are listed below:
     * supports standard [SQL](/taos-sql/), including nested query.
     * supports [time series specific functions](/taos-sql/function/#time-series-extensions) and [time series specific queries](/taos-sql/distinguished), like downsampling, interpolation, cumulated sum, time weighted average, state window, session window and many others.
     * supports [user defined functions](/taos-sql/udf).
-3. [caching](/develop/cache/): TDengine always saves the last data point in cache, so Redis is not needed for time-series data processing.
-4. [stream processing](/develop/stream/): not only is the continuous query is supported, but TDengine also supports even driven stream processing, so Flink or spark is not needed for time-series daata processing. 
-5. [data subscription](/develop/tmq/): application can subscribe a table or a set of tables. API is the same as Kafka, but you can specify filter conditions.
+3. [Caching](/develop/cache/): TDengine always saves the last data point in cache, so Redis is not needed for time-series data processing.
+4. [Stream Processing](/develop/stream/): not only is the continuous query is supported, but TDengine also supports even driven stream processing, so Flink or spark is not needed for time-series daata processing. 
+5. [Data Dubscription](/develop/tmq/): application can subscribe a table or a set of tables. API is the same as Kafka, but you can specify filter conditions.
 6. Visualization
     * supports seamless integration with [Grafana](/third-party/grafana/) for visualization.
     * supports seamless integration with Google Data Studio.
