@@ -2678,15 +2678,6 @@ int32_t tSerializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 int32_t tDeserializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 
 typedef struct {
-  int32_t vgId;
-  SEpSet  epSet;
-} SVgEpSet;
-
-typedef struct {
-  int32_t padding;
-} SRSmaExecMsg;
-
-typedef struct {
   int8_t         version;       // for compatibility(default 0)
   int8_t         intervalUnit;  // MACRO: TIME_UNIT_XXX
   int8_t         slidingUnit;   // MACRO: TIME_UNIT_XXX

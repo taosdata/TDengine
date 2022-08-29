@@ -1975,7 +1975,7 @@ _OVER:
 
 int32_t appendTbToReq(SHashObj* pHash, int32_t pos1, int32_t len1, int32_t pos2, int32_t len2, const char* str,
                       int32_t acctId, char* db) {
-  SName name;
+  SName name = {0};
 
   if (len1 <= 0) {
     return -1;

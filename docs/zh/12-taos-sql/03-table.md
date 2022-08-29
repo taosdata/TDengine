@@ -10,27 +10,27 @@ description: 对表的各种管理操作
 
 ```sql
 CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definitionn] ...) [table_options]
- 
+
 CREATE TABLE create_subtable_clause
- 
+
 CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definitionn] ...)
     [TAGS (create_definition [, create_definitionn] ...)]
     [table_options]
- 
+
 create_subtable_clause: {
     create_subtable_clause [create_subtable_clause] ...
   | [IF NOT EXISTS] [db_name.]tb_name USING [db_name.]stb_name [(tag_name [, tag_name] ...)] TAGS (tag_value [, tag_value] ...)
 }
- 
+
 create_definition:
     col_name column_definition
- 
+
 column_definition:
     type_name [comment 'string_value']
- 
+
 table_options:
     table_option ...
- 
+
 table_option: {
     COMMENT 'string_value'
   | WATERMARK duration[,duration]
@@ -54,12 +54,13 @@ table_option: {
    需要注意的是转义字符中的内容必须是可打印字符。
 
 **参数说明**
+
 1. COMMENT：表注释。可用于超级表、子表和普通表。
-2. WATERMARK：指定窗口的关闭时间，默认值为 5 秒，最小单位毫秒，范围为0到15分钟，多个以逗号分隔。只可用于超级表，且只有当数据库使用了RETENTIONS参数时，才可以使用此表参数。
-3. MAX_DELAY：用于控制推送计算结果的最大延迟，默认值为 interval 的值(但不能超过最大值)，最小单位毫秒，范围为1毫秒到15分钟，多个以逗号分隔。注：不建议 MAX_DELAY 设置太小，否则会过于频繁的推送结果，影响存储和查询性能，如无特殊需求，取默认值即可。只可用于超级表，且只有当数据库使用了RETENTIONS参数时，才可以使用此表参数。
-4. ROLLUP：Rollup 指定的聚合函数，提供基于多层级的降采样聚合结果。只可用于超级表。只有当数据库使用了RETENTIONS参数时，才可以使用此表参数。作用于超级表除TS列外的其它所有列，但是只能定义一个聚合函数。 聚合函数支持 avg, sum, min, max, last, first。
-5. SMA：Small Materialized Aggregates，提供基于数据块的自定义预计算功能。预计算类型包括MAX、MIN和SUM。可用于超级表/普通表。
-6. TTL：Time to Live，是用户用来指定表的生命周期的参数。如果在持续的TTL时间内，都没有数据写入该表，则TDengine系统会自动删除该表。这个TTL的时间只是一个大概时间，我们系统不保证到了时间一定会将其删除，而只保证存在这样一个机制。TTL单位是天，默认为0，表示不限制。用户需要注意，TTL优先级高于KEEP，即TTL时间满足删除机制时，即使当前数据的存在时间小于KEEP，此表也会被删除。只可用于子表和普通表。
+2. WATERMARK：指定窗口的关闭时间，默认值为 5 秒，最小单位毫秒，范围为 0 到 15 分钟，多个以逗号分隔。只可用于超级表，且只有当数据库使用了 RETENTIONS 参数时，才可以使用此表参数。
+3. MAX_DELAY：用于控制推送计算结果的最大延迟，默认值为 interval 的值(但不能超过最大值)，最小单位毫秒，范围为 1 毫秒到 15 分钟，多个以逗号分隔。注：不建议 MAX_DELAY 设置太小，否则会过于频繁的推送结果，影响存储和查询性能，如无特殊需求，取默认值即可。只可用于超级表，且只有当数据库使用了 RETENTIONS 参数时，才可以使用此表参数。
+4. ROLLUP：Rollup 指定的聚合函数，提供基于多层级的降采样聚合结果。只可用于超级表。只有当数据库使用了 RETENTIONS 参数时，才可以使用此表参数。作用于超级表除 TS 列外的其它所有列，但是只能定义一个聚合函数。 聚合函数支持 avg, sum, min, max, last, first。
+5. SMA：Small Materialized Aggregates，提供基于数据块的自定义预计算功能。预计算类型包括 MAX、MIN 和 SUM。可用于超级表/普通表。
+6. TTL：Time to Live，是用户用来指定表的生命周期的参数。如果创建表时指定了这个参数，当该表的存在时间超过 TTL 指定的时间后，TDengine 自动删除该表。这个 TTL 的时间只是一个大概时间，系统不保证到了时间一定会将其删除，而只保证存在这样一个机制且最终一定会删除。TTL 单位是天，默认为 0，表示不限制，到期时间为表创建时间加上 TTL 时间。
 
 ## 创建子表
 
@@ -89,7 +90,7 @@ CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) [IF 
 
 ```sql
 ALTER TABLE [db_name.]tb_name alter_table_clause
- 
+
 alter_table_clause: {
     alter_table_options
   | ADD COLUMN col_name column_type
@@ -97,10 +98,10 @@ alter_table_clause: {
   | MODIFY COLUMN col_name column_type
   | RENAME COLUMN old_col_name new_col_name
 }
- 
+
 alter_table_options:
     alter_table_option ...
- 
+
 alter_table_option: {
     TTL value
   | COMMENT 'string_value'
@@ -110,6 +111,7 @@ alter_table_option: {
 
 **使用说明**
 对普通表可以进行如下修改操作
+
 1. ADD COLUMN：添加列。
 2. DROP COLUMN：删除列。
 3. MODIFY COLUMN：修改列定义，如果数据列的类型是可变长类型，那么可以使用此指令修改其宽度，只能改大，不能改小。
@@ -143,15 +145,15 @@ ALTER TABLE tb_name RENAME COLUMN old_col_name new_col_name
 
 ```sql
 ALTER TABLE [db_name.]tb_name alter_table_clause
- 
+
 alter_table_clause: {
     alter_table_options
   | SET TAG tag_name = new_tag_value
 }
- 
+
 alter_table_options:
     alter_table_option ...
- 
+
 alter_table_option: {
     TTL value
   | COMMENT 'string_value'
@@ -159,6 +161,7 @@ alter_table_option: {
 ```
 
 **使用说明**
+
 1. 对子表的列和标签的修改，除了更改标签值以外，都要通过超级表才能进行。
 
 ### 修改子表标签值
@@ -169,7 +172,7 @@ ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
 
 ## 删除表
 
-可以在一条SQL语句中删除一个或多个普通表或子表。
+可以在一条 SQL 语句中删除一个或多个普通表或子表。
 
 ```sql
 DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...
@@ -179,7 +182,7 @@ DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...
 
 ### 显示所有表
 
-如下SQL语句可以列出当前数据库中的所有表名。
+如下 SQL 语句可以列出当前数据库中的所有表名。
 
 ```sql
 SHOW TABLES [LIKE tb_name_wildchar];
