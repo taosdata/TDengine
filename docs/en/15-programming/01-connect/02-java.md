@@ -1,7 +1,7 @@
 ---
 sidebar_label: Java
 title: Connect with Java Connector
-description: Java Connector for TDengine.
+description: Connect to TDengine cloud service using Java connector
 ---
 
 import Tabs from '@theme/Tabs';

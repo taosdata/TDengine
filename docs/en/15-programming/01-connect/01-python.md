@@ -1,7 +1,7 @@
 ---
 sidebar_label: Python
 title: Connect with Python Connector
-description: Python Connector for TDengine.
+description: Connect to TDengine cloud service using Python connector
 ---
 
 import Tabs from '@theme/Tabs';

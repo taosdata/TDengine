@@ -1,6 +1,7 @@
 ---
-sidebar_label: Node.js 
-title: TDengine Node.js Connector
+sidebar_label: Node.JS
+title: TDengine Node.JS Connector
+description: Detailed guide for Node.JS Connector
 ---
 
  `td2.0-rest-connector` are the official Node.js language connectors for TDengine. Node.js developers can develop applications to access TDengine instance data. `td2.0-rest-connector` is a **REST connector** that connects to TDengine instances via the REST API. 

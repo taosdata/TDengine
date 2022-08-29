@@ -3,6 +3,7 @@ toc_max_heading_level: 4
 sidebar_position: 2
 sidebar_label: Java
 title: TDengine Java Connector
+description: Detailed guide for Java Connector
 ---
 
 import Tabs from '@theme/Tabs';

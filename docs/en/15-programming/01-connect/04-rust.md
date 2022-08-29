@@ -1,7 +1,7 @@
 ---
 sidebar_label: Rust
 title: Connect with Rust Connector
-description: Rust Connector for TDengine
+description: Connect to TDengine cloud service using Rust connector
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';

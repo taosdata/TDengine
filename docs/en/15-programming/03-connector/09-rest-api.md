@@ -1,6 +1,7 @@
 ---
 sidebar_label: REST API
 title: REST API
+description: Detailed guide for REST API
 ---
 
 To support the development of various types of applications and platforms, TDengine provides an API that conforms to REST principles; namely REST API. To minimize the learning cost, unlike REST APIs for other database engines, TDengine allows insertion of SQL commands in the BODY of an HTTP POST request, to operate the database. 

@@ -3,6 +3,7 @@ toc_max_heading_level: 4
 sidebar_position: 5
 sidebar_label: Rust
 title: TDengine Rust Connector
+description: Detailed guide for Rust Connector
 ---
 
 
