@@ -465,7 +465,6 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
     // set the ptr to the new SPageInfo
     ((void**)((*pi)->pData))[0] = (*pi);
 
-    assert(listNEles(pBuf->lruList) < pBuf->inMemPages && pBuf->inMemPages > 0);
     lruListPushFront(pBuf->lruList, *pi);
     (*pi)->used = true;
 
