@@ -11,7 +11,7 @@ This section introduces the major features, competitive advantages, typical use-
 
 The major features are listed below:
 
-1. While TDengine supports [using SQL to insert](../data-in/sql), it also supports [Schemaless writing](/reference/schemaless/) just like NoSQL databases. TDengine also supports standard protocols like [InfluxDB LINE](/develop/insert-data/influxdb-line)，[OpenTSDB Telnet](/develop/insert-data/opentsdb-telnet), [OpenTSDB JSON ](/develop/insert-data/opentsdb-json) among others.
+1. While TDengine supports [using SQL to insert](../data-in/insert-data), it also supports [Schemaless writing](/reference/schemaless/) just like NoSQL databases. TDengine also supports standard protocols like [InfluxDB LINE](/develop/insert-data/influxdb-line)，[OpenTSDB Telnet](/develop/insert-data/opentsdb-telnet), [OpenTSDB JSON ](/develop/insert-data/opentsdb-json) among others.
 2. TDengine supports seamless integration with third-party tools like [Telegraf](../data-in/telegraf)，[Prometheus](../data-in/prometheus)，they can write data into TDengine with simple configuration and without a single line of code. 
 3. Support for [time series specific queries](../taos-sql/distinguished), including aggregation, nested query, downsampling, interpolation and others.
 4. Support for [user defined functions](../taos-sql/udf).
