@@ -349,7 +349,7 @@ static int32_t createResultData(SDataType* pType, int32_t numOfRows, SScalarPara
 
   int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows);
   if (code != TSDB_CODE_SUCCESS) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    terrno = code;
     taosMemoryFree(pColumnData);
     return terrno;
   }
@@ -367,6 +367,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   SScalarParam output = {0};
 
   tagFilterAssist ctx = {0};
+
   ctx.colHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
   if (ctx.colHash == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -474,6 +475,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     qError("failed to create result, reason:%s", tstrerror(code));
+    terrno = code;
     goto end;
   }
 
@@ -1298,6 +1300,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   pCond->type = TIMEWINDOW_RANGE_CONTAINED;
   pCond->startVersion = -1;
   pCond->endVersion = -1;
+  pCond->schemaVersion = -1;
   //  pCond->type = pTableScanNode->scanFlag;
 
   int32_t j = 0;

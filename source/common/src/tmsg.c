@@ -5675,7 +5675,7 @@ void tFreeSMCreateStbRsp(SMCreateStbRsp *pRsp) {
 
 int32_t tEncodeSTqOffsetVal(SEncoder *pEncoder, const STqOffsetVal *pOffsetVal) {
   if (tEncodeI8(pEncoder, pOffsetVal->type) < 0) return -1;
-  if (pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+  if (pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     if (tEncodeI64(pEncoder, pOffsetVal->uid) < 0) return -1;
     if (tEncodeI64(pEncoder, pOffsetVal->ts) < 0) return -1;
   } else if (pOffsetVal->type == TMQ_OFFSET__LOG) {
@@ -5690,7 +5690,7 @@ int32_t tEncodeSTqOffsetVal(SEncoder *pEncoder, const STqOffsetVal *pOffsetVal) 
 
 int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
   if (tDecodeI8(pDecoder, &pOffsetVal->type) < 0) return -1;
-  if (pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+  if (pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_DATA  || pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     if (tDecodeI64(pDecoder, &pOffsetVal->uid) < 0) return -1;
     if (tDecodeI64(pDecoder, &pOffsetVal->ts) < 0) return -1;
   } else if (pOffsetVal->type == TMQ_OFFSET__LOG) {
@@ -5712,10 +5712,8 @@ int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
     snprintf(buf, maxLen, "offset(reset to latest)");
   } else if (pVal->type == TMQ_OFFSET__LOG) {
     snprintf(buf, maxLen, "offset(log) ver:%" PRId64, pVal->version);
-  } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+  } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA  || pVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     snprintf(buf, maxLen, "offset(ss data) uid:%" PRId64 ", ts:%" PRId64, pVal->uid, pVal->ts);
-  } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_META) {
-    snprintf(buf, maxLen, "offset(ss meta) uid:%" PRId64 ", ts:%" PRId64, pVal->uid, pVal->ts);
   } else {
     ASSERT(0);
   }
@@ -5729,9 +5727,7 @@ bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
     } else if (pLeft->type == TMQ_OFFSET__SNAPSHOT_DATA) {
       return pLeft->uid == pRight->uid && pLeft->ts == pRight->ts;
     } else if (pLeft->type == TMQ_OFFSET__SNAPSHOT_META) {
-      ASSERT(0);
-      // TODO
-      return pLeft->uid == pRight->uid && pLeft->ts == pRight->ts;
+      return pLeft->uid == pRight->uid;
     } else {
       ASSERT(0);
       /*ASSERT(pLeft->type == TMQ_OFFSET__RESET_NONE || pLeft->type == TMQ_OFFSET__RESET_EARLIEAST ||*/
@@ -5816,6 +5812,21 @@ int32_t tDecodeDeleteRes(SDecoder *pCoder, SDeleteRes *pRes) {
   if (tDecodeCStrTo(pCoder, pRes->tsColName) < 0) return -1;
   return 0;
 }
+
+int32_t tEncodeSMqMetaRsp(SEncoder* pEncoder, const SMqMetaRsp* pRsp) {
+  if (tEncodeSTqOffsetVal(pEncoder, &pRsp->rspOffset) < 0) return -1;
+  if(tEncodeI16(pEncoder, pRsp->resMsgType)) return -1;
+  if(tEncodeBinary(pEncoder, pRsp->metaRsp, pRsp->metaRspLen)) return -1;
+  return 0;
+}
+
+int32_t tDecodeSMqMetaRsp(SDecoder* pDecoder, SMqMetaRsp* pRsp) {
+  if (tDecodeSTqOffsetVal(pDecoder, &pRsp->rspOffset) < 0) return -1;
+  if (tDecodeI16(pDecoder, &pRsp->resMsgType) < 0) return -1;
+  if (tDecodeBinaryAlloc(pDecoder, &pRsp->metaRsp, (uint64_t*)&pRsp->metaRspLen) < 0) return -1;
+  return 0;
+}
+
 int32_t tEncodeSMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
   if (tEncodeSTqOffsetVal(pEncoder, &pRsp->reqOffset) < 0) return -1;
   if (tEncodeSTqOffsetVal(pEncoder, &pRsp->rspOffset) < 0) return -1;
