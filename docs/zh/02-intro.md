@@ -43,7 +43,7 @@ TDengine的主要功能如下：
     - 可以通过 [Kubernets 部署 TDengine](../deployment/k8s/)
     - 通过多副本提供高可用能力
 8. 管理
-    - [监控](..//operation/monitor)运行中的 TDengine 实例
+    - [监控](../operation/monitor)运行中的 TDengine 实例
     - 多种[数据导入](../operation/import)方式
     - 多种[数据导出](../operation/export)方式
 9. 工具
