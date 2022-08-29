@@ -1715,7 +1715,8 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
                 smaDebug("vgId:%d, batchSize:%d, execType:%" PRIi8, SMA_VID(pSma), qallItemSize, type);
               }
 
-              if (type == RSMA_EXEC_OVERFLOW) {
+              if (((type == RSMA_EXEC_OVERFLOW) && (atomic_load_8(RSMA_COMMIT_STAT(pRSmaStat)) == 0)) ||
+                  (type == RSMA_EXEC_COMMIT)) {
                 tdRSmaFetchAllResult(pSma, pInfo, pSubmitArr);
               }
 
