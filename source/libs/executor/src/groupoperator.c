@@ -547,7 +547,7 @@ void* getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInf
     p = taosHashGet(pInfo->pGroupSet, pInfo->keyBuf, len);
 
     int32_t pageId = 0;
-    pPage = getNewBufPage(pInfo->pBuf, 0, &pageId);
+    pPage = getNewBufPage(pInfo->pBuf, &pageId);
     taosArrayPush(p->pPageList, &pageId);
 
     *(int32_t *) pPage = 0;
@@ -562,7 +562,7 @@ void* getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInf
 
       // add a new page for current group
       int32_t pageId = 0;
-      pPage = getNewBufPage(pInfo->pBuf, 0, &pageId);
+      pPage = getNewBufPage(pInfo->pBuf, &pageId);
       taosArrayPush(p->pPageList, &pageId);
       memset(pPage, 0, getBufPageSize(pInfo->pBuf));
     }

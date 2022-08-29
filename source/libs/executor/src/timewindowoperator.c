@@ -3529,7 +3529,7 @@ int32_t initBasicInfoEx(SOptrBasicInfo* pBasicInfo, SExprSupp* pSup, SExprInfo* 
   initBasicInfo(pBasicInfo, pResultBlock);
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    pSup->pCtx[i].pBuf = NULL;
+    pSup->pCtx[i].saveHandle.pBuf = NULL;
   }
 
   ASSERT(numOfCols > 0);
