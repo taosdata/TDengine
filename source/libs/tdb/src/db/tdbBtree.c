@@ -782,6 +782,11 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
                                  pBt);
               tdbPageInsertCell(pParent, sIdx++, pNewCell, szNewCell, 0);
               tdbOsFree(pNewCell);
+
+              if (TDB_CELLDECODER_FREE_VAL(&cd)) {
+                tdbFree(cd.pVal);
+                cd.pVal = NULL;
+              }
             }
 
             // move to next new page

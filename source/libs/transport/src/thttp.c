@@ -175,7 +175,7 @@ static int32_t taosBuildDstAddr(const char* server, uint16_t port, struct sockad
   uint32_t ip = taosGetIpv4FromFqdn(server);
   if (ip == 0xffffffff) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("http-report failed to get http server:%s ip since %s", server, terrstr());
+    uError("http-report failed to get http server:%s since %s", server, errno == 0 ? "invalid http server" : terrstr());
     return -1;
   }
   char buf[128] = {0};
@@ -224,6 +224,7 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   if (ret != 0) {
     uError("http-report failed to connect to server, reason:%s, dst:%s:%d", uv_strerror(ret), cli->addr, cli->port);
     destroyHttpClient(cli);
+    uv_stop(loop);
   }
 
   uv_run(loop, UV_RUN_DEFAULT);

@@ -536,7 +536,7 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
     return -1;
   }
 
-  if (pCreate->numOfColumns < TSDB_MIN_COLUMNS || pCreate->numOfColumns > TSDB_MAX_COLUMNS) {
+  if (pCreate->numOfColumns < TSDB_MIN_COLUMNS || pCreate->numOfTags + pCreate->numOfColumns > TSDB_MAX_COLUMNS) {
     terrno = TSDB_CODE_PAR_INVALID_COLUMNS_NUM;
     return -1;
   }
