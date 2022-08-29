@@ -32,7 +32,7 @@ taos> show databases;
 Query OK, 2 rows in database (0.033802s)
 ```
 
-因为运行在容器中的 TDengine 服务端使用容器的 hostname 建立连接，使用 taos shell 或者各种连接器（例如 JDBC-JNI）从容器外访问容器内的 TDengine 比较复杂，所以上述方式是访问容器中 TDengine 服务的最简单的方法，适用于一些简单场景。如果在一些复杂场景下想要从容器化使用 taos shell 或者各种连接器访问容器中的 TDengine 服务，请参考下一节。
+因为运行在容器中的 TDengine 服务端使用容器的 hostname 建立连接，使用 TDengine CLI 或者各种连接器（例如 JDBC-JNI）从容器外访问容器内的 TDengine 比较复杂，所以上述方式是访问容器中 TDengine 服务的最简单的方法，适用于一些简单场景。如果在一些复杂场景下想要从容器化使用 TDengine CLI 或者各种连接器访问容器中的 TDengine 服务，请参考下一节。
 
 ## 在 host 网络上启动 TDengine
 
@@ -75,7 +75,7 @@ docker run -d \
 echo 127.0.0.1 tdengine |sudo tee -a /etc/hosts
 ```
 
-最后，可以从 taos shell 或者任意连接器以 "tdengine" 为服务端地址访问 TDengine 服务。
+最后，可以从 TDengine CLI 或者任意连接器以 "tdengine" 为服务端地址访问 TDengine 服务。
 
 ```shell
 taos -h tdengine -P 6030
@@ -354,7 +354,7 @@ test-docker_td-2_1   /tini -- /usr/bin/entrypoi ...   Up
 test-docker_td-3_1   /tini -- /usr/bin/entrypoi ...   Up
 ```
 
-4. 用 taos shell 查看 dnodes
+4. 用 TDengine CLI 查看 dnodes
 
 ```shell
 

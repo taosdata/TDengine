@@ -142,7 +142,9 @@ typedef struct {
   //TODO remove prepareStatus
   STqOffsetVal   prepareStatus; // for tmq
   STqOffsetVal   lastStatus;    // for tmq
-  void*          metaBlk;       // for tmq fetching meta
+  SMqMetaRsp     metaRsp;       // for tmq fetching meta
+  SSchemaWrapper *schema;
+  char           tbName[TSDB_TABLE_NAME_LEN];
   SSDataBlock*   pullOverBlk;   // for streaming
   SWalFilterCond cond;
   int64_t        lastScanUid;
@@ -491,6 +493,19 @@ typedef struct SStreamScanInfo {
   SNode*                 pTagIndexCond;
 } SStreamScanInfo;
 
+typedef struct SStreamRawScanInfo{
+//  int8_t    subType;
+//  bool      withMeta;
+//  int64_t   suid;
+//  int64_t   snapVersion;
+//  void     *metaInfo;
+//  void     *dataInfo;
+  SVnode*         vnode;
+  SSDataBlock     pRes;         // result SSDataBlock
+  STsdbReader*    dataReader;
+  SSnapContext*   sContext;
+}SStreamRawScanInfo;
+
 typedef struct SSysTableScanInfo {
   SRetrieveMetaTableRsp* pRsp;
   SRetrieveTableReq      req;
@@ -499,6 +514,7 @@ typedef struct SSysTableScanInfo {
   SReadHandle            readHandle;
   int32_t                accountId;
   const char*            pUser;
+  bool                   sysInfo;
   bool                   showRewrite;
   SNode*                 pCondition;  // db_name filter condition, to discard data that are not in current database
   SMTbCursor*            pCur;        // cursor for iterate the local table meta store.
@@ -931,6 +947,8 @@ SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* re
 
 SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
                                             SExecTaskInfo* pTaskInfo);
+
+SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWinodwPhysiNode* pStateNode, SExecTaskInfo* pTaskInfo);

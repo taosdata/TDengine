@@ -1,5 +1,6 @@
 ---
 title: 常见问题及反馈
+description: 一些常见问题的解决方法汇总
 ---
 
 ## 问题反馈
@@ -115,7 +116,7 @@ charset UTF-8
 
 ### 9. 表名显示不全
 
-由于 taos shell 在终端中显示宽度有限，有可能比较长的表名显示不全，如果按照显示的不全的表名进行相关操作会发生 Table does not exist 错误。解决方法可以是通过修改 taos.cfg 文件中的设置项 maxBinaryDisplayWidth， 或者直接输入命令 set max_binary_display_width 100。或者在命令结尾使用 \G 参数来调整结果的显示方式。
+由于 TDengine CLI 在终端中显示宽度有限，有可能比较长的表名显示不全，如果按照显示的不全的表名进行相关操作会发生 Table does not exist 错误。解决方法可以是通过修改 taos.cfg 文件中的设置项 maxBinaryDisplayWidth， 或者直接输入命令 set max_binary_display_width 100。或者在命令结尾使用 \G 参数来调整结果的显示方式。
 
 ### 10. 如何进行数据迁移？
 

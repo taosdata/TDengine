@@ -1064,6 +1064,26 @@ _err:
   return code;
 }
 
+void tTagSetCid(const STag *pTag, int16_t iTag, int16_t cid) {
+  uint8_t *p = NULL;
+  int8_t   isLarge = pTag->flags & TD_TAG_LARGE;
+  int16_t  offset = 0;
+
+  if (isLarge) {
+    p = (uint8_t *)&((int16_t *)pTag->idx)[pTag->nTag];
+  } else {
+    p = (uint8_t *)&pTag->idx[pTag->nTag];
+  }
+
+  if (isLarge) {
+    offset = ((int16_t *)pTag->idx)[iTag];
+  } else {
+    offset = pTag->idx[iTag];
+  }
+
+  tPutI16v(p + offset, cid);
+}
+
 #if 1  // ===================================================================================================================
 int tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version) {
   if (pBuilder == NULL) return -1;

@@ -619,7 +619,7 @@ int64_t metaGetTimeSeriesNum(SMeta *pMeta) {
   vnodeGetTimeSeriesNum(pMeta->pVnode, &num);
   pMeta->pVnode->config.vndStats.numOfTimeSeries = num;
 
-  return pMeta->pVnode->config.vndStats.numOfTimeSeries;
+  return pMeta->pVnode->config.vndStats.numOfTimeSeries + pMeta->pVnode->config.vndStats.numOfNTimeSeries;
 }
 
 typedef struct {
@@ -887,6 +887,37 @@ const void *metaGetTableTagVal(void *pTag, int16_t type, STagVal *val) {
   if (!find) {
     return NULL;
   }
+
+#ifdef TAG_FILTER_DEBUG
+  if (IS_VAR_DATA_TYPE(val->type)) {
+    char* buf = taosMemoryCalloc(val->nData + 1, 1);
+    memcpy(buf, val->pData, val->nData);
+    metaDebug("metaTag table val varchar index:%d cid:%d type:%d value:%s", 1, val->cid, val->type, buf);
+    taosMemoryFree(buf);
+  } else {
+    double dval = 0;
+    GET_TYPED_DATA(dval, double, val->type, &val->i64);
+    metaDebug("metaTag table val number index:%d cid:%d type:%d value:%f", 1, val->cid, val->type, dval);
+  }
+
+  SArray* pTagVals = NULL;
+  tTagToValArray((STag*)pTag, &pTagVals);
+  for (int i = 0; i < taosArrayGetSize(pTagVals); i++) {
+    STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, i);
+
+    if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+      char* buf = taosMemoryCalloc(pTagVal->nData + 1, 1);
+      memcpy(buf, pTagVal->pData, pTagVal->nData);
+      metaDebug("metaTag table varchar index:%d cid:%d type:%d value:%s", i, pTagVal->cid, pTagVal->type, buf);
+      taosMemoryFree(buf);
+    } else {
+      double dval = 0;
+      GET_TYPED_DATA(dval, double, pTagVal->type, &pTagVal->i64);
+      metaDebug("metaTag table number index:%d cid:%d type:%d value:%f", i, pTagVal->cid, pTagVal->type, dval);
+    }
+  }
+#endif
+
   return val;
 }
 

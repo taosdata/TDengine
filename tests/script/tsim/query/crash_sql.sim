@@ -76,7 +76,7 @@ sql insert into ct4 values ( '2022-05-21 01:01:01.000', NULL, NULL, NULL, NULL, 
 
 
 print ================ start query ======================
-print ================ SQL used to cause taosd or taos shell  crash
+print ================ SQL used to cause taosd or TDengine CLI  crash
 sql_error select sum(c1) ,count(c1) from ct4 group by c1 having  sum(c10)  between 0 and 1 ;
 
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT

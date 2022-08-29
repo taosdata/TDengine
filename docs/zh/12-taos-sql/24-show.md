@@ -1,6 +1,7 @@
 ---
 sidebar_label: SHOW 命令
 title: 使用 SHOW 命令查看系统元数据
+description: SHOW 命令的完整列表
 ---
 
 SHOW 命令可以用来获取简要的系统信息。若想获取系统中详细的各种元数据、系统信息和状态，请使用 select 语句查询 INFORMATION_SCHEMA 数据库中的表。
@@ -194,7 +195,7 @@ SHOW STREAMS;
 SHOW SUBSCRIPTIONS;
 ```
 
-显示当前数据库下的所有的订阅关系
+显示当前系统内所有的订阅关系
 
 ## SHOW TABLES
 

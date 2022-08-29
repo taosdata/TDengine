@@ -8,7 +8,20 @@ sql create user sysinfo0 pass 'taosdata'
 sql create user sysinfo1 pass 'taosdata'
 sql alter user sysinfo0 sysinfo 0
 sql alter user sysinfo1 sysinfo 1
+
 sql create database db
+sql use db
+sql create table db.stb (ts timestamp, i int) tags (t int)
+sql create table db.ctb using db.stb tags (1)
+sql create table db.ntb (ts timestamp, i int)
+sql insert into db.ctb values (now, 1);
+sql insert into db.ntb values (now, 1);
+sql select * from db.stb
+sql select * from db.ctb
+sql select * from db.ntb
+
+sql create database d2
+sql GRANT all ON d2.* to sysinfo0;
 
 print user sysinfo0 login
 sql close
@@ -17,11 +30,31 @@ sql connect sysinfo0
 print =============== check oper
 sql_error create user u1 pass 'u1'
 sql_error drop user sysinfo1
-sql_error alter user sysinfo1 pass '1'
 sql_error alter user sysinfo0 pass '1'
+sql_error alter user sysinfo0 enable 0
+sql_error alter user sysinfo0 enable 1
+sql_error alter user sysinfo1 pass '1'
+sql_error alter user sysinfo1 enable 1
+sql_error alter user sysinfo1 enable 1
+sql_error GRANT read ON db.* to sysinfo0;
+sql_error GRANT read ON *.* to sysinfo0;
+sql_error REVOKE read ON db.* from sysinfo0;
+sql_error REVOKE read ON *.* from sysinfo0;
+sql_error GRANT write ON db.* to sysinfo0;
+sql_error GRANT write ON *.* to sysinfo0;
+sql_error REVOKE write ON db.* from sysinfo0;
+sql_error REVOKE write ON *.* from sysinfo0;
+sql_error REVOKE write ON *.* from sysinfo0;
 
 sql_error create dnode $hostname port 7200
 sql_error drop dnode 1
+sql_error alter dnode 1 'debugFlag 135'
+sql_error alter dnode 1 'dDebugFlag 131'
+sql_error alter dnode 1 'resetlog'
+sql_error alter dnode 1 'monitor' '1'
+sql_error alter dnode 1 'monitor' '0'
+sql_error alter dnode 1 'monitor 1'
+sql_error alter dnode 1 'monitor 0'
 
 sql_error create qnode on dnode 1
 sql_error drop qnode on dnode 1
@@ -44,20 +77,106 @@ sql_error create database d1
 sql_error drop database db
 sql_error use db
 sql_error alter database db replica 1;
+sql_error alter database db keep 21
 sql_error show db.vgroups
-sql select * from information_schema.ins_stables where db_name = 'db'
-sql select * from information_schema.ins_tables where db_name = 'db'
+
+sql_error create table db.stb1 (ts timestamp, i int) tags (t int)
+sql_error create table db.ctb1 using db.stb1 tags (1)
+sql_error create table db.ntb1 (ts timestamp, i int)
+sql_error insert into db.ctb values (now, 1);
+sql_error insert into db.ntb values (now, 1);
+sql_error select * from db.stb
+sql_error select * from db.ctb
+sql_error select * from db.ntb
+
+sql use d2
+sql create table d2.stb2 (ts timestamp, i int) tags (t int)
+sql create table d2.ctb2 using d2.stb2 tags (1)
+sql create table d2.ntb2 (ts timestamp, i int)
+sql insert into d2.ctb2 values (now, 1);
+sql insert into d2.ntb2 values (now, 1);
+sql select * from d2.stb2
+sql select * from d2.ctb2
+sql select * from d2.ntb2
 
 print =============== check show
-sql select * from information_schema.ins_users
+sql_error show users
 sql_error show cluster
-sql select * from information_schema.ins_dnodes
-sql select * from information_schema.ins_mnodes
+sql_error select * from information_schema.ins_dnodes
+sql_error select * from information_schema.ins_mnodes
 sql_error show snodes
-sql select * from information_schema.ins_qnodes
+sql_error select * from information_schema.ins_qnodes
+sql_error show dnodes
+sql_error show snodes
+sql_error show qnodes
+sql_error show mnodes
 sql_error show bnodes
+sql_error show db.vgroups
+sql_error show db.stables
+sql_error show db.tables
+sql_error show indexes from stb from db
+sql       show databases
+sql_error show d2.vgroups
+sql       show d2.stables
+sql       show d2.tables
+sql       show indexes from stb2 from d2
+#sql_error show create database db
+sql_error show create table db.stb;
+sql_error show create table db.ctb;
+sql_error show create table db.ntb;
+sql       show streams
+sql       show consumers
+sql       show topics
+sql       show subscriptions
+sql       show functions
 sql_error show grants
+sql       show queries
+sql       show connections
+sql       show apps
+sql       show transactions
+sql_error show create database d2
+sql       show create table d2.stb2;
+sql       show create table d2.ctb2;
+sql       show create table d2.ntb2;
+sql_error show variables;
+sql       show local variables;
 sql_error show dnode 1 variables;
-sql show variables;
+sql_error show variables;
 
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
+
+print =============== check information_schema
+sql show databases
+if $rows != 3 then
+  return -1
+endi
+
+sql use information_schema;
+sql_error select * from information_schema.ins_dnodes
+sql_error select * from information_schema.ins_mnodes
+sql_error select * from information_schema.ins_modules
+sql_error select * from information_schema.ins_qnodes
+sql_error select * from information_schema.ins_cluster
+sql select * from information_schema.ins_databases
+sql select * from information_schema.ins_functions
+sql select * from information_schema.ins_indexes
+sql select * from information_schema.ins_stables
+sql select * from information_schema.ins_tables
+sql select * from information_schema.ins_tags
+sql select * from information_schema.ins_users
+sql_error select * from information_schema.ins_grants
+sql_error select * from information_schema.ins_vgroups
+sql_error select * from information_schema.ins_configs
+sql_error select * from information_schema.ins_dnode_variables
+
+print =============== check performance_schema
+sql use performance_schema;
+sql select * from performance_schema.perf_connections
+sql select * from performance_schema.perf_queries
+sql select * from performance_schema.perf_topics
+sql select * from performance_schema.perf_consumers
+sql select * from performance_schema.perf_subscriptions
+sql select * from performance_schema.perf_trans
+sql select * from performance_schema.perf_streams
+sql select * from performance_schema.perf_apps
+
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT

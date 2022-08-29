@@ -1,6 +1,6 @@
 ---
 title: 建立连接
-description: "本节介绍如何使用连接器建立与 TDengine 的连接，给出连接器安装、连接的简单说明。"
+description: 使用连接器建立与 TDengine 的连接，以及连接器的安装和连接
 ---
 
 import Tabs from "@theme/Tabs";
