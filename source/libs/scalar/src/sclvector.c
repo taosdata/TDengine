@@ -909,11 +909,11 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut, int32_t* 
 int8_t gConvertTypes[TSDB_DATA_TYPE_BLOB+1][TSDB_DATA_TYPE_BLOB+1] = {
 /*         NULL BOOL TINY SMAL INT  BIG  FLOA DOUB VARC TIME NCHA UTIN USMA UINT UBIG JSON VARB DECI BLOB */
 /*NULL*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-/*BOOL*/   0,   0,   0,   3,   4,   5,   6,   7,   7,   9,   7,   0,   12,  13,  14,  0,   7,   0,   0,
+/*BOOL*/   0,   0,   2,   3,   4,   5,   6,   7,   7,   9,   7,   11,  12,  13,  14,  0,   7,   0,   0,
 /*TINY*/   0,   0,   0,   3,   4,   5,   6,   7,   7,   9,   7,   3,   4,   5,   7,   0,   7,   0,   0,
 /*SMAL*/   0,   0,   0,   0,   4,   5,   6,   7,   7,   9,   7,   3,   4,   5,   7,   0,   7,   0,   0,
 /*INT */   0,   0,   0,   0,   0,   5,   6,   7,   7,   9,   7,   4,   4,   5,   7,   0,   7,   0,   0,
-/*BIGI*/   0,   0,   0,   0,   0,   0,   6,   7,   7,   0,   7,   5,   5,   5,   7,   0,   7,   0,   0,
+/*BIGI*/   0,   0,   0,   0,   0,   0,   6,   7,   7,   9,   7,   5,   5,   5,   7,   0,   7,   0,   0,
 /*FLOA*/   0,   0,   0,   0,   0,   0,   0,   7,   7,   6,   7,   6,   6,   6,   6,   0,   7,   0,   0,
 /*DOUB*/   0,   0,   0,   0,   0,   0,   0,   0,   7,   7,   7,   7,   7,   7,   7,   0,   7,   0,   0,
 /*VARC*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   9,   8,   7,   7,   7,   7,   0,   0,   0,   0,

@@ -570,9 +570,23 @@ int32_t compareFloatInt64(const void *pLeft, const void *pRight) {
 int32_t compareFloatDouble(const void *pLeft, const void *pRight) {
   float left = GET_FLOAT_VAL(pLeft);
   double right = GET_DOUBLE_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
-  return 0;
+
+  if (isnan(left) && isnan(right)) {
+    return 0;
+  }
+
+  if (isnan(left)) {
+    return -1;
+  }
+
+  if (isnan(right)) {
+    return 1;
+  }
+
+  if (FLT_EQUAL(left, right)) {
+    return 0;
+  }
+  return FLT_GREATER(left, right) ? 1 : -1;
 }
 
 int32_t compareFloatUint8(const void *pLeft, const void *pRight) {
@@ -642,9 +656,23 @@ int32_t compareDoubleInt64(const void *pLeft, const void *pRight) {
 int32_t compareDoubleFloat(const void *pLeft, const void *pRight) {
   double left = GET_DOUBLE_VAL(pLeft);
   float right = GET_FLOAT_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
-  return 0;
+
+  if (isnan(left) && isnan(right)) {
+    return 0;
+  }
+
+  if (isnan(left)) {
+    return -1;
+  }
+
+  if (isnan(right)) {
+    return 1;
+  }
+
+  if (FLT_EQUAL(left, right)) {
+    return 0;
+  }
+  return FLT_GREATER(left, right) ? 1 : -1;
 }
 
 int32_t compareDoubleUint8(const void *pLeft, const void *pRight) {
