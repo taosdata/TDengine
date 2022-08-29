@@ -114,7 +114,9 @@ The above process can be repeated to add more dnodes in the cluster.
 
 Any node that is in the cluster and online can be the firstEp of new nodes.
 Nodes use the firstEp parameter only when joining a cluster for the first time. After a node has joined the cluster, it stores the latest mnode in its end point list and no longer makes use of firstEp.
-However, firstEp is used by clients that connect to the cluster. For example, if you run `taos shell` without arguments, it connects to the firstEp by default.
+
+However, firstEp is used by clients that connect to the cluster. For example, if you run TDengine CLI `taos` without arguments, it connects to the firstEp by default.
+
 Two dnodes that are launched without a firstEp value operate independently of each other. It is not possible to add one dnode to the other dnode and form a cluster. It is also not possible to form two independent clusters into a new cluster.
 
 :::

@@ -194,7 +194,7 @@ Shows information about streams in the system.
 SHOW SUBSCRIPTIONS;
 ```
 
-Shows all subscriptions in the current database.
+Shows all subscriptions in the system.
 
 ## SHOW TABLES
 

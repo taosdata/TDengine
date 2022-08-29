@@ -250,14 +250,14 @@ class TDTestCase:
         tdLog.printNoPrefix("=============================================")
         tdLog.printNoPrefix("======== snapshot is 0: only consume from wal")
         self.tmqCase1()
-        self.tmqCase2()
+        # self.tmqCase2()
 
         self.prepareTestEnv()
         tdLog.printNoPrefix("====================================================================")
         tdLog.printNoPrefix("======== snapshot is 1: firstly consume from tsbs, and then from wal")
         self.snapshot = 1
         self.tmqCase1()
-        self.tmqCase2()
+        # self.tmqCase2()
 
 
     def stop(self):

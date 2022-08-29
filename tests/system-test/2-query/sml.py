@@ -85,6 +85,9 @@ class TDTestCase:
 
         tdSql.query("select * from macylr")
         tdSql.checkRows(2)
+
+        tdSql.query("desc macylr")
+        tdSql.checkRows(25)
         return
 
     def run(self):

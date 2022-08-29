@@ -7,7 +7,7 @@ description: 如何导出 TDengine 中的数据
 
 ## 按表导出 CSV 文件
 
-如果用户需要导出一个表或一个 STable 中的数据，可在 taos shell 中运行：
+如果用户需要导出一个表或一个 STable 中的数据，可在 TDengine CLI 中运行：
 
 ```sql
 select * from <tb_name> >> data.csv;

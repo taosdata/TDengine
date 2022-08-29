@@ -163,6 +163,13 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
+  pRes = taos_query(pConn, "create table if not exists ct4 using st1(t3) tags('ct4')");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create child table ct4, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
   pRes = taos_query(pConn, "insert into ct3 values(1626006833600, 5, 6, 'c') ct1 values(1626006833601, 2, 3, 'sds') (1626006833602, 4, 5, 'ddd') ct0 values(1626006833602, 4, 3, 'hwj') ct1 values(now+5s, 23, 32, 's21ds')");
   if (taos_errno(pRes) != 0) {
     printf("failed to insert into ct3, reason:%s\n", taos_errstr(pRes));
@@ -379,6 +386,8 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set(conf, "enable.auto.commit", "true");
+  tmq_conf_set(conf, "experimental.snapshot.enable", "true");
+
 
   /*tmq_conf_set(conf, "experimental.snapshot.enable", "true");*/
 
@@ -406,7 +415,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   }
   int32_t cnt = 0;
   while (running) {
-    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, -1);
+    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 1000);
     if (tmqmessage) {
       cnt++;
       msg_process(tmqmessage);

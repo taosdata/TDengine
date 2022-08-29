@@ -33,13 +33,13 @@ static SFilePage *loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx) 
   SFilePage *buffer = (SFilePage *)taosMemoryCalloc(1, pMemBucket->bytes * pMemBucket->pSlots[slotIdx].info.size + sizeof(SFilePage));
 
   int32_t groupId = getGroupId(pMemBucket->numOfSlots, slotIdx, pMemBucket->times);
-  SIDList list = getDataBufPagesIdList(pMemBucket->pBuffer, groupId);
+  SArray* pIdList = *(SArray**)taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
 
   int32_t offset = 0;
-  for(int32_t i = 0; i < list->size; ++i) {
-    struct SPageInfo* pgInfo = *(struct SPageInfo**) taosArrayGet(list, i);
+  for(int32_t i = 0; i < taosArrayGetSize(pIdList); ++i) {
+    int32_t* pageId = taosArrayGet(pIdList, i);
 
-    SFilePage* pg = getBufPage(pMemBucket->pBuffer, getPageId(pgInfo));
+    SFilePage* pg = getBufPage(pMemBucket->pBuffer, *pageId);
     memcpy(buffer->data + offset, pg->data, (size_t)(pg->num * pMemBucket->bytes));
 
     offset += (int32_t)(pg->num * pMemBucket->bytes);
@@ -97,11 +97,11 @@ double findOnlyResult(tMemBucket *pMemBucket) {
     }
 
     int32_t groupId = getGroupId(pMemBucket->numOfSlots, i, pMemBucket->times);
-    SIDList list = getDataBufPagesIdList(pMemBucket->pBuffer, groupId);
+    SArray* list = *(SArray**)taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
     assert(list->size == 1);
 
-    struct SPageInfo* pgInfo = (struct SPageInfo*) taosArrayGetP(list, 0);
-    SFilePage* pPage = getBufPage(pMemBucket->pBuffer, getPageId(pgInfo));
+    int32_t* pageId = taosArrayGet(list, 0);
+    SFilePage* pPage = getBufPage(pMemBucket->pBuffer, *pageId);
     assert(pPage->num == 1);
 
     double v = 0;
@@ -233,7 +233,7 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval,
   pBucket->times = 1;
 
   pBucket->maxCapacity = 200000;
-
+  pBucket->groupPagesMap = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   if (setBoundingBox(&pBucket->range, pBucket->type, minval, maxval) != 0) {
 //    qError("MemBucket:%p, invalid value range: %f-%f", pBucket, minval, maxval);
     taosMemoryFree(pBucket);
@@ -280,8 +280,16 @@ void tMemBucketDestroy(tMemBucket *pBucket) {
     return;
   }
 
+  void* p = taosHashIterate(pBucket->groupPagesMap, NULL);
+  while(p) {
+    SArray** p1 = p;
+    p = taosHashIterate(pBucket->groupPagesMap, p);
+    taosArrayDestroy(*p1);
+  }
+
   destroyDiskbasedBuf(pBucket->pBuffer);
   taosMemoryFreeClear(pBucket->pSlots);
+  taosHashCleanup(pBucket->groupPagesMap);
   taosMemoryFreeClear(pBucket);
 }
 
@@ -357,8 +365,16 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
         pSlot->info.data = NULL;
       }
 
+      SArray* pPageIdList = (SArray*)taosHashGet(pBucket->groupPagesMap, &groupId, sizeof(groupId));
+      if (pPageIdList == NULL) {
+        SArray* pList = taosArrayInit(4, sizeof(int32_t));
+        taosHashPut(pBucket->groupPagesMap, &groupId, sizeof(groupId), &pList, POINTER_BYTES);
+        pPageIdList =  pList;
+      }
+
       pSlot->info.data = getNewBufPage(pBucket->pBuffer, groupId, &pageId);
       pSlot->info.pageId = pageId;
+      taosArrayPush(pPageIdList, &pageId);
     }
 
     memcpy(pSlot->info.data->data + pSlot->info.data->num * pBucket->bytes, d, pBucket->bytes);
@@ -476,7 +492,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
        resetSlotInfo(pMemBucket);
 
        int32_t groupId = getGroupId(pMemBucket->numOfSlots, i, pMemBucket->times - 1);
-       SIDList list = getDataBufPagesIdList(pMemBucket->pBuffer, groupId);
+        SIDList list = taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
        assert(list->size > 0);
 
        for (int32_t f = 0; f < list->size; ++f) {
