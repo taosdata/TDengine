@@ -44,5 +44,11 @@ palaver = "0.2.8"
 procfs = "0.14.0"
 psutil = { version = "3.2.0", default-features = false, features = ["cpu", "process"] }
 
+[build-dependencies]
+sqlx = { version = "*", features = ["runtime-tokio-native-tls", "sqlite", "chrono"] }
+
 [patch.crates-io]
 zip = { git = "https://github.com/zip-rs/zip.git" }
+
+[build]
+rustflags = ["--cfg", "tokio_unstable"]
