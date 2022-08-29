@@ -411,7 +411,7 @@ TDengine provides a wealth of help documents to explain many aspects of cluster 
 
 ### Cluster Deployment
 
-The first is TDengine installation. Download the latest stable version of TDengine from the official website, and install it. Please refer to [Install TDengine](../../get-started/pacakge) for more details.
+The first is TDengine installation. Download the latest stable version of TDengine from the official website, and install it. Please refer to [Install TDengine](../../get-started/package) for more details.
 
 Note that once the installation is complete, do not immediately start the `taosd` service, but start it after correctly configuring the parameters.
 
