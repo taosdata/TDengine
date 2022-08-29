@@ -11,7 +11,7 @@ This section introduces the major features, competitive advantages, typical use-
 
 The major features are listed below:
 
-1. While TDengine supports [using SQL to insert](/develop/insert-data/sql-writing), it also supports [Schemaless writing](/reference/schemaless/) just like NoSQL databases. TDengine also supports standard protocols like [InfluxDB LINE](/develop/insert-data/influxdb-line)，[OpenTSDB Telnet](/develop/insert-data/opentsdb-telnet), [OpenTSDB JSON ](/develop/insert-data/opentsdb-json) among others.
+1. While TDengine supports [using SQL to insert](../data-in/sql), it also supports [Schemaless writing](/reference/schemaless/) just like NoSQL databases. TDengine also supports standard protocols like [InfluxDB LINE](/develop/insert-data/influxdb-line)，[OpenTSDB Telnet](/develop/insert-data/opentsdb-telnet), [OpenTSDB JSON ](/develop/insert-data/opentsdb-json) among others.
 2. TDengine supports seamless integration with third-party tools like [Telegraf](../data-in/telegraf)，[Prometheus](../data-in/prometheus)，they can write data into TDengine with simple configuration and without a single line of code. 
 3. Support for [time series specific queries](../taos-sql/distinguished), including aggregation, nested query, downsampling, interpolation and others.
 4. Support for [user defined functions](../taos-sql/udf).
@@ -22,8 +22,8 @@ The major features are listed below:
 9. Provides an interactive [command-line interface](../tools/cli) for management, maintenance and ad-hoc queries.
 10. Provides many ways to [get data in](../data-in) and [get data out](../data-out) data.
 11. Provides a Dashboard to monitor your running instances of TDengine.
-12. Provides [connectors](../connector/) for [Java](../connector/java), [Python](../connector/python), [Go](../connector/go), [Rust](../connector/rust), and [Node.js](../connector/node).
-13. Provides a [REST API](../develop/connect/rest-api/).
+12. Provides [connectors](../programming/connector/) for [Java](../programming/connector/java), [Python](../programming/connector/python), [Go](../programming/connector/go), [Rust](../programming/connector/rust), and [Node.js](../programming/connector/node).
+13. Provides a [REST API](../programming/connect/rest-api/).
 14. Supports seamless integration with [Grafana](../visual/grafana) for visualization.
 15. Supports seamless integration with Google Data Studio.
 

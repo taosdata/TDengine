@@ -4,4 +4,4 @@ title: Data Replication
 description: Replicate data between TDengine cloud services
 ---
 
-TDengine provides full support for data replication. You can replicate data from TDengine cloud service to local TDengine, from local TDengine to TDengine cloud service, or from one cloud service to another one and it doesn't matter which cloud or region the two services reside in.
+TDengine provides full support for data replication. You can use taoX, which is a tool provided by TDengine enterprise edition, to replicate data from TDengine cloud service to local TDengine, from local TDengine to TDengine cloud service, or from one cloud service to another one and it doesn't matter which cloud or region the two services reside in.

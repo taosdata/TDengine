@@ -21,7 +21,7 @@ This is the documentation structure for TDengine Cloud.
 
 7. The [TDengine SQL](./taos-sql) section provides comprehensive information about both standard SQL as well as TDengine's extensions for easy time series analysis.
 
-8. In [Connector](./connector), you can choose between Python, Java, Go, Rust and Node.js, to easily connect to TDengine to ingest and query data in your preferred development language.
+8. In [Connector](./programming/connector), you can choose between Python, Java, Go, Rust and Node.js, to easily connect to TDengine to ingest and query data in your preferred development language.
 
 9. The [Tools](./tools) section introduces the Taos CLI which gives you shell access to easily perform ad hoc queries on your instances and databases. Additionally, taosBenchmark is introduced. It is a tool that can help you generate large amounts of data very easily with simple configurations and test the performance of TDengine Cloud.
 
