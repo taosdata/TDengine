@@ -68,27 +68,27 @@ typedef struct {
 
 typedef struct {
   char*       qmsg;
-  qTaskInfo_t task;
 } STqExecCol;
 
 typedef struct {
-  int64_t suid;
+  int64_t     suid;
 } STqExecTb;
 
 typedef struct {
-  SHashObj* pFilterOutTbUid;
+  SHashObj*   pFilterOutTbUid;
 } STqExecDb;
 
 typedef struct {
   int8_t subType;
 
   STqReader* pExecReader;
+  qTaskInfo_t task;
   union {
     STqExecCol execCol;
     STqExecTb  execTb;
     STqExecDb  execDb;
   };
-  int32_t         numOfCols;       // number of out pout column, temporarily used
+//  int32_t         numOfCols;       // number of out pout column, temporarily used
   SSchemaWrapper* pSchemaWrapper;  // columns that are involved in query
 } STqExecHandle;
 
@@ -101,7 +101,6 @@ typedef struct {
 
   int64_t snapshotVer;
 
-  // TODO remove
   SWalReader* pWalReader;
 
   SWalRef* pRef;
@@ -141,7 +140,7 @@ int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);
 int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
 
 // tqRead
-int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* offset);
+int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqMetaRsp* pMetaRsp, STqOffsetVal* offset);
 int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** pHeadWithCkSum);
 
 // tqExec
@@ -180,6 +179,11 @@ static FORCE_INLINE void tqOffsetResetToData(STqOffsetVal* pOffsetVal, int64_t u
   pOffsetVal->type = TMQ_OFFSET__SNAPSHOT_DATA;
   pOffsetVal->uid = uid;
   pOffsetVal->ts = ts;
+}
+
+static FORCE_INLINE void tqOffsetResetToMeta(STqOffsetVal* pOffsetVal, int64_t uid) {
+  pOffsetVal->type = TMQ_OFFSET__SNAPSHOT_META;
+  pOffsetVal->uid = uid;
 }
 
 static FORCE_INLINE void tqOffsetResetToLog(STqOffsetVal* pOffsetVal, int64_t ver) {

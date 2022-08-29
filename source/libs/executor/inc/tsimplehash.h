@@ -28,7 +28,7 @@ typedef void (*_hash_free_fn_t)(void *);
 
 /**
  * @brief single thread hash
- * 
+ *
  */
 typedef struct SSHashObj SSHashObj;
 
@@ -52,13 +52,13 @@ int32_t tSimpleHashPrint(const SSHashObj *pHashObj);
 
 /**
  * @brief put element into hash table, if the element with the same key exists, update it
- * 
- * @param pHashObj 
- * @param key 
- * @param keyLen 
- * @param data 
- * @param dataLen 
- * @return int32_t 
+ *
+ * @param pHashObj
+ * @param key
+ * @param keyLen
+ * @param data
+ * @param dataLen
+ * @return int32_t
  */
 int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, const void *data, size_t dataLen);
 
@@ -81,6 +81,18 @@ void *tSimpleHashGet(SSHashObj *pHashObj, const void *key, size_t keyLen);
 int32_t tSimpleHashRemove(SSHashObj *pHashObj, const void *key, size_t keyLen);
 
 /**
+ * remove item with the specified key during hash iterate
+ *
+ * @param pHashObj
+ * @param key
+ * @param keyLen
+ * @param pIter
+ * @param iter
+ * @return int32_t
+ */
+int32_t tSimpleHashIterateRemove(SSHashObj *pHashObj, const void *key, size_t keyLen, void **pIter, int32_t *iter);
+
+/**
  * Clear the hash table.
  * @param pHashObj
  */
@@ -99,13 +111,27 @@ void tSimpleHashCleanup(SSHashObj *pHashObj);
  */
 size_t tSimpleHashGetMemSize(const SSHashObj *pHashObj);
 
+#pragma pack(push, 4)
+typedef struct SHNode{
+  struct SHNode *next;
+  uint32_t       keyLen : 20;
+  uint32_t       dataLen : 12;
+  char           data[];
+} SHNode;
+#pragma pack(pop)
+
 /**
  * Get the corresponding key information for a given data in hash table
  * @param data
  * @param keyLen
  * @return
  */
-void *tSimpleHashGetKey(void *data, size_t* keyLen);
+static FORCE_INLINE void *tSimpleHashGetKey(void *data, size_t *keyLen) {
+  SHNode *node = (SHNode *)((char *)data - offsetof(SHNode, data));
+  if (keyLen) *keyLen = node->keyLen;
+
+  return POINTER_SHIFT(data, node->dataLen);
+}
 
 /**
  * Create the hash table iterator
@@ -115,17 +141,6 @@ void *tSimpleHashGetKey(void *data, size_t* keyLen);
  * @return void*
  */
 void *tSimpleHashIterate(const SSHashObj *pHashObj, void *data, int32_t *iter);
-
-/**
- * Create the hash table iterator
- * 
- * @param pHashObj 
- * @param data 
- * @param key 
- * @param iter 
- * @return void* 
- */
-void *tSimpleHashIterateKV(const SSHashObj *pHashObj, void *data, void **key, int32_t *iter);
 
 #ifdef __cplusplus
 }
