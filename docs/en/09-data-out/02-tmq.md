@@ -6,6 +6,13 @@ description: Use data subscription to get data from TDengine.
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
+import Java from "./_sub_java.mdx";
+import Python from "./_sub_python.mdx";
+import Go from "./_sub_go.mdx";
+import Rust from "./_sub_rust.mdx";
+import Node from "./_sub_node.mdx";
+import CSharp from "./_sub_cs.mdx";
+import CDemo from "./_sub_c.mdx";
 
 This topic introduces how to read out data from TDengine using data subscription, which is an advanced feature in TDengine. To access the data in TDengine in data subscription way, you need to create topic, create consumer, subscribe to a topic, and consume data. In this document we will briefly explain these main steps of data subscription.
 
