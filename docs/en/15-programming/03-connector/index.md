@@ -1,7 +1,8 @@
 ---
 sidebar_label: Connector
 title: Connector Reference
-description: Reference guide for connectors
+description: 'Reference guide for connectors'
+---
 
 This section is a detailed reference guide of the connectors provided by TDengine.
 

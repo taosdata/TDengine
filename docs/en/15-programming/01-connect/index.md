@@ -1,7 +1,7 @@
 ---
 sidebar_label: Connect
 title: Connect to TDengine Cloud Service
-description: Quick start of using TDengine connectors to conenct
+description: Quick start of using TDengine connectors to connect to TDengine cloud service
 ---
 
 This section briefly describes how to connect to TDengine cloud service using the connectors provided by TDengine so that programmers can get started quickly.
