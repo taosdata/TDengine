@@ -107,7 +107,7 @@ pipeline {
                 stage('ubuntu16') {
                     agent{label " ubuntu16 "}
                     steps {
-                        timeout(time: 10, unit: 'MINUTES'){
+                        timeout(time: 30, unit: 'MINUTES'){
                             sync_source("${BRANCH_NAME}")
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
@@ -130,7 +130,7 @@ pipeline {
                 stage('ubuntu18') {
                     agent{label " ubuntu18 "}
                     steps {
-                        timeout(time: 10, unit: 'MINUTES'){
+                        timeout(time: 30, unit: 'MINUTES'){
                             sync_source("${BRANCH_NAME}")
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
@@ -153,7 +153,7 @@ pipeline {
                 stage('centos7') {
                     agent{label " centos7_9 "}
                     steps {
-                        timeout(time: 10, unit: 'MINUTES'){
+                        timeout(time: 30, unit: 'MINUTES'){
                             sync_source("${BRANCH_NAME}")
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
@@ -176,7 +176,7 @@ pipeline {
                 stage('centos8') {
                     agent{label " centos8_3 "}
                     steps {
-                        timeout(time: 10, unit: 'MINUTES'){
+                        timeout(time: 30, unit: 'MINUTES'){
                             sync_source("${BRANCH_NAME}")
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
