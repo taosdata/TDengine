@@ -2476,7 +2476,7 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
 }
 
 static EDealRes needFillImpl(SNode* pNode, void* pContext) {
-  if (isAggFunc(pNode)) {
+  if (isAggFunc(pNode) && FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pNode)->funcType) {
     *(bool*)pContext = true;
     return DEAL_RES_END;
   }
@@ -2490,6 +2490,9 @@ static bool needFill(SNode* pNode) {
 }
 
 static bool mismatchFillDataType(SDataType origDt, SDataType fillDt) {
+  if (TSDB_DATA_TYPE_NULL == fillDt.type) {
+    return false;
+  }
   if (IS_NUMERIC_TYPE(origDt.type) && !IS_NUMERIC_TYPE(fillDt.type)) {
     return true;
   }
