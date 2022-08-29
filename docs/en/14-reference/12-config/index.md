@@ -380,6 +380,35 @@ The charset that takes effect is UTF-8.
 | Unit          | bytes                                                                                                               |
 | Value Range   | 0: always compress; >0: only compress when the size of any column data exceeds the threshold; -1: always uncompress |
 | Default Value | -1                                                               |
+| Default Value | -1                                                                                                                  |
+| Note          | available from version 2.3.0.0                                                                                      |                                                                                                                       |
+
+## Continuous Query Parameters                                  |
+
+### minSlidingTime
+
+| Attribute     | Description                                              |
+| ------------- | -------------------------------------------------------- |
+| Applicable    | Server Only                                              |
+| Meaning       | Minimum sliding time of time window                      |
+| Unit          | millisecond or microsecond , depending on time precision |
+| Value Range   | 10-1000000                                               |
+| Default Value | 10                                                       |
+
+### minIntervalTime
+
+| Attribute     | Description                 |
+| ------------- | --------------------------- |
+| Applicable    | Server Only                 |
+| Meaning       | Minimum size of time window |
+| Unit          | millisecond                 |
+| Value Range   | 1-1000000                   |
+| Default Value | 10                          |
+
+:::info
+To prevent system resource from being exhausted by multiple concurrent streams, a random delay is applied on each stream automatically. `maxFirstStreamCompDelay` is the maximum delay time before a continuous query is started the first time. `streamCompDelayRatio` is the ratio for calculating delay time, with the size of the time window as base. `maxStreamCompDelay` is the maximum delay time. The actual delay time is a random time not bigger than `maxStreamCompDelay`. If a continuous query fails, `retryStreamComDelay` is the delay time before retrying it, also not bigger than `maxStreamCompDelay`.
+
+:::
 
 ## Log Parameters
 
