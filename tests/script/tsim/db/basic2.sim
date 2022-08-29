@@ -4,7 +4,7 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 
 print =============== conflict stb
-sql create database db vgroups 1;
+sql create database db vgroups 4;
 sql use db;
 sql create table stb (ts timestamp, i int) tags (j int);
 sql_error create table stb using stb tags (1);
@@ -15,6 +15,9 @@ sql_error create table ctb (ts timestamp, i int) tags (j int);
 
 sql create table ntb (ts timestamp, i int);
 sql_error create table ntb (ts timestamp, i int) tags (j int);
+
+sql drop table ntb
+sql create table ntb (ts timestamp, i int) tags (j int);
 
 sql drop database db
 

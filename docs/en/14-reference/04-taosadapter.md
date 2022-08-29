@@ -30,7 +30,7 @@ taosAdapter provides the following features.
 
 ### Install taosAdapter
 
-taosAdapter has been part of TDengine server software since TDengine v2.4.0.0. If you use the TDengine server, you don't need additional steps to install taosAdapter. You can download taosAdapter from [TDengine official website](https://tdengine.com/all-downloads/) to download the TDengine server installation package (taosAdapter is included in v2.4.0.0 and later version). If you need to deploy taosAdapter separately on another server other than the TDengine server, you should install the full TDengine server package on that server to install taosAdapter. If you need to build taosAdapter from source code, you can refer to the [Building taosAdapter]( https://github.com/taosdata/taosadapter/blob/develop/BUILD.md) documentation.
+If you use the TDengine server, you don't need additional steps to install taosAdapter. You can download taosAdapter from [TDengine 3.0 released versions](../../releases) to download the TDengine server installation package. If you need to deploy taosAdapter separately on another server other than the TDengine server, you should install the full TDengine server package on that server to install taosAdapter. If you need to build taosAdapter from source code, you can refer to the [Building taosAdapter]( https://github.com/taosdata/taosadapter/blob/3.0/BUILD.md) documentation.
 
 ### Start/Stop taosAdapter
 
@@ -69,20 +69,23 @@ Usage of taosAdapter:
       --debug                                        enable debug mode. Env "TAOS_ADAPTER_DEBUG"
       --help                                         Print this help message and exit
       --influxdb.enable                              enable influxdb. Env "TAOS_ADAPTER_INFLUXDB_ENABLE" (default true)
+      --log.enableRecordHttpSql                      whether to record http sql. Env "TAOS_ADAPTER_LOG_ENABLE_RECORD_HTTP_SQL"
       --log.path string                              log path. Env "TAOS_ADAPTER_LOG_PATH" (default "/var/log/taos")
       --log.rotationCount uint                       log rotation count. Env "TAOS_ADAPTER_LOG_ROTATION_COUNT" (default 30)
       --log.rotationSize string                      log rotation size(KB MB GB), must be a positive integer. Env "TAOS_ADAPTER_LOG_ROTATION_SIZE" (default "1GB")
       --log.rotationTime duration                    log rotation time. Env "TAOS_ADAPTER_LOG_ROTATION_TIME" (default 24h0m0s)
+      --log.sqlRotationCount uint                    record sql log rotation count. Env "TAOS_ADAPTER_LOG_SQL_ROTATION_COUNT" (default 2)
+      --log.sqlRotationSize string                   record sql log rotation size(KB MB GB), must be a positive integer. Env "TAOS_ADAPTER_LOG_SQL_ROTATION_SIZE" (default "1GB")
+      --log.sqlRotationTime duration                 record sql log rotation time. Env "TAOS_ADAPTER_LOG_SQL_ROTATION_TIME" (default 24h0m0s)
       --logLevel string                              log level (panic fatal error warn warning info debug trace). Env "TAOS_ADAPTER_LOG_LEVEL" (default "info")
       --monitor.collectDuration duration             Set monitor duration. Env "TAOS_MONITOR_COLLECT_DURATION" (default 3s)
       --monitor.identity string                      The identity of the current instance, or 'hostname:port' if it is empty. Env "TAOS_MONITOR_IDENTITY"
       --monitor.incgroup                             Whether running in cgroup. Env "TAOS_MONITOR_INCGROUP"
-      --monitor.password string                      TDengine password. Env "TAOS_MONITOR_PASSWORD" (default "taosdata")
-      --monitor.pauseAllMemoryThreshold float        Memory percentage threshold for pause all. Env "TAOS_MONITOR_PAUSE_ALL_MEMORY_THRESHOLD" (default 80)
+      --monitor.password string                      TDengine password. Env "TAOS_MONITOR_PASSWORD" (default "taosdata")      --monitor.pauseAllMemoryThreshold float        Memory percentage threshold for pause all. Env "TAOS_MONITOR_PAUSE_ALL_MEMORY_THRESHOLD" (default 80)
       --monitor.pauseQueryMemoryThreshold float      Memory percentage threshold for pause query. Env "TAOS_MONITOR_PAUSE_QUERY_MEMORY_THRESHOLD" (default 70)
       --monitor.user string                          TDengine user. Env "TAOS_MONITOR_USER" (default "root")
       --monitor.writeInterval duration               Set write to TDengine interval. Env "TAOS_MONITOR_WRITE_INTERVAL" (default 30s)
-      --monitor.writeToTD                            Whether write metrics to TDengine. Env "TAOS_MONITOR_WRITE_TO_TD" (default true)
+      --monitor.writeToTD                            Whether write metrics to TDengine. Env "TAOS_MONITOR_WRITE_TO_TD"
       --node_exporter.caCertFile string              node_exporter ca cert file path. Env "TAOS_ADAPTER_NODE_EXPORTER_CA_CERT_FILE"
       --node_exporter.certFile string                node_exporter cert file path. Env "TAOS_ADAPTER_NODE_EXPORTER_CERT_FILE"
       --node_exporter.db string                      node_exporter db name. Env "TAOS_ADAPTER_NODE_EXPORTER_DB" (default "node_exporter")
@@ -98,8 +101,10 @@ Usage of taosAdapter:
       --node_exporter.urls strings                   node_exporter urls. Env "TAOS_ADAPTER_NODE_EXPORTER_URLS" (default [http://localhost:9100])
       --node_exporter.user string                    node_exporter user. Env "TAOS_ADAPTER_NODE_EXPORTER_USER" (default "root")
       --opentsdb.enable                              enable opentsdb. Env "TAOS_ADAPTER_OPENTSDB_ENABLE" (default true)
+      --opentsdb_telnet.batchSize int                opentsdb_telnet batch size. Env "TAOS_ADAPTER_OPENTSDB_TELNET_BATCH_SIZE" (default 1)
       --opentsdb_telnet.dbs strings                  opentsdb_telnet db names. Env "TAOS_ADAPTER_OPENTSDB_TELNET_DBS" (default [opentsdb_telnet,collectd_tsdb,icinga2_tsdb,tcollector_tsdb])
       --opentsdb_telnet.enable                       enable opentsdb telnet,warning: without auth info(default false). Env "TAOS_ADAPTER_OPENTSDB_TELNET_ENABLE"
+      --opentsdb_telnet.flushInterval duration       opentsdb_telnet flush interval (0s means not valid) . Env "TAOS_ADAPTER_OPENTSDB_TELNET_FLUSH_INTERVAL"
       --opentsdb_telnet.maxTCPConnections int        max tcp connections. Env "TAOS_ADAPTER_OPENTSDB_TELNET_MAX_TCP_CONNECTIONS" (default 250)
       --opentsdb_telnet.password string              opentsdb_telnet password. Env "TAOS_ADAPTER_OPENTSDB_TELNET_PASSWORD" (default "taosdata")
       --opentsdb_telnet.ports ints                   opentsdb telnet tcp port. Env "TAOS_ADAPTER_OPENTSDB_TELNET_PORTS" (default [6046,6047,6048,6049])
@@ -111,9 +116,6 @@ Usage of taosAdapter:
   -P, --port int                                     http port. Env "TAOS_ADAPTER_PORT" (default 6041)
       --prometheus.enable                            enable prometheus. Env "TAOS_ADAPTER_PROMETHEUS_ENABLE" (default true)
       --restfulRowLimit int                          restful returns the maximum number of rows (-1 means no limit). Env "TAOS_ADAPTER_RESTFUL_ROW_LIMIT" (default -1)
-      --ssl.certFile string                          ssl cert file path. Env "TAOS_ADAPTER_SSL_CERT_FILE"
-      --ssl.enable                                   enable ssl. Env "TAOS_ADAPTER_SSL_ENABLE"
-      --ssl.keyFile string                           ssl key file path. Env "TAOS_ADAPTER_SSL_KEY_FILE"
       --statsd.allowPendingMessages int              statsd allow pending messages. Env "TAOS_ADAPTER_STATSD_ALLOW_PENDING_MESSAGES" (default 50000)
       --statsd.db string                             statsd db name. Env "TAOS_ADAPTER_STATSD_DB" (default "statsd")
       --statsd.deleteCounters                        statsd delete counter cache after gather. Env "TAOS_ADAPTER_STATSD_DELETE_COUNTERS" (default true)
@@ -149,11 +151,12 @@ You do not need to care about these configurations if you do not make interface 
 
 For details on the CORS protocol, please refer to: [https://www.w3.org/wiki/CORS_Enabled](https://www.w3.org/wiki/CORS_Enabled) or [https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS](https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS).
 
-See [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/blob/develop/example/config/taosadapter.toml) for sample configuration files.
+See [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/blob/3.0/example/config/taosadapter.toml) for sample configuration files.
 
 ## Feature List
 
-- Compatible with RESTful interfaces [REST API](/reference/rest-api/)
+- RESTful interface
+  [https://docs.tdengine.com/reference/rest-api/](https://docs.tdengine.com/reference/rest-api/)
 - Compatible with InfluxDB v1 write interface
   [https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/](https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/)
 - Compatible with OpenTSDB JSON and telnet format writes
@@ -176,13 +179,7 @@ See [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/bl
 
 ### TDengine RESTful interface
 
-You can use any client that supports the http protocol to write data to or query data from TDengine by accessing the REST interface address `http://<fqdn>:6041/<APIEndPoint>`. See the [official documentation](/reference/connector#restful) for details. The following EndPoint is supported.
-
-```text
-/rest/sql
-/rest/sqlt
-/rest/sqlutc
-```
+You can use any client that supports the http protocol to write data to or query data from TDengine by accessing the REST interface address `http://<fqdn>:6041/rest/sql`. See the [official documentation](/reference/rest-api/) for details.
 
 ### InfluxDB
 
@@ -203,7 +200,7 @@ Note: InfluxDB token authorization is not supported at present. Only Basic autho
 
 ### OpenTSDB
 
-You can use any client that supports the http protocol to access the RESTful interface address `http://<fqdn>:6041/<APIEndPoint>` to write data in OpenTSDB compatible format to TDengine.
+You can use any client that supports the http protocol to access the RESTful interface address `http://<fqdn>:6041/<APIEndPoint>` to write data in OpenTSDB compatible format to TDengine. The EndPoint is as follows:
 
 ```text
 /opentsdb/v1/put/json/<db>
@@ -254,7 +251,7 @@ HTTP response content.
 
 Stops processing all write and query requests when the `pauseAllMemoryThreshold` threshold is exceeded.
 
-HTTP response: code 503
+HTTP response content.
 
 - code 503
 - body "memory exceeds threshold"
@@ -269,7 +266,7 @@ Status check interface `http://<fqdn>:6041/-/ping`
 
 Corresponding configuration parameter
 
-``text
+```text
   monitor.collectDuration monitoring interval environment variable `TAOS_MONITOR_COLLECT_DURATION` (default value 3s)
   monitor.incgroup whether to run in cgroup (set to true for running in container) environment variable `TAOS_MONITOR_INCGROUP`
   monitor.pauseAllMemoryThreshold memory threshold for no more inserts and queries environment variable `TAOS_MONITOR_PAUSE_ALL_MEMORY_THRESHOLD` (default 80)
@@ -297,11 +294,11 @@ taosAdapter supports writing the metrics of HTTP monitoring, CPU percentage, and
 For configuration parameters
 
 | **Configuration items** | **Description** | **Default values** |
-| ----------------------- | --------------------------------------------------------- | ---------- |
+|-------------------------|--------------------------------------------|----------|
 | monitor.collectDuration | CPU and memory collection interval | 3s |
 | monitor.identity | The current taosadapter identifier will be used if not set to `hostname:port` | |
 | monitor.incgroup | whether it is running in a cgroup (set to true for running in a container) | false |
-| monitor.writeToTD | Whether to write to TDengine | true |
+| monitor.writeToTD | Whether to write to TDengine | false |
 | monitor.user | TDengine connection username | root |
 | monitor.password | TDengine connection password | taosdata |
 | monitor.writeInterval | Write to TDengine interval | 30s |
@@ -313,9 +310,7 @@ taosAdapter controls the number of results returned by the parameter `restfulRow
 This parameter controls the number of results returned by the following interfaces:
 
 - `http://<fqdn>:6041/rest/sql`
-- `http://<fqdn>:6041/rest/sqlt`
-- `http://<fqdn>:6041/rest/sqlutc`
-- ` http://<fqdn>:6041/prometheus/v1/remote_read/:db`
+- `http://<fqdn>:6041/prometheus/v1/remote_read/:db`
 
 ## Troubleshooting
 
@@ -328,7 +323,7 @@ You can also adjust the level of the taosAdapter log output by setting the `--lo
 In TDengine server 2.2.x.x or earlier, the TDengine server process (taosd) contains an embedded HTTP service. As mentioned earlier, taosAdapter is a standalone software managed using `systemd` and has its own process ID. There are some configuration parameters and behaviors that are different between the two. See the following table for details.
 
 | **#** | **embedded httpd** | **taosAdapter** | **comment** |
-| ----- | ------------------- | ------------------------------------ | ------------------------------------------------------------------ ------------------------------------------------------------------------ |
+|-------|---------------------|-------------------------------|------------------------------------------------------------------------------------------------|
 | 1 | httpEnableRecordSql | --logLevel=debug | |
 | 2 | httpMaxThreads | n/a | taosAdapter Automatically manages thread pools without this parameter |
 | 3 | telegrafUseFieldNum | See the taosAdapter telegraf configuration method | |

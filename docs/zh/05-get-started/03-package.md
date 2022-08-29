@@ -1,6 +1,7 @@
 ---
 sidebar_label: 安装包
 title: 使用安装包立即开始
+description: 使用安装包快速体验 TDengine
 ---
 
 import Tabs from "@theme/Tabs";
@@ -9,7 +10,7 @@ import PkgListV3 from "/components/PkgListV3";
 
 您可以[用 Docker 立即体验](../../get-started/docker/) TDengine。如果您希望对 TDengine 贡献代码或对内部实现感兴趣，请参考我们的 [TDengine GitHub 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
 
-TDengine 完整的软件包包括服务端（taosd）、用于与第三方系统对接并提供 RESTful 接口的 taosAdapter、应用驱动（taosc）、命令行程序 (CLI，taos) 和一些工具软件。目前 taosAdapter 仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。TDengine 除了提供多种语言的连接器之外，还通过 [taosAdapter](../../reference/taosadapter/) 提供 [RESTful 接口](../../reference/rest-api/)。
+TDengine 完整的软件包包括服务端（taosd）、用于与第三方系统对接并提供 RESTful 接口的 taosAdapter、应用驱动（taosc）、命令行程序 (CLI，taos) 和一些工具软件。目前 taosAdapter 仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。TDengine 除了提供多种语言的连接器之外，还通过 [taosAdapter](../../reference/taosadapter/) 提供 [RESTful 接口](../../connector/rest-api/)。
 
 为方便使用，标准的服务端安装包包含了 taosd、taosAdapter、taosc、taos、taosdump、taosBenchmark、TDinsight 安装脚本和示例代码；如果您只需要用到服务端程序和客户端连接的 C/C++ 语言支持，也可以仅下载 lite 版本的安装包。
 
@@ -67,13 +68,6 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 
 </TabItem>
 
-<TabItem label="Windows 安装" value="windows">           
-
-1. 从列表中下载获得 exe 安装程序；
-<PkgListV3 type={3}/>
-2. 运行可执行程序来安装 TDengine。
-
-</TabItem>
 <TabItem value="apt-get" label="apt-get">
 可以使用 apt-get 工具从官方仓库安装。
 
@@ -103,10 +97,19 @@ sudo apt-get install tdengine
 apt-get 方式只适用于 Debian 或 Ubuntu 系统
 ::::
 </TabItem>
+<TabItem label="Windows 安装" value="windows">           
+
+注意：目前 TDengine 在 Windows 平台上只支持 Windows server 2016/2019 和 Windows 10/11 系统版本。
+
+1. 从列表中下载获得 exe 安装程序；
+<PkgListV3 type={3}/>
+2. 运行可执行程序来安装 TDengine。
+
+</TabItem>
 </Tabs>
 
 :::info
-下载其他组件、最新 Beta 版及之前版本的安装包，请点击[发布历史页面](../../releases) 
+下载其他组件、最新 Beta 版及之前版本的安装包，请点击[发布历史页面](../../releases/tdengine) 
 :::
 
 :::note

@@ -63,7 +63,7 @@ void    vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId);
 int32_t vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen);
 int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
 int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list);
-int32_t vnodeGetStbIdList(SVnode *pVnode, int64_t suid, SArray* list);
+int32_t vnodeGetStbIdList(SVnode *pVnode, int64_t suid, SArray *list);
 void   *vnodeGetIdx(SVnode *pVnode);
 void   *vnodeGetIvtIdx(SVnode *pVnode);
 
@@ -96,7 +96,7 @@ int32_t     metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHash
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(void *tag, int16_t type, STagVal *tagVal);
 int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
-bool        metaIsTableExist(SMeta  *pMeta, tb_uid_t uid);
+bool        metaIsTableExist(SMeta *pMeta, tb_uid_t uid);
 
 typedef struct SMetaFltParam {
   tb_uid_t suid;
@@ -128,8 +128,10 @@ typedef struct STsdbReader STsdbReader;
 #define TIMEWINDOW_RANGE_CONTAINED 1
 #define TIMEWINDOW_RANGE_EXTERNAL  2
 
-#define LASTROW_RETRIEVE_TYPE_ALL    0x1
-#define LASTROW_RETRIEVE_TYPE_SINGLE 0x2
+#define CACHESCAN_RETRIEVE_TYPE_ALL    0x1
+#define CACHESCAN_RETRIEVE_TYPE_SINGLE 0x2
+#define CACHESCAN_RETRIEVE_LAST_ROW    0x4
+#define CACHESCAN_RETRIEVE_LAST        0x8
 
 int32_t  tsdbSetTableId(STsdbReader *pReader, int64_t uid);
 int32_t  tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, SArray *pTableList, STsdbReader **ppReader,
@@ -146,15 +148,40 @@ void    *tsdbGetIdx(SMeta *pMeta);
 void    *tsdbGetIvtIdx(SMeta *pMeta);
 uint64_t getReaderMaxVersion(STsdbReader *pReader);
 
-int32_t tsdbLastRowReaderOpen(void *pVnode, int32_t type, SArray *pTableIdList, int32_t numOfCols, void **pReader);
-int32_t tsdbRetrieveLastRow(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, SArray *pTableUids);
-int32_t tsdbLastrowReaderClose(void *pReader);
+int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, SArray *pTableIdList, int32_t numOfCols, void **pReader);
+int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, SArray *pTableUids);
+int32_t tsdbCacherowsReaderClose(void *pReader);
 int32_t tsdbGetTableSchema(SVnode *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid);
 
 void   tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
 size_t tsdbCacheGetCapacity(SVnode *pVnode);
 
 // tq
+typedef struct SMetaTableInfo{
+  int64_t         suid;
+  int64_t         uid;
+  SSchemaWrapper *schema;
+  char            tbName[TSDB_TABLE_NAME_LEN];
+}SMetaTableInfo;
+
+typedef struct SIdInfo{
+  int64_t         version;
+  int32_t         index;
+}SIdInfo;
+
+typedef struct SSnapContext {
+  SMeta    *pMeta;
+  int64_t   snapVersion;
+  TBC      *pCur;
+  int64_t   suid;
+  int8_t    subType;
+  SHashObj *idVersion;
+  SHashObj *suidInfo;
+  SArray   *idList;
+  int32_t   index;
+  bool      withMeta;
+  bool      queryMetaOrData;    // true-get meta, false-get data
+}SSnapContext;
 
 typedef struct STqReader {
   int64_t           ver;
@@ -205,6 +232,12 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWr
 int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *pSnapshot);
 int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData);
 
+int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t subType, bool withMeta, SSnapContext** ctxRet);
+int32_t getMetafromSnapShot(SSnapContext* ctx, void **pBuf, int32_t *contLen, int16_t *type, int64_t *uid);
+SMetaTableInfo getUidfromSnapShot(SSnapContext* ctx);
+int32_t setForSnapShot(SSnapContext* ctx, int64_t uid);
+int32_t destroySnapContext(SSnapContext* ctx);
+
 // structs
 struct STsdbCfg {
   int8_t  precision;
@@ -224,6 +257,7 @@ typedef struct {
   int64_t numOfSTables;
   int64_t numOfCTables;
   int64_t numOfNTables;
+  int64_t numOfNTimeSeries;
   int64_t numOfTimeSeries;
   int64_t pointsWritten;
   int64_t totalStorage;

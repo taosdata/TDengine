@@ -1,6 +1,7 @@
 ---
 sidebar_label: icinga2
 title: icinga2 写入
+description: 使用 icinga2 写入 TDengine
 ---
 
 import Icinga2 from "../14-reference/_icinga2.mdx"

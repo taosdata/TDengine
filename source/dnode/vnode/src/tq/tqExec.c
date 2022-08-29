@@ -60,18 +60,18 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, SMqDataRsp* pRsp) {
   return 0;
 }
 
-int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset) {
+int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqMetaRsp* pMetaRsp, STqOffsetVal* pOffset) {
   const STqExecHandle* pExec = &pHandle->execHandle;
-  qTaskInfo_t          task = pExec->execCol.task;
+  qTaskInfo_t          task = pExec->task;
 
-  if (qStreamPrepareScan(task, pOffset) < 0) {
+  if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
     tqDebug("prepare scan failed, return");
     if (pOffset->type == TMQ_OFFSET__LOG) {
       pRsp->rspOffset = *pOffset;
       return 0;
     } else {
       tqOffsetResetToLog(pOffset, pHandle->snapshotVer);
-      if (qStreamPrepareScan(task, pOffset) < 0) {
+      if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
         tqDebug("prepare scan failed, return");
         pRsp->rspOffset = *pOffset;
         return 0;
@@ -83,24 +83,34 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVa
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
-    tqDebug("task start to execute");
+    tqDebug("tmqsnap task start to execute");
     if (qExecTask(task, &pDataBlock, &ts) < 0) {
       ASSERT(0);
     }
-    tqDebug("task execute end, get %p", pDataBlock);
+    tqDebug("tmqsnap task execute end, get %p", pDataBlock);
 
     if (pDataBlock != NULL) {
       if (pRsp->withTbName) {
+        int64_t uid = 0;
         if (pOffset->type == TMQ_OFFSET__LOG) {
-          int64_t uid = pExec->pExecReader->msgIter.uid;
+          uid = pExec->pExecReader->msgIter.uid;
           if (tqAddTbNameToRsp(pTq, uid, pRsp) < 0) {
             continue;
           }
         } else {
-          pRsp->withTbName = 0;
+          char* tbName = strdup(qExtractTbnameFromTask(task));
+          taosArrayPush(pRsp->blockTbName, &tbName);
         }
       }
-      tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols);
+      if(pRsp->withSchema){
+        if (pOffset->type == TMQ_OFFSET__LOG) {
+          tqAddBlockSchemaToRsp(pExec, pRsp);
+        }else{
+          SSchemaWrapper* pSW = tCloneSSchemaWrapper(qExtractSchemaFromTask(task));
+          taosArrayPush(pRsp->blockSchema, &pSW);
+        }
+      }
+      tqAddBlockDataToRsp(pDataBlock, pRsp, taosArrayGetSize(pDataBlock->pDataBlock));
       pRsp->blockNum++;
       if (pOffset->type == TMQ_OFFSET__LOG) {
         continue;
@@ -110,39 +120,51 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVa
       }
     }
 
-    if (pRsp->blockNum == 0 && pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
-      tqDebug("vgId: %d, tsdb consume over, switch to wal, ver %" PRId64, TD_VID(pTq->pVnode),
-              pHandle->snapshotVer + 1);
-      tqOffsetResetToLog(pOffset, pHandle->snapshotVer);
-      qStreamPrepareScan(task, pOffset);
-      continue;
-    }
-
-    void* meta = qStreamExtractMetaMsg(task);
-    if (meta != NULL) {
-      // tq add meta to rsp
-    }
-
-    if (qStreamExtractOffset(task, &pRsp->rspOffset) < 0) {
-      ASSERT(0);
-    }
-
-    ASSERT(pRsp->rspOffset.type != 0);
-
-#if 0
-    if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
-      if (pRsp->blockNum > 0) {
-        ASSERT(pRsp->rspOffset.version > pRsp->reqOffset.version);
-      } else {
-        ASSERT(pRsp->rspOffset.version >= pRsp->reqOffset.version);
+    if(pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN){
+      if (pRsp->blockNum == 0 && pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+        tqDebug("vgId: %d, tsdb consume over, switch to wal, ver %" PRId64, TD_VID(pTq->pVnode),
+                pHandle->snapshotVer + 1);
+        tqOffsetResetToLog(pOffset, pHandle->snapshotVer);
+        qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType);
+        continue;
       }
+    }else{
+      if (pDataBlock == NULL && pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA){
+        if(qStreamExtractPrepareUid(task) != 0){
+          continue;
+        }
+        tqDebug("tmqsnap vgId: %d, tsdb consume over, switch to wal, ver %" PRId64, TD_VID(pTq->pVnode),
+                pHandle->snapshotVer + 1);
+        break;
+      }
+
+      if (pRsp->blockNum > 0){
+        tqDebug("tmqsnap task exec exited, get data");
+        break;
+      }
+
+      SMqMetaRsp* tmp = qStreamExtractMetaMsg(task);
+      if(tmp->rspOffset.type == TMQ_OFFSET__SNAPSHOT_DATA){
+        tqOffsetResetToData(pOffset, tmp->rspOffset.uid, tmp->rspOffset.ts);
+        qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType);
+        tmp->rspOffset.type = TMQ_OFFSET__SNAPSHOT_META;
+        tqDebug("tmqsnap task exec change to get data");
+        continue;
+      }
+
+      *pMetaRsp = *tmp;
+      tqDebug("tmqsnap task exec exited, get meta");
     }
-#endif
 
     tqDebug("task exec exited");
     break;
   }
 
+  if (qStreamExtractOffset(task, &pRsp->rspOffset) < 0) {
+    ASSERT(0);
+  }
+
+  ASSERT(pRsp->rspOffset.type != 0);
   return 0;
 }
 

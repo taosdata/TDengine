@@ -96,6 +96,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
              connectRsp.epSet.eps[i].fqdn, connectRsp.epSet.eps[i].port, pTscObj->id);
   }
 
+  pTscObj->sysInfo = connectRsp.sysInfo;
   pTscObj->connId = connectRsp.connId;
   pTscObj->acctId = connectRsp.acctId;
   tstrncpy(pTscObj->sVer, connectRsp.sVer, tListLen(pTscObj->sVer));
@@ -232,13 +233,36 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
   assert(pMsg != NULL && param != NULL);
   SRequestObj* pRequest = param;
 
-  taosMemoryFree(pMsg->pData);
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
+  } else {
+    SMCreateStbRsp createRsp = {0};
+    SDecoder      coder = {0};
+    tDecoderInit(&coder, pMsg->pData, pMsg->len);
+    tDecodeSMCreateStbRsp(&coder, &createRsp);
+    tDecoderClear(&coder);
+
+    pRequest->body.resInfo.execRes.msgType = TDMT_MND_CREATE_STB;
+    pRequest->body.resInfo.execRes.res = createRsp.pMeta;
   }
 
+  taosMemoryFree(pMsg->pData);
+
   if (pRequest->body.queryFp != NULL) {
-    removeMeta(pRequest->pTscObj, pRequest->tableList);
+    SExecResult* pRes = &pRequest->body.resInfo.execRes;
+
+    if (code == TSDB_CODE_SUCCESS) {
+      SCatalog* pCatalog = NULL;
+      int32_t   ret = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+      if (pRes->res != NULL) {
+        ret = handleCreateTbExecRes(pRes->res, pCatalog);
+      }
+
+      if (ret != TSDB_CODE_SUCCESS) {
+        code = ret;
+      }
+    }
+    
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
   } else {
     tsem_post(&pRequest->body.rspSem);

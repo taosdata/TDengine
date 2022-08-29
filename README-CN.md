@@ -210,14 +210,14 @@ cmake .. -G "NMake Makefiles"
 nmake
 ```
 
-### macOS 系统
+<!-- ### macOS 系统
 
 安装 Xcode 命令行工具和 cmake. 在 Catalina 和 Big Sur 操作系统上，需要安装 XCode 11.4+ 版本。
 
 ```bash
 mkdir debug && cd debug
 cmake .. && cmake --build .
-```
+``` -->
 
 # 安装
 
@@ -303,14 +303,14 @@ Query OK, 2 row(s) in set (0.001700s)
 
 TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java、Python、Go、Node.js、C# 、RESTful 等，便于用户快速开发应用：
 
-- [Java](https://docs.taosdata.com/reference/connector/java/)
-- [C/C++](https://www.taosdata.com/cn/documentation/connector#c-cpp)
-- [Python](https://docs.taosdata.com/reference/connector/python/)
-- [Go](https://docs.taosdata.com/reference/connector/go/)
-- [Node.js](https://docs.taosdata.com/reference/connector/node/)
-- [Rust](https://docs.taosdata.com/reference/connector/rust/)
-- [C#](https://docs.taosdata.com/reference/connector/csharp/)
-- [RESTful API](https://docs.taosdata.com/reference/rest-api/)
+- [Java](https://docs.taosdata.com/connector/java/)
+- [C/C++](https://docs.taosdata.com/connector/cpp/)
+- [Python](https://docs.taosdata.com/connector/python/)
+- [Go](https://docs.taosdata.com/connector/go/)
+- [Node.js](https://docs.taosdata.com/connector/node/)
+- [Rust](https://docs.taosdata.com/connector/rust/)
+- [C#](https://docs.taosdata.com/connector/csharp/)
+- [RESTful API](https://docs.taosdata.com/connector/rest-api/)
 
 # 成为社区贡献者
 

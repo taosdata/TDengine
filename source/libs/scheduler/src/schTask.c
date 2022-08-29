@@ -821,7 +821,13 @@ int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList) {
 
 int32_t schLaunchTaskImpl(void *param) {
   SSchTaskCtx *pCtx = (SSchTaskCtx *)param;
-  SSchJob *pJob = pCtx->pJob;
+  SSchJob *pJob = schAcquireJob(pCtx->jobRid);
+  if (NULL == pJob) {
+    taosMemoryFree(param);
+    qDebug("job refId 0x%" PRIx64 " already not exist", pCtx->jobRid);
+    SCH_RET(TSDB_CODE_SCH_JOB_IS_DROPPING);
+  }
+  
   SSchTask *pTask = pCtx->pTask;
   int8_t  status = 0;
   int32_t code = 0;
@@ -871,14 +877,16 @@ _return:
 
   taosMemoryFree(param);
 
-#if SCH_ASYNC_LAUNCH_TASK
-  if (code) {
-    code = schProcessOnTaskFailure(pJob, pTask, code);
+  if (pJob->taskNum >= SCH_MIN_AYSNC_EXEC_NUM) {
+    if (code) {
+      code = schProcessOnTaskFailure(pJob, pTask, code);
+    }
+    if (code) {
+      code = schHandleJobFailure(pJob, code);
+    }
   }
-  if (code) {
-    code = schHandleJobFailure(pJob, code);
-  }
-#endif
+
+  schReleaseJob(pJob->refId);
 
   SCH_RET(code);
 }
@@ -890,15 +898,15 @@ int32_t schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
   
-  param->pJob = pJob;
+  param->jobRid = pJob->refId;
   param->pTask = pTask;
 
-#if SCH_ASYNC_LAUNCH_TASK
-  taosAsyncExec(schLaunchTaskImpl, param, NULL);
-#else
-  SCH_ERR_RET(schLaunchTaskImpl(param));
-#endif
-
+  if (pJob->taskNum >= SCH_MIN_AYSNC_EXEC_NUM) {
+    taosAsyncExec(schLaunchTaskImpl, param, NULL);
+  } else {
+    SCH_ERR_RET(schLaunchTaskImpl(param));
+  }
+  
   return TSDB_CODE_SUCCESS;
 }
 

@@ -21,11 +21,15 @@
 #include "taoserror.h"
 #include "tlog.h"
 
+
+#define HTTP_RECV_BUF_SIZE 1024
+
 typedef struct SHttpClient {
   uv_connect_t conn;
   uv_tcp_t     tcp;
   uv_write_t   req;
-  uv_buf_t*    buf;
+  uv_buf_t*    wbuf;
+  char         *rbuf; 
   char*        addr;
   uint16_t     port;
 } SHttpClient;
@@ -122,23 +126,39 @@ _OVER:
 }
 
 static void destroyHttpClient(SHttpClient* cli) {
-  taosMemoryFree(cli->buf);
+  taosMemoryFree(cli->wbuf);
+  taosMemoryFree(cli->rbuf);
   taosMemoryFree(cli->addr);
   taosMemoryFree(cli);
+
 }
 static void clientCloseCb(uv_handle_t* handle) {
   SHttpClient* cli = handle->data;
   destroyHttpClient(cli);
 }
+static void clientAllocBuffCb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
+  SHttpClient* cli = handle->data; 
+  buf->base = cli->rbuf; 
+  buf->len = HTTP_RECV_BUF_SIZE;  
+}
+static void clientRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t *buf) {
+  SHttpClient* cli = handle->data; 
+  if (nread < 0) {
+    uError("http-report recv error:%s", uv_err_name(nread));
+  } else {
+    uTrace("http-report succ to recv %d bytes, just ignore it", nread);
+  }
+  uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
+} 
 static void clientSentCb(uv_write_t* req, int32_t status) {
   SHttpClient* cli = req->data;
   if (status != 0) {
     terrno = TAOS_SYSTEM_ERROR(status);
     uError("http-report failed to send data %s", uv_strerror(status));
   } else {
-    uInfo("http-report succ to send data");
+    uTrace("http-report succ to send data");
   }
-  uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
+  uv_read_start((uv_stream_t *)&cli->tcp, clientAllocBuffCb, clientRecvCb); 
 }
 static void clientConnCb(uv_connect_t* req, int32_t status) {
   SHttpClient* cli = req->data;
@@ -148,14 +168,14 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
     uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
     return;
   }
-  uv_write(&cli->req, (uv_stream_t*)&cli->tcp, cli->buf, 2, clientSentCb);
+  uv_write(&cli->req, (uv_stream_t*)&cli->tcp, cli->wbuf, 2, clientSentCb);
 }
 
 static int32_t taosBuildDstAddr(const char* server, uint16_t port, struct sockaddr_in* dest) {
   uint32_t ip = taosGetIpv4FromFqdn(server);
   if (ip == 0xffffffff) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("http-report failed to get http server:%s ip since %s", server, terrstr());
+    uError("http-report failed to get http server:%s since %s", server, errno == 0 ? "invalid http server" : terrstr());
     return -1;
   }
   char buf[128] = {0};
@@ -189,7 +209,8 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   cli->conn.data = cli;
   cli->tcp.data = cli;
   cli->req.data = cli;
-  cli->buf = wb;
+  cli->wbuf = wb;
+  cli->rbuf = taosMemoryCalloc(1, HTTP_RECV_BUF_SIZE); 
   cli->addr = tstrdup(server);
   cli->port = port;
 
@@ -199,11 +220,11 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   int32_t fd = taosCreateSocketWithTimeout(5);
   uv_tcp_open((uv_tcp_t*)&cli->tcp, fd);
 
-
   int32_t ret = uv_tcp_connect(&cli->conn, &cli->tcp, (const struct sockaddr*)&dest, clientConnCb);
   if (ret != 0) {
     uError("http-report failed to connect to server, reason:%s, dst:%s:%d", uv_strerror(ret), cli->addr, cli->port);
     destroyHttpClient(cli);
+    uv_stop(loop);
   }
 
   uv_run(loop, UV_RUN_DEFAULT);

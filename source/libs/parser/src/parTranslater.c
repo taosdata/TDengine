@@ -784,6 +784,9 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
     int32_t           nums = pMeta->tableInfo.numOfColumns +
                    (igTags ? 0 : ((TSDB_SUPER_TABLE == pMeta->tableType) ? pMeta->tableInfo.numOfTags : 0));
     for (int32_t i = 0; i < nums; ++i) {
+      if (invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
+        continue;
+      }
       SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
       if (NULL == pCol) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
@@ -826,7 +829,8 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
     }
     int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
     for (int32_t i = 0; i < nums; ++i) {
-      if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
+      if (0 == strcmp(pCol->colName, pMeta->schema[i].name) &&
+          !invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
         setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns), pCol);
         *pFound = true;
         break;
@@ -1881,6 +1885,12 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
   }
+  if (NULL != pSelect->pWindow && QUERY_NODE_STATE_WINDOW == nodeType(pSelect->pWindow)) {
+    if (nodesEqualNode(((SStateWindowNode*)pSelect->pWindow)->pExpr, *pNode)) {
+      pSelect->hasStateKey = true;
+      return rewriteExprToGroupKeyFunc(pCxt, pNode);
+    }
+  }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
     if (pSelect->selectFuncNum > 1 || pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc) {
       return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt));
@@ -1973,7 +1983,7 @@ static int32_t checkWindowFuncCoexist(STranslateContext* pCxt, SSelectStmt* pSel
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
   }
-  if (NULL != pSelect->pWindow && !pSelect->hasAggFuncs) {
+  if (NULL != pSelect->pWindow && !pSelect->hasAggFuncs && !pSelect->hasStateKey) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN);
   }
   return TSDB_CODE_SUCCESS;
@@ -2186,13 +2196,13 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
           code = setTableCacheLastMode(pCxt, &name, pRealTable);
         }
       }
-      pRealTable->table.precision = pRealTable->pMeta->tableInfo.precision;
-      pRealTable->table.singleTable = isSingleTable(pRealTable);
       if (TSDB_CODE_SUCCESS == code) {
+        pRealTable->table.precision = pRealTable->pMeta->tableInfo.precision;
+        pRealTable->table.singleTable = isSingleTable(pRealTable);
+        if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
+          pCxt->stableQuery = true;
+        }
         code = addNamespace(pCxt, pRealTable);
-      }
-      if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
-        pCxt->stableQuery = true;
       }
       break;
     }
@@ -2588,8 +2598,12 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode* pWhere, STimeWi
   return code;
 }
 
-static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* pInterval) {
+static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* pInterval, bool isInterpFill) {
   if (FILL_MODE_NONE == pFill->mode) {
+    if (isInterpFill) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Unsupported fill type");
+    }
+
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2629,7 +2643,7 @@ static int32_t translateFill(STranslateContext* pCxt, SSelectStmt* pSelect, SInt
   }
 
   ((SFillNode*)pInterval->pFill)->timeRange = pSelect->timeRange;
-  return checkFill(pCxt, (SFillNode*)pInterval->pFill, (SValueNode*)pInterval->pInterval);
+  return checkFill(pCxt, (SFillNode*)pInterval->pFill, (SValueNode*)pInterval->pInterval, false);
 }
 
 static int64_t getMonthsFromTimeVal(int64_t val, int32_t fromPrecision, char unit) {
@@ -2822,6 +2836,29 @@ static int32_t createDefaultFillNode(STranslateContext* pCxt, SNode** pOutput) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkEvery(STranslateContext* pCxt, SValueNode* pInterval) {
+  int32_t len = strlen(pInterval->literal);
+
+  char* unit = &pInterval->literal[len - 1];
+  if (*unit == 'n' || *unit == 'y') {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE,
+                                   "Unsupported time unit in EVERY clause");
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateInterpEvery(STranslateContext* pCxt, SNode** pEvery) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  code = checkEvery(pCxt, (SValueNode*)(*pEvery));
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateExpr(pCxt, pEvery);
+  }
+
+  return code;
+}
+
 static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -2835,7 +2872,7 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
     code = getQueryTimeRange(pCxt, pSelect->pRange, &(((SFillNode*)pSelect->pFill)->timeRange));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery);
+    code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery, true);
   }
 
   return code;
@@ -2856,7 +2893,7 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
 
   int32_t code = translateExpr(pCxt, &pSelect->pRange);
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateExpr(pCxt, &pSelect->pEvery);
+    code = translateInterpEvery(pCxt, &pSelect->pEvery);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterpFill(pCxt, pSelect);

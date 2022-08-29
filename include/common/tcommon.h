@@ -44,6 +44,30 @@ enum {
 )
 // clang-format on
 
+typedef struct {
+  TSKEY    ts;
+  uint64_t groupId;
+} SWinKey;
+
+static inline int SWinKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
+  SWinKey* pWin1 = (SWinKey*)pKey1;
+  SWinKey* pWin2 = (SWinKey*)pKey2;
+
+  if (pWin1->groupId > pWin2->groupId) {
+    return 1;
+  } else if (pWin1->groupId < pWin2->groupId) {
+    return -1;
+  }
+
+  if (pWin1->ts > pWin2->ts) {
+    return 1;
+  } else if (pWin1->ts < pWin2->ts) {
+    return -1;
+  }
+
+  return 0;
+}
+
 enum {
   TMQ_MSG_TYPE__DUMMY = 0,
   TMQ_MSG_TYPE__POLL_RSP,
@@ -160,6 +184,7 @@ typedef struct SQueryTableDataCond {
   STimeWindow  twindows;
   int64_t      startVersion;
   int64_t      endVersion;
+  int64_t      schemaVersion;
 } SQueryTableDataCond;
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
@@ -181,7 +206,7 @@ typedef struct SColumn {
   int16_t slotId;
 
   char    name[TSDB_COL_NAME_LEN];
-  int8_t  flag;  // column type: normal column, tag, or user-input column (integer/float/string)
+  int16_t colType;  // column type: normal column, tag, or window column
   int16_t type;
   int32_t bytes;
   uint8_t precision;

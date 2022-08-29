@@ -57,7 +57,9 @@ typedef enum EColumnType {
   COLUMN_TYPE_COLUMN = 1,
   COLUMN_TYPE_TAG,
   COLUMN_TYPE_TBNAME,
-  COLUMN_TYPE_WINDOW_PC,
+  COLUMN_TYPE_WINDOW_START,
+  COLUMN_TYPE_WINDOW_END,
+  COLUMN_TYPE_WINDOW_DURATION,
   COLUMN_TYPE_GROUP_KEY
 } EColumnType;
 
@@ -276,6 +278,7 @@ typedef struct SSelectStmt {
   bool        hasLastRowFunc;
   bool        hasTimeLineFunc;
   bool        hasUdaf;
+  bool        hasStateKey;
   bool        onlyHasKeepOrderFunc;
   bool        groupSort;
 } SSelectStmt;

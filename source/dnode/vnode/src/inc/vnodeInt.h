@@ -102,7 +102,7 @@ int             metaCommit(SMeta* pMeta);
 int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int             metaAlterSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq, SArray* tbUidList);
-int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq);
+int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq, STableMetaRsp **pMetaRsp);
 int             metaDropTable(SMeta* pMeta, int64_t version, SVDropTbReq* pReq, SArray* tbUids);
 int             metaTtlDropTable(SMeta* pMeta, int64_t ttl, SArray* tbUids);
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
@@ -198,8 +198,6 @@ int32_t smaAsyncPreCommit(SSma* pSma);
 int32_t smaAsyncCommit(SSma* pSma);
 int32_t smaAsyncPostCommit(SSma* pSma);
 int32_t smaDoRetention(SSma* pSma, int64_t now);
-int32_t smaProcessFetch(SSma* pSma, void* pMsg);
-int32_t smaProcessExec(SSma* pSma, void* pMsg);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
@@ -369,6 +367,7 @@ struct SSma {
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
 
 enum {
+  SNAP_DATA_CFG = 0,
   SNAP_DATA_META = 1,
   SNAP_DATA_TSDB = 2,
   SNAP_DATA_DEL = 3,

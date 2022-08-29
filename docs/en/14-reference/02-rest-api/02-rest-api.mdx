@@ -2,15 +2,15 @@
 title: REST API
 ---
 
-To support the development of various types of applications and platforms, TDengine provides an API that conforms to REST principles; namely REST API. To minimize the learning cost, unlike REST APIs for other database engines, TDengine allows insertion of SQL commands in the BODY of an HTTP POST request, to operate the database.
+To support the development of various types of applications and platforms, TDengine provides an API that conforms to REST principles; namely REST API. To minimize the learning cost, unlike REST APIs for other database engines, TDengine allows insertion of SQL commands in the BODY of an HTTP POST request, to operate the database. 
 
-:::note 
-One difference from the native connector is that the REST interface is stateless and so the `USE db_name` command has no effect. All references to table names and super table names need to specify the database name in the prefix. (Since version 2.2.0.0, TDengine supports specification of the db_name in RESTful URL. If the database name prefix is not specified in the SQL command, the `db_name` specified in the URL will be used. Since version 2.4.0.0, REST service is provided by taosAdapter by default and it requires that the `db_name` must be specified in the URL.)
+:::note
+One difference from the native connector is that the REST interface is stateless and so the `USE db_name` command has no effect. All references to table names and super table names need to specify the database name in the prefix. TDengine supports specification of the db_name in RESTful URL. If the database name prefix is not specified in the SQL command, the `db_name` specified in the URL will be used.
 :::
 
 ## Installation
 
-The REST interface does not rely on any TDengine native library, so the client application does not need to install any TDengine libraries. The client application's development language only needs to support the HTTP protocol.
+The REST interface does not rely on any TDengine native library, so the client application does not need to install any TDengine libraries. The client application's development language only needs to support the HTTP protocol. The REST interface is provided by [taosAdapter](../taosadapter), to use REST interface you need to make sure `taosAdapter` is running properly.
 
 ## Verification
 
@@ -20,84 +20,75 @@ The following example is in an Ubuntu environment and uses the `curl` tool to ve
 
 The following example lists all databases on the host h1.taosdata.com. To use it in your environment, replace `h1.taosdata.com` and `6041` (the default port) with the actual running TDengine service FQDN and port number.
 
-```html
-curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "show databases;" h1.taosdata.com:6041/rest/sql
+```bash
+curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
+  -d "select name, ntables, status from information_schema.ins_databases;" \
+  h1.taosdata.com:6041/rest/sql
 ```
 
 The following return value results indicate that the verification passed.
 
 ```json
 {
-  "status": "succ",
-  "head": [
-    "name",
-    "created_time",
-    "ntables",
-    "vgroups",
-    "replica",
-    "quorum",
-    "days",
-    "keep1,keep2,keep(D)",
-    "cache(MB)",
-    "blocks",
-    "minrows",
-    "maxrows",
-    "wallevel",
-    "fsync",
-    "comp",
-    "precision",
-    "status"
-  ],
-  "data": [
-    [
-      "log",
-      "2020-09-02 17:23:00.039",
-      4,
-      1,
-      1,
-      1,
-      10,
-      "30,30,30",
-      1,
-      3,
-      100,
-      4096,
-      1,
-      3000,
-      2,
-      "us",
-      "ready"
-    ]
-  ],
-  "rows": 1
+    "code": 0,
+    "column_meta": [
+        [
+            "name",
+            "VARCHAR",
+            64
+        ],
+        [
+            "ntables",
+            "BIGINT",
+            8
+        ],
+        [
+            "status",
+            "VARCHAR",
+            10
+        ]
+    ],
+    "data": [
+        [
+            "information_schema",
+            16,
+            "ready"
+        ],
+        [
+            "performance_schema",
+            9,
+            "ready"
+        ]
+    ],
+    "rows": 2
 }
 ```
 
 ## HTTP request URL format
 
-```
+```text
 http://<fqdn>:<port>/rest/sql/[db_name]
 ```
 
 Parameter Description:
 
-- fqnd: FQDN or IP address of any host in the cluster
-- port: httpPort configuration item in the configuration file, default is 6041
-- db_name: Optional parameter that specifies the default database name for the executed SQL command. (supported since version 2.2.0.0)
+- fqnd: FQDN or IP address of any host in the cluster.
+- port: httpPort configuration item in the configuration file, default is 6041.
+- db_name: Optional parameter that specifies the default database name for the executed SQL command.
 
 For example, `http://h1.taos.com:6041/rest/sql/test` is a URL to `h1.taos.com:6041` and sets the default database name to `test`.
 
 TDengine supports both Basic authentication and custom authentication mechanisms, and subsequent versions will provide a standard secure digital signature mechanism for authentication.
 
-- The custom authentication information is as follows. More details about "token" later.
+- authentication information is shown below：
 
-  ```
+  ```text
   Authorization: Taosd <TOKEN>
   ```
 
-- Basic authentication information is shown below
+- Basic authentication information is shown below：
 
-  ```
+  ```text
   Authorization: Basic <TOKEN>
   ```
 
@@ -109,51 +100,148 @@ Use `curl` to initiate an HTTP request with a custom authentication method, with
 curl -L -H "Authorization: Basic <TOKEN>" -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name]
 ```
 
-Or
+or
 
 ```bash
 curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name]
 ```
 
-where `TOKEN` is the string after Base64 encoding of `{username}:{password}`, e.g. `root:taosdata` is encoded as `cm9vdDp0YW9zZGF0YQ==`.
+where `TOKEN` is the string after Base64 encoding of `{username}:{password}`, e.g. `root:taosdata` is encoded as `cm9vdDp0YW9zZGF0YQ==`..
 
 ## HTTP Return Format
 
-The return result is in JSON format, as follows:
+### HTTP Response Code
+
+| **Response Code** | **Description**         |
+|-------------------|----------------|
+| 200               | Success. (Also used for C interface errors.) |
+| 400               | Parameter error         |
+| 401               | Authentication failure           |
+| 404               | Interface not found          |
+| 500               | Internal error           |
+| 503               | Insufficient system resources         |
+
+### HTTP body structure
+
+#### Successful Operation
+
+Example:
 
 ```json
 {
-    "status": "succ",
-    "head": ["ts", "current", ...],
-    "column_meta": [["ts",9,8],["current",6,4], ...],
-    "data": [
-        ["2018-10-03 14:38:05.000", 10.3, ...],
-        ["2018-10-03 14:38:15.000", 12.6, ...]
-    ],
-    "rows": 2
+  "code": 0,
+  "column_meta": [["affected_rows", "INT", 4]],
+  "data": [[0]],
+  "rows": 1
 }
 ```
 
 Description:
 
-- status: tells you whethre the operation result is success or failure.
-- head: the definition of the table, or just one column "affected_rows" if no result set is returned. (As of version 2.0.17.0, it is recommended not to rely on the head return value to determine the data column type but rather use column_meta. In later versions, the head item may be removed from the return value.)
-- column_meta: this item is added to the return value to indicate the data type of each column in the data with version 2.0.17.0 and later versions. Each column is described by three values: column name, column type, and type length. For example, `["current",6,4]` means that the column name is "current", the column type is 6, which is the float type, and the type length is 4, which is the float type with 4 bytes. If the column type is binary or nchar, the type length indicates the maximum length of content stored in the column, not the length of the specific data in this return value. When the column type is nchar, the type length indicates the number of Unicode characters that can be saved, not bytes.
-- data: The exact data returned, presented row by row, or just [[affected_rows]] if no result set is returned. The order of the data columns in each row of data is the same as that of the data columns described in column_meta.
-- rows: Indicates how many rows of data there are.
+- code: (`int`) 0 indicates success.
+- column_meta: (`[1][3]any`) Only returns `[["affected_rows", "INT", 4]]`.
+- rows: (`int`) Only returns `1`.
+- data: (`[][]any`) Returns the number of rows affected.
 
-The column types in column_meta are described as follows:
+#### Successful Query
 
-- 1:BOOL
-- 2:TINYINT
-- 3:SMALLINT
-- 4:INT
-- 5:BIGINT
-- 6:FLOAT
-- 7:DOUBLE
-- 8:BINARY
-- 9:TIMESTAMP
-- 10:NCHAR
+Example:
+
+```json
+{
+  "code": 0,
+  "column_meta": [
+    ["ts", "TIMESTAMP", 8],
+    ["count", "BIGINT", 8],
+    ["endpoint", "VARCHAR", 45],
+    ["status_code", "INT", 4],
+    ["client_ip", "VARCHAR", 40],
+    ["request_method", "VARCHAR", 15],
+    ["request_uri", "VARCHAR", 128]
+  ],
+  "data": [
+    [
+      "2022-06-29T05:50:55.401Z",
+      2,
+      "LAPTOP-NNKFTLTG:6041",
+      200,
+      "172.23.208.1",
+      "POST",
+      "/rest/sql"
+    ],
+    [
+      "2022-06-29T05:52:16.603Z",
+      1,
+      "LAPTOP-NNKFTLTG:6041",
+      200,
+      "172.23.208.1",
+      "POST",
+      "/rest/sql"
+    ],
+    [
+      "2022-06-29T06:28:14.118Z",
+      1,
+      "LAPTOP-NNKFTLTG:6041",
+      200,
+      "172.23.208.1",
+      "POST",
+      "/rest/sql"
+    ],
+    [
+      "2022-06-29T05:52:16.603Z",
+      2,
+      "LAPTOP-NNKFTLTG:6041",
+      401,
+      "172.23.208.1",
+      "POST",
+      "/rest/sql"
+    ]
+  ],
+  "rows": 4
+}
+```
+
+Description:
+
+- code: `int` 0 indicates success.
+- column_meta: (`[][3]any`) Column information. Each column is described with three values: column name (string), column type (string), and type length (int).
+- rows: (`int`) The number of rows returned.
+- data: (`[][]any`)
+
+The following types may be returned:
+
+- "NULL"
+- "BOOL"
+- "TINYINT"
+- "SMALLINT"
+- "INT"
+- "BIGINT"
+- "FLOAT"
+- "DOUBLE"
+- "VARCHAR"
+- "TIMESTAMP"
+- "NCHAR"
+- "TINYINT UNSIGNED"
+- "SMALLINT UNSIGNED"
+- "INT UNSIGNED"
+- "BIGINT UNSIGNED"
+- "JSON"
+
+#### Errors
+
+Example:
+
+```json
+{
+  "code": 9728,
+  "desc": "syntax error near \"1\""
+}
+```
+
+Description:
+
+- code: (`int`) Error code.
+- desc: (`string`): Error code description.
 
 ## Custom Authorization Code
 
@@ -165,11 +253,9 @@ curl http://<fqnd>:<port>/rest/login/<username>/<password>
 
 Where `fqdn` is the FQDN or IP address of the TDengine database. `port` is the port number of the TDengine service. `username` is the database username. `password` is the database password. The return value is in `JSON` format, and the meaning of each field is as follows.
 
-- status: flag bit of the request result
-
-- code: return value code
-
-- desc: authorization code
+- status: flag bit of the request result.
+- code: return value code.
+- desc: authorization code.
 
 Example of getting authorization code.
 
@@ -187,7 +273,7 @@ Response body:
 }
 ```
 
-## For example
+## Usage examples
 
 - query all records from table d1001 of database demo
 
@@ -199,19 +285,44 @@ Response body:
 
   ```json
   {
-    "status": "succ",
-    "head": ["ts", "current", "voltage", "phase"],
-    "column_meta": [
-      ["ts", 9, 8],
-      ["current", 6, 4],
-      ["voltage", 4, 4],
-      ["phase", 6, 4]
-    ],
-    "data": [
-      ["2018-10-03 14:38:05.000", 10.3, 219, 0.31],
-      ["2018-10-03 14:38:15.000", 12.6, 218, 0.33]
-    ],
-    "rows": 2
+      "code": 0,
+      "column_meta": [
+          [
+              "ts",
+              "TIMESTAMP",
+              8
+          ],
+          [
+              "current",
+              "FLOAT",
+              4
+          ],
+          [
+              "voltage",
+              "INT",
+              4
+          ],
+          [
+              "phase",
+              "FLOAT",
+              4
+          ]
+      ],
+      "data": [
+          [
+              "2022-07-30T06:44:40.32Z",
+              10.3,
+              219,
+              0.31
+          ],
+          [
+              "2022-07-30T06:44:41.32Z",
+              12.6,
+              218,
+              0.33
+          ]
+      ],
+      "rows": 2
   }
   ```
 
@@ -225,83 +336,23 @@ Response body:
 
   ```json
   {
-    "status": "succ",
-    "head": ["affected_rows"],
-    "column_meta": [["affected_rows", 4, 4]],
-    "data": [[1]],
-    "rows": 1
+      "code": 0,
+      "column_meta": [
+          [
+              "affected_rows",
+              "INT",
+              4
+          ]
+      ],
+      "data": [
+          [
+              0
+          ]
+      ],
+      "rows": 1
   }
   ```
 
-## Other Uses
+## Reference
 
-### Unix timestamps for result sets
-
-When the HTTP request URL uses `/rest/sqlt`, the returned result set's timestamp value will be in Unix timestamp format, for example:
-
-```bash
-curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "select * from demo.d1001" 192.168.0.1:6041/rest/sqlt
-```
-
-Response body:
-
-```json
-{
-  "status": "succ",
-  "head": ["ts", "current", "voltage", "phase"],
-  "column_meta": [
-    ["ts", 9, 8],
-    ["current", 6, 4],
-    ["voltage", 4, 4],
-    ["phase", 6, 4]
-  ],
-  "data": [
-    [1538548685000, 10.3, 219, 0.31],
-    [1538548695000, 12.6, 218, 0.33]
-  ],
-  "rows": 2
-}
-```
-
-### UTC format for the result set
-
-When the HTTP request URL uses `/rest/sqlutc`, the timestamp of the returned result set will be expressed as a UTC format, for example:
-
-```bash
-  curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "select * from demo.t1" 192.168.0.1:6041/rest/sqlutc
-```
-
-Response body:
-
-```json
-{
-  "status": "succ",
-  "head": ["ts", "current", "voltage", "phase"],
-  "column_meta": [
-    ["ts", 9, 8],
-    ["current", 6, 4],
-    ["voltage", 4, 4],
-    ["phase", 6, 4]
-  ],
-  "data": [
-    ["2018-10-03T14:38:05.000+0800", 10.3, 219, 0.31],
-    ["2018-10-03T14:38:15.000+0800", 12.6, 218, 0.33]
-  ],
-  "rows": 2
-}
-```
-
-## Important configuration items
-
-Only some configuration parameters related to the RESTful interface are listed below. Please see the description in the configuration file for other system parameters.
-
-- The port number of the external RESTful service is bound to 6041 by default (the actual value is serverPort + 11, so it can be changed by modifying the setting of the serverPort parameter).
-- httpMaxThreads: the number of threads to start, default is 2 (the default value is rounded down to half of the CPU cores with version 2.0.17.0 and later versions).
-- restfulRowLimit: the maximum number of result sets (in JSON format) to return. The default value is 10240.
-- httpEnableCompress: whether to support compression, the default is not supported. Currently, TDengine only supports the gzip compression format.
-- httpDebugFlag: logging switch, default is 131. 131: error and alarm messages only, 135: debug messages, 143: very detailed debug messages.
-- httpDbNameMandatory: users must specify the default database name in the RESTful URL. The default is 0, which turns off this check. If set to 1, users must put a default database name in every RESTful URL. Otherwise, it will return an execution error and reject this SQL statement, regardless of whether the SQL statement executed at this time requires a specified database.
-
-:::note 
-If you are using the REST API provided by taosd, you should write the above configuration in taosd's configuration file taos.cfg. If you use the REST API of taosAdapter, you need to refer to taosAdapter [corresponding configuration method](/reference/taosadapter/).
-:::
+[taosAdapter](/reference/taosadapter/)

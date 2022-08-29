@@ -702,7 +702,7 @@ void taosCacheCleanup(SCacheObj *pCacheObj) {
     taosMsleep(50);
   }
 
-  uInfo("cache:%s will be cleaned up", pCacheObj->name);
+  uTrace("cache:%s will be cleaned up", pCacheObj->name);
   doCleanupDataCache(pCacheObj);
 }
 
