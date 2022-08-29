@@ -297,10 +297,11 @@ enum {
 };
 
 typedef struct SAggSupporter {
-    SHashObj*      pResultRowHashTable;  // quick locate the window object for each result
-    char*          keyBuf;               // window key buffer
-    SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
-    int32_t        resultRowSize;        // the result buffer size for each result row, with the meta data size for each row
+  SHashObj*      pResultRowHashTable;  // quick locate the window object for each result
+  char*          keyBuf;               // window key buffer
+  SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
+  int32_t        resultRowSize;        // the result buffer size for each result row, with the meta data size for each row
+  int32_t        currentPageId;        // current write page id
 } SAggSupporter;
 
 typedef struct {
@@ -429,6 +430,7 @@ typedef struct SStreamAggSupporter {
   char*          pKeyBuf;              // window key buffer
   SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
   int32_t        resultRowSize;        // the result buffer size for each result row, with the meta data size for each row
+  int32_t        currentPageId;        // buffer page that is active
   SSDataBlock*   pScanBlock;
 } SStreamAggSupporter;
 
@@ -991,7 +993,7 @@ int32_t getNumOfRowsInTimeWindow(SDataBlockInfo* pDataBlockInfo, TSKEY* pPrimary
 int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
 int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey, SqlFunctionCtx* pCtx, int32_t numOfOutput,
     int32_t size);
-SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int64_t tableGroupId, int32_t interBufSize);
+SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, int32_t interBufSize);
 SResultWindowInfo* getSessionTimeWindow(SStreamAggSupporter* pAggSup, TSKEY startTs,
     TSKEY endTs, uint64_t groupId, int64_t gap, int32_t* pIndex);
 SResultWindowInfo* getCurSessionWindow(SStreamAggSupporter* pAggSup, TSKEY startTs,

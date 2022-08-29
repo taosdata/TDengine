@@ -3790,7 +3790,7 @@ static int32_t setWindowOutputBuf(SResultWindowInfo* pWinInfo, SResultRow** pRes
   }
 
   if (pWinInfo->pos.pageId == -1) {
-    *pResult = getNewResultRow(pAggSup->pResultBuf, groupId, pAggSup->resultRowSize);
+    *pResult = getNewResultRow(pAggSup->pResultBuf, &pAggSup->currentPageId, pAggSup->resultRowSize);
     if (*pResult == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
