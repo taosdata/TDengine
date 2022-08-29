@@ -22,6 +22,7 @@
 #include "tbuffer.h"
 #include "tcommon.h"
 #include "tpagedbuf.h"
+#include "tsimplehash.h"
 
 #define T_LONG_JMP(_obj, _c) \
   do {                       \
@@ -106,7 +107,7 @@ static FORCE_INLINE void setResultBufPageDirty(SDiskbasedBuf* pBuf, SResultRowPo
   setBufPageDirty(pPage, true);
 }
 
-void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order);
+void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t order);
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
 
 void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
