@@ -55,9 +55,9 @@ if command -v ${comd} ;then
     echo "${comd} is already installed" 
 else 
     if command -v apt ;then
-        apt-get install ${comd}
+        apt-get install ${comd} -y 
     elif command -v yum ;then
-        yum install ${comd}
+        yum install ${comd} - y
     else
         echo "you should install ${comd} manually"
     fi
@@ -153,6 +153,7 @@ elif [[ ${packgeName} =~ "tar" ]];then
         wget https://www.taosdata.com/assets-download/3.0/taosTools-2.1.2-Linux-x64.tar.gz
         tar xvf taosTools-2.1.2-Linux-x64.tar.gz
         cd taosTools-2.1.2 && bash install-taostools.sh
+    fi
 
 fi 
 # }
