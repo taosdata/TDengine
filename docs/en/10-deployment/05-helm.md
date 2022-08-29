@@ -152,7 +152,7 @@ clusterDomainSuffix: ""
 # converting an upper-snake-cased variable like `TAOS_DEBUG_FLAG`,
 # to a camelCase taos config variable `debugFlag`.
 #
-# See the variable list at https://www.taosdata.com/cn/documentation/administrator .
+# See the [Configuration Variables](../../reference/config)
 #
 # Note:
 # 1. firstEp/secondEp: should not be setted here, it's auto generated at scale-up.
