@@ -1531,7 +1531,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
       if (atomic_load_8(&pRSmaInfo->assigned) == 0) {
         tsem_post(&(pStat->notEmpty));
       }
-      smaInfo("vgId:%d, rsma fetch task planned for level:%" PRIi8 " suid:%" PRIi64, SMA_VID(pSma), pItem->level,
+      smaDebug("vgId:%d, rsma fetch task planned for level:%" PRIi8 " suid:%" PRIi64, SMA_VID(pSma), pItem->level,
               pRSmaInfo->suid);
     } break;
     case TASK_TRIGGER_STAT_PAUSED: {
