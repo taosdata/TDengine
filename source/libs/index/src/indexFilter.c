@@ -255,6 +255,13 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
   if (node->opType == OP_TYPE_JSON_GET_VALUE) {
     return code;
   }
+  if ((node->pLeft != NULL && nodeType(node->pLeft) == QUERY_NODE_COLUMN) &&
+      (node->pRight != NULL && nodeType(node->pRight) == QUERY_NODE_VALUE)) {
+    SColumnNode *cn = (SColumnNode *)(node->pLeft);
+    if (cn->node.resType.type == TSDB_DATA_TYPE_JSON) {
+      SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+    }
+  }
   SIFParam *paramList = taosMemoryCalloc(nParam, sizeof(SIFParam));
 
   if (NULL == paramList) {

@@ -186,15 +186,16 @@ int32_t compareLenPrefixedStr(const void *pLeft, const void *pRight) {
   int32_t len1 = varDataLen(pLeft);
   int32_t len2 = varDataLen(pRight);
 
-  if (len1 != len2) {
-    return len1 > len2 ? 1 : -1;
-  } else {
-    int32_t ret = strncmp(varDataVal(pLeft), varDataVal(pRight), len1);
-    if (ret == 0) {
+  int32_t minLen = TMIN(len1, len2);
+  int32_t ret = strncmp(varDataVal(pLeft), varDataVal(pRight), minLen);
+  if (ret == 0) {
+    if (len1 == len2) {
       return 0;
     } else {
-      return ret > 0 ? 1 : -1;
+      return len1 > len2 ? 1 : -1;
     }
+  } else {
+    return ret > 0 ? 1 : -1;
   }
 }
 

@@ -846,7 +846,7 @@ SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ### INTERP
 
 ```sql
-SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] [ RANGE(timestamp1,timestamp2) ] [EVERY(interval)] [FILL ({ VALUE | PREV | NULL | LINEAR | NEXT})];
+SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] RANGE(timestamp1,timestamp2) EVERY(interval) FILL({ VALUE | PREV | NULL | LINEAR | NEXT});
 ```
 
 **Description**: The value that matches the specified timestamp range is returned, if existing; or an interpolation value is returned.
@@ -861,11 +861,10 @@ SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] [ 
 
 - `INTERP` is used to get the value that matches the specified time slice from a column. If no such value exists an interpolation value will be returned based on `FILL` parameter.
 - The input data of `INTERP` is the value of the specified column and a `where` clause can be used to filter the original data. If no `where` condition is specified then all original data is the input.
-- The output time range of `INTERP` is specified by `RANGE(timestamp1,timestamp2)` parameter, with timestamp1<=timestamp2. timestamp1 is the starting point of the output time range and must be specified. timestamp2 is the ending point of the output time range and must be specified. If `RANGE` is not specified, then the timestamp of the first row that matches the filter condition is treated as timestamp1, the timestamp of the last row that matches the filter condition is treated as timestamp2.
-- The number of rows in the result set of `INTERP` is determined by the parameter `EVERY`. Starting from timestamp1, one interpolation is performed for every time interval specified `EVERY` parameter. If `EVERY` parameter is not used, the time windows will be considered as no ending timestamp, i.e. there is only one time window from timestamp1.
-- Interpolation is performed based on `FILL` parameter. No interpolation is performed if `FILL` is not used, that means either the original data that matches is returned or nothing is returned.
-- `INTERP` can only be used to interpolate in single timeline. So it must be used with `group by tbname` when it's used on a STable. It can't be used with `GROUP BY` when it's used in the inner query of a nested query.
-- The result of `INTERP` is not influenced by `ORDER BY TIMESTAMP`, which impacts the output order only..
+- The output time range of `INTERP` is specified by `RANGE(timestamp1,timestamp2)` parameter, with timestamp1<=timestamp2. timestamp1 is the starting point of the output time range and must be specified. timestamp2 is the ending point of the output time range and must be specified. 
+- The number of rows in the result set of `INTERP` is determined by the parameter `EVERY`. Starting from timestamp1, one interpolation is performed for every time interval specified `EVERY` parameter. 
+- Interpolation is performed based on `FILL` parameter. 
+- `INTERP` can only be used to interpolate in single timeline. So it must be used with `partition by tbname` when it's used on a STable.
 
 ### LAST
 
@@ -1140,7 +1139,7 @@ SELECT STATECOUNT(field_name, oper, val) FROM { tb_name | stb_name } [WHERE clau
 
 **Applicable parameter values**:
 
-- oper : Can be one of `LT` (lower than), `GT` (greater than), `LE` (lower than or equal to), `GE` (greater than or equal to), `NE` (not equal to), `EQ` (equal to), the value is case insensitive
+- oper : Can be one of `'LT'` (lower than), `'GT'` (greater than), `'LE'` (lower than or equal to), `'GE'` (greater than or equal to), `'NE'` (not equal to), `'EQ'` (equal to), the value is case insensitive, the value must be in quotes.
 - val ： Numeric types
 
 **Return value type**: Integer
@@ -1167,7 +1166,7 @@ SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [W
 
 **Applicable parameter values**:
 
-- oper : Can be one of `LT` (lower than), `GT` (greater than), `LE` (lower than or equal to), `GE` (greater than or equal to), `NE` (not equal to), `EQ` (equal to), the value is case insensitive
+- oper : Can be one of `'LT'` (lower than), `'GT'` (greater than), `'LE'` (lower than or equal to), `'GE'` (greater than or equal to), `'NE'` (not equal to), `'EQ'` (equal to), the value is case insensitive, the value must be in quotes.
 - val ： Numeric types
 - unit: The unit of time interval. Enter one of the following options: 1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks) If you do not enter a unit of time, the precision of the current database is used by default.
 
@@ -1232,7 +1231,7 @@ SELECT SERVER_VERSION();
 ### SERVER_STATUS
 
 ```sql
-SELECT SERVER_VERSION();
+SELECT SERVER_STATUS();
 ```
 
 **Description**: The server status.

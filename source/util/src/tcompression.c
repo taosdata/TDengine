@@ -83,8 +83,8 @@ int32_t tsCompressInit() {
   if (lossyFloat == false && lossyDouble == false) return 0;
 
   tdszInit(fPrecision, dPrecision, maxRange, curRange, Compressor);
-  if (lossyFloat) uInfo("lossy compression float  is opened. ");
-  if (lossyDouble) uInfo("lossy compression double is opened. ");
+  if (lossyFloat) uTrace("lossy compression float  is opened. ");
+  if (lossyDouble) uTrace("lossy compression double is opened. ");
   return 1;
 }
 // exit call

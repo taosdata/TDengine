@@ -782,6 +782,11 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
                                  pBt);
               tdbPageInsertCell(pParent, sIdx++, pNewCell, szNewCell, 0);
               tdbOsFree(pNewCell);
+
+              if (TDB_CELLDECODER_FREE_VAL(&cd)) {
+                tdbFree(cd.pVal);
+                cd.pVal = NULL;
+              }
             }
 
             // move to next new page
@@ -933,6 +938,8 @@ static int tdbFetchOvflPage(SPgno *pPgno, SPage **ppOfp, TXN *pTxn, SBTree *pBt)
     ASSERT(0);
     return -1;
   }
+
+  tdbPCacheRelease(pBt->pPager->pCache, *ppOfp, pTxn);
 
   return ret;
 }
@@ -1277,6 +1284,8 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
         nLeft -= bytes;
 
         memcpy(&pgno, ofpCell + bytes, sizeof(pgno));
+
+        tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
       }
     } else {
       int nLeftKey = kLen;
@@ -1336,6 +1345,8 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
 
         memcpy(&pgno, ofpCell + bytes, sizeof(pgno));
 
+        tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
+
         nLeftKey -= bytes;
         nLeft -= bytes;
       }
@@ -1374,6 +1385,8 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
 
         memcpy(&pgno, ofpCell + vLen - nLeft + bytes, sizeof(pgno));
 
+        tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
+
         nLeft -= bytes;
       }
     }
@@ -1401,7 +1414,7 @@ static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pD
   pDecoder->pgno = 0;
   TDB_CELLDECODER_SET_FREE_NIL(pDecoder);
 
-  tdbDebug("tdb btc decoder set nil: %p/0x%x ", pDecoder, pDecoder->freeKV);
+  // tdbTrace("tdb btc decoder set nil: %p/0x%x ", pDecoder, pDecoder->freeKV);
 
   // 1. Decode header part
   if (!leaf) {

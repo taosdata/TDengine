@@ -3,7 +3,7 @@ title: Introduction
 toc_max_heading_level: 2
 ---
 
-TDengine is an open source, high-performance, cloud native time-series database optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. Its code, including its cluster feature is open source under GNU AGPL v3.0. Besides the database engine, it provides [caching](../develop/cache), [stream processing](../develop/stream), [data subscription](../develop/tmq) and other functionalities to reduce the system complexity and cost of development and operation.
+TDengine is an open source, high-performance, cloud native [time-series database](https://tdengine.com/tsdb/) optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. Its code, including its cluster feature is open source under GNU AGPL v3.0. Besides the database engine, it provides [caching](/develop/cache), [stream processing](/develop/stream), [data subscription](/develop/tmq) and other functionalities to reduce the system complexity and cost of development and operation.
 
 This section introduces the major features, competitive advantages, typical use-cases and benchmarks to help you get a high level overview of TDengine.
 
@@ -11,21 +11,33 @@ This section introduces the major features, competitive advantages, typical use-
 
 The major features are listed below:
 
-1. While TDengine supports [using SQL to insert](/develop/insert-data/sql-writing), it also supports [Schemaless writing](/reference/schemaless/) just like NoSQL databases. TDengine also supports standard protocols like [InfluxDB LINE](/develop/insert-data/influxdb-line)，[OpenTSDB Telnet](/develop/insert-data/opentsdb-telnet), [OpenTSDB JSON ](/develop/insert-data/opentsdb-json) among others.
-2. TDengine supports seamless integration with third-party data collection agents like [Telegraf](/third-party/telegraf)，[Prometheus](/third-party/prometheus)，[StatsD](/third-party/statsd)，[collectd](/third-party/collectd)，[icinga2](/third-party/icinga2), [TCollector](/third-party/tcollector), [EMQX](/third-party/emq-broker), [HiveMQ](/third-party/hive-mq-broker). These agents can write data into TDengine with simple configuration and without a single line of code. 
-3. Support for [all kinds of queries](/develop/query-data), including aggregation, nested query, downsampling, interpolation and others.
-4. Support for [user defined functions](/develop/udf).
-5. Support for [caching](/develop/cache). TDengine always saves the last data point in cache, so Redis is not needed in some scenarios.
-6. Support for [continuous query](../develop/stream).
-7. Support for [data subscription](../develop/tmq with the capability to specify filter conditions.
-8. Support for [cluster](../deployment/), with the capability of increasing processing power by adding more nodes. High availability is supported by replication. 
-9. Provides an interactive [command-line interface](/reference/taos-shell) for management, maintenance and ad-hoc queries.
-10. Provides many ways to [import](/operation/import) and [export](/operation/export) data.
-11. Provides [monitoring](/operation/monitor) on running instances of TDengine.
-12. Provides [connectors](/reference/connector/) for [C/C++](/reference/connector/cpp), [Java](/reference/connector/java), [Python](/reference/connector/python), [Go](/reference/connector/go), [Rust](/reference/connector/rust), [Node.js](/reference/connector/node) and other programming languages.
-13. Provides a [REST API](/reference/rest-api/).
-14. Supports seamless integration with [Grafana](/third-party/grafana) for visualization.
-15. Supports seamless integration with Google Data Studio.
+1. Insert data
+    * supports [using SQL to insert](/develop/insert-data/sql-writing).
+    * supports [schemaless writing](/reference/schemaless/) just like NoSQL databases. It also supports standard protocols like [InfluxDB LINE](/develop/insert-data/influxdb-line)，[OpenTSDB Telnet](/develop/insert-data/opentsdb-telnet), [OpenTSDB JSON ](/develop/insert-data/opentsdb-json) among others.
+    * supports seamless integration with third-party tools like [Telegraf](/third-party/telegraf/), [Prometheus](/third-party/prometheus/), [collectd](/third-party/collectd/), [StatsD](/third-party/statsd/), [TCollector](/third-party/tcollector/) and [icinga2/](/third-party/icinga2/), they can write data into TDengine with simple configuration and without a single line of code. 
+2. Query data
+    * supports standard [SQL](/taos-sql/), including nested query.
+    * supports [time series specific functions](/taos-sql/function/#time-series-extensions) and [time series specific queries](/taos-sql/distinguished), like downsampling, interpolation, cumulated sum, time weighted average, state window, session window and many others.
+    * supports [user defined functions](/taos-sql/udf).
+3. [Caching](/develop/cache/): TDengine always saves the last data point in cache, so Redis is not needed for time-series data processing.
+4. [Stream Processing](/develop/stream/): not only is the continuous query is supported, but TDengine also supports even driven stream processing, so Flink or spark is not needed for time-series daata processing. 
+5. [Data Dubscription](/develop/tmq/): application can subscribe a table or a set of tables. API is the same as Kafka, but you can specify filter conditions.
+6. Visualization
+    * supports seamless integration with [Grafana](/third-party/grafana/) for visualization.
+    * supports seamless integration with Google Data Studio.
+7. Cluster
+    * supports [cluster](/deployment/) with the capability of increasing processing power by adding more nodes. 
+    * supports [deployment on Kubernetes](/deployment/k8s/)
+    * supports high availability via data replication. 
+8. Administration
+    * provides [monitoring](/operation/monitor) on running instances of TDengine.
+    * provides many ways to [import](/operation/import) and [export](/operation/export) data.
+9. Tools
+    * provides an interactive [command-line interface](/reference/taos-shell) for management, maintenance and ad-hoc queries.
+    * provides a tool [taosBenchmark](/reference/taosbenchmark/) for testing the performance of TDengine.
+10. Programming
+    * provides [connectors](/reference/connector/) for [C/C++](/reference/connector/cpp), [Java](/reference/connector/java), [Python](/reference/connector/python), [Go](/reference/connector/go), [Rust](/reference/connector/rust), [Node.js](/reference/connector/node) and other programming languages.
+    * provides a [REST API](/reference/rest-api/).
 
 For more details on features, please read through the entire documentation. 
 
@@ -33,17 +45,18 @@ For more details on features, please read through the entire documentation.
 
 By making full use of [characteristics of time series data](https://tdengine.com/tsdb/characteristics-of-time-series-data/), TDengine differentiates itself from other time series databases, with the following advantages.
 
-- **High-Performance**: TDengine is the only time-series database to solve the high cardinality issue to support billions of data collection points while out performing other time-series databases for data ingestion, querying and data compression.
+- **[High-Performance](https://tdengine.com/tdengine/high-performance-time-series-database/)**: TDengine is the only time-series database to solve the high cardinality issue to support billions of data collection points while out performing other time-series databases for data ingestion, querying and data compression.
 
-- **Simplified Solution**: Through built-in caching, stream processing and data subscription features, TDengine provides a simplified solution for time-series data processing. It reduces system design complexity and operation costs significantly.
+- **[Simplified Solution](https://tdengine.com/tdengine/simplified-time-series-data-solution/)**: Through built-in caching, stream processing and data subscription features, TDengine provides a simplified solution for time-series data processing. It reduces system design complexity and operation costs significantly.
 
-- **Cloud Native**: Through native distributed design, sharding and partitioning, separation of compute and storage, RAFT, support for kubernetes deployment and full observability, TDengine is a cloud native Time-Series Database and can be deployed on public, private or hybrid clouds.
+- **[Cloud Native](https://tdengine.com/tdengine/cloud-native-time-series-database/)**: Through native distributed design, sharding and partitioning, separation of compute and storage, RAFT, support for kubernetes deployment and full observability, TDengine is a cloud native Time-Series Database and can be deployed on public, private or hybrid clouds.
 
-- **Ease of Use**: For administrators, TDengine significantly reduces the effort to deploy and maintain. For developers, it provides a simple interface, simplified solution and seamless integrations for third party tools. For data users, it gives easy data access. 
+- **[Ease of Use](https://tdengine.com/tdengine/easy-time-series-data-platform/)**: For administrators, TDengine significantly reduces the effort to[
+](https://tdengine.com/tdengine/easy-time-series-data-platform/) deploy and maintain. For developers, it provides a simple interface, simplified solution and seamless integrations for third party tools. For data users, it gives easy data access. 
 
-- **Easy Data Analytics**: Through super tables, storage and compute separation, data partitioning by time interval, pre-computation and other means, TDengine makes it easy to explore, format, and get access to data in a highly efficient way. 
+- **[Easy Data Analytics](https://tdengine.com/tdengine/time-series-data-analytics-made-easy/)**: Through super tables, storage and compute separation, data partitioning by time interval, pre-computation and other means, TDengine makes it easy to explore, format, and get access to data in a highly efficient way. 
 
-- **Open Source**: TDengine’s core modules, including cluster feature, are all available under open source licenses. It has gathered 18.8k stars on GitHub. There is an active developer community, and over 139k running instances worldwide.
+- **[Open Source](https://tdengine.com/tdengine/open-source-time-series-database/)**: TDengine’s core modules, including cluster feature, are all available under open source licenses. It has gathered over 19k stars on GitHub. There is an active developer community, and over 140k running instances worldwide.
 
 With TDengine, the total cost of ownership of your time-series data platform can be greatly reduced. 1: With its superior performance, the computing and storage resources are reduced significantly；2: With SQL support, it can be seamlessly integrated with many third party tools, and learning costs/migration costs are reduced significantly；3: With its simplified solution and nearly zero management, the operation and maintenance costs are reduced significantly. 
 
@@ -96,14 +109,13 @@ As a high-performance, scalable and SQL supported time-series database, TDengine
 | **System Maintenance Requirements**              | **Not Applicable** | **Might Be Applicable** | **Very Applicable** | **Description**                                              |
 | ------------------------------------------------- | ------------------ | ----------------------- | ------------------- | ------------------------------------------------------------ |
 | Native high-reliability         |                    |                      | √                   | TDengine has a very robust, reliable and easily configurable system architecture to simplify routine operation. Human errors and accidents are eliminated to the greatest extent, with a streamlined experience for operators. |
-| Minimize learning and maintenance costs |                    |                      | √                   | In addition to being easily configurable, standard SQL support and the Taos shell for ad hoc queries makes maintenance simpler, allows reuse and reduces learning costs.|
+| Minimize learning and maintenance costs |                    |                      | √                   | In addition to being easily configurable, standard SQL support and the TDengine CLI for ad hoc queries makes maintenance simpler, allows reuse and reduces learning costs.|
 | Abundant talent supply               | √                  |                      |                     | Given the above, and given the extensive training and professional services provided by TDengine, it is easy to migrate from existing solutions or create a new and lasting solution based on TDengine.|
 
 ## Comparison with other databases
 
 - [Writing Performance Comparison of TDengine and InfluxDB ](https://tdengine.com/2022/02/23/4975.html)
 - [Query Performance Comparison of TDengine and InfluxDB](https://tdengine.com/2022/02/24/5120.html)
-- [TDengine vs InfluxDB、OpenTSDB、Cassandra、MySQL、ClickHouse](https://www.tdengine.com/downloads/TDengine_Testing_Report_en.pdf)
 - [TDengine vs OpenTSDB](https://tdengine.com/2019/09/12/710.html)
 - [TDengine vs Cassandra](https://tdengine.com/2019/09/12/708.html)
 - [TDengine vs InfluxDB](https://tdengine.com/2019/09/12/706.html)

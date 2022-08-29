@@ -188,7 +188,7 @@ typedef struct SCtgTbCache {
 
 typedef struct SCtgVgCache {
   SRWLatch         vgLock;
-  SDBVgInfo       *vgInfo;  
+  SDBVgInfo       *vgInfo;
 } SCtgVgCache;
 
 typedef struct SCtgDBCache {
@@ -224,7 +224,7 @@ typedef struct SCtgUserAuth {
 } SCtgUserAuth;
 
 typedef struct SCatalog {
-  uint64_t         clusterId;  
+  uint64_t         clusterId;
   SHashObj        *userCache;    //key:user, value:SCtgUserAuth
   SHashObj        *dbCache;      //key:dbname, value:SCtgDBCache
   SCtgRentMgmt     dbRent;
@@ -253,9 +253,9 @@ typedef struct SCtgJob {
   int32_t           jobResCode;
   int32_t           taskIdx;
   SRWLatch          taskLock;
-  
+
   uint64_t          queryId;
-  SCatalog*         pCtg; 
+  SCatalog*         pCtg;
   SRequestConnInfo  conn;
   void*             userParam;
   catalogCallback   userFp;
@@ -279,7 +279,7 @@ typedef struct SCtgMsgCtx {
   void* lastOut;
   void* out;
   char* target;
-  SHashObj* pBatchs;  
+  SHashObj* pBatchs;
 } SCtgMsgCtx;
 
 
@@ -364,7 +364,7 @@ typedef struct SCtgCacheStat {
   uint64_t numOfMetaHit;
   uint64_t numOfMetaMiss;
   uint64_t numOfIndexHit;
-  uint64_t numOfIndexMiss;  
+  uint64_t numOfIndexMiss;
   uint64_t numOfUserHit;
   uint64_t numOfUserMiss;
   uint64_t numOfClear;
@@ -451,7 +451,7 @@ typedef struct SCtgCacheOperation {
   int32_t  opId;
   void    *data;
   bool     syncOp;
-  tsem_t   rspSem;  
+  tsem_t   rspSem;
   bool     stopQueue;
   bool     unLocked;
 } SCtgCacheOperation;
@@ -466,7 +466,7 @@ typedef struct SCtgQueue {
   bool                  stopQueue;
   SCtgQNode            *head;
   SCtgQNode            *tail;
-  tsem_t                reqSem;  
+  tsem_t                reqSem;
   uint64_t              qRemainNum;
 } SCtgQueue;
 
@@ -475,7 +475,7 @@ typedef struct SCatalogMgmt {
   int32_t               jobPool;
   SRWLatch              lock;
   SCtgQueue             queue;
-  TdThread              updateThread;  
+  TdThread              updateThread;
   SHashObj             *pCluster;     //key: clusterId, value: SCatalog*
   SCatalogStat          stat;
   SCatalogCfg           cfg;
@@ -528,8 +528,8 @@ typedef struct SCtgOperation {
 
 #define CTG_META_SIZE(pMeta) (sizeof(STableMeta) + ((pMeta)->tableInfo.numOfTags + (pMeta)->tableInfo.numOfColumns) * sizeof(SSchema))
 
-#define CTG_TABLE_NOT_EXIST(code) (code == CTG_ERR_CODE_TABLE_NOT_EXIST) 
-#define CTG_DB_NOT_EXIST(code) (code == TSDB_CODE_MND_DB_NOT_EXIST) 
+#define CTG_TABLE_NOT_EXIST(code) (code == CTG_ERR_CODE_TABLE_NOT_EXIST)
+#define CTG_DB_NOT_EXIST(code) (code == TSDB_CODE_MND_DB_NOT_EXIST)
 
 #define ctgFatal(param, ...)  qFatal("CTG:%p " param, pCtg, __VA_ARGS__)
 #define ctgError(param, ...)  qError("CTG:%p " param, pCtg, __VA_ARGS__)
@@ -576,7 +576,7 @@ typedef struct SCtgOperation {
   }                                                       \
 } while (0)
 
-  
+
 #define CTG_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define CTG_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
 #define CTG_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)

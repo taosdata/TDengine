@@ -27,4 +27,4 @@ The number of dnodes in a TDengine cluster must NOT be lower than the number of 
 
 As long as the dnodes of a TDengine cluster are deployed on different physical machines and the replica number is higher than 1, high availability can be achieved without any other assistance. For disaster recovery, dnodes of a TDengine cluster should be deployed in geographically different data centers.
 
-Alternatively, you can use taosX to synchronize the data from one TDengine cluster to another cluster in a remote location. For more information, see [taosX](../../reference/taosX).
+Alternatively, you can use taosX to synchronize the data from one TDengine cluster to another cluster in a remote location. However, taosX is only available in TDengine enterprise version, for more information please contact tdengine.com. 

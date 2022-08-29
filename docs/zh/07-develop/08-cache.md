@@ -20,11 +20,11 @@ create database db0 vgroups 100 buffer 16MB
 
 ## 读缓存
 
-在创建数据库时可以选择是否缓存该数据库中每个子表的最新数据。由参数 cachelast 设置，分为三种情况：
-- 0: 不缓存
-- 1: 缓存子表最近一行数据，这将显著改善 last_row 函数的性能
-- 2: 缓存子表每一列最近的非 NULL 值，这将显著改善无特殊影响（比如 WHERE, ORDER BY, GROUP BY, INTERVAL）时的 last 函数的性能
-- 3: 同时缓存行和列，即等同于上述 cachelast 值为 1 或 2 时的行为同时生效
+在创建数据库时可以选择是否缓存该数据库中每个子表的最新数据。由参数 cachemodel 设置，分为四种情况：
+- none: 不缓存
+- last_row: 缓存子表最近一行数据，这将显著改善 last_row 函数的性能
+- last_value: 缓存子表每一列最近的非 NULL 值，这将显著改善无特殊影响（比如 WHERE, ORDER BY, GROUP BY, INTERVAL）时的 last 函数的性能
+- both: 同时缓存最近的行和列，即等同于上述 cachemodel 值为 last_row 和 last_value 的行为同时生效
 
 ## 元数据缓存
 

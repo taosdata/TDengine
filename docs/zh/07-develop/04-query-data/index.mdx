@@ -1,4 +1,5 @@
 ---
+sidebar_label: 查询数据
 title: 查询数据
 description: "主要查询功能，通过连接器执行同步查询和异步查询"
 ---
@@ -51,7 +52,7 @@ Query OK, 2 row(s) in set (0.001100s)
 
 ### 示例一
 
-在 TAOS Shell，查找加利福尼亚州所有智能电表采集的电压平均值，并按照 location 分组。
+在 TDengine CLI，查找加利福尼亚州所有智能电表采集的电压平均值，并按照 location 分组。
 
 ```
 taos> SELECT AVG(voltage), location FROM meters GROUP BY location;
@@ -64,7 +65,7 @@ Query OK, 2 rows in database (0.005995s)
 
 ### 示例二
 
-在 TAOS shell, 查找 groupId 为 2 的所有智能电表的记录条数，电流的最大值。
+在 TDengine CLI, 查找 groupId 为 2 的所有智能电表的记录条数，电流的最大值。
 
 ```
 taos> SELECT count(*), max(current) FROM meters where groupId = 2;

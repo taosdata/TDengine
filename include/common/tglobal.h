@@ -66,6 +66,7 @@ extern int32_t tsNumOfVnodeStreamThreads;
 extern int32_t tsNumOfVnodeFetchThreads;
 extern int32_t tsNumOfVnodeWriteThreads;
 extern int32_t tsNumOfVnodeSyncThreads;
+extern int32_t tsNumOfVnodeRsmaThreads;
 extern int32_t tsNumOfQnodeQueryThreads;
 extern int32_t tsNumOfQnodeFetchThreads;
 extern int32_t tsNumOfSnodeSharedThreads;
@@ -130,6 +131,7 @@ extern int32_t tsMqRebalanceInterval;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushInterval;
 extern int32_t tsGrantHBInterval;
+extern int32_t tsUptimeInterval;
 
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 

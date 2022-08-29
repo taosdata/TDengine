@@ -31,21 +31,12 @@
     taosMemoryFreeClear(_n); \
   } while (0);
 
-#pragma pack(push, 4)
-typedef struct SHNode {
-  struct SHNode *next;
-  uint32_t       keyLen : 20;
-  uint32_t       dataLen : 12;
-  char           data[];
-} SHNode;
-#pragma pack(pop)
-
 struct SSHashObj {
   SHNode    **hashList;
   size_t      capacity;  // number of slots
-  int64_t     size;     // number of elements in hash table
-  _hash_fn_t  hashFp;   // hash function
-  _equal_fn_t equalFp;  // equal function
+  int64_t     size;      // number of elements in hash table
+  _hash_fn_t  hashFp;    // hash function
+  _equal_fn_t equalFp;   // equal function
 };
 
 static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
@@ -75,7 +66,6 @@ SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn) {
   pHashObj->equalFp = memcmp;
   pHashObj->hashFp = fn;
   ASSERT((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
-
 
   pHashObj->hashList = (SHNode **)taosMemoryCalloc(pHashObj->capacity, sizeof(void *));
   if (!pHashObj->hashList) {
@@ -285,6 +275,44 @@ int32_t tSimpleHashRemove(SSHashObj *pHashObj, const void *key, size_t keyLen) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t tSimpleHashIterateRemove(SSHashObj *pHashObj, const void *key, size_t keyLen, void **pIter, int32_t *iter) {
+  if (!pHashObj || !key) {
+    return TSDB_CODE_FAILED;
+  }
+
+  uint32_t hashVal = (*pHashObj->hashFp)(key, (uint32_t)keyLen);
+
+  int32_t slot = HASH_INDEX(hashVal, pHashObj->capacity);
+
+  SHNode *pNode = pHashObj->hashList[slot];
+  SHNode *pPrev = NULL;
+  while (pNode) {
+    if ((*(pHashObj->equalFp))(GET_SHASH_NODE_KEY(pNode, pNode->dataLen), key, keyLen) == 0) {
+      if (!pPrev) {
+        pHashObj->hashList[slot] = pNode->next;
+      } else {
+        pPrev->next = pNode->next;
+      }
+
+      if (*pIter == (void *)GET_SHASH_NODE_DATA(pNode)) {
+        if (!pPrev) {
+          *pIter = NULL;
+        } else {
+          *pIter = GET_SHASH_NODE_DATA(pPrev);
+        }
+      }
+
+      FREE_HASH_NODE(pNode);
+      atomic_sub_fetch_64(&pHashObj->size, 1);
+      break;
+    }
+    pPrev = pNode;
+    pNode = pNode->next;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 void tSimpleHashClear(SSHashObj *pHashObj) {
   if (!pHashObj || taosHashTableEmpty(pHashObj)) {
     return;
@@ -302,6 +330,7 @@ void tSimpleHashClear(SSHashObj *pHashObj) {
       FREE_HASH_NODE(pNode);
       pNode = pNext;
     }
+    pHashObj->hashList[i] = NULL;
   }
   atomic_store_64(&pHashObj->size, 0);
 }
@@ -324,15 +353,6 @@ size_t tSimpleHashGetMemSize(const SSHashObj *pHashObj) {
   return (pHashObj->capacity * sizeof(void *)) + sizeof(SHNode) * tSimpleHashGetSize(pHashObj) + sizeof(SSHashObj);
 }
 
-void *tSimpleHashGetKey(void *data, size_t *keyLen) {
-  SHNode *node = (SHNode *)((char *)data - offsetof(SHNode, data));
-  if (keyLen) {
-    *keyLen = node->keyLen;
-  }
-
-  return POINTER_SHIFT(data, node->dataLen);
-}
-
 void *tSimpleHashIterate(const SSHashObj *pHashObj, void *data, int32_t *iter) {
   if (!pHashObj) {
     return NULL;
@@ -341,7 +361,7 @@ void *tSimpleHashIterate(const SSHashObj *pHashObj, void *data, int32_t *iter) {
   SHNode *pNode = NULL;
 
   if (!data) {
-    for (int32_t i = 0; i < pHashObj->capacity; ++i) {
+    for (int32_t i = *iter; i < pHashObj->capacity; ++i) {
       pNode = pHashObj->hashList[i];
       if (!pNode) {
         continue;
@@ -365,53 +385,6 @@ void *tSimpleHashIterate(const SSHashObj *pHashObj, void *data, int32_t *iter) {
       continue;
     }
     *iter = i;
-    return GET_SHASH_NODE_DATA(pNode);
-  }
-
-  return NULL;
-}
-
-void *tSimpleHashIterateKV(const SSHashObj *pHashObj, void *data, void **key, int32_t *iter) {
-  if (!pHashObj) {
-    return NULL;
-  }
-
-  SHNode *pNode = NULL;
-
-  if (!data) {
-    for (int32_t i = 0; i < pHashObj->capacity; ++i) {
-      pNode = pHashObj->hashList[i];
-      if (!pNode) {
-        continue;
-      }
-      *iter = i;
-      if (key) {
-        *key = GET_SHASH_NODE_KEY(pNode, pNode->dataLen);
-      }
-      return GET_SHASH_NODE_DATA(pNode);
-    }
-    return NULL;
-  }
-
-  pNode = (SHNode *)((char *)data - offsetof(SHNode, data));
-
-  if (pNode->next) {
-    if (key) {
-      *key = GET_SHASH_NODE_KEY(pNode->next, pNode->next->dataLen);
-    }
-    return GET_SHASH_NODE_DATA(pNode->next);
-  }
-
-  ++(*iter);
-  for (int32_t i = *iter; i < pHashObj->capacity; ++i) {
-    pNode = pHashObj->hashList[i];
-    if (!pNode) {
-      continue;
-    }
-    *iter = i;
-    if (key) {
-      *key = GET_SHASH_NODE_KEY(pNode, pNode->dataLen);
-    }
     return GET_SHASH_NODE_DATA(pNode);
   }
 

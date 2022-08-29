@@ -24,26 +24,28 @@
 #include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"
-#include "executorInt.h"
 
-static SSDataBlock* doScanLastrow(SOperatorInfo* pOperator);
-static void destroyLastrowScanOperator(void* param, int32_t numOfOutput);
+static SSDataBlock* doScanCache(SOperatorInfo* pOperator);
+static void destroyLastrowScanOperator(void* param);
 static int32_t extractTargetSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo, int32_t** pSlotIds);
 
-SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandle* readHandle, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandle* readHandle,
+                                           SExecTaskInfo* pTaskInfo) {
+  int32_t           code = TSDB_CODE_SUCCESS;
   SLastrowScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SLastrowScanInfo));
   SOperatorInfo*    pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
   pInfo->readHandle = *readHandle;
-  pInfo->pRes = createResDataBlock(pScanNode->scan.node.pOutputDataBlockDesc);
+  pInfo->pRes       = createResDataBlock(pScanNode->scan.node.pOutputDataBlockDesc);
 
   int32_t numOfCols = 0;
   pInfo->pColMatchInfo = extractColMatchInfo(pScanNode->scan.pScanCols, pScanNode->scan.node.pOutputDataBlockDesc, &numOfCols,
                                              COL_MATCH_FROM_COL_ID);
-  int32_t code = extractTargetSlotId(pInfo->pColMatchInfo, pTaskInfo, &pInfo->pSlotIds);
+  code = extractTargetSlotId(pInfo->pColMatchInfo, pTaskInfo, &pInfo->pSlotIds);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -56,13 +58,17 @@ SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pScanNode, SRead
 
   // partition by tbname
   if (taosArrayGetSize(pTableList->pGroupList) == taosArrayGetSize(pTableList->pTableList)) {
-    pInfo->retrieveType = LASTROW_RETRIEVE_TYPE_ALL;
-    tsdbLastRowReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pTableList->pTableList,
-                          taosArrayGetSize(pInfo->pColMatchInfo), &pInfo->pLastrowReader);
+    pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_ALL|CACHESCAN_RETRIEVE_LAST_ROW;
+    code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pTableList->pTableList,
+                                   taosArrayGetSize(pInfo->pColMatchInfo), &pInfo->pLastrowReader);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
+
     pInfo->pBufferredRes = createOneDataBlock(pInfo->pRes, false);
     blockDataEnsureCapacity(pInfo->pBufferredRes, pOperator->resultInfo.capacity);
   } else { // by tags
-    pInfo->retrieveType = LASTROW_RETRIEVE_TYPE_SINGLE;
+    pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_SINGLE|CACHESCAN_RETRIEVE_LAST_ROW;
   }
 
   if (pScanNode->scan.pScanPseudoCols != NULL) {
@@ -81,19 +87,19 @@ SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pScanNode, SRead
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
 
   pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doScanLastrow, NULL, NULL, destroyLastrowScanOperator, NULL, NULL, NULL);
+      createOperatorFpSet(operatorDummyOpenFn, doScanCache, NULL, NULL, destroyLastrowScanOperator, NULL, NULL, NULL);
 
   pOperator->cost.openCost = 0;
   return pOperator;
 
   _error:
-  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
-  taosMemoryFree(pInfo);
+  pTaskInfo->code = code;
+  destroyLastrowScanOperator(pInfo);
   taosMemoryFree(pOperator);
   return NULL;
 }
 
-SSDataBlock* doScanLastrow(SOperatorInfo* pOperator) {
+SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
@@ -110,14 +116,14 @@ SSDataBlock* doScanLastrow(SOperatorInfo* pOperator) {
   blockDataCleanup(pInfo->pRes);
 
   // check if it is a group by tbname
-  if (pInfo->retrieveType == LASTROW_RETRIEVE_TYPE_ALL) {
+  if ((pInfo->retrieveType & CACHESCAN_RETRIEVE_TYPE_ALL) == CACHESCAN_RETRIEVE_TYPE_ALL) {
     if (pInfo->indexOfBufferedRes >= pInfo->pBufferredRes->info.rows) {
       blockDataCleanup(pInfo->pBufferredRes);
       taosArrayClear(pInfo->pUidList);
 
-      int32_t code = tsdbRetrieveLastRow(pInfo->pLastrowReader, pInfo->pBufferredRes, pInfo->pSlotIds, pInfo->pUidList);
+      int32_t code = tsdbRetrieveCacheRows(pInfo->pLastrowReader, pInfo->pBufferredRes, pInfo->pSlotIds, pInfo->pUidList);
       if (code != TSDB_CODE_SUCCESS) {
-        longjmp(pTaskInfo->env, code);
+        T_LONG_JMP(pTaskInfo->env, code);
       }
 
       // check for tag values
@@ -173,11 +179,11 @@ SSDataBlock* doScanLastrow(SOperatorInfo* pOperator) {
     while (pInfo->currentGroupIndex < totalGroups) {
       SArray* pGroupTableList = taosArrayGetP(pTableList->pGroupList, pInfo->currentGroupIndex);
 
-      tsdbLastRowReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pGroupTableList,
+      tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pGroupTableList,
                             taosArrayGetSize(pInfo->pColMatchInfo), &pInfo->pLastrowReader);
       taosArrayClear(pInfo->pUidList);
 
-      int32_t code = tsdbRetrieveLastRow(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pInfo->pUidList);
+      int32_t code = tsdbRetrieveCacheRows(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pInfo->pUidList);
       if (code != TSDB_CODE_SUCCESS) {
         longjmp(pTaskInfo->env, code);
       }
@@ -201,7 +207,7 @@ SSDataBlock* doScanLastrow(SOperatorInfo* pOperator) {
           }
         }
 
-        tsdbLastrowReaderClose(pInfo->pLastrowReader);
+        tsdbCacherowsReaderClose(pInfo->pLastrowReader);
         return pInfo->pRes;
       }
     }
@@ -211,7 +217,7 @@ SSDataBlock* doScanLastrow(SOperatorInfo* pOperator) {
   }
 }
 
-void destroyLastrowScanOperator(void* param, int32_t numOfOutput) {
+void destroyLastrowScanOperator(void* param) {
   SLastrowScanInfo* pInfo = (SLastrowScanInfo*)param;
   blockDataDestroy(pInfo->pRes);
   taosMemoryFreeClear(param);
