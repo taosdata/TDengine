@@ -83,8 +83,10 @@ wget https://www.taosdata.com/assets-download/3.0/${originPackageName}
 
 
 if [[ ${packgeName} =~ "deb" ]];then
+    cd ${installPath}
     echo "dpkg ${packgeName}" &&  dpkg -i ${packgeName}
 elif [[ ${packgeName} =~ "rpm" ]];then
+    cd ${installPath}
     echo "rpm ${packgeName}"  && rpm -ivh ${packgeName}
 elif [[ ${packgeName} =~ "tar" ]];then
     echo "tar ${packgeName}" && tar -xvf ${packgeName} 
