@@ -46,6 +46,7 @@ psutil = { version = "3.2.0", default-features = false, features = ["cpu", "proc
 
 [build-dependencies]
 sqlx = { version = "*", features = ["runtime-tokio-native-tls", "sqlite", "chrono"] }
+dotenv = "*"
 
 [patch.crates-io]
 zip = { git = "https://github.com/zip-rs/zip.git" }
