@@ -129,7 +129,7 @@ https://www.taosdata.com/cn/all-downloads/
 192.168.236.136	td01
 ```
 
-配置完成后，在命令行内使用taos shell连接server端
+配置完成后，在命令行内使用TDengine CLI连接server端
 
 ```shell
 C:\TDengine>taos -h td01

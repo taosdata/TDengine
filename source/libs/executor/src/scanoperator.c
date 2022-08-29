@@ -178,8 +178,8 @@ static SResultRow* getTableGroupOutputBuf(SOperatorInfo* pOperator, uint64_t gro
 
   STableScanInfo* pTableScanInfo = pOperator->info;
 
-  SResultRowPosition* p1 = (SResultRowPosition*)taosHashGet(pTableScanInfo->pdInfo.pAggSup->pResultRowHashTable, buf,
-                                                            GET_RES_WINDOW_KEY_LEN(sizeof(groupId)));
+  SResultRowPosition* p1 = (SResultRowPosition*)tSimpleHashGet(pTableScanInfo->pdInfo.pAggSup->pResultRowHashTable, buf,
+                                                               GET_RES_WINDOW_KEY_LEN(sizeof(groupId)));
 
   if (p1 == NULL) {
     return NULL;

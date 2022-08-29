@@ -3,7 +3,7 @@ title: Introduction
 toc_max_heading_level: 2
 ---
 
-TDengine is an open source, high-performance, cloud native [time-series database](https://tdengine.com/tsdb/) optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. Its code, including its cluster feature is open source under GNU AGPL v3.0. Besides the database engine, it provides [caching](../develop/cache), [stream processing](../develop/stream), [data subscription](../develop/tmq) and other functionalities to reduce the system complexity and cost of development and operation.
+TDengine is an open source, high-performance, cloud native [time-series database](https://tdengine.com/tsdb/) optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. Its code, including its cluster feature is open source under GNU AGPL v3.0. Besides the database engine, it provides [caching](/develop/cache), [stream processing](/develop/stream), [data subscription](/develop/tmq) and other functionalities to reduce the system complexity and cost of development and operation.
 
 This section introduces the major features, competitive advantages, typical use-cases and benchmarks to help you get a high level overview of TDengine.
 
@@ -11,21 +11,33 @@ This section introduces the major features, competitive advantages, typical use-
 
 The major features are listed below:
 
-1. While TDengine supports [using SQL to insert](/develop/insert-data/sql-writing), it also supports [Schemaless writing](/reference/schemaless/) just like NoSQL databases. TDengine also supports standard protocols like [InfluxDB LINE](/develop/insert-data/influxdb-line)，[OpenTSDB Telnet](/develop/insert-data/opentsdb-telnet), [OpenTSDB JSON ](/develop/insert-data/opentsdb-json) among others.
-2. TDengine supports seamless integration with third-party data collection agents like [Telegraf](/third-party/telegraf)，[Prometheus](/third-party/prometheus)，[StatsD](/third-party/statsd)，[collectd](/third-party/collectd)，[icinga2](/third-party/icinga2), [TCollector](/third-party/tcollector), [EMQX](/third-party/emq-broker), [HiveMQ](/third-party/hive-mq-broker). These agents can write data into TDengine with simple configuration and without a single line of code. 
-3. Support for [all kinds of queries](/develop/query-data), including aggregation, nested query, downsampling, interpolation and others.
-4. Support for [user defined functions](/develop/udf).
-5. Support for [caching](/develop/cache). TDengine always saves the last data point in cache, so Redis is not needed in some scenarios.
-6. Support for [continuous query](../develop/stream).
-7. Support for [data subscription](../develop/tmq) with the capability to specify filter conditions.
-8. Support for [cluster](../deployment/), with the capability of increasing processing power by adding more nodes. High availability is supported by replication. 
-9. Provides an interactive [command-line interface](/reference/taos-shell) for management, maintenance and ad-hoc queries.
-10. Provides many ways to [import](/operation/import) and [export](/operation/export) data.
-11. Provides [monitoring](/operation/monitor) on running instances of TDengine.
-12. Provides [connectors](/reference/connector/) for [C/C++](/reference/connector/cpp), [Java](/reference/connector/java), [Python](/reference/connector/python), [Go](/reference/connector/go), [Rust](/reference/connector/rust), [Node.js](/reference/connector/node) and other programming languages.
-13. Provides a [REST API](/reference/rest-api/).
-14. Supports seamless integration with [Grafana](/third-party/grafana) for visualization.
-15. Supports seamless integration with Google Data Studio.
+1. Insert data
+    * supports [using SQL to insert](/develop/insert-data/sql-writing).
+    * supports [schemaless writing](/reference/schemaless/) just like NoSQL databases. It also supports standard protocols like [InfluxDB LINE](/develop/insert-data/influxdb-line)，[OpenTSDB Telnet](/develop/insert-data/opentsdb-telnet), [OpenTSDB JSON ](/develop/insert-data/opentsdb-json) among others.
+    * supports seamless integration with third-party tools like [Telegraf](/third-party/telegraf/), [Prometheus](/third-party/prometheus/), [collectd](/third-party/collectd/), [StatsD](/third-party/statsd/), [TCollector](/third-party/tcollector/) and [icinga2/](/third-party/icinga2/), they can write data into TDengine with simple configuration and without a single line of code. 
+2. Query data
+    * supports standard [SQL](/taos-sql/), including nested query.
+    * supports [time series specific functions](/taos-sql/function/#time-series-extensions) and [time series specific queries](/taos-sql/distinguished), like downsampling, interpolation, cumulated sum, time weighted average, state window, session window and many others.
+    * supports [user defined functions](/taos-sql/udf).
+3. [Caching](/develop/cache/): TDengine always saves the last data point in cache, so Redis is not needed for time-series data processing.
+4. [Stream Processing](/develop/stream/): not only is the continuous query is supported, but TDengine also supports even driven stream processing, so Flink or spark is not needed for time-series daata processing. 
+5. [Data Dubscription](/develop/tmq/): application can subscribe a table or a set of tables. API is the same as Kafka, but you can specify filter conditions.
+6. Visualization
+    * supports seamless integration with [Grafana](/third-party/grafana/) for visualization.
+    * supports seamless integration with Google Data Studio.
+7. Cluster
+    * supports [cluster](/deployment/) with the capability of increasing processing power by adding more nodes. 
+    * supports [deployment on Kubernetes](/deployment/k8s/)
+    * supports high availability via data replication. 
+8. Administration
+    * provides [monitoring](/operation/monitor) on running instances of TDengine.
+    * provides many ways to [import](/operation/import) and [export](/operation/export) data.
+9. Tools
+    * provides an interactive [command-line interface](/reference/taos-shell) for management, maintenance and ad-hoc queries.
+    * provides a tool [taosBenchmark](/reference/taosbenchmark/) for testing the performance of TDengine.
+10. Programming
+    * provides [connectors](/reference/connector/) for [C/C++](/reference/connector/cpp), [Java](/reference/connector/java), [Python](/reference/connector/python), [Go](/reference/connector/go), [Rust](/reference/connector/rust), [Node.js](/reference/connector/node) and other programming languages.
+    * provides a [REST API](/reference/rest-api/).
 
 For more details on features, please read through the entire documentation. 
 

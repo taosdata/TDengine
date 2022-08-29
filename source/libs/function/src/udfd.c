@@ -84,6 +84,7 @@ typedef struct SUdf {
   TUdfAggStartFunc   aggStartFunc;
   TUdfAggProcessFunc aggProcFunc;
   TUdfAggFinishFunc  aggFinishFunc;
+  TUdfAggMergeFunc   aggMergeFunc;
 
   TUdfInitFunc    initFunc;
   TUdfDestroyFunc destroyFunc;
@@ -271,6 +272,15 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
 
       break;
     }
+    case TSDB_UDF_CALL_AGG_MERGE: {
+      SUdfInterBuf outBuf = {.buf = taosMemoryMalloc(udf->bufSize), .bufLen = udf->bufSize, .numOfResult = 0};
+      code = udf->aggMergeFunc(&call->interBuf, &call->interBuf2, &outBuf);
+      freeUdfInterBuf(&call->interBuf);
+      freeUdfInterBuf(&call->interBuf2);
+      subRsp->resultBuf = outBuf;
+
+      break;
+    }
     case TSDB_UDF_CALL_AGG_FIN: {
       SUdfInterBuf outBuf = {.buf = taosMemoryMalloc(udf->bufSize), .bufLen = udf->bufSize, .numOfResult = 0};
       code = udf->aggFinishFunc(&call->interBuf, &outBuf);
@@ -306,6 +316,10 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     }
     case TSDB_UDF_CALL_AGG_PROC: {
       blockDataFreeRes(&call->block);
+      freeUdfInterBuf(&subRsp->resultBuf);
+      break;
+    }
+    case TSDB_UDF_CALL_AGG_MERGE: {
       freeUdfInterBuf(&subRsp->resultBuf);
       break;
     }
@@ -560,7 +574,11 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
     strncpy(finishFuncName, processFuncName, strlen(processFuncName));
     strncat(finishFuncName, finishSuffix, strlen(finishSuffix));
     uv_dlsym(&udf->lib, finishFuncName, (void **)(&udf->aggFinishFunc));
-    // TODO: merge
+    char mergeFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
+    char *mergeSuffix = "_merge";
+    strncpy(finishFuncName, processFuncName, strlen(processFuncName));
+    strncat(finishFuncName, mergeSuffix, strlen(mergeSuffix));
+    uv_dlsym(&udf->lib, finishFuncName, (void **)(&udf->aggMergeFunc));
   }
   return 0;
 }

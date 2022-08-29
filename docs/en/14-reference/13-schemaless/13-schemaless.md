@@ -3,7 +3,8 @@ title: Schemaless Writing
 description: "The Schemaless write method eliminates the need to create super tables/sub tables in advance and automatically creates the storage structure corresponding to the data, as it is written to the interface."
 ---
 
-In IoT applications, data is collected for many purposes such as intelligent control, business analysis, device monitoring and so on. Due to changes in business or functional requirements or changes in device hardware, the application logic and even the data collected may change. To provide the flexibility needed in such cases and in a rapidly changing IoT landscape, TDengine provides a series of interfaces for the schemaless writing method. These interfaces eliminate the need to create super tables and subtables in advance by automatically creating the storage structure corresponding to the data as the data is written to the interface. When necessary, schemaless writing will automatically add the required columns to ensure that the data written by the user is stored correctly.
+In IoT applications, data is collected for many purposes such as intelligent control, business analysis, device monitoring and so on. Due to changes in business or functional requirements or changes in device hardware, the application logic and even the data collected may change. Schemaless writing automatically creates storage structures for your data as it is being written to TDengine, so that you do not need to create supertables in advance. When necessary, schemaless writing
+will automatically add the required columns to ensure that the data written by the user is stored correctly.
 
 The schemaless writing method creates super tables and their corresponding subtables. These are completely indistinguishable from the super tables and subtables created directly via SQL. You can write data directly to them via SQL statements. Note that the names of tables created by schemaless writing are based on fixed mapping rules for tag values, so they are not explicitly ideographic and they lack readability.
 
@@ -19,12 +20,12 @@ With the following formatting conventions, schemaless writing uses a single stri
 measurement,tag_set field_set timestamp
 ```
 
-where :
+where:
 
 - measurement will be used as the data table name. It will be separated from tag_set by a comma.
-- tag_set will be used as tag data in the format `<tag_key>=<tag_value>,<tag_key>=<tag_value>`, i.e. multiple tags' data can be separated by a comma. It is separated from field_set by space.
-- field_set will be used as normal column data in the format of `<field_key>=<field_value>,<field_key>=<field_value>`, again using a comma to separate multiple normal columns of data. It is separated from the timestamp by a space.
-- The timestamp is the primary key corresponding to the data in this row.
+- `tag_set` will be used as tags, with format like `<tag_key>=<tag_value>,<tag_key>=<tag_value>` Enter a space between `tag_set` and `field_set`.
+- `field_set`will be used as data columns, with format like `<field_key>=<field_value>,<field_key>=<field_value>` Enter a space between `field_set` and `timestamp`.
+- `timestamp`  is the primary key timestamp corresponding to this row of data
 
 All data in tag_set is automatically converted to the NCHAR data type and does not require double quotes (").
 
@@ -37,16 +38,18 @@ In the schemaless writing data line protocol, each data item in the field_set ne
 
 | **Serial number** | **Postfix** | **Mapping type** | **Size (bytes)** |
 | -------- | -------- | ------------ | -------------- |
-| 1 | none or f64 | double | 8 |
-| 2 | f32 | float | 4 |
-| 3 | i8/u8 | TinyInt/UTinyInt | 1 |
-| 4 | i16/u16 | SmallInt/USmallInt | 2 |
-| 5 | i32/u32 | Int/UInt | 4 |
-| 6 | i64/i/u64/u | Bigint/Bigint/UBigint/UBigint | 8 |
+| 1        | None or f64 | double       | 8              |
+| 2        | f32      | float        | 4              |
+| 3        | i8/u8       | TinyInt/UTinyInt      | 1              |
+| 4        | i16/u16      | SmallInt/USmallInt     | 2              |
+| 5        | i32/u32      | Int/UInt          | 4              |
+| 6        | i64/i/u64/u  | BigInt/BigInt/UBigInt/UBigInt       | 8              |
 
 - `t`, `T`, `true`, `True`, `TRUE`, `f`, `F`, `false`, and `False` will be handled directly as BOOL types.
 
-For example, the following data rows indicate that the t1 label is "3" (NCHAR), the t2 label is "4" (NCHAR), and the t3 label is "t3" to the super table named `st` labeled "t3" (NCHAR), write c1 column as 3 (BIGINT), c2 column as false (BOOL), c3 column is "passit" (BINARY), c4 column is 4 (DOUBLE), and the primary key timestamp is 1626006833639000000 in one row.
+For example, the following data rows indicate that the t1 label is "3" (NCHAR), the t2 label is "4" (NCHAR), and the t3 label
+is "t3" to the super table named `st` labeled "t3" (NCHAR), write c1 column as 3 (BIGINT), c2 column as false (BOOL), c3 column
+is "passit" (BINARY), c4 column is 4 (DOUBLE), and the primary key timestamp is 1626006833639000000 in one row.
 
 ```json
 st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
@@ -65,18 +68,22 @@ Schemaless writes process row data according to the following principles.
 ```
 
 Note that tag_key1, tag_key2 are not the original order of the tags entered by the user but the result of using the tag names in ascending order of the strings. Therefore, tag_key1 is not the first tag entered in the line protocol.
-The string's MD5 hash value "md5_val" is calculated after the ranking is completed. The calculation result is then combined with the string to generate the table name: "t_md5_val". "t*" is a fixed prefix that every table generated by this mapping relationship has.
+The string's MD5 hash value "md5_val" is calculated after the ranking is completed. The calculation result is then combined with the string to generate the table name: "t_md5_val". "t_" is a fixed prefix that every table generated by this mapping relationship has.
+You can configure smlChildTableName to specify table names, for example, `smlChildTableName=tname`. You can insert `st,tname=cpul,t1=4 c1=3 1626006833639000000` and the cpu1 table will be automatically created. Note that if multiple rows have the same tname but different tag_set values, the tag_set of the first row is used to create the table and the others are ignored.
 
 2. If the super table obtained by parsing the line protocol does not exist, this super table is created.
-If the subtable obtained by the parse line protocol does not exist, Schemaless creates the sub-table according to the subtable name determined in steps 1 or 2.
+3. If the subtable obtained by the parse line protocol does not exist, Schemaless creates the sub-table according to the subtable name determined in steps 1 or 2.
 4. If the specified tag or regular column in the data row does not exist, the corresponding tag or regular column is added to the super table (only incremental).
-5. If there are some tag columns or regular columns in the super table that are not specified to take values in a data row, then the values of these columns are set to NULL.
+5. If there are some tag columns or regular columns in the super table that are not specified to take values in a data row, then the values of these columns are set to
+   NULL.
 6. For BINARY or NCHAR columns, if the length of the value provided in a data row exceeds the column type limit, the maximum length of characters allowed to be stored in the column is automatically increased (only incremented and not decremented) to ensure complete preservation of the data.
 7. Errors encountered throughout the processing will interrupt the writing process and return an error code.
-8. In order to improve the efficiency of writing, it is assumed by default that the order of the fields in the same Super is the same (the first data contains all fields, and the following data is in this order). If the order is different, the parameter smlDataFormat needs to be configured to be false. Otherwise, the data is written in the same order, and the data in the library will be abnormal.
+8. It is assumed that the order of field_set in a supertable is consistent, meaning that the first record contains all fields and subsequent records store fields in the same order. If the order is not consistent, set smlDataFormat to false. Otherwise, data will be written out of order and a database error will occur.
 
 :::tip
-All processing logic of schemaless will still follow TDengine's underlying restrictions on data structures, such as the total length of each row of data cannot exceed 16k bytes. See [TAOS SQL Boundary Limits](/taos-sql/limit) for specific constraints in this area.
+All processing logic of schemaless will still follow TDengine's underlying restrictions on data structures, such as the total length of each row of data cannot exceed
+16KB. See [TAOS SQL Boundary Limits](/taos-sql/limit) for specific constraints in this area.
+
 :::
 
 ## Time resolution recognition
@@ -85,75 +92,74 @@ Three specified modes are supported in the schemaless writing process, as follow
 
 | **Serial** | **Value** | **Description** |
 | -------- | ------------------- | ------------------------------- |
-| 1 | SML_LINE_PROTOCOL | InfluxDB Line Protocol |
-| 2 | SML_TELNET_PROTOCOL | OpenTSDB Text Line Protocol |
-| 3 | SML_JSON_PROTOCOL | JSON protocol format |
+| 1        | SML_LINE_PROTOCOL   | InfluxDB Line Protocol |
+| 2        | SML_TELNET_PROTOCOL | OpenTSDB file protocol            |
+| 3        | SML_JSON_PROTOCOL   | OpenTSDB JSON protocol                   |
 
-In the SML_LINE_PROTOCOL parsing mode, the user is required to specify the time resolution of the input timestamp. The available time resolutions are shown in the following table.
+In InfluxDB line protocol mode, you must specify the precision of the input timestamp. Valid precisions are described in the following table.
 
-| **Serial Number** | **Time Resolution Definition** | **Meaning** |
+| **No.** | **Precision**                | **Description**       |
 | -------- | --------------------------------- | -------------- |
-| 1 | TSDB_SML_TIMESTAMP_NOT_CONFIGURED | Not defined (invalid) |
-| 2 | TSDB_SML_TIMESTAMP_HOURS | hour |
-| 3 | TSDB_SML_TIMESTAMP_MINUTES | MINUTES
-| 4 | TSDB_SML_TIMESTAMP_SECONDS | SECONDS
-| 5 | TSDB_SML_TIMESTAMP_MILLI_SECONDS | milliseconds
-| 6 | TSDB_SML_TIMESTAMP_MICRO_SECONDS | microseconds
-| 7 | TSDB_SML_TIMESTAMP_NANO_SECONDS | nanoseconds |
+| 1        | TSDB_SML_TIMESTAMP_NOT_CONFIGURED | Not defined (invalid) |
+| 2        | TSDB_SML_TIMESTAMP_HOURS          | Hours           |
+| 3        | TSDB_SML_TIMESTAMP_MINUTES        | Minutes           |
+| 4        | TSDB_SML_TIMESTAMP_SECONDS        | Seconds             |
+| 5        | TSDB_SML_TIMESTAMP_MILLI_SECONDS  | Milliseconds           |
+| 6        | TSDB_SML_TIMESTAMP_MICRO_SECONDS  | Microseconds           |
+| 7        | TSDB_SML_TIMESTAMP_NANO_SECONDS   | Nanoseconds           |
 
-In SML_TELNET_PROTOCOL and SML_JSON_PROTOCOL modes, the time precision is determined based on the length of the timestamp (in the same way as the OpenTSDB standard operation), and the user-specified time resolution is ignored at this point.
+In OpenTSDB file and JSON protocol modes, the precision of the timestamp is determined from its length in the standard OpenTSDB manner. User input is ignored.
 
-## Data schema mapping rules
+## Data Model Mapping
 
-This section describes how data for line protocols are mapped to data with a schema. The data measurement in each line protocol is mapped as follows:
-- The tag name in tag_set is the name of the tag in the data schema
-- The name in field_set is the column's name. 
-
-The following data is used as an example to illustrate the mapping rules.
+This section describes how data in line protocol is mapped to a schema. The data measurement in each line is mapped to a
+supertable name. The tag name in tag_set is the tag name in the schema, and the name in field_set is the column name in the schema. The following example shows how data is mapped:
 
 ```json
 st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 ```
 
-The row data mapping generates a super table: `st`, which contains three labels of type NCHAR: t1, t2, t3. Five data columns are ts (timestamp), c1 (bigint), c3 (binary), c2 (bool), c4 (bigint). The mapping becomes the following SQL statement.
+This row is mapped to a supertable: `st` contains three NCHAR tags: t1, t2, and t3. Five columns are created: ts (timestamp), c1 (bigint), c3 (binary), c2 (bool), and c4 (bigint). The following SQL statement is generated:
 
 ```json
 create stable st (_ts timestamp, c1 bigint, c2 bool, c3 binary(6), c4 bigint) tags(t1 nchar(1), t2 nchar(1), t3 nchar(2))
 ```
 
-## Data schema change handling
+## Processing Schema Changes
 
-This section describes the impact on the data schema for different line protocol data writing cases.
+This section describes the impact on the schema caused by different data being written.
 
-When writing to an explicitly identified field type using the line protocol, subsequent changes to the field's type definition will result in an explicit data schema error, i.e., will trigger a write API report error. As shown below, the
-
-```json
-st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4 1626006833639000000
-st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4i 1626006833640000000
-```
-
-The data type mapping in the first row defines column c4 as DOUBLE, but the data in the second row is declared as BIGINT by the numeric suffix, which triggers a parsing error with schemaless writing.
-
-If the line protocol before the column declares the data column as BINARY, the subsequent one requires a longer binary length, which triggers a super table schema change.
+If you use line protocol to write to a specific tag field and then later change the field type, a schema error will ocur. This triggers an error on the write API. This is shown as follows:
 
 ```json
-st,t1=3,t2=4,t3=t3 c1=3i64,c5="pass" 1626006833639000000
-st,t1=3,t2=4,t3=t3 c1=3i64,c5="passit" 1626006833640000000
+st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4    1626006833639000000
+st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4i   1626006833640000000
 ```
 
-The first line of the line protocol parsing will declare column c5 is a BINARY(4) field. The second line data write will parse column c5 as a BINARY column. But in the second line, c5's width is 6 so you need to increase the width of the BINARY field to be able to accommodate the new string.
+The first row defines c4 as a double. However, in the second row, the suffix indicates that the value of c4 is a bigint. This causes schemaless writing to throw an error.
+
+An error also occurs if data input into a binary column exceeds the defined length of the column.
 
 ```json
-st,t1=3,t2=4,t3=t3 c1=3i64 1626006833639000000
-st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit" 1626006833640000000
+st,t1=3,t2=4,t3=t3 c1=3i64,c5="pass"     1626006833639000000
+st,t1=3,t2=4,t3=t3 c1=3i64,c5="passit"   1626006833640000000
 ```
 
-The second line of data has an additional column c6 of type BINARY(6) compared to the first row. Then a column c6 of type BINARY(6) is automatically added at this point.
+The first row defines c5 as a binary(4). but the second row writes 6 bytes to it. This means that the length of the binary column must be expanded to contain the data.
 
-## Write integrity
+```json
+st,t1=3,t2=4,t3=t3 c1=3i64               1626006833639000000
+st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
+```
 
-TDengine provides idempotency guarantees for data writing, i.e., you can repeatedly call the API to write data with errors. However, it does not give atomicity guarantees for writing multiple rows of data. During the process of writing numerous rows of data in one batch, some data will be written successfully, and some data will fail.
+The preceding data includes a new entry, c6, with type binary(6). When this occurs, a new column c6 with type binary(6) is added automatically.
 
-## Error code
+## Write Integrity
 
-If it is an error in the data itself during the schemaless writing process, the application will get `TSDB_CODE_TSC_LINE_SYNTAX_ERROR` error message, which indicates that the error occurred in writing. The other error codes are consistent with the TDengine and can be obtained via the `taos_errstr()` to get the specific cause of the error.
+TDengine guarantees the idempotency of data writes. This means that you can repeatedly call the API to perform write operations with bad data. However, TDengine does not guarantee the atomicity of multi-row writes. In a multi-row write, some data may be written successfully and other data unsuccessfully.
+
+##: Error Codes
+
+The TSDB_CODE_TSC_LINE_SYNTAX_ERROR indicates an error in the schemaless writing component.
+This error occurs when writing text. For other errors, schemaless writing uses the standard TDengine error codes
+found in taos_errstr.

@@ -79,6 +79,7 @@ extern "C" {
 #include <wchar.h>
 #include <wctype.h>
 
+#include "taoserror.h"
 #include "osAtomic.h"
 #include "osDef.h"
 #include "osDir.h"
