@@ -280,13 +280,13 @@ struct SPage {
 
 static inline i32 tdbRefPage(SPage *pPage) {
   i32 nRef = atomic_add_fetch_32(&((pPage)->nRef), 1);
-  tdbTrace("ref page %d, nRef %d", pPage->id, nRef);
+  tdbTrace("ref page %p/%d, nRef %d", pPage, pPage->id, nRef);
   return nRef;
 }
 
 static inline i32 tdbUnrefPage(SPage *pPage) {
   i32 nRef = atomic_sub_fetch_32(&((pPage)->nRef), 1);
-  tdbTrace("unref page %d, nRef %d", pPage->id, nRef);
+  tdbTrace("unref page %p/%d, nRef %d", pPage, pPage->id, nRef);
   return nRef;
 }
 
